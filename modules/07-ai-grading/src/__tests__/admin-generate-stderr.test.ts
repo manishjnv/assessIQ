@@ -398,6 +398,49 @@ describe("handleAdminGenerate — sharded per-chunk stderr_tail aggregation", ()
     },
   );
 
+  // ── RV64: exactly one finalize UPDATE on all-chunks-fail ────────────────
+  it.skipIf(!dockerAvailable)(
+    "all-failed: generation_attempts row is finalized by exactly ONE UPDATE",
+    async () => {
+      const { packId, levelId } = await withSuperClient((c) =>
+        seedPack(c, TENANT_ID, ADMIN_ID),
+      );
+      // Count UPDATEs per attempt row with a trigger (dropped again below).
+      await withSuperClient(async (c) => {
+        await c.query(`CREATE TABLE IF NOT EXISTS ga_update_log (id uuid)`);
+        await c.query(
+          `CREATE OR REPLACE FUNCTION ga_update_log_fn() RETURNS trigger AS $$
+           BEGIN INSERT INTO ga_update_log VALUES (NEW.id); RETURN NEW; END $$ LANGUAGE plpgsql`,
+        );
+        await c.query(
+          `CREATE TRIGGER ga_update_log_trg BEFORE UPDATE ON generation_attempts
+           FOR EACH ROW EXECUTE FUNCTION ga_update_log_fn()`,
+        );
+      });
+      try {
+        mockGenerateQuestionsByType.mockRejectedValueOnce(makeChunkError("a"));
+        mockGenerateQuestionsByType.mockRejectedValueOnce(makeChunkError("b"));
+        await expect(runSharded(packId, levelId)).rejects.toBeDefined();
+
+        const updates = await withSuperClient(async (c) => {
+          const r = await c.query(
+            `SELECT count(*)::int AS n FROM ga_update_log l
+               JOIN generation_attempts g ON g.id = l.id
+              WHERE g.pack_id = $1 AND g.level_id = $2`,
+            [packId, levelId],
+          );
+          return (r.rows[0] as { n: number }).n;
+        });
+        expect(updates).toBe(1);
+      } finally {
+        await withSuperClient(async (c) => {
+          await c.query(`DROP TRIGGER IF EXISTS ga_update_log_trg ON generation_attempts`);
+          await c.query(`DROP TABLE IF EXISTS ga_update_log`);
+        });
+      }
+    },
+  );
+
   // ── Scenario 3: Empty-stderr path ───────────────────────────────────────
   it.skipIf(!dockerAvailable)(
     "chunk error without stderrTail: buffer entry says (none) without crashing",

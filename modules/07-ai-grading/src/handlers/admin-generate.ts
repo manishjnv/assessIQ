@@ -395,6 +395,203 @@ async function tryFinalizeAttempt(
 }
 
 // ---------------------------------------------------------------------------
+// Shared generation plan (RV64)
+// ---------------------------------------------------------------------------
+
+/** Maximum concurrent runtime calls inside one generation plan. */
+const PLAN_CONCURRENCY = 2;
+
+/** One runtime call in a generation plan (one type shard or one omnibus chunk). */
+interface GenerationChunk {
+  /** Used in the aggregated stderr header ("--- chunk: <label> ---"). */
+  label: string;
+  /** Extra fields for the per-chunk log lines (e.g. { type } or { chunk }). */
+  logFields: Record<string, unknown>;
+  /** Runs the runtime call; `focus` carries the optional topicFocus (RV62). */
+  run: (focus: { topicFocus?: string }) => Promise<GenerateQuestionsOutput>;
+}
+
+/** Counters the finally block of handleAdminGenerate reads to finalize the attempt row. */
+interface GenerationStats {
+  chunksFailed?: number;
+  citationDropped?: number;
+  dedupeDropped?: number;
+  difficultyDropped?: number;
+  /** Aggregated per-chunk stderr; null when no chunk failed. */
+  stderrTail: string | null;
+}
+
+/**
+ * Runs every chunk (concurrency 2, allSettled semantics), then citation filter,
+ * topic de-dup (vs existing + already-merged), difficulty gate, insert and one
+ * audit row. Single code path for sharded / single-call / chunked omnibus.
+ * Throws the first chunk error when every chunk failed (the caller's finally
+ * block finalizes the generation_attempts row — never finalize here).
+ */
+async function runGenerationPlan(
+  client: PoolClient,
+  input: HandleAdminGenerateInput,
+  attemptId: string,
+  mode: "omnibus" | "sharded",
+  logPrefix: "sharded" | "omnibus" | "chunked",
+  chunks: GenerationChunk[],
+  chunkEvents: { ok: string; fail: string } | null,
+  stats: GenerationStats,
+): Promise<HandleAdminGenerateOutput & { _model?: string }> {
+  const focus: { topicFocus?: string } = {};
+  const settled = await withConcurrencyLimit(chunks, PLAN_CONCURRENCY, (c) => {
+    const start = Date.now();
+    return c.run(focus).then((output) => {
+      if (chunkEvents !== null) {
+        log.info(
+          {
+            attemptId,
+            ...c.logFields,
+            generated: output.questions.length,
+            durationMs: Date.now() - start,
+            ...(logPrefix === "sharded" ? { wrongTypeDropped: output.wrongTypeDropped ?? 0 } : {}),
+          },
+          chunkEvents.ok,
+        );
+      }
+      return output;
+    });
+  });
+
+  const fulfilled: GenerateQuestionsOutput[] = [];
+  let firstError: unknown = null;
+  let failed = 0;
+  let totalWrongTypeDropped = 0;
+  const stderrParts: string[] = [];
+  for (let i = 0; i < settled.length; i++) {
+    const r = settled[i]!;
+    if (r.status === "fulfilled") {
+      const out = r.value as GenerateQuestionsOutput;
+      fulfilled.push(out);
+      totalWrongTypeDropped += out.wrongTypeDropped ?? 0;
+    } else {
+      failed++;
+      if (firstError === null) firstError = r.reason;
+      const details = (r.reason as { details?: { stderrTail?: unknown } } | undefined)?.details;
+      const stderrEntry = typeof details?.stderrTail === "string" ? details.stderrTail : "(none)";
+      stderrParts.push(`--- chunk: ${chunks[i]?.label ?? "unknown"} ---\n${stderrEntry}\n`);
+      if (chunkEvents !== null) {
+        log.warn({ attemptId, err: (r.reason as Error).message }, chunkEvents.fail);
+      }
+    }
+  }
+  stats.chunksFailed = failed;
+  stats.stderrTail = stderrParts.length === 0 ? null : stderrParts.join("").slice(-1024);
+  if (fulfilled.length === 0) throw firstError;
+
+  // Citation enforcement (mechanical; see filterByCitation).
+  const validSourceIds = new Set(input.sources.map((s) => s.id));
+  let citationDropped = 0;
+  const cited = fulfilled.map((chunk) =>
+    filterByCitation(chunk.questions, validSourceIds, (q, invalidIds) => {
+      citationDropped++;
+      log.warn(
+        {
+          attemptId,
+          type: (q as GeneratedQuestionDraft).type,
+          topic: (q as GeneratedQuestionDraft).topic,
+          invalidIds: invalidIds.slice(0, 5),
+          sample_valid_id: validSourceIds.values().next().value,
+        },
+        `generation.${logPrefix}.citation.dropped`,
+      );
+    }),
+  );
+  stats.citationDropped = citationDropped;
+  log.info(
+    { attemptId, citationDropped, totalDroppedForCitation: citationDropped },
+    `generation.${logPrefix}.citation.summary`,
+  );
+
+  // Merge + topic de-dup (case-insensitive) vs existingTopics AND already-merged questions.
+  const seenTopics = new Set(input.existingTopics.map((t) => t.trim().toLowerCase()));
+  const merged: GeneratedQuestionDraft[] = [];
+  let dedupeDropped = 0;
+  for (const qs of cited) {
+    for (const q of qs) {
+      const normalised = q.topic.trim().toLowerCase();
+      if (seenTopics.has(normalised)) {
+        dedupeDropped++;
+      } else {
+        seenTopics.add(normalised);
+        merged.push(q);
+      }
+    }
+  }
+  stats.dedupeDropped = dedupeDropped + totalWrongTypeDropped;
+  log.info(
+    {
+      attemptId,
+      totalGenerated: merged.length,
+      dedupeDropped,
+      wrongTypeDropped: totalWrongTypeDropped,
+      chunksFailed: failed,
+    },
+    `generation.${logPrefix}.complete`,
+  );
+
+  // Structural difficulty gate (Phase A3) — after citation + dedupe.
+  let difficultyDropped = 0;
+  const gated = filterByDifficulty(merged, input.difficulty?.validate, (q, reason) => {
+    difficultyDropped++;
+    log.warn(
+      { attemptId, type: q.type, topic: q.topic, reason },
+      `generation.${logPrefix}.difficulty.dropped`,
+    );
+  });
+  stats.difficultyDropped = difficultyDropped;
+
+  // Skill sha(s) + model come from the runtime output, never hardcoded.
+  const skillSha = fulfilled.map((o) => o.skillSha).join(",").slice(0, 200);
+  const model = fulfilled[0]!.model;
+  const mergedOutput: GenerateQuestionsOutput = {
+    questions: gated,
+    skillSha,
+    ...(model !== undefined ? { model } : {}),
+  };
+
+  const ids = await insertDrafts(client, input, mergedOutput, attemptId);
+
+  await auditInTx(client, {
+    action: "question.ai_generated",
+    actorKind: "user",
+    actorUserId: input.userId,
+    tenantId: input.tenantId,
+    entityType: "question",
+    after: {
+      generation_attempt_id: attemptId,
+      pack_id: input.packId,
+      level_id: input.levelId,
+      count_requested: input.count,
+      count_inserted: ids.length,
+      skill_sha: skillSha,
+      model,
+      mode,
+      question_ids: ids.slice(0, 50),
+    },
+  });
+
+  log.info(
+    {
+      attemptId,
+      tenantId: input.tenantId,
+      packId: input.packId,
+      levelId: input.levelId,
+      generated: ids.length,
+      skillSha,
+    },
+    "generation.complete",
+  );
+
+  return { questionIds: ids, generated: ids.length, skillSha, _model: model } as HandleAdminGenerateOutput & { _model?: string };
+}
+
+// ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
 
@@ -475,15 +672,11 @@ export async function handleAdminGenerate(
   // Mutable tracking variables — written inside the withTenant closure,
   // read in the finally block to finalize the attempt row.
   let chunksPlanned: number | undefined;
-  let chunksFailed: number | undefined;
-  let dedupeDroppedCount: number | undefined;
-  let citationDroppedCount: number | undefined;
-  let difficultyDroppedCount: number | undefined;
   let capturedOutput: HandleAdminGenerateOutput | undefined;
   let capturedErr: unknown;
-  // Aggregated per-chunk stderr from the sharded path.  Null on omnibus paths
-  // or when no sharded chunk failed.  Written inside withTenant, read in finally.
-  let aggregatedStderrTail: string | null = null;
+  // Counters + aggregated per-chunk stderr, written by runGenerationPlan
+  // inside withTenant and read in the finally block.
+  const stats: GenerationStats = { stderrTail: null };
 
   try {
     capturedOutput = await withTenant(input.tenantId, async (client) => {
@@ -500,17 +693,14 @@ export async function handleAdminGenerate(
       // generateMode='omnibus' (default) → existing chunked/single path.
       // generateMode='sharded' → per-type fan-out path (Stage 1).
       if (generateMode === "sharded") {
-        // ── Sharded path ──────────────────────────────────────────────────
+        // ── Sharded path: one runtime call per non-zero question type ─────
         const baseAllocation = allocateByWeight(input.socLevel, input.count);
 
         // Apply per-type admin overrides when provided; otherwise use the
         // pure weight-based allocation unchanged.
-        const typeAllocation = input.typeCounts
+        const shardedAllocation = input.typeCounts
           ? applyOverride(baseAllocation, input.typeCounts)
           : baseAllocation;
-
-        const shardedAllocation = { ...typeAllocation };
-        // subjective is now its own skill — no fold.
 
         // Build one GenerateByTypeInput per non-zero type
         const typeEntries = (
@@ -538,349 +728,49 @@ export async function handleAdminGenerate(
           difficulty: input.difficulty?.byType[type] ?? null,
         }));
 
-        // 2-concurrent semaphore fan-out
-        const SHARDED_CONCURRENCY = 2;
-        const settled = await withConcurrencyLimit(
-          typeInputs,
-          SHARDED_CONCURRENCY,
-          (ti) => {
-            const typeStart = Date.now();
-            return generateQuestionsByType(ti).then((output) => {
-              log.info(
-                {
-                  attemptId,
-                  type: ti.type,
-                  generated: output.questions.length,
-                  durationMs: Date.now() - typeStart,
-                  wrongTypeDropped: output.wrongTypeDropped ?? 0,
-                },
-                "generation.sharded.type.complete",
-              );
-              return output;
-            });
-          },
+        return runGenerationPlan(
+          client,
+          input,
+          attemptId,
+          "sharded",
+          "sharded",
+          typeInputs.map((ti) => ({
+            label: ti.type,
+            logFields: { type: ti.type },
+            run: (focus) => generateQuestionsByType({ ...ti, ...focus }),
+          })),
+          { ok: "generation.sharded.type.complete", fail: "generation.sharded.type.failed" },
+          stats,
         );
-
-        const fulfilled: GenerateQuestionsOutput[] = [];
-        let firstError: unknown = null;
-        let localChunksFailed = 0;
-        let totalWrongTypeDropped = 0;
-        const chunkStderrParts: string[] = [];
-        for (let i = 0; i < settled.length; i++) {
-          const r = settled[i]!;
-          if (r.status === "fulfilled") {
-            const out = r.value as GenerateQuestionsOutput;
-            fulfilled.push(out);
-            totalWrongTypeDropped += out.wrongTypeDropped ?? 0;
-          } else {
-            localChunksFailed++;
-            if (firstError === null) firstError = r.reason;
-            const chunkType = typeInputs[i]?.type ?? "unknown";
-            const chunkErrDetails = (r.reason as { details?: { stderrTail?: unknown } }).details;
-            const stderrEntry =
-              typeof chunkErrDetails?.stderrTail === "string"
-                ? chunkErrDetails.stderrTail
-                : "(none)";
-            chunkStderrParts.push(`--- chunk: ${chunkType} ---\n${stderrEntry}\n`);
-            log.warn(
-              { attemptId, err: (r.reason as Error).message },
-              "generation.sharded.type.failed",
-            );
-          }
-        }
-        chunksFailed = localChunksFailed;
-
-        // Persist aggregated stderr into the outer scope so the finally block
-        // can write it to generation_attempts.stderr_tail regardless of path.
-        aggregatedStderrTail =
-          chunkStderrParts.length === 0
-            ? null
-            : chunkStderrParts.join("").slice(-1024);
-
-        if (fulfilled.length === 0) {
-          // All chunks failed.  Finalize the row NOW (before the throw) so
-          // generation_attempts.stderr_tail carries the aggregated diagnostic
-          // from every failed chunk, not just the first error's details.
-          if (attemptInserted) {
-            await tryFinalizeAttempt(input.tenantId, attemptId, {
-              status: "failed",
-              errorCode: (firstError as { code?: string })?.code ?? null,
-              errorMessage: (firstError as Error)?.message?.slice(0, 1024) ?? null,
-              stderrTail: aggregatedStderrTail,
-              chunksPlanned: chunksPlanned ?? null,
-              chunksFailed: localChunksFailed,
-              durationMs: Date.now() - generationStartedAt,
-            });
-          }
-          throw firstError;
-        }
-
-        // ── Citation enforcement ───────────────────────────────────────────
-        // Drop any question whose knowledge_base_source_ids contains values
-        // not present verbatim in input.sources[].id.  Empty id arrays are
-        // also dropped — at least one valid source is required.
-        const validSourceIds = new Set(input.sources.map((s) => s.id));
-        let citationDropped = 0;
-        const filteredOutputs: GenerateQuestionsOutput[] = [];
-        for (const chunk of fulfilled) {
-          const kept = filterByCitation(
-            chunk.questions,
-            validSourceIds,
-            (q, invalidIds) => {
-              citationDropped++;
-              log.warn(
-                {
-                  attemptId,
-                  type: (q as GeneratedQuestionDraft).type,
-                  topic: (q as GeneratedQuestionDraft).topic,
-                  invalidIds: invalidIds.slice(0, 5),
-                  sample_valid_id: validSourceIds.values().next().value,
-                },
-                "generation.sharded.citation.dropped",
-              );
-            },
-          );
-          filteredOutputs.push({ ...chunk, questions: kept });
-        }
-        citationDroppedCount = citationDropped;
-        log.info(
-          { attemptId, citationDropped, totalDroppedForCitation: citationDropped },
-          "generation.sharded.citation.summary",
-        );
-
-        // Merge + topic-dedupe (case-insensitive, compare against
-        // existingTopics + already-merged questions)
-        const seenTopics = new Set(
-          input.existingTopics.map((t) => t.trim().toLowerCase()),
-        );
-        const mergedQuestions: GenerateQuestionsOutput["questions"] = [];
-        let dedupeDropped = 0;
-
-        for (const chunkOutput of filteredOutputs) {
-          for (const q of chunkOutput.questions) {
-            const normalised = q.topic.trim().toLowerCase();
-            if (seenTopics.has(normalised)) {
-              dedupeDropped++;
-            } else {
-              seenTopics.add(normalised);
-              mergedQuestions.push(q);
-            }
-          }
-        }
-        dedupeDroppedCount = dedupeDropped + totalWrongTypeDropped;
-
-        log.info(
-          {
-            attemptId,
-            totalGenerated: mergedQuestions.length,
-            dedupeDropped,
-            wrongTypeDropped: totalWrongTypeDropped,
-            chunksFailed: localChunksFailed,
-          },
-          "generation.sharded.complete",
-        );
-
-        // Collect per-type skill SHAs (comma-joined, truncated to 200 chars)
-        const skillShas = fulfilled.map((o) => o.skillSha).join(",").slice(0, 200);
-        const model = "claude-sonnet-4-6";
-
-        // ── Structural difficulty gate (Phase A3) ─────────────────────────
-        // Runs after citation + dedupe. Drops questions failing the per-(type,
-        // level) structural bounds (e.g. L1 mcq without 4 options). No-op when
-        // difficulty was not injected.
-        let shardedDifficultyDropped = 0;
-        const shardedGated = filterByDifficulty(
-          mergedQuestions,
-          input.difficulty?.validate,
-          (q, reason) => {
-            shardedDifficultyDropped++;
-            log.warn(
-              { attemptId, type: q.type, topic: q.topic, reason },
-              "generation.sharded.difficulty.dropped",
-            );
-          },
-        );
-        difficultyDroppedCount = shardedDifficultyDropped;
-
-        const mergedOutput: GenerateQuestionsOutput = {
-          questions: shardedGated,
-          skillSha: skillShas,
-          model,
-        };
-
-        // Single transaction insert
-        const ids = await insertDrafts(client, input, mergedOutput, attemptId);
-
-        await auditInTx(client, {
-          action: "question.ai_generated",
-          actorKind: "user",
-          actorUserId: input.userId,
-          tenantId: input.tenantId,
-          entityType: "question",
-          after: {
-            generation_attempt_id: attemptId,
-            pack_id: input.packId,
-            level_id: input.levelId,
-            count_requested: input.count,
-            count_inserted: ids.length,
-            skill_sha: skillShas,
-            model,
-            mode: "sharded",
-            question_ids: ids.slice(0, 50),
-          },
-        });
-
-        log.info(
-          {
-            attemptId,
-            tenantId: input.tenantId,
-            packId: input.packId,
-            levelId: input.levelId,
-            generated: ids.length,
-            skillSha: skillShas,
-          },
-          "generation.complete",
-        );
-
-        return {
-          questionIds: ids,
-          generated: ids.length,
-          skillSha: skillShas,
-          _model: model,
-        } as HandleAdminGenerateOutput & { _model?: string };
       }
 
-      if (input.count <= CHUNK_SIZE) {
-        // ── Single-call path (count 1-10, omnibus) ───────────────────────
-        // type_counts is intentionally ignored by the omnibus skill — the
-        // skill does its own mixing. Log at debug for traceability.
-        if (input.typeCounts !== undefined) {
-          log.debug(
-            { attemptId, typeCounts: input.typeCounts },
-            "generation.omnibus.type_counts.ignored",
-          );
-        }
-        chunksPlanned = 1;
-        const genInput: GenerateQuestionsInput = {
-          level: input.socLevel,
-          count: input.count,
-          existingTopics: input.existingTopics,
-          sources: input.sources,
-          packId: input.packId,
-          levelId: input.levelId,
-          difficulty: input.difficulty?.byType ?? null,
-        };
-
-        const output = await generateQuestions(genInput);
-
-        // Citation enforcement — same filter as the sharded path.
-        const validSourceIdsOmnibus = new Set(input.sources.map((s) => s.id));
-        let citationDroppedOmnibus = 0;
-        const filteredSingleQuestions = filterByCitation(
-          output.questions,
-          validSourceIdsOmnibus,
-          (q, invalidIds) => {
-            citationDroppedOmnibus++;
-            log.warn(
-              {
-                attemptId,
-                type: (q as GeneratedQuestionDraft).type,
-                topic: (q as GeneratedQuestionDraft).topic,
-                invalidIds: invalidIds.slice(0, 5),
-                sample_valid_id: validSourceIdsOmnibus.values().next().value,
-              },
-              "generation.omnibus.citation.dropped",
-            );
-          },
-        );
-        citationDroppedCount = citationDroppedOmnibus;
-        log.info(
-          { attemptId, citationDropped: citationDroppedOmnibus, totalDroppedForCitation: citationDroppedOmnibus },
-          "generation.omnibus.citation.summary",
-        );
-
-        // ── Structural difficulty gate (Phase A3) ─────────────────────────
-        let singleDifficultyDropped = 0;
-        const singleGated = filterByDifficulty(
-          filteredSingleQuestions,
-          input.difficulty?.validate,
-          (q, reason) => {
-            singleDifficultyDropped++;
-            log.warn(
-              { attemptId, type: q.type, topic: q.topic, reason },
-              "generation.omnibus.difficulty.dropped",
-            );
-          },
-        );
-        difficultyDroppedCount = singleDifficultyDropped;
-
-        const filteredSingleOutput: GenerateQuestionsOutput = {
-          ...output,
-          questions: singleGated,
-        };
-
-        const ids = await insertDrafts(client, input, filteredSingleOutput, attemptId);
-
-        await auditInTx(client, {
-          action: "question.ai_generated",
-          actorKind: "user",
-          actorUserId: input.userId,
-          tenantId: input.tenantId,
-          entityType: "question",
-          after: {
-            generation_attempt_id: attemptId,
-            pack_id: input.packId,
-            level_id: input.levelId,
-            count_requested: input.count,
-            count_inserted: ids.length,
-            skill_sha: output.skillSha,
-            model: output.model,
-            mode: "omnibus",
-            question_ids: ids.slice(0, 50),
-          },
-        });
-
-        log.info(
-          {
-            attemptId,
-            tenantId: input.tenantId,
-            packId: input.packId,
-            levelId: input.levelId,
-            generated: ids.length,
-            skillSha: output.skillSha,
-          },
-          "generation.complete",
-        );
-
-        return {
-          questionIds: ids,
-          generated: ids.length,
-          skillSha: output.skillSha,
-          _model: output.model,
-        } as HandleAdminGenerateOutput & { _model?: string };
-      }
-
-      // ── Parallel fan-out path (count 11-30, omnibus) ─────────────────────
-      // type_counts is intentionally ignored by the omnibus skill.
+      // type_counts is intentionally ignored by the omnibus skill — the
+      // skill does its own mixing. Log at debug for traceability.
       if (input.typeCounts !== undefined) {
         log.debug(
           { attemptId, typeCounts: input.typeCounts },
           "generation.omnibus.type_counts.ignored",
         );
       }
-      const totalChunks = Math.min(Math.ceil(input.count / CHUNK_SIZE), MAX_PARALLEL);
-      chunksPlanned = totalChunks;
-      const plan: number[] = [];
-      for (let i = 0; i < totalChunks; i++) {
-        plan.push(Math.min(CHUNK_SIZE, input.count - i * CHUNK_SIZE));
+
+      // Omnibus: one call (count 1-10) or up to MAX_PARALLEL chunks (11-30).
+      const single = input.count <= CHUNK_SIZE;
+      const counts: number[] = [];
+      if (single) {
+        counts.push(input.count);
+      } else {
+        const totalChunks = Math.min(Math.ceil(input.count / CHUNK_SIZE), MAX_PARALLEL);
+        for (let i = 0; i < totalChunks; i++) {
+          counts.push(Math.min(CHUNK_SIZE, input.count - i * CHUNK_SIZE));
+        }
+        log.info(
+          { attemptId, count: input.count, chunks: totalChunks, plan: counts },
+          "generation.chunked.start",
+        );
       }
+      chunksPlanned = counts.length;
 
-      log.info(
-        { attemptId, count: input.count, chunks: totalChunks, plan },
-        "generation.chunked.start",
-      );
-
-      const chunkInputs: GenerateQuestionsInput[] = plan.map((chunkCount) => ({
+      const chunkInputs: GenerateQuestionsInput[] = counts.map((chunkCount) => ({
         level: input.socLevel,
         count: chunkCount,
         existingTopics: input.existingTopics,
@@ -890,157 +780,20 @@ export async function handleAdminGenerate(
         difficulty: input.difficulty?.byType ?? null,
       }));
 
-      const settled = await Promise.allSettled(
-        chunkInputs.map((ci, i) => {
-          const chunkStart = Date.now();
-          return generateQuestions(ci).then((output) => {
-            log.info(
-              { attemptId, chunk: i, generated: output.questions.length, durationMs: Date.now() - chunkStart },
-              "generation.chunked.chunk",
-            );
-            return output;
-          });
-        }),
+      return runGenerationPlan(
+        client,
+        input,
+        attemptId,
+        "omnibus",
+        single ? "omnibus" : "chunked",
+        chunkInputs.map((ci, i) => ({
+          label: single ? "omnibus" : String(i),
+          logFields: { chunk: i },
+          run: (focus) => generateQuestions({ ...ci, ...focus }),
+        })),
+        single ? null : { ok: "generation.chunked.chunk", fail: "generation.chunked.chunk.failed" },
+        stats,
       );
-
-      const fulfilled: GenerateQuestionsOutput[] = [];
-      let firstError: unknown = null;
-      let localChunksFailed = 0;
-      for (const r of settled) {
-        if (r.status === "fulfilled") {
-          fulfilled.push(r.value);
-        } else {
-          localChunksFailed++;
-          if (firstError === null) firstError = r.reason;
-          log.warn(
-            { attemptId, err: (r.reason as Error).message },
-            "generation.chunked.chunk.failed",
-          );
-        }
-      }
-      chunksFailed = localChunksFailed;
-
-      if (fulfilled.length === 0) {
-        throw firstError;
-      }
-
-      // Citation enforcement — same filter as the sharded path.
-      const validSourceIdsChunked = new Set(input.sources.map((s) => s.id));
-      let citationDroppedChunked = 0;
-      const filteredChunks: GenerateQuestionsOutput[] = [];
-      for (const chunk of fulfilled) {
-        const kept = filterByCitation(
-          chunk.questions,
-          validSourceIdsChunked,
-          (q, invalidIds) => {
-            citationDroppedChunked++;
-            log.warn(
-              {
-                attemptId,
-                type: (q as GeneratedQuestionDraft).type,
-                topic: (q as GeneratedQuestionDraft).topic,
-                invalidIds: invalidIds.slice(0, 5),
-                sample_valid_id: validSourceIdsChunked.values().next().value,
-              },
-              "generation.chunked.citation.dropped",
-            );
-          },
-        );
-        filteredChunks.push({ ...chunk, questions: kept });
-      }
-      citationDroppedCount = citationDroppedChunked;
-      log.info(
-        { attemptId, citationDropped: citationDroppedChunked, totalDroppedForCitation: citationDroppedChunked },
-        "generation.chunked.citation.summary",
-      );
-
-      const seenTopics = new Set(
-        input.existingTopics.map((t) => t.trim().toLowerCase()),
-      );
-      const mergedQuestions: GenerateQuestionsOutput["questions"] = [];
-      let dedupeDropped = 0;
-
-      for (const chunkOutput of filteredChunks) {
-        for (const q of chunkOutput.questions) {
-          const normalised = q.topic.trim().toLowerCase();
-          if (seenTopics.has(normalised)) {
-            dedupeDropped++;
-          } else {
-            seenTopics.add(normalised);
-            mergedQuestions.push(q);
-          }
-        }
-      }
-      dedupeDroppedCount = dedupeDropped;
-
-      log.info(
-        { attemptId, totalGenerated: mergedQuestions.length, dedupeDropped },
-        "generation.chunked.complete",
-      );
-
-      const skillSha = fulfilled[0]!.skillSha;
-      const model = fulfilled[0]!.model;
-
-      // ── Structural difficulty gate (Phase A3) ───────────────────────────
-      let chunkedDifficultyDropped = 0;
-      const chunkedGated = filterByDifficulty(
-        mergedQuestions,
-        input.difficulty?.validate,
-        (q, reason) => {
-          chunkedDifficultyDropped++;
-          log.warn(
-            { attemptId, type: q.type, topic: q.topic, reason },
-            "generation.chunked.difficulty.dropped",
-          );
-        },
-      );
-      difficultyDroppedCount = chunkedDifficultyDropped;
-
-      const mergedOutput: GenerateQuestionsOutput = {
-        questions: chunkedGated,
-        skillSha,
-        ...(model !== undefined ? { model } : {}),
-      };
-
-      const ids = await insertDrafts(client, input, mergedOutput, attemptId);
-
-      await auditInTx(client, {
-        action: "question.ai_generated",
-        actorKind: "user",
-        actorUserId: input.userId,
-        tenantId: input.tenantId,
-        entityType: "question",
-        after: {
-          generation_attempt_id: attemptId,
-          pack_id: input.packId,
-          level_id: input.levelId,
-          count_requested: input.count,
-          count_inserted: ids.length,
-          skill_sha: fulfilled[0]!.skillSha,
-          model: fulfilled[0]!.model,
-          mode: "omnibus",
-          question_ids: ids.slice(0, 50),
-        },
-      });
-
-      log.info(
-        {
-          attemptId,
-          tenantId: input.tenantId,
-          packId: input.packId,
-          levelId: input.levelId,
-          generated: ids.length,
-          skillSha,
-        },
-        "generation.complete",
-      );
-
-      return {
-        questionIds: ids,
-        generated: ids.length,
-        skillSha,
-        _model: model,
-      } as HandleAdminGenerateOutput & { _model?: string };
     });
   } catch (err) {
     capturedErr = err;
@@ -1061,8 +814,8 @@ export async function handleAdminGenerate(
         // the first failed chunk).  Falls back to the error's stderrTail for
         // non-sharded failures (omnibus single-call / omnibus chunked).
         const stderrTail =
-          aggregatedStderrTail !== null
-            ? aggregatedStderrTail
+          stats.stderrTail !== null
+            ? stats.stderrTail
             : typeof ae.details?.["stderrTail"] === "string"
               ? (ae.details["stderrTail"] as string)
               : null;
@@ -1072,24 +825,24 @@ export async function handleAdminGenerate(
           errorMessage: ae.message?.slice(0, 1024) ?? null,
           stderrTail,
           chunksPlanned: chunksPlanned ?? null,
-          chunksFailed: chunksFailed ?? null,
+          chunksFailed: stats.chunksFailed ?? null,
           durationMs,
         });
       } else if (capturedOutput !== undefined) {
         const out = capturedOutput as HandleAdminGenerateOutput & { _model?: string };
-        const status = (chunksFailed ?? 0) > 0 ? "partial" : "success";
+        const status = (stats.chunksFailed ?? 0) > 0 ? "partial" : "success";
         await tryFinalizeAttempt(input.tenantId, attemptId, {
           status,
           countInserted: out.generated,
           skillSha: out.skillSha,
           model: out._model ?? null,
           chunksPlanned: chunksPlanned ?? null,
-          chunksFailed: chunksFailed ?? null,
-          dedupeDropped: dedupeDroppedCount ?? null,
-          citationDropped: citationDroppedCount ?? null,
-          difficultyDropped: difficultyDroppedCount ?? null,
+          chunksFailed: stats.chunksFailed ?? null,
+          dedupeDropped: stats.dedupeDropped ?? null,
+          citationDropped: stats.citationDropped ?? null,
+          difficultyDropped: stats.difficultyDropped ?? null,
           durationMs,
-          stderrTail: aggregatedStderrTail,
+          stderrTail: stats.stderrTail,
         });
       }
     }
