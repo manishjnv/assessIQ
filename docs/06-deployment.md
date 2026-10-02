@@ -1524,3 +1524,19 @@ Applied this way on 2026-10-01:
 - 0117–0121: invitation resend, help, option shuffle, notifications UPDATE policies.
 
 See `docs/plans/SCORING_RESULT_RELEASE.md` and `docs/plans/PILOT_READINESS_BATCH.md`.
+
+## Public "Try a sample test" demo — `/try` (apps/web, 2026-10-02)
+
+**What:** `/try` (SPA page, no `RequireSession`) and `/try/certificate` (static SAMPLE certificate). Fixed bundled content, client-side deterministic scoring, **zero network requests** (no API, DB, email or AI). Code: `apps/web/src/pages/try/`. OG image: `apps/web/public/try/og.png` (+ `og.svg` source) served at `/try/og.png`. Marketing home links to it.
+
+**Why not `/verify/...` for the sample certificate:** `/verify/*` is in the `@api` matcher (to the API). The demo page must be SPA-served, so it lives under `/try/`.
+
+**Required edge change (NOT yet applied; infra is owner-gated).** `/try` is not in the `@app` matcher, so today it falls to the marketing container and 404s. Add it, additively, to the `assessiq.in` block (and mirror in `infra/caddyfile/assessiq.snippet`):
+```caddy
+@app  path /admin /admin/* /candidate /candidate/* /take /take/* /try /try/* /assets/* /brand/*
+```
+Apply with the same inode-safe procedure as the 2026-05-22 flip (backup, validate in container, truncate-write, reload). `pnpm lint:edge-routing` needs no change: it checks Fastify mounts only, and `/try` is not one.
+
+**Known limit:** the SPA serves one static `index.html`, so a shared `/try` link unfurls with the default AssessIQ OG image; link crawlers do not run JS. To unfurl with `/try/og.png`, give `/try` its own static HTML (or a Caddy rewrite) later.
+
+**Rollback:** remove `/try /try/*` from `@app`; the page then 404s via marketing and the home CTA should be reverted.

@@ -51,6 +51,9 @@ const AttemptPage = lazy(() => import('./pages/take').then(m => ({ default: m.At
 const Submitted = lazy(() => import('./pages/take').then(m => ({ default: m.Submitted })));
 const TokenLanding = lazy(() => import('./pages/take').then(m => ({ default: m.TokenLanding })));
 
+const TryPage = lazy(() => import('./pages/try/Try').then(m => ({ default: m.TryPage })));
+const TryCertificatePage = lazy(() => import('./pages/try/TryCertificate').then(m => ({ default: m.TryCertificatePage })));
+
 const tenant = TENANT_FIXTURES['wipro-soc'];
 
 export function App(): JSX.Element {
@@ -181,6 +184,10 @@ export function App(): JSX.Element {
             <Route path="attempt/:id/submitted" element={<Submitted />} />
             <Route path=":token" element={<TokenLanding />} />
           </Route>
+
+          {/* Public demo (no RequireSession, no API calls). Needs /try + /try/* in the Caddy @app matcher. */}
+          <Route path="/try" element={<TryPage />} />
+          <Route path="/try/certificate" element={<TryCertificatePage />} />
 
           <Route path="*" element={<NotFound />} />
           </Routes>
