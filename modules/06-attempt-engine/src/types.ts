@@ -326,6 +326,22 @@ export const SubjectiveAnswerPayloadSchema = z.object({
   response: z.string(),
 });
 
+/**
+ * Save-time shape check, keyed on the question TYPE (never on the answer shape).
+ * Only `scenario` is checked: the grader reads `steps`, so a wrong shape was stored
+ * without an error and evaluated as an empty answer (N15). null = no answer and
+ * passes for every type. On success `answer` is the value to store (for scenario:
+ * the canonical object, unknown keys removed).
+ */
+export function checkAnswerForSave(
+  questionType: string | null,
+  answer: unknown,
+): { ok: true; answer: unknown } | { ok: false } {
+  if (questionType !== "scenario" || answer === null) return { ok: true, answer };
+  const parsed = ScenarioAnswerPayloadSchema.safeParse(answer);
+  return parsed.success ? { ok: true, answer: parsed.data } : { ok: false };
+}
+
 export type McqAnswerPayload = z.infer<typeof McqAnswerPayloadSchema>;
 export type LogAnalysisAnswerPayload = z.infer<typeof LogAnalysisAnswerPayloadSchema>;
 export type ScenarioAnswerPayload = z.infer<typeof ScenarioAnswerPayloadSchema>;
