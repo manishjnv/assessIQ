@@ -196,14 +196,24 @@ const LIST_ATTEMPTS_QUERY_SCHEMA = z.object({
   // max(10_000) caps offset to prevent DoS via a giant OFFSET forcing a full
   // index scan per request. FE never paginates past ~100 anyway.
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
+  // RV58: `status` may be a comma-separated list (e.g. "submitted,auto_submitted");
+  // each value is validated against the enum, an unknown value fails → 400.
   status: z
-    .enum([
-      "submitted",
-      "pending_admin_grading",
-      "graded",
-      "released",
-      "auto_submitted",
-    ])
+    .string()
+    .transform((v) => v.split(","))
+    .pipe(
+      z
+        .array(
+          z.enum([
+            "submitted",
+            "pending_admin_grading",
+            "graded",
+            "released",
+            "auto_submitted",
+          ]),
+        )
+        .min(1),
+    )
     .optional(),
 });
 
