@@ -748,7 +748,7 @@ This playbook is methodology only — extracted from a shipped, measured 27-task
 
 | What the playbook assumes | What AssessIQ actually is | Source |
 |---|---|---|
-| SSR/SSG framework (Next/Nuxt/Astro) | **Vite + React 18 + react-router-dom — pure client-side SPA** | `apps/web/package.json` |
+| SSR/SSG framework (Next/Nuxt/Astro) | **Vite 8 + React 19 + react-router-dom — pure client-side SPA** | `apps/web/package.json` |
 | An existing public site to optimize | **Zero public pages.** `/` does `<Navigate to="/admin/login">` | `apps/web/src/App.tsx:73` |
 | Marketing/library/blog routes exist | **Every route is gated app surface** (`/admin/*`, `/candidate/*`, `/take/*`, `/admin/invite/accept`) — exactly the §1 "noindex" set | `apps/web/src/App.tsx` |
 | nginx edge (§3.9) | **Caddy behind Cloudflare**, Authenticated Origin Pulls + `x-origin-verify` in `enforce` mode | `docs/06-deployment.md`, RCA 2026-05-22 |

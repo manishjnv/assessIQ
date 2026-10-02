@@ -907,7 +907,7 @@ Three admin-facing UI changes shipped as part of the domain-slug normalization +
 
 **Implementation:** A form-local `type InviteRole = "admin" | "reviewer" | "candidate"` (the file-level `UserRole` is used by filter chips/manage menus and was left untouched). Error display switched from the email `Field`'s `error` prop to a shared `role="alert"` danger-coloured div below the fields (covers both email + name validation). Help: `data-help-id="admin.users.candidate.fields"` → content in `modules/16-help-system/content/en/admin.yml` + seed migration `0099_seed_candidate_fields_help.sql`.
 
-**Not included:** No bulk CSV add (still the `/admin/users/import` 501 stub). No reverse "assign assessment from the user row" flow — assignment stays on the assessment-detail page (single source of truth). No new component in the kit — composed from existing `Field`/`Button`/`Card`/`Chip` atoms.
+**Not included:** No bulk CSV add (still the `/admin/users/import` 501 stub). No reverse "assign assessment from the user row" flow — assignment stays on the assessment-detail page (single source of truth). No new component in the kit — composed from existing `Field`/`Button`/`Card`/`Chip` atoms. [Update 2026-10-03: bulk CSV import is live since 2026-10-01.]
 
 ## Attempt-audit four-zone demarcation (2026-05-29)
 

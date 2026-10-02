@@ -141,11 +141,11 @@ The attempt timer (`attempts.started_at` / `ends_at`) starts when the candidate 
 
 ### Public — Contact form
 
-> **Status: LIVE 2026-05-24.** Routes in `apps/api/src/routes/contact.ts`. Email sent via `modules/13-notifications/src/email/contact.ts` using the platform Resend SMTP transport. No tenant context; no session required.
+> **Status: LIVE 2026-05-24.** Routes in `apps/api/src/routes/contact.ts`. Email sent via `modules/13-notifications/src/email/contact.ts` using the platform SMTP transport (Brevo). No tenant context; no session required.
 
 #### `POST /api/contact`
 
-Accepts a contact enquiry from the public marketing site and delivers it to `connect@assessiq.in` via Resend SMTP.
+Accepts a contact enquiry from the public marketing site and delivers it to `connect@assessiq.in` via the platform SMTP transport (Brevo).
 
 **Auth:** none — public and unauthenticated (`config: { skipAuth: true }`).
 
@@ -173,7 +173,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 2. Whitespace trim + empty guard → `400 CONTACT_EMPTY`.
 3. Basic email shape regex → `400 CONTACT_BAD_EMAIL`.
 4. **Cloudflare Turnstile** — server-side verify the `cf_turnstile_response` token via Cloudflare `siteverify` (using `TURNSTILE_SECRET`). **Fail-closed:** missing/invalid token, or a `siteverify` network/parse error → `403 TURNSTILE_FAILED`. If `TURNSTILE_SECRET` is unset: rejected in production (fail-closed), skipped in non-prod (dev) with a WARN.
-5. Global submission budget — in-memory per-process cap (20/hour across all IPs) protecting the shared Resend quota from a distributed flood → `429 RATE_LIMITED` when exceeded.
+5. Global submission budget — in-memory per-process cap (20/hour across all IPs) protecting the shared Brevo quota from a distributed flood → `429 RATE_LIMITED` when exceeded.
 6. `sendContactEnquiry({ name, email, message })` — strips CR/LF from `name` before subject header, HTML-escapes all fields in the HTML body. Recipient hardcoded `connect@assessiq.in`; `replyTo` = submitter so the team can reply directly.
 7. SMTP null-fallback: if `SMTP_URL` is unset, the enquiry is dropped to `webhook.log` with WARN (no throw) — handler still returns `200 { ok: true }`.
 
@@ -187,7 +187,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `403` | `{ "error": { "code": "TURNSTILE_FAILED", "message": "..." } }` | Turnstile token missing/invalid (fail-closed) |
 | `429` | rate-limit headers | Per-IP credential bucket exceeded |
 | `429` | `{ "error": { "code": "RATE_LIMITED", "message": "..." } }` | Global 20/hour submission budget exceeded |
-| `502` | `{ "error": { "code": "SEND_FAILED", "message": "Could not send your message. Please email connect@assessiq.in directly." } }` | SMTP transport threw (Resend down, auth error, etc.) |
+| `502` | `{ "error": { "code": "SEND_FAILED", "message": "Could not send your message. Please email connect@assessiq.in directly." } }` | SMTP transport threw (Brevo down, auth error, etc.) |
 
 **Email delivery:** `from: config.EMAIL_FROM`, `to: connect@assessiq.in`, `replyTo: <submitter email>`. Plain-text + HTML multipart. `name` has CR/LF stripped before use in the `Subject` header (email-header-injection defense). All user-supplied fields are HTML-escaped in the HTML body.
 

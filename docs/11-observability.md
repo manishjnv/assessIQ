@@ -731,7 +731,7 @@ A shared `redactUserForAudit()` helper at [modules/03-users/src/audit-redact.ts]
 ### 17.5 What's NOT audited here
 
 - `acceptInvitation` — invitee acting on their own pending invitation, not an admin acting on another user. Session minting that follows is audited by 01-auth's session-event trail (`session.created`); duplicating it here would be confusing.
-- `bulkImport` — Phase-1 stub (throws `BULK_IMPORT_PHASE_1`). The Phase-1 implementation will land its own audit wiring at the same time the route stops returning 501.
+- `bulkImport` — Phase-1 stub (throws `BULK_IMPORT_PHASE_1`). The Phase-1 implementation will land its own audit wiring at the same time the route stops returning 501. [Update 2026-10-03: the `POST /admin/users/import` route and bulk import are live since 2026-10-01; see `docs/03-api-contract.md`.]
 - `sweepUserSessions` — Redis-side housekeeping invoked AFTER the user-state transaction commits. The transaction that flipped `status='disabled'` already wrote the `user.updated kind=status_change` audit row; the Redis sweep is operational not behavioural and writes to `app.log` only.
 - All read-only methods: `listUsers`, `getUser`, `findUserByEmailNormalized`.
 - The `assertNotLastAdmin` / `assertValidStatusTransition` validators — pure validators, no DB write.
