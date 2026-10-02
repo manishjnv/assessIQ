@@ -164,7 +164,8 @@ const CASES_DIR = join(EVAL_DIR, "cases");
 // E2: harvested override cases — contain student answers, gitignored, never tracked.
 const PRIVATE_CASES_DIR = join(EVAL_DIR, "cases-private");
 const RUNS_DIR = join(EVAL_DIR, "runs");
-const BASELINES_DIR = join(EVAL_DIR, "baselines");
+// Same resolution as src/eval-gate.ts baselinesDir(): bless must write where the gate reads (N9).
+const BASELINES_DIR = process.env["AIQ_EVAL_BASELINES_DIR"] || join(EVAL_DIR, "baselines");
 
 // ---------------------------------------------------------------------------
 // Helpers
