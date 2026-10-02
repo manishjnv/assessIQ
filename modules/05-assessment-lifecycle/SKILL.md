@@ -217,3 +217,8 @@ Tests:
 ## Erased candidates (E3, 2026-10-02)
 
 `resendInvitation` (and bulk resend, as a per-row skip) throws 409 `CANDIDATE_ERASED`; `inviteUsers` skips an erased user with reason `CANDIDATE_ERASED` (never a new token or email). Source: `users.erased_at` via `findUserForInvitation().erased`. Test DBs that call these need migration `20-data-rights/0102_users_erased_at.sql`.
+
+## Batch 5 (2026-10-02)
+
+- `PATCH /api/admin/assessments/:id/grading` (`updateAssessmentGrading`): body `{high_stakes: boolean}` strict, any status, merges only `settings.high_stakes` via `jsonb_set`, audited `assessment.updated`. 07 reads the flag live. Why separate: same pattern as `/integrity` and `/reminders`.
+- `SECTIONS_LOCKED` (409, `AL_ERROR_CODES`): `updateAssessment` refuses a `settings.sections` change once any attempt exists (canonical JSON compare, key order ignored). Draws and deadlines are frozen per attempt, so edits cannot be made consistent. Not included: a section edit UI (PENDING N6), a DB-level guard.

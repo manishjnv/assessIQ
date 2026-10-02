@@ -1690,3 +1690,62 @@ Constraint `questions_type_check` is dropped and re-added with `numeric` and `mu
 - **What.** `reminders?: { enabled: boolean, hours_before?: 1..168 }`, strict zod. Absent = OFF. `hours_before` defaults to 24 when enabled. Written only through `PATCH /api/admin/assessments/:id/reminders` (see 03).
 - **Why.** Default OFF: Brevo free is 300 emails/day shared by several products, and a reminder is the lowest-value mail.
 - **Not included.** Revoked or lapsed links are never reminded; no reminder once a candidate has started. Full design: `docs/plans/INVITATION_REMINDERS.md`.
+
+
+## Batch 5 schema changes (2026-10-02)
+
+Only one new table (0142). Everything else is a view, help rows, or JSONB settings keys with no migration.
+
+### Migration 0136: help rows for sections follow-ups
+- **What.** Seeds help ids for the admin "Section scores" card (`admin.attempts.section_scores`) and the candidate section summary in the final submit dialog. Owned by 16. Regenerates the seed in `0011_seed_help_content.sql`.
+- **Why.** Same-PR rule: every new UI element gets a `help_id`.
+- **Not included.** No schema change.
+
+### Migration 0138: help rows for high-stakes grading
+- **What.** Help rows for the high-stakes card and the evaluation badge (E1). Owned by 16.
+- **Not included.** No column. The flag lives in JSONB, see below.
+
+### Migration 0140: view `grading_override_quality`
+- **What.** `CREATE VIEW ... WITH (security_invoker = true)`. One row per admin override of an AI grade: `tenant_id, attempt_id, question_id, original_grading_id, override_grading_id, original_prompt_version_sha, original_model, original_reasoning_band, original_score_earned, score_max, override_reasoning_band, override_score_earned, override_reason, override_created_at`. Owned by 07.
+- **Source.** `gradings o JOIN gradings orig ON orig.id = o.override_of WHERE o.grader = 'admin_override' AND orig.grader = 'ai'`.
+- **Why.** D8 already inserts an override row and keeps the AI row, so "how often do humans disagree with prompt version X" is only a join.
+- **RLS.** `security_invoker = true` makes the view run as the caller, so the `gradings` tenant policy applies to tenant connections. The super-admin aggregate reads it through the read-only `assessiq_system` (BYPASSRLS) transaction. `SELECT` is granted to `assessiq_app` and `assessiq_system`.
+- **Considered and rejected.** A new table or new columns (duplicates data); a materialized view (volume is tiny).
+- **Not included.** No candidate answer text in the view. `override_reason` is free admin text, so never export it publicly.
+- **Impact.** Read by 07 `super-grading-quality.ts` and by the `harvest-overrides` CLI (which uses `DATABASE_URL`).
+
+### Migration 0141: help rows for the eval gate
+- **What.** Help rows for the evaluations-page gate banner and quality table. Owned by 16.
+
+### Migration 0142: table `generation_batches` (E6)
+- **What.** Owned by 07. Durable plan and progress for the question-generation wizard.
+
+| Column | Type | Notes |
+| --- | --- | --- |
+| `id` | UUID PK | client-minted batch id, same value as `generation_attempts.batch_id` |
+| `tenant_id` | UUID NOT NULL | FK `tenants(id)` |
+| `user_id` | UUID NOT NULL | FK `users(id)`; the plan is per (tenant, user) |
+| `domain_id` | UUID NULL | no FK |
+| `level` | TEXT NULL | |
+| `categories` | JSONB NOT NULL | the plan, array of category objects |
+| `completed_category_ids` | JSONB NOT NULL default `[]` | array of uuid strings, always unioned, never overwritten |
+| `status` | TEXT NOT NULL default `active` | CHECK in `active`, `done`, `dismissed` |
+| `created_at`, `updated_at` | TIMESTAMPTZ | |
+
+- **Index.** `generation_batches_user_status_idx (tenant_id, user_id, status, updated_at DESC)`.
+- **RLS.** Enabled. Policy `tenant_isolation` (USING `tenant_id = current_setting('app.current_tenant', true)::uuid`, doubles as the UPDATE check) and `tenant_isolation_insert` (WITH CHECK, same expression). Same shape as 0042 `generation_attempts`.
+- **Why.** The wizard kept the plan in localStorage: lost on a device change, and unaware of categories the server finished after a tab died.
+- **Considered and rejected.** A table per category (a plan is small); storing on `generation_attempts` (that table is per attempt, not per plan).
+- **Not included.** No archive or cleanup job; rows stay.
+- **Impact.** Written by 04 routes and by `admin-generate.ts` (best-effort update after a successful category).
+
+### `assessments.settings.high_stakes` (JSONB, no migration)
+- **What.** `high_stakes?: boolean`, absent or false = off. Zod `high_stakes: z.boolean().optional()` in 05 settings. Written at create, or alone via `PATCH /api/admin/assessments/:id/grading` which does `jsonb_set(settings, '{high_stakes}', ...)` and keeps every other key.
+- **Why.** The flag must be changeable after publish and must not interact with the sections lock.
+- **Read by.** 07 `loadGradingData` (admin-grade, admin-rerun) live at grading time.
+- **Audit.** `assessment.updated` with `before {high_stakes}` and `after {high_stakes}`.
+
+### `assessments.settings.sections` lock rule (no migration)
+- **What.** Once any `attempts` row exists for the assessment, `updateAssessment` rejects a patch whose `settings.sections` differs from the stored value (canonical JSON compare, key order ignored, undefined equals null) with 409 `SECTIONS_LOCKED`.
+- **Why.** Sections drive per-attempt frozen draws (`attempt_questions.section_index`) and deadlines (`attempts.section_progress`).
+- **Not included.** A DB constraint or trigger. The guard is in the service only; other settings keys stay editable.

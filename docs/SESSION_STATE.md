@@ -1,3 +1,37 @@
+# Session — 2026-10-02 (i) — batch 5 live: sections follow-ups, two-model vote, eval gate, durable generation batches, CI completeness
+
+**Headline:** Batch 5 is LIVE on https://assessiq.in (HEAD `27f6357`): per-section scores + sections lock + all-sections submit dialog (N1), high-stakes two-model vote (E1), eval gate + override quality data (E2), server-side generation batches (E6), apps/api tests in CI + audit/dependabot + data-rights tests (N2/D6/E7).
+**Commits (`21502db..27f6357`, pushed):**
+- `d7123d4` feat(07,04,10): server-side durable generation batches (E6, 0142)
+- `1070d71` feat(05,07,10,16): high-stakes two-model grading vote (E1, help 0138)
+- `28992d1` test(api): fix 6 stale apps/api tests · `e2d4c49` ci: apps/api step, pnpm audit gates, dependabot · `e5090b1` test(20): data-rights tests
+- `48f4dd0` feat(05,06,09,10,11,15,16): sections follow-ups (help 0136)
+- `9354183` feat(07,infra,10): eval gate + override quality (0140 view, help 0141) · `a789ab5` fix(infra,07): baselines mount rw, eval runs in-container (Opus review)
+- `27f6357` test(05): audit call-site count 12 (carries the codex trailer)
+**Deploy:** migrations 0136/0138/0140/0141/0142 by hand + recorded; api/worker/frontend rebuilt; 24 containers before/after; health 200, `/try` 200, 4 new routes 401 logged out, 0 api/worker errors, help rows 181, `AI_EVAL_GATE=warn`, gate reports live shas `anchors 30a419e9 / band e2460dec / escalate ec6e9925`, approved=false (no baseline yet).
+**Tests:** typecheck 0, lint 0 errors, lint:rls OK, lint:ambient-ai OK; 04 239, 05 141, 06 265, 07 399, 09 102, 10 6, 15 146, 16 93, 20 11, apps/api 131 (0 failing, was 6), web 57.
+**Next (Claude):** N5 grow the eval golden set → owner runs the first in-container bless → set `AI_EVAL_GATE=enforce`; N4 bump fastify/nodemailer/fast-uri/find-my-way (17 high advisories); N6 section edit UI; check GitHub CI run for `27f6357` (first run with the apps/api + audit steps).
+**Open questions:** (1) Who blesses the first eval baseline, and when to flip the gate to enforce? (2) Clean stale rows in PENDING_TASKS (A8, R10, R3, R5, R6, D7 are done/superseded)? (3) N3 push-gate hook fix still awaits approval.
+**Feature doc:** `docs/plans/PILOT_BATCH_5.md`. Deploy detail: `docs/06-deployment.md` § Batch 5 deploy. RCA: 2 entries 2026-10-02 (stale apps/api tests; ro baselines mount caught in review).
+
+---
+
+## Agent utilization
+- Opus: roadmap read, 5 contracts with pre-assigned migration numbers, line-by-line review of every diff (06, 07, 09, infra), caught the read-only baselines mount (gate could never pass) and fixed it, merges + help-seed conflict resolution, test-count fixes, push, VPS deploy + checks, docs facts, this handoff.
+- Sonnet: 5 worktree builders (N1, E1, E2, E6, N2) + 1 docs writer.
+- Haiku: n/a — deploy checks were a handful of inline curl/ssh calls.
+- codex:rescue: E1 + E2 adversarial review — accept (trailer on `27f6357`).
+- claude-mem: honoured vps-shared-host (additive deploy, enumerate first), docs-folder-gitignored (`git add -f`), parallel-session-shared-working-tree (branch checked before commit), feedback-status-claude-tasks-only.
+- Routing telemetry:
+  - Sonnet · N1 sections follow-ups · reworked: N
+  - Sonnet · E1 two-model vote · reworked: N
+  - Sonnet · E2 eval gate + overrides · reworked: Y (ro mount → rw, in-container eval; Opus fix)
+  - Sonnet · E6 generation batches · reworked: N
+  - Sonnet · N2 CI + data-rights tests · reworked: N
+  - Sonnet · batch 5 docs · reworked: N (deploy facts added by Opus)
+
+---
+
 # Session — 2026-10-01 → 02 (wrap) — pilot batches 2–4 shipped; CI green; session handoff
 
 **Headline:** 15 features are LIVE on https://assessiq.in across three batches, and GitHub CI is green for the first time since May (the e2e job is paused by owner decision).

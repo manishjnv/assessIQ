@@ -1559,3 +1559,51 @@ Procedure: backup `Caddyfile.bak.20261002T034840Z` next to the Caddyfile, valida
 **New boot requirement:** production refuses to start unless `ORIGIN_TRUST_MODE=enforce` (04 batch 4 notes). Prod already runs enforce; api and worker were confirmed after the recreate.
 
 **Post-deploy checks (all passed):** `/api/health` 200; `/try` 200; `POST .../finish-section` and `PATCH .../reminders` return 401 logged out; `invitation.reminders` repeatable registered; 175 help rows; api and worker env `ORIGIN_TRUST_MODE=enforce`; 0 api/worker errors in logs.
+
+
+## Batch 5 deploy (2026-10-02, HEAD `27f6357`; commits `21502db..27f6357`) — DONE
+
+**Migrations applied by hand** (same procedure as "Applying new migrations by hand", before recreating api/worker/frontend). All are additive:
+- 0136: help rows, sections follow-ups (16).
+- 0138: help rows, high-stakes grading (16).
+- 0140: view `grading_override_quality` (07). Needs roles `assessiq_app` and `assessiq_system` to exist for the GRANTs (it skips a missing role).
+- 0141: help rows, eval gate (16).
+- 0142: table `generation_batches` with RLS (07).
+- Numbers 0137 and 0139 do not exist (skipped); apply only the five files above.
+
+**Before recreating the api container** (the compose file now bind-mounts a host dir):
+```bash
+ssh assessiq-vps 'test -d /srv/assessiq/.git || echo "WARNING: not a git clone"'
+ssh assessiq-vps 'mkdir -p /srv/assessiq/modules/07-ai-grading/eval/baselines'
+```
+Without `mkdir -p`, Docker creates the dir root-owned. The mount is read-write on purpose: `bless` runs inside the api container and writes there. The dir is gitignored and survives container recreates.
+
+**New env (api):** `AI_EVAL_GATE` (`off` | `warn` | `enforce`), default `warn` from compose. Leave it at `warn` at deploy. Do not set `enforce` until a baseline is blessed, or all AI grading returns 409 `AIG_EVAL_GATE`.
+
+**Eval bootstrap (inside the api container, on the VPS, `/srv/assessiq`).** Run it in the container so the skills mount and Claude login match live grading. A host run would hash `/root/.claude/skills`, which may differ, and the gate would never match. `runs/` is container-local, so do all three steps before recreating the container.
+```bash
+mkdir -p modules/07-ai-grading/eval/baselines
+docker exec -e AIQ_ADMIN_USER_ID=<super-admin-uuid> assessiq-api pnpm tsx modules/07-ai-grading/eval/cli.ts run --mode claude-code-vps
+docker exec -e AIQ_ADMIN_USER_ID=<super-admin-uuid> assessiq-api pnpm tsx modules/07-ai-grading/eval/cli.ts compare --run <ISO>
+docker exec -e AIQ_ADMIN_USER_ID=<super-admin-uuid> assessiq-api pnpm tsx modules/07-ai-grading/eval/cli.ts bless --run <ISO>
+```
+Only then set `AI_EVAL_GATE=enforce` in `.env` and recreate `assessiq-api`. Every later skill edit repeats run, compare, bless. The golden set is about 1 case today (N5); grow it first for a meaningful gate.
+
+**Deploy steps** (additive only, `assessiq-` namespace): `git pull` in `/srv/assessiq`; apply the migrations; `mkdir -p` the baselines dir; `docker compose -f infra/docker-compose.yml build api worker frontend`; `up -d --no-deps --force-recreate` each.
+
+**Post-deploy checks (all passed 2026-10-02):**
+- Result: 5 migrations applied and recorded in `schema_migrations`; view present, 2 RLS policies on `generation_batches`, help rows 175 → 181; no `claude` process in flight before recreate; only `assessiq-api`, `assessiq-worker`, `assessiq-frontend` recreated, 24 containers running before and after (neighbours untouched); api/worker 0 error lines; api env `AI_EVAL_GATE=warn`, `ORIGIN_TRUST_MODE=enforce`; baselines dir mounted.
+- In-container gate check (`tsx` script calling `getEvalGateStatus()`): `{"mode":"warn","approved":false,"current":{"anchors":"30a419e9","band":"e2460dec","escalate":"ec6e9925"},"baseline_date":null}` — the live skill shas the first bless must match.
+- `/api/health` 200, `/try` 200; the four new routes 401 logged out.
+- Super admin: `GET /api/admin/super/eval-gate` returns `mode: "warn"` and `approved: false` (until a bless); `GET /api/admin/super/grading-quality` returns 200.
+- `GET /api/admin/generation-batches/active` returns `{batch:null}`; 401 when logged out.
+- `PATCH /api/admin/assessments/:id/grading` returns 401 when logged out.
+- Help rows count increased (migrations 0136, 0138, 0141).
+
+**CI side (no deploy action):** the new "Test (apps/api)" and audit steps run on GitHub. The audit shows 17 high advisories (N4).
+
+**Rollback:**
+- Code: `git checkout <previous sha>` on the VPS, rebuild and recreate api, worker, frontend.
+- Migrations: additive; the old image ignores the table, the view and the help rows. Per-file rollback notes are in each migration header (drop `generation_batches`; drop view `grading_override_quality`).
+- Gate: set `AI_EVAL_GATE=off` in `.env` and recreate `assessiq-api`.
+- The baselines mount can stay.

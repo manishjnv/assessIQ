@@ -2102,3 +2102,22 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** They were hidden. CI runs `pnpm test`, which is the root `vitest run`; `vitest.config.ts` at the repo root includes only `modules/**/__tests__/**/*.test.ts` and `packages/**/__tests__/**/*.test.ts`. `apps/api` has its own `vitest.config.ts` and `test` script, but the root script does not run it and CI has no `pnpm -r test` or `--filter @assessiq/api test` step. The failures drifted unseen as routes changed (root cause per test not yet investigated).
 **Fix:** none yet (tracked in `docs/PENDING_TASKS_2026-10-01.md`, new row "apps/api tests not in CI").
 **Prevention:** add `apps/api` (and `apps/web` if not already covered) to CI: a `pnpm --filter @assessiq/api test` step after fixing or quarantining the six failures, so CI stays green. Until then, run `pnpm --filter @assessiq/api test` by hand before deploys that touch routes.
+
+
+## 2026-10-02 — apps/api route tests stale for weeks, never run by CI
+
+**Symptom:** Six `apps/api` route tests failed on a clean `main`: auth `google/start`, `whoami`, `embed`; admin-super `ai-generate-mode` and its lifecycle test; `admin-tenant-rename`; tenant-settings `release-mode`. Nobody noticed because CI was green. (This closes the earlier entry "Six `apps/api` route tests fail on origin/main and CI never ran them".)
+**Cause:** The root `vitest.config.ts` includes only `modules/**` and `packages/**`, so CI's `pnpm test` never ran `apps/api`. The tests drifted as code changed:
+- Three tests mocked `@assessiq/attempt-engine` without `registerAttemptAdminRoutes`; `mint-session` also needed `CANDIDATE_LOGIN_TOKEN_TTL_SEC` (route reads it at import).
+- `google/start` tests still expected the removed `?tenant=` param (tenant-less login P1).
+- `/embed` now redirects 302 to `/take/a/<id>?embed=true` and sets the embed cookie; the test expected JSON.
+- `whoami` needed `getEnrollmentStatus` in the auth mock.
+**Fix:** `28992d1` fixed all six tests (mocks and expectations, no product code changed). `e2d4c49` added the CI step "Test (apps/api)" in `.github/workflows/ci.yml`, plus audit gates and `dependabot.yml`.
+**Prevention:** the CI step. Any new package with its own `vitest.config.ts` must get its own CI step or be added to the root config.
+
+## 2026-10-02 — Eval baselines mounted read-only, so the eval gate could never be satisfied
+
+**Symptom:** None in production. Caught in Opus review of `9354183` before deploy.
+**Cause:** `infra/docker-compose.yml` bind-mounted `modules/07-ai-grading/eval/baselines` into `assessiq-api` as `:ro`, on the assumption that `bless` runs on the host. But the eval must run inside the api container: only there do the skills mount and Claude login match live grading. A host run hashes `/root/.claude/skills`, which may differ from the live mount, so its `skill_shas` would never match at runtime. With `:ro`, `bless` inside the container could not write the baseline, so under `AI_EVAL_GATE=enforce` all AI grading would have been blocked with no way to approve.
+**Fix:** `a789ab5` changed the mount to `:rw` (compose comment explains why) and rewrote the README bootstrap to run, compare and bless via `docker exec ... assessiq-api` before recreating the container (`runs/` is container-local).
+**Prevention:** `docs/06-deployment.md` § "Batch 5 deploy" and the eval README state that the eval runs in-container. Do not set `AI_EVAL_GATE=enforce` before the first bless.

@@ -66,3 +66,14 @@ No jest configs anywhere in the repo.
 2. **Playwright e2e** — once baselines are captured (Phase 15 next step), modules 10, 11, and 17 gain meaningful e2e coverage for their golden-path flows. This does not replace missing unit/integration tests for state machines and service logic.
 
 3. **Prioritized investment order** (highest risk first): 01-auth magic-link + rate-limit → 02-tenancy middleware transaction flow → 14-audit-log archive/fanout/routes → 03-users service gaps → 06-attempt-engine routes → 08-rubric-engine edge cases → 10-admin-dashboard critical admin flows.
+
+
+---
+
+## Batch 5 update (2026-10-02)
+
+- **`apps/api` is now in CI.** The root `vitest.config.ts` includes only `modules/**` and `packages/**`, so `apps/api` tests were never run by CI and six drifted. `28992d1` fixed them; `e2d4c49` added a "Test (apps/api)" step (`pnpm --filter @assessiq/api test`). Some tests start Postgres or Redis testcontainers. The Test Runner Summary above says apps/api participates in vitest, but until this batch only a local run covered it.
+- **`20-data-rights` now has tests.** `e5090b1` adds 11 DB integration tests: erasure, export, retention, erased list. This was a 0-test compliance module (item E7). The "20-data-rights" row in the table above is out of date.
+- **Dependency audit gate (D6).** CI runs `pnpm audit --prod --audit-level=critical` (blocking) and `--audit-level=high || true` (informational). Dependabot (`.github/dependabot.yml`): npm weekly with minor and patch grouped, github-actions monthly. First run: 0 critical, 17 high (nodemailer <10.0.6, fastify <5.12.2, fast-uri <3.1.7, find-my-way <9.7.0). Not fixed yet (N4).
+- **New tests in this batch.** `sections-locked.test.ts` (05), `sections-summary.test.ts` (06), `section-scores.test.ts` (09), `eval-gate.test.ts` and `grading-quality.test.ts` (07), `generation-batches-route.test.ts` (04), high-stakes cases in `integrity-route.test.ts` (05), `claude-code-vps.runtime.test.ts` and `least-ai.test.ts` (07), `evaluations-queue.test.tsx` (10).
+- **Still open.** The admin dashboard (10) is still thin. The eval harness never runs in CI (D5). e2e in CI is E13, last.

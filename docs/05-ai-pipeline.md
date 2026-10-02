@@ -346,7 +346,7 @@ ERROR_CLASSES (pick at most one if band < 4):
 
 Trigger Stage 3 (Opus) when any of:
 - Stage 2 confidence < 0.7
-- Question is flagged `high_stakes: true` in metadata (e.g., final-tier scenario questions)
+- The assessment has `settings.high_stakes = true` (batch 5, E1). This is an assessment-level setting, NOT per-question metadata: Stage 3 then always runs, and any band difference (not just 2 or more) routes to `review_needed`. A Stage 3 failure becomes `AIG_ESCALATION_FAILURE`. See "Batch 5 notes: high-stakes vote (E1)" at the end of this file.
 - Tenant setting `ai_model_tier='premium'` (always escalate)
 - **Phase 1 only:** admin manually clicks "Re-run with Opus" after reviewing the Stage 2 proposal
 
@@ -1360,3 +1360,34 @@ Trigger or accept AI grading, re-run, enter a manual first score or retry a grad
 - **Considered and rejected.** Keyword or length rules for off-topic answers (high risk of unfair marks); case-insensitive matching; auto-accept of reused grades (would bypass D8); reusing across tenants (RLS and privacy).
 - **Not included.** No fuzzy or semantic similarity; no cheaper-model tier; no eval re-baseline needed (prompts unchanged).
 - **Impact.** Reuse stops matching for a question after a prompt skill deploy until new grades exist under the new shas; that is intended. Sign-off: codex revise-addressed (trailer on `dea16b4`).
+
+
+## Batch 5 notes (2026-10-02): high-stakes vote (E1) and eval gate (E2)
+
+### E1. High-stakes two-model vote
+- **What.** `assessments.settings.high_stakes` (see 02 § "Batch 5 schema changes"). `loadGradingData` in `admin-grade.ts` and `admin-rerun.ts` reads it per attempt (`COALESCE(settings->>'high_stakes' = 'true', false)`) and passes `high_stakes: true` into the runtime input. `claude-code-vps.ts`:
+  - Stage 3 runs always (same switch as `needs_escalation` and `force_escalate`).
+  - The reconcile threshold becomes 1 band: any difference between Stage 2 and Stage 3 sets `review_needed` and shows both verdicts to the admin.
+  - A Stage 3 failure sets `error_class = AIG_ESCALATION_FAILURE` (normally a lower-case class that did not map to `review_needed`).
+- **Least-AI.** `least-ai.ts` tier 2 (reuse an identical answer) returns null for high-stakes. Tier 1 (blank answer, band 0) still applies.
+- **Why.** A grade reused from a single-model run would silently weaken the guarantee.
+- **Considered and rejected.** Per-question metadata (old text, never wired); majority or confidence-based pick; a third model.
+- **Not included.** Tenant default; prompt changes (no eval re-baseline needed); the claim-release path only carries the flag for display.
+- **Impact.** More AI calls and wall time per answer. The super-admin evaluation page shows an "evaluation" badge and the evaluation detail notes the vote. D8 is unchanged: results are still proposals until an admin accepts.
+
+### E2. Eval gate
+- **Skills hashed.** `grade-anchors`, `grade-band`, `grade-escalate` (short 8-hex via `skillSha`). A missing skill hashes to `"missing"`, so it never matches.
+- **Baseline match.** `eval run` writes `skill_shas` into `run.json`; `bless` copies it into `baselines/<date>.json` and refuses a run without it. At runtime `eval-gate.ts` approves iff some baseline file has all three shas equal. Baselines without `skill_shas` approve nothing.
+- **Where it runs.** `assertEvalGate()` at the start of grade-all and re-run, before any AI spawn. Never for generation, never for deterministic MCQ scoring.
+- **Modes.** `AI_EVAL_GATE`: `off`; `warn` (default, logs `grading.eval_gate.unapproved`); `enforce` (409 `AIG_EVAL_GATE`). Any other value is treated as `enforce` and logged. `AIQ_EVAL_BASELINES_DIR` overrides the baselines dir.
+- **Why.** Prompts live as skill files on the VPS, so a prompt edit used to ship with no proof. Deploying a prompt edit is now: run, compare, bless inside the api container.
+- **Considered and rejected.** CI eval (no Max OAuth; D5). Default `enforce` (blocks all grading until the first bless). A host-side eval (hashes `/root/.claude/skills`, which may differ from the live mount).
+- **Not included.** A baseline does not exist yet; the golden set has about 1 case (N5); no auto-bless; no per-tenant gate.
+
+### E2. Override quality loop
+- **Data.** Overrides already insert `gradings` rows (`grader='admin_override'`, `override_of`, `override_reason`) and keep the AI row. Migration 0140 adds view `grading_override_quality` pairing them.
+- **Read.** `GET /api/admin/super/grading-quality?days=90` aggregates per original `prompt_version_sha`: AI grades, overrides, override rate, mean absolute band delta, mean absolute score delta (percent of max). The evaluations page shows it.
+- **Harvest.** `pnpm tsx modules/07-ai-grading/eval/cli.ts harvest-overrides --since <date>` (needs `DATABASE_URL`) writes `cases-private/override-<gradingId>.{input,expected}.json`: question content and rubric from the frozen version, the candidate answer, expected band = the override band, no anchors. `run` and `compare` also load `cases-private/`.
+- **Privacy.** These files contain student answers. The directory is gitignored. Never commit or copy it off the server.
+- **Not included.** No automatic prompt tuning; anchors are not harvested (the expected side has only a band).
+- **Impact.** A rising override rate for a prompt sha is the signal to edit the skill, which then goes through the gate.

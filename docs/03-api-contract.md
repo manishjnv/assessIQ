@@ -2814,3 +2814,53 @@ Every authenticated request now consults a 30 s positive-only Redis cache for th
 ### `/try` is not an API route
 
 `/try` and `/try/certificate` are static SPA pages (`apps/web/src/pages/try`): fixed content, client-side scoring, no network calls, no session. Nothing was added to this contract. The edge routes them to the SPA through the Caddy `@app` matcher (see 06 deployment).
+
+
+## Batch 5 notes (2026-10-02)
+
+### `PATCH /api/admin/assessments/:id/grading` (05, admin)
+- **What.** Body `{ "high_stakes": boolean }`, strict (extra keys give 400). Works in any assessment status. Merges only `settings.high_stakes`. Audited as `assessment.updated`. Returns the full assessment.
+- **Errors.** 400 `INVALID_PARAM` (param `body`) on a bad body; 404 `ASSESSMENT_NOT_FOUND` (also for another tenant's id).
+- **Why.** Same pattern as `/integrity` and `/reminders`: one setting key, any status, no sections-lock side effects.
+- **Not included.** Per-question flag; tenant default.
+- **Impact.** Takes effect for AI grading runs started afterwards (07 reads it live). `settings.high_stakes` is also accepted at create/update.
+
+### `PATCH /api/admin/assessments/:id` and create: `SECTIONS_LOCKED` (409)
+- **What.** If `settings.sections` would change and any attempt exists: `409 { error: { details: { code: "SECTIONS_LOCKED" } } }`, message "Sections can't be changed after students have started this test."
+- **Not included.** Other settings keys are not affected.
+
+### `AIG_EVAL_GATE` (409, 07)
+- **What.** Returned by grade-all and re-run (including super-admin evaluations) before any AI call, only when `AI_EVAL_GATE=enforce` (or an unknown value) and the current grading skill shas match no blessed baseline. `details.current = { anchors, band, escalate }`. In `warn` (default) it is only logged as `grading.eval_gate.unapproved`.
+- **Not included.** Question generation is never gated.
+
+### `AIG_ESCALATION_FAILURE` on high-stakes grading (07)
+- **What.** Not a new route. For a high-stakes assessment, a failed Stage 3 now returns this code on the proposal, so status derives to `review_needed` and the FE keeps it out of "Accept all".
+
+### `GET /api/admin/super/eval-gate` (07, super admin)
+- **Response.** `{ mode: "off"|"warn"|"enforce", approved: boolean, current: {anchors, band, escalate}, baseline_date: string|null }`. Read-only. `baseline_date` is the file name (date) of the approving baseline.
+
+### `GET /api/admin/super/grading-quality?days=90` (07, super admin)
+- **Query.** `days` integer 1..730, default 90. Bad query gives 400.
+- **Response.** `{ days, items: [{ prompt_version_sha, ai_grades, overrides, override_rate, mean_abs_band_delta, mean_abs_score_delta_pct }] }`. `override_rate` is null with no AI rows. Cross-tenant aggregate, no candidate data, read-only transaction.
+
+### Generation batches (04, super admin)
+All three use the same guard as the other generate routes. `id` must be a uuid (else 400 `INVALID_PARAM`).
+- `GET /api/admin/generation-batches/active` returns `{ batch: Batch | null }`, the caller's newest `active` batch.
+- `PUT /api/admin/generation-batches/:id`, body `{ domainId?: uuid|null, level?: string<=10|null, categories: object[] (max 50), completedCategoryIds?: uuid[] (max 50) }`. Upsert. `completed_category_ids` is unioned with the stored value. Returns `{ batch }`. 409 if the id belongs to another user or tenant (never says which).
+- `PATCH /api/admin/generation-batches/:id`, body `{ status: "done"|"dismissed" }`. Returns `{ ok: true }`. 404 if not found for this user.
+- `Batch` = `{ id, domainId, level, categories, completedCategoryIds, status, updatedAt }`.
+- **Why.** Durable wizard plan, see 02 migration 0142.
+- **Not included.** No list-all, no delete.
+
+### Candidate attempt view: `sections_summary`
+- **What.** `GET /api/me/attempts/:id` (sectioned assessments only) adds `sections_summary: [{ index, name, question_count, answered_count, status: "done"|"current"|"upcoming" }]` over ALL sections. Counts only: no question ids, no content. "Answered" uses the take-page emptiness rule (null, empty string, empty array, all-empty object = unanswered).
+- **Why.** The final submit dialog must total unanswered questions across all sections, but the view only carries the running section's questions.
+- **Impact.** Absent for attempts without sections. Type in 11 `SectionSummaryWire`.
+
+### Admin attempt detail: `section_scores`
+- **What.** `GET /api/admin/attempts/:id` adds `section_scores: [{ index, name, earned, max }]`, from 09 `getSectionScoresForAttempt`. Empty array when the assessment has no sections or the score is not visible (not released to the tenant).
+- **Impact.** The attempt page shows a "Section scores" table (score and %).
+
+### `GET /api/admin/assessments/:id/results.csv`: section columns
+- **What.** After the existing columns, one column per section named `Section: <name> (%)` (names from `settings.sections`). Blank when the row's score is not visible. Sort and other params unchanged.
+- **Not included.** No per-section rank or earned/max columns.
