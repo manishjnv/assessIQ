@@ -19,6 +19,7 @@ export type {
   FrozenQuestionWire,
   CandidateAttemptViewWire,
   SectionsViewWire,
+  SectionSummaryWire,
   InvitedAssessmentWire,
   TakeStartResponseWire,
   TakePreviewResponseWire,

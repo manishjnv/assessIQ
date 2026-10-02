@@ -80,6 +80,8 @@ export interface AttemptDetailResponse extends EvaluationMeta {
   ai_proposals: GradingProposal[] | null;
   /** Set while a Grade-all batch is running on the server. */
   grading_started_at: string | null;
+  /** Test sections: per-section totals; absent/empty for ordinary tests or while the score is hidden. */
+  section_scores?: Array<{ index: number; name: string; earned: number; max: number }>;
 }
 
 /**

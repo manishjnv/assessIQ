@@ -141,6 +141,14 @@ export interface CandidateAttemptView {
    * `questions`/`answers` are already limited to the current section.
    */
   sections?: CandidateSectionsView;
+  /** Test sections: counts per section for the final-submit dialog. Counts only, no content/ids. */
+  sections_summary?: Array<{
+    index: number;
+    name: string;
+    question_count: number;
+    answered_count: number;
+    status: "done" | "current" | "upcoming";
+  }>;
 }
 
 export interface CandidateSectionsView {

@@ -809,6 +809,17 @@ export async function updateAssessmentGrading(
 // updateAssessment
 // ---------------------------------------------------------------------------
 
+/** Key-order-independent JSON for deep-equality checks (undefined == null). */
+function canonicalJson(v: unknown): string {
+  const norm = (x: unknown): unknown =>
+    Array.isArray(x)
+      ? x.map(norm)
+      : x !== null && typeof x === "object"
+        ? Object.fromEntries(Object.entries(x as Record<string, unknown>).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, y]) => [k, norm(y)]))
+        : (x ?? null);
+  return JSON.stringify(norm(v));
+}
+
 export async function updateAssessment(
   tenantId: string,
   id: string,
@@ -865,6 +876,20 @@ export async function updateAssessment(
         "opens_at is required: an assessment with no opens_at never transitions to active (time-boundary worker requires opens_at IS NOT NULL)",
         { details: { code: AL_ERROR_CODES.OPENS_AT_REQUIRED, field: "opens_at" } },
       );
+    }
+
+    // Sections are frozen once any attempt exists (draws + section_index are per attempt).
+    if (patch.settings !== undefined) {
+      const cur = (current.settings as Record<string, unknown> | undefined)?.["sections"];
+      const next = (patch.settings as Record<string, unknown>)["sections"];
+      if (canonicalJson(cur) !== canonicalJson(next)) {
+        const has = await client.query(`SELECT 1 FROM attempts WHERE assessment_id = $1 LIMIT 1`, [id]);
+        if (has.rows.length > 0) {
+          throw new ConflictError("Sections can't be changed after students have started this test.", {
+            details: { code: AL_ERROR_CODES.SECTIONS_LOCKED },
+          });
+        }
+      }
     }
 
     // If either time-window field is in the patch, validate the merged window

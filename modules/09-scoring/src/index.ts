@@ -43,6 +43,8 @@ export {
   individualReport,
 } from "./service.js";
 
+export { getSectionScoresForAttempt, type SectionScore } from "./repository.js";
+
 // Route registrar
 export {
   registerScoringRoutes,

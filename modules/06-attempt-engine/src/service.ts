@@ -65,6 +65,7 @@ import type {
 } from "./types.js";
 import { RATE_CAP_CONSTANTS, tryAdmitEvent } from "./rate-cap.js";
 import {
+  buildSectionsSummary,
   readSections,
   resolveSection,
   sectionDeadline,
@@ -649,6 +650,7 @@ export async function getAttemptForCandidate(
     let visibleQuestions = questions;
     let visibleAnswers = answers;
     let sectionsView: CandidateAttemptView["sections"];
+    let sectionsSummary: CandidateAttemptView["sections_summary"];
     if (
       effectiveAttempt.status === "in_progress" &&
       questions.some((q) => (q.section_index ?? null) !== null)
@@ -661,6 +663,7 @@ export async function getAttemptForCandidate(
         visibleQuestions = questions.filter((q) => q.section_index === cur);
         const ids = new Set(visibleQuestions.map((q) => q.question_id));
         visibleAnswers = answers.filter((a) => ids.has(a.question_id));
+        sectionsSummary = buildSectionsSummary(st.sections, cur, questions, answers);
         sectionsView = {
           current: cur,
           total: st.sections.length,
@@ -682,6 +685,7 @@ export async function getAttemptForCandidate(
         block_copy_paste: integ?.block_copy_paste === true,
       },
       ...(sectionsView !== undefined ? { sections: sectionsView } : {}),
+      ...(sectionsSummary !== undefined ? { sections_summary: sectionsSummary } : {}),
     };
   });
 }

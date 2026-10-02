@@ -539,3 +539,15 @@ candidate.attempt.calculator:
 
     It is a basic calculator with no memory. Your answer still has to be typed into
     the question yourself.
+
+candidate.attempt.submit_sections:
+  audience: candidate
+  short_text: "Before you submit, check how many questions are unanswered in every section."
+  long_md: |
+    ## Submitting a sectioned test
+
+    The confirmation lists every section with its unanswered questions.
+
+    - Sections marked **closed** are finished. You cannot change their answers.
+    - Only the current section can still be edited before you submit.
+    - Submitting ends the test.
