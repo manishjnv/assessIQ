@@ -183,6 +183,19 @@ candidate.attempt.scenario.steps:
     is no "correct" order — exploring later evidence first is a valid
     strategy.
 
+candidate.attempt.structured_case:
+  audience: candidate
+  short_text: "Read the case, then answer each step. Choose one answer or tick all that apply."
+  long_md: |
+    ## Structured case
+
+    Read the story and the log first. Then answer each step in order.
+
+    - A round button means choose **one** answer.
+    - A square box means tick **all** answers that apply.
+    - You can change your answers until you submit the test.
+    - A step you leave blank scores 0.
+
 candidate.attempt.subjective.length:
   audience: candidate
   short_text: "Recommended 80–200 words per answer. Quality of reasoning beats word count."

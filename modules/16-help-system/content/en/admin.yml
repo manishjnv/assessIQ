@@ -3074,6 +3074,48 @@ admin.question.editor.ordering.scoring:
 
     A missing or invalid answer scores 0.
 
+admin.question.editor.content.structured_case:
+  audience: admin
+  short_text: "Structured case: a log or incident story, then choice steps. Scored automatically."
+  long_md: |
+    ## Structured case
+
+    Use this for "select the suspicious lines", "which IOC" or "what is the next step"
+    questions. The candidate reads a **context** and an optional **log excerpt**, then
+    answers each **step**. Scored automatically, no AI.
+
+    - Write a **title** and a **context**. The log excerpt is optional and shows in a monospace box.
+    - Add 1 to 12 **steps**. Each step is a choice question with 2 to 8 options.
+    - The correct marks are the answer key. They are never sent to the candidate.
+    - Options are shown in the order you write them.
+    - For free-text answers, use a scenario or subjective question instead.
+
+admin.question.editor.structured_case.steps:
+  audience: admin
+  short_text: "Each step: a prompt, one or many answers, 2 to 8 options, and the correct marks."
+  long_md: |
+    ## Steps
+
+    For each step write a **prompt** and the **options**. Then choose how the candidate answers:
+
+    - **Select one**: use the radio mark for the single correct option.
+    - **Select many**: tick every correct option.
+
+    A step needs at least 2 and at most 8 options, and at least one correct option.
+    A question has 1 to 12 steps.
+
+admin.question.editor.structured_case.scoring:
+  audience: admin
+  short_text: "Partial credit gives the average of the step scores. All or nothing needs every step right."
+  long_md: |
+    ## Scoring
+
+    - **Partial credit** (default): the question score is the average of the step scores.
+      A many-select step scores (right ticks - wrong ticks) / (number correct), never below 0.
+    - **All or nothing**: full points only when every step is fully right.
+
+    A missing or invalid answer scores 0 for that step.
+
 admin.assessment.sections:
   audience: admin
   short_text: "Split the test into timed sections, such as Quantitative, Logical and Verbal."

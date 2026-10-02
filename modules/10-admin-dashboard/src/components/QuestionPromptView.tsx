@@ -16,6 +16,7 @@
 //  - Emits NO answer-key material (correct/rationale/expected*/sample_solution).
 
 import React from "react";
+import { StructuredCaseView } from "./StructuredCaseView.js";
 import { cleanText, unescapeJsonString, safeStr, safeArr, obj, JsonFallback, Chip, OPTION_LABELS } from "./question-format.js";
 
 export interface QuestionPromptViewProps {
@@ -194,6 +195,8 @@ export function QuestionPromptView({ type, content }: QuestionPromptViewProps): 
           </span>
         </div>
       );
+    case "structured_case":
+      return <StructuredCaseView c={c} mode="prompt" />;
     case "numeric":
       return (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
