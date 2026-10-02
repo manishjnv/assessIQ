@@ -91,8 +91,7 @@ const pages = {
 // aiq-bg-raised   #fafafa  → [250, 250, 250]
 // aiq-border      #e4e4e7  → [228, 228, 231]
 
-export const { getStaticPaths, GET } = OGImageRoute({
-  param: 'route',
+export const { getStaticPaths, GET } = await OGImageRoute({
   pages,
   getImageOptions: (_path, page) => {
     return {
