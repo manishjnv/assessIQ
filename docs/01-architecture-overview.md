@@ -33,15 +33,15 @@ AssessIQ has three classes of users and three modes of access:
 │  └────────────┬────────────────────────────────┬───────────────────┘│
 │               ▼                                ▼                     │
 │  ┌─────────────────────┐         ┌───────────────────────────────┐  │
-│  │  Grading Worker     │  ◀────  │  BullMQ queues (Redis)        │  │
-│  │  Claude Agent SDK   │         │  grading · webhooks · email   │  │
+│  │  Claude Code CLI    │         │  BullMQ queues (Redis)        │  │
+│  │  (sync, admin click)│         │  webhooks · email · exports   │  │
 │  └──────────┬──────────┘         └───────────────────────────────┘  │
 └─────────────┼───────────────────────────────────────────────────────┘
               ▼
    ┌─────────────────────┐
-   │  Anthropic API      │
-   │  Sonnet · Haiku ·   │
-   │  Opus               │
+   │ Claude (Max login)  │
+   │ via CLI on the VPS  │
+   │ (05-ai-pipeline)    │
    └─────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -51,11 +51,28 @@ AssessIQ has three classes of users and three modes of access:
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+## Docker services (actual topology)
+
+From `infra/docker-compose.yml`, all on network `assessiq-net`:
+
+| Container | Role | Source |
+|---|---|---|
+| `assessiq-postgres` | PostgreSQL 16 (RLS by `tenant_id`) | `postgres:16-alpine` |
+| `assessiq-redis` | Redis 7: sessions, rate limits, BullMQ | `redis:7-alpine` |
+| `assessiq-api` | Fastify API (`tsx src/server.ts`); runs sync AI grading through the mounted `claude` CLI | `infra/docker/assessiq-api/Dockerfile` |
+| `assessiq-worker` | Same image as api; `src/worker.ts` runs BullMQ jobs (non-AI) | `infra/docker-compose.yml` |
+| `assessiq-frontend` | nginx serving the React SPA | `infra/docker/assessiq-frontend/Dockerfile` |
+| `assessiq-marketing` | nginx serving the marketing site | `infra/docker/assessiq-marketing/Dockerfile` |
+
+No PM2 is used. Cloudflare and the shared Caddy (`ti-platform-caddy-1`) sit in front (see `docs/06-deployment.md`).
+
+_Last verified: 2026-10-02 against `infra/docker-compose.yml`, `infra/docker/*/Dockerfile`, `docs/05-ai-pipeline.md`, `docs/06-deployment.md`. Sections not listed (data flows, security posture, scope) were not re-verified._
+
 ## Component responsibilities
 
 ### Edge — Caddy + Cloudflare
 - **Cloudflare** terminates public TLS (managed cert, WAF, rate limiting, orange-cloud proxy)
-- **Caddy** (`ti-platform-caddy-1`, shared with other apps on the VPS) handles origin TLS (CF Origin Cert), HTTP/2, gzip/zstd, and split-route proxying
+- **Caddy** (`ti-platform-caddy-1`, shared with other apps on the VPS) handles origin TLS, HTTP/2, gzip/zstd, and split-route proxying. Origin is locked to Cloudflare by Authenticated Origin Pulls (AOP, `mode require_and_verify`) plus the app-layer `x-origin-verify` header (`docs/06-deployment.md` section "Authenticated Origin Pulls (AOP)")
 - Routes `/api/*`, `/embed*`, `/help/*`, `/take/start` → `assessiq-api:3000` (internal network); everything else → `assessiq-frontend:80` (host port 9091)
 - WebSocket upgrade for `/ws` (live grading-status updates)
 - See `docs/06-deployment.md` for the actual Caddyfile block and VPS topology
@@ -68,13 +85,13 @@ AssessIQ has three classes of users and three modes of access:
 
 ### REST API — Fastify
 - Stateless, horizontally scalable
-- One container per role: `api` (request-serving) and `worker` (background jobs)
+- Same image, two containers: `assessiq-api` (request-serving) and `assessiq-worker` (BullMQ scheduler and non-AI jobs, `src/worker.ts`). both bind-mount the host `claude` CLI and `/root/.claude` (`infra/docker-compose.yml`); the worker must never call it (rule: no ambient AI, enforced by `modules/07-ai-grading/ci/lint-no-ambient-claude.ts`)
 - Modules wire in as Fastify plugins with explicit dependency declaration
 - Request flow: `Cloudflare → Caddy → fastify → auth middleware → tenant context → module handler → repository → postgres`
 
 ### Grading Worker — Phase 1: Claude Code CLI / Phase 2: Claude Agent SDK
 - **Phase 1 (current):** grading runs synchronously via Claude Code CLI on the VPS, triggered by an admin click — NOT via BullMQ. No `grading:queue` is used in Phase 1. See `docs/05-ai-pipeline.md` and `CLAUDE.md` rule #1.
-- **Phase 2 (designed, switchable via `AI_PIPELINE_MODE=anthropic-api`):** Separate Node process subscribes to `grading:queue` in BullMQ, runs the Claude Agent SDK pipeline, writes back to DB asynchronously.
+- **Phase 2 (designed, not live; `AI_PIPELINE_MODE=anthropic-api`):** async BullMQ worker with the Claude Agent SDK. The SDK is allowed only in `modules/07-ai-grading/src/runtimes/anthropic-api.ts` (checked with `git grep`). Phase 1 is the live default (`claude-code-vps`, `docs/05-ai-pipeline.md` lines 11-14).
 - Idempotent — same job can re-run safely (uses `attempt_id + prompt_version` as dedup key)
 - See `docs/05-ai-pipeline.md` for the full grading flow and the Phase 1 → Phase 2 distinction
 
@@ -104,10 +121,10 @@ Candidate clicks invite link
 [Attempt engine] Candidate navigates questions, autosave every 5s to /api/attempts/:id/answer
    │
    ▼
-[Submit] /api/attempts/:id/submit → status=submitted, enqueue grading job
+[Submit] /api/attempts/:id/submit → status=submitted (no grading job is queued in Phase 1)
    │
    ▼
-[Grading worker] Pulls job → runs MCQ scoring (deterministic) + KQL pattern + AI for subjective
+[Grading] MCQ scored deterministically; AI proposals run only when the super admin clicks grade (sync, `docs/05-ai-pipeline.md`)
    │
    ▼
 [Notifications] Email candidate "submitted", admin "ready for review"
@@ -140,11 +157,11 @@ On submit, AssessIQ posts results back to host via webhook
 
 | Concern | v1 (single VPS) | v2 (when needed) |
 |---|---|---|
-| API requests | 1 Node process per CPU core via PM2 cluster | Add API replicas behind nginx upstream |
-| Grading jobs | 2 worker processes, concurrency=4 each | Scale workers horizontally; rate-limit per tenant |
+| API requests | One `assessiq-api` Docker container (tsx, `infra/docker/assessiq-api/Dockerfile`); no PM2 | Add API replicas behind nginx upstream |
+| Grading | Sync on admin click via Claude Code CLI; single-flight; no worker queue | Phase 2 async workers (`AI_PIPELINE_MODE=anthropic-api`) |
 | Database | Single Postgres, connection pool via PgBouncer | Read replicas for reporting queries |
 | Cache | Single Redis | Redis Cluster or Sentinel for HA |
-| LLM calls | Anthropic API directly | Add prompt-cache hits monitoring; consider Bedrock for cost |
+| LLM calls | Claude Code CLI on the VPS (Max login), not the API | Add prompt-cache hits monitoring; consider Bedrock for cost |
 
 The single-VPS deployment comfortably handles ~50 concurrent attempts and ~100 grading jobs/hour. That's 1000+ assessments per week — enough for SOC team plus several other internal teams.
 
@@ -155,7 +172,7 @@ The single-VPS deployment comfortably handles ~50 concurrent attempts and ~100 g
 - **Secret management:** `.env` for v1 (read-only file owned by service user); migrate to Vault/Doppler in v2.
 - **Audit:** every admin action logged append-only with actor, before/after state, IP, UA. See `14-audit-log`.
 - **Data residency:** Hostinger VPS region matters — for Wipro use, choose an India region (consult DPDP Act compliance).
-- **AI data handling:** candidate answers are sent to Anthropic API for grading. Document this in tenant onboarding. Anthropic's data retention policy applies. For sensitive content, consider Bedrock in your own AWS account in v2.
+- **AI data handling:** candidate answers are sent to Claude through the Claude Code CLI for grading (Phase 1). Document this in tenant onboarding. Anthropic's data retention policy applies. For sensitive content, consider Bedrock in your own AWS account in v2.
 
 ## What's NOT in scope for v1
 

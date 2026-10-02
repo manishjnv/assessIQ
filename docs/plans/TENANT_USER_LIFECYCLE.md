@@ -2,7 +2,7 @@
 
 **Owner**: super-admin offboarding/onboarding workstream
 **Date opened**: 2026-05-20
-**Status**: Phase A in progress
+**Status**: DONE for Phases A-E. A `a1db97c` (plan + foundation), B `2af9849` (tenant Suspend/Resume/Archive/Unarchive), C handoff `c315054` (user lifecycle), D `60d4d23` (login banner), E `a5e7cf1` (docs). Source: `git log`, `docs/SESSION_STATE.md` (lines 2132, 2152). Purge after retention: DPDP retention cron in `7739842` (scope not verified against this plan).
 **Sessions estimated**: 3 (Phase A; B+C parallel; D+E together)
 
 ## Goal

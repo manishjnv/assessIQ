@@ -3,7 +3,7 @@
 **Source spec:** `docs/design/2026-05-23-question-difficulty-spec.md` (§4 parameter tables, §5 gate, §7 data model, §8 roll-out)
 **Scope:** Phase A only — spec module + difficulty tagging + HARD structural gates. Phase B (warn heuristics, local embedder) and Phase C (empirical drift report) are out of scope.
 **Resolved decisions:** Bloom + NICE layered taxonomy; structural-gates-first; **forward-only** (tag new items only, no backfill); zero AI-risk (no new `claude` spawn site, no `lint-no-ambient-claude` change).
-**Status:** Ready to execute. Each phase below is self-contained for a fresh chat context.
+**Status:** DONE for Phase A (A1 `667286a`, A2 `fc61718`, A3 `2c102fa`), deployed (`7aed109`, `docs/SESSION_STATE.md`). Phases B and C: not started (not verified in git log).
 
 ---
 

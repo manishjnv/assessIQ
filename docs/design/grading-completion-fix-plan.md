@@ -1,6 +1,11 @@
 # Plan — Grading never completes: fix Accept contract + Stage-1 resilience
 
-**Status:** PLANNED — not started. Saved 2026-05-26 for a later session.
+**Status:** DONE. Fixed in commit `defb9f9` (2026-05-28), live on prod.
+- Bug A (Accept sent `{question_id}`, backend needs `{proposals:[...]}`, so every Accept returned 422): fixed in `defb9f9` (commit message). The attempt now moves to `graded` only when every AI-gradeable question has a gradings row.
+- Bug B (Stage-1 schema-violation on anchored questions): fixed in `defb9f9` with a tolerant `coerceSubmitAnchorsPayload()`.
+- Deploy: `docs/SESSION_STATE.md` line 1055 records `/srv/assessiq` pulled to `defb9f9` and api + frontend recreated; `/api/health` returned 200. Follow-up transport fix (CF 100s timeout, migration 0100): `docs/SESSION_STATE.md` line 1007, `docs/RCA_LOG.md` line 1946.
+
+_Original status (historical): PLANNED, saved 2026-05-26._
 **Owner model:** Opus orchestrates; load-bearing 07 work stays Opus + codex gate.
 **Trigger:** User report "for 943a41a, grading still failing, it does not complete assessment grading at all."
 
