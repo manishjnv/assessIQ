@@ -18,11 +18,11 @@
     "@assessiq/core": "workspace:*",
     "@assessiq/notifications": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
-    "argon2": "^0.40.0",
+    "argon2": "^0.45.1",
     "ioredis": "^5.4.0",
     "jose": "^5.9.0",
     "@otplib/core": "^12.0.0",
     "@otplib/preset-default": "^12.0.0",
-    "pg": "^8.13.0"
+    "pg": "^8.23.0"
   }
 }
