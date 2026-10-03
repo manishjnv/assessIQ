@@ -261,6 +261,12 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
   });
 }
 
+/** Always-quoted CSV cell with the formula-injection guard (RV77): a leading = + - @ tab CR gets an apostrophe. */
+export function csvQuote(v: string): string {
+  const s = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
 /**
  * Generate a CSV export of all billing events for a tenant.
  *
@@ -273,7 +279,7 @@ export async function getTenantBillingEventsCsv(tenantId: string): Promise<strin
     getAllBillingEventsForExport(client, tenantId),
   );
 
-  const escape = (v: string): string => `"${v.replace(/"/g, '""')}"`;
+  const escape = csvQuote;
 
   const header = 'id,attempt_id,event_type,occurred_at';
   const lines = events.map((e) =>

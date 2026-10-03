@@ -62,8 +62,10 @@ export function previewCsv(text: string): { rows: string[][]; total: number } {
   return { rows: data.slice(0, 10).map((r) => [(r[ni] ?? "").trim(), (r[ei] ?? "").trim()]), total: data.length };
 }
 
-function csvCell(v: string | number): string {
-  const s = String(v);
+export function csvCell(v: string | number): string {
+  let s = String(v);
+  // Formula-injection guard (RV77, same rule as 15-analytics results-export.ts): = + - @ tab CR.
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

@@ -217,9 +217,11 @@ async function streamRows(
   });
 }
 
-function csvEscape(value: unknown): string {
+export function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  let str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  // Formula-injection guard (RV77, same rule as 15-analytics results-export.ts): = + - @ tab CR.
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
   // RFC 4180: fields containing comma, double-quote, or newline are quoted.
   if (/[",\n\r]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;

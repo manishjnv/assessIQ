@@ -17,6 +17,7 @@
 
 import type { PoolClient } from 'pg';
 import { Readable } from 'node:stream';
+import { csvCell } from './results-export.js'; // formula-injection guard (RV77)
 import type {
   HomeKpis,
   QueueSummary,
@@ -722,11 +723,7 @@ export async function streamAttemptExportRows(
   for (const row of result.rows) {
     if (format === 'csv') {
       const line = ATTEMPT_EXPORT_COLUMNS.map((col) => {
-        const val = row[col as string] ?? '';
-        if (typeof val === 'string' && (val.includes(',') || val.includes('"') || val.includes('\n'))) {
-          return `"${val.replace(/"/g, '""')}"`;
-        }
-        return val;
+        return csvCell(row[col as string]);
       }).join(',') + '\r\n';
       lines.push(line);
     } else {
@@ -780,12 +777,7 @@ export async function streamTopicHeatmapCsv(
   for (const row of rows) {
     const line = TOPIC_HEATMAP_EXPORT_COLUMNS.map((col) => {
       const val = row[col as keyof TopicHeatmapExportRow];
-      if (val === null || val === undefined) return '';
-      const s = String(val);
-      if (s.includes(',') || s.includes('"') || s.includes('\n')) {
-        return `"${s.replace(/"/g, '""')}"`;
-      }
-      return s;
+      return csvCell(val);
     }).join(',') + '\r\n';
     lines.push(line);
   }
