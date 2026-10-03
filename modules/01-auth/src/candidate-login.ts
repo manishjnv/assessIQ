@@ -32,6 +32,7 @@ import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { sha256Hex } from "./crypto-util.js";
 import { getRedis } from "./redis.js";
+import { incrFixedWindow } from "./fixed-window-lua.js";
 
 export const CANDIDATE_LOGIN_TOKEN_TTL_SEC = 15 * 60;       // 15 min
 export const CANDIDATE_SESSION_TTL_SEC = 30 * 24 * 60 * 60; // 30 days
@@ -74,20 +75,6 @@ function sleep(ms: number): Promise<void> {
 const CANDIDATE_LINK_RL_WINDOW_SEC = 60 * 60; // 1 hour
 const CANDIDATE_LINK_RL_MAX = 5;
 
-// Lua script: INCR; set EXPIRE only on first hit (avoids resetting window on
-// every request — attacker cannot game the window by spreading hits across
-// the boundary). Returns [count_after_incr, ttl_seconds].
-const RL_LUA = `
-local key = KEYS[1]
-local window = tonumber(ARGV[1])
-local n = redis.call("INCR", key)
-if n == 1 then
-  redis.call("EXPIRE", key, window)
-end
-local ttl = redis.call("TTL", key)
-return {n, ttl}
-`;
-
 async function checkCandidateLinkRateLimit(
   ip: string,
   email: string,
@@ -106,13 +93,7 @@ async function checkCandidateLinkRateLimit(
   // degrading login under Redis outage. The warn log surfaces the
   // degradation for ops without leaking through the HTTP response.
   try {
-    const result = (await redis.eval(
-      RL_LUA,
-      1,
-      key,
-      CANDIDATE_LINK_RL_WINDOW_SEC,
-    )) as [number, number];
-    const count = result[0];
+    const { count } = await incrFixedWindow(redis, key, CANDIDATE_LINK_RL_WINDOW_SEC);
     return count <= CANDIDATE_LINK_RL_MAX;
   } catch (err: unknown) {
     log?.warn({ err }, 'candidate-login.rate-limit: Redis unavailable, failing closed');
