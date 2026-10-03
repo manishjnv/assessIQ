@@ -68,7 +68,7 @@ GET /api/admin/reports/cost-by-month?year=YYYY
 GET /api/admin/reports/exports/attempts.csv
 GET /api/admin/reports/exports/attempts.jsonl
 GET /api/admin/reports/exports/topic-heatmap.csv
-GET /api/admin/assessments/:id/results.csv   (admin+reviewer; LIVE, per-invited-candidate; src/results-export.ts)
+GET /api/admin/assessments/:id/results.csv   (admin only since 2026-10-03, was admin+reviewer; LIVE, per-invited-candidate; src/results-export.ts)
 ```
 All export routes audit to `audit_log` with `action: 'attempt.exported'`.
 
@@ -139,3 +139,8 @@ The activity test file spins up its own postgres container (`aiq_activity_test`)
 ## Section columns in results CSV (N1a, 2026-10-02)
 
 `results-export.ts` appends one column `Section: <name> (%)` per `settings.sections` entry (names from the assessment; none for unsectioned tests), after the existing columns. Values use the same visible-score rule as `percent`: blank unless the score is released to the tenant. Not included: per-section rank, earned/max columns.
+
+## Reviewer role removed; CSV formula guard (2026-10-03)
+
+- **RV60.** The option `adminOrReviewer` is removed. `results.csv` is admin only. **Why.** Owner decision RO7. **Not included.** No change to the CSV columns.
+- **RV77.** The CSV formula-injection guard (a cell that starts with `= + - @` gets a leading `'`) is now on the heatmap export and the attempt exports too, with one unit test each. Before this, only `results-export.ts` had it. The escape functions are not merged into one helper (separate task).

@@ -202,13 +202,13 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `GET`  | `/admin/tenant`        | Current tenant settings + branding | Phase 1 |
 | `PATCH`| `/admin/tenant`        | Update tenant name, branding, settings | Phase 1 |
 | `GET`  | `/admin/users`         | List users (filter by role, status, search; pageSize cap 100 — stricter than the global 200 cap per `03-users` SKILL § 9) | live |
-| `POST` | `/admin/users`         | Create user record (no email sent). **Status is role-derived:** `role:'candidate'` → `active` immediately (candidates have no invite/login flow — they authenticate only via per-assessment magic links); `admin`/`reviewer` → `pending` (must accept an emailed invite, see `inviteUser`). No `status` field is accepted, so an active admin/reviewer cannot be minted here. Optional candidate `designation` rides in `metadata.designation` (free-text, no schema column). | live |
+| `POST` | `/admin/users`         | Create user record (no email sent). **Status is role-derived:** `role:'candidate'` → `active` immediately (candidates have no invite/login flow — they authenticate only via per-assessment magic links); `admin` → `pending` (must accept an emailed invite, see `inviteUser`). `role:'reviewer'` is rejected with 400 `INVALID_ROLE` (role removed 2026-10-03). No `status` field is accepted, so an active admin cannot be minted here. Optional candidate `designation` rides in `metadata.designation` (free-text, no schema column). | live |
 | `GET`  | `/admin/users/:id`     | Get user detail | live |
 | `PATCH`| `/admin/users/:id`     | Update role, status, name, metadata; enforces last-admin invariant (HTTP 409 `LAST_ADMIN`) and status-state-machine (HTTP 422 `INVALID_STATUS_TRANSITION`); sweeps Redis sessions on disable | live |
 | `DELETE` | `/admin/users/:id`   | Soft delete; cascades to pending invitations for the user's email; sweeps Redis sessions; enforces last-admin invariant | live |
 | `POST` | `/admin/users/:id/restore` | Restore a soft-deleted user (clears `deleted_at`); does NOT recreate invitations or sessions | live |
 | `POST` | `/admin/users/import`  | **Bulk candidate CSV import (live 2026-10-01).** Admin only; authChain rate limit. JSON body `{ csv: string, assessment_id?: string }`. CSV: UTF-8 (BOM stripped), header row required with `name`,`email` (case-insensitive; extra columns ignored), max 1000 data rows, max 512 KB; values trimmed, emails lowercased + shape-validated, in-file duplicates deduped (first wins), blank lines ignored. Each valid row creates a `candidate` (status `active`) in the admin's tenant; an email already in this tenant as a candidate is reused (`existing`); a non-candidate email is skipped (`EXISTING_USER_NOT_CANDIDATE`). One bad row never aborts the rest. With `assessment_id` (must be `published`/`active`, checked BEFORE any user is created → 409 `INVALID_STATE_TRANSITION`, 404 cross-tenant), all created+existing candidates go through the existing `inviteUsers` (same skip reasons e.g. `INVITATION_EXISTS`, `USER_INACTIVE`; same queued emails). Response 200: `{ created, existing, invited, skipped: [{ row, email, reason }], warning? }` — `row` is the spreadsheet row (header = 1); skip reasons: `INVALID_EMAIL`, `MISSING_NAME`, `NAME_TOO_LONG`, `DUPLICATE_IN_FILE`, `EXISTING_USER_NOT_CANDIDATE`, `INSERT_FAILED`, plus invite reasons. `warning` ("Email plan sends ~300/day shared; some invites may be delayed") is present when `invited` > 150. Errors (400 `ValidationError`): `INVALID_PARAM` (csv not a string / bad assessment_id), `CSV_MISSING_COLUMNS`, `CSV_TOO_MANY_ROWS`, `CSV_TOO_LARGE`, `CSV_MALFORMED` (unterminated quote). Audit: exactly ONE `audit_log` row per request (`user.created`, `after = { kind:'bulk_import', rows_total, created, existing, skipped }` — counts only, no names/emails) written in the same tx as the user inserts; invites additionally write their normal per-invitation `assessment.invite` rows. Replaces the former 501 stub (no longer returns `BULK_IMPORT_PHASE_1`). |
-| `POST` | `/admin/invitations`   | Issue admin/reviewer invitation (candidate role → 501 `CANDIDATE_INVITATION_PHASE_1`); response carries the invitation row ID + email + role + expires_at but **never** the plaintext token (per `03-users` SKILL § 2) | live |
+| `POST` | `/admin/invitations`   | Issue admin invitation (role enum `admin | candidate`; `reviewer` → 400 `INVALID_ROLE` since 2026-10-03; candidate role → 501 `CANDIDATE_INVITATION_PHASE_1`); response carries the invitation row ID + email + role + expires_at but **never** the plaintext token (per `03-users` SKILL § 2) | live |
 | `POST` | `/invitations/accept`  | **Pre-auth** (no session required). Body: `{token: string}` (43–64 char base64url). Validates → marks invitation accepted (atomic single-use) → flips user `pending → active` → mints a session via `01-auth` (currently mocked — see `03-users` SKILL § 12). Sets `aiq_sess` cookie (httpOnly, sameSite=lax, secure in prod). Response body is `{user, expiresAt}` — sessionToken is cookie-only (no body bearer leak) | live |
 | `GET`  | `/admin/invitations`   | List invitations | Phase 1 |
 | `POST` | `/admin/users/:id/totp/reset` | Force TOTP re-enrollment | Phase 1 (after 01-auth) |
@@ -462,8 +462,8 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | `POST`   | `/admin/webhooks/deliveries/:id/replay`    | Replay a delivery (append-only, new row) — **live 2026-05-03** |
 | `GET`    | `/admin/webhook-failures`                  | Convenience alias: deliveries with `status=failed` — **live 2026-05-03** |
 | `POST`   | `/admin/webhook-failures/:id/retry`        | Convenience alias for replay — **live 2026-05-03** |
-| `GET`    | `/admin/notifications`                     | Short-poll in-app notifications (`?since=<ISO cursor>&limit=<n>`) — any-role (admin+reviewer) — **live 2026-05-03** |
-| `POST`   | `/admin/notifications/:id/mark-read`       | Mark notification read — any-role — **live 2026-05-03** |
+| `GET`    | `/admin/notifications`                     | Short-poll in-app notifications (`?since=<ISO cursor>&limit=<n>`) — admin only (the any-role option `anyRoleAuth` was removed 2026-10-03) — **live 2026-05-03** |
+| `POST`   | `/admin/notifications/:id/mark-read`       | Mark notification read — admin only (since 2026-10-03) — **live 2026-05-03** |
 
 ### Admin — Audit & help authoring
 
@@ -566,7 +566,7 @@ Edits a tenant user's profile from the Platform page "Manage ▸ Edit admin" inl
 | Field | Type | Notes |
 |---|---|---|
 | `name` | string | 1–200 chars. |
-| `role` | `"admin" \| "reviewer"` | `candidate`/`super_admin` rejected (`INVALID_ROLE`). |
+| `role` | `"admin"` | `reviewer` (removed 2026-10-03), `candidate` and `super_admin` are rejected (400 `INVALID_ROLE`). |
 | `email` | string | The **login identity** (Google SSO resolves a user purely by Google-verified email). See semantics below. |
 | `confirmEmailIdentityChange` | boolean | Required `true` when changing the email of a **non-pending** account (`active` or `disabled`). |
 | `reason` | string | Optional, recorded in the audit row. |
@@ -576,7 +576,7 @@ Edits a tenant user's profile from the Platform page "Manage ▸ Edit admin" inl
 - **Active/disabled** admin: requires `confirmEmailIdentityChange:true`. Transfers the login identity — the user's sessions are swept (forced re-login) and the stale Google `oauth_identities` link is removed (`sessionsSwept:true`).
 - A role change on a live user also sweeps sessions to drop stale role claims.
 
-**Guards:** demoting the tenant's only active admin to reviewer → `409 LAST_ADMIN` (no override here — use the Manage-users drill-down). New email colliding with an existing user in the same tenant → `409 USER_EMAIL_EXISTS`. Editing a `super_admin` user → `400 CANNOT_EDIT_SUPER_ADMIN`. Editing a soft-deleted user → `409 USER_DELETED`. Every change writes one `audit_log` row (`user.updated`, `kind:'super_profile_edit'`) in the same transaction.
+**Guards:** the old `409 LAST_ADMIN` guard (demote the only admin to reviewer) is gone with the demotion path (2026-10-03). New email colliding with an existing user in the same tenant → `409 USER_EMAIL_EXISTS`. Editing a `super_admin` user → `400 CANNOT_EDIT_SUPER_ADMIN`. Editing a soft-deleted user → `409 USER_DELETED`. Every change writes one `audit_log` row (`user.updated`, `kind:'super_profile_edit'`) in the same transaction.
 
 **Response 200:** `{ userId, email, name, role, previousEmail, emailChanged, status, sessionsSwept, reinvited, auditId }`
 
@@ -1135,7 +1135,7 @@ Right to erasure. Tombstones the candidate's PII in a single transaction: `users
 |---|---|---|
 | `REASON_REQUIRED` | 400 | body had no `reason` |
 | `INVALID_REASON` | 400 | reason wrong type / too long / control chars |
-| `ERASE_NOT_CANDIDATE` | 400 | target user's role is not `candidate` (admin/reviewer/super_admin erasure is out of scope — handled manually) |
+| `ERASE_NOT_CANDIDATE` | 400 | target user's role is not `candidate` (admin/super_admin erasure is out of scope — handled manually) |
 | `USER_NOT_FOUND` | 404 | No candidate with this id in the caller's tenant |
 
 **Audit action emitted:** `user.pii.erased` (`auditInTx`, same transaction as the tombstone; `after` carries counts + reason only, never raw name/email).
@@ -1604,7 +1604,7 @@ Returns per-month grading cost (API token spend). In Phase 3 (`claude-code-vps` 
 
 ### `GET /api/admin/assessments/:id/results.csv`
 
-LIVE placement-cell export (reads live tables, NOT `attempt_summary_mv`). Roles: admin + reviewer. Assessment must belong to the session tenant (404 otherwise). One row per **invited** candidate (not started, in progress, submitted, graded, released, expired); latest attempt wins. Capped at 10,000 rows. UTF-8 with BOM; string cells starting `= + - @` are prefixed with `'`.
+LIVE placement-cell export (reads live tables, NOT `attempt_summary_mv`). Roles: admin only (`adminOrReviewer` removed 2026-10-03). Assessment must belong to the session tenant (404 otherwise). One row per **invited** candidate (not started, in progress, submitted, graded, released, expired); latest attempt wins. Capped at 10,000 rows. UTF-8 with BOM; string cells starting `= + - @` are prefixed with `'`.
 
 **Response 200:** `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="<assessmentId>-results-YYYY-MM-DD.csv"`.
 
@@ -2884,3 +2884,5 @@ All three use the same guard as the other generate routes. `id` must be a uuid (
 - Content sent to the candidate is `{ title, context, log_excerpt?, steps: [{ id, prompt, select, options }] }` only. The sanitiser keeps an allowlist per step; `correct`, `scoring` and `explanation` are never sent. Options are in authored order (no shuffle for this type).
 - Answer saved (`PUT` answer route): `{ "steps": { "<stepId>": [int] } }` with original option indexes. Check rule: see the answer-save row above. The candidate runner marks a question answered when at least one step has a pick.
 - Scoring and result shapes: see 02 and 05. The admin attempt detail shows the key and the candidate picks per step (admin only).
+
+> **Reviewer role removed (2026-10-03, RV60).** Invites, user create/update and super-admin edit-admin return 400 `INVALID_ROLE` for `reviewer`. Notifications and the results CSV are admin only. See `docs/04-auth-flows.md` § "Reviewer role removed". The dev minter section still names `reviewer` in its body type, for legacy rows only.

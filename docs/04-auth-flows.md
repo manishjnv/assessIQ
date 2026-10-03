@@ -24,7 +24,7 @@ Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set me
 | Role | Scope | Auth method | TOTP enforced | Typical access |
 |---|---|---|---|---|
 | `candidate` | Per-tenant | Magic link or Google SSO | Optional (tenant-configurable) | `/take/*`, `/api/me/*` |
-| `reviewer` | Per-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Read-only admin routes |
+| `reviewer` | Per-tenant | none (removed 2026-10-03) | n/a | No access. The role value stays in the DB and the types for legacy rows only. See the note at the end of this page. |
 | `admin` | Per-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Full `/api/admin/*` for their tenant |
 | `super_admin` | Cross-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Routes explicitly gated to `['super_admin']` only |
 
@@ -63,21 +63,21 @@ Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set me
 
 **Adversarial gate (mandatory, 01-auth):** Sonnet review **VERDICT accept** — all 7 highest-stakes invariants CLEAN with traced proofs (no super-admin escalation on either path; cross-tenant read post-verification only; `normalizeEmail` = trim+lowercase only → no dot/plus impersonation; `/select` anti-tamper double-checked; always-MFA; CSRF/nonce sound; behaviour-preserving). Opus adjudication: finding-1 (`email_verified`) **fixed** (step 4b above); **finding-2 — open accepted residual:** the continuation ip-binding derives client IP via `cf-connecting-ip ?? req.ip`, spoofable if the origin is reached without Cloudflare in front — this is a **pre-existing codebase-wide pattern** (sessions, candidate-login, rate-limit derive IP identically) and is gated behind a 256-bit HttpOnly single-use token; the correct fix is an app-wide `trustProxy`/CF-range config (tracked follow-up, not a P1-scoped change); finding-3 (non-consuming peek) is design-intent, SameSite=Lax-bounded.
 
-### P2 — email-OTP for admin/reviewer (2026-05-19, commit `a16fdb1`)
+### P2 — email-OTP for admin (2026-05-19, commit `a16fdb1`; reviewer part removed 2026-10-03)
 
-An **alternative primary login to Google SSO, for `admin` and `reviewer` only.** `super_admin` can NEVER use it (Google + authenticator MFA only); `candidate` magic-link is untouched. Reuses P1's resolver/continuation/picker/`mintForIdentity`.
+An **alternative primary login to Google SSO, for `admin` only.** (Until 2026-10-03 `reviewer` was also eligible; the role is removed.) `super_admin` can NEVER use it (Google + authenticator MFA only); `candidate` magic-link is untouched. Reuses P1's resolver/continuation/picker/`mintForIdentity`.
 
 - **Login page** gains "Email me a sign-in code" → `/admin/login/email` (two-step: enter email → enter 6-digit code). New module `modules/01-auth/src/email-otp.ts`.
-- `POST /api/auth/login/email/request {email}` (`publicAuthChain`) — **always** `200 {ok:true,"If that email can sign in, we've sent a 6-digit code."}`. A code is generated/sent **only if** `resolveLoginIdentities(email)` has ≥1 identity passing `filterEligible` = `role∈{admin,reviewer} && !isPlatform` (positive allowlist — structurally excludes super_admin & candidate). 6-digit CSPRNG; only `sha256(code)` in Redis; 10-min TTL; one active code per email (a new request overwrites). Two fail-closed rate-limits (candidate-login Lua idiom): per-`(IP,email)` 5/h **and** per-email IP-independent 10/h (anti IP-rotation email-bombing). `sendEmail` is called with the eligible tenant's `tenantId` (audited; never the dev-emails.log plaintext-code fallback). Email template `admin_email_otp` (modules/13-notifications).
-- `POST /api/auth/login/email/verify {email,code}` (`publicAuthChain`) — atomic `ATTEMPT_LUA` (≤5 attempts then the code is burned), ip/ua bind, constant-time `sha256` compare, single-use delete on success. On success → fresh `resolveLoginIdentities` + the SAME `filterEligible`: 0→fail, 1→`mintForIdentity` (customer branch; **no Google `subject`** ⇒ no `oauth_identities` link written), ≥2→`storeLoginContinuation` (`subject:undefined`, `candidates`=admin/reviewer userIds) → `/admin/select-identity` (P1 picker reused). Any failure → generic `200 {ok:false,error:'invalid_code'}` (no expired/wrong/locked distinction).
-- **super_admin impossibility — triple-blocked & adversarially proven:** (a) request `filterEligible`; (b) verify re-filter; (c) the continuation `candidates` only ever holds admin/reviewer userIds, so P1 `selectLoginIdentity`'s `userId ∈ candidates` assertion rejects a super_admin userId even though its internal re-resolve returns all roles. A mixed email (super_admin@platform + admin@tenantX) gets a code (admin eligible) but only the admin identities are ever selectable.
-- **Anti-enumeration is constant-WORK, not just constant-floor:** `_requestWork` runs `resolveLoginIdentities` unconditionally first on every path (rate-limited / ineligible / unknown / send), and `MIN_REQUEST_MS` is 800 ms (above the resolve p99) on both request and verify — so response latency cannot distinguish a provisioned admin/reviewer email from an unknown one.
+- `POST /api/auth/login/email/request {email}` (`publicAuthChain`) — **always** `200 {ok:true,"If that email can sign in, we've sent a 6-digit code."}`. A code is generated/sent **only if** `resolveLoginIdentities(email)` has ≥1 identity passing `filterEligible` = `role==='admin' && !isPlatform` (positive allowlist — structurally excludes super_admin & candidate). 6-digit CSPRNG; only `sha256(code)` in Redis; 10-min TTL; one active code per email (a new request overwrites). Two fail-closed rate-limits (candidate-login Lua idiom): per-`(IP,email)` 5/h **and** per-email IP-independent 10/h (anti IP-rotation email-bombing). `sendEmail` is called with the eligible tenant's `tenantId` (audited; never the dev-emails.log plaintext-code fallback). Email template `admin_email_otp` (modules/13-notifications).
+- `POST /api/auth/login/email/verify {email,code}` (`publicAuthChain`) — atomic `ATTEMPT_LUA` (≤5 attempts then the code is burned), ip/ua bind, constant-time `sha256` compare, single-use delete on success. On success → fresh `resolveLoginIdentities` + the SAME `filterEligible`: 0→fail, 1→`mintForIdentity` (customer branch; **no Google `subject`** ⇒ no `oauth_identities` link written), ≥2→`storeLoginContinuation` (`subject:undefined`, `candidates`=admin userIds) → `/admin/select-identity` (P1 picker reused). Any failure → generic `200 {ok:false,error:'invalid_code'}` (no expired/wrong/locked distinction).
+- **super_admin impossibility — triple-blocked & adversarially proven:** (a) request `filterEligible`; (b) verify re-filter; (c) the continuation `candidates` only ever holds admin userIds, so P1 `selectLoginIdentity`'s `userId ∈ candidates` assertion rejects a super_admin userId even though its internal re-resolve returns all roles. A mixed email (super_admin@platform + admin@tenantX) gets a code (admin eligible) but only the admin identities are ever selectable.
+- **Anti-enumeration is constant-WORK, not just constant-floor:** `_requestWork` runs `resolveLoginIdentities` unconditionally first on every path (rate-limited / ineligible / unknown / send), and `MIN_REQUEST_MS` is 800 ms (above the resolve p99) on both request and verify — so response latency cannot distinguish a provisioned admin email from an unknown one.
 - **P1-code change:** `mintForIdentity.ctx.subject` is now optional; the `oauth_identities` INSERT is wrapped `if (subject !== undefined)`. Google callback + P1 `/select` always pass a `subject` ⇒ those paths are byte-unchanged; only email-OTP (no Google identity) skips the link. `LoginContinuationPayload.subject` widened to `string | undefined`; `selectLoginIdentity` logic unchanged (only the subject-forwarding spread).
 - **Adversarial gate (mandatory, 01-auth):** Sonnet review VERDICT *revise* — all security invariants HELD with traced proofs (super_admin/candidate impossible incl. races; brute-force infeasible: 5 tries/code over a 10⁶ space + dual rate-limit; recipient-injection/code-exfil blocked by resolve-before-send; P1 byte-preservation; continuation reuse). Opus adjudication: **BLOCKER-1** (missing `admin_email_otp` template — feature DOA) FIXED; **MAJOR-2** (timing oracle breaking anti-enum) FIXED (constant-work + 800 ms floor); **MINOR-3** (per-email cap) FIXED; **MINOR-4** (tenantId → audited send, no plaintext-code dev-log) FIXED; **MINOR-5** (`cf-connecting-ip` spoofable) = accepted PRE-EXISTING codebase-wide residual (same as P1 finding-2; app-wide `trustProxy` follow-up, not P2-scoped).
 
 ## Super-admin "Edit admin" — email is the login identity (2026-05-24, branch `feat/platform-edit-admin`, PR-pending)
 
-**What:** the Platform page gains a per-row "Manage ▸ Edit admin" modal that edits the primary-contact admin's `name`, `role` (`admin`↔`reviewer`), and `email` via `PATCH /api/admin/super/users/:userId` (gate: `super_admin` + fresh MFA). See `docs/03-api-contract.md` for the full contract.
+**What:** the Platform page gains a per-row "Manage ▸ Edit admin" modal that edits the primary-contact admin's `name`, `role` (fixed to `admin`; reviewer is rejected with `INVALID_ROLE` since 2026-10-03), and `email` via `PATCH /api/admin/super/users/:userId` (gate: `super_admin` + fresh MFA). See `docs/03-api-contract.md` for the full contract.
 
 **Why this is an auth-flow concern:** because login resolution is **by Google-verified email** (`resolveLoginIdentities(verifiedEmail)` — "the SOLE cross-tenant identity key", per the P1 section below), `users.email` *is* the login identity. There is no separate immutable login id that survives an email change. Therefore editing an admin's email is not a contact-detail edit — it changes who can sign into that account.
 
@@ -114,12 +114,12 @@ The super-admin logs in through the **normal `/admin/login` page with the Tenant
 totpVerified = user.role === "candidate" || !config.MFA_REQUIRED
 ```
 
-- **What changed.** Previously the customer branch always minted `totpVerified=false`. It now mints `true` for `candidate` (parity with magic-link, which hardcodes `true`) and for `admin`/`reviewer` **when `MFA_REQUIRED=false`**. (`modules/01-auth/src/google-sso.ts` ~line 486.) The super_admin branch is unchanged — it always mints `false` and always requires TOTP (Gate-4 above), and is never reached by this line.
+- **What changed.** Previously the customer branch always minted `totpVerified=false`. It now mints `true` for `candidate` (parity with magic-link, which hardcodes `true`) and for `admin` (and legacy `reviewer`) **when `MFA_REQUIRED=false`**. (`modules/01-auth/src/google-sso.ts` ~line 486.) The super_admin branch is unchanged — it always mints `false` and always requires TOTP (Gate-4 above), and is never reached by this line.
 - **Why.** Production runs `MFA_REQUIRED=false` (opt-in MFA, pre-launch). With the old code an SSO admin was `totpVerified=false` for the entire 8h session and there is **no TOTP step to ever flip it true** — so `rate-limit.ts` permanently kept them in the conservative **60/min `aiq:rl:user:<id>`** tier (vs 300/min for verified admins). A normal dashboard page fires >60 authenticated calls/min (`whoami` + `/api/admin/assessments` + `/api/billing/usage` + polling), exhausting the bucket; every subsequent request then `429`s with `scope=user` — including `GET /api/auth/google/start` (the session cookie is still sent), so the admin can't even re-login out of the lockout. Recurring 3× because all three prior fixes raised **IP-scope** caps (anon 30→120, IP-admin 100→500, verified-admin 5000) and never the per-user tier that was actually binding. See `docs/RCA_LOG.md` 2026-05-30.
 - **Why this is safe (adversarial-reviewed, VERDICT accept).** `require-auth.ts` wraps the **entire** TOTP-verified gate *and* the fresh-MFA step-up gate in `if (isSuperAdmin || config.MFA_REQUIRED)` (require-auth.ts:59). So for non-super_admin roles when `MFA_REQUIRED=false`, `totpVerified` is **never read by any auth gate** — flipping it `true` only restores the correct rate-limit tier and relaxes **no** authorization. super_admin is always-MFA on a separate branch. Credential endpoints keep their own 20/min per-route bucket regardless of tier, so brute-force protection is unaffected.
 - **Considered and rejected.** (a) Bumping the hardcoded `60` user cap — that is a 4th whack-a-mole on a symptom; a heavy page can exceed any fixed number, and it leaves the trust-tier semantics wrong. (b) Making the rate-limit tier itself `MFA_REQUIRED`-aware without touching the session field (Option A) — smaller blast radius but leaves `totpVerified` semantically dishonest; rejected in favour of fixing the field at the source.
 - **NOT included / known residual (V3).** A session minted `totpVerified=true` while `MFA_REQUIRED=false` persists ~8h in Redis. If an operator flips `MFA_REQUIRED=true` mid-session, that stale session **bypasses the newly-enabled TOTP gate until it expires** (≤8h). This is a bounded, operator-initiated (config change + redeploy), non-attacker-exploitable risk and is accepted; super_admin is unaffected. If a future deploy enables MFA, treat it as a session-invalidation event (or accept the ≤8h tail).
-- **Downstream impact.** `rate-limit.ts` (tier resolution — no code change, reads the field), the email-OTP login path (reaches the same customer-branch mint, so admin/reviewer email-OTP logins get the same fix). No schema or API-contract change.
+- **Downstream impact.** `rate-limit.ts` (tier resolution — no code change, reads the field), the email-OTP login path (reaches the same customer-branch mint, so admin email-OTP logins get the same fix). No schema or API-contract change.
 
 ---
 
@@ -792,7 +792,7 @@ Role is resolved per-request from `req.session.role`, `req.apiKey`, or anonymous
 
 | Tier | Bucket max (default) | Env var | Scope |
 |---|---|---|---|
-| admin / reviewer session | 100 req/min/IP | `RATE_LIMIT_IP_ADMIN` | **All routes** |
+| admin session (admin + super_admin) | 100 req/min/IP | `RATE_LIMIT_IP_ADMIN` | **All routes** |
 | candidate session (valid, role=candidate) | 3000 req/min/IP (campus lab, see § Campus-scale below) | `RATE_LIMIT_IP_CANDIDATE_SESSION` | **All routes** |
 | unknown-role session | 30 req/min/IP | `RATE_LIMIT_IP_USER` | **All routes** |
 | anonymous (no session, no key) | 30 req/min/IP | `RATE_LIMIT_IP_ANON` | **All routes** |
@@ -814,7 +814,7 @@ The old bypass predicate required `session.totpVerified === true`, which was **n
 
 ### Path N decision — TOTP/recovery endpoints not special-cased
 
-`POST /api/auth/totp/verify`, `POST /api/auth/totp/recovery`, `POST /api/auth/totp/enroll/confirm` are **not** given a separate tighter IP bucket. Admin/reviewer sessions hit 100/min/IP on these routes, same as all other routes.
+`POST /api/auth/totp/verify`, `POST /api/auth/totp/recovery`, `POST /api/auth/totp/enroll/confirm` are **not** given a separate tighter IP bucket. Admin sessions hit 100/min/IP on these routes, same as all other routes.
 
 **Security posture:** an attacker on `/api/auth/totp/verify` must already hold a **pre-MFA session** (valid `aiq_sess` with `totpVerified=false`), which requires controlling the Google identity that minted it. The effective rate is `min(IP_bucket, user_bucket)` = 60/min (user bucket, unchanged). The **5-fail-in-15min account-lockout** (decision #4) is the primary TOTP brute-force defense and remains unchanged.
 
@@ -855,7 +855,7 @@ Three new env vars added to `modules/00-core/src/config.ts`, three new rate-limi
 
 | Bucket | Key | Default | Applies to | Condition |
 |---|---|---|---|---|
-| IP — verified admin | `aiq:rl:ip:<ip>` | `RATE_LIMIT_IP_VERIFIED_ADMIN=5000/min` | All routes | role∈{admin,reviewer,super_admin} AND `totpVerified===true` |
+| IP — verified admin | `aiq:rl:ip:<ip>` | `RATE_LIMIT_IP_VERIFIED_ADMIN=5000/min` | All routes | role∈{admin,super_admin} AND `totpVerified===true` (reviewer removed from the admin tier 2026-10-03) |
 | Per-user — verified admin | `aiq:rl:user:<userId>` | `RATE_LIMIT_USER_VERIFIED_ADMIN=300/min` | Authenticated routes | Same condition |
 | Credential | `aiq:rl:cred:<routePath>:<ip>` | `RATE_LIMIT_CREDENTIAL=20/min` | 5 credential routes only | ALWAYS (regardless of session tier) |
 
@@ -941,7 +941,7 @@ Old keys expire naturally within 60 seconds — no migration script required.
 
 - Per-endpoint limit overrides.
 - Dynamic limit adjustment (e.g., auto-tighten on failed-login surge).
-- Candidate session differentiation from reviewer (both use `RATE_LIMIT_IP_USER` default).
+- Candidate session differentiation from reviewer (both use `RATE_LIMIT_IP_USER` default). Reviewer is removed (2026-10-03); a legacy reviewer row falls to the user tier.
 
 ### Downstream impact
 
@@ -1152,3 +1152,20 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 - **Considered and rejected.** Trusting `X-Forwarded-For` (spoofable); validating only in the rate limiter (other callers stay exposed).
 - **Not included.** No Cloudflare IP-range allowlist; origin verification remains the trust anchor.
 - **Impact.** Local dev and CI keep `off`/`log` (non-production). Any new production deployment must set `ORIGIN_TRUST_MODE=enforce` and `ORIGIN_VERIFY_SECRET` or the API and worker will not boot.
+
+## Reviewer role removed (2026-10-03)
+
+**What changed.** The tenant `reviewer` role no longer has any access path. Commits `4cd6c8d`, `4374344`, `7ca7cfb`, `a50d573` (review item RV60, owner decision 2026-10-02).
+- Invites, `createUser`/`updateUser` and the super-admin edit-admin reject `role: 'reviewer'` with `400 INVALID_ROLE`. The invite route enum is `admin | candidate`.
+- Email-OTP eligibility (`filterEligible`) is `admin` only. `super_admin` stays blocked.
+- TOTP routes accept roles `admin` and `super_admin`.
+- Rate-limit admin tier = `admin` + `super_admin`. A legacy reviewer row falls to the user tier and gets `403` on every admin route. It does not crash.
+- The options `anyRoleAuth` (notifications) and `adminOrReviewer` (analytics results CSV) are removed. Those routes are admin only.
+
+**Why.** Owner decision RO7: keep the product simple. A reviewer could not open any admin page before this change, because every admin route asked for `role='admin'`. Production had 0 reviewers.
+
+**Considered and rejected.** Removing the value from the DB CHECK constraints and the TypeScript unions (Rule A: legacy rows must stay readable). A data migration that converts reviewers to admins (no such rows exist). A new read-only role (not requested).
+
+**Not included.** No data migration. The value `reviewer` stays in the DB CHECK, the TS unions and the `reviewer_count` API field. Pending reviewer invitations are not revoked (none exist). The old last-admin guard on demotion is gone with the demotion path; it must return with any future demotion path.
+
+**Impact.** 03-users, 13-notifications, 15-analytics, 10-admin-dashboard, 01-auth (see each SKILL.md). Help: 7 keys rewritten (migration 0154). Adversarial review (Sonnet takeover): accept, 5 LOW. The open LOW items are in roadmap row N26.

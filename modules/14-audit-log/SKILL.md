@@ -98,3 +98,7 @@ help.content.updated
 ## Catalog addition: `tenant.provisioned` (RV59, 2026-10-03)
 
 `tenant.provisioned` is appended to `ACTION_CATALOG` in `src/types.ts`. Emitted by 02-tenancy `createTenant`, one row per new company, in the new tenant's log. The catalog stays append-only. See docs/11 section 30.6.
+
+## CSV formula guard (RV77, 2026-10-03)
+
+The audit export now prefixes a cell that starts with `= + - @` with `'` (one unit test). Before, this writer had no guard. Not included: merging the CSV escape functions into one helper.

@@ -44,7 +44,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 00-core                Config, env, logging, base types, error handling
 01-auth                Google SSO + TOTP, magic link, embed JWT, API keys, sessions
 02-tenancy             Tenant CRUD, isolation, RLS policies, settings
-03-users               User model, roles (admin/reviewer/candidate; reviewer role is to be removed, owner decision 2026-10-02), invites
+03-users               User model, roles (admin/reviewer/candidate; reviewer role removed 2026-10-03 (RV60; legacy DB value kept)), invites
 04-question-bank       Packs, levels, questions, versioning, tags
 05-assessment-lifecycle Cycles, invitations, schedules, state machine
 06-attempt-engine      Taking the assessment, timer, autosave, integrity hooks

@@ -1777,3 +1777,14 @@ Only one new table (0142). Everything else is a view, help rows, or JSONB settin
 - **Considered and rejected.** (1) Reuse `scenario` with all-mcq steps: whether a question is deterministic would then depend on its content, not its type, and the "one question never mixes deterministic and AI points" rule would be hard to prove. (2) Extend `multi_select`: no shared context, one answer only. (3) Shuffle the options: needs one `option_order` per step id; see the ponytail note in `option-shuffle.ts`.
 - **Not included.** Per-step option shuffle, AI generation (generation type lists and `DIFFICULTY_SPEC` exclude it), the `/try` demo, an e2e case, an edit form for existing questions (the editor is create-only, like `ordering`).
 - **Impact.** `DETERMINISTIC_TYPES` and both SQL lists in `scoreMcqForAttempt` / `scoreMcqAndFinalizeIfComplete` include the type. The four `non_mcq` predicates (07 `repository.ts`, 07 `handlers/super-evaluations.ts`, 06 `result.ts`, `apps/api/src/jobs/evaluation-queue-alert.ts`) now exclude it from the evaluation queue (commit `860bfc3`). Help ids: migration `0153` in module 16. Rollback: re-add the old CHECK without `'structured_case'` after deleting or archiving such questions. The code paths are inert without such rows.
+
+## Migration numbering facts (RV78, 2026-10-03)
+
+**What.** A record of how the migration files are numbered. Nothing is renumbered. Count: 126 migration files.
+
+- **Numbers used twice (10):** 10, 11, 12, 13, 14, 15, 16, 20, 21, 50. The 3-digit and the 4-digit files share these numbers.
+- **Numbers missing up to 153 (41):** 5-9, 23-29, 34-39, 45, 47-49, 51-54, 59, 61-69, 109, 124, 137, 139, 151.
+- **`0057`** (13-notifications, `tenants_smtp_config`) is a comment-only no-op. The column was already created by `02-tenancy/0004`.
+- **Order.** The plain basename order fails on an empty database (`0010` runs before `020` users). The real order is the grouping in `tools/test-support/apply-all-migrations.ts`. The `find | sort` loop in `docs/06-deployment.md` sorts by path and is wrong for a fresh database (a warning is added there).
+
+**Why.** The review (RV78) found the gaps and doubles. **Considered and rejected.** Renumbering: it would break the applied-migration records on production. Filling the gaps with empty files: no value. **Not included.** Any change to a migration file or to the runner. **Impact.** A new migration must take the next free number above 153 and must be placed in the grouping of `apply-all-migrations.ts`.

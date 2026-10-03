@@ -578,6 +578,12 @@ The env var is intentional on:
 - Local dev: `ENABLE_E2E_TEST_MINTER=true pnpm --filter @assessiq/api dev`
 - Staging/CI: set on the staging server only, never production
 
+**Update 2026-10-03 (RS11).**
+- **Local stack.** `apps/web/e2e/local-stack.sh` starts throwaway `assessiq-e2e-*` Postgres and Redis containers, applies the migrations, and starts the API, the worker and the web dev server with `ENABLE_E2E_TEST_MINTER=true`. `--down` removes exactly those containers. Nothing here touches the VPS.
+- **Minter fix (`ac8b8cb`).** The dev minter used `ON CONFLICT (tenant_id, lower(email))`, but no index matched. Every new candidate got a 500. It now uses `(tenant_id, email)`. The Vite dev proxy was fixed in the same commit.
+- **CI.** The `e2e` job (`09595fa`) starts its own `postgres` and `redis` services in the runner and does not need the repo variables `E2E_BASE_URL` or `E2E_API_BASE_URL`. It is advisory (`continue-on-error`) until it is green on GitHub.
+- **Prod invariant unchanged.** The flag stays absent or `false` in `/srv/assessiq/.env`.
+
 See `apps/web/e2e/README.md` for full local run + CI integration guide.
 
 **Previous state — Phase 3 G3.C analytics module deployed (2026-05-03)**
@@ -1152,6 +1158,10 @@ docker compose -f infra/docker-compose.yml up -d
 # 8. Run migrations
 #    tools/migrate.ts requires direct DB access; postgres is on the internal
 #    assessiq-net bridge (no host port). Pipe each migration into psql instead:
+# WARNING (RV78, 2026-10-03): this loop sorts by path and is WRONG for a fresh database.
+# A plain basename order runs 0010 before 020 (users) and fails on an empty database.
+# The real order is the grouping in tools/test-support/apply-all-migrations.ts. Use it for a new database.
+# Steady-state deploys apply only new files, so they are not affected.
 find /srv/assessiq/modules -path '*/migrations/*.sql' | sort | while read f; do
   echo "→ $(basename $f)"
   docker exec -i assessiq-postgres psql -U assessiq -d assessiq \

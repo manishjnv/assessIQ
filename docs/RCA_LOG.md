@@ -2326,3 +2326,24 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `registerAdminWorkerRoutes` in `apps/api/src/server.ts` used `authChain({ roles: ['admin'] })`. The BullMQ queue is shared by all tenants, so a tenant admin could read job data and retry any job.
 **Fix:** `59a4816`: `authChain({ roles: ['super_admin'] })`. No screen uses these routes.
 **Prevention:** manual discipline. A future route-gate test should list every `/api/admin/*` route with its required role and fail on a new route without an entry.
+
+## 2026-10-03 — Submit inside the autosave window lost the last answer
+
+**Symptom:** a candidate who clicked Submit within 5 s of the last edit could lose that answer. The result showed it as blank.
+**Cause:** the answer autosave is debounced by 5 s. `handleSubmit` in the candidate take page sent `POST /submit` without waiting for pending saves. Section finish already flushed them.
+**Fix:** `handleSubmit` now flushes every pending save first, then posts the submit. Commit `0ef50d9`.
+**Prevention:** the e2e specs `take-happy-path` and `take-timer-expiry` run on the real backend. No unit test yet for the flush order. Manual discipline.
+
+## 2026-10-03 — Dev session minter returned 500 for every new candidate
+
+**Symptom:** `POST /api/dev/mint-session` with a new candidate email returned 500. The e2e take specs could not start.
+**Cause:** `apps/api/src/routes/dev/mint-session.ts` used `ON CONFLICT (tenant_id, lower(email))`. No unique index covers `lower(email)`, so Postgres raised an error.
+**Fix:** the clause is now `ON CONFLICT (tenant_id, email)`, which matches the real index. Commit `ac8b8cb`, with the Vite proxy fix.
+**Prevention:** the e2e suite (`09595fa`) calls the minter on every run. The route exists only when `ENABLE_E2E_TEST_MINTER=true`, so production was never affected.
+
+## 2026-10-03 — CSV formula-injection guard missing on four writers
+
+**Symptom:** none seen. The review (RV77) found that only the results CSV escaped a leading `= + - @`. A name or comment typed by a user could run as a formula in Excel.
+**Cause:** five CSV escape functions existed; four had no guard: audit export (14), heatmap and attempt exports (15), billing export (19), candidate CSV sample (10).
+**Fix:** the guard (prefix `'`) is now on every CSV writer, one unit test each. Commit `7accd3f`. The AES helpers and the Lua scripts are not merged (load-bearing; roadmap N24).
+**Prevention:** one unit test for each writer. A shared helper would be better; it is part of N24.

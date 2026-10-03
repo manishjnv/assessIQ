@@ -54,8 +54,8 @@
 
 | runner | participates | notes |
 |---|---|---|
-| vitest | all 19 modules + `apps/api` | per-module `vitest.config.ts`; root workspace `vitest.config.ts` |
-| playwright (e2e) | `apps/web` | scaffolded at commit `10f1540`; 5 unauthenticated routes; **no baselines yet** — not contributing live coverage |
+| vitest | all 19 modules + `apps/api` | per-module `vitest.config.ts`; root workspace `vitest.config.ts`. **Versions (N19, 2026-10-03): vitest 4.1.11, `@vitest/coverage-v8` 4.1.11, testcontainers 11.14.0.** |
+| playwright (e2e) | `apps/web` | **Real-backend suite since 2026-10-03 (RS11).** See "E2E suite" at the end of this page. The older note "5 unauthenticated routes, no baselines" is history. |
 
 No jest configs anywhere in the repo.
 
@@ -79,3 +79,29 @@ No jest configs anywhere in the repo.
 - **Dependency audit gate (D6).** CI runs `pnpm audit --prod --audit-level=critical` (blocking) and `--audit-level=high || true` (informational). Dependabot (`.github/dependabot.yml`): npm weekly with minor and patch grouped, github-actions monthly. First run: 0 critical, 17 high (nodemailer <10.0.6, fastify <5.12.2, fast-uri <3.1.7, find-my-way <9.7.0). Not fixed yet (N4).
 - **New tests in this batch.** `sections-locked.test.ts` (05), `sections-summary.test.ts` (06), `section-scores.test.ts` (09), `eval-gate.test.ts` and `grading-quality.test.ts` (07), `generation-batches-route.test.ts` (04), high-stakes cases in `integrity-route.test.ts` (05), `claude-code-vps.runtime.test.ts` and `least-ai.test.ts` (07), `evaluations-queue.test.tsx` (10).
 - **Still open.** The admin dashboard (10) is still thin. The eval harness never runs in CI (D5). e2e in CI is E13, last.
+
+## Tool versions (N19, 2026-10-03)
+
+- **What.** vitest 2.1 to 4.1.11 in every workspace; `@vitest/coverage-v8` 4.1.11; testcontainers 10 to 11.14.0. Lockfile-only bumps for browserslist, brace-expansion, js-yaml, ip-address, grpc-js, protobufjs, tmp, form-data and ws. Commits `0efd0f9` to `ad4a835`, `a951e5a`.
+- **Harness fixes.** Module 13 `vi.mock` factories use `function` (vitest 4 cannot `new` an arrow mock). Module 17 sets `testTimeout` to 30 s (the axe test).
+- **Why.** `pnpm audit --audit-level high` without `--prod` showed 42 high and 2 critical findings, all in dev tools. Now 6 high and 0 critical. The 6 left are the pinned lighthouse chain of `@lhci/cli` (extract-zip, basic-ftp, tmp 0.1) and the vite 5 of Storybook 8.6. Storybook waits for FR18. `--prod` is unchanged: 0 high, 0 critical, 5 moderate.
+- **Not bumped.** jsdom, eslint, typescript-eslint, Node, pnpm, TypeScript, Storybook.
+- **Known timing-sensitive tests.** Module 06 rate-cap and module 01 totp constant-time. They can fail under load. They behave the same at baseline.
+
+## E2E suite (RS11, 2026-10-03)
+
+- **Stack.** `apps/web/e2e/local-stack.sh` (with `seed-db.sh`) starts throwaway Postgres and Redis containers named `assessiq-e2e-*`. It applies migrations in the order of `tools/test-support/apply-all-migrations.ts`, starts the API and the worker with `ENABLE_E2E_TEST_MINTER=true` (local only) and the web dev server. `--down` removes exactly its own containers. Run guide: `apps/web/e2e/README.md`.
+- **Roles in the factories.** The platform-only content model needs a `super_admin` to create packs, levels and questions, and a tenant admin to create assessments, invitations and to publish.
+
+| Spec | Status | Note |
+|---|---|---|
+| `admin-workflow.spec.ts` | 19 pass, 1 skip | Step 12a is skipped: it needs the VPS Claude runtime |
+| `take-happy-path.spec.ts` | pass | Un-skipped; runs on the real backend |
+| `take-timer-expiry.spec.ts` | pass | Un-skipped; runs on the real backend |
+| `ordering-admin.spec.ts` (new) | pass | Author, publish, take, deterministic score, admin view, for `ordering` and `structured_case` |
+| `take-runner-mocked.spec.ts` | pass | Mocked API (N12 candidate part) |
+| `a11y.spec.ts` | 404-page test fails | axe `landmark-one-main` and `region`; a gap that existed before; roadmap N25 |
+
+- **N12.** `ordering-admin.spec.ts` closes the admin-side check of N12 in a local real-backend browser run. The click on the live site is still the owner's.
+- **CI.** The `e2e` job is rewritten (commit `09595fa`): it starts its own `postgres` and `redis` services and needs no repo variables. It is advisory (`continue-on-error`). Promote it to required after it is green on GitHub (E13).
+- **Not included.** Visual baselines, leaderboard and email-log steps (FU-D23).
