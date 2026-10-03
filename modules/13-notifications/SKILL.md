@@ -200,3 +200,17 @@ Closed-enum template `invitation_reminder` (same vars as `invitation_candidate`;
 ## Webhook crypto wrapper; fan-out for `auditInTx` events (2026-10-03)
 
 `src/webhooks/crypto.ts` keeps its names as thin wrappers (TagMid layout) on `@assessiq/core/aes-gcm` (N24). The fan-out handler `fanoutAuditEvent` now also receives events from `auditInTx` after commit (FR2 FU-B5), so `audit.grading.released` is delivered. Payload: ids only. Business events (FU-B6) and a webhook admin screen (FU-B7) are not built. Open question: `tenant_settings.webhook_secret` is write-only.
+
+## Business webhook events (FU-B6, 2026-10-03)
+
+Subscribe by exact name in `webhook_endpoints.events` (free-form list, no UI picker).
+
+| Event | Emitted from | When |
+|---|---|---|
+| `attempt.submitted` | 06 `submitAttempt` | candidate submit (not the timer sweep) |
+| `attempt.graded` | 09 `finalizeAttemptIfComplete` | status flips to `graded` (MCQ-only submit, or admin/AI completion) |
+| `result.released` | 09 `releaseAttemptInTx` | status flips to `released` (manual, bulk, auto sweep) |
+
+Payload, ids only (no scores, answers, name or email): `{ event, tenant_id, attempt_id, assessment_id, candidate_id, occurred_at }`.
+
+Mechanism: `emitAttemptEventAfterCommit(client, tenantId, attemptId, event)` (`webhooks/business-events.ts`) reads the ids inside the open tx and registers an `onCommit` hook that calls `emitWebhook`. A rollback sends nothing. A delivery error is logged and never fails the caller. 06 and 09 now depend on `@assessiq/notifications`.

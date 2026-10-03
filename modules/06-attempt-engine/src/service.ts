@@ -41,6 +41,7 @@ import {
 import { withTenant } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
 import { scoreMcqAndFinalizeSafely } from "@assessiq/scoring";
+import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
 import * as alRepo from "../../05-assessment-lifecycle/src/repository.js";
 import * as qbRepo from "../../04-question-bank/src/repository.js";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
@@ -636,6 +637,7 @@ export async function getAttemptForCandidate(
           kind: "auto_submit",
         },
       });
+      await emitAttemptEventAfterCommit(client, tenantId, attempt.id, "attempt.submitted");
       // Same deterministic MCQ scoring as submitAttempt (no AI). After the
       // event insert so archetype signals see the auto_submit milestone.
       await scoreMcqAndFinalizeSafely(client, tenantId, attempt.id);
@@ -1076,6 +1078,7 @@ export async function submitAttempt(
       submittedAt: now,
     });
     await repo.markInvitationSubmitted(client, attempt.assessment_id, attempt.user_id);
+    await emitAttemptEventAfterCommit(client, tenantId, attemptId, "attempt.submitted");
 
     // Deterministic MCQ scoring (no AI call — compliant with the no-ambient-AI
     // rule). MCQ-only attempts are finalised (graded + billed) in this same tx;
@@ -1154,6 +1157,7 @@ export async function sweepStaleTimersForTenant(
           kind: "auto_submit",
         },
       });
+      await emitAttemptEventAfterCommit(client, tenantId, attemptId, "attempt.submitted");
       // Same deterministic MCQ scoring as submitAttempt (no AI). After the
       // event insert so archetype signals see the auto_submit milestone.
       await scoreMcqAndFinalizeSafely(client, tenantId, attemptId);
