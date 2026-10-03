@@ -105,3 +105,21 @@ No jest configs anywhere in the repo.
 - **N12.** `ordering-admin.spec.ts` closes the admin-side check of N12 in a local real-backend browser run. The click on the live site is still the owner's.
 - **CI.** The `e2e` job is rewritten (commit `09595fa`): it starts its own `postgres` and `redis` services and needs no repo variables. It is advisory (`continue-on-error`). Promote it to required after it is green on GitHub (E13).
 - **Not included.** Visual baselines, leaderboard and email-log steps (FU-D23).
+
+## CI guards and new tests (RS10 and session q, 2026-10-03)
+
+**CI steps added (`e645d81`).**
+- `react-hooks/rules-of-hooks` at error level in ESLint (RV69). Only that rule. The React Compiler rules are not adopted.
+- The `apps/web` unit tests run in CI (RV70). Before, 11 files ran nowhere.
+- `pnpm lint:mv-tenant-filter` and `pnpm lint:mv-tenant-filter:self-test` (RV72).
+- CHECK C of `tools/lint-deploy-procedure.ts` compares `ConfigSchema` keys with `.env.example` (RV75). Self-test C-5.
+
+**New tests.**
+- `modules/02-tenancy/src/__tests__/with-tenant-on-commit.test.ts`: hooks run after COMMIT and release; never on rollback; `onCommit` returns false outside `withTenant`.
+- `modules/12-embed-sdk/src/__tests__/jit-user.test.ts`: database tests for the JIT user rules (create, repeat, concurrent double call, erased, soft-deleted or disabled, admin, mixed-case admin, other tenant).
+- `apps/api/src/__tests__/routes/reviewer-role-removed.test.ts`: 400 on invite, user create and PATCH with `reviewer`; 403 for a reviewer session on notifications, webhooks and TOTP enrol.
+- `modules/00-core/src/__tests__/aes-gcm.test.ts`: legacy-layout vectors for both layouts, base64 embed output, previous-key fallback, tamper and short-input rejection.
+- `modules/01-auth/src/__tests__/rate-limit-tiered.test.ts`: six call-shape tests rewritten as behaviour tests.
+- `modules/11-candidate-ui` `CompletionModal` and `MyCertificates` tests updated.
+
+**Totals (2026-10-03).** Modules 2556 of 2557 pass. The one failure is the `totp.test.ts` constant-time timing flake (pre-existing). apps/api 138 pass. apps/web 73 pass. The `candidate-login` floor test flaked once under Docker load: a Redis error makes the rate check fail closed and return before the 200 ms floor. It passes alone, 23 of 23.

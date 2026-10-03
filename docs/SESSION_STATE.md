@@ -1,3 +1,94 @@
+# Session — 2026-10-03 (q) — review wave 2: RS10, FR2, FR4, FR13, FR25, RS4, N23, N24, N25, N26
+
+**Headline:** All ordered items are on `main`. Wave A (`7e2af3d`) is LIVE. Wave B (`ef01da2`, migration 0155) is deployed; the verify result is below. The RS4 marketing container is NOT rebuilt: it waits for the owner to approve the text.
+**Commits:**
+- `e645d81` RS10 CI guards (RV69, RV70, RV72, RV75) and the E2E_API_PROXY CI fix
+- `9a111e1` FR2 FU-B5 `withTenant` `onCommit`; `auditInTx` events reach webhooks
+- `eafeeac` + `7e2af3d` FR4 embed JIT insert fix and case-insensitive lookup
+- `6638494` FR13 completion modal · `b5fa76a` FR25 one rubric parser
+- `9b541ba` RS4 marketing truth pass 2 (code only)
+- `4ad6cc0` N23 help ids (0155) · `00a951e` N25 404 landmark · `f1c0aa0` N26 reviewer leftovers
+- `34abc0e`, `c58438a`, `9b585a7` N24 one AES core and one rate-limit Lua script · merge `ef01da2`
+**Deploy:** wave A at `7e2af3d` (no migration; api, worker, frontend recreated; 8 routes OK). Wave B at `ef01da2` (migration 0155; same three services). Record: `docs/06-deployment.md`. **Wave B result (verified 2026-10-03):** clone at `ef01da2`; migration 0155 applied by hand (`psql -1 -v ON_ERROR_STOP=1`) and recorded in `schema_migrations` with its sha256; old keys left: 0; global help rows: 210. api, worker and frontend rebuilt and recreated; api healthy; 0 error lines in api and worker logs; routes: / 200, /api/health 200, /admin/login 200, /take/x 200, /api/auth/whoami 401, /embed?token=x 401. CI green on `ef01da2` (quality + e2e).
+**Tests:** modules 2556/2557 (only failure: `totp.test.ts` constant-time timing flake, pre-existing); apps/api 138; apps/web 73; typecheck 0; lint 0 errors, 20 warnings. CI green on `e645d81` and `7e2af3d`. The `candidate-login` floor test flaked once under Docker load (a Redis error fails the rate check closed before the 200 ms floor); it passes alone, 23/23.
+**Old task checked (Rule B):** RV75 extended the existing CHECK C of `lint-deploy-procedure` (no new tool). FR2 reused the existing `fanoutAuditEvent` handler. N24 kept the existing wrapper names. FR13 revived the old `CompletionModal`. FR25 kept module 08 `parseRubric`.
+**Next:** the owner approves the RS4 text; then rebuild `assessiq-marketing` and send the IndexNow ping. After that: the remaining RS7 follow-ups (FU-B6 business events, FU-C17).
+**Open questions:**
+- RS4 approval: privacy drafts (RV28), CSV wording, kept competitor figures ("publicly states").
+- FU-B6: which business events to send.
+- `tenant_settings.webhook_secret` is write-only: nothing decrypts it. Keep or remove?
+- Embed FU-B13: Caddy `frame-ancestors` (owner and infra).
+- Push-gate hook N3 (RV68): owner approval.
+
+---
+
+## Detail
+
+### RS10 CI guards (`e645d81`)
+- **What.** CI now runs: `react-hooks/rules-of-hooks` as an error (RV69, only that rule); the `apps/web` tests (RV70); `tools/lint-mv-tenant-filter.ts` and its self-test (RV72; scripts `lint:mv-tenant-filter`, `lint:mv-tenant-filter:self-test`); and a check that every `ConfigSchema` key in `modules/00-core/src/config.ts` is in `.env.example` (RV75, new part of CHECK C in `tools/lint-deploy-procedure.ts`, regex on 4-space keys, self-test C-5).
+- **Why.** The RCA log promised these guards and nobody added them.
+- **Bug found by the new check.** CI on main was red since `6d6c6bd`: `E2E_API_PROXY` (`apps/web/vite.config.ts`) was not in `.env.example`. It is declared now. See the RCA entry.
+- **Considered and rejected.** The React Compiler lint rules (many new errors, little value for the risk). A new lint tool for config keys (CHECK C already reads both files). A TypeScript parse of `config.ts` (a regex is enough and the self-test covers the shape).
+- **Not included.** RV68 push-gate hook (N3, owner approval). RV71, RV73, RV74 are still open.
+- **Impact.** `docs/12-test-coverage.md`, `docs/06-deployment.md` (CHECK C). Adversarial review: Sonnet, accept.
+
+### FR2 FU-B5: webhooks for `auditInTx` events (`9a111e1`)
+- **What.** `withTenant` has a new `onCommit(client, hook)` in `modules/02-tenancy/src/with-tenant.ts`. Hooks run after COMMIT and after `client.release()`. They never run on rollback. The call is refused for a client that is not inside an open `withTenant`. `auditInTx` (module 14) registers `fanoutAuditEvent`. Every `auditInTx` action now reaches webhook endpoints, including `audit.grading.released`. The payload carries ids only.
+- **Why.** Before this, only `audit()` rows were sent. The 36 `auditInTx` callers were silent, so the documented event `audit.grading.released` never arrived.
+- **Considered and rejected.** Fan-out inside the transaction (it could send an event for a rolled-back row). Editing each of the 36 callers (one hook is smaller and cannot be forgotten).
+- **Not included.** Other transaction helpers (raw `BEGIN`) keep no fan-out. FU-B6 business events (owner choice). FU-B7 webhook admin screen.
+- **Impact.** Modules 02, 14, 13. `docs/09-integration-guide.md` § 6 is corrected (FU-B8). codex: accept.
+
+### FR4 embed JIT user (`eafeeac`, `7e2af3d`)
+- **What.** `modules/12-embed-sdk/src/jit-user.ts` inserted the columns `password_hash` and `email_verified`. They do not exist. Every first embed login failed. It now inserts the real columns with `ON CONFLICT (tenant_id, email) DO NOTHING` and a re-select. The lookup is case-insensitive (`lower(email)`). It refuses with `AuthzError` 403 unless EVERY case variant row is role `candidate`, status `active`, with `deleted_at` and `erased_at` null.
+- **Why.** The old code accepted any existing row, including an admin: a privilege risk. A mixed-case admin row could shadow a lower-case candidate (codex HIGH, fixed in `7e2af3d`).
+- **Behaviour change.** Invited `pending` users are now refused by embed.
+- **Not included.** FU-B13 (iframe and Caddy `frame-ancestors`), FU-B14, FU-B15.
+- **Impact.** Module 12, `docs/04-auth-flows.md`. codex: revise, then addressed.
+
+### FR13 completion modal (`6638494`)
+`CompletionModal` is rebuilt on the kit `Modal`. `NewCertificateModal` on the Submitted page shows once per browser for each `credential_id` (`localStorage` key `aiq:certs-seen`, in try/catch). `MyCertificates` has a "View" button. The prop `course_title` is now `assessment_title`. Data comes from the existing `GET /api/certificates`; no server change. Not included: new certificate payload fields.
+
+### FR25 one rubric parser (`b5fa76a`)
+Module 08 `parseRubric` is the single parser. Module 04 `validateRubric` re-exports it and `saveRubric` uses it. Behaviour is identical. Not included: FU-C17 stricter rules (needs the stored-rubric row count and the owner), FU-C18 module 07 mirror schema (codex gate), FU-C19.
+
+### RS4 marketing truth pass 2 (`9b541ba`)
+Integrity v1 claims fixed. CSV limit text: 1,000 rows (200 with invitations). 12 coming-soon test pages are `noindex,follow` and out of the sitemap. Unsourced competitor numbers removed. Privacy page has DRAFT paragraphs (RV28). The container is NOT rebuilt. Some competitor figures stay with "publicly states" (hackerearth 40,000+). The owner decides.
+
+### N23, N25, N26
+- N23 (`4ad6cc0`): 30 help ids renamed under their page prefix (32 allowlist entries; `print_review`, `sent_back`, `high_stakes.edit` are copied for each page). Migration `0155_help_ids_page_prefix_n23.sql`. Seed `0011` regenerated. Global help rows 200 to 203. The guard allowlist is empty. See `docs/07-help-system.md`.
+- N25 (`00a951e`): the 404 `NotFound` root is `<main>` (axe `landmark-one-main` and `region`).
+- N26 (`f1c0aa0`): stale reviewer comments fixed; `InAppNotificationRoleSchema` is admin only; new `apps/api/src/__tests__/routes/reviewer-role-removed.test.ts`. DB CHECKs and some unions keep `reviewer` by design (Rule A).
+
+### N24 one AES core, one Lua script (`34abc0e`, `c58438a`, `9b585a7`)
+- **What.** `modules/00-core/src/aes-gcm.ts` (`sealTagLast`, `openTagLast`, `sealTagMid`, `openTagMid`; previous-key fallback; auth tag 16 bytes; "envelope too short" under 28 bytes). It is also a subpath `@assessiq/core/aes-gcm` (new `exports` map in `modules/00-core/package.json`; the 13-notifications tests mock the barrel). Wrappers keep their names: `01-auth/src/crypto-util.ts` (TagLast), `13-notifications/src/webhooks/crypto.ts` (TagMid), `12-embed-sdk/src/webhook-secret-service.ts` (TagLast, base64). One Lua script `modules/01-auth/src/fixed-window-lua.ts` (`FIXED_WINDOW_LUA`, `incrFixedWindow`) serves `rate-limit.ts`, `candidate-login.ts`, `email-otp.ts`. `ATTEMPT_LUA` is untouched.
+- **Why.** Three copies of each piece drifted (RV77).
+- **Considered and rejected.** One stored layout (needs a data migration; the production row counts could not be read). Changing wrapper names (churn in callers).
+- **Not included.** No data migration. Both stored layouts stay.
+- **Open.** `tenant_settings.webhook_secret` is write-only: nothing decrypts it.
+- **Tests.** Six call-shape tests in `rate-limit-tiered.test.ts` are now behaviour tests. codex: accept.
+
+### Routing telemetry
+- Sonnet · spec digest · reworked: N
+- Sonnet · RS10 review (accept) · reworked: N
+- Sonnet · RS4 marketing pass · reworked: N
+- Sonnet · N23, N25, N26 · reworked: N
+- Sonnet · FR13 modal · reworked: Y (a cp1252 byte in a comment; Opus fixed it)
+- Sonnet · FR4 embed JIT · reworked: Y (codex HIGH: case-insensitive lookup)
+- Sonnet · FR25 rubric parser · reworked: N
+- Sonnet · N24 AES and Lua · reworked: Y (`rate-limit.ts` was left out; finished on resume)
+- Sonnet · docs · reworked: N
+- Haiku · warm-start digest · reworked: N
+
+## Agent utilization
+- Opus: plan, Phase 3 diff reviews, RS10, FR2 FU-B5 and the FR4 codex fix written directly, merges, deploys.
+- Sonnet: 9 runs: spec digest, RS10 review (accept), RS4, N23/N25/N26, FR13, FR4, FR25, N24 (+1 resume), docs.
+- Haiku: 1 run: warm-start digest.
+- codex:rescue: FR2 accept; FR4 revise, addressed in `7e2af3d`; N24 accept.
+- claude-mem: n/a — not used.
+
+---
+
 # Session — 2026-10-03 (p) — review wave: N19, N20, E10, N12, N22, RS6, RS8, RS9, RS11, E9, SP7, RV60
 
 **Headline:** All ordered tasks are done and LIVE on https://assessiq.in at HEAD `636c970`, in two deploy waves. Open: the live click for N12 (owner), the SP7 KQL execution part (X4, owner VPS decision) and the RV77 AES/Lua merge (new N24).

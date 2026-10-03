@@ -196,3 +196,7 @@ Closed-enum template `invitation_reminder` (same vars as `invitation_candidate`;
 
 - **RV60.** The route option `anyRoleAuth` is removed. `/admin/notifications` and `mark-read` are admin only. `InAppNotificationRoleSchema` still lists `reviewer` (LOW follow-up, roadmap N26). Not included: a data change for existing rows.
 - **N19 (vitest 4).** `vi.mock` factories in this module use `function`, not arrow functions, for anything the code calls with `new`. Vitest 4 cannot `new` an arrow mock.
+
+## Webhook crypto wrapper; fan-out for `auditInTx` events (2026-10-03)
+
+`src/webhooks/crypto.ts` keeps its names as thin wrappers (TagMid layout) on `@assessiq/core/aes-gcm` (N24). The fan-out handler `fanoutAuditEvent` now also receives events from `auditInTx` after commit (FR2 FU-B5), so `audit.grading.released` is delivered. Payload: ids only. Business events (FU-B6) and a webhook admin screen (FU-B7) are not built. Open question: `tenant_settings.webhook_secret` is write-only.

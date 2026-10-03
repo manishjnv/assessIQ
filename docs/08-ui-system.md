@@ -933,3 +933,17 @@ Three admin-facing UI changes shipped as part of the domain-slug normalization +
 - **Routing rule.** The shared Caddy `@app` matcher sends only `/admin*`, `/candidate*`, `/take*`, `/try*`, `/assets/*` and `/brand/*` to the app. Put a new static file of the app under `/brand/` or `/assets/`. A file in the `public/` root goes to the marketing site and returns 404.
 - **Theme fixture.** The key `wipro-soc` in `modules/17-ui-system/src/fixtures/tenants.ts` is now `default` (`apps/web/src/App.tsx` and two stories follow). The fixture is a static theme for all tenants until live tenant theming lands.
 - **Not included.** No lint yet compares `public/` names with the Caddy matcher (plan item RV71).
+
+## Completion modal on new certificates (FR13, 2026-10-03)
+
+**What.** `CompletionModal` (module 11) is rebuilt on the kit `Modal` (commit `6638494`). `NewCertificateModal` on `apps/web/src/pages/take/Submitted.tsx` shows when the released result has a certificate. It shows once for each browser and each `credential_id`. The seen list is in `localStorage` key `aiq:certs-seen` (try/catch; the page works without it). `MyCertificates` has a "View" button that opens the same modal. The prop `course_title` is now `assessment_title`.
+
+**Why.** The old component was unused (review FR13, row FU-C12) and used its own overlay instead of the kit Modal.
+
+**Considered and rejected.** A new certificate payload with `tier` and `pdf_url` (needs a server change). Showing the modal at each visit (annoying).
+
+**Not included.** Server changes: data comes from the existing `GET /api/certificates`.
+
+## 404 page main landmark (N25, 2026-10-03)
+
+The `NotFound` page root is now `<main>` (commit `00a951e`). This fixes the axe rules `landmark-one-main` and `region`. The e2e a11y spec covers it. No visual change.

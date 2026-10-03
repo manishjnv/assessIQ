@@ -1788,3 +1788,13 @@ Only one new table (0142). Everything else is a view, help rows, or JSONB settin
 - **Order.** The plain basename order fails on an empty database (`0010` runs before `020` users). The real order is the grouping in `tools/test-support/apply-all-migrations.ts`. The `find | sort` loop in `docs/06-deployment.md` sorts by path and is wrong for a fresh database (a warning is added there).
 
 **Why.** The review (RV78) found the gaps and doubles. **Considered and rejected.** Renumbering: it would break the applied-migration records on production. Filling the gaps with empty files: no value. **Not included.** Any change to a migration file or to the runner. **Impact.** A new migration must take the next free number above 153 and must be placed in the grouping of `apply-all-migrations.ts`.
+
+## Migration 0155: help ids under the page prefix (2026-10-03, N23)
+
+**What.** `modules/16-help-system/migrations/0155_help_ids_page_prefix_n23.sql` renames 30 `help_content` keys and copies three of them for a second page. There is no schema change: no table, column, index or policy changes. Global help rows go from 200 to 203. Seed `0011` is regenerated to match.
+
+**Why.** Keys outside their page prefix never load (see `docs/07-help-system.md`).
+
+**Considered and rejected.** Changing the help API to return other keys (wider change, tenant-safety review needed).
+
+**Not included.** No text change. **Impact.** Only module 16 and the admin pages that use the ids.

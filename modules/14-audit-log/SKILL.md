@@ -102,3 +102,7 @@ help.content.updated
 ## CSV formula guard (RV77, 2026-10-03)
 
 The audit export now prefixes a cell that starts with `= + - @` with `'` (one unit test). Before, this writer had no guard. Not included: merging the CSV escape functions into one helper.
+
+## `auditInTx` fan-out after commit (FR2 FU-B5, 2026-10-03)
+
+`auditInTx` registers `fanoutAuditEvent` through `onCommit` (module 02). The webhook event is sent after the transaction commits, never on rollback. All `auditInTx` actions now reach webhook endpoints, including `audit.grading.released`. The payload carries ids only. The audit row itself is unchanged. Not included: business events (FU-B6).

@@ -1169,3 +1169,34 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 **Not included.** No data migration. The value `reviewer` stays in the DB CHECK, the TS unions and the `reviewer_count` API field. Pending reviewer invitations are not revoked (none exist). The old last-admin guard on demotion is gone with the demotion path; it must return with any future demotion path.
 
 **Impact.** 03-users, 13-notifications, 15-analytics, 10-admin-dashboard, 01-auth (see each SKILL.md). Help: 7 keys rewritten (migration 0154). Adversarial review (Sonnet takeover): accept, 5 LOW. The open LOW items are in roadmap row N26.
+
+## Embed JIT user rules (FR4, 2026-10-03)
+
+**What changed.** `resolveJitUser` in `modules/12-embed-sdk/src/jit-user.ts` (commits `eafeeac`, `7e2af3d`).
+- It inserts only real `users` columns: id, tenant_id, email, name, role `candidate`, status, metadata, timestamps. The old code wrote `password_hash` and `email_verified`, which do not exist, so every first embed login failed.
+- The insert uses `ON CONFLICT (tenant_id, email) DO NOTHING` and then a re-select, so two parallel first logins end with one row.
+- The lookup is case-insensitive (`lower(email)`).
+- It refuses with `AuthzError` 403 unless EVERY case variant row is role `candidate`, status `active`, `deleted_at` null and `erased_at` null.
+
+**Why.** The old code accepted any existing row, also an admin row (privilege risk). A mixed-case admin row could shadow a lower-case candidate row.
+
+**Considered and rejected.** Accept the first matching row (the shadow risk). A migration for a unique index on `lower(email)` (no need; the check reads all variants).
+
+**Not included.** Embed iframe and Caddy `frame-ancestors` (FU-B13), FU-B14, FU-B15.
+
+**Impact.** Behaviour change: an invited user in status `pending` is refused by embed. Module 12 SKILL.md and `docs/RCA_LOG.md` carry the same facts.
+
+## Shared AES-256-GCM envelope and fixed-window rate-limit script (N24, 2026-10-03)
+
+**What changed.** Commits `34abc0e`, `c58438a`, `9b585a7`.
+- `modules/00-core/src/aes-gcm.ts` is the one AES-256-GCM implementation: `sealTagLast`/`openTagLast` and `sealTagMid`/`openTagMid`. Both stored layouts stay. Previous-key fallback stays. Auth tag is 16 bytes. An envelope under 28 bytes fails with "envelope too short".
+- Wrappers keep their old names: `modules/01-auth/src/crypto-util.ts` (TagLast), `modules/13-notifications/src/webhooks/crypto.ts` (TagMid), `modules/12-embed-sdk/src/webhook-secret-service.ts` (TagLast, base64).
+- `modules/01-auth/src/fixed-window-lua.ts` holds `FIXED_WINDOW_LUA` and `incrFixedWindow`. `rate-limit.ts`, `candidate-login.ts` and `email-otp.ts` use it. `ATTEMPT_LUA` is a different script and is untouched.
+
+**Why.** Three copies of each piece could drift (review RV77).
+
+**Considered and rejected.** One stored layout (needs a data migration; production row counts could not be read). Rename of the wrappers (churn).
+
+**Not included.** No data migration, no re-encryption. `tenant_settings.webhook_secret` is write-only (nothing decrypts it): an open question for the owner.
+
+**Impact.** Module 00 has a new subpath export `@assessiq/core/aes-gcm` (`exports` map in its `package.json`). The 13-notifications tests mock the barrel. codex: accept.

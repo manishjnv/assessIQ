@@ -266,7 +266,7 @@ All 401 errors from JWT verification share the code `INVALID_TOKEN`; differentia
 
 AssessIQ fires webhook events to a URL registered in Settings → Integrations → Webhooks. Embed attempts fire the **same event types** as direct magic-link attempts (no new event type needed, D9). Filter for embed traffic using `"embed_origin": true` in the payload (migration `0073_attempt_embed_origin.sql`).
 
-**Events delivered today (2026-10-02).** AssessIQ delivers only `audit.<action>` events, one for each audit-log row. Examples: `audit.grading.released`, `audit.grading.override`. Subscribe to a single action or to `audit.*`. The `audit.*` subscription needs a fresh MFA session.
+**Events delivered today (2026-10-03).** AssessIQ delivers only `audit.<action>` events, one for each audit-log row. Examples: `audit.grading.released`, `audit.grading.override`. Subscribe to a single action or to `audit.*`. The `audit.*` subscription needs a fresh MFA session. Since 2026-10-03 (FU-B5), rows written inside a transaction (`auditInTx`) are sent too, after the transaction commits. This includes `audit.grading.released`: it IS delivered. Before that date it was not. The payload carries ids only. A rolled-back transaction sends nothing.
 
 **Planned, not available:** the business events `attempt.started`, `attempt.submitted`, `attempt.graded` and `attempt.released`. AssessIQ does not send them yet. Do not build on them. To learn that a result is ready, use the `audit.grading.released` event.
 

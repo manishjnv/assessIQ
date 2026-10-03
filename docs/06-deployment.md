@@ -1943,3 +1943,36 @@ Work in this deploy, in commit order:
 - No click test in a browser. Behaviour check pending operator: the Settings (?) help, the question editor with a structured case, the attempts tab "Awaiting evaluation", and the preview of a published assessment.
 
 **Rollback:** `git revert` the commits of RV60, then rebuild and recreate `assessiq-api`, `assessiq-worker` and `assessiq-frontend`. Migration 0154: read the file first, reverse its statements by hand, and delete its `schema_migrations` row.
+
+## Review-fix deploy wave A (session q): RS10, FR2, FR4, FR13, FR25, RS4 code, N23 to N26 (2026-10-03, HEAD `7e2af3d`)
+
+Work in this wave: `e645d81` (CI only), `9a111e1` (FR2 `onCommit`, module 02 and 14), `eafeeac` and `7e2af3d` (FR4 embed JIT), `6638494` (FR13 web), `b5fa76a` (FR25 modules 04 and 08), `9b541ba` (RS4, marketing: not built). No migration.
+
+**Procedure (additive only, no migration):**
+1. Run `git push` for `main` as its own command.
+2. Run `ssh assessiq-vps 'cd /srv/assessiq && git pull --ff-only'`.
+3. Run `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-worker assessiq-frontend`.
+4. Run `docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend`.
+
+**Result:** the three services were recreated and are healthy. 8 routes return the expected status.
+**Not in this wave:** the marketing container (RS4 text waits for owner approval) and the IndexNow ping.
+**Rollback:** `git revert <sha>` of the item, then rebuild and recreate the same three services.
+
+## Review-fix deploy wave B: N23, N24, N25, N26 (2026-10-03, HEAD `ef01da2`, deployed at `ef01da2`)
+
+Work in this wave: `4ad6cc0` (N23, migration 0155, help seed), `00a951e` (N25), `f1c0aa0` (N26), `34abc0e`, `c58438a`, `9b585a7` (N24: shared AES core and Lua script), merges `54557e9` and `ef01da2`.
+
+**Migration (one, applied by hand, as in the earlier waves):** 0155 (`modules/16-help-system/migrations/0155_help_ids_page_prefix_n23.sql`). It only renames and copies `help_content` keys; there is no schema change. Run it with `docker exec -i assessiq-postgres psql -U assessiq -d assessiq -1 -v ON_ERROR_STOP=1 -q < file`. Then record it in `schema_migrations` with the file checksum and `ON CONFLICT DO NOTHING`. Global help rows go from 200 to 203.
+
+**Procedure:**
+1. Run `git push` for `main` as its own command.
+2. Run `ssh assessiq-vps 'cd /srv/assessiq && git pull --ff-only'`.
+3. Apply 0155 by hand and record it.
+4. Run `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-worker assessiq-frontend`.
+5. Run `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend`.
+
+**N24 note.** The stored layouts of encrypted values are unchanged, so no data migration and no re-encryption run. A rollback of the code needs no data step.
+
+**Result:** **Wave B result (verified 2026-10-03):** clone at `ef01da2`; migration 0155 applied by hand (`psql -1 -v ON_ERROR_STOP=1`) and recorded in `schema_migrations` with its sha256; old keys left: 0; global help rows: 210. api, worker and frontend rebuilt and recreated; api healthy; 0 error lines in api and worker logs; routes: / 200, /api/health 200, /admin/login 200, /take/x 200, /api/auth/whoami 401, /embed?token=x 401. CI green on `ef01da2` (quality + e2e).
+
+**Rollback:** `git revert` the commits, then rebuild and recreate the three services. For 0155: read the file, then reverse the renames by hand (the old keys never loaded text).

@@ -311,3 +311,17 @@ An element help id (`data-help-id` or `HelpTip helpId`) must start with the `hel
 - `admin.questions.type.subjective.rubric` -> `admin.question.editor.subjective.rubric`
 
 Guard: `modules/16-help-system/src/__tests__/help-id-page-prefix.test.ts` scans admin pages. It lists 32 more violations in its ALLOWLIST with reason "N20 follow-up". Fix them by rename (single page) or copy (shared key), then remove the entry.
+
+## N23: the remaining 30 ids renamed (2026-10-03)
+
+**Rule (unchanged from N20).** An element help id must start with the `helpPage` id of its page. The API returns only keys `LIKE '<page>.%'`.
+
+**What changed.** Commit `4ad6cc0`. 30 keys were renamed so that each starts with the id of its page. That covers the 32 allowlist entries: `print_review`, `sent_back` and `high_stakes.edit` are used on two pages, so the text is copied once for the second page. The pages are the admin pages in `modules/10-admin-dashboard/src/pages/` (assessments, assessment-detail, attempt-detail, billing, cohort-report, evaluation-detail, evaluations-queue, generation-attempts, individual-report, pack-detail, question-bank, users) and `HighStakesCard.tsx`.
+
+**Where.** Migration `modules/16-help-system/migrations/0155_help_ids_page_prefix_n23.sql` (renames and copies, no schema change). Content `modules/16-help-system/content/en/admin.yml`. Seed `0011_seed_help_content.sql` is regenerated. Global help rows: 200 to 203.
+
+**Guard.** The ALLOWLIST in `help-id-page-prefix.test.ts` is empty. A new id outside its page prefix fails the test.
+
+**Considered and rejected.** Renaming the page ids instead (many more call sites). Keeping the allowlist (the text stays unloaded).
+
+**Not included.** No text change. No new ids.

@@ -2347,3 +2347,31 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** five CSV escape functions existed; four had no guard: audit export (14), heatmap and attempt exports (15), billing export (19), candidate CSV sample (10).
 **Fix:** the guard (prefix `'`) is now on every CSV writer, one unit test each. Commit `7accd3f`. The AES helpers and the Lua scripts are not merged (load-bearing; roadmap N24).
 **Prevention:** one unit test for each writer. A shared helper would be better; it is part of N24.
+
+## 2026-10-03 — CI on main red since 6d6c6bd: E2E_API_PROXY not declared
+
+**Symptom:** the CI check CHECK C of `lint-deploy-procedure` failed on every push to main after `6d6c6bd`.
+**Cause:** `apps/web/vite.config.ts` reads `E2E_API_PROXY`, but the variable was not in `.env.example`. The check compares config keys with `.env.example`.
+**Fix:** `.env.example` now declares `E2E_API_PROXY` (commit `e645d81`).
+**Prevention:** the RV75 check (new in `tools/lint-deploy-procedure.ts`, CHECK C, self-test C-5) compares the `ConfigSchema` keys in `modules/00-core/src/config.ts` with `.env.example`. A new key without a template line fails CI.
+
+## 2026-10-03 — Embed JIT user: first login failed; any existing user was accepted
+
+**Symptom:** none seen in production. The review (RV43, FR4) found that a first embed login could not work. A second finding was a privilege risk.
+**Cause:** `modules/12-embed-sdk/src/jit-user.ts` inserted the columns `password_hash` and `email_verified`. Those columns do not exist in `users`, so every first login raised an SQL error. Separately, the lookup accepted any existing row for the email, including an admin. A mixed-case admin row could also shadow a lower-case candidate row.
+**Fix:** `jit-user.ts` inserts the real columns with `ON CONFLICT (tenant_id, email) DO NOTHING` and a re-select (`eafeeac`). The lookup uses `lower(email)`. It refuses (`AuthzError` 403) unless every case variant row is role `candidate`, status `active`, with `deleted_at` and `erased_at` null (`7e2af3d`, after the codex HIGH finding).
+**Prevention:** `modules/12-embed-sdk/src/__tests__/jit-user.test.ts` runs against the real database (create, repeat call, concurrent double call, erased, soft-deleted or disabled, admin, mixed-case admin, other tenant).
+
+## 2026-10-03 — Help text never loaded on 12 admin pages (N23)
+
+**Symptom:** 30 help ids on admin pages showed no text.
+**Cause:** the help API returns only keys `LIKE '<helpPage>.%'`. These ids did not start with the id of their page (for example `admin.questions.type.*` on the question editor), so the API never returned them. Found by the N20 guard test, which listed them in an allowlist.
+**Fix:** 30 keys renamed under their page prefix (32 allowlist entries; `print_review`, `sent_back`, `high_stakes.edit` copied for each page). Migration `modules/16-help-system/migrations/0155_help_ids_page_prefix_n23.sql`, seed `0011` regenerated, page files in `modules/10-admin-dashboard/src/pages/` updated (commit `4ad6cc0`).
+**Prevention:** `modules/16-help-system/src/__tests__/help-id-page-prefix.test.ts` now has an empty allowlist. Any new id outside its page prefix fails the test.
+
+## 2026-10-03 — 404 page had no main landmark (N25)
+
+**Symptom:** the axe test in `apps/web/e2e/a11y.spec.ts` failed on the 404 page (`landmark-one-main` and `region`).
+**Cause:** the `NotFound` page root was a `div` with no landmark.
+**Fix:** the root element is `<main>` (commit `00a951e`).
+**Prevention:** the e2e a11y spec (RS11) covers the 404 page. It is advisory in CI until promoted.

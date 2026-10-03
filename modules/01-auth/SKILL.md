@@ -366,3 +366,7 @@ No audit row is emitted when `request-link` receives an email that does not matc
 ## Reviewer role removed (RV60, 2026-10-03)
 
 **What.** Removed options: `anyRoleAuth` and `adminOrReviewer` (route gates). Email-OTP `filterEligible` is `admin` only. TOTP routes take `admin | super_admin`. The rate-limit admin tier is `admin` + `super_admin`; a legacy reviewer row falls to the user tier and gets 403 on admin routes. **Why.** Owner decision RO7. **Not included.** The `Role` union and the DB CHECK keep `reviewer` (Rule A). Stale comments that say "admin + reviewer" remain in `config.ts`, `require-auth.ts`, totp and `google-sso.ts` (roadmap N26). Adversarial review (Sonnet takeover): accept, 5 LOW.
+
+## Shared fixed-window script and crypto wrapper (N24, 2026-10-03)
+
+`src/fixed-window-lua.ts` exports `FIXED_WINDOW_LUA` and `incrFixedWindow`. `middleware/rate-limit.ts`, `candidate-login.ts` and `email-otp.ts` use it. `ATTEMPT_LUA` is a different script and stays. `src/crypto-util.ts` keeps its function names as thin wrappers (TagLast layout) on the core `aes-gcm`. Do not add a fourth copy of either piece.
