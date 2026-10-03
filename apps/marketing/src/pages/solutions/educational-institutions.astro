@@ -31,7 +31,7 @@ const faqSchema = {
       "name": "Can AssessIQ be used for online tests and examinations?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ supports timed online assessments with multiple-choice (scored deterministically), scenario, and written-answer questions. Timers are enforced on the server and start when the student begins and consents. Every attempt is logged and auditable. Multi-section papers and proctoring are not available yet; proctoring is coming soon."
+        "text": "AssessIQ supports timed online assessments with multiple-choice (scored deterministically), scenario, and written-answer questions. Timers are enforced on the server and start when the student begins and consents. Every attempt is logged and auditable. Basic integrity controls are included (optional fullscreen gate, copy/paste blocking, tab-switch warning). Webcam proctoring and a lockdown browser are not available."
       }
     },
     {
@@ -39,7 +39,7 @@ const faqSchema = {
       "name": "What integrity controls are available for online exams?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ randomises question order, shuffles MCQ options per student, enforces server-side timers, and issues invite links to individual students. Correct answers are never exposed to candidates. Webcam proctoring and browser lockdown are coming soon."
+        "text": "AssessIQ randomises question order, shuffles MCQ options per student, enforces server-side timers, and issues invite links to individual students. Correct answers are never exposed to candidates. It also has an optional fullscreen gate, copy/paste blocking and a tab-switch warning. There is no webcam proctoring and no lockdown browser."
       }
     },
     {
@@ -107,7 +107,7 @@ const breadcrumbSchema = {
 const capabilities = [
   {
     label: "Fair Online Exams",
-    body: "Randomised question order, per-student option shuffle, server-side timers, and a full audit log. Proctoring is coming soon."
+    body: "Randomised question order, per-student option shuffle, server-side timers, and a full audit log. Optional fullscreen gate, copy/paste blocking and tab-switch warning; no webcam proctoring or lockdown browser."
   },
   {
     label: "Question Types",
@@ -123,7 +123,7 @@ const capabilities = [
   },
   {
     label: "Bulk Invite",
-    body: "Import students from CSV (up to 200 per import) and send invite links by email, valid for 7 days, with single and bulk resend."
+    body: "Import students from CSV (up to 1,000 rows per file, or 200 when the same import also sends invitations) and send invite links by email, valid for 7 days, with single and bulk resend."
   },
   {
     label: "Data Protection",
@@ -251,7 +251,7 @@ const useCases = [
               Remote exams that can't be trusted.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Online exams are easy to game when every student sees the same questions in the same order. Randomised ordering, per-student option shuffle, and an auditable record of every attempt help — and proctoring is coming soon.
+              Online exams are easy to game when every student sees the same questions in the same order. Randomised ordering, per-student option shuffle, and an auditable record of every attempt help — and basic integrity controls (fullscreen gate, copy/paste blocking, tab-switch warning) add to that. There is no webcam proctoring or lockdown browser.
             </p>
           </div>
           <div>
@@ -344,7 +344,7 @@ const useCases = [
             Can AssessIQ be used for online tests and examinations?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ supports timed online assessments with multiple-choice (scored deterministically), scenario, and written-answer questions. Timers are enforced on the server and start when the student begins and consents. Every attempt is logged and auditable. Multi-section papers and proctoring are not available yet; proctoring is coming soon.
+            AssessIQ supports timed online assessments with multiple-choice (scored deterministically), scenario, and written-answer questions. Timers are enforced on the server and start when the student begins and consents. Every attempt is logged and auditable. Basic integrity controls are included (optional fullscreen gate, copy/paste blocking, tab-switch warning). Webcam proctoring and a lockdown browser are not available.
           </p>
         </div>
 
@@ -353,7 +353,7 @@ const useCases = [
             What integrity controls are available for online exams?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ randomises question order, shuffles MCQ options per student, enforces server-side timers, and issues invite links to individual students. Correct answers are never exposed to candidates. Webcam proctoring and browser lockdown are coming soon.
+            AssessIQ randomises question order, shuffles MCQ options per student, enforces server-side timers, and issues invite links to individual students. Correct answers are never exposed to candidates. It also has an optional fullscreen gate, copy/paste blocking and a tab-switch warning. There is no webcam proctoring and no lockdown browser.
           </p>
         </div>
 

@@ -9,27 +9,27 @@
   },
   "/alternatives": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/alternatives/amcat": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/alternatives/hackerearth": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/alternatives/hackerrank": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/alternatives/imocha": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/alternatives/mettl": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/compare": {
     "published": "2026-05-23T13:57:44+05:30",
@@ -37,15 +37,15 @@
   },
   "/compare/assessiq-vs-hackerearth": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/compare/assessiq-vs-imocha": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/compare/assessiq-vs-mettl": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/contact": {
     "published": "2026-05-22T22:49:22+05:30",
@@ -89,7 +89,7 @@
   },
   "/glossary/proctoring": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/glossary/reliability-coefficient": {
     "published": "2026-05-23T14:30:55+05:30",
@@ -97,55 +97,55 @@
   },
   "/methodology": {
     "published": "2026-05-23T14:47:11+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/pricing": {
     "published": "2026-05-23T00:17:52+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/privacy": {
     "published": "2026-05-23T20:50:08+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/resources": {
     "published": "2026-05-23T14:47:11+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-02T19:36:15+05:30"
   },
   "/resources/reducing-bias-technical-hiring": {
     "published": "2026-05-23T14:47:11+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-02T19:36:15+05:30"
   },
   "/resources/remote-proctoring-integrity": {
     "published": "2026-05-23T14:47:11+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/resources/technical-hiring-india-guide": {
     "published": "2026-05-23T14:47:11+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-02T19:36:15+05:30"
   },
   "/security": {
     "published": "2026-05-23T00:17:52+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/solutions": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/solutions/campus-recruitment": {
     "published": "2026-05-23T00:17:52+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/solutions/educational-institutions": {
     "published": "2026-05-23T00:17:52+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/solutions/it-hiring": {
     "published": "2026-05-23T00:17:52+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/solutions/team-skill-gap": {
     "published": "2026-05-23T00:17:52+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/terms": {
     "published": "2026-05-23T20:50:08+05:30",
@@ -153,59 +153,59 @@
   },
   "/tests": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/aptitude": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/english": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/java": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/javascript": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/logical-reasoning": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/python": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/react": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/role/backend-developer": {
     "published": "2026-05-24T06:33:37+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/role/data-analyst": {
     "published": "2026-05-24T06:33:37+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/role/frontend-developer": {
     "published": "2026-05-24T06:33:37+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/role/full-stack-developer": {
     "published": "2026-05-24T06:33:37+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/role/software-engineer": {
     "published": "2026-05-24T06:33:37+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tests/sql": {
     "published": "2026-05-23T14:30:55+05:30",
-    "modified": "2026-10-01T21:58:49+05:30"
+    "modified": "2026-10-03T09:15:08+05:30"
   },
   "/tools": {
     "published": "2026-05-24T07:07:02+05:30",
