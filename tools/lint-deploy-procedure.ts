@@ -484,7 +484,12 @@ interface CheckCOpts {
   envExamplePath: string;
   sourceDirs: string[];
   relBase: string;
+  /** modules/00-core/src/config.ts — its zod keys are read through loadConfig(env), not process.env.X (RV75). */
+  configPath?: string;
 }
+
+/** Top-level keys of the ConfigSchema z.object (4-space indent). ponytail: regex, not an import — importing config.ts runs loadConfig() at load. */
+const CONFIG_KEY_RE = /^ {4}([A-Z][A-Z0-9_]+):/gm;
 
 /** Regex to extract process.env.VAR_NAME or process.env['VAR_NAME']. */
 const PROCESS_ENV_RE =
@@ -554,6 +559,16 @@ async function checkEnvVarDeclaration(
           seen.set(varName, { file: relPath, line: lineIdx + 1 });
         }
       }
+    }
+  }
+
+  // 2b. Config schema keys (RV75)
+  if (opts.configPath) {
+    const cfg = await fsp.readFile(opts.configPath, "utf-8");
+    const cfgRel = path.relative(relBase, opts.configPath).replace(/\\/g, "/");
+    for (const m of cfg.matchAll(CONFIG_KEY_RE)) {
+      if (seen.has(m[1])) continue;
+      seen.set(m[1], { file: cfgRel, line: cfg.slice(0, m.index).split("\n").length });
     }
   }
 
@@ -941,11 +956,27 @@ REDIS_URL=redis://localhost:6379
       `const c = process.env['COMMENTED_VAR'];\n`
     );
 
+    const cConfigPath = path.join(cDir, "config.ts");
+    await fsp.writeFile(
+      cConfigPath,
+      `const ConfigSchema = z
+  .object({
+    KNOWN_VAR: z.string(),
+    UNDECLARED_CONFIG_KEY: z.string().optional(),
+  });
+`
+    );
+
     const cViolations = await checkEnvVarDeclaration({
       envExamplePath: cEnvExamplePath,
       sourceDirs: [cSrcDir],
       relBase: tmpDir,
+      configPath: cConfigPath,
     });
+    assert(
+      cViolations.some((v) => v.message.includes("UNDECLARED_CONFIG_KEY")),
+      "C-5: config schema key missing from .env.example → violation detected"
+    );
     assert(
       cViolations.some((v) => v.message.includes("TOTALLY_UNDECLARED_SECRET_VAR")),
       "C-1: undeclared var → violation detected"
@@ -1159,6 +1190,7 @@ async function main(): Promise<void> {
         path.join(REPO_ROOT, "apps"),
       ],
       relBase: REPO_ROOT,
+      configPath: path.join(REPO_ROOT, "modules/00-core/src/config.ts"),
     });
     violations.push(...cViolations);
 

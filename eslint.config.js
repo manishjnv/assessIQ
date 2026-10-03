@@ -1,4 +1,5 @@
 import tseslint from "typescript-eslint";
+import reactHooks from "eslint-plugin-react-hooks";
 
 export default tseslint.config(
   // Global ignores
@@ -76,6 +77,14 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  // RV69 (RCA "blank assessment detail page"): a hook after an early return
+  // throws at runtime and tsc cannot see it. Only rules-of-hooks — the plugin's
+  // React Compiler rules are not adopted.
+  {
+    files: ["**/*.tsx", "**/*.ts"],
+    plugins: { "react-hooks": reactHooks },
+    rules: { "react-hooks/rules-of-hooks": "error" },
   },
   // CLI tools and one-off scripts print to stdout by design (not request-path
   // code); the pino/streamLogger convention applies to services and modules.
