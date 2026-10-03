@@ -106,6 +106,35 @@ jobs:
       - name: MV tenant-filter lint (repo scan)
         run: pnpm lint:mv-tenant-filter
 
+      # 9-rv. Small repo guards (RV71, RV74). Self-test proves each lint fails on bad input.
+      #   doc-anchors: docs/NN-*.md#anchor refs point at real headings (skips when docs/ is absent)
+      #   vitest-coverage: no *.test.ts is outside every vitest config
+      #   skill-mount: prompts/skills mounted at the path the code reads, in api AND worker
+      #   public-collisions: public/ files never shadow SPA routes or marketing pages
+      #   ui-api-contract: every API path the SPA calls matches a Fastify route + method
+      - name: Repo guards (self-test)
+        run: |
+          pnpm lint:doc-anchors:self-test
+          pnpm lint:vitest-coverage:self-test
+          pnpm lint:skill-mount:self-test
+          pnpm lint:public-collisions:self-test
+          pnpm lint:ui-api-contract:self-test
+
+      - name: Doc anchors lint
+        run: pnpm lint:doc-anchors
+
+      - name: Vitest coverage lint
+        run: pnpm lint:vitest-coverage
+
+      - name: Skill mount lint
+        run: pnpm lint:skill-mount
+
+      - name: Public vs routes collision lint
+        run: pnpm lint:public-collisions
+
+      - name: UI/server route contract lint
+        run: pnpm lint:ui-api-contract
+
       # 9a. No-ambient-Claude lint sentinel — Phase 2 G2.A.
       # LOAD-BEARING per CLAUDE.md § Load-bearing paths: encodes D2 from
       # docs/05-ai-pipeline.md. Modifying the lint file requires codex:rescue.
