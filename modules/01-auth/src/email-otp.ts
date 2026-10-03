@@ -35,6 +35,7 @@ import {
 } from "./login-continuation.js";
 import { sha256Hex, constantTimeEqual } from "./crypto-util.js";
 import { getRedis } from "./redis.js";
+import { incrFixedWindow } from "./fixed-window-lua.js";
 import { sendEmail } from "@assessiq/notifications";
 
 // ---------------------------------------------------------------------------
@@ -95,19 +96,6 @@ function otpKey(emailHash: string): string {
 // Lua scripts (mirrors candidate-login INCR+EXPIRE pattern exactly)
 // ---------------------------------------------------------------------------
 
-// Rate-limit Lua: INCR; EXPIRE only on first hit (avoids resetting window).
-// Returns [count_after_incr, ttl_seconds].
-const RL_LUA = `
-local key = KEYS[1]
-local window = tonumber(ARGV[1])
-local n = redis.call("INCR", key)
-if n == 1 then
-  redis.call("EXPIRE", key, window)
-end
-local ttl = redis.call("TTL", key)
-return {n, ttl}
-`;
-
 // Atomic attempt accounting Lua:
 //   1. GET key → if missing, return nil (expired or never stored)
 //   2. Parse JSON, increment attempts
@@ -165,13 +153,7 @@ async function checkOtpRateLimit(ip: string, email: string): Promise<boolean> {
   const key = rlKey(ip, emailHash);
   const redis = getRedis();
   try {
-    const result = (await redis.eval(
-      RL_LUA,
-      1,
-      key,
-      OTP_RL_WINDOW_SEC,
-    )) as [number, number];
-    const count = result[0];
+    const { count } = await incrFixedWindow(redis, key, OTP_RL_WINDOW_SEC);
     return count <= OTP_RL_MAX;
   } catch {
     // Fail-closed: Redis unavailable → deny request (no send).
@@ -187,13 +169,7 @@ async function checkOtpEmailRateLimit(email: string): Promise<boolean> {
   const key = rlEmailKey(emailHash);
   const redis = getRedis();
   try {
-    const result = (await redis.eval(
-      RL_LUA,
-      1,
-      key,
-      OTP_RL_EMAIL_WINDOW_SEC,
-    )) as [number, number];
-    const count = result[0];
+    const { count } = await incrFixedWindow(redis, key, OTP_RL_EMAIL_WINDOW_SEC);
     return count <= OTP_RL_EMAIL_MAX;
   } catch {
     // Fail-closed: Redis unavailable → deny request (no send).
