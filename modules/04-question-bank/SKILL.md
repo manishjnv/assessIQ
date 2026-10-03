@@ -212,3 +212,7 @@ AI-assisted question generation is the only AI-touching surface in this module's
 ## Generation: `topic_focus` reaches the runtime (RV62, 2026-10-03)
 
 `service.ts` passes `topicFocus` from the route body into the runtime input, so the skill variable `topic_focus` is the real string (it was always `null`). The route accepts at most 200 characters after trim and no control characters; else 400 `INVALID_PARAM`. The wizard has no field yet (API only). The generate skills must read `topic_focus` before it changes output; a prompt change is a deploy event with eval re-baseline. See 05, "Question generation: one shared plan".
+
+## FR25 — rubric validation
+
+`validateRubric` in `src/types.ts` is now a re-export of `parseRubric` from `@assessiq/rubric-engine` (same ok/data|errors shape). `saveRubric` (service/generation.ts) uses it too. Do not add a local rubric parser.

@@ -6,6 +6,7 @@
 import { describe, it, expect } from "vitest";
 import {
   validateRubric,
+  parseRubric,
   sumAnchorScore,
   computeReasoningScore,
   finalScore,
@@ -309,5 +310,23 @@ describe("schema exports", () => {
   it("AnchorSchema parses a single anchor", () => {
     const result = AnchorSchema.safeParse(THREE_ANCHOR_RUBRIC.anchors[0]);
     expect(result.success).toBe(true);
+  });
+});
+
+describe("parseRubric (FR25: shared by 04 as validateRubric)", () => {
+  const cases: unknown[] = [
+    THREE_ANCHOR_RUBRIC,
+    { ...THREE_ANCHOR_RUBRIC, anchors: [] },
+    { ...THREE_ANCHOR_RUBRIC, anchor_weight_total: 50, reasoning_weight_total: 40 },
+    null,
+    "not a rubric",
+  ];
+  it.each(cases.map((c, i) => [i, c]))("case %i matches RubricSchema and validateRubric", (_i, input) => {
+    const direct = RubricSchema.safeParse(input);
+    const parsed = parseRubric(input);
+    expect(parsed.ok).toBe(direct.success);
+    if (parsed.ok && direct.success) expect(parsed.data).toEqual(direct.data);
+    if (!parsed.ok && !direct.success) expect(parsed.errors).toEqual(direct.error.issues);
+    expect(validateRubric(input).valid).toBe(parsed.ok);
   });
 });
