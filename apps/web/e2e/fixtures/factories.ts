@@ -301,13 +301,13 @@ export async function createSubjectiveQuestion(
           {
             id: 'a1',
             concept: 'identifies the key issue',
-            weight: 50,
+            weight: 35,
             synonyms: ['issue', 'problem', 'root cause'],
           },
           {
             id: 'a2',
             concept: 'proposes a remediation step',
-            weight: 50,
+            weight: 35,
             synonyms: ['fix', 'remediate', 'resolve', 'mitigate'],
           },
         ],
