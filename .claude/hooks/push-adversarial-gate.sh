@@ -18,12 +18,17 @@ set -uo pipefail
 
 INPUT=$(cat)
 
-# Extract the bash command we're about to run (jq if present, else sed).
+# Extract the bash command we're about to run with a real JSON parser (jq, else
+# node). N3 / RCA 2026-10-02: the old sed fallback stopped at the first escaped
+# quote, so `GIT_COMMITTER_EMAIL="..." git push` slipped through.
+CMD=""
 if command -v jq >/dev/null 2>&1; then
-  CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')
-else
-  CMD=$(printf '%s' "$INPUT" | sed -n 's/.*"command"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  CMD=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+elif command -v node >/dev/null 2>&1; then
+  CMD=$(printf '%s' "$INPUT" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).tool_input.command||""))}catch(e){}})' 2>/dev/null)
 fi
+# Fail closed: no parser or a parse failure gates on the raw payload.
+[ -n "$CMD" ] || CMD="$INPUT"
 
 # Only gate `git push`. Everything else passes immediately.
 case "$CMD" in
