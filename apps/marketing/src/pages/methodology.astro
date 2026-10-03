@@ -322,17 +322,15 @@ const fairnessPractices = [
         </h2>
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
           A valid score requires a controlled test environment. Today AssessIQ enforces time limits on the server
-          and randomises what each candidate sees; it does not yet include webcam proctoring, browser lockdown or tab-switch
-          detection. See <a href="/security" class="text-aiq-accent hover:underline">the security page</a> for how candidate data is stored and protected.
+          and randomises what each candidate sees; it has basic integrity controls: an optional fullscreen gate, copy/paste blocking and a tab-switch warning. It has no webcam proctoring and no lockdown browser. See <a href="/security" class="text-aiq-accent hover:underline">the security page</a> for how candidate data is stored and protected.
         </p>
         <div class="flex flex-col gap-aiq-xl">
           <div>
             <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">
-              Proctoring and in-test monitoring.<span class="ml-1 whitespace-nowrap rounded-aiq-pill border border-aiq-border px-2 py-0.5 font-mono text-aiq-xs uppercase tracking-aiq-mono text-aiq-accent">Coming soon</span>
+              Integrity controls and in-test monitoring.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Webcam proctoring, browser lockdown and tab-switch or copy-paste detection are not available yet. When
-              they ship, flagged events will be surfaced for human review rather than automatically invalidating an attempt.
+              An assessment can require fullscreen, block copy and paste, and warn the candidate when they leave the tab. Fullscreen exits, tab switches and blocked copy or paste are recorded as integrity events that the admin can see. They are for human review and do not invalidate an attempt automatically. There is no webcam proctoring and no lockdown browser.
             </p>
           </div>
           <div>

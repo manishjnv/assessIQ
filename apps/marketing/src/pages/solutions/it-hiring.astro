@@ -39,7 +39,7 @@ const faqSchema = {
       "name": "How does AssessIQ reduce cheating in online tests?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ randomises question order, shuffles MCQ options per student, enforces timers on the server (the timer starts when the candidate begins and consents), and issues invite links to individual candidates. Correct answers are never exposed to candidates. Webcam proctoring and browser lockdown are coming soon."
+        "text": "AssessIQ randomises question order, shuffles MCQ options per student, enforces timers on the server (the timer starts when the candidate begins and consents), and issues invite links to individual candidates. Correct answers are never exposed to candidates. It also has an optional fullscreen gate, copy/paste blocking and a tab-switch warning. There is no webcam proctoring and no lockdown browser."
       }
     },
     {
@@ -63,7 +63,7 @@ const faqSchema = {
       "name": "Is AssessIQ suitable for bulk technical hiring campaigns?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Yes. AssessIQ supports bulk candidate import via CSV (up to 200 per import) and email invite links that are valid for 7 days and can be resent, singly or in bulk. Admins can export results to CSV."
+        "text": "Yes. AssessIQ supports bulk candidate import via CSV (up to 1,000 rows per file, or 200 when the same import also sends invitations) and email invite links that are valid for 7 days and can be resent, singly or in bulk. Admins can export results to CSV."
       }
     },
     {
@@ -115,7 +115,7 @@ const capabilities = [
   },
   {
     label: "Randomised Delivery",
-    body: "Randomised question order, per-student MCQ option shuffle, and server-side timers on every attempt. Proctoring is coming soon."
+    body: "Randomised question order, per-student MCQ option shuffle, and server-side timers on every attempt. Optional fullscreen gate, copy/paste blocking and tab-switch warning; no webcam proctoring or lockdown browser."
   },
   {
     label: "Structured Scoring",
@@ -123,7 +123,7 @@ const capabilities = [
   },
   {
     label: "Bulk Invite & Scheduling",
-    body: "CSV student import (up to 200 per import) and email invite links valid for 7 days, with single and bulk resend."
+    body: "CSV student import (up to 1,000 rows per file, or 200 when the same import also sends invitations) and email invite links valid for 7 days, with single and bulk resend."
   },
   {
     label: "Admin Dashboard",
@@ -353,7 +353,7 @@ const useCases = [
             How does AssessIQ reduce cheating in online tests?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ randomises question order, shuffles MCQ options per student, enforces timers on the server (the timer starts when the candidate begins and consents), and issues invite links to individual candidates. Correct answers are never exposed to candidates. Webcam proctoring and browser lockdown are coming soon.
+            AssessIQ randomises question order, shuffles MCQ options per student, enforces timers on the server (the timer starts when the candidate begins and consents), and issues invite links to individual candidates. Correct answers are never exposed to candidates. It also has an optional fullscreen gate, copy/paste blocking and a tab-switch warning. There is no webcam proctoring and no lockdown browser.
           </p>
         </div>
 
@@ -380,7 +380,7 @@ const useCases = [
             Is AssessIQ suitable for bulk technical hiring campaigns?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Yes. AssessIQ supports bulk candidate import via CSV (up to 200 per import) and email invite links that are valid for 7 days and can be resent, singly or in bulk. Admins can export results to CSV.
+            Yes. AssessIQ supports bulk candidate import via CSV (up to 1,000 rows per file, or 200 when the same import also sends invitations) and email invite links that are valid for 7 days and can be resent, singly or in bulk. Admins can export results to CSV.
           </p>
         </div>
 

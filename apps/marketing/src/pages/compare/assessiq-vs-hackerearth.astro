@@ -44,7 +44,7 @@ const faqSchema = {
       "name": "What is HackerEarth?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerEarth is a Bengaluru-founded technical assessment and developer community platform. It serves 3,000+ companies globally and hosts a developer network of 10 million+ users. It is known for its large coding challenge library (40,000+ problems across 1,000+ skills), hackathon hosting, and AI-powered interview tooling."
+        "text": "HackerEarth is a Bengaluru-founded technical assessment and developer community platform. It serves companies globally and hosts a large developer network. It is known for its large coding challenge library (40,000+ problems across 1,000+ skills), hackathon hosting, and AI-powered interview tooling."
       }
     },
     {
@@ -60,7 +60,7 @@ const faqSchema = {
       "name": "Does HackerEarth support proctoring for assessments?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ's proctoring features are coming soon and are not available today; it currently offers server-side timers, per-student option shuffle, and an append-only audit log. If anti-cheating controls are a requirement now, HackerEarth is the stronger fit."
+        "text": "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning) but no webcam proctoring and no lockdown browser; it also offers server-side timers, per-student option shuffle, and an append-only audit log. If anti-cheating controls are a requirement now, HackerEarth is the stronger fit."
       }
     },
     {
@@ -121,11 +121,11 @@ const tableRows = [
   {
     criterion: "India focus",
     assessiq: "Built for Indian hiring and campus programs — structured scoring, audit trail, and an aptitude question pack",
-    hackerearth: "Founded in Bengaluru; global platform serving 3,000+ companies; strong Indian enterprise and developer community presence"
+    hackerearth: "Founded in Bengaluru; global platform serving companies globally; strong Indian enterprise and developer community presence"
   },
   {
     criterion: "Proctoring",
-    assessiq: "Proctoring features (Coming soon); server-side timers and an append-only audit log today",
+    assessiq: "Optional fullscreen gate, copy/paste block and tab-switch warning (no webcam, no lockdown); server-side timers and an append-only audit log today",
     hackerearth: "Smart Browser, copy/paste detection, AI-generated code tracking; anti-cheat controls built into the assessment layer"
   },
   {
@@ -166,14 +166,14 @@ const tableRows = [
   {
     criterion: "Company background",
     assessiq: "India-focused B2B assessment platform; structured hiring and institutional exams",
-    hackerearth: "Founded 2012, Bengaluru; serves 3,000+ companies globally including Fortune 500; community + enterprise combined"
+    hackerearth: "Founded 2012, Bengaluru; serves companies globally including Fortune 500; community + enterprise combined"
   }
 ];
 
 const faqs = [
   {
     q: "What is HackerEarth?",
-    a: "HackerEarth is a Bengaluru-founded technical assessment and developer community platform. It serves 3,000+ companies globally and hosts a developer network of 10 million+ users. It is known for its large coding challenge library (40,000+ problems across 1,000+ skills), hackathon hosting, and AI-powered interview tooling."
+    a: "HackerEarth is a Bengaluru-founded technical assessment and developer community platform. It serves companies globally and hosts a large developer network. It is known for its large coding challenge library (40,000+ problems across 1,000+ skills), hackathon hosting, and AI-powered interview tooling."
   },
   {
     q: "How does AssessIQ differ from HackerEarth for structured B2B hiring?",
@@ -181,7 +181,7 @@ const faqs = [
   },
   {
     q: "Does HackerEarth support proctoring for assessments?",
-    a: "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ's proctoring features are coming soon and are not available today; it currently offers server-side timers, per-student option shuffle, and an append-only audit log. If anti-cheating controls are a requirement now, HackerEarth is the stronger fit."
+    a: "HackerEarth includes anti-cheating tools such as Smart Browser, copy/paste detection, and AI-generated code tracking as part of its assessment platform. AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning) but no webcam proctoring and no lockdown browser; it also offers server-side timers, per-student option shuffle, and an append-only audit log. If anti-cheating controls are a requirement now, HackerEarth is the stronger fit."
   },
   {
     q: "Is HackerEarth good for hackathon-based hiring in India?",
@@ -329,7 +329,7 @@ const faqs = [
               You want a B2B-only platform with no public leaderboards, no gamification, and no candidate-facing community — just a clean admin workflow for your hiring team.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You are running campus or institutional drives with bulk invite and CSV import (up to 200 per import) for Indian candidate pools.
+              You are running campus or institutional drives with bulk invite and CSV import (up to 1,000 rows per file, or 200 when the same import also sends invitations) for Indian candidate pools.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
               You want a guided setup — talk to us and we will create your company account.
