@@ -637,6 +637,7 @@ export async function getAttemptForCandidate(
           kind: "auto_submit",
         },
       });
+      await emitAttemptEventAfterCommit(client, tenantId, attempt.id, "attempt.submitted");
       // Same deterministic MCQ scoring as submitAttempt (no AI). After the
       // event insert so archetype signals see the auto_submit milestone.
       await scoreMcqAndFinalizeSafely(client, tenantId, attempt.id);
@@ -1156,6 +1157,7 @@ export async function sweepStaleTimersForTenant(
           kind: "auto_submit",
         },
       });
+      await emitAttemptEventAfterCommit(client, tenantId, attemptId, "attempt.submitted");
       // Same deterministic MCQ scoring as submitAttempt (no AI). After the
       // event insert so archetype signals see the auto_submit milestone.
       await scoreMcqAndFinalizeSafely(client, tenantId, attemptId);

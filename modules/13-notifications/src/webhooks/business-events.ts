@@ -54,11 +54,13 @@ export async function emitAttemptEventAfterCommit(
     candidate_id: row.user_id,
     occurred_at: new Date().toISOString(),
   };
-  onCommit(client, async () => {
+  const registered = onCommit(client, async () => {
     try {
       await emitWebhook({ tenantId, event, payload });
     } catch (err: unknown) {
       log.error({ err, tenantId, attemptId, event }, 'business-event: emitWebhook failed');
     }
   });
+  // ponytail: every caller runs inside withTenant today; log if one ever does not.
+  if (!registered) log.warn({ tenantId, attemptId, event }, 'business-event: not inside withTenant, event not sent');
 }
