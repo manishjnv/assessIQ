@@ -958,6 +958,10 @@ export function AttemptPage(): React.JSX.Element {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      // Flush the debounced autosave first: a click on Submit within the 5 s
+      // debounce window otherwise submits with the last answer unsaved
+      // (found by the e2e take-happy-path run, 2026-10-03).
+      await Promise.all(sectionQidsRef.current.map((id) => autosave.flushSave(id)));
       const res = await submitAttempt(attemptId);
       clearBackup(attemptId);
       // Hand the submit response (result_expectation, email_masked,
@@ -975,7 +979,7 @@ export function AttemptPage(): React.JSX.Element {
             : 'Unknown error. Please try again.';
       setSubmitError(`Submit failed: ${msg}`);
     }
-  }, [attemptId, navigate]);
+  }, [attemptId, navigate, autosave]);
 
   // ── Locked-redirect effect ────────────────────────────────────────────────
   // When locked becomes true (timer expire or terminal status on fetch), show a
