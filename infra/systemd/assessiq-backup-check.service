@@ -1,0 +1,12 @@
+# assessiq-backup-check.service: one-shot dead-man check of the newest DB dump.
+# Not installed by the repo. Operator steps are in the header of tools/ops/assessiq-backup-check.sh.
+# Optional heartbeat: create /etc/default/assessiq-backup-check with BACKUP_HEARTBEAT_URL=...
+# Exit 1 (STALE) and 2 (MISSING) stay failures so `systemctl --failed` shows them.
+[Unit]
+Description=AssessIQ backup dead-man check
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/etc/default/assessiq-backup-check
+ExecStart=/srv/assessiq/tools/ops/assessiq-backup-check.sh
