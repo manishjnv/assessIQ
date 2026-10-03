@@ -141,8 +141,8 @@ async function loadExpectation(
                FROM attempt_questions aq WHERE aq.attempt_id = a.id) AS total_questions,
             (SELECT COUNT(*)::int
                FROM attempt_questions aq
-               JOIN questions q ON q.id = aq.question_id
-              WHERE aq.attempt_id = a.id AND q.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case')) AS non_mcq_questions
+               JOIN question_versions qv ON qv.question_id = aq.question_id AND qv.version = aq.question_version
+              WHERE aq.attempt_id = a.id AND qv.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case')) AS non_mcq_questions
        FROM attempts a
        JOIN users   u ON u.id = a.user_id
        JOIN tenants t ON t.id = a.tenant_id

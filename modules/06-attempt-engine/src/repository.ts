@@ -400,9 +400,9 @@ export async function listMcqOptionsForPicks(
   const result = await client.query<{ question_id: string; options: unknown }>(
     `SELECT p.question_id::text AS question_id, qv.content -> 'options' AS options
        FROM unnest($1::uuid[], $2::int[]) AS p(question_id, version)
-       JOIN questions q ON q.id = p.question_id AND q.type IN ('mcq', 'multi_select')
        JOIN question_versions qv
-         ON qv.question_id = p.question_id AND qv.version = p.version`,
+         ON qv.question_id = p.question_id AND qv.version = p.version
+        AND qv.type IN ('mcq', 'multi_select')`,
     [picks.map((p) => p.id), picks.map((p) => p.version)],
   );
   for (const r of result.rows) out.set(r.question_id, r.options);
@@ -423,9 +423,9 @@ export async function listOrderingKeysForPicks(
   const result = await client.query<{ question_id: string; items: unknown; correct_order: unknown }>(
     `SELECT p.question_id::text AS question_id, qv.content -> 'items' AS items, qv.content -> 'correct_order' AS correct_order
        FROM unnest($1::uuid[], $2::int[]) AS p(question_id, version)
-       JOIN questions q ON q.id = p.question_id AND q.type = 'ordering'
        JOIN question_versions qv
-         ON qv.question_id = p.question_id AND qv.version = p.version`,
+         ON qv.question_id = p.question_id AND qv.version = p.version
+        AND qv.type = 'ordering'`,
     [picks.map((p) => p.id), picks.map((p) => p.version)],
   );
   for (const r of result.rows) out.set(r.question_id, { items: r.items, correct_order: r.correct_order });
@@ -454,8 +454,9 @@ export async function listOrderingQuestionIds(client: PoolClient, attemptId: str
   const result = await client.query<{ question_id: string }>(
     `SELECT aq.question_id::text AS question_id
        FROM attempt_questions aq
-       JOIN questions q ON q.id = aq.question_id
-      WHERE aq.attempt_id = $1 AND q.type = 'ordering'`,
+       JOIN question_versions qv
+         ON qv.question_id = aq.question_id AND qv.version = aq.question_version
+      WHERE aq.attempt_id = $1 AND qv.type = 'ordering'`,
     [attemptId],
   );
   return new Set(result.rows.map((r) => r.question_id));
@@ -463,8 +464,7 @@ export async function listOrderingQuestionIds(client: PoolClient, attemptId: str
 
 /**
  * Type of one question (RLS-scoped), or null when the row is not visible.
- * The type is read live from `questions`: question_versions does not store it, and
- * listFrozenQuestionsForAttempt (candidate view) and scoring read it the same way.
+ * N21: the type is the one frozen on the attempt's question_version (not the live question row).
  */
 /** Frozen question_versions.content of an attempt question (SERVER-INTERNAL: contains the answer key). */
 export async function findFrozenContent(
@@ -479,10 +479,14 @@ export async function findFrozenContent(
   return result.rows[0]?.content ?? null;
 }
 
-export async function findQuestionType(client: PoolClient, questionId: string): Promise<string | null> {
+export async function findQuestionType(
+  client: PoolClient,
+  questionId: string,
+  version: number,
+): Promise<string | null> {
   const result = await client.query<{ type: string }>(
-    `SELECT type FROM questions WHERE id = $1`,
-    [questionId],
+    `SELECT type FROM question_versions WHERE question_id = $1 AND version = $2`,
+    [questionId, version],
   );
   return result.rows[0]?.type ?? null;
 }
@@ -618,7 +622,7 @@ export async function listFrozenQuestionsForAttempt(
        aq.question_id,
        aq.position,
        aq.question_version,
-       q.type,
+       qv.type,
        q.topic,
        aq.points,
        aq.section_index,
