@@ -103,6 +103,16 @@ describe('MyCertificates', () => {
     expect(container).toMatchSnapshot();
   });
 
+  it('View opens the completion modal and does not auto-open', async () => {
+    mockListMyCertificates.mockResolvedValue(THREE_CERTS);
+    render(<MyCertificates />);
+    const views = await screen.findAllByRole('button', { name: 'View' });
+    expect(views).toHaveLength(2); // revoked row has no View
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(views[0]!);
+    expect(screen.getByRole('dialog')).toBeDefined();
+  });
+
   it('revoked row shows a Revoked badge with the revoke_reason in aria-label', async () => {
     mockListMyCertificates.mockResolvedValue(THREE_CERTS);
     render(<MyCertificates />);

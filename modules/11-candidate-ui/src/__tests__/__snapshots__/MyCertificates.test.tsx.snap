@@ -115,6 +115,12 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
           role="toolbar"
           style="display: flex; gap: var(--aiq-space-md); flex-wrap: wrap;"
         >
+          <button
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            type="button"
+          >
+            View
+          </button>
           <a
             download=""
             href="/api/certificates/CERT-001/pdf"
@@ -282,6 +288,12 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
           role="toolbar"
           style="display: flex; gap: var(--aiq-space-md); flex-wrap: wrap;"
         >
+          <button
+            style="display: inline-block; padding: 4px var(--aiq-space-md); border: 1px solid var(--aiq-color-border); border-radius: var(--aiq-radius-sm); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-secondary); background: transparent; text-decoration: none; cursor: pointer; font-family: inherit; line-height: 1.5;"
+            type="button"
+          >
+            View
+          </button>
           <a
             download=""
             href="/api/certificates/CERT-003/pdf"

@@ -1,9 +1,10 @@
 // Tests for the CompletionModal component.
 // Pattern: vitest + jsdom + @testing-library/react, matching MyCertificates.test.tsx.
 
-import { describe, expect, it, vi, afterEach } from 'vitest';
+import { describe, expect, it, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
-import { CompletionModal } from '../components';
+import { CompletionModal, NewCertificateModal } from '../components';
+import { hasSeenCertificate } from '../components/CompletionModal';
 import type { CompletionModalProps } from '../components';
 
 // ---------------------------------------------------------------------------
@@ -13,13 +14,12 @@ import type { CompletionModalProps } from '../components';
 const BASE_PROPS: CompletionModalProps = {
   credential_id: 'CERT-001',
   tier: 'completion',
-  course_title: 'JavaScript Fundamentals',
+  assessment_title: 'JavaScript Fundamentals',
   verify_url: 'https://assessiq.example.com/verify/CERT-001',
   pdf_url: '/api/certificates/CERT-001/pdf',
   onClose: vi.fn(),
 };
 
-const STORAGE_KEY = `cert-modal-shown:${BASE_PROPS.credential_id}:${BASE_PROPS.tier}`;
 
 // ---------------------------------------------------------------------------
 // Cleanup after each test
@@ -36,76 +36,65 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('CompletionModal', () => {
-  it('renders modal content when localStorage key is absent', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
-
+  it('renders the dialog with tier and assessment title', () => {
     render(<CompletionModal {...BASE_PROPS} onClose={vi.fn()} />);
-
     expect(screen.getByRole('dialog')).toBeDefined();
     expect(screen.getByText('Congratulations!')).toBeDefined();
     expect(screen.getByText(/JavaScript Fundamentals/)).toBeDefined();
   });
 
-  it('calls onClose immediately when localStorage key is already set (does NOT render modal)', async () => {
+  it('Escape and Close call onClose', () => {
     const onClose = vi.fn();
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('1');
-
     render(<CompletionModal {...BASE_PROPS} onClose={onClose} />);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByText('Close'));
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
 
-    // Modal content must not be rendered.
+  it('CTAs: Download PDF and LinkedIn are links, Close is a button', () => {
+    render(<CompletionModal {...BASE_PROPS} onClose={vi.fn()} />);
+    expect(screen.getByText('Download PDF').tagName).toBe('A');
+    expect(screen.getByText('Share on LinkedIn').tagName).toBe('A');
+    expect(screen.getByText('Close').tagName).toBe('BUTTON');
+  });
+});
+
+describe('NewCertificateModal', () => {
+  const CERT = {
+    credential_id: 'CERT-001', tier: 'completion', course_title: 'JavaScript Fundamentals', level: 'L1',
+    issued_at: '2026-01-01T00:00:00Z', revoked_at: null, revoke_reason: null, signed_hash_valid: true,
+    verify_url: BASE_PROPS.verify_url, pdf_url: BASE_PROPS.pdf_url,
+    pdf_downloads: 0, linkedin_shares: 0, verification_views: 0,
+  };
+
+  beforeEach(() => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      async () => new Response(JSON.stringify({ certificates: [CERT] }), { status: 200 }),
+    );
+  });
+
+  it('shows once, closing marks it seen, a remount shows nothing', async () => {
+    const { unmount } = render(<NewCertificateModal credential_id="CERT-001" />);
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByText('Close'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(hasSeenCertificate('CERT-001')).toBe(true);
+    unmount();
+    render(<NewCertificateModal credential_id="CERT-001" />);
+    await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByRole('dialog')).toBeNull();
+  });
 
-    // onClose is called via useEffect — wait for it to fire.
-    await waitFor(() => {
-      expect(onClose).toHaveBeenCalledTimes(1);
+  it('still renders when storage throws', async () => {
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
     });
-  });
-
-  it('sets localStorage key on first render', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
-    const setItem = vi.spyOn(Storage.prototype, 'setItem');
-
-    render(<CompletionModal {...BASE_PROPS} onClose={vi.fn()} />);
-
-    expect(setItem).toHaveBeenCalledWith(STORAGE_KEY, '1');
-  });
-
-  it('ESC keydown calls onClose', () => {
-    const onClose = vi.fn();
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
-
-    render(<CompletionModal {...BASE_PROPS} onClose={onClose} />);
-
-    const dialog = screen.getByRole('dialog');
-    fireEvent.keyDown(dialog, { key: 'Escape' });
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('Close button click calls onClose', () => {
-    const onClose = vi.fn();
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
-
-    render(<CompletionModal {...BASE_PROPS} onClose={onClose} />);
-
-    const closeBtn = screen.getByRole('button', { name: 'Close' });
-    fireEvent.click(closeBtn);
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('all 3 CTAs present: "Download PDF" as <a>, "Share on LinkedIn" as <a>, "Close" as <button>', () => {
-    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
-
-    render(<CompletionModal {...BASE_PROPS} onClose={vi.fn()} />);
-
-    const downloadPdf = screen.getByText('Download PDF');
-    expect(downloadPdf.tagName).toBe('A');
-
-    const shareLinkedIn = screen.getByText('Share on LinkedIn');
-    expect(shareLinkedIn.tagName).toBe('A');
-
-    const closeBtn = screen.getByText('Close');
-    expect(closeBtn.tagName).toBe('BUTTON');
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    render(<NewCertificateModal credential_id="CERT-001" />);
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByText('Close'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
 });

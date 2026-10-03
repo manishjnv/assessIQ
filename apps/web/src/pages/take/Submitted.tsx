@@ -34,6 +34,7 @@ import {
   getResult,
   CandidateApiError,
   ResultSummary,
+  NewCertificateModal,
 } from '@assessiq/candidate-ui';
 import type {
   AttemptResultReleasedWire,
@@ -292,6 +293,9 @@ export function Submitted(): React.JSX.Element {
                     passed={state.result.passed}
                     certificate={state.result.certificate}
                   />
+                  {state.result.certificate && (
+                    <NewCertificateModal credential_id={state.result.certificate.credential_id} />
+                  )}
                 </Card>
                 {state.emailMasked !== null && (
                   <p style={{ ...SUB_TEXT, margin: '0 0 32px' }}>
