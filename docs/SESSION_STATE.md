@@ -23,7 +23,7 @@
 **Saved:** all code is committed and pushed; the server clone is at `636c970`; memory note `session-2026-10-03-review-wave` is saved.
 **Working tree left as found (not this session's, not committed):** `.claude/scheduled_tasks.lock`, `BingTrackingCode.md`, `modules/01-auth/src/__tests__/totp-enrollment-status.test.ts`, `modules/01-auth/src/google-sso.ts.p1bak`, `modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/`. Stale agent worktrees exist under `.claude/worktrees/` (not removed).
 **Process notes:** (1) The permission classifier refused `git cherry-pick` onto main, an agent brief that named production facts, and a chained `pnpm lint:rls`. After the owner's explicit permission the same commands passed. Keep production facts out of builder briefs and merge after a go-ahead. (2) `git log main..HEAD` lists newest first: cherry-pick a worktree branch in reverse order and take the lockfile from the branch tip after a conflict. (3) Docker is the bottleneck: run suites with `--no-file-parallelism` and run timing tests alone. (4) A help page shows only keys that start with its page id; the guard test enforces it now. (5) The Chrome extension disconnected; local Playwright replaced the live click.
-**Docs:** deploy record `docs/06-deployment.md` § wave A and § wave B; RS6 reviews `docs/plans/RS6_FEATURE_REVIEW_A` to `D` (local only); PENDING_TASKS § P0-V (local only).
+**Docs:** tracked session record with every change, reason, file, check and rollback: `docs/plans/REVIEW_WAVE_2026-10-03.md`; deploy record `docs/06-deployment.md` § wave A and § wave B; RS6 reviews `docs/plans/RS6_FEATURE_REVIEW_A` to `D` (local only); PENDING_TASKS § P0-V (local only).
 
 ---
 
