@@ -11,7 +11,7 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 
 import { withTenant } from "@assessiq/tenancy";
-import { uuidv7 } from "@assessiq/core";
+import { uuidv7, AuthzError } from "@assessiq/core";
 import type { PoolClient } from "pg";
 
 export interface JitUserInput {
@@ -28,6 +28,10 @@ export interface JitUserResult {
 
 interface UserRow {
   id: string;
+  role: string;
+  status: string;
+  deleted_at: Date | null;
+  erased_at: Date | null;
 }
 
 /**
@@ -37,43 +41,67 @@ interface UserRow {
  * in `users.metadata.external_id` so the host's user ID is preserved and flows
  * through webhook payloads via `users.metadata`.
  *
- * Note: no password/TOTP is set — embed candidates auth only via signed JWT.
+ * An existing row is reused ONLY if it is an active, non-deleted, non-erased
+ * candidate. Anything else (admin/reviewer/super_admin with the same email,
+ * disabled/pending, soft-deleted, erased) is refused with AuthzError — an embed
+ * JWT must never mint a session for a privileged or retired identity. A
+ * soft-deleted row still owns the UNIQUE (tenant_id, email) slot, so it cannot
+ * be "ignored and recreated"; refusing is the only safe outcome.
+ *
+ * Note: the users table has no password/TOTP columns — embed candidates auth
+ * only via signed JWT.
  */
 export async function resolveJitUser(input: JitUserInput): Promise<JitUserResult> {
   const normalizedEmail = input.email.toLowerCase().trim();
 
   return withTenant(input.tenantId, async (client: PoolClient) => {
-    // Try to find existing user by email in this tenant.
-    const existing = await client.query<UserRow>(
-      `SELECT id FROM users
-       WHERE tenant_id = $1 AND email = $2
-       LIMIT 1`,
-      [input.tenantId, normalizedEmail],
-    );
-    if (existing.rows.length > 0 && existing.rows[0] !== undefined) {
-      return { userId: existing.rows[0].id, created: false };
-    }
+    const find = async (): Promise<UserRow | undefined> =>
+      (
+        await client.query<UserRow>(
+          `SELECT id, role, status, deleted_at, erased_at FROM users
+           WHERE tenant_id = $1 AND email = $2
+           LIMIT 1`,
+          [input.tenantId, normalizedEmail],
+        )
+      ).rows[0];
 
-    // Not found — create a new candidate user.
+    const accept = (u: UserRow, created: boolean): JitUserResult => {
+      if (
+        u.role !== "candidate" ||
+        u.status !== "active" ||
+        u.deleted_at !== null ||
+        u.erased_at !== null
+      ) {
+        throw new AuthzError("embed user is not an active candidate");
+      }
+      return { userId: u.id, created };
+    };
+
+    const existing = await find();
+    if (existing !== undefined) return accept(existing, false);
+
+    // Not found — create a new candidate user. Only real columns exist on
+    // `users`; created_at/updated_at use their DB defaults. ON CONFLICT covers
+    // the concurrent double-JIT race (UNIQUE (tenant_id, email)).
     const userId = uuidv7();
-    const now = new Date().toISOString();
-
-    await client.query(
-      `INSERT INTO users
-         (id, tenant_id, email, name, role, status, password_hash, metadata,
-          email_verified, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, 'candidate', 'active', NULL,
-               $5::jsonb, TRUE, $6, $6)`,
+    const inserted = await client.query<{ id: string }>(
+      `INSERT INTO users (id, tenant_id, email, name, role, status, metadata)
+       VALUES ($1, $2, $3, $4, 'candidate', 'active', $5::jsonb)
+       ON CONFLICT (tenant_id, email) DO NOTHING
+       RETURNING id`,
       [
         userId,
         input.tenantId,
         normalizedEmail,
         input.name,
         JSON.stringify({ external_id: input.externalSub }),
-        now,
       ],
     );
+    if (inserted.rows.length > 0) return { userId, created: true };
 
-    return { userId, created: true };
+    // Lost the race — the winner's row is now committed and visible.
+    const winner = await find();
+    if (winner === undefined) throw new AuthzError("embed user could not be resolved");
+    return accept(winner, false);
   });
 }
