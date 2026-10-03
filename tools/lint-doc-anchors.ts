@@ -38,8 +38,6 @@ export function slugs(md: string): Set<string> {
 
 /** Known stale anchors, fix the doc then delete the entry. */
 const KNOWN_STALE = new Set([
-  // RV71 found - open: heading is now "15.3 Pattern reflows (catalog ...)"; cited from docs/04-auth-flows.md:629
-  "10-branding-guideline.md#153-pattern-reflows-catalog--populated-incrementally-by-later-phases",
 ]);
 
 /** Violations for one source text, given a loader for doc contents (undefined = doc absent). */

@@ -1,3 +1,63 @@
+# Session — 2026-10-03 (r) — RS4/RV27, PT1, RS6 decisions, FU-B6, FU-C17, N21, RV71/73/74, N3, E4
+
+**Headline:** All ordered items are on `main` and deployed (VPS at `90a9ddb`, migration 0156 applied). Marketing was rebuilt twice. The G4 skill patch is deployed by scp. Four items wait for the owner (see Open questions).
+**Commits:**
+- `f9473d5` RV27 last unsourced competitor figures removed · `67919ce` page dates · `e11cb5b` PT1-6 terms section 7
+- `60477e0` N3 push gate parses JSON with jq or node and fails closed (self-test, 5 cases)
+- `e65b993` + `90a9ddb` RV73 backup dead-man check, k6 script moved, systemd units (not installed); codex revise addressed
+- `f0884bd` FU-C17 strict rubric rules in 08, enforced on save in 04
+- `28ab66f` + `5b02fa1` FU-B6 business events · `74f1f46` release.ts structure test · `6ed8ded` test mocks
+- `ea906d4` RV71 four lints + RV74 ui-api-contract check
+- `94fdc4a` N21 migration 0156 `question_versions.type` · `9084a53` 07 readers use `qv.type`
+- Merges `2583006`, `173ede6`, `fd4a48e`, `6ebe8d8`, `123c93d`; docs commit follows this block.
+**Deploy:** marketing rebuilt twice (IndexNow 200, 42 URLs each). Migration 0156 by hand; api, worker, frontend recreated; 24 containers before and after; all route checks OK. Skill `generate-subjective` 2026-10-03a by scp. Record: `docs/06-deployment.md`.
+**Tests:** typecheck 0 errors; lint 0 errors (20 old warnings); modules 04/06/08/09/13: 963 pass; 07: 404 pass; apps/api: 138 pass + 7 todo; new lints and self-tests OK.
+**Next:** N5 eval run (grade, bless, enforce) once the owner approves the quota use (about 151 cases).
+**Open questions:**
+- N5: owner approves the Max quota use for the eval run (about 151 cases).
+- FU-C17 audit: run `ssh assessiq-vps 'docker exec assessiq-api pnpm exec tsx tools/audit-rubrics.ts'` (read-only).
+- G4 behaviour check: the owner runs one subjective generation and checks `wrongTypeDropped=0`.
+- RV73: the owner chooses the heartbeat account and installs the check (steps in `docs/06-deployment.md`). Offsite backup R8 is open.
+- RV74: the 4 allowlisted `help-content.tsx` mismatches are FR14/FU-D1.
+- Minor N21 follow-ups: `restoreVersion` can copy old content onto a row whose type changed; add a guard test that keeps the two type CHECKs equal.
+
+---
+
+## Agent utilization
+- Opus: plan, marketing edits, N3 hook, G4 skill patch, review of all diffs, 07 N21 fix, RV73 hardening, deploy.
+- Sonnet: decision sheet; 5 implementation agents (FU-B6, FU-C17, N21, RV71+74, RV73), resumed once after a session restart; decisions-docs agent; N21 adversarial review; this docs agent.
+- Haiku: 1 code survey.
+- codex:rescue: 07 N21 readers: accept. RV73 infra: revise -> addressed (`90a9ddb`).
+
+**Routing telemetry**
+- sonnet · FU-B6 events · reworked: Y (missed timer auto-submit; mocks)
+- sonnet · FU-C17 rubric rules · reworked: N
+- sonnet · N21 type freeze · reworked: Y (07 readers left live)
+- sonnet · RV71+RV74 lints · reworked: N
+- sonnet · RV73 backup check · reworked: Y (codex revise: paths, glob, symlink)
+- haiku · code survey · reworked: N
+
+---
+
+## Detail
+
+### Plain summary
+- Webhooks now send three events (`attempt.submitted`, `attempt.graded`, `result.released`) after the database commit. The payload holds ids only. Detail: `docs/03-api-contract.md`.
+- A question keeps its type per version (migration 0156). A clone refresh can no longer change the rules of a running attempt. Modules 06, 07 and 09 read the frozen type. Detail: `docs/02-data-model.md`.
+- Rubrics are checked on save (weights sum, unique anchor ids, non-empty band text). Old rubrics still grade because `parseRubric` stays lenient. The e2e fixture weights changed from 50/50 to 35/35 because the total was 70.
+- The push gate now catches chained pushes (N3). New CI lints check doc anchors, vitest configs, skill mounts, public names and the UI-to-server contract.
+- The marketing site has no unsourced competitor figures. Terms section 7 says plans renew only by a new order or as the contract states. The pricing page keeps "contact sales"; the INR ranges are a proposal only.
+- The `generate-subjective` skill got a hard rule on the question type (version 2026-10-03a, scp). It is not eval-gated, so no re-baseline ran.
+
+### Decisions and facts to keep
+- Owner decisions 2026-10-03 (PT1 and RS6): all recommended answers. Details in `docs/PENDING_TASKS_2026-10-01.md` and `docs/plans/RS6_FEATURE_REVIEW_*.md`.
+- N21 adversarial review: Sonnet verdict revise (07 readers left live) -> fixed in `9084a53`; codex accept.
+- RV73 codex review: revise (path prefixes, `find -type f`, future mtime STALE, unit hardening) -> addressed in `90a9ddb`.
+- Mock lesson: see `docs/RCA_LOG.md` "new module export broke vi.mock factories". Push gate: "push gate missed chained pushes".
+- Not done: N5 eval, installing the backup check, the FU-C17 audit, the G4 behaviour check.
+
+---
+
 # Session — 2026-10-03 (q) — review wave 2: RS10, FR2, FR4, FR13, FR25, RS4, N23, N24, N25, N26
 
 **Headline:** All ordered items are on `main`. Wave A (`7e2af3d`) is LIVE. Wave B (`ef01da2`, migration 0155) is deployed; the verify result is below. The RS4 marketing container is NOT rebuilt: it waits for the owner to approve the text.

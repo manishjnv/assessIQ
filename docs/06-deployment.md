@@ -1976,3 +1976,42 @@ Work in this wave: `4ad6cc0` (N23, migration 0155, help seed), `00a951e` (N25), 
 **Result:** **Wave B result (verified 2026-10-03):** clone at `ef01da2`; migration 0155 applied by hand (`psql -1 -v ON_ERROR_STOP=1`) and recorded in `schema_migrations` with its sha256; old keys left: 0; global help rows: 210. api, worker and frontend rebuilt and recreated; api healthy; 0 error lines in api and worker logs; routes: / 200, /api/health 200, /admin/login 200, /take/x 200, /api/auth/whoami 401, /embed?token=x 401. CI green on `ef01da2` (quality + e2e).
 
 **Rollback:** `git revert` the commits, then rebuild and recreate the three services. For 0155: read the file, then reverse the renames by hand (the old keys never loaded text).
+
+## Deploy 2026-10-03 (session r): FU-B6, FU-C17, N21, RV71 to RV74, N3, E4, RS4/PT1 marketing (HEAD `90a9ddb`)
+
+Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 terms section 7), `60477e0` (N3), `e65b993` and `90a9ddb` (RV73), `f0884bd` (FU-C17), `28ab66f` and `5b02fa1` (FU-B6), `74f1f46`, `ea906d4` (RV71, RV74), `94fdc4a` (N21, migration 0156), `9084a53`, `6ed8ded`.
+
+**Marketing.** The `assessiq-marketing` container was rebuilt twice: after RV27, then after PT1-6. After each build the IndexNow ping returned HTTP 200 for 42 URLs. The sitemap has 42 URLs because the 12 coming-soon pages are `noindex` since RS4.
+
+**Migration (one, applied by hand).** `0156` (`modules/04-question-bank/migrations/0156_question_versions_type_n21.sql`) ran with `psql -1 -v ON_ERROR_STOP=1`. It is recorded in `schema_migrations` with its sha256. Result: 169 `question_versions` rows, 0 NULL types, 0 type mismatches.
+
+**Procedure.**
+1. Run `git push` for `main` as its own command.
+2. Run `ssh assessiq-vps 'cd /srv/assessiq && git pull --ff-only'`.
+3. Apply 0156 by hand and record it.
+4. Run `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-frontend`.
+5. Run `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend`.
+
+**Result (verified 2026-10-03).** VPS at `90a9ddb`. 24 containers before and after. `/` 200, `/api/health` 200, `/admin/login` 200, `/take/x` 200, `/api/auth/whoami` 401, `/embed?token=x` 401, `/terms` 200. 0 error lines in the api and worker logs.
+
+**Skill deploy (E4/G4).** `generate-subjective/SKILL.md` version `2026-10-03a`, deployed by `scp` (see 05). Backup `/root/assessiq-skills-backup-20261003/`.
+
+**Not deployed or not run.** The RV73 backup check is NOT installed (steps below). The FU-C17 audit is NOT run: `ssh assessiq-vps 'docker exec assessiq-api pnpm exec tsx tools/audit-rubrics.ts'` (read-only). No offsite backup (R8).
+
+**Rollback.**
+- Code: `git revert <sha>`, then rebuild and recreate the three services.
+- Migration 0156 (only before any code depends on it): `DROP TRIGGER question_versions_default_type ON question_versions;` `DROP FUNCTION question_versions_default_type();` `ALTER TABLE question_versions DROP CONSTRAINT question_versions_type_check;` `ALTER TABLE question_versions DROP COLUMN type;` then delete the `0156` row in `schema_migrations`. If the `94fdc4a` code runs, revert the code first.
+- Skill: copy the backup file back and restart api and worker.
+- Marketing: revert the commit, rebuild `assessiq-marketing`, send IndexNow again.
+
+### RV73 backup check: install steps (owner, not done)
+
+Files: `tools/ops/assessiq-backup-check.sh` (dead-man check; self-test with 11 cases), `infra/systemd/assessiq-backup-check.service`, `infra/systemd/assessiq-backup-check.timer`. The check reports STALE when the newest dump is old or has a future mtime. It needs a heartbeat service account (the owner chooses it).
+
+1. Copy the script to `/usr/local/sbin/assessiq-backup-check.sh` (owner `root:root`, mode 0755).
+2. Put the heartbeat URL in an `EnvironmentFile` (`/etc/assessiq/backup-check.env`, owner `root:root`, mode 0600).
+3. Option A, cron: add one line to `/etc/cron.d/assessiq-backup-check` that runs the script after the nightly backup.
+4. Option B, systemd: copy the two unit files to `/etc/systemd/system/`, run `systemctl daemon-reload`, then `systemctl enable --now assessiq-backup-check.timer`. Touch only `assessiq-*` units.
+5. Run the script once by hand and check that it prints OK.
+
+Do the enumerate-first checks of project rule 8 before step 1.

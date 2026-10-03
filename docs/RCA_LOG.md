@@ -223,7 +223,7 @@
 - A dedicated entry bucket covers `/take/start` and `verify-link` (2000/min per IP; tokens are 256-bit), plus a per-token throttle (30/min).
 - `PG_POOL_MAX` defaults to 30.
 - Removed the unused global tenant-context hooks.
-**Prevention:** `rate-limit-campus.test.ts` (300 sessions from one IP give no 429) and `tools/load/candidate-drive.k6.js` for staging load tests. **Not yet done:** the k6 run itself (staging only, never prod). Residual R11: session DB checks run before the limiter (pre-existing).
+**Prevention:** `rate-limit-campus.test.ts` (300 sessions from one IP give no 429) and `tests/load/scenarios/candidate-drive.js` for staging load tests. **Not yet done:** the k6 run itself (staging only, never prod). Residual R11: session DB checks run before the limiter (pre-existing).
 
 ## 2026-10-01 — Exam content (questions + answer keys) committed to the public repo
 
@@ -2375,3 +2375,17 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the `NotFound` page root was a `div` with no landmark.
 **Fix:** the root element is `<main>` (commit `00a951e`).
 **Prevention:** the e2e a11y spec (RS11) covers the 404 page. It is advisory in CI until promoted.
+
+## 2026-10-03 — push gate missed chained pushes (N3 fixed)
+
+**Symptom:** a `git push` chained after `GIT_COMMITTER_EMAIL="..."` passed the push-adversarial gate without a check.
+**Cause:** this machine has no `jq`. The hook fallback used `sed` to read the command and stopped at the first escaped quote, so the text after it (the `git push`) was never seen (`.claude/hooks/push-adversarial-gate.sh`, old line 25).
+**Fix:** `60477e0`: the hook parses the JSON with `jq` or `node` and fails closed when it cannot parse.
+**Prevention:** self-test `.claude/hooks/push-adversarial-gate.test.sh` (5 cases, including the chained push). Run it after any edit to the hook.
+
+## 2026-10-03 — new module export broke vi.mock factories
+
+**Symptom:** after FU-B6, 19 tests in module 07 failed with `RELEASE_FAILED` and 16 tests in apps/api failed with 500.
+**Cause:** `vi.mock("@assessiq/notifications")` factories in those tests did not export `emitAttemptEventAfterCommit`. The result-flow mocks also lacked `handleAuditFanout`. The release code now imports both.
+**Fix:** `6ed8ded` adds the missing exports to the factories.
+**Prevention:** when a module gains an export used on a hot path, grep `vi.mock("@assessiq/<module>"` and update every factory in the same commit. The `release.ts` structure test (`74f1f46`) also limits what release may import.

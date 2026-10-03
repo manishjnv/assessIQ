@@ -1458,6 +1458,28 @@ GET /api/me/attempts/att_.../result
 
 > Note (2026-10-01): the `/submit` and `/result` bodies in steps 4 and 5 above are out of date. Current shapes: § Scoring and result release at the end of this doc.
 
+## Business events for webhooks (FU-B6, 2026-10-03)
+
+**What.** Three events go to the registered webhook endpoints of a tenant. Code: `modules/13-notifications/src/business-events.ts`, function `emitAttemptEventAfterCommit` (commits `28ab66f`, `5b02fa1`).
+
+| Event | Sent from |
+|---|---|
+| `attempt.submitted` | 06 candidate submit, and both timer auto-submit paths |
+| `attempt.graded` | 09 `finalizeAttemptIfComplete` (the only writer of status `graded`) |
+| `result.released` | 09 `releaseAttemptInTx`: manual release, bulk release and the auto-release sweep |
+
+**Payload.** `{ event, tenant_id, attempt_id, assessment_id, candidate_id, occurred_at }`. The payload has no scores, no answers and no personal data. The host reads details with the API. The worked example below shows the older, richer `attempt.graded` shape.
+
+**Timing.** The call runs after the database commit through `onCommit` (FU-B5). A rolled-back transaction sends nothing. If the code runs outside `withTenant`, the helper writes a warning log and sends nothing.
+
+**Why.** A host needs a stable trigger. Ids only keep the payload safe when a result is not yet released.
+
+**Considered and rejected.** Scores in the payload (leaks an unreleased result). A BullMQ job per event (not needed; the webhook worker already retries).
+
+**Not included.** Other events, a per-event subscription filter in the UI, a plan-tier check (webhooks are Growth and up by owner decision; no code gate yet).
+
+**Impact.** Modules 06 and 09 now depend on `@assessiq/notifications`. Tests that mock that package must export `emitAttemptEventAfterCommit` (see `docs/RCA_LOG.md` 2026-10-03). `release.ts` may import only that helper (structure test, `74f1f46`).
+
 ## Worked example — Webhook payload (host integration)
 
 When a host app has registered for `attempt.graded`:

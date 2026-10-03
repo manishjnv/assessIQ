@@ -626,7 +626,7 @@ Unconsumed, expired tokens are swept by the existing session expiry sweeper (Pha
 
 The candidate magic-link UI (`/candidate/login`, `/candidate/login/verify`) is mobile-tuned via CSS only; **no flow, no API, no semantics change.** Under `[data-viewport="mobile"]` (M0 mechanism — see [`docs/10-branding-guideline.md` § 15](./10-branding-guideline.md#15-mobile)) the two-pane layout collapses to a single column, the right aside is hidden via `display: none`, and `<main>` padding shrinks from `48px 64px` to `24px 22px`. `CandidateLoginVerify` (centered spinner) is viewport-agnostic and unchanged.
 
-Anti-enumeration timing, rate-limit copy, the unconditional 204 response, and the magic-link token semantics are identical across viewports. See [`docs/10-branding-guideline.md` § 15.3](./10-branding-guideline.md#153-pattern-reflows-catalog--populated-incrementally-by-later-phases) for the full reflow catalog entry.
+Anti-enumeration timing, rate-limit copy, the unconditional 204 response, and the magic-link token semantics are identical across viewports. See [`docs/10-branding-guideline.md` § 15.3](./10-branding-guideline.md#153-pattern-reflows-catalog--m1m5-shipped-2026-05-20) for the full reflow catalog entry.
 
 ---
 
@@ -1125,7 +1125,7 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 
 **Request-scoped tenant transaction removed.** `tenantContextMiddleware` was a global `preHandler` that checked out a pool client + `BEGIN` per request. Evidence: nothing reads `req.db`/`req.tenant` (only `server.ts` referenced `req.db`), all DB access uses `withTenant()`; and because `sessionLoader` is a per-route preHandler while Fastify runs global preHandlers first, the hook never saw `req.session` in production (it was dead code that would have pinned a second connection for the whole request if it ever fired). The registration in `server.ts` is removed; the exported helper stays in `02-tenancy` with a "do not register globally" note.
 
-**Not included.** Per-route-group candidate caps, Redis-cluster sharding of the buckets, pgbouncer. Load script: `tools/load/candidate-drive.k6.js` (staging/local only).
+**Not included.** Per-route-group candidate caps, Redis-cluster sharding of the buckets, pgbouncer. Load script: `tests/load/scenarios/candidate-drive.js` (staging/local only).
 
 
 ## Session-status cache (R11, 2026-10-02, commit d9a0813)

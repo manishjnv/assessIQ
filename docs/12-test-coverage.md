@@ -123,3 +123,22 @@ No jest configs anywhere in the repo.
 - `modules/11-candidate-ui` `CompletionModal` and `MyCertificates` tests updated.
 
 **Totals (2026-10-03).** Modules 2556 of 2557 pass. The one failure is the `totp.test.ts` constant-time timing flake (pre-existing). apps/api 138 pass. apps/web 73 pass. The `candidate-login` floor test flaked once under Docker load: a Redis error makes the rate check fail closed and return before the 200 ms floor. It passes alone, 23 of 23.
+
+## Lints and self-tests added in session r (2026-10-03)
+
+**CI steps (commit `ea906d4`, RV71 and RV74).** Each tool has a `:self-test` run.
+- `pnpm lint:doc-anchors` and `lint:doc-anchors:self-test`: every `NN-name.md#anchor` in docs, code and skills must match a real heading. The `KNOWN_STALE` list is empty.
+- `vitest-coverage` lint: each module `vitest.config` follows the coverage rules.
+- `skill-mount` lint: the skill directories match the compose mount.
+- `public-collisions` lint: names in `public/` do not collide with SPA routes.
+- `ui-api-contract` (RV74): 167 UI calls are checked against 225 server routes. The allowlist `tools/ui-api-contract.allowlist.txt` has 4 entries, all for `help-content.tsx` (FR14/FU-D1).
+
+**Other self-tests.**
+- `.claude/hooks/push-adversarial-gate.test.sh` (5 cases, including a chained push and a missing `jq`; N3, `60477e0`). Run it by hand; it is not in CI.
+- `tools/ops/assessiq-backup-check.sh` self-test (11 cases; RV73). Run it by hand.
+
+**New unit tests.** FU-C17 strict rubric rules in 08 (`strictRubricIssues`), FU-B6 business events in 13, N21 type reads in 06/07/09, the `release.ts` structure test (`74f1f46`).
+
+**Totals (2026-10-03, session r).** Typecheck 0 errors. Lint 0 errors (20 old warnings). Modules 04, 06, 08, 09, 13: 963 pass. Module 07: 404 pass. apps/api: 138 pass, 7 todo.
+
+**Flaky under Docker load.** `totp.test.ts` and the candidate-login timing floor test.

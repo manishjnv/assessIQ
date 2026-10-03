@@ -1416,3 +1416,20 @@ Commits `8723dc4`, `b0c09fd`, `a7ea234`. Adversarial review (Sonnet takeover): a
 - **Considered and rejected.** Keeping three paths and patching each (drift would return).
 - **Not included.** The generate wizard has NO topic-focus field yet (API only). The server-side generate skills must read `topic_focus` for it to change output. A prompt change is a deploy event with eval re-baseline (project rule 6), so no prompt edit was made.
 - **Impact.** Audit rows carry the real mode and model. A sharded run where all chunks fail finalizes once. Tests: a trigger-based single-UPDATE test and a de-dup test.
+
+
+### Module 07 reads the frozen question type (2026-10-03, N21)
+Commit `9084a53`. Review: Sonnet adversarial verdict revise (fixed), then codex accept.
+- **What.** Five 07 queries now read `question_versions.type` through `attempt_questions.question_version` and not `questions.type`: `repository.ts` queue counts, `admin-grade`, `admin-rerun`, `admin-claim-release`, `super-evaluations`. The migration is `0156` (see 02).
+- **Why.** A clone refresh could change a type while an attempt waited for grading. The grader and the queue then used a different type from the one the candidate answered.
+- **Considered and rejected.** Leaving 07 on the live type (the first review found this gap).
+- **Not included.** No prompt, skill, rubric or runtime change. Phase 1 stays sync-on-click.
+- **Impact.** The non-MCQ predicates in the evaluation queue use the frozen type. Test mocks updated in `6ed8ded`.
+
+### G4 skill patch: `generate-subjective` version 2026-10-03a (E4 / FU-D28)
+- **What.** The file `/srv/assessiq/prompts/skills/generate-subjective/SKILL.md` on the VPS gets a new section `## Question type (HARD RULE)`. The type must be exactly `subjective`. Logs and scenario context stay inside `content.question`. sha256 before: `4faeb29f…`. sha256 after: `35eeeeef85b1829a…`. The api and worker containers show the same sha. Backup: `/root/assessiq-skills-backup-20261003/`. Deployed by `scp` (the skill is not in git).
+- **Why.** The model sometimes returned another type for a subjective request. The code dropped these questions (`wrongTypeDropped`) and the sharded default produced too few.
+- **No eval re-baseline.** `generate-subjective` is a generation skill. It is not one of the eval-gated grading skills (anchors, band, escalate).
+- **Behaviour check pending.** The owner runs one subjective generation and checks that `wrongTypeDropped` is 0.
+- **Not included.** The prompt text is never committed to git. No change to the other generate skills.
+- **Rollback.** Copy `/root/assessiq-skills-backup-20261003/generate-subjective/SKILL.md` back to `/srv/assessiq/prompts/skills/generate-subjective/SKILL.md`, then restart api and worker (the mount is read at process start).

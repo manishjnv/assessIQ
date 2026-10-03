@@ -1798,3 +1798,25 @@ Only one new table (0142). Everything else is a view, help rows, or JSONB settin
 **Considered and rejected.** Changing the help API to return other keys (wider change, tenant-safety review needed).
 
 **Not included.** No text change. **Impact.** Only module 16 and the admin pages that use the ids.
+
+## Migration 0156: question type frozen per version (2026-10-03, N21)
+
+**What.** `modules/04-question-bank/migrations/0156_question_versions_type_n21.sql` adds `question_versions.type` (TEXT, NOT NULL). It backfills the column from `questions.type`. It adds `question_versions_type_check`, which allows the same nine types as `questions_type_check` (migration 0152). A `BEFORE INSERT` trigger, `question_versions_default_type`, fills a missing type from the question row. RLS does not change: the policies are row-level and a new column needs no policy edit. Commits `94fdc4a` (04 writers, 06 and 09 readers) and `9084a53` (07 readers).
+
+**Writers.** The 04 version writers set `type` explicitly. A clone refresh (resync) treats a type change as a content change and writes a new version.
+
+**Readers.** 06 (attempt engine, `result.ts`) and 09 (scoring, `mcq.ts`) read the type from `question_versions` through `attempt_questions.question_version`. Module 07 reads `qv.type` too (`9084a53`) in five queries: `repository.ts` queue counts, `admin-grade`, `admin-rerun`, `admin-claim-release` and `super-evaluations`. An attempt now keeps the type it started with.
+
+**Why.** Before this change the readers used `questions.type` live. A clone refresh that changed a type in the middle of an attempt mixed the rules (for example an MCQ attempt scored under another type). The type belongs next to the content it describes.
+
+**Considered and rejected.** A snapshot of the type on `attempt_questions` only (the pool and the review pages would still read the live type). A view that joins both tables (hides the problem, stores no fact). A NOT NULL column without a trigger (any old writer that omits the column would fail on insert).
+
+**Not included.** No change to `questions.type` rules. No change to the frozen pool table `assessment_frozen_pool` (it keeps its own `type`). No reader outside 06, 07 and 09.
+
+**Impact.** A new type needs both constraints, `questions_type_check` and `question_versions_type_check`. Production check after the migration: 169 rows, 0 NULL types, 0 rows where the version type differs from the question type.
+
+**Rollback (only while no code depends on it).** `DROP TRIGGER question_versions_default_type ON question_versions`; `DROP FUNCTION question_versions_default_type()`; `ALTER TABLE question_versions DROP CONSTRAINT question_versions_type_check`; `ALTER TABLE question_versions DROP COLUMN type`; delete the `0156` row from `schema_migrations`. After the code at `94fdc4a` runs, revert the code first.
+
+**Open follow-ups (minor).**
+- `restoreVersion` can copy old content onto a row whose type has changed. Write `target.type` or reject the restore.
+- Add a guard test that keeps `questions_type_check` and `question_versions_type_check` equal.
