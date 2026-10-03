@@ -119,3 +119,16 @@ AI says: a1 hit, a2 hit, a3 miss; band 3
 ## FR25 — single rubric validator
 
 `parseRubric(input)` (src/validate.ts) is the one parse entry point: `{ ok: true, data } | { ok: false, errors: ZodIssue[] }`. `validateRubric` ({valid, errors: string[]}) is built on it. 04-question-bank re-exports `parseRubric` as its `validateRubric`.
+
+## FU-C17 — strict rules on save, lenient on read
+
+`strictRubricIssues(rubric): string[]` (empty = clean) enforces three rules ONCE, here:
+
+1. anchor weights sum to `anchor_weight_total`
+2. anchor ids are unique
+3. every `reasoning_bands.*` text is non-empty after trim
+
+- Applied only at SAVE in 04 (`assertValidRubric` in `service/_shared.ts`, used by createQuestion, updateQuestion, import). Violations throw the existing `ValidationError` with code `INVALID_RUBRIC`.
+- `parseRubric` / `validateRubric` stay lenient so stored old rubrics still load and grade. The grade-time synthesised rubrics in 07 are not checked (no save).
+- Owner decision 2026-10-03: warn on old rubrics, reject on new saves. Restore-version paths are not re-checked.
+- Audit old rows (read-only, SELECT in a READ ONLY transaction): `ssh assessiq-vps 'docker exec assessiq-api pnpm exec tsx tools/audit-rubrics.ts'` — prints count + ids per rule for `questions` and `question_versions`.
