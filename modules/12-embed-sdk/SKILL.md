@@ -336,7 +336,7 @@ Uses `postgres:16-alpine` + `redis:7-alpine` containers. Applies migrations in o
 
 ### Bugs flagged (not fixed)
 
-**BUG-A (FIXED, FR4/RV43)** — `resolveJitUser` now INSERTs only real `users` columns (id, tenant_id, email, name, role, status, metadata) with `ON CONFLICT (tenant_id, email) DO NOTHING` + re-SELECT for the concurrent race, and refuses (AuthzError) an existing user that is not an active, non-deleted, non-erased candidate. Covered by `src/__tests__/jit-user.test.ts`.
+**BUG-A (FIXED, FR4/RV43)** — `resolveJitUser` now INSERTs only real `users` columns (id, tenant_id, email, name, role, status, metadata) with `ON CONFLICT (tenant_id, email) DO NOTHING` + re-SELECT for the concurrent race, and refuses (AuthzError 403) unless EVERY case variant row of the email (lookup is `lower(email)`, `7e2af3d`) is an active, non-deleted, non-erased candidate. A mixed-case admin row therefore blocks the login. Invited `pending` users are refused. Covered by `src/__tests__/jit-user.test.ts`.
 
 **GAP-A** — T12: no payload size validation in `verifyEmbedToken`. A JWT with a 100 KB `assessment_id` is accepted if the signature is valid. DoS protection is assumed to be at the HTTP body-size layer (Fastify). Recommend adding a size cap (e.g. 8 KB total JWT length) at the top of `verifyEmbedToken` (`modules/01-auth/src/embed-jwt.ts`).
 

@@ -101,3 +101,7 @@ Migration `0114` adds `tenant_settings.result_release_mode` (`manual` default | 
 ## `createTenant` audit row (RV59, 2026-10-03)
 
 `createTenant` now uses its super-admin id and writes one `tenant.provisioned` audit row with `auditInTx` inside its own transaction, in the NEW tenant's audit log (same rule as `suspendTenant`). Actor = the super admin, entity = the new tenant, `after = { slug, name }` (`name` is redacted by the sanitizer). The route's later `tenant.created` row and its failure row are unchanged. Tests: `audit-writes.test.ts`, `create-tenant.test.ts`. See docs/11 section 30.6.
+
+## `withTenant` `onCommit` hook (FR2 FU-B5, 2026-10-03)
+
+`onCommit(client, hook)` in `src/with-tenant.ts` registers a function that runs after COMMIT and after `client.release()`. It never runs on rollback. It returns `false` and drops the hook if the client is not inside an open `withTenant`. A hook error is swallowed (the work is already committed); the hook owns its own logging, as `fanoutAuditEvent` does. Used by `auditInTx` (module 14) for webhook fan-out. Other transaction helpers (raw `BEGIN`) have no hooks. Test: `src/__tests__/with-tenant-on-commit.test.ts`.

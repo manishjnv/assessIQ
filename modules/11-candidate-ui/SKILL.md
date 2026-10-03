@@ -254,3 +254,7 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - `Calculator` (+ `calculator-eval.ts`): four-function calculator, no `eval()`/`Function` (tokenizer + two-pass precedence evaluator), 12-significant-digit formatting, keyboard only while focus is inside the panel (digits . + - * / x, Enter/=, Backspace, Esc/c). Plain buttons with no clipboard use, so integrity `block_copy_paste` (which cancels copy/cut/paste/contextmenu) does not affect it. Shown only when the running section has `calculator: true`.
 - Not included: parentheses, memory, percent, a calculator history; no persistence of the calculator state across sections.
 - Tests: `calculator.test.tsx`; runner behaviour in `apps/web/src/pages/take/AttemptSections.test.tsx`.
+
+## Completion modal (FR13, 2026-10-03)
+
+`CompletionModal` is rebuilt on the kit `Modal`. `NewCertificateModal` (exported from the module index) shows on the Submitted page for a released result, once for each browser and `credential_id` (`localStorage` `aiq:certs-seen`, in try/catch). `MyCertificates` has a "View" button. The prop is `assessment_title` (was `course_title`). Data comes from `GET /api/certificates`; no server change.
