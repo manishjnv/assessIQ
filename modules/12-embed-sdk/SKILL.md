@@ -336,7 +336,7 @@ Uses `postgres:16-alpine` + `redis:7-alpine` containers. Applies migrations in o
 
 ### Bugs flagged (not fixed)
 
-**BUG-A** — `jit-user.ts` (`resolveJitUser`): the INSERT references columns `password_hash` and `email_verified` that do not exist in the `users` table schema (`03-users/020_users.sql`). Any call to `resolveJitUser` that triggers the CREATE path will throw a PostgreSQL `column "password_hash" of relation "users" does not exist` error. The embed-sdk integration tests bypass `resolveJitUser` entirely (users are inserted directly); production embed traffic that hits the JIT-create path will fail until this is fixed.
+**BUG-A (FIXED, FR4/RV43)** — `resolveJitUser` now INSERTs only real `users` columns (id, tenant_id, email, name, role, status, metadata) with `ON CONFLICT (tenant_id, email) DO NOTHING` + re-SELECT for the concurrent race, and refuses (AuthzError) an existing user that is not an active, non-deleted, non-erased candidate. Covered by `src/__tests__/jit-user.test.ts`.
 
 **GAP-A** — T12: no payload size validation in `verifyEmbedToken`. A JWT with a 100 KB `assessment_id` is accepted if the signature is valid. DoS protection is assumed to be at the HTTP body-size layer (Fastify). Recommend adding a size cap (e.g. 8 KB total JWT length) at the top of `verifyEmbedToken` (`modules/01-auth/src/embed-jwt.ts`).
 
