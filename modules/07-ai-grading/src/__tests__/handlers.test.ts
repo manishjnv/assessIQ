@@ -50,7 +50,7 @@ vi.mock("@assessiq/audit-log", async () => {
 // SP2: handleAdminReleaseAttempt sends the result email through module 13 after commit.
 // This DB has no notification tables; the email path is covered by release-flow.test.ts
 // and 13's own tests, so stub it here.
-vi.mock("@assessiq/notifications", () => ({
+vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined),
   sendResultReleasedEmail: vi.fn(async () => undefined),
 }));
 
