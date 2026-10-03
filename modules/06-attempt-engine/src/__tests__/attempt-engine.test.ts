@@ -858,8 +858,11 @@ describe("saveAnswer", () => {
     const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId });
     const view = await getAttemptForCandidate(tenantA, attempt.id, candidate);
     const qid = view.questions[0]!.question_id;
-    // The check is keyed on the question TYPE, read from the questions row.
-    await withSuperClient((c) => c.query(`UPDATE questions SET type = 'scenario' WHERE id = $1`, [qid]));
+    // The check is keyed on the question TYPE frozen on the attempt's question_version (N21).
+    await withSuperClient(async (c) => {
+      await c.query(`UPDATE questions SET type = 'scenario' WHERE id = $1`, [qid]);
+      await c.query(`UPDATE question_versions SET type = 'scenario' WHERE question_id = $1`, [qid]);
+    });
 
     await expect(
       saveAnswer(tenantA, candidate, { attemptId: attempt.id, questionId: qid, answer: "free text", client_revision: 0 }),

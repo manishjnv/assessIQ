@@ -775,7 +775,7 @@ export async function saveAnswer(
     const incomingRevision = input.client_revision ?? 0;
 
     // Scenario answers must be {steps:[{stepIndex, response}]} (see checkAnswerForSave).
-    const savedType = input.answer === null ? null : await repo.findQuestionType(client, input.questionId);
+    const savedType = input.answer === null ? null : await repo.findQuestionType(client, input.questionId, aq.question_version);
     const checked = checkAnswerForSave(
       savedType,
       input.answer,
