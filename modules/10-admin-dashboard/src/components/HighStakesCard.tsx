@@ -38,7 +38,7 @@ export function HighStakesCard({
 
   return (
     <div
-      data-help-id="admin.assessment.high_stakes.edit"
+      data-help-id="admin.assessments.high_stakes.edit"
       style={{
         border: "1px solid var(--aiq-color-border)",
         borderRadius: "var(--aiq-radius-md)",
@@ -50,7 +50,7 @@ export function HighStakesCard({
         gap: "var(--aiq-space-sm)",
       }}
     >
-      <HelpTip helpId="admin.assessment.high_stakes.edit">
+      <HelpTip helpId="admin.assessments.high_stakes.edit">
         <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: 0 }}>
           High-stakes grading
         </h2>

@@ -1152,9 +1152,9 @@ export function AdminAssessmentDetail(): React.ReactElement {
               Invitations.
             </h2>
             <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
-              <HelpTip helpId="admin.assessment.results_csv.sort">
+              <HelpTip helpId="admin.assessments.results_csv.sort">
                 <label
-                  data-help-id="admin.assessment.results_csv.sort"
+                  data-help-id="admin.assessments.results_csv.sort"
                   style={{ fontSize: "var(--aiq-text-sm)", display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}
                 >
                   Sort by:

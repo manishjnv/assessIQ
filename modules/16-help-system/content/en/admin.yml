@@ -60,7 +60,7 @@ admin.auth.mfa.enroll_vs_verify:
     When you enroll, AssessIQ shows 10 one-time recovery codes. Save them. If you
     lose the authenticator and the codes, another admin must reset your enrollment.
 
-admin.users.role:
+admin.users.list.role:
   audience: admin
   short_text: "admin = full access · candidate = take assessments only."
   long_md: |
@@ -74,7 +74,7 @@ admin.users.role:
     Role changes take effect on the next sign-in for that user. There is no
     "owner", "billing" or "reviewer" role: admins review and publish results.
 
-admin.users.candidate.fields:
+admin.users.list.candidate.fields:
   audience: admin
   short_text: "Candidates are added directly with no email sent. Name is shown in their assessment link; designation is optional."
   long_md: |
@@ -94,7 +94,7 @@ admin.users.candidate.fields:
 
 # ─── Pack & question authoring ───
 
-admin.packs.create.domain:
+admin.question_bank.list.create.domain:
   audience: admin
   short_text: "The role-readiness domain this pack covers (SOC analyst, DevOps, etc.). Set once; choose carefully."
   long_md: |
@@ -596,7 +596,7 @@ admin.reports.cost.empty_in_claude_code_vps_mode:
 
     See **Your plan and usage** on the Settings page for your credit usage.
 
-admin.analytics.cohort_report:
+admin.reports.cohort.report:
   audience: admin
   short_text: "Aggregate metrics across all attempts in an assessment cycle: score distribution, archetype mix, and per-attempt scores."
   long_md: |
@@ -1330,9 +1330,9 @@ admin.scoring.attempt.total:
     so a band-3 answer on a 20-point question contributes 15 points.
 
     The total does **not** drive pass/fail thresholds directly — the archetype
-    and cohort percentile are also factors. See `admin.scoring.cohort.percentiles`.
+    and cohort percentile are also factors. See `admin.reports.cohort.percentiles`.
 
-admin.scoring.attempt.archetype:
+admin.reports.individual.archetype:
   audience: admin
   short_text: "Behavioral pattern derived from edit count, pace, flags, multi-tab, and copy-paste signals."
   long_md: |
@@ -1369,7 +1369,7 @@ admin.scoring.archetype.disclaimer:
     Use signals to understand cohort patterns (e.g. "L2 candidates average
     200 edits per attempt") not to make individual pass/fail decisions.
 
-admin.scoring.cohort.percentiles:
+admin.reports.cohort.percentiles:
   audience: admin
   short_text: "Rank within the cohort. 90th percentile = scored higher than 90% of candidates on the same assessment."
   long_md: |
@@ -1526,7 +1526,7 @@ admin.settings.help_content.markdown:
 
 # ─── Stage 1.5+ admin features (shipped week of 2026-05-10) ─────────────────
 
-admin.generation_attempts.history:
+admin.gen_score.history:
   audience: admin
   short_text: "Cross-pack history of every AI question-generation run. Filter by status, score in-app, and inspect stderr without SSH."
   long_md: |
@@ -1627,7 +1627,7 @@ admin.gen_score.runtime:
 
 # ─── Super-admin settings ───
 
-admin.settings.ai_generate_mode:
+admin.settings.billing.ai_generate_mode:
   audience: admin
   short_text: "Question generation mode: omnibus = single prompt; sharded = one prompt per question type. Effective on next request."
   long_md: |
@@ -1763,7 +1763,7 @@ admin.questions.subjective:
     **Grading:** AssessIQ's evaluation scores the written response against the
     rubric anchors. The evaluator can re-run or override the result.
 
-admin.questions.attempt_status:
+admin.question_bank.pack.attempt_status:
   audience: admin
   short_text: "Color-coded status on each level row shows the latest generation-attempt result. Expands to show details on failure."
   long_md: |
@@ -2399,7 +2399,7 @@ admin.shell.nav.mobile_menu:
 
 # ─── DPDP data-rights actions (S1, 2026-05-29) ───
 
-admin.user.data_export:
+admin.users.list.data_export:
   audience: admin
   short_text: "Download a JSON copy of everything AssessIQ holds about this candidate — for fulfilling a data-access request."
   long_md: |
@@ -2422,7 +2422,7 @@ admin.user.data_export:
     downloaded directly to your browser — it is not stored on the AssessIQ
     servers after download.
 
-admin.user.erase:
+admin.users.list.erase:
   audience: admin
   short_text: "Permanently erase this candidate's personal data (DPDP right to erasure). Certificates are preserved for verification."
   long_md: |
@@ -2554,7 +2554,7 @@ admin.assessments.results.download_csv:
     - **Pass/Fail** uses the passing score of the assessment's level.
     - Opens correctly in Excel, including Indian names. Up to 10,000 rows.
 
-admin.assessment.results_csv.sort:
+admin.assessments.results_csv.sort:
   audience: admin
   short_text: "Choose the row order of the downloaded results: by name, by rank, or by branch and then rank."
   long_md: |
@@ -2570,7 +2570,7 @@ admin.assessment.results_csv.sort:
 
 # ─── Scoring / result release, Phase II (spec 2026-10-01 §5b) ────────────────────
 
-admin.evaluations.queue:
+admin.evaluations.queue.overview:
   audience: admin
   short_text: "Every company's attempts with written answers that are waiting for AssessIQ to evaluate, oldest first."
   long_md: |
@@ -2590,7 +2590,7 @@ admin.evaluations.queue:
     Accepting the last grade of an attempt releases it to its company by itself and
     takes it off this list. The list refreshes by itself every 30 seconds.
 
-admin.evaluations.age_badge:
+admin.evaluations.queue.age_badge:
   audience: admin
   short_text: "How long the attempt has been waiting. Amber from 24 hours, red from 48 hours."
   long_md: |
@@ -2605,7 +2605,7 @@ admin.evaluations.age_badge:
     Candidates are told to expect their result within a set time, so clear the red
     and amber rows first.
 
-admin.evaluations.tenant_filter:
+admin.evaluations.queue.tenant_filter:
   audience: admin
   short_text: "Show only one company's attempts. The counts above the table follow the filter."
   long_md: |
@@ -2614,7 +2614,7 @@ admin.evaluations.tenant_filter:
     Narrow the queue to a single company. The two counts above the table recount
     for that company. Choose **All companies** to see everything again.
 
-admin.evaluations.evaluate_next:
+admin.evaluations.queue.evaluate_next:
   audience: admin
   short_text: "Opens the oldest attempt in the list, honouring the company filter, so you can evaluate it."
   long_md: |
@@ -2626,7 +2626,7 @@ admin.evaluations.evaluate_next:
     Work one attempt at a time: grade, accept or score each answer. The last accept
     or score releases the attempt to its company by itself.
 
-admin.evaluations.release_selected:
+admin.evaluations.queue.release_selected:
   audience: admin
   short_text: "Releases every ticked, fully graded attempt to its company at once. The last accept already does this."
   long_md: |
@@ -2643,7 +2643,22 @@ admin.evaluations.release_selected:
     You may be asked for a fresh authenticator code. Afterwards you see how many
     attempts were released and how many were skipped, and why.
 
-admin.evaluations.sent_back:
+admin.evaluations.detail.sent_back:
+  audience: admin
+  short_text: "The company sent this attempt back for re-evaluation. Its note says what to look at again."
+  long_md: |
+    ## Sent back
+
+    After an evaluation is released, the company can send an attempt back with a
+    note, for example when a score looks wrong. The attempt returns to this queue
+    marked **Sent back** and keeps its existing grades.
+
+    Read the note, then use **Re-run AI** to grade the written answers again, or
+    **Override grade** to set a score yourself. Because the attempt is already
+    graded, accepting a new grade does not release it again: use **Release to
+    company** when you are done.
+
+admin.evaluations.queue.sent_back:
   audience: admin
   short_text: "The company sent this attempt back for re-evaluation. Its note says what to look at again."
   long_md: |
@@ -2713,7 +2728,7 @@ admin.evaluations.manual_score:
 
     A question can be scored manually only once. After that, use **Override grade**.
 
-admin.evaluations.release_to_company:
+admin.evaluations.detail.release_to_company:
   audience: admin
   short_text: "Hands a finished evaluation to the company. The last accept already does this; use it for sent-back attempts."
   long_md: |
@@ -2735,7 +2750,7 @@ admin.evaluations.release_to_company:
 
     You may be asked for a fresh authenticator code.
 
-admin.attempts.awaiting_evaluation:
+admin.attempts.detail.awaiting_evaluation:
   audience: admin
   short_text: "AssessIQ is still evaluating the written answers. Scores appear here once the evaluation is released to you."
   long_md: |
@@ -2747,7 +2762,7 @@ admin.attempts.awaiting_evaluation:
 
     When the evaluation is released the attempt becomes **Ready to publish**.
 
-admin.attempts.send_back:
+admin.attempts.detail.send_back:
   audience: admin
   short_text: "Return this attempt to AssessIQ for another look, with a note saying why. It leaves your Ready to publish list."
   long_md: |
@@ -2762,7 +2777,7 @@ admin.attempts.send_back:
 
     Results that are already published cannot be sent back.
 
-admin.attempts.release_button:
+admin.attempts.detail.release_button:
   audience: admin
   short_text: "Publish this result to the candidate, who is emailed. Published results can't be changed."
   long_md: |
@@ -2863,7 +2878,7 @@ admin.assessments.invitations.paging:
     - **Resend to everyone who hasn't started** always covers every page, not
       only the one you are looking at.
 
-admin.assessment.integrity.fullscreen:
+admin.assessments.integrity.fullscreen:
   audience: admin
   short_text: "Candidates are asked to take the test in full screen. Leaving it is recorded, not prevented."
   long_md: |
@@ -2883,7 +2898,7 @@ admin.assessment.integrity.fullscreen:
 
     Treat the numbers as a signal to look into, not proof of cheating.
 
-admin.assessment.integrity.block_copy_paste:
+admin.assessments.integrity.block_copy_paste:
   audience: admin
   short_text: "Turns off copy, cut, paste and right-click on the test page. Attempts are still recorded."
   long_md: |
@@ -2918,7 +2933,7 @@ admin.assessment.integrity.edit:
 
     Treat the numbers as a signal to look into, not proof of cheating.
 
-admin.assessment.high_stakes:
+admin.assessments.high_stakes:
   audience: admin
   short_text: "Have two AI models grade every answer. If they do not agree, the answer goes to a person."
   long_md: |
@@ -2936,7 +2951,21 @@ admin.assessment.high_stakes:
 
     You can also change this after the test is created.
 
-admin.assessment.high_stakes.edit:
+admin.assessments.high_stakes.edit:
+  audience: admin
+  short_text: "Turn the two-model vote on or off for this test, even after it is published."
+  long_md: |
+    ## Edit high-stakes grading
+
+    Tick **Two AI models must agree** and press **Save grading settings**.
+    Nothing else about the test changes.
+
+    - **You can change this after publishing.** It applies to grading runs that
+      start afterwards; grades already proposed are not changed.
+    - When on, any disagreement between the two models, or a failure of the
+      second model, sends the answer to **needs review**.
+
+admin.evaluations.detail.high_stakes_edit:
   audience: admin
   short_text: "Turn the two-model vote on or off for this test, even after it is published."
   long_md: |
@@ -3128,7 +3157,7 @@ admin.assessment.sections:
     - **No sections?** Leave this empty and the test works as before, with one timer.
     - You cannot combine sections with a blueprint.
 
-admin.attempts.section_scores:
+admin.attempts.detail.section_scores:
   audience: admin
   short_text: "How this candidate scored in each section of the test."
   long_md: |
@@ -3142,7 +3171,7 @@ admin.attempts.section_scores:
     - The results CSV has the same numbers as one **Section: name (%)** column
       per section.
 
-admin.evaluations.eval_gate:
+admin.evaluations.queue.eval_gate:
   audience: admin
   short_text: "Warns when the AI grading prompts have changed since the last eval you approved."
   long_md: |
@@ -3159,7 +3188,7 @@ admin.evaluations.eval_gate:
     The steps are in `modules/07-ai-grading/eval/README.md`: run, compare, bless, then
     switch the gate to enforce.
 
-admin.evaluations.grading_quality:
+admin.evaluations.queue.grading_quality:
   audience: admin
   short_text: "How often admins changed the AI's grade, for each version of the grading prompts."
   long_md: |
@@ -3212,9 +3241,25 @@ admin.attempts.release_confirm:
       published result shows only the questions that have final grades.
     - Choose **Cancel** to go back without publishing.
   related_keys:
-    - admin.attempts.release_button
+    - admin.attempts.detail.release_button
 
-admin.attempts.print_review:
+admin.attempts.detail.print_review:
+  audience: admin
+  short_text: "Print this review, or save it as a PDF, with each answer, its grade and the reasons."
+  long_md: |
+    ## Print review
+
+    **Print review** opens your browser's print window with a print-friendly
+    version of this page. Choose a printer, or choose "Save as PDF" to keep a
+    copy.
+
+    - The button appears when the attempt has at least one grade.
+    - Buttons and menus are left out of the printed page.
+    - The print includes only what you can see on this screen. Check the
+      candidate details before you share it, because it can contain personal
+      data.
+
+admin.evaluations.detail.print_review:
   audience: admin
   short_text: "Print this review, or save it as a PDF, with each answer, its grade and the reasons."
   long_md: |
@@ -3303,8 +3348,8 @@ admin.attempts.list.page:
     Written answers are evaluated by AssessIQ. A result becomes **Ready to
     publish** after the evaluation is released to you.
   related_keys:
-    - admin.attempts.awaiting_evaluation
-    - admin.attempts.release_button
+    - admin.attempts.detail.awaiting_evaluation
+    - admin.attempts.detail.release_button
 
 admin.dashboard.home.page:
   audience: admin
@@ -3335,7 +3380,7 @@ admin.users.list.page:
     - Use the toggles to show disabled or removed users.
     - For a candidate, you can export that person's data from their row.
   related_keys:
-    - admin.users.role
+    - admin.users.list.role
 
 admin.evaluations.queue.page:
   audience: admin
@@ -3351,8 +3396,8 @@ admin.evaluations.queue.page:
     - When you accept the last grade of an attempt, it is released to its
       company.
   related_keys:
-    - admin.evaluations.queue
-    - admin.evaluations.evaluate_next
+    - admin.evaluations.queue.overview
+    - admin.evaluations.queue.evaluate_next
 
 admin.tenant_settings.page:
   audience: admin
@@ -3399,9 +3444,9 @@ admin.attempts.detail.page:
     - **Send back.** Return the attempt to AssessIQ with a note about what to check again.
     - **Publish to candidate.** The candidate sees the result. You cannot change a published result.
   related_keys:
-    - admin.attempts.awaiting_evaluation
-    - admin.attempts.send_back
-    - admin.attempts.release_button
+    - admin.attempts.detail.awaiting_evaluation
+    - admin.attempts.detail.send_back
+    - admin.attempts.detail.release_button
 
 admin.evaluations.detail.page:
   audience: admin
@@ -3416,8 +3461,8 @@ admin.evaluations.detail.page:
     - **Release.** When you accept the last grade, the attempt goes to the company. The company reviews it and publishes it.
     - **Sent back.** If the company sent the attempt back, read the note. Then grade again and use **Release to company**.
   related_keys:
-    - admin.evaluations.release_to_company
-    - admin.evaluations.sent_back
+    - admin.evaluations.detail.release_to_company
+    - admin.evaluations.detail.sent_back
 
 admin.grading.jobs.page:
   audience: admin
@@ -3460,7 +3505,7 @@ admin.reports.individual.page:
     - **Attempts.** Each card shows the assessment, the level, the date and the band with its percent.
     - **Archetype chart.** When the data is available, a chart shows the strengths of the candidate.
   related_keys:
-    - admin.scoring.attempt.archetype
+    - admin.reports.individual.archetype
 
 admin.reports.landing.page:
   audience: admin

@@ -297,7 +297,7 @@ function InviteForm({
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(null); }}
           />
-          <div data-help-id="admin.users.role">
+          <div data-help-id="admin.users.list.role">
             <span style={{ ...META_LABEL, display: "block", marginBottom: 6 }}>Role</span>
             <div style={{ display: "flex", gap: 8 }}>
               {(["admin", "candidate"] as InviteRole[]).map((r) => (
@@ -313,7 +313,7 @@ function InviteForm({
             </div>
           </div>
           {isCandidate && (
-            <div data-help-id="admin.users.candidate.fields" style={{ display: "grid", gap: 16 }}>
+            <div data-help-id="admin.users.list.candidate.fields" style={{ display: "grid", gap: 16 }}>
               <Field
                 label="Name"
                 type="text"
@@ -807,7 +807,7 @@ function UserManageMenu({
       <button
         key="data-export"
         type="button"
-        data-help-id="admin.user.data_export"
+        data-help-id="admin.users.list.data_export"
         onClick={(e) => {
           e.stopPropagation();
           setOpen(false);
@@ -836,7 +836,7 @@ function UserManageMenu({
       <button
         key="erase-pii"
         type="button"
-        data-help-id="admin.user.erase"
+        data-help-id="admin.users.list.erase"
         onClick={(e) => {
           e.stopPropagation();
           setOpen(false);
