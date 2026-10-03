@@ -30,7 +30,7 @@
 Modules 2556 of 2557 (only failure: `totp.test.ts` timing flake, pre-existing). apps/api 138. apps/web 73. Typecheck 0. Lint 0 errors, 20 warnings. CI green on `e645d81` and `7e2af3d`.
 
 ## Open items
-- RS4: the owner approves the text (RV28 privacy drafts, CSV wording, kept competitor figures). Then rebuild `assessiq-marketing` and send the IndexNow ping.
+- RS4: the owner approves the text (RV28 privacy drafts, CSV wording; competitor figures removed in `ac39f6e`). Then rebuild `assessiq-marketing` and send the IndexNow ping.
 - RS10: RV68 (N3, owner approval), RV71, RV73, RV74 are open.
 - RS7 follow-ups: FU-B6 business events (owner picks the list), FU-B7 webhook screen, FU-B13 embed iframe and Caddy `frame-ancestors`, FU-B14, FU-B15, FU-C17, FU-C18 (codex gate), FU-C19.
 - `tenant_settings.webhook_secret` is write-only: keep or remove?

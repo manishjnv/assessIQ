@@ -6,7 +6,7 @@
 - `9a111e1` FR2 FU-B5 `withTenant` `onCommit`; `auditInTx` events reach webhooks
 - `eafeeac` + `7e2af3d` FR4 embed JIT insert fix and case-insensitive lookup
 - `6638494` FR13 completion modal · `b5fa76a` FR25 one rubric parser
-- `9b541ba` RS4 marketing truth pass 2 (code only)
+- `9b541ba` RS4 marketing truth pass 2 (code only) · `ac39f6e` RV27 follow-up: unsourced competitor figures removed (owner decision)
 - `4ad6cc0` N23 help ids (0155) · `00a951e` N25 404 landmark · `f1c0aa0` N26 reviewer leftovers
 - `34abc0e`, `c58438a`, `9b585a7` N24 one AES core and one rate-limit Lua script · merge `ef01da2`
 **Deploy:** wave A at `7e2af3d` (no migration; api, worker, frontend recreated; 8 routes OK). Wave B at `ef01da2` (migration 0155; same three services). Record: `docs/06-deployment.md`. **Wave B result (verified 2026-10-03):** clone at `ef01da2`; migration 0155 applied by hand (`psql -1 -v ON_ERROR_STOP=1`) and recorded in `schema_migrations` with its sha256; old keys left: 0; global help rows: 210. api, worker and frontend rebuilt and recreated; api healthy; 0 error lines in api and worker logs; routes: / 200, /api/health 200, /admin/login 200, /take/x 200, /api/auth/whoami 401, /embed?token=x 401. CI green on `ef01da2` (quality + e2e).
@@ -14,7 +14,8 @@
 **Old task checked (Rule B):** RV75 extended the existing CHECK C of `lint-deploy-procedure` (no new tool). FR2 reused the existing `fanoutAuditEvent` handler. N24 kept the existing wrapper names. FR13 revived the old `CompletionModal`. FR25 kept module 08 `parseRubric`.
 **Next:** the owner approves the RS4 text; then rebuild `assessiq-marketing` and send the IndexNow ping. After that: the remaining RS7 follow-ups (FU-B6 business events, FU-C17).
 **Open questions:**
-- RS4 approval: privacy drafts (RV28), CSV wording, kept competitor figures ("publicly states").
+- RS4 approval: privacy drafts (RV28) and CSV wording. (Competitor figures: decided and done in `ac39f6e`.)
+- iMocha "3,000+ ready-to-use assessments" on `alternatives/imocha.astro` (3 places, no source link, no "publicly states"): keep or remove?
 - FU-B6: which business events to send.
 - `tenant_settings.webhook_secret` is write-only: nothing decrypts it. Keep or remove?
 - Embed FU-B13: Caddy `frame-ancestors` (owner and infra).
@@ -23,6 +24,13 @@
 ---
 
 ## Detail
+
+### RV27 follow-up — unsourced competitor figures removed (`ac39f6e`)
+- **What.** The numbers are removed and each sentence stays. Mettl compare page: "100,000+ questions" in 4 places (FAQ JSON-LD, visible FAQ, table cell, "choose them if" line). HackerEarth compare page: "40,000+ problems", "1,000+ skills", "40+ languages" in 6 places (overview FAQ x2, library FAQ x2, table cell, "choose them if" line). iMocha compare page: one table cell ("3,000+" and "10,000+ … per some published figures"). Example: "HackerEarth publicly states a library of 40,000+ coding problems…" became "HackerEarth has a large library of coding problems across many skills and programming languages."
+- **Why.** Owner decision: a figure phrased "publicly states" or "per some published figures" without a source link is removed. Only the figure goes, not the sentence.
+- **Considered and rejected.** Add source links: not chosen by the owner. Remove whole sentences: rejected ("only figures, not everything"). The same figures repeated on the same page without the phrase are removed too, so a page never shows a figure in one place and hides it in another.
+- **Not included.** `alternatives/imocha.astro` "3,000+ ready-to-use assessments" (3 places): not phrased "publicly states"; open question. `alternatives/mettl.astro:308` "100,000+ sessions" describes buyer scale, not a competitor figure. `alternatives/amcat.astro:9` is a code comment.
+- **Impact.** `apps/marketing/src/data/page-dates.json` refreshed (3 pages). `astro build` green, 56 pages. Not deployed: the marketing container waits for the RS4 approval (privacy drafts, CSV wording).
 
 ### RS10 CI guards (`e645d81`)
 - **What.** CI now runs: `react-hooks/rules-of-hooks` as an error (RV69, only that rule); the `apps/web` tests (RV70); `tools/lint-mv-tenant-filter.ts` and its self-test (RV72; scripts `lint:mv-tenant-filter`, `lint:mv-tenant-filter:self-test`); and a check that every `ConfigSchema` key in `modules/00-core/src/config.ts` is in `.env.example` (RV75, new part of CHECK C in `tools/lint-deploy-procedure.ts`, regex on 4-space keys, self-test C-5).
@@ -53,7 +61,7 @@
 Module 08 `parseRubric` is the single parser. Module 04 `validateRubric` re-exports it and `saveRubric` uses it. Behaviour is identical. Not included: FU-C17 stricter rules (needs the stored-rubric row count and the owner), FU-C18 module 07 mirror schema (codex gate), FU-C19.
 
 ### RS4 marketing truth pass 2 (`9b541ba`)
-Integrity v1 claims fixed. CSV limit text: 1,000 rows (200 with invitations). 12 coming-soon test pages are `noindex,follow` and out of the sitemap. Unsourced competitor numbers removed. Privacy page has DRAFT paragraphs (RV28). The container is NOT rebuilt. Some competitor figures stay with "publicly states" (hackerearth 40,000+). The owner decides.
+Integrity v1 claims fixed. CSV limit text: 1,000 rows (200 with invitations). 12 coming-soon test pages are `noindex,follow` and out of the sitemap. Unsourced competitor numbers removed. Privacy page has DRAFT paragraphs (RV28). The container is NOT rebuilt. Some competitor figures stayed with "publicly states". **Follow-up `ac39f6e` (owner decision 2026-10-03): those figures are removed.** See "RV27 follow-up" below.
 
 ### N23, N25, N26
 - N23 (`4ad6cc0`): 30 help ids renamed under their page prefix (32 allowlist entries; `print_review`, `sent_back`, `high_stakes.edit` are copied for each page). Migration `0155_help_ids_page_prefix_n23.sql`. Seed `0011` regenerated. Global help rows 200 to 203. The guard allowlist is empty. See `docs/07-help-system.md`.
