@@ -44,7 +44,7 @@ const faqSchema = {
       "name": "What is HackerEarth used for?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerEarth is a technical assessment and developer hiring platform founded in Bengaluru, India. It combines coding assessments (40+ programming languages, 36,000+ question library) with a large developer community (10M+ registered developers) and hackathon/hiring-challenge tools. Enterprises use it to source, screen, and interview developer talent."
+        "text": "HackerEarth is a technical assessment and developer hiring platform founded in Bengaluru, India. It combines coding assessments (many programming languages, a large question library) with a large developer community and hackathon/hiring-challenge tools. Enterprises use it to source, screen, and interview developer talent."
       }
     },
     {
@@ -76,7 +76,7 @@ const faqSchema = {
       "name": "Which is better for coding tests — HackerEarth or AssessIQ?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerEarth is the clear choice for coding tests: live code execution, a 36,000+ question library across 40+ languages, and community-sourcing tools. AssessIQ does not offer coding tests, a code sandbox or auto-graded code yet. Its strength is structured rubric scoring for MCQ, subjective, scenario and log-analysis questions, with a rationale for every band."
+        "text": "HackerEarth is the clear choice for coding tests: live code execution, a large question library across many languages, and community-sourcing tools. AssessIQ does not offer coding tests, a code sandbox or auto-graded code yet. Its strength is structured rubric scoring for MCQ, subjective, scenario and log-analysis questions, with a rationale for every band."
       }
     },
     {
@@ -118,9 +118,9 @@ const criteria = [
   { criterion: "Primary category",        hackerearth: "Developer community + assessment",   assessiq: "Structured hiring assessment" },
   { criterion: "India headquarters",       hackerearth: "Yes (Bengaluru)",                   assessiq: "Yes" },
   { criterion: "Developer community",      hackerearth: "10M+ registered developers",         assessiq: "B2B only — no public community" },
-  { criterion: "Question library",         hackerearth: "36,000+ questions, 40+ languages",   assessiq: "Aptitude pack (live); other packs on the roadmap (Coming soon)" },
+  { criterion: "Question library",         hackerearth: "Large question library, many languages",   assessiq: "Aptitude pack (live); other packs on the roadmap (Coming soon)" },
   { criterion: "Hackathon / challenges",   hackerearth: "Yes — sourcing feature",             assessiq: "Not applicable" },
-  { criterion: "Proctoring",              hackerearth: "Computer vision, tab-switch, AI",     assessiq: "Coming soon" },
+  { criterion: "Proctoring",              hackerearth: "Computer vision, tab-switch, AI",     assessiq: "Fullscreen gate, copy/paste block, tab-switch warning (no webcam, no lockdown)" },
   { criterion: "Scoring model",           hackerearth: "Test-case pass/fail + scoring",       assessiq: "Anchor-based rubrics + scoring bands" },
   { criterion: "Pricing model",           hackerearth: "Contact-based / tiered plans",        assessiq: "Contact sales" },
   { criterion: "Ideal fit",               hackerearth: "Sourcing + screening combined",       assessiq: "Screening-stage structured assessment" },
@@ -214,7 +214,7 @@ const criteria = [
           <div>
             <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Deep technical question library.</h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              With 36,000+ questions covering 1,000+ skills across 100+ job roles and 40+ programming languages, HackerEarth's content library is one of the broadest available for technical hiring.
+              With a large question library covering many skills, job roles and programming languages, HackerEarth's content library is one of the broadest available for technical hiring.
             </p>
           </div>
           <div>
@@ -284,7 +284,7 @@ const criteria = [
             <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
               <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>Sourcing candidates through hackathons and public hiring challenges is part of your strategy.</span></li>
               <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You want access to a pre-screened developer community as a sourcing channel alongside your own pipeline.</span></li>
-              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You need a very large question library spanning 40+ languages and 1,000+ skills out of the box.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You need a very large question library spanning many languages and skills out of the box.</span></li>
               <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>AI-native live interview tooling is a priority alongside asynchronous assessments.</span></li>
             </ul>
           </div>
@@ -316,7 +316,7 @@ const criteria = [
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What is HackerEarth used for?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            HackerEarth is a technical assessment and developer hiring platform founded in Bengaluru, India. It combines coding assessments (40+ programming languages, 36,000+ question library) with a large developer community (10M+ registered developers) and hackathon/hiring-challenge tools. Enterprises use it to source, screen, and interview developer talent.
+            HackerEarth is a technical assessment and developer hiring platform founded in Bengaluru, India. It combines coding assessments (many programming languages, a large question library) with a large developer community and hackathon/hiring-challenge tools. Enterprises use it to source, screen, and interview developer talent.
           </p>
         </div>
 
@@ -344,7 +344,7 @@ const criteria = [
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Which is better for coding tests — HackerEarth or AssessIQ?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            HackerEarth is the clear choice for coding tests: live code execution, a 36,000+ question library across 40+ languages, and community-sourcing tools. AssessIQ does not offer coding tests, a code sandbox or auto-graded code yet. Its strength is structured rubric scoring for MCQ, subjective, scenario and log-analysis questions, with a rationale for every band.
+            HackerEarth is the clear choice for coding tests: live code execution, a large question library across many languages, and community-sourcing tools. AssessIQ does not offer coding tests, a code sandbox or auto-graded code yet. Its strength is structured rubric scoring for MCQ, subjective, scenario and log-analysis questions, with a rationale for every band.
           </p>
         </div>
 

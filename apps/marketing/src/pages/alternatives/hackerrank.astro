@@ -45,7 +45,7 @@ const faqSchema = {
       "name": "What is HackerRank used for?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerRank is a developer skills assessment platform headquartered in Santa Clara, California. It is widely used for technical hiring — coding tests, skills assessments, and structured technical interviews — and has a community of 26M+ registered developers. It serves 2,500+ enterprise customers globally and is active in India with in-person events in Bangalore, Chennai, Hyderabad, and Delhi."
+        "text": "HackerRank is a developer skills assessment platform headquartered in Santa Clara, California. It is widely used for technical hiring — coding tests, skills assessments, and structured technical interviews — and has a large community of registered developers. It serves enterprise customers globally and is active in India with in-person events in Bangalore, Chennai, Hyderabad, and Delhi."
       }
     },
     {
@@ -77,7 +77,7 @@ const faqSchema = {
       "name": "Does HackerRank offer proctoring?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "HackerRank includes proctoring features such as webcam monitoring, object detection in webcam feeds, deleted-code analysis, and tab-switch alerts — particularly strengthened in its Desktop App for campus hiring. AssessIQ does not offer proctoring yet (no webcam monitoring, lockdown or tab-switch detection); it provides server-side timers, option shuffle and question-order randomisation."
+        "text": "HackerRank includes proctoring features such as webcam monitoring, object detection in webcam feeds, deleted-code analysis, and tab-switch alerts — particularly strengthened in its Desktop App for campus hiring. AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning, with tab switches recorded for the admin) but no webcam proctoring and no lockdown browser; it also provides server-side timers, option shuffle and question-order randomisation."
       }
     },
     {
@@ -119,9 +119,9 @@ const criteria = [
   { criterion: "Primary category",       hackerrank: "Developer skills assessment (global)",    assessiq: "Structured hiring assessment (India-first)" },
   { criterion: "Headquarters",           hackerrank: "Santa Clara, CA, USA",                    assessiq: "India" },
   { criterion: "Developer community",    hackerrank: "26M+ registered developers",               assessiq: "B2B only — no public community" },
-  { criterion: "Coding environment",     hackerrank: "Advanced AI-assisted IDE, 40+ languages",  assessiq: "Coming soon" },
+  { criterion: "Coding environment",     hackerrank: "Advanced AI-assisted IDE, many languages",  assessiq: "Fullscreen gate, copy/paste block, tab-switch warning (no webcam, no lockdown)" },
   { criterion: "Live interviews",        hackerrank: "Yes — collaborative + AI Interviewer",     assessiq: "Not applicable — async assessment focus" },
-  { criterion: "Proctoring",            hackerrank: "Webcam, object detection, deleted-code",    assessiq: "Coming soon" },
+  { criterion: "Proctoring",            hackerrank: "Webcam, object detection, deleted-code",    assessiq: "Fullscreen gate, copy/paste block, tab-switch warning (no webcam, no lockdown)" },
   { criterion: "Scoring model",         hackerrank: "Test-case pass/fail + structured scoring",  assessiq: "Anchor-based rubrics + scoring bands" },
   { criterion: "Pricing model",         hackerrank: "Contact-based / enterprise",                assessiq: "Contact sales" },
   { criterion: "AI data processing",   hackerrank: "Check vendor — US-headquartered",          assessiq: "AI evaluation of written answers uses Anthropic Claude (US)" },
@@ -172,7 +172,7 @@ const criteria = [
 
       <!-- Featured-snippet target: 40–60 words -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        HackerRank is the globally recognised developer skills assessment platform — deep coding IDE, AI-assisted interviews, and a community of 26M+ developers. If you are an Indian IT company looking for structured, rubric-based hiring assessments with a lightweight workflow, AssessIQ is built for that.
+        HackerRank is the globally recognised developer skills assessment platform — deep coding IDE, AI-assisted interviews, and a large developer community. If you are an Indian IT company looking for structured, rubric-based hiring assessments with a lightweight workflow, AssessIQ is built for that.
       </p>
 
       <div class="flex flex-wrap items-center gap-aiq-md">
@@ -209,7 +209,7 @@ const criteria = [
           <div>
             <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Category leader in developer assessment.</h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Founded in 2012 and headquartered in Santa Clara, HackerRank is the most cited developer skills platform globally. It serves 2,500+ enterprise customers across industries, with a developer community exceeding 26 million registered users.
+              Founded in 2012 and headquartered in Santa Clara, HackerRank is the most cited developer skills platform globally. It serves enterprise customers across industries, with a developer community exceeding 26 million registered users.
             </p>
           </div>
           <div>
@@ -317,7 +317,7 @@ const criteria = [
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What is HackerRank used for?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            HackerRank is a developer skills assessment platform headquartered in Santa Clara, California. It is widely used for technical hiring — coding tests, skills assessments, and structured technical interviews — and has a community of 26M+ registered developers. It serves 2,500+ enterprise customers globally and is active in India with in-person events in Bangalore, Chennai, Hyderabad, and Delhi.
+            HackerRank is a developer skills assessment platform headquartered in Santa Clara, California. It is widely used for technical hiring — coding tests, skills assessments, and structured technical interviews — and has a large community of registered developers. It serves enterprise customers globally and is active in India with in-person events in Bangalore, Chennai, Hyderabad, and Delhi.
           </p>
         </div>
 
@@ -345,7 +345,7 @@ const criteria = [
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does HackerRank offer proctoring?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            HackerRank includes proctoring features such as webcam monitoring, object detection in webcam feeds, deleted-code analysis, and tab-switch alerts — particularly strengthened in its Desktop App for campus hiring. AssessIQ does not offer proctoring yet (no webcam monitoring, lockdown or tab-switch detection); it provides server-side timers, option shuffle and question-order randomisation.
+            HackerRank includes proctoring features such as webcam monitoring, object detection in webcam feeds, deleted-code analysis, and tab-switch alerts — particularly strengthened in its Desktop App for campus hiring. AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning, with tab switches recorded for the admin) but no webcam proctoring and no lockdown browser; it also provides server-side timers, option shuffle and question-order randomisation.
           </p>
         </div>
 

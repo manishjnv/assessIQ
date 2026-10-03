@@ -71,7 +71,7 @@ const faqSchema = {
       "name": "Does AMCAT include proctoring?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AMCAT includes invigilation controls for its administered tests. For detailed, current proctoring specifications, check myamcat.com or the employer interface at employer.aspiringminds.com. AssessIQ does not offer proctoring yet (no webcam monitoring, lockdown or tab-switch detection); it provides server-side timers, option shuffle and question-order randomisation."
+        "text": "AMCAT includes invigilation controls for its administered tests. For detailed, current proctoring specifications, check myamcat.com or the employer interface at employer.aspiringminds.com. AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning, with tab switches recorded for the admin) but no webcam proctoring and no lockdown browser; it also provides server-side timers, option shuffle and question-order randomisation."
       }
     },
     {
@@ -122,9 +122,9 @@ const criteria = [
   { criterion: "India focus",            amcat: "Yes — India primary market",                    assessiq: "Yes — India-headquartered" },
   { criterion: "Assessment type",        amcat: "Shared, standardised score",                    assessiq: "Private, per-company" },
   { criterion: "Candidate sourcing",     amcat: "Yes — candidate job board + pool",              assessiq: "Invite-only — your pipeline" },
-  { criterion: "Coding tests",           amcat: "Varies — check vendor",                         assessiq: "Coming soon" },
+  { criterion: "Coding tests",           amcat: "Varies — check vendor",                         assessiq: "Fullscreen gate, copy/paste block, tab-switch warning (no webcam, no lockdown)" },
   { criterion: "Customisation",          amcat: "Limited — standardised format",                 assessiq: "Your own question mix and rubrics; custom branding (Coming soon)" },
-  { criterion: "Proctoring",            amcat: "Invigilation controls — check vendor",           assessiq: "Coming soon" },
+  { criterion: "Proctoring",            amcat: "Invigilation controls — check vendor",           assessiq: "Fullscreen gate, copy/paste block, tab-switch warning (no webcam, no lockdown)" },
   { criterion: "Scoring model",         amcat: "Standardised score + percentile",                assessiq: "Anchor-based rubrics + scoring bands" },
   { criterion: "Target hire level",     amcat: "Primarily fresh graduates",                      assessiq: "Campus and fresher hiring; lateral with your own questions" },
   { criterion: "Parent company",        amcat: "SHL (acquired Aspiring Minds 2019)",             assessiq: "Independent — India-built" },
@@ -175,7 +175,7 @@ const criteria = [
 
       <!-- Featured-snippet target: 40–60 words -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        AMCAT (now part of SHL) is India's dominant standardised employability test for fresh graduates — used by 3,000+ companies for campus hiring with a shared candidate pool. If you want a private assessment under your control — with structured rubric scoring and no shared pool — AssessIQ is built for that.
+        AMCAT (now part of SHL) is India's dominant standardised employability test for fresh graduates — used by many companies for campus hiring with a shared candidate pool. If you want a private assessment under your control — with structured rubric scoring and no shared pool — AssessIQ is built for that.
       </p>
 
       <div class="flex flex-wrap items-center gap-aiq-md">
@@ -341,7 +341,7 @@ const criteria = [
         <div class="border-b border-aiq-border pb-aiq-xl">
           <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does AMCAT include proctoring?</h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AMCAT includes invigilation controls for its administered tests. For detailed, current proctoring specifications, check myamcat.com or the employer interface at employer.aspiringminds.com. AssessIQ does not offer proctoring yet (no webcam monitoring, lockdown or tab-switch detection); it provides server-side timers, option shuffle and question-order randomisation.
+            AMCAT includes invigilation controls for its administered tests. For detailed, current proctoring specifications, check myamcat.com or the employer interface at employer.aspiringminds.com. AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning, with tab switches recorded for the admin) but no webcam proctoring and no lockdown browser; it also provides server-side timers, option shuffle and question-order randomisation.
           </p>
         </div>
 
