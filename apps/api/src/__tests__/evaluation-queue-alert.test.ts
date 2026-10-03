@@ -16,7 +16,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-vi.mock("@assessiq/notifications", () => ({
+vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined),
   sendEvaluationQueueAlertEmail: vi.fn(),
   // the worker module also imports these at top level
   sendResultReleasedEmail: vi.fn(),

@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 
 vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
 const emailMock = vi.fn();
-vi.mock("@assessiq/notifications", () => ({
+vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined),
   sendResultReleasedEmail: (...a: unknown[]) => emailMock(...a),
 }));
 

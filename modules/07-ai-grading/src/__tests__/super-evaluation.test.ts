@@ -28,7 +28,7 @@ import { randomUUID } from "node:crypto";
 
 vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
 // The auto-release sweep (section 5) emails the candidate after each release; module 13 is covered by its own tests.
-vi.mock("@assessiq/notifications", () => ({ sendResultReleasedEmail: vi.fn(async () => undefined) }));
+vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined), sendResultReleasedEmail: vi.fn(async () => undefined) }));
 
 import { AppError } from "@assessiq/core";
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
