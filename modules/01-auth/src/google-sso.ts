@@ -461,7 +461,7 @@ export async function mintForIdentity(
   // code". Computed live from config.MFA_REQUIRED at mint time:
   //   - candidate                       → true (candidates never do TOTP; matches
   //                                        magic-link.ts which hardcodes true).
-  //   - admin/reviewer, MFA_REQUIRED=false → true. There is no TOTP step in this
+  //   - admin, MFA_REQUIRED=false → true. There is no TOTP step in this
   //     deployment (redirect below goes straight to /admin, never /admin/mfa), so
   //     the factor requirement IS satisfied. WITHOUT this, the session stays
   //     totpVerified=false for its entire 8h life and is permanently pinned to the
@@ -470,7 +470,7 @@ export async function mintForIdentity(
   //     including /api/auth/google/start (the cookie is still sent), so the admin
   //     can't even re-login out of it. Recurring RATE_LIMITED lockout, RCA
   //     2026-05-30 (3 prior fixes all raised IP-scope caps, never this one).
-  //   - admin/reviewer, MFA_REQUIRED=true  → false. Must still complete TOTP at
+  //   - admin, MFA_REQUIRED=true  → false. Must still complete TOTP at
   //     /admin/mfa (redirect below), which flips totpVerified via sessions.verify.
   //
   // SAFETY: requireAuth is already MFA_REQUIRED-aware — for non-super_admin roles
