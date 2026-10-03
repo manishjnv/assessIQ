@@ -27,6 +27,7 @@
 
 import type { PoolClient } from "pg";
 import { recordGradedAttempt } from "@assessiq/billing";
+import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
 import { computeAttemptScoreInTx } from "./service.js";
 
 export interface FinalizeAttemptInput {
@@ -116,6 +117,8 @@ export async function finalizeAttemptIfComplete(
   // Idempotent via UNIQUE(tenant_id, attempt_id); a non-conflict DB error rolls
   // the whole finalize back.
   await recordGradedAttempt(client, tenantId, attemptId);
+
+  await emitAttemptEventAfterCommit(client, tenantId, attemptId, "attempt.graded");
 
   return { finalized: true };
 }

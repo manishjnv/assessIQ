@@ -188,3 +188,7 @@ For assessments with `settings.sections` (defined in 05). Assessments without it
 - **No option shuffle.** Steps are served in authored order, and the stored indexes are original indexes. Upgrade path: one `option_order` per step id (ponytail note in `option-shuffle.ts`).
 - **Why.** The type is deterministic, so the save seam can reject malformed picks early.
 - **Not included.** A check that a `select: one` step has one pick (scoring treats a wrong count as wrong). `result.ts` non-mcq predicate now excludes the type.
+
+## Business webhook events (FU-B6, 2026-10-03)
+
+`submitAttempt` emits `attempt.submitted` after commit via `emitAttemptEventAfterCommit` (13). The timer sweep does not emit. Details: modules/13-notifications/SKILL.md.
