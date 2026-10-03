@@ -30,7 +30,7 @@
 //     -e BASE_URL=http://localhost:3000 \
 //     -e TOKENS_CSV=./tokens.csv \
 //     -e CANDIDATES=300 -e DURATION_MIN=10 -e LAB_IP=203.0.113.7 \
-//     tools/load/candidate-drive.k6.js
+//     tests/load/scenarios/candidate-drive.js
 //
 // Env
 //   BASE_URL      required, e.g. https://staging.example.test (no trailing /)

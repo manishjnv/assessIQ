@@ -6,11 +6,15 @@ k6-based load testing for the AssessIQ API. This directory contains:
 
 - `scenarios/smoke.js` — 5-scenario smoke baseline (run first, ~30s)
 - `scenarios/auth-flow.js` — isolated rate-limit boundary probe (run standalone)
+- `scenarios/candidate-drive.js` — campus-drive simulation (default 300 candidates behind one lab IP, 10 min autosave). Needs a staging/local stack with a published assessment and one magic-link token per candidate in a CSV:
+  `k6 run -e BASE_URL=http://localhost:3000 -e TOKENS_CSV=./tokens.csv -e CANDIDATES=300 -e DURATION_MIN=10 tests/load/scenarios/candidate-drive.js`
+  (full env list in the file header; it consumes tokens, so re-seed between runs)
 - `lib/auth.js` — session-acquisition helpers (dev-mint + cookie-env fallback)
 - `results/` — gitignored run outputs; only `.gitkeep` is tracked
 
-**Scope: local dev environment only.** The harness refuses to run against
-production URLs (see [Safety](#safety)).
+**Scope: local dev or staging only.** Never run any scenario against production
+without explicit owner approval. The harness refuses production URLs (see
+[Safety](#safety)). This is the only k6 folder; the former `tools/load/` was merged here.
 
 ---
 

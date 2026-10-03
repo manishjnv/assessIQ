@@ -1,0 +1,12 @@
+# assessiq-backup-check.timer: daily, after the cron.daily backup window.
+# Install: see header of tools/ops/assessiq-backup-check.sh.
+[Unit]
+Description=AssessIQ backup dead-man check timer
+
+[Timer]
+OnCalendar=*-*-* 06:30:00
+Persistent=true
+Unit=assessiq-backup-check.service
+
+[Install]
+WantedBy=timers.target
