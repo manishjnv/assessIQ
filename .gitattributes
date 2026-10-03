@@ -1,3 +1,6 @@
 
 # Ops scripts run on the Linux VPS — always LF, even on a Windows checkout.
 tools/ops/*.sh text eol=lf
+
+# e2e helper scripts run under bash (Git Bash on Windows, Linux in CI) — always LF.
+apps/web/e2e/*.sh text eol=lf
