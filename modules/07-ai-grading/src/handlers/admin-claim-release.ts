@@ -184,7 +184,7 @@ async function loadFrozenQuestions(
        aq.question_id,
        aq.position,
        aq.question_version,
-       q.type,
+       qv.type, -- N21: frozen type, same as 06/09
        q.topic,
        aq.points,
        qv.content,
