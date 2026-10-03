@@ -408,14 +408,15 @@ export async function clonePackToTenant(
     );
     // The v1 content snapshot the attempt engine resolves via MAX(qv.version).
     await client.query(
-      `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by)
-       VALUES ($1, $2, 1, $3::jsonb, $4::jsonb, $5)`,
+      `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by, type)
+       VALUES ($1, $2, 1, $3::jsonb, $4::jsonb, $5, $6)`,
       [
         uuidv7(),
         newQuestionId,
         JSON.stringify(q.content),
         q.rubric !== null ? JSON.stringify(q.rubric) : null,
         actorUserId,
+        q.type,
       ],
     );
 
@@ -1086,9 +1087,9 @@ export async function resyncClonedPack(
         ],
       );
       await client.query(
-        `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by)
-         VALUES ($1, $2, 1, $3::jsonb, $4::jsonb, $5)`,
-        [uuidv7(), nqid, contentJson, rubricJson, actorUserId],
+        `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by, type)
+         VALUES ($1, $2, 1, $3::jsonb, $4::jsonb, $5, $6)`,
+        [uuidv7(), nqid, contentJson, rubricJson, actorUserId, M.type],
       );
       // Tags (mirror clonePackToTenant): upsert source tags into target, link.
       const srcTags = (
@@ -1125,7 +1126,9 @@ export async function resyncClonedPack(
     // ── EXISTING clone question ──
     const contentChanged =
       stableJson(M.content) !== stableJson(Q.content) ||
-      stableJson(M.rubric) !== stableJson(Q.rubric);
+      stableJson(M.rubric) !== stableJson(Q.rubric) ||
+      // N21: the type is frozen per version, so a type change must write a new version.
+      Q.type !== M.type;
     // Metadata lives on the live questions row (not in question_versions), so a
     // metadata-only master change must still be applied — otherwise the clone
     // goes stale (wrong level/taxonomy/points/type) yet source_version still
@@ -1146,9 +1149,9 @@ export async function resyncClonedPack(
       // snapshot (lower version) is untouched, so in-flight attempts pinned to it
       // keep the old content. Metadata is refreshed in the same UPDATE.
       await client.query(
-        `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by)
-         VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6)`,
-        [uuidv7(), Q.id, Q.version, contentJson, rubricJson, actorUserId],
+        `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by, type)
+         VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7)`,
+        [uuidv7(), Q.id, Q.version, contentJson, rubricJson, actorUserId, M.type],
       );
       await client.query(
         `UPDATE questions
