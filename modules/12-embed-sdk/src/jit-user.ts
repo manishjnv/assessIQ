@@ -55,30 +55,25 @@ export async function resolveJitUser(input: JitUserInput): Promise<JitUserResult
   const normalizedEmail = input.email.toLowerCase().trim();
 
   return withTenant(input.tenantId, async (client: PoolClient) => {
-    const find = async (): Promise<UserRow | undefined> =>
-      (
+    // Case-insensitive: the UNIQUE (tenant_id, email) is case-sensitive TEXT and
+    // bootstrap/SQL paths may hold a mixed-case row (e.g. a super_admin seed).
+    // Every case variant must pass, or a mixed-case admin could be shadowed by a
+    // new lower-case candidate row (codex FR4 HIGH). Exact match is preferred.
+    const find = async (): Promise<UserRow | undefined> => {
+      const rows = (
         await client.query<UserRow>(
           `SELECT id, role, status, deleted_at, erased_at FROM users
-           WHERE tenant_id = $1 AND email = $2
-           LIMIT 1`,
+           WHERE tenant_id = $1 AND lower(email) = $2
+           ORDER BY (email = $2) DESC`,
           [input.tenantId, normalizedEmail],
         )
-      ).rows[0];
-
-    const accept = (u: UserRow, created: boolean): JitUserResult => {
-      if (
-        u.role !== "candidate" ||
-        u.status !== "active" ||
-        u.deleted_at !== null ||
-        u.erased_at !== null
-      ) {
-        throw new AuthzError("embed user is not an active candidate");
-      }
-      return { userId: u.id, created };
+      ).rows;
+      rows.forEach(assertCandidate);
+      return rows[0];
     };
 
     const existing = await find();
-    if (existing !== undefined) return accept(existing, false);
+    if (existing !== undefined) return { userId: existing.id, created: false };
 
     // Not found — create a new candidate user. Only real columns exist on
     // `users`; created_at/updated_at use their DB defaults. ON CONFLICT covers
@@ -102,6 +97,17 @@ export async function resolveJitUser(input: JitUserInput): Promise<JitUserResult
     // Lost the race — the winner's row is now committed and visible.
     const winner = await find();
     if (winner === undefined) throw new AuthzError("embed user could not be resolved");
-    return accept(winner, false);
+    return { userId: winner.id, created: false };
   });
+}
+
+function assertCandidate(u: UserRow): void {
+  if (
+    u.role !== "candidate" ||
+    u.status !== "active" ||
+    u.deleted_at !== null ||
+    u.erased_at !== null
+  ) {
+    throw new AuthzError("embed user is not an active candidate");
+  }
 }

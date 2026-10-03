@@ -121,6 +121,20 @@ describe('resolveJitUser (real insert path)', () => {
     await expect(resolveJitUser(input(t, 'boss@embed.test'))).rejects.toBeInstanceOf(AuthzError);
   });
 
+  it('refuses a mixed-case admin row and creates no shadow candidate (codex FR4)', async () => {
+    const t = await createTenant();
+    await sql(
+      `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, 'Boss@Embed.Test', 'Boss', 'admin')`,
+      [randomUUID(), t],
+    );
+    await expect(resolveJitUser(input(t, 'boss@embed.test'))).rejects.toBeInstanceOf(AuthzError);
+    const rows = await sql<{ role: string }>(
+      `SELECT role FROM users WHERE tenant_id = $1 AND lower(email) = 'boss@embed.test'`,
+      [t],
+    );
+    expect(rows.map((r) => r.role)).toEqual(['admin']);
+  });
+
   it('same email in another tenant is a different user', async () => {
     const t1 = await createTenant();
     const t2 = await createTenant();
