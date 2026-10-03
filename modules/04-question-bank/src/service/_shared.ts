@@ -8,6 +8,7 @@ import {
   ConflictError,
   AppError,
 } from "@assessiq/core";
+import { strictRubricIssues } from "@assessiq/rubric-engine";
 import {
   validateQuestionContent,
   validateRubric,
@@ -122,6 +123,14 @@ export function assertValidRubric(rubric: unknown): void {
     throw new ValidationError(
       `Invalid rubric`,
       { details: { code: QB_ERROR_CODES.INVALID_RUBRIC, errors: result.errors } },
+    );
+  }
+  // FU-C17: strict rules on save only; parseRubric stays lenient for stored rubrics.
+  const strict = strictRubricIssues(result.data);
+  if (strict.length > 0) {
+    throw new ValidationError(
+      `Invalid rubric`,
+      { details: { code: QB_ERROR_CODES.INVALID_RUBRIC, errors: strict } },
     );
   }
 }
