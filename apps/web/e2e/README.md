@@ -7,8 +7,10 @@
 | `admin-workflow.spec.ts` | Full admin→candidate 16-step workflow (pack→questions→assessment→attempt→grade→release→cert→verify) | **Live** (requires test-minter, see below) |
 | `cert-prod-safety.spec.ts` | `POST /api/dev/mint-session` must return 404 in production | **Live** (auto-skips when `ENABLE_E2E_TEST_MINTER=true`) |
 | `take-error-pages.spec.ts` | `/take/expired`, `/take/error` error pages | Live (no auth required) |
-| `take-happy-path.spec.ts` | Candidate magic-link take flow | Skipped `TODO(session-4b)` |
-| `take-timer-expiry.spec.ts` | Timer expiry during take | Skipped `TODO(session-4b)` |
+| `take-happy-path.spec.ts` | Candidate answers MCQs in the runner and submits; deterministic score | **Live** (local stack) |
+| `take-timer-expiry.spec.ts` | 1-minute assessment auto-submits at zero | **Live** (local stack) |
+| `ordering-admin.spec.ts` | `ordering` + `structured_case`: author, publish, take, score, admin view | **Live** (local stack) |
+| `take-runner-mocked.spec.ts` | Runner UI with a mocked API | Live (no backend) |
 
 ---
 
@@ -31,6 +33,19 @@ curl -I https://assessiq.in/api/dev/mint-session
 | `E2E_API_BASE_URL` | API origin (e.g. `http://localhost:3000`) | Derived from `PLAYWRIGHT_BASE_URL` port 3000 |
 
 ---
+
+## Local stack (one machine, no staging)
+
+```
+bash apps/web/e2e/local-stack.sh          # Postgres 16 + Redis 7 in docker, migrations + seed, API, worker, web
+PLAYWRIGHT_BASE_URL=http://localhost:5173 pnpm --filter @assessiq/web exec playwright test
+bash apps/web/e2e/local-stack.sh --down   # removes assessiq-e2e-postgres / assessiq-e2e-redis and our processes
+```
+
+Roles: the super admin (platform tenant, seeded by migration 016) authors packs and questions; the seeded tenant admin
+`e2e-admin@test.assessiq` (tenant `wipro-soc`) builds assessments from the set, invites and reviews. Candidates are minted per test.
+The dev minter uses the user's DB role, so `mintSuperAdminSession()` asks for role `admin` on the `platform` tenant.
+A published assessment turns `active` when the worker's boundary cron runs (60 s), so the first attempt start waits up to ~60 s.
 
 ## Running locally
 
@@ -73,10 +88,10 @@ PLAYWRIGHT_BASE_URL=https://assessiq.in pnpm --filter @assessiq/web e2e -- take-
 
 ## Running in CI
 
-The `e2e` job in `.github/workflows/ci.yml` runs `admin-workflow.spec.ts` when **GitHub repo variables** `E2E_BASE_URL` and `E2E_API_BASE_URL` are configured. If not set, the job is skipped (not failed). To enable:
-1. Set `vars.E2E_BASE_URL` and `vars.E2E_API_BASE_URL` in the repo settings.
-2. Ensure `ENABLE_E2E_TEST_MINTER=true` is set on the target server.
-3. **Never set `ENABLE_E2E_TEST_MINTER=true` on production.**
+The `e2e` job in `.github/workflows/ci.yml` builds the same stack inside the runner (postgres/redis services,
+`seed-db.sh`, API + worker with `ENABLE_E2E_TEST_MINTER=true` on the runner only, `vite preview` with `/api` proxied)
+and runs admin-workflow, take-happy-path, take-timer-expiry and ordering-admin. It is advisory (`continue-on-error: true`).
+No repo variables are needed. **Never set `ENABLE_E2E_TEST_MINTER=true` on production.**
 
 ## Interpreting failures
 
@@ -88,17 +103,9 @@ Common failure causes:
 - `[factories] mint-session for ... failed — 404` → API is running but `ENABLE_E2E_TEST_MINTER` is not set to `true` on the server.
 - `[factories] ... expected 201, got 422 POOL_TOO_SMALL` → The activate-questions step didn't complete before publishing the assessment. Check step 7.
 - `[factories] ... expected 200, got 409 AIG_GRADING_IN_PROGRESS` → A prior run's grading is still in-flight. Wait 60s and retry.
-- Steps 12b/12c/12d skipped → Claude is not installed in this environment; grading returned `null` so `wasGraded` stayed `false`. Expected in docker-compose CI without VPS Claude CLI.
+- Step 12a stays skipped ("needs the VPS Claude runtime"). Steps 12b-12d run: an MCQ-only attempt is graded deterministically at submit.
 - `cert-prod-safety.spec.ts` fails with `expected 404, got 200` → `ENABLE_E2E_TEST_MINTER=true` is set on the target API server. Remove it from the prod `.env`.
 - Any `console errors on ...` assertion failure → A JS runtime error occurred in the SPA. Check the Playwright trace.
-
-## Why most session-4b tests are skipped
-
-`take-happy-path.spec.ts` and `take-timer-expiry.spec.ts` are wrapped in
-`test.skip` with a `// TODO(session-4b)` annotation. They require:
-
-1. `POST /api/take/start` to mint a real candidate session (deferred to Session 4b).
-2. A test fixture providing a real magic-link token in `E2E_CANDIDATE_TOKEN`.
 
 ## Adding a new test
 

@@ -57,7 +57,7 @@ test.describe("A11y sweep — unauthenticated pages", () => {
   test("/take/INVALID_TOKEN has no critical axe violations", async ({ page }) => {
     await page.goto("/take/INVALID_TOKEN");
     await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
-    await expect(page.getByRole("heading", { name: /(invalid|expired|error)/i })).toBeVisible({
+    await expect(page.getByRole("heading", { name: /(invalid|expired|error|couldn.t open)/i })).toBeVisible({
       timeout: 10_000,
     });
 
