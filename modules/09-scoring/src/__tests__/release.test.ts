@@ -493,6 +493,11 @@ describe("releaseAttemptInTx — atomicity + structure", () => {
     expect(src).toMatch(/["']grading\.released["']/);
     expect(ACTION_CATALOG).toContain("grading.released");
     expect(src).not.toMatch(/new\s+Function/);
-    expect(src).not.toMatch(/from\s+["']@assessiq\/notifications["']/); // no email inside the release tx
+    // No email inside the release tx. The only allowed import is the FU-B6
+    // after-commit webhook helper (it runs on onCommit, never in the tx).
+    const notifImports = [...src.matchAll(/import\s*\{([^}]*)\}\s*from\s+["']@assessiq\/notifications["']/g)]
+      .flatMap((m) => m[1]!.split(",").map((s) => s.trim()).filter(Boolean));
+    expect(notifImports).toEqual(["emitAttemptEventAfterCommit"]);
+    expect(src.match(/from\s+["']@assessiq\/notifications["']/g) ?? []).toHaveLength(1);
   });
 });
