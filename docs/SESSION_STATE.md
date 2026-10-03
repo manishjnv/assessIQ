@@ -1,3 +1,57 @@
+# Session — 2026-10-03 (p) — review wave: N19, N20, E10, N12, N22, RS6, RS8, RS9, RS11, E9, SP7, RV60
+
+**Headline:** All ordered tasks are done and LIVE on https://assessiq.in at HEAD `636c970`, in two deploy waves. Open: the live click for N12 (owner), the SP7 KQL execution part (X4, owner VPS decision) and the RV77 AES/Lua merge (new N24).
+**Commits (all on main, pushed):**
+- `fe06cd3` N22 index 0150 · `b02bbf3` N20 help ids 0149 + guard test · `c06516a` E10 docs
+- `afc5069` RV63 · `59a4816` FR17 worker routes super admin only · `5e5aaa3` RV59 · `487707d` RV58 · `8723dc4` RV64 · `b0c09fd` RV62 · `a7ea234` review fixes
+- `885403b`, `328dfc8`, `860bfc3`, `e7d7d04` SP7 structured_case (0152, 0153) · `f5d2aa4` docs · `4d19c3b`, `0c21079` E9 splits · `5f073f0` audit guard
+- `4c65a77` docs(06) wave A · `7accd3f` RV77 CSV guards · `ac8b8cb` dev minter + Vite proxy · `09595fa` RS11 e2e + CI · gitattributes commit
+- `4cd6c8d`, `4374344`, `7ca7cfb`, `a50d573` RV60 reviewer role removed (0154) · `0efd0f9..ad4a835` N19 (6 commits) · `a951e5a` lockfile · `0ef50d9` autosave flush at submit · `636c970` docs + trailer
+**Checks (no code):** RV65 is not a defect (the release rule holds in 09-scoring and every tenant read path). RV66 is not a defect (the consent writer exists; 0 attempts since it shipped). Production had 0 reviewer users and 0 open reviewer invites before RV60. RS6 (read-only): `docs/plans/RS6_FEATURE_REVIEW_A` to `D`; 26 register rows marked; 91 FU rows (71 active, 20 parked) and 29 owner decisions in PENDING_TASKS § P0-V.
+**Deploy:** wave A (HEAD `5f073f0`): migrations 0149, 0150, 0152, 0153 by hand and recorded; help rows 203 to 207; api, worker, frontend recreated. Wave B (HEAD `636c970`): migration 0154; api, worker, frontend recreated. 24 containers before and after each wave; 0 error lines; URL checks 200/401/404 as expected. Marketing not rebuilt; no IndexNow ping. Record: `docs/06-deployment.md`, two sections.
+**Tests (main, before wave B):** typecheck 0; lint 0 errors (20 warnings); module 01 286, 02 59, 03 60, 04 251, 06 301, 07 397 (+ guard 41), 10 103, 11 114, 13 249, 14 24, 15 147, 16 94, 19 52; api 131; web 73. Local e2e: admin-workflow 19/20 (1 skip needs VPS Claude), take-happy-path 1, take-timer-expiry 1, ordering-admin 6, take-runner-mocked 3, take-error-pages 3, a11y 3/4 (404 page landmark gap = N25). CI on GitHub for `636c970` is not read yet.
+**Found during the work:**
+- Submit inside the 5 s autosave debounce lost the last answer (fixed `0ef50d9`). The dev minter ON CONFLICT target gave 500 (fixed `ac8b8cb`). The worker routes were open to tenant admins (fixed `59a4816`).
+- 32 more help ids sit outside their page prefix (N23, allowlisted in the guard test).
+- The admin.generate page help (0148) says "Numeric, multi-select and ordering questions are written by hand" and omits structured case (small follow-up).
+- The migration apply order in docs/06 step 8 is wrong for a fresh database (noted in docs/06).
+**Not done (by design):** X4 KQL execution (owner); AES/Lua de-dup (N24, needs the codex gate); Storybook 10 (FR18); the e2e CI job is advisory until green on GitHub; N12 live click (done locally in `apps/web/e2e/ordering-admin.spec.ts`; the live click stays with the owner). Live-site clicks (owner): Settings (?) help, question editor structured case, attempts "Awaiting evaluation" tab, preview of a published assessment.
+**Next (Claude):** read CI (`gh run list --commit 636c970`); RS7 follow-ups (FR13 completion modal, FR4 RV43 embed insert fix, FR2 webhook fan-out, FR25 rubric validation in module 08); N23; N24; N25; N26; the generate-wizard topic-focus field; make the VPS generate skills read `topic_focus` (a prompt change is a deploy event with eval re-baseline).
+**Next (Owner):** PT1 decisions (tier contents, credit meaning, INR prices, Razorpay or Stripe, terms § 7); RO3; RV33; N21; X4 VPS RAM; eval bless then enforce; MASTER_KEY rotation date; N3 hook fix; the live-site clicks above.
+**Open questions:** (1) Answer the 29 review decisions in one sitting, or per feature as RS7 reaches it? (2) Make the CI e2e job required once it is green?
+**Old task or feature checked (Rule B):** SP7 against reusing `scenario` with all-mcq steps (rejected: determinism must come from the type); RV60 against the tenant review screen (covers the first purpose); RS11 against `tests/e2e/walkthrough*.ts` (steps reused; phases E and F not covered); N22 against the existing attempts indexes; RV58 against `countGradingQueue` (reused its status set); the CSV guard against `results-export.ts` (reused its rule).
+**Saved:** all code is committed and pushed; the server clone is at `636c970`; memory note `session-2026-10-03-review-wave` is saved.
+**Working tree left as found (not this session's, not committed):** `.claude/scheduled_tasks.lock`, `BingTrackingCode.md`, `modules/01-auth/src/__tests__/totp-enrollment-status.test.ts`, `modules/01-auth/src/google-sso.ts.p1bak`, `modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/`. Stale agent worktrees exist under `.claude/worktrees/` (not removed).
+**Process notes:** (1) The permission classifier refused `git cherry-pick` onto main, an agent brief that named production facts, and a chained `pnpm lint:rls`. After the owner's explicit permission the same commands passed. Keep production facts out of builder briefs and merge after a go-ahead. (2) `git log main..HEAD` lists newest first: cherry-pick a worktree branch in reverse order and take the lockfile from the branch tip after a conflict. (3) Docker is the bottleneck: run suites with `--no-file-parallelism` and run timing tests alone. (4) A help page shows only keys that start with its page id; the guard test enforces it now. (5) The Chrome extension disconnected; local Playwright replaced the live click.
+**Docs:** deploy record `docs/06-deployment.md` § wave A and § wave B; RS6 reviews `docs/plans/RS6_FEATURE_REVIEW_A` to `D` (local only); PENDING_TASKS § P0-V (local only).
+
+---
+
+## Agent utilization
+- Opus: n/a — the lead was Fable 5.1: plan, every diff review, N22, worker gate, SP7 review fix, audit guard, cherry-picks, deploys, post-deploy chunk check, memory notes, this handoff.
+- Sonnet: 22 runs: digest, N20, E10, N19, RS6 x4, confirm checks, RS9-a + revisions + E9, RS9-b, RS8-a, RS8-b, SP7, RS11, 3 adversarial reviews, 4 docs runs.
+- Haiku: 2 runs: pre-deploy check, post-deploy grid (it missed the lazy chunks; the lead checked).
+- codex:rescue: n/a — codex not fired; Sonnet takeover x3, all accept (RV64/RV62 accept with 4 revisions applied; SP7 accept, 6 LOW, 1 applied; RV60 accept, 5 LOW, to N26). RV59: one-call addition, footer note only.
+- claude-mem: honoured docs-folder-gitignored, vps-shared-host, parallel-session-shared-working-tree, keep-dormant-features, check-old-task, push-gate trailer, push as own command; saved session-2026-10-03-review-wave.
+- Routing telemetry (tokens, estimates: ~6.5M total — Fable ~700k 11%, Sonnet ~5.6M 86%, Haiku ~120k 2%):
+  - Sonnet · N20 · reworked: N
+  - Sonnet · E10 · reworked: N (the lead fixed one SKILL line)
+  - Sonnet · N19 · reworked: Y (cherry-pick order and lockfile)
+  - Sonnet · RS6-A to D · reworked: N
+  - Sonnet · confirm checks · reworked: N
+  - Sonnet · RS9-a · reworked: Y (4 review revisions)
+  - Sonnet · RS9-b · reworked: N
+  - Sonnet · RS8-a · reworked: N
+  - Sonnet · RS8-b · reworked: N (the classifier blocked the launch twice)
+  - Sonnet · SP7 · reworked: Y (1 review fix)
+  - Sonnet · RS11 · reworked: N
+  - Sonnet · docs x4 · reworked: N (one sentence corrected)
+  - Haiku · context digest · reworked: N
+  - Haiku · pre-deploy check · reworked: N
+  - Haiku · post-deploy grid · reworked: Y (missed the lazy chunks)
+
+---
+
 # Session — 2026-10-03 (o) — small tasks: RV16, N13 to N18 (dashboard counts, scenario answer check, page help, Astro 5)
 
 **Headline:** All seven small tasks from session (n) are done and LIVE on https://assessiq.in (code HEAD `38c76e3`; docs `36aeaf6`, then the commit of this handoff update). Five code commits, one migration (0148, help rows only), one deploy.

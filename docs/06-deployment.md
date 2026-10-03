@@ -1907,3 +1907,39 @@ Each file ran with `docker exec -i assessiq-postgres psql -U assessiq -d assessi
 - Not in this wave: N19 (dev tools only, no production effect), RV60 (reviewer role removal, still in work) and RS11 (e2e, local and CI only).
 
 **Rollback:** `git revert <sha>` for the item. Then rebuild and recreate the service. Modules 04, 05, 06, 07, 09, 02, 14 and the api routes: `assessiq-api` and `assessiq-worker`. Module 10 and the web app: `assessiq-frontend`. Migration 0150: `DROP INDEX IF EXISTS attempts_dashboard_count_idx` (harmless). Migration 0152: do not revert the CHECK while a `structured_case` row exists. Migration 0149: run the reverse UPDATE of the eight keys. Migration 0153: delete the four keys. Delete the `schema_migrations` rows that you reverse.
+
+## Review-fix deploy wave B: RV60 reviewer role removed (2026-10-03, HEAD `636c970`; commits `5f073f0..636c970`)
+
+Work in this deploy, in commit order:
+- `7accd3f` RV77: CSV export guards.
+- `ac8b8cb` dev session minter fix and Vite proxy (dev only).
+- `09595fa` RS11: e2e tests and the CI job (CI only).
+- `4cd6c8d`, `4374344`, `7ca7cfb`, `a50d573` RV60: the reviewer role is removed (migration 0154).
+- `0efd0f9..ad4a835` N19: six commits of development-tool updates (no production effect).
+- `a951e5a` lockfile from the branch tip.
+- `0ef50d9` the submit action flushes the pending autosave before `POST /submit`.
+- `636c970` docs and the `Adversarial-Review:` trailer.
+
+**Migration (one, applied by hand):** 0154. The file ran with `docker exec -i assessiq-postgres psql -U assessiq -d assessiq -1 -v ON_ERROR_STOP=1 -q < file`. It was then recorded in `schema_migrations` with the file checksum and `ON CONFLICT DO NOTHING`. Before the deploy, production had 0 reviewer users and 0 open reviewer invites.
+
+**Procedure (one stage, additive only):** the same steps as wave A.
+
+1. Run `git push` for `main` as its own command.
+2. Run `ssh assessiq-vps 'cd /srv/assessiq && git pull --ff-only'`: `5f073f0` to `636c970`.
+3. Apply 0154 by hand and record it. Global help rows stay at 207.
+4. Run `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-frontend`. Both builds exit with 0.
+5. Run `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend`.
+
+**Post-deploy checks (all passed):**
+- 24 containers before and after.
+- These return 200: `/`, `/pricing`, `/try`, `/admin`, `/admin/login`, `/candidate/login`, `/take/x`, `/api/health`.
+- `/api/admin/worker/stats` returns 401 without a session. `/api/dev/mint-session` returns 404.
+- 0 error lines in the api log for 3 minutes.
+
+**Checked:** one global help row (`admin.users.role`) still contains the word "reviewer" on purpose: its text says there is no reviewer role. No follow-up.
+
+**Not done:**
+- Marketing is not rebuilt in either wave. No IndexNow ping.
+- No click test in a browser. Behaviour check pending operator: the Settings (?) help, the question editor with a structured case, the attempts tab "Awaiting evaluation", and the preview of a published assessment.
+
+**Rollback:** `git revert` the commits of RV60, then rebuild and recreate `assessiq-api`, `assessiq-worker` and `assessiq-frontend`. Migration 0154: read the file first, reverse its statements by hand, and delete its `schema_migrations` row.
