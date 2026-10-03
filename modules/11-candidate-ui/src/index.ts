@@ -65,6 +65,7 @@ export {
   QuestionNavigator,
   CandidateHelp,
   CompletionModal,
+  NewCertificateModal,
   MyCertificates,
   MyResults,
   ResultSummary,

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Chip, Spinner } from '@assessiq/ui-system';
 import { listMyCertificates, shareCertificateLinkedIn } from '../api.js';
 import type { MyCertificate } from '../api.js';
+import { CompletionModal } from './CompletionModal.js';
 
 // ---------------------------------------------------------------------------
 // Tier badge configuration
@@ -97,6 +98,7 @@ export function MyCertificates(): React.ReactElement {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<MyCertificate | null>(null);
 
   useEffect(() => {
     listMyCertificates()
@@ -271,6 +273,12 @@ export function MyCertificates(): React.ReactElement {
                   aria-label="Certificate actions"
                   style={{ display: 'flex', gap: 'var(--aiq-space-md)', flexWrap: 'wrap' }}
                 >
+                  {!isRevoked && (
+                    <button type="button" onClick={() => setViewing(cert)} style={ACTION_STYLE}>
+                      View
+                    </button>
+                  )}
+
                   {/* Download PDF */}
                   {isRevoked ? (
                     <button type="button" disabled style={ACTION_DISABLED_STYLE}>
@@ -326,6 +334,16 @@ export function MyCertificates(): React.ReactElement {
             );
           })}
         </div>
+      )}
+      {viewing !== null && (
+        <CompletionModal
+          credential_id={viewing.credential_id}
+          tier={viewing.tier}
+          assessment_title={viewing.course_title}
+          verify_url={viewing.verify_url}
+          pdf_url={viewing.pdf_url}
+          onClose={() => setViewing(null)}
+        />
       )}
     </main>
   );

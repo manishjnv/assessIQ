@@ -23,7 +23,7 @@ export { MyResults } from './MyResults.js';
 export { ResultSummary } from './ResultSummary.js';
 export type { ResultSummaryProps } from './ResultSummary.js';
 
-export { CompletionModal } from './CompletionModal.js';
+export { CompletionModal, NewCertificateModal } from './CompletionModal.js';
 export type { CompletionModalProps } from './CompletionModal.js';
 
 export { CandidateShell } from './CandidateShell.js';
