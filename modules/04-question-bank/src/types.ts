@@ -240,17 +240,8 @@ export function rubricRequiredFor(type: QuestionType): boolean {
   return type === "subjective" || type === "scenario";
 }
 
-export function validateRubric(
-  content: unknown,
-):
-  | { ok: true; data: Rubric }
-  | { ok: false; errors: z.ZodIssue[] } {
-  const result = RubricSchema.safeParse(content);
-  if (result.success) {
-    return { ok: true, data: result.data };
-  }
-  return { ok: false, errors: result.error.issues };
-}
+// FR25: one rubric validator, owned by module 08 (same ok/data|errors shape).
+export { parseRubric as validateRubric } from "@assessiq/rubric-engine";
 
 // ---------------------------------------------------------------------------
 // LevelRubricDefaults — calibration hints stored in levels.rubric_defaults
