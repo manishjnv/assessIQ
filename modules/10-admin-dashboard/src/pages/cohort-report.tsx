@@ -77,7 +77,7 @@ export function AdminCohortReport(): React.ReactElement {
           <div style={{ marginBottom: 12 }}>
             <Chip leftIcon="grid">{stats.attempt_count} attempt{stats.attempt_count !== 1 ? "s" : ""}</Chip>
           </div>
-          <h1 data-help-id="admin.analytics.cohort_report" style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+          <h1 data-help-id="admin.reports.cohort.report" style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
             Cohort Report.
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
@@ -86,7 +86,7 @@ export function AdminCohortReport(): React.ReactElement {
         </div>
 
         {/* KPI row */}
-        <div data-help-id="admin.scoring.cohort.percentiles" style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
+        <div data-help-id="admin.reports.cohort.percentiles" style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
           <StatCard label="Attempts" value={stats.attempt_count} />
           <div className="aiq-card" style={{ padding: "var(--aiq-space-md) var(--aiq-space-lg)", minWidth: 140 }}>
             <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginBottom: 4 }}>Avg score</div>

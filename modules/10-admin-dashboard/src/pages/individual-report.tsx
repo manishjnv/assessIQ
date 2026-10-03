@@ -127,7 +127,7 @@ export function AdminIndividualReport(): React.ReactElement {
               </div>
 
               {attempt.archetype_signals && (
-                <div data-help-id="admin.scoring.attempt.archetype">
+                <div data-help-id="admin.reports.individual.archetype">
                   <ArchetypeRadar
                     signals={attempt.archetype_signals as unknown as Parameters<typeof ArchetypeRadar>[0]["signals"]}
                     size={140}

@@ -680,7 +680,7 @@ export function AdminQuestionBank(): React.ReactElement {
                     Domain *
                   </label>
                   <select
-                    data-help-id="admin.packs.create.domain"
+                    data-help-id="admin.question_bank.list.create.domain"
                     className="aiq-input"
                     value={newForm.domain}
                     onChange={(e) => setNewForm((f) => ({ ...f, domain: e.target.value }))}
