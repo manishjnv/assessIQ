@@ -57,6 +57,10 @@ jobs:
       - name: Test (apps/api)
         run: pnpm --filter @assessiq/api test
 
+      # 7-web. apps/web component tests (jsdom) — not covered by the root config (RV70).
+      - name: Test (apps/web)
+        run: pnpm --filter @assessiq/web test
+
       # 7-audit. Dependency scanning (D6). Critical advisories block; highs are
       # logged for visibility only.
       - name: Dependency audit (critical, blocking)
@@ -93,6 +97,14 @@ jobs:
       # 9. RLS linter self-test (validates the linter itself without real migrations)
       - name: RLS linter self-test
         run: pnpm tsx tools/lint-rls-policies.ts --self-test
+
+      # 9-mv. Postgres does not apply RLS to materialized views; every attempt_summary_mv
+      # read must filter tenant_id itself (RV72).
+      - name: MV tenant-filter lint (self-test)
+        run: pnpm lint:mv-tenant-filter:self-test
+
+      - name: MV tenant-filter lint (repo scan)
+        run: pnpm lint:mv-tenant-filter
 
       # 9a. No-ambient-Claude lint sentinel — Phase 2 G2.A.
       # LOAD-BEARING per CLAUDE.md § Load-bearing paths: encodes D2 from
