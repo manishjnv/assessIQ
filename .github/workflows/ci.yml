@@ -347,21 +347,65 @@ jobs:
         run: pnpm lint:cross-module-deps
 
   # ---------------------------------------------------------------------------
-  # E2E job — admin → candidate workflow (Playwright)
+  # E2E job — Playwright against a stack built INSIDE the runner (no staging, no repo vars)
   # ---------------------------------------------------------------------------
-  # Runs against a configured staging URL. Skipped gracefully when
-  # E2E_BASE_URL is not set (no staging env configured yet).
+  # postgres:16 + redis:7 service containers, every migration + the e2e seed
+  # (apps/web/e2e/seed-db.sh), the API and the worker from source, and the built web app
+  # served by `vite preview` with /api proxied to the API (apps/web/vite.config.ts).
   #
-  # To enable: add repo secrets E2E_BASE_URL + E2E_API_BASE_URL pointing at a
-  # staging server where ENABLE_E2E_TEST_MINTER=true is set in the server env.
+  # ADVISORY: continue-on-error is true, so a red e2e job does not fail the workflow yet.
+  # Remove it once the job has been green for a few runs.
   #
-  # NEVER set ENABLE_E2E_TEST_MINTER=true on the production .env.
-  # See apps/web/e2e/README.md and docs/06-deployment.md § E2E test minter.
+  # ENABLE_E2E_TEST_MINTER=true is set ONLY on the API process below, inside this runner's
+  # throwaway stack. NEVER set it on production (the config refuses to boot in production).
+  # Local equivalent: bash apps/web/e2e/local-stack.sh. See apps/web/e2e/README.md.
   e2e:
     runs-on: ubuntu-latest
-    # Only run if the staging URL secret is configured
-    if: vars.E2E_BASE_URL != '' && vars.E2E_BASE_URL != null
+    continue-on-error: true
     needs: quality
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: assessiq
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d assessiq"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      # Dummy secrets for the throwaway database (never real values).
+      NODE_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/assessiq
+      REDIS_URL: redis://localhost:6379
+      ASSESSIQ_MASTER_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+      SESSION_SECRET: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+      CERT_SIGNING_SECRET: e2e-dummy-cert-secret
+      ORIGIN_TRUST_MODE: "off"
+      LOG_LEVEL: warn
+      PORT: "3000"
+      RATE_LIMIT_IP_ADMIN: "100000"
+      RATE_LIMIT_IP_USER: "100000"
+      RATE_LIMIT_IP_ANON: "100000"
+      RATE_LIMIT_IP_APIKEY: "100000"
+      RATE_LIMIT_IP_VERIFIED_ADMIN: "100000"
+      RATE_LIMIT_USER_VERIFIED_ADMIN: "100000"
+      RATE_LIMIT_CREDENTIAL: "100000"
+      RATE_LIMIT_IP_CANDIDATE_SESSION: "100000"
+      RATE_LIMIT_USER_CANDIDATE: "100000"
+      RATE_LIMIT_IP_CANDIDATE_ENTRY: "100000"
+      RATE_LIMIT_TENANT: "100000"
 
     steps:
       - name: Checkout
@@ -384,11 +428,41 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm --filter @assessiq/web exec playwright install --with-deps chromium
 
-      - name: Run E2E spec — admin workflow
+      - name: Apply migrations and seed
+        run: PSQL="psql postgres://postgres:postgres@localhost:5432/assessiq" bash apps/web/e2e/seed-db.sh
+
+      - name: Start API and worker
         env:
-          PLAYWRIGHT_BASE_URL: ${{ vars.E2E_BASE_URL }}
-          E2E_API_BASE_URL: ${{ vars.E2E_API_BASE_URL }}
-        run: pnpm --filter @assessiq/web exec playwright test apps/web/e2e/admin-workflow.spec.ts
+          ENABLE_E2E_TEST_MINTER: "true" # runner-local only, never production
+        run: |
+          nohup pnpm --filter @assessiq/api start > "$RUNNER_TEMP/api.log" 2>&1 &
+          nohup pnpm --filter @assessiq/api worker > "$RUNNER_TEMP/worker.log" 2>&1 &
+          for i in $(seq 1 90); do curl -fs http://localhost:3000/api/health && break; sleep 1; done
+          curl -fs http://localhost:3000/api/health
+
+      - name: Build and serve the web app
+        env:
+          E2E_API_PROXY: http://127.0.0.1:3000
+        run: |
+          pnpm --filter @assessiq/web build
+          nohup pnpm --filter @assessiq/web exec vite preview --port 4173 --host 127.0.0.1 > "$RUNNER_TEMP/web.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://localhost:4173/ >/dev/null && break; sleep 1; done
+
+      - name: Run E2E specs
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+          E2E_API_BASE_URL: http://localhost:3000
+        run: >-
+          pnpm --filter @assessiq/web exec playwright test
+          admin-workflow take-happy-path take-timer-expiry ordering-admin
+
+      - name: Upload service logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-service-logs-${{ github.run_id }}
+          path: ${{ runner.temp }}/*.log
+          retention-days: 14
 
       - name: Upload Playwright report on failure
         if: failure()

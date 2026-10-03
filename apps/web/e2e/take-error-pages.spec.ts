@@ -7,7 +7,7 @@ test.describe("/take error states (Session 4a smoke)", () => {
     // error page renders client-side after takeStart() rejects.
     expect(response?.status()).toBe(200);
     // Wait for the React app to render the error UI.
-    await expect(page.getByRole("heading", { name: /(invalid|expired|error)/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole("heading", { name: /(invalid|expired|error|couldn.t open)/i })).toBeVisible({ timeout: 10_000 });
     // No raw "Cannot GET" or unhandled error.
     await expect(page.locator("body")).not.toContainText("Cannot GET");
     await expect(page.locator("body")).not.toContainText("undefined is not");

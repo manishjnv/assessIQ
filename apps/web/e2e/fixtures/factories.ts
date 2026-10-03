@@ -64,7 +64,6 @@ export interface TestAssessment {
 export interface TestAttempt {
   id: string;
   status: string;
-  questions: Array<{ id: string; type: string }>;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +155,16 @@ export function mintAdminSession(
   return mintSession(email, 'admin', tenantSlug);
 }
 
+/** Tenant-admin account that apps/web/e2e/local-stack.sh seeds in tenant 'wipro-soc'. */
+export const SEEDED_TENANT_ADMIN = 'e2e-admin@test.assessiq';
+
+/** Platform super admin: seeded by migration 016. The minter uses the user's DB role, so asking for
+ *  role 'admin' on the platform tenant yields a super_admin session (the minter cannot create one). */
+export const SUPER_ADMIN_EMAIL = 'manishjnvk@gmail.com';
+export function mintSuperAdminSession(): Promise<MintedSession> {
+  return mintSession(SUPER_ADMIN_EMAIL, 'admin', 'platform');
+}
+
 export function mintCandidateSession(
   email: string,
   tenantSlug = 'wipro-soc',
@@ -164,7 +173,8 @@ export function mintCandidateSession(
 }
 
 // ---------------------------------------------------------------------------
-// Question-bank setup
+// Question-bank setup — SUPER ADMIN session only (platform-only content model:
+// the company admin can no longer author packs or questions, API returns 403).
 // ---------------------------------------------------------------------------
 
 export async function createPack(adminCookie: string, name: string): Promise<TestPack> {
@@ -186,6 +196,7 @@ export async function addLevel(
   packId: string,
   label: string,
   position: number,
+  durationMinutes = 30,
 ): Promise<TestLevel> {
   return apiFetchJson<TestLevel>(`/api/admin/packs/${packId}/levels`, {
     method: 'POST',
@@ -194,7 +205,7 @@ export async function addLevel(
       label,
       description: `E2E ${label} level`,
       position,
-      duration_minutes: 30,
+      duration_minutes: durationMinutes,
       default_question_count: 2,
       passing_score_pct: 60,
     },
@@ -235,6 +246,35 @@ export async function createMcqQuestion(
     expectedStatus: 201,
     label: 'createMcqQuestion',
   });
+}
+
+async function createQuestion(
+  superCookie: string,
+  packId: string,
+  levelId: string,
+  type: string,
+  points: number,
+  content: unknown,
+): Promise<TestQuestion> {
+  return apiFetchJson<TestQuestion>('/api/admin/questions', {
+    method: 'POST',
+    cookie: superCookie,
+    body: { pack_id: packId, level_id: levelId, type, topic: 'e2e-test', points, tags: ['e2e-test'], content, rubric: null },
+    expectedStatus: 201,
+    label: `create ${type} question`,
+  });
+}
+
+/** `items` are authored in the CORRECT order (correct_order = 0..n-1); candidates always see them shuffled. */
+export function createOrderingQuestion(superCookie: string, packId: string, levelId: string, question: string, items: string[]): Promise<TestQuestion> {
+  return createQuestion(superCookie, packId, levelId, 'ordering', 4, {
+    question, items, correct_order: items.map((_, i) => i),
+  });
+}
+
+export interface CaseStep { id: string; prompt: string; select: 'one' | 'many'; options: string[]; correct: number[] }
+export function createStructuredCaseQuestion(superCookie: string, packId: string, levelId: string, title: string, steps: CaseStep[]): Promise<TestQuestion> {
+  return createQuestion(superCookie, packId, levelId, 'structured_case', 4, { title, context: 'E2E incident context.', steps });
 }
 
 export async function createSubjectiveQuestion(
@@ -278,8 +318,8 @@ export async function createSubjectiveQuestion(
           band_1: 'Mentions the topic but no anchor hit.',
           band_0: 'No relevant content.',
         },
-        anchor_weight_total: 100,
-        reasoning_weight_total: 100,
+        anchor_weight_total: 70,
+        reasoning_weight_total: 30,
       },
     },
     expectedStatus: 201,
@@ -302,19 +342,21 @@ export async function activateQuestion(adminCookie: string, questionId: string):
  * Requires the pack to be already published.
  */
 export async function activateAllQuestionsForPack(
-  adminCookie: string,
+  superCookie: string,
   packId: string,
 ): Promise<{ activated: number; alreadyActive: number; archived: number }> {
-  return apiFetchJson<{ activated: number; alreadyActive: number; archived: number }>(
-    `/api/admin/packs/${packId}/activate-questions`,
-    {
-      method: 'POST',
-      cookie: adminCookie,
-      body: {},
-      expectedStatus: 200,
-      label: 'activateAllQuestionsForPack',
-    },
-  );
+  const res = await apiFetch(`/api/admin/packs/${packId}/activate-questions`, {
+    method: 'POST',
+    cookie: superCookie,
+    body: {},
+  });
+  if (res.status === 200) return (await res.json()) as { activated: number; alreadyActive: number; archived: number };
+  // publishPack already activates every draft: 409 NO_DRAFT_QUESTIONS_TO_ACTIVATE carries the counts.
+  const body = (await res.json().catch(() => ({}))) as { error?: { details?: { code?: string; alreadyActive?: number; archived?: number } } };
+  if (res.status === 409 && body.error?.details?.code === 'NO_DRAFT_QUESTIONS_TO_ACTIVATE') {
+    return { activated: 0, alreadyActive: body.error.details.alreadyActive ?? 0, archived: body.error.details.archived ?? 0 };
+  }
+  throw new Error(`[factories] activateAllQuestionsForPack expected 200, got ${res.status}: ${JSON.stringify(body)}`);
 }
 
 export async function publishPack(adminCookie: string, packId: string): Promise<TestPack> {
@@ -331,32 +373,28 @@ export async function publishPack(adminCookie: string, packId: string): Promise<
 // Assessment lifecycle
 // ---------------------------------------------------------------------------
 
-export async function createAssessment(
+/**
+ * Tenant admin creates an assessment from a licensed PLATFORM set (clone-on-use):
+ * POST /api/admin/assessments/from-set. The returned pack_id is the tenant's CLONE of the set.
+ */
+export async function createAssessmentFromSet(
   adminCookie: string,
-  opts: {
-    name: string;
-    packId: string;
-    levelId: string;
-    questionCount?: number;
-  },
-): Promise<TestAssessment> {
-  const opensAt = new Date(Date.now() + 60_000).toISOString(); // 1 min from now
-  const closesAt = new Date(Date.now() + 7 * 24 * 3600_000).toISOString(); // 7 days
-
-  return apiFetchJson<TestAssessment>('/api/admin/assessments', {
+  opts: { name: string; sourcePackId: string; levelPosition?: number; questionCount?: number; settings?: unknown },
+): Promise<TestAssessment & { pack_id: string }> {
+  return apiFetchJson<TestAssessment & { pack_id: string }>('/api/admin/assessments/from-set', {
     method: 'POST',
     cookie: adminCookie,
     body: {
       name: opts.name,
-      description: 'E2E test cycle — safe to delete',
-      pack_id: opts.packId,
-      level_id: opts.levelId,
+      source_pack_id: opts.sourcePackId,
+      level_position: opts.levelPosition ?? 1,
       question_count: opts.questionCount ?? 1,
-      opens_at: opensAt,
-      closes_at: closesAt,
+      opens_at: new Date(Date.now() - 60_000).toISOString(),
+      closes_at: new Date(Date.now() + 7 * 24 * 3600_000).toISOString(),
+      ...(opts.settings !== undefined ? { settings: opts.settings } : {}),
     },
     expectedStatus: 201,
-    label: 'createAssessment',
+    label: 'createAssessmentFromSet',
   });
 }
 
@@ -405,29 +443,51 @@ export async function startAttempt(
   candidateCookie: string,
   assessmentId: string,
 ): Promise<TestAttempt> {
-  return apiFetchJson<TestAttempt>(`/api/me/assessments/${assessmentId}/start`, {
-    method: 'POST',
-    cookie: candidateCookie,
-    body: {},
-    // The start endpoint returns 200 (idempotent — re-call returns existing attempt)
-    expectedStatus: 200,
-    label: 'startAttempt',
-  });
+  // A published assessment becomes 'active' when the worker's boundary cron (every 60 s) runs, so
+  // retry on 409 AE_ASSESSMENT_NOT_ACTIVE for up to ~90 s. The start call is idempotent.
+  const deadline = Date.now() + 90_000;
+  for (;;) {
+    const res = await apiFetch(`/api/me/assessments/${assessmentId}/start`, {
+      method: 'POST',
+      cookie: candidateCookie,
+      body: { consent: true }, // a NEW attempt needs the consent row (else 422 CONSENT_REQUIRED)
+    });
+    if (res.status === 200 || res.status === 201) return (await res.json()) as TestAttempt;
+    const text = await res.text().catch(() => '(unreadable body)');
+    if (res.status === 409 && text.includes('AE_ASSESSMENT_NOT_ACTIVE') && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 3_000));
+      continue;
+    }
+    throw new Error(`[factories] startAttempt expected 200/201, got ${res.status}: ${text}`);
+  }
 }
 
+export interface AttemptView {
+  attempt: { id: string; status: string; ends_at: string | null };
+  questions: Array<{ question_id: string; position: number; type: string; content: Record<string, unknown> }>;
+  remaining_seconds: number | null;
+}
+
+/** Candidate view of an attempt (what the runner renders; content is shuffled per attempt, no answer key). */
+export function getAttemptView(candidateCookie: string, attemptId: string): Promise<AttemptView> {
+  return apiFetchJson<AttemptView>(`/api/me/attempts/${attemptId}`, { cookie: candidateCookie, label: 'getAttemptView' });
+}
+
+/** `answer` is in the candidate's DISPLAY space (see 06-attempt-engine option-shuffle). Returns 204. */
 export async function answerQuestion(
   candidateCookie: string,
   attemptId: string,
   questionId: string,
-  response: string,
+  answer: unknown,
 ): Promise<void> {
-  await apiFetchJson<unknown>(`/api/me/attempts/${attemptId}/answer`, {
+  const res = await apiFetch(`/api/me/attempts/${attemptId}/answer`, {
     method: 'POST',
     cookie: candidateCookie,
-    body: { question_id: questionId, response },
-    expectedStatus: 200,
-    label: `answerQuestion(${questionId})`,
+    body: { question_id: questionId, answer },
   });
+  if (res.status !== 204) {
+    throw new Error(`[factories] answerQuestion(${questionId}) expected 204, got ${res.status}: ${await res.text()}`);
+  }
 }
 
 export async function submitAttempt(
@@ -438,7 +498,7 @@ export async function submitAttempt(
     method: 'POST',
     cookie: candidateCookie,
     body: {},
-    expectedStatus: 200,
+    expectedStatus: 202,
     label: 'submitAttempt',
   });
 }
@@ -485,7 +545,8 @@ export async function triggerGrading(
     body: {},
   });
 
-  if (res.status === 503 || res.status === 409) {
+  if (res.status === 503 || res.status === 409 || res.status === 403) {
+    // 403 = tenant admins can no longer grade with AI (super admin only)
     // 503 = claude CLI not available in this env (CI without VPS skills)
     // 409 = AIG_GRADING_IN_PROGRESS or AIG_HEARTBEAT_STALE
     // Both are expected in docker-compose CI where claude is not installed.
@@ -552,6 +613,56 @@ export async function getAdminCertificateForAttempt(
 }
 
 // ---------------------------------------------------------------------------
+// One-call setup for the take-* and ordering/structured_case specs
+// ---------------------------------------------------------------------------
+
+export interface Provisioned {
+  superAdmin: MintedSession;
+  admin: MintedSession;
+  candidate: MintedSession;
+  packId: string;
+  assessment: TestAssessment & { pack_id: string };
+  attemptId: string;
+  /** Candidate's view of the started attempt (shuffled content, no answer key). */
+  view: AttemptView;
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * Super admin: pack + 1 level + the questions made by `makeQuestions`, publish.
+ * Tenant admin: assessment from that set, publish, invite a fresh candidate.
+ * Candidate: start the attempt (waits for the worker to activate the assessment, up to ~90 s).
+ */
+export async function provisionAttempt(opts: {
+  label: string;
+  durationMinutes?: number;
+  makeQuestions: (superCookie: string, packId: string, levelId: string) => Promise<unknown>;
+  questionCount: number;
+}): Promise<Provisioned> {
+  const ts = Date.now();
+  const superAdmin = await mintSuperAdminSession();
+  const admin = await mintAdminSession(SEEDED_TENANT_ADMIN);
+  const pack = await createPack(superAdmin.cookie, `E2E Test ${opts.label} ${ts}`);
+  const level = await addLevel(superAdmin.cookie, pack.id, 'L1', 1, opts.durationMinutes ?? 30);
+  await opts.makeQuestions(superAdmin.cookie, pack.id, level.id);
+  await publishPack(superAdmin.cookie, pack.id); // also activates the draft questions
+  const created = await createAssessmentFromSet(admin.cookie, {
+    name: `E2E Test ${opts.label} ${ts}`,
+    sourcePackId: pack.id,
+    questionCount: opts.questionCount,
+  });
+  await publishAssessment(admin.cookie, created.id);
+  const candidate = await mintCandidateSession(`e2e-candidate-${opts.label}-${ts}@test.assessiq`);
+  await inviteCandidate(admin.cookie, created.id, candidate.userId);
+  const attempt = await startAttempt(candidate.cookie, created.id);
+  const view = await getAttemptView(candidate.cookie, attempt.id);
+  return {
+    superAdmin, admin, candidate, packId: pack.id, assessment: created, attemptId: attempt.id, view,
+    cleanup: () => cleanupTestData({ adminCookie: admin.cookie, superCookie: superAdmin.cookie, packId: pack.id, assessmentId: created.id }),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Cleanup
 // ---------------------------------------------------------------------------
 
@@ -561,7 +672,10 @@ export async function getAdminCertificateForAttempt(
  * nuisance; a failed cleanup must not obscure a real test failure.
  */
 export async function cleanupTestData(opts: {
+  /** Tenant admin: closes the assessment. */
   adminCookie: string;
+  /** Super admin: archives the platform pack. */
+  superCookie?: string;
   packId?: string;
   assessmentId?: string;
 }): Promise<void> {
@@ -582,11 +696,11 @@ export async function cleanupTestData(opts: {
     }
   }
 
-  // Archive pack (soft-deletes it for future cleanup).
-  if (opts.packId) {
+  // Archive pack (soft-deletes it for future cleanup). Packs belong to the platform tenant.
+  if (opts.packId && opts.superCookie) {
     const archiveRes = await apiFetch(`/api/admin/packs/${opts.packId}/archive`, {
       method: 'POST',
-      cookie: opts.adminCookie,
+      cookie: opts.superCookie,
       body: {},
     }).catch((err) => {
       errors.push(`archive pack: ${String(err)}`);
