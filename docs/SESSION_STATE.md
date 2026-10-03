@@ -1,6 +1,6 @@
 # Session — 2026-10-03 (r) — RS4/RV27, PT1, RS6 decisions, FU-B6, FU-C17, N21, RV71/73/74, N3, E4
 
-**Headline:** All ordered items are on `main` and deployed (VPS at `90a9ddb`, migration 0156 applied). Marketing was rebuilt twice. The G4 skill patch is deployed by scp. Four items wait for the owner (see Open questions).
+**Headline:** All ordered items are on `main` and deployed (VPS at `51095d7`, migration 0156 applied). Marketing was rebuilt twice. The G4 skill patch is deployed by scp. Four items wait for the owner (see Open questions).
 **Commits:**
 - `f9473d5` RV27 last unsourced competitor figures removed · `67919ce` page dates · `e11cb5b` PT1-6 terms section 7
 - `60477e0` N3 push gate parses JSON with jq or node and fails closed (self-test, 5 cases)
@@ -15,7 +15,8 @@
 **Next:** N5 eval run (grade, bless, enforce) once the owner approves the quota use (about 151 cases).
 **Open questions:**
 - N5: owner approves the Max quota use for the eval run (about 151 cases).
-- FU-C17 audit: run `ssh assessiq-vps 'docker exec assessiq-api pnpm exec tsx tools/audit-rubrics.ts'` (read-only).
+- FU-C17 audit DONE 2026-10-03 (`ssh assessiq-vps 'docker exec -w /app assessiq-api pnpm exec tsx tools/audit-rubrics.ts'`, read-only; `-w /app` is required). Strict rules: 1 old question fails (weights sum, `019e11a1-13c0-707c-a1e0-3f90fd09191e`), 0 versions. Older finding: 91 of 150 question rubrics and 19 of 42 version rubrics fail the BASE schema. Most are `log_analysis`/`scenario`/`kql` rows with an old `criteria` shape (grading synthesizes scenario and log_analysis rubrics from content). 4 `subjective` questions have no valid rubric and can fail at grade time: review them before a real drive.
+- Fix after `51095d7`: CI on `90a9ddb` failed the cross-module dep lint (root `package.json` lacked `@assessiq/rubric-engine` for `tools/audit-rubrics.ts`); api and worker rebuilt at `51095d7`.
 - G4 behaviour check: the owner runs one subjective generation and checks `wrongTypeDropped=0`.
 - RV73: the owner chooses the heartbeat account and installs the check (steps in `docs/06-deployment.md`). Offsite backup R8 is open.
 - RV74: the 4 allowlisted `help-content.tsx` mismatches are FR14/FU-D1.
