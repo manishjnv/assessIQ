@@ -103,7 +103,7 @@ async function createUserSystemRole(
     await client.query(
       `INSERT INTO users (id, tenant_id, email, name, role, status)
        VALUES ($1, $2, $3, $4, $5, 'active')
-       ON CONFLICT (tenant_id, lower(email)) DO NOTHING`,
+       ON CONFLICT (tenant_id, email) DO NOTHING`,
       [id, tenantId, email, email.split('@')[0] ?? 'Test User', role],
     );
     // Re-query in case the INSERT was a no-op (race with another concurrent
