@@ -1,5 +1,6 @@
 import { config, RateLimitError } from "@assessiq/core";
 import { getRedis } from "../redis.js";
+import { incrFixedWindow } from "../fixed-window-lua.js";
 import { isOriginVerified, validCfIp } from "../client-ip.js";
 import type { AuthHook, AuthRequest, AuthReply } from "./types.js";
 
@@ -69,27 +70,10 @@ interface BucketResult {
   ttlSeconds: number;
 }
 
-// Lua script: INCR key; if new count == 1, EXPIRE key window (so the TTL is
-// bounded on first access only — re-INCR within window doesn't reset TTL,
-// which would let an attacker game the limit by spreading hits across the
-// boundary). Returns [remaining, ttl].
-const LUA = `
-local key = KEYS[1]
-local max = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-local n = redis.call("INCR", key)
-if n == 1 then
-  redis.call("EXPIRE", key, window)
-end
-local ttl = redis.call("TTL", key)
-local remaining = max - n
-return {remaining, ttl}
-`;
-
 async function evalBucket(limit: Limit): Promise<BucketResult> {
   const redis = getRedis();
-  const result = (await redis.eval(LUA, 1, limit.key, limit.max, limit.windowSeconds)) as [number, number];
-  return { remaining: result[0], ttlSeconds: result[1] < 0 ? limit.windowSeconds : result[1] };
+  const { count, ttl } = await incrFixedWindow(redis, limit.key, limit.windowSeconds);
+  return { remaining: limit.max - count, ttlSeconds: ttl < 0 ? limit.windowSeconds : ttl };
 }
 
 /**
