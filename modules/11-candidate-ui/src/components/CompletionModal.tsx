@@ -1,4 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Modal } from '@assessiq/ui-system';
+import { listMyCertificates } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Props
@@ -7,7 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 export interface CompletionModalProps {
   credential_id: string;
   tier: 'completion' | 'distinction' | 'honors';
-  course_title: string;
+  assessment_title: string;
   verify_url: string;
   pdf_url: string;
   onClose: () => void;
@@ -42,136 +44,55 @@ const ACTION_STYLE: React.CSSProperties = {
 };
 
 // ---------------------------------------------------------------------------
-// Focus-trap helper
+// Per-browser seen-set (localStorage). Storage can throw (private mode, blocked
+// site data): reads then report "not seen", writes are skipped.
 // ---------------------------------------------------------------------------
 
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  return Array.from(
-    container.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    ),
-  );
+const SEEN_KEY = 'aiq:certs-seen';
+
+function readSeen(): string[] {
+  try {
+    const v: unknown = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]');
+    return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+export function hasSeenCertificate(credentialId: string): boolean {
+  return readSeen().includes(credentialId);
+}
+
+export function markCertificateSeen(credentialId: string): void {
+  try {
+    const seen = readSeen();
+    if (!seen.includes(credentialId)) {
+      localStorage.setItem(SEEN_KEY, JSON.stringify([...seen, credentialId]));
+    }
+  } catch {
+    // ponytail: storage unavailable -> modal may show again next visit.
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Component
+// Controlled modal (kit Modal: focus trap, Escape, backdrop close)
 // ---------------------------------------------------------------------------
 
 export function CompletionModal({
-  credential_id,
+  credential_id: _credentialId,
   tier,
-  course_title,
+  assessment_title,
   verify_url,
   pdf_url,
   onClose,
-}: CompletionModalProps): React.ReactElement | null {
-  const storageKey = `cert-modal-shown:${credential_id}:${tier}`;
-
-  // Synchronous check on first render — prevents a visible flash.
-  const [alreadyShown] = useState<boolean>(() => {
-    const v = localStorage.getItem(storageKey);
-    return v !== null && v !== '';
-  });
-
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  // Stable ref so the effect doesn't need onClose in its dep array.
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  useEffect(() => {
-    if (alreadyShown) {
-      // Already shown — dismiss immediately without storing again.
-      onCloseRef.current();
-      return;
-    }
-    // First time showing: gate future mounts, then focus the first CTA.
-    localStorage.setItem(storageKey, '1');
-    if (modalRef.current) {
-      const focusable = getFocusableElements(modalRef.current);
-      focusable[0]?.focus();
-    }
-  }, [alreadyShown, storageKey]);
-
-  // Nothing to render once dismissed.
-  if (alreadyShown) return null;
-
+}: CompletionModalProps): React.ReactElement {
   const linkedInShareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
     verify_url,
   )}`;
 
-  const tierLabel = TIER_LABELS[tier];
-
-  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
-    if (e.key === 'Escape') {
-      onClose();
-      return;
-    }
-
-    if (e.key === 'Tab' && modalRef.current) {
-      const focusable = getFocusableElements(modalRef.current);
-      if (focusable.length === 0) return;
-
-      const first = focusable[0]!;
-      const last = focusable[focusable.length - 1]!;
-
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-  }
-
   return (
-    <div
-      role="presentation"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
-    >
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="completion-modal-title"
-        tabIndex={-1}
-        onKeyDown={handleKeyDown}
-        data-help-id="candidate.cert.completion_modal"
-        style={{
-          background: 'var(--aiq-color-bg-base, #fff)',
-          border: '1px solid var(--aiq-color-border)',
-          borderRadius: 'var(--aiq-radius-md)',
-          padding: 'var(--aiq-space-xl)',
-          maxWidth: '480px',
-          width: '100%',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12)',
-        }}
-      >
-        <h2
-          id="completion-modal-title"
-          style={{
-            margin: '0 0 var(--aiq-space-md)',
-            fontSize: 'var(--aiq-text-2xl)',
-            color: 'var(--aiq-color-fg-primary)',
-            fontWeight: 700,
-          }}
-        >
-          Congratulations!
-        </h2>
-
+    <Modal open onClose={onClose} title="Congratulations!">
+      <div data-help-id="candidate.cert.completion_modal">
         <p
           style={{
             margin: '0 0 var(--aiq-space-lg)',
@@ -180,38 +101,69 @@ export function CompletionModal({
           }}
         >
           You&rsquo;ve earned a{' '}
-          <strong style={{ color: 'var(--aiq-color-fg-primary)' }}>{tierLabel}</strong>{' '}
+          <strong style={{ color: 'var(--aiq-color-fg-primary)' }}>{TIER_LABELS[tier]}</strong>{' '}
           certificate for{' '}
-          <strong style={{ color: 'var(--aiq-color-fg-primary)' }}>{course_title}</strong>.
+          <strong style={{ color: 'var(--aiq-color-fg-primary)' }}>{assessment_title}</strong>.
         </p>
 
-        <div
-          style={{
-            display: 'flex',
-            gap: 'var(--aiq-space-md)',
-            flexWrap: 'wrap',
-          }}
-        >
+        <div style={{ display: 'flex', gap: 'var(--aiq-space-md)', flexWrap: 'wrap' }}>
           <a href={pdf_url} download style={ACTION_STYLE}>
             Download PDF
           </a>
-
-          <a
-            href={linkedInShareUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={ACTION_STYLE}
-          >
+          <a href={linkedInShareUrl} target="_blank" rel="noopener noreferrer" style={ACTION_STYLE}>
             Share on LinkedIn
           </a>
-
           <button type="button" onClick={onClose} style={ACTION_STYLE}>
             Close
           </button>
         </div>
       </div>
-    </div>
+    </Modal>
   );
 }
 
 CompletionModal.displayName = 'CompletionModal';
+
+// ---------------------------------------------------------------------------
+// NewCertificateModal — shows CompletionModal once for a not-yet-seen,
+// non-revoked certificate. Reuses listMyCertificates (already returns tier,
+// title, pdf_url); the released-result payload stays unchanged. Only mounted
+// on a released result, so the result-release rule still gates it.
+// ---------------------------------------------------------------------------
+
+export function NewCertificateModal({
+  credential_id,
+}: {
+  credential_id: string;
+}): React.ReactElement | null {
+  const [cert, setCert] = useState<Awaited<ReturnType<typeof listMyCertificates>>['certificates'][number] | null>(null);
+
+  useEffect(() => {
+    if (hasSeenCertificate(credential_id)) return;
+    let live = true;
+    listMyCertificates()
+      .then((res) => {
+        const c = res.certificates.find((x) => x.credential_id === credential_id);
+        if (live && c && c.revoked_at === null) setCert(c);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [credential_id]);
+
+  if (cert === null) return null;
+  return (
+    <CompletionModal
+      credential_id={cert.credential_id}
+      tier={cert.tier}
+      assessment_title={cert.course_title}
+      verify_url={cert.verify_url}
+      pdf_url={cert.pdf_url}
+      onClose={() => {
+        markCertificateSeen(cert.credential_id);
+        setCert(null);
+      }}
+    />
+  );
+}
