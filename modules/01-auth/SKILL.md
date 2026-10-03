@@ -362,3 +362,7 @@ No audit row is emitted when `request-link` receives an email that does not matc
 - The header value must also be a valid IP literal (`validCfIp`, `node:net isIP`): junk / comma lists / oversized values are ignored, so they can never become a Redis key, session binding or audit value.
 - `trustProxy: true` stays in `apps/api/src/server.ts`: it only affects `req.ip`, which is now just the verified-path fallback. Changing it would alter the unverified fallback with no security gain.
 - `isRateLimited(key, max)` (read-only peek) + `consumeRateLimit` let a route throttle FAILURES only (used by `POST /api/invitations/accept`: 30 failed redemptions / IP / minute, 429 scope=ip; successful accepts never counted, campus NAT safe).
+
+## Reviewer role removed (RV60, 2026-10-03)
+
+**What.** Removed options: `anyRoleAuth` and `adminOrReviewer` (route gates). Email-OTP `filterEligible` is `admin` only. TOTP routes take `admin | super_admin`. The rate-limit admin tier is `admin` + `super_admin`; a legacy reviewer row falls to the user tier and gets 403 on admin routes. **Why.** Owner decision RO7. **Not included.** The `Role` union and the DB CHECK keep `reviewer` (Rule A). Stale comments that say "admin + reviewer" remain in `config.ts`, `require-auth.ts`, totp and `google-sso.ts` (roadmap N26). Adversarial review (Sonnet takeover): accept, 5 LOW.

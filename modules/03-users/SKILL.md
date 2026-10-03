@@ -642,3 +642,7 @@ Tests:
 - **Why JSONB, not columns:** `users.metadata` already exists (documented for employee_id/department/team) and sits under the existing RLS, so no migration or `docs/02-data-model.md` change is needed. The results CSV reads `metadata->>'roll_number'`.
 - **Re-import:** an existing student is updated only for non-empty cells (`metadata || patch`); an empty cell never wipes a stored value. Name/email behaviour and the row/invite caps are unchanged.
 - **Not included:** no UI to edit roll/branch per user, no uniqueness check on roll numbers.
+
+## Reviewer role removed (RV60, 2026-10-03)
+
+**What.** `inviteUser`, `createUser`, `updateUser` and the invite route reject `role: 'reviewer'` (400 `INVALID_ROLE`; invite enum `admin | candidate`). Older text above that lists `reviewer` as a live role is history. **Why.** Owner decision RO7: simpler product; a reviewer could not open any admin page. The first purpose ("review grades and read reports without admin rights") is covered by the tenant admin review screen (override with reason, send back, publish). **Not included.** The DB CHECK, TS unions and the `reviewer_count` API field keep the value (Rule A, legacy rows); no data migration. **Impact.** The last-admin guard on demotion was deleted with the demotion path and must return with any future one. Commits `4cd6c8d`..`a50d573`; see `docs/04-auth-flows.md`.

@@ -139,3 +139,7 @@ Apply order: 0078 → 0079 → 0080. Depends on tenants (0001) and attempts (003
 
 No new env vars required for A1. The module uses the existing DATABASE_URL
 consumed by @assessiq/tenancy's pool singleton.
+
+## CSV formula guard (RV77, 2026-10-03)
+
+The billing export now prefixes a cell that starts with `= + - @` with `'` (one unit test). Before, this writer had no guard. Not included: merging the CSV escape functions into one helper.

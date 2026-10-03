@@ -55,7 +55,7 @@ The administrator's command center. Authoring, monitoring, reviewing, exporting.
 
 ## Layout shell
 - Top nav: tenant switcher (if user belongs to multiple tenants), help button (`?`), profile menu
-- Side nav: collapsible, role-aware (reviewers see fewer items)
+- Side nav: collapsible, role-aware (the reviewer role was removed 2026-10-03)
 - Breadcrumbs above page title
 - Notification toast region (top-right)
 - Help drawer (right side, opened by `?` or Cmd/Ctrl+/)
@@ -144,3 +144,7 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 - `components/StructuredCaseView.tsx`: one shared admin view for the prompt, key and graded-answer zones. Used by `QuestionContentView`, `QuestionPromptView`, `ExpectedAnswerView` and `AttemptGradingPanel`.
 - Candidate side (`apps/web/src/pages/take/StructuredCaseAnswerArea.tsx`): keyed by question id; a question counts as answered when any step has a pick.
 - **Attempts page (RV58, 2026-10-03).** The tab "Pending grading" is now "Awaiting evaluation" and sends `status=submitted,auto_submitted,pending_admin_grading` (the old filter was always empty).
+
+## Reviewer role removed (RV60, 2026-10-03)
+
+**What.** The invite picker lists and defaults to `admin`. The role select in the edit-admin modal is removed. The Reviewer filter on the activity page is removed. The Platform badge counts admins only. Help text updated (7 keys, migration 0154). **Why.** Owner decision RO7. **Not included.** The `reviewer_count` API field stays (legacy). **Impact.** Review work happens on the attempt-detail screen (override with reason, send back, publish).
