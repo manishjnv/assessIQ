@@ -1,3 +1,4 @@
+export { sealTagLast, openTagLast, sealTagMid, openTagMid } from "./aes-gcm.js";
 export { config, loadConfig, type Config } from "./config.js";
 export {
   ERASED_CANDIDATE_LABEL,
