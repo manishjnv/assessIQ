@@ -739,11 +739,12 @@ export async function listSuperEvaluationQueue(
        LEFT JOIN assessments asm ON asm.id = a.assessment_id
        LEFT JOIN levels lvl      ON lvl.id = asm.level_id
        JOIN LATERAL (
-         SELECT COUNT(*) FILTER (WHERE q.type IN ('subjective', 'scenario', 'log_analysis'))::int AS written_count,
-                COUNT(*) FILTER (WHERE q.type = 'kql')::int                                       AS kql_count,
-                COUNT(*) FILTER (WHERE q.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))::int                                      AS non_mcq
+         SELECT COUNT(*) FILTER (WHERE qv.type IN ('subjective', 'scenario', 'log_analysis'))::int AS written_count,
+                COUNT(*) FILTER (WHERE qv.type = 'kql')::int                                       AS kql_count,
+                COUNT(*) FILTER (WHERE qv.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))::int                                      AS non_mcq
            FROM attempt_questions aq
-           JOIN questions q ON q.id = aq.question_id
+           JOIN question_versions qv -- N21: frozen type, same as 06/09
+             ON qv.question_id = aq.question_id AND qv.version = aq.question_version
           WHERE aq.attempt_id = a.id
        ) qc ON qc.non_mcq > 0
       WHERE (a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading')

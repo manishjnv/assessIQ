@@ -113,12 +113,11 @@ async function loadGradingData(
   const qResult = await client.query<FrozenQuestionWithRubric>(
     `SELECT
        aq.question_id,
-       q.type,
+       qv.type, -- N21: frozen type, same as 06/09
        aq.points,
        qv.content,
        qv.rubric
      FROM attempt_questions aq
-     JOIN questions q ON q.id = aq.question_id
      JOIN question_versions qv
        ON qv.question_id = aq.question_id
       AND qv.version    = aq.question_version

@@ -135,8 +135,10 @@ export async function assertInEvaluationQueue(attemptId: string): Promise<void> 
   const eligible = await withSystemReadOnly(async (client) => {
     const res = await client.query<{ ok: boolean }>(
       `SELECT (
-          EXISTS (SELECT 1 FROM attempt_questions aq JOIN questions q ON q.id = aq.question_id
-                   WHERE aq.attempt_id = a.id AND q.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))
+          EXISTS (SELECT 1 FROM attempt_questions aq
+                    JOIN question_versions qv -- N21: frozen type, same as 06/09
+                      ON qv.question_id = aq.question_id AND qv.version = aq.question_version
+                   WHERE aq.attempt_id = a.id AND qv.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))
           AND u.erased_at IS NULL
           AND (a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading')
                OR (a.status = 'graded' AND a.evaluation_released_at IS NULL))
