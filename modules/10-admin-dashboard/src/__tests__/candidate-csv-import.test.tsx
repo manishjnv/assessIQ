@@ -80,3 +80,12 @@ describe("CandidateCsvImport", () => {
     expect(adminApi).not.toHaveBeenCalled();
   });
 });
+
+describe("csvCell formula-injection guard (RV77)", () => {
+  it("prefixes a formula cell with an apostrophe", async () => {
+    const { csvCell } = await import("../components/CandidateCsvImport.js");
+    expect(csvCell("=1+1")).toBe("'=1+1");
+    expect(csvCell("a,b")).toBe('"a,b"');
+    expect(csvCell(-3)).toBe("-3");
+  });
+});
