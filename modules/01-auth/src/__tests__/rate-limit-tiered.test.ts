@@ -15,14 +15,14 @@
  *   - The existing fail-closed throw (ip===null && production) is untouched.
  *   - resolveIpBucketMax is exported for direct unit assertions (see T1-T6).
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ── Hoist shared stubs BEFORE any vi.mock calls ───────────────────────────────
 
 const { mockConfig, mockEval } = vi.hoisted(() => {
   // Shared Redis eval stub — must be a single instance so the same reference is
   // used both inside evalBucket (via getRedis()) and in the test assertions.
-  const mockEval = vi.fn().mockResolvedValue([999, 60]);
+  const mockEval = vi.fn().mockResolvedValue([1, 60]);
 
   const mockConfig = {
     // New tiered env vars
@@ -197,57 +197,72 @@ describe("resolveIpBucketMax — auth-tier-aware IP bucket selection", () => {
 
 // ── T7-T8: per-user bucket max — tier-aware via rateLimitMiddleware ───────────
 //
-// redis.eval is called as: eval(LUA, numkeys, key, max, windowSeconds)
-//   call[0] = LUA script string
-//   call[1] = 1 (numkeys)
-//   call[2] = key (e.g. "aiq:rl:user:<userId>")
-//   call[3] = max value
-//   call[4] = windowSeconds (60)
-//
-// mockEval is the shared stub (hoisted above) — it's the SAME fn reference that
-// getRedis().eval returns, so mock.calls accumulates across all evalBucket() calls.
+// redis.eval is called as: eval(FIXED_WINDOW_LUA, 1, key, windowSeconds) and
+// returns [count, ttl]; remaining = max - count is computed in TS. The max of a
+// bucket is therefore observed through behaviour: count == max is allowed
+// (X-RateLimit-Remaining 0), count == max + 1 is rejected for that scope.
+// Every other bucket answers count 1 so only the bucket under test can trip.
+
+function answer(prefix: string, count: number, ttl = 60): void {
+  mockEval.mockImplementation(async (_lua: string, _n: number, key: string) =>
+    [key.startsWith(prefix) ? count : 1, ttl] as [number, number]);
+}
+
+type Handler = ReturnType<typeof rateLimitMiddleware>;
+async function run(handler: Handler, req: AuthRequest) {
+  const reply = makeReply();
+  await handler(req, reply as unknown as Parameters<Handler>[1]);
+  return reply;
+}
+
+// count == max allowed with remaining 0; count == max+1 rejected for `scope`.
+async function expectBoundary(handler: Handler, req: AuthRequest, prefix: string, max: number, scope: string) {
+  answer(prefix, max);
+  const ok = await run(handler, req);
+  expect(ok.headers["X-RateLimit-Remaining"]).toBe(0);
+  expect(ok.headers["X-RateLimit-Limit"]).toBe(max);
+  answer(prefix, max + 1, 42);
+  await expect(run(handler, req)).rejects.toThrow(`scope=${scope}`);
+}
 
 describe("per-user bucket max — auth-tier-aware", () => {
   beforeEach(() => {
     mockEval.mockClear();
   });
+  afterEach(() => {
+    mockEval.mockReset();
+    mockEval.mockResolvedValue([1, 60]);
+  });
 
   it("T7: verified admin → user bucket max = USER_VERIFIED_ADMIN (300)", async () => {
-    const handler = rateLimitMiddleware();
-    const req = makeReq({ session: makeSession("admin", true) });
-    await handler(req, makeReply() as unknown as Parameters<typeof handler>[1]);
-
-    // Find the call for the user bucket key (aiq:rl:user:...)
-    const userCall = mockEval.mock.calls.find((call: unknown[]) =>
-      typeof call[2] === "string" && (call[2] as string).startsWith("aiq:rl:user:"),
-    );
-    expect(userCall).toBeDefined();
-    // 4th positional arg (index 3) is max
-    expect(userCall?.[3]).toBe(mockConfig.RATE_LIMIT_USER_VERIFIED_ADMIN);
+    await expectBoundary(rateLimitMiddleware(), makeReq({ session: makeSession("admin", true) }),
+      "aiq:rl:user:", mockConfig.RATE_LIMIT_USER_VERIFIED_ADMIN, "user");
   });
 
   it("T8: pre-MFA admin (totpVerified=false) → user bucket max = 60 — unchanged from today", async () => {
-    const handler = rateLimitMiddleware();
-    const req = makeReq({ session: makeSession("admin", false) });
-    await handler(req, makeReply() as unknown as Parameters<typeof handler>[1]);
-
-    const userCall = mockEval.mock.calls.find((call: unknown[]) =>
-      typeof call[2] === "string" && (call[2] as string).startsWith("aiq:rl:user:"),
-    );
-    expect(userCall).toBeDefined();
-    expect(userCall?.[3]).toBe(60);
+    await expectBoundary(rateLimitMiddleware(), makeReq({ session: makeSession("admin", false) }),
+      "aiq:rl:user:", 60, "user");
   });
 
   it("T8b: candidate → user bucket max = RATE_LIMIT_USER_CANDIDATE (120)", async () => {
-    const handler = rateLimitMiddleware();
-    const req = makeReq({ session: makeSession("candidate", false) });
-    await handler(req, makeReply() as unknown as Parameters<typeof handler>[1]);
+    await expectBoundary(rateLimitMiddleware(), makeReq({ session: makeSession("candidate", false) }),
+      "aiq:rl:user:", 120, "user");
+  });
 
-    const userCall = mockEval.mock.calls.find((call: unknown[]) =>
-      typeof call[2] === "string" && (call[2] as string).startsWith("aiq:rl:user:"),
-    );
-    expect(userCall).toBeDefined();
-    expect(userCall?.[3]).toBe(120);
+  it("a bucket with no TTL (-1) reports its full window as Retry-After; a real TTL is passed through", async () => {
+    const handler = rateLimitMiddleware();
+    const req = makeReq({ session: makeSession("admin", false) });
+    for (const [ttl, retry] of [[-1, 60], [42, 42]] as const) {
+      answer("aiq:rl:user:", 61, ttl);
+      const reply = makeReply();
+      await expect(handler(req, reply as unknown as Parameters<Handler>[1])).rejects.toThrow("scope=user");
+      expect(reply.headers["Retry-After"]).toBe(retry);
+    }
+  });
+
+  it("a Redis error propagates (no fail-open inside the middleware, same as before)", async () => {
+    mockEval.mockRejectedValue(new Error("redis down"));
+    await expect(run(rateLimitMiddleware(), makeReq({ session: makeSession("admin", false) }))).rejects.toThrow("redis down");
   });
 });
 
@@ -257,59 +272,36 @@ describe("credentialEndpoint: true — extra credential bucket", () => {
   beforeEach(() => {
     mockEval.mockClear();
   });
+  afterEach(() => {
+    mockEval.mockReset();
+    mockEval.mockResolvedValue([1, 60]);
+  });
+
+  const credReq = (verified: boolean) => Object.assign(
+    makeReq({ session: makeSession("admin", verified) }),
+    // routeOptions.url so the credential key uses the route pattern, not req.url.
+    { routeOptions: { url: "/api/auth/totp/verify" } },
+  );
+  const evalKeys = () => mockEval.mock.calls.map((c: unknown[]) => c[2] as string);
 
   it("T9: credentialEndpoint=true pushes aiq:rl:cred:<path>:<ip> bucket at RATE_LIMIT_CREDENTIAL", async () => {
     const handler = rateLimitMiddleware({ credentialEndpoint: true });
-    // Set routeOptions.url so the credential key uses the route pattern, not req.url.
-    const req = Object.assign(
-      makeReq({ session: makeSession("admin", false) }),
-      { routeOptions: { url: "/api/auth/totp/verify" } },
-    );
-    await handler(req, makeReply() as unknown as Parameters<typeof handler>[1]);
-
-    // Find the credential bucket call (aiq:rl:cred:...)
-    const credCall = mockEval.mock.calls.find((call: unknown[]) =>
-      typeof call[2] === "string" && (call[2] as string).startsWith("aiq:rl:cred:"),
-    );
-    expect(credCall).toBeDefined();
+    await expectBoundary(handler, credReq(false), "aiq:rl:cred:", mockConfig.RATE_LIMIT_CREDENTIAL, "credential");
+    const credKey = evalKeys().find((k) => k.startsWith("aiq:rl:cred:"));
     // Key must contain the route path and IP
-    expect(credCall?.[2]).toContain("/api/auth/totp/verify");
-    expect(credCall?.[2]).toContain("10.0.0.1");
-    // 4th arg is max = RATE_LIMIT_CREDENTIAL (20)
-    expect(credCall?.[3]).toBe(mockConfig.RATE_LIMIT_CREDENTIAL);
+    expect(credKey).toBe("aiq:rl:cred:/api/auth/totp/verify:10.0.0.1");
   });
 
   it("T9b: credentialEndpoint=false (default) — no aiq:rl:cred: bucket pushed", async () => {
-    const handler = rateLimitMiddleware();
-    const req = makeReq({ session: makeSession("admin", false) });
-    await handler(req, makeReply() as unknown as Parameters<typeof handler>[1]);
-
-    const credCall = mockEval.mock.calls.find((call: unknown[]) =>
-      typeof call[2] === "string" && (call[2] as string).startsWith("aiq:rl:cred:"),
-    );
-    expect(credCall).toBeUndefined();
+    await run(rateLimitMiddleware(), makeReq({ session: makeSession("admin", false) }));
+    expect(evalKeys().some((k) => k.startsWith("aiq:rl:cred:"))).toBe(false);
   });
 
   it("T9c: credential bucket applies even for verified admin (totpVerified=true)", async () => {
     // Core invariant: even the high-IP-cap verified admin hits the credential cap.
     const handler = rateLimitMiddleware({ credentialEndpoint: true });
-    const req = Object.assign(
-      makeReq({ session: makeSession("admin", true) }),
-      { routeOptions: { url: "/api/auth/totp/verify" } },
-    );
-    await handler(req, makeReply() as unknown as Parameters<typeof handler>[1]);
-
-    const credCall = mockEval.mock.calls.find((call: unknown[]) =>
-      typeof call[2] === "string" && (call[2] as string).startsWith("aiq:rl:cred:"),
-    );
-    expect(credCall).toBeDefined();
-    expect(credCall?.[3]).toBe(mockConfig.RATE_LIMIT_CREDENTIAL);
-
-    // IP bucket should be at the verified-admin cap (5000), not the standard admin cap (100)
-    const ipCall = mockEval.mock.calls.find((call: unknown[]) =>
-      typeof call[2] === "string" && (call[2] as string).startsWith("aiq:rl:ip:"),
-    );
-    expect(ipCall).toBeDefined();
-    expect(ipCall?.[3]).toBe(mockConfig.RATE_LIMIT_IP_VERIFIED_ADMIN);
+    await expectBoundary(handler, credReq(true), "aiq:rl:cred:", mockConfig.RATE_LIMIT_CREDENTIAL, "credential");
+    // IP bucket is at the verified-admin cap (5000), not the standard admin cap (100)
+    await expectBoundary(handler, credReq(true), "aiq:rl:ip:", mockConfig.RATE_LIMIT_IP_VERIFIED_ADMIN, "ip");
   });
 });

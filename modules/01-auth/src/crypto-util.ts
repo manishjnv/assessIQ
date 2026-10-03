@@ -1,61 +1,16 @@
-import {
-  createCipheriv,
-  createDecipheriv,
-  createHash,
-  randomBytes,
-  timingSafeEqual,
-} from "node:crypto";
-import { config } from "@assessiq/core";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { sealTagLast, openTagLast } from "@assessiq/core/aes-gcm";
 
 // AES-256-GCM envelope shape: nonce(12) || ciphertext || authTag(16).
-// All AssessIQ-encrypted secrets at rest (TOTP secrets, embed signing keys,
-// webhook secrets, future password hashes if applicable) use this envelope.
-//
-// Master key: ASSESSIQ_MASTER_KEY env var, 32 bytes base64-decoded.
-// Validated at config load (modules/00-core/src/config.ts:is32ByteBase64).
-
-const NONCE_LEN = 12;
-const TAG_LEN = 16;
-
-function masterKey(): Buffer {
-  // Decode on each call rather than at module load: respects test scenarios
-  // that swap config via environment manipulation. The base64 decode is
-  // cheap and the result is 32 bytes.
-  return Buffer.from(config.ASSESSIQ_MASTER_KEY, "base64");
-}
-
+// All AssessIQ-encrypted secrets at rest (TOTP secrets, embed signing keys)
+// use this envelope. Implementation lives in @assessiq/core (aes-gcm.ts); this
+// file keeps the historical names. Master key + rotation fallback: see there.
 export function encryptEnvelope(plaintext: Buffer | string): Buffer {
-  const nonce = randomBytes(NONCE_LEN);
-  const cipher = createCipheriv("aes-256-gcm", masterKey(), nonce);
-  const data = typeof plaintext === "string" ? Buffer.from(plaintext, "utf8") : plaintext;
-  const ct = Buffer.concat([cipher.update(data), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return Buffer.concat([nonce, ct, tag]);
+  return sealTagLast(plaintext);
 }
 
-function decryptWithKey(envelope: Buffer, key: Buffer): Buffer {
-  if (envelope.length < NONCE_LEN + TAG_LEN) {
-    throw new Error("envelope too short");
-  }
-  const nonce = envelope.subarray(0, NONCE_LEN);
-  const tag = envelope.subarray(envelope.length - TAG_LEN);
-  const ct = envelope.subarray(NONCE_LEN, envelope.length - TAG_LEN);
-  const decipher = createDecipheriv("aes-256-gcm", key, nonce);
-  decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(ct), decipher.final()]);
-}
-
-// Master-key rotation (E8): try the current key, then ASSESSIQ_MASTER_KEY_PREVIOUS
-// if set. Encrypt never uses the previous key. GCM auth makes a wrong key throw, so
-// the fallback cannot return wrong plaintext; tampered data fails under both keys.
 export function decryptEnvelope(envelope: Buffer): Buffer {
-  try {
-    return decryptWithKey(envelope, masterKey());
-  } catch (err) {
-    const prev = config.ASSESSIQ_MASTER_KEY_PREVIOUS;
-    if (!prev) throw err;
-    return decryptWithKey(envelope, Buffer.from(prev, "base64"));
-  }
+  return openTagLast(envelope);
 }
 
 export function sha256Hex(input: string | Buffer): string {

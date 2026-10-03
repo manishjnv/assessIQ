@@ -18,8 +18,8 @@
 //
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 
-import { createCipheriv, randomBytes } from "node:crypto";
-import { config } from "@assessiq/core";
+import { randomBytes } from "node:crypto";
+import { sealTagLast } from "@assessiq/core/aes-gcm";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
@@ -29,16 +29,9 @@ export interface RotateWebhookSecretResult {
   plaintextSecret: string;
 }
 
-// AES-256-GCM envelope — same algorithm as modules/01-auth/src/crypto-util.ts.
-// crypto-util.ts functions are not exported from @assessiq/auth's public barrel,
-// so we re-implement the same 12-byte nonce + ciphertext + 16-byte tag pattern here.
+// Same tag-last envelope as 01-auth encryptEnvelope (shared impl in @assessiq/core), base64-encoded.
 function encryptSecret(plaintext: string): string {
-  const key = Buffer.from(config.ASSESSIQ_MASTER_KEY, "base64");
-  const nonce = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", key, nonce);
-  const ct = Buffer.concat([cipher.update(Buffer.from(plaintext, "utf8")), cipher.final()]);
-  const tag = cipher.getAuthTag();
-  return Buffer.concat([nonce, ct, tag]).toString("base64");
+  return sealTagLast(plaintext).toString("base64");
 }
 
 function generateSecret(byteLen = 32): string {

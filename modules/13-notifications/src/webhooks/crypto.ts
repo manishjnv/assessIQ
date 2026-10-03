@@ -11,49 +11,14 @@
  * returned ONCE at create-time, never logged.
  */
 
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
-import { config } from '@assessiq/core';
-
-const ALGORITHM = 'aes-256-gcm';
-const IV_LENGTH = 12;   // 96-bit IV is recommended for GCM
-const TAG_LENGTH = 16;  // 128-bit auth tag
-
-function getMasterKey(): Buffer {
-  return Buffer.from(config.ASSESSIQ_MASTER_KEY, 'base64');
-}
+import { sealTagMid, openTagMid } from '@assessiq/core/aes-gcm';
 
 /**
  * Encrypt plaintext string to a Buffer suitable for BYTEA storage.
  * Layout: [IV (12)] [auth-tag (16)] [ciphertext (variable)]
  */
 export function encrypt(plaintext: string): Buffer {
-  const key = getMasterKey();
-  const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
-
-  const encrypted = Buffer.concat([
-    cipher.update(plaintext, 'utf8'),
-    cipher.final(),
-  ]);
-  const authTag = cipher.getAuthTag();
-
-  return Buffer.concat([iv, authTag, encrypted]);
-}
-
-function decryptWithKey(cipherBuffer: Buffer, key: Buffer): string {
-  const iv = cipherBuffer.subarray(0, IV_LENGTH);
-  const authTag = cipherBuffer.subarray(IV_LENGTH, IV_LENGTH + TAG_LENGTH);
-  const ciphertext = cipherBuffer.subarray(IV_LENGTH + TAG_LENGTH);
-
-  const decipher = createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
-
-  const decrypted = Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]);
-
-  return decrypted.toString('utf8');
+  return sealTagMid(plaintext);
 }
 
 /**
@@ -62,11 +27,5 @@ function decryptWithKey(cipherBuffer: Buffer, key: Buffer): string {
  * Master-key rotation (E8): tries the current key, then ASSESSIQ_MASTER_KEY_PREVIOUS.
  */
 export function decrypt(cipherBuffer: Buffer): string {
-  try {
-    return decryptWithKey(cipherBuffer, getMasterKey());
-  } catch (err) {
-    const prev = config.ASSESSIQ_MASTER_KEY_PREVIOUS;
-    if (!prev) throw err;
-    return decryptWithKey(cipherBuffer, Buffer.from(prev, 'base64'));
-  }
+  return openTagMid(cipherBuffer).toString('utf8');
 }
