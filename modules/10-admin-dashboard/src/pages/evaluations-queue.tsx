@@ -106,7 +106,7 @@ function AgeBadge({ hours }: { hours: number }): React.ReactElement {
   }[tone];
   return (
     <span
-      data-help-id="admin.evaluations.age_badge"
+      data-help-id="admin.evaluations.queue.age_badge"
       data-age-tone={tone}
       title={palette.hint}
       style={{
@@ -139,7 +139,7 @@ function StatusCell({ row }: { row: EvaluationRow }): React.ReactElement {
       <Chip variant={s.variant}>{s.label}</Chip>
       {row.sent_back && (
         <span
-          data-help-id="admin.evaluations.sent_back"
+          data-help-id="admin.evaluations.queue.sent_back"
           title={row.sent_back_note ?? "Sent back by the company"}
           style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}
         >
@@ -175,7 +175,7 @@ function EvalGateBanner({ gate }: { gate: EvalGateStatus | null }): React.ReactE
   return (
     <div
       role="alert"
-      data-help-id="admin.evaluations.eval_gate"
+      data-help-id="admin.evaluations.queue.eval_gate"
       style={{
         display: "flex",
         alignItems: "center",
@@ -213,7 +213,7 @@ function GradingQualityCard({ rows }: { rows: GradingQualityRow[] | null }): Rea
     { key: "mean_abs_score_delta_pct", label: "Score change", width: 120, render: (r) => num(r.mean_abs_score_delta_pct, "%") },
   ];
   return (
-    <div className="aiq-card" data-density="compact" data-help-id="admin.evaluations.grading_quality" style={{ padding: 0, overflow: "hidden" }}>
+    <div className="aiq-card" data-density="compact" data-help-id="admin.evaluations.queue.grading_quality" style={{ padding: 0, overflow: "hidden" }}>
       <div style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", ...MONO_LABEL }}>AI grading quality · last 90 days</div>
       <div className="aiq-admin-table-scroll">
         <Table<GradingQualityRow> data={rows} columns={columns} emptyMessage="No AI grades in this period." />
@@ -410,7 +410,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
 
         {/* Toolbar */}
         <div className="aiq-admin-filter-strip" style={{ alignItems: "center", gap: "var(--aiq-space-md)", borderBottom: "1px solid var(--aiq-color-border)", paddingBottom: "var(--aiq-space-sm)" }}>
-          <label data-help-id="admin.evaluations.tenant_filter" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+          <label data-help-id="admin.evaluations.queue.tenant_filter" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             <span style={MONO_LABEL}>Company</span>
             <select
               className="aiq-input"
@@ -428,7 +428,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
           <button
             type="button"
             className="aiq-btn aiq-btn-outline"
-            data-help-id="admin.evaluations.release_selected"
+            data-help-id="admin.evaluations.queue.release_selected"
             disabled={chosen.length === 0 || releasing}
             onClick={() => void handleReleaseSelected()}
           >
@@ -437,7 +437,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
           <button
             type="button"
             className="aiq-btn aiq-btn-primary"
-            data-help-id="admin.evaluations.evaluate_next"
+            data-help-id="admin.evaluations.queue.evaluate_next"
             disabled={!oldest}
             onClick={() => oldest && navigate(`${DETAIL_PATH}/${oldest.attempt_id}`)}
           >
@@ -464,7 +464,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
           </div>
         )}
 
-        <div className="aiq-card" data-density="compact" data-help-id="admin.evaluations.queue" style={{ padding: 0, overflow: "hidden" }}>
+        <div className="aiq-card" data-density="compact" data-help-id="admin.evaluations.queue.overview" style={{ padding: 0, overflow: "hidden" }}>
           <div className="aiq-admin-table-scroll">
             {!loading && rows.length === 0 && !error ? (
               <div style={{ padding: "var(--aiq-space-3xl) var(--aiq-space-lg)", textAlign: "center" }}>

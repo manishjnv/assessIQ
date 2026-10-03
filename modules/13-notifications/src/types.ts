@@ -261,7 +261,7 @@ export type WebhookDelivery = z.infer<typeof WebhookDeliverySchema>;
 // ---------------------------------------------------------------------------
 
 export const InAppNotificationAudienceSchema = z.enum(['user', 'role', 'all']);
-export const InAppNotificationRoleSchema = z.enum(['admin', 'reviewer']);
+export const InAppNotificationRoleSchema = z.enum(['admin']);
 
 export const InAppNotificationSchema = z.object({
   id: z.string().uuid(),

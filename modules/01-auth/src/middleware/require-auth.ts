@@ -23,13 +23,13 @@ export function requireAuth(opts: RequireAuthOptions = {}): AuthHook {
       const sess = req.session;
 
       // Role check — super_admin is the apex role and satisfies ANY role
-      // gate (super_admin > admin > reviewer > candidate). This mirrors the
+      // gate (super_admin > admin > candidate). This mirrors the
       // frontend RequireSession hierarchy and the documented slice-1 intent
       // (PROJECT_BRAIN / memory 1673); before 2026-05-17 the backend used an
       // exact includes() with no hierarchy, so a logged-in super_admin 403'd
       // ("role super_admin not authorized") on the entire tenant-admin
       // surface. The hierarchy is one-directional: ONLY super_admin is apex —
-      // a reviewer never satisfies ['admin'], and non-super roles never
+      // a legacy reviewer-role session never satisfies ['admin'], and non-super roles never
       // satisfy ['super_admin'], so cross-tenant power stays super-only.
       // Cross-tenant safety: a super_admin session carries the platform
       // tenantId; RLS confines every tenant-scoped query to that tenant. The

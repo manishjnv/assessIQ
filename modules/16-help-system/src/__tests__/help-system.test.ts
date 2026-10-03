@@ -279,7 +279,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(200); // through 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(203); // through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +290,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(200); // through 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(203); // through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt
@@ -308,12 +308,12 @@ describe("Block 1 — RLS visibility", () => {
     const accept = rows.get("admin.evaluations.accept_all");
     expect(accept?.long_md).toContain("released to the company in that same step");
     expect(accept?.long_md).not.toContain("does not release the attempt");
-    expect(rows.get("admin.evaluations.release_to_company")?.short_text).toContain("The last accept already does this");
+    expect(rows.get("admin.evaluations.detail.release_to_company")?.short_text).toContain("The last accept already does this");
     expect(rows.get("admin.evaluations.manual_score")?.long_md).toContain("releases the attempt to the company");
-    expect(rows.get("admin.evaluations.sent_back")?.long_md).toContain("Re-run AI");
-    expect(rows.get("admin.evaluations.queue")?.long_md).not.toContain("only needs releasing");
-    expect(rows.get("admin.evaluations.evaluate_next")?.long_md).not.toContain("then release");
-    expect(rows.get("admin.evaluations.release_selected")?.short_text).toContain("The last accept already does this");
+    expect(rows.get("admin.evaluations.detail.sent_back")?.long_md).toContain("Re-run AI");
+    expect(rows.get("admin.evaluations.queue.overview")?.long_md).not.toContain("only needs releasing");
+    expect(rows.get("admin.evaluations.queue.evaluate_next")?.long_md).not.toContain("then release");
+    expect(rows.get("admin.evaluations.queue.release_selected")?.short_text).toContain("The last accept already does this");
     const rerun = rows.get("admin.evaluations.rerun_ai");
     expect(rerun?.audience).toBe("admin");
     expect(rerun?.short_text).toContain("Nothing changes until you accept");
@@ -359,28 +359,28 @@ describe("Block 1 — RLS visibility", () => {
 
   it("tenant A override is visible to tenant A", async () => {
     if (skipAll) return;
-    await upsertHelpForTenant(TENANT_A, "admin.users.role", {
+    await upsertHelpForTenant(TENANT_A, "admin.users.list.role", {
       audience: "admin",
       locale: "en",
       shortText: "TENANT A OVERRIDE",
       longMd: null,
     }, "test-actor");
 
-    const result = await getHelpKey(TENANT_A, "admin.users.role", "en");
+    const result = await getHelpKey(TENANT_A, "admin.users.list.role", "en");
     expect(result).not.toBeNull();
     expect(result?.shortText).toBe("TENANT A OVERRIDE");
   });
 
   it("tenant B does NOT see tenant A's override — sees global instead", async () => {
     if (skipAll) return;
-    await upsertHelpForTenant(TENANT_A, "admin.users.role", {
+    await upsertHelpForTenant(TENANT_A, "admin.users.list.role", {
       audience: "admin",
       locale: "en",
       shortText: "TENANT A OVERRIDE",
       longMd: null,
     }, "test-actor");
 
-    const result = await getHelpKey(TENANT_B, "admin.users.role", "en");
+    const result = await getHelpKey(TENANT_B, "admin.users.list.role", "en");
     expect(result).not.toBeNull();
     // Tenant B must see the global seed content, not A's override.
     expect(result?.shortText).toBe(
@@ -390,7 +390,7 @@ describe("Block 1 — RLS visibility", () => {
 
   it("globals are visible to anonymous (no tenant context)", async () => {
     if (skipAll) return;
-    const result = await getHelpKey(null, "admin.users.role", "en");
+    const result = await getHelpKey(null, "admin.users.list.role", "en");
     expect(result).not.toBeNull();
     expect(result?.shortText).toBe(
       "admin = full access · candidate = take assessments only.",
@@ -399,14 +399,14 @@ describe("Block 1 — RLS visibility", () => {
 
   it("tenant A override is NOT visible to anonymous — anonymous sees global", async () => {
     if (skipAll) return;
-    await upsertHelpForTenant(TENANT_A, "admin.users.role", {
+    await upsertHelpForTenant(TENANT_A, "admin.users.list.role", {
       audience: "admin",
       locale: "en",
       shortText: "TENANT A OVERRIDE",
       longMd: null,
     }, "test-actor");
 
-    const result = await getHelpKey(null, "admin.users.role", "en");
+    const result = await getHelpKey(null, "admin.users.list.role", "en");
     expect(result).not.toBeNull();
     // Anonymous read uses withGlobalsOnly → no tenant GUC → only tenant_id IS NULL visible.
     expect(result?.shortText).toBe(

@@ -78,7 +78,7 @@ const ConfigSchema = z
     GOOGLE_CLIENT_ID: z.string().optional(),
     GOOGLE_CLIENT_SECRET: z.string().optional(),
     GOOGLE_OAUTH_REDIRECT: z.string().url().optional(),
-    // MFA gate. true (default) = admins/reviewers must complete TOTP after
+    // MFA gate. true (default) = admins must complete TOTP after
     // Google SSO before accessing protected routes. false = Google SSO is
     // the sole auth factor; pre-MFA sessions are accepted by requireAuth
     // and the SSO callback redirects past /admin/mfa to returnTo. The flag
@@ -155,7 +155,7 @@ const ConfigSchema = z
     // Override in .env to tune without a rebuild.
     // See modules/01-auth/src/middleware/rate-limit.ts § resolveIpBucketMax.
     //
-    // Admin + reviewer share one bucket (privileged staff; unlikely to brute-force).
+    // Admin and super_admin share one bucket (privileged staff; unlikely to brute-force).
     RATE_LIMIT_IP_ADMIN: z.coerce.number().int().positive().default(100),
     // Candidates (session role='candidate') and unknown session roles.
     RATE_LIMIT_IP_USER: z.coerce.number().int().positive().default(30),
@@ -173,12 +173,12 @@ const ConfigSchema = z
     RATE_LIMIT_IP_ANON: z.coerce.number().int().positive().default(120),
     // API-key-backed traffic: batch integrations, webhooks, server-to-server.
     RATE_LIMIT_IP_APIKEY: z.coerce.number().int().positive().default(600),
-    // Per-IP cap for (role∈{admin,reviewer,super_admin}) && totpVerified===true.
+    // Per-IP cap for (role∈{admin,super_admin}) && totpVerified===true.
     // This is a DoS ceiling only — per-user + per-tenant + per-route credential
     // caps are the actual constraints for verified admins. Set high so legitimate
     // admin navigation never hits this limit.
     RATE_LIMIT_IP_VERIFIED_ADMIN: z.coerce.number().int().positive().default(5000),
-    // Per-user cap for verified-admin sessions (role∈{admin,reviewer,super_admin}
+    // Per-user cap for verified-admin sessions (role∈{admin,super_admin}
     // && totpVerified===true). Pre-MFA admin / candidates stay at 60 (hardcoded).
     RATE_LIMIT_USER_VERIFIED_ADMIN: z.coerce.number().int().positive().default(300),
     // Per-route per-IP cap for credential endpoints (TOTP verify, recovery,
