@@ -186,7 +186,7 @@ export function AdminAttemptDetail(): React.ReactElement {
               <button
                 type="button"
                 className="aiq-btn aiq-btn-outline aiq-no-print"
-                data-help-id="admin.attempts.print_review"
+                data-help-id="admin.attempts.detail.print_review"
                 onClick={() => window.print()}
               >
                 Print review
@@ -196,7 +196,7 @@ export function AdminAttemptDetail(): React.ReactElement {
               <button
                 type="button"
                 className="aiq-btn aiq-btn-outline aiq-no-print"
-                data-help-id="admin.attempts.send_back"
+                data-help-id="admin.attempts.detail.send_back"
                 onClick={() => setShowSendBack(true)}
               >
                 Send back for re-evaluation
@@ -206,7 +206,7 @@ export function AdminAttemptDetail(): React.ReactElement {
               <button
                 type="button"
                 className="aiq-btn aiq-btn-primary aiq-no-print"
-                data-help-id="admin.attempts.release_button"
+                data-help-id="admin.attempts.detail.release_button"
                 onClick={() => setShowReleaseModal(true)}
               >
                 Publish to candidate
@@ -232,7 +232,7 @@ export function AdminAttemptDetail(): React.ReactElement {
         {evalStatus === "awaiting_evaluation" && (
           <div
             className="aiq-banner"
-            data-help-id="admin.attempts.awaiting_evaluation"
+            data-help-id="admin.attempts.detail.awaiting_evaluation"
             role="status"
             style={{ display: "flex", flexDirection: "column", gap: 2, padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-info-subtle, #eef4ff)", border: "1px solid var(--aiq-color-info, #3177dc)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-info, #3177dc)" }}
           >
@@ -284,7 +284,7 @@ export function AdminAttemptDetail(): React.ReactElement {
         )}
 
         {(detail.section_scores ?? []).length > 0 && (
-          <div className="aiq-card" data-help-id="admin.attempts.section_scores" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", padding: "var(--aiq-space-lg)" }}>
+          <div className="aiq-card" data-help-id="admin.attempts.detail.section_scores" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", padding: "var(--aiq-space-lg)" }}>
             <span style={MONO_LABEL}>Section scores</span>
             <table style={{ borderCollapse: "collapse", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}>
               <thead>

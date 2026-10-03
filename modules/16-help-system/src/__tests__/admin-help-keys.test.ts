@@ -68,7 +68,7 @@ const SHORT_TEXT_MAX = 120;
  */
 const KNOWN_SHORT_TEXT_OVERFLOWS = new Set([
   "admin.questions.generate.draft",   // 124 chars as of 2026-05-10
-  "admin.settings.ai_generate_mode",  // 131 chars, pre-dates enforcement test
+  "admin.settings.billing.ai_generate_mode",  // 131 chars, pre-dates enforcement test
   "admin.certificates.list",          // 156 chars, Phase 5 Certificates
   "admin.certificates.revoke",        // 162 chars, Phase 5 Certificates
   "admin.certificates.reissue",       // 155 chars, Phase 5 Certificates
@@ -79,12 +79,12 @@ const KNOWN_SHORT_TEXT_OVERFLOWS = new Set([
  * Each key listed here has a corresponding entry in admin.yml.
  */
 const STAGE_1_5_KEYS: string[] = [
-  "admin.generation_attempts.history",
+  "admin.gen_score.history",
   "admin.questions.bulk.archive",
   "admin.questions.bulk.approve",
   "admin.questions.generate.modal",
   "admin.questions.subjective",
-  "admin.questions.attempt_status",
+  "admin.question_bank.pack.attempt_status",
   "admin.ops.cli.cleanup",
   "admin.ops.cli.inspect_attempt",
   "admin.attempts.grading_dispatch",

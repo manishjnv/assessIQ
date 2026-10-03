@@ -164,7 +164,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
             <div style={{ marginBottom: 12 }}>
               <Chip variant={statusChip.variant}>{statusChip.label}</Chip>
               {attempt.high_stakes === true && (
-                <span data-help-id="admin.assessment.high_stakes.edit" style={{ marginLeft: "var(--aiq-space-xs)" }}>
+                <span data-help-id="admin.evaluations.detail.high_stakes_edit" style={{ marginLeft: "var(--aiq-space-xs)" }}>
                   <Chip variant="warn">High-stakes · two-model vote</Chip>
                 </span>
               )}
@@ -186,7 +186,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
               <button
                 type="button"
                 className="aiq-btn aiq-btn-outline aiq-no-print"
-                data-help-id="admin.attempts.print_review"
+                data-help-id="admin.evaluations.detail.print_review"
                 onClick={() => window.print()}
               >
                 Print review
@@ -195,7 +195,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
             <button
               type="button"
               className={`aiq-btn aiq-no-print ${canRelease ? "aiq-btn-primary" : "aiq-btn-outline"}`}
-              data-help-id="admin.evaluations.release_to_company"
+              data-help-id="admin.evaluations.detail.release_to_company"
               disabled={!canRelease || releasing}
               title={
                 released
@@ -250,7 +250,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
         {meta.evaluation_sent_back_at && (
           <div
             className="aiq-banner"
-            data-help-id="admin.evaluations.sent_back"
+            data-help-id="admin.evaluations.detail.sent_back"
             role="status"
             style={{ display: "flex", flexDirection: "column", gap: 2, padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-warning-subtle, #fff8e0)", border: "1px solid var(--aiq-color-warning, #b08000)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}
           >

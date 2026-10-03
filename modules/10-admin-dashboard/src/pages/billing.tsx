@@ -135,7 +135,7 @@ export function AdminBilling(): React.ReactElement {
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
                 <label
                   htmlFor="ai-generate-mode-select"
-                  data-help-id="admin.settings.ai_generate_mode"
+                  data-help-id="admin.settings.billing.ai_generate_mode"
                   style={{ ...BODY_SM, fontWeight: 500 }}
                 >
                   Mode

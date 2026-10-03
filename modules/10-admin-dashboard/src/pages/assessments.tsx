@@ -1465,7 +1465,7 @@ export function AdminAssessments(): React.ReactElement {
                 }}
               >
                 <legend style={{ fontWeight: 500 }}>Test integrity</legend>
-                <HelpTip helpId="admin.assessment.integrity.fullscreen">
+                <HelpTip helpId="admin.assessments.integrity.fullscreen">
                   <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
                     <input
                       type="checkbox"
@@ -1475,7 +1475,7 @@ export function AdminAssessments(): React.ReactElement {
                     Require full screen
                   </label>
                 </HelpTip>
-                <HelpTip helpId="admin.assessment.integrity.block_copy_paste">
+                <HelpTip helpId="admin.assessments.integrity.block_copy_paste">
                   <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
                     <input
                       type="checkbox"
@@ -1487,7 +1487,7 @@ export function AdminAssessments(): React.ReactElement {
                 </HelpTip>
               </fieldset>
 
-              <HelpTip helpId="admin.assessment.high_stakes">
+              <HelpTip helpId="admin.assessments.high_stakes">
                 <label
                   style={{
                     display: "flex",
