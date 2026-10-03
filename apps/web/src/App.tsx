@@ -199,7 +199,7 @@ export function App(): React.JSX.Element {
 
 function NotFound(): React.JSX.Element {
   return (
-    <div
+    <main
       className="aiq-screen"
       style={{
         display: 'flex',
@@ -258,6 +258,6 @@ function NotFound(): React.JSX.Element {
       >
         ← Go to dashboard
       </Link>
-    </div>
+    </main>
   );
 }
