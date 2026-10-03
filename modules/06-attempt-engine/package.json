@@ -14,6 +14,7 @@
     "@assessiq/assessment-lifecycle": "workspace:*",
     "@assessiq/auth": "workspace:*",
     "@assessiq/core": "workspace:*",
+    "@assessiq/notifications": "workspace:*",
     "@assessiq/question-bank": "workspace:*",
     "@assessiq/scoring": "workspace:*",
     "@assessiq/tenancy": "workspace:*",

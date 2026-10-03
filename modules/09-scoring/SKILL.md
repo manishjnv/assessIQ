@@ -148,3 +148,7 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 ## Question type `structured_case` (SP7, 2026-10-03)
 
 `structuredCaseFraction(content, answer)` in `src/mcq.ts`, wired into `deterministicFraction`; `DETERMINISTIC_TYPES` and both `q.type IN (...)` SQL lists (`scoreMcqForAttempt`, `scoreMcqAndFinalizeIfComplete`) include `structured_case`. Answer `{ steps: { [stepId]: number[] } }`. Per step: `one` gives 1 only when the single pick equals `correct[0]`; `many` uses `multiSelectFraction`. Question: `all_or_nothing` gives 1 only if all steps are 1; `partial` (default) gives the mean. Malformed content, answer or an unknown step id gives 0. Same `gradings` row shape as mcq (`grader='deterministic'`). Test: `structured-case-fraction.test.ts`. No change to `finalize.ts` or band scoring.
+
+## Business webhook events (FU-B6, 2026-10-03)
+
+`finalizeAttemptIfComplete` emits `attempt.graded` and `releaseAttemptInTx` emits `result.released` via `emitAttemptEventAfterCommit` (13). Ids-only payload, after commit only. Details: modules/13-notifications/SKILL.md.

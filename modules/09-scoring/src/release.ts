@@ -29,6 +29,7 @@
 import type { PoolClient } from "pg";
 import { AppError, streamLogger } from "@assessiq/core";
 import { auditInTx } from "@assessiq/audit-log";
+import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
 import { issueCertificateOnRelease } from "@assessiq/certification";
 
 const log = streamLogger("grading");
@@ -186,6 +187,8 @@ export async function releaseAttemptInTx(
     before: { attempt_status: "graded" },
     after: { attempt_status: "released", trigger },
   });
+
+  await emitAttemptEventAfterCommit(client, tenantId, attemptId, "result.released");
 
   // Certificate: best effort, upgrade-only, in a SAVEPOINT so a failure (missing
   // signing secret, DB error, ...) rolls back ONLY the certificate work and the

@@ -407,6 +407,9 @@ importers:
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
+      '@assessiq/notifications':
+        specifier: workspace:*
+        version: link:../13-notifications
       '@assessiq/question-bank':
         specifier: workspace:*
         version: link:../04-question-bank
@@ -479,6 +482,9 @@ importers:
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
+      '@assessiq/notifications':
+        specifier: workspace:*
+        version: link:../13-notifications
       '@assessiq/rubric-engine':
         specifier: workspace:*
         version: link:../08-rubric-engine
