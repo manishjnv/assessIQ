@@ -36,6 +36,9 @@ importers:
       '@assessiq/question-bank':
         specifier: workspace:*
         version: link:modules/04-question-bank
+      '@assessiq/rubric-engine':
+        specifier: workspace:*
+        version: link:modules/08-rubric-engine
       '@assessiq/tenancy':
         specifier: workspace:*
         version: link:modules/02-tenancy
