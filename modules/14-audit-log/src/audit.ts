@@ -30,7 +30,7 @@
 
 import type { PoolClient } from 'pg';
 import { getRequestContext, streamLogger } from '@assessiq/core';
-import { withTenant } from '@assessiq/tenancy';
+import { onCommit, withTenant } from '@assessiq/tenancy';
 import { ACTION_CATALOG, type AuditInput, type AuditRow } from './types.js';
 import { redactPayload } from './redact.js';
 import { fanoutAuditEvent } from './webhook-fanout.js';
@@ -129,9 +129,9 @@ export async function audit(input: AuditInput): Promise<void> {
  * directly to the supplied `client` so the INSERT and the caller's domain
  * UPDATE commit or roll back together (atomicity).
  *
- * Fanout is NOT triggered. If you need SIEM webhook delivery for this event,
- * import `fanoutAuditEvent` from `./webhook-fanout.js` and call it with the
- * returned row AFTER the enclosing `withTenant` completes.
+ * Webhook fanout runs AFTER the enclosing `withTenant` commits (onCommit hook),
+ * never on rollback (FR2 / FU-B5). A client from any other transaction helper
+ * gets no fanout — same as before FU-B5.
  *
  * Errors propagate. Never fire-and-forget.
  */
@@ -182,5 +182,6 @@ export async function auditInTx(client: PoolClient, input: AuditInput): Promise<
     log.error({ tenantId: input.tenantId, action: input.action }, 'auditInTx: INSERT returned no row');
     throw err;
   }
+  onCommit(client, () => fanoutAuditEvent(row));
   return row;
 }
