@@ -28,11 +28,32 @@ import { getPool } from "./pool.js";
  *    fails (the connection is already broken) we swallow the secondary
  *    error and re-throw the original so the caller sees the real cause.
  */
+// Post-commit hooks, keyed by the client of an OPEN withTenant transaction only.
+// A hook registered on any other client is refused (returns false), so a pooled
+// client can never carry a hook into its next checkout. FR2 / FU-B5.
+const afterCommit = new WeakMap<PoolClient, Array<() => Promise<void>>>();
+
+/**
+ * Run `hook` after the enclosing withTenant transaction commits. Never runs on
+ * rollback. Hooks must not throw (they run after COMMIT; a throw is swallowed so
+ * the caller still gets its committed result). Returns false when `client` is not
+ * inside withTenant — the hook is then dropped.
+ */
+export function onCommit(client: PoolClient, hook: () => Promise<void>): boolean {
+  const hooks = afterCommit.get(client);
+  if (hooks === undefined) return false;
+  hooks.push(hook);
+  return true;
+}
+
 export async function withTenant<T>(
   tenantId: string,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
   const client = await getPool().connect();
+  const hooks: Array<() => Promise<void>> = [];
+  afterCommit.set(client, hooks);
+  let result: T;
   try {
     await client.query("BEGIN");
     await client.query("SET LOCAL ROLE assessiq_app");
@@ -40,10 +61,9 @@ export async function withTenant<T>(
       tenantId,
     ]);
 
-    const result = await fn(client);
+    result = await fn(client);
 
     await client.query("COMMIT");
-    return result;
   } catch (err) {
     await client.query("ROLLBACK").catch(() => {
       // Secondary failure during rollback — connection is likely dead.
@@ -51,6 +71,18 @@ export async function withTenant<T>(
     });
     throw err;
   } finally {
+    afterCommit.delete(client);
     client.release();
   }
+
+  // After release: a hook may open its own withTenant (fanout does), and holding
+  // this client while waiting for another could starve a full pool.
+  for (const hook of hooks) {
+    try {
+      await hook();
+    } catch {
+      // Already committed; the hook owns its own logging (see fanoutAuditEvent).
+    }
+  }
+  return result;
 }
