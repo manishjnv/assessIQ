@@ -115,3 +115,7 @@ AI says: a1 hit, a2 hit, a3 miss; band 3
 
 ## Decisions resolved
 - **P2.D12 — module boundary.** Service-only, zero migrations. `questions.rubric` JSONB owned by 04 stays canonical. `docs/02-data-model.md` § "Module ownership" row updated this session to remove the dead `rubrics`/`anchors` table reference.
+
+## FR25 — single rubric validator
+
+`parseRubric(input)` (src/validate.ts) is the one parse entry point: `{ ok: true, data } | { ok: false, errors: ZodIssue[] }`. `validateRubric` ({valid, errors: string[]}) is built on it. 04-question-bank re-exports `parseRubric` as its `validateRubric`.

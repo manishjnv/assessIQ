@@ -494,14 +494,14 @@ export async function saveRubric(
   rubric: unknown,
   userId: string,
 ): Promise<{ id: string }> {
-  const { RubricSchema } = await import("@assessiq/rubric-engine");
+  const { parseRubric } = await import("@assessiq/rubric-engine");
 
-  const validated = RubricSchema.safeParse(rubric);
-  if (!validated.success) {
+  const validated = parseRubric(rubric);
+  if (!validated.ok) {
     throw new ValidationError(
       "rubric failed schema validation: " +
-        validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
-      { details: { code: QB_ERROR_CODES.INVALID_RUBRIC, issues: validated.error.issues } },
+        validated.errors.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      { details: { code: QB_ERROR_CODES.INVALID_RUBRIC, issues: validated.errors } },
     );
   }
 

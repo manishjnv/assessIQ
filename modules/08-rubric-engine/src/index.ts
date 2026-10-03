@@ -12,7 +12,7 @@ export {
   type AnchorFinding,
 } from "./types.js";
 
-export { validateRubric } from "./validate.js";
+export { validateRubric, parseRubric } from "./validate.js";
 
 export {
   sumAnchorScore,
