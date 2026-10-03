@@ -60,7 +60,7 @@ const faqSchema = {
       "name": "Does AssessIQ support AI-powered proctoring like Mercer Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ's proctoring features (webcam, browser lockdown, tab-switch detection) are coming soon and are not available today; what exists now is server-side timers, an append-only audit log, and role-separated access. Mercer Mettl is known for AI-powered proctoring at very large scale, including their recognition in Gartner's proctoring category. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
+        "text": "AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning, recorded for the admin) but no webcam proctoring and no lockdown browser; it also has server-side timers, an append-only audit log, and role-separated access. Mercer Mettl is known for AI-powered proctoring at very large scale. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
       }
     },
     {
@@ -121,12 +121,12 @@ const tableRows = [
   {
     criterion: "India focus",
     assessiq: "Built for Indian hiring and campus programs — structured scoring, audit trail, and an aptitude question pack",
-    mettl: "Founded and headquartered in India (Gurugram); serves 100+ countries; strong India enterprise presence"
+    mettl: "Founded and headquartered in India (Gurugram); serves companies internationally; strong India enterprise presence"
   },
   {
     criterion: "Proctoring",
-    assessiq: "Proctoring features (Coming soon); server-side timers and an append-only audit log today",
-    mettl: "AI-powered proctoring at enterprise scale; 200,000+ proctored assessments per day; listed in Gartner's proctoring category"
+    assessiq: "Optional fullscreen gate, copy/paste block and tab-switch warning (no webcam, no lockdown); server-side timers and an append-only audit log today",
+    mettl: "AI-powered proctoring at enterprise scale"
   },
   {
     criterion: "Question types",
@@ -150,7 +150,7 @@ const tableRows = [
   },
   {
     criterion: "Deployment",
-    assessiq: "Cloud SaaS; bulk invite via CSV import (up to 200 per import) and email invites; invite links valid 7 days with resend",
+    assessiq: "Cloud SaaS; bulk invite via CSV import (up to 1,000 rows per file, or 200 when the same import also sends invitations) and email invites; invite links valid 7 days with resend",
     mettl: "Cloud SaaS; enterprise on-premise options may vary — confirm with vendor"
   },
   {
@@ -181,7 +181,7 @@ const faqs = [
   },
   {
     q: "Does AssessIQ support AI-powered proctoring like Mercer Mettl?",
-    a: "AssessIQ's proctoring features (webcam, browser lockdown, tab-switch detection) are coming soon and are not available today; what exists now is server-side timers, an append-only audit log, and role-separated access. Mercer Mettl is known for AI-powered proctoring at very large scale, including their recognition in Gartner's proctoring category. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
+    a: "AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning, recorded for the admin) but no webcam proctoring and no lockdown browser; it also has server-side timers, an append-only audit log, and role-separated access. Mercer Mettl is known for AI-powered proctoring at very large scale. The right choice depends on the scale of your exam program and what oversight the proctoring output needs to support."
   },
   {
     q: "Is Mercer Mettl suitable for small and mid-size Indian companies?",
@@ -329,7 +329,7 @@ const faqs = [
               You want MCQ, aptitude, and written-answer questions in a single timed session with server-side timers and an append-only audit log your team can review.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              You are a campus team or educational institution running bulk invite drives with CSV import (up to 200 students per import).
+              You are a campus team or educational institution running bulk invite drives with CSV import (up to 1,000 rows per file, or 200 when the same import also sends invitations).
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
               You want a guided setup — talk to us and we will create your company account.
@@ -347,7 +347,7 @@ const faqs = [
               You run high-volume proctored examination programs — certification exams, university exams, or government-level assessments — where enterprise proctoring scale and Mercer's brand assurance matter.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
-              Your organization operates across multiple countries and needs a vendor with 90+ country reach and multi-language assessment support.
+              Your organization operates across multiple countries and needs a vendor with international reach and multi-language assessment support.
             </li>
             <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
               You need deep integration with existing HRMS or LMS infrastructure typical in large enterprises.

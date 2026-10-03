@@ -39,7 +39,7 @@ const faqSchema = {
       "name": "How many candidates can take an AssessIQ test at the same time?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ is built for bulk drives. Admins import students from CSV (up to 200 per import) and send email invite links that are valid for 7 days, with single and bulk resend. Results can be exported to CSV."
+        "text": "AssessIQ is built for bulk drives. Admins import students from CSV (up to 1,000 rows per file, or 200 when the same import also sends invitations) and send email invite links that are valid for 7 days, with single and bulk resend. Results can be exported to CSV."
       }
     },
     {
@@ -55,7 +55,7 @@ const faqSchema = {
       "name": "How is question integrity maintained across a large batch?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ randomises question order and shuffles MCQ options per student, so neighbours see different layouts. Timers are enforced on the server and start when the candidate begins and consents. Webcam proctoring and browser lockdown are coming soon."
+        "text": "AssessIQ randomises question order and shuffles MCQ options per student, so neighbours see different layouts. Timers are enforced on the server and start when the candidate begins and consents. It also has an optional fullscreen gate, copy/paste blocking and a tab-switch warning. There is no webcam proctoring and no lockdown browser."
       }
     },
     {
@@ -123,7 +123,7 @@ const capabilities = [
   },
   {
     label: "Bulk Invite & Resend",
-    body: "CSV student import (up to 200 per import), email invite links valid for 7 days, and single or bulk resend."
+    body: "CSV student import (up to 1,000 rows per file, or 200 when the same import also sends invitations), email invite links valid for 7 days, and single or bulk resend."
   },
   {
     label: "Cohort Reports & Export",
@@ -353,7 +353,7 @@ const useCases = [
             How many candidates can take an AssessIQ test at the same time?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ is built for bulk drives. Admins import students from CSV (up to 200 per import) and send email invite links that are valid for 7 days, with single and bulk resend. Results can be exported to CSV.
+            AssessIQ is built for bulk drives. Admins import students from CSV (up to 1,000 rows per file, or 200 when the same import also sends invitations) and send email invite links that are valid for 7 days, with single and bulk resend. Results can be exported to CSV.
           </p>
         </div>
 
@@ -371,7 +371,7 @@ const useCases = [
             How is question integrity maintained across a large batch?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ randomises question order and shuffles MCQ options per student, so neighbours see different layouts. Timers are enforced on the server and start when the candidate begins and consents. Webcam proctoring and browser lockdown are coming soon.
+            AssessIQ randomises question order and shuffles MCQ options per student, so neighbours see different layouts. Timers are enforced on the server and start when the candidate begins and consents. It also has an optional fullscreen gate, copy/paste blocking and a tab-switch warning. There is no webcam proctoring and no lockdown browser.
           </p>
         </div>
 

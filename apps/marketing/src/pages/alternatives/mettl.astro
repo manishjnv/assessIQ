@@ -46,7 +46,7 @@ const faqSchema = {
       "name": "What is Mercer Mettl used for?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Mercer Mettl is an online assessment and examination platform (acquired by Mercer) used for pre-employment testing, psychometric evaluations, technical skills assessments, remote proctoring, and large-scale online exams. It is headquartered in Gurugram, India, and supports organisations across 90+ countries."
+        "text": "Mercer Mettl is an online assessment and examination platform (acquired by Mercer) used for pre-employment testing, psychometric evaluations, technical skills assessments, remote proctoring, and large-scale online exams. It is headquartered in Gurugram, India, and supports organisations internationally."
       }
     },
     {
@@ -54,7 +54,7 @@ const faqSchema = {
       "name": "How does AssessIQ differ from Mercer Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Both platforms serve the Indian hiring market. Mercer Mettl is a broad enterprise exam platform with 26+ question formats and deep remote-invigilation capabilities. AssessIQ focuses on structured, rubric-based hiring assessments — anchor scoring, band-level rationale, and an admin-centric workflow — and does not offer proctoring yet. Contact us for pricing."
+        "text": "Both platforms serve the Indian hiring market. Mercer Mettl is a broad enterprise exam platform with many question formats and deep remote-invigilation capabilities. AssessIQ focuses on structured, rubric-based hiring assessments — anchor scoring, band-level rationale, and an admin-centric workflow — and has no webcam proctoring or lockdown browser. Contact us for pricing."
       }
     },
     {
@@ -70,7 +70,7 @@ const faqSchema = {
       "name": "Does AssessIQ support the same question types as Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "AssessIQ supports multiple-choice (with per-student option shuffle), subjective, scenario and log-analysis questions (graded with AI assistance by AssessIQ evaluators against structured rubrics), an aptitude question pack, and question packs. Coding tests are not available yet. Mercer Mettl supports 26+ question formats including psychometric and simulation types. If your workflow requires psychometric instruments, Mettl's broader format library is worth evaluating."
+        "text": "AssessIQ supports multiple-choice (with per-student option shuffle), subjective, scenario and log-analysis questions (graded with AI assistance by AssessIQ evaluators against structured rubrics), an aptitude question pack, and question packs. Coding tests are not available yet. Mercer Mettl supports many question formats including psychometric and simulation types. If your workflow requires psychometric instruments, Mettl's broader format library is worth evaluating."
       }
     },
     {
@@ -78,7 +78,7 @@ const faqSchema = {
       "name": "Which platform has better proctoring — AssessIQ or Mettl?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Mercer Mettl's proctoring is one of its strongest features — AI-flagged anomalies, facial recognition, and 3-point candidate authentication, with claimed 98%+ accuracy. AssessIQ does not offer proctoring yet — no webcam monitoring, browser lockdown or tab-switch detection. It does provide server-side timers, option shuffle and question-order randomisation. If proctoring is a requirement today, Mettl is the stronger choice."
+        "text": "Mercer Mettl's proctoring is one of its strongest features — AI-flagged anomalies, facial recognition, and 3-point candidate authentication. AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning, with tab switches recorded for the admin) but no webcam proctoring and no lockdown browser. It also provides server-side timers, option shuffle and question-order randomisation. If proctoring is a requirement today, Mettl is the stronger choice."
       }
     },
     {
@@ -122,12 +122,12 @@ const breadcrumbSchema = {
 const criteria = [
   { criterion: "Primary category",        mettl: "Enterprise exam & proctoring",          assessiq: "Structured hiring assessment" },
   { criterion: "India headquarters",       mettl: "Yes (Gurugram)",                        assessiq: "Yes" },
-  { criterion: "Question types",           mettl: "26+ formats incl. psychometric",        assessiq: "MCQ, subjective, scenario, log-analysis, aptitude" },
-  { criterion: "Proctoring",              mettl: "AI + facial recognition, 3-point auth",  assessiq: "Coming soon" },
+  { criterion: "Question types",           mettl: "Many formats incl. psychometric",        assessiq: "MCQ, subjective, scenario, log-analysis, aptitude" },
+  { criterion: "Proctoring",              mettl: "AI + facial recognition, 3-point auth",  assessiq: "Fullscreen gate, copy/paste block, tab-switch warning (no webcam, no lockdown)" },
   { criterion: "Scoring model",           mettl: "Varies by test type",                    assessiq: "Anchor-based rubrics + scoring bands" },
   { criterion: "Pricing model",           mettl: "Contact-based / enterprise",             assessiq: "Contact sales" },
   { criterion: "Ideal scale",             mettl: "Large enterprise / mass exams",          assessiq: "SME to mid-market, campus batches" },
-  { criterion: "Global reach",            mettl: "90+ countries",                          assessiq: "India-first" },
+  { criterion: "Global reach",            mettl: "International",                          assessiq: "India-first" },
   { criterion: "Admin dashboard",         mettl: "Comprehensive exam management",          assessiq: "Hiring-workflow focused" },
 ];
 ---
@@ -224,7 +224,7 @@ const criteria = [
               Enterprise-grade exam platform.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Mettl (founded in India, acquired by Mercer) is built around large-scale online examinations — supporting 200,000+ exams per day with 26+ question formats. It has deep remote-invigilation and certification capabilities.
+              Mettl (founded in India, acquired by Mercer) is built around large-scale online examinations — supporting exams at very large scale with many question formats. It has deep remote-invigilation and certification capabilities.
             </p>
           </div>
           <div>
@@ -240,7 +240,7 @@ const criteria = [
               India-headquartered, global reach.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              Based in Gurugram, Mettl has grown to serve organisations across 90+ countries with support for 30+ languages — relevant for companies that need a single platform for both Indian and international operations.
+              Based in Gurugram, Mettl has grown to serve organisations internationally with multi-language support — relevant for companies that need a single platform for both Indian and international operations.
             </p>
           </div>
           <div>
@@ -341,7 +341,7 @@ const criteria = [
             What is Mercer Mettl used for?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Mercer Mettl is an online assessment and examination platform (acquired by Mercer) used for pre-employment testing, psychometric evaluations, technical skills assessments, remote proctoring, and large-scale online exams. It is headquartered in Gurugram, India, and supports organisations across 90+ countries.
+            Mercer Mettl is an online assessment and examination platform (acquired by Mercer) used for pre-employment testing, psychometric evaluations, technical skills assessments, remote proctoring, and large-scale online exams. It is headquartered in Gurugram, India, and supports organisations internationally.
           </p>
         </div>
 
@@ -350,7 +350,7 @@ const criteria = [
             How does AssessIQ differ from Mercer Mettl?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Both platforms serve the Indian hiring market. Mercer Mettl is a broad enterprise exam platform with 26+ question formats and deep remote-invigilation capabilities. AssessIQ focuses on structured, rubric-based hiring assessments — anchor scoring, band-level rationale, and an admin-centric workflow — and does not offer proctoring yet. Contact us for pricing.
+            Both platforms serve the Indian hiring market. Mercer Mettl is a broad enterprise exam platform with many question formats and deep remote-invigilation capabilities. AssessIQ focuses on structured, rubric-based hiring assessments — anchor scoring, band-level rationale, and an admin-centric workflow — and has no webcam proctoring or lockdown browser. Contact us for pricing.
           </p>
         </div>
 
@@ -368,7 +368,7 @@ const criteria = [
             Does AssessIQ support the same question types as Mettl?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            AssessIQ supports multiple-choice (with per-student option shuffle), subjective, scenario and log-analysis questions (graded with AI assistance by AssessIQ evaluators against structured rubrics), an aptitude question pack, and question packs. Coding tests are not available yet. Mercer Mettl supports 26+ question formats including psychometric and simulation types. If your workflow requires psychometric instruments, Mettl's broader format library is worth evaluating.
+            AssessIQ supports multiple-choice (with per-student option shuffle), subjective, scenario and log-analysis questions (graded with AI assistance by AssessIQ evaluators against structured rubrics), an aptitude question pack, and question packs. Coding tests are not available yet. Mercer Mettl supports many question formats including psychometric and simulation types. If your workflow requires psychometric instruments, Mettl's broader format library is worth evaluating.
           </p>
         </div>
 
@@ -377,7 +377,7 @@ const criteria = [
             Which platform has better proctoring — AssessIQ or Mettl?
           </h3>
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-            Mercer Mettl's proctoring is one of its strongest features — AI-flagged anomalies, facial recognition, and 3-point candidate authentication, with claimed 98%+ accuracy. AssessIQ does not offer proctoring yet — no webcam monitoring, browser lockdown or tab-switch detection. It does provide server-side timers, option shuffle and question-order randomisation. If proctoring is a requirement today, Mettl is the stronger choice.
+            Mercer Mettl's proctoring is one of its strongest features — AI-flagged anomalies, facial recognition, and 3-point candidate authentication. AssessIQ has basic integrity controls (an optional fullscreen gate, copy/paste blocking and a tab-switch warning, with tab switches recorded for the admin) but no webcam proctoring and no lockdown browser. It also provides server-side timers, option shuffle and question-order randomisation. If proctoring is a requirement today, Mettl is the stronger choice.
           </p>
         </div>
 
