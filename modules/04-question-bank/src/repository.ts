@@ -57,7 +57,7 @@ const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minut
 
 const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, answer_guidance, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id`;
 
-const QUESTION_VERSION_COLUMNS = `id, question_id, version, content, rubric, saved_by, saved_at`;
+const QUESTION_VERSION_COLUMNS = `id, question_id, version, content, rubric, saved_by, saved_at`; // N21: `type` is frozen per version but not surfaced here
 
 const TAG_COLUMNS = `id, tenant_id, name, category`;
 
@@ -964,8 +964,10 @@ export async function insertQuestionVersion(
   // question_versions has no tenant_id column — the WITH CHECK RLS policy
   // derives authorization via question_id → questions.pack_id → question_packs.
   const result = await client.query<QuestionVersionRow>(
-    `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by)
-     VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6)
+    // N21: every caller snapshots the question's CURRENT row before changing it, so the
+    // frozen type is the question's current type.
+    `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by, type)
+     SELECT $1, $2, $3, $4::jsonb, $5::jsonb, $6, q.type FROM questions q WHERE q.id = $2
      RETURNING ${QUESTION_VERSION_COLUMNS}`,
     [
       input.id,

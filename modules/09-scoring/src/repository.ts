@@ -135,7 +135,7 @@ export async function getGradingsForAttempt(
   }>(
     `SELECT DISTINCT ON (g.question_id)
        g.question_id,
-       q.type  AS question_type,
+       COALESCE(qv.type, q.type) AS question_type, -- N21: frozen type; q.type only if the attempt row/version is missing
        g.score_earned::text,
        g.score_max::text,
        g.status,
@@ -143,6 +143,10 @@ export async function getGradingsForAttempt(
        g.error_class
      FROM gradings g
      JOIN questions q ON q.id = g.question_id
+     LEFT JOIN attempt_questions aq
+       ON aq.attempt_id = g.attempt_id AND aq.question_id = g.question_id
+     LEFT JOIN question_versions qv
+       ON qv.question_id = aq.question_id AND qv.version = aq.question_version
      WHERE g.attempt_id = $1
      ORDER BY g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC`,
     [attemptId],
