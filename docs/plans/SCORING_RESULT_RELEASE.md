@@ -59,7 +59,7 @@ Phase I = merges `b8163e1`, `7d56d75`, `b41916c` + fix `ecea951`. Phase II = mer
   - In one transaction it locks the attempt, re-checks completeness, computes the score, sets status `graded`, and records billing (`recordGradedAttempt`, same transaction by design).
 
 ### 3.2 States (no new status value)
-The `attempts.status` enum is unchanged. New columns (migration 0113) carry the hand-over:
+The `attempts.status` enum is unchanged. New columns (migration 0113) carry the hand-over. **FU-C2 (2026-10-06):** `pending_admin_grading` is reserved — last written by application code before `67ed5e2` (2026-10-01); submitted attempts now stay `submitted`/`auto_submitted` until `graded` (RCA 2026-10-03 "Attempts tab Pending grading was always empty"). The derived `evaluation_status` column below still lists it for backward compatibility with old rows.
 
 | Status + columns | Derived `evaluation_status` | Who acts next |
 | --- | --- | --- |

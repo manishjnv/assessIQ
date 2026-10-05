@@ -439,7 +439,7 @@ Kit treatment for settings + low-traffic admin pages. Commit `e624184`.
 
 ## Storybook
 
-Run `pnpm storybook` locally. Every primitive and composite has stories covering:
+FU-D11 (2026-10-06): there is no root `pnpm storybook` script today. Run `pnpm --filter @assessiq/storybook dev` (or `cd apps/storybook && pnpm dev`). Every primitive and composite has stories covering:
 - Default state
 - All size variants
 - All intent/variant variants

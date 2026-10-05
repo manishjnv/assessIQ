@@ -131,6 +131,10 @@ export async function archetypeDistribution(
  * P3.D21 empty-shape contract:
  *   In claude-code-vps mode: returns [] with an INFO log.
  *   In anthropic-api mode: queries grading_jobs.cost_* columns.
+ *
+ * FU-A12 (2026-10-06): the anthropic-api branch is not built — `grading_jobs`
+ * has no cost_* columns today and `modules/07-ai-grading/runtimes/anthropic-api.ts`
+ * does not exist. See docs/05-ai-pipeline.md D1/D6.
  */
 export async function gradingCostByMonth(
   tenantId: string,

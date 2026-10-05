@@ -8,6 +8,8 @@
 > **Scope of this doc.** Single source-of-truth for "what does an AssessIQ email look like." Resolves the kit-vs-production token deltas, designs the 8 email-safe atoms as table-based HTML, and surfaces the product decisions that Phase E1 needed before it materialized the Handlebars partials (E1 is shipped; see the status line above). **No production code lands as part of E0** — the atom HTML below is the *contract* E1 implements.
 >
 > **What this doc is NOT.** It is not the email send pipeline reference — that lives in [`modules/13-notifications/SKILL.md`](../modules/13-notifications/SKILL.md). It is not a marketing-content style guide — voice / copy conventions live in the kit's [`copy-and-voice.md`](../modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/design-system/copy-and-voice.md).
+>
+> **FU-A16 (2026-10-06): `tenants.smtp_config` shape conflict, facts only.** The sender (this doc's templates use whichever transport is live) is always the platform Brevo account today — `tenants.smtp_config` has no writer and is NULL on every tenant. Two shapes disagree about what it would look like once built: the migration (`docs/02-data-model.md` § `tenants`) says `{host, port, secure, user, password_enc, from_address, from_name}`; the code type (`modules/13-notifications/src/types.ts:195-203`) says `{provider, smtp_url, from_address, from_name, reply_to, template_overrides}` with a plaintext password in the URL. FU-A15 designs the single shape to use when a tenant sender ships (Enterprise tier, parked).
 
 ---
 

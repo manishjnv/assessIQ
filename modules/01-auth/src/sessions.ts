@@ -7,8 +7,9 @@ import { sha256Hex, randomTokenBase64Url } from "./crypto-util.js";
 // Why @assessiq/tenancy is imported here, despite SKILL.md § 9 saying
 // "01-auth does not call into 02-tenancy":
 //   That rule scopes the request-flow coupling — sessionLoader doesn't call
-//   tenantContextMiddleware and vice versa; they communicate via the shared
-//   request-decoration field name `tenantId`. The pg.Pool and the
+//   tenantContextMiddleware (FU-D6, 2026-10-06: that middleware is SUPERSEDED,
+//   not registered — see modules/02-tenancy/src/middleware.ts header) and
+//   02-tenancy doesn't call into 01-auth either way. The pg.Pool and the
 //   `withTenant(tenantId, fn)` helper are shared infrastructure (getPool is
 //   a singleton). Both modules must talk to Postgres; duplicating the pool
 //   would be wasteful and break connection-limit budgets. The DAG remains

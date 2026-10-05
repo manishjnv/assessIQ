@@ -28,7 +28,11 @@ The `grading_jobs` table (with per-call cost columns) ships in Phase 4 (`anthrop
 Export routes use `Readable.from(prebuilt-lines[])` rather than cursor-based streaming. Reason: `withTenant()` COMMITs the transaction (ending cursor lifetime) before the lazy stream is consumed. Pre-fetching all rows (bounded by `EXPORT_ROW_CAP = 10_000`) is safe at < 5 MB typical payload.
 
 ### D4 — No registration in 09-scoring routes
-Routes `/admin/reports/cohort/:assessmentId` and `/admin/reports/individual/:userId` are owned by 09-scoring (G2.B Session 3). Module 15-analytics is the *service layer* those routes call — no route duplication here.
+Routes `/admin/reports/cohort/:assessmentId` and `/admin/reports/individual/:userId` are owned by 09-scoring (G2.B Session 3). 09-scoring has its **own** `cohortStats`/individual progress implementation in `modules/09-scoring/src/service.ts` that these routes call.
+
+> **FU-C5 (2026-10-06): correction.** The line above used to claim "Module 15-analytics is the service layer those routes call — no route duplication here." That is false: 09-scoring's `cohortStats` does not call this module's `cohortReport`/`individualReport`. The two are an undetected duplicate, not a layering. This module's `cohortReport`/`individualReport` are exercised only by this module's own tests (dormant from the route's perspective) — see `modules/15-analytics/src/repository.ts` `queryCohortReport` comment. FU-C3 is the follow-up to route tenant-visible reads through one tenant-visibility rule (`evaluation_status`/`evaluation_released_at`) before either implementation gains a new caller.
+
+> **FU-C2 (2026-10-06): `homeKpis`/`queueSummary` dormant metric.** `queryHomeKpis` and `queryQueueSummary` (`modules/15-analytics/src/repository.ts`) both count `attempts.status = 'pending_admin_grading'` for "awaiting review" — that status has not been written since `67ed5e2` (2026-10-01, RCA "Attempts tab Pending grading was always empty"), so this count is permanently 0. The live equivalent is `countGradingQueue` (`modules/07-ai-grading/src/repository.ts`, built for RV58), which the admin dashboard cards actually use. `homeKpis`/`queueSummary`'s awaiting-review field stays dormant/misleading until pointed at `evaluation_status` or removed under Rule A review.
 
 ## Dependencies
 - `00-core`, `02-tenancy`, `14-audit-log`

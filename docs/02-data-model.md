@@ -496,6 +496,7 @@ With `rubric` column:
 > - `CHECK (opens_at IS NULL OR closes_at IS NULL OR opens_at < closes_at)` — DB-layer backstop for the service's `assertValidWindow` (defence-in-depth).
 > - Indexes — `assessments_tenant_status_idx (tenant_id, status)` for `listAssessments`; partial indexes `assessments_open_boundary_idx (opens_at) WHERE status='published'` and `assessments_close_boundary_idx (closes_at) WHERE status='active'` for the BullMQ boundary cron. Index sizes stay small because the partial predicates filter to states the cron actually scans.
 > - `tenants.smtp_config JSONB` (additive, lives in `modules/02-tenancy/migrations/0004_tenants_smtp_config.sql`) — per-tenant SMTP credentials shape. Phase 1 SMTP driver swap-in is deferred; the column is empty / NULL on every tenant today and the dev-emails.log stub continues to handle invitation sends. Decision #12 in the SKILL.md.
+> - **FU-A16 (2026-10-06): shape conflict, facts only.** The migration documents `smtp_config` as `{host, port, secure, user, password_enc, from_address, from_name}` (password encrypted). The code schema actually used by `resolveTransport`/`resolveFromAddress` (`modules/13-notifications/src/email/transport.ts:56,76`, type at `modules/13-notifications/src/types.ts:195-203`) is `{provider, smtp_url, from_address, from_name, reply_to, template_overrides}` — a full URL with the password in plain text. Neither shape has a writer today (column is NULL on every tenant; FR15 review, 2026-10-03). No code reads or writes a mismatched shape right now because nothing uses the column at all. FU-A15 is the design note for the single shape to build when a tenant sender ships (Enterprise tier, parked until the first request).
 >
 > **JOIN-based RLS for `assessment_invitations`:** the table carries no `tenant_id` column. Both RLS policies use an `EXISTS` sub-select that joins back to `assessments` and checks `a.tenant_id = current_setting('app.current_tenant', true)::uuid` — same pattern as `levels` / `questions`. The linter (`tools/lint-rls-policies.ts`) was extended in this commit to enforce this; `assessment_invitations` is now in `JOIN_RLS_TABLES`.
 
@@ -552,6 +553,13 @@ CREATE TABLE attempts (
   status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN (
     'draft','in_progress','submitted','auto_submitted','cancelled',
     'pending_admin_grading','graded','released'
+    -- FU-C2 (2026-10-06): 'pending_admin_grading' is RESERVED; last written by
+    -- application code before 67ed5e2 (2026-10-01). Submitted attempts now stay
+    -- 'submitted'/'auto_submitted' until graded (RCA 2026-10-03 "Attempts tab
+    -- Pending grading was always empty", RV58). The value stays in the CHECK
+    -- for backward compatibility with old rows and the derived evaluation_status
+    -- reader (modules/07-ai-grading/src/repository.ts countGradingQueue); do not
+    -- remove it (Rule A).
   )),
   started_at      TIMESTAMPTZ,
   ends_at         TIMESTAMPTZ,                            -- pinned at start = started_at + level.duration_minutes
@@ -1512,6 +1520,15 @@ Default `730` (2 years HR-grade). **Distinct from
 0050, default 7 years for audit forensic chain). The two windows are
 intentionally different: PII gets minimized at 2y; audit retains 7y for
 compliance forensics.
+
+**FU-B4 (2026-10-06): the two retention windows, as one table.**
+
+| Column | Table | Unit | Default | Range | Governs |
+|---|---|---|---|---|---|
+| `retention_days` | `tenant_settings` (migration `0103`) | days | 730 (2 years) | 1-3650 | Candidate PII minimization (`20-data-rights` purge cron) |
+| `audit_retention_years` | `tenant_settings` (migration `0050`, `14-audit-log`) | years | 7 | 1-10 | Audit-log forensic chain (compliance) |
+
+The archive job described in `modules/14-audit-log/SKILL.md` § Retention ("daily job archives rows older than retention to cold storage") is **parked, not built** — see that file for the marker.
 
 ### Historical `audit_log` PII redaction (migration `0104_audit_log_pii_redact_backfill.sql`)
 

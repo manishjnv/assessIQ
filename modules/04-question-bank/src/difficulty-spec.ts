@@ -9,6 +9,11 @@
  *   resolveDifficulty – typed accessor (type + level → DifficultyTarget)
  *   functionToNice   – coarse KbSource.function → NICE work-role name
  *   validateStructuralDifficulty – hard structural gate (Phase A)
+ *
+ * FU-C15 (2026-10-06): `numeric`, `multi_select` and `ordering` have NO entry
+ * in DIFFICULTY_SPEC, by design — they are hand-authored/deterministic types,
+ * never produced by the AI generator, so there is no generation difficulty to
+ * target. Record this as "no spec by design", not a gap to fill.
  */
 
 import { type QuestionType } from "./types.js";

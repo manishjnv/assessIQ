@@ -78,7 +78,7 @@ help.content.updated
 ## Retention
 - Default: 7 years (covers most compliance windows)
 - Tenant-overrideable in `tenant_settings.audit_retention_years` (min 1, max 10)
-- Daily job archives rows older than retention to cold storage (S3) and removes from hot table; archive accessible via admin export only
+- Daily job archives rows older than retention to cold storage (S3) and removes from hot table; archive accessible via admin export only — **parked, not built (FU-B4, 2026-10-06).** No cron/BullMQ job exists today; `FU-B1`'s "restore" route returns a clean "not available" stub. See `docs/02-data-model.md` § retention table for the two retention windows.
 
 ## Storage discipline
 - `audit_log` is INSERT-only at the application layer

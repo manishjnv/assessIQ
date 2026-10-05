@@ -9,8 +9,12 @@
 //   6. <route handler chain> with requireAuth/requireRole/requireScope/requireFreshMfa
 //   7. extendOnPass          (sliding-refresh on session-backed pass)
 //
-// 02-tenancy.tenantContextMiddleware sits between (5) and (6) — it reads
-// req.session?.tenantId ?? req.apiKey?.tenantId to set the Postgres GUC.
+// FU-D6 (2026-10-06): the line below was stale. 02-tenancy.tenantContextMiddleware
+// is NOT registered in the request chain (removed 2026-10, campus-scale fix —
+// see modules/02-tenancy/src/middleware.ts header). Tenant context is set by
+// withTenant(tenantId, fn) at each route/service call site, which reads
+// req.session?.tenantId ?? req.apiKey?.tenantId itself. See
+// apps/api/src/middleware/auth-chain.ts for the real, current chain.
 
 export { requestIdMiddleware } from "./request-id.js";
 export { cookieParserMiddleware, parseCookieHeader } from "./cookie-parser.js";

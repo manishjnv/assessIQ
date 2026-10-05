@@ -171,6 +171,8 @@ CI integration: Phase 1 — manual only (no Max OAuth in CI). Phase 2 — runs i
 
 ### D6 — Phase 2 budget enforcement (deferred)
 
+> **FU-A10 (2026-10-06): parked, API mode only.** Not built. `tenant_grading_budgets` has no migration today; `GET /api/admin/settings/billing` (`src/routes.ts:538`) always returns a zero-cost stub. See `docs/05-ai-pipeline.md` D6 and FR7 review (2026-10-03): folded into the billing AI meter (PT1-2), not a standalone budget table.
+
 `tenant_grading_budgets` table (Phase 2 migration): `tenant_id PK FK`, `monthly_budget_usd numeric(10,2)`, `used_usd numeric(10,2) DEFAULT 0`, `period_start date`, `alert_threshold_pct numeric(5,2) DEFAULT 80`, `alerted_at timestamptz NULL`. RLS uses the `tenants`-style PK-equals policy.
 
 Enforcement: pre-call check in `runtimes/anthropic-api.ts` rejects if `used_usd >= monthly_budget_usd`. Exhaustion → HTTP 429 → `grading_jobs.status='failed'` with `error_class='budget_exhausted'` → admin notification → attempt stays `pending_admin_grading`. Daily BullMQ rollover job (non-AI) resets per period boundary. Phase 1: N/A.

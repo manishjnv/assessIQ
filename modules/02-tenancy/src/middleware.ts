@@ -5,6 +5,11 @@ import { getPool } from "./pool.js";
 /**
  * Tenant-context middleware for the Fastify request lifecycle.
  *
+ * SUPERSEDED (FU-D5, 2026-10-06): see `apps/api/src/middleware/auth-chain.ts`
+ * and `withTenant` in `./pool.js` / `@assessiq/tenancy` for what actually runs
+ * today. This function is kept only as an exported, tested helper; it is not
+ * wired into any live request path.
+ *
  * NOT REGISTERED by apps/api (removed 2026-10, campus-scale fix): nothing
  * consumed req.db / req.tenant, and the per-request client + open BEGIN would
  * pin a pool connection for the full request lifetime (pool exhaustion under a

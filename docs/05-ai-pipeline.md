@@ -236,7 +236,7 @@ Every subjective answer goes through three stages with three different models, p
                                      └──────────────────────────────┘
 ```
 
-For **MCQ**: deterministic, no LLM. For **KQL**: pattern match in v1, expand to in-browser KQL simulator in v2.
+For **MCQ**: deterministic, no LLM. For **KQL**: manual score today; execution grading is design only (FU-D16, X4; owner decided NO 2026-10-03 — see D6 and FU-D18).
 
 In `claude-code-vps` mode the model is selected by the active skill's frontmatter (`grade-anchors` → Haiku, `grade-band` → Sonnet, `grade-escalate` → Opus). In `anthropic-api` mode it's selected by the `model:` parameter in the SDK call. Same models, same prompts, different conductor.
 
@@ -573,6 +573,8 @@ The lint file does not yet exist — its slot is reserved in `CLAUDE.md` § Load
 
 ### D1 — `AI_PIPELINE_MODE` allowed values and per-mode behavior
 
+> **FU-A12 (2026-10-06): not built.** `anthropic-api` and `open-weights` are design-only; only `claude-code-vps` runs in production. Park notice: FR9 review 2026-10-03, decided "park the API key" (OD2 not yet made).
+
 **Chosen.** `AI_PIPELINE_MODE` is a Zod-validated env var owned by `modules/00-core/src/config.ts`. Allowed values:
 
 | Value | Phase | Auth | Runtime file loaded |
@@ -753,6 +755,8 @@ modules/07-ai-grading/eval/
 ---
 
 ### D6 — Phase 2 budget enforcement (deferred)
+
+> **FU-A10/FU-A12 (2026-10-06): not built, parked API-mode only.** `tenant_grading_budgets` and the route at `modules/07-ai-grading/src/routes.ts:538` (`GET /api/admin/settings/billing`) exist only as a Phase 1 zero-cost stub; no migration creates this table today. Park notice: FR7 review 2026-10-03, folded into the billing AI meter (PT1-2).
 
 **Chosen (designed, not built).** Phase 2 introduces a per-tenant token budget table:
 

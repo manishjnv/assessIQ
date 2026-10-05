@@ -433,8 +433,10 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | `GET`  | `/admin/reports/individual/:userId`   | All scored attempts for a user across assessments. Response: `IndividualScore[]` (each row: `attempt_id, assessment_id, auto_pct, archetype, computed_at`). RLS-scoped to tenant. | **live 2026-05-01** |
 | `GET`  | `/admin/reports/leaderboard/:assessmentId?topN=10&anonymize=false` | Top-N attempts ordered by `auto_pct DESC`. `topN` range: 1–200 (default 10). `anonymize=true` redacts `candidate_name` and `candidate_email` to null. **Admin-only.** No public cross-tenant view (P2.D13). Response: `LeaderboardRow[]` (each: `rank, attempt_id, candidate_name, candidate_email, auto_pct, archetype, computed_at`). | **live 2026-05-01** |
 | `GET`  | `/admin/dashboard/summary`            | Headline KPIs for current tenant | **planned** |
-| `GET`  | `/admin/reports/topic-heatmap`        | Strong/weak topics across team | **planned** |
-| `GET`  | `/admin/reports/export.csv`           | CSV export of attempts (with filters) | **planned** |
+| `GET`  | `/admin/reports/topic-heatmap`        | Strong/weak topics across team | **live 2026-05-xx (15-analytics), no admin UI caller — see FU-C5 note below** |
+| `GET`  | `/admin/reports/export.csv`           | CSV export of attempts (with filters) | **live as `/admin/reports/exports/attempts.{csv,jsonl}` (15-analytics), no admin UI caller** |
+
+> **FU-C5 (2026-10-06): which report routes have a UI, which are parked.** The three rows above were stale ("planned") — `modules/15-analytics/src/routes.ts` has shipped `topic-heatmap`, `archetype-distribution/:assessmentId`, `cost-by-month`, `exports/attempts.csv`, `exports/attempts.jsonl` and `exports/topic-heatmap.csv` since Phase 3 G3.C. None of the six has an `modules/10-admin-dashboard` caller today (checked 2026-10-06: no match for any of these paths under `modules/10-admin-dashboard/src`) — they are reachable only by a direct API call. `cost-by-month` is additionally empty-shape in `claude-code-vps` mode (D2, see `docs/05-ai-pipeline.md`). The cohort/individual routes just above (live, UI-backed) are a *separate*, independent implementation in 09-scoring — see `modules/15-analytics/SKILL.md` D4.
 
 #### Scoring endpoints — error contract
 
