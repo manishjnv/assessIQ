@@ -1,5 +1,23 @@
 import type { PoolClient } from "pg";
+import { ValidationError } from "@assessiq/core";
 import { getPool } from "./pool.js";
+
+// FU-D7 (2026-10-06): hardening, not a fix. Today an empty/malformed tenantId
+// reaches set_config and the RLS policy comparison then fails closed (a cast
+// error on `::uuid`), so no tenant isolation bug exists without this check.
+// This just turns that into an explicit, named error at the one call site
+// every tenant-scoped operation goes through, instead of a generic Postgres
+// cast error surfacing from wherever `fn` first touches a tenant-scoped table.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertValidTenantId(tenantId: string): void {
+  if (typeof tenantId !== "string" || !UUID_RE.test(tenantId)) {
+    throw new ValidationError(
+      "withTenant: tenantId must be a non-empty UUID",
+      { details: { code: "INVALID_TENANT_ID" } },
+    );
+  }
+}
 
 /**
  * Run `fn` inside a per-call Postgres transaction with tenant context pinned.
@@ -50,6 +68,7 @@ export async function withTenant<T>(
   tenantId: string,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
+  assertValidTenantId(tenantId);
   const client = await getPool().connect();
   const hooks: Array<() => Promise<void>> = [];
   afterCommit.set(client, hooks);
