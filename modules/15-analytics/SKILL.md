@@ -54,6 +54,10 @@ archetypeDistribution(tenantId, assessmentId): Promise<ArchetypeDistributionItem
 gradingCostByMonth(tenantId, year): Promise<CostRow[]>
 
 // Exports (all use MV, hard-capped at EXPORT_ROW_CAP=10_000 rows)
+// FU-C6 (2026-10-06): decided — JSONL stays an admin data export (machine-
+// readable dump for the operator's own tooling), not a second user-facing
+// export format. attempts.csv is the one shown to tenant admins in the UI.
+// Both already carry the RV77 formula-injection guard (csvCell, commit 7accd3f).
 exportAttemptsCsv({ tenantId, filters }): Promise<Readable>
 exportAttemptsJsonl({ tenantId, filters }): Promise<Readable>
 exportTopicHeatmapCsv({ tenantId, packId, from?, to? }): Promise<Readable>

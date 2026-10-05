@@ -78,38 +78,49 @@ export async function registerAttemptCandidateRoutes(
       const userId = req.session!.userId;
 
       return withTenant(tenantId, async (client) => {
+        // FU-C10 (2026-10-06): field names aligned to InvitedAssessmentWire
+        // (modules/11-candidate-ui/src/types.ts) — id/duration_seconds/
+        // question_count, not assessment_id/duration_minutes. Also now filters
+        // by the assessment's open window and the invitation's own expiry,
+        // so a closed or expired invite no longer appears as "upcoming".
         interface Row {
-          assessment_id: string;
+          id: string;
           name: string;
-          description: string | null;
-          status: string;
+          duration_seconds: number;
+          question_count: number;
           opens_at: Date | null;
           closes_at: Date | null;
-          duration_minutes: number;
-          invitation_status: string;
-          invitation_expires_at: Date;
         }
         const result = await client.query<Row>(
           `SELECT
-             a.id              AS assessment_id,
-             a.name            AS name,
-             a.description     AS description,
-             a.status          AS status,
-             a.opens_at        AS opens_at,
-             a.closes_at       AS closes_at,
-             l.duration_minutes AS duration_minutes,
-             ai.status         AS invitation_status,
-             ai.expires_at     AS invitation_expires_at
+             a.id                        AS id,
+             a.name                      AS name,
+             (l.duration_minutes * 60)   AS duration_seconds,
+             a.question_count            AS question_count,
+             a.opens_at                  AS opens_at,
+             a.closes_at                 AS closes_at
            FROM assessment_invitations ai
            JOIN assessments a ON a.id = ai.assessment_id
            JOIN levels      l ON l.id = a.level_id
            WHERE ai.user_id = $1
              AND ai.status IN ('pending', 'viewed', 'started')
              AND a.status IN ('published', 'active')
+             AND ai.expires_at > now()
+             AND (a.opens_at  IS NULL OR a.opens_at  <= now())
+             AND (a.closes_at IS NULL OR a.closes_at >  now())
            ORDER BY a.created_at DESC, a.id DESC`,
           [userId],
         );
-        return { items: result.rows };
+        return {
+          items: result.rows.map((r) => ({
+            id: r.id,
+            name: r.name,
+            duration_seconds: r.duration_seconds,
+            question_count: r.question_count,
+            opens_at: r.opens_at?.toISOString() ?? null,
+            closes_at: r.closes_at?.toISOString() ?? null,
+          })),
+        };
       });
     },
   );

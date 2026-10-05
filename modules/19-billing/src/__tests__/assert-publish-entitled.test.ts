@@ -33,7 +33,7 @@ import { execSync } from 'node:child_process';
 
 import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
 import { AppError } from '@assessiq/core';
-import { assertPublishEntitled } from '../service.js';
+import { assertPublishEntitled, tierAllows } from '../service.js';
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -348,5 +348,48 @@ describe('assertPublishEntitled — (g) non-internal tier with valid domain gran
     await insertEntitlement(TENANT_ID, 'domain', PACK_DOMAIN);
 
     await expect(runCheck(TENANT_ID, PACK_ID)).resolves.toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// FU-A3 (2026-10-06) — tierAllows
+// ---------------------------------------------------------------------------
+
+describe('tierAllows (FU-A3)', () => {
+  it.skipIf(!dockerAvailable)('free tier: false for a pro-gated feature, true for nothing below free', async () => {
+    await setTenantPlan(TENANT_ID, 'free', 25);
+    await expect(tierAllows(TENANT_ID, 'webhooks')).resolves.toBe(false);
+    await expect(tierAllows(TENANT_ID, 'certificates')).resolves.toBe(false);
+    await expect(tierAllows(TENANT_ID, 'api_keys')).resolves.toBe(false);
+  });
+
+  it.skipIf(!dockerAvailable)('pro tier: true for pro-gated, false for enterprise-gated', async () => {
+    await setTenantPlan(TENANT_ID, 'pro', 1000);
+    await expect(tierAllows(TENANT_ID, 'webhooks')).resolves.toBe(true);
+    await expect(tierAllows(TENANT_ID, 'certificates')).resolves.toBe(true);
+    await expect(tierAllows(TENANT_ID, 'api_keys')).resolves.toBe(false);
+    await expect(tierAllows(TENANT_ID, 'embed')).resolves.toBe(false);
+  });
+
+  it.skipIf(!dockerAvailable)('enterprise tier: true for everything gated', async () => {
+    await setTenantPlan(TENANT_ID, 'enterprise', null);
+    await expect(tierAllows(TENANT_ID, 'api_keys')).resolves.toBe(true);
+    await expect(tierAllows(TENANT_ID, 'embed')).resolves.toBe(true);
+    await expect(tierAllows(TENANT_ID, 'audit_viewer')).resolves.toBe(true);
+    await expect(tierAllows(TENANT_ID, 'own_email_sender')).resolves.toBe(true);
+  });
+
+  it.skipIf(!dockerAvailable)('internal tier: bypasses every gate', async () => {
+    await setTenantPlan(TENANT_ID, 'internal', null);
+    await expect(tierAllows(TENANT_ID, 'api_keys')).resolves.toBe(true);
+    // Restore for any subsequent file in the same suite.
+    await setTenantPlan(TENANT_ID, 'free', 25);
+  });
+
+  it.skipIf(!dockerAvailable)('no plan row: fail-closed (false), not a bypass', async () => {
+    await deleteTenantPlan(TENANT_ID);
+    await expect(tierAllows(TENANT_ID, 'webhooks')).resolves.toBe(false);
+    // Restore plan for subsequent tests.
+    await setTenantPlan(TENANT_ID, 'free', 25);
   });
 });

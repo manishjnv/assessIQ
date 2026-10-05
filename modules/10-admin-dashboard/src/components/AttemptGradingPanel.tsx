@@ -333,23 +333,54 @@ function AttemptAnswerView({ type, content, answer }: { type: string; content: u
       const query = typeof a?.query === "string" ? a.query : null;
       if (query === null) break;
       if (query.trim() === "") return <NoAnswer label="No query submitted." />;
+      // FU-D15 (2026-10-06): no auto-grader exists for KQL yet (manual score
+      // only) — this is a read-only aid next to ManualScoreForm, not a score.
+      const c = asAnswerObj(content);
+      const expectedKeywords = Array.isArray(c?.expected_keywords)
+        ? (c!.expected_keywords as unknown[]).filter((k): k is string => typeof k === "string" && k.trim() !== "")
+        : [];
+      const queryLower = query.toLowerCase();
+      const hits = expectedKeywords.filter((k) => queryLower.includes(k.toLowerCase()));
       return (
-        <pre
-          style={{
-            margin: 0,
-            padding: "var(--aiq-space-sm)",
-            background: "var(--aiq-color-bg-secondary, #f8f8f8)",
-            borderRadius: 4,
-            fontFamily: "var(--aiq-font-mono)",
-            fontSize: "var(--aiq-text-xs)",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            color: "var(--aiq-color-fg-primary)",
-            border: "1px solid var(--aiq-color-border, #e5e7eb)",
-          }}
-        >
-          {query}
-        </pre>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+          <pre
+            style={{
+              margin: 0,
+              padding: "var(--aiq-space-sm)",
+              background: "var(--aiq-color-bg-secondary, #f8f8f8)",
+              borderRadius: 4,
+              fontFamily: "var(--aiq-font-mono)",
+              fontSize: "var(--aiq-text-xs)",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              color: "var(--aiq-color-fg-primary)",
+              border: "1px solid var(--aiq-color-border, #e5e7eb)",
+            }}
+          >
+            {query}
+          </pre>
+          {expectedKeywords.length > 0 && (
+            <p style={{ ...ANSWER_TEXT_STYLE, fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+              Keyword hits ({hits.length}/{expectedKeywords.length}): {expectedKeywords.map((k) => (
+                <span
+                  key={k}
+                  style={{
+                    display: "inline-block",
+                    marginRight: "var(--aiq-space-xs)",
+                    padding: "1px 6px",
+                    borderRadius: "var(--aiq-radius-pill, 9999px)",
+                    fontFamily: "var(--aiq-font-mono)",
+                    background: hits.includes(k) ? "var(--aiq-color-success-soft, #d1fae5)" : "var(--aiq-color-bg-secondary, #f3f4f6)",
+                    color: hits.includes(k) ? "var(--aiq-color-success, #065f46)" : "var(--aiq-color-fg-muted)",
+                  }}
+                >
+                  {k}
+                </span>
+              ))}
+              {" "}— not a score, a reading aid for the manual score below.
+            </p>
+          )}
+        </div>
       );
     }
 

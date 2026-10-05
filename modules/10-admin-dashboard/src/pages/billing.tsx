@@ -31,7 +31,7 @@ import { Card, Chip, Icon } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { useAdminSession } from "../session.js";
-import { updateTenantAiGenerateMode, getCompanyUsage, type AiGenerateMode, type CompanyUsage } from "../api.js";
+import { updateTenantAiGenerateMode, getCompanyUsage, getGlobalAiGenerateMode, type AiGenerateMode, type CompanyUsage } from "../api.js";
 import { usageMessage } from "../components/UsageBanner.js";
 import { TenantSettings } from "./tenant-settings.js";
 
@@ -99,6 +99,21 @@ export function AdminBilling(): React.ReactElement {
   // A2 — "Your plan & usage" card state (all admins)
   const [companyUsage, setCompanyUsage] = useState<CompanyUsage | null>(null);
 
+  // FU-D27 (2026-10-06): real platform default, read from the server instead
+  // of a hardcoded string. Falls back to "omnibus" (the config schema default)
+  // only while the fetch is in flight or if it fails.
+  const [globalDefault, setGlobalDefault] = useState<"omnibus" | "sharded">("omnibus");
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    void getGlobalAiGenerateMode()
+      .then((r) => setGlobalDefault(r.global_default))
+      .catch(() => {
+        // Fail-silent — the "omnibus" fallback above matches the config schema
+        // default, so the UI stays correct in the common case.
+      });
+  }, [isSuperAdmin]);
+
   useEffect(() => {
     void getCompanyUsage()
       .then(setCompanyUsage)
@@ -160,12 +175,12 @@ export function AdminBilling(): React.ReactElement {
                     cursor: "pointer",
                   }}
                 >
-                  <option value="">Use global default (omnibus)</option>
+                  <option value="">Use global default ({globalDefault})</option>
                   <option value="omnibus">omnibus</option>
                   <option value="sharded">sharded</option>
                 </select>
                 <p style={MUTED_SM}>
-                  Current global default: <strong>omnibus</strong> (from AI_GENERATE_MODE env var).
+                  Current global default: <strong>{globalDefault}</strong> (from AI_GENERATE_MODE env var).
                 </p>
               </div>
 

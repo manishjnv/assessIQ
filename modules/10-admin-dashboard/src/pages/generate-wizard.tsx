@@ -99,14 +99,16 @@ function clearLegacyGenBatchPlan(): void {
 }
 
 // E6: the plan now lives server-side; every call is best-effort so the wizard
-// still works (just without resume) when the API is unreachable.
-async function putPlan(p: GenBatchPlan): Promise<void> {
+// still works (just without resume) when the API is unreachable. FU-D21
+// (2026-10-06): the failure is no longer silent — callers pass onError to
+// surface a small "not saved" notice instead of an empty-looking resume table.
+async function putPlan(p: GenBatchPlan, onError?: () => void): Promise<void> {
   if (!p.batchId) return;
-  await putGenerationBatchApi(p.batchId, p).catch(() => { /* non-critical */ });
+  await putGenerationBatchApi(p.batchId, p).catch(() => { onError?.(); });
 }
-function setBatchStatus(batchId: string | undefined, status: "done" | "dismissed"): void {
+function setBatchStatus(batchId: string | undefined, status: "done" | "dismissed", onError?: () => void): void {
   if (!batchId) return;
-  void setGenerationBatchStatusApi(batchId, status).catch(() => { /* non-critical */ });
+  void setGenerationBatchStatusApi(batchId, status).catch(() => { onError?.(); });
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +433,9 @@ export function AdminGenerateWizard(): React.ReactElement {
   // Generating state (D4)
   const [genResults, setGenResults] = useState<CategoryGenResult[]>([]);
   const [genCurrentIdx, setGenCurrentIdx] = useState<number>(0);
+  // FU-D21 (2026-10-06): set when a best-effort batch-plan save/status call
+  // fails, so the resume table's silence has a visible reason.
+  const [planSaveWarning, setPlanSaveWarning] = useState(false);
 
   // A2: rubric auto-generation progress (subjective drafts lacking a rubric).
   // Runs after question generation; each rubric is a separate single-flight
@@ -686,7 +691,7 @@ export function AdminGenerateWizard(): React.ReactElement {
 
     // Persist the plan server-side before the first category (best-effort);
     // the server records each finished category itself.
-    await putPlan(livePlan);
+    await putPlan(livePlan, () => setPlanSaveWarning(true));
 
     for (let pi = 0; pi < pending.length; pi++) {
       const cat = pending[pi]!;
@@ -770,7 +775,7 @@ export function AdminGenerateWizard(): React.ReactElement {
     }
 
     // All categories done — clear the persisted plan so there is no stale resume state.
-    setBatchStatus(batchId, "done");
+    setBatchStatus(batchId, "done", () => setPlanSaveWarning(true));
 
     // Load all drafts for the review screen after generation
     await loadDrafts();
@@ -886,7 +891,7 @@ export function AdminGenerateWizard(): React.ReactElement {
               <button
                 type="button"
                 className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-                onClick={() => { setBatchStatus(planSnapshot.batchId, "dismissed"); setResumePlan(null); }}
+                onClick={() => { setBatchStatus(planSnapshot.batchId, "dismissed", () => setPlanSaveWarning(true)); setResumePlan(null); }}
               >
                 Discard
               </button>
@@ -1130,6 +1135,13 @@ export function AdminGenerateWizard(): React.ReactElement {
         <div style={{ marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
           You can leave this page — completed categories are saved automatically and will be waiting under Review. Only the category currently generating would need re-running if you leave now.
         </div>
+
+        {/* FU-D21: best-effort batch-plan save/status failed — the resume table may be empty or stale */}
+        {planSaveWarning && (
+          <div style={{ marginBottom: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-danger-soft, #fee2e2)", border: "1px solid var(--aiq-color-danger, #dc2626)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-danger, #dc2626)" }}>
+            Not saved: the resume checkpoint could not reach the server. Generation itself is unaffected, but resuming this batch after leaving the page may not work.
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
           {genResults.map((r, idx) => {

@@ -668,6 +668,49 @@ describe("HTTP routes — consent invariant (R4 review fixes)", () => {
     expect(ok.statusCode).toBe(201);
     expect(await counts(candidate, assessmentId)).toEqual({ attempts: 1, consents: 1 });
   });
+
+  it("GET /api/me/assessments (FU-C10): shapes id/duration_seconds/question_count; hides a not-yet-open assessment; shows it once opened", async () => {
+    const { assessmentId } = await setup("Wire");
+    const app = await buildApp();
+
+    // buildActiveAssessmentWithInvite sets opens_at 60s in the future — the
+    // invite should NOT appear yet.
+    const before = await app.inject({ method: "GET", url: "/api/me/assessments" });
+    expect(before.statusCode).toBe(200);
+    expect(before.json().items.find((i: { id: string }) => i.id === assessmentId)).toBeUndefined();
+
+    // Open it (simulate the opens_at boundary passing) and confirm the aligned
+    // field shape: id (not assessment_id), duration_seconds (not
+    // duration_minutes), question_count present.
+    await withSuperClient((c) =>
+      c.query("UPDATE assessments SET opens_at = now() - interval '1 minute' WHERE id = $1", [assessmentId]),
+    );
+    const after = await app.inject({ method: "GET", url: "/api/me/assessments" });
+    expect(after.statusCode).toBe(200);
+    const item = after.json().items.find((i: { id: string }) => i.id === assessmentId);
+    expect(item).toBeDefined();
+    expect(item.duration_seconds).toBe(15 * 60);
+    expect(item.question_count).toBe(2);
+    expect(item).not.toHaveProperty("assessment_id");
+    expect(item).not.toHaveProperty("duration_minutes");
+  });
+
+  it("GET /api/me/assessments (FU-C10): hides an invitation past its own expiry even while the assessment is open", async () => {
+    const { assessmentId } = await setup("Expired");
+    const app = await buildApp();
+    await withSuperClient((c) =>
+      c.query("UPDATE assessments SET opens_at = now() - interval '1 minute' WHERE id = $1", [assessmentId]),
+    );
+    await withSuperClient((c) =>
+      c.query(
+        "UPDATE assessment_invitations SET expires_at = now() - interval '1 minute' WHERE assessment_id = $1",
+        [assessmentId],
+      ),
+    );
+    const res = await app.inject({ method: "GET", url: "/api/me/assessments" });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().items.find((i: { id: string }) => i.id === assessmentId)).toBeUndefined();
+  });
 });
 
 describe("startAttempt — frozen-pool resolution (lock at assignment)", () => {

@@ -22,6 +22,10 @@ export {
   type CohortPercentiles,
 } from "./types.js";
 
+// FU-C3 (2026-10-06): the tenant-visible score rule as a reusable SQL fragment,
+// so other modules (15-analytics) don't hand-copy it and risk drift.
+export { TENANT_VISIBLE_ATTEMPT_SQL } from "./repository.js";
+
 // Archetype helpers (exported for testing + future SKILL.md extension)
 export {
   computeSignals,

@@ -385,6 +385,44 @@ describe('PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode', () => {
 });
 
 // ---------------------------------------------------------------------------
+// GET /api/admin/super/ai-generate-mode (FU-D27, 2026-10-06)
+// ---------------------------------------------------------------------------
+
+describe('GET /api/admin/super/ai-generate-mode', () => {
+  let app: FastifyInstance;
+
+  beforeAll(async () => {
+    app = await buildServer();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  it('returns the config default for a super_admin', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/admin/super/ai-generate-mode',
+      headers: SUPER_ADMIN_HEADERS,
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ global_default: string }>();
+    expect(body.global_default).toBe('omnibus');
+  });
+
+  it('403s for a tenant admin', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/admin/super/ai-generate-mode',
+      headers: TENANT_ADMIN_HEADERS,
+    });
+
+    expect(res.statusCode).toBe(403);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Tenant lifecycle endpoints: suspend / resume / archive / unarchive
 //
 // These POST routes are gated by superAdminFreshMfa. The handler:

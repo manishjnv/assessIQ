@@ -43,7 +43,12 @@ export {
   // Step 2 — clone-on-use exports
   assertLicensedForSourcePack,
   listAvailableSetsForTenant,
+  // FU-A3 exports
+  tierAllows,
+  TIER_DISPLAY_NAMES,
 } from './service.js';
+
+export type { TierFeature } from './service.js';
 
 export type { AvailableSet } from './types.js';
 
