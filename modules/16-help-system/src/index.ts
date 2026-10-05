@@ -3,6 +3,7 @@ export {
   getHelpForPage,
   getHelpKey,
   upsertHelpForTenant,
+  isValidHelpKey,
   exportHelp,
   importHelp,
   recordHelpEvent,

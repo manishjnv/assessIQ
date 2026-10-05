@@ -939,5 +939,22 @@ describe("09-scoring", () => {
       expect(scores.length).toBeGreaterThanOrEqual(1);
       expect(scores[0]?.attempt_id).toBe(chain1.attemptId);
     });
+
+    it("hides an attempt whose result is not released to the tenant (FU-C9)", async () => {
+      const chain = await seedAssessmentChain(tenantA, adminA);
+      await insertGrading(tenantA, chain.attemptId, chain.questionId, adminA);
+      await computeAttemptScore(tenantA, chain.attemptId);
+      await withSuperClient((c) =>
+        c.query(`UPDATE attempts SET evaluation_released_at = NULL WHERE id = $1`, [chain.attemptId]),
+      );
+      const hidden = await individualReport(tenantA, chain.candidateId);
+      expect(hidden.find((s) => s.attempt_id === chain.attemptId)).toBeUndefined();
+
+      await withSuperClient((c) =>
+        c.query(`UPDATE attempts SET evaluation_released_at = now() WHERE id = $1`, [chain.attemptId]),
+      );
+      const visible = await individualReport(tenantA, chain.candidateId);
+      expect(visible.find((s) => s.attempt_id === chain.attemptId)).toBeDefined();
+    });
   });
 });

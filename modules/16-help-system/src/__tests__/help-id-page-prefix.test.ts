@@ -3,6 +3,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { isValidHelpKey } from "../service.js";
 
 const ROOT = resolve(__dirname, "../../../..");
 const DIRS = ["modules/10-admin-dashboard/src/pages", "apps/web/src/pages"];
@@ -35,5 +36,31 @@ describe("help ids sit under their page prefix", () => {
       }
     }
     expect(bad).toEqual([]);
+  });
+});
+
+// FU-D4 (2026-10-06): the format gate a saved key must pass (enforced at
+// write time in upsertHelpForTenant) — a key that fails this can never match
+// any page prefix, so the editor (today: upsertHelpForTenant; tomorrow: FU-D2's
+// UI) cannot create a hidden key.
+describe("isValidHelpKey (the save-time gate)", () => {
+  it("accepts a well-formed, dot-separated, lowercase key", () => {
+    expect(isValidHelpKey("admin.tenant_settings.name")).toBe(true);
+    expect(isValidHelpKey("admin.page")).toBe(true);
+  });
+
+  it("rejects a hyphenated segment (the N16 bug class)", () => {
+    expect(isValidHelpKey("admin.tenant-settings.name")).toBe(false);
+  });
+
+  it("rejects a single segment with no page prefix at all", () => {
+    expect(isValidHelpKey("orphan_key")).toBe(false);
+  });
+
+  it("rejects uppercase, empty segments, and whitespace", () => {
+    expect(isValidHelpKey("Admin.foo")).toBe(false);
+    expect(isValidHelpKey("admin..foo")).toBe(false);
+    expect(isValidHelpKey("admin.foo bar")).toBe(false);
+    expect(isValidHelpKey("")).toBe(false);
   });
 });
