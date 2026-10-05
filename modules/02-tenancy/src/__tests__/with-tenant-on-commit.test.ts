@@ -82,3 +82,31 @@ describe("onCommit", () => {
     expect(state.released).toBe(1);
   });
 });
+
+// FU-D7 (2026-10-06): withTenant rejects an empty or non-UUID tenantId before
+// ever acquiring a pool client (fail fast, named error, not a generic
+// Postgres ::uuid cast error from wherever fn first touches a tenant table).
+describe("withTenant — tenantId validation (FU-D7)", () => {
+  it("throws ValidationError for an empty string, without touching the pool", async () => {
+    state.log = [];
+    await expect(withTenant("", async () => "never")).rejects.toMatchObject({
+      name: "ValidationError",
+      code: "VALIDATION_FAILED",
+    });
+    expect(state.log).toEqual([]); // no BEGIN/connect — rejected before pool.connect()
+  });
+
+  it("throws ValidationError for a non-UUID string", async () => {
+    await expect(withTenant("not-a-uuid", async () => "never")).rejects.toMatchObject({
+      name: "ValidationError",
+    });
+    await expect(withTenant("'; DROP TABLE tenants; --", async () => "never")).rejects.toMatchObject({
+      name: "ValidationError",
+    });
+  });
+
+  it("still accepts a well-formed UUID (no regression)", async () => {
+    const out = await withTenant(T, async () => "ok");
+    expect(out).toBe("ok");
+  });
+});
