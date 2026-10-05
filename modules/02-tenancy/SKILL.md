@@ -1,7 +1,7 @@
 # 02-tenancy — Multi-tenant isolation
 
 ## Purpose
-Tenant CRUD, settings, branding, and the runtime mechanism that pins every request and DB query to the correct tenant. Enforces isolation at three layers: middleware (request scope), repository (query is RLS-only — no double filter), and database (RLS policies).
+Tenant CRUD, settings, branding, and the runtime mechanism that pins every request and DB query to the correct tenant. Enforces isolation at three layers: service call sites (`withTenant`, request scope), repository (query is RLS-only — no double filter), and database (RLS policies). **FU-D6 (2026-10-06):** the request-scope layer is `withTenant` called from each route/service, not a registered Fastify middleware — see `src/middleware.ts` header (SUPERSEDED) and `apps/api/src/middleware/auth-chain.ts` for the real chain.
 
 ## Scope
 - **In:** `tenants` and `tenant_settings` CRUD; tenant resolver from session/JWT/API key; `set_config('app.current_tenant', ...)` per request; RLS policy management; tenant lifecycle (suspend, archive); branding upload + serving; embed-origin allow-list management.
@@ -20,7 +20,7 @@ updateTenantSettings(id, patch): Promise<TenantSettings>
 suspendTenant(id, reason): Promise<void>
 renameTenant(adminUserId, tenantId, rawName): Promise<RenameTenantResult>  // tenant-admin renames OWN company; normalizeTenantName (2-120, collapse ws, no control chars); UPDATE tenants.name + 1 tenant.renamed auditInTx in one tx; same-name = noOp. Route: PATCH /api/admin/tenant. Display-only: never touches slug/id/status.
 
-// middleware — Fastify hook pair (preHandler + onResponse)
+// middleware — Fastify hook pair (preHandler + onResponse) — SUPERSEDED, NOT REGISTERED (FU-D5/FU-D6, 2026-10-06): see src/middleware.ts header
 tenantContextMiddleware(): TenantContextHooks
 //   .preHandler  : acquire pg client, BEGIN, SET LOCAL ROLE assessiq_app,
 //                  set_config('app.current_tenant', $1, true), attach req.tenant + req.db
@@ -35,7 +35,7 @@ closePool(): Promise<void>
 setPoolForTesting(connectionString): Promise<pg.Pool>   // test escape hatch, not exported via index.ts
 ```
 
-`tenantContextMiddleware` returns the two Fastify hook functions (`preHandler`, `onResponse`) rather than a single `preHandler`. The 01-auth session loader will register both hooks once on the Fastify instance in G0.C session 4. Phase 0 deliberately avoids a hard `fastify` dependency — hooks are structurally typed against `TenantRequest` / `TenantReply` interfaces so tests exercise them without booting the framework.
+`tenantContextMiddleware` returns the two Fastify hook functions (`preHandler`, `onResponse`) rather than a single `preHandler`. **FU-D6 (2026-10-06): corrected — this hook pair is SUPERSEDED and not registered anywhere.** The 01-auth session loader does not register these hooks; tenant context is established per call site via `withTenant`. Phase 0 deliberately avoids a hard `fastify` dependency — hooks are structurally typed against `TenantRequest` / `TenantReply` interfaces so tests exercise them without booting the framework.
 
 ## Data model touchpoints
 Owns: `tenants`, `tenant_settings`. Migrations at `modules/02-tenancy/migrations/`:

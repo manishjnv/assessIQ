@@ -550,6 +550,10 @@ export async function registerGradingRoutes(
   // Returns the tenant's grading budget (TenantGradingBudget). Phase 1:
   // always returns a zero-cost record (claude-code-vps has no API budget).
   // Phase 2: reflects anthropic-api token costs via D6 budget enforcement.
+  //
+  // FU-A10 (2026-10-06): parked, API mode only. tenant_grading_budgets has no
+  // migration; this route cannot return anything but the zero-cost stub until
+  // AI_PIPELINE_MODE=anthropic-api ships (docs/05-ai-pipeline.md D6).
   // -------------------------------------------------------------------------
 
   app.get(

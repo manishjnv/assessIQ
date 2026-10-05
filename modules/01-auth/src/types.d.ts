@@ -2,8 +2,9 @@
 // decorations set by 01-auth/src/middleware/{sessionLoader,apiKeyAuth}.
 //
 // Per modules/01-auth/SKILL.md § Decisions captured § 9, the field name is
-// `tenantId` (lowerCamelCase) — 02-tenancy.tenantContextMiddleware reads
-// `req.session?.tenantId ?? req.apiKey?.tenantId`.
+// `tenantId` (lowerCamelCase). FU-D6 (2026-10-06): tenant context is set by
+// withTenant(tenantId, fn) at each call site, not by a registered middleware —
+// 02-tenancy.tenantContextMiddleware is SUPERSEDED (see its header).
 //
 // Phase 0: 01-auth does NOT depend on `fastify` (the Fastify server scaffold
 // lands later in the phase). The declaration is wrapped in a module-augment

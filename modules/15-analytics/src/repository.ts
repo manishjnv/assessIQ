@@ -119,8 +119,13 @@ export async function queryQueueSummary(client: PoolClient, tenantId: string): P
  * Candidate/reviewer-facing cohort rollup for one assessment.
  * Returns CohortReport (camelCase; p25/p50/p75/p90; levelBreakdown;
  *   topicBreakdown from live gradings/questions tables).
- * Caller: service.cohortReport() → 09-scoring admin cohort route
- *   (GET /api/admin/reports/cohort/:assessmentId, admin role, tenant-scoped).
+ * FU-C5 (2026-10-06): stale "Caller" line corrected. No route calls this today.
+ *   `GET /api/admin/reports/cohort/:assessmentId` (09-scoring/src/routes.ts) has
+ *   its own independent `cohortStats` in 09-scoring/src/service.ts — it does NOT
+ *   call this function. `service.cohortReport()` here is exercised only by
+ *   modules/15-analytics/src/__tests__/analytics.test.ts (dormant from the
+ *   route's perspective). FU-C3 is the task to route tenant-visible UI reads
+ *   through one tenant-visibility rule before either path gains a new caller.
  * DO NOT collapse with queryAdminCohortReport — they return different types
  *   (CohortReport vs AdminCohortReport), use different sources (MV + live
  *   tables here vs MV-only), and compute non-overlapping aggregates

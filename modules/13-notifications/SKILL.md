@@ -45,9 +45,9 @@ Stored in `modules/13-notifications/templates/<name>.{html,txt}` with Handlebars
 - `invitation_candidate` — magic-link to take an assessment
 - `totp_enrolled` — TOTP enrollment confirmation
 - `attempt_submitted_candidate` — "we got it"
-- `attempt_graded_candidate` — "results released"
-- `attempt_ready_for_review_admin` — when AI grading needs human review
-- `weekly_digest_admin` — Monday morning rollup
+- `attempt_graded_candidate` — "results released" — **parked, see FU-B19.** No `sendEmail` call site sends this template; `result_released` is the live equivalent. Do not delete (Rule A); FU-B20 wires `attempt_submitted_candidate`, a separate template, as the real "we got it" receipt.
+- `attempt_ready_for_review_admin` — when AI grading needs human review — **parked, see FU-B19.** No call site; `evaluation_queue_alert` is the live equivalent.
+- `weekly_digest_admin` — Monday morning rollup — **parked, see FU-B19.** No call site; no digest feature is built (only tests/classification reference it).
 
 ## Data model touchpoints
 Owns: `webhook_endpoints`, `webhook_deliveries`, `email_log`. Reads: `users` (recipient context), `tenant_settings` (notification prefs).

@@ -155,6 +155,8 @@ Postgres mirror (`sessions` table, `02-DATA:145–157`) holds the same fields in
 
 ### 6. API key
 
+> **FU-B10 (2026-10-06): parked, keys authenticate only `whoami` today.** `requireScope` exists (below) but no route in `apps/api/src/routes/` calls it — grep confirms zero usages. Every other admin route requires `req.session` (role gate via `requireAuth`), which an API-key-only request does not have, so `GET /api/auth/whoami` is the only endpoint a bare API key can reach. FU-B9 is the design note for the smallest scoped REST API; FU-B11 builds it. Decided 2026-10-03 (FR3 review): no customer needs server-to-server access today, so this stays parked.
+
 **Decision.**
 - **Format:** `aiq_live_<base62>` where the random portion is `crypto.randomBytes(32)` re-encoded as base62 (`[0-9A-Za-z]`) → 43-character random string. Total displayed length: `9 + 43 = 52` chars. `aiq_test_<...>` is reserved for future test-mode (not in Phase 0).
 - **Storage:** `key_prefix` = first 12 chars (`aiq_live_xyz`), `key_hash` = `sha256(full_key).hex`, `UNIQUE (key_hash)`.
@@ -212,7 +214,7 @@ declare module 'fastify' {
     session?: {
       id: string;          // session uuid v7
       userId: string;      // user uuid v7
-      tenantId: string;    // tenant uuid v7  ← consumed by 02-tenancy.tenantContextMiddleware
+      tenantId: string;    // tenant uuid v7  ← read by withTenant() at each call site (FU-D6: tenantContextMiddleware is SUPERSEDED, not registered)
       role: 'admin' | 'reviewer' | 'candidate';
       totpVerified: boolean;
       expiresAt: string;   // ISO 8601 UTC
@@ -227,7 +229,7 @@ declare module 'fastify' {
 }
 ```
 
-The contract field name is `tenantId` (lowerCamelCase). `02-tenancy.tenantContextMiddleware` reads `req.session?.tenantId ?? req.apiKey?.tenantId`. **01-auth does not call into 02-tenancy and 02-tenancy does not call into 01-auth** — they communicate exclusively through the request-decoration field names. This keeps the dependency graph DAG-shaped (both depend on 00-core only).
+The contract field name is `tenantId` (lowerCamelCase). **FU-D6 (2026-10-06): corrected.** `02-tenancy.tenantContextMiddleware` is SUPERSEDED and not registered in the request chain (removed 2026-10, campus-scale fix) — `withTenant(tenantId, fn)` reads `req.session?.tenantId ?? req.apiKey?.tenantId` at each route/service call site instead. **01-auth does not call into 02-tenancy and 02-tenancy does not call into 01-auth** — they communicate exclusively through the request-decoration field names. This keeps the dependency graph DAG-shaped (both depend on 00-core only).
 
 For development-only tenant override (when 01-auth is not yet wired in a test scaffold), 02-tenancy's middleware accepts `x-aiq-test-tenant` header **only when `NODE_ENV !== 'production'`**, per `modules/02-tenancy/SKILL.md` § Status. Production NODE_ENV guard is enforced.
 

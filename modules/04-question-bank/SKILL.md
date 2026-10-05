@@ -71,6 +71,8 @@ Pinned ahead of Phase 1 G1.A Session 1 per `docs/plans/PHASE_1_KICKOFF.md` § De
 
 ### Bulk import file format (decisions #4 + #13)
 
+> **FU-A19 (2026-10-06): parked.** FR19 review (2026-10-03): the only author is the super admin, and JSON-by-CLI (`tools/aiq-import-pack.ts`) works in production. CSV stays parked until the owner wants spreadsheet authoring or a customer tier needs it (decided 2026-10-03: no). `bulkImport` throws for `format: 'csv'` today (`service.ts:1244-1255`) — this is intentional, not a bug. Help text `admin.questions.import.format` ("CSV import is planned") stays as-is; it is acceptable forward-looking copy, not a false claim.
+
 **Phase 1 ships JSON-only.** CSV deferred to Phase 2 once admin team has used JSON in practice. **Phase 1 ships a CLI helper, no browser UI.** Browser upload widget defers to Phase 2 admin-dashboard (module 10).
 
 JSON schema: one file per pack. Top-level shape:

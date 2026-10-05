@@ -11,8 +11,11 @@
 //   GET /api/admin/reports/exports/topic-heatmap.csv
 //
 // NOTE: /admin/reports/cohort/:assessmentId and /admin/reports/individual/:userId
-// are owned by 09-scoring (G2.B Session 3). 15-analytics is the service layer
-// those routes call; no route re-registration here.
+// are owned by 09-scoring (G2.B Session 3), which has its own independent
+// cohortStats/individual-progress implementation. FU-C5 (2026-10-06): this
+// module's cohortReport/individualReport are NOT the service layer for those
+// routes — that claim was stale. They are a dormant duplicate, exercised only
+// by this module's own tests. See SKILL.md D4 and repository.ts queryCohortReport.
 //
 // All routes are under /api/admin/* → covered by Caddy @api path matcher.
 // No public-facing leaderboard. Tenant context from session only.

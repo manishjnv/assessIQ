@@ -48,12 +48,13 @@ Append-only ledger. One row per graded attempt per tenant.
 UNIQUE(tenant_id, attempt_id) — idempotency hard guard.
 assessiq_app is REVOKED UPDATE, DELETE (mirrors audit_log invariant).
 
-### `tenant_entitlements` — DEFERRED (Phase B)
+### `tenant_entitlements` — SHIPPED (migrations 0081, 0082; B1/B2)
 
-Will store feature flags and hard usage limits per tenant. Not built in A1.
-The soft-enforcement model (warn/over status surfaced to operator) is intentional
-for A1 — building the entitlement check infrastructure before the billing portal
-exists would create a hard dependency with no user-facing payoff.
+> **FU-A1 (2026-10-06): this section was stale.** It said "DEFERRED (Phase B)… not built in A1". Entitlements shipped in commits `2ba822d` (B1) and `5c80aaa` (B2, publish-time enforcement). See the Routes section below for the three live routes.
+
+Stores feature flags and hard usage limits per tenant. `assertPublishEntitled` is a hard gate: `403 NOT_ENTITLED` at publish time; `internal` tier bypasses; fail-closed when no plan row. Super admin grants/revokes scope (`apps/api/src/routes/admin-super.ts:970,1024`).
+
+**Tier definition.** The full Starter/Growth/Enterprise table (owner-decided 2026-10-03) is `docs/plans/PRICING_TIERS_2026-10-06.md`. This SKILL still owns the mechanism (`tenant_plans`, `billing_events`, `tenant_entitlements`); the tier *contents* live in that doc so pricing changes don't require a module SKILL edit.
 
 ## Same-transaction revenue-leak invariant
 
@@ -73,19 +74,21 @@ callback — same transaction boundary as the audit row.
 
 ## A1 scope vs deferred
 
+> **FU-A1 (2026-10-06): this table was stale past A1/A2.** `tenant_entitlements` is live (see above), not Phase B. Self-serve upgrade UI and Stripe/payment integration stay not built; Razorpay is the decided provider (FU-A7), not Stripe.
+
 | Feature | Phase |
 |---|---|
 | Record billing event on grade commit | A1 ✓ |
 | GET /api/billing/usage (tenant admin) | A1 ✓ |
 | Provision default plan on company create | A1 ✓ |
 | Backfill existing tenants | A1 ✓ (migration 0080) |
-| Billing usage widget in admin dashboard UI | A2 |
-| Plan mutation (PATCH tier / credits) — operator | A2 |
-| Cycle-window credit counting (monthly reset) | A2 |
-| Hard entitlement enforcement (block grading) | Phase B |
+| Billing usage widget in admin dashboard UI | A2 ✓ |
+| Plan mutation (PATCH tier / credits) — operator | A2 ✓ |
+| `tenant_entitlements` table + enforcement | B1/B2 ✓ (`2ba822d`, `5c80aaa`) |
+| Cycle-window credit counting (monthly reset) | Not built — FU-A2 |
+| Hard entitlement enforcement at non-publish routes (webhooks, API keys, embed, certs, audit) | Not built — FU-A5 |
 | Self-serve plan upgrade UI | Phase C |
-| Stripe/payment integration | Phase C |
-| `tenant_entitlements` table | Phase B |
+| Payment integration (Razorpay, decided 2026-10-03) | Not built — FU-A7 |
 
 ## Dependencies
 
@@ -115,8 +118,12 @@ registerBillingRoutes(app: FastifyInstance, deps: BillingRouteDeps): Promise<voi
 
 ## Routes
 
+> **FU-A1 (2026-10-06): this section listed only one route; two more shipped with B1/B2.**
+
 ```
-GET /api/billing/usage   → BillingUsage JSON (company admin, own tenant)
+GET /api/billing/usage           → BillingUsage JSON (company admin, own tenant)
+GET /api/billing/entitlements     → tenant's granted entitlement scopes (company admin, own tenant)
+GET /api/billing/available-sets   → platform packs available to license (company admin, own tenant)
 ```
 
 ## Migrations
