@@ -15,6 +15,7 @@ import type { PoolClient } from 'pg';
 import { streamLogger } from '@assessiq/core';
 import { onCommit } from '@assessiq/tenancy';
 import { emitWebhook } from './service.js';
+import { notifyInApp } from '../in-app/service.js';
 
 const log = streamLogger('webhook');
 
@@ -63,4 +64,35 @@ export async function emitAttemptEventAfterCommit(
   });
   // ponytail: every caller runs inside withTenant today; log if one ever does not.
   if (!registered) log.warn({ tenantId, attemptId, event }, 'business-event: not inside withTenant, event not sent');
+}
+
+/**
+ * FU-B17 (2026-10-06): first in-app notification producer — "a result is
+ * ready to publish". Fires after commit, same pattern as
+ * emitAttemptEventAfterCommit, whenever finalizeAttemptIfComplete sets
+ * evaluation_released_at (the super admin's accept of the last grade, or
+ * system completion for an all-MCQ attempt). Audience: every tenant admin
+ * (SP10: "tenant dashboard shows a Ready to publish count"). Best-effort —
+ * a failure here never affects the grading transaction that already committed.
+ */
+export async function notifyEvaluationReadyAfterCommit(
+  client: PoolClient,
+  tenantId: string,
+  attemptId: string,
+): Promise<void> {
+  const registered = onCommit(client, async () => {
+    try {
+      await notifyInApp({
+        tenantId,
+        audience: 'role',
+        role: 'admin',
+        kind: 'evaluation.ready_to_publish',
+        message: 'A result is ready to publish.',
+        link: `/admin/attempts/${attemptId}`,
+      });
+    } catch (err: unknown) {
+      log.error({ err, tenantId, attemptId }, 'business-event: notifyEvaluationReadyAfterCommit failed');
+    }
+  });
+  if (!registered) log.warn({ tenantId, attemptId }, 'business-event: not inside withTenant, ready-to-publish notice not sent');
 }

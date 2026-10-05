@@ -27,7 +27,7 @@
 
 import type { PoolClient } from "pg";
 import { recordGradedAttempt } from "@assessiq/billing";
-import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
+import { emitAttemptEventAfterCommit, notifyEvaluationReadyAfterCommit } from "@assessiq/notifications";
 import { computeAttemptScoreInTx } from "./service.js";
 
 export interface FinalizeAttemptInput {
@@ -119,6 +119,13 @@ export async function finalizeAttemptIfComplete(
   await recordGradedAttempt(client, tenantId, attemptId);
 
   await emitAttemptEventAfterCommit(client, tenantId, attemptId, "attempt.graded");
+
+  // FU-B17: tenant admins get an in-app nudge only when there is something for
+  // THEM to act on — markEvaluationReleased is exactly "the tenant may now see
+  // and publish this result" (see the field comment above).
+  if (markEvaluationReleased) {
+    await notifyEvaluationReadyAfterCommit(client, tenantId, attemptId);
+  }
 
   return { finalized: true };
 }

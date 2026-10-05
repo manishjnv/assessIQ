@@ -635,39 +635,20 @@ admin.reports.cohort.report:
 
 admin.audit:
   audience: admin
-  short_text: "Browse, filter, and export every administrative action. Append-only — entries cannot be edited or deleted."
+  short_text: "Audit trail screen: available soon. The log is already recorded; browsing it here is not built yet."
   long_md: |
-    ## Audit log
+    ## Audit log — available soon
 
-    The audit log at `/admin/audit` records every significant administrative
-    action taken in this tenant: user changes, grading overrides, certificate
-    operations, setting updates, and more.
+    AssessIQ already records every significant administrative action to an
+    append-only audit log: user changes, grading overrides, certificate
+    operations, setting updates, and more. That recording runs today.
 
-    **Browsing and filtering:**
+    **The admin screen to browse, filter, and export this log is not built
+    yet.** There is no `/admin/audit` page in this release. When it ships it
+    will let you filter by action, actor, entity type and date range, and
+    export the filtered view as CSV or JSONL.
 
-    - **Action** — narrow to a specific action type (e.g. `user.role.changed`,
-      `grading.override`). All known actions are listed in the dropdown.
-    - **Actor kind** — filter by who triggered the action: a user session,
-      an API key, or the system itself.
-    - **Actor user ID** — paste a user UUID to see all actions taken by that
-      user. A user-picker UI is planned for a future release.
-    - **Entity type** — filter to actions that touched a specific resource
-      type (e.g. `assessment`, `certificate`).
-    - **From / To** — restrict to a date range. "From" starts at midnight;
-      "To" ends at 23:59:59 UTC.
-
-    Click **Apply** to run the filtered query. Click **Reset** to clear all
-    filters and reload the full log.
-
-    **Exporting:**
-
-    Use **Export CSV** or **Export JSONL** to download the current filtered
-    view. The download respects all active filters; the filename includes
-    today's date. See `admin.audit.export.format` for column details.
-
-    **Append-only guarantee:** entries are written synchronously with the
-    operation and cannot be modified. Even platform super-admins cannot delete
-    audit rows — this is enforced at the database layer.
+    Need an audit extract today? Contact your platform operator.
 
   related_keys:
     - admin.audit.archives
@@ -675,43 +656,25 @@ admin.audit:
 
 admin.audit.archives:
   audience: admin
-  short_text: "Older audit rows are archived to cold storage. Lists archives and lets you restore rows into the live table."
+  short_text: "Archive browsing and restore: available soon, part of the same unbuilt audit trail screen as admin.audit."
   long_md: |
-    ## Archived audit log
+    ## Archived audit log — available soon
 
-    To keep the live `audit_log` table fast, rows older than the retention
-    window are archived to cold storage (S3 in production). The **Archived
-    audit log** card at the bottom of `/admin/audit` lists available archives.
-
-    **Archive list columns:**
-
-    - **Date** — the date range covered by the archive file.
-    - **Rows** — how many audit log rows the archive contains.
-
-    **Restoring an archive:**
-
-    Click **Restore** on any archive row. A confirmation dialog shows the
-    row count and asks you to confirm before copying rows back into the live
-    `audit_log` table.
-
-    Restored rows are immediately visible in the main audit table. The archive
-    file itself is not deleted — the restore is additive only.
-
-    **Note:** archiving needs object storage to be set up. Without it, the
-    archives list is empty and a restore returns an error. This is expected in
-    a development setup.
+    This card is part of the audit trail screen, which is not built yet (see
+    `admin.audit`). When it ships, older audit rows will be archived to cold
+    storage and this card will list available archives with a restore action.
 
   related_keys:
     - admin.audit
 
 admin.audit.export.format:
   audience: admin
-  short_text: "The audit log records admin actions (exports, grading, user changes) with actor, timestamp, and tenant scope."
+  short_text: "The audit log already records admin actions today; the export screen (CSV/JSONL) is available soon."
   long_md: |
-    ## Audit log
+    ## Audit log recording — live; export screen available soon
 
-    AssessIQ maintains an append-only audit log for every significant admin
-    action. Entries are written synchronously with the operation (not
+    AssessIQ already maintains an append-only audit log for every significant
+    admin action. Entries are written synchronously with the operation (not
     fire-and-forget) to guarantee no silent loss.
 
     **Audited actions include:**
@@ -725,8 +688,8 @@ admin.audit.export.format:
     admin — including tenant super-admins. Retention is 7 years (configurable
     by the platform operator).
 
-    The export audit entry includes `export_format` and the filter parameters
-    used, so the exact dataset exported can be reconstructed.
+    **The admin screen to export this log (CSV/JSONL) is not built yet.**
+    Need an extract today? Contact your platform operator.
 
 admin.audit.archives.restore_procedure:
   audience: admin
