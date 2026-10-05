@@ -130,3 +130,38 @@ describe("requireAuth — super_admin MFA-always-on gate", () => {
     await expect(hook(req as never, {} as never)).resolves.toBeUndefined();
   });
 });
+
+/**
+ * FU-B10 (2026-10-06): documents the "parked, keys authenticate only whoami
+ * today" fact recorded in modules/01-auth/SKILL.md § 6 API key. No route in
+ * apps/api/src/routes/ calls requireScope (grep confirmed); every role-gated
+ * route uses requireAuth({roles:[...]}), which API keys cannot satisfy.
+ */
+describe("requireAuth — API keys authenticate only role-less routes (FU-B10)", () => {
+  function makeApiKeyReq(scopes: string[] = []): Record<string, unknown> {
+    return {
+      apiKey: { id: randomUUID(), tenantId: PLATFORM_TENANT_ID, scopes },
+    };
+  }
+
+  it("an API key passes a role-less gate (the whoami shape: requireAuth({requireTotpVerified:false}))", async () => {
+    const req = makeApiKeyReq(["admin:*"]);
+    const hook = requireAuth({ requireTotpVerified: false });
+    await expect(hook(req as never, {} as never)).resolves.toBeUndefined();
+  });
+
+  it("an API key is REJECTED by any role gate — every other admin route uses requireAuth({roles:[...]})", async () => {
+    const req = makeApiKeyReq(["admin:*"]);
+    const hook = requireAuth({ roles: ["admin"] });
+    await expect(hook(req as never, {} as never)).rejects.toMatchObject({
+      name: "AuthzError",
+      message: expect.stringContaining("requireScope"),
+    });
+  });
+
+  it("an API key is REJECTED by a fresh-MFA gate (super-admin cross-tenant routes)", async () => {
+    const req = makeApiKeyReq(["admin:*"]);
+    const hook = requireAuth({ freshMfaWithinMinutes: 15 });
+    await expect(hook(req as never, {} as never)).rejects.toMatchObject({ name: "AuthzError" });
+  });
+});

@@ -27,7 +27,7 @@
 import type { PoolClient } from "pg";
 import { getPool } from "@assessiq/tenancy";
 import { withTenant } from "@assessiq/tenancy";
-import { streamLogger } from "@assessiq/core";
+import { streamLogger, ValidationError } from "@assessiq/core";
 import { auditInTx } from "@assessiq/audit-log";
 import type { Audience, HelpEntry, HelpReadEnvelope, UpsertHelpInput } from "./types.js";
 import {
@@ -194,6 +194,22 @@ export async function getHelpKey(
 }
 
 /**
+ * FU-D4 (2026-10-06): the same key-format rule tools/generate-help-seed.ts
+ * enforces for YAML-authored content (isValidHelpId there) — lowercase,
+ * dot-separated, [a-z0-9_] per segment, at least two segments. A key failing
+ * this can never be found by the page-scoped loader (`key LIKE '<page>.%'`),
+ * same bug class as N16/RV71 (hyphenated page ids). Not imported from the
+ * tools/ script (tools/ is CLI-only, not a workspace package) — duplicated
+ * on purpose, kept tiny so drift is easy to spot in review.
+ */
+export function isValidHelpKey(key: string): boolean {
+  if (!key || key.length === 0) return false;
+  const segments = key.split(".");
+  if (segments.length < 2) return false;
+  return segments.every((seg) => /^[a-z0-9_]+$/.test(seg));
+}
+
+/**
  * Admin write: upsert a help entry for the given tenant.
  * `tenantId` is required — globals are seeded via YAML migration only.
  */
@@ -203,6 +219,12 @@ export async function upsertHelpForTenant(
   input: UpsertHelpInput,
   actorUserId: string,
 ): Promise<HelpEntry> {
+  if (!isValidHelpKey(key)) {
+    throw new ValidationError(
+      `Invalid help key "${key}": must be lowercase, dot-separated segments of [a-z0-9_], at least two segments.`,
+      { details: { code: "INVALID_HELP_KEY", key } },
+    );
+  }
   return withTenant(tenantId, async (client) => {
     // Snapshot the most-recent active row for this (tenant, key, locale) before
     // we write, so the audit before/after diff is meaningful. RLS restricts this

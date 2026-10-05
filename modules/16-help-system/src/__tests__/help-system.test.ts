@@ -504,6 +504,18 @@ describe("Block 4 — Upsert versioning", () => {
     expect(entry.version).toBe(1);
   });
 
+  it("rejects a hyphenated key before any write (FU-D4)", async () => {
+    if (skipAll) return;
+    await expect(
+      upsertHelpForTenant(TENANT_A, "test.upsert-bad", {
+        audience: "admin",
+        locale: "en",
+        shortText: "Should never be written",
+        longMd: null,
+      }, "test-actor"),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
+  });
+
   it("upsertHelp bumps version to 2 on second call; both rows still present", async () => {
     if (skipAll) return;
     const key = "test.upsert.bump";
