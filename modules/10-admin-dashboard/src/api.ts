@@ -305,6 +305,20 @@ export async function updateTenantAiGenerateMode(
   );
 }
 
+export interface GlobalAiGenerateModeResponse {
+  global_default: "omnibus" | "sharded";
+}
+
+/**
+ * GET /api/admin/super/ai-generate-mode
+ *
+ * FU-D27 (2026-10-06): super-admin only. Reads the platform-wide default
+ * (AI_GENERATE_MODE env var) a tenant falls back to when its override is null.
+ */
+export async function getGlobalAiGenerateMode(): Promise<GlobalAiGenerateModeResponse> {
+  return adminApi<GlobalAiGenerateModeResponse>(`/admin/super/ai-generate-mode`);
+}
+
 // ---------------------------------------------------------------------------
 // Typed helpers — domains + categories (Slice 2)
 // ---------------------------------------------------------------------------

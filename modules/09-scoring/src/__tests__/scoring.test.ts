@@ -655,6 +655,20 @@ describe("09-scoring", () => {
       expect(signals.multi_tab_conflict_count).toBe(1);
     });
 
+    it("counts fullscreen_exit events (FU-C7)", () => {
+      const signals = computeSignals({
+        answers: [],
+        events: [
+          { event_type: "fullscreen_exit", at: new Date() },
+          { event_type: "fullscreen_exit", at: new Date() },
+          { event_type: "fullscreen_enter", at: new Date() },
+        ],
+        gradings: [],
+        autoSubmitted: false,
+      });
+      expect(signals.fullscreen_exit_count).toBe(2);
+    });
+
     it("sets reasoning_band_avg null when no AI-graded questions", () => {
       const signals = computeSignals({
         answers: [],

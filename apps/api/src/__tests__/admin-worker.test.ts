@@ -18,6 +18,8 @@ import Fastify from 'fastify';
 import { Queue, Worker, type Job } from 'bullmq';
 import { Redis } from 'ioredis';
 import { randomUUID } from 'node:crypto';
+import { requireAuth } from '@assessiq/auth';
+import { AppError } from '@assessiq/core';
 import { registerAdminWorkerRoutes } from '../routes/admin-worker.js';
 
 let redisContainer: StartedTestContainer;
@@ -327,3 +329,64 @@ describe('POST /api/admin/worker/failed/:id/retry — 404', () => {
     10_000,
   );
 });
+
+// ---------------------------------------------------------------------------
+// Test 5 — FU-D8: role gate is super_admin, not admin (RS6 FR17 / 59a4816).
+// The queue is shared by every tenant, so a tenant admin must NOT reach it.
+// ---------------------------------------------------------------------------
+
+/** Builds the app with a REAL requireAuth({roles:['super_admin']}) gate
+ * (same as apps/api/src/server.ts registration) preceded by a stub hook that
+ * sets req.session to the given role, instead of the `adminOnly: []` stub
+ * used by the tests above. */
+async function buildAppWithRoleGate(queue: Queue, role: 'admin' | 'super_admin') {
+  const app = Fastify({ logger: false });
+  app.setErrorHandler((err: Error, _req, reply) => {
+    const status = err instanceof AppError ? err.status : 500;
+    return reply.code(status).send({ error: { code: (err as AppError).code ?? 'ERROR', message: err.message } });
+  });
+  const stubSession = async (req: { session?: unknown }): Promise<void> => {
+    req.session = { tenantId: 't1', userId: 'u1', role, totpVerified: true, expiresAt: new Date(Date.now() + 60_000).toISOString(), lastTotpAt: new Date().toISOString() };
+  };
+  await registerAdminWorkerRoutes(app, {
+    adminOnly: [stubSession as never, requireAuth({ roles: ['super_admin'] }) as never],
+    queue,
+  });
+  await app.ready();
+  return app;
+}
+
+describe('FU-D8: worker routes require super_admin', () => {
+  it('a tenant admin (role=admin) session gets 403', async () => {
+    const suffix = randomUUID().slice(0, 8);
+    const { redis, queue } = makeQueuePair(suffix);
+    const app = await buildAppWithRoleGate(queue, 'admin');
+
+    try {
+      const res = await app.inject({ method: 'GET', url: '/api/admin/worker/stats' });
+      expect(res.statusCode).toBe(403);
+      const body = res.json<{ error: { code: string } }>();
+      expect(body.error.code).toBe('AUTHZ_FAILED');
+    } finally {
+      await app.close();
+      await queue.close();
+      await redis.quit();
+    }
+  });
+
+  it('a super_admin session is allowed through', async () => {
+    const suffix = randomUUID().slice(0, 8);
+    const { redis, queue } = makeQueuePair(suffix);
+    const app = await buildAppWithRoleGate(queue, 'super_admin');
+
+    try {
+      const res = await app.inject({ method: 'GET', url: '/api/admin/worker/stats' });
+      expect(res.statusCode).toBe(200);
+    } finally {
+      await app.close();
+      await queue.close();
+      await redis.quit();
+    }
+  });
+});
+

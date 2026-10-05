@@ -651,6 +651,61 @@ export async function getCompanyEntitlements(tenantId: string): Promise<TenantEn
 }
 
 // ---------------------------------------------------------------------------
+// FU-A3 (2026-10-06) — tierAllows helper + display-name map
+//
+// Mechanism only: no route calls this yet (FU-A5 wires the route gates).
+// Minimum-tier table mirrors docs/plans/PRICING_TIERS_2026-10-06.md § "Tier
+// contents" — keep both in sync if the table changes.
+// ---------------------------------------------------------------------------
+
+/** Display names shown in the UI. DB values stay free/pro/enterprise/internal
+ * (no schema change) — this is purely a presentation mapping (FU-A3). */
+export const TIER_DISPLAY_NAMES: Record<PlanTier, string> = {
+  free: 'Starter',
+  pro: 'Growth',
+  enterprise: 'Enterprise',
+  internal: 'Internal',
+};
+
+/** Gated features from the tier table. Each maps to the lowest PlanTier that
+ * includes it; 'internal' always passes (same bypass rule as assertPublishEntitled). */
+export type TierFeature =
+  | 'certificates'
+  | 'webhooks'
+  | 'api_keys'
+  | 'embed'
+  | 'audit_viewer'
+  | 'own_email_sender';
+
+const TIER_RANK: Record<PlanTier, number> = { free: 0, pro: 1, enterprise: 2, internal: 3 };
+
+const FEATURE_MIN_TIER: Record<TierFeature, PlanTier> = {
+  certificates: 'pro',
+  webhooks: 'pro',
+  api_keys: 'enterprise',
+  embed: 'enterprise',
+  audit_viewer: 'enterprise',
+  own_email_sender: 'enterprise',
+};
+
+/**
+ * Does this tenant's plan tier include `feature`? Fail-closed: a tenant with
+ * no plan row (tier === null) does NOT get the feature — mirrors
+ * assertPublishEntitled's fail-closed rule, not a bypass.
+ *
+ * Mechanism only (FU-A3) — no caller wires this into a route gate yet; that
+ * is FU-A5, which also decides the 403 shape per feature.
+ */
+export async function tierAllows(tenantId: string, feature: TierFeature): Promise<boolean> {
+  const tierRaw = await withTenant(tenantId, (c) => getTenantTier(c, tenantId));
+  if (tierRaw === null) return false;
+  // tenant_plans.tier is DB CHECK-constrained to PlanTier's 4 values.
+  const tier = tierRaw as PlanTier;
+  if (tier === 'internal') return true;
+  return TIER_RANK[tier] >= TIER_RANK[FEATURE_MIN_TIER[feature]];
+}
+
+// ---------------------------------------------------------------------------
 // Step 2 — "Available sets" catalog (standing license + clone-on-use)
 // ---------------------------------------------------------------------------
 

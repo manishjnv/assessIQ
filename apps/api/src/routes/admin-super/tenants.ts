@@ -2,7 +2,7 @@
 // Moved verbatim from routes/admin-super.ts (E9 split; no behaviour change).
 
 import type { FastifyInstance } from 'fastify';
-import { ValidationError, NotFoundError, ConflictError } from '@assessiq/core';
+import { ValidationError, NotFoundError, ConflictError, config } from '@assessiq/core';
 import {
   updateAiGenerateMode,
   createTenant,
@@ -23,6 +23,21 @@ import { seedTenantTaxonomy } from '@assessiq/question-bank';
 import { parseLifecycleBody, log, superAdminOnly, superAdminFreshMfa } from './_shared.js';
 
 export async function registerAdminSuperTenantRoutes(app: FastifyInstance): Promise<void> {
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET /api/admin/super/ai-generate-mode
+  //
+  // FU-D27 (2026-10-06): the platform-wide default a tenant falls back to
+  // when its ai_generate_mode override is null. Read-only, no params.
+  // Response 200: { global_default: "omnibus" | "sharded" }
+  // ──────────────────────────────────────────────────────────────────────────
+  app.get(
+    '/api/admin/super/ai-generate-mode',
+    { preHandler: superAdminOnly },
+    async (_req, reply) => {
+      return reply.code(200).send({ global_default: config.AI_GENERATE_MODE });
+    },
+  );
+
   // ──────────────────────────────────────────────────────────────────────────
   // PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode
   //

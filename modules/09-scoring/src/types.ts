@@ -50,6 +50,9 @@ export const ArchetypeSignalsSchema = z.object({
   multi_tab_conflict_count: z.number(),
   /** tab_blur event count. */
   tab_blur_count: z.number(),
+  /** fullscreen_exit event count (FU-C7, 2026-10-06). Additive/optional: older
+   *  stored rows predate this field and have no key here. */
+  fullscreen_exit_count: z.number().optional(),
   /** copy + paste event count combined. */
   copy_paste_count: z.number(),
   /**

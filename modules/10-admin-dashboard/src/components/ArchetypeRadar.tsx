@@ -27,6 +27,7 @@ const AXES: Axis[] = [
   { key: "edit_count_total", label: "Edits", max: 30 },
   { key: "flag_count", label: "Flags", max: 10 },
   { key: "tab_blur_count", label: "Focus loss", max: 20 },
+  { key: "fullscreen_exit_count", label: "Fullscreen exits", max: 10 },
   { key: "copy_paste_count", label: "Copy/paste", max: 10 },
   { key: "multi_tab_conflict_count", label: "Multi-tab", max: 5 },
 ];

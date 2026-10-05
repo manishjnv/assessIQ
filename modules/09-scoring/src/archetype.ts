@@ -84,6 +84,12 @@ export function computeSignals(input: SignalsInput): ArchetypeSignals {
     (e) => e.event_type === "tab_blur",
   ).length;
 
+  // Fullscreen exit (FU-C7, 2026-10-06) — emitted by useIntegrityHooks as
+  // "fullscreen_exit" (modules/11-candidate-ui/src/hooks/useIntegrityHooks.ts)
+  const fullscreen_exit_count = events.filter(
+    (e) => e.event_type === "fullscreen_exit",
+  ).length;
+
   // Copy + paste combined
   const copy_paste_count = events.filter(
     (e) => e.event_type === "copy" || e.event_type === "paste",
@@ -122,6 +128,7 @@ export function computeSignals(input: SignalsInput): ArchetypeSignals {
     flag_count,
     multi_tab_conflict_count,
     tab_blur_count,
+    fullscreen_exit_count,
     copy_paste_count,
     reasoning_band_avg,
     reasoning_band_distribution,

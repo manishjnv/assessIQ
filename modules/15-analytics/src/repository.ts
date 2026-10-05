@@ -223,7 +223,11 @@ export async function queryCohortReport(
      JOIN questions q ON q.id = aq.question_id
      JOIN gradings g ON g.attempt_id = a.id AND g.question_id = aq.question_id
      WHERE asm.id = $1
-       -- only results released to the tenant (same rule as 09 TENANT_VISIBLE_ATTEMPT_SQL)
+       -- only results released to the tenant (same rule as 09 TENANT_VISIBLE_ATTEMPT_SQL,
+       -- modules/09-scoring/src/repository.ts — kept inline, not imported: importing
+       -- @assessiq/scoring here pulls its transitive dep on @assessiq/billing into this
+       -- package's type-check program and surfaces an unrelated pre-existing gap there;
+       -- see FU-C3 2026-10-06 note)
        AND (a.status = 'released' OR (a.status = 'graded' AND a.evaluation_released_at IS NOT NULL))
      GROUP BY q.topic
      ORDER BY q.topic`,

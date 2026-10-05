@@ -510,6 +510,7 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | Method | Path | Purpose | Status |
 |---|---|---|---|
 | `PATCH` | `/api/admin/super/tenants/:tenantId/ai-generate-mode` | Flip `ai_generate_mode` for a target tenant | **live 2026-05-08** |
+| `GET` | `/api/admin/super/ai-generate-mode` | Platform-wide default a tenant falls back to when its override is null (FU-D27) | **live 2026-10-06** |
 | `POST` | `/api/admin/super/companies` | Provision new company tenant + send first-admin invitation | **live 2026-05-17** |
 | `POST` | `/api/admin/super/tenants/:tenantId/invitations/resend` | Re-issue a pending admin invitation for an existing tenant | **live 2026-05-20** |
 | `GET` | `/api/admin/super/tenants` | List all provisioned tenants (A2: `usage`; Phase B: `admin_count`, `reviewer_count`; `admin_invitation_expires_at`; Edit-admin: `admin_user_id`, `admin_role`, `admin_invitation_id`; `?include_archived=true`) | **live 2026-05-17** · Edit-admin fields **PR-pending** |
@@ -613,6 +614,10 @@ Flips `tenant_settings.ai_generate_mode` for the named tenant. Used by platform 
 - `auditId` — UUID of the `audit_log` row committed atomically with the `UPDATE`
 
 **Response 400:** `details.code = 'INVALID_MODE'` — `mode` not in `"omnibus" | "sharded" | null`.
+
+#### `GET /api/admin/super/ai-generate-mode` (FU-D27, 2026-10-06)
+
+Read-only. Returns `{ global_default: "omnibus" | "sharded" }` — the live value of `config.AI_GENERATE_MODE` (the platform default used when a tenant's `ai_generate_mode` override is `null`). Replaces the hardcoded `"omnibus"` string the admin UI previously showed. **Auth:** `super_admin` only, same gate as the PATCH above. No path/body params.
 **Response 403:** `AUTHZ_FAILED` — caller is not `super_admin`.
 **Response 404:** target tenant's `tenant_settings` row is absent.
 
@@ -1275,7 +1280,7 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 
 | Method | Path | Purpose | Status |
 |---|---|---|---|
-| `GET`  | `/api/me/assessments`             | List active assessments the candidate is invited to | **live 2026-05-02** |
+| `GET`  | `/api/me/assessments`             | List active assessments the candidate is invited to | **live 2026-05-02; wire fixed 2026-10-06 (FU-C10)** |
 | `POST` | `/api/me/assessments/:id/start`   | Begin attempt — creates `attempt`, freezes question set into `attempt_questions`, returns `201 Attempt` (idempotent — re-call returns existing). A NEW attempt requires a consent row on file: optional body `{consent:true}` records it, else `422 CONSENT_REQUIRED` (same invariant as `POST /take/start` Begin; resume and embed attempts exempt) | **live 2026-05-02** |
 | `GET`  | `/api/me/attempts/:id`            | Server-authoritative attempt view — `{ attempt, questions[], answers[], remaining_seconds }`. Auto-submits the attempt if `ends_at` has passed. Each `questions[]` item carries `answer_guidance` (always a non-empty string — authored value or per-type default; instructional/candidate-safe, never a rubric/answer key) (0098). | **live 2026-05-02** |
 | `GET`  | `/api/me/attempts/:id` (scenario `mcq` steps) | **Scenario `mcq` steps (2026-10-02, commit `ac531c5`):** in the candidate payload a scenario step of type `mcq` with an array `options` carries `id`, `type` and `options` (string items only) next to `prompt`. A step without that shape carries `prompt` only. `correct`, `trap` and `expected` never appear. The candidate saves the chosen option text as `{ stepIndex, response }` through `POST /api/me/attempts/:id/answer`. The mcq step is not auto-scored: scenario answers are evaluated from the string response. | **live 2026-10-02** |
@@ -1288,6 +1293,8 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 | `GET`  | `/api/me/attempts/:id/result`     | View result — `200` with the complete, final result once the attempt is released; otherwise `202 { status: 'pending', result_expectation, release_mode, … }`. Candidates never see a partial or per-question score. | **live** |
 
 > **Update 2026-10-01:** `submit` returns `result_expectation`, `release_mode`, `email_masked` and `turnaround_text`. `GET /api/me/results` lists released results. See § Scoring and result release at the end of this doc.
+
+> **FU-C10 (2026-10-06): `GET /api/me/assessments` wire fixed.** The response shape was `{ items: [{ assessment_id, name, description, status, opens_at, closes_at, duration_minutes, invitation_status, invitation_expires_at }] }` — the client type `InvitedAssessmentWire` (`modules/11-candidate-ui/src/types.ts`) expects `{ id, name, duration_seconds, question_count, opens_at, closes_at }`. Nothing called this route yet (FR12 review, 2026-10-03), so this was a latent bug, not a live regression. Fixed: the route now returns the aligned field names, and additionally filters out assessments outside their `opens_at`/`closes_at` window and invitations past their own `expires_at` — previously the list had no window or expiry filter at all.
 
 ### Embed
 

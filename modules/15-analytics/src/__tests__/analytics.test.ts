@@ -497,6 +497,14 @@ describe('individualReport', () => {
     const report = await individualReport(F.tenantA, randomUUID());
     expect(report.attempts).toHaveLength(0);
   });
+
+  it('hides an attempt not released to the tenant (FU-C3, same rule as 0122)', async () => {
+    // attemptA1 (candidateA, assessmentA) is submitted + scored but NOT released
+    // (no evaluation_released_at) — the MV nulls its auto_pct (0122), and the
+    // query additionally filters auto_pct IS NOT NULL.
+    const report = await individualReport(F.tenantA, F.candidateA);
+    expect(report.attempts.find((a) => a.attemptId === F.attemptA1)).toBeUndefined();
+  });
 });
 
 describe('topicHeatmap', () => {

@@ -110,6 +110,9 @@ recordGradedAttempt(client: PoolClient, tenantId: string, attemptId: string): Pr
 provisionDefaultPlan(tenantId: string, includedCredits?: number): Promise<void>
 computeUsage(tier: PlanTier, includedCredits: number | null, used: number): { remaining, overage, status }
 getUsage(tenantId: string): Promise<BillingUsage>
+// FU-A3 (2026-10-06): mechanism only, no route wired yet (FU-A5)
+tierAllows(tenantId: string, feature: TierFeature): Promise<boolean>
+TIER_DISPLAY_NAMES: Record<PlanTier, string>  // free→Starter, pro→Growth, enterprise→Enterprise, internal→Internal
 
 // Routes
 registerBillingRoutes(app: FastifyInstance, deps: BillingRouteDeps): Promise<void>
