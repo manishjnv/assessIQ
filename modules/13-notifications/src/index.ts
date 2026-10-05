@@ -56,7 +56,7 @@ export type {
 // Webhooks
 // ---------------------------------------------------------------------------
 export { emitWebhook, listWebhookEndpoints, createWebhookEndpoint, deleteWebhookEndpoint, sendTestEvent, listDeliveries, replayDelivery } from './webhooks/service.js';
-export { emitAttemptEventAfterCommit, BUSINESS_WEBHOOK_EVENTS } from './webhooks/business-events.js';
+export { emitAttemptEventAfterCommit, notifyEvaluationReadyAfterCommit, BUSINESS_WEBHOOK_EVENTS } from './webhooks/business-events.js';
 export type { BusinessWebhookEvent, BusinessEventPayload } from './webhooks/business-events.js';
 export { processWebhookDeliverJob } from './webhooks/deliver-job.js';
 export type { WebhookDeliverJobData } from './webhooks/deliver-job.js';

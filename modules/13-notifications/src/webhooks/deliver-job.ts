@@ -30,6 +30,7 @@ import type { Job } from 'bullmq';
 import { streamLogger } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import * as repo from '../repository.js';
+import { notifyInApp } from '../in-app/service.js';
 import { signPayload, signPayloadV2 } from './signature.js';
 import { getDecryptedSecret } from './service.js';
 import {
@@ -59,6 +60,30 @@ function failureText(httpStatus: number, bodySnippet: string): string {
 /** True when the attempt now running is the job's last (BullMQ will not retry it). */
 function isFinalAttempt(job: Job<WebhookDeliverJobData>): boolean {
   return job.attemptsMade + 1 >= (job.opts?.attempts ?? 1);
+}
+
+/**
+ * FU-B17 (2026-10-06): second in-app notification producer — "webhook.failed
+ * after the final retry" (FR2). Best-effort: a notify failure never affects
+ * the webhook job's own outcome (already committed as 'failed' by the caller).
+ */
+async function notifyWebhookExhausted(
+  tenantId: string,
+  endpointId: string,
+  event: string,
+): Promise<void> {
+  try {
+    await notifyInApp({
+      tenantId,
+      audience: 'role',
+      role: 'admin',
+      kind: 'webhook.failed',
+      message: `A webhook delivery for "${event}" failed after all retries.`,
+      link: '/admin/settings/integrations',
+    });
+  } catch (err: unknown) {
+    log.error({ err, tenantId, endpointId, event }, 'webhook.delivery: notifyWebhookExhausted failed');
+  }
 }
 
 /**
@@ -190,6 +215,7 @@ export async function processWebhookDeliverJob(
           attempts: job.attemptsMade + 1,
         }),
       );
+      await notifyWebhookExhausted(tenantId, endpoint.id, delivery.event);
     }
     // Re-throw to let BullMQ handle retry scheduling.
     throw err;
@@ -262,6 +288,7 @@ export async function processWebhookDeliverJob(
         attempts: job.attemptsMade + 1,
       }),
     );
+    await notifyWebhookExhausted(tenantId, endpoint.id, delivery.event);
   }
   throw new Error(`Transient HTTP ${httpStatus} from webhook endpoint`);
 }

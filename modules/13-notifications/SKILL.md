@@ -20,6 +20,14 @@ Outbound communication. Three channels (email, webhook, in-app), one queue, cons
 sendEmail({ to, template, vars }): Promise<void>
 emitWebhook({ tenantId, event, payload }): Promise<void>
 notifyInApp({ tenantId, userId?, role?, message }): Promise<void>
+// FU-B17 (2026-10-06): first two producers calling notifyInApp, both fire-
+// and-forget after commit (same onCommit pattern as emitAttemptEventAfterCommit).
+emitAttemptEventAfterCommit(client, tenantId, attemptId, event): Promise<void>
+notifyEvaluationReadyAfterCommit(client, tenantId, attemptId): Promise<void>
+// called from 09-scoring/src/finalize.ts when markEvaluationReleased is true:
+// "N results are ready to publish" (SP10), audience role='admin'.
+// webhook.failed (FR2) fires from deliver-job.ts itself when a delivery
+// exhausts all BullMQ retries — no separate export, internal to this module.
 
 // admin
 listWebhookEndpoints(tenantId): Promise<WebhookEndpoint[]>
