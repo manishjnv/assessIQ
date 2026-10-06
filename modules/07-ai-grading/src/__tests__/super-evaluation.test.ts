@@ -277,7 +277,7 @@ const att = (id: string) =>
       .then((r) => r.rows[0] as { status: string; released: boolean; released_by: string | null; sent_back: boolean }),
   );
 const billing = (id: string) =>
-  sup((c) => c.query(`SELECT COUNT(*)::int n FROM billing_events WHERE attempt_id = $1`, [id]).then((r) => r.rows[0].n as number));
+  sup((c) => c.query(`SELECT COUNT(*)::int n FROM billing_events WHERE attempt_id = $1 AND event_type = 'assessment_graded'`, [id]).then((r) => r.rows[0].n as number));
 const aiGradingId = (id: string) =>
   sup((c) => c.query(`SELECT id FROM gradings WHERE attempt_id = $1 AND grader = 'ai' LIMIT 1`, [id]).then((r) => r.rows[0].id as string));
 const auditRows = (entityId: string, action: string) =>

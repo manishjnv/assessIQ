@@ -345,8 +345,18 @@ export function BillingDrawer({
                   <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Cycle start</p>
                   <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 12, margin: "4px 0 0", color: "var(--aiq-color-fg-muted)" }}>
                     {formatDate(detail.cycle_start)}
+                    {detail.cycle_window_start ? ` · this month from ${formatDate(detail.cycle_window_start)}` : ""}
                   </p>
                 </div>
+                {/* FU-A9: AI-evaluated answers meter (current month) */}
+                {detail.ai_answers_used !== undefined && (
+                  <div>
+                    <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>AI-evaluated answers</p>
+                    <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
+                      {detail.ai_answers_used} / {detail.ai_answers_included ?? "no cap"}
+                    </p>
+                  </div>
+                )}
                 </div>{/* end inner grid */}
               </div>{/* end outer flex column */}
             </Card>
@@ -802,4 +812,4 @@ export function BillingDrawer({
     </div>
   );
 }
-
+

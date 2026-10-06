@@ -280,7 +280,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(219); // 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(220); // 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -291,7 +291,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(219); // 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(220); // 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt

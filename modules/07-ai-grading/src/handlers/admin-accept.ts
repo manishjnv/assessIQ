@@ -30,6 +30,7 @@ import type { AnchorFinding, GradingProposal, GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
 import { computeAttemptScoreInTx, finalizeAttemptIfComplete } from "@assessiq/scoring";
 import { auditInTx } from "@assessiq/audit-log";
+import { recordAiAnswerEvaluated } from "@assessiq/billing";
 
 const log = streamLogger("grading");
 
@@ -299,6 +300,12 @@ async function acceptProposals(
       override_of: supersedes,
       override_reason: null,
     });
+
+    // FU-A4 (2026-10-06): second billing meter, one row per accepted AI
+    // grading (tenant, attempt, question), in the SAME tx as the gradings
+    // insert. Idempotent on re-accept; any db error rolls the accept back
+    // (same revenue-leak rule as recordGradedAttempt in 09 finalize).
+    await recordAiAnswerEvaluated(client, tenantId, proposal.attempt_id, proposal.question_id);
 
     gradings.push(grading);
   }

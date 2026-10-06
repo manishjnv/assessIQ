@@ -842,6 +842,10 @@ export interface TenantBillingDetail {
     event_type: string;
     occurred_at: string;
   }>;
+  /** FU-A2/FU-A4: absent on an older API. */
+  cycle_window_start?: string | null;
+  ai_answers_used?: number;
+  ai_answers_included?: number | null;
 }
 
 export interface UpdateTenantPlanRequest {
@@ -903,6 +907,12 @@ export interface CompanyUsage {
   remaining: number | null;
   overage: number;
   status: 'ok' | 'warn' | 'over' | 'unlimited';
+  /** FU-A2: start of the current monthly window (ISO); absent on an older API. */
+  cycle_window_start?: string | null;
+  /** FU-A4/FU-A9: AI-evaluated answers meter; absent on an older API. */
+  ai_answers_used?: number;
+  ai_answers_included?: number | null;
+  ai_answers_remaining?: number | null;
 }
 
 /**

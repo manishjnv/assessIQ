@@ -29,6 +29,13 @@ export interface BillingUsage {
   remaining: number | null;  // null => unlimited
   overage: number;           // 0 when unlimited or under
   status: UsageStatus;
+  /** FU-A2: start of the current monthly window (ISO); null when no plan row. */
+  cycle_window_start: string | null;
+  /** FU-A4/FU-A9: second meter — AI-evaluated answers in the current window. */
+  ai_answers_used: number;
+  /** From the tier table (TIER_AI_ANSWERS_INCLUDED); null => no cap recorded. */
+  ai_answers_included: number | null;
+  ai_answers_remaining: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,6 +51,9 @@ export interface TenantUsageRow {
   remaining: number | null;
   overage: number;
   status: UsageStatus;
+  /** FU-A4: AI-evaluated answers in the current window. */
+  ai_answers_used: number;
+  ai_answers_included: number | null;
 }
 
 /** Recent billing event (last 50 per tenant). */
@@ -61,10 +71,15 @@ export interface TenantBillingDetail {
   included_credits: number | null;
   status: 'active' | 'suspended';
   cycle_start: string; // ISO 8601
+  /** FU-A2: start of the current monthly window (ISO). */
+  cycle_window_start: string | null;
   used: number;
   remaining: number | null;
   overage: number;
   usage_status: UsageStatus;
+  /** FU-A4: AI-evaluated answers in the current window. */
+  ai_answers_used: number;
+  ai_answers_included: number | null;
   recent_events: BillingEventRow[];
 }
 

@@ -23,12 +23,93 @@ export async function insertBillingEvent(
   tenantId: string,
   attemptId: string,
 ): Promise<void> {
+  // 0160: the conflict target is the partial unique index for this event type.
   await client.query(
     `INSERT INTO billing_events (tenant_id, attempt_id, event_type)
      VALUES ($1, $2, 'assessment_graded')
-     ON CONFLICT (tenant_id, attempt_id) DO NOTHING`,
+     ON CONFLICT (tenant_id, attempt_id) WHERE event_type = 'assessment_graded' DO NOTHING`,
     [tenantId, attemptId],
   );
+}
+
+/**
+ * FU-A4 (2026-10-06): record one "AI-evaluated answer" event per
+ * (tenant, attempt, question). Same idempotency rule as the graded event:
+ * a re-accept or re-run of the same answer never double-charges (partial
+ * unique index billing_events_ai_answer_uniq, migration 0160).
+ */
+export async function insertAiAnswerEvent(
+  client: PoolClient,
+  tenantId: string,
+  attemptId: string,
+  questionId: string,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO billing_events (tenant_id, attempt_id, question_id, event_type)
+     VALUES ($1, $2, $3, 'ai_answer_evaluated')
+     ON CONFLICT (tenant_id, attempt_id, question_id) WHERE event_type = 'ai_answer_evaluated' DO NOTHING`,
+    [tenantId, attemptId, questionId],
+  );
+}
+
+/**
+ * FU-A2 (2026-10-06): start of the CURRENT monthly window, derived from the
+ * plan's cycle_start anchor: cycle_start plus the whole months elapsed.
+ * Postgres month arithmetic clamps to the month end (Jan 31 + 1 month = Feb 28),
+ * and service.cycleWindowStart mirrors that rule in TypeScript. A cycle_start
+ * in the future yields negative months from age(); GREATEST(0, ...) keeps the
+ * window at the anchor (codex review 2026-10-06), same as the TS mirror.
+ * ponytail: derived window, no UPDATE of tenant_plans.cycle_start (the app role
+ * has no UPDATE policy there and a stored roll would only duplicate this value);
+ * store it if a report ever needs the literal column.
+ */
+const CYCLE_WINDOW_START_SQL =
+  `(p.cycle_start + make_interval(months => GREATEST(0, (
+      EXTRACT(YEAR FROM age(now(), p.cycle_start)) * 12
+      + EXTRACT(MONTH FROM age(now(), p.cycle_start)))::int)))`;
+
+export interface MeterCounts {
+  /** Graded attempts (credits) in the current cycle window. */
+  used: number;
+  /** AI-evaluated answers in the current cycle window (FU-A4). */
+  ai_used: number;
+  /** Start of the current window; null when the tenant has no plan row. */
+  cycle_window_start: Date | null;
+}
+
+/**
+ * Count the two meters for a tenant inside the current monthly window
+ * (FU-A2). Works under withTenant (own plan row via RLS) and under the
+ * system role (cross-tenant path) alike.
+ * A tenant with no plan row (data-integrity gap) gets lifetime counts so the
+ * operator still sees the numbers.
+ */
+export async function countBillingEvents(
+  client: PoolClient,
+  tenantId: string,
+): Promise<MeterCounts> {
+  const result = await client.query<MeterCounts>(
+    `SELECT
+       ${CYCLE_WINDOW_START_SQL} AS cycle_window_start,
+       (SELECT COUNT(*)::int FROM billing_events b
+         WHERE b.tenant_id = p.tenant_id AND b.event_type = 'assessment_graded'
+           AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS used,
+       (SELECT COUNT(*)::int FROM billing_events b
+         WHERE b.tenant_id = p.tenant_id AND b.event_type = 'ai_answer_evaluated'
+           AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS ai_used
+     FROM tenant_plans p
+     WHERE p.tenant_id = $1`,
+    [tenantId],
+  );
+  const row = result.rows[0];
+  if (row !== undefined) return row;
+  const lifetime = await client.query<{ used: number; ai_used: number }>(
+    `SELECT COUNT(*) FILTER (WHERE event_type = 'assessment_graded')::int AS used,
+            COUNT(*) FILTER (WHERE event_type = 'ai_answer_evaluated')::int AS ai_used
+       FROM billing_events WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  return { used: lifetime.rows[0]?.used ?? 0, ai_used: lifetime.rows[0]?.ai_used ?? 0, cycle_window_start: null };
 }
 
 /**
@@ -65,21 +146,6 @@ export async function getPlan(
   return result.rows[0] ?? null;
 }
 
-/**
- * Count billing events (graded attempts) for a tenant within the current cycle.
- * The simple COUNT(*) is intentional for A1 — cycle-window filtering is A2.
- */
-export async function countBillingEvents(
-  client: PoolClient,
-  tenantId: string,
-): Promise<number> {
-  const result = await client.query<{ used: number }>(
-    `SELECT COUNT(*)::int AS used FROM billing_events WHERE tenant_id = $1`,
-    [tenantId],
-  );
-  return result.rows[0]?.used ?? 0;
-}
-
 // ---------------------------------------------------------------------------
 // A2 — cross-tenant (system-role) queries
 // All called from within withSystemTx, which runs under assessiq_system
@@ -94,21 +160,23 @@ export async function countBillingEvents(
  */
 export async function getAllTenantUsageRaw(
   client: PoolClient,
-): Promise<Array<{ tenant_id: string; tier: string; included_credits: number | null; used: number }>> {
+): Promise<Array<{ tenant_id: string; tier: string; included_credits: number | null; used: number; ai_used: number }>> {
+  // FU-A2: both meters count inside each tenant's current monthly window.
   const result = await client.query<{
     tenant_id: string;
     tier: string;
     included_credits: number | null;
     used: number;
+    ai_used: number;
   }>(
     `SELECT p.tenant_id, p.tier, p.included_credits,
-            COALESCE(b.used, 0)::int AS used
-     FROM tenant_plans p
-     LEFT JOIN (
-       SELECT tenant_id, COUNT(*) AS used
-       FROM billing_events
-       GROUP BY tenant_id
-     ) b ON b.tenant_id = p.tenant_id`,
+            (SELECT COUNT(*)::int FROM billing_events b
+              WHERE b.tenant_id = p.tenant_id AND b.event_type = 'assessment_graded'
+                AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS used,
+            (SELECT COUNT(*)::int FROM billing_events b
+              WHERE b.tenant_id = p.tenant_id AND b.event_type = 'ai_answer_evaluated'
+                AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS ai_used
+     FROM tenant_plans p`,
   );
   return result.rows;
 }
@@ -138,17 +206,14 @@ export async function getTenantPlanRow(
 }
 
 /**
- * Count billing events for a tenant (cross-tenant path).
+ * Count billing events for a tenant (cross-tenant path). Same window rule as
+ * countBillingEvents (FU-A2); kept as a named alias for the system-role callers.
  */
 export async function countTenantBillingEvents(
   client: PoolClient,
   tenantId: string,
-): Promise<number> {
-  const result = await client.query<{ used: number }>(
-    `SELECT COUNT(*)::int AS used FROM billing_events WHERE tenant_id = $1`,
-    [tenantId],
-  );
-  return result.rows[0]?.used ?? 0;
+): Promise<MeterCounts> {
+  return countBillingEvents(client, tenantId);
 }
 
 /**
@@ -166,7 +231,7 @@ export async function getRecentBillingEvents(
   }>(
     `SELECT id, attempt_id, event_type, occurred_at
      FROM billing_events
-     WHERE tenant_id = $1
+     WHERE tenant_id = $1 AND event_type = 'assessment_graded'
      ORDER BY occurred_at DESC
      LIMIT 50`,
     [tenantId],
