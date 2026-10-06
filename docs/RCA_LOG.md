@@ -2403,3 +2403,17 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `vi.mock("@assessiq/notifications")` factories in those tests did not export `emitAttemptEventAfterCommit`. The result-flow mocks also lacked `handleAuditFanout`. The release code now imports both.
 **Fix:** `6ed8ded` adds the missing exports to the factories.
 **Prevention:** when a module gains an export used on a hot path, grep `vi.mock("@assessiq/<module>"` and update every factory in the same commit. The `release.ts` structure test (`74f1f46`) also limits what release may import.
+
+## 2026-10-06 — MV tenant-filter lint read a comment apostrophe as SQL
+
+**Symptom:** CI `quality` red on `0350383`..`4b44dd1`: `lint-mv-tenant-filter` reported 3 `attempt_summary_mv` violations in `modules/15-analytics/src/repository.ts`, although every query has the tenant filter.
+**Cause:** the FU-C3 comment above `queryQueueSummary` contained `route's perspective`. The lint tokenizes the file as SQL-like text, so the apostrophe opened a string that swallowed the next `WHERE tenant_id` filters (`tools/lint-mv-tenant-filter.ts`).
+**Fix:** reworded the comment (`8259dfd`). Comment-only change.
+**Prevention:** manual discipline: no apostrophe in comments of files that the MV lint scans. A better fix is to strip comments in the lint before the scan (open).
+
+## 2026-10-06 — e2e step 11 broke after the FU-C10 wire rename
+
+**Symptom:** CI `e2e` red on `8259dfd`: `admin-workflow.spec.ts` step 11 "Assessment not found in candidate's available list", although the id was in the payload.
+**Cause:** FU-C10 (`5a57b7e`) renamed `assessment_id` to `id` in `GET /api/me/assessments` (`modules/06-attempt-engine/src/routes.candidate.ts`). `apps/web/e2e/fixtures/factories.ts:434` and `admin-workflow.spec.ts:316` still used the old name. The Wave 1 session did not run e2e locally, and CI e2e was skipped because `quality` was red at the time.
+**Fix:** factory type and spec use `id`, `question_count`, `duration_seconds` (`454529a`).
+**Prevention:** when a wire field is renamed, grep `apps/web/e2e` for the old name. Rule added to the Wave 2 prompt.
