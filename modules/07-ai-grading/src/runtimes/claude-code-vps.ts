@@ -49,6 +49,7 @@ import type {
 } from "../types.js";
 import { finalScore } from "@assessiq/rubric-engine";
 import type { Rubric } from "@assessiq/rubric-engine";
+import { RubricSchema, strictRubricIssues } from "@assessiq/rubric-engine";
 import { skillSha } from "../skill-sha.js";
 import {
   parseStreamLines,
@@ -911,37 +912,17 @@ const SKILL_RUBRIC = "generate-rubric";
 const TOOL_SUBMIT_RUBRIC = "submit_rubric";
 const MCP_SUBMIT_RUBRIC = "mcp__assessiq__submit_rubric";
 
-// Local schema mirror — avoids dep on @assessiq/rubric-engine in this file;
-// the refine enforces the weight=100 invariant before we return the proposal.
-const SubmitRubricAnchorSchema = z.object({
-  id: z.string().min(1),
-  concept: z.string().min(1),
-  weight: z.number().int().min(0).max(100),
-  synonyms: z.array(z.string().min(1)).min(1),
-  // Self-certifying review fields (A3, 2026-05-30). OPTIONAL so this widen is
-  // backward-compatible: rubrics from the pre-A3 skill (no citation/rationale)
-  // still validate. Mirrors the optional fields on @assessiq/rubric-engine
-  // AnchorSchema (commit e482db0). Display/review-only — never read by scoring.
-  citation: z.string().min(1).optional(),
-  rationale: z.string().min(1).optional(),
-}).strict();
-
+// FU-C18 (2026-10-06): this used to be a local Zod mirror of the rubric
+// shape. That comment said "avoids dep on @assessiq/rubric-engine in this
+// file" — stale: this file already imports `finalScore` and `Rubric` from
+// @assessiq/rubric-engine above, so there was never a dependency to avoid.
+// Now reuses the canonical RubricSchema (08) directly, plus strictRubricIssues
+// (FU-C17) as a generation-time-only rule set: a freshly generated rubric
+// must pass the strict checks (weight sum, unique anchor ids, non-empty band
+// text) that 04 only WARNS on for pre-existing stored rubrics — a new
+// generation has no "historical data" excuse.
 const SubmitRubricOutputSchema = z.object({
-  rubric: z.object({
-    anchors: z.array(SubmitRubricAnchorSchema).min(1),
-    reasoning_bands: z.object({
-      band_4: z.string().min(1),
-      band_3: z.string().min(1),
-      band_2: z.string().min(1),
-      band_1: z.string().min(1),
-      band_0: z.string().min(1),
-    }).strict(),
-    anchor_weight_total: z.number().int().min(0).max(100),
-    reasoning_weight_total: z.number().int().min(0).max(100),
-  }).strict().refine(
-    (r) => r.anchor_weight_total + r.reasoning_weight_total === 100,
-    { message: "anchor_weight_total + reasoning_weight_total must equal 100" },
-  ),
+  rubric: RubricSchema,
 });
 
 function hashString8(s: string): string {
@@ -1028,6 +1009,27 @@ export async function generateRubricDraft(
       AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
       503,
       { details: { issues: parsed.error.issues, questionId: input.questionId } },
+    );
+  }
+
+  // FU-C18: generation-time strict rules (FU-C17) — a freshly generated rubric
+  // has no excuse to fail weight-sum / unique-id / non-empty-band-text checks.
+  const strictIssues = strictRubricIssues(parsed.data.rubric);
+  if (strictIssues.length > 0) {
+    log.error(
+      {
+        skill: SKILL_RUBRIC,
+        questionId: input.questionId,
+        expectedTool: TOOL_SUBMIT_RUBRIC,
+        strictIssues,
+      },
+      "generation.submit_tool.strict_rules_failed",
+    );
+    throw new AppError(
+      "submit_rubric payload failed strict generation rules",
+      AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION,
+      503,
+      { details: { issues: strictIssues, questionId: input.questionId } },
     );
   }
 
