@@ -48,6 +48,7 @@ import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import {
   getHelpKey,
   upsertHelpForTenant,
+  upsertGlobalHelp,
   shouldSampleHelpEvent,
 } from "../service.js";
 
@@ -279,7 +280,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(203); // through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(208); // 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -290,7 +291,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(203); // through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(208); // 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt
@@ -567,6 +568,44 @@ describe("Block 4 — Upsert versioning", () => {
     }, "test-actor");
     // es locale has no prior row for this (tenant, key) → starts at 1.
     expect(esEntry.version).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Block 4b — FU-D2: global (tenant_id IS NULL) versioning by the super admin
+// ---------------------------------------------------------------------------
+
+describe("Block 4b — upsertGlobalHelp (FU-D2)", () => {
+  const key = "test.global.bump";
+  afterAll(async () => {
+    if (skipAll) return;
+    await withSuperClient((client) =>
+      client.query("DELETE FROM help_content WHERE tenant_id IS NULL AND key = $1", [key]),
+    );
+  });
+
+  it("creates a global v1, then v2, and the newest text wins on read", async () => {
+    if (skipAll) return;
+    const actor = { userId: "00000000-0000-4000-8000-000000000001", tenantId: TENANT_A };
+    const v1 = await upsertGlobalHelp(key, { audience: "admin", locale: "en", shortText: "Global one", longMd: null }, actor);
+    expect(v1.tenantId).toBeNull();
+    expect(v1.version).toBe(1);
+
+    const v2 = await upsertGlobalHelp(key, { audience: "admin", locale: "en", shortText: "Global two", longMd: null }, actor);
+    expect(v2.version).toBe(2);
+
+    // Anonymous read (globals only) and tenant read both get the newest version.
+    const anon = await getHelpKey(null, key, "en");
+    expect(anon?.shortText).toBe("Global two");
+    const tenant = await getHelpKey(TENANT_A, key, "en");
+    expect(tenant?.shortText).toBe("Global two");
+  });
+
+  it("rejects a bad key before any write", async () => {
+    if (skipAll) return;
+    await expect(
+      upsertGlobalHelp("Bad.Key", { audience: "admin", locale: "en", shortText: "x", longMd: null }, { userId: "u", tenantId: TENANT_A }),
+    ).rejects.toMatchObject({ code: "VALIDATION_FAILED" });
   });
 });
 

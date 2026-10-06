@@ -380,12 +380,13 @@ describe('audit writes for 16-help-system service', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Coverage: count of auditInTx call-sites in service.ts must equal 2.
+  // Coverage: count of auditInTx call-sites in service.ts must equal 3
+  // (upsertHelpForTenant, importHelp, upsertGlobalHelp since FU-D2 2026-10-06).
   // Adding a new admin-mutating method without wiring audit will fail this.
   // -------------------------------------------------------------------------
-  it('source contains exactly 2 auditInTx call-sites in service.ts', async () => {
+  it('source contains exactly 3 auditInTx call-sites in service.ts', async () => {
     const servicePath = join(HELP_MODULE_ROOT, 'src', 'service.ts');
     const content = await readFile(servicePath, 'utf-8');
-    expect((content.match(/auditInTx\(/g) ?? []).length).toBe(2);
+    expect((content.match(/auditInTx\(/g) ?? []).length).toBe(3);
   });
 });

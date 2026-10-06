@@ -1,6 +1,3 @@
 # RV74 allowlist: known UI paths with no matching Fastify route.
 # Format: METHOD /normalised/path  # reason   (path params are written as :p)
-GET /api/admin/help-content  # RV74 found - open (UI help-content.tsx calls /admin/help-content; server only has /api/admin/help/*)
-PUT /api/admin/help-content/:p  # RV74 found - open (server has PATCH /api/admin/help/:key)
-GET /api/admin/help-content/export  # RV74 found - open (server has /api/admin/help/export)
-POST /api/admin/help-content/import  # RV74 found - open (server has /api/admin/help/import)
+# 2026-10-06 FU-D1: the four help-content.tsx lines were removed (page now calls /api/admin/help/*).

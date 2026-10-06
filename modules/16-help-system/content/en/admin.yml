@@ -1468,6 +1468,65 @@ admin.settings.billing.alert_threshold:
 
     To change your plan, contact your AssessIQ administrator.
 
+admin.settings.help_content.page:
+  audience: admin
+  short_text: "Edit the help text shown in tooltips and the help drawer. Each save creates a new version."
+  long_md: |
+    ## Help content
+
+    This page lists every help entry for one locale. Each entry has a key, a short
+    text (the tooltip) and a longer Markdown body (the help drawer).
+
+    - **Platform admins** edit the global text that every company sees.
+    - **Company admins** can save a company override. The platform text is kept.
+    - Each save creates a new version. Older versions stay in the database.
+    - Use **Export JSON** and **Import JSON** for a translation round trip.
+  related_keys:
+    - admin.settings.help_content.scope
+    - admin.settings.help_content.markdown
+
+admin.settings.help_content.scope:
+  audience: admin
+  short_text: "Platform admins change the global text. Company admins save an override for their company only."
+  long_md: |
+    ## Global text or company override
+
+    - A **global** row has no company. Every company without an override sees it.
+    - A **company override** replaces the global text for that company only.
+    - A platform admin save creates a new global version. A company admin save
+      creates a new override version.
+    - The key never changes. It links the text to the screen element.
+
+admin.settings.help_content.locale:
+  audience: admin
+  short_text: "The language code of the rows shown, for example en or hi-IN. Readers get en when their locale has no row."
+  long_md: |
+    ## Locale
+
+    Type a language code such as `en` or `hi-IN` to list the rows for that locale.
+    When a reader asks for a locale that has no row, the `en` text is shown.
+
+admin.settings.help_content.list:
+  audience: admin
+  short_text: "One card per help key. The chip tells if the text is global or a company override, and its version."
+  long_md: |
+    ## Entry list
+
+    Each card shows the key, the scope chip, the version and the audience, then the
+    short text and the first lines of the body. Select **Edit** to change the text.
+    Use the search box to filter by key or short text.
+
+admin.settings.help_content.import:
+  audience: admin
+  short_text: "Import a JSON file in the export format. Rows are saved as company overrides for the selected locale."
+  long_md: |
+    ## Import JSON
+
+    Upload a file that you exported from this page (a list of entries with `key`,
+    `shortText`, `longMd` and `audience`). Every row is saved as a company override
+    for the locale shown on the page. A row that already exists at the same version
+    is skipped.
+
 admin.settings.help_content.markdown:
   audience: admin
   short_text: "Help text supports Markdown. The editor preview shows plain text only. Readers see full rendering."

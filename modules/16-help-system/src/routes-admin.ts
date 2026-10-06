@@ -1,7 +1,9 @@
 /**
  * Admin help routes — admin role only.
  *
- * PATCH  /api/admin/help/:key           — upsert / update a help entry
+ * GET    /api/admin/help?locale=        — list entries (newest version per row) — FU-D1
+ * PATCH  /api/admin/help/:key           — upsert / update a tenant override
+ * PATCH  /api/admin/help/global/:key    — super admin: new version of a GLOBAL row — FU-D2
  * GET    /api/admin/help/export?locale= — export all entries for translation
  * POST   /api/admin/help/import?locale= — bulk upsert from translation import
  *
@@ -18,6 +20,7 @@ import { ValidationError } from "@assessiq/core";
 import { UpsertHelpInputSchema } from "./types.js";
 import {
   upsertHelpForTenant,
+  upsertGlobalHelp,
   exportHelp,
   importHelp,
 } from "./service.js";
@@ -38,6 +41,50 @@ export async function registerHelpAdminRoutes(
   // Cast the injected chain to Fastify's native preHandler hook type.
   // Same structural-cast pattern as apps/api/src/middleware/auth-chain.ts.
   const adminOnly = deps.authChain({ roles: ["admin"] }) as preHandlerHookHandler[];
+  const superAdminOnly = deps.authChain({ roles: ["super_admin"] }) as preHandlerHookHandler[];
+
+  // GET /api/admin/help?locale=... — FU-D1: the list the admin page reads.
+  // Same rows as export (newest active version per tenant arm), wrapped.
+  app.get(
+    "/api/admin/help",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = (req as { session?: { tenantId: string } }).session!.tenantId;
+      const q = req.query as Record<string, string | undefined>;
+      const locale = q["locale"] ?? "en";
+      if (!LOCALE_RE.test(locale)) {
+        throw new ValidationError("Invalid locale format", {
+          details: { code: "INVALID_PARAM", param: "locale" },
+        });
+      }
+      return { entries: await exportHelp(tenantId, locale) };
+    },
+  );
+
+  // PATCH /api/admin/help/global/:key — FU-D2: super admin edits the GLOBAL
+  // row (tenant_id IS NULL) as a new version. Registered before /:key: the
+  // static segment "global" wins over the param route in Fastify anyway, and
+  // the two paths differ in depth, so there is no overlap.
+  app.patch(
+    "/api/admin/help/global/:key",
+    { preHandler: superAdminOnly },
+    async (req) => {
+      const sess = (req as { session?: { tenantId: string; userId: string } }).session!;
+      const { key } = req.params as { key: string };
+      if (!HELP_KEY_RE.test(key)) {
+        throw new ValidationError("Invalid help key format", {
+          details: { code: "INVALID_PARAM", param: "key" },
+        });
+      }
+      const parsed = UpsertHelpInputSchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError("Invalid request body", {
+          details: { code: "VALIDATION_FAILED", issues: parsed.error.issues },
+        });
+      }
+      return upsertGlobalHelp(key, parsed.data, { userId: sess.userId, tenantId: sess.tenantId });
+    },
+  );
 
   // GET /api/admin/help/export?locale=...
   // Registered BEFORE /:key so 'export' is not consumed as a key param.
