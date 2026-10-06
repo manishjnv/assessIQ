@@ -431,8 +431,8 @@ export async function inviteCandidate(
 
 export async function listCandidateAssessments(
   candidateCookie: string,
-): Promise<Array<{ assessment_id: string; name: string; status: string }>> {
-  const res = await apiFetchJson<{ items: Array<{ assessment_id: string; name: string; status: string }> }>(
+): Promise<Array<{ id: string; name: string; question_count: number; duration_seconds: number }>> {
+  const res = await apiFetchJson<{ items: Array<{ id: string; name: string; question_count: number; duration_seconds: number }> }>(
     '/api/me/assessments',
     { cookie: candidateCookie, label: 'listCandidateAssessments' },
   );
