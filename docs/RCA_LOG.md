@@ -4,6 +4,20 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-06 — Regenerated seed migration 0011 did not update existing help rows in production
+
+**Symptom:** after FU-B3 rewrote three `admin.audit*` entries in `modules/16-help-system/content/en/admin.yml` and the seed migration `0011_seed_help_content.sql` was regenerated, re-running that migration on `assessiq-vps` left the old text in place.
+**Cause:** `0011_seed_help_content.sql` inserts with `ON CONFLICT (tenant_id, key, locale, version) DO NOTHING`. The three rows already existed with `version = 1`, so the conflict path skipped them silently; the file has no `DO UPDATE` branch for a content-only edit at the same version.
+**Fix:** on `assessiq-vps`, ran a one-off `DELETE FROM help_content WHERE tenant_id IS NULL AND key IN ('admin.audit','admin.audit.archives','admin.audit.export.format') AND version = 1;` (script kept at `tools/ops/fu-b3-delete-stale-audit-help.sql`), then re-applied `0011_seed_help_content.sql` so the INSERT path (not the conflict path) fired. Verified: global row count unchanged at 210, new "available soon" text confirmed live via `tools/ops/fu-b3-verify.sql`.
+**Prevention:** manual discipline for now — a content-only edit to an already-seeded help key at the same `version` needs a delete-then-reseed, or the next edit must bump `version`. No lint or migration-tooling change made; flagged as a gap in `modules/16-help-system/SKILL.md`'s seed workflow for a future task.
+
+## 2026-10-06 — FU-B17's new notifications export broke 3 more vi.mock factories than the Batch D gate caught
+
+**Symptom:** 5 tests in `modules/07-ai-grading/src/__tests__/super-evaluation.test.ts` failed with "No `notifyEvaluationReadyAfterCommit` export is defined on the mock", found only while verifying an unrelated later change (FU-C18) that happened to run the full `07-ai-grading` suite.
+**Cause:** FU-B17 (Batch D, commit `4f95025`) added `notifyEvaluationReadyAfterCommit` to `modules/09-scoring/src/finalize.ts`'s call path and updated the 4 full-replacement `vi.mock('@assessiq/notifications')` factories in `apps/api/src/__tests__/*` — but did not check `modules/07-ai-grading/src/__tests__/{handlers,release-flow,super-evaluation}.test.ts`, which also mock that module and also exercise the accept/grade/release handlers that call `finalizeAttemptIfComplete`. The Batch D gate ran `apps/api` and the directly-touched packages' own tests, not every transitive caller across the whole repo.
+**Fix:** added the export to all three factories (`4ad6cc0`-adjacent commit `016131c`). Full `07-ai-grading` suite re-run clean: 402 pass + 4 skipped.
+**Prevention:** the existing rule ("grep `vi.mock(\"@assessiq/<module>\"` and update every factory in the same commit") is correct but was applied too narrowly — do the repo-wide grep (not just the touched package + one "obvious" consumer) BEFORE considering a cross-module production export change complete, and re-run the full suite of every package that imports the changed module, not just the one that triggered the change.
+
 ## 2026-10-03 — Dashboard cards stopped at 50, "Ready to publish" was always 0, and timer-expired attempts were missing from the tenant queue
 
 **Symptom:** the three dashboard cards (In queue, Awaiting evaluation, Ready to publish) never showed more than 50. "Ready to publish" was always 0. An attempt that ended by timer expiry (`auto_submitted`) did not show in the tenant queue list, but it showed in the platform evaluation queue.
