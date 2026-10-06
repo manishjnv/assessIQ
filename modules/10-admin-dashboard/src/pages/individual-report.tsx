@@ -6,7 +6,7 @@
 // Consumes: GET /api/admin/reports/individual/:userId
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Chip, Spinner, Sparkline } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { ArchetypeRadar } from "../components/ArchetypeRadar.js";
@@ -33,6 +33,7 @@ interface IndividualReport {
 }
 
 export function AdminIndividualReport(): React.ReactElement {
+  const navigate = useNavigate();
   const { userId } = useParams<{ userId: string }>();
   const [report, setReport] = useState<IndividualReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -123,6 +124,17 @@ export function AdminIndividualReport(): React.ReactElement {
                 </div>
                 <div style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-xl)", color: "var(--aiq-color-fg-primary)" }}>
                   {attempt.band !== null ? `Band ${attempt.band} (${BAND_PCT[attempt.band] ?? 0}%)` : "—"}
+                </div>
+                {/* FU-C8: the behaviour and integrity card lives on the attempt page */}
+                <div>
+                  <button
+                    type="button"
+                    className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                    data-help-id="admin.reports.individual.open_attempt"
+                    onClick={() => navigate(`/admin/attempts/${attempt.attempt_id}`)}
+                  >
+                    Open attempt (behaviour and integrity)
+                  </button>
                 </div>
               </div>
 

@@ -152,3 +152,7 @@ The activity test file spins up its own postgres container (`aiq_activity_test`)
 
 - **RV60.** The option `adminOrReviewer` is removed. `results.csv` is admin only. **Why.** Owner decision RO7. **Not included.** No change to the CSV columns.
 - **RV77.** The CSV formula-injection guard (a cell that starts with `= + - @` gets a leading `'`) is now on the heatmap export and the attempt exports too, with one unit test each. Before this, only `results-export.ts` had it. The escape functions are not merged into one helper (separate task).
+
+## FU-C4 (2026-10-06) - cohort breakdown route
+
+`GET /api/admin/reports/cohort/:assessmentId/breakdown` (admin) exposes `cohortReport` level and topic breakdowns for the cohort page; `topicHeatmap` now has a UI caller (pack selector on the same page). Tenant-visible rule unchanged (MV 0122, FU-C3 topic filter). See `docs/03-api-contract.md`.

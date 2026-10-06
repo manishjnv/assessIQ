@@ -356,6 +356,15 @@ export interface Question {
   domain_id: string | null;
   /** Category tag — set for AI-generated questions, null for human-authored. Added Slice 2.2/D5. */
   category_id: string | null;
+  /**
+   * FU-C13 (2026-10-06): intrinsic-difficulty tags written by the generator
+   * (migration 0086, Phase A). All NULL on human-authored and legacy rows.
+   * Read-only on the admin side (no editor; the generator is the writer).
+   */
+  cognitive_level: "remember" | "understand" | "apply" | "analyze" | "evaluate" | "create" | null;
+  nice_task_id: string | null;
+  difficulty_params: Record<string, unknown> | null;
+  attack_technique: string[] | null;
 }
 
 export interface QuestionVersion {

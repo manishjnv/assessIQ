@@ -39,6 +39,7 @@ import {
   exportAttemptsCsv,
   exportAttemptsJsonl,
   exportTopicHeatmapCsv,
+  cohortReport,
 } from './service.js';
 import { ExportFilterSchema } from './types.js';
 import { EXPORT_ROW_CAP } from './repository.js';
@@ -354,6 +355,28 @@ export async function registerAnalyticsRoutes(
       });
 
       return reply.send(report);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /api/admin/reports/cohort/:assessmentId/breakdown — FU-C4 (2026-10-06)
+  //
+  // Level and topic breakdown for the cohort page (15 cohortReport; the
+  // percentiles come from 09's /reports/cohort/:assessmentId). Tenant-visible
+  // rule: the MV holds released attempts only (0122) and the topic query
+  // filters on released / evaluation-released (FU-C3).
+  // -------------------------------------------------------------------------
+  app.get(
+    '/api/admin/reports/cohort/:assessmentId/breakdown',
+    { preHandler },
+    async (req, reply) => {
+      const { assessmentId } = req.params as { assessmentId: string };
+      if (!/^[0-9a-f-]{36}$/i.test(assessmentId)) {
+        throw new ValidationError('assessmentId must be a valid UUID');
+      }
+      const { tenantId } = sess(req);
+      const report = await cohortReport(tenantId, assessmentId);
+      return reply.send({ data: { levelBreakdown: report.levelBreakdown, topicBreakdown: report.topicBreakdown } });
     },
   );
 
