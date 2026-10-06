@@ -51,6 +51,7 @@ vi.mock("@assessiq/audit-log", async () => {
 // This DB has no notification tables; the email path is covered by release-flow.test.ts
 // and 13's own tests, so stub it here.
 vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined),
+  notifyEvaluationReadyAfterCommit: vi.fn(async () => undefined),
   sendResultReleasedEmail: vi.fn(async () => undefined),
 }));
 

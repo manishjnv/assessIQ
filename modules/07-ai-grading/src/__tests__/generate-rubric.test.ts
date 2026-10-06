@@ -252,6 +252,58 @@ describe("generateRubricDraft — log_analysis", () => {
 });
 
 // ===========================================================================
+// FU-C18 (2026-10-06): strict generation rules, now from the 08 schema's
+// strictRubricIssues() instead of a one-off local mirror. These rules were
+// NOT enforced by the old mirror (it only checked anchor_weight_total +
+// reasoning_weight_total === 100, never that individual anchor weights sum
+// to anchor_weight_total, nor anchor id uniqueness).
+// ===========================================================================
+
+describe("generateRubricDraft — strict generation rules (FU-C18)", () => {
+  it("rejects when anchor weights do not sum to anchor_weight_total", async () => {
+    mockSpawn.mockImplementation(() =>
+      makeFakeProc([
+        submitRubricEvent(makeRubricPayload({
+          anchors: [
+            { id: "a1", concept: "c1", weight: 20, synonyms: ["x"] },
+            { id: "a2", concept: "c2", weight: 20, synonyms: ["y"] },
+          ],
+          anchor_weight_total: 60, // declares 60, anchors only sum to 40
+          reasoning_weight_total: 40,
+        })),
+      ]),
+    );
+
+    await expect(
+      generateRubricDraft(makeInput("subjective", "Describe the response.")),
+    ).rejects.toMatchObject({
+      code: "AIG_SCHEMA_VIOLATION",
+    });
+  });
+
+  it("rejects duplicate anchor ids", async () => {
+    mockSpawn.mockImplementation(() =>
+      makeFakeProc([
+        submitRubricEvent(makeRubricPayload({
+          anchors: [
+            { id: "dup", concept: "c1", weight: 30, synonyms: ["x"] },
+            { id: "dup", concept: "c2", weight: 30, synonyms: ["y"] },
+          ],
+          anchor_weight_total: 60,
+          reasoning_weight_total: 40,
+        })),
+      ]),
+    );
+
+    await expect(
+      generateRubricDraft(makeInput("subjective", "Describe the response.")),
+    ).rejects.toMatchObject({
+      code: "AIG_SCHEMA_VIOLATION",
+    });
+  });
+});
+
+// ===========================================================================
 // Service-layer guard — mcq + kql UNSUPPORTED_TYPE_FOR_RUBRIC
 // ===========================================================================
 
