@@ -55,7 +55,7 @@ const PACK_COLUMNS = `id, tenant_id, slug, name, domain, description, status, ve
 
 const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minutes, default_question_count, passing_score_pct, rubric_defaults`;
 
-const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, answer_guidance, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id`;
+const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, answer_guidance, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id, cognitive_level, nice_task_id, difficulty_params, attack_technique`;
 
 const QUESTION_VERSION_COLUMNS = `id, question_id, version, content, rubric, saved_by, saved_at`; // N21: `type` is frozen per version but not surfaced here
 
@@ -130,6 +130,11 @@ interface QuestionRow {
   updated_at: Date;
   domain_id: string | null;
   category_id: string | null;
+  /** FU-C13: difficulty tags (migration 0086); NULL on human-authored rows. */
+  cognitive_level?: string | null;
+  nice_task_id?: string | null;
+  difficulty_params?: unknown;
+  attack_technique?: string[] | null;
   /** Resolved from the parent level row by list projections; absent on single reads. */
   level_label?: string | null;
 }
@@ -207,6 +212,13 @@ function mapQuestionRow(row: QuestionRow): Question {
     updated_at: row.updated_at,
     domain_id: row.domain_id ?? null,
     category_id: row.category_id ?? null,
+    cognitive_level: (row.cognitive_level as Question["cognitive_level"]) ?? null,
+    nice_task_id: row.nice_task_id ?? null,
+    difficulty_params:
+      row.difficulty_params !== null && typeof row.difficulty_params === "object"
+        ? (row.difficulty_params as Record<string, unknown>)
+        : null,
+    attack_technique: Array.isArray(row.attack_technique) ? row.attack_technique : null,
   };
 }
 
@@ -696,6 +708,7 @@ export async function listQuestionRows(
             q.version, q.content, q.rubric, q.answer_guidance, q.knowledge_base_sources,
             q.created_by, q.created_at, q.updated_at,
             q.domain_id, q.category_id,
+            q.cognitive_level, q.nice_task_id, q.difficulty_params, q.attack_technique,
             (SELECT label FROM levels WHERE levels.id = q.level_id) AS level_label
      FROM questions q
      ${joinClause}

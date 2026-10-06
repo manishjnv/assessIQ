@@ -218,3 +218,7 @@ AI-assisted question generation is the only AI-touching surface in this module's
 ## FR25 — rubric validation
 
 `validateRubric` in `src/types.ts` is now a re-export of `parseRubric` from `@assessiq/rubric-engine` (same ok/data|errors shape). `saveRubric` (service/generation.ts) uses it too. Do not add a local rubric parser.
+
+## FU-C13 (2026-10-06) - difficulty tags read back
+
+`QUESTION_COLUMNS`, the list projection in `listQuestionRows`, `mapQuestionRow` and the `Question` type now carry `cognitive_level`, `nice_task_id`, `difficulty_params`, `attack_technique` (migration 0086). Read-only; the generator (`07 admin-generate.ts`) stays the only writer. The admin UI shows Bloom and NICE chips (question editor header, pack question rows).

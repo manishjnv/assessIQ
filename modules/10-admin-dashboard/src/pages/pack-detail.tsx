@@ -70,6 +70,9 @@ interface QuestionItem {
   created_at?: string;
   content: Record<string, unknown>;
   knowledge_base_sources?: Array<{ id: string; name: string; citation: string; url?: string }>;
+  /** FU-C13: difficulty tags from the generator (null on human-authored rows). */
+  cognitive_level?: string | null;
+  nice_task_id?: string | null;
 }
 
 interface PackDetailResponse {
@@ -1306,6 +1309,13 @@ export function AdminPackDetail(): React.ReactElement {
                               {q.points != null ? ` · ${q.points} pts` : ""}
                               {q.created_at ? ` · ${relativeDate(q.created_at)}` : ""}
                             </span>
+                            {/* FU-C13: Bloom + NICE chips (generator tags; absent on human-authored rows) */}
+                            {(q.cognitive_level || q.nice_task_id) && (
+                              <div data-help-id="admin.question_bank.pack.difficulty" style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginTop: "4px" }}>
+                                {q.cognitive_level && <Chip>Bloom: {q.cognitive_level}</Chip>}
+                                {q.nice_task_id && <Chip>NICE: {q.nice_task_id}</Chip>}
+                              </div>
+                            )}
                             {/* Tertiary line: all KB-source citation chips */}
                             {q.knowledge_base_sources && q.knowledge_base_sources.length > 0 && (
                               <div

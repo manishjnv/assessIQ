@@ -13,7 +13,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { Spinner } from "@assessiq/ui-system";
+import { Chip, Spinner } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { RubricEditor } from "../components/RubricEditor.js";
@@ -61,6 +61,9 @@ interface QuestionDetail {
   answer_guidance?: string | null;
   assessment_name?: string;
   level_label?: string;
+  /** FU-C13: difficulty tags from the generator (null on human-authored rows). */
+  cognitive_level?: string | null;
+  nice_task_id?: string | null;
 }
 
 function _parseRubric(raw: unknown): RubricDraft {
@@ -757,6 +760,12 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
             </div>
             <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
               {[question.assessment_name, question.level_label, question.type, `${question.points} pts`].filter(Boolean).join(" · ")}
+              {(question.cognitive_level || question.nice_task_id) && (
+                <span data-help-id="admin.question.editor.difficulty" style={{ display: "inline-flex", gap: "var(--aiq-space-xs)" }}>
+                  {question.cognitive_level && <Chip>Bloom: {question.cognitive_level}</Chip>}
+                  {question.nice_task_id && <Chip>NICE: {question.nice_task_id}</Chip>}
+                </span>
+              )}
             </div>
           </div>
           <button
