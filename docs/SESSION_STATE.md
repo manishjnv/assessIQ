@@ -1,3 +1,38 @@
+# Session — 2026-10-06 — Wave 1 pending tasks (Batches A-E), VPS deploy, docs
+
+**Headline:** Wave 1 (39-row pending-tasks list, Batches A-E) is complete. 33 rows done, 2 checked (no change needed, already compliant), 2 skipped/blocked with recorded reasons. All code on `main`, deployed to `assessiq-vps` (HEAD `413fb05`), health verified 200 on `/api/health` and `/`.
+**Commits:**
+- `e976181` Batch A — 16 docs/comment rows + FU-B19 design note (Sonnet ACCEPT trailer; touched 01-auth/02-tenancy/07-ai-grading/14-audit-log comments, push-gate is path-based)
+- `5a57b7e` Batch B — 11 small code fixes (no gate trigger)
+- `eff5ea5` Batch C — 4 test-only rows (Sonnet ACCEPT trailer; touched 01-auth test file)
+- `4f95025` Batch D — help text + notifications (2 of 4 rows; 2 skipped/blocked, no gate trigger)
+- `1a1874b` Batch E part 1 — FU-D7 `withTenant` UUID hardening (Sonnet ACCEPT trailer)
+- `0350383` Batch E part 2 — FU-C18 07-ai-grading strict rubric schema reuse + self-found vi.mock regression fix (Sonnet ACCEPT trailer)
+- `413fb05` Docs closeout — RCA log (2 entries) + `tools/ops/fu-b3-*.sql` scratch scripts (no gate trigger)
+**Deploy:** VPS `assessiq-vps` pulled to `0350383` (later `413fb05` is docs-only, not deploy-relevant). FU-B3's regenerated seed migration `0011_seed_help_content.sql` needed a one-off `DELETE` of 3 stale rows before reapply (`ON CONFLICT DO NOTHING` skips a content-only edit at the same version) — see RCA log. Rebuilt `assessiq-api` (covers `assessiq-worker`, same image) and `assessiq-frontend`; recreated all three. 24/24 containers healthy before and after; `/api/health` and `/` both 200 via `https://assessiq.automateedge.cloud`.
+**Tests:** `pnpm typecheck` 0 errors, `pnpm lint` 0 errors (20 pre-existing warnings, unchanged). Per-module (real Docker containers): 19-billing 31P, 09-scoring 119P, 10-admin-dashboard 103P, 06-attempt-engine 303P, 15-analytics 148P, apps/api 142P+7todo, 01-auth 290/291 (1 pre-existing flaky `totp.test.ts` timing test, unrelated), 16-help-system 99P, 13-notifications 253P, 02-tenancy 66P+1todo, 07-ai-grading 402P+4skip (was 397P before fixing a self-found vi.mock regression).
+**Next:** owner browser verification of 4 UI-visible changes (FU-C7 radar axis, FU-D15 KQL keyword chips, FU-D21 "not saved" notice, FU-D27 billing global-default display) — none block anything, purely a visual confirm. CI status for `413fb05`/`0350383` not checked this session (GitHub Actions not polled) — confirm green before considering Wave 1 fully closed.
+**Open questions:**
+- FU-D10 skipped: blocked on FU-D9 ("Background jobs" tab) not existing yet — out of Wave 1 scope.
+- FU-B20 skipped: contradicts a recorded 2026-10-03 owner decision (FR6: "No receipt email for now, mail volume") — needs the owner to re-open before any code change.
+- `docs/PENDING_TASKS_2026-10-01.md` was updated locally only (gitignored, confirmed via `git status` showing no entry for that path) — 111 of 199 total task-table rows now carry a ✅ marker repo-wide, not committed by design.
+
+---
+
+## Agent utilization
+- Opus: orchestration across all 5 batches, Phase 3 diff review before every commit, VPS deploy command sequencing, this handoff.
+- Sonnet: adversarial review subagent used 4 times (Batches A, C, E×2), all ACCEPT verdicts, run via `runSubagent` with `git show <sha>` self-verification.
+- Haiku: n/a this session.
+- codex:rescue: n/a — companion MCP health not verified; Sonnet takeover used as the approved fallback for all 4 adversarial reviews (logged above).
+
+**Routing telemetry**
+- sonnet · Batch A adversarial review (comment/docs diff) · reworked: N
+- sonnet · Batch C adversarial review (01-auth test file) · reworked: N
+- sonnet · FU-D7 adversarial review (withTenant hardening) · reworked: N
+- sonnet · FU-C18 adversarial review (07 rubric schema) · reworked: N (review itself clean; own full-suite verification separately caught the Batch D vi.mock regression, fixed in the same commit)
+
+---
+
 # Session — 2026-10-03 (r) — RS4/RV27, PT1, RS6 decisions, FU-B6, FU-C17, N21, RV71/73/74, N3, E4
 
 **Headline:** All ordered items are on `main` and deployed (VPS at `51095d7`, migration 0156 applied). Marketing was rebuilt twice. The G4 skill patch is deployed by scp. Four items wait for the owner (see Open questions).
