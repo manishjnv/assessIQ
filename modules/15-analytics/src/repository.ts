@@ -123,8 +123,8 @@ export async function queryQueueSummary(client: PoolClient, tenantId: string): P
  *   `GET /api/admin/reports/cohort/:assessmentId` (09-scoring/src/routes.ts) has
  *   its own independent `cohortStats` in 09-scoring/src/service.ts — it does NOT
  *   call this function. `service.cohortReport()` here is exercised only by
- *   modules/15-analytics/src/__tests__/analytics.test.ts (dormant from the
- *   route's perspective). FU-C3 is the task to route tenant-visible UI reads
+ *   modules/15-analytics/src/__tests__/analytics.test.ts (dormant, seen from the
+ *   route point of view). FU-C3 is the task to route tenant-visible UI reads
  *   through one tenant-visibility rule before either path gains a new caller.
  * DO NOT collapse with queryAdminCohortReport — they return different types
  *   (CohortReport vs AdminCohortReport), use different sources (MV + live
