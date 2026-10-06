@@ -132,3 +132,16 @@ A page-level help entry has the key `<page>.page`. `AdminShell helpPage` mounts 
 ## Structured case help keys (SP7, 2026-10-03)
 
 Migration `0153_seed_structured_case_help.sql` (idempotent, `ON CONFLICT DO NOTHING`) adds four keys, mirrored in `content/en/admin.yml` and `candidate.yml`: `admin.question.editor.content.structured_case`, `admin.question.editor.structured_case.steps`, `admin.question.editor.structured_case.scoring`, `candidate.attempt.structured_case`. All sit under their page prefix (see N20 and the guard test `help-id-page-prefix.test.ts`). Seed `0011` is regenerated: the row count assertion in `help-system.test.ts` went from 196 to 200.
+
+## Admin authoring routes (FU-D1/FU-D2/FU-D3, 2026-10-06)
+
+**What changed.** `GET /api/admin/help?locale=` lists the newest active version per (tenant arm, key, locale) (globals + the caller's overrides); `PATCH /api/admin/help/global/:key` (super_admin) writes a new version of the GLOBAL row via `service.upsertGlobalHelp`, which runs `SET LOCAL ROLE assessiq_system` because the `help_content` INSERT policy forbids `tenant_id IS NULL` for `assessiq_app`; the audit row (`help.content.updated`, `after.scope = "global"`) is written in the same tx under the actor's tenant. `exportTenantHelp` now returns one row per (tenant arm, key, locale) with `DISTINCT ON ... version DESC`; `listHelpForPage` and `getHelpKey` order by `version DESC` so a bumped global row wins on read (before, two active global versions had an undefined winner). The admin page `help-content.tsx` uses these routes; the "Help content" menu entry is super-admin only (FR14).
+
+**Why.** RV74 found the page calling four non-existent paths; FR14 decided help editing is platform only; globals could not be edited at all after deploy without a migration.
+
+**Rejected.** An UPDATE in place of the global row (loses history, and `assessiq_app` has no UPDATE policy for NULL rows); a new `help_content_global` table (one table with a nullable tenant is the existing design).
+
+**Not included.** Archiving old versions (status stays `active`, the read side picks the newest); a version diff view; tenant-side menu entry.
+
+**Downstream.** `audit-writes.test.ts` expects 3 `auditInTx` call sites in `service.ts`. `help-system.test.ts` Block 4b covers the global bump. Seed count 208 (migration `0157_seed_help_content_admin_help.sql`, 5 keys under `admin.settings.help_content.*`; `0011` regenerated).
+

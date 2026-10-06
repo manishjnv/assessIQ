@@ -476,9 +476,13 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | `GET`  | `/admin/audit/export.jsonl`      | Stream audit log as JSON Lines. Same query params. Response: `Content-Type: application/x-ndjson`, `Content-Disposition: attachment; filename="audit-<tenantPrefix>.jsonl"`. **live 2026-05-03** |
 | `GET`  | `/admin/audit/archives`          | List S3 audit archives for the tenant. **Phase 4 placeholder** — returns `{ archives: [], note: "S3 archive not configured (Phase 4)" }` when `S3_BUCKET` is unset. **live (stub) 2026-05-03** |
 | `POST` | `/admin/audit/archives/:date/restore` | Restore (stream-download) an audit archive for the given date. `:date` format: `YYYY-MM-DD`. **Phase 4 placeholder** — returns `503 S3_NOT_CONFIGURED` when `S3_BUCKET` is unset. **live (stub) 2026-05-03** |
-| `GET`  | `/admin/help/export?locale=`     | Export all help rows for translation (admin only) — **live 2026-05-02** |
-| `PATCH`| `/admin/help/:key`               | Update help text per locale (creates new version) — **live 2026-05-02** |
+| `GET`  | `/admin/help?locale=`            | List help rows: `{ entries: HelpEntry[] }`, the newest active version per (tenant arm, key, locale); globals plus the caller's company overrides. Admin. — **live 2026-10-06 (FU-D1)** |
+| `GET`  | `/admin/help/export?locale=`     | Export help rows for translation (admin only). Since 2026-10-06 one row per (tenant arm, key, locale): the newest active version. — **live 2026-05-02** |
+| `PATCH`| `/admin/help/:key`               | Company override: new version of the caller's tenant row (creates new version) — **live 2026-05-02** |
+| `PATCH`| `/admin/help/global/:key`        | **super_admin only.** New version of the GLOBAL row (`tenant_id IS NULL`); body `{ audience, locale?, shortText, longMd? }`; runs under `assessiq_system` (the app role cannot insert a NULL tenant row); one `help.content.updated` audit row with `after.scope = "global"` in the same tx. 400 `INVALID_HELP_KEY` on a bad key. — **live 2026-10-06 (FU-D2)** |
 | `POST` | `/admin/help/import?locale=`     | Bulk upsert help rows from translation (admin only) — **live 2026-05-02** |
+
+> **FU-D1/D2/D3 (2026-10-06) — help authoring page aligned.** `modules/10-admin-dashboard/src/pages/help-content.tsx` called four paths that never existed (`/admin/help-content*`, RV74 allowlist). It now calls the rows above; the four allowlist lines are gone. Why a list route: export was the only list and returned every version. Rejected: renaming the server routes to `/help-content` (breaks the translation import tooling). Not included: Markdown rendering in the editor; a diff view between versions; a tenant-side menu entry (FR14 owner decision 2026-10-03: help editing is platform only, so the "Help content" menu entry is super-admin only; the company-override route stays reachable by URL). Downstream: `modules/16-help-system/SKILL.md` § "Admin authoring routes".
 
 ### Admin — Worker observability
 

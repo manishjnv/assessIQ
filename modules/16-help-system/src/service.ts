@@ -34,6 +34,7 @@ import {
   listHelpForPage,
   getHelpKey as repoGetHelpKey,
   upsertHelp,
+  upsertGlobalHelp as repoUpsertGlobalHelp,
   exportTenantHelp,
   bulkUpsertHelp,
 } from "./repository.js";
@@ -154,11 +155,13 @@ export async function getHelpForPage(
   const run = async (client: PoolClient): Promise<HelpReadEnvelope[]> => {
     const rows = await listHelpForPage(client, page, audience, locale);
 
-    // Group by key, prefer tenant override per (key, locale).
+    // Group by key, prefer tenant override per (key, locale). Rows arrive
+    // newest version first within each (key, tenant arm), so the first row
+    // seen for an arm is the one to keep (FU-D2: global rows are versioned too).
     const byKey = new Map<string, HelpEntry>();
     for (const row of rows) {
       const existing = byKey.get(row.key);
-      if (existing === undefined || row.tenantId !== null) {
+      if (existing === undefined || (row.tenantId !== null && existing.tenantId === null)) {
         byKey.set(row.key, row);
       }
     }
@@ -279,6 +282,85 @@ export async function upsertHelpForTenant(
 
     return newRow;
   });
+}
+
+/**
+ * FU-D2 (2026-10-06): super-admin write of a GLOBAL help row (tenant_id IS
+ * NULL) as a new version. Runs under `assessiq_system` (BYPASSRLS) because the
+ * help_content INSERT policy forbids NULL tenant_id for assessiq_app. The audit
+ * row is written in the same tx (14 auditInTx, existing action
+ * `help.content.updated`, `after.scope = "global"`), under the actor's own
+ * tenant (the platform tenant) so the platform audit log shows it.
+ */
+export async function upsertGlobalHelp(
+  key: string,
+  input: UpsertHelpInput,
+  actor: { userId: string; tenantId: string },
+): Promise<HelpEntry> {
+  if (!isValidHelpKey(key)) {
+    throw new ValidationError(
+      `Invalid help key "${key}": must be lowercase, dot-separated segments of [a-z0-9_], at least two segments.`,
+      { details: { code: "INVALID_HELP_KEY", key } },
+    );
+  }
+  const client = await getPool().connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE assessiq_system");
+    const locale = input.locale ?? "en";
+    const prev = await client.query<Record<string, unknown>>(
+      `SELECT id, key, audience, locale, short_text, long_md, version, status
+         FROM help_content
+        WHERE tenant_id IS NULL AND key = $1 AND locale = $2 AND status = 'active'
+        ORDER BY version DESC
+        LIMIT 1`,
+      [key, locale],
+    );
+    const b = prev.rows[0];
+    const before: Record<string, unknown> | undefined =
+      b !== undefined
+        ? {
+            id: b["id"],
+            // help_id, not "key": redactPayload strips /key$/i field names.
+            help_id: b["key"],
+            audience: b["audience"],
+            locale: b["locale"],
+            short_text: b["short_text"],
+            long_md: b["long_md"],
+            version: b["version"],
+            status: b["status"],
+            scope: "global",
+          }
+        : undefined;
+    const row = await repoUpsertGlobalHelp(client, key, input);
+    await auditInTx(client, {
+      action: "help.content.updated",
+      actorKind: "user",
+      actorUserId: actor.userId,
+      tenantId: actor.tenantId,
+      entityType: "help_content",
+      entityId: row.id,
+      ...(before !== undefined ? { before } : {}),
+      after: {
+        id: row.id,
+        help_id: row.key,
+        audience: row.audience,
+        locale: row.locale,
+        short_text: row.shortText,
+        long_md: row.longMd,
+        version: row.version,
+        status: row.status,
+        scope: "global",
+      },
+    });
+    await client.query("COMMIT");
+    return row;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /**

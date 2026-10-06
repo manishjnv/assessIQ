@@ -71,7 +71,7 @@ export async function listHelpForPage(
         AND (audience = $2 OR audience = 'all')
         AND locale = $3
         AND status = 'active'
-      ORDER BY key, tenant_id NULLS LAST`,
+      ORDER BY key, tenant_id NULLS LAST, version DESC`,
     [`${page}.%`, audience, locale],
   );
   return res.rows.map(mapRow);
@@ -94,7 +94,7 @@ export async function getHelpKey(
       WHERE key = $1
         AND locale = $2
         AND status = 'active'
-      ORDER BY tenant_id NULLS LAST`,
+      ORDER BY tenant_id NULLS LAST, version DESC`,
     [key, locale],
   );
   return res.rows.map(mapRow);
@@ -139,20 +139,57 @@ export async function upsertHelp(
 }
 
 /**
- * Returns all active help rows visible to the current tenant context.
- * Used by the export endpoint.
+ * FU-D2 (2026-10-06): upsert a GLOBAL help row (tenant_id IS NULL) as a new
+ * version. The INSERT RLS policy forbids tenant_id = NULL for assessiq_app, so
+ * the caller MUST run this inside a `SET LOCAL ROLE assessiq_system` tx (see
+ * service.upsertGlobalHelp). Never call it from a withTenant context.
+ */
+export async function upsertGlobalHelp(
+  client: PoolClient,
+  key: string,
+  input: UpsertHelpInput,
+): Promise<HelpEntry> {
+  const locale = input.locale ?? "en";
+  const res = await client.query<Record<string, unknown>>(
+    `INSERT INTO help_content
+       (tenant_id, key, audience, locale, short_text, long_md, version, status, updated_at)
+     VALUES (
+       NULL, $1, $2, $3, $4, $5,
+       COALESCE(
+         (SELECT MAX(version) + 1 FROM help_content WHERE tenant_id IS NULL AND key = $1 AND locale = $3),
+         1
+       ),
+       'active',
+       now()
+     )
+     RETURNING id, tenant_id, key, audience, locale, short_text, long_md, version, status, updated_at`,
+    [key, input.audience, locale, input.shortText, input.longMd ?? null],
+  );
+  const row = res.rows[0];
+  if (row === undefined) {
+    throw new Error(`upsertGlobalHelp: no row returned for key=${key}`);
+  }
+  return mapRow(row);
+}
+
+/**
+ * Returns the newest active help row per (tenant_id, key, locale) visible to the
+ * current tenant context. Used by the export and list endpoints.
  */
 export async function exportTenantHelp(
   client: PoolClient,
   locale: string,
 ): Promise<HelpEntry[]> {
+  // FU-D1 (2026-10-06): one row per (tenant_id, key, locale) = the newest
+  // active version. Older versions stay in the table for history only.
   const res = await client.query<Record<string, unknown>>(
-    `SELECT id, tenant_id, key, audience, locale, short_text, long_md,
+    `SELECT DISTINCT ON (tenant_id, key, locale)
+            id, tenant_id, key, audience, locale, short_text, long_md,
             version, status, updated_at
        FROM help_content
       WHERE locale = $1
         AND status = 'active'
-      ORDER BY key, tenant_id NULLS LAST`,
+      ORDER BY tenant_id, key, locale, version DESC`,
     [locale],
   );
   return res.rows.map(mapRow);

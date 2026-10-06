@@ -292,6 +292,9 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Evaluations", href: "/admin/platform/evaluations", icon: "check", superAdminOnly: true },
     // Platform provisioning — visible to super_admin only; tenant admins must not see this.
     { label: "Platform", href: "/admin/platform", icon: "settings", superAdminOnly: true, excludePath: "/admin/platform/evaluations" },
+    // Help content authoring — platform only (FR14 owner decision 2026-10-03; FU-D3).
+    // The route stays admin-reachable for company overrides (dormant feature).
+    { label: "Help content", href: "/admin/settings/help-content", icon: "book", superAdminOnly: true },
   ];
 
   // User card footer — kit dashboard.jsx footer slot
