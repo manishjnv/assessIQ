@@ -17,11 +17,11 @@ column: **Starter** = `free`, **Growth** = `pro`, **Enterprise** = `enterprise`.
 
 | Row | Starter | Growth | Enterprise | Existing mechanism | Missing (see FU-A2 to FU-A9) |
 |---|---|---|---|---|---|
-| Included credits | 100 per month (pilot: 25 total) | 1,000 per month | Custom | `included_credits` | Monthly window (`cycle_start`) — FU-A2 |
+| Included credits | 100 per month (pilot: 25 total) | 1,000 per month | Custom | `included_credits` | **Monthly window live 2026-10-06 (FU-A2):** counts since `cycle_start` + whole months elapsed (derived, `cycle_start` not rolled) |
 | Overage | Not allowed after 120% (soft warning before) | Billed per credit | Contract | status `over` | Hard cap option; CSV invoice export exists |
 | Question types (MCQ, numeric, sections) | Yes | Yes | Yes | Always on | None |
 | Licensed packs | 2 packs | All platform packs | All plus private pack | `tenant_entitlements` | Pack count limit |
-| AI-assisted evaluation | 20 AI-evaluated answers/month | 500/month | Custom | FR7 budget idea folded into this meter; platform queue | Second meter for AI answers — FU-A4/FU-A9 |
+| AI-evaluated answers included (per month) | 20 | 500 | Custom (no cap recorded) | **Live 2026-10-06 (FU-A4/FU-A9):** `billing_events` rows `ai_answer_evaluated`, one per accepted AI grading; constant `TIER_AI_ANSWERS_INCLUDED` in 19; plan card shows used / included | Per-tenant override of the included number (contract terms, FU-A7) |
 | Bulk invite, reminders | 200 candidates per drive | Unlimited | Unlimited | Live | Per-drive cap |
 | Results CSV | Yes | Yes | Yes | Live | None |
 | Cohort analytics | Basic | Full | Full | Cohort page | Fix RV14 |

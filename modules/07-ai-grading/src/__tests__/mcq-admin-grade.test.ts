@@ -147,7 +147,7 @@ describe("handleAdminGrade - MCQ-only attempts", () => {
         c.query(`SELECT total_earned::float e, total_max::float m FROM attempt_scores WHERE attempt_id=$1`, [attemptId]).then((r) => r.rows[0]),
       );
       expect(s).toMatchObject({ e: 10, m: 20 });
-      expect(await count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1`, attemptId)).toBe(1);
+      expect(await count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1 AND event_type='assessment_graded'`, attemptId)).toBe(1);
       expect(await count(`SELECT COUNT(*) n FROM audit_log WHERE entity_id=$1 AND action='grading.accepted'`, attemptId)).toBe(1);
     });
   }
@@ -175,7 +175,7 @@ describe("mixed attempt - Grade then Accept", () => {
     expect(out.proposals).toHaveLength(1); // only the subjective goes to the AI batch
     expect(await status(attemptId)).toBe("submitted");
     expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND grader='deterministic'`, attemptId)).toBe(2);
-    expect(await count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1`, attemptId)).toBe(0);
+    expect(await count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1 AND event_type='assessment_graded'`, attemptId)).toBe(0);
 
     const acc = await handleAdminAccept({ tenantId: tenant, userId: admin, attemptId, proposals: out.proposals });
     expect(acc.attempt.status).toBe("graded"); // gate counts only AI-gradable questions
@@ -184,6 +184,6 @@ describe("mixed attempt - Grade then Accept", () => {
       c.query(`SELECT total_earned::float e, total_max::float m FROM attempt_scores WHERE attempt_id=$1`, [attemptId]).then((r) => r.rows[0]),
     );
     expect(s).toMatchObject({ e: 20, m: 30 }); // 10 (MCQ correct) + 0 + 10 (AI)
-    expect(await count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1`, attemptId)).toBe(1);
+    expect(await count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1 AND event_type='assessment_graded'`, attemptId)).toBe(1);
   });
 });

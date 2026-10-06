@@ -40,7 +40,7 @@ vi.mock('@assessiq/audit-log', async () => {
 
 import { setPoolForTesting, closePool, getPool } from '@assessiq/tenancy';
 import { withTenant } from '@assessiq/tenancy';
-import { recordGradedAttempt, getUsage } from '../service.js';
+import { recordGradedAttempt, recordAiAnswerEvaluated, getUsage } from '../service.js';
 
 // ---------------------------------------------------------------------------
 // Path helpers (mirror modules/07-ai-grading pattern)
@@ -478,6 +478,107 @@ describe('0080 backfill — idempotency', () => {
         expect(ord2[0]?.tier).toBe('free');
         expect(ord2[0]?.included_credits).toBe(25);
       });
+    },
+  );
+});
+
+// ---------------------------------------------------------------------------
+// FU-A2 / FU-A4 (2026-10-06): second meter + monthly window
+// ---------------------------------------------------------------------------
+
+describe('AI answer meter and monthly window (FU-A2, FU-A4)', () => {
+  it.skipIf(!dockerAvailable)(
+    'counts one AI event per (attempt, question), idempotent; old graded events fall out of the window',
+    async () => {
+      const tenantId = randomUUID();
+      const candidateId = randomUUID();
+      const q1 = randomUUID();
+      const q2 = randomUUID();
+      let oldAttempt = '';
+      let newAttempt = '';
+
+      await withSuperClient(async (superClient) => {
+        await superClient.query(
+          `INSERT INTO tenants (id, slug, name, status) VALUES ($1, $2, 'Meter Test Tenant', 'active')`,
+          [tenantId, `tenant-meter-${randomUUID().slice(0, 6)}`],
+        );
+        // Anchor 45 days ago: the current window started 15 days ago.
+        await superClient.query(
+          `INSERT INTO tenant_plans (tenant_id, tier, included_credits, cycle_start)
+           VALUES ($1, 'free', 25, now() - interval '45 days')`,
+          [tenantId],
+        );
+        await superClient.query(
+          `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, 'Test User', 'candidate')`,
+          [candidateId, tenantId, `cand-${randomUUID().slice(0, 6)}@test.com`],
+        );
+        const { packId, levelId } = await seedPackAndLevel(superClient, tenantId, ADMIN_ID);
+        const assessmentId = await seedAssessment(superClient, tenantId, packId, levelId, ADMIN_ID);
+        oldAttempt = await seedAttempt(superClient, tenantId, candidateId, assessmentId);
+        newAttempt = await seedAttempt(superClient, tenantId, candidateId, assessmentId);
+
+        await withTenant(tenantId, async (c) => {
+          await recordGradedAttempt(c, tenantId, oldAttempt);
+          await recordGradedAttempt(c, tenantId, newAttempt);
+          // Two answers, the first accepted twice (re-accept): still one row each.
+          await recordAiAnswerEvaluated(c, tenantId, newAttempt, q1);
+          await recordAiAnswerEvaluated(c, tenantId, newAttempt, q1);
+          await recordAiAnswerEvaluated(c, tenantId, newAttempt, q2);
+        });
+        // Push the first graded event before the window (superuser: the app role cannot UPDATE).
+        await superClient.query(
+          `UPDATE billing_events SET occurred_at = now() - interval '40 days' WHERE tenant_id = $1 AND attempt_id = $2 AND event_type = 'assessment_graded'`,
+          [tenantId, oldAttempt],
+        );
+      });
+
+      const usage = await getUsage(tenantId);
+      expect(usage.used).toBe(1);              // the 40-day-old event is outside this month
+      expect(usage.ai_answers_used).toBe(2);   // q1 once, q2 once
+      expect(usage.ai_answers_included).toBe(20);
+      expect(usage.ai_answers_remaining).toBe(18);
+      expect(usage.cycle_window_start).not.toBeNull();
+      const start = new Date(usage.cycle_window_start!).getTime();
+      const daysAgo = (Date.now() - start) / 86_400_000;
+      expect(daysAgo).toBeGreaterThan(13);
+      expect(daysAgo).toBeLessThan(17);
+
+      // The graded row and the AI rows coexist for the same attempt (0160 partial unique indexes).
+      const rows = await withSuperClient((c) =>
+        c.query<{ n: string }>(`SELECT COUNT(*)::text AS n FROM billing_events WHERE tenant_id = $1`, [tenantId]),
+      );
+      expect(Number(rows.rows[0]?.n)).toBe(4);
+    },
+  );
+
+  it.skipIf(!dockerAvailable)(
+    'a cycle_start in the future keeps the window at the anchor (nothing counted before the plan starts)',
+    async () => {
+      const tenantId = randomUUID();
+      const candidateId = randomUUID();
+      await withSuperClient(async (superClient) => {
+        await superClient.query(
+          `INSERT INTO tenants (id, slug, name, status) VALUES ($1, $2, 'Future Anchor Tenant', 'active')`,
+          [tenantId, `tenant-future-${randomUUID().slice(0, 6)}`],
+        );
+        await superClient.query(
+          `INSERT INTO tenant_plans (tenant_id, tier, included_credits, cycle_start)
+           VALUES ($1, 'free', 25, now() + interval '40 days')`,
+          [tenantId],
+        );
+        await superClient.query(
+          `INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, 'Test User', 'candidate')`,
+          [candidateId, tenantId, `cand-${randomUUID().slice(0, 6)}@test.com`],
+        );
+        const { packId, levelId } = await seedPackAndLevel(superClient, tenantId, ADMIN_ID);
+        const assessmentId = await seedAssessment(superClient, tenantId, packId, levelId, ADMIN_ID);
+        const attemptId = await seedAttempt(superClient, tenantId, candidateId, assessmentId);
+        await withTenant(tenantId, (c) => recordGradedAttempt(c, tenantId, attemptId));
+      });
+      const usage = await getUsage(tenantId);
+      expect(usage.used).toBe(0);
+      const start = new Date(usage.cycle_window_start!).getTime();
+      expect(start).toBeGreaterThan(Date.now() + 39 * 86_400_000);
     },
   );
 });

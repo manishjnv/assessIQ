@@ -9,6 +9,7 @@ import { streamLogger, NotFoundError, ValidationError, AppError } from '@assessi
 import { auditInTx } from '@assessiq/audit-log';
 import {
   insertBillingEvent,
+  insertAiAnswerEvent,
   insertDefaultFreePlan,
   getPlan,
   countBillingEvents,
@@ -47,6 +48,53 @@ const log = streamLogger('billing');
 
 /** Default credit allowance for newly-provisioned free-tier tenants. */
 export const DEFAULT_FREE_CREDITS = 25;
+
+/**
+ * FU-A9 (2026-10-06): AI-evaluated answers included per month, from the tier
+ * table in docs/plans/PRICING_TIERS_2026-10-06.md (Starter 20, Growth 500,
+ * Enterprise custom = no cap recorded, internal unlimited). A constant, not a
+ * column: the tier contents live in that doc; a per-tenant override is FU-A7
+ * territory (contract terms) and is not built.
+ */
+export const TIER_AI_ANSWERS_INCLUDED: Record<PlanTier, number | null> = {
+  free: 20,
+  pro: 500,
+  enterprise: null,
+  internal: null,
+};
+
+/**
+ * FU-A2: start of the current monthly window for a cycle_start anchor.
+ * Mirrors the SQL in repository.ts (cycle_start + whole months elapsed, month
+ * end clamped like Postgres). PURE — unit-tested in compute-usage.test.ts.
+ */
+export function cycleWindowStart(cycleStart: Date, now: Date = new Date()): Date {
+  const addMonths = (d: Date, n: number): Date => {
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth() + n;
+    const lastDay = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    return new Date(Date.UTC(y, m, Math.min(d.getUTCDate(), lastDay), d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds(), d.getUTCMilliseconds()));
+  };
+  let n = 0;
+  if (now.getTime() < cycleStart.getTime()) return cycleStart;
+  while (addMonths(cycleStart, n + 1).getTime() <= now.getTime()) n++;
+  return addMonths(cycleStart, n);
+}
+
+/**
+ * FU-A4: record one "AI-evaluated answer" event. Called by 07 admin-accept in
+ * the SAME transaction as the gradings insert (one row per accepted AI grading;
+ * re-accepts are idempotent). Same no-try/catch rule as recordGradedAttempt:
+ * any db error rolls the accept back with it.
+ */
+export async function recordAiAnswerEvaluated(
+  client: PoolClient,
+  tenantId: string,
+  attemptId: string,
+  questionId: string,
+): Promise<void> {
+  await insertAiAnswerEvent(client, tenantId, attemptId, questionId);
+}
 
 /**
  * Record a graded-attempt billing event.
@@ -132,7 +180,8 @@ export function computeUsage(
 export async function getUsage(tenantId: string): Promise<BillingUsage> {
   return withTenant(tenantId, async (c) => {
     const plan = await getPlan(c, tenantId);
-    const used = await countBillingEvents(c, tenantId);
+    const meters = await countBillingEvents(c, tenantId);
+    const used = meters.used;
 
     let tier: PlanTier;
     let includedCredits: number | null;
@@ -155,6 +204,7 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
       used,
     );
 
+    const aiIncluded = TIER_AI_ANSWERS_INCLUDED[tier];
     return {
       tier,
       included_credits: includedCredits,
@@ -162,6 +212,11 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
       remaining,
       overage,
       status,
+      cycle_window_start:
+        meters.cycle_window_start instanceof Date ? meters.cycle_window_start.toISOString() : null,
+      ai_answers_used: meters.ai_used,
+      ai_answers_included: aiIncluded,
+      ai_answers_remaining: aiIncluded === null ? null : aiIncluded - meters.ai_used,
     } satisfies BillingUsage;
   });
 }
@@ -219,6 +274,8 @@ export async function getAllTenantUsage(): Promise<TenantUsageRow[]> {
         remaining,
         overage,
         status,
+        ai_answers_used: r.ai_used,
+        ai_answers_included: TIER_AI_ANSWERS_INCLUDED[tier],
       };
     });
   });
@@ -238,7 +295,8 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
       });
     }
 
-    const used = await countTenantBillingEvents(client, tenantId);
+    const meters = await countTenantBillingEvents(client, tenantId);
+    const used = meters.used;
     const recentEvents = await getRecentBillingEvents(client, tenantId);
 
     const tier = plan.tier as PlanTier;
@@ -252,10 +310,14 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
       cycle_start: plan.cycle_start instanceof Date
         ? plan.cycle_start.toISOString()
         : String(plan.cycle_start),
+      cycle_window_start:
+        meters.cycle_window_start instanceof Date ? meters.cycle_window_start.toISOString() : null,
       used,
       remaining,
       overage,
       usage_status: status,
+      ai_answers_used: meters.ai_used,
+      ai_answers_included: TIER_AI_ANSWERS_INCLUDED[tier],
       recent_events: recentEvents,
     };
   });

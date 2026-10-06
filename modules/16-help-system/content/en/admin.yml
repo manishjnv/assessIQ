@@ -1455,6 +1455,21 @@ admin.settings.billing.budget:
     - To check your plan tier or discuss changes, contact your AssessIQ
       administrator. Use the email address in your onboarding documents.
 
+admin.settings.billing.ai_answers:
+  audience: admin
+  short_text: "Written answers AssessIQ evaluated this month, against the number your plan includes. Information only."
+  long_md: |
+    ## AI-evaluated answers
+
+    Your plan includes a number of AI-evaluated written answers per month. One
+    answer is counted when AssessIQ accepts its evaluation; a re-evaluation of
+    the same answer is not counted again. Multiple-choice answers never count.
+
+    The number resets on the monthly date shown under **Counting since**. Like
+    credits, this meter is information only: nothing blocks inviting,
+    submitting or publishing. To change your plan, contact your AssessIQ
+    administrator.
+
 admin.settings.billing.alert_threshold:
   audience: admin
   short_text: "A usage banner shows at 80% of your included credits. It is information only and never blocks you."

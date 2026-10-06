@@ -1275,6 +1275,12 @@ CREATE TABLE billing_events (
 CREATE INDEX billing_events_tenant_idx ON billing_events (tenant_id);
 ```
 
+#### Migration 0160 — second meter and monthly window (FU-A2 / FU-A4 / FU-A9, 2026-10-06)
+
+**What changed.** `billing_events` gains `question_id UUID NULL` (no FK: the ledger survives a question delete) and a second `event_type` value `ai_answer_evaluated`; a CHECK ties `question_id` to that type. The table-wide `UNIQUE (tenant_id, attempt_id)` is replaced by two partial unique indexes: `billing_events_graded_uniq (tenant_id, attempt_id) WHERE event_type = 'assessment_graded'` and `billing_events_ai_answer_uniq (tenant_id, attempt_id, question_id) WHERE event_type = 'ai_answer_evaluated'`, so one attempt carries one credit row and one row per AI-evaluated answer, each idempotent. Index `billing_events_tenant_type_time_idx (tenant_id, event_type, occurred_at)` serves the monthly counts. RLS unchanged (SELECT/INSERT policies; UPDATE/DELETE still revoked from `assessiq_app`).
+
+**Why.** The tier table (docs/plans/PRICING_TIERS_2026-10-06.md) meters AI-evaluated answers per month; the ledger had one event type and lifetime counts. **Writer:** `07 admin-accept.ts` calls `recordAiAnswerEvaluated` right after each accepted AI grading insert, in the same transaction (same revenue-leak rule as `recordGradedAttempt`). **Monthly window (FU-A2):** the current window start is DERIVED in SQL as `cycle_start + whole months elapsed` (Postgres month arithmetic, month-end clamped); `tenant_plans.cycle_start` is never rolled by the app (no UPDATE policy for the app role; a stored value would duplicate the derivation). Both meters count rows with `occurred_at >= window start`. **Rejected:** a `billing_events` row per AI run (a re-run of the same answer is not a new billable unit); a counter column on `tenant_plans` (mutable counters drift, the ledger is the source). **Not included:** included AI answers per tenant as a column (constant per tier `TIER_AI_ANSWERS_INCLUDED` in 19); hard caps (soft reporting only, like credits). **Downstream:** `getUsage` / `getAllTenantUsage` / `getTenantBillingDetail` return `ai_answers_used`, `ai_answers_included`, `cycle_window_start`; the plan card and the super-admin billing drawer show them; `getRecentBillingEvents` lists graded events only.
+
 #### RLS — `billing_events`
 
 ```sql

@@ -171,3 +171,28 @@ describe('computeUsage — overage is always >= 0', () => {
     expect(result.overage).toBe(5);
   });
 });
+
+// FU-A2 (2026-10-06): the monthly window start mirrors the SQL rule
+// (cycle_start + whole months elapsed, month end clamped like Postgres).
+import { cycleWindowStart } from '../service.js';
+
+describe('cycleWindowStart (FU-A2)', () => {
+  it('returns the anchor inside the first month', () => {
+    const anchor = new Date('2026-09-15T10:00:00Z');
+    expect(cycleWindowStart(anchor, new Date('2026-10-06T00:00:00Z')).toISOString()).toBe('2026-09-15T10:00:00.000Z');
+  });
+  it('rolls forward by whole months', () => {
+    const anchor = new Date('2026-05-15T10:00:00Z');
+    expect(cycleWindowStart(anchor, new Date('2026-10-06T00:00:00Z')).toISOString()).toBe('2026-09-15T10:00:00.000Z');
+    expect(cycleWindowStart(anchor, new Date('2026-10-15T10:00:00Z')).toISOString()).toBe('2026-10-15T10:00:00.000Z');
+  });
+  it('clamps to the month end like Postgres (Jan 31 + 1 month = Feb 28)', () => {
+    const anchor = new Date('2026-01-31T00:00:00Z');
+    expect(cycleWindowStart(anchor, new Date('2026-03-01T00:00:00Z')).toISOString()).toBe('2026-02-28T00:00:00.000Z');
+    expect(cycleWindowStart(anchor, new Date('2026-04-10T00:00:00Z')).toISOString()).toBe('2026-03-31T00:00:00.000Z');
+  });
+  it('never moves before the anchor', () => {
+    const anchor = new Date('2026-12-01T00:00:00Z');
+    expect(cycleWindowStart(anchor, new Date('2026-10-06T00:00:00Z'))).toEqual(anchor);
+  });
+});

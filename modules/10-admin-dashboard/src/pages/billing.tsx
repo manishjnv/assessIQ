@@ -339,6 +339,27 @@ export function AdminBilling(): React.ReactElement {
                       </p>
                     </div>
                   )}
+                  {/* FU-A9: second meter — AI-evaluated answers in the current month */}
+                  {companyUsage.ai_answers_used !== undefined && (
+                    <div data-help-id="admin.settings.billing.ai_answers">
+                      <p style={MUTED_SM}>AI-evaluated answers</p>
+                      <p style={{ ...BODY_SM, fontWeight: 600 }}>
+                        {companyUsage.ai_answers_used} used
+                        {" / "}
+                        {companyUsage.ai_answers_included !== null && companyUsage.ai_answers_included !== undefined
+                          ? `${companyUsage.ai_answers_included} included`
+                          : "no cap"}
+                      </p>
+                    </div>
+                  )}
+                  {companyUsage.cycle_window_start && (
+                    <div>
+                      <p style={MUTED_SM}>Counting since</p>
+                      <p style={{ ...BODY_SM, fontWeight: 600 }}>
+                        {new Date(companyUsage.cycle_window_start).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 {msg !== null && (

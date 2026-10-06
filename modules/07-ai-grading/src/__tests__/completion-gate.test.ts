@@ -218,7 +218,9 @@ const att = (id: string) =>
       .then((r) => r.rows[0] as { status: string; eval_released: boolean; cache_clear: boolean }),
   );
 const count = (sql: string, id: string) => sup((c) => c.query(sql, [id]).then((r) => Number(r.rows[0].n)));
-const billing = (id: string) => count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1`, id);
+// FU-A4 (2026-10-06): credits only; the per-answer ai_answer_evaluated rows are counted by aiRows.
+const billing = (id: string) => count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1 AND event_type='assessment_graded'`, id);
+const aiRows = (id: string) => count(`SELECT COUNT(*) n FROM billing_events WHERE attempt_id=$1 AND event_type='ai_answer_evaluated'`, id);
 const totals = (id: string) =>
   sup((c) =>
     c
@@ -287,6 +289,8 @@ describe("handleAdminAccept — completion gate (SP1)", () => {
     expect(again.gradings.map((g) => g.id).sort()).toEqual(r.gradings.map((g) => g.id).sort());
     expect(await billing(attemptId)).toBe(1);
     expect(await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND grader='ai'`, attemptId)).toBe(2);
+    // FU-A4: one ai_answer_evaluated row per accepted AI answer, idempotent on the re-accept
+    expect(await aiRows(attemptId)).toBe(2);
     // the first accept audit row records the honest post-gate status
     const audits = await sup((c) =>
       c

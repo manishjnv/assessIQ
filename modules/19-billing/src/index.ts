@@ -23,6 +23,10 @@ export type {
 export {
   DEFAULT_FREE_CREDITS,
   recordGradedAttempt,
+  // FU-A2 / FU-A4 / FU-A9 exports
+  recordAiAnswerEvaluated,
+  cycleWindowStart,
+  TIER_AI_ANSWERS_INCLUDED,
   provisionDefaultPlan,
   computeUsage,
   getUsage,

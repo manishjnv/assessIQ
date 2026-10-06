@@ -2198,6 +2198,10 @@ Returns the calling tenant's credit tier, allowance, and current consumption. So
 | `included_credits` | `number \| null` | `null` when unlimited (`internal` tier) |
 | `used` | `number` | `COUNT(*)` from `billing_events WHERE tenant_id = ?` |
 | `remaining` | `number \| null` | `included_credits - used`; `null` when unlimited; negative value signals overage magnitude |
+| `cycle_window_start` | `string \| null` | **FU-A2 (2026-10-06).** ISO start of the current monthly window (`cycle_start` + whole months elapsed); `used` and `ai_answers_used` count events since this instant. `null` only when the tenant has no plan row. |
+| `ai_answers_used` | `number` | **FU-A4 (2026-10-06).** AI-evaluated answers accepted this window (one per attempt + question; re-accepts not counted). |
+| `ai_answers_included` | `number \| null` | **FU-A9.** From the tier table: Starter 20, Growth 500, Enterprise/internal `null` (no cap recorded). |
+| `ai_answers_remaining` | `number \| null` | `ai_answers_included - ai_answers_used`; `null` when no cap. |
 | `overage` | `number` | `max(0, used - included_credits)`; `0` when unlimited |
 | `status` | `"ok" \| "warn" \| "over" \| "unlimited"` | `ok` = <80% used; `warn` = 80–<100%; `over` = ≥100%; `unlimited` = `included_credits` is null |
 
@@ -2215,6 +2219,8 @@ Returns the calling tenant's credit tier, allowance, and current consumption. So
 ## Admin — Super Billing (Phase A2, module 19-billing)
 
 > **Status: LIVE — 2026-05-17 (commit `66ea0ff`).** Routes in `apps/api/src/routes/admin-super.ts`. Auth via `authChain({ roles: ['super_admin'] })` (`superAdminOnly` gate — same as all other super routes). No fresh-MFA requirement (fresh-MFA is reserved for tenant creation; config edits like plan changes do not require step-up).
+
+> **FU-A2/FU-A4/FU-A9 (2026-10-06):** `GET /api/admin/super/tenants` usage rows and `GET /api/admin/super/tenants/:tenantId/billing` also return `ai_answers_used` and `ai_answers_included`; the detail adds `cycle_window_start`. `used` now counts the current monthly window, not lifetime (see `docs/02-data-model.md` § Migration 0160). `recent_events` lists graded events only.
 
 ### `GET /api/admin/super/tenants/:tenantId/billing`
 

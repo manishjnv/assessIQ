@@ -85,7 +85,8 @@ callback — same transaction boundary as the audit row.
 | Billing usage widget in admin dashboard UI | A2 ✓ |
 | Plan mutation (PATCH tier / credits) — operator | A2 ✓ |
 | `tenant_entitlements` table + enforcement | B1/B2 ✓ (`2ba822d`, `5c80aaa`) |
-| Cycle-window credit counting (monthly reset) | Not built — FU-A2 |
+| Cycle-window credit counting (monthly reset) | FU-A2 ✓ (2026-10-06, derived window, migration 0160 index) |
+| Second meter: AI-evaluated answers (per attempt + question, same tx as the accept) | FU-A4/FU-A9 ✓ (2026-10-06, migration 0160) |
 | Hard entitlement enforcement at non-publish routes (webhooks, API keys, embed, certs, audit) | Not built — FU-A5 |
 | Self-serve plan upgrade UI | Phase C |
 | Payment integration (Razorpay, decided 2026-10-03) | Not built — FU-A7 |
@@ -107,6 +108,11 @@ DEFAULT_FREE_CREDITS: 25
 
 // Service
 recordGradedAttempt(client: PoolClient, tenantId: string, attemptId: string): Promise<void>
+// FU-A4 (2026-10-06): same-tx call from 07 admin-accept, one row per accepted AI grading
+recordAiAnswerEvaluated(client: PoolClient, tenantId: string, attemptId: string, questionId: string): Promise<void>
+// FU-A2: pure mirror of the SQL window rule (cycle_start + whole months elapsed, month end clamped)
+cycleWindowStart(cycleStart: Date, now?: Date): Date
+TIER_AI_ANSWERS_INCLUDED: Record<PlanTier, number | null>  // free 20, pro 500, enterprise null, internal null
 provisionDefaultPlan(tenantId: string, includedCredits?: number): Promise<void>
 computeUsage(tier: PlanTier, includedCredits: number | null, used: number): { remaining, overage, status }
 getUsage(tenantId: string): Promise<BillingUsage>
@@ -153,3 +159,9 @@ consumed by @assessiq/tenancy's pool singleton.
 ## CSV formula guard (RV77, 2026-10-03)
 
 The billing export now prefixes a cell that starts with `= + - @` with `'` (one unit test). Before, this writer had no guard. Not included: merging the CSV escape functions into one helper.
+
+## FU-A2 / FU-A4 / FU-A9 (2026-10-06) — monthly window and the AI-answer meter
+
+**What changed.** `countBillingEvents` (and the system-role twin) returns `{ used, ai_used, cycle_window_start }` counted inside the current monthly window; `getAllTenantUsageRaw` does the same per tenant. `insertAiAnswerEvent` writes `event_type = 'ai_answer_evaluated'` rows keyed by (tenant, attempt, question). Migration `0160` (schema in `docs/02-data-model.md`). `BillingUsage`, `TenantUsageRow`, `TenantBillingDetail` carry the new fields; the plan card (`billing.tsx`) and the super-admin drawer show "AI-evaluated answers used / included" and "Counting since".
+
+**Why.** Owner decisions 2026-10-03 (PT1): monthly credits, a second meter for AI evaluation. **Rejected:** rolling `cycle_start` with an UPDATE (no app-role policy; derived value is equivalent); a per-tenant `included_ai_answers` column (tier contents live in the pricing doc; contract overrides are FU-A7). **Not included:** hard caps, overage pricing, the `pending_admin_grading` rename. **Downstream:** 07 `admin-accept.ts` imports `recordAiAnswerEvaluated` (the only call site); `billing-events.test.ts` covers idempotency + window; `compute-usage.test.ts` covers `cycleWindowStart`. The pre-existing Docker probe race (`docker info` 5 s timeout when 5 test files start together) still skips the DB files when the whole package runs at once; run them one file at a time locally.
