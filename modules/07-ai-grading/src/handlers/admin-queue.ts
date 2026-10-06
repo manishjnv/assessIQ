@@ -33,7 +33,8 @@ export interface HandleAdminQueueInput {
 
 export interface HandleAdminQueueOutput {
   items: QueueRow[];
-  /** Tenant-wide totals for the dashboard cards; `items` is capped by `limit`, these are not. */
+  /** Tenant-wide totals for the dashboard cards and the Evaluation status page
+   *  (FU-C1: + oldest waiting attempt, per-assessment rows); `items` is capped by `limit`, these are not. */
   counts: QueueCounts;
 }
 

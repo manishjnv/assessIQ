@@ -994,6 +994,17 @@ describe("handleAdminQueue", () => {
     const all = await handleAdminQueue({ tenantId: TENANT_ID });
     expect(all.items.map((r) => r.attempt_id)).toContain(attemptIds[1]!); // auto_submitted
 
+    // FU-C1: oldest waiting attempt is an ISO timestamp while the queue is not
+    // empty, and the per-assessment rows add up to the tenant totals.
+    expect(typeof capped.counts.oldest_waiting_submitted_at).toBe("string");
+    expect(new Date(capped.counts.oldest_waiting_submitted_at!).getTime()).not.toBeNaN();
+    const sum = (k: "in_queue" | "awaiting_evaluation" | "ready_to_publish") =>
+      capped.counts.by_assessment.reduce((n, r) => n + r[k], 0);
+    expect(sum("in_queue")).toBe(capped.counts.in_queue);
+    expect(sum("awaiting_evaluation")).toBe(capped.counts.awaiting_evaluation);
+    expect(sum("ready_to_publish")).toBe(capped.counts.ready_to_publish);
+    expect(capped.counts.by_assessment.every((r) => typeof r.assessment_name === "string")).toBe(true);
+
     // RLS: the other tenant's counts do not move.
     expect((await handleAdminQueue({ tenantId: OTHER_TENANT_ID })).counts).toEqual(otherBefore);
   });

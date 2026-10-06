@@ -258,7 +258,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Dashboard", href: "/admin", icon: "home" },
     { label: "Assessments", href: "/admin/assessments", icon: "clock", adminOnly: true },
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
-    { label: "Grading", href: "/admin/grading-jobs", icon: "chart" },
+    // FU-C1 (2026-10-06): the page is now the read-only evaluation status (route path unchanged).
+    { label: "Evaluation status", href: "/admin/grading-jobs", icon: "chart" },
     { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
     { label: "Certificates", href: "/admin/certificates", icon: "book", adminOnly: true },
   ];

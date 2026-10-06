@@ -24,6 +24,7 @@ import { LifecycleConfirmModal } from "./platform/LifecycleConfirmModal.js";
 import { BillingDrawer } from "./platform/BillingDrawer.js";
 import { ManageMenu } from "./platform/ManageMenu.js";
 import { PlatformDomainsSection } from "./platform/PlatformDomainsSection.js";
+import { BackgroundJobsSection } from "./platform/BackgroundJobsSection.js";
 import { LIFECYCLE_COPY } from "./platform/LifecycleConfirmModal.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -565,6 +566,9 @@ export function AdminPlatform(): React.ReactElement {
 
         {/* Platform domains — super-admin catalog management */}
         <PlatformDomainsSection />
+
+        {/* Background jobs — shared BullMQ queue (FU-D9) */}
+        <BackgroundJobsSection />
       </div>
     </AdminShell>
   );

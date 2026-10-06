@@ -584,6 +584,18 @@ export interface QueueCounts {
   awaiting_evaluation: number;
   /** status 'graded' AND evaluation released: the tenant can publish. */
   ready_to_publish: number;
+  /** FU-C1: submitted_at of the oldest attempt still in the queue (ISO), null when the queue is empty. */
+  oldest_waiting_submitted_at: string | null;
+  /** FU-C1: the same three counts per assessment, assessments with at least one counted attempt. */
+  by_assessment: QueueCountsByAssessment[];
+}
+
+export interface QueueCountsByAssessment {
+  assessment_id: string;
+  assessment_name: string;
+  in_queue: number;
+  awaiting_evaluation: number;
+  ready_to_publish: number;
 }
 
 /**
@@ -595,15 +607,48 @@ export interface QueueCounts {
  * SYNC with that index, or the count falls back to a scan of the tenant's attempts.
  */
 export async function countGradingQueue(client: PoolClient): Promise<QueueCounts> {
-  const result = await client.query<QueueCounts>(
+  // FU-C1 (2026-10-06): oldest waiting attempt added to the SAME query (one
+  // scan of the partial index). Read-only; no AI call path.
+  const result = await client.query<{
+    in_queue: number;
+    awaiting_evaluation: number;
+    ready_to_publish: number;
+    oldest_waiting_submitted_at: Date | null;
+  }>(
     `SELECT
+       COUNT(*) FILTER (WHERE a.status <> 'graded')::int                                        AS in_queue,
+       COUNT(*) FILTER (WHERE a.status <> 'graded' OR a.evaluation_released_at IS NULL)::int     AS awaiting_evaluation,
+       COUNT(*) FILTER (WHERE a.status = 'graded' AND a.evaluation_released_at IS NOT NULL)::int AS ready_to_publish,
+       MIN(a.submitted_at) FILTER (WHERE a.status <> 'graded')                                   AS oldest_waiting_submitted_at
+     FROM attempts a
+     WHERE a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading', 'graded')`,
+  );
+  // FU-C1: per-assessment breakdown for the Evaluation status page. Same
+  // status list as above (KEEP IN SYNC). RLS-scoped like the query above.
+  const perAssessment = await client.query<QueueCountsByAssessment>(
+    `SELECT
+       asmnt.id   AS assessment_id,
+       asmnt.name AS assessment_name,
        COUNT(*) FILTER (WHERE a.status <> 'graded')::int                                        AS in_queue,
        COUNT(*) FILTER (WHERE a.status <> 'graded' OR a.evaluation_released_at IS NULL)::int     AS awaiting_evaluation,
        COUNT(*) FILTER (WHERE a.status = 'graded' AND a.evaluation_released_at IS NOT NULL)::int AS ready_to_publish
      FROM attempts a
-     WHERE a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading', 'graded')`,
+     JOIN assessments asmnt ON asmnt.id = a.assessment_id
+     WHERE a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading', 'graded')
+     GROUP BY asmnt.id, asmnt.name
+     ORDER BY asmnt.name, asmnt.id`,
   );
-  return result.rows[0] ?? { in_queue: 0, awaiting_evaluation: 0, ready_to_publish: 0 };
+  const r = result.rows[0];
+  return {
+    in_queue: r?.in_queue ?? 0,
+    awaiting_evaluation: r?.awaiting_evaluation ?? 0,
+    ready_to_publish: r?.ready_to_publish ?? 0,
+    oldest_waiting_submitted_at:
+      r?.oldest_waiting_submitted_at instanceof Date
+        ? r.oldest_waiting_submitted_at.toISOString()
+        : (r?.oldest_waiting_submitted_at ?? null),
+    by_assessment: perAssessment.rows,
+  };
 }
 
 // ---------------------------------------------------------------------------

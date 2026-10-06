@@ -2134,117 +2134,80 @@ admin.activity.leaderboard.delta:
   related_keys:
     - admin.activity.heatmap.legend
 
-# ─── G3.B Worker observability (2026-05-13) ───────────────────────────────────
+# ─── G3.B Worker observability (2026-05-13) — moved to the Platform page
+#     "Background jobs" section (FU-D9/FU-D10, 2026-10-06; keys renamed by 0158) ──
 
-admin.worker:
+admin.platform.jobs:
   audience: admin
-  short_text: "BullMQ queue health — depth, completed count, failed jobs. Covers email, webhooks, and cron. Never AI grading."
+  short_text: "Health of the shared background queue: email, webhooks and cron jobs. AI evaluation never runs here."
   long_md: |
-    ## Worker observability
+    ## Background jobs
 
-    The **Worker** page (`/admin/worker`) shows the runtime state of the
-    `assessiq-cron` BullMQ queue — the background job queue that handles:
+    This section shows the state of the one background queue that every company
+    shares. The queue handles:
 
-    - **Email delivery** — invitation emails, notification emails
-    - **Webhook delivery** — outbound payloads to tenant-configured endpoints
-    - **Cron jobs** — assessment boundary transitions and attempt timer sweeps
+    - **Email delivery** — invitations, reminders, result emails
+    - **Webhook delivery** — payloads to company-configured endpoints
+    - **Cron jobs** — assessment window transitions and attempt timer sweeps
 
-    **This queue never runs AI grading.** AI grading is sync-on-click only —
-    it runs when you click "Grade all" on an attempt, not in the background.
-
-    **Stats grid:**
+    **This queue never runs AI evaluation.** Evaluation starts only when a
+    platform admin selects it on the Evaluations page.
 
     | Card | What it shows |
     |---|---|
-    | Queue depth | Waiting + delayed jobs. Zero is healthy. |
-    | Completed (lifetime) | Total jobs completed since the queue was created. Failed count shown below. |
-    | Queue status | Live chip breakdown: waiting / active / delayed / completed / failed |
+    | Waiting / Delayed | Jobs that have not started. Zero is healthy. |
+    | Active | Jobs running right now. |
+    | Completed | Jobs completed since the queue was created. |
+    | Failed | Jobs that used all their retries. They are listed below. |
 
-    **Auto-refresh:** the stats update every 10 seconds. The page pauses
-    polling when the browser tab is hidden and resumes when you return.
-    The "Updated Xs ago" indicator shows time since the last successful fetch.
-
-    **Stats cache:** the server caches queue counts for 5 seconds to prevent
-    Redis from being hammered if multiple admins have the page open.
+    The counts are cached for 5 seconds on the server. Select **Refresh** to read again.
 
   related_keys:
-    - admin.worker.failed
-    - admin.worker.retry
+    - admin.platform.jobs.failed
+    - admin.platform.jobs.retry
 
-admin.worker.failed:
+admin.platform.jobs.failed:
   audience: admin
-  short_text: "Failed jobs are BullMQ jobs that exhausted all retry attempts. Click a job ID to expand its payload and error stack."
+  short_text: "Failed jobs used all their retries. Select a job id to see its payload and the end of the error stack."
   long_md: |
     ## Failed jobs
 
-    A job appears in this list when it has exhausted all retry attempts
-    (maximum 5) without succeeding. The retry schedule is exponential backoff:
-    approximately 1s, 2s, 4s, 8s between attempts (with jitter).
-
-    **Table columns:**
+    A job appears here when it has used all its retries (at most 5, with
+    exponential backoff) without success.
 
     | Column | Content |
     |---|---|
-    | Job ID | First 8 characters of the BullMQ job ID. Click to expand. |
-    | Type / Queue | The job name (e.g. `email.send`, `webhook.deliver`, `assessment-boundary-cron`) |
+    | Job | First 8 characters of the job id. Select it to expand. |
+    | Type | The job name, for example `email.send` or `assessment-boundary-cron` |
     | Last error | First line of the final failure reason |
-    | Attempts | How many times the job was tried before landing here |
-    | Failed at | Timestamp of the final failure |
-    | Actions | Retry button |
+    | Tries | How many times the job ran |
+    | Failed at | Time of the final failure |
 
-    **Expanded row:** clicking the job ID or "Expand" shows:
-
-    - **Job payload** — the data the job was created with, rendered as formatted
-      JSON in a brand-token monospaced block. Sensitive fields are redacted
-      server-side (keys matching `token`, `password`, `secret`, `answer`,
-      `candidate`, `auth`, `session` show as `[Redacted]`).
-    - **Error stack (tail)** — the last 1 KB of the stack trace from the final
-      failure attempt.
-
-    **Empty state:** "No failed jobs — all healthy." means all jobs eventually
-    succeeded or are still in progress.
+    The expanded row shows the job payload (sensitive fields are redacted on the
+    server) and the last 1 KB of the error stack.
 
   related_keys:
-    - admin.worker
-    - admin.worker.retry
+    - admin.platform.jobs
+    - admin.platform.jobs.retry
 
-admin.worker.retry:
+admin.platform.jobs.retry:
   audience: admin
-  short_text: "Re-enqueues the failed job at attempt N+1. Use after fixing the root cause (e.g. SMTP outage, webhook endpoint down)."
+  short_text: "Re-queues the failed job with the same payload. Use it after the cause is fixed, for example an email outage."
   long_md: |
-    ## Retrying a failed job
+    ## Retry a failed job
 
-    Clicking **Retry** on a failed job re-enqueues it with:
+    **Retry** puts the job back in the queue with the same payload and one more
+    attempt counted. It runs on the next worker tick.
 
-    - The original job payload (unchanged)
-    - `attemptsMade` incremented by 1 (so a job that failed 5 times shows
-      attempt 6 on retry)
-    - No delay — the job runs on the next available worker tick
-
-    **A confirmation modal appears** before the retry fires, showing the job
-    ID and the new attempt count. Click Cancel if you changed your mind.
-
-    **On success:** the job disappears from the failed list immediately
-    (optimistic removal). If the retry fails again, it will reappear in the
-    list on the next page refresh.
-
-    **When to retry:**
+    Retry only after the cause is fixed:
 
     | Job type | Retry when |
     |---|---|
-    | `email.send` | SMTP outage has resolved; the target mailbox is valid |
-    | `webhook.deliver` | The receiving endpoint is back up; 5xx errors resolved |
-    | `assessment-boundary-cron` | The database connection issue that caused the failure is resolved |
-    | `attempt-timer-sweep` | Same as above — idempotent, safe to re-run |
+    | `email.send` | The email service is back and the address is valid |
+    | `webhook.deliver` | The receiving endpoint answers again |
+    | cron jobs | The database or Redis issue is resolved; both jobs are safe to run again |
 
-    **Idempotency note:** the two cron job types (`assessment-boundary-cron`,
-    `attempt-timer-sweep`) are idempotent — re-running them on already-processed
-    rows is a SQL no-op and causes no side effects. It is safe to retry them
-    even if you are unsure whether the previous run partially succeeded.
-
-  related_keys:
-    - admin.worker
-    - admin.worker.failed
+    A job that is not in the failed state cannot be retried (the server answers 409).
 
 # ─── 13-notifications — Webhooks management (2026-05-13) ─────────────────────
 
@@ -3488,17 +3451,57 @@ admin.evaluations.detail.page:
 
 admin.grading.jobs.page:
   audience: admin
-  short_text: "How results are scored and what you do with them. Nothing to run on this page."
+  short_text: "Where the written answers of your candidates are in the evaluation queue. Nothing is started here."
   long_md: |
-    ## Grading
+    ## Evaluation status
 
-    This page explains how grading works. You do not start any grading from here.
+    This page shows how many attempts wait for evaluation, how long the oldest
+    one has waited, and the counts for each assessment. You do not start any
+    evaluation from here.
 
-    - **Multiple-choice answers.** They are scored when the candidate submits.
-    - **Written answers.** AssessIQ evaluates them. Until that is done, the attempt shows *Awaiting evaluation* and no one sees a score.
+    - **Multiple-choice answers.** Scored when the candidate submits. They never wait.
+    - **Written answers.** AssessIQ evaluates them in submission order. Until that is done, the attempt shows *Awaiting evaluation* and no one sees a score.
     - **Ready to publish.** Open the attempt on the Attempts page. You can publish it, override a grade, or send it back.
     - **Score bands.** Each written answer gets 0, 25, 50, 75 or 100.
-    - If an attempt waits too long, contact your AssessIQ operator.
+    - If an attempt waits longer than the turnaround you were given, contact your AssessIQ operator.
+  related_keys:
+    - admin.grading.jobs.counts
+    - admin.grading.jobs.oldest
+    - admin.grading.jobs.by_assessment
+
+admin.grading.jobs.counts:
+  audience: admin
+  short_text: "The same three numbers as the dashboard cards: in queue, awaiting evaluation, ready to publish."
+  long_md: |
+    ## Counts
+
+    - **In queue** — submitted attempts that AssessIQ has not evaluated yet.
+    - **Awaiting evaluation** — in queue, plus evaluated attempts that AssessIQ has not released to you yet.
+    - **Ready to publish** — evaluated and released. Open them on the Attempts page to publish.
+
+    The numbers update every 30 seconds while the page is open.
+
+admin.grading.jobs.oldest:
+  audience: admin
+  short_text: "How long the oldest attempt in the queue has waited since the candidate submitted it."
+  long_md: |
+    ## Waiting time
+
+    The line shows the submit time of the oldest attempt still in the queue and
+    how long ago that was. Attempts are evaluated in submission order.
+
+    No fixed turnaround is promised on this page. If an attempt waits longer than
+    the turnaround you were given, contact your AssessIQ operator.
+
+admin.grading.jobs.by_assessment:
+  audience: admin
+  short_text: "One row per assessment with the three counts. Select the name to open the assessment."
+  long_md: |
+    ## By assessment
+
+    Each row is one assessment that has at least one submitted attempt, with its
+    in-queue, awaiting-evaluation and ready-to-publish counts. The rows add up
+    to the totals above. Select the assessment name to open its page.
 
 admin.question.editor.page:
   audience: admin

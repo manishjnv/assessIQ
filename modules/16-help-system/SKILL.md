@@ -145,3 +145,7 @@ Migration `0153_seed_structured_case_help.sql` (idempotent, `ON CONFLICT DO NOTH
 
 **Downstream.** `audit-writes.test.ts` expects 3 `auditInTx` call sites in `service.ts`. `help-system.test.ts` Block 4b covers the global bump. Seed count 208 (migration `0157_seed_help_content_admin_help.sql`, 5 keys under `admin.settings.help_content.*`; `0011` regenerated).
 
+## Migration 0158 — Background jobs section + Evaluation status page (FU-D9/FU-D10/FU-C1, 2026-10-06)
+
+`admin.worker`, `admin.worker.failed`, `admin.worker.retry` are renamed to `admin.platform.jobs`, `admin.platform.jobs.failed`, `admin.platform.jobs.retry` (all tenants and versions, 0155 pattern) so they load under the Platform page prefix; their global v1 text is rewritten (the old text named a `/admin/worker` page and a "Grade all" button that do not exist). `admin.grading.jobs.page` text is rewritten for the Evaluation status page; new keys `admin.grading.jobs.counts`, `.oldest`, `.by_assessment`. Seed count 208 -> 211; `0011` regenerated.
+
