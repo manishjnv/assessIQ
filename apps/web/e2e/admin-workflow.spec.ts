@@ -313,7 +313,7 @@ test.describe('Admin → Candidate full workflow', () => {
 
     // List available assessments for this candidate
     const available = await factories.listCandidateAssessments(candidate.cookie);
-    const found = available.find((a) => a.assessment_id === assessment.id);
+    const found = available.find((a) => a.id === assessment.id);
     expect(
       found,
       `Assessment ${assessment.id} not found in candidate's available list. Got: ${JSON.stringify(available)}`,
