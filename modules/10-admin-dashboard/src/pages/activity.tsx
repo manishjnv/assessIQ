@@ -118,7 +118,7 @@ type LeaderboardPeriod = 'week' | 'month' | 'quarter';
 // Activity feed — API response shapes (duplicated intentionally; no cross-module import)
 // ---------------------------------------------------------------------------
 
-type FeedRole = 'admin' | 'reviewer' | 'candidate' | 'system';
+type FeedRole = 'admin' | 'candidate' | 'system';
 type FeedRoleFilter = 'all' | FeedRole;
 
 interface ActivityFeedItem {
@@ -175,14 +175,12 @@ function relativeTime(iso: string): string {
 // Role badge color map (reuses chart palette via CSS custom properties for tokens)
 const ROLE_CHIP_VARIANT: Record<FeedRole, "default" | "accent" | "success" | "warn"> = {
   admin:     "accent",
-  reviewer:  "warn",
   candidate: "success",
   system:    "default",
 };
 
 const ROLE_LABEL: Record<FeedRole, string> = {
   admin:     "Admin",
-  reviewer:  "Reviewer",
   candidate: "Candidate",
   system:    "System",
 };

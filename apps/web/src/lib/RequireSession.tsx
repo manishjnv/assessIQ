@@ -12,7 +12,7 @@ import type { ReactNode } from 'react';
 //                     (children never render)
 //
 // Role hierarchy for the gate:
-//   super_admin satisfies 'admin' and 'reviewer' (super_admin > admin > reviewer > candidate).
+//   super_admin satisfies 'admin' (super_admin > admin > candidate).
 //   HOWEVER, when role === 'super_admin', ONLY a session with role === 'super_admin' passes.
 //   A plain 'admin' is NOT a super_admin and must be blocked — super_admin is a
 //   platform-level role above the tenant hierarchy, not a peer of admin. This asymmetry
@@ -30,7 +30,7 @@ export function RequireSession({
   unauthRedirect = '/admin/login',
 }: {
   children: ReactNode;
-  role?: 'admin' | 'reviewer' | 'super_admin';
+  role?: 'admin' | 'super_admin';
   unauthRedirect?: string;
 }): React.JSX.Element {
   const { session, loading } = useSession();
@@ -86,7 +86,7 @@ export function RequireSession({
 
   // Role gate — asymmetric by design (see comment above):
   //   role === 'super_admin': exact match only — admin must NOT pass this gate.
-  //   role === 'admin' | 'reviewer': super_admin satisfies the gate (super_admin > admin > reviewer).
+  //   role === 'admin': super_admin satisfies the gate (super_admin > admin).
   if (role !== undefined) {
     const isSuperAdmin = session.user.role === 'super_admin';
     if (role === 'super_admin') {

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AssessIQ — Email System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500;6..72,600&family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body {
+      background: #f0eee9;
+      font-family: var(--font-sans);
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+  <template id="__bundler_thumbnail" data-bg-color="#f1efea">
+    <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+      <rect width="1200" height="800" fill="#f1efea"/>
+      <rect x="380" y="170" width="440" height="500" rx="14" fill="#ffffff" stroke="#e4e4e7" stroke-width="2"/>
+      <line x1="380" y1="240" x2="820" y2="240" stroke="#e4e4e7" stroke-width="1.5"/>
+      <circle cx="420" cy="205" r="6" fill="#1a73e8"/>
+      <text x="436" y="211" font-family="Georgia, serif" font-size="18" fill="#0a0a0b">AssessIQ</text>
+      <rect x="410" y="280" width="240" height="14" rx="3" fill="#0a0a0b"/>
+      <rect x="410" y="306" width="320" height="10" rx="2" fill="#0a0a0b" opacity="0.4"/>
+      <rect x="410" y="324" width="280" height="10" rx="2" fill="#0a0a0b" opacity="0.4"/>
+      <rect x="410" y="380" width="380" height="80" rx="10" fill="none" stroke="#e4e4e7" stroke-width="1.5"/>
+      <rect x="410" y="500" width="150" height="38" rx="19" fill="#1a73e8"/>
+      <text x="600" y="730" text-anchor="middle" font-family="Georgia, serif" font-size="38" fill="#0a0a0b">Email system</text>
+    </svg>
+  </template>
+
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="design-canvas.jsx"></script>
+  <script type="text/babel" src="screens/atoms.jsx"></script>
+  <script type="text/babel" src="emails/email-atoms.jsx"></script>
+  <script type="text/babel" src="emails/brand-guide.jsx"></script>
+  <script type="text/babel" src="emails/templates-1.jsx"></script>
+  <script type="text/babel" src="emails/templates-2.jsx"></script>
+
+  <script type="text/babel">
+    const W = 640;
+
+    function App() {
+      return (
+        <DesignCanvas>
+          <DCSection
+            id="guide"
+            title="Brand guide"
+            subtitle="The system every AssessIQ email is built from"
+          >
+            <DCArtboard id="guide-doc" label="Email brand guide · v1.0" width={760} height={2980}>
+              <EmailBrandGuide />
+            </DCArtboard>
+          </DCSection>
+
+          <DCSection
+            id="templates"
+            title="Templates"
+            subtitle="Five canonical emails · 640px · drop-in starters for new flows"
+          >
+            <DCArtboard id="newsletter" label="01 · The Pulse — Monthly newsletter" width={W} height={1740}>
+              <NewsletterEmail />
+            </DCArtboard>
+            <DCArtboard id="invite" label="02 · Assessment invite — to candidate" width={W} height={1340}>
+              <AssessmentInviteEmail />
+            </DCArtboard>
+            <DCArtboard id="company" label="03 · Team invitation — join workspace" width={W} height={1180}>
+              <CompanyInviteEmail />
+            </DCArtboard>
+            <DCArtboard id="result" label="04 · Result delivered — to candidate" width={W} height={1620}>
+              <ResultEmail />
+            </DCArtboard>
+            <DCArtboard id="submission" label="05 · New submission — to reviewer" width={W} height={1540}>
+              <SubmissionEmail />
+            </DCArtboard>
+          </DCSection>
+        </DesignCanvas>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
