@@ -630,7 +630,7 @@ describe('legacy shims', () => {
     type LegacyInput = Parameters<typeof sendInvitationEmail>[0];
     const _check: LegacyInput = {
       to: 'x@y.com',
-      role: 'reviewer',
+      role: 'admin', // FU-B18: the reviewer role is gone (RS8); the legacy shape still carries a role string
       invitationLink: 'https://x.com',
     };
     expect(_check).toBeDefined();
