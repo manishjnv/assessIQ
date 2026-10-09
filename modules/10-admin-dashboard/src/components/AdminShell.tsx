@@ -18,6 +18,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Icon, Sidebar, NavItem, SidebarSection, useViewport } from "@assessiq/ui-system";
 import { HelpProvider } from "@assessiq/help-system/components";
 import { useAdminSession, adminLogout } from "../session.js";
+import { NotificationBell } from "./NotificationBell.js";
 
 /**
  * Breadcrumb segment — either a plain string (non-clickable label) or
@@ -281,6 +282,13 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   const adminEntries: NavEntry[] = [
     { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
     { label: "Activity", href: "/admin/activity", icon: "chart", adminOnly: true },
+    { label: "Audit log", href: "/admin/audit-log", icon: "chart", adminOnly: true },
+  ];
+
+  // Integrations — webhook and embed configuration (tenant-admin facing).
+  const integrationsEntries: NavEntry[] = [
+    { label: "Webhooks", href: "/admin/integrations/webhooks", icon: "settings", adminOnly: true },
+    { label: "Embed", href: "/admin/integrations/embed", icon: "settings", adminOnly: true },
   ];
 
   const accountEntries: NavEntry[] = [
@@ -436,6 +444,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                 {renderSection("Work", workspaceEntries)}
                 {renderSection("Content", libraryEntries)}
                 {renderSection("Admin", adminEntries)}
+                {renderSection("Integrations", integrationsEntries)}
                 {renderSection("Account", accountEntries)}
                 {renderSection("Platform", platformEntries)}
               </>
@@ -533,6 +542,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
+            <NotificationBell />
             <span
               className="aiq-admin-shell-email"
               style={{

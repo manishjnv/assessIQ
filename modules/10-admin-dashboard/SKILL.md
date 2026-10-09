@@ -40,17 +40,16 @@ The administrator's command center. Authoring, monitoring, reviewing, exporting.
 │   ├── /individual/:userId
 │   ├── /topic-heatmap
 │   └── /exports            CSV/JSON export hub
+├── /audit-log              Audit trail (RW-25) — all changes per tenant with actor, timestamp, entity
+├── /integrations
+│   ├── /webhooks           Webhook endpoints (RW-25) — create, test, deliver log
+│   └── /embed              Embed configuration (RW-25) — API secret, trusted origins
 ├── /settings
 │   ├── /tenant             Branding, name, domain
 │   ├── /authentication     Toggle SSO/TOTP/magic-link/etc.
-│   ├── /integrations
-│   │   ├── /api-keys
-│   │   ├── /embed-secrets
-│   │   └── /webhooks
 │   ├── /help-content       Authoring UI
-│   └── /audit              Audit log viewer
-├── /guide                  End-to-end admin workflow guide (L1→L3) — static JSX, Option A
-└── /profile                Self profile + TOTP management
+│   └── /help-guide         End-to-end admin workflow guide (L1→L3) — static JSX
+└── /mfa                    Two-factor authentication setup (pre-session constraint)
 ```
 
 ## Layout shell
