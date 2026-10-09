@@ -9,7 +9,7 @@
 //
 //   awaiting_evaluation  banner only — AssessIQ has not released the evaluation
 //   ready_to_publish     final grades + Override (reason), "Send back for
-//                        re-evaluation" (note) and "Publish to candidate"
+//                        re-evaluation" (note) and "Release to candidate"
 //   published            read-only
 //
 // GET /admin/attempts/:id has no side effects (it no longer claims the attempt).
@@ -28,7 +28,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { Chip, Spinner, ErasedChip } from "@assessiq/ui-system";
+import { Chip, Spinner, ErasedChip, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { AttemptGradingPanel } from "../components/AttemptGradingPanel.js";
 import { ReleaseConfirmModal } from "../components/ReleaseConfirmModal.js";
@@ -64,7 +64,7 @@ export function AdminAttemptDetail(): React.ReactElement {
   const [showReleaseModal, setShowReleaseModal] = useState(false);
   const [releasing, setReleasing] = useState(false);
 
-  // Send back for re-evaluation: inline note form.
+  // Send back for re-grading: inline note form.
   const [showSendBack, setShowSendBack] = useState(false);
   const [sendBackNote, setSendBackNote] = useState("");
   const [sendingBack, setSendingBack] = useState(false);
@@ -104,7 +104,7 @@ export function AdminAttemptDetail(): React.ReactElement {
     } catch (err) {
       // Close the summary so the error banner behind it is visible.
       setShowReleaseModal(false);
-      setError(apiMessage(err, "Publish failed."));
+      setError(apiMessage(err, "Release failed."));
     } finally {
       setReleasing(false);
     }
@@ -156,7 +156,7 @@ export function AdminAttemptDetail(): React.ReactElement {
 
   return (
     <AdminShell
-      breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, attempt.id.slice(0, 8)]}
+      breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, attempt.assessment_name || "Attempt"]}
       helpPage="admin.attempts.detail"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
@@ -167,14 +167,14 @@ export function AdminAttemptDetail(): React.ReactElement {
               <Chip variant={display.variant}>{display.label}</Chip>
             </div>
             <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
-              {attempt.assessment_name || `Attempt ${attempt.id.slice(0, 8)}`}
+              {attempt.assessment_name || "Attempt"}
             </h1>
             <div style={{ ...MONO_LABEL, marginTop: "var(--aiq-space-xs)", display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
               <span>
                 {[
                   candidateName,
                   attempt.level_label,
-                  attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : null,
+                  attempt.submitted_at ? formatDateTime(attempt.submitted_at) : null,
                 ].filter(Boolean).join(" · ") || "Candidate details are not available"}
               </span>
               {attempt.isErased && <ErasedChip />}
@@ -199,7 +199,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                 data-help-id="admin.attempts.detail.send_back"
                 onClick={() => setShowSendBack(true)}
               >
-                Send back for re-evaluation
+                Send back for re-grading
               </button>
             )}
             {evalStatus === "ready_to_publish" && !attempt.isErased && (
@@ -209,7 +209,7 @@ export function AdminAttemptDetail(): React.ReactElement {
                 data-help-id="admin.attempts.detail.release_button"
                 onClick={() => setShowReleaseModal(true)}
               >
-                Publish to candidate
+                Release to candidate
               </button>
             )}
           </div>
@@ -228,7 +228,7 @@ export function AdminAttemptDetail(): React.ReactElement {
         )}
 
         {/* Awaiting AssessIQ evaluation — no grades are shown until the
-            evaluation is released to the company. */}
+            evaluation is sent to the organisation. */}
         {evalStatus === "awaiting_evaluation" && (
           <div
             className="aiq-banner"
@@ -236,25 +236,25 @@ export function AdminAttemptDetail(): React.ReactElement {
             role="status"
             style={{ display: "flex", flexDirection: "column", gap: 2, padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-info-subtle, #eef4ff)", border: "1px solid var(--aiq-color-info, #3177dc)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-info, #3177dc)" }}
           >
-            <div style={{ fontWeight: 500 }}>Awaiting AssessIQ evaluation.</div>
+            <div style={{ fontWeight: 500 }}>Awaiting AssessIQ grading.</div>
             <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", opacity: 0.85 }}>
-              AssessIQ evaluates the written answers. When that is done you can review the final scores here and publish them to the candidate.
+              AssessIQ grades the written answers. When that is done you can review the final scores here and release them to the candidate.
             </div>
           </div>
         )}
 
         {evalStatus === "published" && (
           <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-            This result has been published to the candidate. Scores can no longer be changed.
+            This result has been released to the candidate. Scores can no longer be changed.
           </p>
         )}
 
-        {/* Send back for re-evaluation — note is required and goes to AssessIQ. */}
+        {/* Send back for re-grading — note is required and goes to AssessIQ. */}
         {showSendBack && evalStatus === "ready_to_publish" && (
           <div className="aiq-card aiq-no-print" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
-            <span style={MONO_LABEL}>Send back for re-evaluation</span>
+            <span style={MONO_LABEL}>Send back for re-grading</span>
             <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
-              The attempt returns to the AssessIQ queue. Tell the evaluator what to look at again.
+              The attempt returns to the AssessIQ queue. Tell AssessIQ what to look at again.
             </p>
             <label style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
               <span style={MONO_LABEL}>Note (required)</span>

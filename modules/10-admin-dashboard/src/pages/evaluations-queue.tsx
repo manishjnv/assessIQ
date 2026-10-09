@@ -159,22 +159,22 @@ function RuntimeStatusChip(): React.ReactElement {
 
 function StatusCell({ row }: { row: EvaluationRow }): React.ReactElement {
   const s = row.complete
-    ? { label: "Ready to release", variant: "success" as const }
+    ? { label: "Ready to send", variant: "success" as const }
     : row.grading_in_progress
       ? { label: "Grading…", variant: "accent" as const }
-      : { label: "Awaiting evaluation", variant: "accent" as const };
+      : { label: "Awaiting grading", variant: "accent" as const };
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
       <Chip variant={s.variant}>{s.label}</Chip>
       {row.ai_paused === true && (
-        <span data-help-id="admin.evaluations.queue.ai_paused" title="The company turned AI evaluation off. Score manually or ask the company to turn it on.">
+        <span data-help-id="admin.evaluations.queue.ai_paused" title="The organisation turned AI grading off. Score manually or ask the organisation to turn it on.">
           <Chip variant="warn">AI paused</Chip>
         </span>
       )}
       {row.sent_back && (
         <span
           data-help-id="admin.evaluations.queue.sent_back"
-          title={row.sent_back_note ?? "Sent back by the company"}
+          title={row.sent_back_note ?? "Sent back by the organisation"}
           style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}
         >
           <Chip variant="warn">Sent back</Chip>
@@ -243,7 +243,7 @@ function GradingQualityCard({ rows }: { rows: GradingQualityRow[] | null }): Rea
     { key: "ai_grades", label: "AI grades", width: 96 },
     { key: "overrides", label: "Overrides", width: 96 },
     { key: "override_rate", label: "Override rate", width: 120, render: (r) => pct(r.override_rate) },
-    { key: "mean_abs_band_delta", label: "Band change", width: 110, render: (r) => num(r.mean_abs_band_delta) },
+    { key: "mean_abs_band_delta", label: "Score band change", width: 110, render: (r) => num(r.mean_abs_band_delta) },
     { key: "mean_abs_score_delta_pct", label: "Score change", width: 120, render: (r) => num(r.mean_abs_score_delta_pct, "%") },
   ];
   return (
@@ -269,7 +269,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
   const evalGate = useQuietFetch<EvalGateStatus>("/admin/super/eval-gate");
   const quality = useQuietFetch<{ items: GradingQualityRow[] }>("/admin/super/grading-quality?days=90");
   const { guard, stepUp } = useMfaGuard(
-    "Releasing evaluations needs a fresh authenticator check. Enter your 6-digit code to continue.",
+    "Sending to organisations needs a fresh authenticator check. Enter your 6-digit code to continue.",
   );
 
   const fetchQueue = useCallback(async (silent: boolean): Promise<void> => {
@@ -280,7 +280,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
       setServerCounts(data.counts ?? null);
       setError(null);
     } catch (err) {
-      setError(apiMessage(err, "Failed to load the evaluation queue."));
+      setError(apiMessage(err, "Failed to load the grading queue."));
     } finally {
       setLoading(false);
     }
@@ -351,15 +351,15 @@ export function AdminEvaluationsQueue(): React.ReactElement {
   const columns: ColumnDef<EvaluationRow>[] = [
     {
       key: "tenant_name",
-      label: "Company",
+      label: "Organisation",
       width: "minmax(170px, 1.2fr)",
       render: (row) => (
         <span style={{ display: "inline-flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           <input
             type="checkbox"
-            aria-label={`Select ${row.assessment_name} for release`}
+            aria-label={`Select ${row.assessment_name} for sending`}
             disabled={!row.complete}
-            title={row.complete ? undefined : "Finish the evaluation before releasing"}
+            title={row.complete ? undefined : "Finish grading before sending"}
             checked={chosen.includes(row.attempt_id)}
             onChange={() => toggle(row.attempt_id)}
             style={{ accentColor: "var(--aiq-color-accent)", flexShrink: 0 }}
@@ -374,7 +374,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
       width: "minmax(170px, 1.4fr)",
       render: (row) => <span style={ELLIPSIS}>{row.assessment_name}</span>,
     },
-    { key: "level_label", label: "Level", width: 80 },
+    { key: "level_label", label: "Difficulty", width: 80 },
     {
       key: "submitted_at",
       label: "Submitted",
@@ -407,7 +407,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
           className="aiq-btn aiq-btn-outline aiq-btn-sm"
           onClick={() => navigate(`${DETAIL_PATH}/${row.attempt_id}`)}
         >
-          Evaluate
+          Grade
         </button>
       ),
     },
@@ -418,7 +418,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
 
   return (
     <AdminShell
-      breadcrumbs={[{ label: "Platform", href: "/admin/platform" }, "Evaluations"]}
+      breadcrumbs={[{ label: "Platform", href: "/admin/platform" }, "Grading queue"]}
       helpPage="admin.evaluations.queue"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
@@ -429,10 +429,10 @@ export function AdminEvaluationsQueue(): React.ReactElement {
             <RuntimeStatusChip />
           </div>
           <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
-            Evaluations.
+            Grading queue.
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
-            Written answers from every company, oldest first. Accepting the last grade of an attempt releases it to its company and takes it off this list.
+            Written answers from every organisation, oldest first. Accepting the last grade of an attempt sends it to its organisation and takes it off this list.
           </p>
         </div>
 
@@ -447,14 +447,14 @@ export function AdminEvaluationsQueue(): React.ReactElement {
         {/* Toolbar */}
         <div className="aiq-admin-filter-strip" style={{ alignItems: "center", gap: "var(--aiq-space-md)", borderBottom: "1px solid var(--aiq-color-border)", paddingBottom: "var(--aiq-space-sm)" }}>
           <label data-help-id="admin.evaluations.queue.tenant_filter" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            <span style={MONO_LABEL}>Company</span>
+            <span style={MONO_LABEL}>Organisation</span>
             <select
               className="aiq-input"
               value={tenantFilter}
               onChange={(e) => setTenantFilter(e.target.value)}
               style={{ minWidth: 200 }}
             >
-              <option value="">All companies</option>
+              <option value="">All organisations</option>
               {tenants.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
@@ -468,7 +468,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
             disabled={chosen.length === 0 || releasing}
             onClick={() => void handleReleaseSelected()}
           >
-            {releasing ? "Releasing…" : `Release selected to company${chosen.length > 0 ? ` (${chosen.length})` : ""}`}
+            {releasing ? "Sending…" : `Send selected to organisation${chosen.length > 0 ? ` (${chosen.length})` : ""}`}
           </button>
           <button
             type="button"
@@ -477,14 +477,14 @@ export function AdminEvaluationsQueue(): React.ReactElement {
             disabled={!oldest}
             onClick={() => oldest && navigate(`${DETAIL_PATH}/${oldest.attempt_id}`)}
           >
-            Evaluate next
+            Grade next
           </button>
         </div>
 
         {releaseResult && (
           <div role="status" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
             <Chip variant="success">
-              Released {releaseResult.released.length} to {releaseResult.released.length === 1 ? "its company" : "their companies"}
+              Sent {releaseResult.released.length} to {releaseResult.released.length === 1 ? "its organisation" : "their organisations"}
             </Chip>
             {releaseResult.skipped.length > 0 && (
               <Chip variant="warn">
@@ -516,7 +516,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
                 data={rows}
                 columns={columns}
                 loading={loading}
-                emptyMessage="No evaluations in the queue."
+                emptyMessage="Nothing in the grading queue."
               />
             )}
           </div>

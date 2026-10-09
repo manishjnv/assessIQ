@@ -13,6 +13,7 @@
 //   - data-help-id on form controls
 
 
+import { organisationStatusDisplay } from "../lib/labels.js";
 import React, { useCallback, useEffect, useState } from "react";
 import { Button, Chip, Spinner, type ChipVariant } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
@@ -83,7 +84,7 @@ export function AdminPlatform(): React.ReactElement {
       if (err instanceof AdminApiError) {
         setFetchError(err.apiError.message);
       } else {
-        setFetchError("Failed to load tenants.");
+        setFetchError("Failed to load organisations.");
       }
     } finally {
       setLoading(false);
@@ -222,7 +223,7 @@ export function AdminPlatform(): React.ReactElement {
         <div style={{ display: "flex", alignItems: "flex-end" }}>
           <div>
             <div style={{ marginBottom: 12 }}>
-              <Chip leftIcon="grid">{tenants.length} companies</Chip>
+              <Chip leftIcon="grid">{tenants.length} organisations</Chip>
             </div>
             <h1
               style={{
@@ -233,7 +234,7 @@ export function AdminPlatform(): React.ReactElement {
                 letterSpacing: "-0.02em",
               }}
             >
-              Companies.
+              Organisations.
             </h1>
             <p
               style={{
@@ -244,12 +245,12 @@ export function AdminPlatform(): React.ReactElement {
                 lineHeight: 1.5,
               }}
             >
-              Provision a new company tenant and invite its first admin. Platform operators only.
+              Provision a new organisation and invite its first admin. Platform operators only.
             </p>
           </div>
           <span style={{ flex: 1 }} />
           <Button leftIcon="plus" onClick={() => setShowCreate(true)}>
-            Create company
+            Create organisation
           </Button>
         </div>
 
@@ -306,14 +307,14 @@ export function AdminPlatform(): React.ReactElement {
               onChange={(e) => setIncludeArchived(e.target.checked)}
               style={{ cursor: "pointer" }}
             />
-            Show archived tenants
+            Show archived organisations
           </label>
         </div>
 
         {/* Data rows or loading / empty */}
         {loading ? (
           <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-3xl) 0" }}>
-            <Spinner aria-label="Loading tenants" />
+            <Spinner aria-label="Loading organisations" />
           </div>
         ) : tenants.length === 0 ? (
           /* Empty state — serif headline + secondary copy + primary CTA (mirrors users.tsx) */
@@ -330,7 +331,7 @@ export function AdminPlatform(): React.ReactElement {
               className="aiq-serif"
               style={{ fontSize: 24, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
             >
-              No companies yet.
+              No organisations yet.
             </h2>
             <p
               style={{
@@ -343,10 +344,10 @@ export function AdminPlatform(): React.ReactElement {
                 lineHeight: 1.5,
               }}
             >
-              Provision your first company tenant to get started.
+              Provision your first organisation to get started.
             </p>
             <Button leftIcon="plus" onClick={() => setShowCreate(true)}>
-              Create company
+              Create organisation
             </Button>
           </div>
         ) : (
@@ -536,7 +537,7 @@ export function AdminPlatform(): React.ReactElement {
                         <span style={{ textDecoration: "line-through" }}>archived</span>
                       </Chip>
                     ) : (
-                      <Chip variant={statusVariant(t.status)}>{t.status}</Chip>
+                      <Chip variant={statusVariant(t.status)}>{organisationStatusDisplay(t.status).label}</Chip>
                     )}
                   </span>
                   {/* Created — mono, en-GB */}

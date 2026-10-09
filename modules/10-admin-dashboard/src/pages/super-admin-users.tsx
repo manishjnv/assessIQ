@@ -110,7 +110,7 @@ export function SuperAdminUsers(): React.ReactElement {
       if (err instanceof AdminApiError) {
         setFetchError(err.apiError.message);
       } else {
-        setFetchError("Failed to load users for this tenant.");
+        setFetchError("Failed to load users for this organisation.");
       }
     } finally {
       setLoading(false);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Chip, Spinner } from '@assessiq/ui-system';
+import { Chip, Spinner, formatDate } from '@assessiq/ui-system';
 import { listMyCertificates, shareCertificateLinkedIn } from '../api.js';
 import type { MyCertificate } from '../api.js';
 import { CompletionModal } from './CompletionModal.js';
@@ -25,19 +25,7 @@ const TIER_STYLES: Record<
   },
 };
 
-// ---------------------------------------------------------------------------
-// Date formatter — constructed once, reused per render
-// ---------------------------------------------------------------------------
 
-const DATE_FMT = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
-
-function formatDate(iso: string): string {
-  return DATE_FMT.format(new Date(iso));
-}
 
 // ---------------------------------------------------------------------------
 // Sub-components

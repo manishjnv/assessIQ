@@ -56,7 +56,7 @@ export function FullscreenGate({ exitCount, onEnter }: FullscreenGateProps) {
         }}
       >
         <h2 id="aiq-fs-title" style={{ margin: 0, fontSize: "var(--aiq-text-lg)" }}>
-          This test runs in full screen
+          This assessment runs in full screen
         </h2>
         <p id="aiq-fs-desc" style={{ fontSize: "var(--aiq-text-sm)" }}>
           {exitCount > 0 ? (

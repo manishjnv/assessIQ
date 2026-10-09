@@ -20,7 +20,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Chip, StatCard, Table } from "@assessiq/ui-system";
+import { Chip, StatCard, Table, formatDateTime, formatDayLine } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import type { QueueRow as BaseQueueRow } from "@assessiq/ai-grading";
 import { AdminShell } from "../components/AdminShell.js";
@@ -74,15 +74,6 @@ function greetingPhrase(): string {
   return "Good evening";
 }
 
-function dateLine(): string {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  })
-    .format(new Date())
-    .replace(",", " ·");
-}
 
 export function AdminDashboard(): React.ReactElement {
   const navigate = useNavigate();
@@ -137,7 +128,7 @@ export function AdminDashboard(): React.ReactElement {
       ),
     },
     { key: "assessment_name", label: "Assessment", sortable: true },
-    { key: "level_label", label: "Level", sortable: true },
+    { key: "level_label", label: "Difficulty", sortable: true },
     {
       key: "submitted_at",
       label: "Submitted",
@@ -150,7 +141,7 @@ export function AdminDashboard(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {row.submitted_at ? new Date(row.submitted_at).toLocaleString() : "—"}
+          {row.submitted_at ? formatDateTime(row.submitted_at) : "—"}
         </span>
       ),
     },
@@ -207,7 +198,7 @@ export function AdminDashboard(): React.ReactElement {
                 marginBottom: "var(--aiq-space-xs)",
               }}
             >
-              {dateLine()}
+              {formatDayLine()}
             </div>
             <h1
               style={{
@@ -254,8 +245,8 @@ export function AdminDashboard(): React.ReactElement {
           }}
         >
           <StatCard label="In queue" value={totalCount} />
-          <StatCard label="Awaiting evaluation" value={awaitingCount} />
-          <StatCard label="Ready to publish" value={readyCount} />
+          <StatCard label="Awaiting grading" value={awaitingCount} />
+          <StatCard label="Ready to release" value={readyCount} />
         </div>
 
         {/* Grading queue */}

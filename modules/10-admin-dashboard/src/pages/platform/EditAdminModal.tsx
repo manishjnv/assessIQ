@@ -107,11 +107,11 @@ export function EditAdminModal({
         }
         const code = err.apiError.details?.code as string | undefined;
         if (code === "USER_EMAIL_EXISTS") {
-          setFieldErrors((e) => ({ ...e, email: "That email is already used in this company." }));
+          setFieldErrors((e) => ({ ...e, email: "That email is already used in this organisation." }));
         } else if (code === "INVALID_EMAIL") {
           setFieldErrors((e) => ({ ...e, email: "Enter a valid email address." }));
         } else if (code === "LAST_ADMIN") {
-          setGlobalError("This is the company's last active admin — add another admin before demoting this one.");
+          setGlobalError("This is the organisation's last active admin — add another admin before demoting this one.");
         } else if (code === "EMAIL_IDENTITY_CONFIRM_REQUIRED") {
           setGlobalError("Tick the identity-change confirmation to change an active admin's email.");
         } else if (code === "NO_CHANGES") {
@@ -157,7 +157,7 @@ export function EditAdminModal({
       <Card padding="lg" onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480 }}>
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
           <h2 className="aiq-serif" style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}>
-            {modalState === "mfa" ? "Verify MFA" : "Edit company"}
+            {modalState === "mfa" ? "Verify MFA" : "Edit organisation"}
           </h2>
           <span style={{ flex: 1 }} />
           <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close">
@@ -167,14 +167,14 @@ export function EditAdminModal({
 
         {modalState === "mfa" ? (
           <MfaStepUp
-            prompt="Your admin MFA needs to be verified before editing this company. Enter your 6-digit authenticator code to continue."
+            prompt="Your admin MFA needs to be verified before editing this organisation. Enter your 6-digit authenticator code to continue."
             onVerified={handleMfaVerified}
             onCancel={onCancel}
           />
         ) : (
           <div data-help-id="admin.platform.edit_admin">
             <p style={{ fontSize: 13, color: "var(--aiq-color-fg-secondary)", margin: "0 0 8px", lineHeight: 1.5 }}>
-              Rename the company and update its primary admin. Editing the admin email changes their login identity.
+              Rename the organisation and update its primary admin. Editing the admin email changes their login identity.
             </p>
             <div style={{ ...META_LABEL, fontSize: 10, marginBottom: 16 }}>
               {tenant.slug} · {tenant.admin_status ?? "pending"}
@@ -226,7 +226,7 @@ export function EditAdminModal({
                 <Field
                   label="Email"
                   type="email"
-                  placeholder="admin@company.com"
+                  placeholder="admin@example.com"
                   value={email}
                   onChange={(e) => {
                     setEmail(e.target.value);

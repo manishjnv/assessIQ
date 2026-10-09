@@ -268,7 +268,7 @@ export function AdminQuestionBank(): React.ReactElement {
       setItems(data.items);
     } catch (err) {
       setError(
-        err instanceof AdminApiError ? err.apiError.message : "Failed to load question packs.",
+        err instanceof AdminApiError ? err.apiError.message : "Failed to load question sets.",
       );
     } finally {
       setLoading(false);
@@ -334,8 +334,8 @@ export function AdminQuestionBank(): React.ReactElement {
     } catch (err) {
       setActionError(
         err instanceof AdminApiError
-          ? `Could not add set to workspace: ${err.apiError.message}`
-          : "Could not add set to workspace.",
+          ? `Could not add set to your organisation: ${err.apiError.message}`
+          : "Could not add set to your organisation.",
       );
     } finally {
       setImportingSet(null);
@@ -382,8 +382,8 @@ export function AdminQuestionBank(): React.ReactElement {
   }, []);
 
   async function handleCreatePack(e: React.FormEvent) {    e.preventDefault();
-    if (!newForm.name.trim()) { setCreateError("Pack name is required."); return; }
-    if (!newForm.domain.trim()) { setCreateError("Domain is required."); return; }
+    if (!newForm.name.trim()) { setCreateError("Question set name is required."); return; }
+    if (!newForm.domain.trim()) { setCreateError("Subject is required."); return; }
     setCreating(true);
     setCreateError(null);
     try {
@@ -398,7 +398,7 @@ export function AdminQuestionBank(): React.ReactElement {
       navigate(`/admin/question-bank/${created.id}`);
     } catch (err) {
       setCreateError(
-        err instanceof AdminApiError ? err.apiError.message : "Failed to create pack.",
+        err instanceof AdminApiError ? err.apiError.message : "Failed to create question set.",
       );
       setCreating(false);
     }
@@ -435,7 +435,7 @@ export function AdminQuestionBank(): React.ReactElement {
     },
     {
       key: "domain",
-      label: "Domain",
+      label: "Subject",
       sortable: true,
       render: (row: PackListItem) => (
         <span
@@ -462,7 +462,7 @@ export function AdminQuestionBank(): React.ReactElement {
     },
     {
       key: "level_count",
-      label: "Levels",
+      label: "Difficulty",
       sortable: true,
       render: (row: PackListItem) => (
         <span
@@ -568,12 +568,12 @@ export function AdminQuestionBank(): React.ReactElement {
   );
 
   return (
-    <AdminShell breadcrumbs={["Question Bank"]} helpPage="admin.question_bank.list">
+    <AdminShell breadcrumbs={["Question bank"]} helpPage="admin.question_bank.list">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Page header — count chip + serif h1 + lede + action */}
         <div>
           <div style={{ marginBottom: 12 }}>
-            <Chip leftIcon="grid">{items.length} pack{items.length !== 1 ? "s" : ""}</Chip>
+            <Chip leftIcon="grid">{items.length} question set{items.length !== 1 ? "s" : ""}</Chip>
           </div>
           <div
             style={{
@@ -593,10 +593,10 @@ export function AdminQuestionBank(): React.ReactElement {
                   letterSpacing: "-0.02em",
                 }}
               >
-                Question Bank.
+                Question bank.
               </h1>
               <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
-                Question packs organised by domain and difficulty level.
+                Question sets organised by subject and difficulty.
               </p>
             </div>
             {isSuperAdmin && (
@@ -609,7 +609,7 @@ export function AdminQuestionBank(): React.ReactElement {
                     setCreateError(null);
                   }}
                 >
-                  {showNewForm ? "Cancel" : "+ New Pack"}
+                  {showNewForm ? "Cancel" : "+ New question set"}
                 </button>
               </HelpTip>
             )}
@@ -635,7 +635,7 @@ export function AdminQuestionBank(): React.ReactElement {
                 letterSpacing: "-0.015em",
               }}
             >
-              New question pack.
+              New question set.
             </h2>
             <form onSubmit={(e) => void handleCreatePack(e)}>
               <div
@@ -656,7 +656,7 @@ export function AdminQuestionBank(): React.ReactElement {
                       fontWeight: 500,
                     }}
                   >
-                    Pack name *
+                    Question set name *
                   </label>
                   <input
                     className="aiq-input"
@@ -677,7 +677,7 @@ export function AdminQuestionBank(): React.ReactElement {
                       fontWeight: 500,
                     }}
                   >
-                    Domain *
+                    Subject *
                   </label>
                   <select
                     data-help-id="admin.question_bank.list.create.domain"
@@ -686,7 +686,7 @@ export function AdminQuestionBank(): React.ReactElement {
                     onChange={(e) => setNewForm((f) => ({ ...f, domain: e.target.value }))}
                     required
                   >
-                    <option value="">— Select a domain —</option>
+                    <option value="">— Select a subject —</option>
                     {domains.map((d) => (
                       <option key={d.id} value={d.slug}>
                         {d.name}
@@ -734,7 +734,7 @@ export function AdminQuestionBank(): React.ReactElement {
                 </div>
               )}
               <button type="submit" className="aiq-btn aiq-btn-primary" disabled={creating}>
-                {creating ? "Creating…" : "Create pack"}
+                {creating ? "Creating…" : "Create question set"}
               </button>
             </form>
           </div>
@@ -762,7 +762,7 @@ export function AdminQuestionBank(): React.ReactElement {
                 margin: "0 0 var(--aiq-space-md)",
               }}
             >
-              Question sets your company is licensed for. Add one to your workspace from the Assessments page (&ldquo;From a set&rdquo;).
+              Question sets your organisation is licensed for. Add one to your organisation from the Assessments page (&ldquo;From a set&rdquo;).
             </p>
             <div
               style={{
@@ -801,11 +801,11 @@ export function AdminQuestionBank(): React.ReactElement {
                         color: "var(--aiq-color-fg-muted)",
                       }}
                     >
-                      {domainLabel(set.domain)} &middot; {set.level_count} level{set.level_count !== 1 ? "s" : ""} &middot; {set.question_count} question{set.question_count !== 1 ? "s" : ""}
+                      {domainLabel(set.domain)} &middot; {set.level_count} {set.level_count !== 1 ? "difficulty levels" : "difficulty level"} &middot; {set.question_count} question{set.question_count !== 1 ? "s" : ""}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexShrink: 0, alignItems: "center" }}>
-                    {set.cloned && <Chip leftIcon="check">In your workspace</Chip>}
+                    {set.cloned && <Chip leftIcon="check">In your organisation</Chip>}
                     {set.update_available && <Chip>Update available</Chip>}
                     {set.cloned && set.update_available && (
                       <button
@@ -825,7 +825,7 @@ export function AdminQuestionBank(): React.ReactElement {
                           disabled={importingSet === set.source_pack_id}
                           onClick={() => void handleImportSet(set.source_pack_id)}
                         >
-                          {importingSet === set.source_pack_id ? "Adding…" : "Add to workspace"}
+                          {importingSet === set.source_pack_id ? "Adding…" : "Add to organisation"}
                         </button>
                       </HelpTip>
                     )}
@@ -876,7 +876,7 @@ export function AdminQuestionBank(): React.ReactElement {
             <input
               className="aiq-input"
               type="search"
-              placeholder="Search packs…"
+              placeholder="Search question sets…"
               value={searchInput}
               onChange={(e) => {
                 const v = e.target.value;
@@ -982,7 +982,7 @@ export function AdminQuestionBank(): React.ReactElement {
                     letterSpacing: "-0.015em",
                   }}
                 >
-                  {statusFilter || searchQuery ? "No packs match this filter." : "No question packs yet."}
+                  {statusFilter || searchQuery ? "No question sets match this filter." : "No question sets yet."}
                 </p>
                 <p
                   style={{
@@ -994,8 +994,8 @@ export function AdminQuestionBank(): React.ReactElement {
                   }}
                 >
                   {statusFilter || searchQuery
-                    ? "Try a different filter, or clear search to see all packs."
-                    : "Create your first pack to get started."}
+                    ? "Try a different filter, or clear search to see all question sets."
+                    : "Create your first question set to get started."}
                 </p>
               </div>
             ) : (
@@ -1009,7 +1009,7 @@ export function AdminQuestionBank(): React.ReactElement {
                   setSortBy(key);
                   setSortDir(dir);
                 }}
-                emptyMessage="No question packs found."
+                emptyMessage="No question sets found."
               />
             )}
           </div>

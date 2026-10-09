@@ -17,7 +17,7 @@
 // by migration 0158, FU-D10).
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Button, Chip, Spinner, StatCard } from "@assessiq/ui-system";
+import { Button, Chip, Spinner, StatCard, formatDateTime } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { adminApi, AdminApiError } from "../../api.js";
 import { META_LABEL, ROW_PADDING } from "./shared.js";
@@ -77,7 +77,7 @@ export function BackgroundJobsSection(): React.ReactElement {
     setError(null);
     try {
       await adminApi(`/admin/worker/failed/${encodeURIComponent(id)}/retry`, { method: "POST", body: "{}" });
-      setToast(`Job ${id.slice(0, 8)} re-queued.`);
+      setToast("Job re-queued.");
       setTimeout(() => setToast(null), 4000);
       await load();
     } catch (err) {
@@ -98,7 +98,7 @@ export function BackgroundJobsSection(): React.ReactElement {
         <span style={{ flex: 1 }} />
         {stats && (
           <span style={{ ...META_LABEL, fontSize: 10 }}>
-            {stats.queue} · {stats.cached ? "cached" : "live"} · {new Date(stats.fetched_at).toLocaleTimeString()}
+            {stats.queue} · {stats.cached ? "cached" : "live"} · {formatDateTime(stats.fetched_at)}
           </span>
         )}
         <Button size="sm" variant="outline" onClick={() => void load()} loading={loading}>
@@ -106,7 +106,7 @@ export function BackgroundJobsSection(): React.ReactElement {
         </Button>
       </div>
       <p style={{ margin: 0, fontSize: 14, color: "var(--aiq-color-fg-secondary)", maxWidth: 640, lineHeight: 1.5 }}>
-        One queue for every company: email, webhooks and the cron jobs. AI evaluation never runs here.
+        One queue for every organisation: email, webhooks and the cron jobs. AI grading never runs here.
       </p>
 
       {error && <div><Chip>{error}</Chip></div>}
@@ -164,7 +164,7 @@ export function BackgroundJobsSection(): React.ReactElement {
                   </span>
                   <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 12 }}>{j.attempts_made}</span>
                   <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-muted)" }}>
-                    {j.finished_on ? new Date(j.finished_on).toLocaleString() : "—"}
+                    {j.finished_on ? formatDateTime(j.finished_on) : "—"}
                   </span>
                   <div style={{ display: "flex", justifyContent: "flex-end" }} data-help-id="admin.platform.jobs.retry">
                     <Button size="sm" variant="ghost" disabled={j.id === null || retrying !== null} loading={retrying === j.id} onClick={() => j.id && void retry(j.id)}>

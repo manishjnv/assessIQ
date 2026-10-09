@@ -99,17 +99,17 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-describe("AdminAssessmentDetail — Publish all ready", () => {
+describe("AdminAssessmentDetail — Release all ready", () => {
   it("P1 confirms, POSTs release-all and reports published / skipped counts", async () => {
     mockApi(true);
     await renderPage();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Publish all ready" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Release all ready" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/results can't be changed/)).toBeTruthy();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Publish all ready" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Release all ready" }));
 
-    await screen.findByText("Published 2 results");
+    await screen.findByText("Released 2 results");
     expect(screen.getByText(/Skipped 1:\s*not ready yet/)).toBeTruthy();
 
     const call = adminApi.mock.calls.find((c) => c[0] === `/admin/assessments/${ID}/release-all`);
@@ -120,6 +120,6 @@ describe("AdminAssessmentDetail — Publish all ready", () => {
   it("P2 the button is hidden while there are no attempts", async () => {
     mockApi(false);
     await renderPage();
-    expect(screen.queryByRole("button", { name: "Publish all ready" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Release all ready" })).toBeNull();
   });
 });

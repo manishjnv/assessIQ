@@ -23,6 +23,7 @@ vi.mock('@assessiq/candidate-ui', () => {
     }
   }
   return {
+    AFTER_SUBMIT_TEXT: 'Your answers are saved. You will see your result on this page or by email once it is final.',
     takePreview: (...a: unknown[]) => takePreview(...a),
     takeStart: (...a: unknown[]) => takeStart(...a),
     CandidateApiError,

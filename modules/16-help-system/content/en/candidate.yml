@@ -10,7 +10,7 @@ candidate.intro.integrity:
   long_md: |
     ## Integrity expectations
 
-    This assessment is not a closed-book exam. AssessIQ is built to measure
+    This assessment is not closed-book. AssessIQ is built to measure
     how you think on the job, not what you can recall under pressure. Use:
 
     - **Documentation** for the tools and languages you would normally
@@ -53,24 +53,24 @@ candidate.intro.practice:
   long_md: |
     ## Practice question
 
-    This sample question uses the same answer options you will see in the test.
+    This sample question uses the same answer options you will see in the assessment.
     Pick an option to try it. Nothing you choose here is saved, scored or
     shared. The timer has not started yet.
 
 candidate.intro.consent:
   audience: candidate
-  short_text: "Confirm it is you, taking the test alone, and agree to the Terms and Privacy Policy before you begin."
+  short_text: "Confirm it is you, taking the assessment alone, and agree to the Terms and Privacy Policy before you begin."
   long_md: |
     ## Consent and AI-use notice
 
     Before the timer starts we ask you to confirm that you are the person
-    invited, that you will take the test on your own, and that you agree to the
-    Terms and Privacy Policy. Your results may be shared with the company that
+    invited, that you will take the assessment on your own, and that you agree to the
+    Terms and Privacy Policy. Your results may be shared with the organisation that
     invited you. We record when you agreed.
 
     **How answers are scored:** multiple-choice answers are scored
-    automatically. Written answers, if any, are evaluated by AssessIQ
-    evaluators with AI assistance, before the company that invited you
+    automatically. Written answers, if any, are graded by AssessIQ
+    graders with AI assistance, before the organisation that invited you
     releases the results.
 
 # ─── During the attempt ───
@@ -88,7 +88,7 @@ candidate.attempt.timer:
     **The timer keeps running even if you close the tab.** Network dropouts
     do not pause it. If you genuinely cannot continue (power outage,
     medical emergency), close the tab and contact your administrator
-    immediately — they can grant a one-time extension before submission.
+    immediately — they can grant a one-time extension before you submit.
 
     Behavioral signals recorded by AssessIQ include time spent per question,
     number of edits, and navigation pattern. None of these signals affect
@@ -100,7 +100,7 @@ candidate.attempt.flag:
   long_md: |
     ## Flag for review
 
-    Use this when you want to come back to a question before final submission —
+    Use this when you want to come back to a question before you submit —
     for instance, if you are not sure of your answer or want to verify a query.
 
     Flagged questions appear with a star in the navigation panel. You can flag
@@ -111,7 +111,7 @@ candidate.attempt.flag:
 
 candidate.attempt.kql.editor:
   audience: candidate
-  short_text: "Type your KQL query in this box. It is saved as you work and scored later by an AssessIQ evaluator."
+  short_text: "Type your KQL query in this box. It is saved as you work and scored later by an AssessIQ grader."
   long_md: |
     ## KQL answer box
 
@@ -120,7 +120,7 @@ candidate.attempt.kql.editor:
 
     - Your query is saved as you work.
     - Your query is not run against real data.
-    - Your query is not scored automatically. An AssessIQ evaluator reads and
+    - Your query is not scored automatically. An AssessIQ grader reads and
       scores it.
 
 candidate.shell.nav.mobile_menu:
@@ -193,7 +193,7 @@ candidate.attempt.structured_case:
 
     - A round button means choose **one** answer.
     - A square box means tick **all** answers that apply.
-    - You can change your answers until you submit the test.
+    - You can change your answers until you submit the assessment.
     - A step you leave blank scores 0.
 
 candidate.attempt.subjective.length:
@@ -202,7 +202,7 @@ candidate.attempt.subjective.length:
   long_md: |
     ## Subjective answer length
 
-    Subjective questions are graded on the rubric (anchors and bands), not on
+    Subjective questions are graded on the rubric (key points and score bands), not on
     length. A 60-word answer that nails the tradeoff scores higher than a
     300-word answer that meanders.
 
@@ -236,7 +236,7 @@ candidate.attempt.disconnect:
 
     For a genuinely-blocking outage (power, hardware failure), close the tab
     and contact your administrator. They can grant a one-time extension
-    before final submission, but cannot extend after auto-submit fires.
+    before you submit, but cannot extend after auto-submit fires.
 
 candidate.attempt.navigator.toggle:
   audience: candidate
@@ -279,28 +279,28 @@ candidate.attempt.submit.confirm:
     - Questions whose autosave is stale (rare — usually only seconds old).
 
     Walk through any starred or unanswered items. When you are ready, click
-    **Submit**. AssessIQ confirms submission with a final dialog and the
+    **Submit**. AssessIQ asks you to confirm the submit in a final dialog and the
     candidate timer freezes immediately.
 
 # ─── Final-submit dialog & results ───
 
 candidate.submit.confirm:
   audience: candidate
-  short_text: "Your result appears here within a minute if it can be scored instantly; otherwise it is emailed to you."
+  short_text: "Your answers are saved. You will see your result on this page or by email once it is final."
   long_md: |
     ## After you submit
 
-    Your answers are saved and the timer has stopped. There is nothing more
-    you need to do.
+    Your answers are saved. You will see your result on this page or by email once it is final. The timer has stopped.
+    There is nothing more you need to do.
 
     - **Instant scoring.** If every question is multiple choice and your
-      organisation publishes results automatically, your result appears on
+      organisation releases results automatically, your result appears on
       this page in under a minute.
     - **Otherwise** your result is emailed to your registered address, shown
       here with part of it hidden (for example `r***@gmail.com`). The message
       on this page says how long that usually takes.
     - You only ever see a **complete, final** result — never a partial score
-      while marking is still in progress.
+      while grading is still in progress.
 
     If the email does not arrive, check your spam folder. You can also sign
     in to the candidate portal with the same email address to see your
@@ -324,7 +324,7 @@ candidate.result.bands:
       set for this assessment.
     - **Certificate** — if you earned one, a link to view and verify it.
 
-    A result is released only when marking is finished and final. You will
+    A result is released only when grading is finished and final. You will
     never see a partial or provisional score. Answer keys and per-question
     marks are not shown.
 
@@ -338,9 +338,9 @@ candidate.results.list:
     newest first. Each one shows your score, the percentage, whether you
     passed, and a link to your certificate when you earned one.
 
-    - A result appears here only when marking is finished and it has been
-      published — never earlier, and never as a partial score.
-    - When a result is published we also email you, with a link back to this
+    - A result appears here only when grading is finished and it has been
+      released — never earlier, and never as a partial score.
+    - When a result is released we also email you, with a link back to this
       page.
     - Don't see an assessment you took? Its result has not been released yet.
 
@@ -413,7 +413,7 @@ candidate.auth.org_code:
   long_md: |
     ## Organisation code
 
-    The code identifies the organisation (a school, college or company) that
+    The code identifies the organisation (a school, college or business) that
     registered you, so AssessIQ can find your account. It is made of lowercase
     letters, digits and hyphens, for example `acme-college`.
 
@@ -476,18 +476,18 @@ candidate.auth.expiring_soon:
 
 candidate.activity:
   audience: candidate
-  short_text: "Personal activity dashboard: completions, avg score, 52-week heatmap, weekly chart, and pack rankings."
+  short_text: "Personal activity dashboard: completions, avg score, 52-week heatmap, weekly chart, and question set rankings."
   long_md: |
     ## My activity
 
     This page gives you a full picture of your assessment history on this
-    tenant.
+    organisation.
 
     ### Stat cards
 
-    - **Assessments completed** — total submissions in the selected period,
-      broken down by domain.
-    - **Packs attempted** — distinct question packs you have ever submitted
+    - **Assessments completed** — total submitted attempts in the selected period,
+      broken down by subject.
+    - **Question sets attempted** — distinct question sets you have ever submitted
       an attempt for.
     - **Avg. score** — your mean auto-graded score across all completed
       attempts in the period, with a quartile breakdown.
@@ -500,37 +500,37 @@ candidate.activity:
 
     The 52-week heatmap shows one cell per day. Darker cells mean more
     completions on that day. The current streak counts consecutive days with
-    at least one submission up to and including today.
+    at least one submitted attempt up to and including today.
 
     ### Weekly completions
 
     The stacked bar chart shows how many assessments you submitted each week,
-    coloured by domain. Hover a bar to see the exact breakdown.
+    coloured by subject. Hover a bar to see the exact breakdown.
 
-    ### My pack rankings
+    ### My question set rankings
 
-    One row per pack you have attempted. Shows your **best score** (the
+    One row per question set you have attempted. Shows your **best score** (the
     highest auto-graded result across all your attempts) and your **rank**
-    among every candidate in this tenant who took the same pack. For example
+    among every candidate in this organisation who took the same question set. For example
     "#3 of 24" means your best score places you third out of the 24 candidates
-    who have submitted that pack.
+    who have submitted that question set.
 
     Ranks are computed live and update as other candidates submit new attempts.
 
 candidate.attempt.section:
   audience: candidate
-  short_text: "This test has timed sections. You cannot return to a section once it is finished."
+  short_text: "This assessment has timed sections. You cannot return to a section once it is finished."
   long_md: |
-    ## Test sections
+    ## Assessment sections
 
-    The test is split into sections. The timer at the top is for the **current
+    The assessment is split into sections. The timer at the top is for the **current
     section** only.
 
     - When the section timer reaches zero, your answers in that section are saved
       and locked, and the next section opens.
     - Press **Finish section** to move on early. You will be asked to confirm,
       because **you cannot come back** to that section.
-    - The test ends when the last section ends, or when you submit in the last section.
+    - The assessment ends when the last section ends, or when you submit in the last section.
 
 candidate.attempt.calculator:
   audience: candidate
@@ -549,10 +549,10 @@ candidate.attempt.submit_sections:
   audience: candidate
   short_text: "Before you submit, check how many questions are unanswered in every section."
   long_md: |
-    ## Submitting a sectioned test
+    ## Submitting a sectioned assessment
 
     The confirmation lists every section with its unanswered questions.
 
     - Sections marked **closed** are finished. You cannot change their answers.
     - Only the current section can still be edited before you submit.
-    - Submitting ends the test.
+    - Submitting ends the assessment.

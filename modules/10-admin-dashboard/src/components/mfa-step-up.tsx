@@ -28,7 +28,7 @@ type MfaState =
 export function MfaStepUp({
   onVerified,
   onCancel,
-  prompt = "Your admin MFA needs to be verified before provisioning a new company. Enter your 6-digit authenticator code to continue.",
+  prompt = "Your admin MFA needs to be verified before provisioning a new organisation. Enter your 6-digit authenticator code to continue.",
   confirmLabel = "Verify & create",
 }: {
   onVerified: () => void;

@@ -11,6 +11,7 @@
 //  - Numbers in serif lining-nums tabular-nums for alignment.
 //  - Click-outside and ESC both cancel the modal.
 
+import { questionTypeLabel } from "../lib/labels.js";
 import React from "react";
 import type { GradingsRow } from "@assessiq/ai-grading";
 import { effectiveGradings } from "../lib/evaluation.js";
@@ -158,7 +159,7 @@ export function ReleaseConfirmModal({
               fontWeight: 600,
             }}
           >
-            Publish result to candidate?
+            Release result to candidate?
           </h2>
           <p
             style={{
@@ -175,7 +176,7 @@ export function ReleaseConfirmModal({
             </span>
             {" · "}
             {assessmentName}
-            {" · Level "}
+            {" · Difficulty "}
             {levelLabel}
           </p>
         </div>
@@ -291,7 +292,7 @@ export function ReleaseConfirmModal({
                 letterSpacing: "0.06em",
               }}
             >
-              Average band
+              Average score band
             </span>
             <span
               style={{
@@ -314,7 +315,7 @@ export function ReleaseConfirmModal({
             style={{ fontSize: "var(--aiq-text-sm)" }}
           >
             {aiFailCount} question{aiFailCount === 1 ? "" : "s"} are flagged for
-            review (AIG_* error class) and were NOT auto-committed. Publishing
+            review (AIG_* error class) and were NOT auto-committed. Releasing
             shows only the questions that have committed grades.
           </div>
         )}
@@ -341,7 +342,7 @@ export function ReleaseConfirmModal({
               >
                 <th style={{ textAlign: "left", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Q</th>
                 <th style={{ textAlign: "left", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Type / Topic</th>
-                <th style={{ textAlign: "right", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Band</th>
+                <th style={{ textAlign: "right", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Score band</th>
                 <th style={{ textAlign: "right", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Score</th>
                 <th style={{ textAlign: "center", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Status</th>
               </tr>
@@ -399,7 +400,7 @@ export function ReleaseConfirmModal({
                     {/* Type / Topic */}
                     <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-sm)" }}>
                       <span style={{ color: "var(--aiq-color-fg-primary)" }}>
-                        {q.type}
+                        {questionTypeLabel(q.type)}
                       </span>
                       <span style={{ color: "var(--aiq-color-fg-muted)", marginLeft: "var(--aiq-space-xs)" }}>
                         {truncate(q.topic, 40)}
@@ -417,7 +418,7 @@ export function ReleaseConfirmModal({
                         ...NUM_STYLE,
                       }}
                     >
-                      {bandPct !== null ? `Band ${band} · ${bandPct}%` : "—"}
+                      {bandPct !== null ? `Score band ${band} · ${bandPct}%` : "—"}
                     </td>
 
                     {/* Score */}
@@ -484,7 +485,7 @@ export function ReleaseConfirmModal({
             data-help-id="admin.attempts.release_confirm"
             type="button"
           >
-            {releasing ? "Publishing…" : "Publish to candidate"}
+            {releasing ? "Releasing…" : "Release to candidate"}
           </button>
         </div>
       </div>

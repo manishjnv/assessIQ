@@ -15,7 +15,7 @@ export async function openAttempt(page: Page, context: BrowserContext, cookie: s
 /** Submit through the confirmation dialog and wait for the submitted page. */
 export async function submitViaUi(page: Page, attemptId: string): Promise<void> {
   await page.getByRole('button', { name: 'Submit', exact: true }).click();
-  await page.getByRole('button', { name: 'Submit test' }).click();
+  await page.getByRole('button', { name: 'Submit assessment' }).click();
   await expect(page).toHaveURL(new RegExp(`/take/attempt/${attemptId}/submitted`), { timeout: 20_000 });
 }
 

@@ -25,6 +25,7 @@
 // (components.md / patterns.md). Diverges from no kit screen: there is no
 // help-authoring screen in screens/; the layout reuses users.tsx row cards.
 
+import { audienceLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { Chip, Modal, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
@@ -170,7 +171,7 @@ export function AdminHelpContent(): React.ReactElement {
         `/admin/help/import?locale=${encodeURIComponent(locale)}`,
         { method: "POST", body: JSON.stringify({ rows }) },
       );
-      setToast(`Imported ${res.inserted} rows as company overrides (${res.skipped} skipped).`);
+      setToast(`Imported ${res.inserted} rows as organisation overrides (${res.skipped} skipped).`);
       setTimeout(() => setToast(null), 5000);
       await load();
     } catch (err) {
@@ -198,8 +199,8 @@ export function AdminHelpContent(): React.ReactElement {
             </h1>
             <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", maxWidth: 560, lineHeight: 1.5 }}>
               {isSuperAdmin
-                ? "Edit the help text every company sees. Each save creates a new version of the global row."
-                : "Edit the help text your company sees. Each save creates a company override; the platform text stays."}
+                ? "Edit the help text every organisation sees. Each save creates a new version of the global row."
+                : "Edit the help text your organisation sees. Each save creates an organisation override; the platform text stays."}
             </p>
           </div>
           <span style={{ flex: 1 }} />
@@ -257,9 +258,9 @@ export function AdminHelpContent(): React.ReactElement {
                   <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", flexWrap: "wrap", marginBottom: "var(--aiq-space-xs)" }}>
                     <span style={MONO_LABEL}>{entry.key}</span>
                     <Chip variant={entry.tenantId === null ? "default" : "accent"}>
-                      {entry.tenantId === null ? "global" : "company override"}
+                      {entry.tenantId === null ? "global" : "organisation override"}
                     </Chip>
-                    <span style={MONO_LABEL}>v{entry.version} · {entry.audience}</span>
+                    <span style={MONO_LABEL}>v{entry.version} · {audienceLabel(entry.audience)}</span>
                   </div>
                   <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>
                     {entry.shortText}
@@ -290,8 +291,8 @@ export function AdminHelpContent(): React.ReactElement {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-md)" }}>
             <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }} data-help-id="admin.settings.help_content.scope">
               {isSuperAdmin
-                ? `Saves a new global version (now v${editing.version}). Every company without an override sees it.`
-                : "Saves a company override. Only your company sees it; the platform text is kept."}
+                ? `Saves a new global version (now v${editing.version}). Every organisation without an override sees it.`
+                : "Saves an organisation override. Only your organisation sees it; the platform text is kept."}
             </p>
             <label style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
               <span style={MONO_LABEL}>Short text (max 120)</span>

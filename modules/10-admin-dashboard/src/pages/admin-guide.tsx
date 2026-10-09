@@ -20,7 +20,7 @@
 //  - Navigation references use human-readable page / element names, never bare
 //    URL strings, so future route renames don't silently break the guide.
 //  - Step number circles show plain integers (1–12), no zero-padding.
-//  - All 12 steps reference live pages as of commit 35f78e6 (Question Bank,
+//  - All 12 steps reference live pages as of commit 35f78e6 (Question bank,
 //    Assessments, Reports, Users, Attempts, Grading all in sidebar).
 //  - The only "coming soon" note is the Audit log tip (Settings → Audit log
 //    UI not yet shipped; raw log access via Settings → Audit is pending).
@@ -53,8 +53,8 @@ const STEP_LABELS: readonly string[] = [
   "Publish assessment",  // 07
   "Invite candidates",   // 08
   "Candidates take",     // 09
-  "Evaluation",          // 10
-  "Review & publish",    // 11
+  "Grading",             // 10
+  "Review & release",    // 11
   "Reports & results",   // 12
 ];
 
@@ -340,17 +340,17 @@ export function AdminGuide(): React.ReactElement {
             <P>An assessment in AssessIQ uses three things:</P>
             <UL
               items={[
-                <><strong>Licensed set</strong> — a question set that AssessIQ writes and your company is licensed to use.</>,
-                <><strong>Your copy</strong> — a copy (clone) of a licensed set in your Question Bank. You build assessments from it.</>,
-                <><strong>Assessment</strong> — a scheduled test with invited candidates.</>,
+                <><strong>Licensed set</strong> — a question set that AssessIQ writes and your organisation is licensed to use.</>,
+                <><strong>Your copy</strong> — a copy (clone) of a licensed set in your question bank. You build assessments from it.</>,
+                <><strong>Assessment</strong> — a scheduled assessment with invited candidates.</>,
               ]}
             />
             <P>
               End-to-end flow:{" "}
               <strong>
                 copy a set → build an assessment → invite candidates →
-                candidates take the test → AssessIQ evaluates written answers →
-                you review and publish → reports.
+                candidates take the assessment → AssessIQ grades written answers →
+                you review and release → reports.
               </strong>
             </P>
           </Card>
@@ -373,7 +373,7 @@ export function AdminGuide(): React.ReactElement {
           <Card padding="md">
             <UL
               items={[
-                <><strong>Admin role</strong> in your company account.</>,
+                <><strong>Admin role</strong> in your organisation account.</>,
                 <>Two-factor sign-in (MFA) is <strong>optional and recommended</strong>.</>,
                 <>List of <strong>candidate email addresses</strong> ready.</>,
               ]}
@@ -403,9 +403,9 @@ export function AdminGuide(): React.ReactElement {
             {/* ── Step 1 ── */}
             <StepCard number={1} title="Find your licensed sets">
               <P>
-                Click <strong>Question Bank</strong> in the sidebar. The
-                licensed sets section lists the sets your company can use.
-                AssessIQ writes all question sets. Your company does not write
+                Click <strong>Question bank</strong> in the sidebar. The
+                licensed sets section lists the sets your organisation can use.
+                AssessIQ writes all question sets. Your organisation does not write
                 them. To get more sets, contact your AssessIQ administrator.
               </P>
             </StepCard>
@@ -414,7 +414,7 @@ export function AdminGuide(): React.ReactElement {
             <StepCard number={2} title="Copy a set">
               <P>
                 Import a licensed set to make your own copy (a clone). The copy
-                appears in your Question Bank. When AssessIQ updates the
+                appears in your question bank. When AssessIQ updates the
                 original, an update option shows on the set.
               </P>
             </StepCard>
@@ -425,7 +425,7 @@ export function AdminGuide(): React.ReactElement {
               <UL
                 items={[
                   <><strong>MCQ</strong>, <strong>Multi-select</strong>, <strong>Numeric</strong> and <strong>Ordering</strong> — scored automatically when the candidate submits.</>,
-                  <><strong>Subjective</strong>, <strong>KQL</strong>, <strong>Log analysis</strong> and <strong>Scenario</strong> — evaluated by AssessIQ. You review and publish the result.</>,
+                  <><strong>Subjective</strong>, <strong>KQL</strong>, <strong>Log analysis</strong> and <strong>Scenario</strong> — graded by AssessIQ. You review and release the result.</>,
                 ]}
               />
             </StepCard>
@@ -442,7 +442,7 @@ export function AdminGuide(): React.ReactElement {
             {/* ── Step 5 ── */}
             <StepCard number={5} title="Add sections and timers">
               <P>
-                When you build from a set, you can split the test into
+                When you build from a set, you can split the assessment into
                 sections. Each section has its own time limit. You can allow
                 an on-screen calculator in a section.
               </P>
@@ -492,7 +492,7 @@ export function AdminGuide(): React.ReactElement {
             {/* ── Step 9 ── */}
             <StepCard number={9} title="Candidates take the assessment">
               <P>
-                Candidates open the link and start the test. The timer starts when
+                Candidates open the link and start the assessment. The timer starts when
                 they begin. When a candidate submits, the attempt appears under{" "}
                 <strong>Attempts</strong> in your sidebar.
               </P>
@@ -508,14 +508,14 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 10 ── */}
-            <StepCard number={10} title="AssessIQ evaluates written answers">
+            <StepCard number={10} title="AssessIQ grades written answers">
               <P>
                 <strong>You don't grade anything.</strong>{" "}
                 Multiple-choice answers are scored the moment a candidate
-                submits. Written answers are evaluated by AssessIQ evaluators
-                with AI assistance. When an attempt is evaluated it shows as{" "}
-                <strong>Ready to publish</strong> on the Attempts page; until
-                then it shows <strong>Awaiting evaluation</strong> and no score
+                submits. Written answers are graded by AssessIQ graders
+                with AI assistance. When an attempt is graded it shows as{" "}
+                <strong>Ready to release</strong> on the Attempts page; until
+                then it shows <strong>Awaiting grading</strong> and no score
                 is visible.
               </P>
               <div style={{ marginTop: "var(--aiq-space-sm)" }}>
@@ -530,17 +530,17 @@ export function AdminGuide(): React.ReactElement {
             </StepCard>
 
             {/* ── Step 11 ── */}
-            <StepCard number={11} title="Review and publish">
+            <StepCard number={11} title="Review and release">
               <P>
-                Open an attempt marked <strong>Ready to publish</strong> and
+                Open an attempt marked <strong>Ready to release</strong> and
                 scroll through each question: the final score, the evidence and
                 the reasoning behind it. Then:
               </P>
               <UL
                 items={[
-                  <><strong>Publish to candidate</strong> — the candidate sees the result. On the assessment page, <strong>Publish all ready</strong> does this for every ready attempt at once. In Settings you choose the result release mode: <strong>Manual</strong> (the default) or <strong>Automatic</strong>. With Automatic, results publish when they are ready. Candidates see only complete scores.</>,
-                  <><strong>Override</strong> — record your own score with a reason; the evaluator's score is kept beside it (audit trail, never replaced).</>,
-                  <><strong>Send back for re-evaluation</strong> — return the attempt to AssessIQ with a note.</>,
+                  <><strong>Release to candidate</strong> — the candidate sees the result. On the assessment page, <strong>Release all ready</strong> does this for every ready attempt at once. In Settings you choose the result release mode: <strong>Manual</strong> (the default) or <strong>Automatic</strong>. With Automatic, results are released when they are ready. Candidates see only complete scores.</>,
+                  <><strong>Override</strong> — record your own score with a reason; the grader's score is kept beside it (audit trail, never replaced).</>,
+                  <><strong>Send back for re-grading</strong> — return the attempt to AssessIQ with a note.</>,
                 ]}
               />
             </StepCard>
@@ -600,8 +600,8 @@ export function AdminGuide(): React.ReactElement {
           >
             <TipCard
               icon="chart"
-              title="Bands, not percentages"
-              body="Written answers are scored in bands: 0, 25, 50, 75 or 100. Each band comes with evidence and reasoning."
+              title="Score bands, not percentages"
+              body="Written answers are scored in score bands: 0, 25, 50, 75 or 100. Each score band comes with evidence and reasoning."
             />
             <TipCard
               icon="eye"
@@ -610,18 +610,18 @@ export function AdminGuide(): React.ReactElement {
             />
             <TipCard
               icon="sparkle"
-              title="Re-evaluation"
-              body="Not happy with a score? Override it with a reason, or send the attempt back to AssessIQ for re-evaluation with a note. AssessIQ does the evaluation, not your company."
+              title="Re-grading"
+              body="Not happy with a score? Override it with a reason, or send the attempt back to AssessIQ for re-grading with a note. AssessIQ does the grading, not your organisation."
             />
             <TipCard
               icon="grid"
-              title="Multi-tenant"
-              body="Every action is scoped to your tenant. You only see your tenant's data — question sets, users, grades, and reports are strictly isolated at the database row level."
+              title="Separate organisations"
+              body="Every action is scoped to your organisation. You only see your organisation's data — question sets, users, grades, and reports are strictly isolated at the database row level."
             />
             <TipCard
               icon="sparkle"
               title="Where your questions come from"
-              body="AssessIQ writes all question sets. Your company works from the sets it is licensed to use. If you publish an assessment with a set you are not licensed for, publishing is refused and the assessment stays in draft. Contact your AssessIQ administrator to get more sets."
+              body="AssessIQ writes all question sets. Your organisation works from the sets it is licensed to use. If you publish an assessment with a set you are not licensed for, publishing is refused and the assessment stays in draft. Contact your AssessIQ administrator to get more sets."
             />
             <TipCard
               icon="chart"
@@ -656,7 +656,7 @@ export function AdminGuide(): React.ReactElement {
                   a: "Not by default. Admin manually creates a new invitation if needed.",
                 },
                 {
-                  q: "What if the evaluation of an attempt fails?",
+                  q: "What if the grading of an attempt fails?",
                   a: "AssessIQ handles it. An attempt stays in the AssessIQ queue until every question has a final score, and nothing is shown to the candidate before that.",
                 },
                 {
@@ -669,7 +669,7 @@ export function AdminGuide(): React.ReactElement {
                 },
                 {
                   q: "Why can't I write questions?",
-                  a: "AssessIQ writes all question sets. Company admins do not write them. You copy the sets your company is licensed for and build assessments from them. Contact your AssessIQ administrator to request more sets.",
+                  a: "AssessIQ writes all question sets. Organisation admins do not write them. You copy the sets your organisation is licensed for and build assessments from them. Contact your AssessIQ administrator to request more sets.",
                 },
                 {
                   q: "What does the usage banner mean — will grading stop if I go over?",

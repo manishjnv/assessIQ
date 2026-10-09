@@ -71,10 +71,10 @@ export function GradingProposalCard({
       <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
         <div data-help-id="admin.grading.proposal.band">
           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "block", marginBottom: 2 }}>
-            Reasoning band
+            Reasoning score band
           </span>
           <span style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-2xl)", color: "var(--aiq-color-fg-primary)" }}>
-            Band {band}
+            Score band {band}
           </span>
           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", marginLeft: 6 }}>
             ({bandPct}%)
@@ -94,7 +94,7 @@ export function GradingProposalCard({
       {proposal.anchors.length > 0 && (
         <div data-help-id="admin.grading.proposal.anchors">
           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "block", marginBottom: "var(--aiq-space-xs)" }}>
-            Anchors
+            Key points
           </span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-xs)" }}>
             {proposal.anchors.map((a) => (

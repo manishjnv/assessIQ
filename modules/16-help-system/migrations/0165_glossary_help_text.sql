@@ -1,0 +1,5949 @@
+-- 0165_glossary_help_text.sql
+--
+-- RW-12 / RW-15 (2026-10-09): help text follows the one-word-per-concept glossary
+-- in docs/10-branding-guideline.md section 2.5 (organisation, question set, assessment,
+-- grade/grading, score band, key point, difficulty, subject, send to organisation,
+-- release). New version of every changed global key; older versions stay for history and
+-- reads take the newest version. Text is generated from content/en/*.yml by a script, not
+-- by hand. candidate.submit.confirm also carries the shared after-submit sentence
+-- (AFTER_SUBMIT_TEXT in @assessiq/candidate-ui). Mirrors content/en/*.yml; 0011 is
+-- regenerated from the same YAML for fresh databases.
+--
+-- Idempotent: each INSERT is skipped when a global row with the same key, locale,
+-- short_text and long_md already exists. Prod databases keep their older versions.
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.auth.login.tenant_slug', 'admin', 'en',
+  'Your organisation''s slug — the unique URL-safe ID we issued during onboarding (e.g. acme-soc).',
+  $$## Organisation slug
+
+Each AssessIQ organisation has a short, URL-safe identifier you'll use at every
+sign-in. It usually mirrors your team or product name (e.g. `acme-soc`,
+`acme-secops`). Your AssessIQ administrator received the slug at onboarding;
+if you don't have it, ask them — it is not the same as your email domain.
+
+The slug is also used in webhook payloads and embed-iframe URLs, so once it
+is set it stays stable. Renaming an organisation is a manual operation that
+requires support.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.auth.login.tenant_slug' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.auth.login.tenant_slug' AND locale = 'en'
+    AND short_text = 'Your organisation''s slug — the unique URL-safe ID we issued during onboarding (e.g. acme-soc).'
+    AND long_md IS NOT DISTINCT FROM $$## Organisation slug
+
+Each AssessIQ organisation has a short, URL-safe identifier you'll use at every
+sign-in. It usually mirrors your team or product name (e.g. `acme-soc`,
+`acme-secops`). Your AssessIQ administrator received the slug at onboarding;
+if you don't have it, ask them — it is not the same as your email domain.
+
+The slug is also used in webhook payloads and embed-iframe URLs, so once it
+is set it stays stable. Renaming an organisation is a manual operation that
+requires support.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.auth.mfa.skip', 'admin', 'en',
+  'Two-factor sign-in is optional for your organisation right now, so you can skip this and set it up later.',
+  $$## Skip authenticator setup for now
+
+Your organisation does not require two-factor sign-in yet, so you can go straight
+to the dashboard with **Skip for now**. You can set up an authenticator app
+later from the **Set up authenticator** banner on the dashboard.
+
+We still recommend it: it protects your organisation's candidate data if your
+email account is ever compromised.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.auth.mfa.skip' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.auth.mfa.skip' AND locale = 'en'
+    AND short_text = 'Two-factor sign-in is optional for your organisation right now, so you can skip this and set it up later.'
+    AND long_md IS NOT DISTINCT FROM $$## Skip authenticator setup for now
+
+Your organisation does not require two-factor sign-in yet, so you can go straight
+to the dashboard with **Skip for now**. You can set up an authenticator app
+later from the **Set up authenticator** banner on the dashboard.
+
+We still recommend it: it protects your organisation's candidate data if your
+email account is ever compromised.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.users.list.role', 'admin', 'en',
+  'admin = full access · candidate = take assessments only.',
+  $$## User roles
+
+| Role | Can do |
+|---|---|
+| **admin** | Everything: organisation settings, question sets, assessments, grading, exports, billing |
+| **candidate** | Take assigned assessments; view their own past scores |
+
+Role changes take effect on the next sign-in for that user. There is no
+"owner", "billing" or "reviewer" role: admins review and release results.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.users.list.role' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.users.list.role' AND locale = 'en'
+    AND short_text = 'admin = full access · candidate = take assessments only.'
+    AND long_md IS NOT DISTINCT FROM $$## User roles
+
+| Role | Can do |
+|---|---|
+| **admin** | Everything: organisation settings, question sets, assessments, grading, exports, billing |
+| **candidate** | Take assigned assessments; view their own past scores |
+
+Role changes take effect on the next sign-in for that user. There is no
+"owner", "billing" or "reviewer" role: admins review and release results.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.users.list.candidate.fields', 'admin', 'en',
+  'Candidates are added directly with no email sent. Name is shown in their assessment link; designation is optional.',
+  $$## Adding a candidate
+
+Candidates are added directly to the organisation — no invitation email is sent
+at this step. They receive a secure assessment link only when you assign
+them to a specific assessment from the assessment's detail page.
+
+**Name** is required. It is shown in the candidate's assessment invitation
+email and appears in grading and reporting views.
+
+**Designation** is optional free-text context (e.g. "SOC Analyst L1",
+"Junior DevOps Engineer"). It is stored as metadata on the user record and
+surfaced in exports and the grading UI to help admins distinguish between
+candidates with similar profiles. It does not affect scoring or access.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.users.list.candidate.fields' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.users.list.candidate.fields' AND locale = 'en'
+    AND short_text = 'Candidates are added directly with no email sent. Name is shown in their assessment link; designation is optional.'
+    AND long_md IS NOT DISTINCT FROM $$## Adding a candidate
+
+Candidates are added directly to the organisation — no invitation email is sent
+at this step. They receive a secure assessment link only when you assign
+them to a specific assessment from the assessment's detail page.
+
+**Name** is required. It is shown in the candidate's assessment invitation
+email and appears in grading and reporting views.
+
+**Designation** is optional free-text context (e.g. "SOC Analyst L1",
+"Junior DevOps Engineer"). It is stored as metadata on the user record and
+surfaced in exports and the grading UI to help admins distinguish between
+candidates with similar profiles. It does not affect scoring or access.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.list.create.domain', 'admin', 'en',
+  'The role-readiness subject this question set covers (SOC analyst, DevOps, etc.). Set once; choose carefully.',
+  $$## Question set subject
+
+A *question set* is a collection of questions across difficulties for a single role-readiness
+subject. The subject is metadata only — AssessIQ has no subject-specific
+code paths — but it controls the default rubric key points, the example UI
+copy, and how question sets sort in the admin browser.
+
+Common values: `soc-analyst`, `devops-engineer`, `cloud-architect`,
+`identity-engineer`, `incident-responder`. Use lowercase, dash-separated.
+
+You cannot rename a question set's subject after questions exist under it — clone
+the question set into a new subject instead.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.list.create.domain' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.list.create.domain' AND locale = 'en'
+    AND short_text = 'The role-readiness subject this question set covers (SOC analyst, DevOps, etc.). Set once; choose carefully.'
+    AND long_md IS NOT DISTINCT FROM $$## Question set subject
+
+A *question set* is a collection of questions across difficulties for a single role-readiness
+subject. The subject is metadata only — AssessIQ has no subject-specific
+code paths — but it controls the default rubric key points, the example UI
+copy, and how question sets sort in the admin browser.
+
+Common values: `soc-analyst`, `devops-engineer`, `cloud-architect`,
+`identity-engineer`, `incident-responder`. Use lowercase, dash-separated.
+
+You cannot rename a question set's subject after questions exist under it — clone
+the question set into a new subject instead.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.questions.generate.draft', 'admin', 'en',
+  'Generate 1–30 AI draft questions from the question-set detail page. Review and activate each draft.',
+  $$## AI-assisted question generation
+
+The **Generate questions** button (question-set detail page → difficulty row) sends
+the question set's knowledge base and rubric key points to the AI pipeline and
+returns 1–30 `ai_draft` questions per call. Each draft is staged
+for review — generation does not auto-publish or activate any question.
+
+**Using the generator:**
+
+1. Open a question set, expand the difficulty you want to fill.
+2. Click **Generate questions**, set the count (1–30), optionally narrow
+   the topic focus, then click **Generate**.
+3. New `ai_draft` questions appear in the question list. Open each one
+   in the question editor to review key points and rubric, then activate.
+
+Wall-clock for a single call:
+
+- count ≤ 10  → one model call, ~30–90 s per question (cold cache)
+- count 11–20 → two parallel model calls, ~3–4 min total
+- count 21–30 → three parallel model calls, ~3–5 min total
+
+### Notes
+
+- **Cache window:** the prompt context (skill + knowledge-base JSON,
+  ~25 K tokens) caches for 5 minutes after a call. A second click within
+  5 minutes reuses the cache and is 2–3× faster.
+- **Topic dedupe:** parallel chunks may independently propose the same
+  topic. The handler drops case-insensitive duplicates against existing
+  question set topics and across chunks before insert.
+- **Review still required:** each `ai_draft` must be opened, reviewed,
+  and individually activated — generation does not auto-publish.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.questions.generate.draft' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.questions.generate.draft' AND locale = 'en'
+    AND short_text = 'Generate 1–30 AI draft questions from the question-set detail page. Review and activate each draft.'
+    AND long_md IS NOT DISTINCT FROM $$## AI-assisted question generation
+
+The **Generate questions** button (question-set detail page → difficulty row) sends
+the question set's knowledge base and rubric key points to the AI pipeline and
+returns 1–30 `ai_draft` questions per call. Each draft is staged
+for review — generation does not auto-publish or activate any question.
+
+**Using the generator:**
+
+1. Open a question set, expand the difficulty you want to fill.
+2. Click **Generate questions**, set the count (1–30), optionally narrow
+   the topic focus, then click **Generate**.
+3. New `ai_draft` questions appear in the question list. Open each one
+   in the question editor to review key points and rubric, then activate.
+
+Wall-clock for a single call:
+
+- count ≤ 10  → one model call, ~30–90 s per question (cold cache)
+- count 11–20 → two parallel model calls, ~3–4 min total
+- count 21–30 → three parallel model calls, ~3–5 min total
+
+### Notes
+
+- **Cache window:** the prompt context (skill + knowledge-base JSON,
+  ~25 K tokens) caches for 5 minutes after a call. A second click within
+  5 minutes reuses the cache and is 2–3× faster.
+- **Topic dedupe:** parallel chunks may independently propose the same
+  topic. The handler drops case-insensitive duplicates against existing
+  question set topics and across chunks before insert.
+- **Review still required:** each `ai_draft` must be opened, reviewed,
+  and individually activated — generation does not auto-publish.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.questions.type.kql.expected_keywords', 'admin', 'en',
+  'Tokens that MUST appear (case-insensitive) for the answer to score above score band 0. Add 1–5 per question.',
+  $$## KQL expected keywords
+
+KQL questions are graded on a hybrid: **deterministic keyword presence**
+plus AI judgement on syntactic and semantic correctness. The keyword list
+is the deterministic floor — if none of the listed tokens appear in the
+candidate's query, the answer can score at most score band 0 regardless of how
+elegant the rest of the query is.
+
+**Recommendations:**
+
+- Pick tokens that are *necessary*, not sufficient: a query that lacks
+  `where` or the target table cannot be correct.
+- 1–5 keywords per question. More than 5 makes scoring brittle.
+- Use case-insensitive matching (`Where`, `where`, `WHERE` all match).
+- Quoted identifiers (`"My Table"`) are matched literally; bare tokens
+  are matched as whole words (`time` will not match `timestamp`).
+
+The AI grader sees the keyword list as a hint and uses it to ground its
+own judgement — admin can still override.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.questions.type.kql.expected_keywords' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.questions.type.kql.expected_keywords' AND locale = 'en'
+    AND short_text = 'Tokens that MUST appear (case-insensitive) for the answer to score above score band 0. Add 1–5 per question.'
+    AND long_md IS NOT DISTINCT FROM $$## KQL expected keywords
+
+KQL questions are graded on a hybrid: **deterministic keyword presence**
+plus AI judgement on syntactic and semantic correctness. The keyword list
+is the deterministic floor — if none of the listed tokens appear in the
+candidate's query, the answer can score at most score band 0 regardless of how
+elegant the rest of the query is.
+
+**Recommendations:**
+
+- Pick tokens that are *necessary*, not sufficient: a query that lacks
+  `where` or the target table cannot be correct.
+- 1–5 keywords per question. More than 5 makes scoring brittle.
+- Use case-insensitive matching (`Where`, `where`, `WHERE` all match).
+- Quoted identifiers (`"My Table"`) are matched literally; bare tokens
+  are matched as whole words (`time` will not match `timestamp`).
+
+The AI grader sees the keyword list as a hint and uses it to ground its
+own judgement — admin can still override.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question.editor.subjective.rubric', 'admin', 'en',
+  'Key points describe each score band (0/25/50/75/100). Write score band 100 first, then 0, then fill the middle.',
+  $$## Subjective rubric key points
+
+AI grading uses the rubric key points as the *one* shared truth between the
+AI's judgement and your override. Every grading record stores the key points
+that were active at grade time, so an audit trail survives even if you
+later refine the rubric.
+
+**Authoring approach that works:**
+
+1. Write **score band 100** first — what does an obviously correct, complete
+   answer look like? Be specific: which terms, structures, or tradeoffs
+   must appear.
+2. Write **score band 0** second — what is missing, vague, or wrong enough to
+   score zero? The AI uses this as the negative key point.
+3. Fill **score band 50** — the middle: partial credit, missing one of two
+   required elements, correct intuition with weak rationale.
+4. Fill **score band 25** and **score band 75** by interpolation.
+
+**Anti-patterns:**
+
+- "It depends" or "looks reasonable" — too vague for the AI to ground on.
+- Numeric thresholds the AI can't verify (e.g. "discusses at least three
+  mitigations" works; "scores 7/10 on accuracy" doesn't).
+- More than ~80 words per score band — the rubric is a contract, not an essay.
+
+Override the AI verdict any time. Your override sits *beside* the AI's
+record, never replaces it.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question.editor.subjective.rubric' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question.editor.subjective.rubric' AND locale = 'en'
+    AND short_text = 'Key points describe each score band (0/25/50/75/100). Write score band 100 first, then 0, then fill the middle.'
+    AND long_md IS NOT DISTINCT FROM $$## Subjective rubric key points
+
+AI grading uses the rubric key points as the *one* shared truth between the
+AI's judgement and your override. Every grading record stores the key points
+that were active at grade time, so an audit trail survives even if you
+later refine the rubric.
+
+**Authoring approach that works:**
+
+1. Write **score band 100** first — what does an obviously correct, complete
+   answer look like? Be specific: which terms, structures, or tradeoffs
+   must appear.
+2. Write **score band 0** second — what is missing, vague, or wrong enough to
+   score zero? The AI uses this as the negative key point.
+3. Fill **score band 50** — the middle: partial credit, missing one of two
+   required elements, correct intuition with weak rationale.
+4. Fill **score band 25** and **score band 75** by interpolation.
+
+**Anti-patterns:**
+
+- "It depends" or "looks reasonable" — too vague for the AI to ground on.
+- Numeric thresholds the AI can't verify (e.g. "discusses at least three
+  mitigations" works; "scores 7/10 on accuracy" doesn't).
+- More than ~80 words per score band — the rubric is a contract, not an essay.
+
+Override the AI verdict any time. Your override sits *beside* the AI's
+record, never replaces it.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.list.new_pack', 'admin', 'en',
+  'Create a new question set for a subject. Super-admin only — it starts empty, in Draft.',
+  $$## New question set
+
+Creates an empty question set for one role-readiness subject. A new question set
+starts in **Draft**: you add difficulties and questions, then **Publish** it to
+make it usable in assessments. Only super-admins can create question sets — organisation
+admins build assessments from question sets they've been licensed.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.list.new_pack' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.list.new_pack' AND locale = 'en'
+    AND short_text = 'Create a new question set for a subject. Super-admin only — it starts empty, in Draft.'
+    AND long_md IS NOT DISTINCT FROM $$## New question set
+
+Creates an empty question set for one role-readiness subject. A new question set
+starts in **Draft**: you add difficulties and questions, then **Publish** it to
+make it usable in assessments. Only super-admins can create question sets — organisation
+admins build assessments from question sets they've been licensed.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.list.add_to_workspace', 'admin', 'en',
+  'Copy a licensed platform set into your organisation so you can build assessments from it.',
+  $$## Add to organisation
+
+Makes your own copy of a platform question set your organisation is licensed for
+("clone-on-use"). The copy lives in your Question Bank and is what your
+assessments draw from. Adding it again is a no-op — you already have the copy.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.list.add_to_workspace' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.list.add_to_workspace' AND locale = 'en'
+    AND short_text = 'Copy a licensed platform set into your organisation so you can build assessments from it.'
+    AND long_md IS NOT DISTINCT FROM $$## Add to organisation
+
+Makes your own copy of a platform question set your organisation is licensed for
+("clone-on-use"). The copy lives in your Question Bank and is what your
+assessments draw from. Adding it again is a no-op — you already have the copy.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.pack.generate', 'admin', 'en',
+  'Open the wizard to AI-generate draft questions for this question set. Drafts need review before going live.',
+  $$## Generate questions
+
+Opens the generation wizard, which uses the question set's knowledge base to produce
+`ai_draft` questions for a difficulty. Generation never publishes or activates —
+each draft must be reviewed (and edited if needed) before it can be used.
+Super-admin only.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.generate' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.generate' AND locale = 'en'
+    AND short_text = 'Open the wizard to AI-generate draft questions for this question set. Drafts need review before going live.'
+    AND long_md IS NOT DISTINCT FROM $$## Generate questions
+
+Opens the generation wizard, which uses the question set's knowledge base to produce
+`ai_draft` questions for a difficulty. Generation never publishes or activates —
+each draft must be reviewed (and edited if needed) before it can be used.
+Super-admin only.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.pack.publish', 'admin', 'en',
+  'Lock the question set and make it usable — snapshots questions and activates every draft so assessments can draw them.',
+  $$## Publish question set
+
+Flips the question set from Draft to **Published**, snapshots every question as a
+permanent version, and **activates all draft questions** so assessments can
+immediately draw from them ("published = usable"). Editing a question after
+publish adds a new version; already-published assessments stay pinned to the
+snapshot they were built on.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.publish' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.publish' AND locale = 'en'
+    AND short_text = 'Lock the question set and make it usable — snapshots questions and activates every draft so assessments can draw them.'
+    AND long_md IS NOT DISTINCT FROM $$## Publish question set
+
+Flips the question set from Draft to **Published**, snapshots every question as a
+permanent version, and **activates all draft questions** so assessments can
+immediately draw from them ("published = usable"). Editing a question after
+publish adds a new version; already-published assessments stay pinned to the
+snapshot they were built on.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.pack.revise', 'admin', 'en',
+  'Move a published question set to draft, edit, then re-publish as a new version. Existing assessments are unaffected.',
+  $$## Revise (new version)
+
+Moves a **Published** question set back to **Draft** so you can edit it, then you
+re-publish it as a new version. Super-admin only — this acts on the platform
+master question bank. Already-published assessments keep the exact content they were
+locked with at publish (they're frozen, so candidates are unaffected). When you
+re-publish, every organisation clone of this set auto-updates in place, and only
+NEWLY-published assessments draw the new content.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.revise' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.revise' AND locale = 'en'
+    AND short_text = 'Move a published question set to draft, edit, then re-publish as a new version. Existing assessments are unaffected.'
+    AND long_md IS NOT DISTINCT FROM $$## Revise (new version)
+
+Moves a **Published** question set back to **Draft** so you can edit it, then you
+re-publish it as a new version. Super-admin only — this acts on the platform
+master question bank. Already-published assessments keep the exact content they were
+locked with at publish (they're frozen, so candidates are unaffected). When you
+re-publish, every organisation clone of this set auto-updates in place, and only
+NEWLY-published assessments draw the new content.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.pack.archive', 'admin', 'en',
+  'Retire this question set and hide it from pickers. Reversible in Archived; blocked if a live assessment uses it.',
+  $$## Archive question set
+
+Soft-deletes the question set: it disappears from the default list and the
+assessment-creation pickers. This is the only delete path — there is no hard
+delete. It's reversible (find it under the **Archived** filter). Archiving is
+refused if a currently-live assessment still references the question set.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.archive' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.archive' AND locale = 'en'
+    AND short_text = 'Retire this question set and hide it from pickers. Reversible in Archived; blocked if a live assessment uses it.'
+    AND long_md IS NOT DISTINCT FROM $$## Archive question set
+
+Soft-deletes the question set: it disappears from the default list and the
+assessment-creation pickers. This is the only delete path — there is no hard
+delete. It's reversible (find it under the **Archived** filter). Archiving is
+refused if a currently-live assessment still references the question set.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.pack.activate_drafts', 'admin', 'en',
+  'Activate draft questions added after publishing so assessments can draw them. Publish already activates the rest.',
+  $$## Activate drafts
+
+Publishing a question set already activates its questions. This button only matters
+for **draft questions added to a question set that is already published** — it flips
+those remaining drafts to `active` so assessments can draw them. It appears
+only when a difficulty actually has draft questions waiting.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.activate_drafts' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.activate_drafts' AND locale = 'en'
+    AND short_text = 'Activate draft questions added after publishing so assessments can draw them. Publish already activates the rest.'
+    AND long_md IS NOT DISTINCT FROM $$## Activate drafts
+
+Publishing a question set already activates its questions. This button only matters
+for **draft questions added to a question set that is already published** — it flips
+those remaining drafts to `active` so assessments can draw them. It appears
+only when a difficulty actually has draft questions waiting.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.create.duration', 'admin', 'en',
+  'Total wall-clock minutes from candidate start to auto-submit. Beginner: 30–45, Intermediate: 45–60, Advanced: 60–90.',
+  $$## Duration
+
+The total time a candidate has from clicking **Begin Assessment** to the
+auto-submit. Once started, the timer cannot be paused.
+
+**Recommendations:**
+
+- **Beginner / triage-style:** 30–45 minutes
+- **Intermediate / investigation:** 45–60 minutes
+- **Advanced / detection engineering:** 60–90 minutes
+
+Candidates can navigate freely between questions during this window.
+Auto-submit fires the moment the timer hits zero — partial answers are
+saved.
+
+> **Note:** Time-based behavioral signals (per-question time spent, edits)
+> are captured regardless of duration. Do not compress duration to "force
+> speed"; the platform measures speed separately.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.create.duration' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.create.duration' AND locale = 'en'
+    AND short_text = 'Total wall-clock minutes from candidate start to auto-submit. Beginner: 30–45, Intermediate: 45–60, Advanced: 60–90.'
+    AND long_md IS NOT DISTINCT FROM $$## Duration
+
+The total time a candidate has from clicking **Begin Assessment** to the
+auto-submit. Once started, the timer cannot be paused.
+
+**Recommendations:**
+
+- **Beginner / triage-style:** 30–45 minutes
+- **Intermediate / investigation:** 45–60 minutes
+- **Advanced / detection engineering:** 60–90 minutes
+
+Candidates can navigate freely between questions during this window.
+Auto-submit fires the moment the timer hits zero — partial answers are
+saved.
+
+> **Note:** Time-based behavioral signals (per-question time spent, edits)
+> are captured regardless of duration. Do not compress duration to "force
+> speed"; the platform measures speed separately.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.create.question_count', 'admin', 'en',
+  'How many questions to draw from the question set/difficulty pool. Must be ≤ active questions in the pool.',
+  $$## Question count
+
+AssessIQ samples this many questions from the question set + difficulty you chose. If
+randomization is on, every candidate sees a different draw; if off, all
+candidates see the same set in the same order.
+
+**Constraints:**
+
+- Must be ≤ the number of `active` questions in the pool. Publish fails
+  if not.
+- Pool size is shown live next to this input as you author.
+- Recommended ratio: ~1 question per 4 minutes of duration. Higher density
+  is fine for MCQ-heavy assessments; lower for scenario or subjective
+  heavy ones.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.create.question_count' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.create.question_count' AND locale = 'en'
+    AND short_text = 'How many questions to draw from the question set/difficulty pool. Must be ≤ active questions in the pool.'
+    AND long_md IS NOT DISTINCT FROM $$## Question count
+
+AssessIQ samples this many questions from the question set + difficulty you chose. If
+randomization is on, every candidate sees a different draw; if off, all
+candidates see the same set in the same order.
+
+**Constraints:**
+
+- Must be ≤ the number of `active` questions in the pool. Publish fails
+  if not.
+- Pool size is shown live next to this input as you author.
+- Recommended ratio: ~1 question per 4 minutes of duration. Higher density
+  is fine for MCQ-heavy assessments; lower for scenario or subjective
+  heavy ones.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.create.randomize', 'admin', 'en',
+  'Each candidate sees a different sample + order. Off = identical assessment for everyone.',
+  $$## Randomize question selection
+
+With randomization on, every candidate's attempt:
+
+- Draws a fresh sample from the pool (size = question count).
+- Shuffles question order.
+- Shuffles MCQ answer order on a per-question basis.
+
+The seed is stable per attempt, so refreshing the page does not re-shuffle.
+
+**When to turn it off:**
+
+- Calibrating a new question set against a fixed reference set.
+- Live training events where everyone sees the same screen.
+- Anti-cheat is **not** the right reason — randomization is not a
+  meaningful integrity control. Use real-time monitoring or proctoring
+  tools instead.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.create.randomize' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.create.randomize' AND locale = 'en'
+    AND short_text = 'Each candidate sees a different sample + order. Off = identical assessment for everyone.'
+    AND long_md IS NOT DISTINCT FROM $$## Randomize question selection
+
+With randomization on, every candidate's attempt:
+
+- Draws a fresh sample from the pool (size = question count).
+- Shuffles question order.
+- Shuffles MCQ answer order on a per-question basis.
+
+The seed is stable per attempt, so refreshing the page does not re-shuffle.
+
+**When to turn it off:**
+
+- Calibrating a new question set against a fixed reference set.
+- Live training events where everyone sees the same screen.
+- Anti-cheat is **not** the right reason — randomization is not a
+  meaningful integrity control. Use real-time monitoring or proctoring
+  tools instead.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.publish', 'admin', 'en',
+  'Locks the question set, opens invitations, and starts the schedule. Pre-flight checks run automatically.',
+  $$## Publish assessment
+
+Publishing flips the assessment from `draft` to `published` and runs three
+pre-flight checks:
+
+1. **Pool size** — the active question pool ≥ the requested question
+   count.
+2. **Open window** — `opens_at` is in the future or already past with a
+   valid `closes_at`.
+3. **Notification config** — if invitations are scheduled, the organisation has
+   a working SMTP config.
+
+Once published, the question set is **frozen** for that assessment. Edits
+to questions in the underlying question set do not affect already-published
+assessments — that is by design (HR auditability).
+
+To change a published assessment, **close** it and create a new one.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.publish' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.publish' AND locale = 'en'
+    AND short_text = 'Locks the question set, opens invitations, and starts the schedule. Pre-flight checks run automatically.'
+    AND long_md IS NOT DISTINCT FROM $$## Publish assessment
+
+Publishing flips the assessment from `draft` to `published` and runs three
+pre-flight checks:
+
+1. **Pool size** — the active question pool ≥ the requested question
+   count.
+2. **Open window** — `opens_at` is in the future or already past with a
+   valid `closes_at`.
+3. **Notification config** — if invitations are scheduled, the organisation has
+   a working SMTP config.
+
+Once published, the question set is **frozen** for that assessment. Edits
+to questions in the underlying question set do not affect already-published
+assessments — that is by design (HR auditability).
+
+To change a published assessment, **close** it and create a new one.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.invite.bulk', 'admin', 'en',
+  'Paste up to 500 emails (one per line). Existing users are linked; new users get a magic-link signup.',
+  $$## Bulk invite
+
+Paste up to 500 candidate emails — one per line. AssessIQ:
+
+1. **De-duplicates** within the input list and against existing
+   invitations on this assessment.
+2. **Links existing users** by email. They receive a sign-in invitation
+   only.
+3. **Creates pending users** for new emails. They receive a magic-link
+   sign-up + assessment invitation in one email.
+
+**Rate-limited:** 500 emails per hour per organisation per admin. The UI shows
+a progress bar; if you hit the limit, the remaining emails queue and send
+over the next hour automatically.
+
+**Email content:** every invitation uses the standard AssessIQ invitation
+email. There is no screen to edit the email text.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.invite.bulk' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.invite.bulk' AND locale = 'en'
+    AND short_text = 'Paste up to 500 emails (one per line). Existing users are linked; new users get a magic-link signup.'
+    AND long_md IS NOT DISTINCT FROM $$## Bulk invite
+
+Paste up to 500 candidate emails — one per line. AssessIQ:
+
+1. **De-duplicates** within the input list and against existing
+   invitations on this assessment.
+2. **Links existing users** by email. They receive a sign-in invitation
+   only.
+3. **Creates pending users** for new emails. They receive a magic-link
+   sign-up + assessment invitation in one email.
+
+**Rate-limited:** 500 emails per hour per organisation per admin. The UI shows
+a progress bar; if you hit the limit, the remaining emails queue and send
+over the next hour automatically.
+
+**Email content:** every invitation uses the standard AssessIQ invitation
+email. There is no screen to edit the email text.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.heatmap.colors', 'admin', 'en',
+  'Heat cell color = average reasoning band for that topic-level pair: green (3–4), amber (2), red (0–1).',
+  $$## Topic heatmap color scale
+
+Each cell in the topic heatmap represents one topic × difficulty combination.
+The color encodes the mean **reasoning band** (0–4) of all graded questions
+in that cell:
+
+| Color | Score band range | Interpretation |
+|---|---|---|
+| Green | 3–4 | Strong reasoning; candidates consistently explained the concept |
+| Amber | 2 | Partial reasoning; correct answers but shallow justification |
+| Red | 0–1 | Weak reasoning; frequent guessing or pattern-matching |
+
+A cell shows as **grey** when fewer than two attempts have graded answers
+for that topic — not enough data to draw a meaningful conclusion.
+
+The **hit rate** (right side of each cell) is the fraction of questions in
+that cell answered correctly, regardless of reasoning band.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.heatmap.colors' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.heatmap.colors' AND locale = 'en'
+    AND short_text = 'Heat cell color = average reasoning band for that topic-level pair: green (3–4), amber (2), red (0–1).'
+    AND long_md IS NOT DISTINCT FROM $$## Topic heatmap color scale
+
+Each cell in the topic heatmap represents one topic × difficulty combination.
+The color encodes the mean **reasoning band** (0–4) of all graded questions
+in that cell:
+
+| Color | Score band range | Interpretation |
+|---|---|---|
+| Green | 3–4 | Strong reasoning; candidates consistently explained the concept |
+| Amber | 2 | Partial reasoning; correct answers but shallow justification |
+| Red | 0–1 | Weak reasoning; frequent guessing or pattern-matching |
+
+A cell shows as **grey** when fewer than two attempts have graded answers
+for that topic — not enough data to draw a meaningful conclusion.
+
+The **hit rate** (right side of each cell) is the fraction of questions in
+that cell answered correctly, regardless of reasoning band.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.archetype.disclaimer', 'admin', 'en',
+  'Archetypes are statistical descriptors, not diagnostic labels. Use them to guide learning — not hiring decisions.',
+  $$## Archetype disclaimer
+
+AssessIQ archetypes are computed by an AI rubric engine that scores
+reasoning quality on a 0–4 score band scale. They are designed to identify
+**learning gaps and strengths at scale**, not to serve as a definitive
+measure of individual ability.
+
+**Do not use archetypes as the sole basis for hiring, promotion, or
+compensation decisions.** They are complementary signals to human
+review, structured interviews, and on-the-job evaluation.
+
+Archetype accuracy depends on:
+- Question prompt quality (well-scoped rubric key points improve score band accuracy)
+- Attempt length (short assessments yield less signal)
+- How many questions are scored automatically and how many are written
+  answers graded by AssessIQ
+
+Results should be reviewed alongside raw scores and grading transcripts.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.archetype.disclaimer' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.archetype.disclaimer' AND locale = 'en'
+    AND short_text = 'Archetypes are statistical descriptors, not diagnostic labels. Use them to guide learning — not hiring decisions.'
+    AND long_md IS NOT DISTINCT FROM $$## Archetype disclaimer
+
+AssessIQ archetypes are computed by an AI rubric engine that scores
+reasoning quality on a 0–4 score band scale. They are designed to identify
+**learning gaps and strengths at scale**, not to serve as a definitive
+measure of individual ability.
+
+**Do not use archetypes as the sole basis for hiring, promotion, or
+compensation decisions.** They are complementary signals to human
+review, structured interviews, and on-the-job evaluation.
+
+Archetype accuracy depends on:
+- Question prompt quality (well-scoped rubric key points improve score band accuracy)
+- Attempt length (short assessments yield less signal)
+- How many questions are scored automatically and how many are written
+  answers graded by AssessIQ
+
+Results should be reviewed alongside raw scores and grading transcripts.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.export.format', 'admin', 'en',
+  'Exports are available as CSV (Excel-compatible) or JSONL (one JSON object per line, for pipeline ingest).',
+  $$## Export formats
+
+**CSV (`attempts.csv`)** — one row per scored attempt. Compatible with
+Excel, Google Sheets, and most BI tools. Columns:
+
+`tenant_id`, `assessment_id`, `assessment_name`, `user_id`, `user_email`,
+`attempt_id`, `status`, `submitted_at`, `total_earned`, `total_max`,
+`auto_pct`, `archetype`, `computed_at`
+
+**JSONL (`attempts.jsonl`)** — one JSON object per line. Use this for
+scripted pipeline ingest or when you need to preserve numeric precision.
+Each object has the same fields as the CSV.
+
+**Topic heatmap CSV (`topic-heatmap.csv`)** — one row per topic × difficulty
+combination. Columns: `pack_id`, `level_id`, `topic`, `hit_rate`,
+`mean_band`, `attempt_count`.
+
+**Row cap:** all export endpoints are capped at 10,000 rows. If your
+organisation has more data, use the `submittedAfter` / `submittedBefore`
+filters to export in date-range batches.
+
+**Audit:** every export is logged in the audit trail with the acting
+admin's user ID and a timestamp.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.export.format' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.export.format' AND locale = 'en'
+    AND short_text = 'Exports are available as CSV (Excel-compatible) or JSONL (one JSON object per line, for pipeline ingest).'
+    AND long_md IS NOT DISTINCT FROM $$## Export formats
+
+**CSV (`attempts.csv`)** — one row per scored attempt. Compatible with
+Excel, Google Sheets, and most BI tools. Columns:
+
+`tenant_id`, `assessment_id`, `assessment_name`, `user_id`, `user_email`,
+`attempt_id`, `status`, `submitted_at`, `total_earned`, `total_max`,
+`auto_pct`, `archetype`, `computed_at`
+
+**JSONL (`attempts.jsonl`)** — one JSON object per line. Use this for
+scripted pipeline ingest or when you need to preserve numeric precision.
+Each object has the same fields as the CSV.
+
+**Topic heatmap CSV (`topic-heatmap.csv`)** — one row per topic × difficulty
+combination. Columns: `pack_id`, `level_id`, `topic`, `hit_rate`,
+`mean_band`, `attempt_count`.
+
+**Row cap:** all export endpoints are capped at 10,000 rows. If your
+organisation has more data, use the `submittedAfter` / `submittedBefore`
+filters to export in date-range batches.
+
+**Audit:** every export is logged in the audit trail with the acting
+admin's user ID and a timestamp.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.cost.empty_in_claude_code_vps_mode', 'admin', 'en',
+  'Per-call grading cost is not shown. AssessIQ runs the grading, so no per-call cost is billed to you.',
+  $$## Grading cost breakdown: not available
+
+A per-call cost report is not available for your organisation. AssessIQ
+grades written answers itself, and usage is counted in credits under
+your plan tier.
+
+See **Your plan and usage** on the Settings page for your credit usage.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.cost.empty_in_claude_code_vps_mode' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.cost.empty_in_claude_code_vps_mode' AND locale = 'en'
+    AND short_text = 'Per-call grading cost is not shown. AssessIQ runs the grading, so no per-call cost is billed to you.'
+    AND long_md IS NOT DISTINCT FROM $$## Grading cost breakdown: not available
+
+A per-call cost report is not available for your organisation. AssessIQ
+grades written answers itself, and usage is counted in credits under
+your plan tier.
+
+See **Your plan and usage** on the Settings page for your credit usage.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.cohort.report', 'admin', 'en',
+  'Aggregate metrics across all attempts in an assessment cycle: score distribution, archetype mix, and per-attempt scores.',
+  $$## Cohort report
+
+The cohort report summarises all scored attempts for a single assessment
+cycle. It is available at **Reports → Cycles → [cycle] → Cohort report**.
+
+**What you see:**
+
+| Field | Meaning |
+|---|---|
+| Total attempts | All attempts present in the analytics snapshot |
+| Graded count | Attempts in `graded` or `pending_admin_grading` status |
+| Released count | Attempts the admin has released to candidates |
+| Avg / P50 / P90 score | Percentage score distribution across the cohort |
+| Archetype distribution | How many attempts landed in each performance archetype |
+| Score band avg | Mean score per assessment difficulty (usually one difficulty per cycle) |
+
+**Attempts table:** the lower table lists individual attempts, ordered by
+score descending, capped at 500 rows. Use the **archetype filter** to narrow
+to a specific archetype cluster.
+
+**Data freshness:** the report reads from the `attempt_summary_mv`
+materialized view, which is refreshed nightly at 02:00 UTC. Data added
+after the last refresh will not appear until the next refresh (or until a
+platform operator triggers a manual refresh).
+
+**What is excluded:** in-progress attempts (`in_progress`, `draft`) are
+excluded from the MV — only attempts with a computed score appear.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.report' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.report' AND locale = 'en'
+    AND short_text = 'Aggregate metrics across all attempts in an assessment cycle: score distribution, archetype mix, and per-attempt scores.'
+    AND long_md IS NOT DISTINCT FROM $$## Cohort report
+
+The cohort report summarises all scored attempts for a single assessment
+cycle. It is available at **Reports → Cycles → [cycle] → Cohort report**.
+
+**What you see:**
+
+| Field | Meaning |
+|---|---|
+| Total attempts | All attempts present in the analytics snapshot |
+| Graded count | Attempts in `graded` or `pending_admin_grading` status |
+| Released count | Attempts the admin has released to candidates |
+| Avg / P50 / P90 score | Percentage score distribution across the cohort |
+| Archetype distribution | How many attempts landed in each performance archetype |
+| Score band avg | Mean score per assessment difficulty (usually one difficulty per cycle) |
+
+**Attempts table:** the lower table lists individual attempts, ordered by
+score descending, capped at 500 rows. Use the **archetype filter** to narrow
+to a specific archetype cluster.
+
+**Data freshness:** the report reads from the `attempt_summary_mv`
+materialized view, which is refreshed nightly at 02:00 UTC. Data added
+after the last refresh will not appear until the next refresh (or until a
+platform operator triggers a manual refresh).
+
+**What is excluded:** in-progress attempts (`in_progress`, `draft`) are
+excluded from the MV — only attempts with a computed score appear.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.audit.export.format', 'admin', 'en',
+  'The audit log already records admin actions today; the export screen (CSV/JSONL) is available soon.',
+  $$## Audit log recording — live; export screen available soon
+
+AssessIQ already maintains an append-only audit log for every significant
+admin action. Entries are written synchronously with the operation (not
+fire-and-forget) to guarantee no silent loss.
+
+**Audited actions include:**
+- `attempt.exported` — admin downloaded a CSV or JSONL export
+- `grading.override` — admin manually changed a grading score band
+- `user.created`, `user.role_changed`, `user.deactivated`
+- `assessment.published`, `assessment.archived`
+- `pack.version_bumped`
+
+Audit log entries are immutable. They cannot be edited or deleted by any
+admin — including organisation super-admins. Retention is 7 years (configurable
+by the platform operator).
+
+**The admin screen to export this log (CSV/JSONL) is not built yet.**
+Need an extract today? Contact your platform operator.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.audit.export.format' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.audit.export.format' AND locale = 'en'
+    AND short_text = 'The audit log already records admin actions today; the export screen (CSV/JSONL) is available soon.'
+    AND long_md IS NOT DISTINCT FROM $$## Audit log recording — live; export screen available soon
+
+AssessIQ already maintains an append-only audit log for every significant
+admin action. Entries are written synchronously with the operation (not
+fire-and-forget) to guarantee no silent loss.
+
+**Audited actions include:**
+- `attempt.exported` — admin downloaded a CSV or JSONL export
+- `grading.override` — admin manually changed a grading score band
+- `user.created`, `user.role_changed`, `user.deactivated`
+- `assessment.published`, `assessment.archived`
+- `pack.version_bumped`
+
+Audit log entries are immutable. They cannot be edited or deleted by any
+admin — including organisation super-admins. Retention is 7 years (configurable
+by the platform operator).
+
+**The admin screen to export this log (CSV/JSONL) is not built yet.**
+Need an extract today? Contact your platform operator.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.billing.usage', 'admin', 'en',
+  '1 credit = 1 graded attempt. Grading is never blocked. Green = under 80%, amber = 80–100%, red = over included credits.',
+  $$## Your plan & usage
+
+**How credits work.**
+One credit is used when a candidate attempt reaches the graded state — that
+is, after the candidate submits and the AI grading completes. Re-grading the
+same attempt never charges again; the credit is a one-time event per attempt.
+Credits are counted across your whole organisation.
+
+**Grading is never blocked.**
+Assigning, submitting, and grading always work, even when you have used more
+than your included credits. The usage indicator is there to keep you informed
+— it is not a gate.
+
+**Usage banner colours.**
+A banner appears at the top of your dashboard when your usage is notable:
+
+| Colour | Meaning |
+|--------|---------|
+| Green | You have used less than 80% of your included credits — all clear. |
+| Amber | You have used 80–100% of your included credits. Grading still works; consider contacting your platform operator. |
+| Red | You are over your included credits. Grading still works — contact your platform operator to discuss your plan. |
+
+Organisations on an unlimited plan see no banner at all.
+
+**Changing your plan.**
+You cannot change your own plan. Contact your platform operator — they set
+your tier and credit allowance.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.billing.usage' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.billing.usage' AND locale = 'en'
+    AND short_text = '1 credit = 1 graded attempt. Grading is never blocked. Green = under 80%, amber = 80–100%, red = over included credits.'
+    AND long_md IS NOT DISTINCT FROM $$## Your plan & usage
+
+**How credits work.**
+One credit is used when a candidate attempt reaches the graded state — that
+is, after the candidate submits and the AI grading completes. Re-grading the
+same attempt never charges again; the credit is a one-time event per attempt.
+Credits are counted across your whole organisation.
+
+**Grading is never blocked.**
+Assigning, submitting, and grading always work, even when you have used more
+than your included credits. The usage indicator is there to keep you informed
+— it is not a gate.
+
+**Usage banner colours.**
+A banner appears at the top of your dashboard when your usage is notable:
+
+| Colour | Meaning |
+|--------|---------|
+| Green | You have used less than 80% of your included credits — all clear. |
+| Amber | You have used 80–100% of your included credits. Grading still works; consider contacting your platform operator. |
+| Red | You are over your included credits. Grading still works — contact your platform operator to discuss your plan. |
+
+Organisations on an unlimited plan see no banner at all.
+
+**Changing your plan.**
+You cannot change your own plan. Contact your platform operator — they set
+your tier and credit allowance.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.list.content_source', 'admin', 'en',
+  'Your platform operator generates questions. You build assessments from the content your organisation has been granted.',
+  $$## Where your questions come from
+
+**Generation is done by your platform operator, not by your organisation.**
+The platform operator runs question generation into a shared question bank and then
+grants your organisation access to the subjects or question sets it needs.
+You cannot generate questions yourself.
+
+**You assemble assessments from granted content.**
+When you create or edit an assessment, you can only select question sets that your
+organisation has been granted. The selection list shows only what is available to
+you.
+
+**Publishing is checked on the server.**
+If you try to publish an assessment whose question set has not been granted
+to your organisation, publishing will be refused with a clear message and the
+assessment stays in draft. You will need to contact your platform operator to
+get that question set enabled for your organisation.
+
+**Need more content?**
+Contact your platform operator. They can grant additional subjects or question sets
+to your organisation from the platform settings.
+
+**Note for internal-tier organisations.**
+If your organisation is on the internal plan, you are not subject to the content-grant
+restriction — all content is available to you.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.list.content_source' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.list.content_source' AND locale = 'en'
+    AND short_text = 'Your platform operator generates questions. You build assessments from the content your organisation has been granted.'
+    AND long_md IS NOT DISTINCT FROM $$## Where your questions come from
+
+**Generation is done by your platform operator, not by your organisation.**
+The platform operator runs question generation into a shared question bank and then
+grants your organisation access to the subjects or question sets it needs.
+You cannot generate questions yourself.
+
+**You assemble assessments from granted content.**
+When you create or edit an assessment, you can only select question sets that your
+organisation has been granted. The selection list shows only what is available to
+you.
+
+**Publishing is checked on the server.**
+If you try to publish an assessment whose question set has not been granted
+to your organisation, publishing will be refused with a clear message and the
+assessment stays in draft. You will need to contact your platform operator to
+get that question set enabled for your organisation.
+
+**Need more content?**
+Contact your platform operator. They can grant additional subjects or question sets
+to your organisation from the platform settings.
+
+**Note for internal-tier organisations.**
+If your organisation is on the internal plan, you are not subject to the content-grant
+restriction — all content is available to you.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform', 'admin', 'en',
+  'Platform operator control centre. Add organisations and see all of them. Organisation admins never see this page.',
+  $$## What you can do here
+
+You are signed in as a **platform operator** — the person who runs
+AssessIQ for every organisation. This page is your control centre.
+
+**Add a new organisation.**
+Click **Create organisation**, then fill in three things:
+
+- the organisation's name,
+- a short web-friendly name for it (the "slug" — lowercase letters,
+  numbers and hyphens; it is suggested for you from the name),
+- the email address of the person who will be that organisation's first
+  administrator.
+
+AssessIQ then sets the organisation up and emails that person an invitation
+to sign in and take over their organisation. You do not manage the organisation's
+day-to-day work — its own administrator does that.
+
+**See every organisation.**
+The list below shows each organisation, its short name, whether it is active,
+and the date it was added.
+
+## Good to know
+
+- **Only you see this.** Organisation administrators never see
+  the Platform page or this organisation list. Each organisation only ever sees
+  its own data, never another organisation's.
+- **Extra sign-in check.** When you create an organisation, AssessIQ may ask
+  for the 6-digit code from your authenticator app if it has been a
+  while since you signed in. Just enter the code if prompted — anything
+  you have already typed in the form is kept.
+- **What happens when you add an organisation.** AssessIQ creates the organisation,
+  prepares its question categories, emails the first administrator, and
+  switches the organisation on. If anything goes wrong partway through, the
+  organisation is left switched off and you see an error — so a half-finished
+  organisation is never live.
+- **What you cannot do from here.** This page does not let you log in as
+  an organisation, change an organisation's questions or candidates, or remove a
+  organisation. Those are deliberately separate; ask for them if you need them.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform' AND locale = 'en'
+    AND short_text = 'Platform operator control centre. Add organisations and see all of them. Organisation admins never see this page.'
+    AND long_md IS NOT DISTINCT FROM $$## What you can do here
+
+You are signed in as a **platform operator** — the person who runs
+AssessIQ for every organisation. This page is your control centre.
+
+**Add a new organisation.**
+Click **Create organisation**, then fill in three things:
+
+- the organisation's name,
+- a short web-friendly name for it (the "slug" — lowercase letters,
+  numbers and hyphens; it is suggested for you from the name),
+- the email address of the person who will be that organisation's first
+  administrator.
+
+AssessIQ then sets the organisation up and emails that person an invitation
+to sign in and take over their organisation. You do not manage the organisation's
+day-to-day work — its own administrator does that.
+
+**See every organisation.**
+The list below shows each organisation, its short name, whether it is active,
+and the date it was added.
+
+## Good to know
+
+- **Only you see this.** Organisation administrators never see
+  the Platform page or this organisation list. Each organisation only ever sees
+  its own data, never another organisation's.
+- **Extra sign-in check.** When you create an organisation, AssessIQ may ask
+  for the 6-digit code from your authenticator app if it has been a
+  while since you signed in. Just enter the code if prompted — anything
+  you have already typed in the form is kept.
+- **What happens when you add an organisation.** AssessIQ creates the organisation,
+  prepares its question categories, emails the first administrator, and
+  switches the organisation on. If anything goes wrong partway through, the
+  organisation is left switched off and you see an error — so a half-finished
+  organisation is never live.
+- **What you cannot do from here.** This page does not let you log in as
+  an organisation, change an organisation's questions or candidates, or remove a
+  organisation. Those are deliberately separate; ask for them if you need them.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.slug', 'admin', 'en',
+  'URL-safe organisation identifier. Auto-suggested from the name. Lowercase letters, digits, and hyphens only.',
+  $$## Organisation slug
+
+The slug is the short, URL-safe identifier for an organisation. It appears in
+webhook payloads, embed-iframe URLs, and the admin sign-in screen.
+
+**Rules:**
+- Lowercase letters (`a–z`), digits (`0–9`), and hyphens (`-`) only.
+- No leading or trailing hyphens.
+- Must be unique across all organisations — the form will show an error if the
+  slug is already taken.
+
+**Auto-suggestion:** the form derives a slug from the organisation name
+(spaces and invalid characters become hyphens, result is lowercased). You
+can edit the slug freely before submitting.
+
+**Stability:** once an organisation is provisioned, the slug should be treated as
+permanent. Renaming an organisation slug is a manual operation that requires
+platform support.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.slug' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.slug' AND locale = 'en'
+    AND short_text = 'URL-safe organisation identifier. Auto-suggested from the name. Lowercase letters, digits, and hyphens only.'
+    AND long_md IS NOT DISTINCT FROM $$## Organisation slug
+
+The slug is the short, URL-safe identifier for an organisation. It appears in
+webhook payloads, embed-iframe URLs, and the admin sign-in screen.
+
+**Rules:**
+- Lowercase letters (`a–z`), digits (`0–9`), and hyphens (`-`) only.
+- No leading or trailing hyphens.
+- Must be unique across all organisations — the form will show an error if the
+  slug is already taken.
+
+**Auto-suggestion:** the form derives a slug from the organisation name
+(spaces and invalid characters become hyphens, result is lowercased). You
+can edit the slug freely before submitting.
+
+**Stability:** once an organisation is provisioned, the slug should be treated as
+permanent. Renaming an organisation slug is a manual operation that requires
+platform support.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.admin_email', 'admin', 'en',
+  'Email address of the organisation''s first admin. An invitation link (valid 7 days) is sent here on provisioning.',
+  $$## First-admin email
+
+The email address entered here receives a one-time invitation link
+immediately after the organisation is provisioned. The link is valid for 7 days.
+
+The invited user signs in via the link and is granted `role = admin` for
+the new organisation. They can then invite additional admins from
+the Users page.
+
+If the invitation expires before the admin accepts it, a platform operator
+can re-provision or manually re-invite via the API.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.admin_email' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.admin_email' AND locale = 'en'
+    AND short_text = 'Email address of the organisation''s first admin. An invitation link (valid 7 days) is sent here on provisioning.'
+    AND long_md IS NOT DISTINCT FROM $$## First-admin email
+
+The email address entered here receives a one-time invitation link
+immediately after the organisation is provisioned. The link is valid for 7 days.
+
+The invited user signs in via the link and is granted `role = admin` for
+the new organisation. They can then invite additional admins from
+the Users page.
+
+If the invitation expires before the admin accepts it, a platform operator
+can re-provision or manually re-invite via the API.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.domain', 'admin', 'en',
+  'Optional email domain for the tenant (e.g. company.com). Used for display — not enforced as a sign-in restriction.',
+  $$## Organisation domain (optional)
+
+Recording the company's email domain (e.g. `company.com`) is informational
+only. It is stored with the organisation record and shown in the organisation list
+for operator reference.
+
+It does **not** currently restrict sign-in to that domain or auto-assign
+users. Domain-based sign-in and auto-provisioning are planned for a
+future release.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.domain' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.domain' AND locale = 'en'
+    AND short_text = 'Optional email domain for the tenant (e.g. company.com). Used for display — not enforced as a sign-in restriction.'
+    AND long_md IS NOT DISTINCT FROM $$## Organisation domain (optional)
+
+Recording the company's email domain (e.g. `company.com`) is informational
+only. It is stored with the organisation record and shown in the organisation list
+for operator reference.
+
+It does **not** currently restrict sign-in to that domain or auto-assign
+users. Domain-based sign-in and auto-provisioning are planned for a
+future release.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.edit_company_name', 'admin', 'en',
+  'The organisation''s display name (the organisations.name column). Editable; the slug stays fixed. Requires fresh MFA.',
+  $$## Organisation name
+
+The organisation's display name, shown in the Platform list and across the admin
+UI. You can rename it here at any time — it's a label only, with no effect
+on data, logins, or isolation.
+
+**The slug is permanent.** The short URL-safe identifier (e.g. `acme-corp`)
+issued at provisioning is used in webhook payloads and embed URLs, so it
+cannot be changed here. Only the display name is editable.
+
+Renaming is a platform-operator action gated by fresh MFA and recorded in
+the audit log (`tenant.renamed`).
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.edit_company_name' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.edit_company_name' AND locale = 'en'
+    AND short_text = 'The organisation''s display name (the organisations.name column). Editable; the slug stays fixed. Requires fresh MFA.'
+    AND long_md IS NOT DISTINCT FROM $$## Organisation name
+
+The organisation's display name, shown in the Platform list and across the admin
+UI. You can rename it here at any time — it's a label only, with no effect
+on data, logins, or isolation.
+
+**The slug is permanent.** The short URL-safe identifier (e.g. `acme-corp`)
+issued at provisioning is used in webhook payloads and embed URLs, so it
+cannot be changed here. Only the display name is editable.
+
+Renaming is a platform-operator action gated by fresh MFA and recorded in
+the audit log (`tenant.renamed`).
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.edit_admin', 'admin', 'en',
+  'Update the organisation''s primary admin — name or email. Requires fresh MFA.',
+  $$## Edit admin
+
+Update the organisation's primary-contact admin without re-provisioning the
+organisation. You can change their display name and correct or change their email.
+
+**Email is the login identity** — see the email field's own help for the
+consequences of changing it.
+
+This is a platform-operator action gated by fresh MFA (a TOTP code entered
+within the last 15 minutes); you may be prompted to re-enter your
+authenticator code. Every change is recorded in the audit log.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.edit_admin' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.edit_admin' AND locale = 'en'
+    AND short_text = 'Update the organisation''s primary admin — name or email. Requires fresh MFA.'
+    AND long_md IS NOT DISTINCT FROM $$## Edit admin
+
+Update the organisation's primary-contact admin without re-provisioning the
+organisation. You can change their display name and correct or change their email.
+
+**Email is the login identity** — see the email field's own help for the
+consequences of changing it.
+
+This is a platform-operator action gated by fresh MFA (a TOTP code entered
+within the last 15 minutes); you may be prompted to re-enter your
+authenticator code. Every change is recorded in the audit log.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.edit_admin.email', 'admin', 'en',
+  'An admin signs in with Google or an emailed code at this address. Changing it transfers the login identity.',
+  $$## Admin email — the login identity
+
+AssessIQ resolves a signed-in admin to their account purely by their
+verified email. The admin proves the email with Google sign-in or with a
+one-time code sent to that address. The email field here is therefore the account's
+**login identity**, not just a contact detail.
+
+**Pending admin (invite not yet accepted).** Changing the email is safe:
+the old invitation link is retired and a fresh one is sent to the new
+address.
+
+**Accepted admin.** Changing the email **transfers account ownership**. The
+admin is signed out and can only sign back in with Google or an emailed
+code at the new address. If they don't control that address they will be locked out; if
+someone else controls it, that person gains access. Because of this, the
+change requires an explicit confirmation checkbox.
+
+Either way, the new email must not already belong to another user in the
+same organisation.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.edit_admin.email' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.edit_admin.email' AND locale = 'en'
+    AND short_text = 'An admin signs in with Google or an emailed code at this address. Changing it transfers the login identity.'
+    AND long_md IS NOT DISTINCT FROM $$## Admin email — the login identity
+
+AssessIQ resolves a signed-in admin to their account purely by their
+verified email. The admin proves the email with Google sign-in or with a
+one-time code sent to that address. The email field here is therefore the account's
+**login identity**, not just a contact detail.
+
+**Pending admin (invite not yet accepted).** Changing the email is safe:
+the old invitation link is retired and a fresh one is sent to the new
+address.
+
+**Accepted admin.** Changing the email **transfers account ownership**. The
+admin is signed out and can only sign back in with Google or an emailed
+code at the new address. If they don't control that address they will be locked out; if
+someone else controls it, that person gains access. Because of this, the
+change requires an explicit confirmation checkbox.
+
+Either way, the new email must not already belong to another user in the
+same organisation.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.mfa_code', 'admin', 'en',
+  '6-digit code from your authenticator app. Required before provisioning a new organisation (fresh-MFA gate).',
+  $$## MFA step-up — authenticator code
+
+Creating a new organisation is a high-privilege operation gated behind
+fresh TOTP verification (code must have been entered within the last 15
+minutes).
+
+If your session's MFA is stale, the create form switches to a step-up
+prompt. Enter the current 6-digit code from your authenticator app
+(Google Authenticator, Authy, 1Password, etc.) and click **Verify & create**.
+
+On success the platform automatically retries the create operation — you
+do not need to re-enter the form values.
+
+**Lockout:** five wrong codes in a row locks the account for 15 minutes.
+Wait for the lockout to expire before retrying.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.mfa_code' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.mfa_code' AND locale = 'en'
+    AND short_text = '6-digit code from your authenticator app. Required before provisioning a new organisation (fresh-MFA gate).'
+    AND long_md IS NOT DISTINCT FROM $$## MFA step-up — authenticator code
+
+Creating a new organisation is a high-privilege operation gated behind
+fresh TOTP verification (code must have been entered within the last 15
+minutes).
+
+If your session's MFA is stale, the create form switches to a step-up
+prompt. Enter the current 6-digit code from your authenticator app
+(Google Authenticator, Authy, 1Password, etc.) and click **Verify & create**.
+
+On success the platform automatically retries the create operation — you
+do not need to re-enter the form values.
+
+**Lockout:** five wrong codes in a row locks the account for 15 minutes.
+Wait for the lockout to expire before retrying.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.billing', 'admin', 'en',
+  'Per-organisation billing drawer: set tier, set credits, view used and included credits, download CSV.',
+  $$## Per-organisation billing drawer
+
+Open any organisation's row on the Platform page to see its billing drawer.
+
+**What you can do here:**
+
+- **Set the plan tier** — free, pro, enterprise, or internal. The internal
+  tier is unlimited and is exempt from credit metering.
+- **Set a custom included-credit number** — override the tier default if a
+  organisation has a bespoke arrangement. Leave blank for the internal tier
+  (unlimited).
+- **See used / included** — a live read-only display of how many credits the
+  organisation has consumed this cycle versus their allowance, with an overage
+  badge if they are over.
+- **Download a CSV** — export the organisation's billing events for out-of-band
+  invoicing or reconciliation.
+
+**Enforcement is soft and out-of-band.**
+The system never hard-blocks an organisation for being over their included credits.
+Grading always works. You follow up directly with the organisation when usage
+warrants it.
+
+**Isolation.**
+Each organisation only ever sees its own data. No organisation can see another
+organisation's usage or billing information.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.billing' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.billing' AND locale = 'en'
+    AND short_text = 'Per-organisation billing drawer: set tier, set credits, view used and included credits, download CSV.'
+    AND long_md IS NOT DISTINCT FROM $$## Per-organisation billing drawer
+
+Open any organisation's row on the Platform page to see its billing drawer.
+
+**What you can do here:**
+
+- **Set the plan tier** — free, pro, enterprise, or internal. The internal
+  tier is unlimited and is exempt from credit metering.
+- **Set a custom included-credit number** — override the tier default if a
+  organisation has a bespoke arrangement. Leave blank for the internal tier
+  (unlimited).
+- **See used / included** — a live read-only display of how many credits the
+  organisation has consumed this cycle versus their allowance, with an overage
+  badge if they are over.
+- **Download a CSV** — export the organisation's billing events for out-of-band
+  invoicing or reconciliation.
+
+**Enforcement is soft and out-of-band.**
+The system never hard-blocks an organisation for being over their included credits.
+Grading always works. You follow up directly with the organisation when usage
+warrants it.
+
+**Isolation.**
+Each organisation only ever sees its own data. No organisation can see another
+organisation's usage or billing information.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.entitlements', 'admin', 'en',
+  'Grant or revoke an organisation''s access to a subject or question set. Question generation is platform-operator-only.',
+  $$## Organisation entitlements
+
+From the billing drawer for any organisation, you can manage which content that
+organisation can use.
+
+**Grant or revoke access.**
+Add a subject or a specific question set to an organisation's entitlements
+to make that content available when their admins build assessments. Remove
+an entitlement to stop the organisation publishing assessments that use that
+content. An assessment that is already published keeps running — but if a
+closed assessment is later reopened, it is re-checked against the organisation's
+current grants, so a reopen can be refused if you have since revoked the
+question set it uses.
+
+**Question generation is yours, not theirs.**
+Only you, as the platform operator, can generate questions. Generation runs
+into the shared question bank. Organisation admins assemble assessments only
+from content you have granted to them — they have no generate button.
+
+**Publishing is server-checked.**
+When an organisation admin publishes an assessment, the server checks that the
+assessment's question set is in the organisation's active entitlements. If it is
+not, publishing is refused and the assessment stays in draft.
+
+**Internal-tier organisations are exempt.**
+An organisation on the internal tier has access to all content without needing
+explicit entitlement grants.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.entitlements' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.entitlements' AND locale = 'en'
+    AND short_text = 'Grant or revoke an organisation''s access to a subject or question set. Question generation is platform-operator-only.'
+    AND long_md IS NOT DISTINCT FROM $$## Organisation entitlements
+
+From the billing drawer for any organisation, you can manage which content that
+organisation can use.
+
+**Grant or revoke access.**
+Add a subject or a specific question set to an organisation's entitlements
+to make that content available when their admins build assessments. Remove
+an entitlement to stop the organisation publishing assessments that use that
+content. An assessment that is already published keeps running — but if a
+closed assessment is later reopened, it is re-checked against the organisation's
+current grants, so a reopen can be refused if you have since revoked the
+question set it uses.
+
+**Question generation is yours, not theirs.**
+Only you, as the platform operator, can generate questions. Generation runs
+into the shared question bank. Organisation admins assemble assessments only
+from content you have granted to them — they have no generate button.
+
+**Publishing is server-checked.**
+When an organisation admin publishes an assessment, the server checks that the
+assessment's question set is in the organisation's active entitlements. If it is
+not, publishing is refused and the assessment stays in draft.
+
+**Internal-tier organisations are exempt.**
+An organisation on the internal tier has access to all content without needing
+explicit entitlement grants.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.domains', 'admin', 'en',
+  'Subjects shared across every organisation. Archiving hides a subject everywhere without revoking licenses.',
+  $$## Platform subjects
+
+Platform subjects are the subject-area categories that the platform
+operator defines and propagates to every organisation.
+
+**Creating a subject** makes it available in every organisation's subject
+pickers immediately. The URL slug is generated automatically from the
+name and cannot be changed after creation.
+
+**Archiving a subject** removes it from every organisation's pickers and
+prevents new entitlements or assessments from being based on it.
+Archiving is catalog-only — it does not revoke existing licenses or
+alter previously published assessments. Questions tagged to an archived
+subject keep their tags. You can reactivate the subject at any time.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.domains' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.domains' AND locale = 'en'
+    AND short_text = 'Subjects shared across every organisation. Archiving hides a subject everywhere without revoking licenses.'
+    AND long_md IS NOT DISTINCT FROM $$## Platform subjects
+
+Platform subjects are the subject-area categories that the platform
+operator defines and propagates to every organisation.
+
+**Creating a subject** makes it available in every organisation's subject
+pickers immediately. The URL slug is generated automatically from the
+name and cannot be changed after creation.
+
+**Archiving a subject** removes it from every organisation's pickers and
+prevents new entitlements or assessments from being based on it.
+Archiving is catalog-only — it does not revoke existing licenses or
+alter previously published assessments. Questions tagged to an archived
+subject keep their tags. You can reactivate the subject at any time.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.domain_name', 'admin', 'en',
+  'The subject name; the URL slug is generated automatically and shared across all organisations.',
+  $$## Subject name
+
+Enter a human-readable name for the subject (for example, "Security
+Operations" or "Cloud Infrastructure"). The platform generates a
+URL-safe slug from the name automatically. The slug is shared across
+every organisation and appears in entitlement records, question tags,
+and API responses.
+
+The slug cannot be changed after the subject is created, so choose a
+name that reflects a stable subject area.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.domain_name' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.domain_name' AND locale = 'en'
+    AND short_text = 'The subject name; the URL slug is generated automatically and shared across all organisations.'
+    AND long_md IS NOT DISTINCT FROM $$## Subject name
+
+Enter a human-readable name for the subject (for example, "Security
+Operations" or "Cloud Infrastructure"). The platform generates a
+URL-safe slug from the name automatically. The slug is shared across
+every organisation and appears in entitlement records, question tags,
+and API responses.
+
+The slug cannot be changed after the subject is created, so choose a
+name that reflects a stable subject area.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.queue.empty', 'admin', 'en',
+  'No attempts awaiting grading. Either no assessments have run yet, or all attempts are already graded.',
+  $$## Empty grading queue
+
+The queue is empty when all submitted attempts have been graded and released,
+or when no assessments have had any submitted attempts yet.
+
+If you expected to see something here, check:
+- The **Attempts** page with filter "All" — the attempt may already be
+  in `graded` or `released` status.
+- Whether the assessment has expired or closed before candidates submitted.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.queue.empty' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.queue.empty' AND locale = 'en'
+    AND short_text = 'No attempts awaiting grading. Either no assessments have run yet, or all attempts are already graded.'
+    AND long_md IS NOT DISTINCT FROM $$## Empty grading queue
+
+The queue is empty when all submitted attempts have been graded and released,
+or when no assessments have had any submitted attempts yet.
+
+If you expected to see something here, check:
+- The **Attempts** page with filter "All" — the attempt may already be
+  in `graded` or `released` status.
+- Whether the assessment has expired or closed before candidates submitted.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.proposal.anchors', 'admin', 'en',
+  'Green chips = key point phrases the AI found; grey chips = key points it didn''t detect.',
+  $$## Key point findings
+
+Each key point in the rubric is shown as a chip. **Green / hit** means the AI
+found the concept in the candidate's answer (with evidence shown on hover).
+**Grey / miss** means the concept was absent or the AI was not confident
+enough to flag it.
+
+Misses do not automatically reduce the score — score band scoring is holistic.
+A score band 3 answer can miss a minor key point if the overall reasoning quality
+justifies it. Use the key point display as a *starting point*, not a checklist.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.anchors' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.anchors' AND locale = 'en'
+    AND short_text = 'Green chips = key point phrases the AI found; grey chips = key points it didn''t detect.'
+    AND long_md IS NOT DISTINCT FROM $$## Key point findings
+
+Each key point in the rubric is shown as a chip. **Green / hit** means the AI
+found the concept in the candidate's answer (with evidence shown on hover).
+**Grey / miss** means the concept was absent or the AI was not confident
+enough to flag it.
+
+Misses do not automatically reduce the score — score band scoring is holistic.
+A score band 3 answer can miss a minor key point if the overall reasoning quality
+justifies it. Use the key point display as a *starting point*, not a checklist.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.proposal.band', 'admin', 'en',
+  'The AI''s verdict on reasoning quality: 0 = no credit, 1 = 25%, 2 = 50%, 3 = 75%, 4 = 100%.',
+  $$## Reasoning score band
+
+Score bands map to percentage scores: **0 → 0%, 1 → 25%, 2 → 50%, 3 → 75%,
+4 → 100%**. Raw floats are never surfaced — only these five values.
+
+The score band represents the AI's holistic judgement of the candidate's
+reasoning quality, not a count of correct facts. A response that correctly
+identifies the right tool but fails to explain *why* it is right typically
+lands at score band 2–3, not 4.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.band' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.band' AND locale = 'en'
+    AND short_text = 'The AI''s verdict on reasoning quality: 0 = no credit, 1 = 25%, 2 = 50%, 3 = 75%, 4 = 100%.'
+    AND long_md IS NOT DISTINCT FROM $$## Reasoning score band
+
+Score bands map to percentage scores: **0 → 0%, 1 → 25%, 2 → 50%, 3 → 75%,
+4 → 100%**. Raw floats are never surfaced — only these five values.
+
+The score band represents the AI's holistic judgement of the candidate's
+reasoning quality, not a count of correct facts. A response that correctly
+identifies the right tool but fails to explain *why* it is right typically
+lands at score band 2–3, not 4.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.proposal.justification', 'admin', 'en',
+  'The AI''s free-text reasoning for its score band choice. Read before accepting or overriding.',
+  $$## AI justification
+
+The AI grader writes a short explanation of why it chose the verdict it did.
+Read this before clicking Accept — it surfaces the evidence and reasoning
+that drove the score band choice.
+
+If the justification is vague ("the answer is mostly correct"), that is a
+signal to ask for a re-run before accepting.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.justification' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.justification' AND locale = 'en'
+    AND short_text = 'The AI''s free-text reasoning for its score band choice. Read before accepting or overriding.'
+    AND long_md IS NOT DISTINCT FROM $$## AI justification
+
+The AI grader writes a short explanation of why it chose the verdict it did.
+Read this before clicking Accept — it surfaces the evidence and reasoning
+that drove the score band choice.
+
+If the justification is vague ("the answer is mostly correct"), that is a
+signal to ask for a re-run before accepting.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.proposal.error_class', 'admin', 'en',
+  'The error type if score band < 3: missing_concept, wrong_tool, wrong_reasoning, partial_answer, or none.',
+  $$## Error class
+
+When the AI assigns score band 0–2, it also assigns an error class:
+
+| Class | Meaning |
+|---|---|
+| `missing_concept` | Core concept absent from the answer |
+| `wrong_tool` | Candidate chose the wrong tool or approach |
+| `wrong_reasoning` | Tool is right but the explanation is incorrect |
+| `partial_answer` | Correct direction, incomplete execution |
+| `none` | No specific error class (score band 3–4) |
+
+Error classes feed the cohort-level analytics (which error types are
+most common) and the archetype signal computation.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.error_class' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.error_class' AND locale = 'en'
+    AND short_text = 'The error type if score band < 3: missing_concept, wrong_tool, wrong_reasoning, partial_answer, or none.'
+    AND long_md IS NOT DISTINCT FROM $$## Error class
+
+When the AI assigns score band 0–2, it also assigns an error class:
+
+| Class | Meaning |
+|---|---|
+| `missing_concept` | Core concept absent from the answer |
+| `wrong_tool` | Candidate chose the wrong tool or approach |
+| `wrong_reasoning` | Tool is right but the explanation is incorrect |
+| `partial_answer` | Correct direction, incomplete execution |
+| `none` | No specific error class (score band 3–4) |
+
+Error classes feed the cohort-level analytics (which error types are
+most common) and the archetype signal computation.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.proposal.escalation', 'admin', 'en',
+  'A second check gave a different result by 2 or more score bands. Pick the verdict to keep.',
+  $$## Second check
+
+On some answers AssessIQ's grading runs a second check that grades the
+answer independently. If the two results differ by 2 or more score bands, they
+appear side by side.
+
+You must pick one verdict and write a reconciliation note before
+submitting. AssessIQ records which check you chose, so later analysis can
+find systematic disagreements.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.escalation' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.proposal.escalation' AND locale = 'en'
+    AND short_text = 'A second check gave a different result by 2 or more score bands. Pick the verdict to keep.'
+    AND long_md IS NOT DISTINCT FROM $$## Second check
+
+On some answers AssessIQ's grading runs a second check that grades the
+answer independently. If the two results differ by 2 or more score bands, they
+appear side by side.
+
+You must pick one verdict and write a reconciliation note before
+submitting. AssessIQ records which check you chose, so later analysis can
+find systematic disagreements.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.accept', 'admin', 'en',
+  'Accept saves the AI''s proposal as the final grade. No fresh MFA required.',
+  $$## Accept AI proposal
+
+Clicking Accept:
+
+1. Saves the AI's score band, score, key point hits, and justification as the final
+   grade for the answer.
+2. Does **not** release the attempt to the candidate on its own. When you
+   accept the last missing grade, the attempt is sent to its organisation.
+
+Accept does not require fresh MFA. Override does.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.accept' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.accept' AND locale = 'en'
+    AND short_text = 'Accept saves the AI''s proposal as the final grade. No fresh MFA required.'
+    AND long_md IS NOT DISTINCT FROM $$## Accept AI proposal
+
+Clicking Accept:
+
+1. Saves the AI's score band, score, key point hits, and justification as the final
+   grade for the answer.
+2. Does **not** release the attempt to the candidate on its own. When you
+   accept the last missing grade, the attempt is sent to its organisation.
+
+Accept does not require fresh MFA. Override does.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.override.reason', 'admin', 'en',
+  'Required when overriding the AI. Shown in audit exports and used for AI calibration feedback.',
+  $$## Override reason
+
+The override reason is mandatory and must be meaningful — it feeds:
+
+- The **audit trail** for HR and compliance exports.
+- Future AI calibration: patterns in override reasons help identify rubric
+  gaps or systematic AI errors.
+
+Minimum useful length: one sentence describing *what was wrong* with the
+AI's verdict. "Wrong score band" alone fails validation.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.override.reason' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.override.reason' AND locale = 'en'
+    AND short_text = 'Required when overriding the AI. Shown in audit exports and used for AI calibration feedback.'
+    AND long_md IS NOT DISTINCT FROM $$## Override reason
+
+The override reason is mandatory and must be meaningful — it feeds:
+
+- The **audit trail** for HR and compliance exports.
+- Future AI calibration: patterns in override reasons help identify rubric
+  gaps or systematic AI errors.
+
+Minimum useful length: one sentence describing *what was wrong* with the
+AI's verdict. "Wrong score band" alone fails validation.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.rerun.opus', 'admin', 'en',
+  'Re-run grades this answer again. Use it for complex cases or appeals. AssessIQ graders only.',
+  $$## Re-run
+
+**Re-run** asks the grading to grade this answer again. Only AssessIQ
+graders can start it. Organisation admins cannot.
+
+Use it for:
+
+- Complex multi-step scenario answers where the first result looks shallow.
+- Appeals: the candidate disputes the grade and you want an independent
+  re-assessment.
+- Calibration: a spot-check of whether earlier results hold up on a sample
+  of high-stakes attempts.
+
+A re-run result waits for you to accept it or override it. The earlier
+grade stays in place until you decide.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.rerun.opus' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.rerun.opus' AND locale = 'en'
+    AND short_text = 'Re-run grades this answer again. Use it for complex cases or appeals. AssessIQ graders only.'
+    AND long_md IS NOT DISTINCT FROM $$## Re-run
+
+**Re-run** asks the grading to grade this answer again. Only AssessIQ
+graders can start it. Organisation admins cannot.
+
+Use it for:
+
+- Complex multi-step scenario answers where the first result looks shallow.
+- Appeals: the candidate disputes the grade and you want an independent
+  re-assessment.
+- Calibration: a spot-check of whether earlier results hold up on a sample
+  of high-stakes attempts.
+
+A re-run result waits for you to accept it or override it. The earlier
+grade stays in place until you decide.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.skill_drift', 'admin', 'en',
+  'The prompt version used for this grade differs from the current live prompt. Consider re-grading.',
+  $$## Skill drift
+
+Each grading row records the SHA-256 hash of the prompt version that
+produced it. If the admin updates a grading skill (prompt template), rows
+graded with the old version are flagged with a **drift** badge.
+
+Drift is informational — it does not block releasing results. Use it as a
+signal to re-run affected attempts when a prompt change was material (e.g.
+a rubric key point was corrected).
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.skill_drift' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.skill_drift' AND locale = 'en'
+    AND short_text = 'The prompt version used for this grade differs from the current live prompt. Consider re-grading.'
+    AND long_md IS NOT DISTINCT FROM $$## Skill drift
+
+Each grading row records the SHA-256 hash of the prompt version that
+produced it. If the admin updates a grading skill (prompt template), rows
+graded with the old version are flagged with a **drift** badge.
+
+Drift is informational — it does not block releasing results. Use it as a
+signal to re-run affected attempts when a prompt change was material (e.g.
+a rubric key point was corrected).
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.scoring.attempt.total', 'admin', 'en',
+  'Sum of earned points across all questions, normalized to 100. Score bands are shown per-question only.',
+  $$## Total score
+
+The attempt total is a weighted sum of per-question scores, normalized to
+100. It is calculated once all questions are graded.
+
+For subjective questions, the per-question score is `reasoning_band × 25`,
+so a score band 3 answer on a 20-point question contributes 15 points.
+
+The total does **not** drive pass/fail thresholds directly — the archetype
+and cohort percentile are also factors. See `admin.reports.cohort.percentiles`.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.scoring.attempt.total' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.scoring.attempt.total' AND locale = 'en'
+    AND short_text = 'Sum of earned points across all questions, normalized to 100. Score bands are shown per-question only.'
+    AND long_md IS NOT DISTINCT FROM $$## Total score
+
+The attempt total is a weighted sum of per-question scores, normalized to
+100. It is calculated once all questions are graded.
+
+For subjective questions, the per-question score is `reasoning_band × 25`,
+so a score band 3 answer on a 20-point question contributes 15 points.
+
+The total does **not** drive pass/fail thresholds directly — the archetype
+and cohort percentile are also factors. See `admin.reports.cohort.percentiles`.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.scoring.archetype.disclaimer', 'admin', 'en',
+  'Behavioral signals are observational only. They do not affect the score and are not a proxy for integrity.',
+  $$## Archetype signal disclaimer
+
+Archetype signals are behavioral telemetry, not integrity flags. They:
+
+- Do **not** adjust the candidate's score in any direction.
+- Are **not** a proxy for cheating detection.
+- Are context-dependent: a slow pace on Advanced scenarios is normal; the same
+  pace on a Beginner triage question might indicate difficulty.
+
+Use signals to understand cohort patterns (e.g. "Intermediate candidates average
+200 edits per attempt") not to make individual pass/fail decisions.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.scoring.archetype.disclaimer' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.scoring.archetype.disclaimer' AND locale = 'en'
+    AND short_text = 'Behavioral signals are observational only. They do not affect the score and are not a proxy for integrity.'
+    AND long_md IS NOT DISTINCT FROM $$## Archetype signal disclaimer
+
+Archetype signals are behavioral telemetry, not integrity flags. They:
+
+- Do **not** adjust the candidate's score in any direction.
+- Are **not** a proxy for cheating detection.
+- Are context-dependent: a slow pace on Advanced scenarios is normal; the same
+  pace on a Beginner triage question might indicate difficulty.
+
+Use signals to understand cohort patterns (e.g. "Intermediate candidates average
+200 edits per attempt") not to make individual pass/fail decisions.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.cohort.percentiles', 'admin', 'en',
+  'Rank within the cohort. 90th percentile = scored higher than 90% of candidates on the same assessment.',
+  $$## Cohort percentiles
+
+Cohort percentiles are computed once the cohort has ≥5 released results.
+They are recomputed on every new release.
+
+A candidate at the 90th percentile scored higher than 90% of the cohort
+on the same assessment + difficulty. Percentiles are assessment-scoped — they
+do not span across assessments or difficulties.
+
+The report shows the median and percentile bands (P25, P50, P75, P90).
+Full bell-curve distribution charts are planned.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.percentiles' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.percentiles' AND locale = 'en'
+    AND short_text = 'Rank within the cohort. 90th percentile = scored higher than 90% of candidates on the same assessment.'
+    AND long_md IS NOT DISTINCT FROM $$## Cohort percentiles
+
+Cohort percentiles are computed once the cohort has ≥5 released results.
+They are recomputed on every new release.
+
+A candidate at the 90th percentile scored higher than 90% of the cohort
+on the same assessment + difficulty. Percentiles are assessment-scoped — they
+do not span across assessments or difficulties.
+
+The report shows the median and percentile bands (P25, P50, P75, P90).
+Full bell-curve distribution charts are planned.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.scoring.leaderboard.privacy', 'admin', 'en',
+  'Anonymize toggle hides candidate emails. Leaderboard data is admin-only and never shown to candidates.',
+  $$## Leaderboard privacy
+
+The cohort leaderboard is visible to admins only — candidates
+never see their rank or peers' scores.
+
+Use the **Anonymize** toggle to hide email addresses when screensharing
+or presenting cohort results to stakeholders. The setting is stored in your
+browser session only (not organisation-wide).
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.scoring.leaderboard.privacy' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.scoring.leaderboard.privacy' AND locale = 'en'
+    AND short_text = 'Anonymize toggle hides candidate emails. Leaderboard data is admin-only and never shown to candidates.'
+    AND long_md IS NOT DISTINCT FROM $$## Leaderboard privacy
+
+The cohort leaderboard is visible to admins only — candidates
+never see their rank or peers' scores.
+
+Use the **Anonymize** toggle to hide email addresses when screensharing
+or presenting cohort results to stakeholders. The setting is stored in your
+browser session only (not organisation-wide).
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.rubric.anchor.weight', 'admin', 'en',
+  'Fractional contribution of this key point to the total rubric weight. All key point weights must sum ≤ 1.0.',
+  $$## Key point weight
+
+The weight controls how much this key point contributes to the overall
+scoring floor. All key point weights must sum to ≤ 1.0 (the UI shows the
+running total and blocks saving if exceeded).
+
+Recommended allocation: identify 2–4 *essential* key points (weight 0.2–0.3
+each) and 2–4 *supporting* key points (weight 0.05–0.1 each). Leave room in
+the total so a strong answer that covers most key points isn't penalized by
+one missed nuance.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.rubric.anchor.weight' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.rubric.anchor.weight' AND locale = 'en'
+    AND short_text = 'Fractional contribution of this key point to the total rubric weight. All key point weights must sum ≤ 1.0.'
+    AND long_md IS NOT DISTINCT FROM $$## Key point weight
+
+The weight controls how much this key point contributes to the overall
+scoring floor. All key point weights must sum to ≤ 1.0 (the UI shows the
+running total and blocks saving if exceeded).
+
+Recommended allocation: identify 2–4 *essential* key points (weight 0.2–0.3
+each) and 2–4 *supporting* key points (weight 0.05–0.1 each). Leave room in
+the total so a strong answer that covers most key points isn't penalized by
+one missed nuance.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.rubric.anchor.synonyms', 'admin', 'en',
+  'Comma-separated synonyms or equivalent phrasings the AI should treat as matching the key point.',
+  $$## Key point synonyms
+
+Add synonyms when the key point concept has multiple correct phrasings.
+Example: key point phrase "lateral movement", synonyms "east-west traffic,
+network pivoting, pivot host".
+
+Synonyms are case-insensitive and matched as substrings within the answer.
+Avoid overly broad synonyms that could match unrelated content.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.rubric.anchor.synonyms' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.rubric.anchor.synonyms' AND locale = 'en'
+    AND short_text = 'Comma-separated synonyms or equivalent phrasings the AI should treat as matching the key point.'
+    AND long_md IS NOT DISTINCT FROM $$## Key point synonyms
+
+Add synonyms when the key point concept has multiple correct phrasings.
+Example: key point phrase "lateral movement", synonyms "east-west traffic,
+network pivoting, pivot host".
+
+Synonyms are case-insensitive and matched as substrings within the answer.
+Avoid overly broad synonyms that could match unrelated content.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.rubric.anchor.required', 'admin', 'en',
+  'Required key points must be present for the answer to score above score band 0, regardless of overall quality.',
+  $$## Required key point
+
+Setting a key point as **required** creates a hard floor: if the AI does not
+detect this concept, the score band is capped at 0 regardless of the rest of
+the answer quality.
+
+Use sparingly — for concepts so fundamental that their absence represents
+a complete misunderstanding. For most key points, leave required off and let
+the holistic score band judgement do its work.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.rubric.anchor.required' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.rubric.anchor.required' AND locale = 'en'
+    AND short_text = 'Required key points must be present for the answer to score above score band 0, regardless of overall quality.'
+    AND long_md IS NOT DISTINCT FROM $$## Required key point
+
+Setting a key point as **required** creates a hard floor: if the AI does not
+detect this concept, the score band is capped at 0 regardless of the rest of
+the answer quality.
+
+Use sparingly — for concepts so fundamental that their absence represents
+a complete misunderstanding. For most key points, leave required off and let
+the holistic score band judgement do its work.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.rubric.reasoning.bands', 'admin', 'en',
+  'Score band labels and descriptions tell the AI how to distinguish between 0%, 25%, 50%, 75%, and 100%.',
+  $$## Reasoning score bands
+
+Write a label and description for each of the five score bands. These are
+included verbatim in the AI grading prompt — they are the specification
+the model grades against.
+
+Best practice:
+- **Score band 4 (100%):** Complete, accurate, specific. Names tools, explains
+  tradeoffs, shows system-level reasoning.
+- **Score band 3 (75%):** Mostly correct. One missing element or weak rationale.
+- **Score band 2 (50%):** Correct direction, significant gaps. Explains *what*
+  but not *why*, or vice versa.
+- **Score band 1 (25%):** Shows partial understanding. More wrong than right.
+- **Score band 0 (0%):** No credit. Blank, off-topic, or fundamentally wrong.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.rubric.reasoning.bands' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.rubric.reasoning.bands' AND locale = 'en'
+    AND short_text = 'Score band labels and descriptions tell the AI how to distinguish between 0%, 25%, 50%, 75%, and 100%.'
+    AND long_md IS NOT DISTINCT FROM $$## Reasoning score bands
+
+Write a label and description for each of the five score bands. These are
+included verbatim in the AI grading prompt — they are the specification
+the model grades against.
+
+Best practice:
+- **Score band 4 (100%):** Complete, accurate, specific. Names tools, explains
+  tradeoffs, shows system-level reasoning.
+- **Score band 3 (75%):** Mostly correct. One missing element or weak rationale.
+- **Score band 2 (50%):** Correct direction, significant gaps. Explains *what*
+  but not *why*, or vice versa.
+- **Score band 1 (25%):** Shows partial understanding. More wrong than right.
+- **Score band 0 (0%):** No credit. Blank, off-topic, or fundamentally wrong.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.rubric.error_classes', 'admin', 'en',
+  'Error classes tag answers with a low score band for cohort analytics. Choose the one that best describes the failure.',
+  $$## Error classes
+
+Error classes are assigned by the AI when score band < 3 and aggregated in the
+cohort analytics view. They answer: "what kind of mistake did candidates
+make most often on this question?"
+
+Available classes:
+- `missing_concept` — the core concept was absent
+- `wrong_tool` — candidate chose the wrong approach
+- `wrong_reasoning` — reasoning is incorrect despite using the right tool
+- `partial_answer` — correct direction, incomplete
+
+Admin overrides can also set the error class. If no class applies, leave
+as `none`.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.rubric.error_classes' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.rubric.error_classes' AND locale = 'en'
+    AND short_text = 'Error classes tag answers with a low score band for cohort analytics. Choose the one that best describes the failure.'
+    AND long_md IS NOT DISTINCT FROM $$## Error classes
+
+Error classes are assigned by the AI when score band < 3 and aggregated in the
+cohort analytics view. They answer: "what kind of mistake did candidates
+make most often on this question?"
+
+Available classes:
+- `missing_concept` — the core concept was absent
+- `wrong_tool` — candidate chose the wrong approach
+- `wrong_reasoning` — reasoning is incorrect despite using the right tool
+- `partial_answer` — correct direction, incomplete
+
+Admin overrides can also set the error class. If no class applies, leave
+as `none`.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.billing.budget', 'admin', 'en',
+  'Questions about your plan? Contact your AssessIQ administrator. No limit blocks inviting or releasing.',
+  $$## Questions about your plan
+
+Your organisation is on a plan tier. Usage is counted in credits. See **Your
+plan and usage** on this page for the numbers.
+
+- AssessIQ grades written answers. You do not start grading yourself.
+- No limit blocks you from inviting candidates or releasing results.
+- To check your plan tier or discuss changes, contact your AssessIQ
+  administrator. Use the email address in your onboarding documents.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.billing.budget' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.billing.budget' AND locale = 'en'
+    AND short_text = 'Questions about your plan? Contact your AssessIQ administrator. No limit blocks inviting or releasing.'
+    AND long_md IS NOT DISTINCT FROM $$## Questions about your plan
+
+Your organisation is on a plan tier. Usage is counted in credits. See **Your
+plan and usage** on this page for the numbers.
+
+- AssessIQ grades written answers. You do not start grading yourself.
+- No limit blocks you from inviting candidates or releasing results.
+- To check your plan tier or discuss changes, contact your AssessIQ
+  administrator. Use the email address in your onboarding documents.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.billing.ai_answers', 'admin', 'en',
+  'Written answers AssessIQ graded this month, against the number your plan includes. Information only.',
+  $$## AI-graded answers
+
+Your plan includes a number of AI-graded written answers per month. One
+answer is counted when AssessIQ accepts its grading; a re-grading of
+the same answer is not counted again. Multiple-choice answers never count.
+
+The number resets on the monthly date shown under **Counting since**. Like
+credits, this meter is information only: nothing blocks inviting,
+submitting or releasing. To change your plan, contact your AssessIQ
+administrator.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.billing.ai_answers' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.billing.ai_answers' AND locale = 'en'
+    AND short_text = 'Written answers AssessIQ graded this month, against the number your plan includes. Information only.'
+    AND long_md IS NOT DISTINCT FROM $$## AI-graded answers
+
+Your plan includes a number of AI-graded written answers per month. One
+answer is counted when AssessIQ accepts its grading; a re-grading of
+the same answer is not counted again. Multiple-choice answers never count.
+
+The number resets on the monthly date shown under **Counting since**. Like
+credits, this meter is information only: nothing blocks inviting,
+submitting or releasing. To change your plan, contact your AssessIQ
+administrator.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.billing.alert_threshold', 'admin', 'en',
+  'A usage banner shows at 80% of your included credits. It is information only and never blocks you.',
+  $$## Usage banner threshold
+
+When your credit usage reaches 80% of the credits included in your plan, a
+banner appears at the top of your dashboard. It is informational only.
+Inviting, submitting, grading and releasing keep working, even when you
+use more than your included credits.
+
+To change your plan, contact your AssessIQ administrator.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.billing.alert_threshold' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.billing.alert_threshold' AND locale = 'en'
+    AND short_text = 'A usage banner shows at 80% of your included credits. It is information only and never blocks you.'
+    AND long_md IS NOT DISTINCT FROM $$## Usage banner threshold
+
+When your credit usage reaches 80% of the credits included in your plan, a
+banner appears at the top of your dashboard. It is informational only.
+Inviting, submitting, grading and releasing keep working, even when you
+use more than your included credits.
+
+To change your plan, contact your AssessIQ administrator.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.help_content.page', 'admin', 'en',
+  'Edit the help text shown in tooltips and the help drawer. Each save creates a new version.',
+  $$## Help content
+
+This page lists every help entry for one locale. Each entry has a key, a short
+text (the tooltip) and a longer Markdown body (the help drawer).
+
+- **Platform admins** edit the global text that every organisation sees.
+- **Organisation admins** can save an organisation override. The platform text is kept.
+- Each save creates a new version. Older versions stay in the database.
+- Use **Export JSON** and **Import JSON** for a translation round trip.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.help_content.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.help_content.page' AND locale = 'en'
+    AND short_text = 'Edit the help text shown in tooltips and the help drawer. Each save creates a new version.'
+    AND long_md IS NOT DISTINCT FROM $$## Help content
+
+This page lists every help entry for one locale. Each entry has a key, a short
+text (the tooltip) and a longer Markdown body (the help drawer).
+
+- **Platform admins** edit the global text that every organisation sees.
+- **Organisation admins** can save an organisation override. The platform text is kept.
+- Each save creates a new version. Older versions stay in the database.
+- Use **Export JSON** and **Import JSON** for a translation round trip.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.help_content.scope', 'admin', 'en',
+  'Platform admins change the global text. Organisation admins save an override for their organisation only.',
+  $$## Global text or organisation override
+
+- A **global** row has no organisation. Every organisation without an override sees it.
+- A **organisation override** replaces the global text for that organisation only.
+- A platform admin save creates a new global version. An organisation admin save
+  creates a new override version.
+- The key never changes. It links the text to the screen element.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.help_content.scope' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.help_content.scope' AND locale = 'en'
+    AND short_text = 'Platform admins change the global text. Organisation admins save an override for their organisation only.'
+    AND long_md IS NOT DISTINCT FROM $$## Global text or organisation override
+
+- A **global** row has no organisation. Every organisation without an override sees it.
+- A **organisation override** replaces the global text for that organisation only.
+- A platform admin save creates a new global version. An organisation admin save
+  creates a new override version.
+- The key never changes. It links the text to the screen element.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.help_content.list', 'admin', 'en',
+  'One card per help key. The chip tells if the text is global or an organisation override, and its version.',
+  $$## Entry list
+
+Each card shows the key, the scope chip, the version and the audience, then the
+short text and the first lines of the body. Select **Edit** to change the text.
+Use the search box to filter by key or short text.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.help_content.list' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.help_content.list' AND locale = 'en'
+    AND short_text = 'One card per help key. The chip tells if the text is global or an organisation override, and its version.'
+    AND long_md IS NOT DISTINCT FROM $$## Entry list
+
+Each card shows the key, the scope chip, the version and the audience, then the
+short text and the first lines of the body. Select **Edit** to change the text.
+Use the search box to filter by key or short text.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.help_content.import', 'admin', 'en',
+  'Import a JSON file in the export format. Rows are saved as organisation overrides for the selected locale.',
+  $$## Import JSON
+
+Upload a file that you exported from this page (a list of entries with `key`,
+`shortText`, `longMd` and `audience`). Every row is saved as an organisation override
+for the locale shown on the page. A row that already exists at the same version
+is skipped.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.help_content.import' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.help_content.import' AND locale = 'en'
+    AND short_text = 'Import a JSON file in the export format. Rows are saved as organisation overrides for the selected locale.'
+    AND long_md IS NOT DISTINCT FROM $$## Import JSON
+
+Upload a file that you exported from this page (a list of entries with `key`,
+`shortText`, `longMd` and `audience`). Every row is saved as an organisation override
+for the locale shown on the page. A row that already exists at the same version
+is skipped.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.gen_score.history', 'admin', 'en',
+  'Cross-set history of every AI question-generation run. Filter by status, score in-app, and inspect stderr without SSH.',
+  $$## AI generation attempt history
+
+The **Generation history** page (`/admin/generation-attempts`) lists every
+call to the AI question-generation pipeline across all question sets and difficulties.
+
+**What you can do here:**
+
+- Filter by status (`success`, `partial`, `failed`, `running`) or by question set
+  using the chip row at the top.
+- Expand a row to see `stderr_tail` — the last lines of output from the
+  generation run — useful for diagnosing failures without SSH access.
+- Click **Score this attempt** to run structural quality checks and runtime
+  metric comparisons server-side and see the results inline — no CLI or SSH
+  required.
+- Page forward and backward through older runs via offset-based pagination.
+
+**Status meanings:**
+
+| Status | Meaning |
+|---|---|
+| `success` | All requested questions were generated and inserted |
+| `partial` | Some questions were inserted; one or more chunks failed |
+| `failed` | No questions were inserted; the run terminated with an error |
+| `running` | Generation is in progress |
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.gen_score.history' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.gen_score.history' AND locale = 'en'
+    AND short_text = 'Cross-set history of every AI question-generation run. Filter by status, score in-app, and inspect stderr without SSH.'
+    AND long_md IS NOT DISTINCT FROM $$## AI generation attempt history
+
+The **Generation history** page (`/admin/generation-attempts`) lists every
+call to the AI question-generation pipeline across all question sets and difficulties.
+
+**What you can do here:**
+
+- Filter by status (`success`, `partial`, `failed`, `running`) or by question set
+  using the chip row at the top.
+- Expand a row to see `stderr_tail` — the last lines of output from the
+  generation run — useful for diagnosing failures without SSH access.
+- Click **Score this attempt** to run structural quality checks and runtime
+  metric comparisons server-side and see the results inline — no CLI or SSH
+  required.
+- Page forward and backward through older runs via offset-based pagination.
+
+**Status meanings:**
+
+| Status | Meaning |
+|---|---|
+| `success` | All requested questions were generated and inserted |
+| `partial` | Some questions were inserted; one or more chunks failed |
+| `failed` | No questions were inserted; the run terminated with an error |
+| `running` | Generation is in progress |
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.gen_score.score_button', 'admin', 'en',
+  'Runs the server-side scorer on this run — structural quality plus runtime metrics — and records an overall verdict.',
+  $$## Score this attempt
+
+Runs the generation **scorer** server-side for this attempt — no CLI or SSH
+required. It re-grades the run on two axes and shows the result inline:
+
+- **Structural quality** — re-checks every generated draft against the
+  per-type content schema and the difficulty structural gates.
+- **Runtime metrics** — compares the run's timing/resource figures against
+  their thresholds.
+
+The combined **overall verdict** (pass / warning / regression) appears above
+the tables. Scoring is read-only — it never edits or deletes any drafts.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.gen_score.score_button' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.gen_score.score_button' AND locale = 'en'
+    AND short_text = 'Runs the server-side scorer on this run — structural quality plus runtime metrics — and records an overall verdict.'
+    AND long_md IS NOT DISTINCT FROM $$## Score this attempt
+
+Runs the generation **scorer** server-side for this attempt — no CLI or SSH
+required. It re-grades the run on two axes and shows the result inline:
+
+- **Structural quality** — re-checks every generated draft against the
+  per-type content schema and the difficulty structural gates.
+- **Runtime metrics** — compares the run's timing/resource figures against
+  their thresholds.
+
+The combined **overall verdict** (pass / warning / regression) appears above
+the tables. Scoring is read-only — it never edits or deletes any drafts.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.settings.billing.ai_generate_mode', 'admin', 'en',
+  'Question generation mode: omnibus = single prompt; sharded = one prompt per question type. Effective on next request.',
+  $$## Generation mode
+
+Controls how AI question generation works for this organisation.
+
+| Value | Meaning |
+|---|---|
+| **Use global default** | Inherits the platform-wide setting (currently omnibus). Choose this to undo an organisation-specific override. |
+| **omnibus** | All questions are generated in a single AI prompt. Lower latency but no per-type quality tuning. |
+| **sharded** | Questions are generated in separate per-type prompts (one each for mcq, log_analysis, scenario, kql, subjective). Higher fidelity; slightly longer wall-clock time. |
+
+**Rollout:** sharded is the target default. Until the quality checks pass
+consistently, the global default stays omnibus and organisations move to
+sharded one at a time as a quality pilot.
+
+**Audit trail:** every change to this setting is recorded in the audit log
+with the before value, the after value and the person who made the change.
+
+**Need a change without the screen?** Ask the AssessIQ engineering team.
+The change takes effect on the next generation request.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.settings.billing.ai_generate_mode' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.settings.billing.ai_generate_mode' AND locale = 'en'
+    AND short_text = 'Question generation mode: omnibus = single prompt; sharded = one prompt per question type. Effective on next request.'
+    AND long_md IS NOT DISTINCT FROM $$## Generation mode
+
+Controls how AI question generation works for this organisation.
+
+| Value | Meaning |
+|---|---|
+| **Use global default** | Inherits the platform-wide setting (currently omnibus). Choose this to undo an organisation-specific override. |
+| **omnibus** | All questions are generated in a single AI prompt. Lower latency but no per-type quality tuning. |
+| **sharded** | Questions are generated in separate per-type prompts (one each for mcq, log_analysis, scenario, kql, subjective). Higher fidelity; slightly longer wall-clock time. |
+
+**Rollout:** sharded is the target default. Until the quality checks pass
+consistently, the global default stays omnibus and organisations move to
+sharded one at a time as a quality pilot.
+
+**Audit trail:** every change to this setting is recorded in the audit log
+with the before value, the after value and the person who made the change.
+
+**Need a change without the screen?** Ask the AssessIQ engineering team.
+The change takes effect on the next generation request.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.questions.bulk.archive', 'admin', 'en',
+  'Archive up to 200 questions at once from question-set detail. Archived questions leave the active pool immediately.',
+  $$## Bulk archive
+
+The bulk-archive action removes questions from the active pool in one
+operation. Select individual rows with the per-row checkbox, or use
+**Select all (filtered)** to grab every question matching the current
+filter. A sticky action bar appears when any row is checked.
+
+**Limits and constraints:**
+
+- Maximum 200 question IDs per request. For larger batches, filter and
+  archive in multiple passes.
+- Questions already `archived` are silently skipped in the batch.
+- `archived → active` transitions are **not available in bulk** for audit
+  reasons. To reactivate an archived question, open it individually.
+
+**Audit trail:** each bulk-archive operation is recorded as a single audit
+entry with the list of IDs and the acting admin's user ID.
+
+> **Caution:** archive is not reversible in bulk. Reactivate per-question
+> if you archived something by mistake.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.questions.bulk.archive' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.questions.bulk.archive' AND locale = 'en'
+    AND short_text = 'Archive up to 200 questions at once from question-set detail. Archived questions leave the active pool immediately.'
+    AND long_md IS NOT DISTINCT FROM $$## Bulk archive
+
+The bulk-archive action removes questions from the active pool in one
+operation. Select individual rows with the per-row checkbox, or use
+**Select all (filtered)** to grab every question matching the current
+filter. A sticky action bar appears when any row is checked.
+
+**Limits and constraints:**
+
+- Maximum 200 question IDs per request. For larger batches, filter and
+  archive in multiple passes.
+- Questions already `archived` are silently skipped in the batch.
+- `archived → active` transitions are **not available in bulk** for audit
+  reasons. To reactivate an archived question, open it individually.
+
+**Audit trail:** each bulk-archive operation is recorded as a single audit
+entry with the list of IDs and the acting admin's user ID.
+
+> **Caution:** archive is not reversible in bulk. Reactivate per-question
+> if you archived something by mistake.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.questions.bulk.approve', 'admin', 'en',
+  'Activate up to 200 ai_draft questions at once. Each draft enters the active pool immediately on approval.',
+  $$## Bulk approve (activate)
+
+Bulk approve transitions selected `ai_draft` questions to `active` in one
+operation, adding them to the question pool immediately. Use this after
+reviewing a generation batch where the drafts look consistent and correct.
+
+**Workflow:**
+
+1. Generate questions on a difficulty row.
+2. Review a sample of the `ai_draft` questions individually.
+3. Select all (or a subset) that pass review.
+4. Click **Approve** in the sticky action bar and confirm in the modal.
+
+**Limits:**
+
+- Maximum 200 IDs per request.
+- Only `ai_draft` and `inactive` questions can be approved in bulk.
+  Questions already `active` or `archived` are skipped silently.
+
+> **Caution:** bulk approve bypasses individual review for each question.
+> Sample the batch first; only bulk-approve when quality is consistent.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.questions.bulk.approve' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.questions.bulk.approve' AND locale = 'en'
+    AND short_text = 'Activate up to 200 ai_draft questions at once. Each draft enters the active pool immediately on approval.'
+    AND long_md IS NOT DISTINCT FROM $$## Bulk approve (activate)
+
+Bulk approve transitions selected `ai_draft` questions to `active` in one
+operation, adding them to the question pool immediately. Use this after
+reviewing a generation batch where the drafts look consistent and correct.
+
+**Workflow:**
+
+1. Generate questions on a difficulty row.
+2. Review a sample of the `ai_draft` questions individually.
+3. Select all (or a subset) that pass review.
+4. Click **Approve** in the sticky action bar and confirm in the modal.
+
+**Limits:**
+
+- Maximum 200 IDs per request.
+- Only `ai_draft` and `inactive` questions can be approved in bulk.
+  Questions already `active` or `archived` are skipped silently.
+
+> **Caution:** bulk approve bypasses individual review for each question.
+> Sample the batch first; only bulk-approve when quality is consistent.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.questions.generate.modal', 'admin', 'en',
+  'Control how many questions to generate per type. Defaults come from the difficulty weight tables.',
+  $$## Generate questions modal — per-type distribution
+
+The Generate modal shows a **per-type chip row** alongside the total count
+input. Each chip (MCQ, KQL, Scenario, Subjective) shows the auto-weighted
+count calculated from the question set's Beginner/Intermediate/Advanced weight table.
+
+**Using per-type overrides:**
+
+- Click a chip to open the per-type count spinner.
+- Adjust the count for each type. The total across types must equal the
+  requested count — a running-sum indicator validates this in real time.
+- Click **Reset** to restore the auto-weighted defaults.
+
+**Subjective handling:**
+
+- In **omnibus mode**, subjective questions fold into the MCQ quota and
+  use the same generation call.
+- In **sharded mode**, subjective is its own generation call
+  with a separate `generate-rubric` skill pass before insert.
+
+### Notes
+
+- The 1–30 cap applies to the total, not per type.
+- Overrides are one-time — they reset on the next modal open.
+- Parallel chunking (1–10 / 11–20 / 21–30) and the 5-minute prompt
+  cache window still apply; see `admin.questions.generate.draft` for
+  timing details.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.questions.generate.modal' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.questions.generate.modal' AND locale = 'en'
+    AND short_text = 'Control how many questions to generate per type. Defaults come from the difficulty weight tables.'
+    AND long_md IS NOT DISTINCT FROM $$## Generate questions modal — per-type distribution
+
+The Generate modal shows a **per-type chip row** alongside the total count
+input. Each chip (MCQ, KQL, Scenario, Subjective) shows the auto-weighted
+count calculated from the question set's Beginner/Intermediate/Advanced weight table.
+
+**Using per-type overrides:**
+
+- Click a chip to open the per-type count spinner.
+- Adjust the count for each type. The total across types must equal the
+  requested count — a running-sum indicator validates this in real time.
+- Click **Reset** to restore the auto-weighted defaults.
+
+**Subjective handling:**
+
+- In **omnibus mode**, subjective questions fold into the MCQ quota and
+  use the same generation call.
+- In **sharded mode**, subjective is its own generation call
+  with a separate `generate-rubric` skill pass before insert.
+
+### Notes
+
+- The 1–30 cap applies to the total, not per type.
+- Overrides are one-time — they reset on the next modal open.
+- Parallel chunking (1–10 / 11–20 / 21–30) and the 5-minute prompt
+  cache window still apply; see `admin.questions.generate.draft` for
+  timing details.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.questions.subjective', 'admin', 'en',
+  'Open-ended written-reasoning questions scored via AI rubric. Rubric is generated separately; admin must activate.',
+  $$## Subjective questions
+
+Subjective questions present a freeform prompt to candidates, who type a
+written response. There are no multiple-choice options, no expected syntax,
+and no keyword hints. Scoring is AI-driven against rubric key points.
+
+**Authoring flow:**
+
+1. Generate (or import) a subjective question — it enters `ai_draft`.
+2. Open the draft in the question editor.
+3. Review or edit the rubric key points (auto-generated via the
+   `generate-rubric` skill during generation in sharded mode).
+4. Activate the question to add it to the pool.
+
+**Candidate experience:**
+
+- Sees the prompt and a freeform text area.
+- No syntax hints or expected-keyword display.
+- Response length is unconstrained within the attempt time limit.
+
+**Grading:** AssessIQ's grading scores the written response against the
+rubric key points. The grader can re-run or override the result.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.questions.subjective' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.questions.subjective' AND locale = 'en'
+    AND short_text = 'Open-ended written-reasoning questions scored via AI rubric. Rubric is generated separately; admin must activate.'
+    AND long_md IS NOT DISTINCT FROM $$## Subjective questions
+
+Subjective questions present a freeform prompt to candidates, who type a
+written response. There are no multiple-choice options, no expected syntax,
+and no keyword hints. Scoring is AI-driven against rubric key points.
+
+**Authoring flow:**
+
+1. Generate (or import) a subjective question — it enters `ai_draft`.
+2. Open the draft in the question editor.
+3. Review or edit the rubric key points (auto-generated via the
+   `generate-rubric` skill during generation in sharded mode).
+4. Activate the question to add it to the pool.
+
+**Candidate experience:**
+
+- Sees the prompt and a freeform text area.
+- No syntax hints or expected-keyword display.
+- Response length is unconstrained within the attempt time limit.
+
+**Grading:** AssessIQ's grading scores the written response against the
+rubric key points. The grader can re-run or override the result.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question_bank.pack.attempt_status', 'admin', 'en',
+  'Colour-coded status on each difficulty row shows the latest generation result. Expands on failure.',
+  $$## Generation-attempt status on difficulty rows
+
+Each difficulty row in question-set detail shows a small status indicator reflecting
+the most recent generation attempt for that question set + difficulty combination.
+
+**Status colors:**
+
+| Color | Status | Meaning |
+|---|---|---|
+| Green | `success` | Last run succeeded; all requested questions inserted |
+| Amber | `partial` | Some questions inserted; one or more chunks failed |
+| Red | `failed` | No questions inserted; run terminated with an error |
+| Blue (animated) | `running` | Generation is in progress |
+
+The row **polls automatically** when status is `running`, re-fetching
+every few seconds. After 10 consecutive polls with no status change,
+polling stops — refresh the page or visit the generation-history page for
+the full `stderr_tail`.
+
+For `failed` or `partial` rows, expand the status disclosure to see a
+brief error summary. The full `stderr_tail` is available on the
+generation-history page (`/admin/generation-attempts`).
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.attempt_status' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question_bank.pack.attempt_status' AND locale = 'en'
+    AND short_text = 'Colour-coded status on each difficulty row shows the latest generation result. Expands on failure.'
+    AND long_md IS NOT DISTINCT FROM $$## Generation-attempt status on difficulty rows
+
+Each difficulty row in question-set detail shows a small status indicator reflecting
+the most recent generation attempt for that question set + difficulty combination.
+
+**Status colors:**
+
+| Color | Status | Meaning |
+|---|---|---|
+| Green | `success` | Last run succeeded; all requested questions inserted |
+| Amber | `partial` | Some questions inserted; one or more chunks failed |
+| Red | `failed` | No questions inserted; run terminated with an error |
+| Blue (animated) | `running` | Generation is in progress |
+
+The row **polls automatically** when status is `running`, re-fetching
+every few seconds. After 10 consecutive polls with no status change,
+polling stops — refresh the page or visit the generation-history page for
+the full `stderr_tail`.
+
+For `failed` or `partial` rows, expand the status disclosure to see a
+brief error summary. The full `stderr_tail` is available on the
+generation-history page (`/admin/generation-attempts`).
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.ops.cli.inspect_attempt', 'admin', 'en',
+  'Diagnostic dump for any generation_attempts row — status, timing, inserted question IDs, and stderr. CLI only.',
+  $$## inspect-attempt CLI tool
+
+The `inspect-attempt` subcommand produces a structured diagnostic report
+for a single `generation_attempts` row. Use it when the generation-history
+page shows a failure but you need more detail than `stderr_tail` provides.
+
+```bash
+pnpm tsx tools/inspect-attempt.ts <attempt-id>
+```
+
+**Output includes:**
+
+- Attempt metadata: status, question set, difficulty, skill SHA, model, duration.
+- Chunk plan: how many chunks were planned vs failed.
+- Inserted question IDs (if any succeeded before the failure).
+- Full `stderr_tail` (not truncated as in the UI).
+- Dedupe drop count and topic list.
+
+**When to use:**
+
+- A `partial` run left some questions but you need to know which chunks
+  failed and why.
+- A `failed` run shows no stderr in the UI; the full output may have been
+  captured earlier in the log.
+- Support escalations where you need to attach the full run context.
+
+The attempt ID is visible on the generation-history page row.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.ops.cli.inspect_attempt' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.ops.cli.inspect_attempt' AND locale = 'en'
+    AND short_text = 'Diagnostic dump for any generation_attempts row — status, timing, inserted question IDs, and stderr. CLI only.'
+    AND long_md IS NOT DISTINCT FROM $$## inspect-attempt CLI tool
+
+The `inspect-attempt` subcommand produces a structured diagnostic report
+for a single `generation_attempts` row. Use it when the generation-history
+page shows a failure but you need more detail than `stderr_tail` provides.
+
+```bash
+pnpm tsx tools/inspect-attempt.ts <attempt-id>
+```
+
+**Output includes:**
+
+- Attempt metadata: status, question set, difficulty, skill SHA, model, duration.
+- Chunk plan: how many chunks were planned vs failed.
+- Inserted question IDs (if any succeeded before the failure).
+- Full `stderr_tail` (not truncated as in the UI).
+- Dedupe drop count and topic list.
+
+**When to use:**
+
+- A `partial` run left some questions but you need to know which chunks
+  failed and why.
+- A `failed` run shows no stderr in the UI; the full output may have been
+  captured earlier in the log.
+- Support escalations where you need to attach the full run context.
+
+The attempt ID is visible on the generation-history page row.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.grading_dispatch', 'admin', 'en',
+  'Each question type routes to a different grading method: mcq direct-compare, kql keyword-match, others via AI.',
+  $$## Per-type grading dispatch
+
+When grading runs for a submitted attempt, each question is routed to the
+appropriate scoring method based on its type:
+
+| Type | Method |
+|---|---|
+| `mcq` | Direct comparison against the correct answer key — no AI call |
+| `kql` | Keyword-match against `expected_keywords` plus AI syntactic check |
+| `log_analysis` | AI rubric scoring; rubric synthesized at grade-time from `expected_findings` — no admin rubric authoring needed |
+| `scenario` | AI rubric scoring using admin-authored key points |
+| `subjective` | AI rubric scoring using admin-authored or generated key points |
+
+**log_analysis note:** the rubric for `log_analysis` questions is derived
+automatically from `expected_findings` — admins do not need to author
+rubric key points for this type. The AI synthesizes scoring criteria at
+grade-time from the expected findings field.
+
+MCQ and KQL grading is deterministic and fast (< 50 ms per question).
+AI-routed types add 15–90 s per question depending on model and cache.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.grading_dispatch' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.grading_dispatch' AND locale = 'en'
+    AND short_text = 'Each question type routes to a different grading method: mcq direct-compare, kql keyword-match, others via AI.'
+    AND long_md IS NOT DISTINCT FROM $$## Per-type grading dispatch
+
+When grading runs for a submitted attempt, each question is routed to the
+appropriate scoring method based on its type:
+
+| Type | Method |
+|---|---|
+| `mcq` | Direct comparison against the correct answer key — no AI call |
+| `kql` | Keyword-match against `expected_keywords` plus AI syntactic check |
+| `log_analysis` | AI rubric scoring; rubric synthesized at grade-time from `expected_findings` — no admin rubric authoring needed |
+| `scenario` | AI rubric scoring using admin-authored key points |
+| `subjective` | AI rubric scoring using admin-authored or generated key points |
+
+**log_analysis note:** the rubric for `log_analysis` questions is derived
+automatically from `expected_findings` — admins do not need to author
+rubric key points for this type. The AI synthesizes scoring criteria at
+grade-time from the expected findings field.
+
+MCQ and KQL grading is deterministic and fast (< 50 ms per question).
+AI-routed types add 15–90 s per question depending on model and cache.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.certificates.list', 'admin', 'en',
+  'View and manage organisation credentials. Revoke compromised certificates or reissue to correct a field.',
+  $$## Certificate management
+
+The **Certificates** page (`/admin/certificates`) lists every credential
+issued to candidates in this organisation, newest first.
+
+**What you can do here:**
+
+| Action | When to use |
+|---|---|
+| **Revoke** | Certificate was issued in error, a candidate's access should be revoked, or the credential has been compromised |
+| **Reissue** | The candidate's display name was wrong at issuance and needs correction |
+
+**Columns:**
+
+- `credential_id` — the public slug used in LinkedIn share URLs and QR codes
+- `user_email` — the candidate's current email (may differ from name on cert)
+- `tier` — Completion, Distinction, or Honors
+- `issued_at` — when the credential was first issued (never changes on reissue)
+- `status` — Active or Revoked
+
+**Filter chips:** narrow by tier or status to find specific credentials quickly.
+
+**Counters:** pdf_downloads, linkedin_shares, and verification_views are tracked
+per credential and visible in the audit log.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.certificates.list' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.certificates.list' AND locale = 'en'
+    AND short_text = 'View and manage organisation credentials. Revoke compromised certificates or reissue to correct a field.'
+    AND long_md IS NOT DISTINCT FROM $$## Certificate management
+
+The **Certificates** page (`/admin/certificates`) lists every credential
+issued to candidates in this organisation, newest first.
+
+**What you can do here:**
+
+| Action | When to use |
+|---|---|
+| **Revoke** | Certificate was issued in error, a candidate's access should be revoked, or the credential has been compromised |
+| **Reissue** | The candidate's display name was wrong at issuance and needs correction |
+
+**Columns:**
+
+- `credential_id` — the public slug used in LinkedIn share URLs and QR codes
+- `user_email` — the candidate's current email (may differ from name on cert)
+- `tier` — Completion, Distinction, or Honors
+- `issued_at` — when the credential was first issued (never changes on reissue)
+- `status` — Active or Revoked
+
+**Filter chips:** narrow by tier or status to find specific credentials quickly.
+
+**Counters:** pdf_downloads, linkedin_shares, and verification_views are tracked
+per credential and visible in the audit log.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.activity.heatmap.legend', 'admin', 'en',
+  'Heatmap color bands — from no activity (lightest) to highest activity (darkest indigo).',
+  $$## Heatmap intensity bands
+
+Each cell represents one day. The five intensity levels are:
+
+| Score band | Count |
+|---|---|
+| 0 (empty) | No submitted attempts that day |
+| 1 (light) | 1–2 submitted attempts |
+| 2 | 3–5 submitted attempts |
+| 3 | 6–10 submitted attempts |
+| 4 (dark) | 11 or more submitted attempts |
+
+Counts reflect completed (submitted/graded/released) attempts in your organisation only.
+The heatmap always shows the rolling 52-week window ending today — it does not
+respond to the period toggle (which controls the stat cards and leaderboard).
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.activity.heatmap.legend' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.activity.heatmap.legend' AND locale = 'en'
+    AND short_text = 'Heatmap color bands — from no activity (lightest) to highest activity (darkest indigo).'
+    AND long_md IS NOT DISTINCT FROM $$## Heatmap intensity bands
+
+Each cell represents one day. The five intensity levels are:
+
+| Score band | Count |
+|---|---|
+| 0 (empty) | No submitted attempts that day |
+| 1 (light) | 1–2 submitted attempts |
+| 2 | 3–5 submitted attempts |
+| 3 | 6–10 submitted attempts |
+| 4 (dark) | 11 or more submitted attempts |
+
+Counts reflect completed (submitted/graded/released) attempts in your organisation only.
+The heatmap always shows the rolling 52-week window ending today — it does not
+respond to the period toggle (which controls the stat cards and leaderboard).
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.activity.streak.explanation', 'admin', 'en',
+  'Current streak counts consecutive days with at least one submitted attempt; longest streak is the all-time best.',
+  $$## Streak calculation
+
+**Current streak** — the number of consecutive calendar days (ending today or
+yesterday) on which at least one assessment was submitted. A day with zero
+submitted attempts resets the streak to 0.
+
+**Longest streak** — the longest unbroken run of active days in the 365-day
+window queried by the heatmap endpoint. If today has no submitted attempts yet, the
+current streak may be shorter than yesterday's value until the first submitted attempt
+of the day is recorded.
+
+Streaks are computed in TypeScript from the daily bucket data — no SQL window
+functions — so they reflect the live `attempts` table with same-day precision.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.activity.streak.explanation' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.activity.streak.explanation' AND locale = 'en'
+    AND short_text = 'Current streak counts consecutive days with at least one submitted attempt; longest streak is the all-time best.'
+    AND long_md IS NOT DISTINCT FROM $$## Streak calculation
+
+**Current streak** — the number of consecutive calendar days (ending today or
+yesterday) on which at least one assessment was submitted. A day with zero
+submitted attempts resets the streak to 0.
+
+**Longest streak** — the longest unbroken run of active days in the 365-day
+window queried by the heatmap endpoint. If today has no submitted attempts yet, the
+current streak may be shorter than yesterday's value until the first submitted attempt
+of the day is recorded.
+
+Streaks are computed in TypeScript from the daily bucket data — no SQL window
+functions — so they reflect the live `attempts` table with same-day precision.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.activity.leaderboard.delta', 'admin', 'en',
+  'Delta % compares submitted attempts this period to the prior period of equal length; null for a new question set.',
+  $$## Leaderboard delta
+
+Each leaderboard row shows a **delta** between the current period and the
+immediately preceding period of equal length:
+
+- **Week:** current 7 days vs prior 7 days
+- **Month:** current 30 days vs prior 30 days
+- **Quarter:** current 90 days vs prior 90 days
+
+The delta is `((current − prior) / prior) × 100`, rounded to one decimal place.
+
+**Direction indicators:**
+- ↑ Up — delta > +0.5%
+- ↓ Down — delta < −0.5%
+- Flat — delta within ±0.5% (small noise suppression)
+
+**Null delta** — shown when the question set had zero submitted attempts in the prior period
+but has submitted attempts in the current period (new entry, no baseline to compare).
+
+The leaderboard groups by question set (catalog-wide rollup), so a question set with
+multiple active assessment cycles appears as one row.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.activity.leaderboard.delta' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.activity.leaderboard.delta' AND locale = 'en'
+    AND short_text = 'Delta % compares submitted attempts this period to the prior period of equal length; null for a new question set.'
+    AND long_md IS NOT DISTINCT FROM $$## Leaderboard delta
+
+Each leaderboard row shows a **delta** between the current period and the
+immediately preceding period of equal length:
+
+- **Week:** current 7 days vs prior 7 days
+- **Month:** current 30 days vs prior 30 days
+- **Quarter:** current 90 days vs prior 90 days
+
+The delta is `((current − prior) / prior) × 100`, rounded to one decimal place.
+
+**Direction indicators:**
+- ↑ Up — delta > +0.5%
+- ↓ Down — delta < −0.5%
+- Flat — delta within ±0.5% (small noise suppression)
+
+**Null delta** — shown when the question set had zero submitted attempts in the prior period
+but has submitted attempts in the current period (new entry, no baseline to compare).
+
+The leaderboard groups by question set (catalog-wide rollup), so a question set with
+multiple active assessment cycles appears as one row.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.platform.jobs', 'admin', 'en',
+  'Health of the shared background queue: email, webhooks and cron jobs. AI grading never runs here.',
+  $$## Background jobs
+
+This section shows the state of the one background queue that every organisation
+shares. The queue handles:
+
+- **Email delivery** — invitations, reminders, result emails
+- **Webhook delivery** — payloads to organisation-configured endpoints
+- **Cron jobs** — assessment window transitions and attempt timer sweeps
+
+**This queue never runs AI grading.** Grading starts only when a
+platform admin selects it on the Grading page.
+
+| Card | What it shows |
+|---|---|
+| Waiting / Delayed | Jobs that have not started. Zero is healthy. |
+| Active | Jobs running right now. |
+| Completed | Jobs completed since the queue was created. |
+| Failed | Jobs that used all their retries. They are listed below. |
+
+The counts are cached for 5 seconds on the server. Select **Refresh** to read again.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.platform.jobs' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.platform.jobs' AND locale = 'en'
+    AND short_text = 'Health of the shared background queue: email, webhooks and cron jobs. AI grading never runs here.'
+    AND long_md IS NOT DISTINCT FROM $$## Background jobs
+
+This section shows the state of the one background queue that every organisation
+shares. The queue handles:
+
+- **Email delivery** — invitations, reminders, result emails
+- **Webhook delivery** — payloads to organisation-configured endpoints
+- **Cron jobs** — assessment window transitions and attempt timer sweeps
+
+**This queue never runs AI grading.** Grading starts only when a
+platform admin selects it on the Grading page.
+
+| Card | What it shows |
+|---|---|
+| Waiting / Delayed | Jobs that have not started. Zero is healthy. |
+| Active | Jobs running right now. |
+| Completed | Jobs completed since the queue was created. |
+| Failed | Jobs that used all their retries. They are listed below. |
+
+The counts are cached for 5 seconds on the server. Select **Refresh** to read again.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.webhooks.events', 'admin', 'en',
+  'Subscribable event types: attempt lifecycle, assessment state changes, user events, cert issuance/revocation, audit.*.',
+  $$## Webhook event types
+
+Select one or more events when registering a webhook endpoint. Your server
+will receive a POST for each event that fires in your organisation.
+
+| Event | Fires when |
+|---|---|
+| `attempt.submitted` | A candidate submits their assessment attempt |
+| `attempt.graded` | AI grading completes for an attempt |
+| `attempt.released` | An admin releases graded results to the candidate |
+| `assessment.published` | An assessment moves to `published` status |
+| `assessment.closed` | An assessment closes (scheduled or early) |
+| `user.invited` | A new admin or candidate is invited |
+| `user.role_changed` | An existing user's role is changed |
+| `certificate.issued` | A new certificate is issued to a candidate |
+| `certificate.revoked` | A certificate is revoked |
+| `audit.*` | **All audit-log events** — requires fresh MFA at subscription time |
+
+**Payload shape (all events):**
+
+```json
+{
+  "event": "attempt.submitted",
+  "tenant_id": "<uuid>",
+  "occurred_at": "<ISO8601>",
+  "data": { ... }
+}
+```
+
+The `data` object shape is event-specific. Use the **Test** action to verify
+your endpoint accepts the envelope format before subscribing to live events.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.webhooks.events' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.webhooks.events' AND locale = 'en'
+    AND short_text = 'Subscribable event types: attempt lifecycle, assessment state changes, user events, cert issuance/revocation, audit.*.'
+    AND long_md IS NOT DISTINCT FROM $$## Webhook event types
+
+Select one or more events when registering a webhook endpoint. Your server
+will receive a POST for each event that fires in your organisation.
+
+| Event | Fires when |
+|---|---|
+| `attempt.submitted` | A candidate submits their assessment attempt |
+| `attempt.graded` | AI grading completes for an attempt |
+| `attempt.released` | An admin releases graded results to the candidate |
+| `assessment.published` | An assessment moves to `published` status |
+| `assessment.closed` | An assessment closes (scheduled or early) |
+| `user.invited` | A new admin or candidate is invited |
+| `user.role_changed` | An existing user's role is changed |
+| `certificate.issued` | A new certificate is issued to a candidate |
+| `certificate.revoked` | A certificate is revoked |
+| `audit.*` | **All audit-log events** — requires fresh MFA at subscription time |
+
+**Payload shape (all events):**
+
+```json
+{
+  "event": "attempt.submitted",
+  "tenant_id": "<uuid>",
+  "occurred_at": "<ISO8601>",
+  "data": { ... }
+}
+```
+
+The `data` object shape is event-specific. Use the **Test** action to verify
+your endpoint accepts the envelope format before subscribing to live events.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.users.list.erase', 'admin', 'en',
+  'Permanently erase this candidate''s personal data (DPDP right to erasure). Certificates are preserved for verification.',
+  $$## Erase candidate data
+
+Fulfils the **Right to Erasure** (also known as the right to be forgotten)
+under the Digital Personal Data Protection Act (DPDP) and similar laws.
+
+**What is erased — irreversibly:**
+
+- Name and email address (replaced with a tombstone placeholder).
+- Free-text answers submitted during assessments.
+- IP address and device-fingerprint data from session records.
+
+**What is preserved:**
+
+- **Issued certificates** remain valid. The candidate's name was snapshotted
+  at the moment of issuance and is retained on the certificate record so
+  that public certificate-verification links continue to work. The live
+  profile name is erased; the certificate snapshot is not.
+- Aggregate scoring rows (score band, difficulty) are retained without PII for
+  platform analytics.
+- The audit log entry recording this erasure action is preserved (required
+  for regulatory accountability).
+
+**This action is irreversible.** You must enter a reason and acknowledge
+the action before it is applied. The reason is recorded in the audit log.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.users.list.erase' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.users.list.erase' AND locale = 'en'
+    AND short_text = 'Permanently erase this candidate''s personal data (DPDP right to erasure). Certificates are preserved for verification.'
+    AND long_md IS NOT DISTINCT FROM $$## Erase candidate data
+
+Fulfils the **Right to Erasure** (also known as the right to be forgotten)
+under the Digital Personal Data Protection Act (DPDP) and similar laws.
+
+**What is erased — irreversibly:**
+
+- Name and email address (replaced with a tombstone placeholder).
+- Free-text answers submitted during assessments.
+- IP address and device-fingerprint data from session records.
+
+**What is preserved:**
+
+- **Issued certificates** remain valid. The candidate's name was snapshotted
+  at the moment of issuance and is retained on the certificate record so
+  that public certificate-verification links continue to work. The live
+  profile name is erased; the certificate snapshot is not.
+- Aggregate scoring rows (score band, difficulty) are retained without PII for
+  platform analytics.
+- The audit log entry recording this erasure action is preserved (required
+  for regulatory accountability).
+
+**This action is irreversible.** You must enter a reason and acknowledge
+the action before it is applied. The reason is recorded in the audit log.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.tenant_settings.company_name', 'admin', 'en',
+  'The organisation name shown in the app header and in emails to your candidates.',
+  $$## Organisation name
+
+This is your organisation's **display name**. It appears in the app header
+and in emails sent to your candidates (invitations, reminders).
+
+- Use 2–120 characters; extra spaces are tidied automatically.
+- Changing it does **not** change your sign-in address, organisation ID, or
+  anything candidates use to log in.
+- The new name also appears on certificates you issue or view afterwards.
+- Each change is recorded in the audit log.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.tenant_settings.company_name' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.tenant_settings.company_name' AND locale = 'en'
+    AND short_text = 'The organisation name shown in the app header and in emails to your candidates.'
+    AND long_md IS NOT DISTINCT FROM $$## Organisation name
+
+This is your organisation's **display name**. It appears in the app header
+and in emails sent to your candidates (invitations, reminders).
+
+- Use 2–120 characters; extra spaces are tidied automatically.
+- Changing it does **not** change your sign-in address, organisation ID, or
+  anything candidates use to log in.
+- The new name also appears on certificates you issue or view afterwards.
+- Each change is recorded in the audit log.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.tenant_settings.result_release_mode', 'admin', 'en',
+  'Choose whether results go to candidates automatically once complete, or only when you release them.',
+  $$## Result release
+
+This setting decides when a candidate can see their result.
+
+- **Manual (default).** A finished result waits for you. Candidates see
+  nothing — and are not emailed — until you release it.
+- **Automatic.** A result is released as soon as it is complete: the
+  candidate sees their score and is emailed straight away.
+
+A result is **complete** only when every question has a final score.
+Candidates never see a partial or provisional score, in either mode.
+
+**Switching to Automatic does not release results that are already
+waiting** — you can still release those yourself.
+
+You may be asked for a fresh authenticator code when you save. Each
+change is recorded in the audit log.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.tenant_settings.result_release_mode' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.tenant_settings.result_release_mode' AND locale = 'en'
+    AND short_text = 'Choose whether results go to candidates automatically once complete, or only when you release them.'
+    AND long_md IS NOT DISTINCT FROM $$## Result release
+
+This setting decides when a candidate can see their result.
+
+- **Manual (default).** A finished result waits for you. Candidates see
+  nothing — and are not emailed — until you release it.
+- **Automatic.** A result is released as soon as it is complete: the
+  candidate sees their score and is emailed straight away.
+
+A result is **complete** only when every question has a final score.
+Candidates never see a partial or provisional score, in either mode.
+
+**Switching to Automatic does not release results that are already
+waiting** — you can still release those yourself.
+
+You may be asked for a fresh authenticator code when you save. Each
+change is recorded in the audit log.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.invite.import_csv', 'admin', 'en',
+  'Upload a CSV of names and emails to add candidates and invite them to this assessment in one go.',
+  $$## Import candidates from CSV
+
+Add many candidates at once instead of one by one.
+
+1. **Download the sample CSV** to see the format. The first row must be a
+   header with `name` and `email` (any capitalisation). Optional columns:
+   `roll_number` (also `roll no`, `roll`, `enrollment`) and `branch` (also
+   `department`, `dept`). Re-importing a student updates roll number and
+   branch only when the cell is not empty. Other columns are ignored.
+2. **Choose your file.** You will see a preview of the first 10 rows and
+   the total row count before anything is saved.
+3. **Confirm.** New candidates are created, people who already exist in
+   your organisation are reused, and everyone is invited to this assessment.
+
+**Limits:** up to 1,000 rows and about 512 KB per file, UTF-8 text.
+Duplicate emails in the file are only counted once (the first row wins).
+A bad row never stops the rest — it is listed afterwards so you can fix it.
+Invitation emails go out through the normal email queue, so a large import
+may take a little while to reach everyone.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.invite.import_csv' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.invite.import_csv' AND locale = 'en'
+    AND short_text = 'Upload a CSV of names and emails to add candidates and invite them to this assessment in one go.'
+    AND long_md IS NOT DISTINCT FROM $$## Import candidates from CSV
+
+Add many candidates at once instead of one by one.
+
+1. **Download the sample CSV** to see the format. The first row must be a
+   header with `name` and `email` (any capitalisation). Optional columns:
+   `roll_number` (also `roll no`, `roll`, `enrollment`) and `branch` (also
+   `department`, `dept`). Re-importing a student updates roll number and
+   branch only when the cell is not empty. Other columns are ignored.
+2. **Choose your file.** You will see a preview of the first 10 rows and
+   the total row count before anything is saved.
+3. **Confirm.** New candidates are created, people who already exist in
+   your organisation are reused, and everyone is invited to this assessment.
+
+**Limits:** up to 1,000 rows and about 512 KB per file, UTF-8 text.
+Duplicate emails in the file are only counted once (the first row wins).
+A bad row never stops the rest — it is listed afterwards so you can fix it.
+Invitation emails go out through the normal email queue, so a large import
+may take a little while to reach everyone.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.invite.import_result', 'admin', 'en',
+  'What happened to each row: created, already existing, invited, or skipped (with the reason).',
+  $$## Import result
+
+- **Created** — new candidate accounts added to your organisation.
+- **Existing** — the email was already a candidate here, so it was reused.
+- **Invited** — invitation emails queued for this assessment.
+- **Skipped** — rows that were not imported or not invited. Each shows the
+  row number (the header is row 1), the email and the reason, for example
+  an invalid email, a missing name, a repeated email in the file, an email
+  that belongs to a non-candidate (an admin), or a candidate who
+  already has an invitation for this assessment.
+
+Use **Download skipped rows** to get a CSV you can correct and upload again.
+If you see an email-volume warning, some invitations may arrive later than
+usual because the email plan has a shared daily limit.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.invite.import_result' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.invite.import_result' AND locale = 'en'
+    AND short_text = 'What happened to each row: created, already existing, invited, or skipped (with the reason).'
+    AND long_md IS NOT DISTINCT FROM $$## Import result
+
+- **Created** — new candidate accounts added to your organisation.
+- **Existing** — the email was already a candidate here, so it was reused.
+- **Invited** — invitation emails queued for this assessment.
+- **Skipped** — rows that were not imported or not invited. Each shows the
+  row number (the header is row 1), the email and the reason, for example
+  an invalid email, a missing name, a repeated email in the file, an email
+  that belongs to a non-candidate (an admin), or a candidate who
+  already has an invitation for this assessment.
+
+Use **Download skipped rows** to get a CSV you can correct and upload again.
+If you see an email-volume warning, some invitations may arrive later than
+usual because the email plan has a shared daily limit.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.results.download_csv', 'admin', 'en',
+  'Download a live spreadsheet of every invited candidate''s result for this assessment, ready for a placement cell.',
+  $$## Download results (CSV)
+
+One row per invited candidate, always up to date (not the nightly report).
+
+- **Columns:** name, email, roll number, branch, status, started and
+  submitted times, score, max score, percent, Pass/Fail, rank,
+  tab switches, paste count, full-screen exits, and one percentage column
+  per category.
+- **Rank** is 1, 2, 2, 4 style (ties share a rank) by percent, highest
+  first. It is blank until a score is sent to you.
+- **Tab switches, paste count, full-screen exits** are integrity signals
+  counted while the candidate was in the assessment. They are hints for you to
+  review, not proof of cheating.
+- **Status** shows invited (not started), in_progress, submitted, graded or
+  released. Score, percent and Pass/Fail stay blank until the attempt is graded.
+- **Pass/Fail** uses the passing score of the assessment's difficulty.
+- Opens correctly in Excel, including Indian names. Up to 10,000 rows.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.results.download_csv' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.results.download_csv' AND locale = 'en'
+    AND short_text = 'Download a live spreadsheet of every invited candidate''s result for this assessment, ready for a placement cell.'
+    AND long_md IS NOT DISTINCT FROM $$## Download results (CSV)
+
+One row per invited candidate, always up to date (not the nightly report).
+
+- **Columns:** name, email, roll number, branch, status, started and
+  submitted times, score, max score, percent, Pass/Fail, rank,
+  tab switches, paste count, full-screen exits, and one percentage column
+  per category.
+- **Rank** is 1, 2, 2, 4 style (ties share a rank) by percent, highest
+  first. It is blank until a score is sent to you.
+- **Tab switches, paste count, full-screen exits** are integrity signals
+  counted while the candidate was in the assessment. They are hints for you to
+  review, not proof of cheating.
+- **Status** shows invited (not started), in_progress, submitted, graded or
+  released. Score, percent and Pass/Fail stay blank until the attempt is graded.
+- **Pass/Fail** uses the passing score of the assessment's difficulty.
+- Opens correctly in Excel, including Indian names. Up to 10,000 rows.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.overview', 'admin', 'en',
+  'Every organisation''s attempts with written answers that are waiting for AssessIQ to grade, oldest first.',
+  $$## Grading queue
+
+This is AssessIQ's work list. Each row is one attempt, from any organisation, that
+has written answers and has not yet been sent to its organisation.
+
+- **Oldest first.** Work from the top. **Grade next** opens the oldest row.
+- **Blind grading.** You see the organisation, assessment and difficulty, never the
+  candidate's name or email.
+- **Status.** *Awaiting grading* still needs grading. *Ready to send* is
+  fully graded but not yet with the organisation, for example an attempt the organisation
+  sent back that you have re-graded.
+- **Sent back** means the organisation asked for another look; its note says why.
+
+Accepting the last grade of an attempt sends it to its organisation by itself and
+takes it off this list. The list refreshes by itself every 30 seconds.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.overview' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.overview' AND locale = 'en'
+    AND short_text = 'Every organisation''s attempts with written answers that are waiting for AssessIQ to grade, oldest first.'
+    AND long_md IS NOT DISTINCT FROM $$## Grading queue
+
+This is AssessIQ's work list. Each row is one attempt, from any organisation, that
+has written answers and has not yet been sent to its organisation.
+
+- **Oldest first.** Work from the top. **Grade next** opens the oldest row.
+- **Blind grading.** You see the organisation, assessment and difficulty, never the
+  candidate's name or email.
+- **Status.** *Awaiting grading* still needs grading. *Ready to send* is
+  fully graded but not yet with the organisation, for example an attempt the organisation
+  sent back that you have re-graded.
+- **Sent back** means the organisation asked for another look; its note says why.
+
+Accepting the last grade of an attempt sends it to its organisation by itself and
+takes it off this list. The list refreshes by itself every 30 seconds.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.tenant_filter', 'admin', 'en',
+  'Show only one organisation''s attempts. The counts above the table follow the filter.',
+  $$## Organisation filter
+
+Narrow the queue to a single organisation. The two counts above the table recount
+for that organisation. Choose **All organisations** to see everything again.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.tenant_filter' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.tenant_filter' AND locale = 'en'
+    AND short_text = 'Show only one organisation''s attempts. The counts above the table follow the filter.'
+    AND long_md IS NOT DISTINCT FROM $$## Organisation filter
+
+Narrow the queue to a single organisation. The two counts above the table recount
+for that organisation. Choose **All organisations** to see everything again.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.evaluate_next', 'admin', 'en',
+  'Opens the oldest attempt in the list, honouring the organisation filter, so you can grade it.',
+  $$## Grade next
+
+Opens the oldest attempt currently in the list. If an organisation filter is set, it
+opens that organisation's oldest attempt.
+
+Work one attempt at a time: grade, accept or score each answer. The last accept
+or score sends the attempt to its organisation by itself.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.evaluate_next' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.evaluate_next' AND locale = 'en'
+    AND short_text = 'Opens the oldest attempt in the list, honouring the organisation filter, so you can grade it.'
+    AND long_md IS NOT DISTINCT FROM $$## Grade next
+
+Opens the oldest attempt currently in the list. If an organisation filter is set, it
+opens that organisation's oldest attempt.
+
+Work one attempt at a time: grade, accept or score each answer. The last accept
+or score sends the attempt to its organisation by itself.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.release_selected', 'admin', 'en',
+  'Sends every ticked, fully graded attempt to its organisation at once. The last accept already does this.',
+  $$## Send selected to organisation
+
+You rarely need this: accepting the last grade of an attempt already sends it
+to its organisation. It is for attempts that are still listed as **Ready to
+send**, for example ones the organisation sent back and you re-graded.
+
+Only fully graded attempts (every question has a final grade) have a tick box.
+Sending hands the grading to the organisation, which then reviews the scores and
+releases them to candidates.
+
+You may be asked for a fresh authenticator code. Afterwards you see how many
+attempts were sent and how many were skipped, and why.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.release_selected' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.release_selected' AND locale = 'en'
+    AND short_text = 'Sends every ticked, fully graded attempt to its organisation at once. The last accept already does this.'
+    AND long_md IS NOT DISTINCT FROM $$## Send selected to organisation
+
+You rarely need this: accepting the last grade of an attempt already sends it
+to its organisation. It is for attempts that are still listed as **Ready to
+send**, for example ones the organisation sent back and you re-graded.
+
+Only fully graded attempts (every question has a final grade) have a tick box.
+Sending hands the grading to the organisation, which then reviews the scores and
+releases them to candidates.
+
+You may be asked for a fresh authenticator code. Afterwards you see how many
+attempts were sent and how many were skipped, and why.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.detail.sent_back', 'admin', 'en',
+  'The organisation sent this attempt back for re-grading. Its note says what to look at again.',
+  $$## Sent back
+
+After a grading is sent, the organisation can send an attempt back with a
+note, for example when a score looks wrong. The attempt returns to this queue
+marked **Sent back** and keeps its existing grades.
+
+Read the note, then use **Re-run AI** to grade the written answers again, or
+**Override grade** to set a score yourself. Because the attempt is already
+graded, accepting a new grade does not send it again: use **Send to
+organisation** when you are done.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.detail.sent_back' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.detail.sent_back' AND locale = 'en'
+    AND short_text = 'The organisation sent this attempt back for re-grading. Its note says what to look at again.'
+    AND long_md IS NOT DISTINCT FROM $$## Sent back
+
+After a grading is sent, the organisation can send an attempt back with a
+note, for example when a score looks wrong. The attempt returns to this queue
+marked **Sent back** and keeps its existing grades.
+
+Read the note, then use **Re-run AI** to grade the written answers again, or
+**Override grade** to set a score yourself. Because the attempt is already
+graded, accepting a new grade does not send it again: use **Send to
+organisation** when you are done.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.runtime_status', 'admin', 'en',
+  'Shows whether the AI runtime is ready: database, Redis and the Claude command.',
+  $$## AI runtime status
+
+This chip shows whether the server can run AI grading now. It runs
+three checks:
+
+- **db.** The database answers a test query.
+- **redis.** Redis answers a ping.
+- **claude.** The Claude command runs on the server.
+
+**AI runtime ready** means all three pass. **Not ready** lists the checks
+that failed. The chip checks once when the page loads. Reload the page to
+check again.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.runtime_status' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.runtime_status' AND locale = 'en'
+    AND short_text = 'Shows whether the AI runtime is ready: database, Redis and the Claude command.'
+    AND long_md IS NOT DISTINCT FROM $$## AI runtime status
+
+This chip shows whether the server can run AI grading now. It runs
+three checks:
+
+- **db.** The database answers a test query.
+- **redis.** Redis answers a ping.
+- **claude.** The Claude command runs on the server.
+
+**AI runtime ready** means all three pass. **Not ready** lists the checks
+that failed. The chip checks once when the page loads. Reload the page to
+check again.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.ai_paused', 'admin', 'en',
+  'The organisation turned AI grading off. Its attempts stay here, but Grade and Re-run AI are refused.',
+  $$## AI paused
+
+An organisation can turn AI grading off in its settings (`ai_grading_enabled`).
+Its attempts still appear in this list so nothing is lost, marked
+**AI paused**. **Grade next** skips them.
+
+On such an attempt, **Grade all** and **Re-run AI** answer an error. You can
+still enter a manual score or override a grade. When the organisation turns the
+flag on again, the marker goes away and AI grading works as usual.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.ai_paused' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.ai_paused' AND locale = 'en'
+    AND short_text = 'The organisation turned AI grading off. Its attempts stay here, but Grade and Re-run AI are refused.'
+    AND long_md IS NOT DISTINCT FROM $$## AI paused
+
+An organisation can turn AI grading off in its settings (`ai_grading_enabled`).
+Its attempts still appear in this list so nothing is lost, marked
+**AI paused**. **Grade next** skips them.
+
+On such an attempt, **Grade all** and **Re-run AI** answer an error. You can
+still enter a manual score or override a grade. When the organisation turns the
+flag on again, the marker goes away and AI grading works as usual.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.sent_back', 'admin', 'en',
+  'The organisation sent this attempt back for re-grading. Its note says what to look at again.',
+  $$## Sent back
+
+After a grading is sent, the organisation can send an attempt back with a
+note, for example when a score looks wrong. The attempt returns to this queue
+marked **Sent back** and keeps its existing grades.
+
+Read the note, then use **Re-run AI** to grade the written answers again, or
+**Override grade** to set a score yourself. Because the attempt is already
+graded, accepting a new grade does not send it again: use **Send to
+organisation** when you are done.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.sent_back' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.sent_back' AND locale = 'en'
+    AND short_text = 'The organisation sent this attempt back for re-grading. Its note says what to look at again.'
+    AND long_md IS NOT DISTINCT FROM $$## Sent back
+
+After a grading is sent, the organisation can send an attempt back with a
+note, for example when a score looks wrong. The attempt returns to this queue
+marked **Sent back** and keeps its existing grades.
+
+Read the note, then use **Re-run AI** to grade the written answers again, or
+**Override grade** to set a score yourself. Because the attempt is already
+graded, accepting a new grade does not send it again: use **Send to
+organisation** when you are done.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.accept_all', 'admin', 'en',
+  'Accepts every AI proposal that did not fail. The accept that completes the attempt sends it to the organisation.',
+  $$## Accept all
+
+Commits every AI proposal on this attempt that has no failure. Proposals that
+failed, or where the two AI models disagreed by two score bands or more, are skipped
+so you can **Re-run** them or enter a **manual score**.
+
+When the accept gives every question a final grade, the grading is complete
+and the attempt is **sent to the organisation in that same step**. There is no
+separate send click. Before that last accept the page tells you so, for
+example "Accepting the last grade sends this result to Acme". If the organisation
+releases automatically, the student gets the result within a minute.
+
+An attempt the organisation sent back is already graded, so accepting new grades on
+it does not send it again. Use **Send to organisation** for that.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.accept_all' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.accept_all' AND locale = 'en'
+    AND short_text = 'Accepts every AI proposal that did not fail. The accept that completes the attempt sends it to the organisation.'
+    AND long_md IS NOT DISTINCT FROM $$## Accept all
+
+Commits every AI proposal on this attempt that has no failure. Proposals that
+failed, or where the two AI models disagreed by two score bands or more, are skipped
+so you can **Re-run** them or enter a **manual score**.
+
+When the accept gives every question a final grade, the grading is complete
+and the attempt is **sent to the organisation in that same step**. There is no
+separate send click. Before that last accept the page tells you so, for
+example "Accepting the last grade sends this result to Acme". If the organisation
+releases automatically, the student gets the result within a minute.
+
+An attempt the organisation sent back is already graded, so accepting new grades on
+it does not send it again. Use **Send to organisation** for that.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.rerun_ai', 'admin', 'en',
+  'Grades the written answers of a sent-back attempt again. Nothing changes until you accept the new grades.',
+  $$## Re-run AI
+
+Shown only on an attempt the organisation sent back (graded, not yet sent). It runs
+the AI over every written answer again, one attempt at a time. The run itself
+commits nothing: each new result appears next to the grade it would replace.
+
+- **Accept** a result to replace that question's grade, or **Accept all** to take
+  every new result that did not fail. **Override** sets your own score instead.
+- Accepting does not send the attempt. When the grades are right, use
+  **Send to organisation**.
+- It can take a few minutes. You can leave the page; the results are here when you
+  come back.
+- Only one grading run can be in progress at a time.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.rerun_ai' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.rerun_ai' AND locale = 'en'
+    AND short_text = 'Grades the written answers of a sent-back attempt again. Nothing changes until you accept the new grades.'
+    AND long_md IS NOT DISTINCT FROM $$## Re-run AI
+
+Shown only on an attempt the organisation sent back (graded, not yet sent). It runs
+the AI over every written answer again, one attempt at a time. The run itself
+commits nothing: each new result appears next to the grade it would replace.
+
+- **Accept** a result to replace that question's grade, or **Accept all** to take
+  every new result that did not fail. **Override** sets your own score instead.
+- Accepting does not send the attempt. When the grades are right, use
+  **Send to organisation**.
+- It can take a few minutes. You can leave the page; the results are here when you
+  come back.
+- Only one grading run can be in progress at a time.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.manual_score', 'admin', 'en',
+  'Score an answer by hand when it has no grade, such as KQL. A reason is required.',
+  $$## Manual score
+
+Use this when an answer has no grade, for example a KQL answer (the AI does not
+grade those), or an AI proposal you do not want to accept.
+
+- Enter a score from 0 up to the question's points.
+- A reason is required. It is saved with the grade but kept out of the audit
+  log.
+- You may be asked for a fresh authenticator code.
+- If it is the last missing grade, saving it completes the grading and
+  sends the attempt to the organisation, just like the last accept.
+
+A question can be scored manually only once. After that, use **Override grade**.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.manual_score' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.manual_score' AND locale = 'en'
+    AND short_text = 'Score an answer by hand when it has no grade, such as KQL. A reason is required.'
+    AND long_md IS NOT DISTINCT FROM $$## Manual score
+
+Use this when an answer has no grade, for example a KQL answer (the AI does not
+grade those), or an AI proposal you do not want to accept.
+
+- Enter a score from 0 up to the question's points.
+- A reason is required. It is saved with the grade but kept out of the audit
+  log.
+- You may be asked for a fresh authenticator code.
+- If it is the last missing grade, saving it completes the grading and
+  sends the attempt to the organisation, just like the last accept.
+
+A question can be scored manually only once. After that, use **Override grade**.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.detail.release_to_company', 'admin', 'en',
+  'Hands a finished grading to the organisation. The last accept already does this; use it for sent-back attempts.',
+  $$## Send to organisation
+
+Accepting the last grade (or saving the last score or override) already sends
+the attempt to the organisation, so most attempts never need this button. The page then
+shows **Sent to** the organisation, with a way back to the queue.
+
+Use it for an attempt that is fully graded but still with AssessIQ. That is
+mostly an attempt the organisation **sent back** and you re-graded: it was already
+graded, so it is never sent automatically. It is enabled when every question
+has a final grade and none is flagged for review.
+
+Sending does not release anything to the candidate. The organisation sees the
+final scores and decides when to release them, or has them released
+automatically if it chose Automatic release. The organisation can send the attempt
+back to this queue with a note.
+
+You may be asked for a fresh authenticator code.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.detail.release_to_company' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.detail.release_to_company' AND locale = 'en'
+    AND short_text = 'Hands a finished grading to the organisation. The last accept already does this; use it for sent-back attempts.'
+    AND long_md IS NOT DISTINCT FROM $$## Send to organisation
+
+Accepting the last grade (or saving the last score or override) already sends
+the attempt to the organisation, so most attempts never need this button. The page then
+shows **Sent to** the organisation, with a way back to the queue.
+
+Use it for an attempt that is fully graded but still with AssessIQ. That is
+mostly an attempt the organisation **sent back** and you re-graded: it was already
+graded, so it is never sent automatically. It is enabled when every question
+has a final grade and none is flagged for review.
+
+Sending does not release anything to the candidate. The organisation sees the
+final scores and decides when to release them, or has them released
+automatically if it chose Automatic release. The organisation can send the attempt
+back to this queue with a note.
+
+You may be asked for a fresh authenticator code.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.detail.awaiting_evaluation', 'admin', 'en',
+  'AssessIQ is still grading the written answers. Scores appear here once the grading is sent to you.',
+  $$## Awaiting AssessIQ grading
+
+Multiple-choice answers are scored automatically, but written answers are
+graded by AssessIQ graders with AI assistance. Until they send the
+grading to you, no scores are shown here and the result cannot be released.
+
+When the grading is sent the attempt becomes **Ready to release**.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.awaiting_evaluation' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.awaiting_evaluation' AND locale = 'en'
+    AND short_text = 'AssessIQ is still grading the written answers. Scores appear here once the grading is sent to you.'
+    AND long_md IS NOT DISTINCT FROM $$## Awaiting AssessIQ grading
+
+Multiple-choice answers are scored automatically, but written answers are
+graded by AssessIQ graders with AI assistance. Until they send the
+grading to you, no scores are shown here and the result cannot be released.
+
+When the grading is sent the attempt becomes **Ready to release**.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.detail.send_back', 'admin', 'en',
+  'Return this attempt to AssessIQ for another look, with a note saying why. It leaves your Ready to release list.',
+  $$## Send back for re-grading
+
+Use this when a score looks wrong and you would rather AssessIQ re-check it than
+change it yourself. You must write a note that says what to look at.
+
+- The attempt goes back to AssessIQ's queue and shows as **Awaiting grading**.
+- It cannot be released until AssessIQ sends it to you again.
+- You can still **Override** a single score yourself instead, with a reason.
+
+Results that are already released cannot be sent back.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.send_back' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.send_back' AND locale = 'en'
+    AND short_text = 'Return this attempt to AssessIQ for another look, with a note saying why. It leaves your Ready to release list.'
+    AND long_md IS NOT DISTINCT FROM $$## Send back for re-grading
+
+Use this when a score looks wrong and you would rather AssessIQ re-check it than
+change it yourself. You must write a note that says what to look at.
+
+- The attempt goes back to AssessIQ's queue and shows as **Awaiting grading**.
+- It cannot be released until AssessIQ sends it to you again.
+- You can still **Override** a single score yourself instead, with a reason.
+
+Results that are already released cannot be sent back.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.detail.release_button', 'admin', 'en',
+  'Release this result to the candidate, who is emailed. Released results can''t be changed.',
+  $$## Release to candidate
+
+Shows the candidate their final result and emails them. A summary of the scores
+opens first so you can check them before confirming.
+
+- Available when the attempt is **Ready to release**.
+- A certificate is issued if the candidate qualifies.
+- Released results are final: scores can no longer be overridden.
+
+With Automatic release turned on in Settings, results release themselves as soon
+as AssessIQ sends the grading to you.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.release_button' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.release_button' AND locale = 'en'
+    AND short_text = 'Release this result to the candidate, who is emailed. Released results can''t be changed.'
+    AND long_md IS NOT DISTINCT FROM $$## Release to candidate
+
+Shows the candidate their final result and emails them. A summary of the scores
+opens first so you can check them before confirming.
+
+- Available when the attempt is **Ready to release**.
+- A certificate is issued if the candidate qualifies.
+- Released results are final: scores can no longer be overridden.
+
+With Automatic release turned on in Settings, results release themselves as soon
+as AssessIQ sends the grading to you.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.release_all', 'admin', 'en',
+  'Release every graded attempt of this assessment to its candidate at once. Attempts not ready are skipped.',
+  $$## Release all ready
+
+Releases, in one step, every attempt of this assessment that is **Ready to
+release**. Each candidate is emailed their result.
+
+- Attempts that are still awaiting grading, were sent back, or whose
+  candidate data was erased are skipped, and you see how many.
+- Released results are final and cannot be changed.
+- To release one attempt at a time, open it from the Attempts page instead.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.release_all' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.release_all' AND locale = 'en'
+    AND short_text = 'Release every graded attempt of this assessment to its candidate at once. Attempts not ready are skipped.'
+    AND long_md IS NOT DISTINCT FROM $$## Release all ready
+
+Releases, in one step, every attempt of this assessment that is **Ready to
+release**. Each candidate is emailed their result.
+
+- Attempts that are still awaiting grading, were sent back, or whose
+  candidate data was erased are skipped, and you see how many.
+- Released results are final and cannot be changed.
+- To release one attempt at a time, open it from the Attempts page instead.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.integrity.fullscreen', 'admin', 'en',
+  'Candidates are asked to take the assessment in full screen. Leaving it is recorded, not prevented.',
+  $$## Require full screen
+
+Candidates see a message asking them to enter full screen before they can
+carry on. Each time they leave full screen it is **recorded** and shown on
+the attempt's Integrity card, and the message appears again.
+
+What it does not do:
+
+- **It cannot stop a candidate leaving full screen.** Browsers always let
+  people exit; we only record it.
+- **The timer is never paused** while the message is showing.
+- **Some devices do not support full screen** (for example iPhones). There the
+  assessment simply carries on and no full-screen events are recorded.
+
+Treat the numbers as a signal to look into, not proof of cheating.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.integrity.fullscreen' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.integrity.fullscreen' AND locale = 'en'
+    AND short_text = 'Candidates are asked to take the assessment in full screen. Leaving it is recorded, not prevented.'
+    AND long_md IS NOT DISTINCT FROM $$## Require full screen
+
+Candidates see a message asking them to enter full screen before they can
+carry on. Each time they leave full screen it is **recorded** and shown on
+the attempt's Integrity card, and the message appears again.
+
+What it does not do:
+
+- **It cannot stop a candidate leaving full screen.** Browsers always let
+  people exit; we only record it.
+- **The timer is never paused** while the message is showing.
+- **Some devices do not support full screen** (for example iPhones). There the
+  assessment simply carries on and no full-screen events are recorded.
+
+Treat the numbers as a signal to look into, not proof of cheating.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.integrity.block_copy_paste', 'admin', 'en',
+  'Turns off copy, cut, paste and right-click on the assessment page. Attempts are still recorded.',
+  $$## Block copy and paste
+
+While a candidate takes the assessment, copy, cut, paste and the right-click menu
+are switched off, and a short note tells them so. Each blocked copy or paste is
+**recorded** and counted on the attempt's Integrity card.
+
+What it does not do:
+
+- **It only covers the assessment page.** A candidate can still look at other
+  windows or devices; use "Left the assessment tab" to see how often they left.
+- **Typing is unaffected.** Only clipboard use is blocked.
+
+Treat the numbers as a signal to look into, not proof of cheating.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.integrity.block_copy_paste' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.integrity.block_copy_paste' AND locale = 'en'
+    AND short_text = 'Turns off copy, cut, paste and right-click on the assessment page. Attempts are still recorded.'
+    AND long_md IS NOT DISTINCT FROM $$## Block copy and paste
+
+While a candidate takes the assessment, copy, cut, paste and the right-click menu
+are switched off, and a short note tells them so. Each blocked copy or paste is
+**recorded** and counted on the attempt's Integrity card.
+
+What it does not do:
+
+- **It only covers the assessment page.** A candidate can still look at other
+  windows or devices; use "Left the assessment tab" to see how often they left.
+- **Typing is unaffected.** Only clipboard use is blocked.
+
+Treat the numbers as a signal to look into, not proof of cheating.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessment.integrity.edit', 'admin', 'en',
+  'Change the full-screen and copy-paste switches for this assessment, even after it is published.',
+  $$## Edit assessment integrity
+
+Turn **Require full screen** and **Block copy and paste** on or off for this
+assessment, then press **Save integrity settings**. Nothing else about the assessment changes.
+
+- **You can change this after publishing.** The new setting applies to
+  attempts that start afterwards.
+- **A student already taking the assessment** picks up the change the next time
+  their page loads (for example a refresh).
+- Attempts already recorded keep their existing integrity counts.
+
+Treat the numbers as a signal to look into, not proof of cheating.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessment.integrity.edit' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessment.integrity.edit' AND locale = 'en'
+    AND short_text = 'Change the full-screen and copy-paste switches for this assessment, even after it is published.'
+    AND long_md IS NOT DISTINCT FROM $$## Edit assessment integrity
+
+Turn **Require full screen** and **Block copy and paste** on or off for this
+assessment, then press **Save integrity settings**. Nothing else about the assessment changes.
+
+- **You can change this after publishing.** The new setting applies to
+  attempts that start afterwards.
+- **A student already taking the assessment** picks up the change the next time
+  their page loads (for example a refresh).
+- Attempts already recorded keep their existing integrity counts.
+
+Treat the numbers as a signal to look into, not proof of cheating.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.high_stakes', 'admin', 'en',
+  'Have two AI models grade every answer. If they do not agree, the answer goes to a person.',
+  $$## High-stakes grading
+
+Tick this for assessments where a wrong grade matters. Every written answer is
+graded by **two different AI models**.
+
+- **They agree:** the grade is proposed as normal.
+- **They differ by even one score band, or the second model fails:** the answer is
+  marked **needs review** and is left out of Accept all. A person decides.
+- **Reused grades are switched off.** An identical earlier answer is graded
+  again rather than copied.
+- It is **off by default**, and grading takes a little longer.
+
+You can also change this after the assessment is created.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.high_stakes' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.high_stakes' AND locale = 'en'
+    AND short_text = 'Have two AI models grade every answer. If they do not agree, the answer goes to a person.'
+    AND long_md IS NOT DISTINCT FROM $$## High-stakes grading
+
+Tick this for assessments where a wrong grade matters. Every written answer is
+graded by **two different AI models**.
+
+- **They agree:** the grade is proposed as normal.
+- **They differ by even one score band, or the second model fails:** the answer is
+  marked **needs review** and is left out of Accept all. A person decides.
+- **Reused grades are switched off.** An identical earlier answer is graded
+  again rather than copied.
+- It is **off by default**, and grading takes a little longer.
+
+You can also change this after the assessment is created.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessments.high_stakes.edit', 'admin', 'en',
+  'Turn the two-model vote on or off for this assessment, even after it is published.',
+  $$## Edit high-stakes grading
+
+Tick **Two AI models must agree** and press **Save grading settings**.
+Nothing else about the assessment changes.
+
+- **You can change this after publishing.** It applies to grading runs that
+  start afterwards; grades already proposed are not changed.
+- When on, any disagreement between the two models, or a failure of the
+  second model, sends the answer to **needs review**.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessments.high_stakes.edit' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessments.high_stakes.edit' AND locale = 'en'
+    AND short_text = 'Turn the two-model vote on or off for this assessment, even after it is published.'
+    AND long_md IS NOT DISTINCT FROM $$## Edit high-stakes grading
+
+Tick **Two AI models must agree** and press **Save grading settings**.
+Nothing else about the assessment changes.
+
+- **You can change this after publishing.** It applies to grading runs that
+  start afterwards; grades already proposed are not changed.
+- When on, any disagreement between the two models, or a failure of the
+  second model, sends the answer to **needs review**.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.detail.high_stakes_edit', 'admin', 'en',
+  'Turn the two-model vote on or off for this assessment, even after it is published.',
+  $$## Edit high-stakes grading
+
+Tick **Two AI models must agree** and press **Save grading settings**.
+Nothing else about the assessment changes.
+
+- **You can change this after publishing.** It applies to grading runs that
+  start afterwards; grades already proposed are not changed.
+- When on, any disagreement between the two models, or a failure of the
+  second model, sends the answer to **needs review**.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.detail.high_stakes_edit' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.detail.high_stakes_edit' AND locale = 'en'
+    AND short_text = 'Turn the two-model vote on or off for this assessment, even after it is published.'
+    AND long_md IS NOT DISTINCT FROM $$## Edit high-stakes grading
+
+Tick **Two AI models must agree** and press **Save grading settings**.
+Nothing else about the assessment changes.
+
+- **You can change this after publishing.** It applies to grading runs that
+  start afterwards; grades already proposed are not changed.
+- When on, any disagreement between the two models, or a failure of the
+  second model, sends the answer to **needs review**.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessment.reminders', 'admin', 'en',
+  'Automatically email a reminder to students who have not started this assessment.',
+  $$## Automatic reminders
+
+Tick **Send automatic reminders**, choose how many hours before the deadline,
+then press **Save reminder settings**. It is **off by default**.
+
+- **Who gets one:** students who were invited but have not started, once per
+  invitation, when the invitation expires or the assessment closes (whichever is
+  sooner) within the hours you chose.
+- **The link in the reminder replaces the earlier one.** The deadline does
+  not move; a reminder never extends anything.
+- **Sent in the background**, roughly every 30 minutes, after the invitation
+  email has had at least 6 hours.
+- **Limit:** the platform sends at most 100 reminders in any 24 hours, because
+  the email provider has a daily cap. Sign-in codes and invitations always go first.
+- The invitations list shows **Reminder sent** for students who got one.
+  Resending an invitation gives that student a fresh reminder later.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessment.reminders' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessment.reminders' AND locale = 'en'
+    AND short_text = 'Automatically email a reminder to students who have not started this assessment.'
+    AND long_md IS NOT DISTINCT FROM $$## Automatic reminders
+
+Tick **Send automatic reminders**, choose how many hours before the deadline,
+then press **Save reminder settings**. It is **off by default**.
+
+- **Who gets one:** students who were invited but have not started, once per
+  invitation, when the invitation expires or the assessment closes (whichever is
+  sooner) within the hours you chose.
+- **The link in the reminder replaces the earlier one.** The deadline does
+  not move; a reminder never extends anything.
+- **Sent in the background**, roughly every 30 minutes, after the invitation
+  email has had at least 6 hours.
+- **Limit:** the platform sends at most 100 reminders in any 24 hours, because
+  the email provider has a daily cap. Sign-in codes and invitations always go first.
+- The invitations list shows **Reminder sent** for students who got one.
+  Resending an invitation gives that student a fresh reminder later.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.detail.integrity', 'admin', 'en',
+  'How often this candidate left the assessment tab, used copy and paste, or left full screen.',
+  $$## Integrity
+
+Counts of what the assessment page recorded during this attempt:
+
+- **Left the assessment tab** - switched to another tab or window and came back.
+- **Copied / Pasted** - clipboard use. **Pasted (blocked)** is how many pastes
+  were stopped because the assessment blocks copy and paste.
+- **Left full screen** - only counted when the assessment requires full screen.
+- **Opened in another tab** - the attempt was open in a second tab.
+
+These are signals, not scores, and never change the result. Candidates are told
+that leaving the tab is recorded and shared with you. A candidate on a device
+that does not support the feature will show zero.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.integrity' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.integrity' AND locale = 'en'
+    AND short_text = 'How often this candidate left the assessment tab, used copy and paste, or left full screen.'
+    AND long_md IS NOT DISTINCT FROM $$## Integrity
+
+Counts of what the assessment page recorded during this attempt:
+
+- **Left the assessment tab** - switched to another tab or window and came back.
+- **Copied / Pasted** - clipboard use. **Pasted (blocked)** is how many pastes
+  were stopped because the assessment blocks copy and paste.
+- **Left full screen** - only counted when the assessment requires full screen.
+- **Opened in another tab** - the attempt was open in a second tab.
+
+These are signals, not scores, and never change the result. Candidates are told
+that leaving the tab is recorded and shared with you. A candidate on a device
+that does not support the feature will show zero.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.detail.behaviour', 'admin', 'en',
+  'Behaviour signals recorded during the attempt: pace, edits, flags, focus loss, full screen, copy and paste. Not a score.',
+  $$## Behaviour at finalize
+
+The radar shows the behaviour signals AssessIQ recorded while the candidate
+took the assessment, as a snapshot taken when the result was finalized. Each axis
+is scaled against a fixed ceiling, so a full axis means "a lot", not "wrong".
+
+- **Pace** - median time per question.
+- **Edits** - how often answers were changed.
+- **Flags** - questions the candidate marked for review.
+- **Focus loss / Fullscreen exits / Copy-paste / Multi-tab** - recorded events, the same ones counted on the left.
+
+These signals are observational. They never change the score and are not a
+proxy for integrity. The radar appears only after the result is released to
+your organisation, like the score.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.behaviour' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.behaviour' AND locale = 'en'
+    AND short_text = 'Behaviour signals recorded during the attempt: pace, edits, flags, focus loss, full screen, copy and paste. Not a score.'
+    AND long_md IS NOT DISTINCT FROM $$## Behaviour at finalize
+
+The radar shows the behaviour signals AssessIQ recorded while the candidate
+took the assessment, as a snapshot taken when the result was finalized. Each axis
+is scaled against a fixed ceiling, so a full axis means "a lot", not "wrong".
+
+- **Pace** - median time per question.
+- **Edits** - how often answers were changed.
+- **Flags** - questions the candidate marked for review.
+- **Focus loss / Fullscreen exits / Copy-paste / Multi-tab** - recorded events, the same ones counted on the left.
+
+These signals are observational. They never change the score and are not a
+proxy for integrity. The radar appears only after the result is released to
+your organisation, like the score.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.cohort.by_level', 'admin', 'en',
+  'Attempt count and average score for each difficulty of the assessment, released results only.',
+  $$## By difficulty
+
+One row per difficulty (Beginner, Intermediate, Advanced) with the number of released attempts and
+their average score. Results that are not yet released to your organisation are
+not counted.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.by_level' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.by_level' AND locale = 'en'
+    AND short_text = 'Attempt count and average score for each difficulty of the assessment, released results only.'
+    AND long_md IS NOT DISTINCT FROM $$## By difficulty
+
+One row per difficulty (Beginner, Intermediate, Advanced) with the number of released attempts and
+their average score. Results that are not yet released to your organisation are
+not counted.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.cohort.heatmap', 'admin', 'en',
+  'Topic by score heatmap for one question set: answers, correct answers, hit rate and median score band.',
+  $$## Topic heatmap
+
+For the selected question set, each row is a topic with the number of
+answers, the number that earned full marks, the hit rate, and the mean and
+median score band for written answers. Choose another question set with the
+selector to compare. Released results only.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.heatmap' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.heatmap' AND locale = 'en'
+    AND short_text = 'Topic by score heatmap for one question set: answers, correct answers, hit rate and median score band.'
+    AND long_md IS NOT DISTINCT FROM $$## Topic heatmap
+
+For the selected question set, each row is a topic with the number of
+answers, the number that earned full marks, the hit rate, and the mean and
+median score band for written answers. Choose another question set with the
+selector to compare. Released results only.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.cohort.pack', 'admin', 'en',
+  'The question set whose topics the heatmap shows. It starts on the question set of this assessment.',
+  $$## Question set selector
+
+The heatmap is computed per question set. The selector starts on the question set
+this assessment uses. Choose another question set to compare its topics across all
+the released attempts that used it.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.pack' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.cohort.pack' AND locale = 'en'
+    AND short_text = 'The question set whose topics the heatmap shows. It starts on the question set of this assessment.'
+    AND long_md IS NOT DISTINCT FROM $$## Question set selector
+
+The heatmap is computed per question set. The selector starts on the question set
+this assessment uses. Choose another question set to compare its topics across all
+the released attempts that used it.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question.editor.difficulty', 'admin', 'en',
+  'Bloom level and NICE task written by the generator. Human-authored questions have no tags.',
+  $$## Difficulty tags
+
+AssessIQ tags each generated question with a **Bloom** cognitive level
+(remember, understand, apply, analyze, evaluate, create) and a **NICE**
+task id from the NICE framework. The tags describe the intrinsic difficulty
+of the item; they are not the Beginner/Intermediate/Advanced difficulty. Questions written by hand and
+questions generated before 2026-05-23 have no tags. The tags are read-only.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question.editor.difficulty' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question.editor.difficulty' AND locale = 'en'
+    AND short_text = 'Bloom level and NICE task written by the generator. Human-authored questions have no tags.'
+    AND long_md IS NOT DISTINCT FROM $$## Difficulty tags
+
+AssessIQ tags each generated question with a **Bloom** cognitive level
+(remember, understand, apply, analyze, evaluate, create) and a **NICE**
+task id from the NICE framework. The tags describe the intrinsic difficulty
+of the item; they are not the Beginner/Intermediate/Advanced difficulty. Questions written by hand and
+questions generated before 2026-05-23 have no tags. The tags are read-only.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessment.sections', 'admin', 'en',
+  'Split the assessment into timed sections, such as Quantitative, Logical and Verbal.',
+  $$## Assessment sections
+
+Add a section for each part of the assessment. For each one set a **name**, the
+**number of questions**, the **minutes** and whether a **calculator** is allowed.
+You can also tick **categories** so the section only draws from them.
+
+- **Each section has its own timer.** When it runs out, that section's answers
+  are locked and the student moves on to the next section.
+- **The student cannot go back** to a finished section.
+- **The whole assessment ends** when the last section ends. The total time is the
+  sum of the section minutes (the difficulty's duration is not used).
+- **No sections?** Leave this empty and the assessment works as before, with one timer.
+- You cannot combine sections with a blueprint.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessment.sections' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessment.sections' AND locale = 'en'
+    AND short_text = 'Split the assessment into timed sections, such as Quantitative, Logical and Verbal.'
+    AND long_md IS NOT DISTINCT FROM $$## Assessment sections
+
+Add a section for each part of the assessment. For each one set a **name**, the
+**number of questions**, the **minutes** and whether a **calculator** is allowed.
+You can also tick **categories** so the section only draws from them.
+
+- **Each section has its own timer.** When it runs out, that section's answers
+  are locked and the student moves on to the next section.
+- **The student cannot go back** to a finished section.
+- **The whole assessment ends** when the last section ends. The total time is the
+  sum of the section minutes (the difficulty's duration is not used).
+- **No sections?** Leave this empty and the assessment works as before, with one timer.
+- You cannot combine sections with a blueprint.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.detail.section_scores', 'admin', 'en',
+  'How this candidate scored in each section of the assessment.',
+  $$## Section scores
+
+For assessments with sections, this table shows the points earned and the points
+available in each section. It uses the same final grades as the total score.
+
+- Shown only once the score is visible to you; never while the grading is
+  still with AssessIQ.
+- The results CSV has the same numbers as one **Section: name (%)** column
+  per section.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.section_scores' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.section_scores' AND locale = 'en'
+    AND short_text = 'How this candidate scored in each section of the assessment.'
+    AND long_md IS NOT DISTINCT FROM $$## Section scores
+
+For assessments with sections, this table shows the points earned and the points
+available in each section. It uses the same final grades as the total score.
+
+- Shown only once the score is visible to you; never while the grading is
+  still with AssessIQ.
+- The results CSV has the same numbers as one **Section: name (%)** column
+  per section.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.grading_quality', 'admin', 'en',
+  'How often admins changed the AI''s grade, for each version of the grading prompts.',
+  $$## AI grading quality
+
+One row per version of the grading prompts (the short code is the prompt version),
+over the last 90 days.
+
+- **AI grades** — grades the AI gave.
+- **Overrides** — grades an admin changed afterwards.
+- **Override rate** — overrides divided by AI grades. Lower is better.
+- **Score band change** — on average, how many score bands (0 to 4) the admin moved the grade.
+- **Score change** — on average, how much the score moved, as a percent of the
+  question's points.
+
+A version with few grades is not reliable yet. Use this to compare a new prompt
+version with the one before it.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.grading_quality' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.grading_quality' AND locale = 'en'
+    AND short_text = 'How often admins changed the AI''s grade, for each version of the grading prompts.'
+    AND long_md IS NOT DISTINCT FROM $$## AI grading quality
+
+One row per version of the grading prompts (the short code is the prompt version),
+over the last 90 days.
+
+- **AI grades** — grades the AI gave.
+- **Overrides** — grades an admin changed afterwards.
+- **Override rate** — overrides divided by AI grades. Lower is better.
+- **Score band change** — on average, how many score bands (0 to 4) the admin moved the grade.
+- **Score change** — on average, how much the score moved, as a percent of the
+  question's points.
+
+A version with few grades is not reliable yet. Use this to compare a new prompt
+version with the one before it.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.assessment.sections.edit', 'admin', 'en',
+  'Change the sections of a draft assessment before any student starts it.',
+  $$## Edit sections
+
+Use **Edit sections** to change the name, questions, minutes and calculator of
+each section, or to add and remove sections.
+
+- **Only drafts.** The button is off once the assessment is published.
+- **Locked after the first attempt.** Once any student has started, sections
+  cannot change. If you see this message when saving, someone started the
+  assessment while you were editing.
+- If every section has a question count, the assessment total becomes their sum.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.assessment.sections.edit' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.assessment.sections.edit' AND locale = 'en'
+    AND short_text = 'Change the sections of a draft assessment before any student starts it.'
+    AND long_md IS NOT DISTINCT FROM $$## Edit sections
+
+Use **Edit sections** to change the name, questions, minutes and calculator of
+each section, or to add and remove sections.
+
+- **Only drafts.** The button is off once the assessment is published.
+- **Locked after the first attempt.** Once any student has started, sections
+  cannot change. If you see this message when saving, someone started the
+  assessment while you were editing.
+- If every section has a question count, the assessment total becomes their sum.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.release_confirm', 'admin', 'en',
+  'Release this result to the candidate and email them. Released results can''t be changed.',
+  $$## Confirm release
+
+This window shows a summary of the scores so you can check them before you
+release.
+
+- **Release to candidate** shows the candidate their final result and emails
+  them.
+- A certificate is issued if the candidate qualifies.
+- Released results are final. Scores can no longer be overridden.
+- Questions that are flagged for review have no committed grade. The
+  released result shows only the questions that have final grades.
+- Choose **Cancel** to go back without releasing.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.release_confirm' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.release_confirm' AND locale = 'en'
+    AND short_text = 'Release this result to the candidate and email them. Released results can''t be changed.'
+    AND long_md IS NOT DISTINCT FROM $$## Confirm release
+
+This window shows a summary of the scores so you can check them before you
+release.
+
+- **Release to candidate** shows the candidate their final result and emails
+  them.
+- A certificate is issued if the candidate qualifies.
+- Released results are final. Scores can no longer be overridden.
+- Questions that are flagged for review have no committed grade. The
+  released result shows only the questions that have final grades.
+- Choose **Cancel** to go back without releasing.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.activity.feed', 'admin', 'en',
+  'A live list of what admins and candidates did in your organisation. Filter by role.',
+  $$## Activity feed
+
+The feed lists recent actions across your organisation, newest first.
+
+- Use the role buttons (**All**, **Admin**, **Candidate**) to
+  show one group of people.
+- The feed shows 20 items at a time. Choose **Load more** to see older
+  items.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.activity.feed' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.activity.feed' AND locale = 'en'
+    AND short_text = 'A live list of what admins and candidates did in your organisation. Filter by role.'
+    AND long_md IS NOT DISTINCT FROM $$## Activity feed
+
+The feed lists recent actions across your organisation, newest first.
+
+- Use the role buttons (**All**, **Admin**, **Candidate**) to
+  show one group of people.
+- The feed shows 20 items at a time. Choose **Load more** to see older
+  items.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.list.page', 'admin', 'en',
+  'All candidate attempts across your assessments, with status filters.',
+  $$## Attempts
+
+This page lists every candidate attempt for your organisation.
+
+- Use the status tabs (**All**, **Submitted**, **Pending grading**,
+  **Graded**, **Released**) to narrow the list.
+- Select a column heading to sort.
+- Open an attempt to see each answer, its grade and the reasons, and to
+  release the result.
+
+Written answers are graded by AssessIQ. A result becomes **Ready to
+release** after the grading is sent to you.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.list.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.list.page' AND locale = 'en'
+    AND short_text = 'All candidate attempts across your assessments, with status filters.'
+    AND long_md IS NOT DISTINCT FROM $$## Attempts
+
+This page lists every candidate attempt for your organisation.
+
+- Use the status tabs (**All**, **Submitted**, **Pending grading**,
+  **Graded**, **Released**) to narrow the list.
+- Select a column heading to sort.
+- Open an attempt to see each answer, its grade and the reasons, and to
+  release the result.
+
+Written answers are graded by AssessIQ. A result becomes **Ready to
+release** after the grading is sent to you.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.dashboard.home.page', 'admin', 'en',
+  'Your starting page: results waiting for you and a shortcut to create an assessment.',
+  $$## Dashboard
+
+- **In queue**, **Awaiting grading** and **Ready to release** count the
+  attempts in your results queue.
+- **Results queue** lists the attempts. Open one to review and release it.
+- **Refresh** loads the latest numbers. **New assessment** opens the
+  assessments page.
+- A usage banner appears at the top when your credit usage is notable. It
+  never blocks you.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.dashboard.home.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.dashboard.home.page' AND locale = 'en'
+    AND short_text = 'Your starting page: results waiting for you and a shortcut to create an assessment.'
+    AND long_md IS NOT DISTINCT FROM $$## Dashboard
+
+- **In queue**, **Awaiting grading** and **Ready to release** count the
+  attempts in your results queue.
+- **Results queue** lists the attempts. Open one to review and release it.
+- **Refresh** loads the latest numbers. **New assessment** opens the
+  assessments page.
+- A usage banner appears at the top when your credit usage is notable. It
+  never blocks you.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.users.list.page', 'admin', 'en',
+  'Everyone in your organisation: invite people, filter by role and manage access.',
+  $$## Users
+
+This page lists the people in your organisation.
+
+- Use **Invite user** to add a person. An invitation email is sent.
+- Use the role filters and the search box to find a person.
+- Use the toggles to show disabled or removed users.
+- For a candidate, you can export that person's data from their row.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.users.list.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.users.list.page' AND locale = 'en'
+    AND short_text = 'Everyone in your organisation: invite people, filter by role and manage access.'
+    AND long_md IS NOT DISTINCT FROM $$## Users
+
+This page lists the people in your organisation.
+
+- Use **Invite user** to add a person. An invitation email is sent.
+- Use the role filters and the search box to find a person.
+- Use the toggles to show disabled or removed users.
+- For a candidate, you can export that person's data from their row.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.queue.page', 'admin', 'en',
+  'AssessIQ''s work list of written answers to grade, oldest first.',
+  $$## Grading
+
+This page is the work list for AssessIQ graders. Each row is one attempt
+that has written answers and has not been sent to its organisation.
+
+- Work from the top. **Grade next** opens the oldest row.
+- You see the organisation, assessment and difficulty, not the candidate's name.
+- When you accept the last grade of an attempt, it is sent to its
+  organisation.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.queue.page' AND locale = 'en'
+    AND short_text = 'AssessIQ''s work list of written answers to grade, oldest first.'
+    AND long_md IS NOT DISTINCT FROM $$## Grading
+
+This page is the work list for AssessIQ graders. Each row is one attempt
+that has written answers and has not been sent to its organisation.
+
+- Work from the top. **Grade next** opens the oldest row.
+- You see the organisation, assessment and difficulty, not the candidate's name.
+- When you accept the last grade of an attempt, it is sent to its
+  organisation.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.tenant_settings.page', 'admin', 'en',
+  'Organisation name, how results reach candidates, and how long candidate personal data is kept.',
+  $$## Settings
+
+This page holds the settings for your organisation. Only organisation admins can open it.
+
+- **Organisation name.** Change the name that your team and candidates see.
+- **Result release.** Choose when candidates receive results. With Manual, you release each result yourself. With Automatic, a result goes out when it is ready.
+- **Data retention.** Set the number of days that the organisation keeps personal data of candidates.
+- **Erased candidates.** See the candidates whose personal data was removed. Their names and emails cannot be read.
+- You may be asked for a fresh authenticator code when you change the release mode.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.tenant_settings.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.tenant_settings.page' AND locale = 'en'
+    AND short_text = 'Organisation name, how results reach candidates, and how long candidate personal data is kept.'
+    AND long_md IS NOT DISTINCT FROM $$## Settings
+
+This page holds the settings for your organisation. Only organisation admins can open it.
+
+- **Organisation name.** Change the name that your team and candidates see.
+- **Result release.** Choose when candidates receive results. With Manual, you release each result yourself. With Automatic, a result goes out when it is ready.
+- **Data retention.** Set the number of days that the organisation keeps personal data of candidates.
+- **Erased candidates.** See the candidates whose personal data was removed. Their names and emails cannot be read.
+- You may be asked for a fresh authenticator code when you change the release mode.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.generate_wizard.page', 'admin', 'en',
+  'Platform tool that makes draft questions for a difficulty, a subject and its categories, ready for review.',
+  $$## Generate questions
+
+This tool is for AssessIQ platform admins. Organisations do not write question sets.
+
+- **Set up.** Pick a difficulty, a subject and the categories. For each category, choose the question types and the number of questions for each type.
+- **Generate.** The tool works on one category at a time. You can leave the page. The work continues and you can return later.
+- **Review.** Read each draft as a formatted question. You can edit a draft, approve it, or approve many at once.
+- **Types.** Multiple-choice, log analysis, scenario, KQL and subjective questions are made here. Numeric, multi-select, ordering and structured case questions are written by hand.
+- Nothing reaches a candidate until you approve it.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.generate_wizard.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.generate_wizard.page' AND locale = 'en'
+    AND short_text = 'Platform tool that makes draft questions for a difficulty, a subject and its categories, ready for review.'
+    AND long_md IS NOT DISTINCT FROM $$## Generate questions
+
+This tool is for AssessIQ platform admins. Organisations do not write question sets.
+
+- **Set up.** Pick a difficulty, a subject and the categories. For each category, choose the question types and the number of questions for each type.
+- **Generate.** The tool works on one category at a time. You can leave the page. The work continues and you can return later.
+- **Review.** Read each draft as a formatted question. You can edit a draft, approve it, or approve many at once.
+- **Types.** Multiple-choice, log analysis, scenario, KQL and subjective questions are made here. Numeric, multi-select, ordering and structured case questions are written by hand.
+- Nothing reaches a candidate until you approve it.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.attempts.detail.page', 'admin', 'en',
+  'One candidate attempt: review the final scores and release them to the candidate.',
+  $$## Attempt
+
+This page shows one attempt from one candidate.
+
+- **Status.** *Awaiting grading* means AssessIQ is still scoring the written answers. No score is shown yet.
+- **Ready to release.** You can read every question, the answer and the score band. Score bands are 0, 25, 50, 75 or 100.
+- **Override.** Record a different grade and give a reason. The first grade stays on record.
+- **Send back.** Return the attempt to AssessIQ with a note about what to check again.
+- **Release to candidate.** The candidate sees the result. You cannot change a released result.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.attempts.detail.page' AND locale = 'en'
+    AND short_text = 'One candidate attempt: review the final scores and release them to the candidate.'
+    AND long_md IS NOT DISTINCT FROM $$## Attempt
+
+This page shows one attempt from one candidate.
+
+- **Status.** *Awaiting grading* means AssessIQ is still scoring the written answers. No score is shown yet.
+- **Ready to release.** You can read every question, the answer and the score band. Score bands are 0, 25, 50, 75 or 100.
+- **Override.** Record a different grade and give a reason. The first grade stays on record.
+- **Send back.** Return the attempt to AssessIQ with a note about what to check again.
+- **Release to candidate.** The candidate sees the result. You cannot change a released result.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.evaluations.detail.page', 'admin', 'en',
+  'Grade one attempt for an organisation. You do not see the candidate''s name.',
+  $$## Grade an attempt
+
+This page is for AssessIQ platform admins. It shows one attempt from the grading queue.
+
+- **Blind view.** You see the organisation, the assessment and the difficulty. You do not see the name or email of the candidate.
+- **Grade.** Grade all questions, read the proposed score and evidence for each answer, and accept it. You can run the grading again, override a grade, or enter a score by hand.
+- **Send.** When you accept the last grade, the attempt goes to the organisation. The organisation reviews it and releases it.
+- **Sent back.** If the organisation sent the attempt back, read the note. Then grade again and use **Send to organisation**.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.evaluations.detail.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.evaluations.detail.page' AND locale = 'en'
+    AND short_text = 'Grade one attempt for an organisation. You do not see the candidate''s name.'
+    AND long_md IS NOT DISTINCT FROM $$## Grade an attempt
+
+This page is for AssessIQ platform admins. It shows one attempt from the grading queue.
+
+- **Blind view.** You see the organisation, the assessment and the difficulty. You do not see the name or email of the candidate.
+- **Grade.** Grade all questions, read the proposed score and evidence for each answer, and accept it. You can run the grading again, override a grade, or enter a score by hand.
+- **Send.** When you accept the last grade, the attempt goes to the organisation. The organisation reviews it and releases it.
+- **Sent back.** If the organisation sent the attempt back, read the note. Then grade again and use **Send to organisation**.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.jobs.page', 'admin', 'en',
+  'Where the written answers of your candidates are in the grading queue. Nothing is started here.',
+  $$## Grading status
+
+This page shows how many attempts wait for grading, how long the oldest
+one has waited, and the counts for each assessment. You do not start any
+grading from here.
+
+- **Multiple-choice answers.** Scored when the candidate submits. They never wait.
+- **Written answers.** AssessIQ grades them in the order they were submitted. Until that is done, the attempt shows *Awaiting grading* and no one sees a score.
+- **Ready to release.** Open the attempt on the Attempts page. You can release it, override a grade, or send it back.
+- **Score bands.** Each written answer gets 0, 25, 50, 75 or 100.
+- If an attempt waits longer than the turnaround you were given, contact your AssessIQ operator.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.jobs.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.jobs.page' AND locale = 'en'
+    AND short_text = 'Where the written answers of your candidates are in the grading queue. Nothing is started here.'
+    AND long_md IS NOT DISTINCT FROM $$## Grading status
+
+This page shows how many attempts wait for grading, how long the oldest
+one has waited, and the counts for each assessment. You do not start any
+grading from here.
+
+- **Multiple-choice answers.** Scored when the candidate submits. They never wait.
+- **Written answers.** AssessIQ grades them in the order they were submitted. Until that is done, the attempt shows *Awaiting grading* and no one sees a score.
+- **Ready to release.** Open the attempt on the Attempts page. You can release it, override a grade, or send it back.
+- **Score bands.** Each written answer gets 0, 25, 50, 75 or 100.
+- If an attempt waits longer than the turnaround you were given, contact your AssessIQ operator.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.jobs.counts', 'admin', 'en',
+  'The same three numbers as the dashboard cards: in queue, awaiting grading, ready to release.',
+  $$## Counts
+
+- **In queue** — submitted attempts that AssessIQ has not graded yet.
+- **Awaiting grading** — in queue, plus graded attempts that AssessIQ has not sent to you yet.
+- **Ready to release** — graded and sent. Open them on the Attempts page to release.
+
+The numbers update every 30 seconds while the page is open.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.jobs.counts' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.jobs.counts' AND locale = 'en'
+    AND short_text = 'The same three numbers as the dashboard cards: in queue, awaiting grading, ready to release.'
+    AND long_md IS NOT DISTINCT FROM $$## Counts
+
+- **In queue** — submitted attempts that AssessIQ has not graded yet.
+- **Awaiting grading** — in queue, plus graded attempts that AssessIQ has not sent to you yet.
+- **Ready to release** — graded and sent. Open them on the Attempts page to release.
+
+The numbers update every 30 seconds while the page is open.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.jobs.oldest', 'admin', 'en',
+  'How long the oldest attempt in the queue has waited since the candidate submitted it.',
+  $$## Waiting time
+
+The line shows the submit time of the oldest attempt still in the queue and
+how long ago that was. Attempts are graded in the order they were submitted.
+
+No fixed turnaround is promised on this page. If an attempt waits longer than
+the turnaround you were given, contact your AssessIQ operator.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.jobs.oldest' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.jobs.oldest' AND locale = 'en'
+    AND short_text = 'How long the oldest attempt in the queue has waited since the candidate submitted it.'
+    AND long_md IS NOT DISTINCT FROM $$## Waiting time
+
+The line shows the submit time of the oldest attempt still in the queue and
+how long ago that was. Attempts are graded in the order they were submitted.
+
+No fixed turnaround is promised on this page. If an attempt waits longer than
+the turnaround you were given, contact your AssessIQ operator.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.grading.jobs.by_assessment', 'admin', 'en',
+  'One row per assessment with the three counts. Select the name to open the assessment.',
+  $$## By assessment
+
+Each row is one assessment that has at least one submitted attempt, with its
+in-queue, awaiting-grading and ready-to-release counts. The rows add up
+to the totals above. Select the assessment name to open its page.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.grading.jobs.by_assessment' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.grading.jobs.by_assessment' AND locale = 'en'
+    AND short_text = 'One row per assessment with the three counts. Select the name to open the assessment.'
+    AND long_md IS NOT DISTINCT FROM $$## By assessment
+
+Each row is one assessment that has at least one submitted attempt, with its
+in-queue, awaiting-grading and ready-to-release counts. The rows add up
+to the totals above. Select the assessment name to open its page.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.question.editor.page', 'admin', 'en',
+  'Create a question, or view and edit its rubric. Only platform admins can change questions.',
+  $$## Question
+
+AssessIQ platform admins write all questions. Organisation admins can view them but cannot change them.
+
+- **New question.** Choose the type, the topic and the points. Then write the content. You can add a hint for the candidate that tells how to answer.
+- **Question page.** The question text is read-only. You can edit the hint and the rubric.
+- **Rubric.** For written answers, the rubric lists what a good answer must show. The key point weight and the reasoning weight must add up to 100.
+- **Status.** Approve a draft to make it active. Archive a question to stop candidates from getting it.
+- A rubric saves only when you select **Save rubric**.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.question.editor.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.question.editor.page' AND locale = 'en'
+    AND short_text = 'Create a question, or view and edit its rubric. Only platform admins can change questions.'
+    AND long_md IS NOT DISTINCT FROM $$## Question
+
+AssessIQ platform admins write all questions. Organisation admins can view them but cannot change them.
+
+- **New question.** Choose the type, the topic and the points. Then write the content. You can add a hint for the candidate that tells how to answer.
+- **Question page.** The question text is read-only. You can edit the hint and the rubric.
+- **Rubric.** For written answers, the rubric lists what a good answer must show. The key point weight and the reasoning weight must add up to 100.
+- **Status.** Approve a draft to make it active. Archive a question to stop candidates from getting it.
+- A rubric saves only when you select **Save rubric**.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'admin.reports.individual.page', 'admin', 'en',
+  'The scores of one candidate over time, one card for each attempt.',
+  $$## Individual report
+
+This page shows the history of one candidate across your assessments.
+
+- **Latest score band.** The score band from the most recent attempt.
+- **Score trend.** A small chart that shows how the score changed. It appears when the candidate has two or more attempts.
+- **Attempts.** Each card shows the assessment, the difficulty, the date and the score band with its percent.
+- **Archetype chart.** When the data is available, a chart shows the strengths of the candidate.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'admin.reports.individual.page' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'admin.reports.individual.page' AND locale = 'en'
+    AND short_text = 'The scores of one candidate over time, one card for each attempt.'
+    AND long_md IS NOT DISTINCT FROM $$## Individual report
+
+This page shows the history of one candidate across your assessments.
+
+- **Latest score band.** The score band from the most recent attempt.
+- **Score trend.** A small chart that shows how the score changed. It appears when the candidate has two or more attempts.
+- **Attempts.** Each card shows the assessment, the difficulty, the date and the score band with its percent.
+- **Archetype chart.** When the data is available, a chart shows the strengths of the candidate.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.intro.integrity', 'candidate', 'en',
+  'AssessIQ measures judgment and reasoning, not memory. Use any reference you would in a real workday.',
+  $$## Integrity expectations
+
+This assessment is not closed-book. AssessIQ is built to measure
+how you think on the job, not what you can recall under pressure. Use:
+
+- **Documentation** for the tools and languages you would normally
+  reference at work.
+- **Search engines** to look up syntax or operators.
+- **Notes** you would normally have open.
+
+Do **not** ask another person to answer for you, share screens, or paste
+answers from another candidate's attempt. AssessIQ records timing
+signals, edit patterns, and behavioral fingerprints; identical or
+near-identical answers across candidates are flagged for review.
+
+Once you click **Begin Assessment**, the timer starts and cannot be
+paused. If your network drops, your answers are saved every 5 seconds —
+you can refresh and continue.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.intro.integrity' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.intro.integrity' AND locale = 'en'
+    AND short_text = 'AssessIQ measures judgment and reasoning, not memory. Use any reference you would in a real workday.'
+    AND long_md IS NOT DISTINCT FROM $$## Integrity expectations
+
+This assessment is not closed-book. AssessIQ is built to measure
+how you think on the job, not what you can recall under pressure. Use:
+
+- **Documentation** for the tools and languages you would normally
+  reference at work.
+- **Search engines** to look up syntax or operators.
+- **Notes** you would normally have open.
+
+Do **not** ask another person to answer for you, share screens, or paste
+answers from another candidate's attempt. AssessIQ records timing
+signals, edit patterns, and behavioral fingerprints; identical or
+near-identical answers across candidates are flagged for review.
+
+Once you click **Begin Assessment**, the timer starts and cannot be
+paused. If your network drops, your answers are saved every 5 seconds —
+you can refresh and continue.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.intro.practice', 'candidate', 'en',
+  'One sample question so you can see how choosing an answer works. It is not saved and not scored.',
+  $$## Practice question
+
+This sample question uses the same answer options you will see in the assessment.
+Pick an option to try it. Nothing you choose here is saved, scored or
+shared. The timer has not started yet.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.intro.practice' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.intro.practice' AND locale = 'en'
+    AND short_text = 'One sample question so you can see how choosing an answer works. It is not saved and not scored.'
+    AND long_md IS NOT DISTINCT FROM $$## Practice question
+
+This sample question uses the same answer options you will see in the assessment.
+Pick an option to try it. Nothing you choose here is saved, scored or
+shared. The timer has not started yet.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.intro.consent', 'candidate', 'en',
+  'Confirm it is you, taking the assessment alone, and agree to the Terms and Privacy Policy before you begin.',
+  $$## Consent and AI-use notice
+
+Before the timer starts we ask you to confirm that you are the person
+invited, that you will take the assessment on your own, and that you agree to the
+Terms and Privacy Policy. Your results may be shared with the organisation that
+invited you. We record when you agreed.
+
+**How answers are scored:** multiple-choice answers are scored
+automatically. Written answers, if any, are graded by AssessIQ
+graders with AI assistance, before the organisation that invited you
+releases the results.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.intro.consent' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.intro.consent' AND locale = 'en'
+    AND short_text = 'Confirm it is you, taking the assessment alone, and agree to the Terms and Privacy Policy before you begin.'
+    AND long_md IS NOT DISTINCT FROM $$## Consent and AI-use notice
+
+Before the timer starts we ask you to confirm that you are the person
+invited, that you will take the assessment on your own, and that you agree to the
+Terms and Privacy Policy. Your results may be shared with the organisation that
+invited you. We record when you agreed.
+
+**How answers are scored:** multiple-choice answers are scored
+automatically. Written answers, if any, are graded by AssessIQ
+graders with AI assistance, before the organisation that invited you
+releases the results.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.timer', 'candidate', 'en',
+  'Wall-clock time remaining. Auto-submits at zero. Pausing is not supported.',
+  $$## Timer
+
+The countdown shows time remaining for the entire assessment, not the
+current question. When it reaches zero, AssessIQ auto-submits whatever
+answers you have entered.
+
+**The timer keeps running even if you close the tab.** Network dropouts
+do not pause it. If you genuinely cannot continue (power outage,
+medical emergency), close the tab and contact your administrator
+immediately — they can grant a one-time extension before you submit.
+
+Behavioral signals recorded by AssessIQ include time spent per question,
+number of edits, and navigation pattern. None of these signals affect
+your score directly; they inform the admin's review.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.timer' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.timer' AND locale = 'en'
+    AND short_text = 'Wall-clock time remaining. Auto-submits at zero. Pausing is not supported.'
+    AND long_md IS NOT DISTINCT FROM $$## Timer
+
+The countdown shows time remaining for the entire assessment, not the
+current question. When it reaches zero, AssessIQ auto-submits whatever
+answers you have entered.
+
+**The timer keeps running even if you close the tab.** Network dropouts
+do not pause it. If you genuinely cannot continue (power outage,
+medical emergency), close the tab and contact your administrator
+immediately — they can grant a one-time extension before you submit.
+
+Behavioral signals recorded by AssessIQ include time spent per question,
+number of edits, and navigation pattern. None of these signals affect
+your score directly; they inform the admin's review.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.flag', 'candidate', 'en',
+  'Bookmark the question to revisit before final submit. Flags have no scoring impact.',
+  $$## Flag for review
+
+Use this when you want to come back to a question before you submit —
+for instance, if you are not sure of your answer or want to verify a query.
+
+Flagged questions appear with a star in the navigation panel. You can flag
+multiple questions; the **Review** screen lists all flagged + unanswered
+items together so you do not miss anything.
+
+Flagging has no scoring impact. It is just a personal bookmark.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.flag' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.flag' AND locale = 'en'
+    AND short_text = 'Bookmark the question to revisit before final submit. Flags have no scoring impact.'
+    AND long_md IS NOT DISTINCT FROM $$## Flag for review
+
+Use this when you want to come back to a question before you submit —
+for instance, if you are not sure of your answer or want to verify a query.
+
+Flagged questions appear with a star in the navigation panel. You can flag
+multiple questions; the **Review** screen lists all flagged + unanswered
+items together so you do not miss anything.
+
+Flagging has no scoring impact. It is just a personal bookmark.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.kql.editor', 'candidate', 'en',
+  'Type your KQL query in this box. It is saved as you work and scored later by an AssessIQ grader.',
+  $$## KQL answer box
+
+This is a plain text box. Type or paste your KQL query. There is no syntax
+highlighting, autocomplete or automatic check in this box.
+
+- Your query is saved as you work.
+- Your query is not run against real data.
+- Your query is not scored automatically. An AssessIQ grader reads and
+  scores it.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.kql.editor' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.kql.editor' AND locale = 'en'
+    AND short_text = 'Type your KQL query in this box. It is saved as you work and scored later by an AssessIQ grader.'
+    AND long_md IS NOT DISTINCT FROM $$## KQL answer box
+
+This is a plain text box. Type or paste your KQL query. There is no syntax
+highlighting, autocomplete or automatic check in this box.
+
+- Your query is saved as you work.
+- Your query is not run against real data.
+- Your query is not scored automatically. An AssessIQ grader reads and
+  scores it.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.structured_case', 'candidate', 'en',
+  'Read the case, then answer each step. Choose one answer or tick all that apply.',
+  $$## Structured case
+
+Read the story and the log first. Then answer each step in order.
+
+- A round button means choose **one** answer.
+- A square box means tick **all** answers that apply.
+- You can change your answers until you submit the assessment.
+- A step you leave blank scores 0.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.structured_case' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.structured_case' AND locale = 'en'
+    AND short_text = 'Read the case, then answer each step. Choose one answer or tick all that apply.'
+    AND long_md IS NOT DISTINCT FROM $$## Structured case
+
+Read the story and the log first. Then answer each step in order.
+
+- A round button means choose **one** answer.
+- A square box means tick **all** answers that apply.
+- You can change your answers until you submit the assessment.
+- A step you leave blank scores 0.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.subjective.length', 'candidate', 'en',
+  'Recommended 80–200 words per answer. Quality of reasoning beats word count.',
+  $$## Subjective answer length
+
+Subjective questions are graded on the rubric (key points and score bands), not on
+length. A 60-word answer that nails the tradeoff scores higher than a
+300-word answer that meanders.
+
+**Rough guide:**
+
+- **Below 40 words:** rarely enough to demonstrate reasoning.
+- **80–200 words:** the sweet spot for most rubrics.
+- **Above 300 words:** law of diminishing returns; you are using time
+  that other questions need.
+
+Markdown formatting (bullets, **bold**, `code`) renders in the grader's
+review. Use it when it clarifies; do not use it as filler.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.subjective.length' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.subjective.length' AND locale = 'en'
+    AND short_text = 'Recommended 80–200 words per answer. Quality of reasoning beats word count.'
+    AND long_md IS NOT DISTINCT FROM $$## Subjective answer length
+
+Subjective questions are graded on the rubric (key points and score bands), not on
+length. A 60-word answer that nails the tradeoff scores higher than a
+300-word answer that meanders.
+
+**Rough guide:**
+
+- **Below 40 words:** rarely enough to demonstrate reasoning.
+- **80–200 words:** the sweet spot for most rubrics.
+- **Above 300 words:** law of diminishing returns; you are using time
+  that other questions need.
+
+Markdown formatting (bullets, **bold**, `code`) renders in the grader's
+review. Use it when it clarifies; do not use it as filler.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.disconnect', 'candidate', 'en',
+  'Your answers autosave every 5 seconds. Refresh and continue — the timer keeps running.',
+  $$## If your connection drops
+
+AssessIQ saves your in-progress answers to the server every 5 seconds and
+shows a small green check next to "Saved" when the latest save completed.
+A red dot means the last save attempt failed; AssessIQ will retry on the
+next interval.
+
+**If you lose connectivity:**
+
+1. **The timer keeps running** — wall-clock time, not connected time.
+2. **Reconnect and refresh** — your most recent autosaved state loads.
+3. **Anything typed during the offline window is lost** — only saved
+   state survives a refresh.
+
+For a genuinely-blocking outage (power, hardware failure), close the tab
+and contact your administrator. They can grant a one-time extension
+before you submit, but cannot extend after auto-submit fires.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.disconnect' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.disconnect' AND locale = 'en'
+    AND short_text = 'Your answers autosave every 5 seconds. Refresh and continue — the timer keeps running.'
+    AND long_md IS NOT DISTINCT FROM $$## If your connection drops
+
+AssessIQ saves your in-progress answers to the server every 5 seconds and
+shows a small green check next to "Saved" when the latest save completed.
+A red dot means the last save attempt failed; AssessIQ will retry on the
+next interval.
+
+**If you lose connectivity:**
+
+1. **The timer keeps running** — wall-clock time, not connected time.
+2. **Reconnect and refresh** — your most recent autosaved state loads.
+3. **Anything typed during the offline window is lost** — only saved
+   state survives a refresh.
+
+For a genuinely-blocking outage (power, hardware failure), close the tab
+and contact your administrator. They can grant a one-time extension
+before you submit, but cannot extend after auto-submit fires.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.submit.confirm', 'candidate', 'en',
+  'Once submitted, you cannot reopen the attempt. Verify your flagged questions first.',
+  $$## Submitting your attempt
+
+Submission is **final**. AssessIQ does not allow editing answers after
+submit, and there is no second attempt unless your administrator
+explicitly grants one.
+
+Before clicking the final **Submit** button, the **Review** screen shows:
+
+- Flagged questions you wanted to revisit.
+- Unanswered questions (a blank textarea or empty MCQ counts).
+- Questions whose autosave is stale (rare — usually only seconds old).
+
+Walk through any starred or unanswered items. When you are ready, click
+**Submit**. AssessIQ asks you to confirm the submit in a final dialog and the
+candidate timer freezes immediately.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.submit.confirm' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.submit.confirm' AND locale = 'en'
+    AND short_text = 'Once submitted, you cannot reopen the attempt. Verify your flagged questions first.'
+    AND long_md IS NOT DISTINCT FROM $$## Submitting your attempt
+
+Submission is **final**. AssessIQ does not allow editing answers after
+submit, and there is no second attempt unless your administrator
+explicitly grants one.
+
+Before clicking the final **Submit** button, the **Review** screen shows:
+
+- Flagged questions you wanted to revisit.
+- Unanswered questions (a blank textarea or empty MCQ counts).
+- Questions whose autosave is stale (rare — usually only seconds old).
+
+Walk through any starred or unanswered items. When you are ready, click
+**Submit**. AssessIQ asks you to confirm the submit in a final dialog and the
+candidate timer freezes immediately.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.submit.confirm', 'candidate', 'en',
+  'Your answers are saved. You will see your result on this page or by email once it is final.',
+  $$## After you submit
+
+Your answers are saved. You will see your result on this page or by email once it is final. The timer has stopped.
+There is nothing more you need to do.
+
+- **Instant scoring.** If every question is multiple choice and your
+  organisation releases results automatically, your result appears on
+  this page in under a minute.
+- **Otherwise** your result is emailed to your registered address, shown
+  here with part of it hidden (for example `r***@gmail.com`). The message
+  on this page says how long that usually takes.
+- You only ever see a **complete, final** result — never a partial score
+  while grading is still in progress.
+
+If the email does not arrive, check your spam folder. You can also sign
+in to the candidate portal with the same email address to see your
+results.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.submit.confirm' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.submit.confirm' AND locale = 'en'
+    AND short_text = 'Your answers are saved. You will see your result on this page or by email once it is final.'
+    AND long_md IS NOT DISTINCT FROM $$## After you submit
+
+Your answers are saved. You will see your result on this page or by email once it is final. The timer has stopped.
+There is nothing more you need to do.
+
+- **Instant scoring.** If every question is multiple choice and your
+  organisation releases results automatically, your result appears on
+  this page in under a minute.
+- **Otherwise** your result is emailed to your registered address, shown
+  here with part of it hidden (for example `r***@gmail.com`). The message
+  on this page says how long that usually takes.
+- You only ever see a **complete, final** result — never a partial score
+  while grading is still in progress.
+
+If the email does not arrive, check your spam folder. You can also sign
+in to the candidate portal with the same email address to see your
+results.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.result.bands', 'candidate', 'en',
+  'Your result shows your score, the percentage and whether you passed. You only ever see a complete, final result.',
+  $$## Understanding your result
+
+A released result shows four things:
+
+- **Score** — the points you earned out of the total available, for
+  example 42 / 60.
+- **Percent** — your score as a percentage of the total.
+- **Passed or Not passed** — your percentage compared with the pass mark
+  set for this assessment.
+- **Certificate** — if you earned one, a link to view and verify it.
+
+A result is released only when grading is finished and final. You will
+never see a partial or provisional score. Answer keys and per-question
+marks are not shown.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.result.bands' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.result.bands' AND locale = 'en'
+    AND short_text = 'Your result shows your score, the percentage and whether you passed. You only ever see a complete, final result.'
+    AND long_md IS NOT DISTINCT FROM $$## Understanding your result
+
+A released result shows four things:
+
+- **Score** — the points you earned out of the total available, for
+  example 42 / 60.
+- **Percent** — your score as a percentage of the total.
+- **Passed or Not passed** — your percentage compared with the pass mark
+  set for this assessment.
+- **Certificate** — if you earned one, a link to view and verify it.
+
+A result is released only when grading is finished and final. You will
+never see a partial or provisional score. Answer keys and per-question
+marks are not shown.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.results.list', 'candidate', 'en',
+  'Every result your organisation has released to you, newest first, with a link to any certificate you earned.',
+  $$## My results
+
+This page lists the results your organisation has **released** to you,
+newest first. Each one shows your score, the percentage, whether you
+passed, and a link to your certificate when you earned one.
+
+- A result appears here only when grading is finished and it has been
+  released — never earlier, and never as a partial score.
+- When a result is released we also email you, with a link back to this
+  page.
+- Don't see an assessment you took? Its result has not been released yet.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.results.list' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.results.list' AND locale = 'en'
+    AND short_text = 'Every result your organisation has released to you, newest first, with a link to any certificate you earned.'
+    AND long_md IS NOT DISTINCT FROM $$## My results
+
+This page lists the results your organisation has **released** to you,
+newest first. Each one shows your score, the percentage, whether you
+passed, and a link to your certificate when you earned one.
+
+- A result appears here only when grading is finished and it has been
+  released — never earlier, and never as a partial score.
+- When a result is released we also email you, with a link back to this
+  page.
+- Don't see an assessment you took? Its result has not been released yet.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.auth.org_code', 'candidate', 'en',
+  'Your organisation''s short code, for example acme-college. If you don''t have it, ask your administrator.',
+  $$## Organisation code
+
+The code identifies the organisation (a school, college or business) that
+registered you, so AssessIQ can find your account. It is made of lowercase
+letters, digits and hyphens, for example `acme-college`.
+
+- If you opened this page from a link in an email from us, the code is
+  already included and this box is not shown.
+- Otherwise, ask your administrator for the code.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.auth.org_code' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.auth.org_code' AND locale = 'en'
+    AND short_text = 'Your organisation''s short code, for example acme-college. If you don''t have it, ask your administrator.'
+    AND long_md IS NOT DISTINCT FROM $$## Organisation code
+
+The code identifies the organisation (a school, college or business) that
+registered you, so AssessIQ can find your account. It is made of lowercase
+letters, digits and hyphens, for example `acme-college`.
+
+- If you opened this page from a link in an email from us, the code is
+  already included and this box is not shown.
+- Otherwise, ask your administrator for the code.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.activity', 'candidate', 'en',
+  'Personal activity dashboard: completions, avg score, 52-week heatmap, weekly chart, and question set rankings.',
+  $$## My activity
+
+This page gives you a full picture of your assessment history on this
+organisation.
+
+### Stat cards
+
+- **Assessments completed** — total submitted attempts in the selected period,
+  broken down by subject.
+- **Question sets attempted** — distinct question sets you have ever submitted
+  an attempt for.
+- **Avg. score** — your mean auto-graded score across all completed
+  attempts in the period, with a quartile breakdown.
+
+Use the **This week / This month / This quarter** toggle to adjust the
+stats window. The heatmap and weekly chart always show the full 52-week
+rolling window regardless of the toggle.
+
+### Activity streak
+
+The 52-week heatmap shows one cell per day. Darker cells mean more
+completions on that day. The current streak counts consecutive days with
+at least one submitted attempt up to and including today.
+
+### Weekly completions
+
+The stacked bar chart shows how many assessments you submitted each week,
+coloured by subject. Hover a bar to see the exact breakdown.
+
+### My question set rankings
+
+One row per question set you have attempted. Shows your **best score** (the
+highest auto-graded result across all your attempts) and your **rank**
+among every candidate in this organisation who took the same question set. For example
+"#3 of 24" means your best score places you third out of the 24 candidates
+who have submitted that question set.
+
+Ranks are computed live and update as other candidates submit new attempts.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.activity' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.activity' AND locale = 'en'
+    AND short_text = 'Personal activity dashboard: completions, avg score, 52-week heatmap, weekly chart, and question set rankings.'
+    AND long_md IS NOT DISTINCT FROM $$## My activity
+
+This page gives you a full picture of your assessment history on this
+organisation.
+
+### Stat cards
+
+- **Assessments completed** — total submitted attempts in the selected period,
+  broken down by subject.
+- **Question sets attempted** — distinct question sets you have ever submitted
+  an attempt for.
+- **Avg. score** — your mean auto-graded score across all completed
+  attempts in the period, with a quartile breakdown.
+
+Use the **This week / This month / This quarter** toggle to adjust the
+stats window. The heatmap and weekly chart always show the full 52-week
+rolling window regardless of the toggle.
+
+### Activity streak
+
+The 52-week heatmap shows one cell per day. Darker cells mean more
+completions on that day. The current streak counts consecutive days with
+at least one submitted attempt up to and including today.
+
+### Weekly completions
+
+The stacked bar chart shows how many assessments you submitted each week,
+coloured by subject. Hover a bar to see the exact breakdown.
+
+### My question set rankings
+
+One row per question set you have attempted. Shows your **best score** (the
+highest auto-graded result across all your attempts) and your **rank**
+among every candidate in this organisation who took the same question set. For example
+"#3 of 24" means your best score places you third out of the 24 candidates
+who have submitted that question set.
+
+Ranks are computed live and update as other candidates submit new attempts.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.section', 'candidate', 'en',
+  'This assessment has timed sections. You cannot return to a section once it is finished.',
+  $$## Assessment sections
+
+The assessment is split into sections. The timer at the top is for the **current
+section** only.
+
+- When the section timer reaches zero, your answers in that section are saved
+  and locked, and the next section opens.
+- Press **Finish section** to move on early. You will be asked to confirm,
+  because **you cannot come back** to that section.
+- The assessment ends when the last section ends, or when you submit in the last section.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.section' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.section' AND locale = 'en'
+    AND short_text = 'This assessment has timed sections. You cannot return to a section once it is finished.'
+    AND long_md IS NOT DISTINCT FROM $$## Assessment sections
+
+The assessment is split into sections. The timer at the top is for the **current
+section** only.
+
+- When the section timer reaches zero, your answers in that section are saved
+  and locked, and the next section opens.
+- Press **Finish section** to move on early. You will be asked to confirm,
+  because **you cannot come back** to that section.
+- The assessment ends when the last section ends, or when you submit in the last section.
+$$
+);
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+SELECT gen_random_uuid(), NULL, 'candidate.attempt.submit_sections', 'candidate', 'en',
+  'Before you submit, check how many questions are unanswered in every section.',
+  $$## Submitting a sectioned assessment
+
+The confirmation lists every section with its unanswered questions.
+
+- Sections marked **closed** are finished. You cannot change their answers.
+- Only the current section can still be edited before you submit.
+- Submitting ends the assessment.
+$$,
+  (SELECT COALESCE(MAX(version), 0) + 1 FROM help_content WHERE tenant_id IS NULL AND key = 'candidate.attempt.submit_sections' AND locale = 'en'), 'active'
+WHERE NOT EXISTS (
+  SELECT 1 FROM help_content
+  WHERE tenant_id IS NULL AND key = 'candidate.attempt.submit_sections' AND locale = 'en'
+    AND short_text = 'Before you submit, check how many questions are unanswered in every section.'
+    AND long_md IS NOT DISTINCT FROM $$## Submitting a sectioned assessment
+
+The confirmation lists every section with its unanswered questions.
+
+- Sections marked **closed** are finished. You cannot change their answers.
+- Only the current section can still be edited before you submit.
+- Submitting ends the assessment.
+$$
+);

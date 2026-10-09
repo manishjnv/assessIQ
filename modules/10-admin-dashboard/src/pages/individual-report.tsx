@@ -7,7 +7,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Chip, Spinner, Sparkline } from "@assessiq/ui-system";
+import { Chip, Spinner, Sparkline, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { ArchetypeRadar } from "../components/ArchetypeRadar.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -95,9 +95,9 @@ export function AdminIndividualReport(): React.ReactElement {
         {/* KPI row */}
         <div style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap", alignItems: "flex-start" }}>
           <div className="aiq-card" style={{ padding: "var(--aiq-space-md) var(--aiq-space-lg)", minWidth: 140 }}>
-            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginBottom: 4 }}>Latest band</div>
+            <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", marginBottom: 4 }}>Latest score band</div>
             <div style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontVariantNumeric: "lining-nums tabular-nums", fontWeight: 400 }}>
-              {report.latest_band !== null ? `Band ${report.latest_band}` : "—"}
+              {report.latest_band !== null ? `Score band ${report.latest_band}` : "—"}
             </div>
           </div>
           {trendData.length >= 2 && (
@@ -120,10 +120,10 @@ export function AdminIndividualReport(): React.ReactElement {
                   {attempt.assessment_name}
                 </div>
                 <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
-                  {attempt.level_label} · {new Date(attempt.submitted_at).toLocaleDateString()}
+                  {attempt.level_label} · {formatDate(attempt.submitted_at)}
                 </div>
                 <div style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-xl)", color: "var(--aiq-color-fg-primary)" }}>
-                  {attempt.band !== null ? `Band ${attempt.band} (${BAND_PCT[attempt.band] ?? 0}%)` : "—"}
+                  {attempt.band !== null ? `Score band ${attempt.band} (${BAND_PCT[attempt.band] ?? 0}%)` : "—"}
                 </div>
                 {/* FU-C8: the behaviour and integrity card lives on the attempt page */}
                 <div>

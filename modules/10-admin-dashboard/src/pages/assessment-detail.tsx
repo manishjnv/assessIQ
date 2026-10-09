@@ -33,9 +33,10 @@
 //   Since the FE Assessment object carries only pack_id (no domain), we filter
 //   by pack_id scope only and show the note regardless — over-showing is safe.
 
+import { assessmentStatusDisplay } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Chip, Modal, Table } from "@assessiq/ui-system";
+import { Chip, Modal, Table, formatDate, formatDateTime } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
@@ -207,7 +208,7 @@ function invitationExpiry(
   }
   const at = new Date(inv.expires_at);
   if (at.getTime() <= now) return { text: "Expired", lapsed: true };
-  const date = at.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const date = formatDate(at);
   return { text: `Expires ${date}`, lapsed: false };
 }
 
@@ -371,7 +372,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
       await fetchData();
     } catch (err) {
       setPublishAllError(
-        err instanceof AdminApiError ? err.apiError.message : "Failed to publish results.",
+        err instanceof AdminApiError ? err.apiError.message : "Failed to release results.",
       );
     } finally {
       setShowPublishAll(false);
@@ -576,7 +577,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             )}
             {row.reminded_at != null && (row.status === "pending" || row.status === "viewed") && (
               <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-                Reminder sent {new Date(row.reminded_at).toLocaleString()}
+                Reminder sent {formatDateTime(row.reminded_at)}
               </span>
             )}
           </div>
@@ -595,7 +596,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {new Date(row.created_at).toLocaleDateString()}
+          {formatDate(row.created_at)}
         </span>
       ),
     },
@@ -611,7 +612,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {row.started_at != null ? new Date(row.started_at).toLocaleDateString() : "—"}
+          {row.started_at != null ? formatDate(row.started_at) : "—"}
         </span>
       ),
     },
@@ -627,7 +628,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {row.submitted_at != null ? new Date(row.submitted_at).toLocaleDateString() : "—"}
+          {row.submitted_at != null ? formatDate(row.submitted_at) : "—"}
         </span>
       ),
     },
@@ -835,7 +836,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
                   flexShrink: 0,
                 }}
               >
-                {assessment.status}
+                {assessmentStatusDisplay(assessment.status).label}
               </span>
             </div>
             {/* Key attributes as a scannable chip row (branding §8.2). Level is
@@ -852,24 +853,24 @@ export function AdminAssessmentDetail(): React.ReactElement {
             >
               {assessment.level_label != null && (
                 <Chip variant="accent" leftIcon="chart">
-                  Level {assessment.level_label}
+                  Difficulty {assessment.level_label}
                 </Chip>
               )}
               {assessment.pack_name != null && (
-                <Chip leftIcon="book">Pack {assessment.pack_name}</Chip>
+                <Chip leftIcon="book">Question set {assessment.pack_name}</Chip>
               )}
               <Chip leftIcon="clock">
                 {assessment.opens_at
-                  ? `Opens ${new Date(assessment.opens_at).toLocaleDateString()}`
+                  ? `Opens ${formatDate(assessment.opens_at)}`
                   : "No open date"}
               </Chip>
               <Chip leftIcon="clock">
                 {assessment.closes_at
-                  ? `Closes ${new Date(assessment.closes_at).toLocaleDateString()}`
+                  ? `Closes ${formatDate(assessment.closes_at)}`
                   : "No close date"}
               </Chip>
               <Chip leftIcon="clock">
-                Created {new Date(assessment.created_at).toLocaleDateString()}
+                Created {formatDate(assessment.created_at)}
               </Chip>
             </div>
           </div>
@@ -948,7 +949,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
                       }}
                     >
                       {showWarning
-                        ? "This pack may not be entitled for your plan — publishing will fail if not. Contact your platform operator to enable it."
+                        ? "This question set may not be entitled for your plan — publishing will fail if not. Contact your platform operator to enable it."
                         : "Only content your plan is entitled to is shown. Contact your platform operator to enable more."}
                     </span>
                   );
@@ -1004,7 +1005,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
               disabled={publishingAll}
               onClick={() => { setPublishAllError(null); setShowPublishAll(true); }}
             >
-              {publishingAll ? "Publishing…" : "Publish all ready"}
+              {publishingAll ? "Releasing…" : "Release all ready"}
             </button>
           )}
         </div>
@@ -1012,7 +1013,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
         {publishAllResult && (
           <div role="status" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
             <Chip variant="success">
-              Published {publishAllResult.released.length} result{publishAllResult.released.length === 1 ? "" : "s"}
+              Released {publishAllResult.released.length} result{publishAllResult.released.length === 1 ? "" : "s"}
             </Chip>
             {publishAllResult.skipped.length > 0 && (
               <Chip variant="warn">
@@ -1036,7 +1037,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           </div>
         )}
 
-        <Modal open={showPublishAll} onClose={() => setShowPublishAll(false)} title="Publish all ready results?" width={480}>
+        <Modal open={showPublishAll} onClose={() => setShowPublishAll(false)} title="Release all ready results?" width={480}>
           <p
             style={{
               margin: 0,
@@ -1046,8 +1047,8 @@ export function AdminAssessmentDetail(): React.ReactElement {
               lineHeight: 1.6,
             }}
           >
-            Every attempt of this assessment that AssessIQ has finished evaluating will be published to its
-            candidate, who is emailed the result. Attempts that are not ready yet are skipped. Published
+            Every attempt of this assessment that AssessIQ has finished grading will be released to its
+            candidate, who is emailed the result. Attempts that are not ready yet are skipped. Released
             results can't be changed.
           </p>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--aiq-space-sm)" }}>
@@ -1055,7 +1056,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
               Cancel
             </button>
             <button type="button" className="aiq-btn aiq-btn-primary" onClick={() => void handlePublishAll()} disabled={publishingAll}>
-              {publishingAll ? "Publishing…" : "Publish all ready"}
+              {publishingAll ? "Releasing…" : "Release all ready"}
             </button>
           </div>
         </Modal>
@@ -1218,7 +1219,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
                       margin: "0 0 var(--aiq-space-md)",
                     }}
                   >
-                    All users in this tenant have already been invited.{" "}
+                    All users in this organisation have already been invited.{" "}
                     <Link
                       to="/admin/users"
                       style={{

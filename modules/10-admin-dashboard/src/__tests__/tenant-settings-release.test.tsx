@@ -109,9 +109,9 @@ describe("TenantSettings — Result release", () => {
     expect(radio(/Automatic/).checked).toBe(false);
     expect(saveBtn().disabled).toBe(true);
 
-    expect(screen.getByText(/You publish each result yourself/)).toBeTruthy();
-    expect(screen.getByText(/Results publish as soon as they are complete/)).toBeTruthy();
-    expect(screen.getByText(/Switching to Automatic does not publish results that are already waiting/)).toBeTruthy();
+    expect(screen.getByText(/You release each result yourself/)).toBeTruthy();
+    expect(screen.getByText(/Results are released as soon as they are complete/)).toBeTruthy();
+    expect(screen.getByText(/Switching to Automatic does not release results that are already waiting/)).toBeTruthy();
   });
 
   it("R2 picking Automatic enables Save; saving PATCHes {mode:'auto'} and confirms", async () => {
@@ -123,7 +123,7 @@ describe("TenantSettings — Result release", () => {
     expect(saveBtn().disabled).toBe(false);
 
     fireEvent.click(saveBtn());
-    await screen.findByText("Results now publish automatically.");
+    await screen.findByText("Results now release automatically.");
 
     const calls = patchCalls();
     expect(calls).toHaveLength(1);
@@ -160,7 +160,7 @@ describe("TenantSettings — Result release", () => {
     fireEvent.change(screen.getByLabelText("Authenticator code"), { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: "Verify & save" }));
 
-    await screen.findByText("Results now publish automatically.");
+    await screen.findByText("Results now release automatically.");
     expect(verifyTotpApi).toHaveBeenCalledWith("123456");
     expect(patchCalls()).toHaveLength(2);
     expect(screen.queryByText(/needs a fresh authenticator check/)).toBeNull();
@@ -181,7 +181,7 @@ describe("TenantSettings — Result release", () => {
     const alert = await screen.findByText("Could not save right now.");
     expect(alert.getAttribute("role")).toBe("alert");
     expect(saveBtn().disabled).toBe(false); // still dirty — can retry
-    expect(screen.queryByText("Results now publish automatically.")).toBeNull();
+    expect(screen.queryByText("Results now release automatically.")).toBeNull();
   });
 
   it("R5 an API without result_release_mode starts with nothing selected", async () => {

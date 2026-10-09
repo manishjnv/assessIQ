@@ -113,7 +113,7 @@ export function ConceptCoverageView({ answerText, anchors, maxChars = 800, "data
         <div style={{ borderTop: "1px solid var(--aiq-color-border)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
 
           <p style={{ margin: 0, fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", fontFamily: "var(--aiq-font-sans)", lineHeight: 1.4 }}>
-            Highlights show where each rubric anchor was matched in the answer. Hit anchors are highlighted green; missed anchors are listed below.
+            Highlights show where each key point was matched in the answer. Matched key points are highlighted green; missed key points are listed below.
           </p>
 
           {/* Answer with inline highlights */}

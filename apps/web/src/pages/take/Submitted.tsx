@@ -31,6 +31,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { useParams, useLocation, Navigate } from 'react-router-dom';
 import { Chip, Card, Logo, Spinner } from '@assessiq/ui-system';
 import {
+  AFTER_SUBMIT_TEXT,
   getResult,
   CandidateApiError,
   ResultSummary,
@@ -332,7 +333,7 @@ export function Submitted(): React.JSX.Element {
                     <div style={SUB_TEXT}>
                       {state.tag === 'scoring'
                         ? 'Please keep this page open — your result will appear here.'
-                        : 'You can close this page. Nothing more is needed from you.'}
+                        : AFTER_SUBMIT_TEXT}
                     </div>
                   </div>
                 </div>

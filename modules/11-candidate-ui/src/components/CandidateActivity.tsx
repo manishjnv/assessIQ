@@ -20,8 +20,7 @@ import {
   StackedBarChart,
   LeaderboardList,
   Spinner,
-  useViewport,
-} from "@assessiq/ui-system";
+  useViewport, formatMonthYear } from "@assessiq/ui-system";
 import type {
   StatCardBreakdownItem,
   StackedBarChartBar,
@@ -314,10 +313,10 @@ export function CandidateActivity(): React.ReactElement {
   const firstBar = timeline?.bars[0];
   const lastBar  = timeline?.bars[timeline.bars.length - 1];
   const xAxisStartLabel = firstBar
-    ? new Date(`${firstBar.weekStart}T00:00:00Z`).toLocaleString("default", { month: "short", year: "numeric", timeZone: "UTC" })
+    ? formatMonthYear(`${firstBar.weekStart}T00:00:00Z`)
     : undefined;
   const xAxisEndLabel = lastBar
-    ? new Date(`${lastBar.weekEnd}T00:00:00Z`).toLocaleString("default", { month: "short", year: "numeric", timeZone: "UTC" })
+    ? formatMonthYear(`${lastBar.weekEnd}T00:00:00Z`)
     : undefined;
 
   const leaderboardItems: LeaderboardListItem[] = (leaderboard?.items ?? []).map((item) => {
@@ -373,7 +372,7 @@ export function CandidateActivity(): React.ReactElement {
                 color: "var(--aiq-color-fg-muted)",
               }}
             >
-              Your assessment history and performance across all packs.
+              Your assessment history and performance across all question sets.
             </p>
           </div>
           <div style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
@@ -410,7 +409,7 @@ export function CandidateActivity(): React.ReactElement {
               data-test-id="stat-completions"
             />
             <StatCard
-              label="Packs attempted"
+              label="Question sets attempted"
               value={stats?.assessmentsTaken.total ?? 0}
               data-test-id="stat-assessments-taken"
             />
@@ -461,7 +460,7 @@ export function CandidateActivity(): React.ReactElement {
             {heatmap && (
               <div style={{ display: "flex", gap: "var(--aiq-space-xl)" }}>
                 {[
-                  { label: "Total",       value: heatmap.totals.total.toLocaleString() },
+                  { label: "Total",       value: heatmap.totals.total.toLocaleString() }, // lint-ui-labels: number
                   { label: "Avg / day",   value: heatmap.totals.avgPerDay.toFixed(1) },
                   { label: "Active days", value: String(heatmap.totals.activeDays) },
                 ].map(({ label, value }) => (
@@ -541,7 +540,7 @@ export function CandidateActivity(): React.ReactElement {
                 color: "var(--aiq-color-fg-muted)",
               }}
             >
-              Assessments you completed each week by domain, last 52 weeks.
+              Assessments you completed each week by subject, last 52 weeks.
             </p>
           </div>
 
@@ -566,7 +565,7 @@ export function CandidateActivity(): React.ReactElement {
               seriesLabels={seriesLabels}
               {...(xAxisStartLabel !== undefined ? { xAxisStartLabel } : {})}
               {...(xAxisEndLabel !== undefined ? { xAxisEndLabel } : {})}
-              aria-label="Weekly completions by domain"
+              aria-label="Weekly completions by subject"
             />
           )}
         </div>
@@ -582,7 +581,7 @@ export function CandidateActivity(): React.ReactElement {
               letterSpacing: "-0.01em",
             }}
           >
-            My pack rankings.
+            My question set rankings.
           </h2>
           <p
             style={{
@@ -592,7 +591,7 @@ export function CandidateActivity(): React.ReactElement {
               color: "var(--aiq-color-fg-muted)",
             }}
           >
-            Your best score and rank among all candidates who took each pack.
+            Your best score and rank among all candidates who took each question set.
           </p>
 
           {leaderboardLoading && (

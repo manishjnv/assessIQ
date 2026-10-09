@@ -46,7 +46,7 @@ describe('CandidateLogin — Phase D revocation banner', () => {
     sessionStorage.setItem('aiq.lastAuthScope', JSON.stringify({ scope: 'tenant' }));
     render(<CandidateLogin />);
     expect(screen.getByText("Your organisation's access is paused.")).toBeTruthy();
-    expect(screen.getByText(/assessment workspace has been suspended/i)).toBeTruthy();
+    expect(screen.getByText(/organisation's access has been suspended/i)).toBeTruthy();
   });
 
   it('renders the candidate user-disable copy when scope=user', () => {

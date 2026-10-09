@@ -60,7 +60,7 @@ export function PlatformDomainsSection(): React.ReactElement {
         setDomains(sorted);
       })
       .catch((err) => {
-        setListError(err instanceof AdminApiError ? err.apiError.message : "Failed to load platform domains.");
+        setListError(err instanceof AdminApiError ? err.apiError.message : "Failed to load platform subjects.");
       })
       .finally(() => setListLoading(false));
   };
@@ -95,14 +95,14 @@ export function PlatformDomainsSection(): React.ReactElement {
     try {
       const res = await createPlatformDomainApi(buildCreatePayload());
       closeCreate();
-      showToast(`Created "${res.name}" — added to ${res.propagatedTenants} companies`);
+      showToast(`Created "${res.name}" — added to ${res.propagatedTenants} organisations`);
       fetchDomains();
     } catch (err) {
       if (err instanceof AdminApiError) {
         if (err.status === 401 && /fresh totp/i.test(err.apiError.message)) {
           setCreateModalState("mfa");
         } else if (err.status === 409 && err.apiError.code === "DOMAIN_SLUG_EXISTS") {
-          setCreateFieldErrors((e) => ({ ...e, name: "A platform domain with that name already exists." }));
+          setCreateFieldErrors((e) => ({ ...e, name: "A platform subject with that name already exists." }));
           setCreateModalState("form");
         } else if (err.status === 400) {
           setCreateGlobalError(err.apiError.message);
@@ -122,7 +122,7 @@ export function PlatformDomainsSection(): React.ReactElement {
 
   const submitCreate = async (): Promise<void> => {
     const errs: DomainCreateFieldErrors = {};
-    if (!createName.trim()) errs.name = "Domain name is required.";
+    if (!createName.trim()) errs.name = "Subject name is required.";
     setCreateFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
     await doCreate();
@@ -219,7 +219,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                 className="aiq-serif"
                 style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
               >
-                {createModalState === "mfa" ? "Verify MFA" : "Add platform domain"}
+                {createModalState === "mfa" ? "Verify MFA" : "Add platform subject"}
               </h2>
               <span style={{ flex: 1 }} />
               <Button size="sm" variant="ghost" onClick={closeCreate} aria-label="Close">
@@ -229,7 +229,7 @@ export function PlatformDomainsSection(): React.ReactElement {
 
             {createModalState === "mfa" ? (
               <MfaStepUp
-                prompt="Your admin MFA needs to be verified before creating a platform domain. Enter your 6-digit authenticator code to continue."
+                prompt="Your admin MFA needs to be verified before creating a platform subject. Enter your 6-digit authenticator code to continue."
                 confirmLabel="Verify & create"
                 onVerified={handleCreateMfaVerified}
                 onCancel={closeCreate}
@@ -244,7 +244,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                     lineHeight: 1.5,
                   }}
                 >
-                  Create a domain shared across every company. A URL slug is generated automatically.
+                  Create a subject shared across every organisation. A URL slug is generated automatically.
                 </p>
 
                 {createGlobalError && (
@@ -256,7 +256,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                 <div style={{ display: "grid", gap: 16 }}>
                   <div data-help-id="admin.platform.domain_name">
                     <Field
-                      label="Domain name"
+                      label="Subject name"
                       placeholder="e.g. Security Operations"
                       value={createName}
                       onChange={(e) => {
@@ -273,14 +273,14 @@ export function PlatformDomainsSection(): React.ReactElement {
                         fontSize: 10,
                       }}
                     >
-                      The URL slug is generated automatically and shared across all companies.
+                      The URL slug is generated automatically and shared across all organisations.
                     </span>
                   </div>
 
                   <div>
                     <Field
                       label="Description (optional)"
-                      placeholder="Brief description of this domain"
+                      placeholder="Brief description of this subject"
                       value={createDescription}
                       onChange={(e) => setCreateDescription(e.target.value)}
                     />
@@ -296,7 +296,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                     onClick={() => void submitCreate()}
                     loading={createLoading}
                   >
-                    Create domain
+                    Create subject
                   </Button>
                 </div>
               </>
@@ -343,7 +343,7 @@ export function PlatformDomainsSection(): React.ReactElement {
 
             {statusModalState === "mfa" ? (
               <MfaStepUp
-                prompt={`Your admin MFA needs to be re-verified before you can ${statusPending.nextStatus === "archived" ? "archive" : "reactivate"} this domain. Enter your 6-digit authenticator code to continue.`}
+                prompt={`Your admin MFA needs to be re-verified before you can ${statusPending.nextStatus === "archived" ? "archive" : "reactivate"} this subject. Enter your 6-digit authenticator code to continue.`}
                 confirmLabel={statusPending.nextStatus === "archived" ? "Verify & archive" : "Verify & reactivate"}
                 onVerified={handleStatusMfaVerified}
                 onCancel={closeStatusModal}
@@ -359,8 +359,8 @@ export function PlatformDomainsSection(): React.ReactElement {
                   }}
                 >
                   {statusPending.nextStatus === "archived"
-                    ? `Archive "${statusPending.domain.name}"? It will disappear from every company's domain pickers and become non-grantable. Existing licenses and tagged questions are unaffected. You can reactivate it later.`
-                    : `Reactivate "${statusPending.domain.name}"? It will reappear in every company's domain pickers.`}
+                    ? `Archive "${statusPending.domain.name}"? It will disappear from every organisation's subject pickers and become non-grantable. Existing licenses and tagged questions are unaffected. You can reactivate it later.`
+                    : `Reactivate "${statusPending.domain.name}"? It will reappear in every organisation's subject pickers.`}
                 </p>
 
                 {statusError && (
@@ -392,7 +392,7 @@ export function PlatformDomainsSection(): React.ReactElement {
         <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 16 }}>
           <div>
             <div style={{ marginBottom: 12 }}>
-              <Chip leftIcon="grid">{domains.length} domains</Chip>
+              <Chip leftIcon="grid">{domains.length} subjects</Chip>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <h2
@@ -404,10 +404,10 @@ export function PlatformDomainsSection(): React.ReactElement {
                   letterSpacing: "-0.02em",
                 }}
               >
-                Platform domains.
+                Platform subjects.
               </h2>
               <HelpTip helpId="admin.platform.domains">
-                <span style={{ ...META_LABEL, fontSize: 10 }}>Domains</span>
+                <span style={{ ...META_LABEL, fontSize: 10 }}>Subjects</span>
               </HelpTip>
             </div>
             <p
@@ -419,12 +419,12 @@ export function PlatformDomainsSection(): React.ReactElement {
                 lineHeight: 1.5,
               }}
             >
-              Create or archive domains shared across every company. Archiving hides a domain everywhere; existing licenses keep working.
+              Create or archive subjects shared across every organisation. Archiving hides a subject everywhere; existing licenses keep working.
             </p>
           </div>
           <span style={{ flex: 1 }} />
           <Button leftIcon="plus" onClick={openCreate}>
-            Add domain
+            Add subject
           </Button>
         </div>
 
@@ -443,7 +443,7 @@ export function PlatformDomainsSection(): React.ReactElement {
         {/* Table / loading / empty */}
         {listLoading ? (
           <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-3xl) 0" }}>
-            <Spinner aria-label="Loading domains" />
+            <Spinner aria-label="Loading subjects" />
           </div>
         ) : domains.length === 0 ? (
           <div
@@ -459,7 +459,7 @@ export function PlatformDomainsSection(): React.ReactElement {
               className="aiq-serif"
               style={{ fontSize: 24, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
             >
-              No platform domains yet.
+              No platform subjects yet.
             </h2>
             <p
               style={{
@@ -472,10 +472,10 @@ export function PlatformDomainsSection(): React.ReactElement {
                 lineHeight: 1.5,
               }}
             >
-              Add a domain to share it across every company.
+              Add a subject to share it across every organisation.
             </p>
             <Button leftIcon="plus" onClick={openCreate}>
-              Add domain
+              Add subject
             </Button>
           </div>
         ) : (
@@ -500,7 +500,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                 fontSize: 10,
               }}
             >
-              <span>Domain</span>
+              <span>Subject</span>
               <span>Slug</span>
               <span>Status</span>
               <span></span>

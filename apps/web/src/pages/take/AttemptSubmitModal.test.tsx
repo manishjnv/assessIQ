@@ -67,7 +67,7 @@ describe('Attempt submit modal', () => {
     renderAttempt();
     const submit = await screen.findByRole('button', { name: 'Submit' });
     fireEvent.click(submit);
-    const dialog = await screen.findByRole('dialog', { name: 'Submit your test?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your assessment?' });
     // q2 has {selected:null} - must count as unanswered, like the navigator.
     expect(dialog.textContent).toContain('You answered 1 of 4 questions.');
     expect(dialog.textContent).toContain('3 questions are unanswered');
@@ -87,11 +87,11 @@ describe('Attempt submit modal', () => {
 
     submitAttempt.mockRejectedValueOnce(new Error('boom'));
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Submit test' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit assessment' }));
     await screen.findByText('Submit failed: boom');
 
     submitAttempt.mockResolvedValueOnce({});
-    fireEvent.click(screen.getByRole('button', { name: 'Submit test' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit assessment' }));
     await waitFor(() => screen.getByText('SUBMITTED PAGE'));
   });
 });

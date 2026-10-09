@@ -280,7 +280,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(223); // 0164 evaluations runtime_status (+1); 0163 generate_wizard page v2 (+1); 0162 evaluations ai_paused (+1); 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(253); // 0165 glossary help text (+30 new versions on a fresh DB: 0011 already carries the new text for the other 124 keys, so the NOT EXISTS guard skips them; prod inserts all 154); 0164 evaluations runtime_status (+1); 0163 generate_wizard page v2 (+1); 0162 evaluations ai_paused (+1); 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -291,7 +291,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(223); // 0164 evaluations runtime_status (+1); 0163 generate_wizard page v2 (+1); 0162 evaluations ai_paused (+1); 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(253); // 0165 glossary help text (+30 new versions on a fresh DB: 0011 already carries the new text for the other 124 keys, so the NOT EXISTS guard skips them; prod inserts all 154); 0164 evaluations runtime_status (+1); 0163 generate_wizard page v2 (+1); 0162 evaluations ai_paused (+1); 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt
@@ -302,7 +302,7 @@ describe("Block 1 — RLS visibility", () => {
     const rows = await withSuperClient(async (client) => {
       const res = await client.query<{ key: string; audience: string; short_text: string; long_md: string }>(
         `SELECT key, audience, short_text, long_md FROM help_content
-          WHERE tenant_id IS NULL AND status = 'active' AND key LIKE 'admin.evaluations.%'`,
+          WHERE tenant_id IS NULL AND status = 'active' AND version = 1 AND key LIKE 'admin.evaluations.%'`,
       );
       return new Map(res.rows.map((r) => [r.key, r]));
     });
@@ -327,7 +327,7 @@ describe("Block 1 — RLS visibility", () => {
     const rows = await withSuperClient(async (client) => {
       const res = await client.query<{ short_text: string; long_md: string }>(
         `SELECT short_text, long_md FROM help_content
-          WHERE tenant_id IS NULL AND status = 'active' AND key = 'admin.platform.admin_email'`,
+          WHERE tenant_id IS NULL AND status = 'active' AND version = 1 AND key = 'admin.platform.admin_email'`,
       );
       return res.rows;
     });
@@ -345,7 +345,7 @@ describe("Block 1 — RLS visibility", () => {
     const rows = await withSuperClient(async (client) => {
       const res = await client.query<{ key: string; short_text: string; long_md: string }>(
         `SELECT key, short_text, long_md FROM help_content
-          WHERE tenant_id IS NULL AND status = 'active'
+          WHERE tenant_id IS NULL AND status = 'active' AND version = 1
             AND key IN ('candidate.submit.confirm', 'candidate.result.bands')`,
       );
       return res.rows;

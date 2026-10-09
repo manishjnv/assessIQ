@@ -26,7 +26,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Chip, Icon, Spinner, StatCard } from "@assessiq/ui-system";
+import { Card, Chip, Icon, Spinner, StatCard, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 
@@ -122,7 +122,7 @@ export function AdminGradingJobs(): React.ReactElement {
       const data = await adminApi<{ counts: QueueCounts }>("/admin/dashboard/queue?limit=1");
       setCounts(data.counts);
     } catch (err) {
-      setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load the evaluation status.");
+      setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load the grading status.");
     } finally {
       setLoading(false);
     }
@@ -138,28 +138,28 @@ export function AdminGradingJobs(): React.ReactElement {
   const oldest = counts?.oldest_waiting_submitted_at ?? null;
 
   return (
-    <AdminShell breadcrumbs={["Evaluation status"]} helpPage="admin.grading.jobs">
+    <AdminShell breadcrumbs={["Grading status"]} helpPage="admin.grading.jobs">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
 
         {/* Page header */}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-          <h1 style={SERIF_H1}>Evaluation status.</h1>
-          <p style={MUTED_SM}>Where the written answers of your candidates are in the evaluation queue. Nothing is started from this page.</p>
+          <h1 style={SERIF_H1}>Grading status.</h1>
+          <p style={MUTED_SM}>Where the written answers of your candidates are in the grading queue. Nothing is started from this page.</p>
         </div>
 
         {error && <div><Chip>{error}</Chip></div>}
 
         {loading && counts === null ? (
           <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-3xl) 0" }}>
-            <Spinner aria-label="Loading evaluation status" />
+            <Spinner aria-label="Loading grading status" />
           </div>
         ) : counts !== null && (
           <>
             {/* Counts — same numbers as the dashboard cards */}
             <div data-help-id="admin.grading.jobs.counts" style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
               <StatCard label="In queue" value={counts.in_queue} />
-              <StatCard label="Awaiting evaluation" value={counts.awaiting_evaluation} />
-              <StatCard label="Ready to publish" value={counts.ready_to_publish} />
+              <StatCard label="Awaiting grading" value={counts.awaiting_evaluation} />
+              <StatCard label="Ready to release" value={counts.ready_to_publish} />
             </div>
 
             {/* Oldest waiting + expected time text */}
@@ -170,15 +170,15 @@ export function AdminGradingJobs(): React.ReactElement {
                   <h2 style={SERIF_H2}>Waiting time</h2>
                 </div>
                 {oldest === null ? (
-                  <p style={BODY}>No attempt is waiting for evaluation.</p>
+                  <p style={BODY}>No attempt is waiting for grading.</p>
                 ) : (
                   <p style={BODY}>
                     The oldest waiting attempt was submitted <strong>{waitingAge(oldest)} ago</strong>
-                    {" "}({new Date(oldest).toLocaleString()}).
+                    {" "}({formatDateTime(oldest)}).
                   </p>
                 )}
                 <p style={MUTED_SM}>
-                  AssessIQ evaluates written answers in submission order on the platform queue. Multiple-choice answers are scored at submit and never wait.
+                  AssessIQ grades written answers in submission order on the platform queue. Multiple-choice answers are scored at submit and never wait.
                   If an attempt waits longer than the turnaround you were given, contact your AssessIQ operator.
                 </p>
               </div>
@@ -200,7 +200,7 @@ export function AdminGradingJobs(): React.ReactElement {
                     <span style={MONO_LABEL}>Assessment</span>
                     <span style={{ ...MONO_LABEL, textAlign: "right" }}>In queue</span>
                     <span style={{ ...MONO_LABEL, textAlign: "right" }}>Awaiting</span>
-                    <span style={{ ...MONO_LABEL, textAlign: "right" }}>Ready to publish</span>
+                    <span style={{ ...MONO_LABEL, textAlign: "right" }}>Ready to release</span>
                     {rows.map((r) => (
                       <React.Fragment key={r.assessment_id}>
                         <button
@@ -228,14 +228,14 @@ export function AdminGradingJobs(): React.ReactElement {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
               <Icon name="sparkle" size={18} color="var(--aiq-color-accent)" />
-              <h2 style={SERIF_H2}>How evaluation works</h2>
+              <h2 style={SERIF_H2}>How grading works</h2>
             </div>
             <ul style={{ ...BODY, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
               <li>Multiple-choice answers are scored the moment a candidate submits.</li>
-              <li>Written answers are evaluated by AssessIQ. Until then the attempt shows <strong>Awaiting evaluation</strong> and no score is visible to you or the candidate.</li>
+              <li>Written answers are graded by AssessIQ. Until then the attempt shows <strong>Awaiting grading</strong> and no score is visible to you or the candidate.</li>
               <li>Each written answer gets a score band of 0, 25, 50, 75 or 100 with the evidence behind it.</li>
               <li>
-                When the evaluation is done the attempt shows <strong>Ready to publish</strong>. Open it on{" "}
+                When grading is done the attempt shows <strong>Ready to release</strong>. Open it on{" "}
                 <button
                   type="button"
                   className="aiq-btn aiq-btn-ghost aiq-btn-sm"
@@ -244,7 +244,7 @@ export function AdminGradingJobs(): React.ReactElement {
                 >
                   <strong>Attempts</strong>
                 </button>{" "}
-                to publish it, override a grade with a reason, or send it back for re-evaluation. Published results cannot be changed.
+                to release it, override a grade with a reason, or send it back for re-grading. Released results cannot be changed.
               </li>
             </ul>
           </div>

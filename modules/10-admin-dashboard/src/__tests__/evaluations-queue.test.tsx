@@ -4,7 +4,7 @@
 //   Q1  rows render with tenant, assessment, counts, age tones, sent-back marker
 //       — and never a candidate name / email (blind evaluation)
 //   Q2  a complete row can be ticked and released in bulk (right endpoint + body)
-//   Q3  "Evaluate next" opens the oldest row; the company filter narrows the list
+//   Q3  "Grade next" opens the oldest row; the organisation filter narrows the list
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
@@ -138,7 +138,7 @@ describe("AdminEvaluationsQueue", () => {
   it("Q1 renders rows with age tones and the sent-back note, and no candidate PII", async () => {
     await renderQueue();
 
-    // Table cells only — the company filter also lists each name as an <option>.
+    // Table cells only — the organisation filter also lists each name as an <option>.
     const cells = (text: string) => screen.getAllByText(text).filter((el) => el.tagName !== "OPTION");
     expect(cells("Acme College")).toHaveLength(2);
     expect(cells("Beta Corp")).toHaveLength(1);
@@ -153,7 +153,7 @@ describe("AdminEvaluationsQueue", () => {
 
     expect(screen.getByText("Sent back")).toBeTruthy();
     expect(screen.getByText("Q2 looks too harsh")).toBeTruthy();
-    expect(screen.getByText("Ready to release")).toBeTruthy();
+    expect(screen.getByText("Ready to send")).toBeTruthy();
 
     // Blind evaluation: nothing about the candidate reaches the page.
     const text = document.body.textContent ?? "";
@@ -167,39 +167,39 @@ describe("AdminEvaluationsQueue", () => {
     // Only the finished row can be ticked.
     const boxes = screen.getAllByRole("checkbox") as HTMLInputElement[];
     expect(boxes.map((b) => b.disabled)).toEqual([true, false, true]);
-    expect((screen.getByRole("button", { name: /Release selected to company/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /Send selected to organisation/ }) as HTMLButtonElement).disabled).toBe(true);
 
     fireEvent.click(boxes[1] as HTMLInputElement);
-    fireEvent.click(screen.getByRole("button", { name: "Release selected to company (1)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send selected to organisation (1)" }));
 
-    await screen.findByText(/Released 1 to its company/);
+    await screen.findByText(/Sent 1 to its organisation/);
     const call = adminApi.mock.calls.find((c) => c[0] === "/admin/super/evaluations/release-to-tenant");
     expect(call).toBeTruthy();
     expect((call?.[1] as RequestInit).method).toBe("POST");
     expect(JSON.parse(String((call?.[1] as RequestInit).body))).toEqual({ attempt_ids: [READY] });
   });
 
-  it("Q3 'Evaluate next' opens the oldest row; the company filter narrows the list", async () => {
+  it("Q3 'Grade next' opens the oldest row; the organisation filter narrows the list", async () => {
     await renderQueue();
 
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "t-beta" } });
     expect(screen.queryByText("SOC Analyst L1")).toBeNull();
     expect(screen.getByText("Threat Hunting L2")).toBeTruthy();
 
-    // Back to all companies; the oldest row is the first one.
+    // Back to all organisations; the oldest row is the first one.
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "Evaluate next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grade next" }));
     const landing = await screen.findByTestId("landing");
     expect(landing.textContent).toBe(OLD);
   });
 
-  it("Q5 FU-A11: a paused company's row shows 'AI paused' and 'Evaluate next' skips it", async () => {
+  it("Q5 FU-A11: a paused company's row shows 'AI paused' and 'Grade next' skips it", async () => {
     const [first, ...rest] = ROWS;
     await renderQueue([{ ...first!, ai_paused: true }, ...rest]);
     expect(screen.getByText("AI paused")).toBeTruthy();
     expect(document.querySelectorAll('[data-help-id="admin.evaluations.queue.ai_paused"]')).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Evaluate next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Grade next" }));
     const landing = await screen.findByTestId("landing");
     expect(landing.textContent).toBe(READY);
   });

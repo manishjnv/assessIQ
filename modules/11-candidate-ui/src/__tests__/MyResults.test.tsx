@@ -62,8 +62,8 @@ describe('MyResults', () => {
     const text = container.textContent ?? '';
     expect(text).toContain('42 / 60 (70%)');
     expect(text).toContain('20 / 60 (33.3%)');
-    expect(text).toContain('Released 2 Oct 2026');
-    expect(text).toContain('Released 1 Oct 2026');
+    expect(text).toContain('Released Oct 2, 2026');
+    expect(text).toContain('Released Oct 1, 2026');
     expect(screen.getByText('Passed')).toBeDefined();
     expect(screen.getByText('Not passed')).toBeDefined();
 

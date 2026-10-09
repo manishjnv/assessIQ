@@ -172,8 +172,8 @@ export const SHARE_URL = 'https://assessiq.in/try';
 export function shareLinks(percent: number | null): Record<'linkedin' | 'x' | 'whatsapp', string> {
   const text =
     percent == null
-      ? 'I tried the AssessIQ sample test, no signup needed.'
-      : `I scored ${percent}% on the AssessIQ sample test. Try it, no signup needed.`;
+      ? 'I tried the AssessIQ sample assessment, no signup needed.'
+      : `I scored ${percent}% on the AssessIQ sample assessment. Try it, no signup needed.`;
   const u = encodeURIComponent(SHARE_URL);
   return {
     linkedin: `https://www.linkedin.com/sharing/share-offsite/?url=${u}`,

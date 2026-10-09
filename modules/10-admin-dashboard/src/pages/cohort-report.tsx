@@ -200,7 +200,7 @@ export function AdminCohortReport(): React.ReactElement {
             Cohort Report.
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
-            Score distribution, level and topic breakdown across the released attempts of this assessment.
+            Score distribution, difficulty and topic breakdown across the released attempts of this assessment.
           </p>
         </div>
 
@@ -224,7 +224,7 @@ export function AdminCohortReport(): React.ReactElement {
 
         {/* By level — FU-C4 */}
         <div className="aiq-card" data-help-id="admin.reports.cohort.by_level" style={{ padding: "var(--aiq-space-lg)" }}>
-          <h2 style={H2}>By level</h2>
+          <h2 style={H2}>By difficulty</h2>
           {levels.length === 0 ? (
             <p style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>No released attempt yet.</p>
           ) : (
@@ -265,36 +265,36 @@ export function AdminCohortReport(): React.ReactElement {
             <h2 style={{ ...H2, margin: 0 }}>Topic heatmap</h2>
             <span style={{ flex: 1 }} />
             <label data-help-id="admin.reports.cohort.pack" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
-              <span style={MONO_LABEL}>Pack</span>
+              <span style={MONO_LABEL}>Question set</span>
               <select
                 value={packId}
                 onChange={(e) => setPackId(e.target.value)}
                 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", maxWidth: 320 }}
-                aria-label="Question pack"
+                aria-label="Question set"
               >
-                <option value="">Choose a pack</option>
+                <option value="">Choose a question set</option>
                 {packs.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
-                {packId && !packs.some((p) => p.id === packId) && <option value={packId}>Pack of this assessment</option>}
+                {packId && !packs.some((p) => p.id === packId) && <option value={packId}>Question set of this assessment</option>}
               </select>
             </label>
           </div>
           {heatmapError && <div style={{ marginBottom: "var(--aiq-space-sm)" }}><Chip>{heatmapError}</Chip></div>}
           {!packId ? (
-            <p style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>Choose a question pack to see its topics.</p>
+            <p style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>Choose a question set to see its topics.</p>
           ) : heatmap === null ? (
             <Spinner size="sm" aria-label="Loading heatmap" />
           ) : heatmap.length === 0 ? (
-            <p style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>No released answer yet for {packName ?? "this pack"}.</p>
+            <p style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>No released answer yet for {packName ?? "this question set"}.</p>
           ) : (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 90px 100px 100px 100px", gap: "var(--aiq-space-xs) var(--aiq-space-md)", alignItems: "center" }}>
               <span style={MONO_LABEL}>Topic</span>
               <span style={{ ...MONO_LABEL, textAlign: "right" }}>Answers</span>
               <span style={{ ...MONO_LABEL, textAlign: "right" }}>Correct</span>
               <span style={{ ...MONO_LABEL, textAlign: "right" }}>Hit rate</span>
-              <span style={{ ...MONO_LABEL, textAlign: "right" }}>Mean band</span>
-              <span style={{ ...MONO_LABEL, textAlign: "right" }}>Median band</span>
+              <span style={{ ...MONO_LABEL, textAlign: "right" }}>Mean score band</span>
+              <span style={{ ...MONO_LABEL, textAlign: "right" }}>Median score band</span>
               {heatmap.map((c) => (
                 <React.Fragment key={c.topic}>
                   <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>{c.topic}</span>
