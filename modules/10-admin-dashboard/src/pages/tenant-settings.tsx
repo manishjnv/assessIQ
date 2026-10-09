@@ -105,6 +105,7 @@ export interface TenantSettingsProps {
 }
 
 export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): React.ReactElement {
+  const [activeTab, setActiveTab] = useState<"company" | "results" | "privacy">("company");
   // ── Load state ────────────────────────────────────────────────────────────
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -393,7 +394,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
 
   const confirmMessage =
     previewReport !== null
-      ? `This will permanently tombstone PII for ${previewReport.candidatesErased} candidate${previewReport.candidatesErased === 1 ? "" : "s"}. Continue?`
+      ? `This will permanently erase personal data for ${previewReport.candidatesErased} candidate${previewReport.candidatesErased === 1 ? "" : "s"}. Continue?`
       : "Run now without preview will erase any candidates past the retention window. Continue?";
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -418,7 +419,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
       >
         {(
           [
-            ["Dry-run", report.dryRun ? "Yes" : "No"],
+            ["Staging", report.dryRun ? "Yes" : "No"],
             ["Organisation ID", report.tenantId],
             ["Retention window", `${report.retentionDays} days`],
             ["Candidates scanned", String(report.candidatesScanned)],
@@ -588,6 +589,28 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
           </div>
         )}
 
+        {/* ── Tabs (inline; hidden panels stay mounted so form state survives) ── */}
+        <div role="tablist" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {(
+            [
+              ["company", "Company"],
+              ["results", "Results"],
+              ["privacy", "Data privacy"],
+            ] as const
+          ).map(([id, label]) => (
+            <Button
+              key={id}
+              role="tab"
+              aria-selected={activeTab === id}
+              variant={activeTab === id ? "primary" : "outline"}
+              onClick={() => setActiveTab(id)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+
+        <div role="tabpanel" hidden={activeTab !== "company"}>
         {/* ── Company name section ────────────────────────────────────────── */}
         <section aria-labelledby="company-name-heading" data-help-id="admin.tenant_settings.company_name">
           <div
@@ -689,7 +712,9 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
             </div>
           </Card>
         </section>
+        </div>
 
+        <div role="tabpanel" hidden={activeTab !== "results"}>
         {/* ── Result release section ──────────────────────────────────────── */}
         <section aria-labelledby="result-release-heading" data-help-id="admin.tenant_settings.result_release_mode">
           <div
@@ -854,7 +879,9 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
             )}
           </Card>
         </section>
+        </div>
 
+        <div role="tabpanel" hidden={activeTab !== "privacy"} style={{ display: activeTab === "privacy" ? "flex" : undefined, flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* ── DPDP Data Retention section ─────────────────────────────────── */}
         <section aria-labelledby="dpdp-retention-heading">
           <div
@@ -874,7 +901,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 letterSpacing: "-0.015em",
               }}
             >
-              DPDP Data Retention.
+              Delete candidate personal data after N days (DPDP law).
             </h2>
           </div>
 
@@ -906,7 +933,14 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                       marginBottom: 6,
                     }}
                   >
-                    Candidate PII retention window (days)
+                    Days (DPDP law)
+                    {Number(inputValue) >= 1 && (
+                      <span style={{ fontWeight: 400, color: "var(--aiq-color-fg-secondary)" }}>
+                        {" "}· {Number(inputValue)} days ={" "}
+                        {Number((Number(inputValue) / 365).toFixed(1))}{" "}
+                        {Number((Number(inputValue) / 365).toFixed(1)) === 1 ? "year" : "years"}
+                      </span>
+                    )}
                   </label>
 
                   {/* Number input — styled to match Field primitives */}
@@ -946,7 +980,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                       lineHeight: 1.5,
                     }}
                   >
-                    Candidates whose last activity is older than this are PII-tombstoned by
+                    Candidates whose last activity is older than this are anonymised by
                     the nightly retention cron. Default 730 (2 years HR-grade). Range 1–3650.
                   </p>
 
@@ -1013,7 +1047,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 }}
               >
                 Manually trigger the retention cron outside its nightly schedule.
-                Run a dry-run preview first to see how many candidates are affected
+                Run a staging preview first to see how many candidates are affected
                 before committing.
               </p>
             </div>
@@ -1031,7 +1065,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 loading={previewLoading}
                 disabled={runLoading}
               >
-                Preview (dry-run)
+                Preview (staging)
               </Button>
               <Button
                 onClick={() => setShowRunConfirm(true)}
@@ -1046,7 +1080,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
             {previewReport !== null && (
               <div style={{ marginTop: 20 }}>
                 <div style={{ marginBottom: 8 }}>
-                  <Chip variant="accent">Dry-run result</Chip>
+                  <Chip variant="accent">Staging result</Chip>
                 </div>
                 <ReportTable report={previewReport} />
               </div>
@@ -1094,7 +1128,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 maxWidth: 640,
               }}
             >
-              Candidates in this organisation whose PII has been tombstoned (via
+              Candidates in this organisation whose personal data has been anonymised (via
               admin action or the nightly retention cron). Names and emails
               are not retrievable. Attempts and certificates are preserved
               as required for billing reconciliation and certificate
@@ -1181,7 +1215,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 >
                   <thead>
                     <tr style={{ background: "var(--aiq-color-bg-raised)" }}>
-                      {["Erased on", "Tombstone", "Erased by", "Reason", "Attempts", "Certs"].map((h) => (
+                      {["Erased on", "Erase", "Erased by", "Reason", "Attempts", "Certs"].map((h) => (
                         <th
                           key={h}
                           style={{
@@ -1260,6 +1294,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
             )}
           </Card>
         </section>
+        </div>
 
       </div>
     </>
