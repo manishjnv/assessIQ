@@ -148,6 +148,8 @@ vi.mock('@assessiq/tenancy', () => {
 
 vi.mock('@assessiq/audit-log', () => ({
   audit: vi.fn().mockResolvedValue(undefined),
+  // FU-B1: server.ts mounts the audit routes; the factory must carry the export.
+  registerAuditRoutes: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock all other heavy modules that buildServer imports.
