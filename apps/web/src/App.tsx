@@ -81,7 +81,7 @@ export function App(): React.JSX.Element {
           <Route path="/admin/login" element={<AdminLogin />} />
           {/* P1 — identity picker for multi-tenant Google login; no RequireSession */}
           <Route path="/admin/select-identity" element={<AdminSelectIdentity />} />
-          {/* P2 — email-OTP login (admin/reviewer only); no RequireSession (pre-session) */}
+          {/* P2 — email-OTP login (admin only); no RequireSession (pre-session) */}
           <Route path="/admin/login/email" element={<AdminEmailOtp />} />
           <Route path="/admin/mfa" element={<RequireSession><AdminMfa /></RequireSession>} />
           <Route path="/admin/users" element={<RequireSession role="admin"><AdminUsers /></RequireSession>} />
@@ -145,7 +145,7 @@ export function App(): React.JSX.Element {
 
           {/* Candidate certificate dashboard.
               RequireSession with no role admits any authenticated user
-              (super_admin > admin > reviewer > candidate). Unauthenticated
+              (super_admin > admin > candidate). Unauthenticated
               candidates now redirect to /candidate/login (magic-link flow). */}
           <Route
             path="/candidate/certificates"

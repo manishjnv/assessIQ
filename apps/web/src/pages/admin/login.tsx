@@ -143,7 +143,7 @@ export function AdminLogin(): React.JSX.Element {
           Continue with Google
         </Button>
 
-        {/* P2 — Email-OTP secondary action (admin/reviewer only).
+        {/* P2 — Email-OTP secondary action (admin only).
             variant="outline" (not ghost) so it reads as a real button,
             consistent with the Google action above per the UI kit. */}
         <Button

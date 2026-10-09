@@ -7,6 +7,9 @@
 
 name: assessiq
 
+# mem_limit per service (RW-4, 2026-10-09): hard caps, not reservations. Live use
+# on 2026-10-09 was api 180M, worker 184M, pg 32M, redis 7M, nginx <4M each;
+# api gets 2g because the claude CLI grading subprocess runs inside it.
 x-defaults: &svc-defaults
   restart: unless-stopped
   init: true
@@ -30,6 +33,7 @@ secrets:
 services:
   assessiq-postgres:
     <<: *svc-defaults
+    mem_limit: 1g
     image: postgres:16-alpine
     container_name: assessiq-postgres
     networks: [assessiq-net]
@@ -49,6 +53,7 @@ services:
 
   assessiq-redis:
     <<: *svc-defaults
+    mem_limit: 256m
     image: redis:7-alpine
     container_name: assessiq-redis
     networks: [assessiq-net]
@@ -62,6 +67,7 @@ services:
 
   assessiq-api:
     <<: *svc-defaults
+    mem_limit: 2g
     image: assessiq/api:${IMAGE_TAG:-latest}
     container_name: assessiq-api
     build:
@@ -153,6 +159,7 @@ services:
 
   assessiq-worker:
     <<: *svc-defaults
+    mem_limit: 1g
     image: assessiq/api:${IMAGE_TAG:-latest}
     container_name: assessiq-worker
     # Same image as assessiq-api; second entrypoint runs the BullMQ scheduler.
@@ -191,13 +198,19 @@ services:
     depends_on:
       assessiq-postgres: { condition: service_healthy }
       assessiq-redis: { condition: service_healthy }
-    # No healthcheck — Phase 1 worker is fail-loud (exits non-zero on Redis
-    # connect or boot error) and Docker `restart: unless-stopped` covers
-    # transient failures. Add a Redis-ping probe in Phase 2 if monitoring
-    # signals warrant it.
+    healthcheck:
+      # RW-4 (2026-10-09): Redis PING over a raw TCP socket from REDIS_URL.
+      # Node stdlib only (node:22-slim has no redis-cli/wget, RCA 2026-05-09).
+      # Proves the worker container can still reach Redis; a crashed worker
+      # process is already covered by `restart: unless-stopped`.
+      test: ["CMD", "node", "-e", "const u=new URL(process.env.REDIS_URL);const s=require('net').connect(+u.port||6379,u.hostname,()=>s.write('PING'+String.fromCharCode(13,10)));s.setTimeout(3000,()=>process.exit(1));s.on('data',d=>process.exit(/PONG/.test(d)?0:1));s.on('error',()=>process.exit(1))"]
+      interval: 30s
+      retries: 3
+      start_period: 20s
 
   assessiq-frontend:
     <<: *svc-defaults
+    mem_limit: 128m
     image: assessiq/frontend:${IMAGE_TAG:-latest}
     container_name: assessiq-frontend
     build:
@@ -223,6 +236,7 @@ services:
 
   assessiq-marketing:
     <<: *svc-defaults
+    mem_limit: 128m
     image: assessiq/marketing:${IMAGE_TAG:-latest}
     container_name: assessiq-marketing
     build:

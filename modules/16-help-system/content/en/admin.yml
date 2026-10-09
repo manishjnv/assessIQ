@@ -3534,7 +3534,7 @@ admin.generate_wizard.page:
     - **Set up.** Pick a level, a domain and the categories. For each category, choose the question types and the number of questions for each type.
     - **Generate.** The tool works on one category at a time. You can leave the page. The work continues and you can return later.
     - **Review.** Read each draft as a formatted question. You can edit a draft, approve it, or approve many at once.
-    - **Types.** Multiple-choice, log analysis, scenario, KQL and subjective questions are made here. Numeric, multi-select and ordering questions are written by hand.
+    - **Types.** Multiple-choice, log analysis, scenario, KQL and subjective questions are made here. Numeric, multi-select, ordering and structured case questions are written by hand.
     - Nothing reaches a candidate until you approve it.
 
 admin.attempts.detail.page:

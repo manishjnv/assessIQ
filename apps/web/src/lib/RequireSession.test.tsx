@@ -15,7 +15,7 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 
-function renderGate(role: 'admin' | 'reviewer' | 'super_admin', userRole: string) {
+function renderGate(role: 'admin' | 'super_admin', userRole: string) {
   vi.mocked(useSession).mockReturnValue({
     session: { user: { role: userRole }, mfaStatus: 'verified' },
     loading: false,

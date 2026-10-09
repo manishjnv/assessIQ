@@ -26,7 +26,7 @@
 // Translation notes (intentional divergences from screens/admin-list.jsx):
 //
 // 1. Filter chips — template demoes status filters (All / Active / Pending /
-//    Disabled). The live page uses ROLE filters (admin, reviewer) plus
+//    Disabled). The live page uses ROLE filters (admin) plus
 //    show-disabled / show-removed toggles, because role is the primary axis
 //    users actually filter by, and the soft-delete view is the audit-trail
 //    recovery path.  Same idiom (chip-strip with accent-when-selected),
@@ -170,7 +170,7 @@ const INV_GRID = "120px 2fr 1fr 110px 110px 120px";
 // ── Invite drawer (fixed-position centred Card, matches screens/admin-list.jsx) ─
 
 // Local role type for the form — extends the file-level UserRole with candidate.
-// The file-level `type UserRole = "admin" | "reviewer"` is used elsewhere (e.g.
+// The file-level `type UserRole = "admin"` is used elsewhere (e.g.
 // filter chips, manage menus) and must not change. The form uses InviteRole so
 // "candidate" is only in scope here.
 type InviteRole = "admin" | "candidate";
