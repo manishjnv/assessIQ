@@ -22,7 +22,7 @@ export const EmailTemplateNameSchema = z.enum([
   'attempt_graded_candidate',
   'attempt_ready_for_review_admin',
   'weekly_digest_admin',
-  // P2: email-OTP sign-in code for admin/reviewer.
+  // P2: email-OTP sign-in code for admins (the reviewer role was removed, RS8 2026-10-03).
   'admin_email_otp',
   // SP4 (2026-10-01): candidate result email — sent once, after a result is
   // published (status 'released'). Final score only; never answers or bands.
@@ -92,7 +92,7 @@ export const AttemptReadyForReviewAdminVarsSchema = z.object({
   tenantName: z.string().min(1),
 });
 
-// P2: Email-OTP sign-in code (admin/reviewer only).
+// P2: Email-OTP sign-in code (admin only; the reviewer role was removed, RS8 2026-10-03).
 export const AdminEmailOtpVarsSchema = z.object({
   code: z.string().length(6),
   expires_minutes: z.number().int().positive(),
@@ -155,7 +155,7 @@ export type TemplateVarsMap = {
   attempt_graded_candidate: AttemptGradedCandidateVars;
   attempt_ready_for_review_admin: AttemptReadyForReviewAdminVars;
   weekly_digest_admin: WeeklyDigestAdminVars;
-  // P2: Email-OTP sign-in code (admin/reviewer only).
+  // P2: Email-OTP sign-in code (admin only; the reviewer role was removed, RS8 2026-10-03).
   admin_email_otp: AdminEmailOtpVars;
   result_released: ResultReleasedVars;
   evaluation_queue_alert: EvaluationQueueAlertVars;

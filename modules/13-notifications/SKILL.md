@@ -222,3 +222,7 @@ Subscribe by exact name in `webhook_endpoints.events` (free-form list, no UI pic
 Payload, ids only (no scores, answers, name or email): `{ event, tenant_id, attempt_id, assessment_id, candidate_id, occurred_at }`.
 
 Mechanism: `emitAttemptEventAfterCommit(client, tenantId, attemptId, event)` (`webhooks/business-events.ts`) reads the ids inside the open tx and registers an `onCommit` hook that calls `emitWebhook`. A rollback sends nothing. A delivery error is logged and never fails the caller. 06 and 09 now depend on `@assessiq/notifications`.
+
+## FU-B18 (2026-10-09): no reviewer audience
+
+The reviewer role was removed (RS8 / RO7, 2026-10-03). Module 13 never had a reviewer-specific template or recipient rule; the only traces were three comments on `admin_email_otp` ("admin/reviewer") and one test input that used `role: 'reviewer'`. All now say admin. Audience values stay `admin` and `candidate`. Not included: a data change (no row carries a reviewer value). Downstream: none.
