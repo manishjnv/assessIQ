@@ -8,7 +8,7 @@
 //  - relativeTime helper: spot-checks "just now", "Xm ago", "Xh ago", "Xd ago", month label.
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 import React from "react";
 
 // ---------------------------------------------------------------------------
@@ -43,7 +43,7 @@ vi.mock("@assessiq/ui-system", () => ({
   Chip: ({ children, variant }: { children: React.ReactNode; variant?: string }) =>
     React.createElement("span", { "data-testid": "chip", "data-variant": variant }, children),
   Spinner: ({ size }: { size?: string }) =>
-    React.createElement("div", { "data-testid": "spinner", "data-size": size ?? "md" }, "Loading"),
+    React.createElement("div", { "data-testid": "spinner", "data-size": size ?? "md", role: "status", "aria-label": "Loading activity feed" }, "Loading"),
   useViewport: () => "desktop",
 }));
 
@@ -109,10 +109,13 @@ describe("relativeTime (via rendered feed)", () => {
 
   it("renders a relative timestamp for a recent event (Xm ago)", async () => {
     render(<AdminActivity />);
-    // Should transition from Loading… to the feed row
+    // Should transition from Spinner to the feed row
     await waitFor(() => {
-      expect(screen.queryByText(/Loading…/)).toBeNull();
+      expect(screen.queryByRole("status")).toBeNull();
     });
+    // Open the Audit log tab to show feed rows
+    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    fireEvent.click(tab);
     // The timestamp cell should show something like "3m ago"
     const body = document.body.textContent ?? "";
     expect(/\dm ago/i.test(body)).toBe(true);
@@ -124,7 +127,7 @@ describe("relativeTime (via rendered feed)", () => {
 // ---------------------------------------------------------------------------
 
 describe("ActivityFeedSection — loading", () => {
-  it('shows "Loading…" before fetch resolves', () => {
+  it('shows Spinner (role="status") before fetch resolves', () => {
     // Feed fetch never resolves during this test
     mockAdminApi.mockImplementation((url: string) => {
       if (url.includes("/feed")) return new Promise(() => { /* never resolves */ });
@@ -135,9 +138,9 @@ describe("ActivityFeedSection — loading", () => {
       return new Promise(() => {});
     });
     render(<AdminActivity />);
-    // Multiple "Loading…" will appear (one per section), check at least one exists
-    const els = screen.getAllByText("Loading…");
-    expect(els.length).toBeGreaterThan(0);
+    // Multiple Spinners will appear (one per section), check at least one exists with role="status"
+    const spinners = screen.getAllByRole("status");
+    expect(spinners.length).toBeGreaterThan(0);
   });
 });
 
@@ -159,6 +162,9 @@ describe("ActivityFeedSection — with items", () => {
 
   it("renders actor label and action label", async () => {
     render(<AdminActivity />);
+    // Open the Audit log tab to show feed rows
+    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    fireEvent.click(tab);
     await waitFor(() => {
       expect(screen.getByText("Alice Admin")).toBeDefined();
     });
@@ -167,6 +173,9 @@ describe("ActivityFeedSection — with items", () => {
 
   it("renders target label when present", async () => {
     render(<AdminActivity />);
+    // Open the Audit log tab to show feed rows
+    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    fireEvent.click(tab);
     await waitFor(() => {
       // targetLabel is split across sibling text nodes ("·" + label in a <span>)
       // so we search the full body text content rather than a single element.
@@ -177,6 +186,9 @@ describe("ActivityFeedSection — with items", () => {
 
   it("renders the Admin role chip", async () => {
     render(<AdminActivity />);
+    // Open the Audit log tab to show feed rows
+    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    fireEvent.click(tab);
     await waitFor(() => {
       const chips = screen.getAllByTestId("chip");
       const adminChip = chips.find((c) => c.textContent === "Admin");
@@ -186,6 +198,9 @@ describe("ActivityFeedSection — with items", () => {
 
   it('renders "Showing N of M" count line', async () => {
     render(<AdminActivity />);
+    // Open the Audit log tab to show feed rows
+    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    fireEvent.click(tab);
     await waitFor(() => {
       expect(screen.getByText("Showing 1 of 1")).toBeDefined();
     });
