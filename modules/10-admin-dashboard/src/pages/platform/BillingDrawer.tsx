@@ -1,5 +1,6 @@
 // BillingDrawer — split from platform.tsx (E9, no behaviour change).
 
+import { planTierLabel, grantScopeLabel, organisationStatusDisplay } from "../../lib/labels.js";
 import React, { useEffect, useState } from "react";
 import { Button, Card, Chip, Spinner } from "@assessiq/ui-system";
 import { AdminApiError, getTenantBillingDetail, updateTenantPlan, tenantBillingCsvUrl, getTenantEntitlements, getTenantContentScopes, listPlatformPublishedPacks, grantTenantEntitlement, revokeTenantEntitlement, type TenantListItem, type TenantBillingDetail, type TenantEntitlement, type TenantContentScopes, type PlatformPackOption } from "../../api.js";
@@ -129,7 +130,7 @@ export function BillingDrawer({
     void listPlatformPublishedPacks()
       .then((r) => setPlatformPacks(r.packs))
       .catch((err) => {
-        setPlatformPacksError(err instanceof AdminApiError ? err.apiError.message : "couldn't load packs — type the pack id manually");
+        setPlatformPacksError(err instanceof AdminApiError ? err.apiError.message : "couldn't load question sets — type the question set id manually");
       });
   }, []);
 
@@ -283,7 +284,7 @@ export function BillingDrawer({
               lineHeight: 1.5,
             }}
           >
-            This tenant is <strong>{tenant.status}</strong>. Configuration is read-only.
+            This organisation is <strong>{organisationStatusDisplay(tenant.status).label.toLowerCase()}</strong>. Configuration is read-only.
           </div>
         )}
 
@@ -312,7 +313,7 @@ export function BillingDrawer({
                 <div>
                   <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Tier</p>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", textTransform: "capitalize" }}>
-                    {detail.tier}
+                    {planTierLabel(detail.tier)}
                   </p>
                 </div>
                 <div>
@@ -351,7 +352,7 @@ export function BillingDrawer({
                 {/* FU-A9: AI-evaluated answers meter (current month) */}
                 {detail.ai_answers_used !== undefined && (
                   <div>
-                    <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>AI-evaluated answers</p>
+                    <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>AI-graded answers</p>
                     <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
                       {detail.ai_answers_used} / {detail.ai_answers_included ?? "no cap"}
                     </p>
@@ -395,7 +396,7 @@ export function BillingDrawer({
                         {ev.attempt_id.slice(0, 8)}…
                       </span>
                       <span style={{ textAlign: "right" }}>
-                        {new Date(ev.occurred_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                        {formatDate(ev.occurred_at)}
                       </span>
                     </div>
                   ))}
@@ -608,7 +609,7 @@ export function BillingDrawer({
                                   flexShrink: 0,
                                 }}
                               >
-                                {ent.scope_type}
+                                {grantScopeLabel(ent.scope_type)}
                               </span>
                               <span
                                 style={{
@@ -661,7 +662,7 @@ export function BillingDrawer({
                         disabled={grantSaving || isReadOnly}
                         onClick={() => { setGrantScopeType(st); setGrantScopeId(""); setGrantError(null); }}
                       >
-                        {st === "domain" ? "Domain" : "Single set"}
+                        {st === "domain" ? "Subject" : "Single set"}
                       </button>
                     ))}
                   </div>
@@ -671,7 +672,7 @@ export function BillingDrawer({
                       <label
                         style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
                       >
-                        {grantScopeType === "domain" ? "Domain" : "Question set"}
+                        {grantScopeType === "domain" ? "Subject" : "Question set"}
                       </label>
 
                       {grantScopeType === "domain" ? (
@@ -692,7 +693,7 @@ export function BillingDrawer({
                               width: "100%",
                             }}
                           >
-                            <option value="">— Select domain —</option>
+                            <option value="">— Select subject —</option>
                             {contentScopes.domains
                               .filter((d) => !entitlements.some((e) => e.status === 'active' && e.scope_type === 'domain' && e.scope_id === d))
                               .map((d) => <option key={d} value={d}>{d}</option>)
@@ -754,7 +755,7 @@ export function BillingDrawer({
                               type="text"
                               value={grantScopeId}
                               onChange={(e) => { setGrantScopeId(e.target.value); setGrantError(null); }}
-                              placeholder="platform pack id (UUID)"
+                              placeholder="platform question set id (UUID)"
                               disabled={grantSaving}
                               style={{
                                 fontFamily: "var(--aiq-font-mono)",
@@ -788,8 +789,8 @@ export function BillingDrawer({
                   </div>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 11, color: "var(--aiq-color-fg-muted)", margin: 0 }}>
                     {grantScopeType === "domain"
-                      ? "Granting a subject domain lets this company use every published set in it — current and future."
-                      : "Granting a single set licenses only that one published platform set. Use a domain grant to cover the whole subject."}
+                      ? "Granting a subject lets this organisation use every published set in it — current and future."
+                      : "Granting a single set licenses only that one published platform set. Use a subject grant to cover the whole subject."}
                   </p>
 
                   {grantError !== null && (

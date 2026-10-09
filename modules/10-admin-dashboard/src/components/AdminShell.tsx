@@ -259,7 +259,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Assessments", href: "/admin/assessments", icon: "clock", adminOnly: true },
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
     // FU-C1 (2026-10-06): the page is now the read-only evaluation status (route path unchanged).
-    { label: "Evaluation status", href: "/admin/grading-jobs", icon: "chart" },
+    { label: "Grading status", href: "/admin/grading-jobs", icon: "chart" },
     { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
     { label: "Certificates", href: "/admin/certificates", icon: "book", adminOnly: true },
   ];
@@ -270,8 +270,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   // for nav consistency (Activity is also a history; "AI" prefix is implied
   // by living inside the Library section).
   const libraryEntries: NavEntry[] = [
-    { label: "Question Bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
-    { label: "Generate Questions", href: "/admin/generate-wizard", icon: "sparkle", superAdminOnly: true },
+    { label: "Question bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
+    { label: "Generate questions", href: "/admin/generate-wizard", icon: "sparkle", superAdminOnly: true },
     { label: "Generation history", href: "/admin/generation-attempts", icon: "sparkle", superAdminOnly: true },
   ];
 
@@ -290,7 +290,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Settings", href: "/admin/settings", icon: "settings", adminOnly: true },
     // Evaluation queue — AssessIQ's cross-tenant AI-evaluation work surface
     // (super_admin only; tenant admins review and publish, they never evaluate).
-    { label: "Evaluations", href: "/admin/platform/evaluations", icon: "check", superAdminOnly: true },
+    { label: "Grading queue", href: "/admin/platform/evaluations", icon: "check", superAdminOnly: true },
     // Platform provisioning — visible to super_admin only; tenant admins must not see this.
     { label: "Platform", href: "/admin/platform", icon: "settings", superAdminOnly: true, excludePath: "/admin/platform/evaluations" },
     // Help content authoring — platform only (FR14 owner decision 2026-10-03; FU-D3).
@@ -429,8 +429,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             };
             return (
               <>
-                {renderSection("Workspace", workspaceEntries)}
-                {renderSection("Library", libraryEntries)}
+                {renderSection("Work", workspaceEntries)}
+                {renderSection("Content", libraryEntries)}
                 {renderSection("Admin", adminEntries)}
                 {renderSection("Account", accountEntries)}
               </>

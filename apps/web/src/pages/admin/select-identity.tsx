@@ -131,7 +131,7 @@ export function AdminSelectIdentity(): React.JSX.Element {
         </span>
 
         <h1 className="aiq-serif" style={SERIF_H1}>
-          Select your workspace.
+          Select your organisation.
         </h1>
 
         <p
@@ -143,7 +143,7 @@ export function AdminSelectIdentity(): React.JSX.Element {
             fontFamily: 'var(--aiq-font-sans)',
           }}
         >
-          Your email is associated with multiple workspaces. Pick the one you
+          Your email is associated with multiple organisations. Pick the one you
           want to sign in to.
         </p>
 

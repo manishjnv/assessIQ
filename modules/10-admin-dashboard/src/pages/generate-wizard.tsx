@@ -22,6 +22,7 @@
 //  - No claude/anthropic imports or copy.
 //  - No hardcoded test data.
 
+import { difficultyLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Spinner } from "@assessiq/ui-system";
@@ -472,7 +473,7 @@ export function AdminGenerateWizard(): React.ReactElement {
     setDomainsLoading(true);
     listDomainsApi()
       .then((res) => { setDomains(res.items); setDomainsLoading(false); })
-      .catch(() => { setDomainsLoading(false); setConfigError("Failed to load domains"); });
+      .catch(() => { setDomainsLoading(false); setConfigError("Failed to load subjects"); });
   }, []);
 
   // D5: check for existing ai_draft questions on mount to show resume banner
@@ -573,7 +574,7 @@ export function AdminGenerateWizard(): React.ReactElement {
         setNewDomainLoading(false);
         return;
       }
-      setNewDomainError(err instanceof AdminApiError ? err.apiError.message : "Failed to create domain");
+      setNewDomainError(err instanceof AdminApiError ? err.apiError.message : "Failed to create subject");
     }
     setNewDomainLoading(false);
   }, [newDomainName, newDomainDesc]);
@@ -587,7 +588,7 @@ export function AdminGenerateWizard(): React.ReactElement {
   const handleCreateCategory = useCallback(async () => {
     const name = newCategoryName.trim();
     if (!name) { setNewCategoryError("Name is required"); return; }
-    if (!selectedDomainId) { setNewCategoryError("Select a domain first"); return; }
+    if (!selectedDomainId) { setNewCategoryError("Select a subject first"); return; }
     setNewCategoryLoading(true);
     setNewCategoryError(null);
     try {
@@ -907,13 +908,13 @@ export function AdminGenerateWizard(): React.ReactElement {
 
         <section style={{ marginBottom: "var(--aiq-space-xl)" }}>
           <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", marginBottom: "var(--aiq-space-sm)" }}>
-            Difficulty Level
+            Difficulty
           </h3>
           <div style={{ display: "flex", gap: "var(--aiq-space-md)" }}>
             {(["L1", "L2", "L3"] as SelectedLevel[]).map((lv) => (
               <label key={lv} style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)", cursor: "pointer", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", border: "1px solid", borderColor: selectedLevel === lv ? "var(--aiq-color-accent)" : "var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", background: selectedLevel === lv ? "var(--aiq-color-accent-soft)" : "var(--aiq-color-bg-raised)" }}>
                 <input type="radio" name="level" value={lv} checked={selectedLevel === lv} onChange={() => setSelectedLevel(lv)} style={{ accentColor: "var(--aiq-color-accent)" }} />
-                {lv}
+                {difficultyLabel(lv)}
               </label>
             ))}
           </div>
@@ -921,16 +922,16 @@ export function AdminGenerateWizard(): React.ReactElement {
 
         <section style={{ marginBottom: "var(--aiq-space-xl)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-sm)" }}>
-            <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", margin: 0 }}>Domain</h3>
+            <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", margin: 0 }}>Subject</h3>
             <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => { setShowNewDomain((v) => !v); setNewDomainError(null); }} style={{ fontSize: "var(--aiq-text-xs)" }}>
-              {showNewDomain ? "Cancel" : "+ New domain"}
+              {showNewDomain ? "Cancel" : "+ New subject"}
             </button>
           </div>
           {showNewDomain && (
             <div style={{ marginBottom: "var(--aiq-space-sm)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)", maxWidth: 360 }}>
               {showDomainMfa ? (
                 <MfaStepUp
-                  prompt="Re-verify your MFA to create this platform domain. Enter your 6-digit authenticator code."
+                  prompt="Re-verify your MFA to create this platform subject. Enter your 6-digit authenticator code."
                   confirmLabel="Verify & create"
                   onVerified={() => void handleDomainMfaVerified()}
                   onCancel={() => setShowDomainMfa(false)}
@@ -938,22 +939,22 @@ export function AdminGenerateWizard(): React.ReactElement {
               ) : (
                 <>
                   <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }}>
-                    Not listed? Creating a domain here adds a <strong>platform domain</strong> shared across every company (requires a fresh MFA code).
+                    Not listed? Creating a subject here adds a <strong>platform subject</strong> shared across every organisation (requires a fresh MFA code).
                   </p>
                   {newDomainError && (
                     <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-error, #dc2626)" }}>{newDomainError}</span>
                   )}
-                  <input type="text" placeholder="Domain name (required)" value={newDomainName} onChange={(e) => setNewDomainName(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
+                  <input type="text" placeholder="Subject name (required)" value={newDomainName} onChange={(e) => setNewDomainName(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
                   <input type="text" placeholder="Description (optional)" value={newDomainDesc} onChange={(e) => setNewDomainDesc(e.target.value)} style={{ padding: "4px 8px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)", background: "var(--aiq-color-bg-raised)" }} />
                   <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={newDomainLoading || !newDomainName.trim()} onClick={() => void handleCreateDomain()}>
-                    {newDomainLoading ? "Creating..." : "Create Domain"}
+                    {newDomainLoading ? "Creating..." : "Create subject"}
                   </button>
                 </>
               )}
             </div>
           )}
           <select className="aiq-input" value={selectedDomainId} onChange={(e) => setSelectedDomainId(e.target.value)} disabled={domainsLoading} style={{ maxWidth: 360 }}>
-            <option value="">-- Select a domain --</option>
+            <option value="">-- Select a subject --</option>
             {domains.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         </section>
@@ -982,7 +983,7 @@ export function AdminGenerateWizard(): React.ReactElement {
             {categoriesLoading ? (
               <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>Loading categories...</p>
             ) : categoryConfigs.length === 0 ? (
-              <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>No active categories for this domain.</p>
+              <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>No active categories for this subject.</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
                 {categoryConfigs.map((cfg, i) => {
@@ -1075,7 +1076,7 @@ export function AdminGenerateWizard(): React.ReactElement {
         {/* D2: Fan-out info line — makes per-category runs + total + level explicit */}
         {grandTotal > 0 && (
           <p style={{ marginBottom: "var(--aiq-space-sm)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-            This runs {checkedConfigs.length} generation{checkedConfigs.length !== 1 ? "s" : ""} — one per category — producing ≈{grandTotal} question{grandTotal !== 1 ? "s" : ""} total at level {selectedLevel}. Each category appears as its own row in Generation history.
+            This runs {checkedConfigs.length} generation{checkedConfigs.length !== 1 ? "s" : ""} — one per category — producing ≈{grandTotal} question{grandTotal !== 1 ? "s" : ""} total at difficulty {difficultyLabel(selectedLevel)}. Each category appears as its own row in Generation history.
           </p>
         )}
 
@@ -1092,7 +1093,7 @@ export function AdminGenerateWizard(): React.ReactElement {
           {!canGenerate && (
             <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
               {!selectedDomainId
-                ? "Select a domain first."
+                ? "Select a subject first."
                 : categoryConfigs.filter((c) => c.checked).length === 0
                   ? "Tick at least one category."
                   : "Select at least one type per checked category."}
@@ -1254,7 +1255,7 @@ export function AdminGenerateWizard(): React.ReactElement {
 
               // Find category name from either wizard configs or draft's category
               const catCfg = categoryConfigs.find((c) => c.category.id === catId);
-              const catName = catCfg?.category.name ?? (catId ? `Category ${catId.slice(0, 8)}…` : "Uncategorized");
+              const catName = catCfg?.category.name ?? "Uncategorized";
 
               return (
                 <div key={catId ?? "__uncategorized__"} style={{ marginBottom: "var(--aiq-space-xl)" }}>
@@ -1281,9 +1282,9 @@ export function AdminGenerateWizard(): React.ReactElement {
                             />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginBottom: 4, flexWrap: "wrap" }}>
-                                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{draft.type}</span>
+                                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{questionTypeLabel(draft.type)}</span>
                                 {draft.level_label && (
-                                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-accent-soft)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-accent)", flexShrink: 0 }}>{draft.level_label}</span>
+                                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-accent-soft)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-accent)", flexShrink: 0 }}>{/^L[123]$/.test(draft.level_label) ? difficultyLabel(draft.level_label) : draft.level_label}</span>
                                 )}
                                 {(() => {
                                   const domainName = domains.find((d) => d.id === draft.domain_id)?.name;
@@ -1429,14 +1430,14 @@ export function AdminGenerateWizard(): React.ReactElement {
   }
 
   return (
-    <AdminShell breadcrumbs={["Generate Questions"]} helpPage="admin.generate_wizard">
+    <AdminShell breadcrumbs={["Generate questions"]} helpPage="admin.generate_wizard">
       <div>
         <div style={{ marginBottom: "var(--aiq-space-xl)" }}>
           <h2 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xl)", fontWeight: 700, color: "var(--aiq-color-fg-primary)", marginBottom: "var(--aiq-space-xs)" }}>
-            Generate Question Set
+            Generate question set
           </h2>
           <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", margin: 0 }}>
-            Pick a domain and categories, set per-type counts, then generate AI drafts for review.
+            Pick a subject and categories, set per-type counts, then generate AI drafts for review.
           </p>
         </div>
 

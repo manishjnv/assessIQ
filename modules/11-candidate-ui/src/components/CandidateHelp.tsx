@@ -27,6 +27,7 @@
 
 import React, { useState, useRef, type CSSProperties } from "react";
 import { Drawer } from "@assessiq/ui-system";
+import { AFTER_SUBMIT_TEXT } from "../copy.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,8 +132,7 @@ function FaqContent(): React.ReactElement {
             through when connection recovers.)
           </li>
           <li style={LI}>
-            Multiple choice and code questions get scored automatically. Long
-            answer questions are reviewed by an AI grader and then by the company admin.
+            {AFTER_SUBMIT_TEXT}
           </li>
         </ul>
       </section>
@@ -207,7 +207,7 @@ function FaqContent(): React.ReactElement {
         <ul style={UL}>
           <li style={LI}>
             Read each question carefully. Partial credit is awarded — answers are
-            rated on a band (not all-or-nothing).
+            scored on a scale (not all-or-nothing).
           </li>
           <li style={LI}>
             For code or scenario questions, include your reasoning, not just the

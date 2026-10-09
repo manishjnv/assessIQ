@@ -90,13 +90,13 @@ export function ManageMenu({
 
   const lifecycleItems: React.ReactElement[] = [];
   if (tenant.status === "active") {
-    lifecycleItems.push(menuItem("Suspend tenant", () => onLifecycleAction("suspend"), true));
-    lifecycleItems.push(menuItem("Archive tenant", () => onLifecycleAction("archive"), true));
+    lifecycleItems.push(menuItem("Suspend organisation", () => onLifecycleAction("suspend"), true));
+    lifecycleItems.push(menuItem("Archive organisation", () => onLifecycleAction("archive"), true));
   } else if (tenant.status === "suspended") {
-    lifecycleItems.push(menuItem("Resume tenant", () => onLifecycleAction("resume")));
-    lifecycleItems.push(menuItem("Archive tenant", () => onLifecycleAction("archive"), true));
+    lifecycleItems.push(menuItem("Resume organisation", () => onLifecycleAction("resume")));
+    lifecycleItems.push(menuItem("Archive organisation", () => onLifecycleAction("archive"), true));
   } else if (tenant.status === "archived") {
-    lifecycleItems.push(menuItem("Unarchive tenant", () => onLifecycleAction("unarchive")));
+    lifecycleItems.push(menuItem("Unarchive organisation", () => onLifecycleAction("unarchive")));
   } else if (tenant.status === "provisioning") {
     lifecycleItems.push(
       <div
@@ -147,7 +147,7 @@ export function ManageMenu({
           onClick={(e) => e.stopPropagation()}
         >
           {menuItem("Open billing", () => { onOpenBilling(); })}
-          {tenant.admin_user_id !== null && menuItem("Edit company", () => { onEditAdmin(); })}
+          {tenant.admin_user_id !== null && menuItem("Edit organisation", () => { onEditAdmin(); })}
           {menuItem("Manage users", () => { navigate(`/admin/platform/${tenant.id}/users`); })}
           {lifecycleItems.length > 0 && (
             <div

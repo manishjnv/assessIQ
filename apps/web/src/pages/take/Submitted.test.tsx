@@ -24,7 +24,7 @@ vi.mock('@assessiq/candidate-ui', async () => {
   return { ...actual, getResult: (...a: unknown[]) => getResult(...a) };
 });
 
-import { CandidateApiError } from '@assessiq/candidate-ui';
+import { CandidateApiError, AFTER_SUBMIT_TEXT } from '@assessiq/candidate-ui';
 import { Submitted } from './Submitted';
 
 const SOON_STATE = {
@@ -136,7 +136,7 @@ describe('Submitted — scoring + result release', () => {
 
     renderSubmitted(EMAIL_STATE);
     expect(screen.getByText(EMAIL_72H)).toBeTruthy();
-    expect(screen.getByText('You can close this page. Nothing more is needed from you.')).toBeTruthy();
+    expect(screen.getByText(AFTER_SUBMIT_TEXT)).toBeTruthy();
     expect(screen.queryByRole('status')).toBeNull(); // no spinner
 
     await tick(30_000);

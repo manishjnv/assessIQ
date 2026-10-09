@@ -22,7 +22,7 @@
 // sequential fetches, no extra dependencies.
 
 import React, { useEffect, useState, type CSSProperties } from "react";
-import { Button, Card, Chip, Spinner } from "@assessiq/ui-system";
+import { Button, Card, Chip, Spinner, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -44,12 +44,12 @@ const RELEASE_OPTIONS: ReadonlyArray<{ value: ReleaseMode; label: string; help: 
   {
     value: "manual",
     label: "Manual (default)",
-    help: "You publish each result yourself. Candidates are not sent a result until you do.",
+    help: "You release each result yourself. Candidates are not sent a result until you do.",
   },
   {
     value: "auto",
     label: "Automatic",
-    help: "Results publish as soon as they are complete. Candidates see their score and are emailed straight away.",
+    help: "Results are released as soon as they are complete. Candidates see their score and are emailed straight away.",
   },
 ];
 
@@ -168,7 +168,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
 
   const handleSaveName = async (): Promise<void> => {
     if (nameInvalid) {
-      setNameError("Company name must be 2–120 characters, without control characters.");
+      setNameError("Organisation name must be 2–120 characters, without control characters.");
       return;
     }
     setNameSaving(true);
@@ -181,7 +181,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
       });
       await fetchAdminWhoami(true); // refresh shell/header tenant name
       setNameTouched(false);
-      setNameSuccess("Company name updated.");
+      setNameSuccess("Organisation name updated.");
       setTimeout(() => setNameSuccess(null), 4000);
     } catch (err) {
       setNameError(
@@ -322,8 +322,8 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
       setReleaseMfa(false);
       setReleaseSuccess(
         selectedRelease === "auto"
-          ? "Results now publish automatically."
-          : "Results now wait for you to publish them.",
+          ? "Results now release automatically."
+          : "Results now wait for you to release them.",
       );
       setTimeout(() => setReleaseSuccess(null), 4000);
     } catch (err) {
@@ -398,14 +398,6 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  const formatDate = (iso: string): string =>
-    new Date(iso).toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
 
   const inputIsDirty =
     retentionDays !== null && inputValue !== String(retentionDays);
@@ -427,7 +419,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
         {(
           [
             ["Dry-run", report.dryRun ? "Yes" : "No"],
-            ["Tenant ID", report.tenantId],
+            ["Organisation ID", report.tenantId],
             ["Retention window", `${report.retentionDays} days`],
             ["Candidates scanned", String(report.candidatesScanned)],
             ["Candidates erased", String(report.candidatesErased)],
@@ -568,7 +560,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
           /* Page header */
           <div>
             <div style={{ marginBottom: 12 }}>
-              <Chip leftIcon="settings">Tenant settings</Chip>
+              <Chip leftIcon="settings">Organisation settings</Chip>
             </div>
             <h1
               style={{
@@ -590,7 +582,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 lineHeight: 1.5,
               }}
             >
-              Tenant-level configuration: company name, result release, and data
+              Organisation-level configuration: organisation name, result release, and data
               retention and compliance controls.
             </p>
           </div>
@@ -615,7 +607,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 letterSpacing: "-0.015em",
               }}
             >
-              Company name.
+              Organisation name.
             </h2>
           </div>
           <Card padding="lg">
@@ -668,11 +660,11 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 }}
               >
                 Shown in the app header and in emails to your candidates. 2–120 characters.
-                Your sign-in address and tenant ID do not change.
+                Your sign-in address and organisation ID do not change.
               </p>
               {nameDirty && nameInvalid && (
                 <p role="alert" style={{ fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: "6px 0 0" }}>
-                  Company name must be 2–120 characters, without control characters.
+                  Organisation name must be 2–120 characters, without control characters.
                 </p>
               )}
             </div>
@@ -692,7 +684,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 loading={nameSaving}
                 disabled={!nameDirty || nameInvalid || session === null}
               >
-                Save company name
+                Save organisation name
               </Button>
             </div>
           </Card>
@@ -812,8 +804,8 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                     maxWidth: 520,
                   }}
                 >
-                  Switching to Automatic does not publish results that are already
-                  waiting. You can still publish those yourself.
+                  Switching to Automatic does not release results that are already
+                  waiting. You can still release those yourself.
                 </p>
 
                 {releaseSuccess && (
@@ -960,7 +952,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
 
                   {updatedAt && !inputIsDirty && (
                     <p style={{ ...META_LABEL, fontSize: 10, marginTop: 6 }}>
-                      Last updated · {formatDate(updatedAt)}
+                      Last updated · {formatDateTime(updatedAt)}
                     </p>
                   )}
                 </div>
@@ -1102,7 +1094,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 maxWidth: 640,
               }}
             >
-              Candidates in this tenant whose PII has been tombstoned (via
+              Candidates in this organisation whose PII has been tombstoned (via
               admin action or the nightly retention cron). Names and emails
               are not retrievable. Attempts and certificates are preserved
               as required for billing reconciliation and certificate
@@ -1209,7 +1201,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                     {erasedRows.map((row) => (
                       <tr key={row.userId} style={{ borderBottom: "1px solid var(--aiq-color-border)" }}>
                         <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
-                          {formatDate(row.erasedAt)}
+                          {formatDateTime(row.erasedAt)}
                         </td>
                         <td
                           style={{

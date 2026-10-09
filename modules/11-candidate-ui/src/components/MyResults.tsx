@@ -11,16 +11,10 @@
 // § Empty state (serif headline + short muted body, no illustration).
 
 import React, { useEffect, useState } from 'react';
-import { Card, Chip, Spinner } from '@assessiq/ui-system';
+import { Card, Chip, Spinner, formatDate } from '@assessiq/ui-system';
 import { listMyResults } from '../api.js';
 import type { MyResultItemWire } from '../types.js';
 import { ResultSummary } from './ResultSummary.js';
-
-const DATE_FMT = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
 
 const HEADING: React.CSSProperties = {
   fontFamily: 'var(--aiq-font-serif)',
@@ -137,7 +131,7 @@ export function MyResults(): React.ReactElement {
                     {r.assessment_name}
                   </h2>
                   <div style={META}>
-                    Released {DATE_FMT.format(new Date(r.released_at))}
+                    Released {formatDate(r.released_at)}
                   </div>
                 </div>
                 <ResultSummary

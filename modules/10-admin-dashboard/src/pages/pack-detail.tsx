@@ -17,9 +17,10 @@
 //  - No claude/anthropic imports or copy.
 //  - No hardcoded test data.
 
+import { packStatusDisplay, questionTypeLabel, questionStatusLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Chip } from "@assessiq/ui-system";
+import { Chip, formatDate, formatDateTime, formatRelative } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, bulkUpdateQuestionStatus } from "../api.js";
@@ -102,38 +103,8 @@ function questionPrompt(content: Record<string, unknown>): string {
 }
 
 /** Format a date string as relative (< 30 days) or absolute (≥ 30 days). */
-function relativeDate(isoStr: string): string {
-  const diff = Date.now() - new Date(isoStr).getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-  if (days >= 30) {
-    return new Date(isoStr).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-  }
-  const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always" });
-  if (days > 0) return rtf.format(-days, "day");
-  if (hours > 0) return rtf.format(-hours, "hour");
-  if (minutes > 0) return rtf.format(-minutes, "minute");
-  return "just now";
-}
 
 /** Format a date string as relative (< 30 min) or absolute (≥ 30 min). */
-function attemptDate(isoStr: string): string {
-  const diff = Date.now() - new Date(isoStr).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 30) {
-    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always" });
-    if (minutes < 1) return "just now";
-    return rtf.format(-minutes, "minute");
-  }
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(isoStr));
-}
 
 /** Format milliseconds as "Xm Ys" for display. */
 function formatDuration(ms: number): string {
@@ -160,7 +131,7 @@ function GenerationAttemptLine({
   const { status, count_requested, count_inserted, error_code, error_message,
           stderr_tail, duration_ms, started_at } = attempt;
 
-  const dateStr = attemptDate(started_at);
+  const dateStr = formatDateTime(started_at);
   const durStr = duration_ms != null ? formatDuration(duration_ms) : null;
   const failedCount = count_requested - count_inserted;
 
@@ -329,7 +300,7 @@ export function AdminPackDetail(): React.ReactElement {
       setLevels(fetchedLevels);
     } catch (err) {
       setError(
-        err instanceof AdminApiError ? err.apiError.message : "Failed to load pack.",
+        err instanceof AdminApiError ? err.apiError.message : "Failed to load question set.",
       );
       setLoading(false);
       return;
@@ -414,7 +385,7 @@ export function AdminPackDetail(): React.ReactElement {
       await fetchPack();
     } catch (err) {
       setPublishError(
-        err instanceof AdminApiError ? err.apiError.message : "Failed to publish pack.",
+        err instanceof AdminApiError ? err.apiError.message : "Failed to publish question set.",
       );
     } finally {
       setPublishing(false);
@@ -427,7 +398,7 @@ export function AdminPackDetail(): React.ReactElement {
       !window.confirm(
         `Revise "${pack.name}"? This moves it back to draft so you can edit it, ` +
           `then re-publish as a new version. Already-published assessments keep their ` +
-          `current content; tenant clones of this set auto-update when you re-publish.`,
+          `current content; organisation copies of this set auto-update when you re-publish.`,
       )
     )
       return;
@@ -438,7 +409,7 @@ export function AdminPackDetail(): React.ReactElement {
       await fetchPack();
     } catch (err) {
       setReviseError(
-        err instanceof AdminApiError ? err.apiError.message : "Failed to revise pack.",
+        err instanceof AdminApiError ? err.apiError.message : "Failed to revise question set.",
       );
     } finally {
       setRevising(false);
@@ -471,7 +442,7 @@ export function AdminPackDetail(): React.ReactElement {
       await fetchPack();
     } catch (err) {
       setArchivePackError(
-        err instanceof AdminApiError ? err.apiError.message : "Failed to archive pack.",
+        err instanceof AdminApiError ? err.apiError.message : "Failed to archive question set.",
       );
     } finally {
       setArchivingPack(false);
@@ -520,7 +491,7 @@ export function AdminPackDetail(): React.ReactElement {
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Pack"]} helpPage="admin.question_bank.pack">
+      <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "Question set"]} helpPage="admin.question_bank.pack">
         <div
           style={{
             color: "var(--aiq-color-fg-muted)",
@@ -537,7 +508,7 @@ export function AdminPackDetail(): React.ReactElement {
 
   if (error || !pack) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Pack"]} helpPage="admin.question_bank.pack">
+      <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "Question set"]} helpPage="admin.question_bank.pack">
         <div
           style={{
             color: "var(--aiq-color-danger)",
@@ -545,7 +516,7 @@ export function AdminPackDetail(): React.ReactElement {
             fontSize: "var(--aiq-text-sm)",
           }}
         >
-          {error ?? "Pack not found."}
+          {error ?? "Question set not found."}
         </div>
       </AdminShell>
     );
@@ -561,12 +532,12 @@ export function AdminPackDetail(): React.ReactElement {
   }, {});
 
   return (
-    <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, pack.name]} helpPage="admin.question_bank.pack">
+    <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, pack.name]} helpPage="admin.question_bank.pack">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Pack header */}
         <div>
           <div style={{ marginBottom: 12 }}>
-            <Chip leftIcon="grid">{levels.length} level{levels.length !== 1 ? "s" : ""}</Chip>
+            <Chip leftIcon="grid">{levels.length} {levels.length !== 1 ? "difficulty levels" : "difficulty level"}</Chip>
           </div>
           <div
           style={{
@@ -609,7 +580,7 @@ export function AdminPackDetail(): React.ReactElement {
                   flexShrink: 0,
                 }}
               >
-                {pack.status}
+                {packStatusDisplay(pack.status).label}
               </span>
             </div>
             <p
@@ -623,7 +594,7 @@ export function AdminPackDetail(): React.ReactElement {
               }}
             >
               {pack.domain} · v{pack.version} · created{" "}
-              {new Date(pack.created_at).toLocaleDateString()}
+              {formatDate(pack.created_at)}
             </p>
           </div>
           <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexShrink: 0 }}>
@@ -654,7 +625,7 @@ export function AdminPackDetail(): React.ReactElement {
                   disabled={archivingPack}
                   style={{ color: "var(--aiq-color-danger)" }}
                 >
-                  {archivingPack ? "Archiving…" : "Archive pack"}
+                  {archivingPack ? "Archiving…" : "Archive question set"}
                 </button>
               </HelpTip>
             )}
@@ -666,7 +637,7 @@ export function AdminPackDetail(): React.ReactElement {
                   onClick={() => void handlePublish()}
                   disabled={publishing}
                 >
-                  {publishing ? "Publishing…" : "Publish pack"}
+                  {publishing ? "Publishing…" : "Publish question set"}
                 </button>
               </HelpTip>
             )}
@@ -808,7 +779,7 @@ export function AdminPackDetail(): React.ReactElement {
                   margin: 0,
                 }}
               >
-                No levels yet. Add a level to start building this pack.
+                No difficulty levels yet. Add a difficulty level to start building this question set.
               </p>
             </div>
           ) : (
@@ -1213,8 +1184,8 @@ export function AdminPackDetail(): React.ReactElement {
                         }}
                       >
                         {isSuperAdmin
-                          ? "No questions yet. Use the Generate Questions page to add the first batch."
-                          : "No questions yet. The platform team curates this pack — questions will appear once added."}
+                          ? "No questions yet. Use the Generate questions page to add the first batch."
+                          : "No questions yet. The platform team curates this question set — questions will appear once added."}
                       </div>
                     ) : filteredQs.length === 0 ? (
                       <div
@@ -1305,9 +1276,9 @@ export function AdminPackDetail(): React.ReactElement {
                                 letterSpacing: "0.04em",
                               }}
                             >
-                              {q.type} · {q.status}
+                              {questionTypeLabel(q.type)} · {questionStatusLabel(q.status)}
                               {q.points != null ? ` · ${q.points} pts` : ""}
-                              {q.created_at ? ` · ${relativeDate(q.created_at)}` : ""}
+                              {q.created_at ? ` · ${formatRelative(q.created_at)}` : ""}
                             </span>
                             {/* FU-C13: Bloom + NICE chips (generator tags; absent on human-authored rows) */}
                             {(q.cognitive_level || q.nice_task_id) && (

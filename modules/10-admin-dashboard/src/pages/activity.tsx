@@ -24,15 +24,13 @@
 //  - Error state: per-section inline error text.
 
 import React, { useEffect, useState, useCallback } from "react";
-import {
-  StatCard,
+import { StatCard,
   ActivityHeatmap,
   StackedBarChart,
   LeaderboardList,
   Chip,
   ErasedChip,
-  useViewport,
-} from "@assessiq/ui-system";
+  useViewport, formatMonthYear } from "@assessiq/ui-system";
 import type {
   StatCardBreakdownItem,
   StackedBarChartBar,
@@ -41,6 +39,7 @@ import type {
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { domainLabel } from "../lib/domains.js";
+import { roleLabel } from "../lib/labels.js";
 
 // ---------------------------------------------------------------------------
 // API response shapes (mirror modules/15-analytics types — no import to avoid
@@ -179,11 +178,6 @@ const ROLE_CHIP_VARIANT: Record<FeedRole, "default" | "accent" | "success" | "wa
   system:    "default",
 };
 
-const ROLE_LABEL: Record<FeedRole, string> = {
-  admin:     "Admin",
-  candidate: "Candidate",
-  system:    "System",
-};
 
 const FEED_ROLE_FILTERS: { value: FeedRoleFilter; label: string }[] = [
   { value: "all",       label: "All" },
@@ -280,7 +274,7 @@ function ActivityFeedSection(): React.ReactElement {
               color: "var(--aiq-color-fg-muted)",
             }}
           >
-            Everything happening across your workspace — admins and candidates.
+            Everything happening across your organisation — admins and candidates.
           </p>
         </div>
 
@@ -371,7 +365,7 @@ function ActivityFeedSection(): React.ReactElement {
                   {/* Role badge — Chip from @assessiq/ui-system */}
                   <div style={{ flexShrink: 0, paddingTop: 1 }}>
                     <Chip variant={ROLE_CHIP_VARIANT[item.actorRole]}>
-                      {ROLE_LABEL[item.actorRole]}
+                      {roleLabel(item.actorRole)}
                     </Chip>
                   </div>
 
@@ -685,10 +679,10 @@ export function AdminActivity(): React.ReactElement {
   const firstBar = timeline?.bars[0];
   const lastBar  = timeline?.bars[timeline.bars.length - 1];
   const xAxisStartLabel = firstBar
-    ? new Date(`${firstBar.weekStart}T00:00:00Z`).toLocaleString("default", { month: "short", year: "numeric", timeZone: "UTC" })
+    ? formatMonthYear(`${firstBar.weekStart}T00:00:00Z`)
     : undefined;
   const xAxisEndLabel = lastBar
-    ? new Date(`${lastBar.weekEnd}T00:00:00Z`).toLocaleString("default", { month: "short", year: "numeric", timeZone: "UTC" })
+    ? formatMonthYear(`${lastBar.weekEnd}T00:00:00Z`)
     : undefined;
 
   const leaderboardItems: LeaderboardListItem[] = (leaderboard?.items ?? []).map((item) => ({
@@ -732,7 +726,7 @@ export function AdminActivity(): React.ReactElement {
                 color: "var(--aiq-color-fg-muted)",
               }}
             >
-              Assessment completions and engagement across your tenant.
+              Assessment completions and engagement across your organisation.
             </p>
           </div>
           <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
@@ -835,7 +829,7 @@ export function AdminActivity(): React.ReactElement {
             {heatmap && (
               <div style={{ display: "flex", gap: "var(--aiq-space-xl)" }}>
                 {[
-                  { label: "Total",       value: heatmap.totals.total.toLocaleString() },
+                  { label: "Total",       value: heatmap.totals.total.toLocaleString() }, // lint-ui-labels: number
                   { label: "Avg / day",   value: heatmap.totals.avgPerDay.toFixed(1) },
                   { label: "Active days", value: String(heatmap.totals.activeDays) },
                 ].map(({ label, value }) => (
@@ -914,7 +908,7 @@ export function AdminActivity(): React.ReactElement {
                 color: "var(--aiq-color-fg-muted)",
               }}
             >
-              Weekly completions by domain, last 52 weeks.
+              Weekly completions by subject, last 52 weeks.
             </p>
           </div>
 
@@ -939,7 +933,7 @@ export function AdminActivity(): React.ReactElement {
               seriesLabels={seriesLabels}
               {...(xAxisStartLabel !== undefined ? { xAxisStartLabel } : {})}
               {...(xAxisEndLabel !== undefined ? { xAxisEndLabel } : {})}
-              aria-label="Weekly completions by domain"
+              aria-label="Weekly completions by subject"
             />
           )}
         </div>
@@ -965,7 +959,7 @@ export function AdminActivity(): React.ReactElement {
               color: "var(--aiq-color-fg-muted)",
             }}
           >
-            Most-completed packs on this tenant, {PERIOD_LABELS[period].toLowerCase()}.
+            Most-completed question sets in your organisation, {PERIOD_LABELS[period].toLowerCase()}.
           </p>
 
           {leaderboardLoading && (
@@ -980,7 +974,7 @@ export function AdminActivity(): React.ReactElement {
           )}
           {!leaderboardLoading && !leaderboardError && leaderboardItems.length === 0 && (
             <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-              No submissions in this period.
+              No attempts in this period.
             </div>
           )}
           {!leaderboardLoading && !leaderboardError && leaderboardItems.length > 0 && (

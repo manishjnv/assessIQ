@@ -86,7 +86,7 @@ export function ScoreDetail({
         <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginLeft: "auto" }}>
           {bandPct !== null && (
             <span style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-lg)", color: "var(--aiq-color-fg-primary)" }}>
-              Band {band} · {bandPct}%
+              Score band {band} · {bandPct}%
             </span>
           )}
           <span style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-lg)", color: "var(--aiq-color-fg-secondary)" }}>

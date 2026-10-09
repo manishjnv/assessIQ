@@ -25,9 +25,10 @@
 //  - Empty-state renders; no hardcoded fake rows.
 //  - No new invite backend. No manual authoring. No swap endpoint.
 
+import { assessmentStatusDisplay, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Chip, Table } from "@assessiq/ui-system";
+import { Chip, Table, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, listDomainsApi, listCategoriesApi, getCompanyEntitlements, getCompanyUsage, getAvailableSets, createAssessmentFromSet } from "../api.js";
@@ -76,6 +77,7 @@ interface AssessmentsResponse {
 
 type BlueprintLevel = "L1" | "L2" | "L3";
 const BLUEPRINT_LEVELS: BlueprintLevel[] = ["L1", "L2", "L3"];
+const DIFFICULTY_LABEL: Record<BlueprintLevel, string> = { L1: "Beginner", L2: "Intermediate", L3: "Advanced" };
 
 interface BlueprintCriterion {
   category_id: string;
@@ -229,7 +231,7 @@ function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilter }: Bl
         setDomains(filtered);
       } catch (err) {
         setDomainsError(
-          err instanceof AdminApiError ? err.apiError.message : "Failed to load domains.",
+          err instanceof AdminApiError ? err.apiError.message : "Failed to load subjects.",
         );
       } finally {
         setDomainsLoading(false);
@@ -312,8 +314,8 @@ function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilter }: Bl
           margin: 0,
         }}
       >
-        Blueprint mode: each candidate draws a fresh random set per criterion. Domain + Level resolve
-        the question pack automatically. Count = questions per checked type.
+        Blueprint mode: each candidate draws a fresh random set per criterion. Subject + Difficulty resolve
+        the question set automatically. Count = questions per checked type.
       </p>
 
       {domainsError && (
@@ -327,7 +329,7 @@ function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilter }: Bl
         <div>
           <div style={labelStyle}>
             <HelpTip helpId="admin.assessments.list.content_source">
-              <span>Domain</span>
+              <span>Subject</span>
             </HelpTip>
           </div>
           {domainsLoading ? (
@@ -336,7 +338,7 @@ function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilter }: Bl
             </span>
           ) : !skipFilter && entitledDomains !== null && domains.length === 0 ? (
             <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-              No content is enabled for your company yet — contact your platform operator.
+              No content is enabled for your organisation yet — contact your platform operator.
             </span>
           ) : (
             <>
@@ -346,28 +348,28 @@ function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilter }: Bl
                 onChange={(e) => setSelectedDomainId(e.target.value)}
                 disabled={domains.length === 0}
               >
-                <option value="">— Select domain —</option>
+                <option value="">— Select subject —</option>
                 {domains.map((d) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
               {!skipFilter && entitledDomains !== null && (
                 <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: "4px 0 0" }}>
-                  Only content your company is entitled to is shown. Contact your platform operator to enable more.
+                  Only content your organisation is entitled to is shown. Contact your platform operator to enable more.
                 </p>
               )}
             </>
           )}
         </div>
         <div>
-          <div style={labelStyle}>Level</div>
+          <div style={labelStyle}>Difficulty</div>
           <select
             className="aiq-input"
             value={selectedLevel}
             onChange={(e) => setSelectedLevel(e.target.value as BlueprintLevel)}
           >
             {BLUEPRINT_LEVELS.map((l) => (
-              <option key={l} value={l}>{l}</option>
+              <option key={l} value={l}>{DIFFICULTY_LABEL[l]}</option>
             ))}
           </select>
         </div>
@@ -386,7 +388,7 @@ function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilter }: Bl
 
           {!categoriesLoading && categories.length === 0 && (
             <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-              No active categories in this domain.
+              No active categories in this subject.
             </span>
           )}
 
@@ -623,7 +625,7 @@ function PreviewAdequacy({ assessmentId }: PreviewAdequacyProps): React.ReactEle
               color: ok ? "var(--aiq-color-success)" : "var(--aiq-color-error, #dc2626)",
             }}
           >
-            {ok ? "✓" : "✗"} {c.type} — {c.available}/{c.required} available
+            {ok ? "✓" : "✗"} {questionTypeLabel(c.type)} — {c.available}/{c.required} available
           </div>
         );
       })}
@@ -734,8 +736,8 @@ function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElement {
           margin: 0,
         }}
       >
-        Pick a question set your company is licensed for. The set is copied into your
-        workspace the first time you assess from it, and each candidate draws a fresh
+        Pick a question set your organisation is licensed for. The set is copied into your
+        organisation the first time you assess from it, and each candidate draws a fresh
         set from your own stable copy.
       </p>
 
@@ -751,7 +753,7 @@ function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElement {
         </span>
       ) : sets !== null && sets.length === 0 ? (
         <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-          No question sets are licensed for your company yet — contact your platform
+          No question sets are licensed for your organisation yet — contact your platform
           operator to enable one.
         </span>
       ) : (
@@ -767,7 +769,7 @@ function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElement {
               <option value="">— Select a set —</option>
               {(sets ?? []).map((s) => (
                 <option key={s.source_pack_id} value={s.source_pack_id}>
-                  {s.name} · {s.domain} · {s.level_count} level{s.level_count !== 1 ? "s" : ""} · {s.question_count} q
+                  {s.name} · {s.domain} · {s.level_count} difficult{s.level_count !== 1 ? "ies" : "y"} · {s.question_count} q
                   {s.update_available ? " · update available" : ""}
                 </option>
               ))}
@@ -778,7 +780,7 @@ function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElement {
             <>
               <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
                 {selectedSet.cloned && (
-                  <Chip leftIcon="check">In your workspace</Chip>
+                  <Chip leftIcon="check">In your organisation</Chip>
                 )}
                 {selectedSet.update_available && (
                   <Chip>Source updated · re-sync available</Chip>
@@ -788,14 +790,14 @@ function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElement {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)" }}>
                 {/* Level */}
                 <div>
-                  <div style={labelStyle}>Level</div>
+                  <div style={labelStyle}>Difficulty</div>
                   <select
                     className="aiq-input"
                     value={String(levelPosition)}
                     onChange={(e) => setLevelPosition(parseInt(e.target.value, 10) || 1)}
                   >
                     {Array.from({ length: Math.max(1, selectedSet.level_count) }, (_, i) => i + 1).map((pos) => (
-                      <option key={pos} value={pos}>Level {pos}</option>
+                      <option key={pos} value={pos}>{(["Beginner", "Intermediate", "Advanced"][pos - 1]) ?? `Difficulty ${pos}`}</option>
                     ))}
                   </select>
                 </div>
@@ -817,7 +819,7 @@ function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElement {
                 </div>
               </div>
               <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: 0 }}>
-                The pool is checked when you publish — if the chosen level has fewer
+                The pool is checked when you publish — if the chosen difficulty has fewer
                 questions than this, lower the count before publishing.
               </p>
             </>
@@ -969,11 +971,11 @@ export function AdminAssessments(): React.ReactElement {
       return;
     }
     if (createMode === "from-set" && pendingFromSet === null) {
-      setCreateError("Select a licensed set, a level, and the number of questions to draw.");
+      setCreateError("Select a licensed set, a difficulty, and the number of questions to draw.");
       return;
     }
     if (createMode === "blueprint" && pendingBlueprint === null) {
-      setCreateError("Blueprint is incomplete. Select a domain, level, and at least one valid criterion.");
+      setCreateError("Blueprint is incomplete. Select a subject, difficulty, and at least one valid criterion.");
       return;
     }
     const builtSections =
@@ -1041,7 +1043,7 @@ export function AdminAssessments(): React.ReactElement {
       // 403 NOT_LICENSED: the source set is no longer licensed for this tenant.
       if (err instanceof AdminApiError && err.apiError.code === "NOT_LICENSED") {
         setCreateError(
-          "Your company is no longer licensed for this set. Contact your platform operator to re-enable it.",
+          "Your organisation is no longer licensed for this set. Contact your platform operator to re-enable it.",
         );
       } else {
         setCreateError(
@@ -1073,7 +1075,7 @@ export function AdminAssessments(): React.ReactElement {
     },
     {
       key: "level_label",
-      label: "Level",
+      label: "Difficulty",
       sortable: true,
       render: (row: AssessmentListItem) => (
         <span
@@ -1091,7 +1093,7 @@ export function AdminAssessments(): React.ReactElement {
     },
     {
       key: "domain",
-      label: "Domain",
+      label: "Subject",
       sortable: true,
       render: (row: AssessmentListItem) => (
         <span
@@ -1126,7 +1128,7 @@ export function AdminAssessments(): React.ReactElement {
               color: c.color,
             }}
           >
-            {row.status}
+            {assessmentStatusDisplay(row.status).label}
           </span>
         );
       },
@@ -1183,7 +1185,7 @@ export function AdminAssessments(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {row.opens_at ? new Date(row.opens_at).toLocaleDateString() : "—"}
+          {row.opens_at ? formatDate(row.opens_at) : "—"}
         </span>
       ),
     },
@@ -1199,7 +1201,7 @@ export function AdminAssessments(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {row.closes_at ? new Date(row.closes_at).toLocaleDateString() : "—"}
+          {row.closes_at ? formatDate(row.closes_at) : "—"}
         </span>
       ),
     },
@@ -1215,7 +1217,7 @@ export function AdminAssessments(): React.ReactElement {
             color: "var(--aiq-color-fg-muted)",
           }}
         >
-          {new Date(row.created_at).toLocaleDateString()}
+          {formatDate(row.created_at)}
         </span>
       ),
     },
@@ -1339,8 +1341,8 @@ export function AdminAssessments(): React.ReactElement {
               </div>
               <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: "6px 0 0" }}>
                 {createMode === "from-set"
-                  ? "From a set — assess from a question set your company is licensed for."
-                  : "Blueprint — each candidate draws a fresh random set per criterion from your domain content."}
+                  ? "From a set — assess from a question set your organisation is licensed for."
+                  : "Blueprint — each candidate draws a fresh random set per criterion from your subject content."}
               </p>
             </div>
 
@@ -1464,7 +1466,7 @@ export function AdminAssessments(): React.ReactElement {
                   fontSize: "var(--aiq-text-sm)",
                 }}
               >
-                <legend style={{ fontWeight: 500 }}>Test integrity</legend>
+                <legend style={{ fontWeight: 500 }}>Assessment integrity</legend>
                 <HelpTip helpId="admin.assessments.integrity.fullscreen">
                   <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
                     <input

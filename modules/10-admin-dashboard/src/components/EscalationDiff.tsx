@@ -58,7 +58,7 @@ function VerdictCard({
         {title}
       </span>
       <span style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-xl)" }}>
-        Band {band} · {BAND_PCT[band] ?? 0}%
+        Score band {band} · {BAND_PCT[band] ?? 0}%
       </span>
       <p style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
         {justification}

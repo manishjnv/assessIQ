@@ -108,7 +108,7 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
           style="margin: 0 0 var(--aiq-space-md); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
         >
           Issued 
-          15 Jan 2026
+          Jan 15, 2026
         </p>
         <div
           aria-label="Certificate actions"
@@ -198,7 +198,7 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
           style="margin: 0 0 var(--aiq-space-md); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
         >
           Issued 
-          10 Feb 2026
+          Feb 10, 2026
         </p>
         <div
           aria-label="Certificate actions"
@@ -281,7 +281,7 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
           style="margin: 0 0 var(--aiq-space-md); font-size: var(--aiq-text-sm); color: var(--aiq-color-fg-muted);"
         >
           Issued 
-          5 Apr 2026
+          Apr 5, 2026
         </p>
         <div
           aria-label="Certificate actions"

@@ -111,3 +111,6 @@ export {
   clearBackup,
 } from "./resilience/localStorage-backup";
 export type { BackupEnvelope } from "./resilience/localStorage-backup";
+
+// ─── Copy ─────────────────────────────────────────────────────────────────────
+export { AFTER_SUBMIT_TEXT } from "./copy.js";

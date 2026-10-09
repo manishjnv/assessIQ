@@ -16,12 +16,6 @@ export const ROW_PADDING = "16px 20px";
 
 // ── Date formatter ────────────────────────────────────────────────────────────
 
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
+export { formatDate } from "@assessiq/ui-system";
 
 export type ModalState = "form" | "mfa";

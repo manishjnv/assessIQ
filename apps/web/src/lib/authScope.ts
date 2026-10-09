@@ -58,11 +58,11 @@ export function authScopeCopy(
     return audience === 'candidate'
       ? {
           title: "Your organisation's access is paused.",
-          body: 'Your assessment workspace has been suspended. Please contact your assessment administrator.',
+          body: "Your organisation's access has been suspended. Please contact your assessment administrator.",
         }
       : {
           title: "Your organisation's access is paused.",
-          body: 'An administrator has suspended or archived your company workspace. Please contact your administrator to restore access.',
+          body: 'An administrator has suspended or archived your organisation. Please contact your administrator to restore access.',
         };
   }
   // scope === 'user'

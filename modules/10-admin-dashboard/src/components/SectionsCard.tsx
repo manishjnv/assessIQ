@@ -74,7 +74,7 @@ export function SectionsCard({
         (err.apiError.code === "SECTIONS_LOCKED" || err.apiError.details?.["code"] === "SECTIONS_LOCKED");
       setError(
         locked
-          ? "Sections can't be changed after students have started this test. Reload the page to see the current state."
+          ? "Sections can't be changed after candidates have started this assessment. Reload the page to see the current state."
           : err instanceof AdminApiError
             ? err.apiError.message
             : "Could not save. Try again.",
@@ -100,14 +100,14 @@ export function SectionsCard({
     >
       <HelpTip helpId="admin.assessment.sections.edit">
         <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: 0 }}>
-          Test sections
+          Assessment sections
         </h2>
       </HelpTip>
       {!editing && (
         <>
           <p style={{ margin: 0, color: "var(--aiq-color-fg-muted)" }}>
             {saved.length === 0
-              ? "No sections. The test runs as one timed test."
+              ? "No sections. The assessment runs as one timed block."
               : saved.map((s) => `${s.name} (${s.minutes} min)`).join(" · ")}
           </p>
           {canEdit && (

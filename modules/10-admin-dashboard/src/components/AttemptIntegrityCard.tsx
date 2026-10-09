@@ -61,7 +61,7 @@ export function AttemptIntegrityCard({ attemptId }: { attemptId: string }): Reac
   }, [attemptId]);
   if (s === null) return null;
   const rows: Array<[string, number]> = [
-    ["Left the test tab", s.tab_switches],
+    ["Left the assessment tab", s.tab_switches],
     ["Copied", s.copy],
     ["Pasted", s.paste],
     ["Pasted (blocked)", s.paste_blocked],

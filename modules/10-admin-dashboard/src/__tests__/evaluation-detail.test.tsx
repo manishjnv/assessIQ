@@ -5,13 +5,13 @@
 //       /admin/super/evaluations/:id/* endpoint with the right body; the page never
 //       shows candidate PII; the score that COMPLETES the attempt shows the
 //       "Released to <company>" state (no separate release click)
-//   E2  Release to company stays disabled until every question is graded
+//   E2  Send to organisation stays disabled until every question is graded
 //   E3  a fresh-MFA 401 on a manual score opens the inline step-up and retries
 //   E4  before the LAST accept the page says it will release the result (inline notice,
 //       no confirm dialog); no notice while accepting would not complete the evaluation
 //   E5  a sent-back attempt: Re-run AI (attempt level, body {}) shows the new proposals
 //       over the existing grades with Accept / Override; accepting does not release;
-//       Release to company (the recovery action) still works
+//       Send to organisation (the recovery action) still works
 //   E6  Re-run AI only for graded + unreleased + sent-back; Grade all never for a graded one
 
 import { describe, it, expect, vi, afterEach } from "vitest";
@@ -62,7 +62,7 @@ const T_OLD_GRADE = "2026-09-30T10:00:00.000Z";
 const T_RERUN = "2026-10-01T09:00:00.000Z"; // a re-run proposal: after the old grades
 const T_ACCEPTED = "2026-10-01T09:05:00.000Z"; // the grade written by accepting it: after the proposal
 
-const NOTICE = "Accepting the last grade releases this result to Acme College. If Acme College publishes automatically, the student gets it within a minute.";
+const NOTICE = "Accepting the last grade sends this result to Acme College. If Acme College releases results automatically, the candidate gets it within a minute.";
 
 const PROPOSAL = {
   attempt_id: AID,
@@ -260,7 +260,7 @@ describe("AdminEvaluationDetail", () => {
 
     // Manual score for the KQL question — the last missing grade: the form warns that saving releases it
     await screen.findByText("Q1 graded");
-    expect(screen.getByText(/Saving the last score releases this result to Acme College/)).toBeTruthy();
+    expect(screen.getByText(/Saving the last score sends this result to Acme College/)).toBeTruthy();
     fireEvent.change(screen.getByLabelText(/Score \(0 to 10\)/), { target: { value: "7" } });
     fireEvent.change(screen.getByLabelText(/Reason \(required\)/), { target: { value: "Matches the expected query." } });
     fireEvent.click(screen.getByRole("button", { name: "Save score" }));
@@ -271,22 +271,22 @@ describe("AdminEvaluationDetail", () => {
     });
 
     // Complete → released by that same step: the success state, no confirm dialog, no extra click
-    await screen.findByText(/Released to Acme College\./);
+    await screen.findByText(/Sent to Acme College\./);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(calls(`${BASE}/release-to-tenant`)).toHaveLength(0);
-    expect((screen.getByRole("button", { name: "Release to company" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Send to organisation" }) as HTMLButtonElement).disabled).toBe(true);
 
     // ... with a way back to the queue
     fireEvent.click(screen.getByRole("button", { name: "Back to the queue" }));
     await screen.findByTestId("queue-page");
   }, 15_000); // ponytail: ~1.7 s alone, >5 s under parallel load (batch 8); raise, do not split
 
-  it("E2 Release to company is disabled until the attempt is complete", async () => {
+  it("E2 Send to organisation is disabled until the attempt is complete", async () => {
     makeServer();
     await renderPage();
-    const release = screen.getByRole("button", { name: "Release to company" }) as HTMLButtonElement;
+    const release = screen.getByRole("button", { name: "Send to organisation" }) as HTMLButtonElement;
     expect(release.disabled).toBe(true);
-    expect(screen.queryByText(/Released to Acme College/)).toBeNull();
+    expect(screen.queryByText(/Sent to Acme College/)).toBeNull();
     expect(calls(`${BASE}/release-to-tenant`)).toHaveLength(0);
   });
 
@@ -321,23 +321,23 @@ describe("AdminEvaluationDetail", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Accept all (1)" }));
-    await screen.findByText(/Released to Acme College\./);
+    await screen.findByText(/Sent to Acme College\./);
     // the notice is gone once it is done, and the page went straight to the success state (no dialog)
     expect(screen.queryByText(NOTICE)).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(calls(`${BASE}/release-to-tenant`)).toHaveLength(0);
-    expect(screen.getByText(/It is no longer in the evaluation queue/)).toBeTruthy();
+    expect(screen.getByText(/It is no longer in the grading queue/)).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Back to the queue" }));
     await screen.findByTestId("queue-page");
   });
 
-  it("E5 sent-back attempt: Re-run AI shows the new proposals over the existing grades; accepting does not release; Release to company hands it back", async () => {
+  it("E5 sent-back attempt: Re-run AI shows the new proposals over the existing grades; accepting does not release; Send to organisation hands it back", async () => {
     const server = makeServer({ initial: "sentBack" });
     await renderPage();
 
     // graded + not released + sent back: Re-run AI is offered, Grade all is not; the grades are the current ones
     expect(screen.queryByRole("button", { name: "Grade all" })).toBeNull();
-    expect(screen.getByText(/Sent back by Acme College for re-evaluation/)).toBeTruthy();
+    expect(screen.getByText(/Sent back by Acme College for re-grading/)).toBeTruthy();
     expect(screen.queryByText("AI Proposal")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Re-run AI" }));
 
@@ -363,18 +363,18 @@ describe("AdminEvaluationDetail", () => {
     fireEvent.click(screen.getByRole("button", { name: "Accept all (1)" }));
     await waitFor(() => expect(calls(`${BASE}/accept`)).toHaveLength(1));
     await waitFor(() => expect(screen.queryByText("AI Proposal")).toBeNull());
-    expect(screen.queryByText(/Released to Acme College/)).toBeNull();
+    expect(screen.queryByText(/Sent to Acme College/)).toBeNull();
     expect(server.released).toBe(false);
 
-    // Release to company (the recovery action), with its confirm
+    // Send to organisation (the recovery action), with its confirm
     const release = await waitFor(() => {
-      const b = screen.getByRole("button", { name: "Release to company" }) as HTMLButtonElement;
+      const b = screen.getByRole("button", { name: "Send to organisation" }) as HTMLButtonElement;
       expect(b.disabled).toBe(false);
       return b;
     });
     fireEvent.click(release);
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Release to company" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send to organisation" }));
     await screen.findByTestId("queue-page");
     expect(calls(`${BASE}/release-to-tenant`)).toHaveLength(1);
     expect(calls(`${BASE}/release-to-tenant`)[0]?.[1]?.method).toBe("POST");

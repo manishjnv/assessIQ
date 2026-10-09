@@ -256,7 +256,7 @@ describe("Score this attempt — click → success", () => {
     fireEvent.click(screen.getByText("Score this attempt"));
 
     await waitFor(() => {
-      expect(screen.getByText("mcq")).toBeDefined();
+      expect(screen.getByText("Multiple choice")).toBeDefined();
     });
   });
 });

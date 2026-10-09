@@ -40,7 +40,7 @@ export function BandPicker({
     <div
       data-test-id={testId}
       role="radiogroup"
-      aria-label="Select reasoning band"
+      aria-label="Select reasoning score band"
       style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}
     >
       {([0, 1, 2, 3, 4] as const).map((band) => {
@@ -81,7 +81,7 @@ export function BandPicker({
                     color: selected ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-primary)",
                   }}
                 >
-                  Band {band}
+                  Score band {band}
                 </span>
                 <span
                   style={{

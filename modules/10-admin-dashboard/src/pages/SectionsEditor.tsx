@@ -112,18 +112,18 @@ export function SectionsEditor({
       }}
     >
       <legend style={{ fontWeight: 500 }}>
-        <HelpTip helpId="admin.assessment.sections"><span>Test sections</span></HelpTip>
+        <HelpTip helpId="admin.assessment.sections"><span>Assessment sections</span></HelpTip>
       </legend>
       <p style={{ margin: "0 0 var(--aiq-space-sm)", color: "var(--aiq-color-fg-muted)" }}>
         Optional. Each section has its own timer and students cannot go back to a finished section.
-        With no sections the test runs as one timed test.
+        With no sections the assessment runs as one timed block.
       </p>
 
       {rows.length > 0 && domains.length > 0 && (
         <label style={{ display: "block", marginBottom: "var(--aiq-space-sm)" }}>
           Categories from{" "}
           <select
-            aria-label="Domain for category choices"
+            aria-label="Subject for category choices"
             style={FIELD}
             value={domainId}
             onChange={(e) => setDomainId(e.target.value)}

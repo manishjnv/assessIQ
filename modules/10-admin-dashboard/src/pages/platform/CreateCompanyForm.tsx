@@ -80,7 +80,7 @@ export function CreateCompanyForm({
 
   const validateClient = (): boolean => {
     const errs: FieldErrors = {};
-    if (!name.trim()) errs.name = "Company name is required.";
+    if (!name.trim()) errs.name = "Organisation name is required.";
     if (!slug.trim()) errs.slug = "Slug is required.";
     else if (!SLUG_RE.test(slug.trim())) errs.slug = "Slug may only contain lowercase letters, digits, and hyphens.";
     if (!adminEmail.trim()) errs.adminEmail = "Admin email is required.";
@@ -172,7 +172,7 @@ export function CreateCompanyForm({
             className="aiq-serif"
             style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
           >
-            {modalState === "mfa" ? "Verify MFA" : "Create company"}
+            {modalState === "mfa" ? "Verify MFA" : "Create organisation"}
           </h2>
           <span style={{ flex: 1 }} />
           <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close">
@@ -195,7 +195,7 @@ export function CreateCompanyForm({
                 lineHeight: 1.5,
               }}
             >
-              Provision a new company tenant and invite its first admin. Platform operators only.
+              Provision a new organisation and invite its first admin. Platform operators only.
             </p>
 
             {toast && (
@@ -217,7 +217,7 @@ export function CreateCompanyForm({
               {/* Company name */}
               <div data-help-id="admin.platform">
                 <Field
-                  label="Company name"
+                  label="Organisation name"
                   placeholder="Acme Corp"
                   value={name}
                   onChange={(e) => handleNameChange(e.target.value)}
@@ -251,7 +251,7 @@ export function CreateCompanyForm({
                 <Field
                   label="First-admin email"
                   type="email"
-                  placeholder="admin@company.com"
+                  placeholder="admin@example.com"
                   value={adminEmail}
                   onChange={(e) => {
                     setAdminEmail(e.target.value);
@@ -288,7 +288,7 @@ export function CreateCompanyForm({
                     <div data-help-id="admin.platform.domain">
                       <Field
                         label="Domain (optional)"
-                        placeholder="company.com"
+                        placeholder="example.com"
                         value={domain}
                         onChange={(e) => setDomain(e.target.value)}
                       />
@@ -316,7 +316,7 @@ export function CreateCompanyForm({
                 loading={loading}
                 disabled={!!toast}
               >
-                Create company
+                Create organisation
               </Button>
             </div>
           </>

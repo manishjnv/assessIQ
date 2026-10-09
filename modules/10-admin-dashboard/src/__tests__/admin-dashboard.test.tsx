@@ -76,7 +76,7 @@ describe("BandPicker", () => {
   it("renders all 5 band options", () => {
     render(<BandPicker value={null} onChange={() => {}} />);
     for (let band = 0; band <= 4; band++) {
-      expect(document.body.textContent).toContain(`Band ${band}`);
+      expect(document.body.textContent).toContain(`Score band ${band}`);
     }
   });
 

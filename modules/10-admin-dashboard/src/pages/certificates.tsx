@@ -18,7 +18,7 @@
 //  - No new npm dependencies — mirrors generation-attempts.tsx in all patterns.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Chip, Drawer, Spinner, ErasedChip } from "@assessiq/ui-system";
+import { Chip, Drawer, Spinner, ErasedChip, formatDate } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -119,13 +119,6 @@ function StatusPill({ status }: { status: CertStatus }): React.ReactElement {
 // Date helper
 // ---------------------------------------------------------------------------
 
-function formatDate(isoStr: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(isoStr));
-}
 
 // ---------------------------------------------------------------------------
 // Main page component
@@ -404,7 +397,7 @@ export function AdminCertificates(): React.ReactElement {
           Certificates.
         </h1>
         <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)", margin: 0 }}>
-          Credentials issued to candidates in this tenant.
+          Credentials issued to candidates in your organisation.
         </p>
       </div>
 
@@ -544,7 +537,7 @@ export function AdminCertificates(): React.ReactElement {
                   "Issued",
                   "Status",
                   "Revoke reason",
-                  ...(isSuperAdmin ? ["Tenant"] : []),
+                  ...(isSuperAdmin ? ["Organisation"] : []),
                   "Actions",
                 ].map((h) => {
                   const key = SORT_KEYS[h];
@@ -1143,7 +1136,7 @@ export function AdminCertificates(): React.ReactElement {
                   marginBottom: "var(--aiq-space-xs)",
                 }}
               >
-                Level
+                Tier
               </span>
               <TierPill tier={selectedCert.tier} />
             </div>

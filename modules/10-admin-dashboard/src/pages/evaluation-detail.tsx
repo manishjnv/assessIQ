@@ -23,7 +23,7 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Chip, Modal, Spinner } from "@assessiq/ui-system";
+import { Chip, Modal, Spinner, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { AttemptGradingPanel } from "../components/AttemptGradingPanel.js";
 import { useMfaGuard } from "../components/useMfaGuard.js";
@@ -57,7 +57,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
   const [showRelease, setShowRelease] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const { guard, stepUp } = useMfaGuard(
-    "Releasing an evaluation needs a fresh authenticator check. Enter your 6-digit code to continue.",
+    "Sending a graded attempt to an organisation needs a fresh authenticator check. Enter your 6-digit code to continue.",
   );
 
   // `silent` reloads keep the page (and the panel's open forms) on screen; only
@@ -72,7 +72,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
       try {
         setDetail(normaliseDetail(await adminApi<AttemptDetailResponse>(`/admin/super/evaluations/${attemptId}`)));
       } catch (err) {
-        setError(apiMessage(err, "Failed to load evaluation."));
+        setError(apiMessage(err, "Failed to load the attempt."));
       } finally {
         if (!silent) setLoading(false);
       }
@@ -117,15 +117,15 @@ export function AdminEvaluationDetail(): React.ReactElement {
   const handle = (attemptId ?? "").slice(0, 8);
   const crumbs = [
     { label: "Platform", href: "/admin/platform" },
-    { label: "Evaluations", href: QUEUE_PATH },
-    handle ? `#${handle}` : "Evaluation",
+    { label: "Grading queue", href: QUEUE_PATH },
+    handle ? `#${handle}` : "Attempt",
   ];
 
   if (loading) {
     return (
       <AdminShell breadcrumbs={crumbs} helpPage="admin.evaluations.detail">
         <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
-          <Spinner aria-label="Loading evaluation" />
+          <Spinner aria-label="Loading attempt" />
         </div>
       </AdminShell>
     );
@@ -141,7 +141,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
 
   const { attempt, frozen_questions } = detail;
   const meta = evaluationMeta(detail);
-  const tenantName = meta.tenant_name ?? "the company";
+  const tenantName = meta.tenant_name ?? "the organisation";
   const complete = attempt.status === "graded";
   const released = !!meta.evaluation_released_at;
   const canRelease = complete && !released;
@@ -150,10 +150,10 @@ export function AdminEvaluationDetail(): React.ReactElement {
   const scoreMax = [...effective.values()].reduce((s, g) => s + Number(g.score_max ?? 0), 0);
 
   const statusChip = released
-    ? { label: "Released to company", variant: "default" as const }
+    ? { label: "Sent to organisation", variant: "default" as const }
     : complete
-      ? { label: "Ready to release", variant: "success" as const }
-      : { label: "Pending evaluation", variant: "accent" as const };
+      ? { label: "Ready to send", variant: "success" as const }
+      : { label: "Pending grading", variant: "accent" as const };
 
   return (
     <AdminShell breadcrumbs={crumbs} helpPage="admin.evaluations.detail">
@@ -176,7 +176,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
               {[
                 meta.tenant_name,
                 attempt.level_label,
-                attempt.submitted_at ? new Date(attempt.submitted_at).toLocaleString() : null,
+                attempt.submitted_at ? formatDateTime(attempt.submitted_at) : null,
                 `#${handle}`,
               ].filter(Boolean).join(" · ")}
             </div>
@@ -199,14 +199,14 @@ export function AdminEvaluationDetail(): React.ReactElement {
               disabled={!canRelease || releasing}
               title={
                 released
-                  ? "Already released to the company."
+                  ? "Already sent to the organisation."
                   : complete
                     ? undefined
-                    : "Every question needs a final grade before this can be released."
+                    : "Every question needs a final grade before this can be sent."
               }
               onClick={() => setShowRelease(true)}
             >
-              {releasing ? "Releasing…" : "Release to company"}
+              {releasing ? "Sending…" : "Send to organisation"}
             </button>
           </div>
         </div>
@@ -233,11 +233,11 @@ export function AdminEvaluationDetail(): React.ReactElement {
             style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", flexWrap: "wrap", padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-success-subtle, #e8f5ec)", border: "1px solid var(--aiq-color-success, #2a8a4a)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}
           >
             <div style={{ flex: 1, minWidth: 220 }}>
-              <div style={{ fontWeight: 500 }}>Released to {tenantName}.</div>
+              <div style={{ fontWeight: 500 }}>Sent to {tenantName}.</div>
               <div style={{ color: "var(--aiq-color-fg-secondary)" }}>
                 {attempt.status === "released"
-                  ? "It has been published to the candidate and is no longer in the evaluation queue."
-                  : `It is no longer in the evaluation queue. ${tenantName} can review and publish it${scoreMax > 0 ? ` (score ${+scoreEarned.toFixed(2)} / ${+scoreMax.toFixed(2)})` : ""}.`}
+                  ? "It has been released to the candidate and is no longer in the grading queue."
+                  : `It is no longer in the grading queue. ${tenantName} can review and release it${scoreMax > 0 ? ` (score ${+scoreEarned.toFixed(2)} / ${+scoreMax.toFixed(2)})` : ""}.`}
               </div>
             </div>
             <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" onClick={() => navigate(QUEUE_PATH)}>
@@ -254,13 +254,13 @@ export function AdminEvaluationDetail(): React.ReactElement {
             role="status"
             style={{ display: "flex", flexDirection: "column", gap: 2, padding: "var(--aiq-space-md) var(--aiq-space-xl)", backgroundColor: "var(--aiq-color-warning-subtle, #fff8e0)", border: "1px solid var(--aiq-color-warning, #b08000)", borderRadius: "var(--aiq-radius-sm, 4px)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}
           >
-            <div style={{ fontWeight: 500 }}>Sent back by {tenantName} for re-evaluation.</div>
+            <div style={{ fontWeight: 500 }}>Sent back by {tenantName} for re-grading.</div>
             {meta.evaluation_note && (
               <div style={{ whiteSpace: "pre-wrap", color: "var(--aiq-color-fg-secondary)" }}>{meta.evaluation_note}</div>
             )}
             {!released && (
               <div style={{ color: "var(--aiq-color-fg-secondary)" }}>
-                Re-run the AI or override the grades, then use Release to company to hand it back.
+                Re-run the AI or override the grades, then use Send to organisation to hand it back.
               </div>
             )}
           </div>
@@ -279,9 +279,9 @@ export function AdminEvaluationDetail(): React.ReactElement {
       {stepUp}
 
       {/* Confirm before handing the evaluation to the company. */}
-      <Modal open={showRelease} onClose={() => setShowRelease(false)} title="Release to company?" width={480}>
+      <Modal open={showRelease} onClose={() => setShowRelease(false)} title="Send to organisation?" width={480}>
         <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", lineHeight: 1.6 }}>
-          {tenantName} will be able to review these scores and publish them to the candidate. They can send the
+          {tenantName} will be able to review these scores and release them to the candidate. They can send the
           attempt back to this queue if something needs another look.
         </p>
         <div style={{ ...MONO_LABEL, display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
@@ -293,7 +293,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
             Cancel
           </button>
           <button type="button" className="aiq-btn aiq-btn-primary" onClick={() => void handleRelease()}>
-            Release to company
+            Send to organisation
           </button>
         </div>
       </Modal>

@@ -29,6 +29,7 @@
 //    override wins), so an override is visible after it is saved.
 //  - Fresh-MFA failures open the shared MfaStepUp and retry (useMfaGuard).
 
+import { questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useMemo, useState } from "react";
 import { Spinner } from "@assessiq/ui-system";
 import { GradingProposalCard } from "./GradingProposalCard.js";
@@ -514,7 +515,7 @@ function ReleaseNotice({ tenantName, action }: { tenantName: string; action: str
         color: "var(--aiq-color-fg-secondary)",
       }}
     >
-      {action} releases this result to {tenantName}. If {tenantName} publishes automatically, the student gets it within a minute.
+      {action} sends this result to {tenantName}. If {tenantName} releases results automatically, the candidate gets it within a minute.
     </p>
   );
 }
@@ -662,7 +663,7 @@ export function AttemptGradingPanel({
 
   // Evaluation hand-over state (evaluate mode). The company's name is only used for wording.
   const meta = evaluationMeta(detail);
-  const tenantName = meta.tenant_name ?? "the company";
+  const tenantName = meta.tenant_name ?? "the organisation";
   // Sent back by the company, re-evaluated by AssessIQ: graded, not with the company, send-back
   // marker set. Only here does the panel offer the attempt-level "Re-run AI" (Grade all is
   // refused by the server for a graded attempt) and show re-run proposals over existing grades.
@@ -815,13 +816,13 @@ export function AttemptGradingPanel({
         // Tenant override races: the result was sent back, or already published.
         if (isErrorCode(err, "EVALUATION_NOT_RELEASED")) {
           setOverrideForm(EMPTY_OVERRIDE);
-          onError("This result can't be changed right now — the evaluation hasn't been released to you, or it was sent back.");
+          onError("This result can't be changed right now — this result has not been sent to your organisation yet, or it was sent back.");
           await reload();
           return;
         }
         if (isErrorCode(err, "RESULT_ALREADY_PUBLISHED")) {
           setOverrideForm(EMPTY_OVERRIDE);
-          onError("This result has already been published to the candidate and can no longer be changed.");
+          onError("This result has already been released to the candidate and can no longer be changed.");
           await reload();
           return;
         }
@@ -1047,7 +1048,7 @@ export function AttemptGradingPanel({
             {/* Header: question index + type + points + status pill */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
               <div style={MONO_LABEL}>
-                Q{idx + 1} · {q.type} · {q.points} pts
+                Q{idx + 1} · {questionTypeLabel(q.type)} · {q.points} pts
               </div>
               <span style={{ ...PILL, border: `1px solid ${stFg}`, backgroundColor: stBg, color: stFg }}>{stLabel}</span>
             </div>
@@ -1098,7 +1099,7 @@ export function AttemptGradingPanel({
             </AuditZone>
 
             {/* ZONE 4 — Evaluation (grade, anchor evidence, justification, controls) */}
-            <AuditZone label="Evaluation" icon="✓" accent="var(--aiq-color-accent, #3177dc)">
+            <AuditZone label="Grading" icon="✓" accent="var(--aiq-color-accent, #3177dc)">
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
                 {existing && (
                   <ScoreDetail

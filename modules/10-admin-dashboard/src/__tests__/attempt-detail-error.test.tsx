@@ -7,7 +7,7 @@
 //   - Clicking Dismiss clears the banner without reloading.
 //
 // 2026-10-01 (scoring / result-release): tenants no longer have a Grade all
-// button, so the failing action is now "Publish to candidate" on a
+// button, so the failing action is now "Release to candidate" on a
 // ready_to_publish attempt (the publish POST is what rejects).
 
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
@@ -109,9 +109,9 @@ function failure(): Error {
 
 /** Opens the publish summary and confirms — the POST that follows is the failing call. */
 async function confirmPublish(): Promise<void> {
-  fireEvent.click(screen.getByRole("button", { name: "Publish to candidate" }));
+  fireEvent.click(screen.getByRole("button", { name: "Release to candidate" }));
   const dialog = await screen.findByRole("dialog");
-  fireEvent.click(within(dialog).getByRole("button", { name: "Publish to candidate" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Release to candidate" }));
 }
 
 async function renderLoaded(): Promise<void> {

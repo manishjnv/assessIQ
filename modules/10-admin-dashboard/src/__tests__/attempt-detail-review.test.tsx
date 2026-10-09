@@ -3,7 +3,7 @@
 //
 // Tenants no longer grade: AssessIQ evaluates, the company reviews and publishes.
 //
-//   T1  awaiting_evaluation → "Awaiting AssessIQ evaluation" banner, no grades,
+//   T1  awaiting_evaluation → "Awaiting AssessIQ grading" banner, no grades,
 //       no publish / send-back / override, and never a Grade all / Accept all
 //   T2  ready_to_publish → final grades, Override / Send back / Publish all
 //       there; Send back and Publish hit the right endpoints
@@ -138,11 +138,11 @@ describe("AdminAttemptDetail — tenant review", () => {
     mockApi("awaiting_evaluation");
     await renderPage();
 
-    expect(screen.getByText("Awaiting AssessIQ evaluation.")).toBeTruthy();
-    expect(screen.getByText("Awaiting evaluation")).toBeTruthy(); // status chip
+    expect(screen.getByText("Awaiting AssessIQ grading.")).toBeTruthy();
+    expect(screen.getByText("Awaiting grading")).toBeTruthy(); // status chip
 
     const names = buttonNames();
-    for (const gone of ["Grade all", "Accept all", "Re-run", "Publish to candidate", "Send back for re-evaluation", "Override grade", "Score manually"]) {
+    for (const gone of ["Grade all", "Accept all", "Re-run", "Release to candidate", "Send back for re-grading", "Override grade", "Score manually"]) {
       expect(names.some((n) => n.startsWith(gone)), gone).toBe(false);
     }
     expect(screen.queryByText("Final grade")).toBeNull();
@@ -157,7 +157,7 @@ describe("AdminAttemptDetail — tenant review", () => {
     });
     await renderPage();
 
-    expect(screen.getByText("Ready to publish")).toBeTruthy(); // status chip
+    expect(screen.getByText("Ready to release")).toBeTruthy(); // status chip
     expect(screen.getByText("Final grade")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Override grade" })).toBeTruthy();
     const names = buttonNames();
@@ -165,8 +165,8 @@ describe("AdminAttemptDetail — tenant review", () => {
       expect(names.some((n) => n.startsWith(gone)), gone).toBe(false);
     }
 
-    // Send back for re-evaluation — a note is required.
-    fireEvent.click(screen.getByRole("button", { name: "Send back for re-evaluation" }));
+    // Send back for re-grading — a note is required.
+    fireEvent.click(screen.getByRole("button", { name: "Send back for re-grading" }));
     const send = screen.getByRole("button", { name: "Send back" }) as HTMLButtonElement;
     expect(send.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText(/Note \(required\)/), { target: { value: "Q1 looks too low." } });
@@ -176,10 +176,10 @@ describe("AdminAttemptDetail — tenant review", () => {
     expect(calls(`${GET_PATH}/send-back`)[0]?.[1]?.method).toBe("POST");
     expect(JSON.parse(String(calls(`${GET_PATH}/send-back`)[0]?.[1]?.body))).toEqual({ note: "Q1 looks too low." });
 
-    // Publish to candidate — summary modal first, then POST /release.
-    fireEvent.click(screen.getByRole("button", { name: "Publish to candidate" }));
+    // Release to candidate — summary modal first, then POST /release.
+    fireEvent.click(screen.getByRole("button", { name: "Release to candidate" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Publish to candidate" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Release to candidate" }));
     await waitFor(() => expect(calls(`${GET_PATH}/release`)).toHaveLength(1));
     expect(calls(`${GET_PATH}/release`)[0]?.[1]?.method).toBe("POST");
   });
@@ -194,7 +194,7 @@ describe("AdminAttemptDetail — tenant review", () => {
     await renderPage();
 
     fireEvent.click(screen.getByRole("button", { name: "Override grade" }));
-    fireEvent.click(screen.getByRole("radio", { name: /Band 4/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Score band 4/ }));
     fireEvent.change(screen.getByLabelText(/Override reason \(required\)/), { target: { value: "Fully correct." } });
     fireEvent.click(screen.getByRole("button", { name: "Submit override" }));
 
@@ -209,10 +209,10 @@ describe("AdminAttemptDetail — tenant review", () => {
     mockApi("published");
     await renderPage();
 
-    expect(screen.getByText("Published")).toBeTruthy(); // status chip
+    expect(screen.getByText("Released")).toBeTruthy(); // status chip
     expect(screen.getByText(/can no longer be changed/)).toBeTruthy();
     const names = buttonNames();
-    for (const gone of ["Publish to candidate", "Send back for re-evaluation", "Override grade", "Grade all"]) {
+    for (const gone of ["Release to candidate", "Send back for re-grading", "Override grade", "Grade all"]) {
       expect(names.some((n) => n.startsWith(gone)), gone).toBe(false);
     }
   });

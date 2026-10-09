@@ -43,7 +43,7 @@ describe("AttemptIntegrityCard (FU-C8)", () => {
     mock({ archetype_signals: signals });
     const { container } = render(<AttemptIntegrityCard attemptId="a1" />);
     expect(await screen.findByText("Behaviour and integrity")).toBeTruthy();
-    expect(screen.getByText("Left the test tab").nextSibling?.textContent).toBe("2");
+    expect(screen.getByText("Left the assessment tab").nextSibling?.textContent).toBe("2");
     await waitFor(() => expect(container.querySelector('[data-test-id="attempt-behaviour-radar"]')).not.toBeNull());
     expect(screen.getByText(/not a score/i)).toBeTruthy();
     expect(screen.queryByText(/cheat/i)).toBeNull();

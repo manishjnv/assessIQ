@@ -25,9 +25,10 @@
 //   - No claude/anthropic imports or user-facing references.
 //   - No new @assessiq/ui-system primitives — uses existing Card, Chip, Icon.
 
+import { planTierLabel } from "../lib/labels.js";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Chip, Icon } from "@assessiq/ui-system";
+import { Card, Chip, Icon, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { useAdminSession } from "../session.js";
@@ -208,7 +209,7 @@ export function AdminBilling(): React.ReactElement {
                   }}
                 >
                   <p style={{ ...BODY_SM, margin: 0 }}>
-                    Switch this tenant to{" "}
+                    Switch this organisation to{" "}
                     <strong>{selectedMode === null ? "global default" : selectedMode}</strong>?
                     This change is audit-logged and takes effect on the next generation request.
                   </p>
@@ -308,7 +309,7 @@ export function AdminBilling(): React.ReactElement {
                   <div>
                     <p style={MUTED_SM}>Plan tier</p>
                     <p style={{ ...BODY_SM, fontWeight: 600, textTransform: "capitalize" }}>
-                      {companyUsage.tier}
+                      {planTierLabel(companyUsage.tier)}
                     </p>
                   </div>
                   <div>
@@ -342,7 +343,7 @@ export function AdminBilling(): React.ReactElement {
                   {/* FU-A9: second meter — AI-evaluated answers in the current month */}
                   {companyUsage.ai_answers_used !== undefined && (
                     <div data-help-id="admin.settings.billing.ai_answers">
-                      <p style={MUTED_SM}>AI-evaluated answers</p>
+                      <p style={MUTED_SM}>AI-graded answers</p>
                       <p style={{ ...BODY_SM, fontWeight: 600 }}>
                         {companyUsage.ai_answers_used} used
                         {" / "}
@@ -356,7 +357,7 @@ export function AdminBilling(): React.ReactElement {
                     <div>
                       <p style={MUTED_SM}>Counting since</p>
                       <p style={{ ...BODY_SM, fontWeight: 600 }}>
-                        {new Date(companyUsage.cycle_window_start).toLocaleDateString()}
+                        {formatDate(companyUsage.cycle_window_start)}
                       </p>
                     </div>
                   )}
@@ -375,13 +376,13 @@ export function AdminBilling(): React.ReactElement {
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-xl)" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
               <Icon name="sparkle" size={18} color="var(--aiq-color-accent)" />
-              <h2 style={SERIF_H2}>How evaluation and usage work</h2>
+              <h2 style={SERIF_H2}>How grading and usage work</h2>
             </div>
             <ul style={{ ...BODY, paddingLeft: "var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
-              <li>AssessIQ evaluates written answers. You do not start evaluation yourself.</li>
+              <li>AssessIQ grades written answers. You do not start grading yourself.</li>
               <li>Questions with a fixed answer are scored automatically when a candidate submits.</li>
               <li>Usage is counted in credits under your plan tier. See <strong>Your plan &amp; usage</strong> above.</li>
-              <li>No limit blocks you from inviting candidates or publishing results.</li>
+              <li>No limit blocks you from inviting candidates or releasing results.</li>
             </ul>
           </div>
         </Card>
@@ -413,7 +414,7 @@ export function AdminBilling(): React.ReactElement {
           >
             Help guide
           </button>
-          {" "}for how evaluation fits into the full assessment flow.
+          {" "}for how grading fits into the full assessment flow.
         </p>
 
         {/* ── DPDP Data Retention (embedded from tenant-settings.tsx) ──────

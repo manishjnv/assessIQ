@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 const FIELDS: [string, string][] = [
   ['Credential ID', 'SAMPLE-0000-0000'],
   ['Name', 'Sample Candidate'],
-  ['Course', 'AssessIQ Sample Test'],
+  ['Course', 'AssessIQ Sample Assessment'],
   ['Issued by', 'AssessIQ (demo)'],
   ['Level', 'Demo'],
   ['Issued', 'Not issued: sample only'],
@@ -131,7 +131,7 @@ export function TryCertificatePage(): React.JSX.Element {
         ))}
         <p style={{ margin: '1.5rem 0 0', fontSize: '.9rem' }}>
           <Link to="/try" style={{ color: '#2f5fc4', fontWeight: 600 }}>
-            Back to the sample test
+            Back to the sample assessment
           </Link>
         </p>
       </div>

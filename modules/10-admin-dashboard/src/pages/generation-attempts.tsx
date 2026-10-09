@@ -12,14 +12,15 @@
 //
 // INVARIANTS:
 //  - Read-only. No mutations on generation_attempts.
-//  - No new dependency — uses Intl.DateTimeFormat / Intl.RelativeTimeFormat
+//  - No new dependency — uses ui-system format helpers
 //    (same pattern as pack-detail.tsx).
 //  - Filter state is client-side React state; no URL params, no localStorage.
 //  - stderr_tail rendered in <pre> with max-height + overflow-auto.
 //  - No claude/anthropic imports or copy.
 
+import { generationStatusLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
-import { Chip, Spinner } from "@assessiq/ui-system";
+import { Chip, Spinner, formatRelative, formatDateTime } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, scoreGenerationAttempt } from "../api.js";
@@ -79,22 +80,7 @@ interface PacksResponse {
 // ---------------------------------------------------------------------------
 
 function attemptDate(isoStr: string): string {
-  const diff = Date.now() - new Date(isoStr).getTime();
-  const hours = Math.floor(diff / 3_600_000);
-  if (hours < 24) {
-    const minutes = Math.floor(diff / 60_000);
-    const rtf = new Intl.RelativeTimeFormat("en", { numeric: "always" });
-    if (minutes < 1) return "just now";
-    if (hours < 1) return rtf.format(-minutes, "minute");
-    return rtf.format(-hours, "hour");
-  }
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(isoStr));
+  return Date.now() - new Date(isoStr).getTime() < 30 * 60_000 ? formatRelative(isoStr) : formatDateTime(isoStr);
 }
 
 function formatDuration(ms: number): string {
@@ -116,7 +102,8 @@ const STATUS_COLORS: Record<GenerationAttemptStatus, { bg: string; fg: string; l
 };
 
 function StatusPill({ status }: { status: GenerationAttemptStatus }): React.ReactElement {
-  const { bg, fg, label } = STATUS_COLORS[status] ?? STATUS_COLORS.failed;
+  const { bg, fg } = STATUS_COLORS[status] ?? STATUS_COLORS.failed;
+  const label = generationStatusLabel(status);
   return (
     <span
       style={{
@@ -260,7 +247,7 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
           <tbody>
             {rows.map((row) => (
               <tr key={row.type}>
-                <td style={tdStyle}>{row.type}</td>
+                <td style={tdStyle}>{questionTypeLabel(row.type)}</td>
                 <td style={{ ...tdStyle, textAlign: "center" }}>{row.total}</td>
                 <td style={{ ...tdStyle, textAlign: "center", color: row.failed > 0 ? "var(--aiq-color-fg-secondary)" : "var(--aiq-color-success)" }}>
                   {row.passed}
@@ -375,7 +362,7 @@ function AttemptDetails({ attempt, packName, levelLabel, scoreResult, scoreLoadi
         <dt style={{ color: "var(--aiq-color-fg-muted)" }}>Attempt ID</dt>
         <dd style={{ margin: 0, color: "var(--aiq-color-fg-secondary)" }}>{attempt.id}</dd>
 
-        <dt style={{ color: "var(--aiq-color-fg-muted)" }}>Pack / Level</dt>
+        <dt style={{ color: "var(--aiq-color-fg-muted)" }}>Question set / difficulty</dt>
         <dd style={{ margin: 0, color: "var(--aiq-color-fg-secondary)" }}>
           {packName} / {levelLabel}
         </dd>
@@ -659,9 +646,9 @@ export function AdminGenerationAttempts(): React.ReactElement {
 
   const levelLabelById = (packId: string, levelId: string): string => {
     const pack = packById(packId);
-    if (!pack?.levels) return levelId.slice(0, 8);
+    if (!pack?.levels) return "Unknown difficulty";
     const level = pack.levels.find((l) => l.id === levelId);
-    return level?.label ?? levelId.slice(0, 8);
+    return level?.label ?? "Unknown difficulty";
   };
 
   const fetchAttempts = useCallback(
@@ -788,7 +775,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
                 style={chipStyle(statusFilter === s, color)}
                 onClick={() => setStatusFilter(s)}
               >
-                {s === "all" ? "All" : STATUS_COLORS[s as GenerationAttemptStatus].label}
+                {s === "all" ? "All" : generationStatusLabel(s)}
               </button>
             );
           })}
@@ -801,7 +788,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
               htmlFor="pack-picker"
               style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}
             >
-              Pack:
+              Question set:
             </label>
             <select
               id="pack-picker"
@@ -817,7 +804,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
                 color: "var(--aiq-color-fg-primary)",
               }}
             >
-              <option value="all">All packs</option>
+              <option value="all">All question sets</option>
               {packs.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -882,7 +869,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
               >
                 {(() => {
                   const SORT_KEYS: Record<string, string> = { "Started": "started_at", "Status": "status", "Duration": "duration_ms", "Model": "model" };
-                  return ["Started", "Pack / Level", "Status", "Counts", "Duration", "Model", "Chunks", ""].map((h) => {
+                  return ["Started", "Question set / difficulty", "Status", "Counts", "Duration", "Model", "Chunks", ""].map((h) => {
                     const key = SORT_KEYS[h];
                     if (key !== undefined) {
                       return (
@@ -990,7 +977,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
                     const attempt = group.members[0]!;
                     const isExpanded = expandedId === attempt.id;
                     const pack = packById(attempt.pack_id);
-                    const packName = pack?.name ?? attempt.pack_id.slice(0, 8);
+                    const packName = pack?.name ?? "Unknown question set";
                     const levelLabel = attempt.level_label ?? levelLabelById(attempt.pack_id, attempt.level_id);
 
                     const hasChunks = attempt.chunks_planned != null && attempt.chunks_planned > 0;
@@ -1091,7 +1078,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
                   const isGroupExpanded = expandedGroupId === batchId;
                   const first = members[0]!;
                   const pack = packById(first.pack_id);
-                  const packName = pack?.name ?? first.pack_id.slice(0, 8);
+                  const packName = pack?.name ?? "Unknown question set";
                   const levelLabel = first.level_label ?? levelLabelById(first.pack_id, first.level_id);
 
                   // Rollup values

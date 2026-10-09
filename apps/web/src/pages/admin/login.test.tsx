@@ -32,7 +32,7 @@ describe('AdminLogin — Phase D revocation banner', () => {
     sessionStorage.setItem('aiq.lastAuthScope', JSON.stringify({ scope: 'tenant' }));
     render(<AdminLogin />);
     expect(screen.getByText("Your organisation's access is paused.")).toBeTruthy();
-    expect(screen.getByText(/suspended or archived your company workspace/i)).toBeTruthy();
+    expect(screen.getByText(/suspended or archived your organisation/i)).toBeTruthy();
   });
 
   it('renders the user-disable banner when scope=user', () => {

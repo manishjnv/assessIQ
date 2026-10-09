@@ -60,7 +60,7 @@ export function IntegrityCard({
     >
       <HelpTip helpId="admin.assessment.integrity.edit">
         <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: 0 }}>
-          Test integrity
+          Assessment integrity
         </h2>
       </HelpTip>
       <label style={row}>

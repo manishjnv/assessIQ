@@ -40,9 +40,10 @@
 //
 // 4. Mono pager idiom (prev / "X / Y" / next with ghost buttons + arrow icons).
 
+import { roleLabel } from "../lib/labels.js";
 import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
+import { Button, Card, Chip, Field, Spinner, formatDate } from "@assessiq/ui-system";
 import type { ChipVariant } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import {
@@ -293,7 +294,7 @@ function InviteForm({
           <Field
             label="Email address"
             type="email"
-            placeholder="name@company.com"
+            placeholder="name@example.com"
             value={email}
             onChange={(e) => { setEmail(e.target.value); setError(null); }}
           />
@@ -776,7 +777,7 @@ function UserManageMenu({
             () =>
               onAction(
                 "disable",
-                `⚠ This will disable the last active admin of this tenant. The tenant will have no remaining active admin. Are you sure?`,
+                `⚠ This will disable the last active admin of this organisation. The organisation will have no remaining active admin. Are you sure?`,
               ),
             true,
           ),
@@ -1104,8 +1105,6 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
 
   const totalPages = Math.ceil(resolvedTotal / PAGE_SIZE);
 
-  const formatDate = (iso: string): string =>
-    new Date(iso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 
   // Resolve the current user's ID from session for self-disable guard
   // We don't have a session hook here; super-admin context leaves it undefined
@@ -1182,7 +1181,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
       let displayMessage = message;
       if (code === "CANNOT_DISABLE_SELF") displayMessage = "You cannot disable your own account.";
       else if (code === "CANNOT_DELETE_SELF") displayMessage = "You cannot remove your own account.";
-      else if (code === "LAST_ADMIN") displayMessage = "Cannot disable the last active admin of this tenant.";
+      else if (code === "LAST_ADMIN") displayMessage = "Cannot disable the last active admin of this organisation.";
       else if (code === "INVITATION_ALREADY_ACCEPTED") displayMessage = "This invitation has already been accepted.";
       else if (code === "INVITATION_NOT_FOUND") displayMessage = "Invitation not found — it may have already been cancelled.";
       else if (code === "ERASE_NOT_CANDIDATE") displayMessage = "Only candidate accounts can be erased.";
@@ -1261,7 +1260,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
               lineHeight: 1.5,
             }}
           >
-            This tenant is <strong>{superContext?.tenantStatus}</strong>. User management is read-only.
+            This organisation is <strong>{superContext?.tenantStatus}</strong>. User management is read-only.
           </div>
         )}
 
@@ -1291,7 +1290,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                 lineHeight: 1.5,
               }}
             >
-              Admins manage the tenant and review results. Candidates take assessments.
+              Admins manage the organisation and review results. Candidates take assessments.
             </p>
           </div>
           <span style={{ flex: 1 }} />
@@ -1529,7 +1528,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                         color: "var(--aiq-color-fg-secondary)",
                       }}
                     >
-                      {u.role}
+                      {roleLabel(u.role)}
                     </span>
                     <span>
                       <Chip variant={statusChipVariant}>{statusLabel}</Chip>
@@ -1611,7 +1610,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                       color: "var(--aiq-color-fg-secondary)",
                     }}
                   >
-                    {inv.role}
+                    {roleLabel(inv.role)}
                   </span>
                   <span>
                     <Chip variant="accent" leftIcon="clock">Invite pending</Chip>

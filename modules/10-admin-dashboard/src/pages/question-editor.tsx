@@ -11,6 +11,7 @@
 //  - Question content shown as plain text only.
 //  - Rubric changes never auto-save — explicit "Save rubric" button only.
 
+import { questionStatusLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Chip, Spinner } from "@assessiq/ui-system";
@@ -90,7 +91,7 @@ function rubricToRubricDraft(rubric: unknown): RubricDraft {
   const rb = (r.reasoning_bands && typeof r.reasoning_bands === "object") ? r.reasoning_bands as Record<string, string> : {};
   const bands: BandDraft[] = [4, 3, 2, 1, 0].map((band) => ({
     band,
-    label: `Band ${band}`,
+    label: `Score band ${band}`,
     description: typeof rb[`band_${band}`] === "string" ? rb[`band_${band}`] as string : "",
   }));
   return { anchors, bands };
@@ -207,10 +208,10 @@ function ReadOnlyRubric({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }}>
       <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-        Anchor {anchorTotal} + Reasoning {reasoningWeight} = {anchorTotal + reasoningWeight}/100
+        Key points {anchorTotal} + Reasoning {reasoningWeight} = {anchorTotal + reasoningWeight}/100
       </span>
       <div>
-        <div style={labelStyle}>Anchors</div>
+        <div style={labelStyle}>Key points</div>
         {rubricDraft.anchors.length === 0 ? (
           <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>None.</p>
         ) : (
@@ -230,11 +231,11 @@ function ReadOnlyRubric({
         )}
       </div>
       <div>
-        <div style={labelStyle}>Reasoning bands</div>
+        <div style={labelStyle}>Reasoning score bands</div>
         <ul style={listStyle}>
           {rubricDraft.bands.map((b) => (
             <li key={b.band} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
-              <strong>Band {b.band}:</strong> {b.description || "—"}
+              <strong>Score band {b.band}:</strong> {b.description || "—"}
             </li>
           ))}
         </ul>
@@ -339,7 +340,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
   }
 
   return (
-    <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "New question"]} helpPage="admin.question.editor">
+    <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "New question"]} helpPage="admin.question.editor">
       <form onSubmit={(e) => void handleSubmit(e)} style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)", maxWidth: 640 }}>
         <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
           New question.</h1>
@@ -359,7 +360,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
             onChange={(e) => handleTypeChange(e.target.value as QuestionType)}
           >
             {QUESTION_TYPES.map((t) => (
-              <option key={t} value={t}>{TYPE_LABELS[t] ?? t}</option>
+              <option key={t} value={t}>{TYPE_LABELS[t] ?? questionTypeLabel(t)}</option>
             ))}
           </select>
         </div>
@@ -502,9 +503,9 @@ export function AdminQuestionEditor(): React.ReactElement {
   if (id === "new") {
     if (!isSuperAdmin) {
       return (
-        <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "New question"]} helpPage="admin.question.editor">
+        <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "New question"]} helpPage="admin.question.editor">
           <div style={{ color: "var(--aiq-color-fg-muted)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", padding: "var(--aiq-space-xl) 0" }}>
-            Question authoring is managed by the platform team. You have view-only access to this pack.
+            Question authoring is managed by the platform team. You have view-only access to this question set.
           </div>
         </AdminShell>
       );
@@ -692,7 +693,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
 
   if (loading) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
+      <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
         <div style={{ padding: "var(--aiq-space-3xl)", display: "flex", justifyContent: "center" }}>
           <Spinner aria-label="Loading question" />
         </div>
@@ -702,7 +703,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
 
   if (error && !question) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
+      <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>{error ?? "Not found."}</div>
       </AdminShell>
     );
@@ -710,7 +711,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
 
   if (!question) {
     return (
-      <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
+      <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "Editor"]} helpPage="admin.question.editor">
         <div style={{ color: "var(--aiq-color-danger)", padding: "var(--aiq-space-xl)" }}>Not found.</div>
       </AdminShell>
     );
@@ -729,7 +730,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
   const weightOk = combinedTotal === 100;
 
   return (
-    <AdminShell breadcrumbs={[{ label: "Question Bank", href: "/admin/question-bank" }, question.id.slice(0, 8)]} helpPage="admin.question.editor">
+    <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "Question"]} helpPage="admin.question.editor">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Header row: title + status badge + back button */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--aiq-space-md)" }}>
@@ -755,7 +756,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
                   flexShrink: 0,
                 }}
               >
-                {question.status}
+                {questionStatusLabel(question.status)}
               </span>
             </div>
             <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
@@ -774,7 +775,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
             onClick={() => navigate(-1)}
             style={{ flexShrink: 0 }}
           >
-            ← Back to pack
+            ← Back to question set
           </button>
         </div>
 
@@ -918,7 +919,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
                   {question.type === "log_analysis" && (
                     <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
                       log_analysis questions auto-synthesize a rubric at grade time from expected_findings.
-                      Generate a draft here and click <strong>Save rubric</strong> only if you want to override the auto-synth with a curated anchor list.
+                      Generate a draft here and click <strong>Save rubric</strong> only if you want to override the auto-synth with a curated key-point list.
                     </p>
                   )}
                   <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
@@ -927,7 +928,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
                       onClick={() => void handleGenerate()}
                       disabled={generating}
                     >
-                      Auto-generate from level
+                      Auto-generate from difficulty
                     </button>
                     <button
                       className="aiq-btn aiq-btn-ghost"
@@ -982,7 +983,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
                     color: weightOk ? "var(--aiq-color-success, #065f46)" : "var(--aiq-color-warning, #92400e)",
                   }}
                 >
-                  Anchor {anchorWeightTotal} + Reasoning {reasoningWeight} = {combinedTotal}/100
+                  Key points {anchorWeightTotal} + Reasoning {reasoningWeight} = {combinedTotal}/100
                   {!weightOk && " ⚠ must equal 100"}
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
@@ -1027,7 +1028,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
           {/* Non-rubric question types */}
           {!supportsRubric && (
             <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", color: "var(--aiq-color-fg-muted)" }}>
-              Rubric not applicable for question type &ldquo;{question.type}&rdquo;.
+              Rubric not applicable for question type &ldquo;{questionTypeLabel(question.type)}&rdquo;.
             </p>
           )}
           </>

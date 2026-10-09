@@ -42,7 +42,7 @@ const STATUS_TABS: { label: string; value: string }[] = [
   { label: "All", value: "" },
   { label: "Submitted", value: "submitted" },
   // RV58: same set the evaluation queue uses ('pending_admin_grading' is no longer written).
-  { label: "Awaiting evaluation", value: "submitted,auto_submitted,pending_admin_grading" },
+  { label: "Awaiting grading", value: "submitted,auto_submitted,pending_admin_grading" },
   { label: "Graded", value: "graded" },
   { label: "Released", value: "released" },
 ];
@@ -124,13 +124,13 @@ export function AdminAttempts(): React.ReactElement {
       ),
     },
     { key: "assessment_name", label: "Assessment", sortable: true },
-    { key: "level_label", label: "Level", sortable: true },
+    { key: "level_label", label: "Difficulty", sortable: true },
     {
       key: "status",
       label: "Status",
       sortable: true,
       render: (row: AttemptListItem) => {
-        // Result state ("Awaiting evaluation" / "Ready to publish" / "Published")
+        // Result state ("Awaiting grading" / "Ready to publish" / "Published")
         // when the API supplies it; otherwise the raw attempt-status label.
         const s = row.evaluation_status
           ? evaluationStatusDisplay(row.evaluation_status)
@@ -178,7 +178,7 @@ export function AdminAttempts(): React.ReactElement {
             Attempts.
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
-            All candidate submissions across every active assessment cycle.
+            All candidate attempts across every active assessment cycle.
           </p>
         </div>
 
@@ -266,8 +266,8 @@ export function AdminAttempts(): React.ReactElement {
                   }}
                 >
                   {statusFilter
-                    ? "Try a different filter, or wait for new submissions."
-                    : "Candidate submissions will appear here as they come in."}
+                    ? "Try a different filter, or wait for new attempts."
+                    : "Candidate attempts will appear here as they come in."}
                 </p>
               </div>
             ) : (

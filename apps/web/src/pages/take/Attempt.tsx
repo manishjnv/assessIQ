@@ -942,7 +942,7 @@ export function AttemptPage(): React.JSX.Element {
       } catch (err) {
         setFinishError(
           err instanceof CandidateApiError
-            ? err.apiError?.message ?? `HTTP ${err.status}`
+            ? err.apiError?.message ?? "Something went wrong. Please try again."
             : 'Could not finish the section. Please try again.',
         );
       } finally {
@@ -973,7 +973,7 @@ export function AttemptPage(): React.JSX.Element {
       setSubmitting(false);
       const msg =
         err instanceof CandidateApiError
-          ? err.apiError?.message ?? `HTTP ${err.status}`
+          ? err.apiError?.message ?? "Something went wrong. Please try again."
           : err instanceof Error
             ? err.message
             : 'Unknown error. Please try again.';
@@ -1351,7 +1351,7 @@ export function AttemptPage(): React.JSX.Element {
             <div style={{ marginBottom: 'var(--aiq-space-md)' }}>
               <IntegrityBanner
                 kind="tab_was_blurred"
-                message={`You left the test window ${integrity.leaveCount} time${integrity.leaveCount === 1 ? '' : 's'}. This is recorded and shared with the organiser.`}
+                message={`You left the assessment window ${integrity.leaveCount} time${integrity.leaveCount === 1 ? '' : 's'}. This is recorded and shared with your organisation.`}
                 onDismiss={integrity.dismissLeaveWarning}
               />
             </div>
@@ -1366,7 +1366,7 @@ export function AttemptPage(): React.JSX.Element {
                 color: 'var(--aiq-color-fg-secondary)',
               }}
             >
-              Copy and paste are turned off for this test.
+              Copy and paste are turned off for this assessment.
             </div>
           )}
 
@@ -1601,7 +1601,7 @@ export function AttemptPage(): React.JSX.Element {
         onClose={() => {
           if (!submitting) setConfirmOpen(false);
         }}
-        title="Submit your test?"
+        title="Submit your assessment?"
       >
         <div style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
           {sectionLines.length === 0 ? (
@@ -1645,7 +1645,7 @@ export function AttemptPage(): React.JSX.Element {
             Go back
           </Button>
           <Button variant="primary" disabled={submitting} onClick={() => void handleSubmit()}>
-            {submitting ? 'Submitting…' : 'Submit test'}
+            {submitting ? 'Submitting…' : 'Submit assessment'}
           </Button>
         </div>
       </Modal>

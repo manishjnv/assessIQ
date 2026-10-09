@@ -56,7 +56,7 @@ describe("SectionsCard", () => {
     render(<SectionsCard assessmentId="a1" settings={settings} hasAttempts={false} isDraft onSaved={onSaved} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit sections" }));
     fireEvent.click(screen.getByRole("button", { name: "Save sections" }));
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("after students have started"));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("after candidates have started"));
     expect(adminApi.mock.calls[0]).toEqual(["/admin/assessments/a1"]);
     const [path, init] = adminApi.mock.calls[1] as [string, { method: string; body: string }];
     expect(path).toBe("/admin/assessments/a1");

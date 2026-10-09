@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { Button, Chip } from '@assessiq/ui-system';
+import { AFTER_SUBMIT_TEXT } from '@assessiq/candidate-ui';
 import { McqAnswerArea } from './McqAnswerArea.js';
 
 const SECTION: CSSProperties = {
@@ -218,7 +219,7 @@ export function PracticeQuestion(): React.JSX.Element {
       <p style={{ margin: '10px 0 0', fontSize: 12, color: 'var(--aiq-color-fg-muted)' }}>
         {answer === null
           ? 'Pick an option to see how answering works. Nothing here is saved.'
-          : 'That is all it takes. In the real test your choice saves automatically.'}
+          : 'That is all it takes. In the real assessment your choice saves automatically.'}
       </p>
     </section>
   );
@@ -259,7 +260,7 @@ export function ConsentBlock({
           style={{ marginTop: 3, flexShrink: 0 }}
         />
         <span>
-          I confirm I am {name}, I will take this test on my own, and I agree to the{' '}
+          I confirm I am {name}, I will take this assessment on my own, and I agree to the{' '}
           <a href="/terms" target="_blank" rel="noopener noreferrer" style={link}>
             Terms
           </a>{' '}
@@ -267,12 +268,12 @@ export function ConsentBlock({
           <a href="/privacy" target="_blank" rel="noopener noreferrer" style={link}>
             Privacy Policy
           </a>
-          . Results may be shared with {company || 'the company that invited me'}.
+          . Results may be shared with {company || 'the organisation that invited me'}.
         </span>
       </label>
       <p style={{ margin: '8px 0 0 26px', fontSize: 12, lineHeight: 1.5, color: 'var(--aiq-color-fg-muted)' }}>
-        Multiple-choice answers are scored automatically. Written answers are evaluated by
-        AssessIQ evaluators with AI assistance before your organisation releases results.
+        Written answers are graded with AI assistance and checked by your organisation.{' '}
+        {AFTER_SUBMIT_TEXT}
       </p>
     </section>
   );

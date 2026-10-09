@@ -20,9 +20,10 @@
 //  - No claude/anthropic imports or copy.
 //  - No hardcoded test data; empty-states only.
 
+import { assessmentStatusDisplay } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Spinner } from "@assessiq/ui-system";
+import { Spinner, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 
@@ -280,7 +281,7 @@ export function AdminReports(): React.ReactElement {
                       letterSpacing: "0.04em",
                     }}
                   >
-                    Closed {new Date(a.closes_at).toLocaleDateString()}
+                    Closed {formatDate(a.closes_at)}
                   </span>
                 )}
               </div>
@@ -294,7 +295,7 @@ export function AdminReports(): React.ReactElement {
                     letterSpacing: "0.04em",
                   }}
                 >
-                  {a.status}
+                  {assessmentStatusDisplay(a.status).label}
                 </span>
                 <button
                   type="button"
@@ -366,7 +367,7 @@ export function AdminReports(): React.ReactElement {
                   >
                     {a.assessment_name}
                     {a.submitted_at
-                      ? ` · ${new Date(a.submitted_at).toLocaleDateString()}`
+                      ? ` · ${formatDate(a.submitted_at)}`
                       : ""}
                   </span>
                 </div>

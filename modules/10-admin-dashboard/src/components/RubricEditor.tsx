@@ -109,10 +109,10 @@ export function RubricEditor({
       <section>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "var(--aiq-space-md)" }}>
           <h3 style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", margin: 0 }}>
-            Anchors ({draft.anchors.length})
+            Key points ({draft.anchors.length})
           </h3>
           <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={addAnchor}>
-            + Add anchor
+            + Add key point
           </button>
         </div>
 
@@ -134,7 +134,7 @@ export function RubricEditor({
             >
               <input
                 type="text"
-                placeholder="Anchor phrase"
+                placeholder="Key point phrase"
                 value={anchor.phrase}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAnchor(anchor.anchor_id, { phrase: e.target.value })}
                 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-sm)" }}
@@ -172,7 +172,7 @@ export function RubricEditor({
                 className="aiq-btn aiq-btn-ghost aiq-btn-sm"
                 style={{ color: "var(--aiq-color-danger)" }}
                 onClick={() => removeAnchor(anchor.anchor_id)}
-                aria-label="Remove anchor"
+                aria-label="Remove key point"
               >
                 ×
               </button>
@@ -180,7 +180,7 @@ export function RubricEditor({
           ))}
           {draft.anchors.length === 0 && (
             <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-              No anchors defined. Click "Add anchor" to start.
+              No key points defined. Click "Add key point" to start.
             </p>
           )}
         </div>
@@ -189,7 +189,7 @@ export function RubricEditor({
       {/* Bands */}
       <section>
         <h3 style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", margin: "0 0 var(--aiq-space-md)" }}>
-          Reasoning bands
+          Reasoning score bands
         </h3>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
           {BAND_DEFAULTS.map(({ band }) => {
@@ -197,7 +197,7 @@ export function RubricEditor({
             return (
               <div key={band} className="aiq-admin-detail-two-col" style={{ display: "grid", gridTemplateColumns: "80px 160px 1fr", gap: "var(--aiq-space-sm)", alignItems: "start" }}>
                 <div style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-md)", color: "var(--aiq-color-fg-primary)", paddingTop: "var(--aiq-space-xs)" }}>
-                  Band {band}<br />
+                  Score band {band}<br />
                   <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>{BAND_PCT[band]}%</span>
                 </div>
                 <input

@@ -1,4 +1,4 @@
-// Public "Try a sample test" demo — route /try (no RequireSession, no account).
+// Public "Try a sample assessment" demo — route /try (no RequireSession, no account).
 //
 // Static bundled content, client-side deterministic scoring, ZERO network
 // requests (no api.ts, no fetch, no AI, no DB, no email). It reuses the real
@@ -59,7 +59,7 @@ export function TryPage(): React.JSX.Element {
 
   useEffect(() => {
     const prev = document.title;
-    document.title = 'Try a sample test | AssessIQ';
+    document.title = 'Try a sample assessment | AssessIQ';
     return () => {
       document.title = prev;
     };
@@ -97,7 +97,7 @@ function Intro({ onBegin }: { onBegin: () => void }): React.JSX.Element {
   return (
     <main style={{ ...WRAP, paddingTop: 48 }}>
       <Logo size={28} showWordmark />
-      <p style={{ ...EYEBROW, marginTop: 40, marginBottom: 8 }}>Sample test &middot; demo</p>
+      <p style={{ ...EYEBROW, marginTop: 40, marginBottom: 8 }}>Sample assessment &middot; demo</p>
       <h1
         style={{
           fontFamily: 'var(--aiq-font-serif)',
@@ -108,11 +108,11 @@ function Intro({ onBegin }: { onBegin: () => void }): React.JSX.Element {
           margin: '0 0 16px',
         }}
       >
-        Try a sample test.
+        Try a sample assessment.
       </h1>
       <p style={{ fontSize: 17, lineHeight: 1.55, color: 'var(--aiq-color-fg-secondary)', margin: '0 0 24px' }}>
         {DEMO_QUESTIONS.length} questions, {DEMO_MINUTES} minutes, the same screens a candidate sees in a real
-        AssessIQ test. No login and no account. Your answers are scored in your browser and are not sent or
+        AssessIQ assessment. No login and no account. Your answers are scored in your browser and are not sent or
         stored anywhere.
       </p>
       <Card padding="lg">
@@ -121,13 +121,13 @@ function Intro({ onBegin }: { onBegin: () => void }): React.JSX.Element {
           <li>A countdown timer runs. When it reaches zero your answers are submitted and scored.</li>
           <li>
             You get a score with a per-question breakdown and model answers. The written answer is not scored
-            here: in a real test it is evaluated by AssessIQ.
+            here: in a real assessment it is graded by AssessIQ.
           </li>
         </ul>
       </Card>
       <div style={{ marginTop: 24 }}>
         <Button size="lg" onClick={onBegin} data-test-id="try-begin">
-          Start the sample test
+          Start the sample assessment
         </Button>
       </div>
     </main>
@@ -193,7 +193,7 @@ function Runner({
         </div>
       </header>
       <p style={{ fontSize: 13, color: 'var(--aiq-color-fg-muted)', margin: '8px 0 0' }}>
-        Autosave is shown as in a real test. In this demo your answers stay in this tab only.
+        Autosave is shown as in a real assessment. In this demo your answers stay in this tab only.
       </p>
 
       <QuestionNavigator
@@ -250,7 +250,7 @@ function Runner({
             </Button>
           )}
           <Button onClick={() => setConfirmOpen(true)} data-test-id="try-submit">
-            Submit test
+            Submit assessment
           </Button>
         </div>
       </nav>
@@ -385,7 +385,7 @@ function Result({
   return (
     <main style={WRAP}>
       <Logo size={24} showWordmark />
-      <p style={{ ...EYEBROW, marginTop: 32, marginBottom: 8 }}>Sample test &middot; result</p>
+      <p style={{ ...EYEBROW, marginTop: 32, marginBottom: 8 }}>Sample assessment &middot; result</p>
       <h1 style={{ fontFamily: 'var(--aiq-font-serif)', fontWeight: 400, fontSize: 32, margin: '0 0 8px' }}>
         {timedOut ? 'Time is up. Here is your score.' : 'Your score'}
       </h1>
@@ -437,7 +437,7 @@ function Result({
               {q.why && <p style={{ margin: 0, fontSize: 13, color: 'var(--aiq-color-fg-muted)' }}>{q.why}</p>}
               {q.type === 'written' && (
                 <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--aiq-color-fg-muted)' }}>
-                  In a real test this is evaluated by AssessIQ.
+                  In a real assessment this is graded by AssessIQ.
                 </p>
               )}
             </Card>
@@ -447,7 +447,7 @@ function Result({
 
       <h2 style={{ fontSize: 18, fontWeight: 500, margin: '32px 0 12px' }}>Certificate</h2>
       <p style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--aiq-color-fg-secondary)' }}>
-        Real tests can issue a verifiable certificate. See what one looks like (a sample only, not a credential).
+        Real assessments can issue a verifiable certificate. See what one looks like (a sample only, not a credential).
       </p>
       <Link to="/try/certificate" style={linkStyle}>
         View a sample certificate
@@ -474,7 +474,7 @@ function Result({
           Try again
         </Button>
         <a href="/contact" style={{ ...linkStyle, background: 'var(--aiq-color-accent)', color: '#fff', border: 0 }}>
-          Talk to us about real tests
+          Talk to us about real assessments
         </a>
       </div>
     </main>

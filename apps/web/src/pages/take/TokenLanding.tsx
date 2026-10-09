@@ -328,7 +328,7 @@ export function TokenLanding(): React.JSX.Element {
         } else {
           setState({
             tag: 'error',
-            message: err.apiError?.message ?? `HTTP ${err.status}`,
+            message: err.apiError?.message ?? "Something went wrong. Please try again.",
           });
         }
       } else if (err instanceof Error) {
@@ -370,7 +370,7 @@ export function TokenLanding(): React.JSX.Element {
           ? 'Please accept the consent statement to begin.'
           : err instanceof CandidateApiError && (err.status === 404 || err.status === 410)
             ? 'This link has expired or was replaced. Ask the person who invited you to resend your invitation, then use the link in your most recent email.'
-            : 'We could not start your test. Check your connection and try again.',
+            : 'We could not start your assessment. Check your connection and try again.',
       );
     }
   };
