@@ -92,7 +92,7 @@ admin.users.list.candidate.fields:
     surfaced in exports and the grading UI to help admins distinguish between
     candidates with similar profiles. It does not affect scoring or access.
 
-# ─── Pack & question authoring ───
+# ─── Question set & question authoring ───
 
 admin.question_bank.list.create.domain:
   audience: admin
@@ -877,11 +877,11 @@ admin.platform.admin_email:
 
 admin.platform.domain:
   audience: admin
-  short_text: "Optional email domain for the tenant (e.g. company.com). Used for display — not enforced as a sign-in restriction."
+  short_text: "Optional email domain for the organisation (e.g. company.com). Used for display — not enforced as a sign-in restriction."
   long_md: |
     ## Organisation domain (optional)
 
-    Recording the company's email domain (e.g. `company.com`) is informational
+    Recording the organisation's email domain (e.g. `company.com`) is informational
     only. It is stored with the organisation record and shown in the organisation list
     for operator reference.
 
@@ -3681,5 +3681,5 @@ admin.reports.landing.page:
     This page lists the reports that you can open.
 
     - **Cohort reports.** Each row is an assessment that is not a draft. Select **View report** to see the number of attempts, the average and percentile scores, and the archetype mix.
-    - **Individual reports.** Each row is a candidate with a published result. Select **View report** to see the score history of that person.
+    - **Individual reports.** Each row is a candidate with a released result. Select **View report** to see the score history of that person.
     - An empty list means that no assessment has data yet. Publish an assessment and collect attempts first.

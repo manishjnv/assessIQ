@@ -233,7 +233,7 @@ export function AdminCertificates(): React.ReactElement {
       });
       setRevokeModalId(null);
       setRevokeReason("");
-      setToastMessage("Certificate revoked successfully.");
+      setToastMessage("Certificate revoked.");
       setTimeout(() => setToastMessage(null), 3000);
       // Re-fetch from top
       setOffset(0);
@@ -257,7 +257,7 @@ export function AdminCertificates(): React.ReactElement {
       });
       setReissueModalId(null);
       setReissueDisplayName("");
-      setToastMessage("Certificate reissued successfully.");
+      setToastMessage("Certificate reissued.");
       setTimeout(() => setToastMessage(null), 3000);
       // Re-fetch from top
       setOffset(0);

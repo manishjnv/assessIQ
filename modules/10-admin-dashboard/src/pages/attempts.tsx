@@ -278,7 +278,7 @@ export function AdminAttempts(): React.ReactElement {
                 {...(sortBy ? { sortBy } : {})}
                 sortDir={sortDir}
                 onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }}
-                emptyMessage="No attempts found."
+                emptyMessage="No attempts."
               />
             )}
           </div>

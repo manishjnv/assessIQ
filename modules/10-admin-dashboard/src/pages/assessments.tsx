@@ -1634,7 +1634,7 @@ export function AdminAssessments(): React.ReactElement {
             <Table
               columns={columns}
               data={sortedRows}
-              emptyMessage="No assessments found."
+              emptyMessage="No assessments."
               {...(sortBy ? { sortBy } : {})}
               sortDir={sortDir}
               onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }}
