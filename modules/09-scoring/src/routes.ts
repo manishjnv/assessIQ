@@ -100,8 +100,8 @@ export async function registerScoringRoutes(
         .tenantId;
       const { userId } = req.params as { userId: string };
 
-      const scores = await individualReport(tenantId, userId);
-      return reply.code(200).send({ scores });
+      const report = await individualReport(tenantId, userId);
+      return reply.code(200).send({ report });
     },
   );
 

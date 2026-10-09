@@ -120,6 +120,7 @@ export function AdminCohortReport(): React.ReactElement {
   const [stats, setStats] = useState<CohortStats | null>(null);
   const [breakdown, setBreakdown] = useState<BreakdownResponse["data"] | null>(null);
   const [packs, setPacks] = useState<PackOption[]>([]);
+  const [assessmentName, setAssessmentName] = useState<string | null>(null);
   const [packId, setPackId] = useState<string>("");
   const [heatmap, setHeatmap] = useState<HeatmapCell[] | null>(null);
   const [heatmapError, setHeatmapError] = useState<string | null>(null);
@@ -137,12 +138,16 @@ export function AdminCohortReport(): React.ReactElement {
       // secondary; a failure there does not blank the page.
       const [bd, asm, pk] = await Promise.allSettled([
         adminApi<BreakdownResponse>(`/admin/reports/cohort/${assessmentId}/breakdown`),
-        adminApi<{ pack_id: string | null }>(`/admin/assessments/${assessmentId}`),
+        adminApi<{ pack_id: string | null; name?: string }>(`/admin/assessments/${assessmentId}`),
         adminApi<{ items: PackOption[] }>(`/admin/packs?pageSize=100`),
       ]);
       if (bd.status === "fulfilled") setBreakdown(bd.value.data);
       if (pk.status === "fulfilled") setPacks(pk.value.items.map((p) => ({ id: p.id, name: p.name })));
-      if (asm.status === "fulfilled" && asm.value.pack_id) setPackId(asm.value.pack_id);
+      if (asm.status === "fulfilled") {
+        setAssessmentName(asm.value.name ?? null);
+        if (asm.value.pack_id) setPackId(asm.value.pack_id); // heatmap picker defaults to the assessment pack
+        else if (pk.status === "fulfilled" && pk.value.items.length === 1) setPackId(pk.value.items[0]!.id); // only one question set: pick it
+      }
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load cohort report.");
     } finally {
@@ -197,7 +202,7 @@ export function AdminCohortReport(): React.ReactElement {
             <Chip leftIcon="grid">{stats.attempt_count} attempt{stats.attempt_count !== 1 ? "s" : ""}</Chip>
           </div>
           <h1 data-help-id="admin.reports.cohort.report" style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
-            Cohort Report.
+            {assessmentName ? `Cohort Report: ${assessmentName}` : "Cohort Report."}
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
             Score distribution, difficulty and topic breakdown across the released attempts of this assessment.
@@ -245,7 +250,7 @@ export function AdminCohortReport(): React.ReactElement {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 90px 110px 110px", gap: "var(--aiq-space-xs) var(--aiq-space-md)", alignItems: "center" }}>
               <span style={MONO_LABEL}>Topic</span>
               <span style={{ ...MONO_LABEL, textAlign: "right" }}>Attempts</span>
-              <span style={{ ...MONO_LABEL, textAlign: "right" }}>Average</span>
+              <span style={{ ...MONO_LABEL, textAlign: "right" }}>Average score %</span>
               <span style={{ ...MONO_LABEL, textAlign: "right" }}>Hit rate</span>
               {topics.map((t) => (
                 <React.Fragment key={t.topic}>

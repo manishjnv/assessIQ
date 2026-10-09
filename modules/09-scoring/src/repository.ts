@@ -23,7 +23,9 @@ import type {
   CohortPercentiles,
   LeaderboardRow,
   IndividualScore,
+  IndividualReport,
 } from "./types.js";
+import { ArchetypeSignalsSchema } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Internal row shapes (raw Postgres → typed)
@@ -460,40 +462,85 @@ export async function getLeaderboard(
 export async function getIndividualScores(
   client: PoolClient,
   userId: string,
-): Promise<IndividualScore[]> {
+): Promise<IndividualReport | null> {
+  // users is RLS-scoped by withTenant; a missing row = unknown user in this tenant.
+  const u = await client.query<{ email: string; name: string | null }>(
+    `SELECT email, name FROM users WHERE id = $1`,
+    [userId],
+  );
+  if (u.rows.length === 0) return null;
+
   const res = await client.query<{
     attempt_id: string;
     assessment_id: string;
     assessment_name: string;
+    level_label: string | null;
+    submitted_at: Date | null;
     auto_pct: string;
     archetype: string | null;
+    archetype_signals: unknown | null;
     computed_at: Date;
   }>(
     `SELECT
        atsc.attempt_id,
        a.assessment_id,
        asmnt.name AS assessment_name,
+       l.label AS level_label,
+       a.submitted_at,
        atsc.auto_pct::text,
        atsc.archetype,
+       atsc.archetype_signals,
        atsc.computed_at
      FROM attempt_scores atsc
      JOIN attempts   a     ON a.id    = atsc.attempt_id
      JOIN assessments asmnt ON asmnt.id = a.assessment_id
+     LEFT JOIN levels l    ON l.id    = asmnt.level_id
      WHERE a.user_id = $1
        AND ${TENANT_VISIBLE_ATTEMPT_SQL}
      ORDER BY atsc.computed_at DESC`,
     [userId],
   );
 
-  return res.rows.map((r) => ({
-    attempt_id: r.attempt_id,
-    assessment_id: r.assessment_id,
-    assessment_name: r.assessment_name,
-    auto_pct: parseFloat(r.auto_pct),
-    archetype:
-      (r.archetype as import("./types.js").ArchetypeLabel | null) ?? null,
-    computed_at: r.computed_at.toISOString(),
-  }));
+  const attempts = res.rows.map((r) => {
+    const auto_pct = parseFloat(r.auto_pct);
+    // ponytail: validate archetype_signals at return boundary; fail-safe to null
+    const signalsResult = ArchetypeSignalsSchema.safeParse(
+      r.archetype_signals,
+    );
+    const validatedSignals = signalsResult.success ? signalsResult.data : null;
+    if (!signalsResult.success && r.archetype_signals != null) {
+      logger.warn(
+        {
+          attempt_id: r.attempt_id,
+          issues: signalsResult.error.issues,
+        },
+        "archetype_signals validation failed; setting to null",
+      );
+    }
+    return {
+      attempt_id: r.attempt_id,
+      assessment_id: r.assessment_id,
+      assessment_name: r.assessment_name,
+      level_label: r.level_label ?? "",
+      submitted_at: (r.submitted_at ?? r.computed_at).toISOString(),
+      auto_pct,
+      // 0/25/50/75/100 bands -> 0..4
+      band: Math.min(4, Math.max(0, Math.round(auto_pct / 25))),
+      archetype:
+        (r.archetype as import("./types.js").ArchetypeLabel | null) ?? null,
+      archetype_signals: validatedSignals,
+      computed_at: r.computed_at.toISOString(),
+    };
+  });
+
+  return {
+    user_id: userId,
+    email: u.rows[0]!.email,
+    name: u.rows[0]!.name,
+    total_attempts: attempts.length,
+    latest_band: attempts[0]?.band ?? null, // rows are newest-first
+    attempts,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -501,6 +548,20 @@ export async function getIndividualScores(
 // ---------------------------------------------------------------------------
 
 function mapAttemptScoreRow(r: AttemptScoreDbRow): AttemptScore {
+  // ponytail: validate archetype_signals at return boundary; fail-safe to null
+  const signalsResult = ArchetypeSignalsSchema.safeParse(
+    r.archetype_signals,
+  );
+  const validatedSignals = signalsResult.success ? signalsResult.data : null;
+  if (!signalsResult.success && r.archetype_signals != null) {
+    logger.warn(
+      {
+        attempt_id: r.attempt_id,
+        issues: signalsResult.error.issues,
+      },
+      "archetype_signals validation failed; setting to null",
+    );
+  }
   return {
     attempt_id: r.attempt_id,
     tenant_id: r.tenant_id,
@@ -510,10 +571,7 @@ function mapAttemptScoreRow(r: AttemptScoreDbRow): AttemptScore {
     pending_review: Boolean(r.pending_review),
     archetype:
       (r.archetype as import("./types.js").ArchetypeLabel | null) ?? null,
-    archetype_signals:
-      r.archetype_signals != null
-        ? (r.archetype_signals as import("./types.js").ArchetypeSignals)
-        : null,
+    archetype_signals: validatedSignals,
     computed_at:
       r.computed_at instanceof Date
         ? r.computed_at.toISOString()

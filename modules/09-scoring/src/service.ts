@@ -29,7 +29,7 @@ import type {
   AttemptScore,
   CohortStats,
   LeaderboardRow,
-  IndividualScore,
+  IndividualReport,
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -269,8 +269,12 @@ export async function leaderboard(
 export async function individualReport(
   tenantId: string,
   userId: string,
-): Promise<IndividualScore[]> {
-  return withTenant(tenantId, (client) =>
+): Promise<IndividualReport> {
+  const report = await withTenant(tenantId, (client) =>
     repo.getIndividualScores(client, userId),
   );
+  if (!report) {
+    throw new AppError(`user ${userId} not found`, "SCORING_USER_NOT_FOUND", 404);
+  }
+  return report;
 }

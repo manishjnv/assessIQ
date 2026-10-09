@@ -1,0 +1,79 @@
+# AssessIQ Hardening Roadmap — PENDING_TASKS
+
+**Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
+
+## Hardening S1 (RW-1..6) ✅ — 2026-10-09 live at 58a5f73
+
+| ID | Task | Why | Effort | Who |
+|---|---|---|---|---|
+| RW-1 | Delete reviewer-role code remnants and worktree branches | Reviewer role removed 2026-10-02; cleanup + schema consistency | L1 | Opus |
+| RW-2 | Remove role enum duplicates in session.ts | Session model references `reviewer_with_tenant` redundantly; consolidate | L2 | Sonnet |
+| RW-3 | Document i18n layer as English-only for Phase 1 | i18n strings are stubbed; owner hasn't decided Phase 2; doc this boundary | L1 | Sonnet |
+| RW-4 | Hardened worker health-check + memory caps | Docker Compose caps missing; health check must verify AI runtime reachability | L2 | Opus |
+| RW-5 | Autogenerate help text for AI generation surfaces | Question bank generation UI needs help IDs and content (migration 0163) | L2 | Sonnet |
+| RW-6 | Verify production .env constraints align with code | Audit env var requirements; log findings | L1 | Sonnet |
+
+## Hardening S2 (RW-7..11) ✅ — 2026-10-09 live at e8c12cf
+
+| ID | Task | Why | Effort | Who |
+|---|---|---|---|---|
+| RW-7 | AI single-flight Redis lease + pause re-check | Phase 1 Claude Code lock must survive a user pause; Redis lease is safety-first | L3 | Sonnet + codex |
+| RW-8 | Atomic attempt.grading_started_at mint on AI call start | Result cache timeout edge case; capture intent timestamp in attempt row | L2 | Sonnet + codex |
+| RW-9 | Add `/api/ready` health probe for orchestration | K8s-style readiness gate (Phase 2 ready); skip grading if not ready | L1 | Sonnet + codex |
+| RW-10 | Owner AI evaluation run + codex blessing | Owner runs AI on pilot data; Opus gates AI_EVAL_MODE=enforce | L2 | Owner + Opus |
+| RW-11 | CLAUDE_CONFIG_DIR bind in compose instead of .claude.json | Tighter container isolation; Claude Code re-login on VPS | L1 | Opus |
+
+## Hardening S3 (RW-12..15) ✅ — 2026-10-09 live at 505031a
+
+| ID | Task | Why | Effort | Who |
+|---|---|---|---|---|
+| RW-12 | Glossary table: one word per concept (owner decision) | Assessment workflow copy fragmented; standardize across admin + candidate + email | L2 | Opus + Sonnet |
+| RW-13 | Centralize label functions into modules/10 lib/labels.ts | Duplicate `attemptStatusLabel`, `bandLabel` across modules; lint + unify | L2 | Sonnet |
+| RW-14 | Date formatting: formatDate/formatDateTime everywhere | Copy says "Apr 29, 2026 · 14:32"; enforce via @assessiq/ui-system helpers | L2 | Sonnet |
+| RW-15 | Extract AFTER_SUBMIT_TEXT constant to candidate-ui copy.ts | One phrase, one place; help seed row 0165 adds it | L1 | Sonnet |
+
+## Hardening S4 (RW-16..21) 🚧 — admin UX pass 1
+
+| ID | Task | Why | Effort | Who |
+|---|---|---|---|---|
+| RW-16 | Admin nav headers ("Work", "Content", "Settings") — glossary alignment | S3 placeholder headers need glossary-driven names; sidebar + top-level menu copy | L2 | Sonnet |
+| RW-17 | Admin button + action copy standardization | "Approve", "Release", "Accept" must align with glossary (accept = AI draft, release = show to candidate) | L2 | Sonnet |
+| RW-18 | Admin empty states + no-data messaging | "No assessments created", "No graded attempts" etc. — one voice across dashboards | L1 | Sonnet |
+| RW-19 | Admin success/error messages pass (validation + toasts) | "Pack published", "Attempt graded", error messages use glossary; help IDs for new ones | L2 | Sonnet |
+| RW-20 | Admin help text alignment with glossary + RW-19 | Help content mirrors copy; audit modules/16 en/*.yml for stale references | L1 | Haiku |
+| RW-21 | S4 verification + deployment (migration 0166, live check) | Typecheck/lint green; behavioural spot-check on /admin/*; VPS deploy | L1 | Opus |
+
+## Wave 2 + Wave 3 (FU-A1..FU-D23, N1..N26, E9..E13, RV60..RV78, RS1..RS11, SP1..SP11) ✅ — waves shipped 2026-10-06 to 2026-10-09
+
+[61 rows spanning pilot readiness, advanced question types, result release, audit routes, email hardening, analytics, UI port — committed and deployed]
+
+---
+
+## Done sections (history)
+
+### Pilot + Phase 1 foundation (2026-05-01 to 2026-05-20)
+[Prior completions: 00-core init, 01-auth, 02-tenancy, 03-users, 04-question-bank, 05-lifecycle, 06-attempt, 11-candidate, 16-help, 17-ui, Phase 1 end-to-end]
+
+### Phase 2 AI grading (2026-05-09 to 2026-05-14)
+[07-ai-grading, 08-rubric, 09-scoring, 10-admin, Stage 1 type-sharded generation, Stage 3.0 per-tenant toggle, Type-specialist skills on VPS]
+
+### Phase 3 Operate (2026-05-11 to 2026-05-14)
+[14-audit-log append-only, 13-notifications real SMTP, 15-analytics, 18-certification HMAC signing, Phase 1 MVP closed]
+
+### Phase 4 Embed (2026-05-03)
+[12-embed-sdk iframe + JWT, consumer integration]
+
+### Phase 5 Credentialize (2026-05-11 to 2026-05-14)
+[18-certification public verify, PDF, LinkedIn share]
+
+### UI Kit Port + Mobile (2026-05-13 to 2026-05-21)
+[14 phases v1.1 port; 7 phases mobile kit (M0-M6); 6 phases admin mobile (A0-A6)]
+
+### Phase 15 Quality gates (2026-05-14)
+[Lighthouse CI, Playwright visual regression]
+
+### Pilot readiness (2026-10-01 to 2026-10-02)
+[Batch 1-8: invites, email, question types, sections, vote, CI, golden eval set, SEO dates, ordering type]
+
+### Post-MVP review + follow-ups (2026-10-02 to 2026-10-09)
+[Full review audit (53 rows P0-W); Wave 1 (39 FU rows); Wave 2 (16 rows); Wave 3A (9 rows, CI red fix); Wave 3B-3D pending]

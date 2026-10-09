@@ -142,6 +142,25 @@ export const IndividualScoreSchema = z.object({
 });
 export type IndividualScore = z.infer<typeof IndividualScoreSchema>;
 
+// RW-20: report envelope. Each attempt = IndividualScore + the fields the
+// admin page renders (level, submit time, 0-4 score band, radar signals).
+export const IndividualReportSchema = z.object({
+  user_id: z.string().uuid(),
+  email: z.string(),
+  name: z.string().nullable(),
+  total_attempts: z.number().int(),
+  latest_band: z.number().nullable(),
+  attempts: z.array(
+    IndividualScoreSchema.extend({
+      level_label: z.string(),
+      submitted_at: z.string(),
+      band: z.number(),
+      archetype_signals: ArchetypeSignalsSchema.nullable(),
+    }),
+  ),
+});
+export type IndividualReport = z.infer<typeof IndividualReportSchema>;
+
 // ---------------------------------------------------------------------------
 // Internal: CohortPercentiles — passed to deriveArchetype for threshold logic
 // ---------------------------------------------------------------------------
