@@ -1,3 +1,43 @@
+# Session — 2026-10-10 — Hardening S4b (RW-17, RW-18, RW-21 completion; RW-20 blocked)
+
+**Headline:** Hardening session S4b complete. Admin UX refinements shipped: disclosure wrapper for advanced settings, super-admin role gate for help content, activity page tabs with quartile labels and spinners. RW-20 held pending backend API update. VPS at `13c48cc`.
+
+**Commits:** `13c48cc` — feat(10,web): hardening S4b — disclosure, role gate, activity tabs (RW-17/18/21). Pushed.
+
+**Deploy:** git pull, frontend rebuild + recreate. 6 containers before and after, assessiq-frontend healthy (37 sec old). `/api/health` 200, `/admin/assessments` loads. Bundle contains "Advanced settings" (details), "Audit log" tab, "Top 25%" label; no bare "Loading…" text.
+
+**Tests:** typecheck 0, lint 0 errors (20 pre-existing); module 10 tests pass, module 16 tests pass. No test failures.
+
+**Rows:** RW-17 ✅ (disclosure wrapper for HighStakesCard + RemindersCard), RW-18 ✅ (role="super_admin" gate + test), RW-21 ✅ (Overview/Audit tabs, quartile labels, Spinner component). RW-20 ⏳ held for backend work.
+
+**Next:** S5 (RW-22..RW-25). RW-20 follow-up: update `/api/admin/reports/individual/:userId` response to include optional `name` field (module 09), then apply cohort-report.tsx + individual-report.tsx h1 changes.
+
+**Operator rule (RW-18):** Confirm backend help-content write API also enforces role="super_admin" (route gate complete, API gate not verified).
+
+**Open questions:**
+- RW-20 backend: which API endpoint exactly returns the individual-report data? (module 09 routes?)
+
+---
+
+## Agent utilization
+- Opus: Phase 0 (context), Phase 3 (diff critique), Phase 6 (docs + handoff).
+- Sonnet: Phase 1 (4 parallel agents: RW-17, RW-18, RW-20, RW-21); RW-18 adversarial review inline.
+- Haiku: Phase 0 (scan), Phase 5 (acceptance grep).
+- codex:rescue: n/a — no load-bearing path (modules 10/web, not 01/02/07/14).
+- claude-mem: n/a — not used.
+
+**Routing telemetry**
+- haiku · Phase 0 scan · reworked: N
+- sonnet · RW-17 disclosure · reworked: N
+- sonnet · RW-18 role gate + test · reworked: N (adversarial review accepted)
+- sonnet · RW-20 h1 refactor · reworked: N (blocked on backend API)
+- sonnet · RW-21 tabs + labels · reworked: N
+- haiku · Phase 5 acceptance grep · reworked: N (all 3 rows PASS)
+
+**Old task checked (Rule B):** S3 copy/labels (RW-12..15); prior S4 partial (fee09fd); no dormant features; no contradictions with S1/S2/S3.
+
+---
+
 # Session — 2026-10-09 — Hardening S4 (Real RW-16, RW-17, RW-19)
 
 **Headline:** Hardening session S4 is live. Admin UX refactored: Platform nav section, high-stakes checkbox removed, users page filters consolidated. VPS at `fee09fd`.
