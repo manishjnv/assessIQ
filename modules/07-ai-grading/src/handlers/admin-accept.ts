@@ -19,6 +19,7 @@
 
 import { withTenant } from "@assessiq/tenancy";
 import {
+  assertTenantAiEnabled,
   findGradingByIdempotencyKey,
   insertGrading,
   isAttemptCandidateErased,
@@ -177,6 +178,10 @@ async function acceptProposals(
   proposals: HandleAdminAcceptInput["proposals"],
   markEvaluationReleased: boolean,
 ): Promise<{ gradings: GradingsRow[]; flipped: boolean; statusNow: "graded" | "pending_admin_grading" }> {
+  // RW-7: re-check pause inside the write tx (pause may land during the AI call).
+  // Accept only ever commits AI proposals (grader "ai"); manual score/override use other handlers.
+  await assertTenantAiEnabled(client, tenantId);
+
   // Lock the attempt row FIRST — the same row lock Release (09), override and
   // manual-score take — so the lock order is always attempt row -> everything
   // else. Without it a Release could check "no flagged grade" and publish while

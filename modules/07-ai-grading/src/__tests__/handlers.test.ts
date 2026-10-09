@@ -33,6 +33,7 @@ import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { setRedisForTesting, closeRedis } from "@assessiq/core/redis";
 
 // G3.D: mock @assessiq/audit-log so this testcontainer (which does NOT apply
 // the audit-log migrations) can exercise admin handlers that now call
@@ -355,11 +356,11 @@ function makeProposal(
 }
 
 /** Drain the single-flight mutex if a prior test leaked it. */
-function drainSingleFlight(): void {
-  if (!singleFlight.isInFlight()) return;
+async function drainSingleFlight(): Promise<void> {
+  if (!(await singleFlight.isInFlight())) return;
   // If the sentinel probe succeeds, the map had some unknown key stuck — drain it.
-  const probe = singleFlight.acquire("__drain__");
-  if (probe.kind === "acquired") probe.release();
+  const probe = await singleFlight.acquire("__drain__");
+  if (probe.kind === "acquired") await probe.release();
   // If still in-flight after probe, the stuck key is not "__drain__" — the test
   // that holds it must release in a finally block (see single-flight.test.ts for
   // the same pattern).
@@ -369,7 +370,14 @@ function drainSingleFlight(): void {
 // Global container lifecycle
 // ---------------------------------------------------------------------------
 
+let redisContainer: StartedTestContainer | undefined;
+
 beforeAll(async () => {
+  redisContainer = await new GenericContainer("redis:7-alpine")
+    .withExposedPorts(6379)
+    .withWaitStrategy(Wait.forLogMessage(/Ready to accept connections/))
+    .start();
+  await setRedisForTesting(`redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`);
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({
       POSTGRES_USER: "assessiq",
@@ -428,15 +436,17 @@ beforeAll(async () => {
 }, 90_000);
 
 afterAll(async () => {
+  await closeRedis();
+  if (redisContainer !== undefined) await redisContainer.stop();
   await closePool();
   if (container !== undefined) {
     await container.stop();
   }
 }, 30_000);
 
-beforeEach(() => {
+beforeEach(async () => {
   mockGradeSubjective.mockReset();
-  drainSingleFlight();
+  await drainSingleFlight();
 });
 
 // ===========================================================================
@@ -862,7 +872,7 @@ describe("handleAdminRerun", () => {
     });
 
     // Single-flight gate: manually hold the mutex.
-    const slot = singleFlight.acquire(ATTEMPT_ID);
+    const slot = await singleFlight.acquire(ATTEMPT_ID);
     expect(slot.kind).toBe("acquired");
     try {
       await expect(
@@ -877,7 +887,7 @@ describe("handleAdminRerun", () => {
         status: 409,
       });
     } finally {
-      if (slot.kind === "acquired") slot.release();
+      if (slot.kind === "acquired") await slot.release();
     }
   });
 
@@ -1355,9 +1365,9 @@ async function seedSingleTypeAttempt(
 describe("Per-type dispatch (handleAdminGrade routes by question type)", () => {
   const freshActivity = (): Date => new Date(Date.now() - 5_000);
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockGradeSubjective.mockReset();
-    drainSingleFlight();
+    await drainSingleFlight();
   });
 
   it("9.1 mcq — NOT AI-graded; gradeSubjective is never called", async () => {

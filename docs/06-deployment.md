@@ -2046,3 +2046,13 @@ Files: `tools/ops/assessiq-backup-check.sh` (dead-man check; self-test with 11 c
 5. Run the script once by hand and check that it prints OK.
 
 Do the enumerate-first checks of project rule 8 before step 1.
+
+### `GET /api/ready` readiness probe (RW-9)
+
+`GET /api/ready` answers whether the API can run AI evaluation now. It needs no login.
+
+- **Checks.** Three checks run in parallel, each with a 5 s timeout: `db` (`SELECT 1`), `redis` (`PING`), `claude` (`claude --version`, no shell).
+- **Response.** `{ "status": "ready" | "not_ready", "checks": { "db": bool, "redis": bool, "claude": bool } }`. The status is 200 when all checks pass and 503 when one fails. The body holds no versions and no error text.
+- **Cache.** The `claude` result is cached for 60 s. Concurrent requests share one run. A caller cannot start more than one process each minute.
+- **Why no login.** The body holds only booleans, and the process cost is capped by the cache. A monitor can call it without a secret.
+- **Use.** Point an uptime monitor at it next to `/api/health`. `/api/health` stays a pure liveness check. The platform evaluation page shows the result as a chip.

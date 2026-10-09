@@ -1579,3 +1579,13 @@ Not covered: there is no queue-age metric beyond the platform queue page and the
 **Conclusion:** the render-blocking request is gone. Score and LCP changes are within noise. Do not read the `/` mobile score drop as a regression without a repeat run.
 
 **Next step:** when the PageSpeed quota resets, read CrUX field data for the marketing origin. Look at `/try` unused JavaScript (code splitting).
+
+### `GET /api/ready` readiness probe (RW-9)
+
+`GET /api/ready` answers whether the API can run AI evaluation now. It needs no login.
+
+- **Checks.** Three checks run in parallel, each with a 5 s timeout: `db` (`SELECT 1`), `redis` (`PING`), `claude` (`claude --version`, no shell).
+- **Response.** `{ "status": "ready" | "not_ready", "checks": { "db": bool, "redis": bool, "claude": bool } }`. The status is 200 when all checks pass and 503 when one fails. The body holds no versions and no error text.
+- **Cache.** The `claude` result is cached for 60 s. Concurrent requests share one run. A caller cannot start more than one process each minute.
+- **Why no login.** The body holds only booleans, and the process cost is capped by the cache. A monitor can call it without a secret.
+- **Use.** Point an uptime monitor at it next to `/api/health`. `/api/health` stays a pure liveness check. The platform evaluation page shows the result as a chip.

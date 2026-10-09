@@ -130,6 +130,33 @@ function AgeBadge({ hours }: { hours: number }): React.ReactElement {
   );
 }
 
+type Readiness = { checks?: Record<string, boolean> } | "loading" | "unknown";
+
+// RW-9: one fetch on mount. /api/ready answers 503 with a JSON body when a
+// check fails, so the body is data here, not an error (adminApi would throw).
+function RuntimeStatusChip(): React.ReactElement {
+  const [r, setR] = useState<Readiness>("loading");
+  useEffect(() => {
+    let live = true;
+    fetch("/api/ready")
+      .then((res) => res.json() as Promise<{ checks?: Record<string, boolean> }>)
+      .then((b) => live && setR(b))
+      .catch(() => live && setR("unknown"));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const failed = typeof r === "object" ? Object.entries(r.checks ?? {}).filter(([, v]) => !v).map(([k]) => k) : [];
+  const ready = typeof r === "object" && r.checks !== undefined && failed.length === 0;
+  const label =
+    r === "loading" ? "Checking…" : r === "unknown" ? "Not ready: unknown" : ready ? "AI runtime ready" : `Not ready: ${failed.join(", ") || "unknown"}`;
+  return (
+    <span data-help-id="admin.evaluations.queue.runtime_status">
+      <Chip variant={ready ? "success" : r === "loading" ? "default" : "warn"}>{label}</Chip>
+    </span>
+  );
+}
+
 function StatusCell({ row }: { row: EvaluationRow }): React.ReactElement {
   const s = row.complete
     ? { label: "Ready to release", variant: "success" as const }
@@ -398,7 +425,8 @@ export function AdminEvaluationsQueue(): React.ReactElement {
         {/* Page header — count chip + serif h1 + lede */}
         <div>
           <div style={{ marginBottom: 12 }}>
-            <Chip leftIcon="grid">{pendingCount} in queue</Chip>
+            <Chip leftIcon="grid">{pendingCount} in queue</Chip>{" "}
+            <RuntimeStatusChip />
           </div>
           <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
             Evaluations.

@@ -7,7 +7,11 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./aes-gcm": "./src/aes-gcm.ts"
+    "./aes-gcm": "./src/aes-gcm.ts",
+    "./redis": "./src/redis.ts"
+  },
+  "dependencies": {
+    "ioredis": "^5.4.1"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

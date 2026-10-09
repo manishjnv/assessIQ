@@ -16,6 +16,7 @@ vi.mock("../skill-sha.js", () => ({
   skillSha: async (n: string) => ({ short: n === "grade-anchors" ? "aaaaaaaa" : "bbbbbbbb", sha256: "", label: "v1", model: "m" }),
 }));
 
+import { startTestRedis, stopTestRedis } from "./redis-testing.js";
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
 import { handleAdminGrade } from "../handlers/admin-grade.js";
 import { handleAdminAccept } from "../handlers/admin-accept.js";
@@ -111,6 +112,7 @@ async function gradedAttempt(answer: unknown, tenant = tA, qid = q1): Promise<st
 }
 
 beforeAll(async () => {
+  await startTestRedis();
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({ POSTGRES_USER: "test", POSTGRES_PASSWORD: "test", POSTGRES_DB: "aiq_least_ai" })
     .withExposedPorts(5432)
@@ -130,6 +132,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
+  await stopTestRedis();
   await closePool();
   if (container !== undefined) await container.stop();
 }, 30_000);

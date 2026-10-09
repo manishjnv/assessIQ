@@ -277,7 +277,11 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@24.12.4)(@vitest/coverage-v8@4.1.11)(jsdom@25.0.1)(vite@8.3.2(@types/node@24.12.4)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.15)(yaml@2.9.1))
 
-  modules/00-core: {}
+  modules/00-core:
+    dependencies:
+      ioredis:
+        specifier: ^5.4.1
+        version: 5.10.1
 
   modules/01-auth:
     dependencies:

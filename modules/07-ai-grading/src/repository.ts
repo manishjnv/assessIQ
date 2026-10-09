@@ -698,14 +698,14 @@ export async function getAttemptProgress(
  * review 2026-10-09). No settings row = not paused (the column defaults true).
  */
 export async function assertTenantAiEnabled(client: PoolClient, tenantId: string): Promise<void> {
-  const res = await client.query<{ paused: boolean }>(
-    `SELECT EXISTS (
-       SELECT 1 FROM tenant_settings
-        WHERE tenant_id = $1 AND ai_grading_enabled = false
-     ) AS paused`,
+  // RW-7: FOR SHARE serializes with the pause write (02-tenancy locks this row
+  // FOR UPDATE), so a pause cannot commit between this check and our write.
+  // No row = not paused (column is NOT NULL DEFAULT true).
+  const res = await client.query<{ ai_grading_enabled: boolean }>(
+    `SELECT ai_grading_enabled FROM tenant_settings WHERE tenant_id = $1 FOR SHARE`,
     [tenantId],
   );
-  if (res.rows[0]?.paused === true) {
+  if (res.rows[0]?.ai_grading_enabled === false) {
     throw new AppError(
       "AI evaluation is paused for this company (ai_grading_enabled is off). Score manually, or turn the flag on in the company settings.",
       AI_GRADING_ERROR_CODES.TENANT_AI_PAUSED,

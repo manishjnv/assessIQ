@@ -31,6 +31,7 @@ vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
 vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined), notifyEvaluationReadyAfterCommit: vi.fn(async () => undefined), sendResultReleasedEmail: vi.fn(async () => undefined) }));
 
 import { AppError } from "@assessiq/core";
+import { setRedisForTesting, closeRedis } from "@assessiq/core/redis";
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import { sendResultReleasedEmail } from "@assessiq/notifications";
 import { processAutoReleaseTick, resetAutoReleaseCooldownForTesting } from "../../../../apps/api/src/jobs/auto-release.js";
@@ -96,7 +97,14 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
   }
 }
 
+let redisContainer: StartedTestContainer | undefined;
+
 beforeAll(async () => {
+  redisContainer = await new GenericContainer("redis:7-alpine")
+    .withExposedPorts(6379)
+    .withWaitStrategy(Wait.forLogMessage(/Ready to accept connections/))
+    .start();
+  await setRedisForTesting(`redis://${redisContainer.getHost()}:${redisContainer.getMappedPort(6379)}`);
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({ POSTGRES_USER: "test", POSTGRES_PASSWORD: "test", POSTGRES_DB: "aiq_super_eval" })
     .withExposedPorts(5432)
@@ -154,15 +162,17 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
+  await closeRedis();
+  if (redisContainer !== undefined) await redisContainer.stop();
   await closePool();
   if (container !== undefined) await container.stop();
 }, 30_000);
 
-beforeEach(() => {
+beforeEach(async () => {
   mockGrade.mockReset();
-  if (singleFlight.isInFlight()) {
-    const probe = singleFlight.acquire("__drain__");
-    if (probe.kind === "acquired") probe.release();
+  if (await singleFlight.isInFlight()) {
+    const probe = await singleFlight.acquire("__drain__");
+    if (probe.kind === "acquired") await probe.release();
   }
 });
 
