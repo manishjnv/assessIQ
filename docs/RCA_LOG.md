@@ -4,6 +4,13 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-09 — Wave 2 session stopped with uncommitted load-bearing work; the next session committed around it
+
+**Symptom:** on 2026-10-06 11:45 the Wave 2 session stopped after Batch 4 with Batches 5 and 6 on disk only: `apps/api/src/server.ts` (audit routes mount, module 14, load-bearing), `apps/api/src/__tests__/routes/mint-session.test.ts`, `.github/workflows/ci.yml` (e2e required), `apps/web/e2e/fixtures/factories.ts`, plus the untracked `audit-routes.test.ts`. No Wave 2 handoff was written. The Wave 3A session (2026-10-09) committed `ac77086`, `6cbd838`, `cbecc09` around these hunks, so for three days `main` and the working tree disagreed on a load-bearing file, and the audit routes still answered 404 in production (`6cbd838` deploy).
+**Cause:** the Wave 2 prompt had no rule about leaving the tree clean, and the Wave 3A prompt only told the session to avoid the hunks, not to inspect or finish them. Partial work has no owner once the session that wrote it is gone.
+**Fix:** this session inspected every hunk with `git diff` before any edit, decided keep / finish / revert per hunk (all four kept; the 415-before-auth bug in the untracked test fixed), finished them as `dea01ea` (Batch 5, codex-reviewed, deployed) and `0de3963` (Batch 6), and wrote the missing Wave 2 handoff in `docs/SESSION_STATE.md`.
+**Prevention:** the FIRST STEPS of every implementation prompt now require `git status`, `git stash list` and a recorded decision per uncommitted hunk before any edit. Session-exit rule (Phase 6): a session that must stop mid-batch commits to a branch or stashes with a named message, and says so in the handoff headline. Manual discipline; no hook yet.
+
 ## 2026-10-06 — Regenerated seed migration 0011 did not update existing help rows in production
 
 **Symptom:** after FU-B3 rewrote three `admin.audit*` entries in `modules/16-help-system/content/en/admin.yml` and the seed migration `0011_seed_help_content.sql` was regenerated, re-running that migration on `assessiq-vps` left the old text in place.

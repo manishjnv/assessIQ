@@ -1,3 +1,38 @@
+# Session — 2026-10-06/09 — Wave 2 (Batches 1-6)
+
+**Headline:** Wave 2 is complete. Batches 1-4 shipped and deployed on 2026-10-06 (`f4069e2`, `4627a39`, `a42e253`, `28734c0`) but that session stopped at 11:45 with Batches 5-6 uncommitted and no handoff; the hunks sat in the working tree from 2026-10-06 to 2026-10-09 while Wave 3A committed around them. This session finished them: FU-B1 audit routes mounted, codex-reviewed (export backpressure + idle timeout fixed) and deployed (`dea01ea`); E13 e2e job required and FU-D23 leaderboard step (`0de3963`). FU-C11 skipped (optional, no candidate surface). VPS at `dea01ea`.
+**Commits:**
+- `f4069e2` (10-06) feat(16,10): help authoring page uses the real routes; super admin edits global rows (FU-D1, FU-D2, FU-D3) — Batch 1
+- `4627a39` (10-06) feat(10,07,16): Background jobs section on Platform; Evaluation status page (FU-D9, FU-D10, FU-C1) — Batch 2
+- `a42e253` (10-06) feat(10,15,04,16): cohort breakdown + heatmap, behaviour and integrity card, difficulty chips (FU-C4, FU-C8, FU-C13) — Batch 3
+- `28734c0` (10-06) feat(19,07,10,16): monthly credit window and the AI-evaluated-answers meter (FU-A2, FU-A4, FU-A9) — Batch 4 (migrations 0160/0161 applied on the VPS only on 2026-10-09 by Wave 3A)
+- `dea01ea` (10-09) feat(api,14): mount the five audit routes behind the admin chain (FU-B1) — Batch 5, codex trailer, deployed
+- `0de3963` (10-09) ci(e2e),test(e2e): e2e job required (E13); leaderboard + email-log steps (FU-D23) — Batch 6, no deploy needed
+**Uncommitted-hunk decisions (2026-10-09):** `server.ts` mount kept; `mint-session.test.ts` 2 lines kept (the mock factory must export `registerAuditRoutes` once `server.ts` imports it; RCA 2026-10-03 vi.mock class); `ci.yml` kept and the stale ADVISORY comment fixed (e2e green on 7 of 7 runs where it ran); `factories.ts` 19 lines kept and used by step 12e; untracked `audit-routes.test.ts` kept after fixing one bug (POST without content-type answered 415 before the auth chain). Untracked `modules/01-auth/src/__tests__/totp-enrollment-status.test.ts` and `google-sso.ts.p1bak` are NOT part of Wave 2 and were left alone.
+**Deploy:** VPS `6cbd838` -> `dea01ea`; rebuilt `assessiq-api` (worker shares the image), recreated `assessiq-api` + `assessiq-worker`; 24/24 containers before and after; api healthy; `https://assessiq.in/api/health` 200; all 5 `/api/admin/audit*` routes 401 without a session via the public domain (loopback curl answers 429 "missing client IP", the finding-5 guard, by design); no error lines in api/worker logs.
+**Tests:** apps/api 157 pass + 7 todo (18 files); module 14 28 pass (4 files); typecheck 0 errors; eslint 0 errors (20 pre-existing warnings); all `tools/lint-*.ts` OK (cross-module-deps flags only the gitignored `.claude/worktrees/qdiff-a3`). e2e on the local stack: admin-workflow 20 pass 2 skip (12a AI runtime, 12f no email-log route); take-happy-path + take-timer-expiry + ordering-admin 8 pass. CI: `dea01ea` run 37907424154 quality+e2e success; `0de3963` run 37909583450 quality+e2e success.
+**Next:** owner browser check — none of the Batch 5-6 changes has a screen; verify with `curl -i https://assessiq.in/api/admin/audit` (401) and, logged in as a tenant admin, `GET /api/admin/audit?page=1` (200, rows for that tenant only). Then Wave 3B from PENDING_TASKS (133/199 ticked).
+**Open questions:**
+- FU-B2 "Audit trail" page needs the kit gap approval (owner) before the mounted routes get a screen; `admin.audit*` help text still says "available soon".
+- FU-C11 stays open: build an "Upcoming" card only if candidate accounts (FR12 / R7) are decided.
+- Email log (FU-D23 phase F) needs a module 13 route before e2e can cover it.
+- Idle-timeout value for audit exports is 60 s (`EXPORT_IDLE_TIMEOUT_MS`); raise it if a real admin download of a large tenant log trips it.
+
+---
+
+## Agent utilization
+- Opus/Fable: Phase 0 hunk inspection, plan, all code (test fix, `lineStream` backpressure + idle timeout, spec steps, ci.yml), module 14 line-by-line diff review, gates, deploy, docs, this handoff.
+- Sonnet: n/a — brief reserved subagents for the adversarial review, and codex was healthy.
+- Haiku: 1 read-only digest (PENDING_TASKS rows, SESSION_STATE, RCA, module 14 SKILL, api contract, e2e spec, route grep) at session start.
+- codex:rescue: FU-B1 round 1 REVISE (High: export ignored Readable backpressure) -> fixed; round 2 REVISE (Medium: lost wake-up, Medium: slow live consumer holds a DB tx) -> both fixed (drained flag, 60 s idle timeout); no third round, remaining items were "no concern".
+- claude-mem: n/a — not used this session.
+
+**Routing telemetry**
+- haiku · Phase 0 docs digest · reworked: N
+- codex · FU-B1 adversarial review x2 · reworked: Y (both rounds found real defects in the export stream)
+
+---
+
 # Session — 2026-10-09 — Wave 3A (9 small rows, 3 batches) + CI red fix
 
 **Headline:** Wave 3A is complete: 6 rows ticked after verification, 3 design notes written, FU-A11 (tenant AI pause in the platform queue) built, reviewed, deployed. CI on main was red (Vitest teardown race, then a new handlebars critical advisory); fixed in `278584e`. VPS at `6cbd838`, migrations 0160-0162 applied (0160/0161 from Wave 2 Batch 4 were never deployed before this session).
