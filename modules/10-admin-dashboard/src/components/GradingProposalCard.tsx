@@ -139,7 +139,7 @@ export function GradingProposalCard({
               data-test-id="proposal-accept"
               data-help-id="admin.grading.accept"
             >
-              Accept
+              Accept this grade
             </button>
           )}
           {onOverride && (
@@ -149,7 +149,7 @@ export function GradingProposalCard({
               disabled={submitting}
               onClick={onOverride}
             >
-              Override
+              Change score
             </button>
           )}
           {onRerun && (
