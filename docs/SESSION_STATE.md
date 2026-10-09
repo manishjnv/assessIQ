@@ -1,3 +1,37 @@
+# Session — 2026-10-10 — RW-24 (tenant-settings three-tab refactor + glossary)
+
+**Headline:** RW-24 shipped. Tenant settings page refactored into three tabs (Company / Results / Data privacy) with glossary-aligned labels and inline DPDP law text. VPS ready for `57917cf`.
+
+**Commits:** `57917cf` — feat(10): RW-24 tenant-settings three-tab refactor + glossary rewording. Pushed.
+
+**Deploy:** git pull, frontend rebuild + recreate. No database migrations. `/admin/tenant-settings` route loads three-tab interface, all form state preserved on tab switches.
+
+**Tests:** TypeScript clean (module 10), no new test failures.
+
+**Rows:** RW-24 ✅ (three tabs: Company name / Result release / Data privacy; input label "Days (DPDP law)" with year calculation; labels: "anonymised" / "staging" / "Erase" per glossary RW-12).
+
+**Next:** S5 tasks (RW-22..25) or next pending row from PENDING_TASKS.
+
+**Operator rule:** none.
+
+**Open questions:** none.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 (brief context), Phase 3 (diff review), Phase 6 (handoff).
+- Sonnet: Phase 1 (RW-24 implementation, single agent).
+- Haiku: n/a — read-only agent not needed for this task.
+- codex:rescue: n/a — non-load-bearing path (module 10, no auth/tenancy/07/14).
+- claude-mem: n/a — not used.
+
+**Routing telemetry**
+- sonnet · RW-24 three-tab refactor · reworked: N
+
+**Old task checked (Rule B):** Prior RW-12 glossary shipped 2026-10-09 (505031a); prior S4 partial (fee09fd); no dormant features; no contradictions with S1/S2/S3/S4.
+
+---
+
 # Session — 2026-10-10 — Hardening S4b (RW-17, RW-18, RW-21 completion; RW-20 blocked)
 
 **Headline:** Hardening session S4b complete. Admin UX refinements shipped: disclosure wrapper for advanced settings, super-admin role gate for help content, activity page tabs with quartile labels and spinners. RW-20 held pending backend API update. VPS at `13c48cc`.
