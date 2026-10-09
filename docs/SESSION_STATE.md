@@ -1,3 +1,35 @@
+# Session — 2026-10-09 — Wave 3A (9 small rows, 3 batches) + CI red fix
+
+**Headline:** Wave 3A is complete: 6 rows ticked after verification, 3 design notes written, FU-A11 (tenant AI pause in the platform queue) built, reviewed, deployed. CI on main was red (Vitest teardown race, then a new handlebars critical advisory); fixed in `278584e`. VPS at `6cbd838`, migrations 0160-0162 applied (0160/0161 from Wave 2 Batch 4 were never deployed before this session).
+**Commits:**
+- `278584e` fix(deps): handlebars 4.7.10 (CI audit step red)
+- `ac77086` chore(wave3a-batch1): FU-B18 comments in 13, FU-A13/FU-A15/FU-B9 design notes; FU-C3, N1(d), FU-D20 test part verified (no deploy)
+- `6cbd838` feat(07,10,16): FU-A11 tenant AI pause in the platform queue (codex trailer; deployed)
+- Batch 2 (RS7/RV43) needed no commit: already fixed 2026-10-03 (`eafeeac`, `7e2af3d`), ticked with evidence.
+**Deploy:** VPS pulled `a42e253` -> `6cbd838`; applied by hand + recorded 0160, 0161, 0162; rebuilt assessiq-api (worker shares it) + assessiq-frontend; recreated api, worker, frontend. 24/24 containers before and after; no error lines in api/worker logs; `/api/health` 200 (via the 301 to assessiq.in), `/` 200.
+**Tests:** typecheck 0 errors; lint 0 errors (20 pre-existing warnings); all `tools/lint-*.ts` OK (cross-module-deps flags only a stale local `.claude/worktrees/qdiff-a3`, not in git). Docker suites: 07 408/408, 13 253/253, 16 101/101, 10 108/108. CI: `ac77086` quality+e2e success (run 37889893517); `6cbd838` quality+e2e success (run 37891061218).
+**Next:** owner browser check of `/admin/platform/evaluations` with a tenant whose `ai_grading_enabled` is false (chip "AI paused", Evaluate next skips, Grade all answers 409). Then Wave 2 Batches 5+6 are still UNCOMMITTED in the working tree (server.ts audit routes FU-B1, ci.yml e2e required E13, factories FU-D23, audit-routes test, totp test, mint-session mock) — the previous session left them mid-flight; finish or stash them before Wave 3B.
+**Open questions:**
+- Codex round 2 asked for strict atomicity between the settings PATCH and AI admission; rejected as over-engineering (trusted caller, pause flag). Residual documented in docs/05. Owner may overrule.
+- The 24-hour owner alert still counts paused rows (not included in FU-A11).
+- The Vitest teardown race in `mint-session.test.ts` did not reproduce locally and did not recur on two green runs; left open in the RCA entry.
+- `schema_migrations` on the VPS records some old versions without `.sql` and lists 92 rows vs 135 files; the by-hand diff in docs/06 is noisy. Not touched.
+- Local-only edits (gitignored): PENDING_TASKS rows FU-C3, N1, FU-B18, FU-D20 (test part), FU-A13, FU-A15, FU-B9, RS7 (RV43), FU-A11. Table: 199 rows, 131 with ✅.
+
+---
+
+## Agent utilization
+- Opus/Fable: everything — Phase 0 reads, all code and docs, gates, deploy, this handoff (per the Wave 3A brief: no implementation subagents).
+- Sonnet: n/a — brief reserved subagents for the adversarial review, and codex was healthy.
+- Haiku: n/a — same reason.
+- codex:rescue: Batch 3 FU-A11 — round 1 REVISE (guard/AI-start race) -> fixed with in-tx + per-call re-check; round 2 REVISE (strict lock) -> rejected, documented. Batches 1 and 2 touched no load-bearing path (comments, docs, ticks); no review.
+- claude-mem: n/a — not used this session.
+
+**Routing telemetry**
+- codex · FU-A11 adversarial review · reworked: Y (round 1 finding was real; round 2 rejected as over-engineering)
+
+---
+
 # Session — 2026-10-06 — Wave 1 pending tasks (Batches A-E), VPS deploy, docs
 
 **Headline:** Wave 1 (39-row pending-tasks list, Batches A-E) is complete. 33 rows done, 2 checked (no change needed, already compliant), 2 skipped/blocked with recorded reasons. All code on `main`, deployed to `assessiq-vps` (HEAD `413fb05`), health verified 200 on `/api/health` and `/`.
