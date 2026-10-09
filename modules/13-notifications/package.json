@@ -16,9 +16,9 @@
     "@assessiq/tenancy": "workspace:*",
     "bullmq": "^5.34.0",
     "fastify": "^5.12.2",
-    "handlebars": "^4.7.8",
+    "handlebars": "^4.7.10",
     "ioredis": "^5.4.1",
-    "nodemailer": "^10.0.6",
+    "nodemailer": "^10.0.15",
     "zod": "^3.23.0"
   },
   "devDependencies": {
