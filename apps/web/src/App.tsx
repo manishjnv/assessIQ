@@ -37,6 +37,9 @@ const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => (
 const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
 const AdminEvaluationsQueue = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEvaluationsQueue })));
 const AdminEvaluationDetail = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEvaluationDetail })));
+const AdminAuditLog = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminAuditLog })));
+const AdminWebhooks = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminWebhooks })));
+const AdminEmbedConfig = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEmbedConfig })));
 
 const MyCertificates = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyCertificates })));
 const MyResults = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyResults })));
@@ -115,6 +118,12 @@ export function App(): React.JSX.Element {
           <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
           {/* Activity page (Phase 11) */}
           <Route path="/admin/activity" element={<RequireSession role="admin"><AdminActivity /></RequireSession>} />
+          {/* Audit log — RW-25 admin audit trail */}
+          <Route path="/admin/audit-log" element={<RequireSession role="admin"><AdminAuditLog /></RequireSession>} />
+          {/* Webhooks — RW-25 integrations */}
+          <Route path="/admin/integrations/webhooks" element={<RequireSession role="admin"><AdminWebhooks /></RequireSession>} />
+          {/* Embed configuration — RW-25 integrations */}
+          <Route path="/admin/integrations/embed" element={<RequireSession role="admin"><AdminEmbedConfig /></RequireSession>} />
           {/* Platform provisioning — super_admin only (exact-match gate) */}
           <Route path="/admin/platform" element={<RequireSession role="super_admin"><AdminPlatform /></RequireSession>} />
           {/* Evaluation queue — AssessIQ evaluates written answers across all

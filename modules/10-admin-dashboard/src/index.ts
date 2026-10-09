@@ -67,4 +67,7 @@ export { AdminPlatform } from "./pages/platform.js";
 export { SuperAdminUsers } from "./pages/super-admin-users.js";
 export { AdminEvaluationsQueue } from "./pages/evaluations-queue.js";
 export { AdminEvaluationDetail } from "./pages/evaluation-detail.js";
+export { default as AdminAuditLog } from "./pages/audit-log.js";
+export { default as AdminWebhooks } from "./pages/webhooks.js";
+export { default as AdminEmbedConfig } from "./pages/embed-config.js";
 export { domainLabel, DOMAIN_LABELS } from "./lib/domains.js";

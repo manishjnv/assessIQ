@@ -1,3 +1,31 @@
+# Session — 2026-10-10 — RW-25 (audit-log, webhooks, embed-config routes + help IDs)
+
+**Headline:** RW-25 completed. Four FU-B pages wired: routes added, nav sidebar updated, help IDs seeded, docs updated. Audit log moved to Admin section; webhooks and embed config added to new Integrations section. All three pages render via nav and have help-system integration.
+
+**Routes:** `/admin/audit-log` (admin-only), `/admin/integrations/webhooks` (admin-only), `/admin/integrations/embed` (admin-only).
+
+**Help IDs:** admin.audit-log.page/filters/date-{from,to}/entity-type/table; admin.webhooks.page/endpoints/name/url/events/delivery-log; admin.embed-config.page/secret/origins; admin.notifications.bell.
+
+**Next:** Finish hardening wave or move to next pending row.
+
+**Tests:** TypeScript clean, no test regressions. Help IDs follow existing pattern (page id + logical section ids).
+
+**Rows:** RW-25 ✅ (routes, nav, help IDs, docs).
+
+---
+
+## Agent utilization
+- Opus: Phase 0 (brief), Phase 1 (implementation), Phase 6 (handoff).
+- Sonnet: n/a — not used.
+- Haiku: n/a — not used.
+- codex:rescue: n/a — non-load-bearing path (module 10, no auth/tenancy/07/14).
+- claude-mem: n/a — not used.
+
+**Routing telemetry**
+- opus · RW-25 routes+help+docs · reworked: N
+
+---
+
 # Session — 2026-10-10 — RW-24 (tenant-settings three-tab refactor + glossary)
 
 **Headline:** RW-24 shipped. Tenant settings page refactored into three tabs (Company / Results / Data privacy) with glossary-aligned labels and inline DPDP law text. VPS ready for `57917cf`.
