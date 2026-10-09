@@ -20,7 +20,7 @@
 // INVARIANTS:
 //  - No claude/anthropic imports.
 //  - All date math is UTC-safe (Date.UTC, not new Date()).
-//  - Loading state: each section shows "Loading…" until its fetch resolves.
+//  - Loading state: each section shows a <Spinner /> until its fetch resolves.
 //  - Error state: per-section inline error text.
 
 import React, { useEffect, useState, useCallback } from "react";
@@ -30,6 +30,7 @@ import { StatCard,
   LeaderboardList,
   Chip,
   ErasedChip,
+  Spinner,
   useViewport, formatMonthYear } from "@assessiq/ui-system";
 import type {
   StatCardBreakdownItem,
@@ -191,7 +192,7 @@ const FEED_PAGE_SIZE = 20;
 // ActivityFeedSection sub-component
 // ---------------------------------------------------------------------------
 
-function ActivityFeedSection(): React.ReactElement {
+function ActivityFeedSection({ onError }: { onError?: (m: string | null) => void }): React.ReactElement {
   const [roleFilter, setRoleFilter] = useState<FeedRoleFilter>("all");
   const [items, setItems]           = useState<ActivityFeedItem[]>([]);
   const [total, setTotal]           = useState<number>(0);
@@ -199,6 +200,7 @@ function ActivityFeedSection(): React.ReactElement {
   const [loading, setLoading]       = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  useEffect(() => { onError?.(error); }, [error]);
 
   // Fetch page 1 whenever the role filter changes (reset list)
   const fetchFeed = useCallback(async (role: FeedRoleFilter, nextPage: number, append: boolean) => {
@@ -303,18 +305,7 @@ function ActivityFeedSection(): React.ReactElement {
         </div>
       </div>
 
-      {/* Loading state — per-section "Loading…" pattern matching existing sections */}
-      {loading && (
-        <div
-          style={{
-            fontFamily: "var(--aiq-font-sans)",
-            fontSize: "var(--aiq-text-sm)",
-            color: "var(--aiq-color-fg-muted)",
-          }}
-        >
-          Loading…
-        </div>
-      )}
+      {loading && <Spinner />}
 
       {/* Inline error — matches existing per-section error pattern */}
       {!loading && error && (
@@ -458,7 +449,7 @@ function ActivityFeedSection(): React.ReactElement {
                 disabled={loadingMore}
                 style={{ color: "var(--aiq-color-fg-muted)" }}
               >
-                {loadingMore ? "Loading…" : "Load more"}
+                {loadingMore ? <Spinner size="sm" /> : "Load more"}
               </button>
             )}
           </div>
@@ -541,10 +532,10 @@ function domainBreakdown(items: ActivityBreakdownItem[]): StatCardBreakdownItem[
 
 // avgScore.breakdown keys are always quartile labels regardless of groupBy
 const QUARTILE_LABELS: Record<string, string> = {
-  top_quartile:    "Top quartile",
-  above_median:    "Above median",
-  below_median:    "Below median",
-  bottom_quartile: "Bottom quartile",
+  top_quartile:    "Top 25%",
+  above_median:    "Upper middle",
+  below_median:    "Lower middle",
+  bottom_quartile: "Bottom 25%",
 };
 
 /** Map quartile-keyed breakdown to StatCard format. */
@@ -592,6 +583,10 @@ export function AdminActivity(): React.ReactElement {
   const [leaderboard,        setLeaderboard]        = useState<ActivityLeaderboardResponse | null>(null);
   const [leaderboardError,   setLeaderboardError]   = useState<string | null>(null);
   const [leaderboardLoading, setLeaderboardLoading] = useState(true);
+
+  const [tab, setTab] = useState<"overview" | "audit">("overview");
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const loadError = statsError ?? heatmapError ?? timelineError ?? leaderboardError ?? feedError;
 
   const fetchStats = useCallback(async (p: LeaderboardPeriod) => {
     setStatsLoading(true);
@@ -700,10 +695,23 @@ export function AdminActivity(): React.ReactElement {
     <AdminShell breadcrumbs={["Activity"]} helpPage="admin.activity">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
 
-        {/* Activity feed — rendered FIRST, above all existing sections */}
-        <ActivityFeedSection />
+        {loadError && (
+          <div
+            role="alert"
+            style={{
+              padding: "var(--aiq-space-md)",
+              border: "1px solid var(--aiq-color-danger)",
+              borderRadius: "var(--aiq-radius-md)",
+              fontFamily: "var(--aiq-font-sans)",
+              fontSize: "var(--aiq-text-sm)",
+              color: "var(--aiq-color-danger)",
+            }}
+          >
+            Some activity data could not be loaded. {loadError}
+          </div>
+        )}
 
-        {/* Page header + period toggle */}
+        {/* Page header + tabs */}
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--aiq-space-md)" }}>
           <div>
             <h1
@@ -729,7 +737,7 @@ export function AdminActivity(): React.ReactElement {
               Assessment completions and engagement across your organisation.
             </p>
           </div>
-          <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+          {tab === "overview" && <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
             {(["week", "month", "quarter"] as LeaderboardPeriod[]).map((p) => (
               <button
                 key={p}
@@ -740,26 +748,29 @@ export function AdminActivity(): React.ReactElement {
                 {PERIOD_LABELS[p]}
               </button>
             ))}
-          </div>
+          </div>}
         </div>
 
+        <div role="tablist" aria-label="Activity views" style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
+          {([["overview", "Overview"], ["audit", "Audit log"]] as const).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={tab === value}
+              className={tab === value ? "aiq-btn aiq-btn-primary aiq-btn-sm" : "aiq-btn aiq-btn-outline aiq-btn-sm"}
+              onClick={() => { setTab(value); setFeedError(null); }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "audit" && <ActivityFeedSection onError={setFeedError} />}
+
+        {tab === "overview" && <>
         {/* Stat cards */}
-        {statsLoading && (
-          <div
-            style={{
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-              color: "var(--aiq-color-fg-muted)",
-            }}
-          >
-            Loading…
-          </div>
-        )}
-        {statsError && (
-          <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-danger)" }}>
-            {statsError}
-          </div>
-        )}
+        {statsLoading && <Spinner />}
         {!statsLoading && !statsError && (
           <div
             className="aiq-candidate-activity-stats"
@@ -861,11 +872,7 @@ export function AdminActivity(): React.ReactElement {
             )}
           </div>
 
-          {heatmapLoading && (
-            <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-              Loading…
-            </div>
-          )}
+          {heatmapLoading && <Spinner />}
           {heatmapError && (
             <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-danger)" }}>
               {heatmapError}
@@ -912,11 +919,7 @@ export function AdminActivity(): React.ReactElement {
             </p>
           </div>
 
-          {timelineLoading && (
-            <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-              Loading…
-            </div>
-          )}
+          {timelineLoading && <Spinner />}
           {timelineError && (
             <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-danger)" }}>
               {timelineError}
@@ -962,11 +965,7 @@ export function AdminActivity(): React.ReactElement {
             Most-completed question sets in your organisation, {PERIOD_LABELS[period].toLowerCase()}.
           </p>
 
-          {leaderboardLoading && (
-            <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
-              Loading…
-            </div>
-          )}
+          {leaderboardLoading && <Spinner />}
           {leaderboardError && (
             <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-danger)" }}>
               {leaderboardError}
@@ -986,6 +985,7 @@ export function AdminActivity(): React.ReactElement {
             </div>
           )}
         </div>
+        </>}
 
       </div>
     </AdminShell>

@@ -1104,8 +1104,24 @@ export function AdminAssessmentDetail(): React.ReactElement {
             })
           }
         />
-        <HighStakesCard key={`hs-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.high_stakes === true} />
-        <RemindersCard key={`rem-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.reminders} />
+        {/* help_id: admin.assessments.advanced */}
+        <details>
+          <summary
+            style={{
+              cursor: "pointer",
+              color: "var(--aiq-color-fg-muted)",
+              fontSize: "var(--aiq-text-sm)",
+              userSelect: "none",
+              padding: "var(--aiq-space-xs) 0",
+            }}
+          >
+            Advanced settings
+          </summary>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", marginTop: "var(--aiq-space-sm)" }}>
+            <HighStakesCard key={`hs-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.high_stakes === true} />
+            <RemindersCard key={`rem-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.reminders} />
+          </div>
+        </details>
 
         {/* Invitations section */}
         <div>
