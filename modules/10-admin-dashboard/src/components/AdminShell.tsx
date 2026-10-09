@@ -288,6 +288,10 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     // Settings hosts billing + DPDP retention controls (tenant-settings is
     // embedded as a section at the bottom of the billing page).
     { label: "Settings", href: "/admin/settings", icon: "settings", adminOnly: true },
+  ];
+
+  // Platform — super_admin-only surfaces (RW-16), split out of Account.
+  const platformEntries: NavEntry[] = [
     // Evaluation queue — AssessIQ's cross-tenant AI-evaluation work surface
     // (super_admin only; tenant admins review and publish, they never evaluate).
     { label: "Grading queue", href: "/admin/platform/evaluations", icon: "check", superAdminOnly: true },
@@ -433,6 +437,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                 {renderSection("Content", libraryEntries)}
                 {renderSection("Admin", adminEntries)}
                 {renderSection("Account", accountEntries)}
+                {renderSection("Platform", platformEntries)}
               </>
             );
           })()}

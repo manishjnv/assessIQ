@@ -4,8 +4,8 @@
 // users can be injected without network mocking. Covers the three bugs the
 // operator hit in production:
 //
-//   1. Filter chips must be mutually exclusive: turning on "Show disabled"
-//      while "Show removed" was on must turn the other off, and vice versa.
+//   1. The Status filter views (disabled / removed) must be mutually exclusive
+//      (RW-19 merged the two toggle chips into one select).
 //   2. The exclusive filter must actually FILTER the rendered rows — not
 //      "include them in addition to active" (that was round-1's mistake).
 //   3. Disabled rows must NOT use row-level `opacity` — that creates a
@@ -142,6 +142,11 @@ function rowForEmail(email: string): HTMLElement {
 // Bug 1+2 — exclusive filter semantics
 // ---------------------------------------------------------------------------
 
+// RW-19: the two toggle chips became one "Status" select (all / disabled / removed).
+function setStatus(value: "all" | "disabled" | "removed"): void {
+  fireEvent.change(screen.getByLabelText("Status"), { target: { value } });
+}
+
 describe("Phase C users page — filter semantics", () => {
   it("default view shows active + pending only (no disabled, no removed)", () => {
     renderWithSuperContext();
@@ -150,55 +155,31 @@ describe("Phase C users page — filter semantics", () => {
     expect(screen.queryByText("removed@example.com")).toBeNull();
   });
 
-  it("clicking 'Show disabled users' switches to disabled-only view", () => {
+  it("Status: Disabled switches to disabled-only view", () => {
     renderWithSuperContext();
-    fireEvent.click(screen.getByText("Show disabled users"));
-    // Disabled row is now visible; active and removed are filtered out.
+    setStatus("disabled");
     expect(screen.queryByText("disabled@example.com")).not.toBeNull();
     expect(screen.queryByText("admin@example.com")).toBeNull();
     expect(screen.queryByText("removed@example.com")).toBeNull();
-    // Label reflects the new state.
-    expect(screen.queryByText("Showing disabled only")).not.toBeNull();
   });
 
-  it("clicking 'Show removed users' switches to removed-only view", () => {
+  it("Status: Removed switches to removed-only view", () => {
     renderWithSuperContext();
-    fireEvent.click(screen.getByText("Show removed users"));
+    setStatus("removed");
     expect(screen.queryByText("removed@example.com")).not.toBeNull();
     expect(screen.queryByText("admin@example.com")).toBeNull();
     expect(screen.queryByText("disabled@example.com")).toBeNull();
-    expect(screen.queryByText("Showing removed only")).not.toBeNull();
   });
 
-  it("turning on 'Show removed' while 'Show disabled' is on turns disabled off (mutual exclusion)", () => {
+  it("Disabled then Removed shows removed-only (views stay exclusive)", () => {
     renderWithSuperContext();
-    fireEvent.click(screen.getByText("Show disabled users"));
-    expect(screen.queryByText("Showing disabled only")).not.toBeNull();
-    // Now flip to removed
-    fireEvent.click(screen.getByText("Show removed users"));
-    // Disabled chip is back to OFF label, removed chip is ON
-    expect(screen.queryByText("Showing disabled only")).toBeNull();
-    expect(screen.queryByText("Show disabled users")).not.toBeNull();
-    expect(screen.queryByText("Showing removed only")).not.toBeNull();
-    // And the rendered list is now removed-only, not "disabled + removed"
+    setStatus("disabled");
+    setStatus("removed");
     expect(screen.queryByText("removed@example.com")).not.toBeNull();
     expect(screen.queryByText("disabled@example.com")).toBeNull();
-  });
-
-  it("filter chips are real <button type=button> for full hit-target", () => {
-    renderWithSuperContext();
-    const chip = screen.getByText("Show disabled users");
-    // The chip text node is inside a <button>
-    let el: HTMLElement | null = chip;
-    let foundButton = false;
-    while (el !== null) {
-      if (el.tagName === "BUTTON" && el.getAttribute("type") === "button") {
-        foundButton = true;
-        break;
-      }
-      el = el.parentElement;
-    }
-    expect(foundButton).toBe(true);
+    setStatus("all");
+    expect(screen.queryByText("admin@example.com")).not.toBeNull();
+    expect(screen.queryByText("removed@example.com")).toBeNull();
   });
 });
 
@@ -209,7 +190,7 @@ describe("Phase C users page — filter semantics", () => {
 describe("Phase C users page — row dimming", () => {
   it("disabled row does NOT set opacity on the row element", () => {
     renderWithSuperContext();
-    fireEvent.click(screen.getByText("Show disabled users"));
+    setStatus("disabled");
     const row = rowForEmail("disabled@example.com");
     const style = row.getAttribute("style") ?? "";
     // Round-1 used opacity: 0.75 — that re-creates the stacking-context bug.
@@ -219,7 +200,7 @@ describe("Phase C users page — row dimming", () => {
 
   it("removed row does NOT set opacity on the row element either", () => {
     renderWithSuperContext();
-    fireEvent.click(screen.getByText("Show removed users"));
+    setStatus("removed");
     const row = rowForEmail("removed@example.com");
     const style = row.getAttribute("style") ?? "";
     expect(style).not.toMatch(/opacity\s*:\s*0/);
@@ -233,7 +214,7 @@ describe("Phase C users page — row dimming", () => {
 describe("Phase C users page — Manage dropdown portal", () => {
   it("clicking Manage on the disabled row opens a panel that is a child of <body>, not inside the row", () => {
     renderWithSuperContext();
-    fireEvent.click(screen.getByText("Show disabled users"));
+    setStatus("disabled");
     const row = rowForEmail("disabled@example.com");
     // Click the Manage button inside this row
     const manageBtn = within(row).getByText(/Manage/i);
@@ -263,7 +244,7 @@ describe("Phase C users page — Manage dropdown portal", () => {
 
   it("the dropdown panel uses position:fixed (not the in-tree absolute)", () => {
     renderWithSuperContext();
-    fireEvent.click(screen.getByText("Show disabled users"));
+    setStatus("disabled");
     const row = rowForEmail("disabled@example.com");
     fireEvent.click(within(row).getByText(/Manage/i));
     const reenable = screen.getByText("Re-enable user");

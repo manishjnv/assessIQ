@@ -164,17 +164,8 @@ function sortRows<T>(rows: T[], key: string, dir: SortDir): T[] {
   });
 }
 
-function assessmentStatusColor(s: string): { bg: string; color: string } {
-  switch (s) {
-    case "active":
-      return { bg: "var(--aiq-color-success-soft)", color: "var(--aiq-color-success)" };
-    case "published":
-      return { bg: "var(--aiq-color-accent-soft)", color: "var(--aiq-color-accent)" };
-    case "closed":
-      return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-muted)" };
-    default:
-      return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-secondary)" };
-  }
+function assessmentStatusVariant(s: string): "default" | "accent" | "success" {
+  return s === "active" ? "success" : s === "published" ? "accent" : "default";
 }
 
 function invitationStatusColor(s: string): { bg: string; color: string } {
@@ -782,8 +773,6 @@ export function AdminAssessmentDetail(): React.ReactElement {
     );
   }
 
-  const sc = assessmentStatusColor(assessment.status);
-
   return (
     <AdminShell
       breadcrumbs={[{ label: "Assessments", href: "/admin/assessments" }, assessment.name]}
@@ -823,21 +812,9 @@ export function AdminAssessmentDetail(): React.ReactElement {
               >
                 {assessment.name}.
               </h1>
-              <span
-                style={{
-                  fontFamily: "var(--aiq-font-mono)",
-                  fontSize: "var(--aiq-text-xs)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.04em",
-                  padding: "1px 8px",
-                  borderRadius: "var(--aiq-radius-pill)",
-                  background: sc.bg,
-                  color: sc.color,
-                  flexShrink: 0,
-                }}
-              >
+              <Chip variant={assessmentStatusVariant(assessment.status)}>
                 {assessmentStatusDisplay(assessment.status).label}
-              </span>
+              </Chip>
             </div>
             {/* Key attributes as a scannable chip row (branding §8.2). Level is
                 accent-emphasised as the headline attribute; the rest are bordered
