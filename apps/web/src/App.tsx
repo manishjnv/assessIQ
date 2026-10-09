@@ -96,7 +96,7 @@ export function App(): React.JSX.Element {
           <Route path="/admin/settings" element={<RequireSession role="admin"><AdminBilling /></RequireSession>} />
           {/* Back-compat: old /admin/settings/billing bookmarks → /admin/settings */}
           <Route path="/admin/settings/billing" element={<Navigate to="/admin/settings" replace />} />
-          <Route path="/admin/settings/help-content" element={<RequireSession role="admin"><AdminHelpContent /></RequireSession>} />
+          <Route path="/admin/settings/help-content" element={<RequireSession role="super_admin"><AdminHelpContent /></RequireSession>} />
           <Route path="/admin/guide" element={<RequireSession role="admin"><AdminShell breadcrumbs={["Help guide"]}><AdminGuide /></AdminShell></RequireSession>} />
           {/* Question Bank pages (session 2026-05-04) */}
           <Route path="/admin/question-bank" element={<RequireSession role="admin"><AdminQuestionBank /></RequireSession>} />
