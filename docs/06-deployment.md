@@ -2100,3 +2100,20 @@ Do the enumerate-first checks of project rule 8 before step 1.
 **Downstream impact.** The memory note "restart api+worker after /login" is obsolete. Any runbook that edits the host `/root/.claude.json` must edit `/root/.claude/.claude.json` instead.
 
 **Rollback.** Restore `/root/docker-compose.yml.bak-20261009-rw11`, OR `git revert e8c12cf`. Then run `up -d --no-deps --force-recreate assessiq-api assessiq-worker`.
+
+## Hardening S3 deploy (2026-10-09)
+
+**What changed.** Commit `505031a` (RW-12 to RW-15: glossary, `labels.ts`, one date format, after-submit sentence). It is pushed. The VPS is at `505031a`.
+
+### Deploy of `505031a`
+
+1. Enumerate first: 24 containers, 6 `assessiq-*`, no claude process in flight, VPS clean at `e8c12cf`.
+2. `git pull` in `/srv/assessiq`.
+3. Apply migration 0165 by hand (`psql -1 -v ON_ERROR_STOP=1`). Record it in `schema_migrations` with its sha256. It adds new help versions (global help rows 230 to 384). `0011` is not recorded on prod, so it was not run again.
+4. Build `assessiq-frontend` and recreate it with `up -d --no-deps --force-recreate`. Only the frontend: the api code did not change.
+
+**Result.** 24 containers after. The frontend is healthy. `/`, `/admin/login`, `/candidate/login`, `/take/x`, `/api/health` and `/api/ready` all return 200. The served JS chunks contain "Grading queue", "Create organisation", "Send to organisation", "Submit assessment" and the after-submit sentence. "Release to company" and "Awaiting evaluation" are gone. Behavioural click-through is pending the owner.
+
+**Not included.** No api or worker rebuild. Nav headers "Work" and "Content" are placeholders until RW-16. Backend API error messages keep the old words. The lint is in WARN mode (6 hits).
+
+**Rollback.** `git revert 505031a`, rebuild `assessiq-frontend`, recreate it. Migration 0165 only adds help versions; leave it in place (the old text stays as an earlier version row).

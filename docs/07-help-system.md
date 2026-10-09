@@ -325,3 +325,19 @@ Guard: `modules/16-help-system/src/__tests__/help-id-page-prefix.test.ts` scans 
 **Considered and rejected.** Renaming the page ids instead (many more call sites). Keeping the allowlist (the text stays unloaded).
 
 **Not included.** No text change. No new ids.
+
+## S3 glossary pass (2026-10-09)
+
+**What.** Commit `505031a` (RW-12, RW-15). 154 global keys are reworded in `modules/16-help-system/content/en/admin.yml` and `candidate.yml` to follow `docs/10-branding-guideline.md` section 2.5. 9 `short_text` values are trimmed to the 120-character cap. The seed `0011_seed_help_content.sql` is regenerated (fresh databases). Migration `0165_glossary_help_text.sql` inserts a new version for each changed key. It is idempotent (`NOT EXISTS` on identical text). The key `candidate.submit.confirm` uses the shared after-submit sentence. The help test count constant changes from 223 to 253 (fresh database).
+
+**Rule.** Help text follows section 2.5 of the branding guideline. Use "organisation", "question set", "assessment", "grading", "key point", "send to organisation" and the other glossary words. A new or changed key needs a word check against that table.
+
+**Prod.** 0165 was applied by hand with `psql -1 -v ON_ERROR_STOP=1` and recorded with its sha256. Global help rows went from 230 to 384. `0011` is not recorded in `schema_migrations` on prod (it pre-dates tracking), so it was not run again.
+
+**Why.** Help text used the old words (company, pack, evaluation, anchor, band). The page text now uses the new words, so mixed words would confuse users.
+
+**Considered and rejected.** Edit the old version rows in place (a same-key fix is a new version row). Run the seed again on prod (it is not tracked there).
+
+**Not included.** No new help ids. No change to `help_id` names.
+
+**Downstream impact.** The help test constant is 253. A fresh database and prod now show the same text for the changed keys.

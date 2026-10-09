@@ -101,6 +101,32 @@ The template's voice is understated and editorial. Adopt it.
 - **Microcopy uppercase + letter-spaced** for labels: `OVERALL SCORE`, `WORKSPACE`, `ACCOUNT`, `WEDNESDAY · APRIL 29`.
 - **Mid-dot separator (`·`)** in meta lines instead of pipes/slashes: `30 min · 24 questions · Advanced`.
 - **Numerals lead with serif** in any standalone display: `132/160`, `97th`, `47:12`. Avoid mono for hero numbers; mono is for IDs and kbd.
+- **Dates** use the kit format: `Apr 29, 2026 · 14:32` (24 h, no seconds); relative `2 min ago`, `Yesterday`, then absolute after 6 days. Use `formatDate` / `formatDateTime` / `formatRelative` from `@assessiq/ui-system`; never call `toLocale*` or `Intl.DateTimeFormat` in a page.
+
+### 2.5 Glossary — one word per concept
+
+Owner decision 2026-10-09 (RW-12). **This table is the one source of truth for user-visible words.** Admins, platform admins and candidates see the same word. Code, API fields, database columns and enum values keep their names (`tenant`, `pack`, `domain`, `band`, `anchor`); only visible text changes. Help text (`modules/16-help-system/content/en/*.yml`) follows this table too.
+
+| Concept | Use | Do not use in visible text | Notes |
+| --- | --- | --- | --- |
+| Customer | **organisation** (British spelling) | company, tenant, workspace, client | "Create organisation", "Organisation code" (RO3 field keeps its place). |
+| Question pack | **question set**; the area that holds them is **Question bank** | pack, library | "From a set" style shortcuts stay readable: "Ready-made test" (RW-17). |
+| One candidate's run | **attempt** (the record); **submit** (the act) | submission for an in-progress row, sitting | "Submitted" stays a status. |
+| What the candidate takes | **assessment** | test, exam | Same word on admin and candidate pages ("Submit assessment"). |
+| Grading process | **grade** / **grading**; the number is the **score** | evaluate, evaluation, marking, mark | Tagline "Graded on evidence." stays. "Grading queue", "Awaiting grading". |
+| Score band | **score band** (admin only) | band alone, score level | Candidates see a score, never a band. |
+| Anchor | **key point**; the set of key points is the **rubric** | anchor | "Key points we grade for". |
+| Difficulty | **difficulty**: **Beginner / Intermediate / Advanced** | L1/L2/L3, level alone | Job titles in content (for example "SOC Analyst L1") stay as written. |
+| Subject area | **subject** | domain (as subject area) | Code and API keep `domain`. A future web/email domain keeps the word "domain". |
+| Make a question set or assessment live | **publish** / Published | release | |
+| Platform hands a graded attempt to the organisation | **send to organisation** | release to company | |
+| Organisation shows a result to the candidate | **release** / Ready to release / Released | publish (for results) | |
+| Take an AI-proposed grade | **accept** / Accept all | approve | |
+| Social share of a certificate | **share** | | Unrelated to release. |
+
+**After-submit sentence** (one constant, `AFTER_SUBMIT_TEXT` in `@assessiq/candidate-ui`): "Your answers are saved. You will see your result on this page or by email once it is final."
+
+**Decision record (RW-12, 2026-10-09).** The owner chose all recommended options. Rejected: "submission" for attempt (it is wrong for an in-progress row); "score level" for band (it collides with the difficulty "level"); one verb for release, publish and accept (they are three different actions: make live, show a result to the candidate, take an AI grade). Not included: nav section headers (RW-16), backend API error messages, and code identifiers. Applied in commit `505031a`; see `docs/08-ui-system.md` "Labels, dates and shared copy".
 
 ## 3. Color palette
 

@@ -1,3 +1,43 @@
+# Session — 2026-10-09 — Hardening S3 (RW-12..RW-15)
+
+**Headline:** Hardening session S3 is live. One word for each concept (glossary), one label file, one date format and one after-submit sentence. VPS at `505031a`.
+**Commits:** `505031a` — feat(10,11,16,17,web): hardening S3 — one word per concept, labels.ts, one date format, after-submit sentence (RW-12..RW-15). Pushed.
+**Deploy:** git pull, migration 0165 by hand (`psql -1 -v ON_ERROR_STOP=1`, sha256 recorded, global help rows 230 -> 384), build + recreate `assessiq-frontend` only. 24 containers before and after. `/`, `/admin/login`, `/candidate/login`, `/take/x`, `/api/health`, `/api/ready` all 200. Served chunks have the new words; "Release to company" and "Awaiting evaluation" are gone. Details: `docs/06-deployment.md` "Hardening S3 deploy".
+**Tests:** typecheck 0; lint 0 errors, 20 warnings (pre-existing); ui-system 47, admin-dashboard 111, candidate-ui 114, web 73, help-system 101 pass; `lint:ui-labels` self-test OK. Visual and axe e2e run in CI (Linux snapshots); no local snapshot covers the changed pages.
+**Rows:** RW-12, RW-13, RW-14, RW-15 DONE. New rows RW-66 (6 lint hits, then `--strict`), RW-67 (backend error words).
+**Next:** S4 = RW-16..RW-21 admin UX pass 1. RW-10 still waits for the owner eval run.
+**Operator rule:** none. Owner: click through the changed pages (behavioural check pending).
+**Open questions:**
+- Nav headers "Work" and "Content" are placeholders until RW-16.
+- "Approve" for AI-draft questions is kept (it is not an AI grade).
+- Lint stays in WARN mode until RW-66.
+- `level_label` values are authored names, shown as written.
+
+---
+
+## Agent utilization
+- Opus: plan, glossary pre-check + 3 AskUserQuestion rounds, glossary doc, diff review, 8 review fixes (incl. a broken quote in `authScope.ts` and the `difficultyLabel` pass-through), commit, deploy, live check.
+- Sonnet: 1 glossary draft, 3 wave-1 impl agents (RW-13, RW-14, RW-15 + help), 4 wave-2 page-group agents (G1-G4), 1 docs agent = 9.
+- Haiku: 1 Phase 0 digest + inventory; read-only, could not write the raw list.
+- codex:rescue: n/a — no load-bearing path touched (modules 10/11/16/17/web, tools, package.json).
+- claude-mem: n/a — not used.
+
+**Routing telemetry**
+- haiku · Phase 0 digest · reworked: Y (counts included identifiers; Sonnet redid the visible-only inventory)
+- sonnet · glossary draft · reworked: N
+- sonnet · RW-13 labels + lint · reworked: Y (Opus: difficultyLabel fallback lowercased job titles)
+- sonnet · RW-14 dates · reworked: N
+- sonnet · RW-15 + help 0165 · reworked: N
+- sonnet · G1 admin pages · reworked: Y (Opus: authScope copy + login test)
+- sonnet · G2 library pages · reworked: Y (Opus: "Difficulties" header)
+- sonnet · G3 platform pages · reworked: Y (Opus: "Ready to send" chip)
+- sonnet · G4 candidate pages · reworked: N
+- sonnet · docs · reworked: N
+
+**Old task checked (Rule B):** `status.ts` merged into `labels.ts`; `modules/10 lib/format.ts` extended (re-export), not duplicated; R4 consent text extended by RW-15; FU-C13 difficulty chips now use Beginner/Intermediate/Advanced.
+
+---
+
 # Session — 2026-10-09 — Hardening S2 (RW-7..RW-11)
 
 **Headline:** Hardening session S2 is live. AI single-flight is now a Redis lease, a pause during an AI call can no longer leak a result, `/api/ready` exists, and the containers read the claude config from a directory. RW-10 waits for the owner. VPS at `e8c12cf`.

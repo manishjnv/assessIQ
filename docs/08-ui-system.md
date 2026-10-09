@@ -947,3 +947,31 @@ Three admin-facing UI changes shipped as part of the domain-slug normalization +
 ## 404 page main landmark (N25, 2026-10-03)
 
 The `NotFound` page root is now `<main>` (commit `00a951e`). This fixes the axe rules `landmark-one-main` and `region`. The e2e a11y spec covers it. No visual change.
+
+## Labels, dates and shared copy (S3, 2026-10-09)
+
+**What.** Commit `505031a` (hardening S3, rows RW-12 to RW-15). Four shared pieces now give pages their visible words.
+
+1. **Enum labels.** `modules/10-admin-dashboard/src/lib/labels.ts` holds every label map: attempt, evaluation, pack, assessment and organisation status; question type; plan tier; certificate tier; audience; role; job status; generation status; cognitive level; grant scope; difficulty. `lib/status.ts` is now a one-line re-export of `labels.ts` (Rule A: no deletes). `difficultyLabel` returns an unknown value unchanged, so authored level names such as "SOC Analyst L1" stay as written.
+2. **Dates.** `modules/17-ui-system/src/format.ts` exports `formatDate` ("Apr 29, 2026"), `formatDateTime` ("Apr 29, 2026 · 14:32"), `formatRelative` ("4s ago", "2 min ago", "3 h ago", "Yesterday", "5 days ago", then a date after 6 days), `formatMonthYear` and `formatDayLine`. They come from `@assessiq/ui-system`. The old en-GB helpers in `modules/10-admin-dashboard/src/lib/format.ts` re-export them; `formatTimestamp` is an alias of `formatDateTime`. About 45 page-level `toLocale*` and `Intl` date calls in modules 10, 11 and `apps/web` are replaced. Two number counters keep `toLocaleString` with the comment `// lint-ui-labels: number`.
+3. **After-submit sentence.** `AFTER_SUBMIT_TEXT` in `modules/11-candidate-ui/src/copy.ts`: "Your answers are saved. You will see your result on this page or by email once it is final." It is used in `take/PreTest.tsx` (consent, after "Written answers are graded with AI assistance and checked by your organisation."), `take/Submitted.tsx`, `CandidateHelp.tsx` and the help key `candidate.submit.confirm`. This extends R4.
+4. **Lint.** `tools/lint-ui-labels.ts` has four rules: `raw-enum`, `id-slice`, `http-status`, `date`. It runs in WARN mode (exit 0). Use `--strict` to fail on a hit and `--self-test` to test the rules. Root scripts: `lint:ui-labels`, `lint:ui-labels:self-test`, and `lint:repo`. `lint:repo` runs ui-labels, rls, mv-tenant-filter, doc-anchors, vitest-coverage, skill-mount, public-collisions, ui-api-contract, ambient-ai, edge-routing and deploy-procedure. It leaves out cross-module-deps (more than 4 minutes, and it fails on `.claude/worktrees`).
+
+**Rule.** Pages never render raw enums, ID slices, SHAs, model names or HTTP codes. Pages never call `toLocale*` or `Intl` for dates. Add a label to `labels.ts` and use a date helper instead. Visible words follow `docs/10-branding-guideline.md` section 2.5. The text "HTTP <n>" in errors is now "Something went wrong. Please try again." (`take/Attempt.tsx` twice, `TokenLanding.tsx`).
+
+**Why.** The review found 8 date formats, raw enum values and UUID slices in JSX, and three different after-submit texts. One source for each removes the drift.
+
+**Considered and rejected.**
+- Put the date helpers in `apps/web/src/lib` (the task row said so). Modules 10 and 11 cannot import from `apps/web` (Rule B), so the helpers live in `ui-system`.
+- Put `AFTER_SUBMIT_TEXT` in `apps/web`. Same import reason; it lives in candidate-ui.
+- Delete `status.ts` and the old `format.ts`. Rule A forbids it; both re-export.
+- Start the lint in strict mode. Six hits remain, so it starts in WARN mode.
+
+**Not included.**
+- Six lint warnings remain: `id-slice` at `certificates.tsx:725`, `BillingDrawer.tsx:396`, `tenant-settings.tsx:1215`, `users.tsx:1497`, `users.tsx:1594` (no name exists to show); `raw-enum` at `11-candidate-ui` `QuestionNavigator.tsx:121` (aria-label).
+- The lint is not strict in CI.
+- The PDF template in `modules/18-certification` keeps its date format.
+- Nav section headers "Work" and "Content" are placeholders until RW-16 regroups the nav.
+- API error messages from the backend still use the old words.
+
+**Downstream impact.** The date format changes from "21 May 2026" to "May 21, 2026" on all pages. Difficulty chips (FU-C13) show Beginner, Intermediate and Advanced. A new page must use `labels.ts` and the date helpers, or the lint warns. Help text follows the same glossary (`docs/07-help-system.md`).
