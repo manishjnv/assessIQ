@@ -32,3 +32,5 @@ export {
 } from "./request-context.js";
 export { uuidv7, shortId } from "./ids.js";
 export { nowIso, parseIso } from "./time.js";
+export { getRedis, closeRedis } from "./redis.js";
+export { acquireLock, refreshLock, releaseLock, peekLock } from "./lock.js";

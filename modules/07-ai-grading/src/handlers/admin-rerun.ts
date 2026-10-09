@@ -177,12 +177,12 @@ export async function handleAdminRerun(
   }
 
   // D7 — single-flight
-  const slot = singleFlight.acquire(attemptId);
+  const slot = await singleFlight.acquire(attemptId);
   if (slot.kind === "rejected") {
     throw new AppError(
       slot.reason === "same_attempt_in_flight"
         ? "Another grading on this attempt is already in progress"
-        : "Another grading is currently in progress on this API process",
+        : "Another AI grading or generation is currently in progress",
       AI_GRADING_ERROR_CODES.GRADING_IN_PROGRESS,
       409,
     );
@@ -304,6 +304,8 @@ export async function handleAdminRerun(
     );
 
     await withTenant(tenantId, async (client) => {
+      // RW-7: re-check pause inside the write tx (pause may land during the AI call).
+      await assertTenantAiEnabled(client, tenantId);
       if (reevaluation) {
         // Review cache + marker clear, atomically with the audit row (same as Grade all).
         // NOT a committed grade — the evaluator's accept is still required (D8).
@@ -355,6 +357,6 @@ export async function handleAdminRerun(
     }
     throw err;
   } finally {
-    slot.release();
+    await slot.release();
   }
 }

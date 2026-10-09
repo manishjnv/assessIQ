@@ -2658,6 +2658,23 @@ admin.evaluations.detail.sent_back:
     graded, accepting a new grade does not release it again: use **Release to
     company** when you are done.
 
+admin.evaluations.queue.runtime_status:
+  audience: admin
+  short_text: "Shows whether the AI runtime is ready: database, Redis and the Claude command."
+  long_md: |
+    ## AI runtime status
+
+    This chip shows whether the server can run AI evaluation now. It runs
+    three checks:
+
+    - **db.** The database answers a test query.
+    - **redis.** Redis answers a ping.
+    - **claude.** The Claude command runs on the server.
+
+    **AI runtime ready** means all three pass. **Not ready** lists the checks
+    that failed. The chip checks once when the page loads. Reload the page to
+    check again.
+
 admin.evaluations.queue.ai_paused:
   audience: admin
   short_text: "The company turned AI evaluation off. Its attempts stay here, but Grade and Re-run AI are refused."
@@ -3505,6 +3522,7 @@ admin.evaluations.queue.page:
     - admin.evaluations.queue.overview
     - admin.evaluations.queue.evaluate_next
     - admin.evaluations.queue.ai_paused
+    - admin.evaluations.queue.runtime_status
 
 admin.tenant_settings.page:
   audience: admin

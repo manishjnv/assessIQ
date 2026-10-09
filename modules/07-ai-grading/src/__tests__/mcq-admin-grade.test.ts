@@ -20,6 +20,7 @@ vi.mock("../runtime-selector.js", () => ({
   gradeSubjective: (...a: unknown[]) => gradeSubjectiveMock(...a),
 }));
 
+import { startTestRedis, stopTestRedis } from "./redis-testing.js";
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
 import { handleAdminGrade } from "../handlers/admin-grade.js";
 import { handleAdminAccept } from "../handlers/admin-accept.js";
@@ -41,6 +42,7 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
 }
 
 beforeAll(async () => {
+  await startTestRedis();
   container = await new GenericContainer("postgres:16-alpine")
     .withEnvironment({ POSTGRES_USER: "test", POSTGRES_PASSWORD: "test", POSTGRES_DB: "aiq_aig_mcq" })
     .withExposedPorts(5432)
@@ -70,6 +72,7 @@ beforeAll(async () => {
 }, 120_000);
 
 afterAll(async () => {
+  await stopTestRedis();
   await closePool();
   if (container !== undefined) await container.stop();
 }, 30_000);

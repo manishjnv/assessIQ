@@ -664,7 +664,21 @@ export async function handleAdminGenerate(
   );
 
   const mutexKey = `generation:${input.packId}:${input.levelId}`;
-  const slot = singleFlight.acquire(mutexKey);
+  let slot: Awaited<ReturnType<typeof singleFlight.acquire>>;
+  try {
+    slot = await singleFlight.acquire(mutexKey);
+  } catch (err) {
+    // RW-8 fail-closed (503 AIG_LOCK_UNAVAILABLE): close the attempt row too.
+    if (attemptInserted) {
+      await tryFinalizeAttempt(input.tenantId, attemptId, {
+        status: "failed",
+        errorCode: AI_GRADING_ERROR_CODES.LOCK_UNAVAILABLE,
+        errorMessage: "AI lock service is unavailable",
+        durationMs: Date.now() - generationStartedAt,
+      });
+    }
+    throw err;
+  }
   if (slot.kind === "rejected") {
     if (attemptInserted) {
       await tryFinalizeAttempt(input.tenantId, attemptId, {
@@ -811,7 +825,7 @@ export async function handleAdminGenerate(
   } catch (err) {
     capturedErr = err;
   } finally {
-    slot.release();
+    await slot.release();
     // Guarantee the attempt row is always finalized, even if this finally
     // block runs due to an uncaught throw above.
     if (attemptInserted) {

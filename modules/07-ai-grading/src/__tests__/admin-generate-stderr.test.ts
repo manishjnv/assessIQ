@@ -38,6 +38,7 @@ vi.mock("@assessiq/audit-log", async () => {
   };
 });
 
+import { startTestRedis, stopTestRedis } from "./redis-testing.js";
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "../../../02-tenancy/src/with-tenant.js";
 
@@ -228,6 +229,7 @@ beforeAll(
     // Docker availability is checked synchronously at module load time.
     // If Docker is unavailable, tests are skipped via it.skipIf(!dockerAvailable).
     if (!dockerAvailable) return;
+    await startTestRedis();
 
     container = await new GenericContainer("postgres:16-alpine")
       .withEnvironment({
@@ -273,6 +275,7 @@ beforeAll(
 
 afterAll(async () => {
   if (dockerAvailable) {
+    await stopTestRedis();
     await closePool();
     if (container) await container.stop();
   }

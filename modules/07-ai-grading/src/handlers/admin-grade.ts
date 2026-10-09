@@ -370,12 +370,12 @@ export async function handleAdminGrade(
   }
 
   // D7 — single-flight mutex
-  const slot = singleFlight.acquire(attemptId);
+  const slot = await singleFlight.acquire(attemptId);
   if (slot.kind === "rejected") {
     throw new AppError(
       slot.reason === "same_attempt_in_flight"
         ? "Another grading on this attempt is already in progress"
-        : "Another grading is currently in progress on this API process",
+        : "Another AI grading or generation is currently in progress",
       AI_GRADING_ERROR_CODES.GRADING_IN_PROGRESS,
       409,
     );
@@ -544,6 +544,8 @@ export async function handleAdminGrade(
     // row write (admin-accept.ts is the only insertGrading caller for AI
     // proposals; this cache is purely review-state).
     await withTenant(tenantId, async (client) => {
+      // RW-7: re-check pause inside the write tx (pause may land during the AI call).
+      await assertTenantAiEnabled(client, tenantId);
       await client.query(
         `UPDATE attempts
             SET ai_proposals = $1::jsonb,
@@ -575,6 +577,6 @@ export async function handleAdminGrade(
     }
     throw err;
   } finally {
-    slot.release();
+    await slot.release();
   }
 }

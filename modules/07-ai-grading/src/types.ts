@@ -385,6 +385,8 @@ export const AI_GRADING_ERROR_CODES = {
   MODE_NOT_CLAUDE_CODE_VPS: "AIG_MODE_NOT_CLAUDE_CODE_VPS",
   /** Single-flight: another grading is already in flight for this attempt or process */
   GRADING_IN_PROGRESS: "AIG_GRADING_IN_PROGRESS",
+  /** Single-flight Redis lock unreachable — fail-closed 503 */
+  LOCK_UNAVAILABLE: "AIG_LOCK_UNAVAILABLE",
   /** Heartbeat: admin session inactive > 60s â€” fresh click required */
   HEARTBEAT_STALE: "AIG_HEARTBEAT_STALE",
   /** Skill file missing or unreadable on the VPS */
