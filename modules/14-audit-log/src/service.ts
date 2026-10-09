@@ -88,13 +88,12 @@ export async function exportCsv(input: AuditExportInput): Promise<Readable> {
 
   log.info({ tenantId }, 'audit.exportCsv: starting streaming export');
 
-  const readable = new Readable({ objectMode: false, read() {} });
-  readable.push(CSV_HEADERS + '\n');
+  const { readable, write } = lineStream();
+  await write(CSV_HEADERS + '\n');
 
   // Stream in background — caller pipes the Readable to the HTTP response.
-  streamRows(tenantId, whereClause, params, (row) => {
-    readable.push(rowToCsvLine(row) + '\n');
-  }).then(() => {
+  // write() waits while the consumer is slower than the cursor (FU-B1 review, 2026-10-09).
+  streamRows(tenantId, whereClause, params, (row) => write(rowToCsvLine(row) + '\n')).then(() => {
     readable.push(null); // EOF
   }).catch((err) => {
     readable.destroy(err as Error);
@@ -113,11 +112,9 @@ export async function exportJsonl(input: AuditExportInput): Promise<Readable> {
 
   log.info({ tenantId }, 'audit.exportJsonl: starting streaming export');
 
-  const readable = new Readable({ objectMode: false, read() {} });
+  const { readable, write } = lineStream();
 
-  streamRows(tenantId, whereClause, params, (row) => {
-    readable.push(JSON.stringify(row) + '\n');
-  }).then(() => {
+  streamRows(tenantId, whereClause, params, (row) => write(JSON.stringify(row) + '\n')).then(() => {
     readable.push(null);
   }).catch((err) => {
     readable.destroy(err as Error);
@@ -129,6 +126,54 @@ export async function exportJsonl(input: AuditExportInput): Promise<Readable> {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** Default idle timeout for an export consumer: a client that reads nothing for this long is cut off. */
+export const EXPORT_IDLE_TIMEOUT_MS = 60_000;
+
+/**
+ * A byte Readable plus a write() that honours backpressure: when push() reports
+ * a full buffer, write() resolves only after the consumer calls read() again.
+ * A read() that arrives while no write is waiting is remembered (drained flag),
+ * so a wake-up is never lost. If the consumer goes away (destroy/close), or
+ * reads nothing for idleTimeoutMs, the pending write rejects so the cursor loop
+ * in streamRows rolls back and withTenant releases the client. Both guards
+ * bound how long one export can hold a DB connection (codex review 2026-10-09).
+ */
+export function lineStream(highWaterMark?: number, idleTimeoutMs: number = EXPORT_IDLE_TIMEOUT_MS): {
+  readable: Readable;
+  write: (line: string) => Promise<void>;
+} {
+  let wake: (() => void) | null = null;
+  let drained = false;
+  let closed = false;
+  let idleTimer: NodeJS.Timeout | null = null;
+  const notify = (): void => {
+    if (idleTimer !== null) { clearTimeout(idleTimer); idleTimer = null; }
+    const w = wake;
+    wake = null;
+    if (w !== null) w(); else drained = true;
+  };
+  const readable = new Readable({
+    objectMode: false,
+    ...(highWaterMark !== undefined ? { highWaterMark } : {}),
+    read() { notify(); },
+  });
+  readable.once('close', () => { closed = true; notify(); });
+  const write = async (line: string): Promise<void> => {
+    if (closed) throw new Error('audit export: consumer closed the stream');
+    drained = false;
+    if (readable.push(line)) return;
+    if (drained) return; // read() already ran during push(); nothing to wait for
+    await new Promise<void>((resolve) => {
+      wake = resolve;
+      idleTimer = setTimeout(() => {
+        readable.destroy(new Error('audit export: consumer idle for ' + idleTimeoutMs + ' ms'));
+      }, idleTimeoutMs);
+    });
+    if (closed) throw new Error('audit export: consumer closed the stream');
+  };
+  return { readable, write };
+}
 
 interface WhereResult {
   whereClause: string;
@@ -180,7 +225,7 @@ async function streamRows(
   tenantId: string,
   whereClause: string,
   params: unknown[],
-  onRow: (row: AuditRow) => void,
+  onRow: (row: AuditRow) => Promise<void>,
 ): Promise<void> {
   await withTenant(tenantId, async (client) => {
     // Use a named cursor for memory-bounded streaming.
@@ -205,7 +250,7 @@ async function streamRows(
           `FETCH ${CURSOR_BATCH_SIZE} FROM ${cursorName}`,
         );
         if (batch.rows.length === 0) break;
-        for (const row of batch.rows) onRow(row);
+        for (const row of batch.rows) await onRow(row);
       }
 
       await client.query(`CLOSE ${cursorName}`);

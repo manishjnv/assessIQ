@@ -27,6 +27,7 @@ import {
   registerHelpTrackRoutes,
 } from '@assessiq/help-system';
 import { registerAdminWorkerRoutes } from './routes/admin-worker.js';
+import { registerAuditRoutes } from '@assessiq/audit-log';
 import { registerNotificationsRoutes } from '@assessiq/notifications';
 import { registerScoringRoutes } from '@assessiq/scoring';
 import { registerAnalyticsRoutes } from '@assessiq/analytics';
@@ -211,6 +212,12 @@ export async function buildServer() {
   // The queue is shared by every tenant, so only the platform super admin may
   // read it or retry a job (RS6 FR17, 2026-10-03; was tenant admin).
   await registerAdminWorkerRoutes(app, { adminOnly: authChain({ roles: ['super_admin'] }) });
+
+  // Audit log viewer + export routes (module 14, FU-B1 2026-10-06). The five
+  // routes existed since Phase 3 G3.A but were never mounted. Admin chain:
+  // tenant admin reads its own tenant's audit_log (withTenant / RLS); the two
+  // archive routes answer with the S3 "not configured" stubs until Phase 4.
+  await registerAuditRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
 
   // Notifications + webhooks routes (Phase 3 G3.B):
   //   - /api/admin/webhooks/* (admin-gated)
