@@ -51,6 +51,15 @@ export function getRequestContext(): RequestContext;
 export function uuidv7(): string;
 export function shortId(): string;        // 12 char base32 for human-shareable IDs
 
+// redis.ts (RW-8, 2026-10-09) - owns the one ioredis singleton per process
+// (01-auth/src/redis.ts re-exports it). Redis is required for AI single-flight.
+
+// lock.ts (RW-8, 2026-10-09) - Redis lease helpers
+export function acquireLock(key, value, ttlMs);   // SET NX PX
+export function refreshLock(key, value, ttlMs);   // Lua compare-and-pexpire
+export function releaseLock(key, value);          // Lua compare-and-del
+export function peekLock(key);
+
 // time.ts
 export function nowIso(): string;
 export function parseIso(s: string): Date;
