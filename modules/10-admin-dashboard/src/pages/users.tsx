@@ -161,12 +161,12 @@ const META_LABEL: CSSProperties = {
 
 // Column grid — kept consistent across header + every row.
 // Phase C: added Manage column at end.
-const ROW_GRID = "120px 2fr 1fr 110px 110px 120px";
+const ROW_GRID = "2fr 1fr 110px 110px 120px";
 const ROW_GRID_GAP = 12;
 const ROW_PADDING = "16px 20px";
 
 // Pending invitation row reuses same grid but role/status/manage differ.
-const INV_GRID = "120px 2fr 1fr 110px 110px 120px";
+const INV_GRID = "2fr 1fr 110px 110px 120px";
 
 // ── Invite drawer (fixed-position centred Card, matches screens/admin-list.jsx) ─
 
@@ -192,6 +192,9 @@ function InviteForm({
   const [toast, setToast] = useState(false);
 
   const isCandidate = role === "candidate";
+  const label = isCandidate
+    ? { title: "Add candidate", submit: "Add candidate" }
+    : { title: "Invite teammate", submit: "Send invite" };
 
   const submit = async (): Promise<void> => {
     if (!email.trim()) {
@@ -264,7 +267,7 @@ function InviteForm({
             className="aiq-serif"
             style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
           >
-            {isCandidate ? "Add candidate" : "Invite teammate"}
+            {label.title}
           </h2>
           <span style={{ flex: 1 }} />
           <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close">
@@ -344,7 +347,7 @@ function InviteForm({
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 24 }}>
           <Button variant="ghost" onClick={onCancel}>Cancel</Button>
           <Button onClick={submit} loading={loading} disabled={toast} rightIcon="arrow">
-            {isCandidate ? "Add candidate" : "Send invite"}
+            {label.submit}
           </Button>
         </div>
       </Card>
@@ -1333,28 +1336,19 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                 {r}
               </FilterChip>
             ))}
-            <FilterChip
-              active={showDisabled}
-              onClick={() => {
-                const next = !showDisabled;
-                setShowDisabled(next);
-                if (next) setShowRemoved(false); // mutually exclusive views
+            <select
+              aria-label="Status"
+              value={showRemoved ? "removed" : showDisabled ? "disabled" : "all"}
+              onChange={(e) => {
+                setShowDisabled(e.target.value === "disabled");
+                setShowRemoved(e.target.value === "removed");
                 setPage(1);
               }}
             >
-              {showDisabled ? "Showing disabled only" : "Show disabled users"}
-            </FilterChip>
-            <FilterChip
-              active={showRemoved}
-              onClick={() => {
-                const next = !showRemoved;
-                setShowRemoved(next);
-                if (next) setShowDisabled(false);
-                setPage(1);
-              }}
-            >
-              {showRemoved ? "Showing removed only" : "Show removed users"}
-            </FilterChip>
+              <option value="all">Status: All</option>
+              <option value="disabled">Status: Disabled</option>
+              <option value="removed">Status: Removed</option>
+            </select>
           </div>
         </div>
 
@@ -1439,7 +1433,6 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                 fontSize: 10,
               }}
             >
-              <span>ID</span>
               <span>User</span>
               <span>Role</span>
               <span>Status</span>
@@ -1487,15 +1480,6 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                       background: i % 2 === 1 ? "var(--aiq-color-bg-raised)" : "transparent",
                     }}
                   >
-                    <span
-                      style={{
-                        fontFamily: "var(--aiq-font-mono)",
-                        fontSize: 12,
-                        color: "var(--aiq-color-fg-muted)",
-                      }}
-                    >
-                      #{u.id.slice(0, 8)}
-                    </span>
                     <div>
                       <div
                         style={{
@@ -1584,15 +1568,6 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                     background: rowIndex % 2 === 1 ? "var(--aiq-color-bg-raised)" : "transparent",
                   }}
                 >
-                  <span
-                    style={{
-                      fontFamily: "var(--aiq-font-mono)",
-                      fontSize: 12,
-                      color: "var(--aiq-color-fg-muted)",
-                    }}
-                  >
-                    #{inv.id.slice(0, 8)}
-                  </span>
                   <div>
                     <div style={{ fontSize: 14, fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>
                       —

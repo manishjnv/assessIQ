@@ -146,17 +146,8 @@ const STATUS_TABS: { label: string; value: string }[] = [
   { label: "Closed", value: "closed" },
 ];
 
-function assessmentStatusColor(s: string): { bg: string; color: string } {
-  switch (s) {
-    case "active":
-      return { bg: "var(--aiq-color-success-soft)", color: "var(--aiq-color-success)" };
-    case "published":
-      return { bg: "var(--aiq-color-accent-soft)", color: "var(--aiq-color-accent)" };
-    case "closed":
-      return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-muted)" };
-    default:
-      return { bg: "var(--aiq-color-bg-sunken)", color: "var(--aiq-color-fg-secondary)" };
-  }
+function assessmentStatusVariant(s: string): "default" | "accent" | "success" {
+  return s === "active" ? "success" : s === "published" ? "accent" : "default";
 }
 
 /** Compute live total = Σ(selectedTypes.length × count) across all category rows. */
@@ -864,7 +855,6 @@ export function AdminAssessments(): React.ReactElement {
   // Integrity v1: written to settings.integrity on create (both default off).
   const [integrityFullscreen, setIntegrityFullscreen] = useState(false);
   const [integrityBlockCopy, setIntegrityBlockCopy] = useState(false);
-  const [highStakes, setHighStakes] = useState(false);
   // Test sections (from-set mode): written to settings.sections on create.
   const [sectionRows, setSectionRows] = useState<SectionRow[]>([]);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -991,8 +981,8 @@ export function AdminAssessments(): React.ReactElement {
       const opensAtIso = new Date(newForm.opens_at).toISOString();
       const closesAtIso = newForm.closes_at ? new Date(newForm.closes_at).toISOString() : undefined;
       const integritySettings = {
+        // High-stakes is set on the detail page (HighStakesCard), not at create (RW-17).
         integrity: { fullscreen: integrityFullscreen, block_copy_paste: integrityBlockCopy },
-        ...(highStakes ? { high_stakes: true } : {}),
       };
 
       // ── From-set (clone-on-use) ───────────────────────────────────────────
@@ -1113,25 +1103,11 @@ export function AdminAssessments(): React.ReactElement {
       key: "status",
       label: "Status",
       sortable: true,
-      render: (row: AssessmentListItem) => {
-        const c = assessmentStatusColor(row.status);
-        return (
-          <span
-            style={{
-              fontFamily: "var(--aiq-font-mono)",
-              fontSize: "var(--aiq-text-xs)",
-              textTransform: "uppercase",
-              letterSpacing: "0.04em",
-              padding: "1px 8px",
-              borderRadius: "var(--aiq-radius-pill)",
-              background: c.bg,
-              color: c.color,
-            }}
-          >
-            {assessmentStatusDisplay(row.status).label}
-          </span>
-        );
-      },
+      render: (row: AssessmentListItem) => (
+        <Chip variant={assessmentStatusVariant(row.status)}>
+          {assessmentStatusDisplay(row.status).label}
+        </Chip>
+      ),
     },
     {
       // Not sortable: value is a composite { total, … } object the generic
@@ -1488,22 +1464,6 @@ export function AdminAssessments(): React.ReactElement {
                   </label>
                 </HelpTip>
               </fieldset>
-
-              <HelpTip helpId="admin.assessments.high_stakes">
-                <label
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "var(--aiq-space-xs)",
-                    marginBottom: "var(--aiq-space-md)",
-                    fontFamily: "var(--aiq-font-sans)",
-                    fontSize: "var(--aiq-text-sm)",
-                  }}
-                >
-                  <input type="checkbox" checked={highStakes} onChange={(e) => setHighStakes(e.target.checked)} />
-                  High-stakes grading — two AI models must agree
-                </label>
-              </HelpTip>
 
               {createError && (
                 <div
