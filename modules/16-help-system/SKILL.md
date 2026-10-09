@@ -152,3 +152,7 @@ Migration `0153_seed_structured_case_help.sql` (idempotent, `ON CONFLICT DO NOTH
 ## Migration 0159 - cohort breakdown, behaviour card, difficulty chips (Wave 2 Batch 3, 2026-10-06)
 
 `admin.attempt.integrity` is renamed to `admin.attempts.detail.integrity` (it sat outside the attempt page prefix and could never load). Eight new keys: `admin.attempts.detail.behaviour`, `admin.reports.individual.open_attempt`, `admin.reports.cohort.{by_level,by_topic,heatmap,pack}`, `admin.question.editor.difficulty`, `admin.question_bank.pack.difficulty`. Seed count 211 -> 219; `0011` regenerated.
+
+## Migration 0163 - generate wizard help v2 (RW-5, 2026-10-09)
+
+Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the type list; the wizard itself does not generate it). A same-key fix needs a new version row because the 0153/0162 `ON CONFLICT DO NOTHING` pattern only adds new keys. Seed count 221 -> 222; `0011` not regenerated.
