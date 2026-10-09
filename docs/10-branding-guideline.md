@@ -126,6 +126,8 @@ Owner decision 2026-10-09 (RW-12). **This table is the one source of truth for u
 
 **After-submit sentence** (one constant, `AFTER_SUBMIT_TEXT` in `@assessiq/candidate-ui`): "Your answers are saved. You will see your result on this page or by email once it is final."
 
+**Hardened S4 (2026-10-09):** RW-16 nav headers, RW-17 buttons, RW-18 empty states, RW-19 error toasts, RW-20 help text all aligned. Commit `9846f05`.
+
 **Decision record (RW-12, 2026-10-09).** The owner chose all recommended options. Rejected: "submission" for attempt (it is wrong for an in-progress row); "score level" for band (it collides with the difficulty "level"); one verb for release, publish and accept (they are three different actions: make live, show a result to the candidate, take an AI grade). Not included: nav section headers (RW-16), backend API error messages, and code identifiers. Applied in commit `505031a`; see `docs/08-ui-system.md` "Labels, dates and shared copy".
 
 ## 3. Color palette

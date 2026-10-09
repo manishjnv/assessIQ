@@ -2117,3 +2117,17 @@ Do the enumerate-first checks of project rule 8 before step 1.
 **Not included.** No api or worker rebuild. Nav headers "Work" and "Content" are placeholders until RW-16. Backend API error messages keep the old words. The lint is in WARN mode (6 hits).
 
 **Rollback.** `git revert 505031a`, rebuild `assessiq-frontend`, recreate it. Migration 0165 only adds help versions; leave it in place (the old text stays as an earlier version row).
+
+## Hardening S4 deploy (2026-10-09)
+
+**Scope:** Empty-state messages, error toasts, help text standardisation. Commit `9846f05`.
+
+**Steps:**
+
+1. VPS: `cd /srv/assessiq && git pull` (moves to `9846f05`)
+2. Migrate: `psql -1 -v ON_ERROR_STOP=1 < infra/migrations/0166_*.sql` (records sha256)
+3. Build: `docker compose -f infra/docker-compose.yml build assessiq-frontend`
+4. Recreate: `docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-frontend`
+5. Verify: `curl -i https://assessiq.in/` (200), spot-check `/admin/login` and `/admin/dashboard` for "No attempts.", "No results." empty states.
+
+**Result:** 24 containers, assessiq-frontend healthy, help rows 384 → 387 (3 new versions in 0166).

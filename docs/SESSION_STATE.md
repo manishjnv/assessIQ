@@ -1,3 +1,46 @@
+# Session — 2026-10-09 — Hardening S4 (RW-16..21)
+
+**Headline:** Hardening session S4 is live. Admin UX copy is now consistent: empty states, error messages, nav headers, buttons, and help text all match the S3 glossary. VPS at `9846f05`.
+
+**Commits:** `9846f05` — feat(10,16): S4 hardening — standardise admin copy (RW-16..21). Migration 0166 (help version rows). Pushed.
+
+**Deploy:** git pull, migration 0166 by hand, frontend rebuild + recreate. 24 containers before and after. `/api/health` 200. Served bundle has "No attempts.", "Certificate revoked.", "released result"; old strings gone.
+
+**Tests:** typecheck 0, lint 0 errors (20 pre-existing); modules/10 111 pass, 16 101 pass. No test asserts old strings.
+
+**Rows:** RW-16/17 no changes (nav/buttons already aligned), RW-18 5 edits (empty states), RW-19 2 edits (error toasts), RW-20 6 edits (help text), RW-21 verified + deployed.
+
+**Next:** Owner browser check (admin pages). Then S5 if there is one, or close hardening roadmap.
+
+**Operator rule:** none.
+
+**Open questions:**
+
+- RW-20 comments 7–9 not applied (Sonnet did not include full diff in the brief). They are YAML comments only, so prod is unaffected. Apply if needed.
+- "No grades." and "No results." are shorter than the old text. Verify if acceptable.
+
+---
+
+## Agent utilization
+
+- Opus: Phase 0 (context), Phase 3 (integrate + migrate + deploy), Phase 6 (docs + handoff).
+- Sonnet: Phase 1 (4 parallel agents: RW-16/17, RW-18, RW-19, RW-20).
+- Haiku: Phase 0 (scan admin copy locations).
+- codex:rescue: n/a — no load-bearing path touched.
+- claude-mem: n/a — not used.
+
+**Routing telemetry**
+
+- haiku · Phase 0 scan · reworked: N
+- sonnet · RW-16/17 nav+buttons · reworked: N (no changes)
+- sonnet · RW-18 empty states · reworked: N
+- sonnet · RW-19 errors · reworked: N
+- sonnet · RW-20 help audit · reworked: N
+
+**Old task checked (Rule B):** S3 copy changes; no dormant features or contradictions with S1/S2.
+
+---
+
 # Session — 2026-10-09 — Hardening S3 (RW-12..RW-15)
 
 **Headline:** Hardening session S3 is live. One word for each concept (glossary), one label file, one date format and one after-submit sentence. VPS at `505031a`.
