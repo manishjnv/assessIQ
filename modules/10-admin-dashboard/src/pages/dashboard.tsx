@@ -305,7 +305,7 @@ export function AdminDashboard(): React.ReactElement {
                 {...(sortBy ? { sortBy } : {})}
                 sortDir={sortDir}
                 onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }}
-                emptyMessage="No results waiting."
+                emptyMessage="No results."
               />
             </div>
           </div>

@@ -27,7 +27,7 @@ candidate.intro.integrity:
     paused. If your network drops, your answers are saved every 5 seconds —
     you can refresh and continue.
 
-# ─── Pre-test screen (system check, practice, consent) ───
+# ─── Pre-assessment screen (system check, practice, consent) ───
 
 candidate.intro.system_check:
   audience: candidate
@@ -268,7 +268,7 @@ candidate.attempt.submit.confirm:
   long_md: |
     ## Submitting your attempt
 
-    Submission is **final**. AssessIQ does not allow editing answers after
+    Once you submit, your attempt is **final**. AssessIQ does not allow editing answers after
     submit, and there is no second attempt unless your administrator
     explicitly grants one.
 

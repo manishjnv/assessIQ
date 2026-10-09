@@ -250,7 +250,7 @@ function GradingQualityCard({ rows }: { rows: GradingQualityRow[] | null }): Rea
     <div className="aiq-card" data-density="compact" data-help-id="admin.evaluations.queue.grading_quality" style={{ padding: 0, overflow: "hidden" }}>
       <div style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", ...MONO_LABEL }}>AI grading quality · last 90 days</div>
       <div className="aiq-admin-table-scroll">
-        <Table<GradingQualityRow> data={rows} columns={columns} emptyMessage="No AI grades in this period." />
+        <Table<GradingQualityRow> data={rows} columns={columns} emptyMessage="No grades." />
       </div>
     </div>
   );
@@ -516,7 +516,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
                 data={rows}
                 columns={columns}
                 loading={loading}
-                emptyMessage="Nothing in the grading queue."
+                emptyMessage="No grades in queue."
               />
             )}
           </div>
