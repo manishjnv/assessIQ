@@ -156,7 +156,11 @@ export function AdminAttemptDetail(): React.ReactElement {
 
   return (
     <AdminShell
-      breadcrumbs={[{ label: "Attempts", href: "/admin/attempts" }, attempt.assessment_name || "Attempt"]}
+      breadcrumbs={[
+        { label: "Attempts", href: "/admin/attempts" },
+        attempt.assessment_name || "Attempt",
+        candidateName || "Candidate",
+      ]}
       helpPage="admin.attempts.detail"
     >
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
@@ -227,6 +231,37 @@ export function AdminAttemptDetail(): React.ReactElement {
           </div>
         )}
 
+        {/* 3-step status bar: Evaluated → Reviewed → Published */}
+        <div style={{ display: "flex", gap: "var(--aiq-space-lg)", alignItems: "center", justifyContent: "flex-start", padding: "var(--aiq-space-md) 0" }}>
+          {[
+            { label: "Evaluated", complete: evalStatus !== "awaiting_evaluation" },
+            { label: "Reviewed", complete: evalStatus === "ready_to_publish" || evalStatus === "published" },
+            { label: "Published", complete: evalStatus === "published" },
+          ].map((step, idx) => (
+            <div key={idx} style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+              <div
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: step.complete ? "var(--aiq-color-success)" : "var(--aiq-color-border)",
+                  color: "white",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                {step.complete ? "✓" : ""}
+              </div>
+              <span style={{ fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)", fontWeight: 500 }}>
+                {step.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
         {/* Awaiting AssessIQ evaluation — no grades are shown until the
             evaluation is sent to the organisation. */}
         {evalStatus === "awaiting_evaluation" && (
@@ -252,12 +287,12 @@ export function AdminAttemptDetail(): React.ReactElement {
         {/* Send back for re-grading — note is required and goes to AssessIQ. */}
         {showSendBack && evalStatus === "ready_to_publish" && (
           <div className="aiq-card aiq-no-print" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
-            <span style={MONO_LABEL}>Send back for re-grading</span>
+            <h3 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "22px", fontWeight: 400, margin: 0, letterSpacing: "-0.015em", color: "var(--aiq-color-fg-primary)" }}>Send back for re-grading</h3>
             <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
               The attempt returns to the AssessIQ queue. Tell AssessIQ what to look at again.
             </p>
             <label style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-              <span style={MONO_LABEL}>Note (required)</span>
+              <span style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "16px", fontWeight: 400, letterSpacing: "-0.01em", color: "var(--aiq-color-fg-primary)" }}>Note (required)</span>
               <textarea
                 className="aiq-admin-longform-textarea"
                 rows={3}
@@ -285,13 +320,13 @@ export function AdminAttemptDetail(): React.ReactElement {
 
         {(detail.section_scores ?? []).length > 0 && (
           <div className="aiq-card" data-help-id="admin.attempts.detail.section_scores" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", padding: "var(--aiq-space-lg)" }}>
-            <span style={MONO_LABEL}>Section scores</span>
+            <h3 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "22px", fontWeight: 400, margin: 0, letterSpacing: "-0.015em", color: "var(--aiq-color-fg-primary)" }}>Section scores</h3>
             <table style={{ borderCollapse: "collapse", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-primary)" }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left", padding: "4px 12px 4px 0", ...MONO_LABEL }}>Section</th>
-                  <th style={{ textAlign: "right", padding: "4px 12px", ...MONO_LABEL }}>Score</th>
-                  <th style={{ textAlign: "right", padding: "4px 0 4px 12px", ...MONO_LABEL }}>%</th>
+                  <th style={{ textAlign: "left", padding: "4px 12px 4px 0", fontFamily: "var(--aiq-font-serif)", fontSize: "14px", fontWeight: 500, color: "var(--aiq-color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Section</th>
+                  <th style={{ textAlign: "right", padding: "4px 12px", fontFamily: "var(--aiq-font-serif)", fontSize: "14px", fontWeight: 500, color: "var(--aiq-color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Score</th>
+                  <th style={{ textAlign: "right", padding: "4px 0 4px 12px", fontFamily: "var(--aiq-font-serif)", fontSize: "14px", fontWeight: 500, color: "var(--aiq-color-fg-muted)", textTransform: "uppercase", letterSpacing: "0.06em" }}>%</th>
                 </tr>
               </thead>
               <tbody>
