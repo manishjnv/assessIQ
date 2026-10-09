@@ -532,7 +532,9 @@ Component: `modules/10-admin-dashboard/src/pages/platform.tsx` → `export funct
 
 **`RequireSession role="super_admin"` exact-match semantics:** when `role="super_admin"` is passed, only a session with `session.user.role === "super_admin"` is admitted. A plain `admin` is redirected to `/admin/login`. This is asymmetric with all other role gates (`admin`, `reviewer`) where `super_admin` satisfies the gate — because `super_admin` is a platform-level role above the tenant hierarchy, not a peer of admin. The asymmetry is documented with a code comment in `apps/web/src/lib/RequireSession.tsx`. The backend enforces the real gate; this is FE defense-in-depth.
 
-**Nav entry:** `AdminShell` renders a "Platform" nav entry in the Account section with `superAdminOnly: true`. Tenant admins (`role === "admin"`) do not see this entry.
+**Nav entry:** `AdminShell` renders a "Platform" nav entry with `superAdminOnly: true`. Tenant admins (`role === "admin"`) do not see this entry.
+
+**Admin nav (S4, 2026-10-09):** Platform section now separate from Account. Super-admin items (Grading queue, Platform, Help content) render under Platform. Order: Work → Content → Admin → Account → Platform.
 
 **Page pattern:** mirrors `users.tsx` exactly — `AdminShell breadcrumbs={["Platform"]}`, serif h1 `Companies.`, count Chip, `listTenantsApi()` on mount, `Spinner` / error Chip / empty-state card / read-only zebra table (columns: slug mono, name, status Chip, created en-GB date).
 

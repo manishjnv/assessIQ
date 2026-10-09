@@ -1,3 +1,41 @@
+# Session — 2026-10-09 — Hardening S4 (Real RW-16, RW-17, RW-19)
+
+**Headline:** Hardening session S4 is live. Admin UX refactored: Platform nav section, high-stakes checkbox removed, users page filters consolidated. VPS at `fee09fd`.
+
+**Commits:** `fee09fd` — feat(10): real S4 hardening — Platform nav, high-stakes, users consolidation (RW-16/17/19). Pushed.
+
+**Deploy:** git pull, frontend rebuild + recreate. 24 containers before and after, assessiq-frontend healthy. `/api/health`, `/admin/assessments`, `/admin/users`, `/admin/platform` all 200. New copy present in bundle ("Status: Removed"), old copy gone.
+
+**Tests:** typecheck 0, lint 0; module 10 110 pass + 1 test rewritten (users filter); total 112 pass. No test failures.
+
+**Rows:** RW-16 Platform nav (extracted 3 items), RW-17 high-stakes removed + Chip status, RW-19 Status filter + labels + ID columns. All complete.
+
+**Next:** Owner browser check (nav Platform section, users Status filter, assessments Chip status, no checkboxes). Then close S4.
+
+**Operator rule:** none.
+
+**Open questions:**
+- Help ID `admin.assessments.high_stakes` is now orphaned on the detail page (only `high_stakes.edit` used). Retire it or keep as legacy?
+
+---
+
+## Agent utilization
+- Opus: Phase 0 (context), Phase 3 (integrate + test + commit + deploy + fixes), Phase 6 (docs + handoff).
+- Sonnet: Phase 1 (3 parallel agents: RW-16, RW-17, RW-19).
+- Haiku: Phase 0 (scan code locations).
+- codex:rescue: n/a — no load-bearing path touched (modules 10, no auth/tenancy/07/14).
+- claude-mem: n/a — not used.
+
+**Routing telemetry**
+- haiku · Phase 0 scan · reworked: N
+- sonnet · RW-16 Platform nav · reworked: N
+- sonnet · RW-17 checkbox + Chip · reworked: N (Opus fixed dead state)
+- sonnet · RW-19 Status filter · reworked: Y (Opus rewrote tests; filter logic unchanged)
+
+**Old task checked (Rule B):** S3 copy; no dormant features; no contradictions with S1/S2/S3.
+
+---
+
 # Session — 2026-10-09 — Hardening S4 (RW-16..21)
 
 **Headline:** Hardening session S4 is live. Admin UX copy is now consistent: empty states, error messages, nav headers, buttons, and help text all match the S3 glossary. VPS at `9846f05`.

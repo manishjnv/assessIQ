@@ -148,3 +148,7 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 ## Reviewer role removed (RV60, 2026-10-03)
 
 **What.** The invite picker lists and defaults to `admin`. The role select in the edit-admin modal is removed. The Reviewer filter on the activity page is removed. The Platform badge counts admins only. Help text updated (7 keys, migration 0154). **Why.** Owner decision RO7. **Not included.** The `reviewer_count` API field stays (legacy). **Impact.** Review work happens on the attempt-detail screen (override with reason, send back, publish).
+
+## Hardening S4 (RW-16/17/19, 2026-10-09)
+
+**S4 (2026-10-09):** Platform nav section, high-stakes checkbox removed from create form, status renders as Chip, users page Status filter (merged two toggles).
