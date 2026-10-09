@@ -413,6 +413,8 @@ export const AI_GRADING_ERROR_CODES = {
   BUDGET_EXHAUSTED: "AIG_BUDGET_EXHAUSTED",
   /** Attempt is not in a gradeable status (must be submitted | pending_admin_grading) */
   ATTEMPT_NOT_GRADEABLE: "AIG_ATTEMPT_NOT_GRADEABLE",
+  /** FU-A11: the attempt's company has tenant_settings.ai_grading_enabled = false; grade / rerun refused (409) */
+  TENANT_AI_PAUSED: "AIG_TENANT_AI_PAUSED",
   /**
    * Release blocked: the attempt's candidate has been DPDP/GDPR-erased
    * (users.erased_at IS NOT NULL). Releasing would email a dead tombstone

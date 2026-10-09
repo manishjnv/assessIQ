@@ -31,7 +31,7 @@ vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
 vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined), notifyEvaluationReadyAfterCommit: vi.fn(async () => undefined), sendResultReleasedEmail: vi.fn(async () => undefined) }));
 
 import { AppError } from "@assessiq/core";
-import { setPoolForTesting, closePool } from "@assessiq/tenancy";
+import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import { sendResultReleasedEmail } from "@assessiq/notifications";
 import { processAutoReleaseTick, resetAutoReleaseCooldownForTesting } from "../../../../apps/api/src/jobs/auto-release.js";
 import { gradeSubjective } from "../runtime-selector.js";
@@ -42,6 +42,7 @@ import { handleAdminManualScore } from "../handlers/admin-manual-score.js";
 import { handleAdminOverride } from "../handlers/admin-override.js";
 import { handleAdminClaimAttempt } from "../handlers/admin-claim-release.js";
 import { handleAdminSendBack } from "../handlers/admin-send-back.js";
+import { assertTenantAiEnabled } from "../repository.js";
 import {
   assertInEvaluationQueue,
   handleSuperGetEvaluation,
@@ -355,10 +356,36 @@ describe("platform evaluation queue — cross-tenant, blind", () => {
     await expect(assertInEvaluationQueue(inQueue.attemptId)).resolves.toBeUndefined();
 
     const mcqOnly = await seed(A, adminA, "submitted", ["mcq"]);
-    const withTenant = await seed(A, adminA, "graded", ["subjective"], { gradings: "all", evaluationReleased: true });
+    const handedOver = await seed(A, adminA, "graded", ["subjective"], { gradings: "all", evaluationReleased: true });
     const published = await seed(A, adminA, "released", ["subjective"], { gradings: "all", evaluationReleased: true });
-    for (const x of [mcqOnly, withTenant, published]) {
+    for (const x of [mcqOnly, handedOver, published]) {
       await expect(assertInEvaluationQueue(x.attemptId)).rejects.toMatchObject({ code: "NOT_IN_EVALUATION_QUEUE", status: 409 });
+    }
+  });
+
+  it("FU-A11: a company with ai_grading_enabled=false stays listed as ai_paused; grade/rerun guard answers 409 AIG_TENANT_AI_PAUSED", async () => {
+    const paused = await seed(B, adminB, "submitted", ["subjective"]);
+    const live = await seed(A, adminA, "submitted", ["subjective"]);
+    await sup((c) => c.query(`UPDATE tenant_settings SET ai_grading_enabled = false WHERE tenant_id = $1`, [B]));
+    try {
+      const q = await handleSuperListEvaluations();
+      expect(q.items.find((i) => i.attempt_id === paused.attemptId)).toMatchObject({ ai_paused: true });
+      expect(q.items.find((i) => i.attempt_id === live.attemptId)).toMatchObject({ ai_paused: false });
+      await expect(assertInEvaluationQueue(paused.attemptId)).rejects.toMatchObject({ code: "AIG_TENANT_AI_PAUSED", status: 409 });
+      await expect(assertInEvaluationQueue(live.attemptId)).resolves.toBeUndefined();
+    } finally {
+      await sup((c) => c.query(`UPDATE tenant_settings SET ai_grading_enabled = true WHERE tenant_id = $1`, [B]));
+    }
+    await expect(assertInEvaluationQueue(paused.attemptId)).resolves.toBeUndefined();
+  });
+
+  it("FU-A11: assertTenantAiEnabled (the AI-start boundary re-check, inside the tenant tx) follows the live flag", async () => {
+    await expect(withTenant(B, (c) => assertTenantAiEnabled(c, B))).resolves.toBeUndefined();
+    await sup((c) => c.query(`UPDATE tenant_settings SET ai_grading_enabled = false WHERE tenant_id = $1`, [B]));
+    try {
+      await expect(withTenant(B, (c) => assertTenantAiEnabled(c, B))).rejects.toMatchObject({ code: "AIG_TENANT_AI_PAUSED", status: 409 });
+    } finally {
+      await sup((c) => c.query(`UPDATE tenant_settings SET ai_grading_enabled = true WHERE tenant_id = $1`, [B]));
     }
   });
 });

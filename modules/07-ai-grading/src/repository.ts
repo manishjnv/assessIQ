@@ -24,7 +24,8 @@
  */
 
 import type { PoolClient } from "pg";
-import { displayCandidate } from "@assessiq/core";
+import { AppError, displayCandidate } from "@assessiq/core";
+import { AI_GRADING_ERROR_CODES } from "./types.js";
 import type {
   AnchorFinding,
   GradingsRow,
@@ -685,6 +686,35 @@ export async function getAttemptProgress(
 }
 
 // ---------------------------------------------------------------------------
+// FU-A11 — tenant AI pause, checked again at the AI-start boundary
+// ---------------------------------------------------------------------------
+
+/**
+ * Throw 409 AIG_TENANT_AI_PAUSED when the tenant has
+ * tenant_settings.ai_grading_enabled = false. Runs inside the handler's own
+ * withTenant() client (RLS: the tenant reads only its own settings row), right
+ * before the first AI call, so a flag flipped between the route guard
+ * (assertInEvaluationQueue) and the runtime start still stops the run (codex
+ * review 2026-10-09). No settings row = not paused (the column defaults true).
+ */
+export async function assertTenantAiEnabled(client: PoolClient, tenantId: string): Promise<void> {
+  const res = await client.query<{ paused: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM tenant_settings
+        WHERE tenant_id = $1 AND ai_grading_enabled = false
+     ) AS paused`,
+    [tenantId],
+  );
+  if (res.rows[0]?.paused === true) {
+    throw new AppError(
+      "AI evaluation is paused for this company (ai_grading_enabled is off). Score manually, or turn the flag on in the company settings.",
+      AI_GRADING_ERROR_CODES.TENANT_AI_PAUSED,
+      409,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Platform evaluation queue (cross-tenant — super admin only)
 // ---------------------------------------------------------------------------
 
@@ -714,6 +744,12 @@ export interface SuperEvaluationRow {
   /** The tenant sent it back for re-evaluation (evaluation_sent_back_at set). */
   sent_back: boolean;
   sent_back_note: string | null;
+  /**
+   * FU-A11 (2026-10-09): tenant_settings.ai_grading_enabled = false. The row stays
+   * visible (the owner must see paused work) but grade / rerun answer 409
+   * AIG_TENANT_AI_PAUSED; manual score and override still work.
+   */
+  ai_paused: boolean;
 }
 
 interface SuperEvaluationDbRow {
@@ -731,6 +767,7 @@ interface SuperEvaluationDbRow {
   grading_in_progress: boolean;
   sent_back: boolean;
   sent_back_note: string | null;
+  ai_paused: boolean;
   total: number;
   older_than_24h: number;
 }
@@ -775,12 +812,14 @@ export async function listSuperEvaluationQueue(
                AND a.grading_started_at > now() - interval '10 minutes') AS grading_in_progress,
             (a.evaluation_sent_back_at IS NOT NULL) AS sent_back,
             a.evaluation_note                      AS sent_back_note,
+            (ts.ai_grading_enabled IS FALSE)       AS ai_paused,
             (COUNT(*) OVER ())::int                AS total,
             (COUNT(*) FILTER (WHERE COALESCE(a.submitted_at, a.started_at) <= now() - interval '24 hours') OVER ())::int
                                                    AS older_than_24h
        FROM attempts a
        JOIN tenants t ON t.id = a.tenant_id AND t.status = 'active'
        JOIN users u   ON u.id = a.user_id  AND u.erased_at IS NULL
+       LEFT JOIN tenant_settings ts ON ts.tenant_id = a.tenant_id -- FU-A11 pause flag
        LEFT JOIN assessments asm ON asm.id = a.assessment_id
        LEFT JOIN levels lvl      ON lvl.id = asm.level_id
        JOIN LATERAL (
@@ -816,6 +855,7 @@ export async function listSuperEvaluationQueue(
     grading_in_progress: r.grading_in_progress,
     sent_back: r.sent_back,
     sent_back_note: r.sent_back ? r.sent_back_note : null,
+    ai_paused: r.ai_paused,
   }));
 
   return {
