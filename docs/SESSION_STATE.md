@@ -1,3 +1,46 @@
+# Session — 2026-10-09 — Hardening S1 (RW-1..RW-6)
+
+**Headline:** Hardening session S1 is done and live. RW-2 to RW-6 shipped in one commit and deployed; RW-1 is done except the branch and worktree delete, which the owner runs with the script below. VPS at `58a5f73`.
+**Commits:**
+- `58a5f73` — chore(hygiene,infra,16,10,web): hardening S1 — reviewer remnants, worker healthcheck + mem limits, generate help text (RW-1..RW-6); trailer `Adversarial-Review: codex revise-addressed`; pushed.
+**Deploy:** VPS pulled to `58a5f73`; migration 0163 applied and recorded (`admin.generate_wizard.page` now has versions 1 and 2 active); `assessiq/api` rebuilt; six services recreated one at a time with `up -d --no-deps --force-recreate` (frontend, marketing, redis, postgres, api, worker). 24 containers before and after; all six healthy. Caps confirmed with `docker inspect`: api 2g, worker 1g, postgres 1g, redis 256m, frontend 128m, marketing 128m. Worker healthcheck ExitCode 0; 0 error lines in api/worker logs; `https://assessiq.in/api/health` 200; `/api/admin/audit` 401.
+**Tests:** `pnpm typecheck` 0 errors; `pnpm lint` 0 errors (20 pre-existing warnings); apps/web RequireSession 2 pass; `@assessiq/help-system` 5 files 101 pass (seed count 221 -> 222); `modules/01-auth` totp-enrollment-status 5 pass (Testcontainers).
+**Rows:** RW-1 DONE except branch/worktree delete (63 `worktree-agent-*` branches: 31 merged, 32 patch-equivalent to main by `git cherry`; the one unmatched commit, a jsdom bump on `a7cbfd12ab87fe48f`, is superseded; the auto-mode classifier refused the delete). H2, H3 ticked too (H3 pending the script). RW-2 DONE (also fixed role unions in `session.ts` x2 and 4 comments). RW-3 DONE. RW-4 DONE, live (codex REVISE: YAML `\r\n` became real CR/LF, fixed; RCA entry added). RW-5 DONE, live (premise corrected: the wizard does not generate structured_case; new help version via 0163). RW-6 DONE, verified, no change.
+**Next:** owner runs the RW-1 cleanup script, then S2 (RW-7..RW-11; RW-7 and RW-8 need owner answers, RW-11 needs owner go).
+**RW-1 cleanup script (owner; does not touch `E:\code\aiq-qdiff-ui`):**
+```bash
+cd /e/code/AssessIQ
+for p in .claude/worktrees/agent-*; do git worktree remove --force "$p"; done
+git worktree prune
+git branch -D $(git branch --list 'worktree-agent-*' | tr -d ' *+')
+git worktree list; git branch | wc -l
+```
+**Open questions:**
+- RW-42: i18n layer is still an open owner decision; docs now say English only.
+- Raise the redis `mem_limit` (256m, tightest because of AOF rewrite) before the AOF grows? Caps sum to 4.5 GiB, so they bound each service, not the stack.
+- The worker healthcheck proves Redis reachability only; a wedged worker still reads healthy (`restart: unless-stopped` covers a crash).
+- help-content `Audience` keeps "reviewer" (mirrors the DB audience enum); `reviewer_count` in api.ts kept for API compatibility.
+
+---
+
+## Agent utilization
+- Opus/Fable: plan, RW-4 compose edit, codex round, diff critique, commit, deploy.
+- Sonnet: 4 impl agents (RW-2, RW-3, RW-5 twice, RW-6 verify) + 1 docs agent.
+- Haiku: 2 read-only (Phase 0 digest; worktree branch audit).
+- codex:rescue: RW-4 REVISE (CR/LF escape defect) -> addressed; trailer on `58a5f73`.
+- claude-mem: n/a — not used this session.
+
+**Routing telemetry**
+- haiku · Phase 0 digest · reworked: N
+- haiku · branch audit · reworked: N (Opus added the git cherry pass)
+- sonnet · RW-2 reviewer remnants · reworked: N (Opus extended scope to session.ts x2)
+- sonnet · RW-3 i18n doc · reworked: N
+- sonnet · RW-5 help text · reworked: Y (contract premise wrong; agent caught it, second pass applied)
+- sonnet · RW-6 env verify · reworked: N
+- codex · RW-4 compose review · reworked: Y (real CR/LF escape defect)
+
+---
+
 # Session — 2026-10-06/09 — Wave 2 (Batches 1-6)
 
 **Headline:** Wave 2 is complete. Batches 1-4 shipped and deployed on 2026-10-06 (`f4069e2`, `4627a39`, `a42e253`, `28734c0`) but that session stopped at 11:45 with Batches 5-6 uncommitted and no handoff; the hunks sat in the working tree from 2026-10-06 to 2026-10-09 while Wave 3A committed around them. This session finished them: FU-B1 audit routes mounted, codex-reviewed (export backpressure + idle timeout fixed) and deployed (`dea01ea`); E13 e2e job required and FU-D23 leaderboard step (`0de3963`). FU-C11 skipped (optional, no candidate surface). VPS at `dea01ea`.

@@ -777,6 +777,37 @@ services:
 - Only `assessiq-frontend` exposes a host port (`9091`). API, worker, postgres, redis are all internal to `assessiq-net`.
 - `assessiq-api` does not get a host port — Caddy never talks to the API directly. The frontend's nginx (inside its container) reverse-proxies `/api`, `/embed`, `/take`, `/ws` to `assessiq-api:3000` on the internal network.
 
+### Memory limits and the worker healthcheck (RW-4, 2026-10-09)
+
+**What and why.** Every service in `infra/docker-compose.yml` has a `mem_limit`. `assessiq-worker` has a Redis PING healthcheck. The VPS has 8 GB and other apps use about 3.8 GB of it. A runaway container must not starve them.
+
+| Service | `mem_limit` | Live use at the time |
+| --- | --- | --- |
+| `assessiq-api` | 2g | 180M |
+| `assessiq-worker` | 1g | 184M |
+| `assessiq-postgres` | 1g | 32M |
+| `assessiq-redis` | 256m | 7M |
+| `assessiq-frontend` | 128m | under 4M |
+| `assessiq-marketing` | 128m | <4M (nginx) |
+
+**Probe mechanics.** The probe is a Node stdlib one-liner. It opens a TCP socket to the host and port of `REDIS_URL`. It sends PING and expects PONG. Timeout is 3 s. Interval is 30 s, retries are 3, start_period is 20 s.
+
+> [!WARNING]
+> Do not write `\r\n` in a double-quoted YAML scalar that holds code. YAML turns it into real CR and LF characters and the JS string breaks. Use `'PING'+String.fromCharCode(13,10)`. Run `docker compose config --format json` to see the parsed command.
+
+**Rejected.** `redis-cli` and `wget` are not in the `node:22-slim` image. An HTTP probe does not work because the worker has no port.
+
+**Not included.**
+- A cap for the whole stack. The caps sum to 4.5 GiB, so they bound each service only.
+- A process-liveness probe. The PING proves Redis is reachable. A wedged worker still reads healthy. `restart: unless-stopped` covers a crash.
+- Redis 256m is the tightest cap because of the AOF rewrite. Raise it if the AOF grows.
+
+**Impact.** Recreate every service after you edit `mem_limit`. `docker restart` does not apply a new limit. Use `up -d --no-deps --force-recreate <svc>`, one service at a time.
+
+**Verify.**
+1. Run `docker inspect -f '{{.HostConfig.Memory}}' <container>` for each service. The value is in bytes.
+2. Run `docker inspect -f '{{json .State.Health}}' assessiq-worker`. Status is `healthy` and the last log `ExitCode` is 0.
+
 ## .env template — `/srv/assessiq/.env`
 
 ```ini

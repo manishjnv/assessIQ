@@ -81,7 +81,7 @@ _Last verified: 2026-10-02 against `infra/docker-compose.yml`, `infra/docker/*/D
 - Single SPA, two route trees: `/admin/*` and `/take/*`
 - Embed mode toggled via `?embed=true` — strips top nav and theme overrides applied
 - Talks only to `/api/*` over fetch/WebSocket
-- All UI strings keyed for i18n via `t('key')`; English ships first
+- UI copy is English only and hard-coded in the components; an i18n layer is an open owner decision (RW-42)
 
 ### REST API — Fastify
 - Stateless, horizontally scalable

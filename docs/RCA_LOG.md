@@ -2431,3 +2431,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** (1) A Vitest worker shut down while a console log from a mocked module (Redis `ECONNREFUSED` noise from an unmocked ioredis client, printed during `app.close()`) was still in flight. The test file passes 3/3 locally; it is a timing race in the worker rpc, not a product bug. (2) `modules/13-notifications/package.json` pinned `handlebars ^4.7.8`, resolved to 4.7.9; the patched version 4.7.10 was released after the last lockfile update.
 **Fix:** `278584e` bumps handlebars to `^4.7.10` (lockfile updated; `pnpm audit --prod --audit-level=critical` reports 0 critical). The teardown race is not fixed: it did not reproduce locally and the rerun did not reach the test step. If it returns, the next step is to stop the mint-session test from importing the real ioredis client (mock `@assessiq/auth` already covers `closeRedis`; the leak comes from another module's import-time connect).
 **Prevention:** manual discipline — on a red CI, read the failing step name first; a rerun can fail for a new reason (an advisory published in between). The `pnpm audit` step is intentionally blocking on critical.
+
+## 2026-10-09 — Worker healthcheck JS one-liner: YAML `\r\n` became real CR/LF (caught by codex before deploy)
+
+**Symptom:** (would have been) `assessiq-worker` permanently unhealthy after the recreate; the Redis PING probe sent a broken string. Found in codex review before deploy, nothing reached production.
+**Cause:** `infra/docker-compose.yml:206` held the Node one-liner in a double-quoted YAML scalar. YAML decodes `\r\n` there into real CR and LF characters (confirmed with `docker compose config --format json`), which broke the JS string.
+**Fix:** `infra/docker-compose.yml:206` builds the line with `'PING'+String.fromCharCode(13,10)`. Verified with `docker compose config --format json` and by running the parsed command inside the live worker container (exit 0). Commit `58a5f73`.
+**Prevention:** manual discipline — check `docker compose config --format json` for any healthcheck that embeds code.
