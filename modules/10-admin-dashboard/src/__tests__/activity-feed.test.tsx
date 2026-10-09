@@ -42,6 +42,8 @@ vi.mock("@assessiq/ui-system", () => ({
   LeaderboardList: () => React.createElement("div", { "data-testid": "leaderboard-list" }),
   Chip: ({ children, variant }: { children: React.ReactNode; variant?: string }) =>
     React.createElement("span", { "data-testid": "chip", "data-variant": variant }, children),
+  Spinner: ({ size }: { size?: string }) =>
+    React.createElement("div", { "data-testid": "spinner", "data-size": size ?? "md" }, "Loading"),
   useViewport: () => "desktop",
 }));
 

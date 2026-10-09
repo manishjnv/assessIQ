@@ -19,6 +19,7 @@ export {
   type CohortStats,
   type LeaderboardRow,
   type IndividualScore,
+  type IndividualReport,
   type CohortPercentiles,
 } from "./types.js";
 

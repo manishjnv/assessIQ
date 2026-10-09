@@ -935,7 +935,7 @@ describe("09-scoring", () => {
       await insertGrading(tenantA, chain1.attemptId, chain1.questionId, adminA);
       await computeAttemptScore(tenantA, chain1.attemptId);
 
-      const scores = await individualReport(tenantA, chain1.candidateId);
+      const { attempts: scores } = await individualReport(tenantA, chain1.candidateId);
       expect(scores.length).toBeGreaterThanOrEqual(1);
       expect(scores[0]?.attempt_id).toBe(chain1.attemptId);
     });
@@ -947,13 +947,13 @@ describe("09-scoring", () => {
       await withSuperClient((c) =>
         c.query(`UPDATE attempts SET evaluation_released_at = NULL WHERE id = $1`, [chain.attemptId]),
       );
-      const hidden = await individualReport(tenantA, chain.candidateId);
+      const { attempts: hidden } = await individualReport(tenantA, chain.candidateId);
       expect(hidden.find((s) => s.attempt_id === chain.attemptId)).toBeUndefined();
 
       await withSuperClient((c) =>
         c.query(`UPDATE attempts SET evaluation_released_at = now() WHERE id = $1`, [chain.attemptId]),
       );
-      const visible = await individualReport(tenantA, chain.candidateId);
+      const { attempts: visible } = await individualReport(tenantA, chain.candidateId);
       expect(visible.find((s) => s.attempt_id === chain.attemptId)).toBeDefined();
     });
   });

@@ -88,6 +88,8 @@ const saveBtn = (): HTMLButtonElement =>
 /** Waits for the settings GET to finish (radios render only after the load). */
 async function renderLoaded(): Promise<void> {
   render(<TenantSettings embedded />);
+  const resultsTab = await screen.findByRole("tab", { name: /Results/ });
+  fireEvent.click(resultsTab);
   await screen.findByRole("radio", { name: /Manual/ });
 }
 

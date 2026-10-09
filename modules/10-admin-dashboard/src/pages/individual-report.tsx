@@ -27,6 +27,7 @@ interface AttemptSummary {
 interface IndividualReport {
   user_id: string;
   email: string;
+  name?: string | null;
   total_attempts: number;
   latest_band: number | null;
   attempts: AttemptSummary[];
@@ -44,8 +45,8 @@ export function AdminIndividualReport(): React.ReactElement {
     setLoading(true);
     setError(null);
     try {
-      const data = await adminApi<IndividualReport>(`/admin/reports/individual/${userId}`);
-      setReport(data);
+      const data = await adminApi<{ report: IndividualReport }>(`/admin/reports/individual/${userId}`);
+      setReport(data.report);
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load individual report.");
     } finally {
@@ -85,8 +86,11 @@ export function AdminIndividualReport(): React.ReactElement {
             <Chip leftIcon="grid">{report.total_attempts} attempt{report.total_attempts !== 1 ? "s" : ""}</Chip>
           </div>
           <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
-            {report.email}.
+            {report.name || report.email}
           </h1>
+          {report.name && (
+            <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "4px 0 0", lineHeight: 1.5 }}>{report.email}</p>
+          )}
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
             Score history and progression across all completed assessments.
           </p>
