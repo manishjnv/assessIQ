@@ -2438,3 +2438,17 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `infra/docker-compose.yml:206` held the Node one-liner in a double-quoted YAML scalar. YAML decodes `\r\n` there into real CR and LF characters (confirmed with `docker compose config --format json`), which broke the JS string.
 **Fix:** `infra/docker-compose.yml:206` builds the line with `'PING'+String.fromCharCode(13,10)`. Verified with `docker compose config --format json` and by running the parsed command inside the live worker container (exit 0). Commit `58a5f73`.
 **Prevention:** manual discipline — check `docker compose config --format json` for any healthcheck that embeds code.
+
+## 2026-10-09 — Grading single-flight was per process; a pause during the AI call could still leak a result
+
+**Symptom:** (found in the hardening review, no user report.) Two API processes could each start one AI subprocess, so "one concurrent AI task" held only per process. Also, when an admin paused a company's AI while a multi-minute grade or rerun was running, the proposal was still saved when the call returned. Accept also worked on a paused company.
+**Cause:** (1) `modules/07-ai-grading/src/single-flight.ts` used an in-process `Map`; no other process could see it. (2) `assertTenantAiEnabled` (`modules/07-ai-grading/src/repository.ts:700`) ran only BEFORE the AI call, not before the write after it, and it read `tenant_settings` without a row lock (read-committed race against the pause write in 02-tenancy). `admin-accept.ts` had no pause check.
+**Fix:** `4b2fe39`. `single-flight.ts` takes the Redis lease `aiq:ai:single-flight` (TTL 120 s, heartbeat 40 s, fail-closed 503 `AIG_LOCK_UNAVAILABLE`) using `modules/00-core/src/lock.ts`. `assertTenantAiEnabled` now reads `FOR SHARE` and runs as the first statement of the write transaction in `admin-grade.ts` and `admin-rerun.ts`, and at the start of `acceptProposals` in `admin-accept.ts`. `admin-generate` closes its attempt row on the 503.
+**Prevention:** tests `rw7-pause-recheck.test.ts` and the two-process lock test. Known limits stay open as PENDING_TASKS RW-63 (draft calls take no lock) and RW-64 (a lost lease does not abort the subprocess). The codex review (2 rounds) found the `FOR SHARE` race before deploy.
+
+## 2026-10-09 — Ambient-claude lint matched text inside a code comment
+
+**Symptom:** `pnpm lint:ambient-ai` failed after a comment was added in `modules/07-ai-grading/src/` while RW-8 and RW-9 were written. No runtime code had changed.
+**Cause:** The comment held the literal text `spawn("claude"`. `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` is regex-based and scans the whole file text, comments included. It saw a claude spawn in a file where it is not allowed. This is the same class as the earlier SDK-import comment entry in this log.
+**Fix:** The comment was reworded so that it no longer holds the pattern. No change to the lint (it is a `codex:rescue` gated file).
+**Prevention:** manual discipline: do not quote spawn or import patterns in comments in module 07. Open row RW-65: make the lint skip comments, or also match `exec` and `execFile`, under a codex gate.

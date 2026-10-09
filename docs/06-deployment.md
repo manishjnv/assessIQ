@@ -508,6 +508,8 @@ Two mounts are required:
 - /root/.claude.json:/home/node/.claude.json:rw  # config file (one level above dir)
 ```
 
+> **[Update 2026-10-09: superseded by RW-11 (`e8c12cf`).]** The `/root/.claude.json` file bind above is removed. The containers now set `CLAUDE_CONFIG_DIR=/home/node/.claude` and read `/root/.claude/.claude.json` inside the directory mount. The old "restart api and worker after a re-login" rule (a single-file bind follows the inode and goes stale) no longer applies. See the section "Hardening S2 deploy (2026-10-09)".
+
 **Why whole-directory, not per-file:** claude upgrades introduce new state files
 (`.credentials.json` was added in v2.1.137; older per-file mounts only listed
 `oauth_token`, `oauth_token.expires`, `settings.json` and silently missed it).
@@ -2053,6 +2055,48 @@ Do the enumerate-first checks of project rule 8 before step 1.
 
 - **Checks.** Three checks run in parallel, each with a 5 s timeout: `db` (`SELECT 1`), `redis` (`PING`), `claude` (`claude --version`, no shell).
 - **Response.** `{ "status": "ready" | "not_ready", "checks": { "db": bool, "redis": bool, "claude": bool } }`. The status is 200 when all checks pass and 503 when one fails. The body holds no versions and no error text.
-- **Cache.** The `claude` result is cached for 60 s. Concurrent requests share one run. A caller cannot start more than one process each minute.
+- **Cache.** The `db` and `redis` results are cached for 5 s. The `claude` result is cached for 60 s. Concurrent requests share one run. A caller cannot start more than one process each minute.
 - **Why no login.** The body holds only booleans, and the process cost is capped by the cache. A monitor can call it without a secret.
 - **Use.** Point an uptime monitor at it next to `/api/health`. `/api/health` stays a pure liveness check. The platform evaluation page shows the result as a chip.
+
+## Hardening S2 deploy (2026-10-09)
+
+**What changed.** Commit `4b2fe39` (RW-7, RW-8, RW-9) and commit `e8c12cf` (RW-11). Both are pushed. The VPS is at `e8c12cf`.
+
+### Deploy of `4b2fe39`
+
+1. `git pull` in `/srv/assessiq`.
+2. Apply migration 0164 by hand (`psql -1`). Record it in `schema_migrations` with its sha256. It adds the help rows for the evaluation runtime chip (global help rows +1).
+3. Build `assessiq-api`, `assessiq-worker` and `assessiq-frontend`.
+4. Recreate each one with `up -d --no-deps --force-recreate`.
+
+**Result.** No claude process was in flight before the recreate. 24 containers before and after. 0 error lines in the api and worker logs. `/api/health` 200, `/api/ready` 200, `/admin/login` 200. Live check: `https://assessiq.in/api/ready` returns `200 {"status":"ready","checks":{"db":true,"redis":true,"claude":true}}`.
+
+**Redis is now required for AI.** `single-flight.ts` fails closed with `503 AIG_LOCK_UNAVAILABLE` when Redis is down. If AI calls return this 503, check `docker ps` for `assessiq-redis` and `/api/ready` first. The Redis `mem_limit` is still 256m (see SESSION_STATE open questions). Details: `docs/05-ai-pipeline.md` D7.
+
+**Not included.** No abort of a running claude subprocess when the lease is lost. No lock on the rubric-draft and answer-guidance-draft calls. No uptime monitor yet (B2: owner signup). RW-10 (eval bless and `AI_EVAL_GATE=enforce`) is NOT done; it waits for the owner to run the eval (about 151 cases).
+
+**Rollback of `4b2fe39`.** `git revert 4b2fe39`, rebuild the three services, recreate them. Migration 0164 only adds help rows; leave it in place.
+
+### RW-11: `CLAUDE_CONFIG_DIR` replaces the single-file `.claude.json` bind (`e8c12cf`)
+
+**What.** In `infra/docker-compose.yml`, `assessiq-api` and `assessiq-worker` no longer bind `/root/.claude.json:/home/node/.claude.json:rw`. Both set `CLAUDE_CONFIG_DIR=/home/node/.claude`. The claude CLI now reads `$CLAUDE_CONFIG_DIR/.claude.json`, which sits inside the existing `/root/.claude` directory mount.
+
+**Why.** A single-file bind follows the inode. When the host CLI rewrote `/root/.claude.json` (for example at `/login`), the container kept the old file until a restart. A directory mount shows the new file at once.
+
+**Host steps done.**
+1. Backups: `/root/.claude.json.bak-20261009` and `/root/docker-compose.yml.bak-20261009-rw11`.
+2. Seed the new file: `cp -a /root/.claude.json /root/.claude/.claude.json`.
+3. `up -d --no-deps --force-recreate assessiq-api assessiq-worker`.
+
+**Verified.** Both containers healthy. 24 containers before and after. `claude mcp list` shows the `assessiq` MCP as Connected. `/home/node/.claude.json` is absent. A `claude -p` smoke test returned OK.
+
+**New operator rule for a re-login.** The containers do NOT read the host `/root/.claude.json` any more. On the host, run `CLAUDE_CONFIG_DIR=/root/.claude claude`, then `/login`. This updates the directory copy. Credentials stay in `/root/.claude/.credentials.json` (shared). You do not need to restart the containers after a re-login.
+
+**Rejected.** Keep the file bind and add a restart step after each login: this depends on people remembering it, and it caused the stale-file incident.
+
+**Not included.** The host `/root/.claude.json` is not deleted. It stays as a backup and for host-side use.
+
+**Downstream impact.** The memory note "restart api+worker after /login" is obsolete. Any runbook that edits the host `/root/.claude.json` must edit `/root/.claude/.claude.json` instead.
+
+**Rollback.** Restore `/root/docker-compose.yml.bak-20261009-rw11`, OR `git revert e8c12cf`. Then run `up -d --no-deps --force-recreate assessiq-api assessiq-worker`.

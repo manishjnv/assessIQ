@@ -1,3 +1,40 @@
+# Session — 2026-10-09 — Hardening S2 (RW-7..RW-11)
+
+**Headline:** Hardening session S2 is live. AI single-flight is now a Redis lease, a pause during an AI call can no longer leak a result, `/api/ready` exists, and the containers read the claude config from a directory. RW-10 waits for the owner. VPS at `e8c12cf`.
+**Commits:** `4b2fe39` — feat(00,07,api,10,16): hardening S2 — Redis AI lock, pause re-check, /api/ready (RW-7..RW-9), trailer `Adversarial-Review: codex reject+revise-addressed (2 rounds)`; `e8c12cf` — infra(compose): CLAUDE_CONFIG_DIR replaces the single-file .claude.json bind (RW-11); (docs commit to follow). Both pushed.
+**Deploy:** `4b2fe39`: git pull, migration 0164 by hand (`psql -1`, recorded with sha256, global help rows +1), build api/worker/frontend, recreate each with `up -d --no-deps --force-recreate`; no claude in flight; 24 containers before and after; 0 error lines; `/api/health` 200, `/api/ready` 200, `/admin/login` 200. `e8c12cf`: api + worker recreated; `claude mcp list` shows assessiq Connected; `claude -p` smoke OK. Details: `docs/06-deployment.md` "Hardening S2 deploy".
+**Tests:** typecheck 0; lint 0 errors, 20 warnings; core 143 pass; ai-grading 406 pass, 2 skipped (Docker-gated, pre-existing); auth 291 (the totp constant-time test flaked once under load, 16/16 alone); help-system 101; api 161; 10-admin evaluations-queue 5; ambient lint OK.
+**Rows:** RW-7/8/9/11 DONE; RW-10 waiting for owner eval run. New rows RW-63 (draft calls take no lock), RW-64 (abort on lease loss), RW-65 (lint scope).
+**Next:** owner runs RW-10 eval commands; then Claude blesses + sets AI_EVAL_GATE=enforce; then S3 (RW-12 vocabulary table for owner decision).
+**Operator rule (RW-11):** re-login on the host with `CLAUDE_CONFIG_DIR=/root/.claude claude`, then `/login`. No container restart needed. Host `/root/.claude.json` is no longer read.
+**Open questions:**
+- Lost lease (Redis down more than 80 s mid-run) only logs; abort the subprocess with an AbortSignal (RW-64)?
+- Rubric-draft and answer-guidance-draft calls (`04-question-bank` generation.ts ~425, ~468) take no AI lock (RW-63).
+- Ambient-claude lint scans comments and misses exec/execFile (RW-65; codex-gated file).
+- Redis `mem_limit` is still 256m, and Redis is now required for AI.
+
+---
+
+## Agent utilization
+- Opus: plan, contract pre-check (TTL/heartbeat, /api/ready spawn guard), line-by-line review of 3 diffs, fixes (admin-generate 503 finalize, 5 s probe cache, FOR SHARE, lint-tripping comment), commits, deploy, RW-11 trial.
+- Sonnet: 3 impl agents (RW-8, RW-9, RW-7) + 1 docs agent.
+- Haiku: 1 read-only Phase 0 digest.
+- codex:rescue: round 1 RW-8/9 REJECT -> revised; round 2 RW-7 REVISE -> FOR SHARE applied.
+- claude-mem: n/a — not used this session.
+
+**Routing telemetry**
+- haiku · Phase 0 digest · reworked: N
+- sonnet · RW-8 Redis lock · reworked: Y (Opus fixed 503 attempt-row leak)
+- sonnet · RW-9 ready probe + chip · reworked: Y (codex: 5 s cache added)
+- sonnet · RW-7 pause re-check · reworked: Y (codex: FOR SHARE)
+- sonnet · S2 docs + handoff · reworked: N
+- codex · RW-8/9 review · reworked: Y
+- codex · RW-7 review · reworked: Y
+
+**Old task checked:** FU-A11 (pre-call pause) extended by RW-7; B2 (health) extended by RW-9; N5/FU-D28 = RW-10; `embed-jwt.ts:287` SET NX pattern reused by RW-8.
+
+---
+
 # Session — 2026-10-09 — Hardening S1 (RW-1..RW-6)
 
 **Headline:** Hardening session S1 is done and live. RW-2 to RW-6 shipped in one commit and deployed; RW-1 is done except the branch and worktree delete, which the owner runs with the script below. VPS at `58a5f73`.

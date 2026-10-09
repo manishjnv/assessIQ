@@ -1367,7 +1367,7 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 | Method | Path | Purpose |
 |---|---|---|
 | `GET`  | `/health`        | Liveness — returns `{ status: "ok" }` |
-| `GET`  | `/ready`         | Readiness (RW-9, no auth) — `{ status: "ready"\|"not_ready", checks: { db, redis, claude } }` booleans only; 200 if all pass, else 503; `claude` probe cached 60 s |
+| `GET`  | `/ready`         | Readiness (RW-9, no auth) — `{ status: "ready"\|"not_ready", checks: { db, redis, claude } }` booleans only; 200 if all pass, else 503; `db`/`redis` probes cached 5 s, `claude` probe cached 60 s |
 | `GET`  | `/ready`         | Readiness — checks DB + Redis + queue |
 | `GET`  | `/help/:key`     | Public help content fetch (anonymous, globals-only) — **live 2026-05-02** |
 | `GET`  | `/api/help`      | Authenticated page-batch fetch (any role) — **live 2026-05-02** |
