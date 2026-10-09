@@ -138,3 +138,8 @@ const DIFFICULTY: Record<string, string> = {
 export function difficultyLabel(value: string | null | undefined): string {
   return value == null ? "" : (DIFFICULTY[value] ?? value);
 }
+
+/** Score band: 0/1/2/3/4 -> Band 0/1/2/3/4. */
+export function bandLabel(band: number | null | undefined): string {
+  return band === null || band === undefined ? "" : `Band ${band}`;
+}

@@ -1243,6 +1243,26 @@ export function AttemptGradingPanel({
         );
       })}
 
+      {/* Sticky footer: progress summary and release context */}
+      {evaluate && (pending.length > 0 || effective.size > 0) && (
+        <div
+          className="aiq-no-print"
+          style={{
+            position: "sticky",
+            bottom: 0,
+            padding: "var(--aiq-space-md) var(--aiq-space-xl)",
+            backgroundColor: "var(--aiq-color-bg-base, #fff)",
+            borderTop: "1px solid var(--aiq-color-border)",
+            fontFamily: "var(--aiq-font-sans)",
+            fontSize: "var(--aiq-text-sm)",
+            color: "var(--aiq-color-fg-secondary)",
+            zIndex: 10,
+          }}
+        >
+          {effective.size} of {frozen_questions.length} accepted · accepting the last one publishes to {tenantName}
+        </div>
+      )}
+
       {/* Print stylesheet: hides nav / buttons / banners / proposals while
           keeping question content, answers, score details and the summary. */}
       <style>{`

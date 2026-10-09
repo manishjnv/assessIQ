@@ -9,6 +9,7 @@
 // the accept/override endpoint body.
 
 import React, { useState } from "react";
+import { bandLabel } from "../lib/labels.js";
 import type { GradingProposal } from "@assessiq/ai-grading";
 
 export interface EscalationDiffProps {
@@ -54,11 +55,16 @@ function VerdictCard({
       }}
       onClick={onSelect}
     >
-      <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: selected ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)" }}>
-        {title}
-      </span>
+      <details style={{ margin: 0, padding: 0 }}>
+        <summary style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: selected ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)", cursor: "pointer", listStylePosition: "inside" }}>
+          Advanced: second opinion
+        </summary>
+        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: selected ? "var(--aiq-color-accent)" : "var(--aiq-color-fg-muted)", display: "block", marginTop: "var(--aiq-space-xs)" }}>
+          {title}
+        </span>
+      </details>
       <span style={{ fontFamily: "var(--aiq-font-serif)", fontVariantNumeric: "lining-nums tabular-nums", fontSize: "var(--aiq-text-xl)" }}>
-        Score band {band} · {BAND_PCT[band] ?? 0}%
+        {bandLabel(band)} · {BAND_PCT[band] ?? 0}%
       </span>
       <p style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
         {justification}
