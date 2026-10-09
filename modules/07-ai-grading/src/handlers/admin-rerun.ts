@@ -34,6 +34,7 @@ import { AppError, config, streamLogger } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
+import { assertTenantAiEnabled } from "../repository.js";
 import { gradeSubjective } from "../runtime-selector.js";
 import { assertEvalGate } from "../eval-gate.js";
 import { singleFlight } from "../single-flight.js";
@@ -225,6 +226,10 @@ export async function handleAdminRerun(
       markerHeld = true;
     }
 
+    // FU-A11: the AI-start boundary re-checks the tenant pause flag (the route
+    // guard read it earlier; a flip in between must still stop the run).
+    await withTenant(tenantId, (client) => assertTenantAiEnabled(client, tenantId));
+
     const proposals: GradingProposal[] = [];
     let questionCount = 0;
 
@@ -249,6 +254,8 @@ export async function handleAdminRerun(
           ...(input.forceEscalate === true ? { force_escalate: true } : {}),
           ...(highStakes ? { high_stakes: true } : {}),
         };
+        // FU-A11: re-read the pause flag right before EACH AI call (see admin-grade).
+        await withTenant(tenantId, (client) => assertTenantAiEnabled(client, tenantId));
         const proposal = await gradeSubjective(gradingInput);
         proposals.push(proposal);
       } catch (err) {

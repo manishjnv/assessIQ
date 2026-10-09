@@ -2658,6 +2658,20 @@ admin.evaluations.detail.sent_back:
     graded, accepting a new grade does not release it again: use **Release to
     company** when you are done.
 
+admin.evaluations.queue.ai_paused:
+  audience: admin
+  short_text: "The company turned AI evaluation off. Its attempts stay here, but Grade and Re-run AI are refused."
+  long_md: |
+    ## AI paused
+
+    A company can turn AI evaluation off in its settings (`ai_grading_enabled`).
+    Its attempts still appear in this list so nothing is lost, marked
+    **AI paused**. **Evaluate next** skips them.
+
+    On such an attempt, **Grade all** and **Re-run AI** answer an error. You can
+    still enter a manual score or override a grade. When the company turns the
+    flag on again, the marker goes away and AI evaluation works as usual.
+
 admin.evaluations.queue.sent_back:
   audience: admin
   short_text: "The company sent this attempt back for re-evaluation. Its note says what to look at again."
@@ -3490,6 +3504,7 @@ admin.evaluations.queue.page:
   related_keys:
     - admin.evaluations.queue.overview
     - admin.evaluations.queue.evaluate_next
+    - admin.evaluations.queue.ai_paused
 
 admin.tenant_settings.page:
   audience: admin

@@ -50,6 +50,7 @@ const base = {
   grading_in_progress: false,
   sent_back: false,
   sent_back_note: null,
+  ai_paused: false,
 };
 
 // Oldest first, as the API returns them. The first row also carries stray
@@ -93,10 +94,10 @@ function Landing(): React.ReactElement {
   return <div data-testid="landing">{attemptId}</div>;
 }
 
-function mockApi(): void {
+function mockApi(items: typeof ROWS = ROWS): void {
   adminApi.mockImplementation(async (path: string) => {
     if (path === "/admin/super/evaluations") {
-      return { items: ROWS, counts: { pending: 3, older_than_24h: 2 } };
+      return { items, counts: { pending: 3, older_than_24h: 2 } };
     }
     if (path === "/admin/super/eval-gate") {
       return { mode: "enforce", approved: false };
@@ -115,8 +116,8 @@ function mockApi(): void {
   });
 }
 
-async function renderQueue(): Promise<void> {
-  mockApi();
+async function renderQueue(items: typeof ROWS = ROWS): Promise<void> {
+  mockApi(items);
   render(
     <MemoryRouter initialEntries={["/admin/platform/evaluations"]}>
       <Routes>
@@ -190,6 +191,17 @@ describe("AdminEvaluationsQueue", () => {
     fireEvent.click(screen.getByRole("button", { name: "Evaluate next" }));
     const landing = await screen.findByTestId("landing");
     expect(landing.textContent).toBe(OLD);
+  });
+
+  it("Q5 FU-A11: a paused company's row shows 'AI paused' and 'Evaluate next' skips it", async () => {
+    const [first, ...rest] = ROWS;
+    await renderQueue([{ ...first!, ai_paused: true }, ...rest]);
+    expect(screen.getByText("AI paused")).toBeTruthy();
+    expect(document.querySelectorAll('[data-help-id="admin.evaluations.queue.ai_paused"]')).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Evaluate next" }));
+    const landing = await screen.findByTestId("landing");
+    expect(landing.textContent).toBe(READY);
   });
 
   it("Q4 shows the eval-gate banner when prompts are not approved, and the quality table", async () => {

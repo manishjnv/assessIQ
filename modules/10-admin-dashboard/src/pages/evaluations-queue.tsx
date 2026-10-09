@@ -53,6 +53,8 @@ interface EvaluationRow {
   grading_in_progress: boolean;
   sent_back: boolean;
   sent_back_note: string | null;
+  /** FU-A11: the company turned AI evaluation off; grade / rerun answer 409, manual score still works. */
+  ai_paused?: boolean;
 }
 
 interface EvaluationsResponse {
@@ -137,6 +139,11 @@ function StatusCell({ row }: { row: EvaluationRow }): React.ReactElement {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
       <Chip variant={s.variant}>{s.label}</Chip>
+      {row.ai_paused === true && (
+        <span data-help-id="admin.evaluations.queue.ai_paused" title="The company turned AI evaluation off. Score manually or ask the company to turn it on.">
+          <Chip variant="warn">AI paused</Chip>
+        </span>
+      )}
       {row.sent_back && (
         <span
           data-help-id="admin.evaluations.queue.sent_back"
@@ -379,7 +386,8 @@ export function AdminEvaluationsQueue(): React.ReactElement {
     },
   ];
 
-  const oldest = rows[0];
+  // FU-A11: "Evaluate next" skips paused companies (their AI runs answer 409).
+  const oldest = rows.find((r) => r.ai_paused !== true);
 
   return (
     <AdminShell

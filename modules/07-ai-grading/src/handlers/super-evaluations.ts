@@ -132,8 +132,8 @@ export async function resolveEvaluationTenant(attemptId: string): Promise<string
  * published, released-to-tenant or MCQ-only attempts (no wasted Claude calls).
  */
 export async function assertInEvaluationQueue(attemptId: string): Promise<void> {
-  const eligible = await withSystemReadOnly(async (client) => {
-    const res = await client.query<{ ok: boolean }>(
+  const row = await withSystemReadOnly(async (client) => {
+    const res = await client.query<{ ok: boolean; ai_paused: boolean }>(
       `SELECT (
           EXISTS (SELECT 1 FROM attempt_questions aq
                     JOIN question_versions qv -- N21: frozen type, same as 06/09
@@ -142,18 +142,30 @@ export async function assertInEvaluationQueue(attemptId: string): Promise<void> 
           AND u.erased_at IS NULL
           AND (a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading')
                OR (a.status = 'graded' AND a.evaluation_released_at IS NULL))
-        ) AS ok
+        ) AS ok,
+        (ts.ai_grading_enabled IS FALSE) AS ai_paused
          FROM attempts a
          JOIN users u ON u.id = a.user_id
+         LEFT JOIN tenant_settings ts ON ts.tenant_id = a.tenant_id -- FU-A11 pause flag
         WHERE a.id = $1`,
       [attemptId],
     );
-    return res.rows[0]?.ok === true;
+    return res.rows[0];
   });
-  if (!eligible) {
+  if (row?.ok !== true) {
     throw new AppError(
       "This attempt is not in the evaluation queue (already released, published, or nothing to evaluate)",
       "NOT_IN_EVALUATION_QUEUE",
+      409,
+    );
+  }
+  // FU-A11 (owner decision 2026-10-03): a company with ai_grading_enabled = false
+  // keeps its attempts in the queue (marked "AI paused") but no AI runs on them.
+  // Manual score and override are not gated here. Only grade / rerun call this.
+  if (row.ai_paused) {
+    throw new AppError(
+      "AI evaluation is paused for this company (ai_grading_enabled is off). Score manually, or turn the flag on in the company settings.",
+      AI_GRADING_ERROR_CODES.TENANT_AI_PAUSED,
       409,
     );
   }

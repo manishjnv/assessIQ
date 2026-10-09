@@ -27,6 +27,7 @@
 import { AppError, config, streamLogger } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
+import { assertTenantAiEnabled } from "../repository.js";
 import { gradeSubjective } from "../runtime-selector.js";
 import { assertEvalGate } from "../eval-gate.js";
 import { singleFlight } from "../single-flight.js";
@@ -423,6 +424,9 @@ export async function handleAdminGrade(
     // not an async worker — the grading still runs synchronously inside
     // this admin-triggered request handler.
     await withTenant(tenantId, async (client) => {
+      // FU-A11: the AI-start boundary re-checks the tenant pause flag (the route
+      // guard read it earlier; a flip in between must still stop the run).
+      await assertTenantAiEnabled(client, tenantId);
       await client.query(
         `UPDATE attempts SET grading_started_at = NOW() WHERE id = $1`,
         [attemptId],
@@ -469,6 +473,9 @@ export async function handleAdminGrade(
       const effectiveRubric = resolveGradingRubric(q.type, q.content, q.rubric);
 
       try {
+        // FU-A11: re-read the pause flag right before EACH AI call so a flip
+        // mid-batch stops the next question (the current call may finish).
+        await withTenant(tenantId, (client) => assertTenantAiEnabled(client, tenantId));
         const proposal = await gradeSubjective({
           attempt_id: attemptId,
           question_id: q.question_id,
