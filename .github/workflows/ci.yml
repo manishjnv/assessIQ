@@ -394,15 +394,16 @@ jobs:
   # (apps/web/e2e/seed-db.sh), the API and the worker from source, and the built web app
   # served by `vite preview` with /api proxied to the API (apps/web/vite.config.ts).
   #
-  # ADVISORY: continue-on-error is true, so a red e2e job does not fail the workflow yet.
-  # Remove it once the job has been green for a few runs.
+  # REQUIRED since E13 (2026-10-09): a red e2e job fails the workflow. One rerun is allowed
+  # for the known flaky totp timing test; anything else blocks the next batch.
   #
   # ENABLE_E2E_TEST_MINTER=true is set ONLY on the API process below, inside this runner's
   # throwaway stack. NEVER set it on production (the config refuses to boot in production).
   # Local equivalent: bash apps/web/e2e/local-stack.sh. See apps/web/e2e/README.md.
   e2e:
     runs-on: ubuntu-latest
-    continue-on-error: true
+    # E13 (2026-10-06): required. The job ran in-runner and green since 09595fa
+    # (runs 37400230396, 37415618512, 37417892862, 37419878620); continue-on-error removed.
     needs: quality
     timeout-minutes: 30
 

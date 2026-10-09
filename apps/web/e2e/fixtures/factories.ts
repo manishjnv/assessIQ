@@ -717,3 +717,22 @@ export async function cleanupTestData(opts: {
     console.warn('[factories] cleanup had non-fatal errors:', errors);
   }
 }
+
+// ---------------------------------------------------------------------------
+// FU-D23 (2026-10-06): walkthrough phase E — leaderboard (admin report route)
+// ---------------------------------------------------------------------------
+
+export interface LeaderboardRow {
+  rank: number;
+  attempt_id: string;
+  candidate_email: string | null;
+  auto_pct: number | string;
+}
+
+export async function getLeaderboard(adminCookie: string, assessmentId: string): Promise<LeaderboardRow[]> {
+  const res = await apiFetchJson<{ leaderboard: LeaderboardRow[] }>(
+    `/api/admin/reports/leaderboard/${assessmentId}?topN=10`,
+    { cookie: adminCookie, label: 'getLeaderboard' },
+  );
+  return res.leaderboard;
+}

@@ -90,7 +90,7 @@ PLAYWRIGHT_BASE_URL=https://assessiq.in pnpm --filter @assessiq/web e2e -- take-
 
 The `e2e` job in `.github/workflows/ci.yml` builds the same stack inside the runner (postgres/redis services,
 `seed-db.sh`, API + worker with `ENABLE_E2E_TEST_MINTER=true` on the runner only, `vite preview` with `/api` proxied)
-and runs admin-workflow, take-happy-path, take-timer-expiry and ordering-admin. It is advisory (`continue-on-error: true`).
+and runs admin-workflow, take-happy-path, take-timer-expiry and ordering-admin. Since E13 (2026-10-09) the job is required: `continue-on-error` is gone, so a red e2e job turns the workflow red. Evidence for the switch: the e2e job was green on every run where it ran from `7d3c2e0` to `cbecc09` (runs 37400230396, 37415618512, 37417892862, 37419878620, 37889893517, 37891061218, 37893018042); the one red run in that window (37422949382) was the `quality` job on a handlebars advisory and e2e was skipped.
 No repo variables are needed. **Never set `ENABLE_E2E_TEST_MINTER=true` on production.**
 
 ## Interpreting failures

@@ -444,6 +444,31 @@ test.describe('Admin → Candidate full workflow', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Step 12e — Leaderboard lists the released attempt (May walkthrough phase E, FU-D23)
+  // API-level: there is no admin leaderboard page in apps/web; the report route is
+  // GET /api/admin/reports/leaderboard/:assessmentId (module 09, tenant-visible attempts only).
+  // ---------------------------------------------------------------------------
+  test('step 12e — leaderboard ranks the released attempt', async () => {
+    test.skip(!admin?.cookie || !assessment?.id || !attemptId || !wasGraded, 'requires step 12b');
+
+    const rows = await factories.getLeaderboard(admin.cookie, assessment.id);
+    const mine = rows.find((r) => r.attempt_id === attemptId);
+    expect(mine, `released attempt ${attemptId} missing from leaderboard`).toBeDefined();
+    expect(mine!.rank).toBe(1); // the only attempt in this fresh assessment
+    expect(mine!.candidate_email).toBe(CANDIDATE_EMAIL);
+    expect(Number(mine!.auto_pct)).toBeGreaterThanOrEqual(0);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Step 12f — Email log (May walkthrough phase F, FU-D23)
+  // ---------------------------------------------------------------------------
+  test('step 12f — email log shows the invitation and release mails', async () => {
+    // Module 13 stores sent mail in its repository but exposes no admin email-log route
+    // and apps/web has no email-log page (checked 2026-10-09). Nothing to drive from e2e.
+    test.skip(true, 'no email-log route or page exists yet; add when module 13 exposes one');
+  });
+
+  // ---------------------------------------------------------------------------
   // Step 13 (Bonus) — Cohort report renders without blank page
   // This is a regression guard for the empty-state blank page bug surfaced
   // in today's manual testing (May 8, 2026). The report must render something

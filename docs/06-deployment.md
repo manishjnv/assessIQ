@@ -581,7 +581,7 @@ The env var is intentional on:
 **Update 2026-10-03 (RS11).**
 - **Local stack.** `apps/web/e2e/local-stack.sh` starts throwaway `assessiq-e2e-*` Postgres and Redis containers, applies the migrations, and starts the API, the worker and the web dev server with `ENABLE_E2E_TEST_MINTER=true`. `--down` removes exactly those containers. Nothing here touches the VPS.
 - **Minter fix (`ac8b8cb`).** The dev minter used `ON CONFLICT (tenant_id, lower(email))`, but no index matched. Every new candidate got a 500. It now uses `(tenant_id, email)`. The Vite dev proxy was fixed in the same commit.
-- **CI.** The `e2e` job (`09595fa`) starts its own `postgres` and `redis` services in the runner and does not need the repo variables `E2E_BASE_URL` or `E2E_API_BASE_URL`. It is advisory (`continue-on-error`) until it is green on GitHub.
+- **CI.** The `e2e` job (`09595fa`) starts its own `postgres` and `redis` services in the runner and does not need the repo variables `E2E_BASE_URL` or `E2E_API_BASE_URL`. **Required since E13 (2026-10-09):** `continue-on-error` was removed after the job was green on seven consecutive runs where it ran (37400230396 to 37893018042; the only red run, 37422949382, failed in `quality` on a handlebars advisory and skipped e2e). A red e2e job now blocks the workflow. Rejected: keeping it advisory until the flaky totp timing test is fixed (that test runs in `quality`, not e2e). Not included: a retry-on-flake step for e2e (Playwright already retries twice in CI). Downstream: `apps/web/e2e/README.md` § Running in CI; `.github/workflows/ci.yml` comment above the `e2e` job.
 - **Prod invariant unchanged.** The flag stays absent or `false` in `/srv/assessiq/.env`.
 
 See `apps/web/e2e/README.md` for full local run + CI integration guide.
