@@ -11,6 +11,21 @@ function is32ByteBase64(value: string): boolean {
   }
 }
 
+/**
+ * Domain of an EMAIL_FROM that is exactly one mailbox: `addr@domain` or
+ * `Display Name <addr@domain>`. Returns null for anything else (comma, semicolon,
+ * several "@", whitespace in the address, no "@").
+ */
+function singleMailboxDomain(from: string): string | null {
+  // Raw string, no trim: surrounding whitespace, CR/LF and any control character are invalid.
+  const v = from;
+  if (v !== v.trim() || /[\x00-\x1f\x7f]/.test(v)) return null;
+  const m = /^(?:[^<>@,;]*<([^<>\s,;@]+@[^<>\s,;@]+)>|([^<>\s,;@]+@[^<>\s,;@]+))$/.exec(v);
+  const addr = m?.[1] ?? m?.[2];
+  if (addr === undefined) return null;
+  return addr.split("@")[1]!.toLowerCase();
+}
+
 const ConfigSchema = z
   .object({
     // Required, no default: an unset NODE_ENV used to mean "development", which silently
@@ -94,6 +109,17 @@ const ConfigSchema = z
     EMAIL_FROM: z
       .string()
       .default("AssessIQ <noreply@automateedge.cloud>"),
+    /**
+     * Comma-separated sender domains verified with the SMTP provider (SPF/DKIM).
+     * In production the domain of EMAIL_FROM must appear here, or boot fails
+     * (superRefine below, RW-37).
+     */
+    EMAIL_VERIFIED_DOMAINS: z
+      .string()
+      .default("")
+      .transform((s) =>
+        s.split(",").map((d) => d.trim().toLowerCase()).filter((d) => d !== ""),
+      ),
     /**
      * Expected turnaround shown to a candidate whose result will be emailed
      * rather than shown on screen: "Your result will be emailed to r***@x.com
@@ -300,6 +326,28 @@ const ConfigSchema = z
         message: "NODE_ENV=production requires ORIGIN_TRUST_MODE=enforce (with ORIGIN_VERIFY_SECRET).",
         path: ["ORIGIN_TRUST_MODE"],
       });
+    }
+    // RW-37: an EMAIL_FROM on an unverified sender domain fails SPF/DKIM/DMARC and mail is
+    // silently dropped. Production must list the domain in EMAIL_VERIFIED_DOMAINS.
+    // EMAIL_FROM must be exactly ONE mailbox, so the domain we check is the domain mail leaves from.
+    if (data.NODE_ENV === "production") {
+      const domain = singleMailboxDomain(data.EMAIL_FROM);
+      if (domain === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "EMAIL_FROM must be one mailbox, e.g. noreply@domain or Name <noreply@domain>",
+          path: ["EMAIL_FROM"],
+        });
+      } else if (!data.EMAIL_VERIFIED_DOMAINS.includes(domain)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            `EMAIL_FROM domain "${domain}" (EMAIL_FROM=${data.EMAIL_FROM}) is not in EMAIL_VERIFIED_DOMAINS ` +
+            `(${data.EMAIL_VERIFIED_DOMAINS.join(",") || "empty"}). ` +
+            `Fix: set EMAIL_VERIFIED_DOMAINS to include "${domain}" once the domain is verified with the SMTP provider.`,
+          path: ["EMAIL_VERIFIED_DOMAINS"],
+        });
+      }
     }
     if (
       data.NODE_ENV === "production" &&

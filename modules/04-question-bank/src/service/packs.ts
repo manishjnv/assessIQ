@@ -218,6 +218,7 @@ export async function updatePack(
   tenantId: string,
   id: string,
   patch: { name?: string; domain?: string; description?: string },
+  updatedByUserId: string,
 ): Promise<QuestionPack> {
   log.info({ tenantId, id }, "updatePack");
 
@@ -235,7 +236,22 @@ export async function updatePack(
     if (patch.domain !== undefined) repoPatch.domain = patch.domain.trim().toLowerCase();
     if (patch.description !== undefined) repoPatch.description = patch.description;
 
-    return repo.updatePackRow(client, id, repoPatch);
+    const updated = await repo.updatePackRow(client, id, repoPatch);
+    if (Object.keys(repoPatch).length === 0) return updated; // no-op PATCH: nothing changed, no audit row
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: updatedByUserId,
+      action: "pack.updated",
+      entityType: "question_pack",
+      entityId: id,
+      // Free text (description) is NOT stored: its name appears in changed_fields only.
+      before: { name: current.name, domain: current.domain },
+      after: { changed_fields: Object.keys(repoPatch), name: updated.name, domain: updated.domain },
+    });
+
+    return updated;
   });
 }
 
@@ -623,6 +639,7 @@ export async function addLevel(
   tenantId: string,
   packId: string,
   input: AddLevelInput,
+  addedByUserId: string,
 ): Promise<Level> {
   log.info({ tenantId, packId }, "addLevel");
 
@@ -646,7 +663,7 @@ export async function addLevel(
         position = (maxRes.rows[0]?.max ?? 0) + 1;
       }
 
-      return repo.insertLevel(client, {
+      const level = await repo.insertLevel(client, {
         id: uuidv7(),
         packId,
         position,
@@ -656,6 +673,18 @@ export async function addLevel(
         defaultQuestionCount: input.default_question_count ?? 10,
         ...(input.passing_score_pct !== undefined ? { passingScorePct: input.passing_score_pct } : {}),
       });
+
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId: addedByUserId,
+        action: "level.added",
+        entityType: "level",
+        entityId: level.id,
+        after: { pack_id: packId, position: level.position, label: level.label },
+      });
+
+      return level;
     });
   } catch (err: unknown) {
     rethrowUnique(
@@ -670,10 +699,20 @@ export async function addLevel(
 // updateLevel
 // ---------------------------------------------------------------------------
 
+const LEVEL_AUDIT_SCALARS = ["label", "duration_minutes", "default_question_count", "passing_score_pct"] as const;
+
+// Non-free-text level fields that changed, for audit before/after.
+function pickLevelScalars(level: Level, changed: string[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of LEVEL_AUDIT_SCALARS) if (changed.includes(k)) out[k] = level[k];
+  return out;
+}
+
 export async function updateLevel(
   tenantId: string,
   levelId: string,
   patch: UpdateLevelPatch,
+  updatedByUserId: string,
 ): Promise<Level> {
   log.info({ tenantId, levelId }, "updateLevel");
 
@@ -694,6 +733,22 @@ export async function updateLevel(
     if (patch.passing_score_pct !== undefined) repoPatch.passing_score_pct = patch.passing_score_pct;
     if (patch.rubric_defaults !== undefined) repoPatch.rubric_defaults = patch.rubric_defaults;
 
-    return repo.updateLevelRow(client, levelId, repoPatch);
+    const updated = await repo.updateLevelRow(client, levelId, repoPatch);
+    const changed = Object.keys(repoPatch);
+    if (changed.length === 0) return updated; // no-op PATCH: nothing changed, no audit row
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: updatedByUserId,
+      action: "level.updated",
+      entityType: "level",
+      entityId: levelId,
+      // Free text (description) and the rubric_defaults blob are NOT stored: field names only.
+      before: pickLevelScalars(current, changed),
+      after: { pack_id: current.pack_id, changed_fields: changed, ...pickLevelScalars(updated, changed) },
+    });
+
+    return updated;
   });
 }

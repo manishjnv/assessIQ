@@ -239,6 +239,7 @@ describe("test-only session minters are never on in production", () => {
     NODE_ENV: "production",
     ORIGIN_TRUST_MODE: "enforce",
     ORIGIN_VERIFY_SECRET: "x".repeat(32),
+    EMAIL_VERIFIED_DOMAINS: "automateedge.cloud",
   };
 
   it("production baseline (flags unset) parses with both minters off", () => {
@@ -287,5 +288,49 @@ describe("test-only session minters are never on in production", () => {
     const env: Record<string, string | undefined> = { ...VALID_BASE_ENV, ENABLE_E2E_TEST_MINTER: "true" };
     delete env.NODE_ENV;
     expect(() => loadConfig(env)).toThrow();
+  });
+});
+
+describe("EMAIL_FROM production check (RW-37)", () => {
+  const PROD = {
+    ...VALID_BASE_ENV,
+    NODE_ENV: "production",
+    ORIGIN_TRUST_MODE: "enforce",
+    ORIGIN_VERIFY_SECRET: "x".repeat(32),
+    EMAIL_FROM: "AssessIQ <connect@assessiq.in>",
+  };
+
+  it("production + domain present parses and lowercases the list", () => {
+    const cfg = loadConfig({ ...PROD, EMAIL_VERIFIED_DOMAINS: " Other.com, assessiq.in " });
+    expect(cfg.EMAIL_VERIFIED_DOMAINS).toEqual(["other.com", "assessiq.in"]);
+  });
+
+  it("production + domain missing fails and names both values", () => {
+    expect(() => loadConfig({ ...PROD, EMAIL_VERIFIED_DOMAINS: "other.com" })).toThrow(/assessiq\.in[\s\S]*EMAIL_VERIFIED_DOMAINS/);
+  });
+
+  it("EMAIL_FROM must be one mailbox", () => {
+    const ok = { ...PROD, EMAIL_VERIFIED_DOMAINS: "x.com" };
+    expect(loadConfig({ ...ok, EMAIL_FROM: "a@x.com" }).EMAIL_FROM).toBe("a@x.com");
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: "Name <a@x.com>" })).not.toThrow();
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: "a@x.com, b@evil.com" })).toThrow(/one mailbox/);
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: "a@x.com; b@evil.com" })).toThrow(/one mailbox/);
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: "a@x.com " })).toThrow(/one mailbox/);
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: " Name <a@x.com>" })).toThrow(/one mailbox/);
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: "Name\n<a@x.com>" })).toThrow(/one mailbox/);
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: "a@x.com\r\nb@evil.com" })).toThrow(/one mailbox/);
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: "a@b@x.com" })).toThrow(/one mailbox/);
+    expect(() => loadConfig({ ...ok, EMAIL_FROM: "noreply" })).toThrow(
+      "EMAIL_FROM must be one mailbox, e.g. noreply@domain or Name <noreply@domain>",
+    );
+  });
+
+  it("production + empty or whitespace list fails", () => {
+    expect(() => loadConfig({ ...PROD })).toThrow(/EMAIL_VERIFIED_DOMAINS/);
+    expect(() => loadConfig({ ...PROD, EMAIL_VERIFIED_DOMAINS: "  " })).toThrow(/EMAIL_VERIFIED_DOMAINS/);
+  });
+
+  it("non-production does not check", () => {
+    expect(() => loadConfig({ ...VALID_BASE_ENV, EMAIL_FROM: "AssessIQ <connect@assessiq.in>" })).not.toThrow();
   });
 });

@@ -549,7 +549,7 @@ export async function registerQuestionBankRoutes(
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
       const body = req.body as { name?: string; domain?: string; description?: string };
-      return updatePack(tenantId, id, body);
+      return updatePack(tenantId, id, body, req.session!.userId);
     },
   );
 
@@ -622,7 +622,7 @@ export async function registerQuestionBankRoutes(
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
       const body = req.body as AddLevelInput;
-      const level = await addLevel(tenantId, id, body);
+      const level = await addLevel(tenantId, id, body, req.session!.userId);
       return reply.code(201).send(level);
     },
   );
@@ -636,7 +636,7 @@ export async function registerQuestionBankRoutes(
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
       const body = req.body as UpdateLevelPatch;
-      return updateLevel(tenantId, id, body);
+      return updateLevel(tenantId, id, body, req.session!.userId);
     },
   );
 
