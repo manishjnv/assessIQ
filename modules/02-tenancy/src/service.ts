@@ -829,11 +829,7 @@ export async function renameTenant(
 
   return withTenant(tenantId, async (client) => {
     // FOR UPDATE: two concurrent renames can't both pass the no-op check.
-    const cur = await client.query<{ name: string }>(
-      `SELECT name FROM tenants WHERE id = $1 FOR UPDATE`,
-      [tenantId],
-    );
-    const row = cur.rows[0];
+    const row = await repo.lockTenantNameForUpdate(client, tenantId);
     if (row === undefined) {
       throw new NotFoundError(`tenant not found: ${tenantId}`, {
         details: { code: "TENANT_NOT_FOUND", tenantId },
@@ -844,10 +840,7 @@ export async function renameTenant(
       return { tenantId, name, previousName, auditId: null, noOp: true };
     }
 
-    await client.query(`UPDATE tenants SET name = $1, updated_at = now() WHERE id = $2`, [
-      name,
-      tenantId,
-    ]);
+    await repo.updateTenantName(client, name, tenantId);
     const auditRow = await auditInTx(client, {
       tenantId,
       actorKind: "user",
@@ -860,4 +853,74 @@ export async function renameTenant(
     });
     return { tenantId, name, previousName, auditId: auditRow.id, noOp: false };
   });
+}
+
+// ---------------------------------------------------------------------------
+// RW-36(a): super-admin helpers moved out of apps/api routes. Behaviour and
+// error text are identical to the former inline route code.
+// ---------------------------------------------------------------------------
+
+/**
+ * Super-admin rename (PATCH /api/admin/super/tenants/:tenantId). The route has
+ * already validated + trimmed `newName`. UPDATE + tenant.renamed audit share
+ * one withTenant tx.
+ */
+export async function renameTenantAsSuperAdmin(
+  actorUserId: string,
+  tenantId: string,
+  newName: string,
+): Promise<RenameTenantResult> {
+  return withTenant(tenantId, async (client) => {
+    // FOR UPDATE row-locks the tenant so two concurrent renames can't both pass
+    // the no-op check and double-write / double-audit.
+    const row = await repo.lockTenantNameForUpdate(client, tenantId);
+    if (row === undefined) {
+      throw new NotFoundError(`Tenant not found: ${tenantId}`);
+    }
+    const previousName = row.name;
+    if (previousName === newName) {
+      return { tenantId, name: newName, previousName, auditId: null, noOp: true };
+    }
+
+    await repo.updateTenantName(client, newName, tenantId);
+
+    const auditRow = await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "tenant.renamed",
+      entityType: "tenant",
+      entityId: tenantId,
+      before: { name: previousName },
+      after: { name: newName },
+    });
+
+    return { tenantId, name: newName, previousName, auditId: auditRow.id, noOp: false };
+  });
+}
+
+/** Cross-tenant tenant list for the Platform UI; runs under assessiq_system. Caller must be super-admin. */
+export async function listTenantsForSuperAdmin(
+  includeArchived: boolean,
+): Promise<repo.TenantAdminSummaryRow[]> {
+  const pool = getPool();
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SET LOCAL ROLE assessiq_system");
+    const rows = await repo.listTenantsWithAdminSummary(client, includeArchived);
+    await client.query("COMMIT");
+    return rows;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** D13 privacy gate read: true only when the tenant row says disclosed. */
+export async function isPrivacyDisclosed(tenantId: string): Promise<boolean> {
+  const row = await withTenant(tenantId, (client) => repo.findPrivacyDisclosed(client, tenantId));
+  return row?.privacy_disclosed === true;
 }

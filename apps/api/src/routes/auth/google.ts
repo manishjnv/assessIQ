@@ -13,6 +13,8 @@ import {
   extractClientIp,
 } from '@assessiq/auth';
 import { authChain, publicAuthChain, publicCredentialAuthChain } from '../../middleware/auth-chain.js';
+import { parseBody, tryParse } from '../_validate.js';
+import { emailRequestBody, emailVerifyBody, selectIdentityBody } from '../_schemas.js';
 
 // Google OIDC routes. Library handles RS256 JWKS verify, state+nonce CSRF,
 // cross-tenant identity resolution, pre-MFA session mint. Route layer wires
@@ -37,6 +39,7 @@ const NONCE_COOKIE = 'aiq_oauth_nonce';
 // The library has a deeper safeReturnTo; we additionally pre-validate at the
 // route boundary so a malformed param fails closed before hitting the lib.
 const SAFE_RETURN_RE = /^\/(admin|take)\/[\w\-/.]{0,256}$/;
+
 
 export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/auth/google/start?returnTo=/admin/...
@@ -217,13 +220,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
         throw new AuthnError('authentication failed');
       }
 
-      const body = req.body as Record<string, unknown> | undefined;
-      const userId = body?.['userId'];
-      if (typeof userId !== 'string' || userId.length === 0) {
-        throw new ValidationError('userId required', {
-          details: { code: 'MISSING_USER_ID' },
-        });
-      }
+      const { userId } = parseBody(selectIdentityBody, req.body, { code: 'MISSING_USER_ID' });
 
       const ip = extractClientIp(req);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
@@ -278,8 +275,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
     async (req, reply) => {
       reply.header('Cache-Control', 'no-store');
 
-      const body = req.body as Record<string, unknown> | undefined;
-      const emailRaw = body?.['email'];
+      const emailRaw = tryParse(emailRequestBody, req.body)?.email;
 
       // Basic plausible-email validation (non-empty string with an '@').
       // Over-reject is worse than under-reject here — anti-enumeration requires
@@ -322,9 +318,9 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
     async (req, reply) => {
       reply.header('Cache-Control', 'no-store');
 
-      const body = req.body as Record<string, unknown> | undefined;
-      const emailRaw = body?.['email'];
-      const codeRaw = body?.['code'];
+      const verifyBody = tryParse(emailVerifyBody, req.body);
+      const emailRaw = verifyBody?.email;
+      const codeRaw = verifyBody?.code;
 
       if (
         typeof emailRaw !== 'string' || emailRaw.trim().length === 0 ||

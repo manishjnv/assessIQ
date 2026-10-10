@@ -513,3 +513,186 @@ export async function deleteInvitationsForEmail(
   );
   return result.rowCount ?? 0;
 }
+
+
+// ---------------------------------------------------------------------------
+// RW-36(a): super-admin queries moved out of apps/api/src/routes/admin-super.
+// SQL text and parameter order are unchanged from the route copies. Functions
+// named *System must run on a withSystemClient() (assessiq_system) client; the
+// rest run on a withTenant() client.
+// ---------------------------------------------------------------------------
+
+export interface SuperAdminUserRow {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  deleted_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface SuperAdminPendingInvitationRow {
+  id: string;
+  email: string;
+  role: string;
+  expires_at: Date;
+  created_at: Date;
+}
+
+export async function listTenantUsersSystem(
+  client: PoolClient,
+  tenantId: string,
+  includeDisabled: boolean,
+  includeDeleted: boolean,
+): Promise<SuperAdminUserRow[]> {
+  // Build user WHERE conditions.
+  const userConditions: string[] = ['u.tenant_id = $1'];
+  if (!includeDeleted) {
+    userConditions.push('u.deleted_at IS NULL');
+  }
+  if (!includeDisabled) {
+    userConditions.push("u.status <> 'disabled'");
+  }
+  // DPDP erasure: always hide erased candidates from this listing surface.
+  // This is an action surface (super-admin managing tenant users), so erased
+  // candidates must not appear per the HIDE display rule.
+  userConditions.push('u.erased_at IS NULL');
+  const userWhere = userConditions.join(' AND ');
+
+  const result = await client.query<SuperAdminUserRow>(
+    `SELECT u.id, u.email, u.name, u.role, u.status,
+                  u.deleted_at, u.created_at, u.updated_at
+           FROM users u
+           WHERE ${userWhere}
+           ORDER BY u.created_at DESC, u.id DESC`,
+    [tenantId],
+  );
+  return result.rows;
+}
+
+export async function listPendingInvitationsSystem(
+  client: PoolClient,
+  tenantId: string,
+): Promise<SuperAdminPendingInvitationRow[]> {
+  const result = await client.query<SuperAdminPendingInvitationRow>(
+    `SELECT ui.id, ui.email, ui.role, ui.expires_at, ui.created_at
+           FROM user_invitations ui
+           WHERE ui.tenant_id = $1 AND ui.accepted_at IS NULL
+           ORDER BY ui.created_at DESC`,
+    [tenantId],
+  );
+  return result.rows;
+}
+
+export interface UserTenantLookupRow {
+  tenant_id: string;
+  email: string;
+  name: string;
+  role: string;
+  status: string;
+  deleted_at: Date | null;
+}
+
+export async function findUserTenantSystem(
+  client: PoolClient,
+  userId: string,
+): Promise<UserTenantLookupRow | undefined> {
+  const res = await client.query<UserTenantLookupRow>(
+    `SELECT tenant_id, email, name, role, status, deleted_at
+         FROM users WHERE id = $1 LIMIT 1`,
+    [userId],
+  );
+  return res.rows[0];
+}
+
+export interface TenantAdminLookupRow {
+  id: string;
+  email: string;
+  status: string;
+  deleted_at: Date | null;
+}
+
+/** Earliest-created admin of a tenant (system role). */
+export async function findFirstAdminSystem(
+  client: PoolClient,
+  tenantId: string,
+): Promise<TenantAdminLookupRow | undefined> {
+  const res = await client.query<TenantAdminLookupRow>(
+    `SELECT u.id, u.email, u.status, u.deleted_at
+           FROM users u
+           WHERE u.tenant_id = $1 AND u.role = 'admin'
+           ORDER BY u.created_at ASC
+           LIMIT 1`,
+    [tenantId],
+  );
+  return res.rows[0];
+}
+
+export async function findInvitationTenantSystem(
+  client: PoolClient,
+  invitationId: string,
+): Promise<{ tenant_id: string; accepted_at: Date | null } | undefined> {
+  const res = await client.query<{ tenant_id: string; accepted_at: Date | null }>(
+    `SELECT tenant_id, accepted_at FROM user_invitations WHERE id = $1 LIMIT 1`,
+    [invitationId],
+  );
+  return res.rows[0];
+}
+
+export async function disableUserReturning(
+  client: PoolClient,
+  userId: string,
+): Promise<{ id: string; status: string } | undefined> {
+  const res = await client.query<{ id: string; status: string }>(
+    `UPDATE users SET status = 'disabled', updated_at = now()
+           WHERE id = $1
+           RETURNING id, status`,
+    [userId],
+  );
+  return res.rows[0];
+}
+
+export async function reenableUserReturning(
+  client: PoolClient,
+  userId: string,
+): Promise<{ id: string; status: string } | undefined> {
+  const res = await client.query<{ id: string; status: string }>(
+    `UPDATE users SET status = 'active', updated_at = now()
+           WHERE id = $1
+           RETURNING id, status`,
+    [userId],
+  );
+  return res.rows[0];
+}
+
+export async function restoreUserReturningStatus(
+  client: PoolClient,
+  userId: string,
+): Promise<{ id: string; status: string; deleted_at: Date | null } | undefined> {
+  const res = await client.query<{ id: string; status: string; deleted_at: Date | null }>(
+    `UPDATE users SET deleted_at = NULL, updated_at = now()
+           WHERE id = $1
+           RETURNING id, status, deleted_at`,
+    [userId],
+  );
+  return res.rows[0];
+}
+
+/** Super-admin profile edit: dynamic SET list, name/role/email only. */
+export async function updateUserProfileFields(
+  client: PoolClient,
+  userId: string,
+  patch: { name?: string; role?: string; email?: string },
+): Promise<void> {
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  let p = 1;
+  if (patch.name !== undefined) { sets.push(`name = $${p++}`); vals.push(patch.name); }
+  if (patch.role !== undefined) { sets.push(`role = $${p++}`); vals.push(patch.role); }
+  if (patch.email !== undefined) { sets.push(`email = $${p++}`); vals.push(patch.email); }
+  sets.push('updated_at = now()');
+  vals.push(userId);
+  await client.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${p}`, vals);
+}

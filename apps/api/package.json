@@ -34,7 +34,8 @@
     "fastify": "^5.12.2",
     "@fastify/cookie": "^11.1.2",
     "bullmq": "^5.34.0",
-    "ioredis": "^5.4.1"
+    "ioredis": "^5.4.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "tsx": "^4.23.15",

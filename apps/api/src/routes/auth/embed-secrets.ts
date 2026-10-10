@@ -3,11 +3,13 @@ import {
   createEmbedSecret,
   rotateEmbedSecret,
   listEmbedSecrets,
+  revokeEmbedSecret,
 } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
-import { withTenant } from '@assessiq/tenancy';
+import { isPrivacyDisclosed } from '@assessiq/tenancy';
 import { AppError } from '@assessiq/core';
 import { authChain } from '../../middleware/auth-chain.js';
+import { parseParams, idParams } from '../_validate.js';
 
 // Embed-secret admin endpoints. Library handles AES-256-GCM envelope under
 // ASSESSIQ_MASTER_KEY; plaintext secret shown ONCE on POST. GET never decrypts
@@ -27,10 +29,6 @@ const createBodySchema = {
 } as const;
 
 const FRESH_MFA_MINUTES = 15;
-
-interface TenantPrivacyRow {
-  privacy_disclosed: boolean;
-}
 
 export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/admin/embed-secrets — list metadata; envelope is never decrypted.
@@ -61,14 +59,7 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
       const { name } = req.body as { name: string };
 
       // D13: block creation if tenant has not disclosed privacy terms.
-      const privacyRow = await withTenant(sess.tenantId, async (client) => {
-        const result = await client.query<TenantPrivacyRow>(
-          `SELECT privacy_disclosed FROM tenants WHERE id = $1 LIMIT 1`,
-          [sess.tenantId],
-        );
-        return result.rows[0] ?? null;
-      });
-      if (!privacyRow?.privacy_disclosed) {
+      if (!(await isPrivacyDisclosed(sess.tenantId))) {
         throw new AppError(
           'Tenant must confirm privacy disclosure before creating embed secrets.',
           'EMBED_REGISTRATION_REQUIRES_PRIVACY_DISCLOSURE',
@@ -107,7 +98,7 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
     },
     async (req) => {
       const sess = req.session!;
-      const { id } = req.params as { id: string };
+      const { id } = parseParams(idParams, req.params);
       const out = await rotateEmbedSecret(sess.tenantId);
 
       // Audit write.
@@ -138,23 +129,9 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
     },
     async (req, reply) => {
       const sess = req.session!;
-      const { id } = req.params as { id: string };
+      const { id } = parseParams(idParams, req.params);
 
-      await withTenant(sess.tenantId, async (client) => {
-        const result = await client.query(
-          `UPDATE embed_secrets
-           SET status = 'revoked'
-           WHERE id = $1 AND tenant_id = $2 AND status != 'revoked'`,
-          [id, sess.tenantId],
-        );
-        if (result.rowCount === 0) {
-          throw new AppError(
-            `Embed secret ${id} not found or already revoked`,
-            'NOT_FOUND',
-            404,
-          );
-        }
-      });
+      await revokeEmbedSecret(sess.tenantId, id);
 
       // Audit write.
       await audit({

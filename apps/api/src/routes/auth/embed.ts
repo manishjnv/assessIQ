@@ -11,6 +11,8 @@ import {
 } from '@assessiq/embed-sdk';
 import { startAttempt } from '@assessiq/attempt-engine';
 import { publicAuthChain, authChain } from '../../middleware/auth-chain.js';
+import { parseBody } from '../_validate.js';
+import { sdkMintBody } from '../_schemas.js';
 
 // GET /embed?token=<JWT> — host-app iframe entry point (Phase 4).
 //
@@ -27,6 +29,7 @@ import { publicAuthChain, authChain } from '../../middleware/auth-chain.js';
 //
 // The aiq_embed_sess bridge in apps/api/src/server.ts promotes the embed cookie
 // value into the standard session-loader slot for subsequent API calls from the iframe.
+
 
 export async function registerEmbedRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
@@ -183,15 +186,8 @@ w.AssessIQ=AssessIQ;
           throw new AppError('not available in production', 'FORBIDDEN', 403);
         }
 
-        const body = req.body as Record<string, unknown>;
-        const assessmentId = typeof body['assessmentId'] === 'string' ? body['assessmentId'] : '';
+        const { assessmentId } = parseBody(sdkMintBody, req.body, { code: 'MISSING_PARAM' });
         const tenantId = req.session!.tenantId;
-
-        if (!assessmentId) {
-          throw new ValidationError('assessmentId required', {
-            details: { code: 'MISSING_PARAM' },
-          });
-        }
 
         const ip = extractClientIp(req);
         const ua = req.headers['user-agent'] ?? 'unknown';

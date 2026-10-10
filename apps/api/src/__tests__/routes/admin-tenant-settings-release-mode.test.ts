@@ -240,13 +240,13 @@ describe('PATCH /api/admin/tenant-settings/result-release-mode', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('missing body is passed through as an invalid mode (service rejects it)', async () => {
-    mockUpdateMode.mockRejectedValue(new ValidationError('mode must be manual or auto', { details: { code: 'INVALID_RESULT_RELEASE_MODE' } }));
+  it('missing mode is rejected by the route schema (400, service not called)', async () => {
     const res = await app.inject({
       method: 'PATCH', url: '/api/admin/tenant-settings/result-release-mode', headers: hdr('admin'), body: JSON.stringify({}),
     });
     expect(res.statusCode).toBe(400);
-    expect(mockUpdateMode).toHaveBeenCalledWith('admin-user-uuid', 'tenant-a-uuid', undefined);
+    expect(res.json().error.details.code).toBe('INVALID_RESULT_RELEASE_MODE');
+    expect(mockUpdateMode).not.toHaveBeenCalled();
   });
 
   it('suspended/archived tenant -> 409 TENANT_NOT_ACTIVE, no change', async () => {

@@ -174,7 +174,7 @@ const REVIEWER_HEADERS = {
   'x-test-session-totp-verified': 'true',
 };
 
-const TARGET_TENANT_ID = 'target-tenant-uuid';
+const TARGET_TENANT_ID = '00000000-0000-4000-8000-0000000000a1';
 
 const SUCCESS_RESULT = {
   tenantId: TARGET_TENANT_ID,
@@ -337,12 +337,12 @@ describe('PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode', () => {
 
   it('returns 404 when the target tenant has no tenant_settings row', async () => {
     mockUpdateAiGenerateMode.mockRejectedValue(
-      new NotFoundError('tenant_settings not found for tenant ghost-tenant-uuid'),
+      new NotFoundError('tenant_settings not found for tenant 00000000-0000-4000-8000-0000000000a2'),
     );
 
     const res = await app.inject({
       method: 'PATCH',
-      url: `/api/admin/super/tenants/ghost-tenant-uuid/ai-generate-mode`,
+      url: `/api/admin/super/tenants/00000000-0000-4000-8000-0000000000a2/ai-generate-mode`,
       headers: { ...SUPER_ADMIN_HEADERS, 'content-type': 'application/json' },
       body: JSON.stringify({ mode: 'sharded' }),
     });

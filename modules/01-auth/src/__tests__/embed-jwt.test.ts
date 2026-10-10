@@ -32,6 +32,7 @@ import {
   createEmbedSecret,
   rotateEmbedSecret,
   listEmbedSecrets,
+  revokeEmbedSecret,
 } from "../embed-jwt.js";
 import { AuthnError } from "@assessiq/core";
 
@@ -527,5 +528,25 @@ describe("listEmbedSecrets", () => {
     expect(bItems).toHaveLength(1);
     expect(bItems[0]!.name).toBe("B-secret");
     expect(bItems[0]!.tenantId).toBe(tenantB);
+  });
+});
+
+// RW-36(a): SQL moved from routes/auth/embed-secrets.ts into the repository.
+describe("revokeEmbedSecret", () => {
+  it("marks the secret revoked, then 404s on a repeat or unknown id", async () => {
+    const tenantId = await createTenant();
+    const { id } = await createEmbedSecret(tenantId, "to-revoke");
+
+    await revokeEmbedSecret(tenantId, id);
+    const items = await listEmbedSecrets(tenantId);
+    expect(items.find((i) => i.id === id)!.status).toBe("revoked");
+
+    await expect(revokeEmbedSecret(tenantId, id)).rejects.toMatchObject({
+      code: "NOT_FOUND",
+      status: 404,
+    });
+    await expect(revokeEmbedSecret(tenantId, randomUUID())).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
   });
 });

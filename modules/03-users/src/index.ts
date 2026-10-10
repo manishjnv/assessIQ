@@ -14,3 +14,15 @@ export type { CancelInvitationResult } from './invitations.js';
 export { importCandidates, parseCandidateCsv, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES } from './import.js';
 export type { ImportCandidatesResult, ImportSkip, ParsedCandidateCsv } from './import.js';
 export { sweepUserSessions } from './redis-sweep.js';
+export {
+  listTenantUsersForSuperAdmin,
+  resolveUserTenant,
+  findTenantFirstAdmin,
+  resolvePendingInvitationTenant,
+  disableUserAsSuperAdmin,
+  reenableUserAsSuperAdmin,
+  softDeleteUserAsSuperAdmin,
+  restoreUserAsSuperAdmin,
+  updateUserProfileAsSuperAdmin,
+} from './super-admin.js';
+export type { ResolvedUserTenant } from './super-admin.js';

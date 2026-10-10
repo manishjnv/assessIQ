@@ -11,6 +11,8 @@ import {
 } from '@assessiq/auth';
 import { sendEmail } from '@assessiq/notifications';
 import { authChain } from '../../middleware/auth-chain.js';
+import { tryParse } from '../_validate.js';
+import { requestLinkBody, verifyLinkBody } from '../_schemas.js';
 
 // Candidate passwordless magic-link login routes.
 //
@@ -38,6 +40,7 @@ import { authChain } from '../../middleware/auth-chain.js';
 
 const EXPIRES_MINUTES = Math.round(CANDIDATE_LOGIN_TOKEN_TTL_SEC / 60); // 15
 
+
 export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/auth/candidate/request-link
   // Auth: none (public). Rate-limit: IP-level from publicAuthChain + per-(IP,email)
@@ -50,11 +53,11 @@ export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise
       preHandler: authChain({ requireSession: false }),
     },
     async (req, reply) => {
-      const body = req.body as Record<string, unknown> | undefined;
-      const email = typeof body?.['email'] === 'string' ? body['email'] : null;
+      const body = tryParse(requestLinkBody, req.body);
+      const email = body?.email ?? null;
       // FIX 1: tenant_slug is now required. Without it we can't perform an
       // RLS-scoped lookup. Missing/empty → 204 (no structural info leaked).
-      const tenant_slug = typeof body?.['tenant_slug'] === 'string' ? body['tenant_slug'] : null;
+      const tenant_slug = body?.tenant_slug ?? null;
 
       if (
         typeof email !== 'string' || email.trim().length === 0 ||
@@ -126,8 +129,7 @@ export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise
       preHandler: authChain({ requireSession: false, candidateEntry: true }),
     },
     async (req, reply) => {
-      const body = req.body as Record<string, unknown> | undefined;
-      const token = typeof body?.['token'] === 'string' ? body['token'] : null;
+      const token = tryParse(verifyLinkBody, req.body)?.token ?? null;
 
       reply.header('Cache-Control', 'no-store');
 

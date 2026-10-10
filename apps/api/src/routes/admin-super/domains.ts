@@ -2,9 +2,11 @@
 // Moved verbatim from routes/admin-super.ts (E9 split; no behaviour change).
 
 import type { FastifyInstance } from 'fastify';
-import { ValidationError } from '@assessiq/core';
+import { parseBody, parseParams, idParams } from '../_validate.js';
+import { createDomainBody, setDomainStatusBody } from '../_schemas.js';
 import { listPlatformDomains, createPlatformDomain, setPlatformDomainStatus } from '@assessiq/question-bank';
 import { superAdminOnly, superAdminFreshMfa } from './_shared.js';
+
 
 export async function registerAdminSuperDomainRoutes(app: FastifyInstance): Promise<void> {
   // ──────────────────────────────────────────────────────────────────────────
@@ -41,12 +43,7 @@ export async function registerAdminSuperDomainRoutes(app: FastifyInstance): Prom
     '/api/admin/super/domains',
     { preHandler: superAdminFreshMfa },
     async (req, reply) => {
-      const body = (req.body ?? {}) as { name?: unknown; description?: unknown };
-      if (typeof body.name !== 'string' || body.name.trim().length === 0) {
-        throw new ValidationError('name is required and must be a non-empty string', {
-          details: { code: 'MISSING_REQUIRED', field: 'name' },
-        });
-      }
+      const body = parseBody(createDomainBody, req.body, { code: 'MISSING_REQUIRED' });
       const result = await createPlatformDomain(req.session!.userId, {
         name: body.name,
         ...(typeof body.description === 'string' ? { description: body.description } : {}),
@@ -66,13 +63,8 @@ export async function registerAdminSuperDomainRoutes(app: FastifyInstance): Prom
     '/api/admin/super/domains/:id',
     { preHandler: superAdminFreshMfa },
     async (req, reply) => {
-      const { id } = req.params as { id: string };
-      const body = (req.body ?? {}) as { status?: unknown };
-      if (body.status !== 'active' && body.status !== 'archived') {
-        throw new ValidationError('status must be "active" or "archived"', {
-          details: { code: 'INVALID_STATUS', received: body.status },
-        });
-      }
+      const { id } = parseParams(idParams, req.params);
+      const body = parseBody(setDomainStatusBody, req.body, { code: 'INVALID_STATUS' });
       const result = await setPlatformDomainStatus(req.session!.userId, id, body.status);
       return reply.code(200).send(result);
     },
