@@ -12,14 +12,11 @@
 
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { parse } from "yaml";
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const MODULE_ROOT = join(THIS_DIR, "..", "..");
 const CANDIDATE_YAML_PATH = join(MODULE_ROOT, "content", "en", "candidate.yml");
 

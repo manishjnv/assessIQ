@@ -6,7 +6,8 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
 import { readdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 
 import { setPoolForTesting, closePool } from '../../../02-tenancy/src/pool.js';
@@ -89,10 +90,7 @@ A,a@x.com,ECE`).valid[0]!.branch).toBe('ECE');
 // Integration
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, '$1');
-}
-const USERS_ROOT = join(toFsPath(new URL('.', import.meta.url)), '..', '..');
+const USERS_ROOT = join(dirname(fileURLToPath(import.meta.url)) + sep, '..', '..');
 const MODULES_ROOT = join(USERS_ROOT, '..');
 
 let container: StartedTestContainer;

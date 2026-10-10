@@ -17,7 +17,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
@@ -29,11 +30,7 @@ import { sha256Hex } from "../crypto-util.js";
 // Path helpers
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR          = toFsPath(new URL(".", import.meta.url));  // .../src/__tests__/
+const THIS_DIR          = dirname(fileURLToPath(import.meta.url)) + sep;  // .../src/__tests__/
 const AUTH_MODULE_ROOT  = join(THIS_DIR, "..", "..");                // modules/01-auth/
 const MODULES_ROOT      = join(AUTH_MODULE_ROOT, "..");              // modules/
 

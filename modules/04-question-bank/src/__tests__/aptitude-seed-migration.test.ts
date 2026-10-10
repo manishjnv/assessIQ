@@ -17,7 +17,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile, access } from "node:fs/promises";
-import { join, basename } from "node:path";
+import { join, basename, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { McqContentSchema } from "../types.js";
 import { clonePackToTenant } from "../clone.js";
@@ -27,8 +28,7 @@ import {
   type AptitudeInput,
 } from "../../../../tools/gen-aptitude-migration.js";
 
-const toFs = (u: URL) => u.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const HERE = toFs(new URL(".", import.meta.url));
+const HERE = dirname(fileURLToPath(import.meta.url)) + sep;
 const MODULES = join(HERE, "..", "..", "..");
 // Real content lives outside git (public repo) — present only on a machine that holds docs/exam-content/.
 const REAL_0109 = join(MODULES, "..", "docs", "exam-content", "0109_seed_platform_aptitude_pack.sql");

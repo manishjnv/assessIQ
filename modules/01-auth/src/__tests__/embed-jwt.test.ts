@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * Integration tests for modules/01-auth embed-jwt.ts
  *

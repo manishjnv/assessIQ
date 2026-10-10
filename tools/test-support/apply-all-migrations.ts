@@ -15,11 +15,11 @@
  * and grants them to the connected user, as every hand-rolled setup did.
  */
 import { readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { basename, join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Client } from "pg";
 
-const toFs = (u: URL) => u.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const MODULES = join(toFs(new URL(".", import.meta.url)), "..", "..", "modules");
+const MODULES = join(dirname(fileURLToPath(import.meta.url)) + sep, "..", "..", "modules");
 
 function key(f: string): [number, number, string] {
   const name = basename(f);

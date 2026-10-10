@@ -6,7 +6,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
@@ -25,8 +26,7 @@ describe("integrity event schemas", () => {
   });
 });
 
-const toFsPath = (url: URL): string => url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const MODULES_ROOT = join(toFsPath(new URL(".", import.meta.url)), "..", "..", "..");
+const MODULES_ROOT = join(dirname(fileURLToPath(import.meta.url)) + sep, "..", "..", "..");
 const DIRS: Array<[string, string[] | undefined]> = [
   ["02-tenancy", undefined],
   ["03-users", ["020_users.sql"]],

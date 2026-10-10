@@ -11,7 +11,8 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 import { Client } from "pg";
 import Fastify from "fastify";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
@@ -19,8 +20,7 @@ vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import { registerSuperEvaluationRoutes } from "../routes-super.js";
 
-const toFsPath = (url: URL): string => url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const MODULES_ROOT = join(toFsPath(new URL(".", import.meta.url)), "..", "..", "..");
+const MODULES_ROOT = join(dirname(fileURLToPath(import.meta.url)) + sep, "..", "..", "..");
 const DIRS: Array<[string, string[] | undefined]> = [
   ["02-tenancy", undefined],
   ["03-users", ["020_users.sql"]],

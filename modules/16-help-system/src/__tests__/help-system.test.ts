@@ -42,7 +42,8 @@ vi.mock("@assessiq/audit-log", async () => {
 import { Client, Pool } from "pg";
 import { readdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import {
@@ -56,12 +57,8 @@ import {
 // Path helpers — Windows-safe (strips leading /E:/ from import.meta.url)
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
 // modules/16-help-system/src/__tests__/
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 // 1 ..  →  modules/16-help-system/src/
 // 2 ..  →  modules/16-help-system/
 const MODULE_ROOT = join(THIS_DIR, "..", "..");

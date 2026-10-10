@@ -31,7 +31,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { setRedisForTesting, closeRedis } from "@assessiq/core/redis";
 
@@ -103,11 +104,7 @@ const mockGradeSubjective = vi.mocked(gradeSubjective);
 // import.meta.url on Windows: file:///E:/code/...  →  /E:/code/...
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const AI_MODULE_ROOT = join(THIS_DIR, "..", "..");
 const MODULES_ROOT = join(AI_MODULE_ROOT, "..");
 

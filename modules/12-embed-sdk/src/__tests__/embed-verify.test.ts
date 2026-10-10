@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * embed-verify.test.ts — unit tests for verifyEmbedToken pre-DB rejection paths.
  *

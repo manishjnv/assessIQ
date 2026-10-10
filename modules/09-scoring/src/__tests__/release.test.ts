@@ -15,7 +15,8 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 import { Client } from "pg";
 import { readFile as readSrc } from "node:fs/promises";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
@@ -23,8 +24,7 @@ import { CERT_SIGNING_SECRET_ENV } from "@assessiq/certification";
 import { ACTION_CATALOG } from "@assessiq/audit-log";
 import { releaseAttemptInTx, type ReleaseActor } from "../release.js";
 
-const toFsPath = (url: URL): string => url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const MODULES_ROOT = join(THIS_DIR, "..", "..", "..");
 const DIRS: Array<[string, string[] | undefined]> = [
   ["02-tenancy", undefined],

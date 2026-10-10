@@ -32,7 +32,8 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vites
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 
@@ -84,11 +85,7 @@ import { USER_AUDIT_REDACTED_FIELDS } from '../audit-redact.js';
 // Path helpers (Windows: strip leading slash before drive letter)
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, '$1');
-}
-
-const THIS_DIR = toFsPath(new URL('.', import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const USERS_MODULE_ROOT = join(THIS_DIR, '..', '..');
 
 // ---------------------------------------------------------------------------
