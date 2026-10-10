@@ -15,6 +15,7 @@
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/help-system": "workspace:*",
+    "@assessiq/http-client": "workspace:*",
     "@assessiq/rubric-engine": "workspace:*",
     "@assessiq/scoring": "workspace:*",
     "@assessiq/ui-system": "workspace:*",

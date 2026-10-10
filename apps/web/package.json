@@ -20,6 +20,7 @@
     "@assessiq/admin-dashboard": "workspace:*",
     "@assessiq/candidate-ui": "workspace:*",
     "@assessiq/help-system": "workspace:*",
+    "@assessiq/http-client": "workspace:*",
     "@assessiq/ui-system": "workspace:*",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",

@@ -31,7 +31,7 @@ import { Chip, Icon, StatCard, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { useMfaGuard } from "../components/useMfaGuard.js";
-import { adminApi } from "../api.js";
+import { adminApi, getReadiness } from "../api.js";
 import { ageLabel, ageTone, apiMessage } from "../lib/evaluation.js";
 import { formatTimestamp } from "../lib/format.js";
 
@@ -138,8 +138,7 @@ function RuntimeStatusChip(): React.ReactElement {
   const [r, setR] = useState<Readiness>("loading");
   useEffect(() => {
     let live = true;
-    fetch("/api/ready")
-      .then((res) => res.json() as Promise<{ checks?: Record<string, boolean> }>)
+    getReadiness()
       .then((b) => live && setR(b))
       .catch(() => live && setR("unknown"));
     return () => {

@@ -1011,3 +1011,30 @@ Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-sys
 - Props: `page` (1-based), `pageSize`, `total`, `onPageChange`.
 - `<nav aria-label="Pagination">` with Previous, "Page X of Y", Next. Y = `max(1, ceil(total/pageSize))`. `page` is clamped into 1..Y.
 - Kit gap: no Pagination recipe; uses the outline small button.
+
+## RW-33 and RW-34 (S7): shared overlays, tables and one HTTP client
+
+**What.**
+1. **One HTTP client (RW-34).** `packages/http-client` (`@assessiq/http-client`) holds the only browser fetch layer. `createApiClient`, `createApiRequest` and `createApiRawRequest` keep the behaviour of the three old copies: `credentials: 'include'`, a `Content-Type` header only when a body exists, the `{ error }` envelope with the `HTTP_<status>` fallback, and 204 returns undefined. `apps/web/src/lib/api.ts`, `modules/10-admin-dashboard/src/api.ts` (`adminApi`, `getReadiness`) and `modules/11-candidate-ui/src/api.ts` (`call`) build on it. `AdminApiError` and `CandidateApiError` remain subclasses of `ApiCallError`.
+2. **`useApi` hook (RW-34).** `modules/17-ui-system/src/hooks/useApi.ts` (also re-exported in `apps/web/src/lib/useApi.ts`) loads on mount and when the path changes. It aborts the in-flight request on unmount, on path change and on refetch, and never surfaces an AbortError. Data is cleared when the path or base changes; a plain refetch keeps it. This came from a Codex review (revise, addressed).
+3. **Confirm dialogs (RW-33).** `window.confirm` is gone from modules 10 and 11. Destructive confirms use `ConfirmDialog` (danger, with a pending-action state). Hand-rolled fixed dialogs use `Modal`.
+4. **Tables (RW-33).** Raw `<table>` in modules 10 and 11 is now `Table`, except the main attempts table in `generation-attempts.tsx`, which has row expansion (see Not included).
+5. **Overlay lint (RW-33).** `tools/lint-no-fixed-overlay.ts` runs in WARN mode. It flags `position: 'fixed'` and raw `<table` in modules 10 and 11 unless the line or the line above has `lint-fixed-allow: <drawer|menu|toast|gate|panel|table>` with a reason.
+
+**Why.** Three near-identical fetch clients drifted apart. Dialogs and tables were hand-rolled per page. One client and one dialog and table primitive remove the drift. The lint keeps it from returning.
+
+**Considered and rejected.**
+- Put the base client in `apps/web/src/lib` and import it from modules 10 and 11. Rejected: modules cannot import from `apps/web` (Rule B).
+- Make `ConfirmDialog` hold MFA and reason inputs. Rejected: `ConfirmDialog` always renders its own buttons. The MFA steps in the archive and lifecycle dialogs use `Modal` with the same body.
+- Add row expansion to `Table` now. Deferred: it is a behaviour change for the attempts table.
+
+**Not included.**
+- Playwright e2e and axe runs. They run in CI on push, not locally.
+- A tooltip or popover conversion. Those are not in scope.
+- `Table` renders `div`s with ARIA roles, not a real `<table>`. Converted tables get CSS-grid semantics and truncated cells. An axe check on the changed pages is open.
+- The `generation-attempts.tsx` main table stays a raw `<table>` (allow comment `table`).
+
+**Downstream impact.**
+- Modules 10, 11, 17 and `apps/web` depend on `@assessiq/http-client` (workspace). `pnpm-lock.yaml` is updated.
+- Visible: confirm dialogs now use the kit style; Escape and backdrop close these dialogs; a close button with `aria-label="Close modal"`; converted tables use the grid style.
+- Lint: `lint:repo` does not run the new script yet (warn mode; run it with `npx tsx tools/lint-no-fixed-overlay.ts`).

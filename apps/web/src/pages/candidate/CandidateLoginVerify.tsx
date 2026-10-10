@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Spinner } from '@assessiq/ui-system';
+import { api } from '../../lib/api.js';
 
 // SPA landing for /candidate/login/verify?token=…
 //
@@ -35,21 +36,11 @@ export function CandidateLoginVerify(): React.JSX.Element {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await fetch('/api/auth/candidate/verify-link', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({ token }),
-        });
-        if (cancelled) return;
-
-        if (!res.ok) {
-          navigate('/candidate/login?error=invalid_link', { replace: true });
-          return;
-        }
-        const data = (await res.json()) as
-          | { ok: true; redirect: string }
-          | { ok: false; error: string };
+        // A non-2xx throws and lands in the catch → same failure landing.
+        const data = await api<{ ok: true; redirect: string } | { ok: false; error: string }>(
+          '/auth/candidate/verify-link',
+          { method: 'POST', body: JSON.stringify({ token }) },
+        );
         if (cancelled) return;
 
         if (data.ok === true) {

@@ -17,6 +17,7 @@
 import { useState, type CSSProperties, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Chip, Logo, Field } from '@assessiq/ui-system';
+import { api, ApiCallError } from '../../lib/api.js';
 
 const SERIF_H1: CSSProperties = {
   fontSize: 44,
@@ -43,11 +44,9 @@ export function AdminEmailOtp(): React.JSX.Element {
     try {
       // Fire-and-forget from the UI perspective — anti-enumeration: we always
       // advance to step 2 regardless of the server's action.
-      await fetch('/api/auth/login/email/request', {
+      await api('/auth/login/email/request', {
         method: 'POST',
-        credentials: 'include',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
     } catch {
@@ -67,15 +66,10 @@ export function AdminEmailOtp(): React.JSX.Element {
     setCodeError(null);
 
     try {
-      const res = await fetch('/api/auth/login/email/verify', {
-        method: 'POST',
-        credentials: 'include',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
-      });
-
-      const data = (await res.json()) as { ok: boolean; redirectTo?: string; error?: string };
+      const data = await api<{ ok: boolean; redirectTo?: string; error?: string }>(
+        '/auth/login/email/verify',
+        { method: 'POST', cache: 'no-store', body: JSON.stringify({ email, code }) },
+      );
 
       if (data.ok && typeof data.redirectTo === 'string') {
         // Hard navigation — same pattern as select-identity.tsx's handleSelect.
@@ -86,8 +80,13 @@ export function AdminEmailOtp(): React.JSX.Element {
 
       // ok:false → generic error (server enforces lockout after ≤5 attempts).
       setCodeError('That code is not valid or has expired. Try again.');
-    } catch {
-      setCodeError('Something went wrong. Please try again.');
+    } catch (err) {
+      // A non-2xx reply (ok:false, lockout) is the same generic invalid-code message.
+      setCodeError(
+        err instanceof ApiCallError
+          ? 'That code is not valid or has expired. Try again.'
+          : 'Something went wrong. Please try again.',
+      );
     } finally {
       setSubmitting(false);
     }

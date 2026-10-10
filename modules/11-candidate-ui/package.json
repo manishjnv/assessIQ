@@ -13,6 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@assessiq/http-client": "workspace:*",
     "@assessiq/ui-system": "workspace:*"
   },
   "peerDependencies": {

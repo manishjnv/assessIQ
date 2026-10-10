@@ -15,6 +15,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
+import { api, ApiCallError } from '../../lib/api.js';
 
 interface IdentityOption {
   userId: string;
@@ -43,23 +44,11 @@ export function AdminSelectIdentity(): React.JSX.Element {
 
     async function fetchIdentities(): Promise<void> {
       try {
-        const res = await fetch('/api/auth/login/identities', {
-          credentials: 'include',
+        // A non-2xx (401 = token expired or invalid) throws and lands in the
+        // catch below → back to login.
+        const data = await api<{ identities: IdentityOption[] }>('/auth/login/identities', {
           cache: 'no-store',
         });
-
-        if (cancelled) return;
-
-        if (!res.ok) {
-          // 401 = token expired or invalid → back to login.
-          navigate('/admin/login', {
-            replace: true,
-            state: { message: 'Session expired — please sign in again.' },
-          });
-          return;
-        }
-
-        const data = (await res.json()) as { identities: IdentityOption[] };
         if (cancelled) return;
 
         if (data.identities.length === 0) {
@@ -88,15 +77,14 @@ export function AdminSelectIdentity(): React.JSX.Element {
     setSelecting(userId);
     setError(null);
     try {
-      const res = await fetch('/api/auth/login/select', {
+      const data = await api<{ redirectTo: string }>('/auth/login/select', {
         method: 'POST',
-        credentials: 'include',
         cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
       });
-
-      if (!res.ok) {
+      window.location.href = data.redirectTo;
+    } catch (err) {
+      if (err instanceof ApiCallError) {
         // 401 = token consumed/expired; any other error = generic failure.
         navigate('/admin/login', {
           replace: true,
@@ -104,10 +92,6 @@ export function AdminSelectIdentity(): React.JSX.Element {
         });
         return;
       }
-
-      const data = (await res.json()) as { redirectTo: string };
-      window.location.href = data.redirectTo;
-    } catch {
       setError('Something went wrong. Please try signing in again.');
       setSelecting(null);
     }

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Icon } from '@assessiq/ui-system';
+import { Icon, useApi } from '@assessiq/ui-system';
+import { createApiClient } from '@assessiq/http-client';
 import { CandidateSessionBanner } from './CandidateSessionBanner.js';
 
 // ---------------------------------------------------------------------------
@@ -21,32 +22,12 @@ interface WhoamiResult {
   expiresAt?: string;
 }
 
+const http = createApiClient('/api');
+
 function useWhoami(): { data: WhoamiResult | null; loading: boolean } {
-  const [data, setData] = useState<WhoamiResult | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch('/api/auth/whoami', { credentials: 'include' })
-      .then((res) => (res.ok ? (res.json() as Promise<WhoamiResult>) : null))
-      .then((result) => {
-        if (!cancelled) {
-          setData(result);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setData(null);
-          setLoading(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { data, loading };
+  // Any failure (401, network) leaves data undefined → null, as before.
+  const { data, loading } = useApi<WhoamiResult>('/auth/whoami');
+  return { data: data ?? null, loading };
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +97,7 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
 
   const handleSignOut = async (): Promise<void> => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+      await http('/auth/logout', { method: 'POST' });
     } catch {
       // Best-effort; redirect regardless.
     }
