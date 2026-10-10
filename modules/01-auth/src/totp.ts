@@ -215,17 +215,8 @@ async function enrollConfirm(
     ...epochData.future,
   ];
 
-  let matched = false;
-  for (const epoch of epochs) {
-    const expected = totpToken(decodedSecret, { ...opts, epoch });
-    if (
-      code.length === expected.length &&
-      constantTimeEqual(Buffer.from(code), Buffer.from(expected))
-    ) {
-      matched = true;
-      break;
-    }
-  }
+  const expectedCodes = epochs.map((epoch) => totpToken(decodedSecret, { ...opts, epoch }));
+  const matched = matchTotpCode(code, expectedCodes);
 
   if (!matched) {
     // Do NOT consume the staging key — allow retry.
@@ -263,6 +254,19 @@ async function enrollConfirm(
 // ---------------------------------------------------------------------------
 // Verify
 // ---------------------------------------------------------------------------
+
+/**
+ * Match a candidate code against every expected code, with no early exit.
+ * Checking all candidates keeps the time independent of which window matched.
+ */
+export function matchTotpCode(candidate: string, expected: readonly string[]): boolean {
+  let matched = false;
+  for (const e of expected) {
+    const ok = candidate.length === e.length && constantTimeEqual(Buffer.from(candidate), Buffer.from(e));
+    matched = matched || ok;
+  }
+  return matched;
+}
 
 async function verify(
   userId: string,
@@ -305,17 +309,8 @@ async function verify(
     ...epochData.future,
   ];
 
-  let matched = false;
-  for (const epoch of epochs) {
-    const expected = totpToken(decodedSecret, { ...opts, epoch });
-    if (
-      code.length === expected.length &&
-      constantTimeEqual(Buffer.from(code), Buffer.from(expected))
-    ) {
-      matched = true;
-      break;
-    }
-  }
+  const expectedCodes = epochs.map((epoch) => totpToken(decodedSecret, { ...opts, epoch }));
+  const matched = matchTotpCode(code, expectedCodes);
 
   if (!matched) {
     const { wasLocked } = await recordFailure(userId);
