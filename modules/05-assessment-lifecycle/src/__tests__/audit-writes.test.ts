@@ -167,7 +167,7 @@ async function buildPublishedPack(
     label: "L1",
     duration_minutes: 30,
     default_question_count: questionCount,
-  });
+  }, adminId);
   for (let i = 0; i < questionCount; i++) {
     await createQuestion(
       tenantId,
