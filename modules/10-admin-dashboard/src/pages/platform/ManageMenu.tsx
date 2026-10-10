@@ -132,6 +132,7 @@ export function ManageMenu({
         <div
           ref={panelRef}
           style={{
+            // lint-fixed-allow: menu
             position: "fixed",
             top: coords.top,
             right: coords.right,

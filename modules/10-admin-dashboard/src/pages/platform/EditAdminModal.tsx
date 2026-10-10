@@ -1,7 +1,7 @@
 // EditAdminModal — split from platform.tsx (E9, no behaviour change).
 
 import React, { useState } from "react";
-import { Button, Card, Chip, Field } from "@assessiq/ui-system";
+import { Button, Chip, Field, Modal } from "@assessiq/ui-system";
 import { MfaStepUp } from "../../components/mfa-step-up.js";
 import { AdminApiError, superUpdateAdminApi, superUpdateTenantApi, type SuperUpdateAdminRequest, type TenantListItem } from "../../api.js";
 import { META_LABEL, type ModalState } from "./shared.js";
@@ -142,29 +142,7 @@ export function EditAdminModal({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.36)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 100,
-      }}
-      onClick={onCancel}
-      role="presentation"
-    >
-      <Card padding="lg" onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 480 }}>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-          <h2 className="aiq-serif" style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}>
-            {modalState === "mfa" ? "Verify MFA" : "Edit organisation"}
-          </h2>
-          <span style={{ flex: 1 }} />
-          <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close">
-            ×
-          </Button>
-        </div>
-
+    <Modal open onClose={onCancel} title={modalState === "mfa" ? "Verify MFA" : "Edit organisation"}>
         {modalState === "mfa" ? (
           <MfaStepUp
             prompt="Your admin MFA needs to be verified before editing this organisation. Enter your 6-digit authenticator code to continue."
@@ -311,8 +289,7 @@ export function EditAdminModal({
             </div>
           </div>
         )}
-      </Card>
-    </div>
+    </Modal>
   );
 }
-
+

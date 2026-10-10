@@ -20,7 +20,7 @@
 
 import { generationStatusLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
-import { Chip, Spinner, formatRelative, formatDateTime } from "@assessiq/ui-system";
+import { Chip, Spinner, Table, formatRelative, formatDateTime } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, scoreGenerationAttempt } from "../api.js";
@@ -184,31 +184,6 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
   const allTypes: string[] = [...new Set<string>([...ALL_TYPES, ...result.structural.per_type.map((r) => r.type)])];
   const rows = allTypes.map((t) => typeMap.get(t) ?? { type: t, total: 0, passed: 0, failed: 0, failures: [] });
 
-  const tableStyle: React.CSSProperties = {
-    width: "100%",
-    borderCollapse: "collapse",
-    fontFamily: "var(--aiq-font-mono)",
-    fontSize: "10px",
-    marginTop: "var(--aiq-space-sm)",
-  };
-  const thStyle: React.CSSProperties = {
-    padding: "4px 8px",
-    textAlign: "left",
-    fontFamily: "var(--aiq-font-sans)",
-    fontSize: "10px",
-    fontWeight: 600,
-    color: "var(--aiq-color-fg-muted)",
-    borderBottom: "1px solid var(--aiq-color-border)",
-    whiteSpace: "nowrap",
-  };
-  const tdStyle: React.CSSProperties = {
-    padding: "3px 8px",
-    color: "var(--aiq-color-fg-secondary)",
-    borderBottom: "1px solid var(--aiq-color-border)",
-    whiteSpace: "nowrap",
-    verticalAlign: "top",
-  };
-
   return (
     <div style={{ marginTop: "var(--aiq-space-md)" }}>
       {/* Overall verdict */}
@@ -236,32 +211,16 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
         </HelpTip>
       </p>
       <div style={{ overflowX: "auto" }}>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              {["type", "total", "passed", "failed", "reasons"].map((h) => (
-                <th key={h} style={thStyle}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.type}>
-                <td style={tdStyle}>{questionTypeLabel(row.type)}</td>
-                <td style={{ ...tdStyle, textAlign: "center" }}>{row.total}</td>
-                <td style={{ ...tdStyle, textAlign: "center", color: row.failed > 0 ? "var(--aiq-color-fg-secondary)" : "var(--aiq-color-success)" }}>
-                  {row.passed}
-                </td>
-                <td style={{ ...tdStyle, textAlign: "center", color: row.failed > 0 ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-secondary)" }}>
-                  {row.failed}
-                </td>
-                <td style={{ ...tdStyle, maxWidth: "220px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {row.failures.length > 0 ? row.failures.slice(0, 3).join("; ") : "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Table<(typeof rows)[number]>
+          data={rows}
+          columns={[
+            { key: "type", label: "type", render: (row) => questionTypeLabel(row.type) },
+            { key: "total", label: "total", render: (row) => row.total },
+            { key: "passed", label: "passed", render: (row) => <span style={{ color: row.failed > 0 ? "var(--aiq-color-fg-secondary)" : "var(--aiq-color-success)" }}>{row.passed}</span> },
+            { key: "failed", label: "failed", render: (row) => <span style={{ color: row.failed > 0 ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-secondary)" }}>{row.failed}</span> },
+            { key: "reasons", label: "reasons", width: "minmax(0, 2fr)", render: (row) => (row.failures.length > 0 ? row.failures.slice(0, 3).join("; ") : "—") },
+          ]}
+        />
       </div>
       <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "10px", color: "var(--aiq-color-fg-muted)", margin: "4px 0 0" }}>
         Total: {result.structural.passed}/{result.structural.total} passed.{" "}
@@ -285,37 +244,23 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
             </HelpTip>
           </p>
           <div style={{ overflowX: "auto" }}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  {["metric", "value", "threshold", "verdict"].map((h) => (
-                    <th key={h} style={thStyle}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {result.runtime.metrics.map((m) => {
-                  const verdictColor =
-                    m.verdict === "pass" ? "var(--aiq-color-success)"
-                    : m.verdict === "fail" ? "var(--aiq-color-danger)"
-                    : "var(--aiq-color-fg-muted)";
-                  const verdictLabel =
-                    m.verdict === "pass" ? "✓ pass"
-                    : m.verdict === "fail" ? "✗ fail"
-                    : "n/a";
-                  return (
-                    <tr key={m.name}>
-                      <td style={tdStyle}>{m.name}</td>
-                      <td style={{ ...tdStyle, textAlign: "right" }}>
-                        {m.value !== null ? m.value.toFixed(2) : "n/a"}
-                      </td>
-                      <td style={tdStyle}>{m.threshold}</td>
-                      <td style={{ ...tdStyle, color: verdictColor, fontWeight: 600 }}>{verdictLabel}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <Table<ScoreAttemptResponse["runtime"]["metrics"][number]>
+              data={result.runtime.metrics}
+              columns={[
+                { key: "name", label: "metric", render: (m) => m.name },
+                { key: "value", label: "value", render: (m) => (m.value !== null ? m.value.toFixed(2) : "n/a") },
+                { key: "threshold", label: "threshold", render: (m) => m.threshold },
+                {
+                  key: "verdict",
+                  label: "verdict",
+                  render: (m) => (
+                    <span style={{ color: m.verdict === "pass" ? "var(--aiq-color-success)" : m.verdict === "fail" ? "var(--aiq-color-danger)" : "var(--aiq-color-fg-muted)", fontWeight: 600 }}>
+                      {m.verdict === "pass" ? "✓ pass" : m.verdict === "fail" ? "✗ fail" : "n/a"}
+                    </span>
+                  ),
+                },
+              ]}
+            />
           </div>
         </>
       )}
@@ -852,6 +797,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
         )}
 
         {!error && (
+          // lint-fixed-allow: table (row expansion and grouped rows; Table has no expansion slot yet)
           <table
             style={{
               width: "100%",

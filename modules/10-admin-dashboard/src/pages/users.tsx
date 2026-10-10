@@ -43,7 +43,7 @@
 import { roleLabel } from "../lib/labels.js";
 import React, { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Button, Card, Chip, Field, Spinner, formatDate } from "@assessiq/ui-system";
+import { Button, Chip, Field, Modal, Spinner, formatDate } from "@assessiq/ui-system";
 import type { ChipVariant } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import {
@@ -245,23 +245,8 @@ function InviteForm({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.36)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 100,
-      }}
-      onClick={onCancel}
-      role="presentation"
-    >
-      <Card
-        padding="lg"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 440 }}
-      >
+    <Modal open onClose={onCancel} width={440}>
+      <div>
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
           <h2
             className="aiq-serif"
@@ -350,8 +335,8 @@ function InviteForm({
             {label.submit}
           </Button>
         </div>
-      </Card>
-    </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -526,23 +511,8 @@ export function UserLifecycleConfirmModal({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.36)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 300,
-      }}
-      onClick={onCancel}
-      role="presentation"
-    >
-      <Card
-        padding="lg"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 480 }}
-      >
+    <Modal open onClose={onCancel}>
+      <div>
         {/* Header */}
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
           <h2
@@ -661,8 +631,8 @@ export function UserLifecycleConfirmModal({
             {copy.verb}
           </Button>
         </div>
-      </Card>
-    </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -890,7 +860,7 @@ function UserManageMenu({
           <div
             ref={panelRef}
             style={{
-              position: "fixed",
+              position: "fixed", // lint-fixed-allow: menu
               top: coords.top,
               right: coords.right,
               background: "var(--aiq-color-bg-base, #ffffff)",
@@ -974,7 +944,7 @@ function InvitationManageMenu({
           <div
             ref={panelRef}
             style={{
-              position: "fixed",
+              position: "fixed", // lint-fixed-allow: menu
               top: coords.top,
               right: coords.right,
               background: "var(--aiq-color-bg-base, #ffffff)",

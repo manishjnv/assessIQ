@@ -71,6 +71,7 @@ export function Calculator({ "data-help-id": helpId }: CalculatorProps): React.R
             press(k);
           }}
           style={{
+${ind}// lint-fixed-allow: panel (floating calculator, not a modal)
             position: "fixed",
             right: "var(--aiq-space-lg)",
             bottom: "var(--aiq-space-lg)",

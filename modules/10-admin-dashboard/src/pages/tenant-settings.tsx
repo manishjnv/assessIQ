@@ -22,7 +22,7 @@
 // sequential fetches, no extra dependencies.
 
 import React, { useEffect, useState, type CSSProperties } from "react";
-import { Button, Card, Chip, Spinner, formatDateTime } from "@assessiq/ui-system";
+import { Button, Card, Chip, Spinner, Table, ConfirmDialog, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -484,67 +484,6 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
     );
   }
 
-  // ── Run confirm overlay ───────────────────────────────────────────────────
-
-  function RunConfirmModal(): React.ReactElement {
-    return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.36)",
-          display: "grid",
-          placeItems: "center",
-          zIndex: 200,
-        }}
-        onClick={() => setShowRunConfirm(false)}
-        role="presentation"
-      >
-        <Card
-          padding="lg"
-          onClick={(e) => e.stopPropagation()}
-          style={{ width: "100%", maxWidth: 480 }}
-        >
-          <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-            <h2
-              className="aiq-serif"
-              style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
-            >
-              Run retention purge?
-            </h2>
-            <span style={{ flex: 1 }} />
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setShowRunConfirm(false)}
-              aria-label="Close"
-            >
-              ×
-            </Button>
-          </div>
-          <p
-            style={{
-              fontSize: 13,
-              color: "var(--aiq-color-fg-secondary)",
-              margin: "0 0 24px",
-              lineHeight: 1.5,
-            }}
-          >
-            {confirmMessage}
-          </p>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <Button variant="ghost" onClick={() => setShowRunConfirm(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleRunNow()}>
-              Run purge
-            </Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
   // ── Render ────────────────────────────────────────────────────────────────
 
   // When embedded, render only the inner DPDP sections (no AdminShell, no
@@ -553,7 +492,14 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
   // same retention + purge JSX below.
   const inner = (
     <>
-      {showRunConfirm && <RunConfirmModal />}
+      <ConfirmDialog
+        open={showRunConfirm}
+        title="Run retention purge?"
+        body={confirmMessage}
+        confirmLabel="Run purge"
+        onConfirm={() => void handleRunNow()}
+        onCancel={() => setShowRunConfirm(false)}
+      />
 
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
 
@@ -1205,91 +1151,30 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                   overflow: "hidden",
                 }}
               >
-                <table
-                  style={{
-                    width: "100%",
-                    borderCollapse: "collapse",
-                    fontSize: 13,
-                    fontFamily: "var(--aiq-font-sans)",
-                  }}
-                >
-                  <thead>
-                    <tr style={{ background: "var(--aiq-color-bg-raised)" }}>
-                      {["Erased on", "Erase", "Erased by", "Reason", "Attempts", "Certs"].map((h) => (
-                        <th
-                          key={h}
-                          style={{
-                            textAlign: "left",
-                            padding: "10px 14px",
-                            borderBottom: "1px solid var(--aiq-color-border)",
-                            ...META_LABEL,
-                            fontSize: 10,
-                          }}
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {erasedRows.map((row) => (
-                      <tr key={row.userId} style={{ borderBottom: "1px solid var(--aiq-color-border)" }}>
-                        <td style={{ padding: "10px 14px", whiteSpace: "nowrap" }}>
-                          {formatDateTime(row.erasedAt)}
-                        </td>
-                        <td
-                          style={{
-                            padding: "10px 14px",
-                            fontFamily: "var(--aiq-font-mono)",
-                            fontSize: 12,
-                            color: "var(--aiq-color-fg-secondary)",
-                          }}
-                          title={row.userId}
-                        >
-                          {row.userId.slice(0, 8)}…
-                        </td>
-                        <td style={{ padding: "10px 14px" }}>
-                          {row.erasedById === null ? (
-                            <span style={{ color: "var(--aiq-color-fg-secondary)", fontStyle: "italic" }}>
-                              system (retention cron)
-                            </span>
-                          ) : (
-                            <span>
-                              {row.erasedByName ?? "Unknown"}
-                              {row.erasedByEmail && (
-                                <span
-                                  style={{
-                                    display: "block",
-                                    fontSize: 11,
-                                    color: "var(--aiq-color-fg-secondary)",
-                                  }}
-                                >
-                                  {row.erasedByEmail}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </td>
-                        <td
-                          style={{
-                            padding: "10px 14px",
-                            color: row.reason ? "var(--aiq-color-fg-primary)" : "var(--aiq-color-fg-secondary)",
-                            fontStyle: row.reason ? "normal" : "italic",
-                            maxWidth: 320,
-                          }}
-                        >
-                          {row.reason ?? "—"}
-                        </td>
-                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "var(--aiq-font-mono)" }}>
-                          {row.attemptsKept}
-                        </td>
-                        <td style={{ padding: "10px 14px", textAlign: "right", fontFamily: "var(--aiq-font-mono)" }}>
-                          {row.certsKept}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <Table<(typeof erasedRows)[number]>
+                  data={erasedRows}
+                  columns={[
+                    { key: "erasedAt", label: "Erased on", render: (row) => formatDateTime(row.erasedAt) },
+                    { key: "userId", label: "Erase", render: (row) => (
+                      <span title={row.userId} style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 12, color: "var(--aiq-color-fg-secondary)" }}>{row.userId.slice(0, 8)}…</span>
+                    ) },
+                    { key: "erasedBy", label: "Erased by", render: (row) => row.erasedById === null ? (
+                      <span style={{ color: "var(--aiq-color-fg-secondary)", fontStyle: "italic" }}>system (retention cron)</span>
+                    ) : (
+                      <span>
+                        {row.erasedByName ?? "Unknown"}
+                        {row.erasedByEmail && (
+                          <span style={{ display: "block", fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}>{row.erasedByEmail}</span>
+                        )}
+                      </span>
+                    ) },
+                    { key: "reason", label: "Reason", render: (row) => (
+                      <span style={{ color: row.reason ? "var(--aiq-color-fg-primary)" : "var(--aiq-color-fg-secondary)", fontStyle: row.reason ? "normal" : "italic" }}>{row.reason ?? "—"}</span>
+                    ) },
+                    { key: "attemptsKept", label: "Attempts", render: (row) => <span style={{ fontFamily: "var(--aiq-font-mono)" }}>{row.attemptsKept}</span> },
+                    { key: "certsKept", label: "Certs", render: (row) => <span style={{ fontFamily: "var(--aiq-font-mono)" }}>{row.certsKept}</span> },
+                  ]}
+                />
               </div>
             )}
           </Card>

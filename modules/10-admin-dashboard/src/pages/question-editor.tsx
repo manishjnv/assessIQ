@@ -14,7 +14,7 @@
 import { questionStatusLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { Chip, Spinner } from "@assessiq/ui-system";
+import { Chip, ConfirmDialog, Spinner } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { RubricEditor } from "../components/RubricEditor.js";
@@ -537,11 +537,30 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
   // Approve / archive state
   const [transitioning, setTransitioning] = useState(false);
 
-  async function handleStatusTransition(status: "active" | "archived") {
+  // Pending confirmation (ConfirmDialog): the dialog runs `run` on confirm.
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    body: string;
+    title: string;
+    confirmLabel: string;
+    run: () => void;
+  } | null>(null);
+
+  function handleStatusTransition(status: "active" | "archived") {
     if (!id) return;
     if (status === "archived") {
-      if (!window.confirm("Archive this question? It will no longer be available to candidates.")) return;
+      setPendingConfirm({
+        title: "Archive question",
+        body: "Archive this question? It will no longer be available to candidates.",
+        confirmLabel: "Archive question",
+        run: () => void doStatusTransition(status),
+      });
+      return;
     }
+    void doStatusTransition(status);
+  }
+
+  async function doStatusTransition(status: "active" | "archived") {
+    if (!id) return;
     setTransitioning(true);
     setError(null);
     try {
@@ -642,10 +661,16 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
     }
   }
 
-  async function handleRegenerate() {
-    if (!window.confirm("Discard current rubric and re-generate? This will not save automatically.")) return;
-    setRubricDraft(null);
-    void handleGenerate();
+  function handleRegenerate() {
+    setPendingConfirm({
+      title: "Re-generate rubric",
+      body: "Discard current rubric and re-generate? This will not save automatically.",
+      confirmLabel: "Re-generate",
+      run: () => {
+        setRubricDraft(null);
+        void handleGenerate();
+      },
+    });
   }
 
   async function handleGenerateGuidance() {
@@ -1042,6 +1067,20 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title ?? ""}
+        body={pendingConfirm?.body ?? ""}
+        confirmLabel={pendingConfirm?.confirmLabel ?? ""}
+        danger
+        busy={transitioning}
+        onConfirm={() => {
+          const run = pendingConfirm?.run;
+          setPendingConfirm(null);
+          run?.();
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
     </AdminShell>
   );
 }
