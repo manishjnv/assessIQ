@@ -16,6 +16,7 @@
     "@assessiq/certification": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/notifications": "workspace:*",
+    "@assessiq/question-types": "workspace:*",
     "@assessiq/rubric-engine": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "fastify": "^5.12.2",

@@ -41,6 +41,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY tsconfig.base.json ./
 COPY apps/api ./apps/api
 COPY modules ./modules
+COPY packages/question-types ./packages/question-types
 
 # Frozen install of the api transitive closure. pnpm creates per-member
 # node_modules selectively. The runtime stage copies the entire /app tree

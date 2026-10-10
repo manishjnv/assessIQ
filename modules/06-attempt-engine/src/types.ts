@@ -295,41 +295,26 @@ export interface RecordEventInput {
 //
 // Field names are locked to the sharded-generation output — do NOT rename.
 
-export const McqAnswerPayloadSchema = z.object({
-  /** Index into content.options[], 0–3. */
-  selected: z.number().int().min(0).max(3),
-});
+import {
+  McqAnswerPayloadSchema,
+  LogAnalysisAnswerPayloadSchema,
+  ScenarioStepAnswerSchema,
+  ScenarioAnswerPayloadSchema,
+  StructuredCaseAnswerPayloadSchema,
+  KqlAnswerPayloadSchema,
+  SubjectiveAnswerPayloadSchema,
+} from "@assessiq/question-types";
 
-export const LogAnalysisAnswerPayloadSchema = z.object({
-  /** Candidate's anchor list — each item is a cited log field / value. */
-  findings: z.array(z.string()),
-  /** Candidate's reasoning paragraph explaining what the findings indicate. */
-  explanation: z.string(),
-});
-
-export const ScenarioStepAnswerSchema = z.object({
-  stepIndex: z.number().int().nonnegative(),
-  response: z.string(),
-});
-
-export const ScenarioAnswerPayloadSchema = z.object({
-  steps: z.array(ScenarioStepAnswerSchema),
-});
-
-/** structured_case answer: picked option indexes per step id. Range / id checks need the frozen content (checkAnswerForSave). */
-export const StructuredCaseAnswerPayloadSchema = z.object({
-  steps: z.record(z.string(), z.array(z.number().int().min(0))),
-});
-
-export const KqlAnswerPayloadSchema = z.object({
-  /** The candidate's KQL query text. */
-  query: z.string(),
-});
-
-export const SubjectiveAnswerPayloadSchema = z.object({
-  /** The candidate's free-text response. */
-  response: z.string(),
-});
+// Moved to @assessiq/question-types (RW-54a); re-exported under the same names.
+export {
+  McqAnswerPayloadSchema,
+  LogAnalysisAnswerPayloadSchema,
+  ScenarioStepAnswerSchema,
+  ScenarioAnswerPayloadSchema,
+  StructuredCaseAnswerPayloadSchema,
+  KqlAnswerPayloadSchema,
+  SubjectiveAnswerPayloadSchema,
+};
 
 /**
  * Save-time shape check, keyed on the question TYPE (never on the answer shape).
