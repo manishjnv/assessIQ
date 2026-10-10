@@ -302,6 +302,28 @@ describe("handleAdminAccept — completion gate (SP1)", () => {
     );
     expect(audits[0]).toBe("graded");
   });
+
+  it("a NEWER same-SHA proposal on an already-graded attempt writes a superseding row (override_of = old id), no second bill", async () => {
+    const { attemptId, qids } = await seed("pending_admin_grading", ["mcq", "subjective"]);
+    const sha = "anchors:supersede1;band:aaaaaaaa;escalate:-";
+    const first = await accept(attemptId, [proposal(attemptId, qids[1]!, { prompt_version_sha: sha, score_earned: 6 })]);
+    expect(first.attempt.status).toBe("graded");
+    const oldId = first.gradings[0]!.id;
+    expect(await billing(attemptId)).toBe(1);
+
+    // Re-evaluation: generated_at far in the future so it is newer than graded_at whatever the clocks say.
+    const again = await accept(attemptId, [
+      proposal(attemptId, qids[1]!, { prompt_version_sha: sha, score_earned: 9, generated_at: "2099-01-01T00:00:00.000Z" }),
+    ]);
+    const fresh = again.gradings[0]!;
+    expect(fresh.id).not.toBe(oldId);
+    expect(fresh).toMatchObject({ override_of: oldId, score_earned: 9, grader: "ai" });
+    expect(
+      await count(`SELECT COUNT(*) n FROM gradings WHERE attempt_id=$1 AND question_id='${qids[1]!}' AND grader='ai'`, attemptId),
+    ).toBe(2);
+    expect(await sup((c) => c.query(`SELECT 1 FROM gradings WHERE id=$1`, [oldId]).then((r) => r.rowCount))).toBe(1);
+    expect(await billing(attemptId)).toBe(1);
+  });
 });
 
 describe("handleAdminAccept — a published result is final; attempt row lock first (review fix: accept/release race)", () => {
