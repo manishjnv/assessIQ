@@ -70,6 +70,6 @@ describe("ActivityHeatmap", () => {
         aria-label="Activity heatmap"
       />,
     );
-    expect(await axe(container)).toHaveNoViolations();
+    expect((await axe(container)).violations).toEqual([]);
   });
 });

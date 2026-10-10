@@ -94,4 +94,16 @@ export type {
   LeaderboardListDelta,
 } from "./components/LeaderboardList.js";
 
-export { formatDate, formatDateTime, formatRelative, formatMonthYear, formatDayLine } from "./format.js";
+// RW-32 shared admin primitives
+export { StatusPill } from "./components/StatusPill.js";
+export type { StatusPillProps } from "./components/StatusPill.js";
+export { PageHeader } from "./components/PageHeader.js";
+export type { PageHeaderProps } from "./components/PageHeader.js";
+export { EmptyState } from "./components/EmptyState.js";
+export type { EmptyStateProps } from "./components/EmptyState.js";
+export { ConfirmDialog } from "./components/ConfirmDialog.js";
+export type { ConfirmDialogProps } from "./components/ConfirmDialog.js";
+export { Pagination } from "./components/Pagination.js";
+export type { PaginationProps } from "./components/Pagination.js";
+
+export { formatDate,formatDateTime, formatRelative, formatMonthYear, formatDayLine } from "./format.js";

@@ -29,6 +29,6 @@ describe("Spinner", () => {
 
   it("has no axe violations", async () => {
     const { container } = render(<Spinner />);
-    expect(await axe(container)).toHaveNoViolations();
+    expect((await axe(container)).violations).toEqual([]);
   });
 });

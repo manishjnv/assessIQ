@@ -977,3 +977,37 @@ The `NotFound` page root is now `<main>` (commit `00a951e`). This fixes the axe 
 - API error messages from the backend still use the old words.
 
 **Downstream impact.** The date format changes from "21 May 2026" to "May 21, 2026" on all pages. Difficulty chips (FU-C13) show Beginner, Intermediate and Advanced. A new page must use `labels.ts` and the date helpers, or the lint warns. Help text follows the same glossary (`docs/07-help-system.md`).
+
+## Shared admin primitives (RW-32, 2026-10-10)
+
+Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-system/src/components/`, with a story and tests in `src/__tests__/rw32-primitives.test.tsx`.
+
+**Why.** Admin pages each built their own status chips, headers, empty states, confirm modals and pager. One shared set keeps the look the same.
+
+**Not included.** No data-table recipe exists in the kit (kit gap). The existing `Table` is unchanged. The admin `PageHeader` in `modules/10-admin-dashboard` is unchanged and has an eyebrow prop that the new one lacks. Migrating pages to the new components is a later task.
+
+### StatusPill
+- Props: `status: string`, `labels?: Record<string,string>`, `tone?: ChipVariant` (default `default`), `label?: string`.
+- Text is `label ?? labels?.[status] ?? status`. It renders a `Chip`.
+- Use for any status or enum value. Pass the glossary label map from `lib/labels.ts`.
+- Kit gap: no StatusPill recipe; built on Chip (`design-system/components.md` "Chips").
+
+### PageHeader
+- Props: `title`, `count?: number`, `lede?: ReactNode`, `actions?: ReactNode`.
+- Renders `<header>` with `h1.aiq-serif`, a `Chip` only when `count` is given (0 is shown), a muted lede, and actions on the right.
+- Follows the kit "Page header recipe (universal)" without the mono eyebrow.
+
+### EmptyState
+- Props: `title`, `body?`, `action?`, `icon?`.
+- Centered, 64px vertical padding, serif `h2`, muted body (max 360px), action below. No illustrations. Follows kit "Empty state".
+
+### ConfirmDialog
+- Props: `open`, `title`, `body`, `confirmLabel`, `cancelLabel='Cancel'`, `danger?`, `busy?`, `onConfirm`, `onCancel`, `mfaGuard?`.
+- Built on `Modal`. Escape and backdrop call `onCancel`. `busy` disables both buttons.
+- `danger` sets the confirm button to `--aiq-color-danger` (the kit has no danger button class). `mfaGuard` is a slot above the buttons and has no logic.
+- Use for destructive or irreversible actions.
+
+### Pagination
+- Props: `page` (1-based), `pageSize`, `total`, `onPageChange`.
+- `<nav aria-label="Pagination">` with Previous, "Page X of Y", Next. Y = `max(1, ceil(total/pageSize))`. `page` is clamped into 1..Y.
+- Kit gap: no Pagination recipe; uses the outline small button.

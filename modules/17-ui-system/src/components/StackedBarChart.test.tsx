@@ -82,6 +82,6 @@ describe("StackedBarChart", () => {
         seriesLabels={["Series A", "Series B", "Series C"]}
       />,
     );
-    expect(await axe(container)).toHaveNoViolations();
+    expect((await axe(container)).violations).toEqual([]);
   });
 });

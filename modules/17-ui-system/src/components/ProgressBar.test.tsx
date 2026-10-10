@@ -40,6 +40,6 @@ describe("ProgressBar", () => {
 
   it("has no axe violations", async () => {
     const { container } = render(<ProgressBar value={60} label="Loading" />);
-    expect(await axe(container)).toHaveNoViolations();
+    expect((await axe(container)).violations).toEqual([]);
   });
 });

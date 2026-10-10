@@ -38,6 +38,6 @@ describe("Placeholder", () => {
 
   it("has no axe violations", async () => {
     const { container } = render(<Placeholder caption="diagram" />);
-    expect(await axe(container)).toHaveNoViolations();
+    expect((await axe(container)).violations).toEqual([]);
   });
 });

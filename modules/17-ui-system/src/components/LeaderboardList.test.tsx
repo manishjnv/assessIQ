@@ -76,6 +76,6 @@ describe("LeaderboardList", () => {
 
   it("has no axe violations", async () => {
     const { container } = render(<LeaderboardList items={ITEMS} />);
-    expect(await axe(container)).toHaveNoViolations();
+    expect((await axe(container)).violations).toEqual([]);
   });
 });
