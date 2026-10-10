@@ -15,6 +15,8 @@ const { adminApi } = vi.hoisted(() => ({ adminApi: vi.fn() }));
 
 vi.mock("../api.js", () => ({
   adminApi: (...a: unknown[]) => adminApi(...a),
+  // Runtime chip on the page. Resolve "ready" so the chip does not hit the network in tests.
+  getReadiness: vi.fn(async () => ({ checks: {} })),
   verifyTotpApi: vi.fn(),
   AdminApiError: class AdminApiError extends Error {
     status: number;
