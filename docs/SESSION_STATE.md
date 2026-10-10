@@ -1,30 +1,33 @@
-# Session — 2026-10-10 — Memory cleanup, marketing copy, reviewer role removed in code (NOT deployed: migration gate blocked)
+# Session — 2026-10-10 — Hardening S7 (CLOSED: RW-32, RW-33, RW-34 done; deployed)
 
-**Headline:** Memory cut from 66 files to 20 (backup kept). Marketing pages and `CLAUDE.md` corrected. Reviewer role removed from TypeScript types and input checks (DB values kept). All pushed to `main`. Nothing is deployed: the migration-drift gate fails on drift that existed before this session.
-**Commits (pushed to origin/main):**
-- `66d0746` docs(claude): correct edge to Caddy in VPS rule 8
-- `65580a2` fix(marketing): describe the admin role, not a removed reviewer role (16 pages)
-- `e3403e9` docs(tasks): add P0-X rows for CWV field check and EX-1 / EX-3
-- `bb8f78f` docs(handoff): this session's first handoff
-- `23c77e2` refactor(auth): remove reviewer role from types and input checks (RV60), 30 files. Adversarial review (Opus takeover): ACCEPT, two test gaps fixed before push.
-**Tests:** `apps/marketing` build passes (56 pages). Reviewer change: typecheck clean in 26 packages; targeted tests pass (activity-feed, help keys, auth, admin-super, mint-session).
-**Deploy:** NOT done. VPS `/srv/assessiq` is checked out at `23c77e2`, but no container was rebuilt. Running containers are still the old images.
-**Deploy blocker (migration-drift gate, `docs/06-deployment.md` step 2):**
-- DB tracker has 96 rows. Repo has 139 migration files.
-- 46 repo files are not in the tracker. Several are old three-digit files (010–021) and early 0010–0073 files.
-- 3 tracker rows have no file: two are `0100` / `0106` rows that match repo files except the `.sql` suffix. The third is `0109_seed_platform_aptitude_pack.sql` (no repo match by that exact name).
-- No migration is in this deploy range. The drift is old and pre-existing.
-**Next (owner decides):**
-1. Normalise the gate: compare names without `.sql`. Read-only, repo change only.
-2. For the 46 untracked files, verify each object exists in the DB (read-only). Then decide whether to write the missing tracker rows. That is a production DB write, so it needs your approval.
-3. Then deploy `assessiq-api`, `assessiq-worker` (same image), `assessiq-frontend` and `assessiq-marketing`, in that order, with the smoke check.
-4. Reviewer role is decommissioned. Leftover code and DB values are open items P0-Y (Y-1 to Y-13) in `docs/PENDING_TASKS_2026-10-01.md`.
-5. CWV-1: measure field Core Web Vitals after real traffic.
-**Open questions:**
-- EX-3 meaning: final roadmap says "extend `structured_case`" (template "passage set entity" superseded).
-- Task count is rough: 104 of 175 rows with ✅ (about 59%). The Done sections repeat some rows.
-- Backup folder `memory-backup-2026-10-10` stays until the new memory is used for a few sessions.
-- Memory index line for owner decisions and the reviewer status are fixed. Reviewer code is still in types and DB CHECK constraints (kept on purpose).
+**Headline:** S7 closed. RW-32 shared primitives, RW-33 overlays and tables, RW-34 one HTTP client. CI green on f588ee2 (quality and e2e). Deployed to VPS at aa7f2fc: assessiq-api, assessiq-worker, assessiq-frontend, assessiq-marketing recreated and healthy; https://assessiq.in/api/health 200; /api/ready 200 (db, redis, claude true); site 200.
+
+**Commits (this session, origin/main, in order):** 60b4a8c (L7 fixture), 1f75138 and 58bbd61 (09 logger), bc03f82 (totp compare), e61e8f0 (test harness), d8e7e05 and ea9ab90 (RW-32), 0a7bd7b (completion-gate pin), 6c75f1b (S7 partial handoff), 8c1be6c (RW-34), b7923db (RW-33), 46500eb (module 11 comments), 56ab6a9 (evaluations-queue mock), 0730dd1 (Table expansion, attempts table), f588ee2 (superseding-path test, codex accept), aa7f2fc (frontend Dockerfile, codex accept).
+
+**Closed items:** CI red on typecheck and tests (fixed); migration tracker reconciled (46 rows inserted with file sha256; repo files missing from tracker = 0; 3 legacy DB-only rows left); completion-gate superseding path covered; generation-attempts raw table converted (allow-table removed); leftover node processes checked: none are vitest workers, the rest are codex broker and MCP tool servers and were left running.
+
+**Not ours, left alone:** modules/19-billing/src/fastify.d.ts (uncommitted, other session).
+
+**Tests:** ui-system 67/67, admin-dashboard 110/110, candidate-ui 113, http-client 11, web 81, completion-gate 66/66. Repo typecheck exit 0. CI e2e green (Playwright). axe: covered by the e2e run on f588ee2; no separate local run.
+
+**Next (S8):** RW-35..RW-37 and RW-54 per the S8 brief. Owner decision needed before RW-54: DB CHECK generator vs question_types table + FK. Open follow-ups: migration tracker naming (legacy DB rows without .sql), lint-no-fixed-overlay not yet in lint:repo (warn mode), Table is ARIA-grid (div based) with role=table.
+
+---
+
+## Agent utilization (S7 close)
+- Opus: plan, RW-32 API approval, Table expansion (generation-attempts), diff reviews, deploy and verify.
+- Sonnet: path sweep, mock fixes, RW-32 build, completion-gate diagnosis and test, RW-33 page groups (5 agents), RW-34 client, evaluations-queue test fix.
+- Haiku: S7 Phase 0 digest (1 run).
+- codex:rescue: totp (revise, addressed), harness (accept), completion-gate pin (accept), superseding test (accept), RW-34 client (revise, addressed), frontend Dockerfile (accept).
+- claude-mem: n/a.
+
+**Routing telemetry:**
+- Sonnet · path sweep 31 files · reworked: N
+- Sonnet · completion-gate diagnosis · reworked: Y (could not reproduce; test-side fix)
+- Sonnet · RW-33 group B and C · reworked: Y (raw table kept for expansion; resolved by Opus Table work)
+- Opus · Table expansion + attempts table · reworked: N
+- Sonnet · RW-34 client · reworked: Y (useApi path-clear added after codex)
+- Haiku · S7 digest · reworked: N
 
 ---
 
