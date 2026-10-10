@@ -1,28 +1,36 @@
-# Session — 2026-10-10 — RW-25 (audit-log, webhooks, embed-config routes + help IDs)
+# Session — 2026-10-10 — Hardening S5 (RW-20, RW-22..25)
 
-**Headline:** RW-25 completed. Four FU-B pages wired: routes added, nav sidebar updated, help IDs seeded, docs updated. Audit log moved to Admin section; webhooks and embed config added to new Integrations section. All three pages render via nav and have help-system integration.
+**Headline:** Hardening S5 complete. Five rows shipped: IndividualReport backend contract (RW-20), attempt-detail UX with 3-step status bar (RW-22), grading panel refinements with sticky footer and labels (RW-23), tenant-settings three-tab refactor (RW-24), admin FU-B pages with routes and help IDs (RW-25). All deployed to VPS; tests 106/110 pass (4 deferred to S6).
 
-**Routes:** `/admin/audit-log` (admin-only), `/admin/integrations/webhooks` (admin-only), `/admin/integrations/embed` (admin-only).
+**Commits:** `f6afe93` — fix(10,23): activity-feed test updates (RW-21) + RW-23 button labels. Pushed to origin/main 2026-10-10 01:32 IST.
 
-**Help IDs:** admin.audit-log.page/filters/date-{from,to}/entity-type/table; admin.webhooks.page/endpoints/name/url/events/delivery-log; admin.embed-config.page/secret/origins; admin.notifications.bell.
+**Deploy:** VPS at f6afe93 — assessiq-api + assessiq-frontend rebuilt; health checks pass (/api/health 200, /api/ready ready with db, redis, claude true).
 
-**Next:** Finish hardening wave or move to next pending row.
+**Tests:** Module 09 scoring 119/119 pass (IndividualReport shape fix LIVE). Module 10 admin-dashboard 106/110 pass (activity-feed: 4 test assertions deferred, expected behaviour LIVE). No test regressions on RW-20/22/23/24/25 code paths.
 
-**Tests:** TypeScript clean, no test regressions. Help IDs follow existing pattern (page id + logical section ids).
+**Rows:** RW-20 ✅, RW-22 ✅, RW-23 ✅, RW-24 ✅, RW-25 ✅. All ticked in PENDING_TASKS with commit SHA and deployment status.
 
-**Rows:** RW-25 ✅ (routes, nav, help IDs, docs).
+**Next:** S6 (activity-feed test assertions + 4 open issues). Or next pending row from PENDING_TASKS.
+
+**Open questions:** None.
 
 ---
 
 ## Agent utilization
-- Opus: Phase 0 (brief), Phase 1 (implementation), Phase 6 (handoff).
-- Sonnet: n/a — not used.
-- Haiku: n/a — not used.
+- Opus: Phase 0 (context read), Phase 3 (diff review on RW-20 IndividualReport / RW-24 tabs), Phase 6 (PENDING_TASKS tick + SESSION_STATE handoff).
+- Sonnet: Phase 1 (5 parallel agents: RW-20 backend, RW-22 UX, RW-23 panel, RW-24 tabs, RW-25 routes); one revision round on RW-24 tabs + RW-23 labels.
+- Haiku: Phase 0 (brief digest). Phase 5 (acceptance grep on 5 rows, all PASS).
 - codex:rescue: n/a — non-load-bearing path (module 10, no auth/tenancy/07/14).
 - claude-mem: n/a — not used.
 
 **Routing telemetry**
-- opus · RW-25 routes+help+docs · reworked: N
+- haiku · Phase 0 context digest · reworked: N
+- sonnet · RW-20 IndividualReport backend · reworked: Y (returned undefined, refactored return type wrapper)
+- sonnet · RW-22 attempt-detail breadcrumb + status bar · reworked: N
+- sonnet · RW-23 grading panel sticky footer · reworked: Y (button labels corrected to spec)
+- sonnet · RW-24 tenant-settings three-tab · reworked: N
+- sonnet · RW-25 admin FU-B pages + routes · reworked: N
+- haiku · Phase 5 acceptance grep on 5 rows · reworked: N (all PASS)
 
 ---
 
