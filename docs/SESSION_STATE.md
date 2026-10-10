@@ -18,7 +18,7 @@
 1. Normalise the gate: compare names without `.sql`. Read-only, repo change only.
 2. For the 46 untracked files, verify each object exists in the DB (read-only). Then decide whether to write the missing tracker rows. That is a production DB write, so it needs your approval.
 3. Then deploy `assessiq-api`, `assessiq-worker` (same image), `assessiq-frontend` and `assessiq-marketing`, in that order, with the smoke check.
-4. Reviewer role code is done. DB CHECK constraints keep `reviewer` on purpose.
+4. Reviewer role is decommissioned. Leftover code and DB values are open items P0-Y (Y-1 to Y-13) in `docs/PENDING_TASKS_2026-10-01.md`.
 5. CWV-1: measure field Core Web Vitals after real traffic.
 **Open questions:**
 - EX-3 meaning: final roadmap says "extend `structured_case`" (template "passage set entity" superseded).
