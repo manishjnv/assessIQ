@@ -3,11 +3,32 @@
 
 import type { FastifyInstance } from 'fastify';
 import { ValidationError, NotFoundError, ConflictError } from '@assessiq/core';
-import { getPool, withTenant } from '@assessiq/tenancy';
 import { logLifecycleEvent } from '@assessiq/auth';
-import { inviteUser, cancelInvitation, sweepUserSessions } from '@assessiq/users';
-import { auditInTx } from '@assessiq/audit-log';
+import {
+  inviteUser,
+  cancelInvitation,
+  sweepUserSessions,
+  listTenantUsersForSuperAdmin,
+  resolveUserTenant,
+  resolvePendingInvitationTenant,
+  disableUserAsSuperAdmin,
+  reenableUserAsSuperAdmin,
+  softDeleteUserAsSuperAdmin,
+  restoreUserAsSuperAdmin,
+  updateUserProfileAsSuperAdmin,
+} from '@assessiq/users';
 import { parseLifecycleBody, log, superAdminOnly, superAdminFreshMfa } from './_shared.js';
+import {
+  parseBody,
+  parseParams,
+  parseQuery,
+  tenantIdParams,
+  userIdParams,
+  invitationIdParams,
+  lifecycleBody,
+} from '../_validate.js';
+import { editUserBody, listTenantUsersQuery } from '../_schemas.js';
+
 
 export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promise<void> {
   // ──────────────────────────────────────────────────────────────────────────
@@ -31,77 +52,19 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
     '/api/admin/super/tenants/:tenantId/users',
     { preHandler: superAdminOnly },
     async (req, reply) => {
-      const { tenantId } = req.params as { tenantId: string };
-      const qs = (req.query ?? {}) as Record<string, string | undefined>;
+      const { tenantId } = parseParams(tenantIdParams, req.params);
+      const qs = parseQuery(listTenantUsersQuery, req.query) as Record<string, string | undefined>;
       const includeDisabled =
         qs['include_disabled'] === '1' || qs['include_disabled']?.toLowerCase() === 'true';
       const includeDeleted =
         qs['include_deleted'] === '1' || qs['include_deleted']?.toLowerCase() === 'true';
 
-      const pool = getPool();
-      const client = await pool.connect();
-      try {
-        await client.query('BEGIN');
-        await client.query('SET LOCAL ROLE assessiq_system');
+      const { users, pending_invitations } = await listTenantUsersForSuperAdmin(tenantId, {
+        includeDisabled,
+        includeDeleted,
+      });
 
-        // Build user WHERE conditions.
-        const userConditions: string[] = ['u.tenant_id = $1'];
-        if (!includeDeleted) {
-          userConditions.push('u.deleted_at IS NULL');
-        }
-        if (!includeDisabled) {
-          userConditions.push("u.status <> 'disabled'");
-        }
-        // DPDP erasure: always hide erased candidates from this listing surface.
-        // This is an action surface (super-admin managing tenant users), so erased
-        // candidates must not appear per the HIDE display rule.
-        userConditions.push('u.erased_at IS NULL');
-        const userWhere = userConditions.join(' AND ');
-
-        const usersResult = await client.query<{
-          id: string;
-          email: string;
-          name: string;
-          role: string;
-          status: string;
-          deleted_at: Date | null;
-          created_at: Date;
-          updated_at: Date;
-        }>(
-          `SELECT u.id, u.email, u.name, u.role, u.status,
-                  u.deleted_at, u.created_at, u.updated_at
-           FROM users u
-           WHERE ${userWhere}
-           ORDER BY u.created_at DESC, u.id DESC`,
-          [tenantId],
-        );
-
-        const invitationsResult = await client.query<{
-          id: string;
-          email: string;
-          role: string;
-          expires_at: Date;
-          created_at: Date;
-        }>(
-          `SELECT ui.id, ui.email, ui.role, ui.expires_at, ui.created_at
-           FROM user_invitations ui
-           WHERE ui.tenant_id = $1 AND ui.accepted_at IS NULL
-           ORDER BY ui.created_at DESC`,
-          [tenantId],
-        );
-
-        await client.query('COMMIT');
-
-        return reply.code(200).send({
-          users: usersResult.rows,
-          pending_invitations: invitationsResult.rows,
-        });
-      } catch (err) {
-        await client.query('ROLLBACK').catch(() => {});
-        throw err;
-      } finally {
-        client.release();
-      }
+      return reply.code(200).send({ users, pending_invitations });
     },
   );
 
@@ -135,62 +98,14 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
   // ──────────────────────────────────────────────────────────────────────────
 
   /**
-   * Resolve the target user's tenantId via system-role (BYPASSRLS) query.
-   * Returns null when the user does not exist.
-   */
-  async function resolveUserTenant(userId: string): Promise<{
-    tenantId: string;
-    email: string;
-    name: string;
-    role: string;
-    status: string;
-    deleted_at: Date | null;
-  } | null> {
-    const pool = getPool();
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      await client.query('SET LOCAL ROLE assessiq_system');
-      const res = await client.query<{
-        tenant_id: string;
-        email: string;
-        name: string;
-        role: string;
-        status: string;
-        deleted_at: Date | null;
-      }>(
-        `SELECT tenant_id, email, name, role, status, deleted_at
-         FROM users WHERE id = $1 LIMIT 1`,
-        [userId],
-      );
-      await client.query('COMMIT');
-      const row = res.rows[0];
-      if (row === undefined) return null;
-      return {
-        tenantId: row.tenant_id,
-        email: row.email,
-        name: row.name,
-        role: row.role,
-        status: row.status,
-        deleted_at: row.deleted_at,
-      };
-    } catch (err) {
-      await client.query('ROLLBACK').catch(() => {});
-      throw err;
-    } finally {
-      client.release();
-    }
-  }
-
-  /**
    * Parse super-admin lifecycle body: reason + confirm_last_admin override flag.
    */
   function parseSuperLifecycleBody(body: unknown): {
     reason: string | undefined;
     confirm_last_admin: boolean;
   } {
-    const b = (body ?? {}) as Record<string, unknown>;
-    // Reuse the existing parseLifecycleBody closure (defined above in this scope).
+    const b = parseBody(lifecycleBody, body) as Record<string, unknown>;
+    // Reason content is validated by parseLifecycleBody (INVALID_REASON).
     const { reason } = parseLifecycleBody(b);
     const confirm_last_admin = b['confirm_last_admin'] === true;
     return { reason, confirm_last_admin };
@@ -202,65 +117,21 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
     { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason, confirm_last_admin } = parseSuperLifecycleBody(req.body);
 
       const target = await resolveUserTenant(userId);
       if (target === null) {
         throw new NotFoundError(`User not found: ${userId}`);
       }
-      const targetTenantId = target.tenantId;
 
-      // Inline disable with optional last-admin bypass.
-      const updated = await withTenant(targetTenantId, async (client) => {
-        // Check if this would violate last-admin invariant.
-        if (target.role === 'admin' && target.status === 'active' && target.deleted_at === null) {
-          const countRes = await client.query<{ count: string }>(
-            `SELECT count(*) FROM users
-              WHERE role = 'admin' AND status = 'active' AND deleted_at IS NULL
-                AND id <> $1`,
-            [userId],
-          );
-          const otherAdmins = parseInt(countRes.rows[0]?.count ?? '0', 10);
-          if (otherAdmins === 0) {
-            if (!confirm_last_admin || !reason) {
-              throw new ConflictError(
-                'This is the last active admin. Pass confirm_last_admin=true and a non-empty reason to override.',
-                { details: { code: 'LAST_ADMIN' } },
-              );
-            }
-          }
-        }
-
-        // Apply status change.
-        const res = await client.query<{
-          id: string; status: string;
-        }>(
-          `UPDATE users SET status = 'disabled', updated_at = now()
-           WHERE id = $1
-           RETURNING id, status`,
-          [userId],
-        );
-        const row = res.rows[0];
-        if (row === undefined) throw new NotFoundError(`User not found: ${userId}`);
-
-        const isOverride = confirm_last_admin && !!reason;
-        await auditInTx(client, {
-          tenantId: targetTenantId,
-          actorKind: 'user',
-          actorUserId: session.userId,
-          action: 'user.disabled',
-          entityType: 'user',
-          entityId: userId,
-          before: { status: target.status },
-          after: {
-            status: 'disabled',
-            reason: reason ?? null,
-            ...(isOverride ? { is_override: true } : {}),
-          },
-        });
-
-        return { id: row.id, status: row.status, isOverride };
+      // Disable with optional last-admin bypass (service: withTenant + auditInTx).
+      const updated = await disableUserAsSuperAdmin({
+        target,
+        userId,
+        actorUserId: session.userId,
+        reason,
+        confirmLastAdmin: confirm_last_admin,
       });
 
       // Sweep Redis sessions after commit.
@@ -290,37 +161,19 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
     { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason } = parseSuperLifecycleBody(req.body);
 
       const target = await resolveUserTenant(userId);
       if (target === null) {
         throw new NotFoundError(`User not found: ${userId}`);
       }
-      const targetTenantId = target.tenantId;
 
-      const updated = await withTenant(targetTenantId, async (client) => {
-        const res = await client.query<{ id: string; status: string }>(
-          `UPDATE users SET status = 'active', updated_at = now()
-           WHERE id = $1
-           RETURNING id, status`,
-          [userId],
-        );
-        const row = res.rows[0];
-        if (row === undefined) throw new NotFoundError(`User not found: ${userId}`);
-
-        await auditInTx(client, {
-          tenantId: targetTenantId,
-          actorKind: 'user',
-          actorUserId: session.userId,
-          action: 'user.reenabled',
-          entityType: 'user',
-          entityId: userId,
-          before: { status: target.status },
-          after: { status: 'active', reason: reason ?? null },
-        });
-
-        return row;
+      const updated = await reenableUserAsSuperAdmin({
+        target,
+        userId,
+        actorUserId: session.userId,
+        reason,
       });
 
       logLifecycleEvent({
@@ -380,14 +233,10 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
     { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
-      const body = (req.body ?? {}) as {
-        name?: unknown;
-        role?: unknown;
-        email?: unknown;
-        confirmEmailIdentityChange?: unknown;
-        reason?: unknown;
-      };
+      const { userId } = parseParams(userIdParams, req.params);
+      const body = parseBody(editUserBody, req.body, {
+        code: { name: 'MISSING_NAME', role: 'INVALID_ROLE', email: 'INVALID_EMAIL' },
+      });
 
       const target = await resolveUserTenant(userId);
       if (target === null) {
@@ -410,33 +259,12 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
           : undefined;
 
       // ---- Validate + normalize requested changes ----
-      let newName: string | undefined;
-      if (body.name !== undefined) {
-        if (typeof body.name !== 'string' || body.name.trim().length === 0) {
-          throw new ValidationError('Name must not be empty.', { details: { code: 'MISSING_NAME' } });
-        }
-        if (body.name.length > 200) {
-          throw new ValidationError('Name must not exceed 200 characters.', { details: { code: 'NAME_TOO_LONG' } });
-        }
-        newName = body.name.trim();
-      }
-
-      let newRole: 'admin' | undefined;
-      if (body.role !== undefined) {
-        if (body.role !== 'admin') {
-          throw new ValidationError("Role must be 'admin'.", {
-            details: { code: 'INVALID_ROLE', role: body.role },
-          });
-        }
-        newRole = body.role;
-      }
+      const newName: string | undefined = body.name?.trim();
+      const newRole: 'admin' | undefined = body.role;
 
       // normalizeEmail parity with 01-auth/03-users: trim + lowercase only.
       let newEmail: string | undefined;
       if (body.email !== undefined) {
-        if (typeof body.email !== 'string') {
-          throw new ValidationError('Invalid email address.', { details: { code: 'INVALID_EMAIL' } });
-        }
         const normalized = body.email.trim().toLowerCase();
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
           throw new ValidationError(`Invalid email address: '${body.email}'`, {
@@ -470,82 +298,21 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
       const wasPending = target.status === 'pending';
 
       // ---- Transaction: apply name/role/email + audit; clean up oauth link ----
-      let auditId: string | null = null;
-      try {
-        await withTenant(targetTenantId, async (client) => {
-          const sets: string[] = [];
-          const vals: unknown[] = [];
-          let p = 1;
-          if (newName !== undefined) { sets.push(`name = $${p++}`); vals.push(newName); }
-          if (newRole !== undefined) { sets.push(`role = $${p++}`); vals.push(newRole); }
-          if (newEmail !== undefined) { sets.push(`email = $${p++}`); vals.push(newEmail); }
-          sets.push('updated_at = now()');
-          vals.push(userId);
-          await client.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${p}`, vals);
-
-          if (emailChanged) {
-            // Drop the stale Google identity link. Login resolves by email, so the
-            // old (provider,subject)→user_id row is inert, but removing it avoids a
-            // dangling mapping and lets the new address re-link JIT on next login.
-            await client.query(
-              `DELETE FROM oauth_identities WHERE user_id = $1 AND provider = 'google'`,
-              [userId],
-            );
-            // Pending admin: retire the old-address invitation now; a fresh invite
-            // to the new address is issued post-commit via inviteUser.
-            if (wasPending) {
-              await client.query(
-                `DELETE FROM user_invitations WHERE lower(email) = $1 AND accepted_at IS NULL`,
-                [currentEmail],
-              );
-            }
-          }
-
-          const changedFields = [
-            ...(nameChanged ? ['name'] : []),
-            ...(roleChanged ? ['role'] : []),
-            ...(emailChanged ? ['email'] : []),
-          ];
-          const auditRes: unknown = await auditInTx(client, {
-            tenantId: targetTenantId,
-            actorKind: 'user',
-            actorUserId: session.userId,
-            action: 'user.updated',
-            entityType: 'user',
-            entityId: userId,
-            before: {
-              name: target.name,
-              role: target.role,
-              ...(emailChanged ? { email: target.email } : {}),
-            },
-            after: {
-              ...(nameChanged ? { name: newName } : {}),
-              ...(roleChanged ? { role: newRole } : {}),
-              ...(emailChanged ? { email: newEmail } : {}),
-              changed_fields: changedFields,
-              kind: 'super_profile_edit',
-              ...(emailChanged ? { email_identity_transfer: target.status === 'active' } : {}),
-              reason: reason ?? null,
-            },
-          });
-          if (auditRes !== null && typeof auditRes === 'object' && 'id' in auditRes) {
-            auditId = String((auditRes as { id: unknown }).id);
-          }
-        });
-      } catch (err) {
-        // UNIQUE (tenant_id, email) collision → 409 (mirror createUser).
-        if (
-          err !== null &&
-          typeof err === 'object' &&
-          'code' in err &&
-          (err as { code: string }).code === '23505'
-        ) {
-          throw new ConflictError('A user with this email already exists in this tenant.', {
-            details: { code: 'USER_EMAIL_EXISTS', email: newEmail },
-          });
-        }
-        throw err;
-      }
+      // (service: withTenant + auditInTx; maps pg 23505 to USER_EMAIL_EXISTS)
+      const auditId = await updateUserProfileAsSuperAdmin({
+        target,
+        userId,
+        actorUserId: session.userId,
+        reason,
+        newName,
+        newRole,
+        newEmail,
+        nameChanged,
+        roleChanged,
+        emailChanged,
+        wasPending,
+        currentEmail,
+      });
 
       // ---- Post-commit side effects ----
       let sessionsSwept = false;
@@ -618,40 +385,11 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
     { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const session = req.session!;
-      const { invitationId } = req.params as { invitationId: string };
+      const { invitationId } = parseParams(invitationIdParams, req.params);
       const { reason } = parseSuperLifecycleBody(req.body);
 
       // Resolve the invitation's tenantId via system-role lookup.
-      const pool = getPool();
-      const sysClient = await pool.connect();
-      let targetTenantId: string | null = null;
-      try {
-        await sysClient.query('BEGIN');
-        await sysClient.query('SET LOCAL ROLE assessiq_system');
-        const res = await sysClient.query<{ tenant_id: string; accepted_at: Date | null }>(
-          `SELECT tenant_id, accepted_at FROM user_invitations WHERE id = $1 LIMIT 1`,
-          [invitationId],
-        );
-        await sysClient.query('COMMIT');
-        const row = res.rows[0];
-        if (row === undefined) {
-          throw new NotFoundError(`Invitation not found: ${invitationId}`, {
-            details: { code: 'INVITATION_NOT_FOUND' },
-          });
-        }
-        if (row.accepted_at !== null) {
-          throw new ConflictError(
-            'This invitation has already been accepted and cannot be cancelled.',
-            { details: { code: 'INVITATION_ALREADY_ACCEPTED' } },
-          );
-        }
-        targetTenantId = row.tenant_id;
-      } catch (err) {
-        await sysClient.query('ROLLBACK').catch(() => {});
-        throw err;
-      } finally {
-        sysClient.release();
-      }
+      const targetTenantId = await resolvePendingInvitationTenant(invitationId);
 
       // Delegate to the cancelInvitation service (runs withTenant(targetTenantId)).
       const result = await cancelInvitation(
@@ -689,61 +427,20 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
     { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason, confirm_last_admin } = parseSuperLifecycleBody(req.body);
 
       const target = await resolveUserTenant(userId);
       if (target === null) {
         throw new NotFoundError(`User not found: ${userId}`);
       }
-      const targetTenantId = target.tenantId;
 
-      await withTenant(targetTenantId, async (client) => {
-        // Last-admin invariant check (with optional override).
-        if (target.role === 'admin' && target.status === 'active' && target.deleted_at === null) {
-          const countRes = await client.query<{ count: string }>(
-            `SELECT count(*) FROM users
-              WHERE role = 'admin' AND status = 'active' AND deleted_at IS NULL
-                AND id <> $1`,
-            [userId],
-          );
-          const otherAdmins = parseInt(countRes.rows[0]?.count ?? '0', 10);
-          if (otherAdmins === 0) {
-            if (!confirm_last_admin || !reason) {
-              throw new ConflictError(
-                'This is the last active admin. Pass confirm_last_admin=true and a non-empty reason to override.',
-                { details: { code: 'LAST_ADMIN' } },
-              );
-            }
-          }
-        }
-
-        await client.query(
-          `UPDATE users SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL`,
-          [userId],
-        );
-
-        // Cascade: delete pending invitations for this email.
-        await client.query(
-          `DELETE FROM user_invitations WHERE lower(email) = $1 AND accepted_at IS NULL`,
-          [target.email.toLowerCase()],
-        );
-
-        const isOverride = confirm_last_admin && !!reason;
-        await auditInTx(client, {
-          tenantId: targetTenantId,
-          actorKind: 'user',
-          actorUserId: session.userId,
-          action: 'user.soft_deleted',
-          entityType: 'user',
-          entityId: userId,
-          before: { status: target.status, deleted_at: null },
-          after: {
-            deleted: true,
-            reason: reason ?? null,
-            ...(isOverride ? { is_override: true } : {}),
-          },
-        });
+      await softDeleteUserAsSuperAdmin({
+        target,
+        userId,
+        actorUserId: session.userId,
+        reason,
+        confirmLastAdmin: confirm_last_admin,
       });
 
       // Sweep Redis sessions after commit.
@@ -768,37 +465,19 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
     { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason } = parseSuperLifecycleBody(req.body);
 
       const target = await resolveUserTenant(userId);
       if (target === null) {
         throw new NotFoundError(`User not found: ${userId}`);
       }
-      const targetTenantId = target.tenantId;
 
-      const restored = await withTenant(targetTenantId, async (client) => {
-        const res = await client.query<{ id: string; status: string; deleted_at: Date | null }>(
-          `UPDATE users SET deleted_at = NULL, updated_at = now()
-           WHERE id = $1
-           RETURNING id, status, deleted_at`,
-          [userId],
-        );
-        const row = res.rows[0];
-        if (row === undefined) throw new NotFoundError(`User not found: ${userId}`);
-
-        await auditInTx(client, {
-          tenantId: targetTenantId,
-          actorKind: 'user',
-          actorUserId: session.userId,
-          action: 'user.restored',
-          entityType: 'user',
-          entityId: userId,
-          before: { deleted_at: 'non-null', status: target.status },
-          after: { deleted_at: null, status: row.status, reason: reason ?? null },
-        });
-
-        return row;
+      const restored = await restoreUserAsSuperAdmin({
+        target,
+        userId,
+        actorUserId: session.userId,
+        reason,
       });
 
       logLifecycleEvent({

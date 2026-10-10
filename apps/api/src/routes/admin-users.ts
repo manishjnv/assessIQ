@@ -16,6 +16,17 @@ import { logLifecycleEvent, sessions } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
 import { eraseCandidatePii, exportCandidateData } from '@assessiq/data-rights';
 import { authChain } from '../middleware/auth-chain.js';
+import {
+  parseBody,
+  parseParams,
+  parseQuery,
+  idParams,
+  userIdParams,
+  invitationIdParams,
+  lifecycleBody,
+} from './_validate.js';
+import { createUserBody, importUsersBody, listUsersQuery, updateUserBody, USER_BODY_CODES } from './_schemas.js';
+
 
 // ---------------------------------------------------------------------------
 // Shared body parser for lifecycle reason field (mirrors admin-super.ts).
@@ -23,7 +34,8 @@ import { authChain } from '../middleware/auth-chain.js';
 // ---------------------------------------------------------------------------
 
 function parseLifecycleBody(body: unknown): { reason: string | undefined } {
-  const b = (body ?? {}) as Record<string, unknown>;
+  // RW-36(b): structural check first; reason content validated below (INVALID_REASON).
+  const b = parseBody(lifecycleBody, body) as Record<string, unknown>;
   const reason = b['reason'];
   if (reason === undefined || reason === null) {
     return { reason: undefined };
@@ -66,7 +78,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
-      const q = req.query as Record<string, string | undefined>;
+      const q = parseQuery(listUsersQuery, req.query) as Record<string, string | undefined>;
 
       const pageRaw = q['page'] ?? '1';
       const pageSizeRaw = q['pageSize'] ?? '20';
@@ -105,7 +117,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req) => {
       const tenantId = req.session!.tenantId;
-      const { id } = req.params as { id: string };
+      const { id } = parseParams(idParams, req.params);
       return getUser(tenantId, id);
     },
   );
@@ -117,13 +129,8 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
-      const body = req.body as {
-        email: string;
-        name: string;
-        role: 'admin' | 'candidate';
-        metadata?: Record<string, unknown>;
-      };
-      const user = await createUser(tenantId, body, userId);
+      const body = parseBody(createUserBody, req.body, { code: USER_BODY_CODES });
+      const user = await createUser(tenantId, body as import('@assessiq/users').CreateUserInput, userId);
       return reply.code(201).send(user);
     },
   );
@@ -135,14 +142,9 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
-      const { id } = req.params as { id: string };
-      const patch = req.body as {
-        name?: string;
-        role?: 'admin' | 'candidate';
-        status?: 'active' | 'disabled' | 'pending';
-        metadata?: Record<string, unknown>;
-      };
-      return updateUser(tenantId, id, patch, userId);
+      const { id } = parseParams(idParams, req.params);
+      const patch = parseBody(updateUserBody, req.body, { code: USER_BODY_CODES });
+      return updateUser(tenantId, id, patch as import('@assessiq/users').UpdateUserPatch, userId);
     },
   );
 
@@ -154,18 +156,8 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const { tenantId, userId } = req.session!;
-      const body = (req.body ?? {}) as { csv?: unknown; assessment_id?: unknown };
-      if (typeof body.csv !== 'string') {
-        throw new ValidationError('csv must be a string', {
-          details: { code: 'INVALID_PARAM', param: 'csv' },
-        });
-      }
+      const body = parseBody(importUsersBody, req.body, { code: 'INVALID_PARAM' });
       const assessmentId = body.assessment_id;
-      if (assessmentId !== undefined && (typeof assessmentId !== 'string' || assessmentId === '')) {
-        throw new ValidationError('assessment_id must be a string', {
-          details: { code: 'INVALID_PARAM', param: 'assessment_id' },
-        });
-      }
       // Fail BEFORE creating users if the assessment can't take invitations
       // (getAssessment 404s across tenants via RLS).
       if (assessmentId !== undefined) {
@@ -238,7 +230,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason } = parseLifecycleBody(req.body);
 
       // Self-disable guard: admins cannot disable their own account.
@@ -279,7 +271,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason } = parseLifecycleBody(req.body);
 
       const updated = await updateUser(
@@ -311,7 +303,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason } = parseLifecycleBody(req.body);
 
       const restored = await restore(session.tenantId, userId, session.userId);
@@ -336,7 +328,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const session = req.session!;
-      const { invitationId } = req.params as { invitationId: string };
+      const { invitationId } = parseParams(invitationIdParams, req.params);
       const { reason } = parseLifecycleBody(req.body);
 
       const result = await cancelInvitation(
@@ -373,7 +365,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason } = parseLifecycleBody(req.body);
 
       // Self-delete guard: admins cannot soft-delete their own account.
@@ -413,7 +405,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
 
       const bundle = await exportCandidateData(session.tenantId, userId);
 
@@ -438,7 +430,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     { preHandler: adminOnly },
     async (req, reply) => {
       const session = req.session!;
-      const { userId } = req.params as { userId: string };
+      const { userId } = parseParams(userIdParams, req.params);
       const { reason } = parseLifecycleBody(req.body);
 
       // reason is required for erasure (differs from other lifecycle routes

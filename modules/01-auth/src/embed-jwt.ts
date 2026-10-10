@@ -16,7 +16,8 @@ import type { PoolClient } from "pg";
 import { encryptEnvelope, decryptEnvelope, randomTokenBase64Url } from "./crypto-util.js";
 import { getRedis } from "./redis.js";
 import { withTenant } from "@assessiq/tenancy";
-import { uuidv7, AuthnError } from "@assessiq/core";
+import { uuidv7, AuthnError, AppError } from "@assessiq/core";
+import { revokeEmbedSecretRow } from "./repository.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -369,6 +370,19 @@ export async function listEmbedSecrets(tenantId: string): Promise<EmbedSecretRec
     rotatedAt: row.rotated_at,
     createdAt: row.created_at,
   }));
+}
+
+/**
+ * Revokes one embed secret (status='revoked'). Throws AppError 404 when the id
+ * is unknown for this tenant or already revoked.
+ */
+export async function revokeEmbedSecret(tenantId: string, id: string): Promise<void> {
+  await withTenant(tenantId, async (client: PoolClient) => {
+    const affected = await revokeEmbedSecretRow(client, id, tenantId);
+    if (affected === 0) {
+      throw new AppError(`Embed secret ${id} not found or already revoked`, "NOT_FOUND", 404);
+    }
+  });
 }
 
 /**

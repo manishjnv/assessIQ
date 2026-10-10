@@ -2,9 +2,10 @@
 // Moved verbatim from routes/admin-super.ts (E9 split; no behaviour change).
 
 import type { FastifyInstance } from 'fastify';
-import { ValidationError } from '@assessiq/core';
+import { parseBody, parseParams, tenantIdParams } from '../_validate.js';
 import { assertTenantActive } from '@assessiq/tenancy';
 import { revokeEntitlement, type EntitlementScopeType } from '@assessiq/billing';
+import { entitlementScopeBody } from '../_schemas.js';
 import { superAdminOnly } from './_shared.js';
 
 export async function registerAdminSuperEntitlementRevokeRoute(app: FastifyInstance): Promise<void> {
@@ -37,22 +38,11 @@ export async function registerAdminSuperEntitlementRevokeRoute(app: FastifyInsta
     '/api/admin/super/tenants/:tenantId/entitlements',
     { preHandler: superAdminOnly },
     async (req, reply) => {
-      const { tenantId } = req.params as { tenantId: string };
+      const { tenantId } = parseParams(tenantIdParams, req.params);
       // Write-block guard: reject mutations on suspended/archived tenants.
       await assertTenantActive(tenantId);
-      const body = (req.body ?? {}) as { scopeType?: unknown; scopeId?: unknown };
-
-      // Light type-guard — domain validation is delegated to revokeEntitlement.
-      if (typeof body.scopeType !== 'string' || body.scopeType.trim().length === 0) {
-        throw new ValidationError('scopeType must be a non-empty string', {
-          details: { code: 'INVALID_SCOPE', received: body.scopeType },
-        });
-      }
-      if (typeof body.scopeId !== 'string' || body.scopeId.trim().length === 0) {
-        throw new ValidationError('scopeId must be a non-empty string', {
-          details: { code: 'INVALID_SCOPE', received: body.scopeId },
-        });
-      }
+      // Domain validation of the scope itself is delegated to revokeEntitlement.
+      const body = parseBody(entitlementScopeBody, req.body, { code: 'INVALID_SCOPE' });
 
       const result = await revokeEntitlement(req.session!.userId, tenantId, {
         scopeType: body.scopeType as EntitlementScopeType,

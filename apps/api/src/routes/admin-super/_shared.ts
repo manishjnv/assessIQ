@@ -3,6 +3,7 @@
 
 import { streamLogger, ValidationError } from '@assessiq/core';
 import { authChain } from '../../middleware/auth-chain.js';
+import { parseBody, lifecycleBody } from '../_validate.js';
 
 export const log = streamLogger('app');
 
@@ -23,7 +24,8 @@ export const superAdminFreshMfa = authChain({
 });
 
 export function parseLifecycleBody(body: unknown): { reason: string | undefined } {
-  const b = (body ?? {}) as Record<string, unknown>;
+  // RW-36(b): structural check first (body is an object, confirm_last_admin is boolean).
+  const b = parseBody(lifecycleBody, body) as Record<string, unknown>;
   const reason = b['reason'];
   if (reason === undefined || reason === null) {
     return { reason: undefined };

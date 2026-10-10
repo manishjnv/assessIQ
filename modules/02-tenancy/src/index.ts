@@ -18,6 +18,9 @@ export {
   normalizeTenantName,
   createTenant,
   activateTenant,
+  renameTenantAsSuperAdmin,
+  listTenantsForSuperAdmin,
+  isPrivacyDisclosed,
 } from "./service.js";
 export type {
   UpdateAiGenerateModeResult,

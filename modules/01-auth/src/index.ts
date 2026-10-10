@@ -22,7 +22,9 @@ export {
   createEmbedSecret,
   rotateEmbedSecret,
   listEmbedSecrets,
+  revokeEmbedSecret,
 } from "./embed-jwt.js";
+export { deleteGoogleIdentitiesForUser } from "./repository.js";
 export type {
   EmbedTokenPayload,
   VerifiedEmbedToken,

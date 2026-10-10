@@ -37,7 +37,9 @@ import {
   withTenant,
 } from '@assessiq/tenancy';
 import { runRetentionPurgeForTenant, listErasedCandidates } from '@assessiq/data-rights';
+import { parseBody, parseQuery } from './_validate.js';
 import { authChain } from '../middleware/auth-chain.js';
+import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, retentionDaysBody, runNowQuery } from './_schemas.js';
 
 // ---------------------------------------------------------------------------
 // Auth chain — tenant admin only, fresh MFA within 15 minutes.
@@ -86,7 +88,7 @@ export async function registerAdminTenantSettingsRoutes(
   // 409: TENANT_NOT_ACTIVE (suspended/archived)
   app.patch('/api/admin/tenant', { preHandler: adminOnly }, async (req, reply) => {
     const session = req.session!;
-    const body = (req.body ?? {}) as { name?: unknown };
+    const body = parseBody(renameOwnTenantBody, req.body, { code: 'MISSING_NAME' });
     await assertTenantActive(session.tenantId);
     const result = await renameTenant(session.userId, session.tenantId, body.name);
     return reply.code(200).send(result);
@@ -140,7 +142,7 @@ export async function registerAdminTenantSettingsRoutes(
     { preHandler: adminFreshMfa },
     async (req, reply) => {
       const session = req.session!;
-      const body = (req.body ?? {}) as { mode?: unknown };
+      const body = parseBody(resultReleaseModeBody, req.body, { code: 'INVALID_RESULT_RELEASE_MODE' });
       await assertTenantActive(session.tenantId);
       const result = await updateResultReleaseMode(session.userId, session.tenantId, body.mode);
       return reply.code(200).send({
@@ -172,12 +174,7 @@ export async function registerAdminTenantSettingsRoutes(
     { preHandler: adminFreshMfa },
     async (req, reply) => {
       const session = req.session!;
-      const body = (req.body ?? {}) as { retention_days?: unknown };
-      if (typeof body.retention_days !== 'number') {
-        throw new ValidationError('retention_days is required', {
-          details: { code: 'MISSING_RETENTION_DAYS' },
-        });
-      }
+      const body = parseBody(retentionDaysBody, req.body, { code: 'MISSING_RETENTION_DAYS' });
       const result = await updateRetentionDays(
         session.userId,
         session.tenantId,
@@ -217,7 +214,7 @@ export async function registerAdminTenantSettingsRoutes(
     { preHandler: adminFreshMfaStrict },
     async (req, reply) => {
       const session = req.session!;
-      const q = (req.query ?? {}) as { dryRun?: string; maxPerTenant?: string };
+      const q = parseQuery(runNowQuery, req.query) as { dryRun?: string; maxPerTenant?: string };
       const dryRun = q.dryRun === 'true' || q.dryRun === '1';
 
       let maxPerTenant: number | undefined;
@@ -273,7 +270,7 @@ export async function registerAdminTenantSettingsRoutes(
     { preHandler: adminReadOnly },
     async (req, reply) => {
       const session = req.session!;
-      const q = (req.query ?? {}) as {
+      const q = parseQuery(erasedCandidatesQuery, req.query) as {
         since?: string;
         adminId?: string;
         limit?: string;

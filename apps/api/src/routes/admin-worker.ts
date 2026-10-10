@@ -19,6 +19,8 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { config } from '@assessiq/core';
+import { parseParams } from './_validate.js';
+import { jobIdParams } from './_schemas.js';
 
 // ---------------------------------------------------------------------------
 // Constants — mirror worker.ts without importing it (avoids pulling the worker
@@ -242,7 +244,7 @@ export async function registerAdminWorkerRoutes(
     '/api/admin/worker/failed/:id/retry',
     { preHandler: adminOnly },
     async (req, reply) => {
-      const { id } = req.params as { id: string };
+      const { id } = parseParams(jobIdParams, req.params);
 
       const job = await q.getJob(id);
 

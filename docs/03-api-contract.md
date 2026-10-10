@@ -11,6 +11,65 @@
 - **Idempotency:** state-changing endpoints accept `Idempotency-Key` header; repeated keys within 24h return the cached response.
 - **Timestamps:** all returned in ISO 8601 UTC.
 
+## Request validation (RW-36b, Zod)
+
+Every mutating route (POST, PUT, PATCH, DELETE) validates its path params, query and body with a Zod schema before any service call. The schemas live in `apps/api/src/routes/_schemas.ts` (shared helpers in `_validate.ts`). `tools/lint-route-validation.ts` warns when a handler reads `req.body` without a parse (`pnpm lint:route-validation`, warn mode).
+
+**400 shape.** A failed parse returns the standard error envelope with HTTP 400:
+
+```json
+{ "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "<first issue message>",
+    "details": {
+      "code": "<domain code, e.g. INVALID_SCOPE; default INVALID_BODY | INVALID_PARAMS | INVALID_QUERY>",
+      "part": "body | params | query",
+      "issues": [ { "path": "field.name", "message": "..." } ]
+    } } }
+```
+
+`details.code` keeps the domain code each route used before RW-36b, so clients that branch on it are unaffected. Value rules that need the database (slug uniqueness, tier set, retention range 1-3650, name normalisation, CSV content) stay in the service layer with their existing codes.
+
+**New limits** (these were unbounded or only checked by the service before): company `name` max 200 (`POST /api/admin/super/companies`, code `NAME_TOO_LONG`); platform domain `name` max 200; plan `tier` max 32; import `assessment_id` max 64; `slug` max 63; `adminEmail` max 254.
+
+**Non-object body.** A lifecycle body (`reason`, `confirm_last_admin`) that is not a JSON object, for example an array or a string, now returns 400 `INVALID_BODY`. Before, it was read as `{}`.
+
+**Common rules.** Unknown body keys are ignored (not rejected). A missing body counts as `{}`. Every `:tenantId`, `:userId`, `:invitationId`, `:id` path param must be a UUID, except the worker job id (opaque string, 1-200 chars). Lifecycle bodies (`reason`, `confirm_last_admin`) must be a JSON object; `confirm_last_admin` must be a boolean; `reason` rules (non-empty, max 500, no control characters) stay under `INVALID_REASON`.
+
+**Public anti-enumeration endpoints do not return 400.** `POST /api/auth/candidate/request-link` (204), `/api/auth/candidate/verify-link` (200 `ok:false`), `/api/auth/login/email/request` (200 `ok:true`) and `/api/auth/login/email/verify` (200 `ok:false`) parse with a schema but answer a malformed body with the same neutral response as before, so a probe cannot tell a bad shape from a bad value.
+
+| Endpoint | Part | Schema and limits | `details.code` |
+| --- | --- | --- | --- |
+| `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode` | body | `mode`: `"omnibus"`, `"sharded"` or `null` (required) | `INVALID_MODE` |
+| `PATCH /api/admin/super/tenants/:tenantId` | body | `name`: required string, not blank, max 200 | `MISSING_NAME`, `NAME_TOO_LONG` |
+| `POST /api/admin/super/companies` | body | `name` required, max 200; `slug` required, max 63, `[a-z0-9-]+`; `adminEmail` required, max 254, contains `@`; `domain`, `adminName` optional (non-strings ignored) | `MISSING_NAME`, `NAME_TOO_LONG`, `INVALID_SLUG`, `MISSING_ADMIN_EMAIL` |
+| `POST /api/admin/super/tenants/:tenantId/{invitations/resend,suspend,resume,archive,unarchive}` | params, body | `tenantId` UUID; lifecycle body (`reason?`, max 500) | `INVALID_PARAMS`, `INVALID_REASON` |
+| `GET /api/admin/super/tenants` | query | `include_archived`: string, max 16 chars (`1` or `true` = on) | `INVALID_QUERY` |
+| `GET /api/admin/super/tenants/:tenantId/users` | params, query | `tenantId` UUID; `include_disabled`, `include_deleted`: string, max 16 | `INVALID_PARAMS`, `INVALID_QUERY` |
+| `POST /api/admin/super/users/:userId/{disable,reenable,restore}`, `DELETE /api/admin/super/users/:userId`, `DELETE /api/admin/super/users/invitations/:invitationId` | params, body | id UUID; lifecycle body with optional boolean `confirm_last_admin` | `INVALID_PARAMS`, `INVALID_BODY`, `INVALID_REASON` |
+| `PATCH /api/admin/super/users/:userId` | params, body | `name?` not blank, max 200; `role?` must be `"admin"`; `email?` string, max 254 (format checked after trim and lowercase); `confirmEmailIdentityChange?` boolean; `reason?` | `MISSING_NAME`, `NAME_TOO_LONG`, `INVALID_ROLE`, `INVALID_EMAIL` |
+| `POST /api/admin/super/domains` | body | `name` required, not blank, max 200; `description` optional (non-string ignored) | `MISSING_REQUIRED` |
+| `PATCH /api/admin/super/domains/:id` | params, body | `id` UUID; `status`: `"active"` or `"archived"` | `INVALID_STATUS` |
+| `PATCH /api/admin/super/tenants/:tenantId/plan` | params, body | `tier?` string, max 32; `includedCredits?` number or `null` | `INVALID_TIER`, `INVALID_CREDITS` |
+| `POST` / `DELETE /api/admin/super/tenants/:tenantId/entitlements` | params, body | `scopeType`, `scopeId`: required strings, not blank, max 200 | `INVALID_SCOPE` |
+| `PATCH /api/admin/tenant` | body | `name`: required string, max 500 raw (2-120 after normalisation, service) | `MISSING_NAME`, `INVALID_NAME_LENGTH` |
+| `PATCH /api/admin/tenant-settings/result-release-mode` | body | `mode`: `"manual"` or `"auto"` | `INVALID_RESULT_RELEASE_MODE` |
+| `PATCH /api/admin/tenant-settings/retention-days` | body | `retention_days`: required number (range 1-3650 in service) | `MISSING_RETENTION_DAYS` |
+| `POST /api/admin/retention/run-now` | query | `dryRun`, `maxPerTenant`: strings, max 10 (positive integer rule stays `INVALID_MAX_PER_TENANT`) | `INVALID_QUERY` |
+| `GET /api/admin/erased-candidates` | query | `since` max 64, `adminId` max 64, `limit` max 10 chars (1..500 in handler) | `INVALID_QUERY` |
+| `GET /api/admin/users` | query | `page`, `pageSize` max 10 chars; `role`, `status` max 32; `search` max 200; `includeDeleted` max 10 | `INVALID_QUERY` |
+| `POST /api/admin/users` | body | `email` string max 254; `name` string max 200; `role` `"admin"` or `"candidate"`; `metadata?` object | `INVALID_EMAIL`, `NAME_TOO_LONG`, `INVALID_ROLE`, `INVALID_BODY` |
+| `PATCH /api/admin/users/:id` | params, body | `id` UUID; `name?` max 200; `role?`; `status?` `"active"`, `"disabled"` or `"pending"`; `metadata?` object | `INVALID_PARAMS`, `NAME_TOO_LONG`, `INVALID_ROLE`, `INVALID_STATUS`, `INVALID_BODY` |
+| `POST /api/admin/users/import` | body | `csv` required string; `assessment_id?` non-empty string, max 64 | `INVALID_PARAM` |
+| `POST /api/admin/users/:userId/{disable,reenable,restore,erase}`, `DELETE /api/admin/users/:userId`, `DELETE /api/admin/users/invitations/:invitationId` | params, body | id UUID; lifecycle body (`reason?`, max 500) | `INVALID_PARAMS`, `INVALID_REASON` |
+| `GET /api/admin/users/:id`, `GET /api/admin/users/:userId/data-export` | params | id UUID | `INVALID_PARAMS` |
+| `POST /api/admin/worker/failed/:id/retry` | params | `id`: string, 1-200 chars (BullMQ job id) | `INVALID_PARAMS` |
+| `POST /api/admin/embed-secrets/:id/rotate`, `DELETE /api/admin/embed-secrets/:id` | params | `id` UUID | `INVALID_PARAMS` |
+| `POST /api/auth/login/select` | body | `userId`: required string, 1-64 chars | `MISSING_USER_ID` |
+| `POST /embed/sdk-mint` (dev only) | body | `assessmentId`: required string, 1-64 chars | `MISSING_PARAM` |
+
+**Existing Fastify JSON schemas are kept, not replaced.** These routes already validate with Fastify (AJV): `POST /api/auth/totp/enroll/confirm|verify|recovery`, `POST /api/admin/invitations`, `POST /api/invitations/accept`, `POST /api/contact`, `POST /api/_log`, `POST /api/admin/embed-secrets`, `POST|DELETE /api/admin/embed-origins` and `POST /api/admin/api-keys`. `DELETE /api/admin/api-keys/:id` keeps its manual `INVALID_ID` ("id must be a uuid") check; no Zod was added to `api-keys.ts`. The global handler maps those failures to `VALIDATION_FAILED` too. Routes with no input (`POST /api/auth/logout`, `POST /api/auth/totp/enroll/start`, `POST /api/admin/webhook-secrets/rotate`) have no schema.
+
 ## Rate-limit response headers
 
 All routes return rate-limit headers:

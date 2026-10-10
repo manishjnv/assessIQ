@@ -2,7 +2,8 @@
 // Moved verbatim from routes/admin-super.ts (E9 split; no behaviour change).
 
 import type { FastifyInstance } from 'fastify';
-import { ValidationError } from '@assessiq/core';
+import { parseBody, parseParams, tenantIdParams } from '../_validate.js';
+import { updatePlanBody, entitlementScopeBody } from '../_schemas.js';
 import { assertTenantActive } from '@assessiq/tenancy';
 import {
   getTenantBillingDetail,
@@ -33,7 +34,7 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
     '/api/admin/super/tenants/:tenantId/billing',
     { preHandler: superAdminOnly },
     async (req, reply) => {
-      const { tenantId } = req.params as { tenantId: string };
+      const { tenantId } = parseParams(tenantIdParams, req.params);
       const detail = await getTenantBillingDetail(tenantId);
       return reply.code(200).send(detail);
     },
@@ -53,7 +54,7 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
     '/api/admin/super/tenants/:tenantId/billing/export.csv',
     { preHandler: superAdminOnly },
     async (req, reply) => {
-      const { tenantId } = req.params as { tenantId: string };
+      const { tenantId } = parseParams(tenantIdParams, req.params);
       const csv = await getTenantBillingEventsCsv(tenantId);
       return reply
         .header('content-type', 'text/csv; charset=utf-8')
@@ -94,34 +95,19 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
     // ai-generate-mode too — they must stay consistent.
     { preHandler: superAdminOnly },
     async (req, reply) => {
-      const { tenantId } = req.params as { tenantId: string };
+      const { tenantId } = parseParams(tenantIdParams, req.params);
       // Write-block guard: reject mutations on suspended/archived tenants.
       await assertTenantActive(tenantId);
       // Guard against a missing/null PATCH body (empty PATCH → no-op revalidate,
       // never a TypeError 500). Mirrors the ai-generate-mode `body?.` idiom.
-      const body = (req.body ?? {}) as { tier?: unknown; includedCredits?: unknown };
+      const body = parseBody(updatePlanBody, req.body, {
+        code: { tier: 'INVALID_TIER', includedCredits: 'INVALID_CREDITS' },
+      });
 
-      // Light type-guard — domain validation is fully delegated to updateTenantPlan.
+      // Domain validation is fully delegated to updateTenantPlan.
       const patch: UpdateTenantPlanPatch = {};
-      if (body.tier !== undefined) {
-        if (typeof body.tier !== 'string') {
-          throw new ValidationError('tier must be a string', {
-            details: { code: 'INVALID_TIER', received: body.tier },
-          });
-        }
-        patch.tier = body.tier as PlanTier;
-      }
-      if ('includedCredits' in body) {
-        const ic = body.includedCredits;
-        if (ic !== null && ic !== undefined && typeof ic !== 'number') {
-          throw new ValidationError('includedCredits must be a number or null', {
-            details: { code: 'INVALID_CREDITS', received: ic },
-          });
-        }
-        if (ic !== undefined) {
-          patch.includedCredits = ic as number | null;
-        }
-      }
+      if (body.tier !== undefined) patch.tier = body.tier as PlanTier;
+      if (body.includedCredits !== undefined) patch.includedCredits = body.includedCredits;
 
       const result = await updateTenantPlan(req.session!.userId, tenantId, patch);
       return reply.code(200).send(result);
@@ -145,7 +131,7 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
     '/api/admin/super/tenants/:tenantId/entitlements',
     { preHandler: superAdminOnly },
     async (req, reply) => {
-      const { tenantId } = req.params as { tenantId: string };
+      const { tenantId } = parseParams(tenantIdParams, req.params);
       const entitlements = await listTenantEntitlements(tenantId);
       return reply.code(200).send({ entitlements });
     },
@@ -169,7 +155,7 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
     '/api/admin/super/tenants/:tenantId/content-scopes',
     { preHandler: superAdminOnly },
     async (req, reply) => {
-      const { tenantId } = req.params as { tenantId: string };
+      const { tenantId } = parseParams(tenantIdParams, req.params);
       const scopes = await listTenantContentScopes(tenantId);
       return reply.code(200).send(scopes);
     },
@@ -199,22 +185,11 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
     '/api/admin/super/tenants/:tenantId/entitlements',
     { preHandler: superAdminOnly },
     async (req, reply) => {
-      const { tenantId } = req.params as { tenantId: string };
+      const { tenantId } = parseParams(tenantIdParams, req.params);
       // Write-block guard: reject mutations on suspended/archived tenants.
       await assertTenantActive(tenantId);
-      const body = (req.body ?? {}) as { scopeType?: unknown; scopeId?: unknown };
-
-      // Light type-guard — domain validation is delegated to grantEntitlement.
-      if (typeof body.scopeType !== 'string' || body.scopeType.trim().length === 0) {
-        throw new ValidationError('scopeType must be a non-empty string', {
-          details: { code: 'INVALID_SCOPE', received: body.scopeType },
-        });
-      }
-      if (typeof body.scopeId !== 'string' || body.scopeId.trim().length === 0) {
-        throw new ValidationError('scopeId must be a non-empty string', {
-          details: { code: 'INVALID_SCOPE', received: body.scopeId },
-        });
-      }
+      // Domain validation of the scope itself is delegated to grantEntitlement.
+      const body = parseBody(entitlementScopeBody, req.body, { code: 'INVALID_SCOPE' });
 
       const result = await grantEntitlement(req.session!.userId, tenantId, {
         scopeType: body.scopeType as EntitlementScopeType,
