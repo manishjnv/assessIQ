@@ -1,5 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+afterEach(() => cleanup());
+
 import { StatusPill, PageHeader, EmptyState, ConfirmDialog, Pagination } from "../index.js";
 
 describe("StatusPill", () => {
