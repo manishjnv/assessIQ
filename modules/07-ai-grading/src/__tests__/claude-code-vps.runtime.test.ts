@@ -26,7 +26,11 @@ import { Readable } from "node:stream";
 // Declare mocks — factories are self-contained (no external refs).
 // ---------------------------------------------------------------------------
 
-vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  const spawn = vi.fn();
+  return { ...actual, spawn, default: { ...actual, spawn } };
+});
 
 vi.mock("../skill-sha.js", () => ({
   skillSha: vi.fn(() =>

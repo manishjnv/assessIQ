@@ -18,7 +18,8 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 // setPoolForTesting / closePool are test-only helpers in 02-tenancy/src/pool.ts.
@@ -50,16 +51,12 @@ import { ConflictError, NotFoundError, ValidationError } from "@assessiq/core";
 // ---------------------------------------------------------------------------
 // Path helper — strip Windows-style leading slash before drive letter.
 // import.meta.url on Windows: file:///E:/code/...
-// new URL('.', import.meta.url).pathname: /E:/code/.../src/__tests__/
+// import.meta.url.pathname: /E:/code/.../src/__tests__/
 // We strip the leading slash so join() works correctly on Windows.
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
 // __tests__/ is at: modules/04-question-bank/src/__tests__/
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));   // .../modules/04-question-bank/src/__tests__/
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;   // .../modules/04-question-bank/src/__tests__/
 const QB_MODULE_ROOT = join(THIS_DIR, "..", "..");           // .../modules/04-question-bank/
 const MODULES_ROOT = join(QB_MODULE_ROOT, "..");             // .../modules/
 

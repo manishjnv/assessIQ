@@ -20,7 +20,8 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 import { Client } from "pg";
 import Fastify from "fastify";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import { execSync } from "node:child_process";
 
@@ -31,11 +32,7 @@ import { registerQuestionBankRoutes } from "../routes.js";
 // Path helpers (Windows compat — strip leading slash before drive letter)
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR            = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR            = dirname(fileURLToPath(import.meta.url)) + sep;
 const QB_MODULE_ROOT      = join(THIS_DIR, "..", "..");             // modules/04-question-bank/
 const MODULES_ROOT        = join(QB_MODULE_ROOT, "..");             // modules/
 

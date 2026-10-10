@@ -13,6 +13,7 @@
 
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { render } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
 import { renderHook } from "@testing-library/react";
 
 import { Spinner } from "../components/Spinner";

@@ -46,7 +46,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -56,7 +56,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 // Constants — resolved at load time (no side-effects)
 // ---------------------------------------------------------------------------
 
-const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_PATH = resolve(__dirname, "../cli.ts");
 // tsx binary at workspace root
 const _TSX_BIN = resolve(__dirname, "../../../../node_modules/.bin/tsx");

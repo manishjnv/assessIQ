@@ -278,10 +278,17 @@ describe("formatLogEntry", () => {
 
 describe("appendToWatchLog", () => {
   beforeEach(() => {
-    vi.mock("node:fs", () => ({
-      appendFileSync: vi.fn(),
-      mkdirSync: vi.fn(),
-    }));
+    vi.mock("node:fs", async (importOriginal) => {
+      const actual = await importOriginal<typeof import("node:fs")>();
+      const appendFileSync = vi.fn();
+      const mkdirSync = vi.fn();
+      return {
+        ...actual,
+        appendFileSync,
+        mkdirSync,
+        default: { ...actual, appendFileSync, mkdirSync },
+      };
+    });
   });
 
   afterEach(() => {

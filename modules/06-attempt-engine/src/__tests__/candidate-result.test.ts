@@ -14,7 +14,8 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 import { Client } from "pg";
 import Fastify from "fastify";
 import { readFile, readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { AppError, config } from "@assessiq/core";
@@ -28,8 +29,7 @@ import {
 } from "../result.js";
 import { registerAttemptCandidateRoutes } from "../routes.candidate.js";
 
-const toFsPath = (url: URL): string => url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const MODULES_ROOT = join(THIS_DIR, "..", "..", "..");
 const DIRS: Array<[string, string[] | undefined]> = [
   ["02-tenancy", undefined],

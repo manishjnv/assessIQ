@@ -25,7 +25,11 @@ import type { ChildProcess } from "node:child_process";
 // Mocks — self-contained factories (no external refs per vi.mock hoist rule)
 // ---------------------------------------------------------------------------
 
-vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  const spawn = vi.fn();
+  return { ...actual, spawn, default: { ...actual, spawn } };
+});
 
 vi.mock("../skill-sha.js", () => ({
   skillSha: vi.fn(() =>

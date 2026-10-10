@@ -16,7 +16,8 @@ import Fastify from "fastify";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
@@ -91,11 +92,7 @@ import { AuthzError, ConflictError, NotFoundError, ValidationError } from "@asse
 // Path helper — strip Windows leading slash before drive letter.
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const AE_MODULE_ROOT = join(THIS_DIR, "..", "..");
 const MODULES_ROOT = join(AE_MODULE_ROOT, "..");
 

@@ -1,41 +1,31 @@
 /**
  * Unit tests for ../skill-sha.ts
  *
- * Isolation: vi.mock("node:os") intercepts homedir() so the module reads from
- * a tmpdir we control — no real ~/.claude involvement.
+ * Isolation: HOME/USERPROFILE point at a tmpdir we control (os.homedir() reads
+ * them at call time) — no real ~/.claude involvement. vi.mock("node:os") did
+ * not take effect under the jsdom environment and fell through to the real home.
  *
  * Cleanup: afterEach removes the tmpdir created by mkdtempSync.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
-// ---------------------------------------------------------------------------
-// Mock node:os BEFORE importing skill-sha so it picks up the mock homedir.
-// ---------------------------------------------------------------------------
-
-vi.mock("node:os", async (importOriginal) => {
-  const original = await importOriginal<typeof import("node:os")>();
-  return {
-    ...original,
-    homedir: vi.fn(() => "/tmp/__skill_sha_test__"),
-  };
-});
-
 // Now import the module under test (after the mock is registered).
 import { skillSha } from "../skill-sha.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { AppError } from "@assessiq/core";
-import { homedir } from "node:os";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 let testHomeDir: string;
+const origHome = process.env.HOME;
+const origProfile = process.env.USERPROFILE;
 
 function setupSkillFile(skillName: string, content: string): void {
   const skillDir = join(testHomeDir, ".claude", "skills", skillName);
@@ -54,8 +44,16 @@ function sha256Of(content: string): string {
 beforeEach(() => {
   // Create a fresh tmpdir for each test.
   testHomeDir = mkdtempSync(join(tmpdir(), "skill-sha-test-"));
-  // Point the mock homedir() at this fresh dir.
-  vi.mocked(homedir).mockReturnValue(testHomeDir);
+  // Point os.homedir() at this fresh dir (reads HOME on POSIX, USERPROFILE on Windows).
+  process.env.HOME = testHomeDir;
+  process.env.USERPROFILE = testHomeDir;
+});
+
+afterAll(() => {
+  if (origHome === undefined) delete process.env.HOME;
+  else process.env.HOME = origHome;
+  if (origProfile === undefined) delete process.env.USERPROFILE;
+  else process.env.USERPROFILE = origProfile;
 });
 
 afterEach(() => {

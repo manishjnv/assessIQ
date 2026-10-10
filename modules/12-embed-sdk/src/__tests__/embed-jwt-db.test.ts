@@ -1,3 +1,4 @@
+// @vitest-environment node
 /**
  * embed-jwt-db.test.ts — DB-backed integration tests for the embed JWT
  * verification + session-minting path.

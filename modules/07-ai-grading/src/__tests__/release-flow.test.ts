@@ -12,7 +12,8 @@ import { Client } from "pg";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import Fastify from "fastify";
 import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 vi.mock("../runtime-selector.js", () => ({ gradeSubjective: vi.fn() }));
@@ -31,8 +32,7 @@ import { registerGradingRoutes } from "../routes.js";
 // modules/18-certification crypto.ts CERT_SIGNING_SECRET_ENV (07 does not depend on 18; 09 does)
 const CERT_SIGNING_SECRET_ENV = "CERT_SIGNING_SECRET";
 
-const toFsPath = (url: URL): string => url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 
 let container: StartedTestContainer;
 let url: string;

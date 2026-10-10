@@ -26,7 +26,8 @@ import { it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
@@ -37,11 +38,7 @@ import { totp } from "../totp.js";
 // Path helpers — copied exactly from totp.test.ts
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR         = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR         = dirname(fileURLToPath(import.meta.url)) + sep;
 const AUTH_MODULE_ROOT = join(THIS_DIR, "..", "..");             // modules/01-auth/
 const MODULES_ROOT     = join(AUTH_MODULE_ROOT, "..");           // modules/
 

@@ -25,7 +25,8 @@ import { GenericContainer, Wait, type StartedTestContainer } from "testcontainer
 import { Client } from "pg";
 import { readFile } from "node:fs/promises";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
-import { join } from "node:path";
+import { join, dirname, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
@@ -51,11 +52,7 @@ import {
 // Path helpers (Windows: strip leading slash before drive letter)
 // ---------------------------------------------------------------------------
 
-function toFsPath(url: URL): string {
-  return url.pathname.replace(/^\/([A-Za-z]:)/, "$1");
-}
-
-const THIS_DIR = toFsPath(new URL(".", import.meta.url));
+const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const AL_MODULE_ROOT = join(THIS_DIR, "..", "..");
 
 // publishAssessment / reopenAssessment call assertPublishEntitled which queries
