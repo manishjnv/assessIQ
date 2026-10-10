@@ -148,9 +148,23 @@ describe('TokenLanding pre-test screen', () => {
   it('L7 - device-check disclosure is closed by default', async () => {
     renderLanding();
     await screen.findByText('Ready when you are.');
+    // The system check runs in an effect after mount: wait until all five rows pass,
+    // otherwise `blocked` is still true (rows empty) and the disclosure is open.
+    await waitFor(() => expect(screen.getAllByText('OK').length).toBe(5));
     const details = document.querySelector('details') as HTMLDetailsElement;
     expect(details.open).toBe(false);
     expect(screen.getByText('Test your device (optional)')).toBeTruthy();
+  });
+
+  it('L7b - device-check disclosure opens when blocked', async () => {
+    const spy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    renderLanding();
+    await screen.findByText('Ready when you are.');
+    await screen.findByText('Fix needed');
+    const details = document.querySelector('details') as HTMLDetailsElement;
+    expect(details.open).toBe(true);
+    expect(screen.getByText('Test your device')).toBeTruthy();
+    spy.mockRestore();
   });
 
   it('L8 - Begin label contains the timer minutes', async () => {
