@@ -21,6 +21,7 @@
     "@assessiq/candidate-ui": "workspace:*",
     "@assessiq/help-system": "workspace:*",
     "@assessiq/http-client": "workspace:*",
+    "@assessiq/question-types": "workspace:*",
     "@assessiq/ui-system": "workspace:*",
     "qrcode": "^1.5.4",
     "react": "^19.3.0",

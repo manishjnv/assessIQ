@@ -6,12 +6,10 @@
 // imports server-only modules like @assessiq/audit-log).
 // Keep these two files in sync; both are pure (no deps, no I/O).
 
-export type QuestionType =
-  | "mcq"
-  | "log_analysis"
-  | "scenario"
-  | "kql"
-  | "subjective";
+import type { QuestionType as RegistryQuestionType } from "@assessiq/question-types";
+
+/** The AI-allocated subset of the registry (weights below cover only these). */
+export type QuestionType = Extract<RegistryQuestionType, "mcq" | "log_analysis" | "scenario" | "kql" | "subjective">;
 
 // ---------------------------------------------------------------------------
 // Weight tables — source: omnibus skill front-matter weight table

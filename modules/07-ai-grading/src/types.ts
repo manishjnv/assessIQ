@@ -9,6 +9,7 @@
 // skeleton — Phase 1" (lines 357-432) and D4 (prompt SHA + model column shape).
 
 import { z } from "zod";
+import type { QuestionType as RegistryQuestionType } from "@assessiq/question-types";
 
 // ---------------------------------------------------------------------------
 // AnchorFinding — Stage 1 output (claude-haiku-4-5 via grade-anchors skill)
@@ -235,7 +236,13 @@ export interface GeneratedQuestionDraft {
 /**
  * Question type union — canonical alias used across generation & weighting logic.
  */
-export type QuestionType = "mcq" | "subjective" | "kql" | "scenario" | "log_analysis";
+// ponytail: the registry type is not narrowable by generatorSkill at type level; Extract
+// pins the ids to the registry, generable-types.test.ts pins them to generatorSkill != null.
+export type GenerableQuestionType = Extract<
+  RegistryQuestionType,
+  "mcq" | "subjective" | "kql" | "scenario" | "log_analysis"
+>;
+export type QuestionType = GenerableQuestionType;
 
 /**
  * Returned by generateQuestions() — the full set of generated drafts plus

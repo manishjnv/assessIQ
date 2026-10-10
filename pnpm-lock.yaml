@@ -218,6 +218,9 @@ importers:
       '@assessiq/http-client':
         specifier: workspace:*
         version: link:../../packages/http-client
+      '@assessiq/question-types':
+        specifier: workspace:*
+        version: link:../../packages/question-types
       '@assessiq/ui-system':
         specifier: workspace:*
         version: link:../../modules/17-ui-system
@@ -465,6 +468,9 @@ importers:
       '@assessiq/notifications':
         specifier: workspace:*
         version: link:../13-notifications
+      '@assessiq/question-types':
+        specifier: workspace:*
+        version: link:../../packages/question-types
       '@assessiq/rubric-engine':
         specifier: workspace:*
         version: link:../08-rubric-engine
@@ -553,6 +559,9 @@ importers:
       '@assessiq/http-client':
         specifier: workspace:*
         version: link:../../packages/http-client
+      '@assessiq/question-types':
+        specifier: workspace:*
+        version: link:../../packages/question-types
       '@assessiq/rubric-engine':
         specifier: workspace:*
         version: link:../08-rubric-engine

@@ -6,6 +6,7 @@
 
 import { ApiCallError, createApiClient, createApiRawRequest } from "@assessiq/http-client";
 import type { ApiError } from "@assessiq/http-client";
+import type { QuestionType } from "@assessiq/question-types";
 
 export type { ApiError };
 
@@ -24,7 +25,8 @@ export const adminApi = createApiClient(API_BASE, AdminApiError);
 // Typed helpers — generate endpoint
 // ---------------------------------------------------------------------------
 
-export type GenerateQuestionType = "mcq" | "log_analysis" | "scenario" | "kql" | "subjective";
+/** The AI-generated subset of the registry (the other registry types are authored by hand). */
+export type GenerateQuestionType = Extract<QuestionType, "mcq" | "log_analysis" | "scenario" | "kql" | "subjective">;
 
 export interface GenerateQuestionsRequest {
   count: number;
