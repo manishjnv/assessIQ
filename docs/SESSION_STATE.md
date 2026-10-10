@@ -1,3 +1,49 @@
+# Session — 2026-10-10 — Hardening S7 (PARTIAL: RW-32 shipped; RW-33, RW-34 open)
+
+**Headline:** CI green again on `58bbd61` (quality + e2e). Root `pnpm test` harness repaired (31 path fixes, jsdom/jose env, skill home isolation, mock defaults). RW-32 shared primitives shipped and deployed. RW-33 and RW-34 NOT built. Deployed to VPS: `58bbd61`; assessiq-api, assessiq-worker, assessiq-frontend recreated; `https://assessiq.in/api/health` 200, `/api/ready` 200 (db, redis, claude true).
+
+**Commits (this session, origin/main):**
+- `60b4a8c` test(web): settle system check before device-disclosure assertion (L7) + L7b
+- `1f75138` fix(09): import logger (CI typecheck red since S5); superseded by `58bbd61`
+- `bc03f82` fix(01-auth): time the TOTP comparison alone; check all window candidates
+- `e61e8f0` test: repair root test harness (paths, env, mocks, jose keys, skill home)
+- `d8e7e05` feat(17): RW-32 shared admin primitives + fix axe matcher typecheck
+- `ea9ab90` test(17): RW-32 test jest-dom + explicit cleanup under root config
+- `0a7bd7b` test(07): pin replayed proposals to stale generated_at (clock-drift flake)
+- `58bbd61` fix(09): streamLogger in scoring repository (logging-discipline lint)
+
+**Tests:** root `pnpm test` last full run before final fixes: 2837 pass, 2 files failing (RW-32 test + completion-gate), both fixed locally and pushed; CI on `58bbd61`: quality success, e2e success. apps/web 81/81. 17-ui-system 55+8 pass. Repo `pnpm -r typecheck` exit 0.
+
+**Rows:** RW-32 ✅ (deployed). RW-33 OPEN (not started). RW-34 OPEN (not started). CI-harness repair has no tracker row (see RCA_LOG 2026-10-10 entries).
+
+**Next (S8 or S7 remainder):** RW-33 then RW-34 first (both M, Claude); then S8 RW-35..37 + RW-54 per the S8 brief. Owner decision needed before RW-54 build: DB CHECK generator vs `question_types` table + FK.
+
+**Open questions / follow-ups:**
+- Migration tracker drift (pre-existing, not from S7): 139 repo migration files vs 96 `schema_migrations` rows. Three-digit legacy files (01-auth 014/015, 03-users 020/021, etc.) are absent by name; their tables exist in prod (api_keys, embed_secrets, user_invitations, users). Deploy gate step 2 fails on this every time. Needs a reconcile row.
+- Coverage gap: no test for the completion-gate "newer proposal writes a superseding row" path (codex flagged).
+- Root vitest config uses `environment: jsdom` globally; node-only suites now opt out per file. Consider node default with jsdom per .tsx.
+- VPS has an untracked `tools/assessiq-mcp/package-lock.json`; not ours, left alone.
+- Local Docker Desktop was off at session start; DB-backed tests need it running.
+
+---
+
+## Agent utilization
+- Opus: plan, RW-32 API approval, diff review (harness, totp, RW-32, 07 mock fixes), deploy and verify, handoff.
+- Sonnet: 31-file path sweep (1), embed-jwt node env (1), skill-sha isolation (1), mock default-export fixes (1), RW-32 build (1), completion-gate diagnosis (1), vitest matcher fix (inline).
+- Haiku: Phase 0 digest for S7 (1 run, 134k tokens; inventory of confirm/fixed/table/fetch sites).
+- codex:rescue: totp (revise, addressed), harness commit (accept), completion-gate test pin (accept).
+- claude-mem: n/a (no mem-search needed this session).
+
+**Routing telemetry:**
+- Sonnet · path sweep 31 files · reworked: N
+- Sonnet · embed-jwt node env · reworked: N
+- Sonnet · skill-sha isolation · reworked: N (contract wrong: mock was jsdom-broken; agent diagnosed and fixed)
+- Sonnet · completion-gate diagnosis · reworked: Y (could not reproduce; test-side fix instead of code)
+- Sonnet · RW-32 components · reworked: N (typecheck fix done inline)
+- Haiku · S7 digest · reworked: N
+
+---
+
 # Session — 2026-10-10 — Hardening S6 (RW-26..31)
 
 **Headline:** Hardening S6 complete. Six rows shipped: TokenLanding blocked Begin logic with disclosure (RW-26), Attempt.tsx topic chip removal and help drawer relocation (RW-27), AutosaveIndicator state collapse to plain language (RW-28), candidate error pages with unified copy strategy (RW-29), Try.tsx label standardization for demo (RW-30), auth terminology standardization (sign-in code, authenticator code, backup codes, two-step) (RW-31). All deployed to VPS; tests 118+ pass; RW-29 security gate accepted.
