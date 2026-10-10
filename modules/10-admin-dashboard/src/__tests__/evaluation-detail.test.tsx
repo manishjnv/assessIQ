@@ -349,13 +349,13 @@ describe("AdminEvaluationDetail", () => {
     // the proposal sits beside the grade it would replace; Accept / Override are there, the per-question Opus Re-run is not
     expect(screen.getByText(/New AI result from the re-run/)).toBeTruthy();
     expect(screen.getByText("Q1 re-run ready")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Accept this grade" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Re-run" })).toBeNull();
     // already graded, so accepting never releases: no release notice
     expect(screen.queryByText(/releases this result to/)).toBeNull();
 
-    // Override on the proposal opens the override form for that question
-    fireEvent.click(screen.getByRole("button", { name: "Override" }));
+    // Change score on the proposal opens the override form for that question
+    fireEvent.click(screen.getByRole("button", { name: "Change score" }));
     expect(await screen.findByText("Override grade (requires fresh MFA)")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
 

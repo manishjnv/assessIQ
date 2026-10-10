@@ -109,16 +109,13 @@ describe("relativeTime (via rendered feed)", () => {
 
   it("renders a relative timestamp for a recent event (Xm ago)", async () => {
     render(<AdminActivity />);
-    // Should transition from Spinner to the feed row
-    await waitFor(() => {
-      expect(screen.queryByRole("status")).toBeNull();
-    });
     // Open the Audit log tab to show feed rows
     const tab = await screen.findByRole("tab", { name: /Audit log/ });
     fireEvent.click(tab);
-    // The timestamp cell should show something like "3m ago"
-    const body = document.body.textContent ?? "";
-    expect(/\dm ago/i.test(body)).toBe(true);
+    // Wait for the feed to load and Spinner to disappear in that section
+    await waitFor(() => {
+      expect(screen.getByText(/\d+m ago/i)).toBeDefined();
+    });
   });
 });
 
@@ -222,6 +219,9 @@ describe("ActivityFeedSection — empty", () => {
       return Promise.resolve({});
     });
     render(<AdminActivity />);
+    // Open the Audit log tab to show feed
+    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    fireEvent.click(tab);
     await waitFor(() => {
       expect(screen.getByText("No activity yet.")).toBeDefined();
     });
@@ -243,6 +243,9 @@ describe("ActivityFeedSection — error", () => {
       return new Promise(() => {});
     });
     render(<AdminActivity />);
+    // Open the Audit log tab to show feed
+    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    fireEvent.click(tab);
     await waitFor(() => {
       expect(screen.getByText("Failed to load activity feed.")).toBeDefined();
     });
