@@ -17,7 +17,7 @@
 // cohortStats / leaderboard are admin-on-demand; no latency SLA beyond reasonable.
 
 import type { PoolClient } from "pg";
-import { logger } from "@assessiq/core";
+import { streamLogger } from "@assessiq/core";
 import type {
   AttemptScore,
   CohortStats,
@@ -26,6 +26,8 @@ import type {
   IndividualReport,
 } from "./types.js";
 import { ArchetypeSignalsSchema } from "./types.js";
+
+const log = streamLogger("scoring");
 
 // ---------------------------------------------------------------------------
 // Internal row shapes (raw Postgres → typed)
@@ -509,7 +511,7 @@ export async function getIndividualScores(
     );
     const validatedSignals = signalsResult.success ? signalsResult.data : null;
     if (!signalsResult.success && r.archetype_signals != null) {
-      logger.warn(
+      log.warn(
         {
           attempt_id: r.attempt_id,
           issues: signalsResult.error.issues,
@@ -554,7 +556,7 @@ function mapAttemptScoreRow(r: AttemptScoreDbRow): AttemptScore {
   );
   const validatedSignals = signalsResult.success ? signalsResult.data : null;
   if (!signalsResult.success && r.archetype_signals != null) {
-    logger.warn(
+    log.warn(
       {
         attempt_id: r.attempt_id,
         issues: signalsResult.error.issues,
