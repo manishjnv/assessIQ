@@ -11,6 +11,7 @@ import React, { useRef, useState } from "react";
 import { Chip, Spinner, Table, type ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { adminApi, AdminApiError } from "../api.js";
+import { csvCell } from "@assessiq/core/escape";
 
 const MAX_BYTES = 512 * 1024;
 const MAX_ROWS = 1000;
@@ -67,12 +68,8 @@ export function previewCsv(text: string): { rows: string[][]; total: number } {
   return { rows: data.slice(0, 10).map((r) => [(r[ni] ?? "").trim(), (r[ei] ?? "").trim()]), total: data.length };
 }
 
-export function csvCell(v: string | number): string {
-  let s = String(v);
-  // Formula-injection guard (RV77, same rule as 15-analytics results-export.ts): = + - @ tab CR.
-  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+// Shared implementation (pure module; the package root pulls node-only deps, so use the subpath).
+export { csvCell };
 
 function download(filename: string, text: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));

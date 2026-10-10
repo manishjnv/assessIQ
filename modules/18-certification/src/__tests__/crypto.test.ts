@@ -97,6 +97,12 @@ describe('signCertificate — field sensitivity', () => {
 });
 
 describe('verifyCertificateSignature', () => {
+  it('hex case policy: uppercase of a valid signature verifies; one changed char fails', () => {
+    const sig = signCertificate(FIXED_PAYLOAD, FIXED_SECRET);
+    expect(verifyCertificateSignature(FIXED_PAYLOAD, sig.toUpperCase(), FIXED_SECRET)).toBe(true);
+    const changed = (sig[0] === 'a' ? 'b' : 'a') + sig.slice(1);
+    expect(verifyCertificateSignature(FIXED_PAYLOAD, changed, FIXED_SECRET)).toBe(false);
+  });
   it('accepts a freshly signed payload', () => {
     const sig = signCertificate(FIXED_PAYLOAD, FIXED_SECRET);
     expect(verifyCertificateSignature(FIXED_PAYLOAD, sig, FIXED_SECRET)).toBe(true);

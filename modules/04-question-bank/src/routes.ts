@@ -25,7 +25,8 @@
 // reads are impossible at the DB layer.
 
 import type { FastifyInstance } from "fastify";
-import { ValidationError, NotFoundError } from "@assessiq/core";
+import { ValidationError, NotFoundError, UUID_RE, parsePagination } from "@assessiq/core";
+import { MAX_PAGE_SIZE } from "./service/_shared.js";
 import {
   scoreQuestion,
   loadFixture,
@@ -82,7 +83,6 @@ import {
   handleAdminListCategories,
   handleAdminCreateDomain,
   handleAdminCreateCategory,
-  UUID_RE,
 } from "./handlers/admin-domains.js";
 import { registerGenerationBatchRoutes } from "./generation-batches.js";
 
@@ -90,30 +90,6 @@ import { registerGenerationBatchRoutes } from "./generation-batches.js";
 // Pagination helper — shared by list endpoints
 // ---------------------------------------------------------------------------
 
-function parsePagination(q: Record<string, string | undefined>): { page: number; pageSize: number } {
-  const pageRaw = q["page"] ?? "1";
-  const pageSizeRaw = q["pageSize"] ?? "20";
-  const page = parseInt(pageRaw, 10);
-  const pageSize = parseInt(pageSizeRaw, 10);
-
-  if (isNaN(page) || page < 1) {
-    throw new ValidationError("page must be a positive integer", {
-      details: { code: "INVALID_PARAM", param: "page" },
-    });
-  }
-  // Bumped from 100 to 500 on 2026-05-09: pack-detail page renders ALL questions
-  // for a pack in one view; 200+ per pack is realistic when L1/L2/L3 are
-  // populated. RLS bounds + LIMIT clause in the SQL query (repository.ts) cap
-  // memory; 500 is a reasonable upper guard.
-  // (admin-users.ts keeps its own 100 cap — user lists never need a full dump
-  // in one shot, so the tighter limit there is intentional.)
-  if (isNaN(pageSize) || pageSize < 1 || pageSize > 500) {
-    throw new ValidationError("pageSize must be between 1 and 500", {
-      details: { code: "INVALID_PARAM", param: "pageSize" },
-    });
-  }
-  return { page, pageSize };
-}
 
 // ---------------------------------------------------------------------------
 // Generate-body parser — exported for unit testing
@@ -504,7 +480,7 @@ export async function registerQuestionBankRoutes(
     async (req) => {
       const tenantId = req.session!.tenantId;
       const q = req.query as Record<string, string | undefined>;
-      const { page, pageSize } = parsePagination(q);
+      const { page, pageSize } = parsePagination(q, { max: MAX_PAGE_SIZE });
 
       const filters: ListPacksInput = { page, pageSize };
       if (q["domain"] !== undefined) filters.domain = q["domain"];
@@ -674,7 +650,7 @@ export async function registerQuestionBankRoutes(
     async (req) => {
       const tenantId = req.session!.tenantId;
       const q = req.query as Record<string, string | undefined>;
-      const { page, pageSize } = parsePagination(q);
+      const { page, pageSize } = parsePagination(q, { max: MAX_PAGE_SIZE });
 
       const filters: ListQuestionsInput = { page, pageSize };
       if (q["pack_id"] !== undefined) filters.pack_id = q["pack_id"];
@@ -813,8 +789,7 @@ export async function registerQuestionBankRoutes(
         });
       }
 
-      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-      if (!ids.every((id) => typeof id === "string" && uuidRe.test(id))) {
+      if (!ids.every((id) => typeof id === "string" && UUID_RE.test(id))) {
         return reply.code(400).send({
           error: {
             code: "VALIDATION_ERROR",

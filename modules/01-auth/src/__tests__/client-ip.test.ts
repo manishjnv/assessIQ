@@ -41,7 +41,7 @@ const { mockConfig } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@assessiq/core", () => {
+vi.mock("@assessiq/core", async () => {
   // Minimal stub — only the fields client-ip.ts touches.
   const warnFn = vi.fn();
   const streamLoggerStub = (_name: string) => ({
@@ -51,6 +51,7 @@ vi.mock("@assessiq/core", () => {
     debug: vi.fn(),
   });
   return {
+    ...(await import("@assessiq/core/hash")),
     config: mockConfig,
     streamLogger: streamLoggerStub,
   };

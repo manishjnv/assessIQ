@@ -45,9 +45,8 @@
 //     after a successful resolveInvitationToken).
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { config, ConflictError, NotFoundError, streamLogger, ValidationError } from "@assessiq/core";
+import { config, ConflictError, NotFoundError, streamLogger, ValidationError, sha256Hex } from "@assessiq/core";
 import { consumeRateLimit, extractClientIp, mintCandidateSession } from "@assessiq/auth";
-import { createHash } from "node:crypto";
 import {
   resolveInvitationToken,
   markInvitationViewedByToken,
@@ -168,7 +167,7 @@ export async function registerAttemptTakeRoutes(
       // lifted for campus labs, so bound the session/DB work ONE link can trigger
       // from any number of IPs. 30/min covers preview + Begin + resumes/reloads.
       // Key is a hash — the plaintext token never reaches Redis.
-      const tokenKey = createHash("sha256").update(token).digest("hex").slice(0, 32);
+      const tokenKey = sha256Hex(token).slice(0, 32);
       const tokenBucket = await consumeRateLimit(`aiq:rl:take-token:${tokenKey}`, TAKE_TOKEN_MAX_PER_MIN, 60);
       if (!tokenBucket.allowed) {
         reply.header("Retry-After", String(tokenBucket.retryAfterSeconds));

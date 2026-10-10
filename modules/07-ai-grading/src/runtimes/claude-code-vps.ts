@@ -24,9 +24,8 @@
 // text including comments. Reference descriptively only.
 
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
 
-import { AppError, streamLogger } from "@assessiq/core";
+import { AppError, streamLogger, sha256Hex } from "@assessiq/core";
 
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import {
@@ -926,7 +925,7 @@ const SubmitRubricOutputSchema = z.object({
 });
 
 function hashString8(s: string): string {
-  return createHash("sha256").update(s).digest("hex").slice(0, 8);
+  return sha256Hex(s).slice(0, 8);
 }
 
 function sortedJsonHash(obj: object | null): string {

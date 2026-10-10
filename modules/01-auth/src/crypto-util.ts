@@ -1,5 +1,8 @@
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import { sealTagLast, openTagLast } from "@assessiq/core/aes-gcm";
+import { sha256Hex, timingSafeEqualStr } from "@assessiq/core";
+
+export { sha256Hex };
 
 // AES-256-GCM envelope shape: nonce(12) || ciphertext || authTag(16).
 // All AssessIQ-encrypted secrets at rest (TOTP secrets, embed signing keys)
@@ -13,15 +16,10 @@ export function decryptEnvelope(envelope: Buffer): Buffer {
   return openTagLast(envelope);
 }
 
-export function sha256Hex(input: string | Buffer): string {
-  return createHash("sha256").update(input).digest("hex");
-}
-
-// Constant-time equality. Returns false (without timing leak) on length
-// mismatch — the timingSafeEqual primitive itself throws on length mismatch.
+// Constant-time equality over bytes (latin1 maps each byte 1:1 to a char, so
+// string equality == byte equality). Delegates to the shared hash-then-compare.
 export function constantTimeEqual(a: Buffer, b: Buffer): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
+  return timingSafeEqualStr(a.toString("latin1"), b.toString("latin1"));
 }
 
 // 43-char base64url string (32 bytes of entropy = 256 bits). Used for

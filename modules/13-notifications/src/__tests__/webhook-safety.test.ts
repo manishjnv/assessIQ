@@ -22,7 +22,8 @@ const { mockLog } = vi.hoisted(() => ({
   mockLog: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 
-vi.mock('@assessiq/core', () => {
+vi.mock('@assessiq/core', async () => {
+  const shared = { ...(await import('@assessiq/core/hash')), ...(await import('@assessiq/core/escape')) };
   class AppError extends Error {
     readonly code: string;
     readonly status: number;
@@ -35,6 +36,7 @@ vi.mock('@assessiq/core', () => {
     }
   }
   return {
+    ...shared,
     config: {
       NODE_ENV: 'test',
       REDIS_URL: 'redis://localhost:6379',

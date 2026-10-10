@@ -22,7 +22,7 @@
 // Import note: uses relative import from ../src/runtime-selector.js to stay
 // within the workspace and avoid pnpm-install chicken-and-egg ordering.
 
-import { createHash } from "node:crypto";
+import { sha256Hex } from "@assessiq/core";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -647,9 +647,7 @@ async function cmdBless(runId: string): Promise<void> {
 
   // sha256(canonical(json) + adminId) — audit signal, not cryptographic
   const canonical = JSON.stringify(baselineUnsigned, Object.keys(baselineUnsigned).sort());
-  const signature = createHash("sha256")
-    .update(canonical + adminId)
-    .digest("hex");
+  const signature = sha256Hex(canonical + adminId);
 
   const baseline: BaselineFile = {
     ...baselineUnsigned,

@@ -19,7 +19,7 @@
  * production code path (per PHASE_3_KICKOFF.md anti-patterns list).
  */
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { hmacSha256Hex, timingSafeEqualStr } from '@assessiq/core';
 
 /**
  * Sign a request body string with HMAC-SHA256.
@@ -27,10 +27,7 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  *   sha256=<lowercase hex>
  */
 export function signPayload(body: string, secret: string): string {
-  const mac = createHmac('sha256', secret)
-    .update(body, 'utf8')
-    .digest('hex');
-  return `sha256=${mac}`;
+  return `sha256=${hmacSha256Hex(secret, body)}`;
 }
 
 /**
@@ -46,16 +43,7 @@ export function verifySignature(
 ): boolean {
   const expected = signPayload(body, secret);
 
-  // Convert to Buffers for timing-safe comparison.
-  // Both must be the same length — `sha256=` prefix + 64 hex chars = 71 chars.
-  const expectedBuf = Buffer.from(expected, 'utf8');
-  const receivedBuf = Buffer.from(receivedSignature, 'utf8');
-
-  if (expectedBuf.length !== receivedBuf.length) {
-    return false;
-  }
-
-  return timingSafeEqual(expectedBuf, receivedBuf);
+  return timingSafeEqualStr(expected, receivedSignature);
 }
 
 /** Receivers must reject timestamps older (or newer) than this. */
@@ -66,10 +54,7 @@ export const SIGNATURE_V2_TOLERANCE_SEC = 300;
  * `timestamp` is the exact string sent in X-AssessIQ-Timestamp (unix seconds).
  */
 export function signPayloadV2(body: string, secret: string, timestamp: string): string {
-  const mac = createHmac('sha256', secret)
-    .update(`${timestamp}.${body}`, 'utf8')
-    .digest('hex');
-  return `sha256=${mac}`;
+  return `sha256=${hmacSha256Hex(secret, `${timestamp}.${body}`)}`;
 }
 
 /**
@@ -89,8 +74,5 @@ export function verifySignatureV2(
   if (Math.abs(nowSec - Number(timestamp)) > (opts.toleranceSec ?? SIGNATURE_V2_TOLERANCE_SEC)) {
     return false;
   }
-  const expectedBuf = Buffer.from(signPayloadV2(body, secret, timestamp), 'utf8');
-  const receivedBuf = Buffer.from(receivedSignature, 'utf8');
-  if (expectedBuf.length !== receivedBuf.length) return false;
-  return timingSafeEqual(expectedBuf, receivedBuf);
+  return timingSafeEqualStr(signPayloadV2(body, secret, timestamp), receivedSignature);
 }

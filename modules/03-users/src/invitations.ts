@@ -1,5 +1,5 @@
-import { randomBytes, createHash } from 'node:crypto';
-import { streamLogger, NotFoundError, ConflictError, ValidationError, uuidv7, getRequestContext, config } from '@assessiq/core';
+import { randomBytes } from 'node:crypto';
+import { streamLogger, NotFoundError, ConflictError, ValidationError, uuidv7, getRequestContext, config, sha256Hex } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { auditInTx } from '@assessiq/audit-log';
 import { sendInvitationEmail } from '@assessiq/notifications';
@@ -21,7 +21,7 @@ function generateInvitationToken(): string {
 
 /** Compute the sha256 hex hash of the plaintext token for DB storage. */
 function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
+  return sha256Hex(token);
 }
 
 // ---------------------------------------------------------------------------

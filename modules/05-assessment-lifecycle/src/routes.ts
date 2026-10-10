@@ -32,7 +32,7 @@
 // never receives a broken Date.
 
 import type { FastifyInstance } from "fastify";
-import { AuthzError, ValidationError } from "@assessiq/core";
+import { AuthzError, ValidationError, UUID_RE, parsePagination } from "@assessiq/core";
 import { z } from "zod";
 import { updateAssessmentReminders } from "./reminders.js";
 import { AssessmentRemindersSettingsSchema } from "./types.js";
@@ -72,24 +72,6 @@ import type {
 // Pagination helper — inlined from 04-question-bank pattern (do NOT import)
 // ---------------------------------------------------------------------------
 
-function parsePagination(q: Record<string, string | undefined>): { page: number; pageSize: number } {
-  const pageRaw = q["page"] ?? "1";
-  const pageSizeRaw = q["pageSize"] ?? "20";
-  const page = parseInt(pageRaw, 10);
-  const pageSize = parseInt(pageSizeRaw, 10);
-
-  if (isNaN(page) || page < 1) {
-    throw new ValidationError("page must be a positive integer", {
-      details: { code: "INVALID_PARAM", param: "page" },
-    });
-  }
-  if (isNaN(pageSize) || pageSize < 1 || pageSize > 100) {
-    throw new ValidationError("pageSize must be between 1 and 100", {
-      details: { code: "INVALID_PARAM", param: "pageSize" },
-    });
-  }
-  return { page, pageSize };
-}
 
 // ---------------------------------------------------------------------------
 // Date deserialisation helper
@@ -284,7 +266,7 @@ export async function registerAssessmentLifecycleRoutes(
       const trimmed = typeof sourcePackId === "string" ? sourcePackId.trim() : "";
       // Validate UUID shape up front so a malformed path param returns a clean
       // 400 INVALID_PARAM instead of a Postgres cast error downstream.
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+      if (!UUID_RE.test(trimmed)) {
         throw new ValidationError("sourcePackId must be a valid UUID", {
           details: { code: "INVALID_PARAM", param: "sourcePackId" },
         });
@@ -308,7 +290,7 @@ export async function registerAssessmentLifecycleRoutes(
       const trimmed = typeof sourcePackId === "string" ? sourcePackId.trim() : "";
       // Validate UUID shape up front so a malformed path param returns a clean
       // 400 INVALID_PARAM instead of a Postgres cast error downstream.
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(trimmed)) {
+      if (!UUID_RE.test(trimmed)) {
         throw new ValidationError("sourcePackId must be a valid UUID", {
           details: { code: "INVALID_PARAM", param: "sourcePackId" },
         });

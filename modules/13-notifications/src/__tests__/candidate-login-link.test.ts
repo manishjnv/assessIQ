@@ -25,7 +25,9 @@ const { mockSendMail } = vi.hoisted(() => ({
 // Module mocks — must appear before importing the module under test
 // ---------------------------------------------------------------------------
 
-vi.mock('@assessiq/core', () => ({
+vi.mock('@assessiq/core', async () => ({
+  ...(await import('@assessiq/core/hash')),
+  ...(await import('@assessiq/core/escape')),
   config: {
     NODE_ENV: 'test',
     SMTP_URL: '',

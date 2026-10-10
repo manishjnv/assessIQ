@@ -2480,3 +2480,17 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `vitest-axe@0.1.0` types target the old `Vi` namespace. Vitest v4 declares `Assertion` in `@vitest/expect`, which is not hoisted for this package under pnpm, so no augmentation applied.
 **Fix:** The six tests assert `expect((await axe(container)).violations).toEqual([])`. Same check, no matcher type needed. `modules/17-ui-system/src/components/{ActivityHeatmap,LeaderboardList,Placeholder,ProgressBar,Spinner,StackedBarChart}.test.tsx`.
 **Prevention:** Run `pnpm -r typecheck` before every push (CI runs it). Do not rely on a module subset.
+
+## 2026-10-11 — RW-35: email meta-card `escapeHtml` did not escape the apostrophe
+
+**Symptom:** none seen in use. RW-35 found two `escapeHtml` copies that disagreed: `modules/13-notifications/src/email/contact.ts` escaped `'` and `email/render.ts` did not.
+**Cause:** `render.ts` had its own copy that escaped only `& < > "`. Meta-card values go in element text, so no known exploit, but the copies had drifted.
+**Fix:** one `escapeHtml` in `modules/00-core/src/escape.ts` (escapes `& < > " '`). `render.ts` and `contact.ts` import it. Rendered meta-card HTML now has `&#39;` where a value contains an apostrophe.
+**Prevention:** `tools/lint-core-helpers.ts` (in `pnpm lint:repo`) fails on any local `escapeHtml` outside 00-core.
+
+## 2026-10-11 — RW-35: CSV formula guard missed values with leading whitespace
+
+**Symptom:** none seen in use. Review found `csvCell` guarded only a first character of `= + - @ tab CR`, so `" =1+1"` or `"\n=1"` reached the file unguarded. Spreadsheet apps can still read such a cell as a formula.
+**Cause:** the guard regex `/^[=+\-@\t\r]/` in 15-analytics, 14-audit-log and 10-admin-dashboard looked at the first character only.
+**Fix:** one `csvCell` in `modules/00-core/src/escape.ts` with guard `/^(?:[\t\r]|\s*[=+\-@])/`. A cell with leading whitespace then `= + - @` now gets a `'` prefix (output change). A leading tab or CR still triggers it. Quoting rules are unchanged. 14 keeps JSON-encoding of objects through `auditCsvCell`.
+**Prevention:** unit tests in `modules/00-core/src/shared-helpers.test.ts`; the lint blocks local copies.

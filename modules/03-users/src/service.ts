@@ -1,4 +1,4 @@
-import { streamLogger, NotFoundError, ValidationError, ConflictError, uuidv7 } from '@assessiq/core';
+import { streamLogger, NotFoundError, ValidationError, ConflictError, uuidv7, DEFAULT_MAX_PAGE_SIZE } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { auditInTx } from '@assessiq/audit-log';
 import type {
@@ -26,7 +26,7 @@ const VALID_ROLES: ReadonlySet<string> = new Set(['admin', 'candidate']);
 const VALID_STATUSES: ReadonlySet<string> = new Set(['active', 'disabled', 'pending']);
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_NAME_LENGTH = 200;
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = DEFAULT_MAX_PAGE_SIZE;
 
 function assertValidEmail(email: string): void {
   if (!EMAIL_REGEX.test(email)) {

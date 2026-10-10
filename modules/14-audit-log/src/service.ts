@@ -15,7 +15,7 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 
 import { withTenant } from '@assessiq/tenancy';
-import { streamLogger } from '@assessiq/core';
+import { streamLogger, csvCell } from '@assessiq/core';
 import { Readable } from 'node:stream';
 import type { AuditRow, AuditListInput, AuditExportInput } from './types.js';
 
@@ -262,31 +262,23 @@ async function streamRows(
   });
 }
 
-export function csvEscape(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  let str = typeof value === 'object' ? JSON.stringify(value) : String(value);
-  // Formula-injection guard (RV77, same rule as 15-analytics results-export.ts): = + - @ tab CR.
-  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(str)) str = `'${str}`;
-  // RFC 4180: fields containing comma, double-quote, or newline are quoted.
-  if (/[",\n\r]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
+// Objects are JSON-encoded here (audit-only behaviour); csvCell does the guard + quoting.
+export const auditCsvCell = (value: unknown): string =>
+  csvCell(typeof value === 'object' && value !== null ? JSON.stringify(value) : (value as string | number | null | undefined));
 
 function rowToCsvLine(row: AuditRow): string {
   return [
     row.id,
     row.tenant_id,
-    csvEscape(row.actor_user_id),
+    auditCsvCell(row.actor_user_id),
     row.actor_kind,
     row.action,
     row.entity_type,
-    csvEscape(row.entity_id),
-    csvEscape(row.before),
-    csvEscape(row.after),
-    csvEscape(row.ip),
-    csvEscape(row.user_agent),
+    auditCsvCell(row.entity_id),
+    auditCsvCell(row.before),
+    auditCsvCell(row.after),
+    auditCsvCell(row.ip),
+    auditCsvCell(row.user_agent),
     row.at,
   ].join(',');
 }

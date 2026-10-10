@@ -27,8 +27,10 @@ import type { AddressInfo } from 'node:net';
 // Mock @assessiq/core config before importing any module that reads it
 // ---------------------------------------------------------------------------
 
-vi.mock('@assessiq/core', () => {
+vi.mock('@assessiq/core', async () => {
+  const shared = { ...(await import('@assessiq/core/hash')), ...(await import('@assessiq/core/escape')) };
   return {
+    ...shared,
     config: {
       NODE_ENV: 'test',
       REDIS_URL: 'redis://localhost:6379',

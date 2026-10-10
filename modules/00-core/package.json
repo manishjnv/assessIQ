@@ -8,7 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./aes-gcm": "./src/aes-gcm.ts",
-    "./redis": "./src/redis.ts"
+    "./redis": "./src/redis.ts",
+    "./escape": "./src/escape.ts",
+    "./hash": "./src/hash.ts"
   },
   "dependencies": {
     "ioredis": "^5.4.1"

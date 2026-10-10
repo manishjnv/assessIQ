@@ -11,7 +11,7 @@
  * NEVER import claude / @anthropic-ai from this file (Rule #1).
  */
 
-import { config, streamLogger } from '@assessiq/core';
+import { config, streamLogger, escapeHtml } from '@assessiq/core';
 import { resolveTransport } from './transport.js';
 
 const log = streamLogger('webhook'); // email sends go to webhook.log per § 8 stream table
@@ -20,14 +20,6 @@ const log = streamLogger('webhook'); // email sends go to webhook.log per § 8 s
 // HTML-escape helper — avoids a template-engine dep for a single static email
 // ---------------------------------------------------------------------------
 
-function escapeHtml(raw: string): string {
-  return raw
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
 
 // ---------------------------------------------------------------------------
 // Public API

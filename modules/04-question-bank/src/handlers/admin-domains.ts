@@ -16,11 +16,9 @@
  * adminOnly preHandler before calling these handlers.
  */
 
-import { ConflictError, ValidationError, uuidv7 } from "@assessiq/core";
+import { ConflictError, ValidationError, uuidv7, UUID_RE } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 
-// UUID regex - validates domain_id query param before handler is called.
-export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface DomainRow {
   id: string;

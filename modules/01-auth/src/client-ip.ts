@@ -14,10 +14,9 @@
 //
 // NEVER THROWS. All errors are caught; worst case returns req.ip or '0.0.0.0'.
 
-import { createHash, timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 import type { IncomingHttpHeaders } from "node:http";
-import { config, streamLogger } from "@assessiq/core";
+import { config, streamLogger, timingSafeEqualStr } from "@assessiq/core";
 
 const log = streamLogger("auth");
 
@@ -59,25 +58,8 @@ export function validCfIp(v: string | string[] | undefined): string | undefined 
   return s !== undefined && isIP(s) !== 0 ? s : undefined;
 }
 
-/**
- * Constant-time string comparison.
- *
- * Both sides are hashed to fixed-length 32-byte SHA-256 digests before the
- * timing-safe compare, so the comparison time is independent of BOTH the
- * attacker-supplied input length AND the secret length — there is no
- * length-mismatch branch and therefore no length-oracle surface at all
- * (adversarial finding 5; supersedes the earlier dummy-buffer approach whose
- * dummy was sized to the attacker-controlled input, not the secret).
- *
- * Never uses `===` for secret comparison. createHash/digest do not throw on
- * string input, and the function is only ever called inside isOriginVerified's
- * try/catch regardless.
- */
-function timingSafeEqualStr(a: string, b: string): boolean {
-  const da = createHash("sha256").update(a, "utf8").digest();
-  const db = createHash("sha256").update(b, "utf8").digest();
-  return timingSafeEqual(da, db);
-}
+// Secret comparison uses timingSafeEqualStr from @assessiq/core (hash-then-compare,
+// no length oracle; adversarial finding 5).
 
 /**
  * Pure predicate: did this request provably traverse Cloudflare?
