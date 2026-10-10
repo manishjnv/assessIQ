@@ -17,7 +17,7 @@
  * Coverage:
  *   - role=all   → both audit + attempt rows, ordered at DESC
  *   - role=admin → only admin/super_admin audit rows
- *   - role=reviewer → only reviewer audit rows
+ *   - legacy reviewer actor rows → actorRole 'system' (role removed, RV60)
  *   - role=candidate → only attempt_events rows
  *   - pagination → total is full count; page 2 returns next slice
  *   - system actor (actor_kind='system', null actor_user_id) → actorRole=system, no crash
@@ -451,7 +451,7 @@ describe('getActivityFeed', () => {
         expect(item.id).toMatch(/^(audit|attempt):\d+$/);
         expect(['audit', 'attempt']).toContain(item.source);
         expect(item.at).toMatch(/^\d{4}-\d{2}-\d{2}T/); // ISO string
-        expect(['admin', 'reviewer', 'candidate', 'system']).toContain(item.actorRole);
+        expect(['admin', 'candidate', 'system']).toContain(item.actorRole);
         expect(typeof item.actorLabel).toBe('string');
         expect(typeof item.action).toBe('string');
         expect(typeof item.actionLabel).toBe('string');
@@ -487,29 +487,6 @@ describe('getActivityFeed', () => {
       const result = await getActivityFeed(F.tenantA, { role: 'admin', page: 1, pageSize: 50 });
       const sources = result.items.map((i) => i.source);
       expect(sources).not.toContain('attempt');
-    });
-  });
-
-  // -------------------------------------------------------------------------
-  // role=reviewer
-  // -------------------------------------------------------------------------
-  describe('role=reviewer', () => {
-    it('returns only reviewer audit rows', async () => {
-      const result = await getActivityFeed(F.tenantA, { role: 'reviewer', page: 1, pageSize: 50 });
-
-      expect(result.items.length).toBeGreaterThanOrEqual(1);
-      for (const item of result.items) {
-        expect(item.source).toBe('audit');
-        expect(item.actorRole).toBe('reviewer');
-      }
-    });
-
-    it('does not include admin, system, or attempt rows', async () => {
-      const result = await getActivityFeed(F.tenantA, { role: 'reviewer', page: 1, pageSize: 50 });
-      const roles = result.items.map((i) => i.actorRole);
-      expect(roles).not.toContain('admin');
-      expect(roles).not.toContain('system');
-      expect(roles).not.toContain('candidate');
     });
   });
 
@@ -594,15 +571,28 @@ describe('getActivityFeed', () => {
 
     it('unknown action falls back to humanized form (dots → spaces)', async () => {
       // We don't have an unknown action in the DB, so test the label logic directly
-      // by checking grading.released (reviewer action)
+      // by checking grading.released (legacy reviewer-actor row)
       const result = await getActivityFeed(F.tenantA, {
-        role: 'reviewer',
+        role: 'all',
         action: 'grading.released',
         page: 1,
         pageSize: 10,
       });
       expect(result.items.length).toBeGreaterThanOrEqual(1);
       expect(result.items[0]!.actionLabel).toBe('released graded attempt');
+    });
+
+    it('legacy reviewer audit rows map to actorRole system', async () => {
+      const result = await getActivityFeed(F.tenantA, {
+        role: 'all',
+        action: 'grading.released',
+        page: 1,
+        pageSize: 10,
+      });
+      expect(result.items.length).toBeGreaterThanOrEqual(1);
+      for (const item of result.items) {
+        expect(item.actorRole).toBe('system');
+      }
     });
   });
 

@@ -466,7 +466,7 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
         );
       }
 
-      const effectiveRole = newRole ?? (target.role as 'admin' | 'reviewer');
+      const effectiveRole = newRole ?? (target.role as 'admin');
       const wasPending = target.status === 'pending';
 
       // ---- Transaction: apply name/role/email + audit; clean up oauth link ----

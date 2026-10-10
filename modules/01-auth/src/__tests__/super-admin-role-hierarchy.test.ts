@@ -55,15 +55,9 @@ describe("require-auth — super_admin role hierarchy", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("super_admin passes roles:['reviewer']", async () => {
+  it("super_admin passes roles:['admin','candidate']", async () => {
     await expect(
-      requireAuth({ roles: ["reviewer"] })(makeReq("super_admin") as never, {} as never),
-    ).resolves.toBeUndefined();
-  });
-
-  it("super_admin passes roles:['admin','reviewer']", async () => {
-    await expect(
-      requireAuth({ roles: ["admin", "reviewer"] })(makeReq("super_admin") as never, {} as never),
+      requireAuth({ roles: ["admin", "candidate"] })(makeReq("super_admin") as never, {} as never),
     ).resolves.toBeUndefined();
   });
 

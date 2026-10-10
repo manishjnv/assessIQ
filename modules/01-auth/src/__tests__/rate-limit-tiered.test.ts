@@ -151,7 +151,7 @@ describe("resolveIpBucketMax — auth-tier-aware IP bucket selection", () => {
   });
 
   it("T3b: reviewer (removed role) → IP_USER — no admin tier", () => {
-    const req = makeReq({ session: makeSession("reviewer", false) });
+    const req = makeReq({ session: makeSession("reviewer" as never, false) });
     expect(resolveIpBucketMax(req)).toBe(mockConfig.RATE_LIMIT_IP_USER);
   });
 

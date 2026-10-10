@@ -32,7 +32,7 @@ import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
 
-type Audience = "admin" | "candidate" | "all" | "reviewer";
+type Audience = "admin" | "candidate" | "all";
 
 interface HelpEntry {
   id: string;

@@ -60,7 +60,7 @@ const OUTPUT_FILE = path.join(
 // ---------------------------------------------------------------------------
 
 const HelpEntrySchema = z.object({
-  audience: z.enum(["admin", "reviewer", "candidate", "all"]),
+  audience: z.enum(["admin", "candidate", "all"]),
   short_text: z.string().min(1).max(120),
   long_md: z.string().optional(),
   related_keys: z.array(z.string()).optional(),

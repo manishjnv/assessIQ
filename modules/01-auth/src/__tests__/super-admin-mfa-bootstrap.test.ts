@@ -65,7 +65,7 @@ describe("super-admin MFA bootstrap — require-auth gate contract", () => {
   it("A. pre-TOTP super_admin + explicit requireTotpVerified:false + super_admin in roles → PASSES (whoami / TOTP-bootstrap reachable)", async () => {
     const req = makeReq({ role: "super_admin", totpVerified: false });
     const hook = requireAuth({
-      roles: ["admin", "reviewer", "super_admin"],
+      roles: ["admin", "super_admin"],
       requireTotpVerified: false,
     });
     await expect(hook(req as never, {} as never)).resolves.toBeUndefined();
@@ -99,7 +99,7 @@ describe("super-admin MFA bootstrap — require-auth gate contract", () => {
 
   // ---- Defect #2: backend role gate has no hierarchy ----------------------
 
-  it("D. pre-TOTP super_admin + requireTotpVerified:false + roles:['admin','reviewer'] → PASSES (superseded 2026-05-17 by the role hierarchy)", async () => {
+  it("D. pre-TOTP super_admin + requireTotpVerified:false + roles:['admin'] → PASSES (superseded 2026-05-17 by the role hierarchy)", async () => {
     // SUPERSEDED, intentionally: this case originally asserted AuthzError —
     // back when the backend role gate was exact includes() with no hierarchy,
     // so super_admin had to be an EXPLICIT member of every roles[] (Defect #2
@@ -113,7 +113,7 @@ describe("super-admin MFA bootstrap — require-auth gate contract", () => {
     // "role super_admin not authorized" dashboard error.
     const req = makeReq({ role: "super_admin", totpVerified: false });
     const hook = requireAuth({
-      roles: ["admin", "reviewer"],
+      roles: ["admin"],
       requireTotpVerified: false,
     });
     await expect(hook(req as never, {} as never)).resolves.toBeUndefined();
@@ -124,7 +124,7 @@ describe("super-admin MFA bootstrap — require-auth gate contract", () => {
   it("E. pre-MFA admin (non-super) + requireTotpVerified:false → PASSES (existing first-login bootstrap behaviour unchanged)", async () => {
     const req = makeReq({ role: "admin", totpVerified: false });
     const hook = requireAuth({
-      roles: ["admin", "reviewer"],
+      roles: ["admin"],
       requireTotpVerified: false,
     });
     await expect(hook(req as never, {} as never)).resolves.toBeUndefined();
@@ -137,7 +137,7 @@ describe("super-admin MFA bootstrap — require-auth gate contract", () => {
       lastTotpAt: new Date().toISOString(),
     });
     const hook = requireAuth({
-      roles: ["admin", "reviewer", "super_admin"],
+      roles: ["admin", "super_admin"],
       requireTotpVerified: false,
     });
     await expect(hook(req as never, {} as never)).resolves.toBeUndefined();
@@ -146,7 +146,7 @@ describe("super-admin MFA bootstrap — require-auth gate contract", () => {
   it("G. candidate hitting a TOTP route (roles[] excludes candidate) + requireTotpVerified:false → AuthzError (role gate runs BEFORE the TOTP opt-out; opt-out is not a role bypass)", async () => {
     const req = makeReq({ role: "candidate", totpVerified: false });
     const hook = requireAuth({
-      roles: ["admin", "reviewer", "super_admin"],
+      roles: ["admin", "super_admin"],
       requireTotpVerified: false,
     });
     await expect(hook(req as never, {} as never)).rejects.toMatchObject({

@@ -54,7 +54,7 @@ const allKeys = Object.keys(parsed);
 // Constants
 // ---------------------------------------------------------------------------
 
-const VALID_AUDIENCES = new Set(["admin", "reviewer", "candidate", "all"]);
+const VALID_AUDIENCES = new Set(["admin", "candidate", "all"]);
 const SHORT_TEXT_MAX = 120;
 
 /**

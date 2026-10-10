@@ -42,7 +42,7 @@ import { audit } from '@assessiq/audit-log';
 // super_admin is intentionally excluded from the dev minter: the super_admin
 // role is a platform-operator role tied to a specific platform tenant. E2E
 // tests that need super_admin capabilities must set up that tenant separately.
-const ROLE_VALUES = ['admin', 'reviewer', 'candidate'] as const;
+const ROLE_VALUES = ['admin', 'candidate'] as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface MintBody {
@@ -150,7 +150,7 @@ export async function registerDevMintSessionRoute(app: FastifyInstance): Promise
         throw new ValidationError('email: invalid format', { details: { code: 'INVALID_EMAIL' } });
       }
       if (!ROLE_VALUES.includes(role as (typeof ROLE_VALUES)[number])) {
-        throw new ValidationError('role: must be admin | reviewer | candidate', {
+        throw new ValidationError('role: must be admin | candidate', {
           details: { code: 'INVALID_ROLE' },
         });
       }
@@ -168,7 +168,7 @@ export async function registerDevMintSessionRoute(app: FastifyInstance): Promise
       // Otherwise an attacker with mint-endpoint access (staging mis-config)
       // could escalate any existing candidate to admin by passing role:'admin'.
       //
-      // SECURITY: when no user exists, refuse to mint admin/reviewer accounts.
+      // SECURITY: when no user exists, refuse to mint admin accounts.
       // Privileged accounts must come from the real invitation flow. The
       // minter is for E2E candidate flows + pre-seeded admin fixtures only.
       const existing = await findUserSystemRole(tenant.id, email);
@@ -181,7 +181,7 @@ export async function registerDevMintSessionRoute(app: FastifyInstance): Promise
         if (role !== 'candidate') {
           throw new AuthnError(
             `dev-mint-session: refusing to create new ${role} account; ` +
-              `only 'candidate' may be auto-created. Seed admin/reviewer via the real invitation flow.`,
+              `only 'candidate' may be auto-created. Seed admin via the real invitation flow.`,
           );
         }
         userId = (await createUserSystemRole(tenant.id, email, role)).id;

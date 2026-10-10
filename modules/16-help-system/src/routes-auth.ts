@@ -17,7 +17,7 @@ import { getHelpForPage, getHelpKey } from "./service.js";
 // Matches help_id segments: lowercase letters, digits, underscores, dots.
 const HELP_KEY_RE = /^[a-z0-9_]+(\.[a-z0-9_]+)*$/;
 const LOCALE_RE = /^\w{2,3}(-[A-Z]{2})?$/;
-const AUDIENCE_VALUES = new Set<string>(["admin", "reviewer", "candidate", "all"]);
+const AUDIENCE_VALUES = new Set<string>(["admin", "candidate", "all"]);
 
 const DEFAULT_AUDIENCE: Audience = "all";
 const DEFAULT_LOCALE = "en";

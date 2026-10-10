@@ -84,7 +84,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
         });
       }
 
-      const role = q['role'] as 'admin' | 'reviewer' | 'candidate' | undefined;
+      const role = q['role'] as 'admin' | 'candidate' | undefined;
       const status = q['status'] as 'active' | 'disabled' | 'pending' | undefined;
       const search = q['search'];
       const includeDeleted = q['includeDeleted'] === 'true';

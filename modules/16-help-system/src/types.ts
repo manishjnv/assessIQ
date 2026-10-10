@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export type Audience = "admin" | "reviewer" | "candidate" | "all";
+export type Audience = "admin" | "candidate" | "all";
 
 export const HelpEntrySchema = z.object({
   id: z.string().uuid(),
@@ -12,7 +12,7 @@ export const HelpEntrySchema = z.object({
       /^[a-z0-9_]+(\.[a-z0-9_]+)*$/,
       "help_id segments must be lowercase [a-z0-9_], dot-separated",
     ),
-  audience: z.enum(["admin", "reviewer", "candidate", "all"]),
+  audience: z.enum(["admin", "candidate", "all"]),
   locale: z.string().min(2), // e.g. 'en', 'hi-IN'
   shortText: z.string().min(1).max(120),
   longMd: z.string().nullable(),
@@ -34,7 +34,7 @@ export const HelpReadEnvelopeSchema = HelpEntrySchema.omit({
 export type HelpReadEnvelope = z.infer<typeof HelpReadEnvelopeSchema>;
 
 export const UpsertHelpInputSchema = z.object({
-  audience: z.enum(["admin", "reviewer", "candidate", "all"]),
+  audience: z.enum(["admin", "candidate", "all"]),
   locale: z.string().default("en"),
   shortText: z.string().min(1).max(120),
   longMd: z.string().nullable().optional(),

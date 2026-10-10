@@ -62,7 +62,7 @@ export type OidcCallbackOutput =
         id: string;
         email: string;
         tenantId: string;
-        role: "admin" | "super_admin" | "reviewer" | "candidate";
+        role: "admin" | "super_admin" | "candidate";
       };
       redirectTo: string;
     }
@@ -281,7 +281,7 @@ interface UserRow {
   id: string;
   tenant_id: string;
   email: string;
-  role: "admin" | "super_admin" | "reviewer" | "candidate";
+  role: "admin" | "super_admin" | "candidate";
   status: string;
   deleted_at: string | null;
 }

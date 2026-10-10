@@ -235,7 +235,7 @@ it("sessions.get returns the session with correct structure and ISO 8601 UTC tim
   const created = await sessions.create({
     userId: userA,
     tenantId: tenantA,
-    role: "reviewer",
+    role: "candidate",
     totpVerified: true,
     ip: "10.0.0.1",
     ua: "vitest/1",
@@ -248,7 +248,7 @@ it("sessions.get returns the session with correct structure and ISO 8601 UTC tim
   expect(sess).toHaveProperty("id");
   expect(sess).toHaveProperty("userId", userA);
   expect(sess).toHaveProperty("tenantId", tenantA);
-  expect(sess).toHaveProperty("role", "reviewer");
+  expect(sess).toHaveProperty("role", "candidate");
   expect(sess).toHaveProperty("totpVerified", true);
   expect(sess).toHaveProperty("createdAt");
   expect(sess).toHaveProperty("expiresAt");

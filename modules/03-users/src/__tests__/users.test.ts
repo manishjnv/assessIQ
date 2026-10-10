@@ -575,12 +575,12 @@ describe('createUser role-derived status', () => {
     });
     const admin = await createUser(tid, { email: 'boss@norev.com', name: 'Boss', role: 'admin' });
     const bad = (e: unknown) => e instanceof ValidationError;
-    // 'reviewer' stays in the TS union (legacy rows), so no cast is needed.
-    await expect(createUser(tid, { email: 'r1@norev.com', name: 'R', role: 'reviewer' })).rejects.toSatisfy(bad);
+    // 'reviewer' left the TS union (2026-10-10); cast to test the runtime guard.
+    await expect(createUser(tid, { email: 'r1@norev.com', name: 'R', role: 'reviewer' as never })).rejects.toSatisfy(bad);
     await expect(
-      inviteUser(tid, { email: 'r2@norev.com', role: 'reviewer', invited_by: admin.id }),
+      inviteUser(tid, { email: 'r2@norev.com', role: 'reviewer' as never, invited_by: admin.id }),
     ).rejects.toSatisfy(bad);
-    await expect(updateUser(tid, admin.id, { role: 'reviewer' })).rejects.toSatisfy(bad);
+    await expect(updateUser(tid, admin.id, { role: 'reviewer' as never })).rejects.toSatisfy(bad);
   });
 });
 
