@@ -1,3 +1,40 @@
+# Session — 2026-10-10 — Hardening S6 (RW-26..31)
+
+**Headline:** Hardening S6 complete. Six rows shipped: TokenLanding blocked Begin logic with disclosure (RW-26), Attempt.tsx topic chip removal and help drawer relocation (RW-27), AutosaveIndicator state collapse to plain language (RW-28), candidate error pages with unified copy strategy (RW-29), Try.tsx label standardization for demo (RW-30), auth terminology standardization (sign-in code, authenticator code, backup codes, two-step) (RW-31). All deployed to VPS; tests 118+ pass; RW-29 security gate accepted.
+
+**Commits:** `529197b` — feat(11,10,web): hardening S6 — candidate copy standardization (RW-26..31). Pushed to origin/main 2026-10-10 10:17 IST.
+
+**Deploy:** VPS at 529197b — assessiq-api + assessiq-frontend rebuilt; health check pass (/api/health 200, /api/ready ready with db, redis, claude true).
+
+**Tests:** Phase 2 gates: typecheck 0 errors, lint 0 errors, tests 118+/110 pass. No regressions on RW-26..31 code paths. Phase 3 Opus review flagged RW-26 (disclosure position), RW-28 (dead props), RW-29 (error mapping), RW-31 (consistency gaps). Phase 4 parallel revisions fixed all 4 issues.
+
+**Rows:** RW-26 ✅, RW-27 ✅, RW-28 ✅, RW-29 ✅ (security gate accept), RW-30 ✅, RW-31 ✅. All ticked in PENDING_TASKS with commit SHA and deployment status.
+
+**Next:** S7 (component system and tests — RW-32..35) or next pending row from PENDING_TASKS.
+
+**Open questions:** None.
+
+---
+
+## Agent utilization
+- Opus: Phase 0 (context read), Phase 3 (diff review on RW-26/28/29/31), Phase 6 (PENDING_TASKS tick + SESSION_STATE handoff).
+- Sonnet: Phase 1 (6 parallel agents: RW-26..31); 4 parallel revisions in Phase 4 (RW-26 disclosure, RW-28 @deprecated props, RW-29 error mapping, RW-31 consistency).
+- Haiku: Phase 0 (brief digest from memory + prior decisions).
+- codex:rescue: n/a — non-load-bearing path (modules 11/10/web, no 01/02/07/14).
+- claude-mem: n/a — not used.
+
+**Routing telemetry**
+- sonnet · RW-26 TokenLanding disclosure · reworked: Y (disclosure position, begin logic wiring)
+- sonnet · RW-27 Attempt topic chip + help · reworked: N
+- sonnet · RW-28 AutosaveIndicator collapse · reworked: Y (dead props marked @deprecated)
+- sonnet · RW-29 error pages unified copy · reworked: Y (error-code mapping 429/5xx → generic)
+- sonnet · RW-30 Try.tsx label alignment · reworked: N
+- sonnet · RW-31 auth terminology · reworked: Y (AdminShell + admin-guide two-factor → two-step)
+
+**Old task checked (Rule B):** Prior S5 (f6afe93) confirmed live 2026-10-10 08:44; no dormant features conflict with S6 scope; RW-12 glossary (2026-10-09) underpins all 6 rows.
+
+---
+
 # Session — 2026-10-10 — Hardening S5 (RW-20, RW-22..25)
 
 **Headline:** Hardening S5 complete. Five rows shipped: IndividualReport backend contract (RW-20), attempt-detail UX with 3-step status bar (RW-22), grading panel refinements with sticky footer and labels (RW-23), tenant-settings three-tab refactor (RW-24), admin FU-B pages with routes and help IDs (RW-25). All deployed to VPS; tests 106/110 pass (4 deferred to S6).
