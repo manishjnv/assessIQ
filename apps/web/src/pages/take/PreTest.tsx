@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react';
 import { Button, Chip } from '@assessiq/ui-system';
 import { AFTER_SUBMIT_TEXT } from '@assessiq/candidate-ui';
+import { apiRequest } from '../../lib/api.js';
 import { McqAnswerArea } from './McqAnswerArea.js';
 
 const SECTION: CSSProperties = {
@@ -39,8 +40,8 @@ async function serverReachable(): Promise<boolean> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 6000);
   try {
-    const res = await fetch('/api/health', { cache: 'no-store', signal: ctl.signal });
-    return res.ok;
+    await apiRequest('/health', { cache: 'no-store', signal: ctl.signal });
+    return true;
   } catch {
     return false;
   } finally {

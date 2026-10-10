@@ -1,20 +1,7 @@
-const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
+import { createApiClient, createApiRequest } from '@assessiq/http-client';
 
-export interface ApiError {
-  code: string;
-  message: string;
-  details?: Record<string, unknown>;
-}
-
-export class ApiCallError extends Error {
-  status: number;
-  apiError: ApiError;
-  constructor(status: number, apiError: ApiError) {
-    super(apiError.message);
-    this.status = status;
-    this.apiError = apiError;
-  }
-}
+export { ApiCallError } from '@assessiq/http-client';
+export type { ApiError } from '@assessiq/http-client';
 
 // Cookie-based auth via @assessiq/auth's sessionLoader. The aiq_sess cookie
 // is set httpOnly+Secure+SameSite=Lax by /api/auth/google/cb (and the
@@ -29,27 +16,10 @@ export class ApiCallError extends Error {
 // content-type. Discovered when the post-SSO MFA enrollment loop showed
 // the "Verify" UI instead of the QR — 400 from the body parser made the
 // SPA's catch fall through to its default error path.
-export async function api<T = unknown>(
-  path: string,
-  init: RequestInit = {},
-): Promise<T> {
-  const hasBody = init.body !== undefined && init.body !== null;
-  const res = await fetch(`${API_BASE}${path}`, {
-    credentials: 'include',
-    ...init,
-    headers: {
-      ...(hasBody ? { 'Content-Type': 'application/json' } : {}),
-      ...(init.headers ?? {}),
-    },
-  });
+//
+// The implementation lives in @assessiq/http-client (single fetch layer).
+const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
 
-  if (!res.ok) {
-    let body: { error?: ApiError };
-    try { body = await res.json(); } catch { body = {}; }
-    const apiErr: ApiError = body.error ?? { code: `HTTP_${res.status}`, message: res.statusText };
-    throw new ApiCallError(res.status, apiErr);
-  }
-
-  if (res.status === 204) return undefined as T;
-  return res.json() as Promise<T>;
-}
+export const api = createApiClient(API_BASE);
+/** Like `api` but resolves to the raw Response (for callers that need headers/status only). */
+export const apiRequest = createApiRequest(API_BASE);

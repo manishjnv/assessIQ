@@ -7,6 +7,7 @@
 // /api/auth/google/cb (admin path) or /api/take/start (magic-link path,
 // Session 4b). credentials:'include' sends it on every call.
 
+import { ApiCallError, createApiClient, createApiRequest } from "@assessiq/http-client";
 import type {
   AttemptAnswerWire,
   AttemptResultWire,
@@ -22,49 +23,15 @@ import type {
 
 const DEFAULT_BASE = "/api";
 
-export class CandidateApiError extends Error {
-  status: number;
-  apiError: ApiErrorEnvelope;
+export class CandidateApiError extends ApiCallError {
   constructor(status: number, apiError: ApiErrorEnvelope) {
-    super(apiError.message);
-    this.status = status;
-    this.apiError = apiError;
+    super(status, apiError);
     this.name = "CandidateApiError";
   }
 }
 
-interface CallOptions extends RequestInit {
-  /** Override the API base, e.g. "" for /take which is mounted bare-root. */
-  base?: string;
-}
-
-async function call<T>(path: string, init: CallOptions = {}): Promise<T> {
-  const { base = DEFAULT_BASE, ...rest } = init;
-  const hasBody = rest.body !== undefined && rest.body !== null;
-  const res = await fetch(`${base}${path}`, {
-    credentials: "include",
-    ...rest,
-    headers: {
-      ...(hasBody ? { "Content-Type": "application/json" } : {}),
-      ...(rest.headers ?? {}),
-    },
-  });
-
-  if (!res.ok) {
-    let body: { error?: ApiErrorEnvelope };
-    try {
-      body = (await res.json()) as { error?: ApiErrorEnvelope };
-    } catch {
-      body = {};
-    }
-    const apiErr: ApiErrorEnvelope =
-      body.error ?? { code: `HTTP_${res.status}`, message: res.statusText };
-    throw new CandidateApiError(res.status, apiErr);
-  }
-
-  if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
-}
+const request = createApiRequest(DEFAULT_BASE, CandidateApiError);
+const call = createApiClient(DEFAULT_BASE, CandidateApiError);
 
 // ─── Magic-link entry (Session 4b backend) ───────────────────────────────────
 
@@ -141,24 +108,10 @@ export async function saveAnswer(
   args: SaveAnswerArgs,
 ): Promise<{ client_revision: number }> {
   const { attemptId, questionId, ...payload } = args;
-  const res = await fetch(`${DEFAULT_BASE}/me/attempts/${encodeURIComponent(attemptId)}/answer`, {
+  const res = await request(`/me/attempts/${encodeURIComponent(attemptId)}/answer`, {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ question_id: questionId, ...payload }),
   });
-
-  if (!res.ok) {
-    let body: { error?: ApiErrorEnvelope };
-    try {
-      body = (await res.json()) as { error?: ApiErrorEnvelope };
-    } catch {
-      body = {};
-    }
-    const apiErr: ApiErrorEnvelope =
-      body.error ?? { code: `HTTP_${res.status}`, message: res.statusText };
-    throw new CandidateApiError(res.status, apiErr);
-  }
 
   // Server sends X-Client-Revision per docs/03-api-contract.md § Candidate.
   // Fall back to the local +1 if the header is missing (proxy stripping etc.).

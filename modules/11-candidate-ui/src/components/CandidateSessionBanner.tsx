@@ -1,4 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { createApiClient } from '@assessiq/http-client';
+
+const http = createApiClient('/api');
 
 // ---------------------------------------------------------------------------
 // Props
@@ -87,10 +90,8 @@ export function CandidateSessionBanner({
     if (!email || renewStatus !== 'idle') return;
     setRenewStatus('sending');
     try {
-      await fetch('/api/auth/candidate/request-link', {
+      await http('/auth/candidate/request-link', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
       });
     } catch {

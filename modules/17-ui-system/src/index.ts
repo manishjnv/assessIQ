@@ -32,6 +32,9 @@ export type { Viewport } from "./hooks/useViewport.js";
 
 export { useViewportSync } from "./hooks/useViewportSync.js";
 
+export { useApi } from "./hooks/useApi.js";
+export type { UseApiOptions, UseApiResult } from "./hooks/useApi.js";
+
 export { ThemeProvider } from "./theme/ThemeProvider.js";
 export type { ThemeProviderProps, TenantBranding, ThemeMode, DensityMode } from "./theme/ThemeProvider.js";
 
