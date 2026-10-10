@@ -15,6 +15,7 @@
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/auth": "workspace:*",
     "@assessiq/core": "workspace:*",
+    "@assessiq/question-types": "workspace:*",
     "@assessiq/rubric-engine": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "fastify": "^5.12.2",

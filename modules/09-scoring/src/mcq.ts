@@ -21,6 +21,7 @@
 
 import type { PoolClient } from "pg";
 import { streamLogger } from "@assessiq/core";
+import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import { finalizeAttemptIfComplete } from "./finalize.js";
 import { getAttemptScore } from "./repository.js";
@@ -54,8 +55,8 @@ export function isMcqAnswerCorrect(content: unknown, answer: unknown): boolean {
   return selected === correct;
 }
 
-/** Types scored here with NO AI. Keep in sync with the `qv.type IN (...)` SQL below. */
-export const DETERMINISTIC_TYPES = ["mcq", "numeric", "multi_select", "ordering", "structured_case"] as const;
+/** Types scored here with NO AI. Single source: the question-type registry (feeds the `qv.type = ANY($n)` SQL below). */
+export const DETERMINISTIC_TYPES = DETERMINISTIC_IDS;
 
 /** Extract the numeric value of a stored numeric answer: number, {value}, or numeric string ("1,250"). */
 export function parseNumericAnswer(answer: unknown): number | null {
@@ -197,8 +198,8 @@ export async function scoreMcqForAttempt(
          ON aa.attempt_id = aq.attempt_id
         AND aa.question_id = aq.question_id
       WHERE aq.attempt_id = $1
-        AND qv.type IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case')`,
-    [attemptId],
+        AND qv.type = ANY($2)`,
+    [attemptId, DETERMINISTIC_IDS],
   );
 
   let inserted = 0;
@@ -270,14 +271,14 @@ export async function scoreMcqAndFinalizeIfComplete(
          JOIN question_versions qv
            ON qv.question_id = aq.question_id AND qv.version = aq.question_version
         WHERE aq.attempt_id = $1
-          AND qv.type IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case')
+          AND qv.type = ANY($2)
           AND NOT EXISTS (
             SELECT 1 FROM gradings g
              WHERE g.attempt_id = aq.attempt_id
                AND g.question_id = aq.question_id
                AND g.grader = 'deterministic'
           )`,
-      [attemptId],
+      [attemptId, DETERMINISTIC_IDS],
     );
     if ((unscored.rows[0]?.n ?? 0) > 0) {
       log.warn({ tenantId, attemptId, mcqUnscored: unscored.rows[0]?.n }, "mcq.finalize.skipped_missing_snapshot");

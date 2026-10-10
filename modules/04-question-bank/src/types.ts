@@ -17,211 +17,56 @@ export {
   type Rubric,
 };
 
-// ---------------------------------------------------------------------------
-// Question-content schemas — one per type, keyed to docs/02-data-model.md
-// § "questions.content shapes by type"
-// ---------------------------------------------------------------------------
+// Content schemas, QUESTION_TYPES and the per-type registry live in the leaf package
+// @assessiq/question-types (RW-54a). Re-exported here so existing importers keep working.
+import {
+  QUESTION_TYPES,
+  QUESTION_TYPE_REGISTRY,
+  McqContentSchema,
+  NumericContentSchema,
+  MultiSelectContentSchema,
+  OrderingContentSchema,
+  StructuredCaseStepSchema,
+  StructuredCaseContentSchema,
+  SubjectiveContentSchema,
+  KqlContentSchema,
+  ScenarioContentSchema,
+  LogAnalysisContentSchema,
+  type QuestionType,
+} from "@assessiq/question-types";
 
-// MCQ (data-model lines 273-281)
-// correct is an index into options; superRefine guards the upper bound.
-export const McqContentSchema = z.object({
-  question: z.string().min(1),
-  options: z.array(z.string().min(1)).min(2).max(8),
-  correct: z.number().int().min(0),
-  rationale: z.string().min(1),
-}).strict()
-  .superRefine((val, ctx) => {
-    if (val.correct >= val.options.length) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["correct"],
-        message: "correct must be a valid index into options",
-      });
-    }
-  });
+export {
+  QUESTION_TYPES,
+  McqContentSchema,
+  NumericContentSchema,
+  MultiSelectContentSchema,
+  OrderingContentSchema,
+  StructuredCaseStepSchema,
+  StructuredCaseContentSchema,
+  SubjectiveContentSchema,
+  KqlContentSchema,
+  ScenarioContentSchema,
+  LogAnalysisContentSchema,
+  type QuestionType,
+};
 
 export type McqContent = z.infer<typeof McqContentSchema>;
-
-// Numeric � "enter the value". Deterministic: correct iff |given - answer| <= tolerance
-// (absolute, default 0). `unit` is display-only (shown after the input); no conversion.
-export const NumericContentSchema = z.object({
-  question: z.string().min(1),
-  answer: z.number().finite(),
-  tolerance: z.number().finite().min(0).optional(),
-  unit: z.string().min(1).max(20).optional(),
-  rationale: z.string().min(1).optional(),
-}).strict();
-
 export type NumericContent = z.infer<typeof NumericContentSchema>;
-
-// Multi-select � "select all that apply". Deterministic. `correct` = original option indexes.
-export const MultiSelectContentSchema = z.object({
-  question: z.string().min(1),
-  options: z.array(z.string().min(1)).min(2).max(10),
-  correct: z.array(z.number().int().min(0)).min(1),
-  scoring: z.enum(["all_or_nothing", "partial"]).optional(),
-  rationale: z.string().min(1).optional(),
-}).strict()
-  .superRefine((val, ctx) => {
-    if (new Set(val.correct).size !== val.correct.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["correct"], message: "correct must not repeat an index" });
-    }
-    if (val.correct.some((i) => i >= val.options.length)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["correct"], message: "correct must be valid indexes into options" });
-    }
-  });
-
 export type MultiSelectContent = z.infer<typeof MultiSelectContentSchema>;
-
-// Ordering - "put these steps in the right order". Deterministic. `correct_order` = item indexes
-// (into `items`) in the right order; a permutation of 0..items.length-1. Never sent to candidates.
-export const OrderingContentSchema = z.object({
-  question: z.string().min(1),
-  items: z.array(z.string().min(1)).min(2).max(10),
-  correct_order: z.array(z.number().int().min(0)),
-  scoring: z.enum(["all_or_nothing", "partial"]).optional(),
-  explanation: z.string().min(1).optional(),
-}).strict()
-  .superRefine((val, ctx) => {
-    const n = val.items.length;
-    const co = val.correct_order;
-    if (co.length !== n || new Set(co).size !== n || co.some((i) => i >= n)) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["correct_order"], message: "correct_order must be a permutation of 0..items.length-1" });
-    }
-  });
-
 export type OrderingContent = z.infer<typeof OrderingContentSchema>;
-
-// Structured case - a log excerpt or incident narrative followed by structured choice steps.
-// Deterministic (no AI): every step is a choice. `correct` / `explanation` never go to candidates.
-export const StructuredCaseStepSchema = z.object({
-  id: z.string().min(1),
-  prompt: z.string().min(1),
-  select: z.enum(["one", "many"]),
-  options: z.array(z.string().min(1)).min(2).max(8),
-  correct: z.array(z.number().int().min(0)).min(1),
-}).strict();
-
-export const StructuredCaseContentSchema = z.object({
-  title: z.string().min(1),
-  context: z.string().min(1),
-  log_excerpt: z.string().min(1).max(20000).optional(),
-  steps: z.array(StructuredCaseStepSchema).min(1).max(12),
-  scoring: z.enum(["all_or_nothing", "partial"]).optional(),
-  explanation: z.string().min(1).optional(),
-}).strict()
-  .superRefine((val, ctx) => {
-    if (new Set(val.steps.map((s) => s.id)).size !== val.steps.length) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["steps"], message: "step ids must be unique" });
-    }
-    val.steps.forEach((s, i) => {
-      if (new Set(s.correct).size !== s.correct.length || s.correct.some((c) => c >= s.options.length)) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["steps", i, "correct"], message: "correct must be unique, valid indexes into options" });
-      }
-      if (s.select === "one" && s.correct.length !== 1) {
-        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["steps", i, "correct"], message: "select 'one' needs exactly one correct index" });
-      }
-    });
-  });
-
 export type StructuredCaseContent = z.infer<typeof StructuredCaseContentSchema>;
-
-// Subjective (data-model lines 284-288)
-// rubric lives in the separate column — not embedded in content.
-export const SubjectiveContentSchema = z.object({
-  question: z.string().min(1),
-}).strict();
-
 export type SubjectiveContent = z.infer<typeof SubjectiveContentSchema>;
-
-// KQL (data-model lines 308-320)
-export const KqlContentSchema = z.object({
-  question: z.string().min(1),
-  tables: z.array(z.string().min(1)).min(1),
-  hint: z.string().optional(),
-  expected_keywords: z.array(z.string().min(1)).min(1),
-  sample_solution: z.string().optional(),
-}).strict();
-
 export type KqlContent = z.infer<typeof KqlContentSchema>;
-
-// Scenario — multi-step incident chain (data-model lines 322-334)
-// Each step is a discriminated union on "type".
-const ScenarioStepSchema = z.discriminatedUnion("type", [
-  z.object({
-    id: z.string().min(1),
-    type: z.literal("mcq"),
-    prompt: z.string().min(1),
-    options: z.array(z.string().min(1)).min(2),
-    correct: z.number().int().min(0),
-    trap: z.boolean().optional(),
-  }).strict(),
-  z.object({
-    id: z.string().min(1),
-    type: z.literal("subjective"),
-    prompt: z.string().min(1),
-    rubric_ref: z.string().optional(),
-  }).strict(),
-  z.object({
-    id: z.string().min(1),
-    type: z.literal("kql"),
-    prompt: z.string().min(1),
-    expected_keywords: z.array(z.string().min(1)).min(1),
-  }).strict(),
-]);
-
-export const ScenarioContentSchema = z.object({
-  title: z.string().min(1),
-  intro: z.string().min(1),
-  steps: z.array(ScenarioStepSchema).min(1),
-  step_dependency: z.enum(["linear", "parallel"]),
-}).strict();
-
 export type ScenarioContent = z.infer<typeof ScenarioContentSchema>;
-
-// Log_analysis (data-model lines 337-354)
-// Mirrors KQL shape: log_excerpt replaces tables, expected_findings replaces
-// expected_keywords. log_format drives the candidate UI syntax viewer.
-export const LogAnalysisContentSchema = z.object({
-  question: z.string().min(1),
-  log_excerpt: z.string().min(1),
-  log_format: z.enum(["syslog", "json", "csv", "freeform"]),
-  expected_findings: z.array(z.string().min(1)).min(1),
-  hint: z.string().optional(),
-  sample_solution: z.string().optional(),
-}).strict();
-
 export type LogAnalysisContent = z.infer<typeof LogAnalysisContentSchema>;
 
 // ---------------------------------------------------------------------------
 // Per-type union dispatcher
 // ---------------------------------------------------------------------------
 
-export const QUESTION_TYPES = [
-  "mcq",
-  "subjective",
-  "kql",
-  "scenario",
-  "log_analysis",
-  "numeric",
-  "multi_select",
-  "ordering",
-  "structured_case",
-] as const;
-
-export type QuestionType = typeof QUESTION_TYPES[number];
-
-const CONTENT_SCHEMA_MAP = {
-  mcq: McqContentSchema,
-  subjective: SubjectiveContentSchema,
-  kql: KqlContentSchema,
-  scenario: ScenarioContentSchema,
-  log_analysis: LogAnalysisContentSchema,
-  numeric: NumericContentSchema,
-  multi_select: MultiSelectContentSchema,
-  ordering: OrderingContentSchema,
-  structured_case: StructuredCaseContentSchema,
-} as const satisfies Record<QuestionType, z.ZodTypeAny>;
+const CONTENT_SCHEMA_MAP: Record<QuestionType, z.ZodTypeAny> = Object.fromEntries(
+  QUESTION_TYPES.map((t) => [t, QUESTION_TYPE_REGISTRY[t].contentSchema]),
+) as Record<QuestionType, z.ZodTypeAny>;
 
 export function validateQuestionContent(
   type: QuestionType,
