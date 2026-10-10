@@ -43,7 +43,7 @@ const VARIANT_CONFIG: Record<IntegrityBannerKind, VariantConfig> = {
   },
   reconnecting: {
     icon: "bell",
-    copy: "Reconnecting to the server. Your answers are queued and will save automatically.",
+    copy: "Reconnecting to the server. Your answers will save automatically when the connection returns.",
     borderColor: "var(--aiq-color-info)",
     background: "var(--aiq-color-bg-raised)",
     role: "status",

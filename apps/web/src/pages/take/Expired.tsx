@@ -68,8 +68,8 @@ export function Expired(): React.JSX.Element {
               This invitation has expired.
             </h1>
             <p style={BODY_P}>
-              Magic-link invitations are valid for a limited window. Ask your
-              assessment admin to send a new one.
+              Invitations are valid for a limited time. Ask the person who
+              invited you to send a new one.
             </p>
             <Link
               to="/"

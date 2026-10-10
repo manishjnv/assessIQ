@@ -108,7 +108,7 @@ async function reachRecoveryPanel(): Promise<void> {
 
   // Wait for the recovery-code panel to mount (recovery codes returned by the
   // mocked enroll/confirm response).
-  await waitFor(() => screen.getByText('Save your recovery codes.'));
+  await waitFor(() => screen.getByText('Save your backup codes.'));
 }
 
 // ---------------------------------------------------------------------------
@@ -116,10 +116,10 @@ async function reachRecoveryPanel(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 describe('AdminMfa recovery-code panel', () => {
-  it('M1: renders the "Save your recovery codes." heading and all 10 code strings', async () => {
+  it('M1: renders the "Save your backup codes." heading and all 10 code strings', async () => {
     await reachRecoveryPanel();
 
-    expect(screen.getByText('Save your recovery codes.')).toBeTruthy();
+    expect(screen.getByText('Save your backup codes.')).toBeTruthy();
     for (const code of RECOVERY_CODES) {
       expect(screen.getByText(code)).toBeTruthy();
     }

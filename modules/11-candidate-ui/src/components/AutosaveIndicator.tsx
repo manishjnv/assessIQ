@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -8,9 +8,9 @@ export type AutosaveStatus = "idle" | "saving" | "saved" | "error" | "offline";
 
 export interface AutosaveIndicatorProps {
   status: AutosaveStatus;
-  /** ISO 8601 UTC string — last successful save time. Rendered when status === "saved". */
+  /** @deprecated RW-28: no longer rendered. Kept so existing callers still type-check. */
   lastSavedAt?: string | null;
-  /** Pending retry count when status === "error". */
+  /** @deprecated RW-28: no longer rendered. Kept so existing callers still type-check. */
   retryCount?: number;
   "data-test-id"?: string;
 }
@@ -40,20 +40,6 @@ function injectStyles(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Relative-time helper
-// ---------------------------------------------------------------------------
-
-function formatRelative(iso: string): string {
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return "just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
-  const diffHour = Math.floor(diffMin / 60);
-  return `${diffHour}h ago`;
-}
-
-// ---------------------------------------------------------------------------
 // Dot color map
 // ---------------------------------------------------------------------------
 
@@ -70,68 +56,21 @@ const DOT_COLOR: Record<AutosaveStatus, string> = {
 // ---------------------------------------------------------------------------
 
 export function AutosaveIndicator(props: AutosaveIndicatorProps) {
-  const {
-    status,
-    lastSavedAt,
-    retryCount,
-    "data-test-id": testId,
-  } = props;
-
-  // Tick state — forces re-render every 30 s while status is "saved" so the
-  // relative timestamp stays current without a save event.
-  const [tick, setTick] = useState(0);
+  const { status, "data-test-id": testId } = props;
 
   // Inject keyframe CSS once on mount (SSR-safe: injectStyles guards on window).
   useEffect(() => {
     injectStyles();
   }, []);
 
-  // 30-second interval — only active while status === "saved".
-  useEffect(() => {
-    if (status !== "saved") return;
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
-    return () => clearInterval(id);
-  }, [status]);
-
-  // Suppress the unused-variable lint warning; tick is consumed implicitly via
-  // the closure that re-runs the render when it changes.
-  void tick;
-
   // -------------------------------------------------------------------
   // Label
   // -------------------------------------------------------------------
 
-  let label: string;
-
-  switch (status) {
-    case "idle":
-      label = "Idle";
-      break;
-
-    case "saving":
-      label = "Saving…"; // "Saving…"
-      break;
-
-    case "saved":
-      if (lastSavedAt) {
-        label = `Saved · ${formatRelative(lastSavedAt)}`; // "Saved · X"
-      } else {
-        label = "Saved";
-      }
-      break;
-
-    case "error":
-      if (retryCount && retryCount > 0) {
-        label = `Save failed · retry ${retryCount}/5`;
-      } else {
-        label = "Save failed";
-      }
-      break;
-
-    case "offline":
-      label = "Offline · queued"; // "Offline · queued"
-      break;
-  }
+  // RW-28: binary to the candidate. "Saving…" is transient only.
+  // idle / error / offline all read "Not saved yet" (dot colour still differs).
+  const label =
+    status === "saved" ? "Saved" : status === "saving" ? "Saving…" : "Not saved yet";
 
   // -------------------------------------------------------------------
   // Render

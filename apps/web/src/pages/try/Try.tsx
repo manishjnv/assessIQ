@@ -255,7 +255,7 @@ function Runner({
         </div>
       </nav>
 
-      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Submit your answers?" width={440}>
+      <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Submit your assessment?" width={440}>
         <p style={{ margin: '0 0 8px', fontSize: 15, lineHeight: 1.5 }}>
           {unanswered === 0
             ? 'You have answered every question.'
@@ -264,10 +264,10 @@ function Runner({
         </p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 16 }}>
           <Button variant="outline" onClick={() => setConfirmOpen(false)}>
-            Keep working
+            Go back
           </Button>
           <Button onClick={() => onFinish(false)} data-test-id="try-confirm-submit">
-            Submit now
+            Submit assessment
           </Button>
         </div>
       </Modal>
@@ -399,7 +399,7 @@ function Result({
             </p>
             <p style={{ margin: '8px 0 0' }}>
               <Chip variant={result.passed ? 'success' : 'warn'}>
-                {result.passed ? 'Pass' : 'Not yet a pass'} &middot; pass mark {PASS_PERCENT}%
+                {result.passed ? 'Passed' : 'Not passed'} &middot; pass mark {PASS_PERCENT}%
               </Chip>
             </p>
             <p style={{ fontSize: 13, color: 'var(--aiq-color-fg-muted)', margin: '8px 0 0' }}>

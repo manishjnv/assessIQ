@@ -68,8 +68,8 @@ export function ErrorPage(): React.JSX.Element {
               Something went wrong.
             </h1>
             <p style={BODY_P}>
-              We hit an unexpected error processing your assessment. Please ask
-              your admin to resend the invitation.
+              Please try again. If it keeps happening, ask the person who
+              invited you for help.
             </p>
             <Link
               to="/"

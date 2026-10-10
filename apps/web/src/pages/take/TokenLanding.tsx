@@ -70,13 +70,9 @@ type PageState =
     }
   | { tag: 'error404' }
   | { tag: 'invalid' }
-  | { tag: 'error'; message: string };
+  | { tag: 'error' };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
-
-function truncate(str: string, max: number): string {
-  return str.length > max ? str.slice(0, max) + '…' : str;
-}
 
 // ─── right pane lives in TakeRightPane.tsx (shared with Expired + ErrorPage) ──
 
@@ -171,8 +167,25 @@ export function SuccessContent({
 
       {!resumed && (
         <>
-          <SystemCheck rows={rows} onRecheck={recheck} />
-          <PracticeQuestion />
+          {/* RW-26: system check + practice behind one disclosure (native, default closed). */}
+          <details open={blocked || undefined} style={{ marginBottom: 16 }}>
+            <summary
+              style={{
+                cursor: 'pointer',
+                fontFamily: 'var(--aiq-font-sans)',
+                fontSize: 14,
+                fontWeight: 600,
+                color: 'var(--aiq-color-fg-primary)',
+              }}
+            >
+              {blocked ? 'Test your device' : 'Test your device (optional)'}
+            </summary>
+            <p style={{ ...META_LABEL, textTransform: 'none', letterSpacing: 0, margin: '8px 0 12px' }}>
+              We&rsquo;ll check if your device meets the requirements. Practice a sample question if you want.
+            </p>
+            <SystemCheck rows={rows} onRecheck={recheck} />
+            <PracticeQuestion />
+          </details>
           <ConsentBlock
             name={candidateName}
             company={company}
@@ -190,6 +203,11 @@ export function SuccessContent({
           {beginError}
         </p>
       )}
+      {blocked && !resumed && (
+        <p role="alert" style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--aiq-color-fg-primary)' }}>
+          Your device is not ready. Open &quot;Test your device&quot; above to see why.
+        </p>
+      )}
       <Button
         size="lg"
         variant="primary"
@@ -197,7 +215,7 @@ export function SuccessContent({
         disabled={!canBegin || beginning}
         style={{ width: '100%', justifyContent: 'center' }}
       >
-        {beginning ? 'Starting…' : resumed ? 'Resume assessment' : 'Begin assessment'}
+        {beginning ? 'Starting…' : resumed ? 'Resume assessment' : totalMinutes > 0 ? `Begin — your ${totalMinutes}-minute timer starts` : 'Begin'}
       </Button>
     </>
   );
@@ -241,12 +259,12 @@ function InvalidContent(): React.JSX.Element {
         <Chip variant="accent" leftIcon="bell">Invalid</Chip>
       </span>
       <h1 className="aiq-serif" style={SERIF_H1}>
-        Invalid magic link.
+        This invitation link is no longer valid.
       </h1>
       <p style={BODY_P}>
-        This link has expired or was replaced by a newer invitation. Ask the
-        person who invited you to resend it, then use the link in your most
-        recent email.
+        It has expired or a newer invitation replaced it. Ask the person who
+        invited you to send a new one, then use the link in your most recent
+        email.
       </p>
       <Link
         to="/"
@@ -264,13 +282,7 @@ function InvalidContent(): React.JSX.Element {
   );
 }
 
-function ErrorContent({
-  message,
-  onRetry,
-}: {
-  message: string;
-  onRetry: () => void;
-}): React.JSX.Element {
+function ErrorContent({ onRetry }: { onRetry: () => void }): React.JSX.Element {
   return (
     <>
       <span style={{ display: 'inline-block', marginBottom: 24 }}>
@@ -279,7 +291,10 @@ function ErrorContent({
       <h1 className="aiq-serif" style={SERIF_H1}>
         Something went wrong.
       </h1>
-      <p style={BODY_P}>{truncate(message, 200)}</p>
+      <p style={BODY_P}>
+        Please try again. If it keeps happening, ask the person who invited you
+        for help.
+      </p>
       <Button
         size="lg"
         variant="outline"
@@ -326,15 +341,10 @@ export function TokenLanding(): React.JSX.Element {
         } else if (err.status === 401 || err.status === 403) {
           setState({ tag: 'invalid' });
         } else {
-          setState({
-            tag: 'error',
-            message: err.apiError?.message ?? "Something went wrong. Please try again.",
-          });
+          setState({ tag: 'error' });
         }
-      } else if (err instanceof Error) {
-        setState({ tag: 'error', message: err.message });
       } else {
-        setState({ tag: 'error', message: 'Unknown error. Please try again.' });
+        setState({ tag: 'error' });
       }
     }
   }, [token]);
@@ -369,7 +379,7 @@ export function TokenLanding(): React.JSX.Element {
         err instanceof CandidateApiError && err.status === 422
           ? 'Please accept the consent statement to begin.'
           : err instanceof CandidateApiError && (err.status === 404 || err.status === 410)
-            ? 'This link has expired or was replaced. Ask the person who invited you to resend your invitation, then use the link in your most recent email.'
+            ? 'This invitation link is no longer valid. Ask the person who invited you to send a new one, then use the link in your most recent email.'
             : 'We could not start your assessment. Check your connection and try again.',
       );
     }
@@ -396,7 +406,7 @@ export function TokenLanding(): React.JSX.Element {
     leftContent = <InvalidContent />;
   } else {
     leftContent = (
-      <ErrorContent message={state.message} onRetry={() => void runPreview()} />
+      <ErrorContent onRetry={() => void runPreview()} />
     );
   }
 

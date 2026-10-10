@@ -58,7 +58,7 @@ function renderLanding(): void {
 }
 
 const beginBtn = (): HTMLButtonElement =>
-  screen.getByRole('button', { name: /Begin assessment|Starting|Resume assessment/i }) as HTMLButtonElement;
+  screen.getByRole('button', { name: /Begin|Starting|Resume assessment/i }) as HTMLButtonElement;
 
 beforeEach(() => {
   takePreview.mockResolvedValue(PREVIEW);
@@ -143,6 +143,32 @@ describe('TokenLanding pre-test screen', () => {
     fireEvent.click(beginBtn());
     await screen.findByText('ATTEMPT PAGE');
     expect(takeStart).toHaveBeenCalledWith('tok_0123456789abcdef', { consent: false });
+  });
+
+  it('L7 - device-check disclosure is closed by default', async () => {
+    renderLanding();
+    await screen.findByText('Ready when you are.');
+    const details = document.querySelector('details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(screen.getByText('Test your device (optional)')).toBeTruthy();
+  });
+
+  it('L8 - Begin label contains the timer minutes', async () => {
+    renderLanding();
+    await screen.findByText('Ready when you are.');
+    expect(beginBtn().textContent).toMatch(/Begin — your \d+-minute timer starts/);
+  });
+
+  it('L9 - failed check opens the disclosure, shows the reason and disables Begin', async () => {
+    const spy = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    renderLanding();
+    await screen.findByText('Ready when you are.');
+    fireEvent.click(screen.getByRole('checkbox'));
+    await screen.findByText(/Your device is not ready/);
+    expect((document.querySelector('details') as HTMLDetailsElement).open).toBe(true);
+    expect(screen.getByText('Test your device')).toBeTruthy();
+    expect(beginBtn().disabled).toBe(true);
+    spy.mockRestore();
   });
 
   it('L6 - an expired or replaced link (404) says so and tells the student to ask for a resend', async () => {

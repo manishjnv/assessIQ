@@ -38,7 +38,7 @@ describe('/try demo', () => {
     fireEvent.change(screen.getByLabelText('Your answer (a number)'), { target: { value: '54' } });
     fireEvent.click(screen.getByText('Submit assessment'));
     expect(screen.getByText(/questions are unanswered/)).toBeTruthy();
-    fireEvent.click(screen.getByText('Submit now'));
+    fireEvent.click(document.querySelector('[data-test-id="try-confirm-submit"]')!);
     expect(screen.getByText('Question breakdown')).toBeTruthy();
     expect(screen.getByText('20 / 60 points (33.3%)')).toBeTruthy();
     expect(screen.getAllByText('In a real assessment this is graded by AssessIQ.').length).toBe(1);
