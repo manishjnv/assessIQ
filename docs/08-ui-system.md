@@ -579,6 +579,29 @@ Live on: Question Bank, Attempts, Assessments, Dashboard grading queue, and Asse
 
 **Server-paginated tables sort server-side instead.** `certificates.tsx` and `generation-attempts.tsx` use native `<table>` markup with `limit`/`offset` + "Load more", so client-side sort would only reorder the loaded page. They send `sort`/`dir` query params to the API (which maps the key through a fixed `ORDER BY` allowlist — `ORDER BY` can't be parameterized) and **refetch from `offset 0`** on header click. Clickable `<th>`s carry the same `▲`/`▼` affordance. See `docs/03-api-contract.md` for the per-endpoint sort allowlists. Rule of thumb: full-fetch list → client-side `sortRows`; paginated list → server-side allowlisted sort.
 
+> Update 2026-10-10 (RW-33): `generation-attempts.tsx` now uses the shared `Table` (see next section). Its `onSort` sets `sortBy`/`sortDir` and the existing fetch effect refetches from offset 0. `certificates.tsx` is unchanged.
+
+### `Table` row expansion and ARIA table semantics (RW-33, 2026-10-10)
+
+**What changed.** `Table` gained four optional props. Every existing caller is unchanged; none needed an edit.
+
+| Prop | Type | Purpose |
+| --- | --- | --- |
+| `rowKey` | `(row: T) => string` | Stable row key. Defaults to the row index. Needed for `expandedId` to match a row. |
+| `expandedId` | `string \| null` | Key of the row whose detail row is open. The caller owns this state and the toggle button. |
+| `renderExpanded` | `(row: T) => ReactNode` | Content of a full-width detail row rendered directly under the expanded row, inside the same table. |
+| `rowStyle` | `(row: T) => CSSProperties` | Extra per-row style (for example a sunken background for child rows, or `borderBottom: "none"` on an open row). The hover reset restores this background. |
+
+**ARIA tree.** The root is `role="table"`. The header is `rowgroup > row > columnheader` (`aria-sort` when sorted). A header with an empty `label` renders as `role="cell"` because axe `empty-table-header` rejects an empty header. Sortable headers take keyboard focus and sort on Enter or Space. Body rows are `role="row"` with `role="cell"`. The empty message, the loading indicator and the expanded detail are each a `role="row"` with one `role="cell"` that carries `aria-colspan`. Put `aria-expanded` on the caller's toggle button. axe rejects `aria-expanded` on a row outside a `treegrid`. Test: `modules/17-ui-system/src/__tests__/table.test.tsx` (axe with an open detail row, toggle, loading row, empty row).
+
+**Loading.** The `loading` row now shows the shared `Spinner` (`role="status"`) instead of the text "Loading…". This is the one visible change for existing callers.
+
+**Generation attempts page.** The raw `<table>` and its `lint-fixed-allow: table` comment are gone. Batch grouping happens in the page: it flattens attempts into `AttemptRow` items (`single` / `group` / `child`). An open group adds its `child` rows to `data`. The summary row is a normal data row. The per-attempt `AttemptDetails` panel is `renderExpanded`. Visible differences against the old table: header cells use the `Table` mono header style; columns have fixed grid widths; rows have the `Table` hover background; child rows use the standard cell padding (the old table used a smaller one); the spinner shows only while the first page loads, as before.
+
+**Considered and rejected.** (1) `groupBy` / `renderGroupHeader` props: the page's group header is an ordinary row with summed values, and the page already owns the open-group state, so flattening in the caller is smaller. (2) An internal `onToggleExpand` callback: the caller's own button already toggles the state, so `Table` would never call it. (3) `aria-expanded` on the row: invalid outside `treegrid`.
+
+**Not included.** No `treegrid` keyboard navigation, no virtualization, no sticky header, no per-header style override. `certificates.tsx` keeps its own markup for now.
+
 ### Shared admin formatters (`modules/10-admin-dashboard/src/lib/`)
 
 Two small helpers consolidate display logic that was previously duplicated inline on each list page. New pages MUST use these instead of re-inventing per-page status switches or `toLocaleString()` calls.
