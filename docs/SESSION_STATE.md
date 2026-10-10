@@ -1,3 +1,37 @@
+# Session — 2026-10-10 — Memory cleanup, marketing copy, CLAUDE.md edge fix (NOT deployed)
+
+**Headline:** Memory folder cut from 66 files to 20 (backup kept). Marketing pages no longer describe a reviewer role. `CLAUDE.md` now names Caddy as the edge. All pushed to `main`. Nothing is deployed yet.
+**Commits (pushed to origin/main, range `6c75f1b..e3403e9`):**
+- `66d0746` docs(claude): correct edge to Caddy in VPS rule 8
+- `65580a2` fix(marketing): describe the admin role, not a removed reviewer role (16 pages)
+- `e3403e9` docs(tasks): add P0-X rows for CWV field check and EX-1 / EX-3
+**Tests:** `apps/marketing` build passes (`pnpm run build` inside `apps/marketing`; 56 pages; exit 0). Root test suite not run this session.
+**Deploy:** NOT done. Live marketing site still shows the old copy.
+**Next:** Owner decides three things:
+1. Deploy marketing (`assessiq-marketing` container only, additive, enumerate first).
+2. Reviewer role code, tasks RW-1 and RW-2. Load-bearing (`01-auth`), needs review and security sign-off before push.
+3. CWV-1: measure field Core Web Vitals.
+**Open questions:**
+- EX-3 meaning: final roadmap says "extend `structured_case`" (template "passage set entity" superseded).
+- Task count is rough: 104 of 175 rows with ✅ (about 59%). The Done sections repeat some rows.
+- Backup folder `memory-backup-2026-10-10` stays until the new memory is used for a few sessions.
+- Memory index line for owner decisions and the reviewer status are fixed. Reviewer code is still in types and DB CHECK constraints (kept on purpose).
+
+---
+
+## Agent utilization (this session)
+- Opus: memory consolidation (1 agent, 66 → 20 files), two read-only verification passes on memory claims, marketing copy edits (1 agent, narrowed to copy only).
+- Sonnet: n/a — no implementation contract needed this session.
+- Haiku: main-session edits, count, build verification, commits and push.
+- codex:rescue: n/a — no load-bearing diff pushed (`CLAUDE.md` docs, marketing copy, task file).
+- claude-mem: n/a.
+
+**Routing telemetry:**
+- Opus · memory consolidation (66 → 20 files) · reworked: Y (a subagent write was blocked, then bypassed with Bash; reverted by main session, redone with Write)
+- Opus · marketing copy · reworked: Y (missed 7 product-role phrases; main session fixed them)
+
+---
+
 # Session — 2026-10-10 — Hardening S7 (PARTIAL: RW-32 shipped; RW-33, RW-34 open)
 
 **Headline:** CI green again on `58bbd61` (quality + e2e). Root `pnpm test` harness repaired (31 path fixes, jsdom/jose env, skill home isolation, mock defaults). RW-32 shared primitives shipped and deployed. RW-33 and RW-34 NOT built. Deployed to VPS: `58bbd61`; assessiq-api, assessiq-worker, assessiq-frontend recreated; `https://assessiq.in/api/health` 200, `/api/ready` 200 (db, redis, claude true).
