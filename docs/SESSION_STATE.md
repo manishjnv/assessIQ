@@ -1,16 +1,25 @@
-# Session — 2026-10-10 — Memory cleanup, marketing copy, CLAUDE.md edge fix (NOT deployed)
+# Session — 2026-10-10 — Memory cleanup, marketing copy, reviewer role removed in code (NOT deployed: migration gate blocked)
 
-**Headline:** Memory folder cut from 66 files to 20 (backup kept). Marketing pages no longer describe a reviewer role. `CLAUDE.md` now names Caddy as the edge. All pushed to `main`. Nothing is deployed yet.
-**Commits (pushed to origin/main, range `6c75f1b..e3403e9`):**
+**Headline:** Memory cut from 66 files to 20 (backup kept). Marketing pages and `CLAUDE.md` corrected. Reviewer role removed from TypeScript types and input checks (DB values kept). All pushed to `main`. Nothing is deployed: the migration-drift gate fails on drift that existed before this session.
+**Commits (pushed to origin/main):**
 - `66d0746` docs(claude): correct edge to Caddy in VPS rule 8
 - `65580a2` fix(marketing): describe the admin role, not a removed reviewer role (16 pages)
 - `e3403e9` docs(tasks): add P0-X rows for CWV field check and EX-1 / EX-3
-**Tests:** `apps/marketing` build passes (`pnpm run build` inside `apps/marketing`; 56 pages; exit 0). Root test suite not run this session.
-**Deploy:** NOT done. Live marketing site still shows the old copy.
-**Next:** Owner decides three things:
-1. Deploy marketing (`assessiq-marketing` container only, additive, enumerate first).
-2. Reviewer role code, tasks RW-1 and RW-2. Load-bearing (`01-auth`), needs review and security sign-off before push.
-3. CWV-1: measure field Core Web Vitals.
+- `bb8f78f` docs(handoff): this session's first handoff
+- `23c77e2` refactor(auth): remove reviewer role from types and input checks (RV60), 30 files. Adversarial review (Opus takeover): ACCEPT, two test gaps fixed before push.
+**Tests:** `apps/marketing` build passes (56 pages). Reviewer change: typecheck clean in 26 packages; targeted tests pass (activity-feed, help keys, auth, admin-super, mint-session).
+**Deploy:** NOT done. VPS `/srv/assessiq` is checked out at `23c77e2`, but no container was rebuilt. Running containers are still the old images.
+**Deploy blocker (migration-drift gate, `docs/06-deployment.md` step 2):**
+- DB tracker has 96 rows. Repo has 139 migration files.
+- 46 repo files are not in the tracker. Several are old three-digit files (010–021) and early 0010–0073 files.
+- 3 tracker rows have no file: two are `0100` / `0106` rows that match repo files except the `.sql` suffix. The third is `0109_seed_platform_aptitude_pack.sql` (no repo match by that exact name).
+- No migration is in this deploy range. The drift is old and pre-existing.
+**Next (owner decides):**
+1. Normalise the gate: compare names without `.sql`. Read-only, repo change only.
+2. For the 46 untracked files, verify each object exists in the DB (read-only). Then decide whether to write the missing tracker rows. That is a production DB write, so it needs your approval.
+3. Then deploy `assessiq-api`, `assessiq-worker` (same image), `assessiq-frontend` and `assessiq-marketing`, in that order, with the smoke check.
+4. Reviewer role code is done. DB CHECK constraints keep `reviewer` on purpose.
+5. CWV-1: measure field Core Web Vitals after real traffic.
 **Open questions:**
 - EX-3 meaning: final roadmap says "extend `structured_case`" (template "passage set entity" superseded).
 - Task count is rough: 104 of 175 rows with ✅ (about 59%). The Done sections repeat some rows.
