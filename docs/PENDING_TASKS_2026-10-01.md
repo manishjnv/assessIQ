@@ -533,3 +533,13 @@ Owner decisions (locked 2026-10-09): Logo for all tenants (D2 ✅), next to comp
 **Security:** Magic byte validation (no extension trust), RLS on table (tenant isolation), no stored URLs (computed from row), CSP sandbox on public GET, adminFreshMfa (15 min) on uploads.
 
 **Timeline:** Session 1 = L1 (2 days, Sonnet impl + Opus review + codex gate). Session 2 = L2–L4 in 4 parallel agents (1 day each).
+
+## P0-X. Exam packs and field measurement (added 2026-10-10 from the memory review)
+
+Source: `exam-packs-roadmap-final-2026-10-09` (final text wins over the template). EX-3 is "extend `structured_case` for passage-set scoring" (old task checked). The earlier template wording "passage set entity" is superseded.
+
+| # | Task | Why | Effort | Who |
+|---|---|---|---|---|
+| CWV-1 | ⏳ Measure field Core Web Vitals (CrUX) on the live site after the F3 font fix. Record LCP, INP and CLS. | F3 is done, but field data was never measured (row F3). | S | Owner runs the check; Claude records the result |
+| EX-1 | ⏳ Negative marking: per question, net-negative allowed; fix totals, certificate and export. Gate for all 10 exams. | Blocks every exam pack (roadmap Wave 1). | M | Claude. Opus review and codex gate (scoring path is load-bearing). |
+| EX-3 | ⏳ Extend `structured_case` for passage-set scoring: shared stem, N child questions, each scored. | Needed for Bank, CAT and UPSC packs. | M-L | Claude |
