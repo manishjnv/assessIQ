@@ -17,6 +17,7 @@
 // cohortStats / leaderboard are admin-on-demand; no latency SLA beyond reasonable.
 
 import type { PoolClient } from "pg";
+import { logger } from "@assessiq/core";
 import type {
   AttemptScore,
   CohortStats,

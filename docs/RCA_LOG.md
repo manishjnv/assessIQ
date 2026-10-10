@@ -2459,3 +2459,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `useSystemCheck` (`apps/web/src/pages/take/PreTest.tsx:63`) starts with `rows = []`, which makes `blocked` true, so `<details open={blocked || undefined}>` (`TokenLanding.tsx:171`) is open on first paint. The rows fill in a mount effect. The fixture asserted on `findByText('Ready when you are.')`, which resolves before that effect has run.
 **Fix:** `apps/web/src/pages/take/TokenLanding.test.tsx` L7 now waits for the five `OK` chips before it reads `details.open`. New case L7b sets offline and asserts the disclosure opens when blocked. Component unchanged.
 **Prevention:** Any test that reads state from `useSystemCheck` must wait for the check rows first. The helper pattern is `await waitFor(() => expect(screen.getAllByText('OK').length).toBe(5))`.
+
+## 2026-10-10 — CI typecheck red since S5: `logger` used without an import in 09-scoring
+
+**Symptom:** GitHub CI `quality` job failed at Typecheck on every push from S5 onward (`cbeac46`, `529197b`, `60b4a8c`). Error: `modules/09-scoring/src/repository.ts(511,7) TS2304: Cannot find name 'logger'` and line 556, which reach `modules/04-question-bank` through its project references.
+**Cause:** S5 (`cbeac46`) added two `logger.warn(...)` calls in `modules/09-scoring/src/repository.ts:511` and `:556` and did not import `logger`. The local run did not catch it because the S5 check ran a test subset, not the full `pnpm -r typecheck`.
+**Fix:** `modules/09-scoring/src/repository.ts:20` adds `import { logger } from "@assessiq/core";`. `pnpm -r typecheck` passes locally with no errors.
+**Prevention:** Before a push, run `pnpm -r typecheck` (the same command CI runs). Do not rely on a module subset. Candidate follow-up: run it in the pre-push gate.
