@@ -203,6 +203,7 @@ export function BillingDrawer({
   return (
     <div
       style={{
+        // lint-fixed-allow: drawer
         position: "fixed",
         inset: 0,
         background: "rgba(0,0,0,0.32)",
@@ -215,6 +216,7 @@ export function BillingDrawer({
     >
       <div
         style={isMobile ? {
+          // lint-fixed-allow: drawer
           position: "fixed",
           inset: 0,
           width: "100vw",

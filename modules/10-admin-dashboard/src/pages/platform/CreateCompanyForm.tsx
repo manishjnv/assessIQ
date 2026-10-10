@@ -1,7 +1,7 @@
 // CreateCompanyForm — split from platform.tsx (E9, no behaviour change).
 
 import React, { useState } from "react";
-import { Button, Card, Chip, Field } from "@assessiq/ui-system";
+import { Button, Chip, Field, Modal } from "@assessiq/ui-system";
 import { MfaStepUp } from "../../components/mfa-step-up.js";
 import { AdminApiError, createCompanyApi, type CreateCompanyRequest } from "../../api.js";
 import { META_LABEL, formatDate, type ModalState } from "./shared.js";
@@ -149,37 +149,7 @@ export function CreateCompanyForm({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.36)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 100,
-      }}
-      onClick={onCancel}
-      role="presentation"
-    >
-      <Card
-        padding="lg"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 480 }}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-          <h2
-            className="aiq-serif"
-            style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
-          >
-            {modalState === "mfa" ? "Verify MFA" : "Create organisation"}
-          </h2>
-          <span style={{ flex: 1 }} />
-          <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close">
-            ×
-          </Button>
-        </div>
-
+    <Modal open onClose={onCancel} title={modalState === "mfa" ? "Verify MFA" : "Create organisation"}>
         {modalState === "mfa" ? (
           <MfaStepUp
             onVerified={() => void handleMfaVerified()}
@@ -321,8 +291,7 @@ export function CreateCompanyForm({
             </div>
           </>
         )}
-      </Card>
-    </div>
+    </Modal>
   );
 }
-
+

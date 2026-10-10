@@ -19,7 +19,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Chip, Table } from "@assessiq/ui-system";
+import { Chip, ConfirmDialog, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
@@ -168,6 +168,7 @@ function RowOverflowMenu({ busy, onArchive }: RowOverflowMenuProps): React.React
             ref={panelRef}
             role="menu"
             style={{
+              // lint-fixed-allow: menu
               position: "fixed",
               top: coords.top,
               right: coords.right,
@@ -304,8 +305,13 @@ export function AdminQuestionBank(): React.ReactElement {
     );
   }
 
-  async function handleArchivePack(pack: PackListItem) {
-    if (!window.confirm(`Are you sure? This will archive "${pack.name}".`)) return;
+  const [pendingArchive, setPendingArchive] = useState<PackListItem | null>(null);
+
+  function handleArchivePack(pack: PackListItem) {
+    setPendingArchive(pack);
+  }
+
+  async function doArchivePack(pack: PackListItem) {
     setArchivingPackId(pack.id);
     setActionError(null);
     try {
@@ -1015,6 +1021,20 @@ export function AdminQuestionBank(): React.ReactElement {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingArchive !== null}
+        title="Archive question set"
+        body={`Are you sure? This will archive "${pendingArchive?.name ?? ""}".`}
+        confirmLabel="Archive"
+        danger
+        busy={archivingPackId !== null}
+        onConfirm={() => {
+          const pack = pendingArchive;
+          setPendingArchive(null);
+          if (pack) void doArchivePack(pack);
+        }}
+        onCancel={() => setPendingArchive(null)}
+      />
     </AdminShell>
   );
 }

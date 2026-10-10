@@ -9,7 +9,8 @@
 // INVARIANTS: no claude/anthropic imports; per-section loading + inline error.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Chip, Input, Spinner, formatDateTime } from "@assessiq/ui-system";
+import { Button, ConfirmDialog, Chip, Input, Spinner, Table, formatDateTime } from "@assessiq/ui-system";
+import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { adminApi } from "../api.js";
@@ -18,8 +19,13 @@ interface Endpoint { id: string; name: string; url: string; events: string[]; st
 interface Delivery { id: string; endpoint_id: string; event: string; status: "pending" | "delivered" | "failed"; http_status: number | null; attempts: number; last_error: string | null; created_at: string; payload?: { attemptId?: string; attempt_id?: string } | null }
 
 const DELIVERY_PAGE = 20;
-const th: React.CSSProperties = { textAlign: "left", padding: "8px 12px", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", borderBottom: "1px solid var(--aiq-color-border)" };
-const td: React.CSSProperties = { padding: "10px 12px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", borderBottom: "1px solid var(--aiq-color-border)" };
+const mono: React.CSSProperties = { fontFamily: "var(--aiq-font-mono)" };
+const deliveryColumns: ColumnDef<Delivery>[] = [
+  { key: "created_at", label: "Timestamp", render: (d) => <span style={{ ...mono, whiteSpace: "nowrap" }}>{formatDateTime(d.created_at)}</span> },
+  { key: "status", label: "Status", render: (d) => <Chip variant={d.status === "delivered" ? "success" : d.status === "failed" ? "warn" : "default"}>{d.status === "delivered" ? "Success" : d.status === "failed" ? "Failed" : "Pending"}</Chip> },
+  { key: "attempt", label: "Attempt ID", render: (d) => <span style={mono}>{d.payload?.attemptId ?? d.payload?.attempt_id ?? "—"}</span> },
+  { key: "response", label: "Response", render: (d) => <span style={mono}>{d.http_status ?? "—"}{d.last_error ? ` ${d.last_error.slice(0, 60)}` : ""}</span> },
+];
 const err = (e: unknown): string => (e instanceof Error ? e.message : "Something went wrong.");
 
 function toCsv(rows: Delivery[]): string {
@@ -37,6 +43,8 @@ export default function WebhooksPage(): React.ReactElement {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({ name: "", url: "", events: "attempt.graded" });
   const [notice, setNotice] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [secret, setSecret] = useState<{ id: string; value: string } | null>(null);
 
   const load = useCallback(() => {
@@ -63,9 +71,10 @@ export default function WebhooksPage(): React.ReactElement {
     catch (e) { setNotice(err(e)); }
   }
   async function remove(id: string) {
-    if (!window.confirm("Delete this endpoint? Deliveries stop immediately.")) return;
+    setDeleting(true);
     try { await adminApi(`/admin/webhooks/${id}`, { method: "DELETE" }); load(); }
     catch (e) { setNotice(err(e)); }
+    finally { setDeleting(false); setPendingDelete(null); }
   }
 
   const csvUrl = useMemo(
@@ -117,7 +126,7 @@ export default function WebhooksPage(): React.ReactElement {
               </div>
               <div style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
                 <Button size="sm" variant="outline" onClick={() => void test(ep.id)}>Test</Button>
-                <Button size="sm" variant="ghost" onClick={() => void remove(ep.id)}>Delete</Button>
+                <Button size="sm" variant="ghost" onClick={() => setPendingDelete(ep.id)}>Delete</Button>
               </div>
             </div>
           ))}
@@ -133,20 +142,7 @@ export default function WebhooksPage(): React.ReactElement {
           {deliveries && (
             <>
               <div style={{ overflowX: "auto", border: "1px solid var(--aiq-color-border)", borderRadius: 16 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                  <thead><tr><th style={th}>Timestamp</th><th style={th}>Status</th><th style={th}>Attempt ID</th><th style={th}>Response</th></tr></thead>
-                  <tbody>
-                    {shown.length === 0 && <tr><td style={td} colSpan={4}>No deliveries yet.</td></tr>}
-                    {shown.map((d) => (
-                      <tr key={d.id}>
-                        <td style={{ ...td, fontFamily: "var(--aiq-font-mono)", whiteSpace: "nowrap" }}>{formatDateTime(d.created_at)}</td>
-                        <td style={td}><Chip variant={d.status === "delivered" ? "success" : d.status === "failed" ? "warn" : "default"}>{d.status === "delivered" ? "Success" : d.status === "failed" ? "Failed" : "Pending"}</Chip></td>
-                        <td style={{ ...td, fontFamily: "var(--aiq-font-mono)" }}>{d.payload?.attemptId ?? d.payload?.attempt_id ?? "—"}</td>
-                        <td style={{ ...td, fontFamily: "var(--aiq-font-mono)" }}>{d.http_status ?? "—"}{d.last_error ? ` ${d.last_error.slice(0, 60)}` : ""}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <Table data={shown} columns={deliveryColumns} emptyMessage="No deliveries yet." />
               </div>
               <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", fontSize: "var(--aiq-text-sm)" }}>
                 <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button>
@@ -157,6 +153,16 @@ export default function WebhooksPage(): React.ReactElement {
           )}
         </section>
       </div>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete endpoint"
+        body="Delete this endpoint? Deliveries stop immediately."
+        confirmLabel="Delete endpoint"
+        danger
+        busy={deleting}
+        onConfirm={() => { if (pendingDelete) void remove(pendingDelete); }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </AdminShell>
   );
 }

@@ -36,6 +36,7 @@ export function FullscreenGate({ exitCount, onEnter }: FullscreenGateProps) {
       data-test-id="fullscreen-gate"
       onKeyDown={trap}
       style={{
+${ind2}// lint-fixed-allow: gate (full-screen exam gate, not a dialog)
         position: "fixed",
         inset: 0,
         zIndex: 1000,

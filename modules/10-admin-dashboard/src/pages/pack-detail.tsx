@@ -20,7 +20,7 @@
 import { packStatusDisplay, questionTypeLabel, questionStatusLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Chip, formatDate, formatDateTime, formatRelative } from "@assessiq/ui-system";
+import { Chip, ConfirmDialog, Modal, formatDate, formatDateTime, formatRelative } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, bulkUpdateQuestionStatus } from "../api.js";
@@ -392,16 +392,30 @@ export function AdminPackDetail(): React.ReactElement {
     }
   }
 
-  async function handleRevise() {
+  // Pending confirmation (ConfirmDialog): the dialog runs `run` on confirm.
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    title: string;
+    body: string;
+    confirmLabel: string;
+    danger?: boolean;
+    run: () => void;
+  } | null>(null);
+
+  function handleRevise() {
     if (!id || !pack) return;
-    if (
-      !window.confirm(
+    setPendingConfirm({
+      title: "Revise question set",
+      body:
         `Revise "${pack.name}"? This moves it back to draft so you can edit it, ` +
-          `then re-publish as a new version. Already-published assessments keep their ` +
-          `current content; organisation copies of this set auto-update when you re-publish.`,
-      )
-    )
-      return;
+        `then re-publish as a new version. Already-published assessments keep their ` +
+        `current content; organisation copies of this set auto-update when you re-publish.`,
+      confirmLabel: "Revise",
+      run: () => void doRevise(),
+    });
+  }
+
+  async function doRevise() {
+    if (!id) return;
     setRevising(true);
     setReviseError(null);
     try {
@@ -432,9 +446,19 @@ export function AdminPackDetail(): React.ReactElement {
     }
   }
 
-  async function handleArchivePack() {
+  function handleArchivePack() {
     if (!id || !pack) return;
-    if (!window.confirm(`Are you sure? This will archive "${pack.name}".`)) return;
+    setPendingConfirm({
+      title: "Archive question set",
+      body: `Are you sure? This will archive "${pack.name}".`,
+      confirmLabel: "Archive",
+      danger: true,
+      run: () => void doArchivePack(),
+    });
+  }
+
+  async function doArchivePack() {
+    if (!id) return;
     setArchivingPack(true);
     setArchivePackError(null);
     try {
@@ -449,8 +473,17 @@ export function AdminPackDetail(): React.ReactElement {
     }
   }
 
-  async function handleArchiveQuestion(questionId: string) {
-    if (!window.confirm("Archive this question? It will no longer be served to candidates.")) return;
+  function handleArchiveQuestion(questionId: string) {
+    setPendingConfirm({
+      title: "Archive question",
+      body: "Archive this question? It will no longer be served to candidates.",
+      confirmLabel: "Archive question",
+      danger: true,
+      run: () => void doArchiveQuestion(questionId),
+    });
+  }
+
+  async function doArchiveQuestion(questionId: string) {
     setArchivingQuestion(questionId);
     try {
       await adminApi(`/admin/questions/${questionId}`, {
@@ -1368,50 +1401,19 @@ export function AdminPackDetail(): React.ReactElement {
       </div>
 
       {/* Bulk action confirm modal */}
-      {bulkConfirm !== null && (
-        <>
-          <div
-            onClick={() => setBulkConfirm(null)}
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "rgba(0,0,0,0.40)",
-              zIndex: 200,
-            }}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={bulkConfirm.action === "archived" ? "Confirm bulk archive" : "Confirm bulk approve"}
-            style={{
-              position: "fixed",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              zIndex: 201,
-              background: "var(--aiq-color-bg-base)",
-              border: "1px solid var(--aiq-color-border)",
-              borderRadius: "var(--aiq-radius-lg)",
-              padding: "var(--aiq-space-xl)",
-              width: "min(480px, 90vw)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--aiq-space-md)",
-            }}
-          >
-            <h3
-              style={{
-                fontFamily: "var(--aiq-font-serif)",
-                fontSize: "var(--aiq-text-xl)",
-                fontWeight: 400,
-                margin: 0,
-                letterSpacing: "-0.015em",
-              }}
-            >
-              {bulkConfirm.action === "archived"
-                ? `Archive ${bulkConfirm.ids.length} question${bulkConfirm.ids.length !== 1 ? "s" : ""}?`
-                : `Approve ${bulkConfirm.ids.length} question${bulkConfirm.ids.length !== 1 ? "s" : ""} to active?`}
-            </h3>
+      <Modal
+        open={bulkConfirm !== null}
+        onClose={() => setBulkConfirm(null)}
+        title={
+          bulkConfirm === null
+            ? ""
+            : bulkConfirm.action === "archived"
+              ? `Archive ${bulkConfirm.ids.length} question${bulkConfirm.ids.length !== 1 ? "s" : ""}?`
+              : `Approve ${bulkConfirm.ids.length} question${bulkConfirm.ids.length !== 1 ? "s" : ""} to active?`
+        }
+      >
+        {bulkConfirm !== null && (
+          <>
             <p
               style={{
                 fontFamily: "var(--aiq-font-sans)",
@@ -1467,9 +1469,24 @@ export function AdminPackDetail(): React.ReactElement {
                   : `Approve ${bulkConfirm.ids.length}`}
               </button>
             </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </Modal>
+
+      <ConfirmDialog
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title ?? ""}
+        body={pendingConfirm?.body ?? ""}
+        confirmLabel={pendingConfirm?.confirmLabel ?? ""}
+        danger={pendingConfirm?.danger ?? false}
+        busy={revising || archivingPack || archivingQuestion !== null}
+        onConfirm={() => {
+          const run = pendingConfirm?.run;
+          setPendingConfirm(null);
+          run?.();
+        }}
+        onCancel={() => setPendingConfirm(null)}
+      />
 
     </AdminShell>
   );

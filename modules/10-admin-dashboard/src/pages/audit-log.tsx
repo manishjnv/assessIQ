@@ -8,7 +8,7 @@
 // INVARIANTS: no claude/anthropic imports; loading spinner + inline error.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Button, Input, Spinner, formatDateTime } from "@assessiq/ui-system";
+import { Button, Input, Spinner, Table, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { adminApi } from "../api.js";
@@ -36,8 +36,6 @@ const ENTITY_TYPES: Array<[string, string]> = [
   ["pack", "Question set"],
 ];
 
-const th: React.CSSProperties = { textAlign: "left", padding: "8px 12px", fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", borderBottom: "1px solid var(--aiq-color-border)" };
-const td: React.CSSProperties = { padding: "10px 12px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", borderBottom: "1px solid var(--aiq-color-border)", verticalAlign: "top" };
 
 // ponytail: date-only inputs; `to` is made inclusive by pushing to end of day.
 function filterQuery(from: string, to: string, entityType: string): URLSearchParams {
@@ -103,27 +101,18 @@ export default function AuditLogPage(): React.ReactElement {
         {!loading && !error && data && (
           <>
             <div data-help-id="admin.audit-log.table" style={{ overflowX: "auto", border: "1px solid var(--aiq-color-border)", borderRadius: 16 }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr><th style={th}>Timestamp</th><th style={th}>Entity</th><th style={th}>Action</th><th style={th}>User</th><th style={th}>Details</th></tr>
-                </thead>
-                <tbody>
-                  {data.rows.length === 0 && <tr><td style={td} colSpan={5}>No events match these filters.</td></tr>}
-                  {data.rows.map((r) => {
-                    const details = r.after ? JSON.stringify(r.after) : "";
-                    return (
-                      <tr key={r.id}>
-                        <td style={{ ...td, fontFamily: "var(--aiq-font-mono)", whiteSpace: "nowrap" }}>{formatDateTime(r.at)}</td>
-                        <td style={td}>{r.entity_type}{r.entity_id && <span style={{ fontFamily: "var(--aiq-font-mono)", color: "var(--aiq-color-fg-muted)" }}> {r.entity_id.slice(0, 8)}</span>}</td>
-                        <td style={td}>{r.action}</td>
-                        {/* API returns the actor id, not an email; show short id or actor kind. */}
-                        <td style={{ ...td, fontFamily: "var(--aiq-font-mono)" }}>{r.actor_user_id ? r.actor_user_id.slice(0, 8) : r.actor_kind}</td>
-                        <td style={{ ...td, fontFamily: "var(--aiq-font-mono)", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={details}>{details || "—"}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <Table<AuditRow>
+                data={data.rows}
+                emptyMessage="No events match these filters."
+                columns={[
+                  { key: "at", label: "Timestamp", width: "minmax(160px, 1fr)", render: (r) => <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)" }}>{formatDateTime(r.at)}</span> },
+                  { key: "entity", label: "Entity", render: (r) => <span>{r.entity_type}{r.entity_id && <span style={{ fontFamily: "var(--aiq-font-mono)", color: "var(--aiq-color-fg-muted)" }}> {r.entity_id.slice(0, 8)}</span>}</span> },
+                  { key: "action", label: "Action", render: (r) => r.action },
+                  // API returns the actor id, not an email; show short id or actor kind.
+                  { key: "user", label: "User", render: (r) => <span style={{ fontFamily: "var(--aiq-font-mono)" }}>{r.actor_user_id ? r.actor_user_id.slice(0, 8) : r.actor_kind}</span> },
+                  { key: "details", label: "Details", width: "minmax(0, 2fr)", render: (r) => { const details = r.after ? JSON.stringify(r.after) : ""; return <span title={details} style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{details || "—"}</span>; } },
+                ]}
+              />
             </div>
             <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", fontSize: "var(--aiq-text-sm)" }}>
               <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</Button>

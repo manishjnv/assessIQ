@@ -1,7 +1,7 @@
 // LifecycleConfirmModal — split from platform.tsx (E9, no behaviour change).
 
 import React, { useState } from "react";
-import { Button, Card } from "@assessiq/ui-system";
+import { Button, Modal } from "@assessiq/ui-system";
 import { MfaStepUp } from "../../components/mfa-step-up.js";
 import { AdminApiError, type TenantListItem } from "../../api.js";
 import { type LifecycleAction, META_LABEL } from "./shared.js";
@@ -83,37 +83,7 @@ export function LifecycleConfirmModal({
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,0.36)",
-        display: "grid",
-        placeItems: "center",
-        zIndex: 300,
-      }}
-      onClick={onCancel}
-      role="presentation"
-    >
-      <Card
-        padding="lg"
-        onClick={(e) => e.stopPropagation()}
-        style={{ width: "100%", maxWidth: 480 }}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-          <h2
-            className="aiq-serif"
-            style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
-          >
-            {modalState === "mfa" ? "Verify MFA" : copy.title(tenant.name)}
-          </h2>
-          <span style={{ flex: 1 }} />
-          <Button size="sm" variant="ghost" onClick={onCancel} aria-label="Close" disabled={loading}>
-            ×
-          </Button>
-        </div>
-
+    <Modal open onClose={onCancel} title={modalState === "mfa" ? "Verify MFA" : copy.title(tenant.name)}>
         {modalState === "mfa" ? (
           <MfaStepUp
             prompt={`Your admin MFA needs to be re-verified before you can ${copy.verb.toLowerCase()} ${tenant.name}. Enter your 6-digit authenticator code to continue.`}
@@ -182,8 +152,7 @@ export function LifecycleConfirmModal({
             </div>
           </>
         )}
-      </Card>
-    </div>
+    </Modal>
   );
 }
-
+

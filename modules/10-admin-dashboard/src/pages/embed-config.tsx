@@ -10,7 +10,7 @@
 // INVARIANTS: no claude/anthropic imports.
 
 import React, { useEffect, useState } from "react";
-import { Button, Card, Icon, Input, Spinner } from "@assessiq/ui-system";
+import { Button, Card, ConfirmDialog, Icon, Input, Spinner } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { adminApi } from "../api.js";
@@ -27,6 +27,8 @@ export default function EmbedConfigPage(): React.ReactElement {
   const [reveal, setReveal] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     adminApi<{ origins: string[] }>("/admin/embed-origins")
@@ -57,13 +59,13 @@ export default function EmbedConfigPage(): React.ReactElement {
   }
 
   async function regenerate() {
-    if (!window.confirm("Regenerate the API secret? The current secret stops working immediately.")) return;
+    setRegenerating(true);
     try {
       const r = await adminApi<{ plaintextSecret: string }>("/admin/webhook-secrets/rotate", { method: "POST" });
       setSecret(r.plaintextSecret);
       setReveal(true);
       setMsg("New secret created. Copy it now; it is not shown again.");
-    } catch (e) { setMsg(err(e)); }
+    } catch (e) { setMsg(err(e)); } finally { setRegenerating(false); setConfirmRegen(false); }
   }
 
   return (
@@ -85,7 +87,7 @@ export default function EmbedConfigPage(): React.ReactElement {
                   <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(secret).then(() => setMsg("Secret copied."))}>Copy</Button>
                 </>
               )}
-              <Button size="sm" variant="outline" style={{ color: "var(--aiq-color-danger)", borderColor: "var(--aiq-color-danger)" }} onClick={() => void regenerate()}>Regenerate</Button>
+              <Button size="sm" variant="outline" style={{ color: "var(--aiq-color-danger)", borderColor: "var(--aiq-color-danger)" }} onClick={() => setConfirmRegen(true)}>Regenerate</Button>
             </div>
           </div>
         </Card>
@@ -114,6 +116,16 @@ export default function EmbedConfigPage(): React.ReactElement {
           </div>
         </Card>
       </div>
+      <ConfirmDialog
+        open={confirmRegen}
+        title="Regenerate API secret"
+        body="Regenerate the API secret? The current secret stops working immediately."
+        confirmLabel="Regenerate secret"
+        danger
+        busy={regenerating}
+        onConfirm={() => void regenerate()}
+        onCancel={() => setConfirmRegen(false)}
+      />
     </AdminShell>
   );
 }

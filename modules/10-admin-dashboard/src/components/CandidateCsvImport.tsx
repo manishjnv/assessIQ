@@ -8,7 +8,7 @@
 // everything (limits, emails, dedupe) and is authoritative.
 
 import React, { useRef, useState } from "react";
-import { Chip, Spinner } from "@assessiq/ui-system";
+import { Chip, Spinner, Table, type ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { adminApi, AdminApiError } from "../api.js";
 
@@ -31,6 +31,11 @@ export interface ImportResult {
 
 const SAMPLE_CSV =
   "name,email,roll_number,branch\nAsha Verma,asha.verma@example.com,21CS001,CSE\nRohan Mehta,rohan.mehta@example.com,21ME014,Mechanical\n";
+
+const PREVIEW_COLUMNS: ColumnDef<string[]>[] = [
+  { key: "name", label: "Name", render: (r) => r[0] },
+  { key: "email", label: "Email", render: (r) => r[1] },
+];
 
 // ponytail: minimal quote-aware splitter for the preview only — the server
 // parser is the real one.
@@ -204,22 +209,7 @@ export function CandidateCsvImport({
             <strong>{fileName}</strong> — {preview.total} row{preview.total !== 1 ? "s" : ""}.
             {preview.total > preview.rows.length ? ` Showing the first ${preview.rows.length}.` : ""}
           </p>
-          <table style={{ ...sans, borderCollapse: "collapse", width: "100%" }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: "left", padding: "4px 8px" }}>Name</th>
-                <th style={{ textAlign: "left", padding: "4px 8px" }}>Email</th>
-              </tr>
-            </thead>
-            <tbody>
-              {preview.rows.map((r, i) => (
-                <tr key={i} style={{ borderTop: "1px solid var(--aiq-color-border)" }}>
-                  <td style={{ padding: "4px 8px" }}>{r[0]}</td>
-                  <td style={{ padding: "4px 8px" }}>{r[1]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <Table data={preview.rows} columns={PREVIEW_COLUMNS} emptyMessage="No rows." />
           <div style={{ display: "flex", gap: "var(--aiq-space-sm)", marginTop: "var(--aiq-space-md)", alignItems: "center" }}>
             <button type="button" className="aiq-btn aiq-btn-primary" disabled={busy} onClick={() => void confirm()}>
               {busy ? <><Spinner size="sm" aria-label="Importing" /> Importing…</> : `Import and invite ${preview.total}`}

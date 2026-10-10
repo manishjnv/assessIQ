@@ -1,7 +1,7 @@
 // PlatformDomainsSection — split from platform.tsx (E9, no behaviour change).
 
 import React, { useEffect, useState } from "react";
-import { Button, Card, Chip, Field, Spinner } from "@assessiq/ui-system";
+import { Button, Chip, Field, Modal, Spinner } from "@assessiq/ui-system";
 import { MfaStepUp } from "../../components/mfa-step-up.js";
 import { AdminApiError, listPlatformDomainsApi, createPlatformDomainApi, setPlatformDomainStatusApi, type PlatformDomainItem, type CreatePlatformDomainRequest } from "../../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
@@ -197,36 +197,7 @@ export function PlatformDomainsSection(): React.ReactElement {
     <>
       {/* ── Create domain modal ── */}
       {showCreate && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.36)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 100,
-          }}
-          onClick={closeCreate}
-          role="presentation"
-        >
-          <Card
-            padding="lg"
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 480 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-              <h2
-                className="aiq-serif"
-                style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
-              >
-                {createModalState === "mfa" ? "Verify MFA" : "Add platform subject"}
-              </h2>
-              <span style={{ flex: 1 }} />
-              <Button size="sm" variant="ghost" onClick={closeCreate} aria-label="Close">
-                ×
-              </Button>
-            </div>
-
+        <Modal open onClose={closeCreate} title={createModalState === "mfa" ? "Verify MFA" : "Add platform subject"}>
             {createModalState === "mfa" ? (
               <MfaStepUp
                 prompt="Your admin MFA needs to be verified before creating a platform subject. Enter your 6-digit authenticator code to continue."
@@ -301,46 +272,22 @@ export function PlatformDomainsSection(): React.ReactElement {
                 </div>
               </>
             )}
-          </Card>
-        </div>
+        </Modal>
       )}
 
       {/* ── Archive / reactivate confirm modal ── */}
       {statusPending !== null && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.36)",
-            display: "grid",
-            placeItems: "center",
-            zIndex: 100,
-          }}
-          onClick={closeStatusModal}
-          role="presentation"
+        <Modal
+          open
+          onClose={closeStatusModal}
+          title={
+            statusModalState === "mfa"
+              ? "Verify MFA"
+              : statusPending.nextStatus === "archived"
+                ? `Archive "${statusPending.domain.name}"?`
+                : `Reactivate "${statusPending.domain.name}"?`
+          }
         >
-          <Card
-            padding="lg"
-            onClick={(e) => e.stopPropagation()}
-            style={{ width: "100%", maxWidth: 480 }}
-          >
-            <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
-              <h2
-                className="aiq-serif"
-                style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
-              >
-                {statusModalState === "mfa"
-                  ? "Verify MFA"
-                  : statusPending.nextStatus === "archived"
-                    ? `Archive "${statusPending.domain.name}"?`
-                    : `Reactivate "${statusPending.domain.name}"?`}
-              </h2>
-              <span style={{ flex: 1 }} />
-              <Button size="sm" variant="ghost" onClick={closeStatusModal} aria-label="Close" disabled={statusLoading}>
-                ×
-              </Button>
-            </div>
-
             {statusModalState === "mfa" ? (
               <MfaStepUp
                 prompt={`Your admin MFA needs to be re-verified before you can ${statusPending.nextStatus === "archived" ? "archive" : "reactivate"} this subject. Enter your 6-digit authenticator code to continue.`}
@@ -382,8 +329,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                 </div>
               </>
             )}
-          </Card>
-        </div>
+        </Modal>
       )}
 
       {/* ── Section body ── */}
@@ -560,4 +506,4 @@ export function PlatformDomainsSection(): React.ReactElement {
     </>
   );
 }
-
+

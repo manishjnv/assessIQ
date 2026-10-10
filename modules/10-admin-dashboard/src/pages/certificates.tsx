@@ -18,7 +18,8 @@
 //  - No new npm dependencies — mirrors generation-attempts.tsx in all patterns.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Chip, Drawer, Spinner, ErasedChip, formatDate } from "@assessiq/ui-system";
+import { Chip, Drawer, Modal, Spinner, Table, ErasedChip, formatDate } from "@assessiq/ui-system";
+import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -163,15 +164,6 @@ export function AdminCertificates(): React.ReactElement {
 
   const LIMIT = 50;
 
-  const SORT_KEYS: Record<string, string> = {
-    "Credential ID": "credential_id",
-    "Email":         "user_email",
-    "Tier":          "tier",
-    "Course":        "course_title",
-    "Issued":        "issued_at",
-    "Status":        "status",
-  };
-
   // ---------------------------------------------------------------------------
   // Fetch
   // ---------------------------------------------------------------------------
@@ -293,27 +285,6 @@ export function AdminCertificates(): React.ReactElement {
   // Shared modal / button styles (kept inline to avoid extra files)
   // ---------------------------------------------------------------------------
 
-  const overlayStyle: React.CSSProperties = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.4)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 900,
-  };
-
-  const modalCardStyle: React.CSSProperties = {
-    background: "var(--aiq-color-bg-base)",
-    borderRadius: "var(--aiq-radius-md)",
-    padding: "var(--aiq-space-lg) var(--aiq-space-xl)",
-    minWidth: "360px",
-    maxWidth: "480px",
-    width: "100%",
-    boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
-    fontFamily: "var(--aiq-font-sans)",
-  };
-
   const labelStyle: React.CSSProperties = {
     display: "block",
     fontFamily: "var(--aiq-font-sans)",
@@ -376,7 +347,74 @@ export function AdminCertificates(): React.ReactElement {
   // ---------------------------------------------------------------------------
 
   const hasMore  = items.length < total;
-  const colCount = isSuperAdmin ? 9 : 8;
+  // Table has no row-click API, so every cell wraps its content in a clickable div
+  // that opens the details drawer (same behaviour as the old <tr onClick>).
+  const cell = (cert: CertAdminRow, node: React.ReactNode, style?: React.CSSProperties, title?: string) => (
+    <div
+      title={title}
+      onClick={() => setSelectedCert(cert)}
+      style={{ width: "100%", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", cursor: "pointer", ...style }}
+    >
+      {node}
+    </div>
+  );
+  const columns: ColumnDef<CertAdminRow>[] = [
+    { key: "credential_id", label: "Credential ID", sortable: true,
+      render: (c) => cell(c, c.credential_id, { fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }, c.credential_id) },
+    { key: "user_email", label: "Email", sortable: true,
+      render: (c) => cell(c,
+        <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+          {c.isErased ? "—" : (c.user_email ?? "—")}
+          {c.isErased && <ErasedChip />}
+        </span>,
+        { fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: c.isErased ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)" }) },
+    { key: "tier", label: "Tier", sortable: true, render: (c) => cell(c, <TierPill tier={c.tier} />) },
+    { key: "course_title", label: "Course", sortable: true,
+      render: (c) => cell(c, c.course_title, { color: "var(--aiq-color-fg-primary)" }, c.course_title) },
+    { key: "issued_at", label: "Issued", sortable: true,
+      render: (c) => cell(c, formatDate(c.issued_at), { fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-secondary)" }) },
+    { key: "status", label: "Status", sortable: true,
+      render: (c) => cell(c, <StatusPill status={c.revoked_at !== null ? "revoked" : "active"} />) },
+    { key: "revoke_reason", label: "Revoke reason",
+      render: (c) => cell(c, c.revoke_reason ?? "—", { fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }, c.revoke_reason ?? undefined) },
+    ...(isSuperAdmin ? [{ key: "tenant_id", label: "Organisation",
+      render: (c: CertAdminRow) => cell(c, c.tenant_id ? `${c.tenant_id.slice(0, 8)}…` : "—", { fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }, c.tenant_id) }] : []),
+    { key: "actions", label: "Actions",
+      render: (c) => cell(c, (
+        <>
+          {c.revoked_at === null && (
+            <HelpTip helpId="admin.certificates.revoke">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRevokeModalId(c.credential_id);
+                  setRevokeReason("");
+                  setRevokeError(null);
+                }}
+                style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-danger)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", whiteSpace: "nowrap" }}
+              >
+                Revoke
+              </button>
+            </HelpTip>
+          )}
+          <HelpTip helpId="admin.certificates.reissue">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setReissueModalId(c.credential_id);
+                setReissueDisplayName("");
+                setReissueError(null);
+              }}
+              style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", whiteSpace: "nowrap" }}
+            >
+              Reissue
+            </button>
+          </HelpTip>
+        </>
+      )) },
+  ];
 
   return (
     <AdminShell breadcrumbs={["Certificates"]} helpPage="admin.certificates">
@@ -518,270 +556,24 @@ export function AdminCertificates(): React.ReactElement {
           </div>
         )}
 
-        {!error && (
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-            }}
-          >
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--aiq-color-border)", textAlign: "left" }}>
-                {[
-                  "Credential ID",
-                  "Email",
-                  "Tier",
-                  "Course",
-                  "Issued",
-                  "Status",
-                  "Revoke reason",
-                  ...(isSuperAdmin ? ["Organisation"] : []),
-                  "Actions",
-                ].map((h) => {
-                  const key = SORT_KEYS[h];
-                  if (key !== undefined) {
-                    return (
-                      <th
-                        key={h}
-                        onClick={() => {
-                          const nextDir = sortBy === key && sortDir === "asc" ? "desc" : "asc";
-                          setSortBy(key);
-                          setSortDir(nextDir);
-                        }}
-                        style={{
-                          padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                          fontFamily: "var(--aiq-font-sans)",
-                          fontSize: "var(--aiq-text-xs)",
-                          fontWeight: 600,
-                          color: "var(--aiq-color-fg-muted)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          whiteSpace: "nowrap",
-                          cursor: "pointer",
-                          userSelect: "none",
-                        }}
-                      >
-                        {h}{sortBy === key ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-                      </th>
-                    );
-                  }
-                  return (
-                    <th
-                      key={h}
-                      style={{
-                        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                        fontFamily: "var(--aiq-font-sans)",
-                        fontSize: "var(--aiq-text-xs)",
-                        fontWeight: 600,
-                        color: "var(--aiq-color-fg-muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {h}
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {loading && items.length === 0 && (
-                <tr>
-                  <td colSpan={colCount} style={{ padding: "var(--aiq-space-xl)", textAlign: "center" }}>
-                    <Spinner aria-label="Loading certificates" />
-                  </td>
-                </tr>
-              )}
-              {!loading && items.length === 0 && (
-                <tr>
-                  <td colSpan={colCount} style={{ padding: "var(--aiq-space-xl)", textAlign: "center", color: "var(--aiq-color-fg-muted)" }}>
-                    No certificates found.
-                  </td>
-                </tr>
-              )}
-              {items.map((cert) => {
-                const isRevoked       = cert.revoked_at !== null;
-                const status: CertStatus = isRevoked ? "revoked" : "active";
-
-                return (
-                  <tr
-                    key={cert.id}
-                    onClick={() => setSelectedCert(cert)}
-                    style={{
-                      borderBottom: "1px solid var(--aiq-color-border)",
-                      transition: "background 0.1s",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {/* Credential ID */}
-                    <td
-                      title={cert.credential_id}
-                      style={{
-                        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                        fontFamily: "var(--aiq-font-mono)",
-                        fontSize: "var(--aiq-text-xs)",
-                        color: "var(--aiq-color-fg-secondary)",
-                        maxWidth: "160px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {cert.credential_id}
-                    </td>
-
-                    {/* Email */}
-                    <td
-                      style={{
-                        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                        fontFamily: "var(--aiq-font-mono)",
-                        fontSize: "var(--aiq-text-xs)",
-                        color: cert.isErased ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)",
-                        maxWidth: "200px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
-                        {cert.isErased ? "—" : (cert.user_email ?? "—")}
-                        {cert.isErased && <ErasedChip />}
-                      </span>
-                    </td>
-
-                    {/* Tier */}
-                    <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", whiteSpace: "nowrap" }}>
-                      <TierPill tier={cert.tier} />
-                    </td>
-
-                    {/* Course title */}
-                    <td
-                      title={cert.course_title}
-                      style={{
-                        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                        color: "var(--aiq-color-fg-primary)",
-                        maxWidth: "220px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {cert.course_title}
-                    </td>
-
-                    {/* Issued at */}
-                    <td
-                      style={{
-                        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                        fontFamily: "var(--aiq-font-mono)",
-                        fontSize: "var(--aiq-text-xs)",
-                        color: "var(--aiq-color-fg-secondary)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {formatDate(cert.issued_at)}
-                    </td>
-
-                    {/* Status */}
-                    <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", whiteSpace: "nowrap" }}>
-                      <StatusPill status={status} />
-                    </td>
-
-                    {/* Revoke reason */}
-                    <td
-                      title={cert.revoke_reason ?? undefined}
-                      style={{
-                        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                        fontFamily: "var(--aiq-font-sans)",
-                        fontSize: "var(--aiq-text-xs)",
-                        color: "var(--aiq-color-fg-muted)",
-                        maxWidth: "200px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {cert.revoke_reason ?? "—"}
-                    </td>
-
-                    {/* Tenant ID — super_admin only */}
-                    {isSuperAdmin && (
-                      <td
-                        title={cert.tenant_id}
-                        style={{
-                          padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          color: "var(--aiq-color-fg-muted)",
-                          maxWidth: "120px",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {cert.tenant_id ? `${cert.tenant_id.slice(0, 8)}…` : "—"}
-                      </td>
-                    )}
-
-                    {/* Actions */}
-                    <td style={{ padding: "var(--aiq-space-sm) var(--aiq-space-md)", whiteSpace: "nowrap" }}>
-                      {!isRevoked && (
-                        <HelpTip helpId="admin.certificates.revoke">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setRevokeModalId(cert.credential_id);
-                              setRevokeReason("");
-                              setRevokeError(null);
-                            }}
-                            style={{
-                              fontFamily: "var(--aiq-font-sans)",
-                              fontSize: "var(--aiq-text-xs)",
-                              color: "var(--aiq-color-danger)",
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              padding: "2px 6px",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Revoke
-                          </button>
-                        </HelpTip>
-                      )}
-                      <HelpTip helpId="admin.certificates.reissue">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setReissueModalId(cert.credential_id);
-                            setReissueDisplayName("");
-                            setReissueError(null);
-                          }}
-                          style={{
-                            fontFamily: "var(--aiq-font-sans)",
-                            fontSize: "var(--aiq-text-xs)",
-                            color: "var(--aiq-color-accent)",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: "2px 6px",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          Reissue
-                        </button>
-                      </HelpTip>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+        {!error && loading && items.length === 0 && (
+          <div style={{ padding: "var(--aiq-space-xl)", textAlign: "center" }}>
+            <Spinner aria-label="Loading certificates" />
+          </div>
+        )}
+        {!error && !(loading && items.length === 0) && (
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: 1100 }}>
+              <Table<CertAdminRow>
+                data={items}
+                columns={columns}
+                sortBy={sortBy}
+                sortDir={sortDir}
+                onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }}
+                emptyMessage="No certificates found."
+              />
+            </div>
+          </div>
         )}
 
         {/* ── Pagination ── */}
@@ -823,8 +615,8 @@ export function AdminCertificates(): React.ReactElement {
 
       {/* ── Revoke modal ── */}
       {revokeModalId && (
-        <div style={overlayStyle}>
-          <div style={modalCardStyle}>
+        <Modal open onClose={() => { if (!revokeLoading) { setRevokeModalId(null); setRevokeReason(""); setRevokeError(null); } }}>
+          <div style={{ fontFamily: "var(--aiq-font-sans)" }}>
             <h2
               style={{
                 fontFamily: "var(--aiq-font-serif)",
@@ -905,13 +697,13 @@ export function AdminCertificates(): React.ReactElement {
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* ── Reissue modal ── */}
       {reissueModalId && (
-        <div style={overlayStyle}>
-          <div style={modalCardStyle}>
+        <Modal open onClose={() => { if (!reissueLoading) { setReissueModalId(null); setReissueDisplayName(""); setReissueError(null); } }}>
+          <div style={{ fontFamily: "var(--aiq-font-sans)" }}>
             <h2
               style={{
                 fontFamily: "var(--aiq-font-serif)",
@@ -971,7 +763,7 @@ export function AdminCertificates(): React.ReactElement {
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* ── Certificate details drawer ── */}
@@ -1352,7 +1144,7 @@ export function AdminCertificates(): React.ReactElement {
       {toastMessage && (
         <div
           style={{
-            position: "fixed",
+            position: "fixed", // lint-fixed-allow: toast
             bottom: "var(--aiq-space-lg)",
             right: "var(--aiq-space-lg)",
             background: "var(--aiq-color-success)",

@@ -13,6 +13,7 @@
 
 import { questionTypeLabel } from "../lib/labels.js";
 import React from "react";
+import { Modal, Table, type ColumnDef } from "@assessiq/ui-system";
 import type { GradingsRow } from "@assessiq/ai-grading";
 import { effectiveGradings } from "../lib/evaluation.js";
 
@@ -55,16 +56,6 @@ export function ReleaseConfirmModal({
   frozenQuestions,
   gradings,
 }: ReleaseConfirmModalProps): React.ReactElement | null {
-  // ESC key handler
-  React.useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, onCancel]);
-
   if (!open) return null;
 
   // question_id → the EFFECTIVE grading (newest row; an override wins), i.e. the
@@ -111,59 +102,115 @@ export function ReleaseConfirmModal({
     (a, b) => a.position - b.position
   );
 
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="rcm-heading"
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "var(--aiq-space-md)",
-        background: "rgba(0,0,0,0.55)",
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
-      }}
-    >
-      {/* Card */}
-      <div
-        className="aiq-card"
-        style={{
-          width: "100%",
-          maxWidth: 720,
-          maxHeight: "90vh",
-          overflowY: "auto",
-          background: "var(--aiq-color-bg-base)",
-          borderRadius: "var(--aiq-radius-md)",
-          padding: "var(--aiq-space-lg)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--aiq-space-md)",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Heading */}
-        <div>
-          <h2
-            id="rcm-heading"
+  const columns: ColumnDef<(typeof sortedQuestions)[number]>[] = [
+    {
+      key: "q",
+      label: "Q",
+      width: 64,
+      render: (q) => (
+        <span
+          style={{
+            fontFamily: "var(--aiq-font-mono)",
+            fontSize: "var(--aiq-text-xs)",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            padding: "1px 6px",
+            borderRadius: "var(--aiq-radius-pill)",
+            background: "var(--aiq-color-accent-soft)",
+            color: "var(--aiq-color-accent)",
+          }}
+        >
+          Q{q.position}
+        </span>
+      ),
+    },
+    {
+      key: "type",
+      label: "Type / Topic",
+      width: "minmax(160px, 1fr)",
+      render: (q) => (
+        <span>
+          <span style={{ color: "var(--aiq-color-fg-primary)" }}>{questionTypeLabel(q.type)}</span>
+          <span style={{ color: "var(--aiq-color-fg-muted)", marginLeft: "var(--aiq-space-xs)" }}>
+            {truncate(q.topic, 40)}
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "band",
+      label: "Score band",
+      width: 150,
+      render: (q) => {
+        const band = gradingByQuestion.get(q.id)?.reasoning_band ?? null;
+        return (
+          <span style={{ fontFamily: "var(--aiq-font-serif)", ...NUM_STYLE }}>
+            {band !== null ? `Score band ${band} · ${BAND_PCT[band] ?? 0}%` : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "score",
+      label: "Score",
+      width: 80,
+      render: (q) => {
+        const g = gradingByQuestion.get(q.id);
+        return (
+          <span style={{ fontFamily: "var(--aiq-font-serif)", color: "var(--aiq-color-fg-secondary)", ...NUM_STYLE }}>
+            {g ? `${g.score_earned}/${g.score_max}` : "—"}
+          </span>
+        );
+      },
+    },
+    {
+      key: "status",
+      label: "Status",
+      width: 120,
+      render: (q) => {
+        const g = gradingByQuestion.get(q.id);
+        const hasAigError =
+          g?.error_class !== null && g?.error_class !== undefined && g.error_class.startsWith("AIG_");
+        let statusLabel = "graded";
+        let statusBg = "var(--aiq-color-success-soft)";
+        let statusColor = "var(--aiq-color-success)";
+        if (!g) {
+          statusLabel = "ungraded";
+          statusBg = "var(--aiq-color-bg-sunken)";
+          statusColor = "var(--aiq-color-fg-muted)";
+        } else if (hasAigError) {
+          statusLabel = "needs review";
+          statusBg = "var(--aiq-color-warning-soft, #fef3c7)";
+          statusColor = "var(--aiq-color-warning, #d97706)";
+        }
+        return (
+          <span
             style={{
-              margin: 0,
-              fontFamily: "var(--aiq-font-serif)",
-              fontSize: "var(--aiq-text-xl)",
-              color: "var(--aiq-color-fg-primary)",
-              fontWeight: 600,
+              fontFamily: "var(--aiq-font-mono)",
+              fontSize: "var(--aiq-text-xs)",
+              textTransform: "uppercase",
+              letterSpacing: "0.04em",
+              padding: "1px 8px",
+              borderRadius: "var(--aiq-radius-pill)",
+              background: statusBg,
+              color: statusColor,
+              whiteSpace: "nowrap",
             }}
           >
-            Release result to candidate?
-          </h2>
+            {statusLabel}
+          </span>
+        );
+      },
+    },
+  ];
+
+  return (
+    <Modal open={open} onClose={onCancel} title="Release result to candidate?" width={720}>
+      <>
+        <div>
           <p
             style={{
-              margin: "var(--aiq-space-xs) 0 0",
+              margin: 0,
               fontSize: "var(--aiq-text-sm)",
               color: "var(--aiq-color-fg-secondary)",
               fontFamily: "var(--aiq-font-sans)",
@@ -322,142 +369,7 @@ export function ReleaseConfirmModal({
 
         {/* Per-question table */}
         <div style={{ overflowX: "auto" }}>
-          <table
-            style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-            }}
-          >
-            <thead>
-              <tr
-                style={{
-                  borderBottom: "1px solid var(--aiq-color-border)",
-                  color: "var(--aiq-color-fg-muted)",
-                  fontSize: "var(--aiq-text-xs)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                }}
-              >
-                <th style={{ textAlign: "left", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Q</th>
-                <th style={{ textAlign: "left", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Type / Topic</th>
-                <th style={{ textAlign: "right", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Score band</th>
-                <th style={{ textAlign: "right", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Score</th>
-                <th style={{ textAlign: "center", padding: "var(--aiq-space-xs) var(--aiq-space-sm)", fontWeight: 500 }}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedQuestions.map((q) => {
-                const g = gradingByQuestion.get(q.id);
-                const band = g?.reasoning_band ?? null;
-                const bandPct = band !== null ? (BAND_PCT[band] ?? 0) : null;
-                const hasAigError =
-                  g?.error_class !== null &&
-                  g?.error_class !== undefined &&
-                  g.error_class.startsWith("AIG_");
-
-                let statusLabel: string;
-                let statusBg: string;
-                let statusColor: string;
-                if (!g) {
-                  statusLabel = "ungraded";
-                  statusBg = "var(--aiq-color-bg-sunken)";
-                  statusColor = "var(--aiq-color-fg-muted)";
-                } else if (hasAigError) {
-                  statusLabel = "needs review";
-                  statusBg = "var(--aiq-color-warning-soft, #fef3c7)";
-                  statusColor = "var(--aiq-color-warning, #d97706)";
-                } else {
-                  statusLabel = "graded";
-                  statusBg = "var(--aiq-color-success-soft)";
-                  statusColor = "var(--aiq-color-success)";
-                }
-
-                return (
-                  <tr
-                    key={q.id}
-                    style={{ borderBottom: "1px solid var(--aiq-color-border)" }}
-                  >
-                    {/* Q-label chip */}
-                    <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-sm)", whiteSpace: "nowrap" }}>
-                      <span
-                        style={{
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.06em",
-                          padding: "1px 6px",
-                          borderRadius: "var(--aiq-radius-pill)",
-                          background: "var(--aiq-color-accent-soft)",
-                          color: "var(--aiq-color-accent)",
-                        }}
-                      >
-                        Q{q.position}
-                      </span>
-                    </td>
-
-                    {/* Type / Topic */}
-                    <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-sm)" }}>
-                      <span style={{ color: "var(--aiq-color-fg-primary)" }}>
-                        {questionTypeLabel(q.type)}
-                      </span>
-                      <span style={{ color: "var(--aiq-color-fg-muted)", marginLeft: "var(--aiq-space-xs)" }}>
-                        {truncate(q.topic, 40)}
-                      </span>
-                    </td>
-
-                    {/* Band */}
-                    <td
-                      style={{
-                        padding: "var(--aiq-space-xs) var(--aiq-space-sm)",
-                        textAlign: "right",
-                        fontFamily: "var(--aiq-font-serif)",
-                        color: "var(--aiq-color-fg-primary)",
-                        whiteSpace: "nowrap",
-                        ...NUM_STYLE,
-                      }}
-                    >
-                      {bandPct !== null ? `Score band ${band} · ${bandPct}%` : "—"}
-                    </td>
-
-                    {/* Score */}
-                    <td
-                      style={{
-                        padding: "var(--aiq-space-xs) var(--aiq-space-sm)",
-                        textAlign: "right",
-                        fontFamily: "var(--aiq-font-serif)",
-                        color: "var(--aiq-color-fg-secondary)",
-                        whiteSpace: "nowrap",
-                        ...NUM_STYLE,
-                      }}
-                    >
-                      {g ? `${g.score_earned}/${g.score_max}` : "—"}
-                    </td>
-
-                    {/* Status chip */}
-                    <td style={{ padding: "var(--aiq-space-xs) var(--aiq-space-sm)", textAlign: "center" }}>
-                      <span
-                        style={{
-                          fontFamily: "var(--aiq-font-mono)",
-                          fontSize: "var(--aiq-text-xs)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.04em",
-                          padding: "1px 8px",
-                          borderRadius: "var(--aiq-radius-pill)",
-                          background: statusBg,
-                          color: statusColor,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {statusLabel}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <Table data={sortedQuestions} columns={columns} emptyMessage="No questions." />
         </div>
 
         {/* Footer buttons */}
@@ -488,8 +400,8 @@ export function ReleaseConfirmModal({
             {releasing ? "Releasing…" : "Release to candidate"}
           </button>
         </div>
-      </div>
-    </div>
+      </>
+    </Modal>
   );
 }
 
