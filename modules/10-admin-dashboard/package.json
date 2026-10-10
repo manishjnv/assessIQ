@@ -16,6 +16,7 @@
     "@assessiq/core": "workspace:*",
     "@assessiq/help-system": "workspace:*",
     "@assessiq/http-client": "workspace:*",
+    "@assessiq/question-types": "workspace:*",
     "@assessiq/rubric-engine": "workspace:*",
     "@assessiq/scoring": "workspace:*",
     "@assessiq/ui-system": "workspace:*",

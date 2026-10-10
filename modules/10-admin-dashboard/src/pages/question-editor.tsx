@@ -22,11 +22,10 @@ import type { RubricDraft, BandDraft } from "../components/RubricEditor.js";
 import { QuestionContentView } from "../components/QuestionContentView.js";
 import { StructuredCaseEditor, EMPTY_SC, buildStructuredCaseContent, structuredCaseError } from "../components/StructuredCaseEditor.js";
 import type { ScState } from "../components/StructuredCaseEditor.js";
+import { QUESTION_TYPES, type QuestionType } from "@assessiq/question-types";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
 
-const QUESTION_TYPES = ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select", "ordering", "structured_case"] as const;
-type QuestionType = typeof QUESTION_TYPES[number];
 
 const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
   mcq: { question: "", options: ["", "", "", ""], correct: 0, rationale: "" },
