@@ -2452,3 +2452,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** The comment held the literal text `spawn("claude"`. `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` is regex-based and scans the whole file text, comments included. It saw a claude spawn in a file where it is not allowed. This is the same class as the earlier SDK-import comment entry in this log.
 **Fix:** The comment was reworded so that it no longer holds the pattern. No change to the lint (it is a `codex:rescue` gated file).
 **Prevention:** manual discipline: do not quote spawn or import patterns in comments in module 07. Open row RW-65: make the lint skip comments, or also match `exec` and `execFile`, under a codex gate.
+
+## 2026-10-10 — TokenLanding L7 test read the device-check disclosure before the check ran
+
+**Symptom:** `apps/web` test `L7 - device-check disclosure is closed by default` failed (80 of 81 passing after S6). The component was correct; the test was wrong.
+**Cause:** `useSystemCheck` (`apps/web/src/pages/take/PreTest.tsx:63`) starts with `rows = []`, which makes `blocked` true, so `<details open={blocked || undefined}>` (`TokenLanding.tsx:171`) is open on first paint. The rows fill in a mount effect. The fixture asserted on `findByText('Ready when you are.')`, which resolves before that effect has run.
+**Fix:** `apps/web/src/pages/take/TokenLanding.test.tsx` L7 now waits for the five `OK` chips before it reads `details.open`. New case L7b sets offline and asserts the disclosure opens when blocked. Component unchanged.
+**Prevention:** Any test that reads state from `useSystemCheck` must wait for the check rows first. The helper pattern is `await waitFor(() => expect(screen.getAllByText('OK').length).toBe(5))`.
