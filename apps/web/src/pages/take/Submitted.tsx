@@ -342,7 +342,7 @@ export function Submitted(): React.JSX.Element {
           </div>
 
           {/* Mono attempt-ID footer */}
-          <div style={META_LABEL}>Attempt ID · {attemptId}</div>
+          <div style={META_LABEL}>Reference · {attemptId}</div>
         </div>
       </main>
     </div>

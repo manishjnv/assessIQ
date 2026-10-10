@@ -1064,9 +1064,6 @@ export function AttemptPage(): React.JSX.Element {
   const isFirst = safeIdx === 0;
   const isLast = safeIdx === sorted.length - 1;
 
-  // Derive topic from the first question for the header chip.
-  const topicLabel = sorted[0]?.topic ?? '';
-
   // Test sections (absent for ordinary tests: everything below then behaves as before).
   const sec = view.sections;
   const isLastSection = sec === undefined || sec.current >= sec.total - 1;
@@ -1165,6 +1162,9 @@ export function AttemptPage(): React.JSX.Element {
   // in tokens.css); the Drawer mounts lazily only when navOpen is true.
   const navigatorBody = (
     <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--aiq-space-sm)' }}>
+        <CandidateHelp />
+      </div>
       <QuestionNavigator
         items={navigatorItems}
         onSelect={(qid) => {
@@ -1246,16 +1246,10 @@ export function AttemptPage(): React.JSX.Element {
       <header className="aiq-attempt-top" style={TOP_BAR}>
         <Logo />
 
-        {sec !== undefined ? (
+        {sec !== undefined && (
           <Chip variant="default" style={{ flexShrink: 0 }} data-help-id="candidate.attempt.section">
             Section {sec.current + 1} of {sec.total} · {sec.name}
           </Chip>
-        ) : (
-          topicLabel && (
-            <Chip variant="default" style={{ flexShrink: 0 }}>
-              {topicLabel}
-            </Chip>
-          )
         )}
 
         <span style={{ ...COUNTER_LABEL, flex: 1 }}>
@@ -1312,8 +1306,6 @@ export function AttemptPage(): React.JSX.Element {
         >
           <Icon name="grid" size={14} />
         </button>
-
-        <CandidateHelp />
       </header>
 
       {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}

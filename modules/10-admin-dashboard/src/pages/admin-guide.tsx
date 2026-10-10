@@ -374,7 +374,7 @@ export function AdminGuide(): React.ReactElement {
             <UL
               items={[
                 <><strong>Admin role</strong> in your organisation account.</>,
-                <>Two-factor sign-in (MFA) is <strong>optional and recommended</strong>.</>,
+                <>Two-step sign-in is<strong>optional and recommended</strong>.</>,
                 <>List of <strong>candidate email addresses</strong> ready.</>,
               ]}
             />

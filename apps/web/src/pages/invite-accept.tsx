@@ -52,6 +52,13 @@ const META_LABEL: CSSProperties = {
 
 type Mode = 'pending' | 'success' | 'error';
 
+// RW-29: fixed candidate-safe copy; raw server messages are never shown.
+const INVITE_ERRORS = {
+  missing: 'This invitation link is incomplete. Ask the person who invited you to send a new one.',
+  invalid: 'This invitation has expired, was already used, or was withdrawn. Ask the person who invited you to send a new one.',
+  generic: 'Something went wrong. Please try again, or ask the person who invited you for help.',
+} as const;
+
 export function InviteAccept(): React.JSX.Element {
   const [params] = useSearchParams();
   const nav = useNavigate();
@@ -63,7 +70,7 @@ export function InviteAccept(): React.JSX.Element {
   useEffect(() => {
     if (!token) {
       setMode('error');
-      setError('No invitation token found in the URL.');
+      setError(INVITE_ERRORS.missing);
       return;
     }
 
@@ -83,10 +90,11 @@ export function InviteAccept(): React.JSX.Element {
       .catch((err: unknown) => {
         if (err instanceof Error && err.name === 'AbortError') return;
         setMode('error');
-        if (err instanceof ApiCallError) {
-          setError(err.apiError.message);
+        // 429 / 5xx / other are transient, not an invitation problem.
+        if (err instanceof ApiCallError && [400, 401, 403, 404, 409, 410].includes(err.status)) {
+          setError(INVITE_ERRORS.invalid);
         } else {
-          setError('Failed to accept invitation. The link may have expired.');
+          setError(INVITE_ERRORS.generic);
         }
       });
 
@@ -98,7 +106,7 @@ export function InviteAccept(): React.JSX.Element {
     pending: {
       chip: { variant: 'default' as const, leftIcon: 'clock' as const, label: 'Verifying' },
       title: 'Confirming your invitation…',
-      body: "We're checking the token and creating your session. This takes a second.",
+      body: "We're checking your invitation and signing you in. This takes a second.",
     },
     success: {
       chip: { variant: 'success' as const, leftIcon: 'check' as const, label: 'Confirmed' },
@@ -107,10 +115,9 @@ export function InviteAccept(): React.JSX.Element {
     },
     error: {
       chip: { variant: 'default' as const, leftIcon: 'close' as const, label: 'Invitation error' },
-      title: 'Could not accept invitation.',
+      title: 'This invitation could not be accepted.',
       body:
-        error ??
-        'The link may have expired, already been used, or been revoked. Ask the admin who invited you to send a fresh link.',
+        error ?? INVITE_ERRORS.invalid,
     },
   }[mode];
 

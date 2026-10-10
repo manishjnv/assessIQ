@@ -22,7 +22,6 @@ import type {
   CohortStats,
   CohortPercentiles,
   LeaderboardRow,
-  IndividualScore,
   IndividualReport,
 } from "./types.js";
 import { ArchetypeSignalsSchema } from "./types.js";

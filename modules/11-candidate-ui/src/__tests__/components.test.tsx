@@ -59,9 +59,9 @@ describe("AttemptTimer", () => {
 });
 
 describe("AutosaveIndicator", () => {
-  it("renders the Idle label for status='idle'", () => {
+  it("renders 'Not saved yet' for status='idle'", () => {
     render(<AutosaveIndicator status="idle" />);
-    expect(screen.getByText("Idle")).toBeDefined();
+    expect(screen.getByText("Not saved yet")).toBeDefined();
   });
 
   it("renders Saving… for status='saving' and applies the pulse class", () => {
@@ -71,20 +71,17 @@ describe("AutosaveIndicator", () => {
     expect(pulse).not.toBeNull();
   });
 
-  it("includes lastSavedAt relative time when status='saved'", () => {
-    const tenSecondsAgo = new Date(Date.now() - 10_000).toISOString();
-    render(<AutosaveIndicator status="saved" lastSavedAt={tenSecondsAgo} />);
-    expect(screen.getByText(/Saved.*just now/)).toBeDefined();
+  it("renders plain 'Saved' for status='saved'", () => {
+    render(<AutosaveIndicator status="saved" />);
+    expect(screen.getByText("Saved")).toBeDefined();
   });
 
-  it("includes retry hint when status='error' and retryCount > 0", () => {
-    render(<AutosaveIndicator status="error" retryCount={3} />);
-    expect(screen.getByText(/retry 3\/5/)).toBeDefined();
-  });
-
-  it("renders Offline · queued for status='offline'", () => {
+  it("renders 'Not saved yet' for status='error' and 'offline'", () => {
+    const { unmount } = render(<AutosaveIndicator status="error" retryCount={3} />);
+    expect(screen.getByText("Not saved yet")).toBeDefined();
+    unmount();
     render(<AutosaveIndicator status="offline" />);
-    expect(screen.getByText("Offline · queued")).toBeDefined();
+    expect(screen.getByText("Not saved yet")).toBeDefined();
   });
 });
 

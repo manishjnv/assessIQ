@@ -85,7 +85,7 @@ export function AdminEmailOtp(): React.JSX.Element {
       }
 
       // ok:false → generic error (server enforces lockout after ≤5 attempts).
-      setCodeError('Invalid or expired code. Please try again.');
+      setCodeError('That code is not valid or has expired. Try again.');
     } catch {
       setCodeError('Something went wrong. Please try again.');
     } finally {
@@ -111,7 +111,7 @@ export function AdminEmailOtp(): React.JSX.Element {
         </span>
 
         <h1 className="aiq-serif" style={SERIF_H1}>
-          {step === 'email' ? 'Enter your email.' : 'Enter your code.'}
+          {step === 'email' ? 'Enter your email.' : 'Enter your sign-in code.'}
         </h1>
 
         {step === 'email' ? (
@@ -149,7 +149,7 @@ export function AdminEmailOtp(): React.JSX.Element {
                 disabled={submitting || email.trim().length === 0}
                 style={{ width: '100%', justifyContent: 'center' }}
               >
-                {submitting ? 'Sending…' : 'Send code'}
+                {submitting ? 'Sending…' : 'Send sign-in code'}
               </Button>
             </form>
           </>
@@ -164,7 +164,7 @@ export function AdminEmailOtp(): React.JSX.Element {
                 fontFamily: 'var(--aiq-font-sans)',
               }}
             >
-              If that email can sign in, we've sent a 6-digit code. Enter it below.
+              If that email can sign in, we've sent a 6-digit sign-in code. Enter it below.
             </p>
             <p
               style={{
@@ -174,13 +174,13 @@ export function AdminEmailOtp(): React.JSX.Element {
                 fontFamily: 'var(--aiq-font-sans)',
               }}
             >
-              Code expires in 10 minutes. You have up to 5 attempts.
+              The sign-in code expires in 10 minutes. You have up to 5 attempts.
             </p>
 
             <form onSubmit={(e) => { void handleCodeSubmit(e); }}>
               <div style={{ marginBottom: 16 }}>
                 <Field
-                  label="6-digit code"
+                  label="6-digit sign-in code"
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]{6}"

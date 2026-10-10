@@ -129,7 +129,7 @@ export function AdminMfa(): React.JSX.Element {
             setError(err.apiError.message);
           }
         } else {
-          setError('Could not start TOTP enrolment.');
+          setError('Could not start authenticator set-up.');
         }
       });
     return () => {
@@ -157,7 +157,7 @@ export function AdminMfa(): React.JSX.Element {
     if (submitting) return; // idempotent guard — auto-submit + a stray click won't double-fire
     const c = codeArg ?? code;
     if (!/^\d{6}$/.test(c)) {
-      setError('Enter a 6-digit code from your authenticator app.');
+      setError('Enter the 6-digit authenticator code.');
       return;
     }
     setSubmitting(true);
@@ -187,7 +187,7 @@ export function AdminMfa(): React.JSX.Element {
           setLocked(true);
           setError('Too many attempts; locked for 15 minutes.');
         } else if (err.apiError.code === 'INVALID_CODE') {
-          setError('Invalid code. Try again.');
+          setError('That code is not valid or has expired. Try again.');
         } else {
           setError(err.apiError.message);
         }
@@ -239,17 +239,17 @@ export function AdminMfa(): React.JSX.Element {
         >
           <Card padding="lg" style={{ width: '100%', maxWidth: 480 }}>
             <div style={{ marginBottom: 16 }}>
-              <Chip variant="accent" leftIcon="sparkle">Recovery codes</Chip>
+              <Chip variant="accent" leftIcon="sparkle">Backup codes</Chip>
             </div>
             <h1
               className="aiq-serif"
               style={{ fontSize: 28, lineHeight: 1.15, margin: '0 0 10px', fontWeight: 400, letterSpacing: '-0.015em' }}
             >
-              Save your recovery codes.
+              Save your backup codes.
             </h1>
             <p style={{ fontSize: 14, color: 'var(--aiq-color-fg-secondary)', margin: '0 0 20px', lineHeight: 1.5 }}>
-              These 10 codes are shown <strong>once only</strong>. If you lose access to your authenticator app,
-              each code can be used once to sign in. Store them somewhere safe (password manager, printed paper).
+              These 10 backup codes are shown <strong>once only</strong>. If you lose access to your authenticator app,
+              each backup code can be used once to sign in. Store them somewhere safe (password manager, printed paper).
             </p>
 
             {/* Code grid */}
@@ -320,7 +320,7 @@ export function AdminMfa(): React.JSX.Element {
                 onChange={(e) => setRecoveryCodesSaved(e.target.checked)}
                 style={{ marginTop: 2, flexShrink: 0 }}
               />
-              I've saved my recovery codes in a secure location.
+              I've saved my backup codes in a secure location.
             </label>
 
             <Button
@@ -365,13 +365,13 @@ export function AdminMfa(): React.JSX.Element {
   const title = locked
     ? 'Verify your authenticator.'
     : enrolled === false
-      ? 'Enrol your authenticator.'
+      ? 'Set up your authenticator.'
       : 'Verify your authenticator.';
   const body = locked
     ? 'Too many failed attempts. Try again in 15 minutes.'
     : enrolled === false
-      ? 'Scan the QR code with Google Authenticator, Authy, or 1Password, then enter the 6-digit code below.'
-      : 'Enter the 6-digit code from your authenticator app.';
+      ? 'Scan the QR code with Google Authenticator, Authy, or 1Password, then enter the 6-digit authenticator code below.'
+      : 'Enter the 6-digit authenticator code from your app.';
 
   return (
     <div
@@ -431,7 +431,7 @@ export function AdminMfa(): React.JSX.Element {
                 borderRadius: 'var(--aiq-radius-lg)',
               }}
             >
-              <canvas ref={canvasRef} aria-label="TOTP enrolment QR code" />
+              <canvas ref={canvasRef} aria-label="Authenticator set-up QR code" />
               {secretBase32 !== null && (
                 <>
                   <p
@@ -468,7 +468,7 @@ export function AdminMfa(): React.JSX.Element {
             htmlFor="totp-code"
             style={{ ...META_LABEL, display: 'block', marginBottom: 6 }}
           >
-            6-digit code
+            6-digit authenticator code
           </label>
           <input
             id="totp-code"
@@ -564,7 +564,7 @@ export function AdminMfa(): React.JSX.Element {
                   fontWeight: 500,
                 }}
               >
-                Use a recovery code
+                Use a backup code
               </a>
             </p>
           )}
@@ -584,7 +584,7 @@ export function AdminMfa(): React.JSX.Element {
                 textAlign: 'center',
               }}
             >
-              Two-factor sign-in is optional for your account.{' '}
+              Two-step sign-in is optional for your account.{' '}
               <a
                 href="/admin"
                 onClick={(e) => {

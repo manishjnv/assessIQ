@@ -72,7 +72,7 @@ function MfaNudgeBanner({
           flex: 1,
         }}
       >
-        <strong>Secure your account.</strong> Enable two-factor authentication to protect against unauthorised access.{" "}
+        <strong>Secure your account.</strong> Turn on two-step sign-in to protect your account.{" "}
         <button
           type="button"
           onClick={onSetup}
