@@ -40,6 +40,7 @@ COPY modules/03-users/package.json          ./modules/03-users/
 COPY modules/04-question-bank/package.json  ./modules/04-question-bank/
 COPY modules/05-assessment-lifecycle/package.json ./modules/05-assessment-lifecycle/
 COPY modules/06-attempt-engine/package.json ./modules/06-attempt-engine/
+COPY packages/http-client/package.json      ./packages/http-client/
 
 RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --filter '@assessiq/web...'
@@ -61,6 +62,7 @@ COPY --from=deps /app/. ./
 # Phase 1 G1.D: candidate-ui + help-system source must land here for tsc to
 # resolve their barrels. 00-core + 02-tenancy are transitive deps of help-system.
 COPY apps/web/                              ./apps/web/
+COPY packages/http-client/                  ./packages/http-client/
 COPY modules/17-ui-system/                  ./modules/17-ui-system/
 COPY modules/11-candidate-ui/               ./modules/11-candidate-ui/
 COPY modules/16-help-system/               ./modules/16-help-system/
