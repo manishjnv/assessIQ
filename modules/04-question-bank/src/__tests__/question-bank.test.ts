@@ -351,8 +351,8 @@ describe("Pack lifecycle", () => {
       { slug: `lvlcount-${randomUUID().slice(0, 8)}`, name: "Level Count Test", domain: "qbsearch" },
       adminA,
     );
-    await addLevel(tenantA, pack.id, { position: 1, label: "L1", duration_minutes: 30, default_question_count: 1 });
-    await addLevel(tenantA, pack.id, { position: 2, label: "L2", duration_minutes: 30, default_question_count: 1 });
+    await addLevel(tenantA, pack.id, { position: 1, label: "L1", duration_minutes: 30, default_question_count: 1 }, adminA);
+    await addLevel(tenantA, pack.id, { position: 2, label: "L2", duration_minutes: 30, default_question_count: 1 }, adminA);
 
     const { items } = await listPacks(tenantA, { search: pack.slug });
     const row = items.find((p) => p.id === pack.id);
@@ -399,7 +399,7 @@ describe("Pack lifecycle", () => {
       name: "Updated Name",
       domain: "cloud",
       description: "New description",
-    });
+    }, adminA);
 
     expect(updated.name).toBe("Updated Name");
     expect(updated.domain).toBe("cloud");
@@ -482,7 +482,7 @@ describe("Level lifecycle", () => {
       duration_minutes: 30,
       default_question_count: 10,
       passing_score_pct: 60,
-    });
+    }, adminA);
 
     expect(level.position).toBe(1);
     expect(level.label).toBe("L1");
@@ -498,12 +498,12 @@ describe("Level lifecycle", () => {
     );
     await addLevel(tenantA, dupePack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 5,
-    });
+    }, adminA);
 
     await expect(
       addLevel(tenantA, dupePack.id, {
         position: 1, label: "L1-dup", duration_minutes: 30, default_question_count: 5,
-      }),
+      }, adminA),
     ).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ConflictError &&
@@ -515,7 +515,7 @@ describe("Level lifecycle", () => {
     await expect(
       addLevel(tenantA, randomUUID(), {
         position: 1, label: "L1", duration_minutes: 30, default_question_count: 5,
-      }),
+      }, adminA),
     ).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof NotFoundError &&
@@ -529,12 +529,12 @@ describe("Level lifecycle", () => {
       label: "L3-original",
       duration_minutes: 20,
       default_question_count: 8,
-    });
+    }, adminA);
 
     const updated = await updateLevel(tenantA, level.id, {
       label: "L3-updated",
       duration_minutes: 45,
-    });
+    }, adminA);
 
     expect(updated.label).toBe("L3-updated");
     expect(updated.duration_minutes).toBe(45);
@@ -542,7 +542,7 @@ describe("Level lifecycle", () => {
 
   it("updateLevel with unknown level id throws NotFoundError LEVEL_NOT_FOUND", async () => {
     await expect(
-      updateLevel(tenantA, randomUUID(), { label: "Ghost Level" }),
+      updateLevel(tenantA, randomUUID(), { label: "Ghost Level" }, adminA),
     ).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof NotFoundError &&
@@ -568,7 +568,7 @@ describe("Question lifecycle + versioning", () => {
     packId = pack.id;
     const level = await addLevel(tenantA, packId, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 10,
-    });
+    }, adminA);
     levelId = level.id;
   });
 
@@ -717,7 +717,7 @@ describe("Question lifecycle + versioning", () => {
     );
     const arcLevel = await addLevel(tenantA, archivedPack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
-    });
+    }, adminA);
     // Add a question so publishPack has something to snapshot
     await createQuestion(
       tenantA,
@@ -962,7 +962,7 @@ describe("Tag attachment", () => {
     packId = pack.id;
     const level = await addLevel(tenantA, packId, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 10,
-    });
+    }, adminA);
     levelId = level.id;
   });
 
@@ -1086,7 +1086,7 @@ describe("publishPack snapshot semantics (decision #21)", () => {
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 3,
-    });
+    }, adminA);
 
     // Create 3 questions
     const qIds: string[] = [];
@@ -1133,7 +1133,7 @@ describe("publishPack snapshot semantics (decision #21)", () => {
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 2,
-    });
+    }, adminA);
     for (let i = 0; i < 2; i++) {
       await createQuestion(
         tenantA,
@@ -1162,7 +1162,7 @@ describe("publishPack snapshot semantics (decision #21)", () => {
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
-    });
+    }, adminA);
     const q = await createQuestion(
       tenantA,
       {
@@ -1206,7 +1206,7 @@ describe("publishPack snapshot semantics (decision #21)", () => {
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
-    });
+    }, adminA);
     await createQuestion(
       tenantA,
       {
@@ -1242,7 +1242,7 @@ describe("revisePack (published → draft)", () => {
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
-    });
+    }, adminA);
     await createQuestion(
       tenantA,
       { pack_id: pack.id, level_id: level.id, type: "mcq", topic: "rev-q", points: 5, content: mcqContent() },
@@ -1272,7 +1272,7 @@ describe("revisePack (published → draft)", () => {
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
-    });
+    }, adminA);
     await createQuestion(
       tenantA,
       { pack_id: pack.id, level_id: level.id, type: "mcq", topic: "rev-audit-q", points: 5, content: mcqContent() },
@@ -1318,7 +1318,7 @@ describe("archivePack", () => {
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
-    });
+    }, adminA);
     await createQuestion(
       tenantA,
       {
@@ -1432,7 +1432,7 @@ describe("Cross-tenant RLS isolation", () => {
     packIdA = pack.id;
     const level = await addLevel(tenantA, packIdA, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 5,
-    });
+    }, adminA);
     levelIdA = level.id;
     await createQuestion(
       tenantA,
@@ -1514,7 +1514,7 @@ describe("Composite FK questions(level_id, pack_id) → levels(id, pack_id)", ()
     );
     const levelA = await addLevel(tenantA, packA.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 5,
-    });
+    }, adminA);
 
     // Build pack B
     const packB = await createPack(
@@ -1565,7 +1565,7 @@ describe("Composite FK questions(level_id, pack_id) → levels(id, pack_id)", ()
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 5,
-    });
+    }, adminA);
 
     const ok = await withSuperClient(async (client) => {
       await client.query(
@@ -1744,7 +1744,7 @@ describe("activateAllQuestionsForPack", () => {
     );
     const level = await addLevel(tenantA, pack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 1,
-    });
+    }, adminA);
     for (let i = 0; i < questionStatuses.length; i++) {
       await createQuestion(
         tenantA,

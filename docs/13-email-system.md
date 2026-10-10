@@ -784,3 +784,13 @@ Templates are rendered as described above. Delivery is a BullMQ `email.send` job
 - **Timeouts:** SMTP connection 10 s, greeting 10 s, socket 30 s. They are appended to `SMTP_URL` unless set there, so a hung connection cannot hold the single worker slot.
 - **A new template must be classified:** `EMAIL_CLASS` is a `Record<EmailTemplateName, …>`, so a new template does not compile until it is marked auth or bulk.
 - **More:** log events and triage are in `docs/11-observability.md` § 35. Plan capacity (300/day on the shared free plan) is an owner decision; see `docs/PENDING_TASKS_2026-10-01.md` A5 (local).
+
+## §8 Sender-domain startup assertion (RW-37)
+
+- **What:** `EMAIL_VERIFIED_DOMAINS` is a comma-separated list of sender domains verified with the SMTP provider (SPF/DKIM). It is parsed in `modules/00-core/src/config.ts` into a lowercase array.
+- **Why:** an `EMAIL_FROM` on an unverified domain fails DMARC, and receivers drop the mail without notice (RCA 2026-05-24).
+- **Behavior:** A `superRefine` rule in `modules/00-core/src/config.ts` runs when any process loads config. This covers the API and the worker. When `NODE_ENV=production`, `EMAIL_FROM` must be exactly one mailbox (`addr@domain` or `Name <addr@domain>`; no comma, semicolon or second `@`), and its domain must appear in the list. If not, config load fails with an error that names both values. Other `NODE_ENV` values skip the check.
+- **Default:** empty. In production this means boot fails until you set it.
+- **Set on the VPS:** add `EMAIL_VERIFIED_DOMAINS=assessiq.in` to `/srv/assessiq/.env`. Then recreate `assessiq-api` and `assessiq-worker` with `up -d --no-deps --force-recreate`.
+- **Rollback:** add the domain to `EMAIL_VERIFIED_DOMAINS` and recreate `assessiq-api` and `assessiq-worker`. Do not unset `NODE_ENV`: it has no default and boot fails without it.
+- **Not included:** the check does not query the provider. It trusts the operator list. Per-tenant `from_address` is not checked.

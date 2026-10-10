@@ -28,6 +28,9 @@ import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import {
   createPack,
   publishPack,
+  updatePack,
+  addLevel,
+  updateLevel,
   archivePack,
   activateAllQuestionsForPack,
   createQuestion,
@@ -211,6 +214,43 @@ describe("G3.D audit writes — 04-question-bank", () => {
     expect(row!.actor_user_id).toBe(adminA);
     expect(row!.entity_type).toBe("question_pack");
     expect((row!.after as Record<string, unknown>).slug).toBe(slug);
+  });
+
+  it("updatePack writes exactly one pack.updated audit row in the same tx", async () => {
+    await clearAudit(tenantA);
+    const pack = await createPack(tenantA, { slug: `audit-up-${randomUUID().slice(0, 8)}`, name: "Audit UP", domain: "soc" }, adminA);
+    await updatePack(tenantA, pack.id, { name: "Renamed" }, adminA);
+
+    const rows = await queryAudit(tenantA, "pack.updated");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.entity_id).toBe(pack.id);
+    expect(rows[0]!.actor_user_id).toBe(adminA);
+    expect((rows[0]!.after as Record<string, unknown>).changed_fields).toEqual(["name"]);
+  });
+
+  it("a failing audit insert rolls back the updatePack write", async () => {
+    await clearAudit(tenantA);
+    const pack = await createPack(tenantA, { slug: `audit-rb-${randomUUID().slice(0, 8)}`, name: "Before", domain: "soc" }, adminA);
+    // Non-uuid actor id makes the audit_log INSERT fail inside the same tx, after the pack UPDATE.
+    await expect(updatePack(tenantA, pack.id, { name: "After" }, "not-a-uuid")).rejects.toThrow();
+
+    const rows = await withSuperClient((c) => c.query<{ name: string }>(`SELECT name FROM question_packs WHERE id = $1`, [pack.id]));
+    expect(rows.rows[0]!.name).toBe("Before");
+    expect(await queryAudit(tenantA, "pack.updated")).toHaveLength(0);
+  });
+
+  it("addLevel and updateLevel write level.added / level.updated audit rows", async () => {
+    await clearAudit(tenantA);
+    const pack = await createPack(tenantA, { slug: `audit-lv-${randomUUID().slice(0, 8)}`, name: "Audit LV", domain: "soc" }, adminA);
+    const level = await addLevel(tenantA, pack.id, { label: "L1" }, adminA);
+    await updateLevel(tenantA, level.id, { label: "L1b" }, adminA);
+
+    const added = await queryAudit(tenantA, "level.added");
+    expect(added).toHaveLength(1);
+    expect(added[0]!.entity_id).toBe(level.id);
+    const updated = await queryAudit(tenantA, "level.updated");
+    expect(updated).toHaveLength(1);
+    expect((updated[0]!.after as Record<string, unknown>).changed_fields).toEqual(["label"]);
   });
 
   it("publishPack writes a pack.published audit row in the same tx", async () => {
