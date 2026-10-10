@@ -4,10 +4,12 @@ export default defineConfig({
   test: {
     include: [
       "modules/**/__tests__/**/*.test.ts",
+      "modules/**/__tests__/**/*.test.tsx",
       "packages/**/__tests__/**/*.test.ts",
+      "packages/**/__tests__/**/*.test.tsx",
     ],
     setupFiles: ["./vitest.setup.ts"],
-    environment: "node",
+    environment: "jsdom",
     // DB tests each start a postgres testcontainer; with many files in parallel the
     // start (+ full migration chain) routinely exceeds the 10 s default hook timeout.
     hookTimeout: 180_000,
