@@ -130,7 +130,7 @@ beforeAll(async () => {
   });
 
   const pack = await createPack(tenantA, { slug: `rem-${randomUUID().slice(0, 8)}`, name: "Rem Pack", domain: "soc" }, adminA);
-  const level = await addLevel(tenantA, pack.id, { position: 1, label: "L1", duration_minutes: 30, default_question_count: 3 });
+  const level = await addLevel(tenantA, pack.id, { position: 1, label: "L1", duration_minutes: 30, default_question_count: 3 }, adminA);
   for (let i = 0; i < 3; i++) {
     await createQuestion(
       tenantA,

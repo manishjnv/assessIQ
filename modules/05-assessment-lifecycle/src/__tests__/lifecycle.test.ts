@@ -138,7 +138,7 @@ async function buildPublishedPack(
     label: "L1",
     duration_minutes: 30,
     default_question_count: questionCount,
-  });
+  }, adminId);
   for (let i = 0; i < questionCount; i++) {
     await createQuestion(
       tenantId,
@@ -514,7 +514,7 @@ describe("createAssessment + lifecycle happy path", () => {
     const draftPack = await createPack(tenantA, { slug, name: "Draft Pack", domain: "soc" }, adminA);
     const draftLevel = await addLevel(tenantA, draftPack.id, {
       position: 1, label: "L1", duration_minutes: 30, default_question_count: 5,
-    });
+    }, adminA);
 
     await expect(
       createAssessment(
