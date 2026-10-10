@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { ValidationError } from '@assessiq/core';
+import { ValidationError, UUID_RE } from '@assessiq/core';
 import { apiKeys } from '@assessiq/auth';
 import { authChain } from '../../middleware/auth-chain.js';
 
@@ -102,7 +102,7 @@ export async function registerApiKeysRoutes(app: FastifyInstance): Promise<void>
     async (req, reply) => {
       const sess = req.session!;
       const { id } = req.params as { id: string };
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      if (!UUID_RE.test(id)) {
         throw new ValidationError('id must be a uuid', { details: { code: 'INVALID_ID' } });
       }
       await apiKeys.revoke(sess.tenantId, id, sess.userId);

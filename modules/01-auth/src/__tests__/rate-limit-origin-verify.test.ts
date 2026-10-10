@@ -28,7 +28,7 @@ const { mockConfig } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@assessiq/core", () => {
+vi.mock("@assessiq/core", async () => {
   class RateLimitError extends Error {}
   const streamLoggerStub = (_n: string) => ({
     warn: vi.fn(),
@@ -37,6 +37,7 @@ vi.mock("@assessiq/core", () => {
     debug: vi.fn(),
   });
   return {
+    ...(await import("@assessiq/core/hash")),
     config: mockConfig,
     streamLogger: streamLoggerStub,
     RateLimitError,

@@ -1,5 +1,23 @@
 import { randomBytes } from "node:crypto";
 import { uuidv7 as uuidv7Impl } from "uuidv7";
+import { ValidationError } from "./errors.js";
+
+/** Any-version UUID (8-4-4-4-12 hex, case-insensitive). Single definition repo-wide. */
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function isUuid(s: string): boolean {
+  return typeof s === "string" && UUID_RE.test(s);
+}
+
+/** Returns `s` unchanged when it is a UUID; throws ValidationError otherwise. */
+export function assertUuid(s: string, label = "id"): string {
+  if (!isUuid(s)) {
+    throw new ValidationError(`${label} must be a UUID`, {
+      details: { code: "INVALID_PARAM", param: label },
+    });
+  }
+  return s;
+}
 
 /**
  * Returns a new UUIDv7 string (timestamp-prefixed, monotonically sortable).

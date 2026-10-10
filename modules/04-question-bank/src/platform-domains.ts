@@ -28,7 +28,7 @@
 // atomic-audit invariant). These are super-admin platform operations — the route
 // layer (apps/api admin-super.ts) applies the super_admin + fresh-MFA gate.
 
-import { ConflictError, NotFoundError, ValidationError, uuidv7 } from "@assessiq/core";
+import { ConflictError, NotFoundError, ValidationError, uuidv7, UUID_RE } from "@assessiq/core";
 import { getPool } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
@@ -44,7 +44,6 @@ export interface PlatformDomainRow {
 }
 
 // UUID validator for the :id path param (defence-in-depth; route also validates).
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Slug helper — identical to handlers/admin-domains.ts slugFromName (kept local
 // so this file has no cross-import; the two must stay in sync).

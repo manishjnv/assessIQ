@@ -1,5 +1,5 @@
 import type { PoolClient } from "pg";
-import { ValidationError } from "@assessiq/core";
+import { ValidationError, UUID_RE } from "@assessiq/core";
 import { getPool } from "./pool.js";
 
 // FU-D7 (2026-10-06): hardening, not a fix. Today an empty/malformed tenantId
@@ -8,7 +8,6 @@ import { getPool } from "./pool.js";
 // This just turns that into an explicit, named error at the one call site
 // every tenant-scoped operation goes through, instead of a generic Postgres
 // cast error surfacing from wherever `fn` first touches a tenant-scoped table.
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function assertValidTenantId(tenantId: string): void {
   if (typeof tenantId !== "string" || !UUID_RE.test(tenantId)) {

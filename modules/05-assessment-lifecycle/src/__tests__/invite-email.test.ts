@@ -20,6 +20,8 @@ vi.mock('@assessiq/core', () => ({
     error: vi.fn(),
     debug: vi.fn(),
   }),
+  DEFAULT_MAX_PAGE_SIZE: 100,
+  UUID_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
   config: {
     ASSESSIQ_BASE_URL: 'https://assessiq.test',
     NODE_ENV: 'test',

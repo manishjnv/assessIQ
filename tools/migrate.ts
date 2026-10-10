@@ -30,7 +30,7 @@
  * which is the correct dependency order (auth tables FK to tenants).
  */
 
-import * as crypto from "node:crypto";
+import { sha256Hex } from "@assessiq/core/hash";
 import { type Dirent } from "node:fs";
 import * as fsp from "node:fs/promises";
 import * as path from "node:path";
@@ -177,7 +177,7 @@ async function findMigrationFiles(): Promise<string[]> {
 // ---------------------------------------------------------------------------
 
 function sha256(content: string): string {
-  return crypto.createHash("sha256").update(content, "utf8").digest("hex");
+  return sha256Hex(content);
 }
 
 // ---------------------------------------------------------------------------

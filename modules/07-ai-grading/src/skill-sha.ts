@@ -9,12 +9,11 @@
 // reads two well-defined keys. The regex tolerates leading BOM, CRLF/LF
 // line endings, and either single- or double-quoted values.
 
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
-import { AppError } from "@assessiq/core";
+import { AppError, sha256Hex } from "@assessiq/core";
 import { AI_GRADING_ERROR_CODES } from "./types.js";
 
 export interface ParsedSkill {
@@ -68,7 +67,7 @@ export async function skillSha(name: string): Promise<ParsedSkill> {
     );
   }
 
-  const sha256 = createHash("sha256").update(buf).digest("hex");
+  const sha256 = sha256Hex(buf);
   const short = sha256.slice(0, 8);
 
   const text = buf.toString("utf8");

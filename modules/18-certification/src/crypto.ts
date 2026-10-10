@@ -14,7 +14,7 @@
 //
 // CLAUDE.md rule #1: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { hmacSha256Hex, timingSafeEqualStr } from '@assessiq/core';
 
 import type { Tier } from './types.js';
 
@@ -140,7 +140,7 @@ export function signCertificate(
   if (typeof secret !== 'string' || secret.length === 0) {
     throw new Error('signCertificate: secret must be a non-empty string');
   }
-  return createHmac('sha256', secret).update(canonicalize(payload)).digest('hex');
+  return hmacSha256Hex(secret, canonicalize(payload));
 }
 
 /**
@@ -170,10 +170,8 @@ export function verifyCertificateSignature(
   if (signature.length !== expectedHex.length) {
     return false;
   }
-  const sigBuf = Buffer.from(signature, 'hex');
-  const expBuf = Buffer.from(expectedHex, 'hex');
-  if (sigBuf.length === 0 || sigBuf.length !== expBuf.length) {
-    return false;
-  }
-  return timingSafeEqual(sigBuf, expBuf);
+  // Hex case policy: hex is case-insensitive and the stored signature is
+  // lowercase, so an uppercase copy is the same MAC and verifies. Lowercase the
+  // input (the old Buffer.from(.., 'hex') compare also accepted uppercase).
+  return timingSafeEqualStr(signature.toLowerCase(), expectedHex);
 }

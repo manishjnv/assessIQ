@@ -35,6 +35,8 @@ import {
   ConflictError,
   uuidv7,
   config,
+  UUID_RE,
+  DEFAULT_MAX_PAGE_SIZE,
 } from "@assessiq/core";
 import { withTenant, getPool } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
@@ -90,7 +92,7 @@ const log = streamLogger("app");
 // Constants
 // ---------------------------------------------------------------------------
 
-const MAX_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = DEFAULT_MAX_PAGE_SIZE;
 
 /** Per-call cap of the bulk resend (mirrors the CSV import's 200-invite cap). */
 const BULK_RESEND_MAX = 200;
@@ -102,7 +104,6 @@ const BULK_RESEND_MAX = 200;
  */
 const BULK_RESEND_RECENT_MINUTES = 10;
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * Read once at module load — never shell out per inviteUsers call.

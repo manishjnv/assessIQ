@@ -29,6 +29,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { escapeHtml } from '@assessiq/core';
 import type { EmailTemplateName, TemplateVarsMap } from '../types.js';
 import { buildVars } from './i18n.js';
 import {
@@ -127,13 +128,6 @@ registerPartials();
 // email-meta-card safety (triple-stash {{{v}}} guard) — docs §2 A7
 // ---------------------------------------------------------------------------
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 /**
  * A meta-card value is safe to render via {{{v}}} (HTML-unescaped) iff it is

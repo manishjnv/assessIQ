@@ -30,7 +30,10 @@ export {
   getRequestContextOrThrow,
   type RequestContext,
 } from "./request-context.js";
-export { uuidv7, shortId } from "./ids.js";
+export { uuidv7, shortId, UUID_RE, isUuid, assertUuid } from "./ids.js";
+export { parsePagination, DEFAULT_PAGE_SIZE, DEFAULT_MAX_PAGE_SIZE } from "./pagination.js";
+export { sha256Hex, hmacSha256Hex, timingSafeEqualStr } from "./hash.js";
+export { escapeHtml, csvCell } from "./escape.js";
 export { nowIso, parseIso } from "./time.js";
 export { getRedis, closeRedis } from "./redis.js";
 export { acquireLock, refreshLock, releaseLock, peekLock } from "./lock.js";

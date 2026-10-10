@@ -15,18 +15,12 @@
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
 import { withTenant } from '@assessiq/tenancy';
-import { NotFoundError } from '@assessiq/core';
+import { NotFoundError, csvCell } from '@assessiq/core';
 
 export const RESULTS_ROW_CAP = 10_000;
 const BOM = '﻿';
 
-/** CSV cell: formula-injection guard (= + - @ tab CR) then RFC-4180 quoting. */
-export function csvCell(v: string | number | null | undefined): string {
-  if (v === null || v === undefined) return '';
-  let s = String(v);
-  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+export { csvCell };
 
 const pct = (e: number, m: number): string => (m > 0 ? String(Math.round((e / m) * 1000) / 10) : '');
 

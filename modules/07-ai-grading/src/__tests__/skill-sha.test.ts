@@ -65,6 +65,13 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("skillSha", () => {
+  it("records the known sha256 of a fixed input (byte-identical to the pre-RW-35 value)", async () => {
+    setupSkillFile("grade-anchors", "abc");
+    const result = await skillSha("grade-anchors");
+    expect(result.sha256).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+    expect(result.short).toBe("ba7816bf");
+  });
+
   it("skill file with frontmatter version + model → correct label/model/sha", async () => {
     const content = "---\nversion: v1\nmodel: claude-haiku-4-5\n---\n# Grade Anchors skill\n";
     setupSkillFile("grade-anchors", content);

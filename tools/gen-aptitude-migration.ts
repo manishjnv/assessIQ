@@ -22,7 +22,7 @@
  * `generateAptitudeSql` is exported for the integration test.
  */
 
-import { createHash } from "node:crypto";
+import { sha256Hex } from "@assessiq/core/hash";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -281,7 +281,7 @@ if (isMain) {
   const sql = generateAptitudeSql(JSON.parse(raw) as AptitudeInput, {
     publish: args.includes("--publish"),
     ...(args.includes("--pack-key") ? { packKey: args[args.indexOf("--pack-key") + 1]! } : {}),
-    inputSha: createHash("sha256").update(raw).digest("hex"),
+    inputSha: sha256Hex(raw),
   });
   mkdirSync(path.dirname(out), { recursive: true }); // docs/ is gitignored, so the folder may not exist
   writeFileSync(out, sql, "utf8");

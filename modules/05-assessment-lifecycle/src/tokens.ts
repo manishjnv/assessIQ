@@ -22,7 +22,8 @@
 // TTL is owned by the service layer (defaults to 7 days / 168 hours per
 // SKILL.md); this module only exports the constant.
 
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+import { sha256Hex } from "@assessiq/core";
 
 export interface InvitationToken {
   /**
@@ -46,7 +47,7 @@ export interface InvitationToken {
  */
 export function generateInvitationToken(): InvitationToken {
   const plaintext = randomBytes(32).toString("base64url");
-  const hash = createHash("sha256").update(plaintext).digest("hex");
+  const hash = sha256Hex(plaintext);
   return { plaintext, hash };
 }
 
@@ -55,7 +56,7 @@ export function generateInvitationToken(): InvitationToken {
  * generateInvitationToken so the hash matches the stored token_hash.
  */
 export function hashInvitationToken(plaintext: string): string {
-  return createHash("sha256").update(plaintext).digest("hex");
+  return sha256Hex(plaintext);
 }
 
 /**
