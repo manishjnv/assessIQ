@@ -18,7 +18,7 @@ declare module "fastify" {
       id: string;
       userId: string;
       tenantId: string;
-      role: "admin" | "reviewer" | "candidate";
+      role: "admin" | "candidate";
       totpVerified: boolean;
       expiresAt: string;
       lastTotpAt: string | null;

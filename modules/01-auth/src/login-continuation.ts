@@ -36,7 +36,7 @@ export interface ResolvedIdentity {
   tenantId: string;
   tenantSlug: string;
   tenantName: string;
-  role: "admin" | "super_admin" | "reviewer" | "candidate";
+  role: "admin" | "super_admin" | "candidate";
   isPlatform: boolean;
 }
 
@@ -131,7 +131,7 @@ export async function resolveLoginIdentities(
       tenant_id: string;
       slug: string;
       name: string;
-      role: "admin" | "super_admin" | "reviewer" | "candidate";
+      role: "admin" | "super_admin" | "candidate";
     }>(
       `SELECT u.id, u.tenant_id, t.slug, t.name, u.role
        FROM users u

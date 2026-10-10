@@ -12,7 +12,7 @@ export interface AuthRequest {
     id: string;
     userId: string;
     tenantId: string;
-    role: "admin" | "super_admin" | "reviewer" | "candidate";
+    role: "admin" | "super_admin" | "candidate";
     totpVerified: boolean;
     expiresAt: string;
     lastSeenAt: string;

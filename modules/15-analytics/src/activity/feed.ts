@@ -2,7 +2,7 @@
 //
 // Phase 9 (extension) — GET /api/admin/activity/feed
 //
-// Unified activity feed that merges admin/reviewer actions (from audit_log)
+// Unified activity feed that merges admin actions (from audit_log)
 // with candidate actions (from attempt_events) into one chronological,
 // role-filterable feed for the admin Activity page.
 //
@@ -18,7 +18,7 @@
 // Role filter:
 //   all       → both legs UNION ALL'd
 //   admin     → audit leg only, actor role IN ('admin','super_admin')
-//   reviewer  → audit leg only, actor role = 'reviewer'
+//   (legacy 'reviewer' actor rows map to 'system'; role removed 2026-10-03, RV60)
 //   candidate → attempt leg only
 //
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
@@ -41,7 +41,7 @@ export interface FeedItem {
   id: string;                        // 'audit:<id>' | 'attempt:<id>'
   source: 'audit' | 'attempt';
   at: string;                        // ISO 8601 timestamp
-  actorRole: 'admin' | 'reviewer' | 'candidate' | 'system';
+  actorRole: 'admin' | 'candidate' | 'system';
   actorLabel: string;                // user name or email or actor_kind
   action: string;                    // raw action / event_type value
   actionLabel: string;               // human-readable verb phrase
@@ -62,7 +62,7 @@ export interface ActivityFeedResponse {
 // ---------------------------------------------------------------------------
 
 export const ActivityFeedQuerySchema = z.object({
-  role:        z.enum(['all', 'admin', 'reviewer', 'candidate']).optional(),
+  role:        z.enum(['all', 'admin', 'candidate']).optional(),
   action:      z.string().optional(),
   actorUserId: z.string().uuid().optional(),
   from:        z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
@@ -244,7 +244,7 @@ export async function queryActivityFeed(
   client: PoolClient,
   _tenantId: string,
   opts: {
-    role: 'all' | 'admin' | 'reviewer' | 'candidate';
+    role: 'all' | 'admin' | 'candidate';
     action?: string | undefined;
     actorUserId?: string | undefined;
     from?: string | undefined;
@@ -301,8 +301,6 @@ export async function queryActivityFeed(
     let auditRoleFilter = '';
     if (role === 'admin') {
       auditRoleFilter = `AND u.role IN ('admin', 'super_admin')`;
-    } else if (role === 'reviewer') {
-      auditRoleFilter = `AND u.role = 'reviewer'`;
     }
 
     return `
@@ -313,7 +311,6 @@ export async function queryActivityFeed(
       CASE
         WHEN al.actor_kind <> 'user' THEN 'system'
         WHEN u.role IN ('admin', 'super_admin') THEN 'admin'
-        WHEN u.role = 'reviewer' THEN 'reviewer'
         WHEN u.role = 'candidate' THEN 'candidate'
         ELSE 'system'
       END                                                            AS actor_role,
@@ -369,7 +366,7 @@ export async function queryActivityFeed(
   let unionSql: string;
   if (role === 'candidate') {
     unionSql = buildAttemptLeg();
-  } else if (role === 'admin' || role === 'reviewer') {
+  } else if (role === 'admin') {
     unionSql = buildAuditLeg();
   } else {
     // 'all' — both legs. Build audit first, then attempt (audit $N comes first).

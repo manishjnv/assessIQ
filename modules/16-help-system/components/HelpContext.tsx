@@ -15,7 +15,7 @@ import type { HelpReadEnvelope } from '../src/types.js';
 export interface HelpContextValue {
   /** e.g. 'admin.assessments.create' — matches the page param used for the batched fetch */
   page: string;
-  audience: 'admin' | 'reviewer' | 'candidate' | 'all';
+  audience: 'admin' | 'candidate' | 'all';
   /** BCP-47 locale tag, e.g. 'en', 'hi-IN' */
   locale: string;
   /** Keyed by help_id; populated after the fetch resolves */

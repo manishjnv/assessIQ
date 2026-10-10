@@ -358,7 +358,7 @@ describe("rate-limit (Redis testcontainer)", () => {
         id: "sess-t2",
         userId: "tier-t2-user",
         tenantId: "tier-t2-tenant",
-        role: "reviewer",
+        role: "reviewer" as never, // legacy value; no longer in the Role type
         totpVerified: true,
         expiresAt: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
         lastSeenAt: nowIso(),
@@ -633,7 +633,7 @@ describe("requireAuth", () => {
 
   it("test 19b: requireRole('admin') throws AuthzError for reviewer", async () => {
     const handler = requireRole("admin");
-    const req = makeReq({ session: validSession({ role: "reviewer" }) });
+    const req = makeReq({ session: validSession({ role: "reviewer" as never }) });
     await expect(handler(req, makeReply())).rejects.toBeInstanceOf(AuthzError);
   });
 

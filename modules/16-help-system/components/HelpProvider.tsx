@@ -28,7 +28,7 @@ import type { HelpContextValue } from './HelpContext.js';
 export interface HelpProviderProps {
   /** Dot-separated page identifier, e.g. 'admin.assessments.create'. */
   page: string;
-  audience: 'admin' | 'reviewer' | 'candidate' | 'all';
+  audience: 'admin' | 'candidate' | 'all';
   /** BCP-47 locale tag. Default: 'en'. */
   locale?: string;
   children: React.ReactNode;

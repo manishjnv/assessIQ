@@ -21,7 +21,7 @@ import { sha256Hex, randomTokenBase64Url } from "./crypto-util.js";
 // to allow 'super_admin' before any super_admin session can be created in production.
 // The ALTER TABLE migration is tracked as a prerequisite in
 // docs/design/2026-05-10-stage-3-promotion-rollout.md §3.
-export type Role = "admin" | "super_admin" | "reviewer" | "candidate";
+export type Role = "admin" | "super_admin" | "candidate";
 
 export interface Session {
   id: string;

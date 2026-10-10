@@ -31,7 +31,7 @@ const rawYaml = readFileSync(CANDIDATE_YAML_PATH, "utf-8");
 const parsed = parse(rawYaml) as Record<string, HelpEntryRaw>;
 const allKeys = Object.keys(parsed);
 
-const VALID_AUDIENCES = new Set(["admin", "reviewer", "candidate", "all"]);
+const VALID_AUDIENCES = new Set(["admin", "candidate", "all"]);
 const SHORT_TEXT_MAX = 120;
 
 describe("Block A — candidate.yml structural integrity", () => {
