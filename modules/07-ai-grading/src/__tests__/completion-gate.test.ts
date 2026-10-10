@@ -279,7 +279,10 @@ describe("handleAdminAccept — completion gate (SP1)", () => {
   it("accepting every AI question of a mixed attempt finalises it once (billing once, review cache cleared)", async () => {
     const { attemptId, qids } = await seed("submitted", ["mcq", "subjective", "log_analysis"]);
     await sup((c) => c.query(`UPDATE attempts SET ai_proposals='[{"x":1}]'::jsonb, grading_started_at=now() WHERE id=$1`, [attemptId]));
-    const proposals = [proposal(attemptId, qids[1]!), proposal(attemptId, qids[2]!, { score_earned: 10 })];
+    // Pin generated_at to the past: a replay must be a skip whatever the DB clock says.
+    // The JS clock (generated_at) and the Postgres clock (graded_at) can drift apart.
+    const stale = { generated_at: "2000-01-01T00:00:00.000Z" };
+    const proposals = [proposal(attemptId, qids[1]!, stale), proposal(attemptId, qids[2]!, { ...stale, score_earned: 10 })];
     const r = await accept(attemptId, proposals);
     expect(r.attempt.status).toBe("graded");
     expect(await att(attemptId)).toEqual({ status: "graded", eval_released: false, cache_clear: true });
