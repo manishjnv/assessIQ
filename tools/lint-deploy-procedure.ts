@@ -421,7 +421,7 @@ interface CheckBOpts {
 
 /**
  * Returns true if the SQL file is discoverable by tools/migrate.ts.
- * migrate.ts discovery: modules/<name>/migrations/<file>.sql
+ * migrate.ts discovery: modules/<name>/{migrations,seeds}/<file>.sql
  * (exactly 4 path parts: modules / <name> / migrations / <file>.sql).
  */
 function isDiscoverableByMigrateRunner(relPath: string): boolean {
@@ -429,7 +429,7 @@ function isDiscoverableByMigrateRunner(relPath: string): boolean {
   return (
     parts.length === 4 &&
     parts[0] === "modules" &&
-    parts[2] === "migrations" &&
+    (parts[2] === "migrations" || parts[2] === "seeds") &&
     parts[3].endsWith(".sql")
   );
 }

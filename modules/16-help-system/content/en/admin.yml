@@ -1,6 +1,6 @@
 # AssessIQ help content — admin audience, en locale.
 # Edit this file, then run:  pnpm tsx tools/generate-help-seed.ts
-# to regenerate modules/16-help-system/migrations/0011_seed_help_content.sql.
+# to regenerate modules/16-help-system/seeds/help_content.sql.
 #
 # Per-entry shape:
 #   <help_id>:
