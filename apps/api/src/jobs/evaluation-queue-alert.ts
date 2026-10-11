@@ -14,7 +14,7 @@
  *      sent, the key is deleted so the next hourly tick retries.
  *
  * No AI call anywhere on this path: it only counts rows and sends mail. Imports
- * @assessiq/tenancy + @assessiq/notifications only — the worker must never import
+ * @assessiq/tenancy + @assessiq/notifications + @assessiq/question-types (leaf, no AI) only — the worker must never import
  * @assessiq/ai-grading (lint:ambient-ai), which is also why the queue predicate below
  * is duplicated from modules/07-ai-grading repository listSuperEvaluationQueue.
  * KEEP THE TWO IN SYNC: attempts with at least one non-MCQ question that are either
@@ -25,6 +25,7 @@
 import { config, streamLogger } from '@assessiq/core';
 import { withSystemRole } from '@assessiq/tenancy';
 import { sendEvaluationQueueAlertEmail } from '@assessiq/notifications';
+import { DETERMINISTIC_IDS } from '@assessiq/question-types';
 
 const log = streamLogger('worker');
 
@@ -83,7 +84,8 @@ export async function countOverdueEvaluations(): Promise<{ count: number; oldest
           AND EXISTS (SELECT 1
                         FROM attempt_questions aq
                         JOIN questions q ON q.id = aq.question_id
-                       WHERE aq.attempt_id = a.id AND q.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))`,
+                       WHERE aq.attempt_id = a.id AND NOT (q.type = ANY($1::text[])))`,
+      [DETERMINISTIC_IDS],
     );
     const row = res.rows[0];
     return { count: row?.n ?? 0, oldestAgeHours: row?.oldest_hours ?? 0 };

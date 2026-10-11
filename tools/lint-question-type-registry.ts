@@ -45,6 +45,12 @@ export const ALLOWLIST: readonly (string | RegExp)[] = [
   /(^|\/)__tests__\//,
   /(^|\/)e2e\//,
   /(^|\/)migrations\//,
+  // Per-domain supported_types seed data (migration 0020 values), not type dispatch.
+  "modules/04-question-bank/src/seed.ts",
+  // Standalone package: built with `npm install && npx tsc` on the VPS and cannot import
+  // workspace packages. Its coerce/enum copies are pinned to the registry by
+  // modules/04-question-bank/src/__tests__/mcp-coerce-parity.test.ts.
+  /^tools\/assessiq-mcp\//,
 ];
 
 const REQUIRED_KEYS = [

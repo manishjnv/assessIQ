@@ -8,10 +8,17 @@ import {
   uuidv7,
 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { AI_GRADEABLE_IDS, getQuestionType, isQuestionType } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import { deriveQuestionTextForGuidance } from "../answer-guidance-derive.js";
 import { QB_ERROR_CODES } from "../types.js";
 import * as repo from "../repository.js";
+
+type AiGrading = typeof import("@assessiq/ai-grading");
+type RubricQuestionType = Parameters<AiGrading["generateRubricDraft"]>[0]["questionType"];
+type GuidanceQuestionType = Parameters<AiGrading["generateAnswerGuidanceDraft"]>[0]["questionType"];
+
+const isAiGradeableType = (t: string): boolean => isQuestionType(t) && getQuestionType(t).aiGradeable;
 import {
   log,
   isUniqueViolation,
@@ -218,7 +225,7 @@ export async function generateQuestions(
   } = await import("../knowledge-base/index.js");
   // difficulty-spec.ts (this module) — single source of truth for per-(type,level)
   // intrinsic-difficulty targets (Phase A3). Intra-module import; no boundary cross.
-  const { DIFFICULTY_SPEC, validateStructuralDifficulty, functionToNice } =
+  const { DIFFICULTY_SPEC, GENERATED_TYPES, validateStructuralDifficulty, functionToNice } =
     await import("../difficulty-spec.js");
 
   // Resolve level label to SOC level
@@ -245,7 +252,7 @@ export async function generateQuestions(
   // the ai-grading→question-bank no-import boundary intact (04 depends on 07,
   // never the reverse): 07 receives targets + closures, never imports difficulty-spec.
   const difficultyByType: Record<string, unknown> = {};
-  for (const t of ["mcq", "subjective", "kql", "scenario", "log_analysis"] as const) {
+  for (const t of GENERATED_TYPES) {
     difficultyByType[t] = DIFFICULTY_SPEC[t][socLevel];
   }
   const difficulty = {
@@ -353,13 +360,7 @@ export async function generateQuestions(
 function deriveQuestionTextForRubric(
   question: { type: string; content: unknown },
 ): string {
-  if (question.type === "log_analysis") {
-    return JSON.stringify(question.content);
-  }
-  const content = question.content as Record<string, unknown>;
-  return typeof content?.question === "string"
-    ? (content.question as string)
-    : JSON.stringify(question.content);
+  return getQuestionType(question.type).rubricText(question.content);
 }
 
 /**
@@ -389,11 +390,7 @@ export async function generateRubricForQuestion(
       });
     }
 
-    if (
-      question.type !== "subjective" &&
-      question.type !== "scenario" &&
-      question.type !== "log_analysis"
-    ) {
+    if (!isAiGradeableType(question.type)) {
       throw new ValidationError(
         `rubric generation not supported for question type '${question.type}': ` +
           "mcq and kql use deterministic grading and have no rubric semantics",
@@ -411,7 +408,7 @@ export async function generateRubricForQuestion(
     // For log_analysis, validate expected_findings exists before calling the
     // skill (the skill requires ≥1 finding to produce ≥2 anchors; without
     // this guard the skill fails with an opaque schema violation).
-    if (question.type === "log_analysis") {
+    if (getQuestionType(question.type).rubricSynthesis === "expected_findings") {
       const content = question.content as Record<string, unknown>;
       const findings = content?.expected_findings;
       if (!Array.isArray(findings) || findings.length === 0) {
@@ -426,7 +423,7 @@ export async function generateRubricForQuestion(
 
     const output = await generateRubricDraft({
       questionText: deriveQuestionTextForRubric(question),
-      questionType: question.type as "subjective" | "scenario" | "log_analysis",
+      questionType: question.type as RubricQuestionType,
       levelOrdinal: level.position,
       levelDefaults: level.rubric_defaults ?? null,
       existingRubric: question.rubric ?? undefined,
@@ -469,7 +466,7 @@ export async function generateAnswerGuidanceForQuestion(
 
     const output = await generateAnswerGuidanceDraft({
       questionText: deriveQuestionTextForGuidance(question),
-      questionType: question.type as "mcq" | "subjective" | "kql" | "scenario" | "log_analysis",
+      questionType: question.type as GuidanceQuestionType,
       topic: question.topic,
       questionId,
     });
@@ -572,9 +569,9 @@ export async function bulkGenerateMissingRubrics(
        FROM questions q
        WHERE q.pack_id = $1
          AND q.rubric IS NULL
-         AND q.type IN ('subjective', 'scenario', 'log_analysis')
+         AND q.type = ANY($2::text[])
        ORDER BY q.created_at ASC`,
-      [packId],
+      [packId, AI_GRADEABLE_IDS],
     );
 
     if (nullRubricRes.rows.length === 0) {
@@ -605,7 +602,7 @@ export async function bulkGenerateMissingRubrics(
 
     // Validate expected_findings before calling the skill (same guard as
     // generateRubricForQuestion — avoids opaque schema-violation errors).
-    if (question.type === "log_analysis") {
+    if (getQuestionType(question.type).rubricSynthesis === "expected_findings") {
       const content = question.content as Record<string, unknown>;
       const findings = content?.expected_findings;
       if (!Array.isArray(findings) || findings.length === 0) {
@@ -620,7 +617,7 @@ export async function bulkGenerateMissingRubrics(
 
     const output = await generateRubricDraft({
       questionText: deriveQuestionTextForRubric(question),
-      questionType: question.type as "subjective" | "scenario" | "log_analysis",
+      questionType: question.type as RubricQuestionType,
       levelOrdinal: level.position,
       levelDefaults: level.rubric_defaults ?? null,
       questionId: currentQuestionId,

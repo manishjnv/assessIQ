@@ -18,6 +18,7 @@
 
 import { ConflictError, ValidationError, uuidv7, UUID_RE } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { GENERATED_TYPES } from "../difficulty-spec.js";
 import { ensureNode } from "../taxonomy-nodes.js";
 
 
@@ -285,13 +286,7 @@ export async function handleAdminCreateCategory(
       // (The prior `SELECT supported_types FROM domains` referenced a
       // nonexistent column → unhandled 500 "internal error" on every
       // inline create.)
-      const DEFAULT_SUPPORTED_TYPES = [
-        "mcq",
-        "scenario",
-        "subjective",
-        "kql",
-        "log_analysis",
-      ];
+      const DEFAULT_SUPPORTED_TYPES: string[] = [...GENERATED_TYPES];
       const supportedTypes: string[] =
         input.supported_types !== undefined
           ? input.supported_types
