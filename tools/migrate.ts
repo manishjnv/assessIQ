@@ -15,6 +15,12 @@
  *                                              # on pending or checksum-mismatched migrations.
  *                                              # Intended as a pre-deploy gate.
  *   pnpm tsx tools/migrate.ts --force-rerun X  # re-apply X even if checksum mismatches
+ *   pnpm tsx tools/migrate.ts --skip-seeds     # apply migrations only
+ *
+ * Seeds: after the migration loop (apply mode only), every
+ * `modules/<name>/seeds/*.sql` runs in basename order, each in its own
+ * BEGIN/COMMIT. Seeds are NOT recorded in schema_migrations, so they MUST be
+ * idempotent (ON CONFLICT ... DO NOTHING/UPDATE). --check ignores them.
  *
  * Environment: DATABASE_URL must be set. Connects as the URL's role; the role
  * must have CREATE TABLE permission on the public schema. In production deploy,
@@ -172,6 +178,33 @@ async function findMigrationFiles(): Promise<string[]> {
   return results;
 }
 
+/** modules/<name>/seeds/*.sql, basename order. Idempotent, re-run on every apply. */
+async function findSeedFiles(): Promise<string[]> {
+  const results: string[] = [];
+  const modulesRoot = path.join(REPO_ROOT, "modules");
+  let moduleDirs: Dirent[];
+  try {
+    moduleDirs = await fsp.readdir(modulesRoot, { withFileTypes: true });
+  } catch {
+    return results;
+  }
+  for (const moduleEntry of moduleDirs) {
+    if (!moduleEntry.isDirectory() || SKIP_DIRS.has(moduleEntry.name)) continue;
+    const seedsDir = path.join(modulesRoot, moduleEntry.name, "seeds");
+    let entries: Dirent[];
+    try {
+      entries = await fsp.readdir(seedsDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith(".sql")) results.push(path.join(seedsDir, entry.name));
+    }
+  }
+  results.sort((a, b) => path.basename(a).localeCompare(path.basename(b)));
+  return results;
+}
+
 // ---------------------------------------------------------------------------
 // Checksum
 // ---------------------------------------------------------------------------
@@ -198,6 +231,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const isDryRun = args.includes("--dry-run");
   const isCheck = args.includes("--check");
+  const skipSeeds = args.includes("--skip-seeds");
 
   const forceRerunIdx = args.indexOf("--force-rerun");
   const forceRerunBasename: string | null =
@@ -227,6 +261,11 @@ async function main(): Promise<void> {
     for (const f of files) {
       const basename = path.basename(f);
       log.info({ file: basename, action: "list" }, "migration.list");
+    }
+    if (!skipSeeds) {
+      for (const f of await findSeedFiles()) {
+        log.info({ file: path.basename(f), action: "list" }, "seed.list");
+      }
     }
     log.info("dry-run complete (pass/fail status requires a live DATABASE_URL)");
     process.exit(0);
@@ -448,6 +487,25 @@ async function main(): Promise<void> {
       { applied: appliedCount, skipped: skippedCount, total },
       "migrate.done",
     );
+
+    if (!skipSeeds) {
+      for (const filePath of await findSeedFiles()) {
+        const content = await fsp.readFile(filePath, "utf8");
+        const start = Date.now();
+        await client.query("BEGIN");
+        try {
+          await client.query(content);
+          await client.query("COMMIT");
+        } catch (err) {
+          await client.query("ROLLBACK").catch(() => {
+            // ignore rollback error; surface the original
+          });
+          log.error({ err, file: path.basename(filePath) }, "seed.failed");
+          process.exit(1);
+        }
+        log.info({ file: path.basename(filePath), durationMs: Date.now() - start }, "seed.applied");
+      }
+    }
   } finally {
     await client.end().catch(() => {
       // best-effort disconnect

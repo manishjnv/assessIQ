@@ -9,7 +9,7 @@
  *
  * Migration order:
  *   02-tenancy: 0001_tenants.sql, 0002_rls_helpers.sql, 0003_tenants_rls.sql
- *   16-help-system: 0010_help_content.sql, 0011_seed_help_content.sql
+ *   16-help-system: migrations/*.sql, then seeds/help_content.sql
  *
  * Path arithmetic (RCA 2026-05-01 — W4 test path off-by-one):
  *   THIS_DIR = modules/16-help-system/src/__tests__/
@@ -63,6 +63,7 @@ const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 // 2 ..  →  modules/16-help-system/
 const MODULE_ROOT = join(THIS_DIR, "..", "..");
 const HELP_MIGRATIONS = join(MODULE_ROOT, "migrations");
+const HELP_SEEDS = join(MODULE_ROOT, "seeds");
 const TENANCY_MIGRATIONS = join(MODULE_ROOT, "..", "02-tenancy", "migrations");
 
 // ---------------------------------------------------------------------------
@@ -188,6 +189,10 @@ beforeAll(async () => {
       const sql = await readFile(join(HELP_MIGRATIONS, file), "utf-8");
       await client.query(sql);
     }
+    // Post-migration seeds (tools/migrate.ts runs modules/*/seeds/*.sql after the migrations).
+    for (const file of (await readdir(HELP_SEEDS)).filter((f) => f.endsWith(".sql")).sort()) {
+      await client.query(await readFile(join(HELP_SEEDS, file), "utf-8"));
+    }
 
     // Seed two test tenants + their settings (superuser bypass, no RLS issue).
     await client.query(
@@ -277,7 +282,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(255); // 0166 S4 help text (+2 new versions on a fresh DB: 0011 already carries the new text for the third key); 0165 glossary help text (+30 new versions on a fresh DB: 0011 already carries the new text for the other 124 keys, so the NOT EXISTS guard skips them; prod inserts all 154); 0164 evaluations runtime_status (+1); 0163 generate_wizard page v2 (+1); 0162 evaluations ai_paused (+1); 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(325); // RW-40: the 0011 seed now runs AFTER all migrations (seeds/help_content.sql), so forward migrations insert their versions first; was 255 with 0011 first. Older notes: 0166 S4 help text (+2 new versions on a fresh DB: 0011 already carries the new text for the third key); 0165 glossary help text (+30 new versions on a fresh DB: 0011 already carries the new text for the other 124 keys, so the NOT EXISTS guard skips them; prod inserts all 154); 0164 evaluations runtime_status (+1); 0163 generate_wizard page v2 (+1); 0162 evaluations ai_paused (+1); 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   it("tenant B also sees all global rows (seeded count)", async () => {
@@ -288,7 +293,7 @@ describe("Block 1 — RLS visibility", () => {
       );
       return Number(res.rows[0]?.count ?? 0);
     });
-    expect(count).toBe(255); // 0166 S4 help text (+2 new versions on a fresh DB: 0011 already carries the new text for the third key); 0165 glossary help text (+30 new versions on a fresh DB: 0011 already carries the new text for the other 124 keys, so the NOT EXISTS guard skips them; prod inserts all 154); 0164 evaluations runtime_status (+1); 0163 generate_wizard page v2 (+1); 0162 evaluations ai_paused (+1); 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
+    expect(count).toBe(325); // RW-40: the 0011 seed now runs AFTER all migrations (seeds/help_content.sql), so forward migrations insert their versions first; was 255 with 0011 first. Older notes: 0166 S4 help text (+2 new versions on a fresh DB: 0011 already carries the new text for the third key); 0165 glossary help text (+30 new versions on a fresh DB: 0011 already carries the new text for the other 124 keys, so the NOT EXISTS guard skips them; prod inserts all 154); 0164 evaluations runtime_status (+1); 0163 generate_wizard page v2 (+1); 0162 evaluations ai_paused (+1); 0161 billing ai_answers (+1); 0159 cohort/behaviour/difficulty keys (+8); 0158 evaluation status keys (+3); 0157 help-content admin page keys (+5); through 0155 N23 page-prefix copies (+3); 0153 structured_case help (+4); 0148 page help (+8); 0146 text corrections (+10 new keys); 0145 ordering help (+3); 0143 sections edit (+1); 0141 eval gate (+2; 0138 high-stakes +2; 0136 sections +2)
   });
 
   // 0118 rewrites seven global rows that 0116 seeded (the last accept now releases the attempt

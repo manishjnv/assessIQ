@@ -7,6 +7,7 @@ export default defineConfig({
       "modules/**/__tests__/**/*.test.tsx",
       "packages/**/__tests__/**/*.test.ts",
       "packages/**/__tests__/**/*.test.tsx",
+      "tools/__tests__/**/*.test.ts",
     ],
     setupFiles: ["./vitest.setup.ts"],
     environment: "jsdom",

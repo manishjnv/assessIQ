@@ -48,6 +48,23 @@ export async function allMigrationFiles(): Promise<string[]> {
   });
 }
 
+/** modules/<name>/seeds/*.sql in basename order (post-migration, idempotent; see tools/migrate.ts). */
+export async function allSeedFiles(): Promise<string[]> {
+  const files: string[] = [];
+  for (const m of await readdir(MODULES, { withFileTypes: true })) {
+    if (!m.isDirectory() || m.name === "node_modules") continue;
+    const dir = join(MODULES, m.name, "seeds");
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch {
+      continue;
+    }
+    for (const e of entries) if (e.endsWith(".sql")) files.push(join(dir, e));
+  }
+  return files.sort((a, b) => basename(a).localeCompare(basename(b)));
+}
+
 export async function createAppRoles(client: Client): Promise<void> {
   await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_app') THEN CREATE ROLE assessiq_app; END IF; END $$;`);
   await client.query(`DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'assessiq_system') THEN CREATE ROLE assessiq_system BYPASSRLS; END IF; END $$;`);
@@ -73,6 +90,13 @@ export async function applyAllMigrations(client: Client): Promise<void> {
       await client.query(await readFile(f, "utf8"));
     } catch (e) {
       throw new Error(`migration ${basename(f)} failed: ${(e as Error).message}`);
+    }
+  }
+  for (const f of await allSeedFiles()) {
+    try {
+      await client.query(await readFile(f, "utf8"));
+    } catch (e) {
+      throw new Error(`seed ${basename(f)} failed: ${(e as Error).message}`);
     }
   }
 }
