@@ -29,6 +29,9 @@ tenantContextMiddleware(): TenantContextHooks
 // repo helper — programmatic equivalent of the middleware for worker/CLI/cron
 withTenant<T>(tenantId: string, fn: (client: PoolClient) => Promise<T>): Promise<T>
 
+// system-role helper (RW-38, 2026-10-11) — the only sanctioned way to run under assessiq_system
+withSystemRole<T>(reason: string, fn: (client: PoolClient) => Promise<T>): Promise<T>
+
 // pool — singleton, lazy
 getPool(): pg.Pool
 closePool(): Promise<void>
@@ -59,9 +62,21 @@ The `, true` second arg to `current_setting` makes it return NULL instead of err
 Every new domain table MUST get this two-policy template in the **same migration file** as the `CREATE TABLE`. The linter (`tools/lint-rls-policies.ts`) enforces this per-file. The `tenants` table is a documented special case — its own `id` is the tenant key (see `0003_tenants_rls.sql`).
 
 ## System-level escapes
-`assessiq_system` has `BYPASSRLS`. Used only for: cross-tenant analytics, support tooling, backups, **and tenant creation** (the `tenants_isolation_insert WITH CHECK (id = current_setting(...))` policy means a non-bypass role cannot insert a new tenant before its own context exists). Every query under this role must be audited via `14-audit-log` (Phase 3). A `withSystemRole(fn)` helper is deferred until 14-audit-log lands so every system-role op gets an audit row by construction.
+`assessiq_system` has `BYPASSRLS`. Used only for: cross-tenant analytics, support tooling, backups, **and tenant creation** (the `tenants_isolation_insert WITH CHECK (id = current_setting(...))` policy means a non-bypass role cannot insert a new tenant before its own context exists). Every use goes through `withSystemRole(reason, fn)` (RW-38, commit `66a7c50`).
 
-`getTenantBySlug` is part of the public surface but throws in Phase 0 — slug-lookup happens before tenant context is established (login flow), so it requires `withSystemRole`. Phase 1 wires it in.
+**`withSystemRole(reason, fn)` contract.**
+- `reason` must be a non-empty string. Otherwise it throws `ValidationError` (`INVALID_SYSTEM_ROLE_REASON`).
+- It runs `BEGIN`, then `SET LOCAL ROLE assessiq_system`, then `fn`. It uses `COMMIT` on success and `ROLLBACK` on error.
+- It logs `system-role.tx` with `{reason, caller}` (stream `app`) before the transaction starts.
+- It uses the same `onCommit` hook model as `withTenant`. Hooks run after `COMMIT`.
+- It throws `SYSTEM_ROLE_INSIDE_TENANT` when called inside a `withTenant` scope (`AsyncLocalStorage` marker). Open the system transaction first, or use two separate calls.
+- Mixed pattern: read under the system role, then `SET LOCAL ROLE assessiq_app` plus `set_config('app.current_tenant', ...)` for an audited tenant write in the same transaction. This is allowed. Comment the switch at each site.
+
+**Raw connects.** `tools/pool-connect.allowlist.txt` lists the files that may call `pool.connect()` directly (four entries, each with a reason). `pnpm lint:rls` fails on an unlisted raw connect and on a stale entry. Details: `docs/02-data-model.md` § "Row-Level Security policies".
+
+**Audit.** The helper does not write an audit row. An audit row needs a tenant, and many system reads are cross-tenant. A caller that changes tenant data writes its own `auditInTx` row in the tenant part of the transaction.
+
+`getTenantBySlug` is part of the public surface but throws in Phase 0 — slug-lookup happens before tenant context is established (login flow), so it requires `withSystemRole`. The helper now exists (RW-38); `getTenantBySlug` itself is still not wired.
 
 ## Connection / role posture
 - Production `DATABASE_URL` should connect as `assessiq_app` (created by `0002_rls_helpers.sql`, no password — set via `ALTER ROLE` from a Docker secret post-migration). Migrations run as the postgres superuser (`POSTGRES_USER` from compose).
@@ -82,7 +97,6 @@ Every new domain table MUST get this two-policy template in the **same migration
 ## Open questions
 - Tenant deletion (vs archive) — deferred; keeps things simpler
 - Per-tenant custom domains (`assess.client.com`) — Phase 3 with TLS via ACME-DNS
-- `withSystemRole(fn)` helper — deferred until `14-audit-log` so every system-role op is audited by construction (Phase 1+).
 
 ## Status
 
@@ -90,7 +104,7 @@ Every new domain table MUST get this two-policy template in the **same migration
 
 - 3 migrations applied to ephemeral testcontainer postgres + integration tests passing.
 - 11/11 vitest cases passing (1 documented `test.todo` for production-NODE_ENV header rejection — blocked by 00-core's eager config singleton, unblocks in Phase 1 with config injection).
-- Public surface: `getTenantById`, `updateTenantSettings`, `suspendTenant`, `tenantContextMiddleware`, `withTenant`, `getPool`/`closePool`. `getTenantBySlug` deferred to Phase 1 (`withSystemRole` dependency).
+- Public surface: `getTenantById`, `updateTenantSettings`, `suspendTenant`, `tenantContextMiddleware`, `withTenant`, `getPool`/`closePool`. `getTenantBySlug` deferred to Phase 1. `withSystemRole` landed later (RW-38, 2026-10-11).
 - codex:rescue verdict: **accepted** with one Phase 4 revision (INSERT-policy test added) — see `docs/SESSION_STATE.md` agent-utilization footer.
 
 
@@ -105,3 +119,17 @@ Migration `0114` adds `tenant_settings.result_release_mode` (`manual` default | 
 ## `withTenant` `onCommit` hook (FR2 FU-B5, 2026-10-03)
 
 `onCommit(client, hook)` in `src/with-tenant.ts` registers a function that runs after COMMIT and after `client.release()`. It never runs on rollback. It returns `false` and drops the hook if the client is not inside an open `withTenant`. A hook error is swallowed (the work is already committed); the hook owns its own logging, as `fanoutAuditEvent` does. Used by `auditInTx` (module 14) for webhook fan-out. Other transaction helpers (raw `BEGIN`) have no hooks. Test: `src/__tests__/with-tenant-on-commit.test.ts`.
+
+## withSystemRole and the pool.connect allowlist (RW-38, 2026-10-11)
+
+**What.** `withTenant` and `withSystemRole` share one private transaction scaffold in `src/with-tenant.ts`. Every hand-rolled system-role transaction in modules and `apps/api` now calls `withSystemRole`. Three local wrappers are deleted. Four raw `pool.connect()` sites stay, each listed with a reason in `tools/pool-connect.allowlist.txt`: `15-analytics/refresh-mv-job.ts`, `02-tenancy/middleware.ts`, `16-help-system/service.ts` (`withGlobalsOnly`) and `18-certification/repository.ts` (`withPublicVerifyContext`).
+
+**Why.** The old sites differed in error handling, none logged why the system role was used, and one could miss `RESET ROLE`. One helper with a mandatory `reason` fixes all three.
+
+**Considered and rejected.** (1) Audit every system call by construction. The audit row needs a tenant, and many system reads are cross-tenant. This is why the old "deferred until 14-audit-log" plan was dropped. (2) A separate `withSystemReadOnly`. Module 07 keeps a thin wrapper that adds `SET TRANSACTION READ ONLY`.
+
+**Not included.** `refresh-mv-job` stays a raw connect because `REFRESH MATERIALIZED VIEW` needs the MV owner role. The superseded, unregistered `middleware.ts` is not converted.
+
+**Behaviour changes.** Candidate-login token consume (`01-auth`) now runs in a transaction. Before, it used a session-level `SET ROLE`. The `13-notifications` email retry count now reads `email_log` under `withTenant`. Before, the read was RLS-blind and always fell back to attempt 1.
+
+**Downstream impact.** New system-role code must use `withSystemRole` with a reason. A new raw connect needs an allowlist line. Log event: `system-role.tx` (`docs/11-observability.md`). Test: `src/__tests__/with-system-role.test.ts`.
