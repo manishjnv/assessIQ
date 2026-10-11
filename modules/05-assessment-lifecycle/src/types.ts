@@ -61,27 +61,52 @@ export const BLUEPRINT_QUESTION_TYPES = [
 ] as const;
 export type BlueprintQuestionType = (typeof BLUEPRINT_QUESTION_TYPES)[number];
 
-export const BlueprintCriterionSchema = z.object({
-  category_id: z.string().uuid("category_id must be a UUID"),
-  type: z.enum(BLUEPRINT_QUESTION_TYPES, {
-    errorMap: () => ({
-      message: `type must be one of: ${BLUEPRINT_QUESTION_TYPES.join(", ")}`,
+export const BlueprintCriterionSchema = z
+  .object({
+    category_id: z.string().uuid("category_id must be a UUID").optional(),
+    // RW-55: a curriculum 'unit' node, resolved to the tenant's (domain_id, category_id)
+    // at write time. The draw never sees node_id.
+    node_id: z.string().uuid("node_id must be a UUID").optional(),
+    type: z.enum(BLUEPRINT_QUESTION_TYPES, {
+      errorMap: () => ({
+        message: `type must be one of: ${BLUEPRINT_QUESTION_TYPES.join(", ")}`,
+      }),
     }),
-  }),
-  count: z.number().int().min(1, "count must be ≥ 1"),
-});
+    count: z.number().int().min(1, "count must be ≥ 1"),
+  })
+  .refine((c) => c.category_id !== undefined || c.node_id !== undefined, {
+    message: "each criterion needs category_id or node_id",
+  });
 export type BlueprintCriterion = z.infer<typeof BlueprintCriterionSchema>;
 
-export const AssessmentBlueprintSchema = z.object({
-  domain_id: z.string().uuid("domain_id must be a UUID"),
-  level: z.enum(BLUEPRINT_LEVELS, {
-    errorMap: () => ({ message: "level must be L1, L2, or L3" }),
-  }),
-  criteria: z
-    .array(BlueprintCriterionSchema)
-    .min(1, "criteria must have at least one entry"),
-});
+export const AssessmentBlueprintSchema = z
+  .object({
+    // Optional only when every criterion has a node_id (domain derived from the unit node).
+    domain_id: z.string().uuid("domain_id must be a UUID").optional(),
+    level: z.enum(BLUEPRINT_LEVELS, {
+      errorMap: () => ({ message: "level must be L1, L2, or L3" }),
+    }),
+    criteria: z
+      .array(BlueprintCriterionSchema)
+      .min(1, "criteria must have at least one entry"),
+  })
+  .refine((b) => b.domain_id !== undefined || b.criteria.every((c) => c.node_id !== undefined), {
+    message: "domain_id is required unless every criterion has a node_id",
+  });
+/** Write-time INPUT shape (loosened for RW-55). */
 export type AssessmentBlueprint = z.infer<typeof AssessmentBlueprintSchema>;
+
+/** STORED shape in settings.blueprint: always resolved. Draw/count/preview/freeze read only this. */
+export interface ResolvedBlueprint {
+  domain_id: string;
+  level: BlueprintLevel;
+  criteria: Array<{
+    category_id: string;
+    node_id?: string;
+    type: BlueprintQuestionType;
+    count: number;
+  }>;
+}
 
 // ---------------------------------------------------------------------------
 // AssessmentSettings — decision #5
@@ -382,6 +407,10 @@ export const AL_ERROR_CODES = {
   // Phase 2 Slice A — blueprint
   CROSS_TENANT_FK_REJECTED: "CROSS_TENANT_FK_REJECTED",
   BLUEPRINT_INVALID: "BLUEPRINT_INVALID",
+  BLUEPRINT_NODE_UNRESOLVED: "BLUEPRINT_NODE_UNRESOLVED",
+  BLUEPRINT_NODE_KIND_UNSUPPORTED: "BLUEPRINT_NODE_KIND_UNSUPPORTED",
+  BLUEPRINT_NODE_MISMATCH: "BLUEPRINT_NODE_MISMATCH",
+  BLUEPRINT_MIXED_DOMAINS: "BLUEPRINT_MIXED_DOMAINS",
   POOL_TOO_SMALL_CRITERION: "POOL_TOO_SMALL_CRITERION",
   // Slice A.2 — opens_at mandatory
   OPENS_AT_REQUIRED: "OPENS_AT_REQUIRED",

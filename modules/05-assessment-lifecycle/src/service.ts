@@ -68,6 +68,7 @@ import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsS
 import type {
   Assessment,
   AssessmentBlueprint,
+  ResolvedBlueprint,
   AssessmentInvitation,
   AssessmentSettings,
   AssessmentStatus,
@@ -265,7 +266,7 @@ async function listActiveQuestionsForCriterion(
 async function assertBlueprintFKOwnership(
   client: PoolClient,
   tenantId: string,
-  blueprint: AssessmentBlueprint,
+  blueprint: ResolvedBlueprint,
 ): Promise<void> {
   // 1. Domain guard
   const domainGuard = await client.query<{ slug: string }>(
@@ -311,6 +312,80 @@ async function assertBlueprintFKOwnership(
 }
 
 /**
+ * RW-55 — resolve node_id criteria to the tenant's (domain_id, category_id).
+ * Runs inside the caller's tenant-scoped client (RLS applies to categories).
+ * Returns the stored (resolved) shape; node_id is kept for traceability only.
+ * The draw / count / preview / frozen pool read domain_id + category_id and never change.
+ */
+export async function resolveBlueprintNodes(
+  client: PoolClient,
+  blueprint: AssessmentBlueprint,
+): Promise<ResolvedBlueprint> {
+  let domainId = blueprint.domain_id;
+  const criteria: ResolvedBlueprint["criteria"] = [];
+  for (const crit of blueprint.criteria) {
+    if (crit.node_id === undefined) {
+      criteria.push({ category_id: crit.category_id!, type: crit.type, count: crit.count });
+      continue;
+    }
+    const r = await client.query<{ kind: string; category_id: string | null; domain_id: string | null }>(
+      `SELECT n.kind, c.id AS category_id, c.domain_id
+         FROM taxonomy_nodes n
+         LEFT JOIN categories c ON c.node_id = n.id
+        WHERE n.id = $1
+        ORDER BY c.created_at ASC
+        LIMIT 1`,
+      [crit.node_id],
+    );
+    const row = r.rows[0];
+    if (row === undefined) {
+      throw new ValidationError("blueprint node_id does not exist or is not visible to this tenant", {
+        details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_UNRESOLVED, node_id: crit.node_id },
+      });
+    }
+    if (row.kind !== "unit") {
+      throw new ValidationError(`blueprint node_id must be a 'unit' node (got '${row.kind}')`, {
+        details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_KIND_UNSUPPORTED, node_id: crit.node_id, kind: row.kind },
+      });
+    }
+    if (row.category_id === null || row.domain_id === null) {
+      throw new ValidationError("blueprint node_id has no category in this tenant", {
+        details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_UNRESOLVED, node_id: crit.node_id },
+      });
+    }
+    if (crit.category_id !== undefined && crit.category_id !== row.category_id) {
+      throw new ValidationError("blueprint criterion category_id does not match its node_id", {
+        details: {
+          code: AL_ERROR_CODES.BLUEPRINT_NODE_MISMATCH,
+          node_id: crit.node_id,
+          category_id: crit.category_id,
+          resolved_category_id: row.category_id,
+        },
+      });
+    }
+    domainId ??= row.domain_id;
+    if (domainId !== row.domain_id) {
+      throw new ValidationError("blueprint criteria resolve to more than one domain", {
+        details: { code: AL_ERROR_CODES.BLUEPRINT_MIXED_DOMAINS, node_id: crit.node_id },
+      });
+    }
+    criteria.push({ category_id: row.category_id, node_id: crit.node_id, type: crit.type, count: crit.count });
+  }
+  return { domain_id: domainId!, level: blueprint.level, criteria };
+}
+
+/** Entry used by create/update: no node_id anywhere = no extra query (legacy path untouched). */
+async function resolveBlueprint(
+  tenantId: string,
+  blueprint: AssessmentBlueprint,
+): Promise<ResolvedBlueprint> {
+  if (!blueprint.criteria.some((c) => c.node_id !== undefined)) {
+    return blueprint as ResolvedBlueprint; // refine guarantees domain_id + category_id here
+  }
+  return withTenant(tenantId, (client) => resolveBlueprintNodes(client, blueprint));
+}
+
+/**
  * Resolve pack/level from blueprint + update assessment fields.
  * Calls findOrCreatePackForDomain (already Opus-reviewed, cross-tenant-guarded)
  * to get packId/levelIds, then returns the fields to persist.
@@ -322,7 +397,7 @@ async function assertBlueprintFKOwnership(
  */
 async function resolveBlueprintPackLevel(
   tenantId: string,
-  blueprint: AssessmentBlueprint,
+  blueprint: ResolvedBlueprint,
   createdByUserId: string,
 ): Promise<{ packId: string; levelId: string; questionCount: number }> {
   const resolver = await findOrCreatePackForDomain(tenantId, blueprint.domain_id, createdByUserId);
@@ -466,7 +541,7 @@ export async function createAssessment(
         { details: { code: AL_ERROR_CODES.BLUEPRINT_INVALID, issues: parseResult.error.issues } },
       );
     }
-    const blueprint = parseResult.data;
+    const blueprint = await resolveBlueprint(tenantId, parseResult.data);
 
     // Resolve pack/level (calls findOrCreatePackForDomain which has its own
     // domain cross-tenant guard). Then do the category-level guard inside withTenant.
@@ -490,7 +565,7 @@ export async function createAssessment(
   return withTenant(tenantId, async (client) => {
     // C1 — cross-tenant FK guard for blueprint (category-level, inside RLS scope)
     if (rawBlueprint !== undefined) {
-      const blueprint = mergedSettings.blueprint!;
+      const blueprint = mergedSettings.blueprint as ResolvedBlueprint; // resolved above
       await assertBlueprintFKOwnership(client, tenantId, blueprint);
     }
 
@@ -838,7 +913,7 @@ export async function updateAssessment(
   assertRemindersSettings(patch.settings);
   assertSectionsSettings(patch.settings);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
-  let validatedBlueprint: AssessmentBlueprint | null = null;
+  let validatedBlueprint: ResolvedBlueprint | null = null;
   const rawPatchBlueprint = (patch.settings as Record<string, unknown> | undefined)?.["blueprint"];
 
   if (rawPatchBlueprint !== undefined) {
@@ -849,7 +924,7 @@ export async function updateAssessment(
         { details: { code: AL_ERROR_CODES.BLUEPRINT_INVALID, issues: parseResult.error.issues } },
       );
     }
-    validatedBlueprint = parseResult.data;
+    validatedBlueprint = await resolveBlueprint(tenantId, parseResult.data);
     // Resolve pack/level before entering withTenant (findOrCreatePackForDomain has its own withTenant)
     resolvedBlueprintOverride = await resolveBlueprintPackLevel(tenantId, validatedBlueprint, updatedByUserId);
   }
@@ -1052,7 +1127,7 @@ export async function publishAssessment(
     //    Blueprint path (C2): per-criterion check.
     //    No-blueprint path: existing whole-pool count unchanged.
     const blueprint = (assessment.settings as Record<string, unknown>)?.["blueprint"] as
-      | AssessmentBlueprint
+      | ResolvedBlueprint
       | undefined;
 
     if (blueprint !== undefined) {
@@ -2245,7 +2320,7 @@ export async function previewAssessment(
     }
 
     const blueprint = (assessment.settings as Record<string, unknown>)?.["blueprint"] as
-      | AssessmentBlueprint
+      | ResolvedBlueprint
       | undefined;
 
     // RV63: once frozen (publish/reopen), candidates draw from assessment_frozen_pool,
