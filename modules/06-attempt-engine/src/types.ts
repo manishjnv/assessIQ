@@ -303,6 +303,7 @@ import {
   StructuredCaseAnswerPayloadSchema,
   KqlAnswerPayloadSchema,
   SubjectiveAnswerPayloadSchema,
+  checkAnswerFor,
 } from "@assessiq/question-types";
 
 // Moved to @assessiq/question-types (RW-54a); re-exported under the same names.
@@ -328,29 +329,8 @@ export function checkAnswerForSave(
   answer: unknown,
   frozenContent?: unknown,
 ): { ok: true; answer: unknown } | { ok: false } {
-  if (questionType === "structured_case" && answer !== null) {
-    // Keyed on the question TYPE. Canonical: { steps: { [stepId]: number[] } }; every step id must
-    // exist in the frozen content and every index must be a unique integer inside that step's options.
-    const parsed = StructuredCaseAnswerPayloadSchema.safeParse(answer);
-    const steps = (frozenContent as { steps?: unknown } | null | undefined)?.steps;
-    if (!parsed.success || !Array.isArray(steps)) return { ok: false };
-    const byId = new Map(
-      steps.map((s: { id?: unknown; options?: unknown; select?: unknown }) => [s.id, { options: s.options, select: s.select }]),
-    );
-    for (const [id, picks] of Object.entries(parsed.data.steps)) {
-      const step = byId.get(id);
-      const options = step?.options;
-      if (!Array.isArray(options) || new Set(picks).size !== picks.length || picks.some((i) => i >= options.length)) {
-        return { ok: false };
-      }
-      // A select-one step takes at most one pick (review note, 2026-10-03).
-      if (step?.select === "one" && picks.length > 1) return { ok: false };
-    }
-    return { ok: true, answer: parsed.data };
-  }
-  if (questionType !== "scenario" || answer === null) return { ok: true, answer };
-  const parsed = ScenarioAnswerPayloadSchema.safeParse(answer);
-  return parsed.success ? { ok: true, answer: parsed.data } : { ok: false };
+  const r = checkAnswerFor(questionType, answer, frozenContent);
+  return r.ok ? r : { ok: false };
 }
 
 export type McqAnswerPayload = z.infer<typeof McqAnswerPayloadSchema>;

@@ -25,6 +25,7 @@
 import type { PoolClient } from "pg";
 import { NotFoundError, config, streamLogger } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import * as repo from "./repository.js";
 import { AE_ERROR_CODES } from "./types.js";
 
@@ -142,13 +143,13 @@ async function loadExpectation(
             (SELECT COUNT(*)::int
                FROM attempt_questions aq
                JOIN question_versions qv ON qv.question_id = aq.question_id AND qv.version = aq.question_version
-              WHERE aq.attempt_id = a.id AND qv.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case')) AS non_mcq_questions
+              WHERE aq.attempt_id = a.id AND qv.type <> ALL($2)) AS non_mcq_questions
        FROM attempts a
        JOIN users   u ON u.id = a.user_id
        JOIN tenants t ON t.id = a.tenant_id
        LEFT JOIN tenant_settings ts ON ts.tenant_id = a.tenant_id
       WHERE a.id = $1`,
-    [attemptId],
+    [attemptId, DETERMINISTIC_IDS],
   );
   const row = res.rows[0];
   if (row === undefined) return null;

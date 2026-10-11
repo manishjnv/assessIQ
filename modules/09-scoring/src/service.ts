@@ -24,6 +24,7 @@ import {
   deriveArchetype,
   computeLastMinuteFraction,
 } from "./archetype.js";
+import type { QuestionType } from "@assessiq/question-types";
 import * as repo from "./repository.js";
 import type {
   AttemptScore,
@@ -45,6 +46,9 @@ export async function computeAttemptScore(
     computeAttemptScoreInTx(client, tenantId, attemptId, actorUserId),
   );
 }
+
+// Archetype rules read the MCQ-typed fraction only (not every deterministic type).
+const MCQ_TYPE: QuestionType = "mcq";
 
 /**
  * Same as computeAttemptScore but runs on the caller's open withTenant
@@ -99,7 +103,7 @@ export async function computeAttemptScoreInTx(
     });
 
     // 5. MCQ fraction for archetype rules (pattern_matcher / deep_reasoner)
-    const mcqGradings = gradings.filter((g) => g.question_type === "mcq");
+    const mcqGradings = gradings.filter((g) => g.question_type === MCQ_TYPE);
     const mcqEarned = mcqGradings.reduce((s, g) => s + g.score_earned, 0);
     const mcqMax = mcqGradings.reduce((s, g) => s + g.score_max, 0);
     const mcqPct = mcqMax > 0 ? mcqEarned / mcqMax : null;

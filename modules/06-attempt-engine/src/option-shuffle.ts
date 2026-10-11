@@ -16,7 +16,13 @@
  * it). A translation can therefore never turn an invalid answer into a valid one.
  */
 
+import { QUESTION_TYPE_REGISTRY, isQuestionType } from "@assessiq/question-types";
 import type { AttemptAnswer, FrozenQuestion } from "./types.js";
+
+/** Registry shuffle field of a stored type string; null for unknown / unshuffled types. */
+export function shuffleFieldOf(type: string): "options" | "items" | null {
+  return isQuestionType(type) ? QUESTION_TYPE_REGISTRY[type].shuffleField : null;
+}
 
 /** content.options is 2-8 strings (McqContentSchema); anything else is not shuffled. */
 const MIN_OPTIONS = 2;
@@ -237,10 +243,10 @@ export function displayQuestions(
   return questions.map((q) => {
     const order = usableOrder(orders.get(q.question_id));
     // ordering without a usable order: never serve the authored (= correct) item order. Fail closed.
-    if (order === null) return q.type === "ordering" ? { ...q, content: { ...(q.content as object), items: [] } } : q;
+    if (order === null) return shuffleFieldOf(q.type) === "items" ? { ...q, content: { ...(q.content as object), items: [] } } : q;
     const content = q.content as { options?: unknown; items?: unknown } | null;
     // MCQ / multi_select shuffle `options`; ordering shuffles `items` (same permutation model).
-    const field = q.type === "ordering" ? "items" : "options";
+    const field = shuffleFieldOf(q.type) === "items" ? "items" : "options";
     const options = content !== null && typeof content === "object" ? content[field] : undefined;
     // question_versions is insert-only and attempt_questions pins the version, so an
     // order always matches its frozen options. If it ever does not, fail loudly: serving

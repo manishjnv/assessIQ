@@ -21,7 +21,7 @@
 
 import type { PoolClient } from "pg";
 import { streamLogger } from "@assessiq/core";
-import { DETERMINISTIC_IDS } from "@assessiq/question-types";
+import { DETERMINISTIC_IDS, deterministicScoreFor } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import { finalizeAttemptIfComplete } from "./finalize.js";
 import { getAttemptScore } from "./repository.js";
@@ -33,143 +33,21 @@ export const MCQ_SENTINEL_MODEL = "none";
 
 const log = streamLogger("app");
 
-/**
- * Pure correctness check. `content` is the frozen question_versions.content,
- * `answer` the stored attempt_answers.answer. Never throws.
- * Accepted answer shapes: {selected: <int>} (canonical) or a bare integer.
- * Everything else (null, string, array, float, out-of-range) is incorrect.
- * Only single-correct MCQ is supported by the content schema (`correct: int`).
- */
-export function isMcqAnswerCorrect(content: unknown, answer: unknown): boolean {
-  if (content === null || typeof content !== "object") return false;
-  const c = content as { correct?: unknown; options?: unknown };
-  const correct = c.correct;
-  if (typeof correct !== "number" || !Number.isInteger(correct) || correct < 0) return false;
-  if (Array.isArray(c.options) && correct >= c.options.length) return false;
-
-  let selected: unknown = answer;
-  if (answer !== null && typeof answer === "object" && !Array.isArray(answer)) {
-    selected = (answer as { selected?: unknown }).selected;
-  }
-  if (typeof selected !== "number" || !Number.isInteger(selected)) return false;
-  return selected === correct;
-}
+export {
+  isMcqAnswerCorrect,
+  isNumericAnswerCorrect,
+  parseNumericAnswer,
+  multiSelectFraction,
+  orderingFraction,
+  structuredCaseFraction,
+} from "@assessiq/question-types";
 
 /** Types scored here with NO AI. Single source: the question-type registry (feeds the `qv.type = ANY($n)` SQL below). */
 export const DETERMINISTIC_TYPES = DETERMINISTIC_IDS;
 
-/** Extract the numeric value of a stored numeric answer: number, {value}, or numeric string ("1,250"). */
-export function parseNumericAnswer(answer: unknown): number | null {
-  let v: unknown = answer;
-  if (v !== null && typeof v === "object" && !Array.isArray(v)) v = (v as { value?: unknown }).value;
-  if (typeof v === "string") {
-    const t = v.trim().replace(/,/g, "");
-    if (!/^[+-]?(\d+\.?\d*|\.\d+)(e[+-]?\d+)?$/i.test(t)) return null;
-    v = Number(t);
-  }
-  return typeof v === "number" && Number.isFinite(v) ? v : null;
-}
-
-/** numeric: correct iff |given - answer| <= tolerance (absolute, default 0). Never throws. */
-export function isNumericAnswerCorrect(content: unknown, answer: unknown): boolean {
-  if (content === null || typeof content !== "object") return false;
-  const c = content as { answer?: unknown; tolerance?: unknown };
-  if (typeof c.answer !== "number" || !Number.isFinite(c.answer)) return false;
-  const tol = typeof c.tolerance === "number" && Number.isFinite(c.tolerance) && c.tolerance >= 0 ? c.tolerance : 0;
-  const given = parseNumericAnswer(answer);
-  if (given === null) return false;
-  // 1e-9 slack so float noise at the tolerance edge (0.1 + 0.2) does not flip a result
-  return Math.abs(given - c.answer) <= tol + 1e-9;
-}
-
-/**
- * multi_select: fraction of the points earned, 0..1. all_or_nothing (default): 1 iff the
- * selected set equals the correct set. partial: max(0, (right - wrong) / |correct|).
- * Malformed answers (non-array, non-integer, out-of-range, duplicate) score 0.
- */
-export function multiSelectFraction(content: unknown, answer: unknown): number {
-  if (content === null || typeof content !== "object") return 0;
-  const c = content as { correct?: unknown; options?: unknown; scoring?: unknown };
-  if (!Array.isArray(c.correct) || c.correct.length === 0) return 0;
-  const n = Array.isArray(c.options) ? c.options.length : Infinity;
-  const ok = (a: unknown): a is number[] =>
-    Array.isArray(a) && a.every((i) => typeof i === "number" && Number.isInteger(i) && i >= 0 && i < n) && new Set(a).size === a.length;
-  if (!ok(c.correct)) return 0;
-  let sel: unknown = answer;
-  if (answer !== null && typeof answer === "object" && !Array.isArray(answer)) sel = (answer as { selected?: unknown }).selected;
-  if (!ok(sel)) return 0;
-  const key = new Set(c.correct);
-  const right = sel.filter((i) => key.has(i)).length;
-  const wrong = sel.length - right;
-  if (c.scoring === "partial") return Math.max(0, (right - wrong) / key.size);
-  return wrong === 0 && right === key.size ? 1 : 0;
-}
-
-/**
- * ordering: fraction of the points earned, 0..1. `correct_order` and `answer.order` are
- * ORIGINAL item indexes. Malformed (not a permutation of 0..n-1 of the right length) -> 0.
- * all_or_nothing (default): 1 iff identical. partial: share of positions that match.
- */
-export function orderingFraction(content: unknown, answer: unknown): number {
-  if (content === null || typeof content !== "object") return 0;
-  const c = content as { correct_order?: unknown; scoring?: unknown };
-  const isPerm = (a: unknown, n: number): a is number[] =>
-    Array.isArray(a) && a.length === n && new Set(a).size === n &&
-    a.every((i) => typeof i === "number" && Number.isInteger(i) && i >= 0 && i < n);
-  const key = c.correct_order;
-  if (!Array.isArray(key) || key.length < 2 || !isPerm(key, key.length)) return 0;
-  const given = answer !== null && typeof answer === "object" && !Array.isArray(answer)
-    ? (answer as { order?: unknown }).order
-    : undefined;
-  if (!isPerm(given, key.length)) return 0;
-  const hits = given.filter((v, i) => v === key[i]).length;
-  if (c.scoring === "partial") return hits / key.length;
-  return hits === key.length ? 1 : 0;
-}
-
-/**
- * structured_case: fraction of the points earned, 0..1. Answer `{ steps: { [stepId]: number[] } }`
- * (ORIGINAL option indexes; no shuffle for this type). Per step: select 'one' -> 1 iff the single
- * selected index equals correct[0]; select 'many' -> multiSelectFraction on that step (partial only
- * when the question's scoring is 'partial'). Question: all_or_nothing -> 1 iff every step is 1;
- * partial (default) -> mean of the step fractions. Malformed content/answer -> 0.
- */
-export function structuredCaseFraction(content: unknown, answer: unknown): number {
-  if (content === null || typeof content !== "object") return 0;
-  const c = content as { steps?: unknown; scoring?: unknown };
-  if (!Array.isArray(c.steps) || c.steps.length === 0) return 0;
-  const given = answer !== null && typeof answer === "object" && !Array.isArray(answer)
-    ? (answer as { steps?: unknown }).steps
-    : undefined;
-  if (given === null || typeof given !== "object" || Array.isArray(given)) return 0;
-  const picks = given as Record<string, unknown>;
-  const stepIds = new Set(c.steps.map((s) => (s !== null && typeof s === "object" ? (s as { id?: unknown }).id : undefined)));
-  if (Object.keys(picks).some((k) => !stepIds.has(k))) return 0; // unknown step id -> malformed
-  const fractions = c.steps.map((s): number => {
-    if (s === null || typeof s !== "object") return 0;
-    const st = s as { id?: unknown; select?: unknown; options?: unknown; correct?: unknown };
-    if (typeof st.id !== "string" || !Object.prototype.hasOwnProperty.call(picks, st.id)) return 0;
-    const sel = picks[st.id];
-    if (st.select === "one") {
-      const key = Array.isArray(st.correct) && st.correct.length === 1 ? st.correct[0] : undefined;
-      return Array.isArray(sel) && sel.length === 1 && typeof key === "number" && sel[0] === key ? 1 : 0;
-    }
-    return multiSelectFraction(
-      { options: st.options, correct: st.correct, scoring: c.scoring === "all_or_nothing" ? "all_or_nothing" : "partial" },
-      { selected: sel },
-    );
-  });
-  if (c.scoring === "all_or_nothing") return fractions.every((f) => f === 1) ? 1 : 0;
-  return fractions.reduce((a, b) => a + b, 0) / fractions.length;
-}
-
 /** Fraction (0..1) of the question's points earned, for any deterministic type. */
 export function deterministicFraction(type: string, content: unknown, answer: unknown): number {
-  if (type === "numeric") return isNumericAnswerCorrect(content, answer) ? 1 : 0;
-  if (type === "multi_select") return multiSelectFraction(content, answer);
-  if (type === "ordering") return orderingFraction(content, answer);
-  if (type === "structured_case") return structuredCaseFraction(content, answer);
-  return isMcqAnswerCorrect(content, answer) ? 1 : 0;
+  return deterministicScoreFor(type, content, answer);
 }
 
 interface McqRow {
