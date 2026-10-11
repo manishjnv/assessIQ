@@ -70,6 +70,14 @@ describe("escape", () => {
     expect(csvCell("\u200B=1+1")).toBe("'\u200B=1+1");
     expect(csvCell("\uFEFF=1+1")).toBe("'\uFEFF=1+1");
     expect(csvCell("\u2060@x")).toBe("'\u2060@x");
+    expect(csvCell("\u200e=1+1")).toBe("'\u200e=1+1");
+    expect(csvCell("\u200f=1+1")).toBe("'\u200f=1+1");
+    expect(csvCell("\u202e=1+1")).toBe("'\u202e=1+1");
+    expect(csvCell("\u2800=1+1")).toBe("'\u2800=1+1");
+    expect(csvCell("(=1)")).toBe("'(=1)");
+    expect(csvCell("abc=1")).toBe("abc=1");
+    expect(csvCell('"=1')).toBe('"\'""=1"');
+    expect(csvCell("A\t=1")).toBe("'A\t=1");
     expect(csvCell("1+1")).toBe("1+1");
     expect(csvCell("plain")).toBe("plain");
     expect(csvCell(-5)).toBe("-5");
