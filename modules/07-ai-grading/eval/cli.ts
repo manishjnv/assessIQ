@@ -679,7 +679,7 @@ async function cmdHarvestOverrides(since: string): Promise<void> {
     console.error("[error] --since must be YYYY-MM-DD");
     process.exit(1);
   }
-  const { getPool } = await import("@assessiq/tenancy");
+  const { withSystemRole } = await import("@assessiq/tenancy");
   const { resolveGradingRubric } = await import("../src/handlers/admin-grade.js");
 
   interface Row {
@@ -693,11 +693,8 @@ async function cmdHarvestOverrides(since: string): Promise<void> {
     answer: unknown;
   }
 
-  const client = await getPool().connect();
-  let rows: Row[];
-  try {
-    await client.query("BEGIN READ ONLY");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  const rows: Row[] = await withSystemRole("eval: harvest grading override cases", async (client) => {
+    await client.query("SET TRANSACTION READ ONLY");
     const res = await client.query<Row>(
       `SELECT v.override_grading_id, v.override_reasoning_band, v.original_reasoning_band,
               q.type, q.topic, qv.content, qv.rubric, aa.answer
@@ -711,14 +708,8 @@ async function cmdHarvestOverrides(since: string): Promise<void> {
         ORDER BY v.override_created_at`,
       [since],
     );
-    await client.query("COMMIT");
-    rows = res.rows;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => undefined);
-    throw err;
-  } finally {
-    client.release();
-  }
+    return res.rows;
+  });
 
   ensureDir(PRIVATE_CASES_DIR);
   let written = 0;

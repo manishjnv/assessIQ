@@ -1,0 +1,8 @@
+# Raw pool.connect() / getPool().connect() allowlist (RW-38).
+# Format: <repo-relative path> | <reason>
+# One entry per file. A hit outside withTenant/withSystemRole that is not listed
+# here fails `pnpm lint:rls`. A listed file with no hit is stale and also fails.
+modules/15-analytics/src/refresh-mv-job.ts | REFRESH MATERIALIZED VIEW needs the MV owner role: session-level SET ROLE assessiq_system + RESET ROLE, release(true) on reset failure
+modules/02-tenancy/src/middleware.ts | request-scoped tenant tx: the client is held across Fastify preHandler and onResponse hooks, so a callback scaffold cannot wrap it
+modules/16-help-system/src/service.ts | withGlobalsOnly: anonymous read under assessiq_app with app.current_tenant reset to NULL; neither tenant nor system role fits
+modules/18-certification/src/repository.ts | withPublicVerifyContext: public verify read under assessiq_app with app.public_verify GUC and the nil-UUID tenant sentinel; neither tenant nor system role fits

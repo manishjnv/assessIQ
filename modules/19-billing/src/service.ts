@@ -4,7 +4,7 @@
 // Pure-function helpers (computeUsage) are DB-free and unit-testable.
 
 import type { PoolClient } from 'pg';
-import { withTenant, getPool } from '@assessiq/tenancy';
+import { withTenant, withSystemRole } from '@assessiq/tenancy';
 import { streamLogger, NotFoundError, ValidationError, AppError } from '@assessiq/core';
 import { auditInTx } from '@assessiq/audit-log';
 import {
@@ -228,29 +228,6 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
 // operate under assessiq_system (BYPASSRLS).
 // ---------------------------------------------------------------------------
 
-/**
- * Open a pool client, BEGIN, SET LOCAL ROLE assessiq_system, run fn, COMMIT.
- * On error: ROLLBACK (swallow rollback error) + rethrow. Always release.
- *
- * Mirrors admin-super.ts GET /tenants transaction shape exactly.
- */
-async function withSystemTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('SET LOCAL ROLE assessiq_system');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
 // ---------------------------------------------------------------------------
 // A2 — cross-tenant usage (super-admin)
 // ---------------------------------------------------------------------------
@@ -258,10 +235,10 @@ async function withSystemTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<
 /**
  * Fetch a usage summary for ALL tenants (super-admin).
  *
- * Runs under assessiq_system (BYPASSRLS) via withSystemTx.
+ * Runs under assessiq_system (BYPASSRLS) via withSystemRole.
  */
 export async function getAllTenantUsage(): Promise<TenantUsageRow[]> {
-  return withSystemTx(async (client) => {
+  return withSystemRole("cross-tenant usage summary (super-admin)", async (client) => {
     const rows = await getAllTenantUsageRaw(client);
     return rows.map((r) => {
       const tier = r.tier as PlanTier;
@@ -287,7 +264,7 @@ export async function getAllTenantUsage(): Promise<TenantUsageRow[]> {
  * Throws NotFoundError if no plan row exists for the tenant.
  */
 export async function getTenantBillingDetail(tenantId: string): Promise<TenantBillingDetail> {
-  return withSystemTx(async (client) => {
+  return withSystemRole("cross-tenant billing detail (super-admin)", async (client) => {
     const plan = await getTenantPlanRow(client, tenantId);
     if (plan === null) {
       throw new NotFoundError(`No billing plan found for tenant ${tenantId}`, {
@@ -337,7 +314,7 @@ export function csvQuote(v: string): string {
  * quote-wrapped defensively for correctness.
  */
 export async function getTenantBillingEventsCsv(tenantId: string): Promise<string> {
-  const events = await withSystemTx((client) =>
+  const events = await withSystemRole("cross-tenant billing events export (super-admin)", (client) =>
     getAllBillingEventsForExport(client, tenantId),
   );
 
@@ -410,19 +387,15 @@ export async function grantEntitlement(
   const scopeId =
     scopeType === 'domain' ? input.scopeId.trim().toLowerCase() : input.scopeId.trim();
 
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
+  return withSystemRole("tenant entitlement grant", async (client) => {
     // Phase A — system role: tenant_entitlements has no UPDATE/DELETE RLS
     // policy, so INSERT/UPDATE require BYPASSRLS (assessiq_system).
-    await client.query('SET LOCAL ROLE assessiq_system');
 
     const { id: entitlementId } = await insertEntitlement(client, tenantId, scopeType, scopeId, actorUserId);
 
     // Phase B — app role + tenant GUC: put auditInTx in the context its
     // contract requires. Same transaction → mutation + audit are atomic.
+    // system read, then tenant-scoped write under assessiq_app in the same tx
     await client.query('SET LOCAL ROLE assessiq_app');
     await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
 
@@ -436,15 +409,8 @@ export async function grantEntitlement(
       after: { scope_type: scopeType, scope_id: scopeId, status: 'active', entitlement_id: entitlementId },
     });
 
-    await client.query('COMMIT');
-
     return { tenant_id: tenantId, scope_type: scopeType, scope_id: scopeId, status: 'active', auditId: auditRow.id };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /**
@@ -487,20 +453,14 @@ export async function revokeEntitlement(
   const scopeId =
     scopeType === 'domain' ? input.scopeId.trim().toLowerCase() : input.scopeId.trim();
 
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
+  return withSystemRole("tenant entitlement revoke", async (client) => {
     // Phase A — system role: BYPASSRLS required for the UPDATE.
-    await client.query('SET LOCAL ROLE assessiq_system');
 
     const revoked = await revokeEntitlementRow(client, tenantId, scopeType, scopeId, actorUserId);
 
     if (revoked === null) {
-      // Nothing was active to revoke — throw BEFORE writing any audit row.
-      // ROLLBACK here is a no-op (no writes yet) but keeps the pattern clean.
-      await client.query('ROLLBACK');
+      // Nothing was active to revoke — throw BEFORE writing any audit row
+      // (withSystemRole rolls back on throw).
       throw new NotFoundError(
         `No active entitlement found for tenant ${tenantId} scope ${scopeType}:${scopeId}`,
         { details: { code: 'ENTITLEMENT_NOT_FOUND', tenantId, scopeType, scopeId } },
@@ -508,6 +468,7 @@ export async function revokeEntitlement(
     }
 
     // Phase B — app role + tenant GUC: auditInTx in its required context.
+    // system read, then tenant-scoped write under assessiq_app in the same tx
     await client.query('SET LOCAL ROLE assessiq_app');
     await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
 
@@ -521,26 +482,19 @@ export async function revokeEntitlement(
       after: { scope_type: scopeType, scope_id: scopeId, status: 'revoked', entitlement_id: revoked.id },
     });
 
-    await client.query('COMMIT');
-
     return { tenant_id: tenantId, scope_type: scopeType, scope_id: scopeId, status: 'revoked', auditId: auditRow.id };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /**
  * List all entitlements for a tenant (super-admin path).
  *
- * Uses withSystemTx (assessiq_system / BYPASSRLS) to read across tenant
+ * Uses withSystemRole (assessiq_system / BYPASSRLS) to read across tenant
  * boundaries without needing app.current_tenant set. Returns all statuses
  * (active + revoked) so the super-admin UI can show history.
  */
 export async function listTenantEntitlements(tenantId: string): Promise<TenantEntitlement[]> {
-  return withSystemTx((client) => listEntitlements(client, tenantId));
+  return withSystemRole("cross-tenant entitlement list (super-admin)", (client) => listEntitlements(client, tenantId));
 }
 
 /**
@@ -555,12 +509,12 @@ export async function listTenantEntitlements(tenantId: string): Promise<TenantEn
  *
  * Scopes already granted (active) to this tenant are filtered out so the drawer
  * only offers new grants. Runs under assessiq_system (BYPASSRLS) via
- * withSystemTx — same cross-tenant read pattern as listTenantEntitlements.
+ * withSystemRole — same cross-tenant read pattern as listTenantEntitlements.
  */
 export async function listTenantContentScopes(
   tenantId: string,
 ): Promise<{ domains: string[]; packs: Array<{ id: string; name: string; domain: string }> }> {
-  return withSystemTx(async (client) => {
+  return withSystemRole("platform content scopes read for entitlement grants", async (client) => {
     const platformTenantId = await getPlatformTenantId(client);
     if (platformTenantId === null) return { domains: [], packs: [] };
 
@@ -677,7 +631,7 @@ export async function assertLicensedForSourcePack(
   tenantId: string,
   sourcePackId: string,
 ): Promise<void> {
-  await withSystemTx(async (client) => {
+  await withSystemRole("platform pack licensing check on clone", async (client) => {
     const tier = await getTenantTier(client, tenantId);
     if (tier === 'internal') return;
 
@@ -786,7 +740,7 @@ export async function tierAllows(tenantId: string, feature: TierFeature): Promis
  * SQL (listAvailablePlatformSets), so an unlicensed set is never returned.
  */
 export async function listAvailableSetsForTenant(tenantId: string): Promise<AvailableSet[]> {
-  return withSystemTx(async (client) => {
+  return withSystemRole("platform sets read filtered by tenant entitlements", async (client) => {
     const platformTenantId = await getPlatformTenantId(client);
     // No platform library, or the caller IS the platform tenant (it owns the
     // library — it has no "available sets" to consume): nothing to list.
@@ -837,7 +791,7 @@ const VALID_TIERS: ReadonlySet<string> = new Set(['free', 'pro', 'enterprise', '
  *   - tier !== 'internal' ⇒ credits must NOT be null (a finite tier needs a
  *     finite allowance; there is no sensible default, so the caller must set it).
  *
- * TWO-ROLE TRANSACTION (deliberately NOT the generic withSystemTx):
+ * TWO-ROLE TRANSACTION (deliberately NOT the plain withSystemRole):
  *   `tenant_plans` has SELECT+INSERT RLS policies only — NO UPDATE policy by
  *   A1 design — so the UPDATE itself MUST run under assessiq_system (BYPASSRLS).
  *   But `auditInTx` writes audit_log, whose INSERT RLS policy is
@@ -856,14 +810,9 @@ export async function updateTenantPlan(
   tenantId: string,
   patch: UpdateTenantPlanPatch,
 ): Promise<UpdateTenantPlanResult> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
+  return withSystemRole("tenant plan update", async (client) => {
     // Phase A — system role: tenant_plans has no UPDATE RLS policy (A1),
     // so the lock + UPDATE require BYPASSRLS.
-    await client.query('SET LOCAL ROLE assessiq_system');
 
     // 1. Lock the row
     const planRow = await getTenantPlanRow(client, tenantId, true);
@@ -920,6 +869,7 @@ export async function updateTenantPlan(
     // Phase B — app role + tenant GUC: put auditInTx in exactly the context
     // its contract (audit.ts) and the reviewed updateAiGenerateMode precedent
     // require. Same transaction ⇒ the UPDATE above and this audit are atomic.
+    // system read, then tenant-scoped write under assessiq_app in the same tx
     await client.query('SET LOCAL ROLE assessiq_app');
     await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
 
@@ -939,8 +889,6 @@ export async function updateTenantPlan(
       },
     });
 
-    await client.query('COMMIT');
-
     return {
       tenant_id: tenantId,
       tier: nextTier,
@@ -949,10 +897,5 @@ export async function updateTenantPlan(
       updatedAt: updated_at instanceof Date ? updated_at.toISOString() : String(updated_at),
       auditId: auditRow.id,
     };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }

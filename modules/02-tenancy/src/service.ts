@@ -1,6 +1,5 @@
 import { NotFoundError, ConflictError, ValidationError, streamLogger, uuidv7 } from "@assessiq/core";
-import { withTenant } from "./with-tenant.js";
-import { getPool } from "./pool.js";
+import { withTenant, withSystemRole } from "./with-tenant.js";
 import * as repo from "./repository.js";
 import type { Tenant, TenantSettings } from "./types.js";
 import { auditInTx } from "@assessiq/audit-log";
@@ -31,23 +30,9 @@ export async function getTenantById(tenantId: string): Promise<Tenant> {
 // SET LOCAL ROLE must be inside BEGIN/COMMIT (transaction-scoped). Outside
 // a transaction it's a no-op + warning.
 export async function getTenantBySlug(slug: string): Promise<Tenant | null> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
-    const tenant = await repo.findTenantBySlug(client, slug);
-    await client.query("COMMIT");
-    return tenant;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {
-      // Secondary rollback failure — connection is likely dead. Swallow and
-      // re-throw the original error so the caller sees the real cause.
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+  return withSystemRole("tenant lookup by slug before tenant context", (client) =>
+    repo.findTenantBySlug(client, slug),
+  );
 }
 
 export async function updateTenantSettings(
@@ -92,25 +77,12 @@ export async function updateTenantSettings(
  * longer log in. Per-tenant cron skipping is faster than a global skip-list.
  */
 export async function listActiveTenantIds(): Promise<string[]> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("cross-tenant active tenant list", async (client) => {
     const result = await client.query<{ id: string }>(
       `SELECT id FROM tenants WHERE status = 'active' ORDER BY id ASC`,
     );
-    await client.query("COMMIT");
     return result.rows.map((r) => r.id);
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {
-      // Secondary rollback failure — connection is likely dead. Swallow and
-      // re-throw the original error so the caller sees the real cause.
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -152,14 +124,10 @@ export async function createTenant(
 
   const tenantId = uuidv7();
 
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+  await withSystemRole("tenant provisioning before tenant context exists", async (client) => {
     // assessiq_system is BYPASSRLS — required because no app.current_tenant
     // exists yet for a brand-new tenant. This section is deliberately minimal:
     // only tenants + tenant_settings. See design invariant #1 above.
-    await client.query("SET LOCAL ROLE assessiq_system");
 
     // INSERT tenant at status='provisioning'. Slug collision → ConflictError.
     try {
@@ -197,16 +165,7 @@ export async function createTenant(
       entityId: tenantId,
       after: { slug: input.slug, name: input.name },
     });
-
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {
-      // Secondary rollback failure — connection likely dead; swallow.
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 
   log.info({ tenantId, slug: input.slug }, "createTenant: provisioning complete");
   return { tenantId };
@@ -223,22 +182,12 @@ export async function createTenant(
 // we're doing a targeted UPDATE by tenant id, so we use system role for clarity.
 
 export async function activateTenant(tenantId: string): Promise<void> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  await withSystemRole("activate provisioning tenant", async (client) => {
     await client.query(
       `UPDATE tenants SET status = 'active', updated_at = now() WHERE id = $1`,
       [tenantId],
     );
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
   log.info({ tenantId }, "activateTenant: tenant is now active");
 }
 
@@ -903,20 +852,9 @@ export async function renameTenantAsSuperAdmin(
 export async function listTenantsForSuperAdmin(
   includeArchived: boolean,
 ): Promise<repo.TenantAdminSummaryRow[]> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
-    const rows = await repo.listTenantsWithAdminSummary(client, includeArchived);
-    await client.query("COMMIT");
-    return rows;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  return withSystemRole("super-admin cross-tenant tenant list", (client) =>
+    repo.listTenantsWithAdminSummary(client, includeArchived),
+  );
 }
 
 /** D13 privacy gate read: true only when the tenant row says disclosed. */

@@ -30,7 +30,7 @@ import { dirname, join } from 'node:path';
 import { Queue, UnrecoverableError } from 'bullmq';
 import { Redis } from 'ioredis';
 import { config, streamLogger, uuidv7 } from '@assessiq/core';
-import { withTenant, getPool } from '@assessiq/tenancy';
+import { withTenant } from '@assessiq/tenancy';
 import { renderTemplate } from './render.js';
 import { resolveTransport } from './transport.js';
 import {
@@ -281,18 +281,14 @@ export async function processEmailSendJob(
       let attempts = ctx?.attempt ?? 1;
       if (ctx === undefined) {
         try {
-          const pool = getPool();
-          const client = await pool.connect();
-          try {
-            const row = await client.query<{ attempts: number }>(
+          const row = await withTenant(tenantId, (client) =>
+            client.query<{ attempts: number }>(
               'SELECT attempts FROM email_log WHERE id = $1',
               [emailLogId],
-            );
-            if (row.rows[0] !== undefined) {
-              attempts = (row.rows[0].attempts ?? 0) + 1;
-            }
-          } finally {
-            client.release();
+            ),
+          );
+          if (row.rows[0] !== undefined) {
+            attempts = (row.rows[0].attempts ?? 0) + 1;
           }
         } catch {
           // ignore secondary error

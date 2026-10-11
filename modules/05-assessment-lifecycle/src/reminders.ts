@@ -29,7 +29,7 @@
  */
 
 import { streamLogger, NotFoundError, ValidationError, config } from "@assessiq/core";
-import { withTenant, getPool } from "@assessiq/tenancy";
+import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import * as repo from "./repository.js";
@@ -117,16 +117,12 @@ const NO_ATTEMPT_SQL = `NOT EXISTS (
    WHERE t.assessment_id = ai.assessment_id AND t.user_id = ai.user_id AND t.status <> 'draft')`;
 
 async function findCandidates(): Promise<Candidate[]> {
-  const client = await getPool().connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("cross-tenant reminder candidate sweep", async (client) => {
     const used = await client.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM assessment_invitations WHERE reminded_at > now() - interval '24 hours'`,
     );
     const room = Math.min(REMINDER_BATCH, REMINDER_DAILY_CAP - (used.rows[0]?.n ?? 0));
     if (room <= 0) {
-      await client.query("COMMIT");
       return [];
     }
     const res = await client.query<Candidate>(
@@ -149,16 +145,8 @@ async function findCandidates(): Promise<Candidate[]> {
         LIMIT $1`,
       [room],
     );
-    await client.query("COMMIT");
     return res.rows;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {
-      // connection likely dead — surface the original error
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 interface Claimed {

@@ -34,7 +34,7 @@
 
 import type { FastifyInstance } from 'fastify';
 import { config, AuthnError, ValidationError, uuidv7 } from '@assessiq/core';
-import { getPool, getTenantBySlug } from '@assessiq/tenancy';
+import { withSystemRole, getTenantBySlug } from '@assessiq/tenancy';
 import { sessions, extractClientIp } from '@assessiq/auth';
 import type { Role } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
@@ -62,25 +62,15 @@ async function findUserSystemRole(
   tenantId: string,
   email: string,
 ): Promise<{ id: string; role: string } | null> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('SET LOCAL ROLE assessiq_system');
+  return withSystemRole('dev mint-session user lookup', async (client) => {
     const { rows } = await client.query<{ id: string; role: string }>(
       `SELECT id, role FROM users
        WHERE tenant_id = $1 AND lower(email) = lower($2) AND deleted_at IS NULL
        LIMIT 1`,
       [tenantId, email],
     );
-    await client.query('COMMIT');
     return rows[0] ?? null;
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => null);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /**
@@ -94,11 +84,7 @@ async function createUserSystemRole(
   email: string,
   role: Role,
 ): Promise<{ id: string }> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('SET LOCAL ROLE assessiq_system');
+  return withSystemRole('dev mint-session user create', async (client) => {
     const id = uuidv7();
     await client.query(
       `INSERT INTO users (id, tenant_id, email, name, role, status)
@@ -112,17 +98,11 @@ async function createUserSystemRole(
       `SELECT id FROM users WHERE tenant_id = $1 AND lower(email) = lower($2) AND deleted_at IS NULL LIMIT 1`,
       [tenantId, email],
     );
-    await client.query('COMMIT');
     if (rows[0] === undefined) {
       throw new Error('dev-mint-session: user find-or-create returned no row after INSERT ON CONFLICT');
     }
     return rows[0];
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => null);
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 export async function registerDevMintSessionRoute(app: FastifyInstance): Promise<void> {

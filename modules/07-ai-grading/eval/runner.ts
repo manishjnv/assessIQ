@@ -586,7 +586,7 @@ export interface AttemptDiagnostic {
 export async function loadAttemptDiagnostic(
   attemptId: string,
 ): Promise<AttemptDiagnostic> {
-  const { getPool, withTenant } = await import("@assessiq/tenancy");
+  const { withSystemRole, withTenant } = await import("@assessiq/tenancy");
 
   // ── Step 1: Resolve attempt row (BYPASSRLS) ───────────────────────────────
   interface AttemptRow {
@@ -611,12 +611,7 @@ export async function loadAttemptDiagnostic(
     finished_at: Date | null;
   }
 
-  const pool = getPool();
-  const rawClient = await pool.connect();
-  let attempt: AttemptRow;
-  try {
-    await rawClient.query("BEGIN");
-    await rawClient.query("SET LOCAL ROLE assessiq_system");
+  const attempt: AttemptRow = await withSystemRole("eval: generation attempt lookup by id", async (rawClient) => {
     const res = await rawClient.query<AttemptRow>(
       `SELECT id, tenant_id, pack_id, level_id,
               count_requested, count_inserted, status,
@@ -628,22 +623,14 @@ export async function loadAttemptDiagnostic(
         WHERE id = $1`,
       [attemptId],
     );
-    await rawClient.query("COMMIT");
     const row = res.rows[0];
     if (!row) {
       const err = new Error(`attempt ${attemptId} not found`);
       (err as NodeJS.ErrnoException).code = "ATTEMPT_NOT_FOUND";
       throw err;
     }
-    attempt = row;
-  } catch (err) {
-    await rawClient.query("ROLLBACK").catch(() => {
-      // swallow secondary rollback failure
-    });
-    throw err;
-  } finally {
-    rawClient.release();
-  }
+    return row;
+  });
 
   // ── Step 2: Fetch inserted questions (tenant-scoped via RLS) ─────────────
   interface QuestionRow {

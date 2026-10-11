@@ -1,6 +1,6 @@
 export { getPool, closePool, setPoolForTesting } from "./pool.js";
 export { assertTenantActive } from "./lifecycle.js";
-export { withTenant, onCommit } from "./with-tenant.js";
+export { withTenant, withSystemRole, onCommit } from "./with-tenant.js";
 export { tenantContextMiddleware } from "./middleware.js";
 export {
   getTenantById,
