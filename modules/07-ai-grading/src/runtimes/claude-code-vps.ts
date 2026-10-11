@@ -53,6 +53,7 @@ import { skillSha } from "../skill-sha.js";
 import {
   parseStreamLines,
   parseToolInput,
+  parseCliVersion,
   type StreamJsonEvent,
 } from "../stream-json-parser.js";
 import { coerceQuestionsPayload } from "../coerce-question-content.js";
@@ -214,6 +215,10 @@ export async function gradeSubjective(
   // This prevents silently committing an under-scored verdict (anchor weight ×
   // zero hits) when Stage-1 evidence was actually lost to drift.
   let stage1Degraded = false;
+  // RW-41 provenance: raw tool inputs per stage + CLI version from the init event.
+  let anchorsRawInput: unknown = null;
+  let escalateRawInput: unknown = null;
+  let cliVersion: string | null = null;
   if (rubric.anchors.length > 0) {
     const anchorsEvents = await runSkill({
       skill: SKILL_ANCHORS,
@@ -228,6 +233,8 @@ export async function gradeSubjective(
     });
 
     const anchorsRaw = parseToolInput(anchorsEvents, TOOL_SUBMIT_ANCHORS);
+    anchorsRawInput = anchorsRaw;
+    cliVersion = parseCliVersion(anchorsEvents);
     if (anchorsRaw === null) {
       throw new AppError(
         `expected ${TOOL_SUBMIT_ANCHORS} tool use in stream-json output`,
@@ -285,6 +292,7 @@ export async function gradeSubjective(
   });
 
   const bandRaw = parseToolInput(bandEvents, TOOL_SUBMIT_BAND);
+  cliVersion = cliVersion ?? parseCliVersion(bandEvents);
   if (bandRaw === null) {
     throw new AppError(
       `expected ${TOOL_SUBMIT_BAND} tool use in stream-json output`,
@@ -329,6 +337,7 @@ export async function gradeSubjective(
         questionId: input.question_id,
       });
       const escRaw = parseToolInput(escEvents, TOOL_SUBMIT_BAND);
+      escalateRawInput = escRaw;
       if (escRaw === null) {
         throw new AppError(
           `Stage 3: expected ${TOOL_SUBMIT_BAND} tool use in stream-json output`,
@@ -462,7 +471,27 @@ export async function gradeSubjective(
     model,
     escalation_chosen_stage: escalationStage,
     generated_at: new Date().toISOString(),
+    cli_version: cliVersion ?? (await claudeVersionFallback()),
+    stage_inputs: { anchors: anchorsRawInput, band: bandRaw, escalate: escalateRawInput },
   };
+}
+
+// RW-41: fallback when the stream-json init event carries no version. Runs
+// `claude --version` at most once per process, only from inside this runtime.
+let cliVersionCache: Promise<string | null> | undefined;
+function claudeVersionFallback(): Promise<string | null> {
+  cliVersionCache ??= new Promise<string | null>((resolve) => {
+    try {
+      const proc = spawn("claude", ["--version"], { stdio: ["ignore", "pipe", "ignore"], timeout: 5000 });
+      let out = "";
+      proc.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
+      proc.on("error", () => resolve(null));
+      proc.on("close", () => resolve(out.trim() || null));
+    } catch {
+      resolve(null);
+    }
+  });
+  return cliVersionCache;
 }
 
 /** Public alias — D2 lint allow-list contract names this symbol. */

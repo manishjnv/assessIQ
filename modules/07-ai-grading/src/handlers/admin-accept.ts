@@ -188,11 +188,25 @@ async function acceptProposals(
   // this accept is still inserting a review_needed grade (and the rollup that
   // follows would then change an already-published score). A published result is
   // final: refuse before a single row is written.
-  const lock = await client.query<{ status: string }>(
-    `SELECT status FROM attempts WHERE id = $1 FOR UPDATE`,
+  const lock = await client.query<{ status: string; ai_proposals: unknown }>(
+    `SELECT status, ai_proposals FROM attempts WHERE id = $1 FOR UPDATE`,
     [attemptId],
   );
   const attemptStatus = lock.rows[0]?.status;
+  // RW-41: provenance comes from the server-side proposals cache, never from the
+  // client-supplied proposal body.
+  const cachedProvenance = new Map<string, { cli_version: string | null; stage_inputs: unknown }>();
+  const cache = lock.rows[0]?.ai_proposals;
+  if (Array.isArray(cache)) {
+    for (const e of cache as Array<Record<string, unknown> | null>) {
+      if (e && typeof e.question_id === "string") {
+        cachedProvenance.set(e.question_id, {
+          cli_version: typeof e.cli_version === "string" ? e.cli_version : null,
+          stage_inputs: e.stage_inputs ?? null,
+        });
+      }
+    }
+  }
   if (attemptStatus === undefined) {
     throw new AppError(
       `Attempt ${attemptId} not found`,
@@ -304,6 +318,8 @@ async function acceptProposals(
       graded_by: userId,
       override_of: supersedes,
       override_reason: null,
+      cli_version: cachedProvenance.get(proposal.question_id)?.cli_version ?? null,
+      stage_inputs: cachedProvenance.get(proposal.question_id)?.stage_inputs ?? null,
     });
 
     // FU-A4 (2026-10-06): second billing meter, one row per accepted AI

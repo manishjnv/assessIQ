@@ -14,8 +14,22 @@ import { describe, it, expect } from "vitest";
 import {
   parseStreamLines,
   parseToolInput,
+  parseCliVersion,
   type StreamJsonEvent,
 } from "../stream-json-parser.js";
+
+describe("parseCliVersion", () => {
+  it("reads claude_code_version from the init event", () => {
+    const events: StreamJsonEvent[] = [
+      { type: "system", subtype: "init", claude_code_version: " 2.1.0 " },
+    ];
+    expect(parseCliVersion(events)).toBe("2.1.0");
+  });
+  it("returns null when absent", () => {
+    expect(parseCliVersion([{ type: "system", subtype: "init" }, { type: "assistant" }])).toBeNull();
+    expect(parseCliVersion([])).toBeNull();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Fixtures

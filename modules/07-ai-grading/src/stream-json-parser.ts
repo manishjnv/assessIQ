@@ -65,6 +65,22 @@ export function parseStreamLines(buf: string): {
   return { events, remainder };
 }
 
+/**
+ * RW-41: the `claude` CLI version, read from the stream-json init event
+ * (`{type:"system", subtype:"init", claude_code_version}`). Returns null when
+ * the running CLI does not report one; the runtime then falls back to
+ * `claude --version`.
+ */
+export function parseCliVersion(events: StreamJsonEvent[]): string | null {
+  for (const ev of events) {
+    if (ev.type === "system" && ev.subtype === "init") {
+      const v = ev.claude_code_version;
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+  }
+  return null;
+}
+
 /** MCP namespace owned by AssessIQ — must match `tools/assessiq-mcp/`. */
 const MCP_NAMESPACE = "mcp__assessiq__";
 

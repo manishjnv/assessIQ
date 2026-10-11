@@ -39,7 +39,7 @@ const DIRS: Array<[string, string[] | undefined]> = [
   ["05-assessment-lifecycle", undefined],
   ["06-attempt-engine", undefined],
   ["12-embed-sdk", ["0073_attempt_embed_origin.sql"]],
-  ["07-ai-grading", ["0040_gradings.sql", "0041_tenant_grading_budgets.sql", "0100_attempts_ai_proposals_cache.sql"]],
+  ["07-ai-grading", ["0040_gradings.sql", "0041_tenant_grading_budgets.sql", "0100_attempts_ai_proposals_cache.sql", "0168_gradings_cli_version_stage_inputs.sql"]],
   ["09-scoring", undefined],
   ["18-certification", undefined],
   ["19-billing", undefined],

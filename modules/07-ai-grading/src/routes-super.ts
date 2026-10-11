@@ -238,6 +238,8 @@ export async function registerSuperEvaluationRoutes(
           model: p.model,
           escalation_chosen_stage: p.escalation_chosen_stage,
           generated_at: p.generated_at,
+          cli_version: p.cli_version,
+          stage_inputs: p.stage_inputs,
         };
         if (p.edits !== undefined) {
           const edits: AcceptEdits = { question_id: p.edits.question_id };

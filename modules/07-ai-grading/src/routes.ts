@@ -32,7 +32,7 @@
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { z } from "zod";
 import { AppError, ValidationError } from "@assessiq/core";
-import { AnchorFindingSchema, BandFindingSchema, AI_GRADING_ERROR_CODES } from "./types.js";
+import { AnchorFindingSchema, BandFindingSchema, GradingProposalSchema, AI_GRADING_ERROR_CODES } from "./types.js";
 
 import { handleAdminOverride } from "./handlers/admin-override.js";
 import { handleAdminSendBack } from "./handlers/admin-send-back.js";
@@ -115,6 +115,8 @@ const PROPOSAL_WITH_EDITS_SCHEMA = z.object({
   model: z.string(),
   escalation_chosen_stage: z.enum(["2", "3", "manual"]).nullable(),
   generated_at: z.string().datetime(),
+  cli_version: GradingProposalSchema.shape.cli_version,
+  stage_inputs: GradingProposalSchema.shape.stage_inputs,
   edits: ACCEPT_EDITS_SCHEMA.optional(),
 });
 
