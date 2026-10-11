@@ -56,7 +56,7 @@ export {
 } from "./reminders.js";
 export type { ReminderSweepResult } from "./reminders.js";
 
-export { processBoundariesForTenant } from "./boundaries.js";
+export { processBoundariesForTenant, listTenantsWithDueBoundaries } from "./boundaries.js";
 export type { BoundaryRunResult } from "./boundaries.js";
 
 // ---------------------------------------------------------------------------

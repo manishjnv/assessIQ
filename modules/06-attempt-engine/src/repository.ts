@@ -346,6 +346,28 @@ export async function bulkAutoSubmitExpired(
   };
 }
 
+/**
+ * Cross-tenant: ids of active tenants with at least one in_progress attempt
+ * whose timer has expired at `now`. Caller MUST run this under withSystemRole
+ * (RLS bypassed). Uses the 0030 partial index on in_progress attempts.
+ */
+export async function listTenantsWithExpiredAttempts(
+  client: PoolClient,
+  now: Date,
+): Promise<string[]> {
+  const result = await client.query<{ tenant_id: string }>(
+    `SELECT DISTINCT a.tenant_id
+       FROM attempts a
+       JOIN tenants t ON t.id = a.tenant_id AND t.status = 'active'
+      WHERE a.status = 'in_progress'
+        AND a.ends_at IS NOT NULL
+        AND a.ends_at <= $1
+      ORDER BY a.tenant_id`,
+    [now],
+  );
+  return result.rows.map((r) => r.tenant_id);
+}
+
 // ---------------------------------------------------------------------------
 // Attempt-questions queries
 // ---------------------------------------------------------------------------
