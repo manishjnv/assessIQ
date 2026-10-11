@@ -37,7 +37,7 @@
     "lint:ui-labels:self-test": "tsx tools/lint-ui-labels.ts --self-test",
     "lint:question-type-registry": "tsx tools/lint-question-type-registry.ts",
     "lint:question-type-registry:self-test": "tsx tools/lint-question-type-registry.ts --self-test",
-    "lint:repo": "pnpm lint:core-helpers && pnpm lint:ui-labels && pnpm lint:rls && pnpm lint:mv-tenant-filter && pnpm lint:doc-anchors && pnpm lint:vitest-coverage && pnpm lint:skill-mount && pnpm lint:public-collisions && pnpm lint:ui-api-contract && pnpm lint:ambient-ai && pnpm lint:edge-routing && pnpm lint:deploy-procedure && pnpm lint:route-validation",
+    "lint:repo": "pnpm lint:core-helpers && pnpm lint:ui-labels && pnpm lint:rls && pnpm lint:mv-tenant-filter && pnpm lint:doc-anchors && pnpm lint:vitest-coverage && pnpm lint:skill-mount && pnpm lint:public-collisions && pnpm lint:ui-api-contract && pnpm lint:ambient-ai && pnpm lint:edge-routing && pnpm lint:deploy-procedure && pnpm lint:route-validation && pnpm lint:question-type-check",
     "lint:route-validation": "tsx tools/lint-route-validation.ts",
     "lint:route-validation:self-test": "tsx tools/lint-route-validation.ts --self-test",
     "lint:ui-api-contract": "tsx tools/lint-ui-api-contract.ts",
@@ -55,7 +55,10 @@
     "aiq:eval:bless": "tsx modules/07-ai-grading/eval/cli.ts bless",
     "eval:goldens": "pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts score-goldens",
     "eval:goldens-strict": "pnpm -C modules/07-ai-grading exec tsx eval/cli-typed.ts score-goldens --strict",
-    "eval:fixtures-check": "tsx tools/extract-eval-fixtures.ts --dry-run"
+    "eval:fixtures-check": "tsx tools/extract-eval-fixtures.ts --dry-run",
+    "gen:question-type-check": "tsx tools/gen-question-type-check.ts",
+    "gen:question-type-check:check": "tsx tools/gen-question-type-check.ts --check",
+    "lint:question-type-check": "pnpm gen:question-type-check:check"
   },
   "dependencies": {
     "pg": "^8.23.0",

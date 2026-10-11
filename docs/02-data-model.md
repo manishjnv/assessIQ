@@ -486,6 +486,22 @@ With `rubric` column:
 
 `log_format` is one of `syslog | json | csv | freeform` — used by the candidate UI to pick a syntax-aware viewer. `expected_findings` is a list of distinct concepts the candidate's answer must surface; matching is fuzzy (anchor-style, similar to the `subjective` rubric — see `08-rubric-engine`). The Phase 1 importer JSON schema validates this shape via Zod (`modules/04-question-bank/src/types.ts`).
 
+### Question type registry (RW-54b, migration `0167`)
+
+**What.** `packages/question-types` (`QUESTION_TYPES`) is the one source of question-type ids. The CHECK constraints `questions_type_check` (table `questions`) and `question_versions_type_check` (table `question_versions`) are generated from it by `tools/gen-question-type-check.ts` into `modules/04-question-bank/migrations/0167_question_type_check_generated.sql`. `pnpm lint:question-type-check` (part of `lint:repo`) fails if the newest generated migration differs from the registry. The test `modules/04-question-bank/src/__tests__/question-type-check-live.test.ts` applies all migrations to a real Postgres, reads both constraints from `pg_constraint`, and asserts the allowed set equals `QUESTION_TYPES`.
+
+**Why.** Adding a type must be one place to edit. Before this, each type needed a hand-written migration (`0129`, `0144`, `0152`, `0156`) that restated the full list, and the two constraints could drift apart.
+
+**Considered and rejected.**
+- A `question_types` table with a foreign key. It adds a join or FK check on every write and a seed step per type.
+- A hand-written CHECK in each migration. It drifts from the registry and from the other table.
+
+**Not included.** The per-type behaviour switches in `07-ai-grading` and `04-question-bank` stay as they are. They are a follow-up row.
+
+**Downstream impact.** Adding a type is one folder in `packages/question-types/src/types/`, one entry in `QUESTION_TYPES`, and one generated migration (`pnpm gen:question-type-check`). The 07 and 04 switches still need the follow-up work. Renderer maps: the registry type is also a key in the two renderer maps (in `10-admin-dashboard` and `apps/web`), so each new type needs an entry in both. Migration `0167` is safe on existing data: it keeps the same 9 values.
+
+Rollback: none needed; the nine values equal those in 0152 and 0156. To revert before deploy, delete the file.
+
 ## Assessment lifecycle
 
 > **Status: live as of 2026-05-02 (Phase 1 G1.B Session 3).** Migrations `0020_assessment_status_enum.sql`, `0021_assessments.sql`, `0022_assessment_invitations.sql` shipped under `modules/05-assessment-lifecycle/migrations/`. The Postgres `gen_random_uuid()` is used as the `DEFAULT` (not `uuidv7()`); the snippet below preserves the spec-style `uuidv7()` for documentation but the live migrations match the rest of the schema and use `gen_random_uuid()` as the column default while application code generates uuidv7 explicitly via `@assessiq/core uuidv7()`.
