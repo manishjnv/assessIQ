@@ -9,6 +9,7 @@
 //      maps these to JSON envelopes.
 
 import { z } from "zod";
+import type { QuestionType } from "@assessiq/question-types";
 
 // ---------------------------------------------------------------------------
 // Status enums — mirror the Postgres enum + CHECK constraints
@@ -52,13 +53,8 @@ export type InvitationStatus = (typeof INVITATION_STATUSES)[number];
 export const BLUEPRINT_LEVELS = ["L1", "L2", "L3"] as const;
 export type BlueprintLevel = (typeof BLUEPRINT_LEVELS)[number];
 
-export const BLUEPRINT_QUESTION_TYPES = [
-  "mcq",
-  "scenario",
-  "subjective",
-  "kql",
-  "log_analysis",
-] as const;
+// RW-68: the five generator-backed types a blueprint may draw; typed against the registry.
+export const BLUEPRINT_QUESTION_TYPES = ["mcq", "scenario", "subjective", "kql", "log_analysis"] as const satisfies readonly Extract<QuestionType, string>[];
 export type BlueprintQuestionType = (typeof BLUEPRINT_QUESTION_TYPES)[number];
 
 export const BlueprintCriterionSchema = z

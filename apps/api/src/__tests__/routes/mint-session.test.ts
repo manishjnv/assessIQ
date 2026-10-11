@@ -129,6 +129,11 @@ vi.mock('@assessiq/tenancy', () => {
 
   return {
     getPool: mockGetPool,
+    // RW-38: the route runs its user lookup/create under withSystemRole; drive the same mocked client.
+    withSystemRole: vi.fn().mockImplementation(async (_reason: string, fn: (c: unknown) => Promise<unknown>) => {
+      const client = await mockGetPool().connect();
+      return fn(client);
+    }),
     withTenant: vi.fn().mockImplementation(async (_tenantId: string, fn: (c: { query: ReturnType<typeof vi.fn> }) => Promise<unknown>) => {
       return fn({ query: vi.fn().mockResolvedValue({ rows: [] }) });
     }),
