@@ -783,7 +783,7 @@ export async function saveAnswer(
     const checked = checkAnswerForSave(
       savedType,
       input.answer,
-      savedType !== null && isQuestionType(savedType) && (QUESTION_TYPE_REGISTRY[savedType].checkAnswer?.length ?? 0) >= 2
+      savedType !== null && isQuestionType(savedType) && QUESTION_TYPE_REGISTRY[savedType].checkAnswer !== undefined // ponytail: types with a save-time check get the frozen content (one extra read for scenario)
         ? await repo.findFrozenContent(client, input.questionId, aq.question_version)
         : undefined,
     );
