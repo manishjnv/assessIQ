@@ -340,7 +340,7 @@ async function cmdScoreCandidate(
 
   // Dynamic import: deferred past the DATABASE_URL guard so the other
   // subcommands still work on a dev machine without a full env.
-  const { getPool, withTenant } = await import("@assessiq/tenancy");
+  const { withSystemRole, withTenant } = await import("@assessiq/tenancy");
 
   // ── Step 1: Resolve attempt row ──────────────────────────────────────────
   // Use assessiq_system (BYPASSRLS) so the CLI can read generation_attempts
@@ -362,12 +362,7 @@ async function cmdScoreCandidate(
     started_at: Date;
   }
 
-  const pool = getPool();
-  const rawClient = await pool.connect();
-  let attempt: AttemptRow;
-  try {
-    await rawClient.query("BEGIN");
-    await rawClient.query("SET LOCAL ROLE assessiq_system");
+  const attempt: AttemptRow = await withSystemRole("eval: generation attempt lookup by id", async (rawClient) => {
     const res = await rawClient.query<AttemptRow>(
       `SELECT id, tenant_id, pack_id, level_id, count_requested, count_inserted,
               status, model, skill_sha, duration_ms, chunks_planned, chunks_failed,
@@ -376,21 +371,13 @@ async function cmdScoreCandidate(
         WHERE id = $1`,
       [attemptId],
     );
-    await rawClient.query("COMMIT");
     const row = res.rows[0];
     if (!row) {
       console.error(`attempt ${attemptId} not found`);
       process.exit(2);
     }
-    attempt = row;
-  } catch (err) {
-    await rawClient.query("ROLLBACK").catch(() => {
-      // Secondary rollback failure — connection is likely dead; swallow.
-    });
-    throw err;
-  } finally {
-    rawClient.release();
-  }
+    return row;
+  });
 
   // ── Step 2: Resolve level label → L1/L2/L3 ──────────────────────────────
   const levelLabel = await withTenant(attempt.tenant_id, async (c) => {

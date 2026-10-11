@@ -33,7 +33,7 @@
 
 import { type PoolClient } from "pg";
 import { uuidv7, NotFoundError, ValidationError, ConflictError } from "@assessiq/core";
-import { getPool } from "@assessiq/tenancy";
+import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import type { QuestionType, QuestionStatus, LevelRubricDefaults } from "./types.js";
 
@@ -489,11 +489,7 @@ export async function materializeSetForTenant(
   tenantId: string,
   actorUserId: string,
 ): Promise<MaterializeSetResult> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("platform pack clone-on-use into tenant", async (client) => {
 
     // Serialize concurrent clone-on-use for the SAME (tenant, source): a burst of
     // POST /assessments/from-set could otherwise have two txns both observe "no
@@ -518,6 +514,7 @@ export async function materializeSetForTenant(
     // Phase B — audit under the app role + tenant GUC (auditInTx's required
     // context), only when a NEW clone was materialised (reuse changes nothing).
     if (!result.reusedExisting) {
+      // system read, then tenant-scoped write under assessiq_app in the same tx
       await client.query("SET LOCAL ROLE assessiq_app");
       await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
       await auditInTx(client, {
@@ -536,7 +533,6 @@ export async function materializeSetForTenant(
       });
     }
 
-    await client.query("COMMIT");
     return {
       clonedPackId: result.clonedPackId,
       clonedSlug: result.clonedSlug,
@@ -545,12 +541,7 @@ export async function materializeSetForTenant(
       skippedCount: result.skippedCount,
       levels,
     };
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 // ===========================================================================
@@ -1245,11 +1236,7 @@ export async function resyncSetForTenant(
   // super_admin via actor_user_id.
   actorKind: "user" | "system" = "user",
 ): Promise<ResyncResult> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("platform pack resync into tenant", async (client) => {
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))", [
       tenantId,
       sourcePackId,
@@ -1258,6 +1245,7 @@ export async function resyncSetForTenant(
     const result = await resyncClonedPack(client, sourcePackId, tenantId, actorUserId);
 
     if (result.updated) {
+      // system read, then tenant-scoped write under assessiq_app in the same tx
       await client.query("SET LOCAL ROLE assessiq_app");
       await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
       await auditInTx(client, {
@@ -1280,14 +1268,8 @@ export async function resyncSetForTenant(
       });
     }
 
-    await client.query("COMMIT");
     return result;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /**
@@ -1299,11 +1281,7 @@ export async function resyncSetForTenant(
  * the (unique-index-prevented) possibility of more than one clone per tenant.
  */
 export async function listCloneTenantIdsForSource(sourcePackId: string): Promise<string[]> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("cross-tenant clone tenant list", async (client) => {
     const rows = (
       await client.query<{ tenant_id: string }>(
         `SELECT DISTINCT tenant_id FROM question_packs
@@ -1311,12 +1289,6 @@ export async function listCloneTenantIdsForSource(sourcePackId: string): Promise
         [sourcePackId],
       )
     ).rows;
-    await client.query("COMMIT");
     return rows.map((r) => r.tenant_id);
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }

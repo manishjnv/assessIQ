@@ -35,9 +35,27 @@ void ValidationError;
 // Mocks
 // ---------------------------------------------------------------------------
 
-vi.mock("@assessiq/tenancy", () => ({
-  getPool: vi.fn(),
-}));
+// withSystemRole is replaced by a minimal scaffold over the mocked pool so the
+// canned BEGIN / SET LOCAL ROLE / COMMIT responses below keep their order.
+type FakeClient = { query: (q: string) => Promise<unknown>; release: () => void };
+vi.mock("@assessiq/tenancy", () => {
+  const getPool = vi.fn();
+  return {
+    getPool,
+    withSystemRole: async (_reason: string, fn: (c: FakeClient) => Promise<unknown>) => {
+      const c = await (getPool() as { connect: () => Promise<FakeClient> }).connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SET LOCAL ROLE assessiq_system");
+        const out = await fn(c);
+        await c.query("COMMIT");
+        return out;
+      } finally {
+        c.release();
+      }
+    },
+  };
+});
 
 vi.mock("@assessiq/audit-log", () => ({
   auditInTx: vi.fn().mockResolvedValue({ id: "audit-row-1" }),

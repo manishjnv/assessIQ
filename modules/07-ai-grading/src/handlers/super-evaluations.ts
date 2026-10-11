@@ -30,7 +30,7 @@
 
 import type { PoolClient } from "pg";
 import { AppError, streamLogger } from "@assessiq/core";
-import { assertTenantActive, getPool, withTenant } from "@assessiq/tenancy";
+import { assertTenantActive, withSystemRole, withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { getAttemptProgress, listSuperEvaluationQueue } from "../repository.js";
 import type { SuperEvaluationRow } from "../repository.js";
@@ -56,21 +56,10 @@ const log = streamLogger("grading");
  * lookup, where there is no tenant context yet.
  */
 export async function withSystemReadOnly<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await getPool().connect();
-  try {
-    await client.query("BEGIN READ ONLY");
-    await client.query("SET LOCAL ROLE assessiq_system");
-    const out = await fn(client);
-    await client.query("COMMIT");
-    return out;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {
-      // connection likely dead — surface the original error
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+  return withSystemRole("super-admin evaluation queue and attempt tenant lookup (read-only)", async (client) => {
+    await client.query("SET TRANSACTION READ ONLY");
+    return fn(client);
+  });
 }
 
 // ---------------------------------------------------------------------------

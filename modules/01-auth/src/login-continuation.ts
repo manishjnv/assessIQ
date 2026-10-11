@@ -20,8 +20,7 @@
 
 import { randomBytes } from "node:crypto";
 import { config, AuthnError } from "@assessiq/core";
-import { getPool } from "@assessiq/tenancy";
-import type { PoolClient } from "pg";
+import { withSystemRole } from "@assessiq/tenancy";
 import { normalizeEmail } from "./google-sso.js";
 import type { OidcCallbackOutput } from "./google-sso.js";
 import { sha256Hex } from "./crypto-util.js";
@@ -74,30 +73,6 @@ function sleep(ms: number): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// withSystemTx — mirrors modules/19-billing/src/service.ts withSystemTx exactly.
-//
-// BEGIN; SET LOCAL ROLE assessiq_system; fn; COMMIT. On error: ROLLBACK + rethrow.
-// Always releases the client.
-// ---------------------------------------------------------------------------
-
-async function withSystemTx<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
-    const result = await fn(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
-}
-
-// ---------------------------------------------------------------------------
 // resolveLoginIdentities
 //
 // PRECONDITION (CRITICAL): caller MUST invoke this only after full id_token
@@ -125,7 +100,7 @@ export async function resolveLoginIdentities(
     .filter((e) => e.length > 0);
   const emailInAllowlist = allowlist.includes(normalized);
 
-  const rows = await withSystemTx(async (client) => {
+  const rows = await withSystemRole("cross-tenant login identity resolution", async (client) => {
     const res = await client.query<{
       id: string;
       tenant_id: string;

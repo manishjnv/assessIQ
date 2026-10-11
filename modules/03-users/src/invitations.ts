@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { streamLogger, NotFoundError, ConflictError, ValidationError, uuidv7, getRequestContext, config, sha256Hex } from '@assessiq/core';
-import { withTenant } from '@assessiq/tenancy';
+import { withTenant, withSystemRole } from '@assessiq/tenancy';
 import { auditInTx } from '@assessiq/audit-log';
 import { sendInvitationEmail } from '@assessiq/notifications';
 import type { InviteUserInput, InviteUserResult, AcceptInvitationResult } from './types.js';
@@ -355,7 +355,7 @@ export async function acceptInvitation(token: string): Promise<AcceptInvitationR
   const tokenHash = hashToken(token);
 
   // Step 1: system-role pre-auth lookup (addendum § 12 + repository.ts security comment).
-  const invitation = await repo.withSystemClient(async (sysClient) =>
+  const invitation = await withSystemRole('invitation lookup by token hash before tenant context', async (sysClient) =>
     repo.findInvitationByTokenHashSystem(sysClient, tokenHash),
   );
 

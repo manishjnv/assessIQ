@@ -26,7 +26,7 @@
  */
 
 import { AppError, streamLogger } from '@assessiq/core';
-import { getPool, withTenant } from '@assessiq/tenancy';
+import { withSystemRole, withTenant } from '@assessiq/tenancy';
 import { releaseAttemptInTx, type ReleaseActor } from '@assessiq/scoring';
 import { sendResultReleasedEmail } from '@assessiq/notifications';
 
@@ -62,10 +62,7 @@ interface Candidate {
 }
 
 async function findCandidates(excluded: string[]): Promise<Candidate[]> {
-  const client = await getPool().connect();
-  try {
-    await client.query('BEGIN');
-    await client.query('SET LOCAL ROLE assessiq_system');
+  return withSystemRole('auto-release cross-tenant candidate sweep', async (client) => {
     const res = await client.query<Candidate>(
       `SELECT a.id AS attempt_id, a.tenant_id, a.evaluation_released_by
          FROM attempts a
@@ -83,16 +80,8 @@ async function findCandidates(excluded: string[]): Promise<Candidate[]> {
         LIMIT $1`,
       [AUTO_RELEASE_BATCH, excluded],
     );
-    await client.query('COMMIT');
     return res.rows;
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {
-      // connection likely dead — surface the original error
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /** One sweep tick. `now` is injectable for the cooldown test. Never throws. */

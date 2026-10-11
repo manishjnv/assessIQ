@@ -30,7 +30,7 @@
 // Load-bearing (cross-tenant + provisioning path): Opus diff review +
 // codex:rescue gate required before deploy.
 
-import { getPool } from "@assessiq/tenancy";
+import { withSystemRole } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
 
 // ---------------------------------------------------------------------------
@@ -396,11 +396,7 @@ async function seedFromPlatform(
  * per-company function.
  */
 export async function seedTenantTaxonomy(tenantId: string): Promise<void> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  await withSystemRole("new-tenant taxonomy seed from platform domains", async (client) => {
 
     const platformTenantId = await getPlatformTenantId(client);
     if (platformTenantId !== null && platformTenantId === tenantId) {
@@ -426,11 +422,5 @@ export async function seedTenantTaxonomy(tenantId: string): Promise<void> {
       }
     }
 
-    await client.query("COMMIT");
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }

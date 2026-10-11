@@ -1,6 +1,9 @@
 import type { PoolClient } from "pg";
-import { ValidationError, UUID_RE } from "@assessiq/core";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { ValidationError, UUID_RE, streamLogger } from "@assessiq/core";
 import { getPool } from "./pool.js";
+
+const log = streamLogger("app");
 
 // FU-D7 (2026-10-06): hardening, not a fix. Today an empty/malformed tenantId
 // reaches set_config and the RLS policy comparison then fails closed (a cast
@@ -63,23 +66,24 @@ export function onCommit(client: PoolClient, hook: () => Promise<void>): boolean
   return true;
 }
 
-export async function withTenant<T>(
-  tenantId: string,
+// Tracks which kind of scaffold the current async context is inside, so a
+// system-role transaction can never be opened from within a tenant one.
+const als = new AsyncLocalStorage<{ kind: "tenant" | "system" }>();
+
+async function runInTx<T>(
+  kind: "tenant" | "system",
+  setup: (client: PoolClient) => Promise<void>,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  assertValidTenantId(tenantId);
   const client = await getPool().connect();
   const hooks: Array<() => Promise<void>> = [];
   afterCommit.set(client, hooks);
   let result: T;
   try {
     await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_app");
-    await client.query("SELECT set_config('app.current_tenant', $1, true)", [
-      tenantId,
-    ]);
+    await setup(client);
 
-    result = await fn(client);
+    result = await als.run({ kind }, () => fn(client));
 
     await client.query("COMMIT");
   } catch (err) {
@@ -104,3 +108,65 @@ export async function withTenant<T>(
   }
   return result;
 }
+
+export async function withTenant<T>(
+  tenantId: string,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  assertValidTenantId(tenantId);
+  return runInTx(
+    "tenant",
+    async (client) => {
+      await client.query("SET LOCAL ROLE assessiq_app");
+      await client.query("SELECT set_config('app.current_tenant', $1, true)", [
+        tenantId,
+      ]);
+    },
+    fn,
+  );
+}
+
+function callerFrame(): string {
+  try {
+    const lines = (new Error().stack ?? "").split("\n").slice(1);
+    for (const l of lines) {
+      if (l.includes("with-tenant")) continue;
+      const m = /\(?([^()\s]+:\d+):\d+\)?\s*$/.exec(l);
+      if (m) return m[1]!;
+    }
+  } catch {
+    // best effort
+  }
+  return "unknown";
+}
+
+/**
+ * Run `fn` in a transaction under the `assessiq_system` role (RLS bypass for
+ * cross-tenant reads/writes). `reason` is logged with the caller. Refuses to
+ * run inside a withTenant scope. Mixed pattern (system read, then
+ * `SET LOCAL ROLE assessiq_app` + set_config in the same tx) stays the caller's job.
+ */
+export async function withSystemRole<T>(
+  reason: string,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  if (typeof reason !== "string" || reason.trim() === "") {
+    throw new ValidationError("withSystemRole: reason must be a non-empty string", {
+      details: { code: "INVALID_SYSTEM_ROLE_REASON" },
+    });
+  }
+  if (als.getStore()?.kind === "tenant") {
+    const err = new Error("SYSTEM_ROLE_INSIDE_TENANT") as Error & { code: string };
+    err.code = "SYSTEM_ROLE_INSIDE_TENANT";
+    throw err;
+  }
+  log.info({ reason, caller: callerFrame() }, "system-role.tx");
+  return runInTx(
+    "system",
+    async (client) => {
+      await client.query("SET LOCAL ROLE assessiq_system");
+    },
+    fn,
+  );
+}
+

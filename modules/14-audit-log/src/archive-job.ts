@@ -34,7 +34,7 @@
 import { Queue, Worker } from 'bullmq';
 import { Redis } from 'ioredis';
 import { config, streamLogger } from '@assessiq/core';
-import { getPool } from '@assessiq/tenancy';
+import { withSystemRole } from '@assessiq/tenancy';
 
 const log = streamLogger('worker');
 
@@ -98,32 +98,27 @@ export async function archiveJobProcessor(): Promise<void> {
     return;
   }
 
-  const pool = getPool();
-  const client = await pool.connect();
   try {
     // Retrieve all tenants with their retention windows.
-    await client.query('BEGIN');
-    await client.query('SET LOCAL ROLE assessiq_system');
-    const { rows: tenants } = await client.query<{
-      id: string;
-      audit_retention_years: number;
-    }>(
-      `SELECT t.id, COALESCE(ts.audit_retention_years, 7) AS audit_retention_years
+    const tenants = await withSystemRole('audit archive: cross-tenant retention windows', async (client) => {
+      const { rows } = await client.query<{
+        id: string;
+        audit_retention_years: number;
+      }>(
+        `SELECT t.id, COALESCE(ts.audit_retention_years, 7) AS audit_retention_years
        FROM tenants t
        LEFT JOIN tenant_settings ts ON ts.tenant_id = t.id
        WHERE t.status = 'active'`,
-    );
-    await client.query('COMMIT');
+      );
+      return rows;
+    });
 
     for (const tenant of tenants) {
       await archiveTenant(tenant.id, tenant.audit_retention_years, s3Bucket);
     }
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
     log.error({ err, job: JOB_NAME }, 'audit-archive: job failed');
     throw err;
-  } finally {
-    client.release();
   }
 }
 
@@ -132,50 +127,42 @@ async function archiveTenant(
   retentionYears: number,
   s3Bucket: string,
 ): Promise<void> {
-  const pool = getPool();
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    await client.query('SET LOCAL ROLE assessiq_system');
+    await withSystemRole('audit archive: cross-tenant audit_log row count', async (client) => {
 
-    const cutoff = new Date();
-    cutoff.setFullYear(cutoff.getFullYear() - retentionYears);
-    const cutoffIso = cutoff.toISOString();
-    const dateKey = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD
+      const cutoff = new Date();
+      cutoff.setFullYear(cutoff.getFullYear() - retentionYears);
+      const cutoffIso = cutoff.toISOString();
+      const dateKey = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD
 
-    // Count rows to archive.
-    const { rows: countRows } = await client.query<{ count: string }>(
-      `SELECT COUNT(*)::text AS count FROM audit_log
-       WHERE tenant_id = $1 AND at < $2::timestamptz`,
-      [tenantId, cutoffIso],
-    );
-    const rowCount = parseInt(countRows[0]!.count, 10);
-    if (rowCount === 0) {
-      await client.query('COMMIT');
-      return;
-    }
+      // Count rows to archive.
+      const { rows: countRows } = await client.query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM audit_log
+         WHERE tenant_id = $1 AND at < $2::timestamptz`,
+        [tenantId, cutoffIso],
+      );
+      const rowCount = parseInt(countRows[0]!.count, 10);
+      if (rowCount === 0) {
+        return;
+      }
 
-    // Phase 4: implement S3 PutObject with If-None-Match: * here.
-    // For now: log that S3 upload would occur, then DO NOT delete rows
-    // (safe default: never delete without confirmed S3 upload).
-    log.warn(
-      {
-        tenantId,
-        cutoffDate: cutoffIso,
-        s3Key: `${tenantId}/audit/${dateKey}.jsonl.gz`,
-        s3Bucket,
-        rowCount,
-      },
-      'audit-archive: Phase 4 — S3 upload + DELETE pending implementation; rows retained',
-    );
-
-    await client.query('COMMIT');
+      // Phase 4: implement S3 PutObject with If-None-Match: * here.
+      // For now: log that S3 upload would occur, then DO NOT delete rows
+      // (safe default: never delete without confirmed S3 upload).
+      log.warn(
+        {
+          tenantId,
+          cutoffDate: cutoffIso,
+          s3Key: `${tenantId}/audit/${dateKey}.jsonl.gz`,
+          s3Bucket,
+          rowCount,
+        },
+        'audit-archive: Phase 4 — S3 upload + DELETE pending implementation; rows retained',
+      );
+    });
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
     log.error({ err, tenantId, job: JOB_NAME }, 'audit-archive: tenant archive failed');
     throw err;
-  } finally {
-    client.release();
   }
 }
 

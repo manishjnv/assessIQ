@@ -14,13 +14,12 @@
  * the RLS WITH CHECK policy requires the inserted row's tenant_id to match
  * app.current_tenant. This is an RLS-enforced write constraint, not a filter.
  *
- * System-role escapes (findInvitationByTokenHashSystem, withSystemClient) are
+ * System-role escapes (findInvitationByTokenHashSystem, withSystemRole) are
  * documented at their call sites. They exist solely for the pre-auth
  * acceptInvitation path and must not be used for tenant-scoped operations.
  */
 
 import type { PoolClient } from 'pg';
-import { getPool } from '@assessiq/tenancy';
 import type {
   User,
   UserInvitation,
@@ -97,56 +96,6 @@ function mapInvitationRow(row: InvitationRow): UserInvitation {
     accepted_at: row.accepted_at,
     created_at: row.created_at,
   };
-}
-
-// ---------------------------------------------------------------------------
-// System client helper (pre-auth path only)
-// ---------------------------------------------------------------------------
-
-/**
- * Run `fn` inside a per-call Postgres transaction elevated to the
- * assessiq_system (BYPASSRLS) role.
- *
- * Used ONLY by the pre-auth acceptInvitation path to look up the invitation's
- * tenant_id before we know which tenant to scope to.
- *
- * Why role elevation is required: the production DATABASE_URL points at
- * assessiq_app (RLS active). Without explicit elevation, the RLS policy on
- * user_invitations evaluates current_setting('app.current_tenant', true)::uuid,
- * which is "" on a fresh/reused connection with no tenant context, producing
- * "invalid input syntax for type uuid: """ (2026-05-03 incident). SET LOCAL ROLE
- * assessiq_system bypasses RLS for the duration of this transaction only.
- * assessiq_app holds GRANT assessiq_system (0002_rls_helpers.sql) so the
- * elevation succeeds. See also: withTenant() for the tenant-scoped counterpart.
- *
- * Security argument: token_hash is the sha256 of a 32-byte random value
- * (256 bits of entropy). A global lookup is safe because collision/guessing is
- * computationally infeasible. The alternative — accepting a token only within a
- * known tenant context — would require the caller to know the tenant_id upfront,
- * which is precisely the information the invitation lookup provides. Cross-tenant
- * token replay is also infeasible since each token_hash maps to exactly one row.
- */
-export async function withSystemClient<T>(
-  fn: (client: PoolClient) => Promise<T>,
-): Promise<T> {
-  const client = await getPool().connect();
-  try {
-    await client.query("BEGIN");
-    // Elevate to BYPASSRLS role for this transaction only (SET LOCAL is
-    // transaction-scoped, reverts automatically on COMMIT/ROLLBACK).
-    await client.query("SET LOCAL ROLE assessiq_system");
-    const result = await fn(client);
-    await client.query("COMMIT");
-    return result;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {
-      // Secondary failure on ROLLBACK — connection likely dead.
-      // Swallow so the caller sees the original error.
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -434,7 +383,7 @@ export async function findInvitationByTokenHash(
  * A global lookup without tenant context is safe — the high entropy makes
  * cross-tenant token guessing computationally infeasible. This is the ONLY
  * correct approach because the tenant_id is unknown until AFTER the lookup.
- * See withSystemClient() above for the full security rationale.
+ * See withSystemRole() (@assessiq/tenancy).
  *
  * The systemClient must be a raw pool client (no SET LOCAL ROLE assessiq_app,
  * no app.current_tenant). It runs as the pool's configured user which in tests
@@ -518,7 +467,7 @@ export async function deleteInvitationsForEmail(
 // ---------------------------------------------------------------------------
 // RW-36(a): super-admin queries moved out of apps/api/src/routes/admin-super.
 // SQL text and parameter order are unchanged from the route copies. Functions
-// named *System must run on a withSystemClient() (assessiq_system) client; the
+// named *System must run on a withSystemRole() (assessiq_system) client; the
 // rest run on a withTenant() client.
 // ---------------------------------------------------------------------------
 

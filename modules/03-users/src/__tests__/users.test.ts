@@ -39,7 +39,7 @@ import {
   softDelete as _softDeleteRaw,
 } from '../service.js';
 import { inviteUser, acceptInvitation } from '../invitations.js';
-import { withSystemClient } from '../repository.js';
+import { withSystemRole } from '@assessiq/tenancy';
 import { ConflictError, NotFoundError, ValidationError } from '@assessiq/core';
 import type { CreateUserInput, UpdateUserPatch } from '../types.js';
 
@@ -811,22 +811,22 @@ test.todo(
 );
 
 // ---------------------------------------------------------------------------
-// Regression: withSystemClient role elevation (2026-05-03 — accept-invitation 500)
+// Regression: withSystemRole role elevation (2026-05-03 — accept-invitation 500)
 // ---------------------------------------------------------------------------
 // Production failure: pool connects as assessiq_app (RLS active). Without
 // BEGIN + SET LOCAL ROLE assessiq_system, the RLS policy on user_invitations
 // evaluates current_setting('app.current_tenant', true)::uuid = ""::uuid and
 // throws "invalid input syntax for type uuid" on every magic-link click.
-// The fix adds BEGIN + SET LOCAL ROLE assessiq_system inside withSystemClient,
+// The fix adds BEGIN + SET LOCAL ROLE assessiq_system inside withSystemRole,
 // which reverts automatically on COMMIT so the pool connection is not polluted.
 //
 // This test catches a regression by asserting current_user inside the callback
 // equals 'assessiq_system'. Without the fix it would return the raw pool user
 // ('test' in testcontainer; 'assessiq_app' in production) — both wrong.
 // ---------------------------------------------------------------------------
-describe('withSystemClient role elevation — regression 2026-05-03', () => {
+describe('withSystemRole role elevation — regression 2026-05-03', () => {
   it('executes as assessiq_system (BYPASSRLS), not as pool user', async () => {
-    const roleInsideCallback = await withSystemClient(async (client) => {
+    const roleInsideCallback = await withSystemRole('test: role elevation', async (client) => {
       const r = await client.query<{ current_user: string }>(`SELECT current_user`);
       return r.rows[0]?.current_user ?? '';
     });

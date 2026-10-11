@@ -28,7 +28,7 @@
 
 import { randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { sha256Hex } from "./crypto-util.js";
 import { getRedis } from "./redis.js";
@@ -409,29 +409,23 @@ async function _requestCandidateLoginLinkWork(
 export async function verifyCandidateLoginTokenSystem(
   plaintextToken: string,
 ): Promise<{ user_id: string; tenant_id: string } | null> {
-  const { getPool } = await import("@assessiq/tenancy");
-  const pool = getPool();
   const tokenHash = sha256Hex(plaintextToken);
 
-  const systemClient = await pool.connect();
-  let row: LoginTokenRow | null = null;
-
-  try {
-    await systemClient.query("SET ROLE assessiq_system");
-    const result = await systemClient.query<LoginTokenRow>(
-      `UPDATE candidate_login_tokens
+  const row: LoginTokenRow | null = await withSystemRole(
+    "candidate login token consume before tenant context",
+    async (systemClient) => {
+      const result = await systemClient.query<LoginTokenRow>(
+        `UPDATE candidate_login_tokens
        SET consumed_at = now()
        WHERE token_hash = $1
          AND expires_at > now()
          AND consumed_at IS NULL
        RETURNING user_id::text, tenant_id::text`,
-      [tokenHash],
-    );
-    row = result.rows[0] ?? null;
-  } finally {
-    await systemClient.query("RESET ROLE");
-    systemClient.release();
-  }
+        [tokenHash],
+      );
+      return result.rows[0] ?? null;
+    },
+  );
 
   if (row === null) return null;
 

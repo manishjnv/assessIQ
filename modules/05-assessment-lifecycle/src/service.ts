@@ -38,7 +38,7 @@ import {
   UUID_RE,
   DEFAULT_MAX_PAGE_SIZE,
 } from "@assessiq/core";
-import { withTenant, getPool } from "@assessiq/tenancy";
+import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { assertPublishEntitled, assertLicensedForSourcePack } from "@assessiq/billing";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
@@ -1510,11 +1510,7 @@ export async function resolveInvitationToken(
   }
 
   const tokenHash = hashInvitationToken(plaintext);
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("invitation token resolution before tenant context", async (client) => {
 
     interface Row {
       // assessment_invitations
@@ -1593,8 +1589,6 @@ export async function resolveInvitationToken(
        LIMIT 1`,
       [tokenHash],
     );
-    await client.query("COMMIT");
-
     const row = result.rows[0];
     if (row === undefined) return null;
 
@@ -1645,14 +1639,7 @@ export async function resolveInvitationToken(
       can_start: row.inv_status !== "submitted",
       already_submitted: row.inv_status === "submitted",
     };
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {
-      // Secondary rollback failure — connection is likely dead. Swallow.
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /**

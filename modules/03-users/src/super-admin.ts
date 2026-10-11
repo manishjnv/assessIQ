@@ -11,7 +11,7 @@
  */
 
 import { ConflictError, NotFoundError } from '@assessiq/core';
-import { withTenant } from '@assessiq/tenancy';
+import { withTenant, withSystemRole } from '@assessiq/tenancy';
 import { auditInTx } from '@assessiq/audit-log';
 import { deleteGoogleIdentitiesForUser } from '@assessiq/auth';
 import type { PoolClient } from 'pg';
@@ -34,7 +34,7 @@ export async function listTenantUsersForSuperAdmin(
   users: repo.SuperAdminUserRow[];
   pending_invitations: repo.SuperAdminPendingInvitationRow[];
 }> {
-  return repo.withSystemClient(async (client) => {
+  return withSystemRole('super-admin cross-tenant user list', async (client) => {
     const users = await repo.listTenantUsersSystem(
       client,
       tenantId,
@@ -48,7 +48,7 @@ export async function listTenantUsersForSuperAdmin(
 
 /** Resolve the target user's tenantId via system-role (BYPASSRLS). Null if absent. Caller must be super-admin. */
 export async function resolveUserTenant(userId: string): Promise<ResolvedUserTenant | null> {
-  const row = await repo.withSystemClient((client) => repo.findUserTenantSystem(client, userId));
+  const row = await withSystemRole('super-admin user tenant resolve', (client) => repo.findUserTenantSystem(client, userId));
   if (row === undefined) return null;
   return {
     tenantId: row.tenant_id,
@@ -64,7 +64,7 @@ export async function resolveUserTenant(userId: string): Promise<ResolvedUserTen
 export async function findTenantFirstAdmin(
   tenantId: string,
 ): Promise<repo.TenantAdminLookupRow | null> {
-  const row = await repo.withSystemClient((client) => repo.findFirstAdminSystem(client, tenantId));
+  const row = await withSystemRole('super-admin tenant first-admin lookup', (client) => repo.findFirstAdminSystem(client, tenantId));
   return row ?? null;
 }
 
@@ -73,7 +73,7 @@ export async function findTenantFirstAdmin(
  * Throws NotFoundError / ConflictError exactly as the former route did.
  */
 export async function resolvePendingInvitationTenant(invitationId: string): Promise<string> {
-  const row = await repo.withSystemClient((client) =>
+  const row = await withSystemRole('super-admin invitation tenant resolve', (client) =>
     repo.findInvitationTenantSystem(client, invitationId),
   );
   if (row === undefined) {

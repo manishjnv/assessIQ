@@ -23,7 +23,7 @@
  */
 
 import { config, streamLogger } from '@assessiq/core';
-import { getPool } from '@assessiq/tenancy';
+import { withSystemRole } from '@assessiq/tenancy';
 import { sendEvaluationQueueAlertEmail } from '@assessiq/notifications';
 
 const log = streamLogger('worker');
@@ -68,10 +68,8 @@ export function superAdminRecipients(): string[] {
 
 /** Queue items older than 24 h + the oldest age. One READ-ONLY system-role query (exported for the test). */
 export async function countOverdueEvaluations(): Promise<{ count: number; oldestAgeHours: number }> {
-  const client = await getPool().connect();
-  try {
-    await client.query('BEGIN READ ONLY');
-    await client.query('SET LOCAL ROLE assessiq_system');
+  return withSystemRole('evaluation queue overdue count (read-only)', async (client) => {
+    await client.query('SET TRANSACTION READ ONLY');
     const res = await client.query<{ n: number; oldest_hours: number }>(
       `SELECT COUNT(*)::int AS n,
               COALESCE(MAX(EXTRACT(EPOCH FROM (now() - COALESCE(a.submitted_at, a.started_at))) / 3600.0), 0)::float8
@@ -87,17 +85,9 @@ export async function countOverdueEvaluations(): Promise<{ count: number; oldest
                         JOIN questions q ON q.id = aq.question_id
                        WHERE aq.attempt_id = a.id AND q.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))`,
     );
-    await client.query('COMMIT');
     const row = res.rows[0];
     return { count: row?.n ?? 0, oldestAgeHours: row?.oldest_hours ?? 0 };
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {
-      // connection likely dead — surface the original error
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /** One hourly tick. Dependencies are injectable for the unit test. */

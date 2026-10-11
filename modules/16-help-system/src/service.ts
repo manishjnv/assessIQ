@@ -25,8 +25,7 @@
  */
 
 import type { PoolClient } from "pg";
-import { getPool } from "@assessiq/tenancy";
-import { withTenant } from "@assessiq/tenancy";
+import { getPool, withSystemRole, withTenant } from "@assessiq/tenancy";
 import { streamLogger, ValidationError } from "@assessiq/core";
 import { auditInTx } from "@assessiq/audit-log";
 import type { Audience, HelpEntry, HelpReadEnvelope, UpsertHelpInput } from "./types.js";
@@ -303,10 +302,7 @@ export async function upsertGlobalHelp(
       { details: { code: "INVALID_HELP_KEY", key } },
     );
   }
-  const client = await getPool().connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("global help content upsert (platform-wide row)", async (client) => {
     const locale = input.locale ?? "en";
     const prev = await client.query<Record<string, unknown>>(
       `SELECT id, key, audience, locale, short_text, long_md, version, status
@@ -353,14 +349,8 @@ export async function upsertGlobalHelp(
         scope: "global",
       },
     });
-    await client.query("COMMIT");
     return row;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 /**

@@ -7,7 +7,7 @@
 // Spec source: modules/01-auth/SKILL.md § Decisions captured § 6.
 
 import { uuidv7, nowIso, AuthnError, AuthzError } from "@assessiq/core";
-import { withTenant, getPool } from "@assessiq/tenancy";
+import { withTenant, withSystemRole, getPool } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { sha256Hex, randomTokenBase62 } from "./crypto-util.js";
 
@@ -183,16 +183,11 @@ async function list(tenantId: string): Promise<ApiKeyRecord[]> {
 // transaction-scoped — outside a transaction it is a no-op with a warning.
 async function authenticate(plaintextKey: string): Promise<ApiKeyRecord> {
   const keyHash = sha256Hex(plaintextKey);
-  const pool = getPool();
-  const client = await pool.connect();
-
-  let row: ApiKeyRow | undefined;
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
-
-    const result = await client.query<ApiKeyRow>(
-      `SELECT
+  const row: ApiKeyRow | undefined = await withSystemRole(
+    "api-key hash lookup before tenant context",
+    async (client) => {
+      const result = await client.query<ApiKeyRow>(
+        `SELECT
          id, tenant_id, name, key_prefix, scopes, status,
          last_used_at, created_by, created_at, expires_at
        FROM api_keys
@@ -200,19 +195,11 @@ async function authenticate(plaintextKey: string): Promise<ApiKeyRecord> {
          AND status = 'active'
          AND (expires_at IS NULL OR expires_at > now())
        LIMIT 1`,
-      [keyHash],
-    );
-    await client.query("COMMIT");
-    row = result.rows[0];
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {
-      // Secondary rollback failure — connection is likely dead. Swallow and
-      // re-throw the original error so the caller sees the real cause.
-    });
-    throw err;
-  } finally {
-    client.release();
-  }
+        [keyHash],
+      );
+      return result.rows[0];
+    },
+  );
 
   if (row === undefined) {
     throw new AuthnError("invalid, revoked, or expired api key");

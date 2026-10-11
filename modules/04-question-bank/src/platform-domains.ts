@@ -29,7 +29,7 @@
 // layer (apps/api admin-super.ts) applies the super_admin + fresh-MFA gate.
 
 import { ConflictError, NotFoundError, ValidationError, uuidv7, UUID_RE } from "@assessiq/core";
-import { getPool } from "@assessiq/tenancy";
+import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
 
@@ -78,14 +78,9 @@ async function getPlatformTenantId(client: PoolClient): Promise<string | null> {
  * needed. Returns [] if the platform tenant does not exist (fresh DB).
  */
 export async function listPlatformDomains(): Promise<PlatformDomainRow[]> {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("platform domain library list", async (client) => {
     const platformTenantId = await getPlatformTenantId(client);
     if (platformTenantId === null) {
-      await client.query("COMMIT");
       return [];
     }
     const res = await client.query<PlatformDomainRow>(
@@ -95,14 +90,8 @@ export async function listPlatformDomains(): Promise<PlatformDomainRow[]> {
         ORDER BY display_order ASC, slug ASC`,
       [platformTenantId],
     );
-    await client.query("COMMIT");
     return res.rows;
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -149,11 +138,7 @@ export async function createPlatformDomain(
 
   const id = uuidv7();
   const description = input.description ?? null;
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("platform domain create and propagation", async (client) => {
 
     const platformTenantId = await getPlatformTenantId(client);
     if (platformTenantId === null) {
@@ -207,6 +192,7 @@ export async function createPlatformDomain(
     const propagatedTenants = propRes.rowCount ?? 0;
 
     // Audit in the assessiq_app role + tenant GUC context (auditInTx contract).
+    // system read, then tenant-scoped write under assessiq_app in the same tx
     await client.query("SET LOCAL ROLE assessiq_app");
     await client.query("SELECT set_config('app.current_tenant', $1, true)", [platformTenantId]);
     await auditInTx(client, {
@@ -225,14 +211,8 @@ export async function createPlatformDomain(
       },
     });
 
-    await client.query("COMMIT");
     return { ...domainRow, propagatedTenants };
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -271,11 +251,7 @@ export async function setPlatformDomainStatus(
     });
   }
 
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    await client.query("SET LOCAL ROLE assessiq_system");
+  return withSystemRole("platform domain status change and propagation", async (client) => {
 
     const platformTenantId = await getPlatformTenantId(client);
     if (platformTenantId === null) {
@@ -320,6 +296,7 @@ export async function setPlatformDomainStatus(
     const domainRow = after.rows[0]!;
 
     // Audit in the assessiq_app role + tenant GUC context (auditInTx contract).
+    // system read, then tenant-scoped write under assessiq_app in the same tx
     await client.query("SET LOCAL ROLE assessiq_app");
     await client.query("SELECT set_config('app.current_tenant', $1, true)", [platformTenantId]);
     await auditInTx(client, {
@@ -332,12 +309,6 @@ export async function setPlatformDomainStatus(
       after: { slug, status, affected_rows: affectedRows },
     });
 
-    await client.query("COMMIT");
     return { ...domainRow, affectedRows };
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  });
 }

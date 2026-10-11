@@ -245,6 +245,81 @@ function validateSqlContent(
 }
 
 // ---------------------------------------------------------------------------
+// Raw pool.connect() allowlist (RW-38)
+// ---------------------------------------------------------------------------
+//
+// Every `pool.connect()` / `getPool().connect()` in app code must go through
+// withTenant / withSystemRole (modules/02-tenancy/src/with-tenant.ts). A raw
+// connect is allowed only when listed in tools/pool-connect.allowlist.txt with
+// a reason. A listed entry that matches no hit is stale and also fails.
+
+const POOL_CONNECT_RE = /(?:\bpool|getPool\(\))\.connect\(/;
+const POOL_CONNECT_HOME = "modules/02-tenancy/src/with-tenant.ts";
+const POOL_CONNECT_MSG =
+  "raw pool.connect() outside withTenant/withSystemRole; add to tools/pool-connect.allowlist.txt with a reason or use withSystemRole";
+
+/** Pure check: hits are "<rel path>:<line>" strings, allowed is a set of rel paths. */
+function checkPoolConnect(hits: string[], allowed: ReadonlySet<string>): string[] {
+  const errors: string[] = [];
+  const used = new Set<string>();
+  for (const h of hits) {
+    const file = h.slice(0, h.lastIndexOf(":"));
+    if (file === POOL_CONNECT_HOME) continue;
+    if (allowed.has(file)) used.add(file);
+    else errors.push(`${h} — ${POOL_CONNECT_MSG}`);
+  }
+  for (const a of allowed) {
+    if (!used.has(a)) errors.push(`tools/pool-connect.allowlist.txt: stale entry ${a} (no pool.connect() hit)`);
+  }
+  return errors;
+}
+
+async function collectTsFiles(dir: string, out: string[]): Promise<void> {
+  let entries: Dirent[];
+  try {
+    entries = await fsp.readdir(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) {
+      if (!SKIP_DIRS.has(e.name) && e.name !== "__tests__") await collectTsFiles(full, out);
+    } else if (e.name.endsWith(".ts") && !e.name.endsWith(".test.ts") && !e.name.endsWith(".d.ts")) {
+      out.push(full);
+    }
+  }
+}
+
+async function scanPoolConnect(): Promise<string[]> {
+  const roots: string[] = [];
+  const modulesDir = path.join(REPO_ROOT, "modules");
+  for (const m of await fsp.readdir(modulesDir, { withFileTypes: true })) {
+    if (m.isDirectory()) await collectTsFiles(path.join(modulesDir, m.name, "src"), roots);
+  }
+  await collectTsFiles(path.join(REPO_ROOT, "apps", "api", "src"), roots);
+
+  const allowText = await fsp.readFile(path.join(REPO_ROOT, "tools", "pool-connect.allowlist.txt"), "utf8");
+  const allowed = new Set(
+    allowText
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0 && !l.startsWith("#"))
+      .map((l) => l.split("|")[0]!.trim()),
+  );
+
+  const hits: string[] = [];
+  for (const f of roots) {
+    const rel = path.relative(REPO_ROOT, f).split(path.sep).join("/");
+    const lines = (await fsp.readFile(f, "utf8")).split(/\r?\n/);
+    lines.forEach((line, i) => {
+      if (POOL_CONNECT_RE.test(line)) hits.push(`${rel}:${i + 1}`);
+    });
+  }
+  return checkPoolConnect(hits, allowed);
+}
+
+// ---------------------------------------------------------------------------
 // Self-test mode
 // ---------------------------------------------------------------------------
 
@@ -439,6 +514,18 @@ CREATE POLICY tenant_isolation_insert ON public.questions
     );
   }
 
+  // --- pool.connect() allowlist check ---
+  const pc = checkPoolConnect(
+    ["modules/x/src/a.ts:3", "modules/x/src/b.ts:9", "modules/02-tenancy/src/with-tenant.ts:71"],
+    new Set(["modules/x/src/a.ts", "modules/x/src/gone.ts"]),
+  );
+  if (pc.length !== 2 || !pc[0]!.startsWith("modules/x/src/b.ts:9") || !pc[1]!.includes("stale entry modules/x/src/gone.ts")) {
+    process.stderr.write(`FAIL: pool-connect check fixture, got ${JSON.stringify(pc)}\n`);
+    passed = false;
+  } else {
+    process.stdout.write("  PASS: pool-connect allowlist fixture — unlisted hit and stale entry flagged (expected)\n");
+  }
+
   if (passed) {
     process.stdout.write("RLS policy linter self-test: PASSED\n");
     process.exit(0);
@@ -484,13 +571,16 @@ async function main(): Promise<void> {
     }
   }
 
-  if (allViolations.length > 0) {
+  const poolErrors = await scanPoolConnect();
+
+  if (allViolations.length > 0 || poolErrors.length > 0) {
     for (const v of allViolations) {
       const rel = path.relative(REPO_ROOT, v.file);
       process.stderr.write(
         `${rel}:${v.tableName} — missing ${v.missing.join(", ")} policy\n`
       );
     }
+    for (const e of poolErrors) process.stderr.write(`${e}\n`);
     process.exit(1);
   }
 
