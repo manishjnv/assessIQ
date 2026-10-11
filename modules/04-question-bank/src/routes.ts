@@ -251,10 +251,11 @@ export async function registerQuestionBankRoutes(
   // POST /api/admin/domains  (Slice 2.1b — B1)
   // Body: { name: string, description?: string }
   // Returns: the created domain row (201).
-  // Security: admin-gated, tenant_id explicit on INSERT, unique-violation → 409.
+  // Security: super-admin-gated (RW-56), tenant_id explicit on INSERT, unique-violation → 409.
   app.post(
     "/api/admin/domains",
-    { preHandler: adminOnly },
+    // RW-56: taxonomy is platform content; tenant admins never author (owner decision)
+    { preHandler: superAdminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const body = req.body as { name?: unknown; description?: unknown };
@@ -280,7 +281,8 @@ export async function registerQuestionBankRoutes(
   //   before INSERT, tenant_id explicit on INSERT, unique-violation → 409.
   app.post(
     "/api/admin/categories",
-    { preHandler: adminOnly },
+    // RW-56: taxonomy is platform content; tenant admins never author (owner decision)
+    { preHandler: superAdminOnly },
     async (req, reply) => {
       const tenantId = req.session!.tenantId;
       const body = req.body as {
