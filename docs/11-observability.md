@@ -306,6 +306,8 @@ export async function createSession(input) {
 | BullMQ scheduler / cron job lifecycle | `worker` (see § 13) |
 | Anything else | `app` |
 
+**Log event `system-role.tx` (RW-38, 2026-10-11).** `withSystemRole(reason, fn)` in `modules/02-tenancy/src/with-tenant.ts` logs one info line before it opens each system-role transaction. Stream: `app`. Fields: `reason` (the string the caller passed) and `caller` (file and line of the call site, or `unknown`). Use it to count and trace cross-tenant reads: grep `app.log` for `system-role.tx` and group by `reason`. The line holds no tenant id and no row data. A call with an empty `reason` throws before it logs.
+
 ---
 
 ## 9. Frontend logging
@@ -479,7 +481,7 @@ For each truly-failed tick at `attempts: 5`: 5 `worker.job.start` + 5 `worker.jo
 
 ### 13.2 Why `tenant_id` is null at the wrapper level
 
-Both currently-shipped jobs (`assessment-boundary-cron`, `attempt-timer-sweep`) iterate ALL active tenants in a single tick rather than targeting one. The per-tenant inner work emits its own context line on tenant-specific errors:
+Both currently-shipped jobs (`assessment-boundary-cron`, `attempt-timer-sweep`) cover many tenants in a single tick rather than targeting one. Since RW-39 (commit `67ad882`, 2026-10-11) each tick first finds the tenants that have due work. It then runs the per-tenant work for those tenants only. The per-tenant inner work emits its own context line on tenant-specific errors:
 
 ```jsonc
 {
@@ -493,6 +495,45 @@ Both currently-shipped jobs (`assessment-boundary-cron`, `attempt-timer-sweep`) 
 ```
 
 When a future job ships that targets one tenant per `Queue.add()` call (e.g. a per-tenant export, a per-tenant grading job), the wrapper schema's `tenant_id` field MUST be populated from `job.data.tenant_id` so triage queries by tenant work uniformly. The `tenant_id: null` field is intentionally present on every line so a `jq 'select(.tenant_id == "X")'` query has consistent shape regardless of job type.
+
+#### RW-39: one cross-tenant query per tick (2026-10-11)
+
+**What.** The `boundary-cron tick` and `timer-sweep tick` log lines now carry `tenants` = the number of tenants WITH due work. Before, `tenants` was the number of active tenants. Each tick runs one query under `withSystemRole`. Then it runs the unchanged `withTenant` mutation for each returned tenant.
+
+Boundary query (reason `boundary-cron: tenants with due assessment boundaries`, `listTenantsWithDueBoundaries` in 05):
+
+```sql
+SELECT DISTINCT a.tenant_id
+  FROM assessments a
+  JOIN tenants t ON t.id = a.tenant_id AND t.status = 'active'
+ WHERE (a.status = 'published' AND a.opens_at IS NOT NULL AND a.opens_at <= $1)
+    OR (a.status = 'active' AND a.closes_at IS NOT NULL AND a.closes_at <= $1)
+ ORDER BY a.tenant_id
+```
+
+Timer query (reason `timer-sweep: tenants with expired attempts`, `listTenantsWithExpiredAttempts` in 06):
+
+```sql
+SELECT DISTINCT a.tenant_id
+  FROM attempts a
+  JOIN tenants t ON t.id = a.tenant_id AND t.status = 'active'
+ WHERE a.status = 'in_progress'
+   AND a.ends_at IS NOT NULL
+   AND a.ends_at <= $1
+ ORDER BY a.tenant_id
+```
+
+Each query writes one `system-role.tx` line (section 8). A tick therefore shows two `system-role.tx` lines, one per query. Filter by `reason` to tell them apart. Partial indexes `assessments_open_boundary_idx`, `assessments_close_boundary_idx` (0021) and `attempts_timer_sweep_idx` (0030) serve the queries.
+
+**Why.** The old tick listed every active tenant and opened a `withTenant` transaction for each one, even with nothing due. At about 1000 tenants that is about 1000 empty transactions every 30 or 60 seconds.
+
+**Considered and rejected.**
+- Keep the per-tenant loop as a fallback. Rejected: it makes two code paths to test and keep in step.
+- Run the mutation itself cross-tenant under the system role. Rejected: the mutation must stay RLS-scoped and audited per tenant.
+
+**Not included.** Auto-release is unchanged. No new index. Idempotency and per-tenant error isolation (the `tenant error` lines above) are unchanged. A suspended tenant is not swept, as before.
+
+**Downstream impact.** Modules 05 and 06 export `listTenantsWithDueBoundaries` and `listTenantsWithExpiredAttempts`. `apps/api/src/worker.ts` exports `processBoundaryTick` and `processTimerSweepTick` for tests (`apps/api/src/__tests__/worker-cross-tenant.test.ts`). A dashboard that reads `tenants` as a tenant count must change: it is now a due-tenant count.
 
 ### 13.3 Retry policy
 
@@ -1074,7 +1115,7 @@ This slice adds **one** new entry to the G3.A action catalog ([modules/14-audit-
 - `recordHelpEvent` — fire-and-forget telemetry (tooltip shown / drawer opened / feedback thumbs). Not an admin mutation; actor is a candidate or anonymous user. Telemetry writes to `app.log` (pino) only, per the Phase 1 deferral decision #16 in [SKILL.md](../modules/16-help-system/SKILL.md). Upgrade to `audit_log` writes is a future Phase 3 sub-slice, not this one.
 - `getHelpForPage` / `getHelpKey` / `exportHelp` — read-only. These write only to operational `request.log`.
 - `exportHelp` — GET route; read-only bulk fetch for the translation workflow. No state mutation.
-- Global (tenant_id IS NULL) seed rows — these are inserted by the Postgres superuser during migration (`0011_seed_help_content.sql`) and are intentionally outside the `assessiq_app` role's INSERT policy. No audit row is emitted for seed inserts; they are a deploy-time event, not an admin-actor event.
+- Global (tenant_id IS NULL) seed rows — these are inserted by the Postgres superuser by the post-migration seed (`modules/16-help-system/seeds/help_content.sql`, run by `tools/migrate.ts`; log events `seed.applied` and `seed.failed`, `seed.list` on `--dry-run`) and are intentionally outside the `assessiq_app` role's INSERT policy. No audit row is emitted for seed inserts; they are a deploy-time event, not an admin-actor event.
 
 ## 27. Audit-log wiring — 13-notifications webhooks (G3.D slice, 2026-05-11)
 

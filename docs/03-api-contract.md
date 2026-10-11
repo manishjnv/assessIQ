@@ -2458,7 +2458,7 @@ The Phase B1 model — super_admin curates the shared question-pack library; ten
 | `POST /api/admin/questions/:id/save-rubric` | admin | super_admin |
 | `POST /api/admin/questions/bulk-update-status` | admin | super_admin |
 
-**Not re-gated (deliberately):** `POST /api/admin/domains` and `POST /api/admin/categories` stay `admin` — they are per-tenant generation taxonomy, not shared-library content. **SPA gating (defence-in-depth, authoritative gate is the backend):** the Question Bank list hides "+ New Pack" and the per-row archive from non-super_admin; pack-detail hides Publish / Archive pack / Activate all / per-question Archive / bulk select+approve+archive and renders per-question **Edit → View**; the question editor is read-only for tenant admins (no approve/archive/generate/save; read-only rubric summary; create form blocked). Adversarial review (Sonnet takeover; codex companion was hung) returned VERDICT=accept — no cross-tenant leak, no authz gaps, const-only SQL interpolation, fail-closed counts.
+**Re-gated later (2026-10-11, RW-56):** `POST /api/admin/domains` and `POST /api/admin/categories` first stayed `admin` here. They are now `super_admin` only (see "S9 notes" at the end of this file). **SPA gating (defence-in-depth, authoritative gate is the backend):** the Question Bank list hides "+ New Pack" and the per-row archive from non-super_admin; pack-detail hides Publish / Archive pack / Activate all / per-question Archive / bulk select+approve+archive and renders per-question **Edit → View**; the question editor is read-only for tenant admins (no approve/archive/generate/save; read-only rubric summary; create form blocked). Adversarial review (Sonnet takeover; codex companion was hung) returned VERDICT=accept — no cross-tenant leak, no authz gaps, const-only SQL interpolation, fail-closed counts.
 
 **Source:** `modules/04-question-bank/src/routes.ts`.
 
@@ -2618,7 +2618,7 @@ Scopes that already have an `active` row in `tenant_entitlements` for this tenan
 
 Super-admin management of the canonical domain taxonomy. These are **platform-wide** operations (no `:tenantId`): they read/write the platform master tenant's `domains` and **propagate** changes into every company tenant so the whole fleet shares one consistent domain set. Provenance (`domains.source`, migration 0091) keeps propagation from ever touching a tenant-LOCAL domain. Cross-tenant writes run under `SET LOCAL ROLE assessiq_system`; each mutation writes one audit row in the same transaction.
 
-**Why a new namespace (not the existing `POST /api/admin/domains`).** `POST /api/admin/domains` (module 04, `adminOnly`) remains the **tenant-local** domain-create path — a tenant admin adds a domain only for their own tenant (`source='tenant'`). The `/api/admin/super/domains` namespace is for **platform** domains that mirror across tenants and is gated by `super_admin` + fresh MFA, consistent with every other cross-tenant `/super` operation.
+**Why a new namespace (not the existing `POST /api/admin/domains`).** `POST /api/admin/domains` (module 04) was the **tenant-local** domain-create path. Since 2026-10-11 (RW-56) it is `superAdminOnly`: a tenant admin gets 403 and no longer adds domains. The `/api/admin/super/domains` namespace is for **platform** domains that mirror across tenants and is gated by `super_admin` + fresh MFA, consistent with every other cross-tenant `/super` operation.
 
 #### `GET /api/admin/super/domains`
 
@@ -3002,3 +3002,50 @@ All three use the same guard as the other generate routes. `id` must be a uuid (
 - Scoring and result shapes: see 02 and 05. The admin attempt detail shows the key and the candidate picks per step (admin only).
 
 > **Reviewer role removed (2026-10-03, RV60).** Invites, user create/update and super-admin edit-admin return 400 `INVALID_ROLE` for `reviewer`. Notifications and the results CSV are admin only. See `docs/04-auth-flows.md` § "Reviewer role removed". The dev minter section still names `reviewer` in its body type, for legacy rows only.
+
+## S9 notes (2026-10-11)
+
+### `POST /api/admin/domains` and `POST /api/admin/categories` (04): super_admin only (RW-56)
+
+- **What.** Auth changes from `admin` (`adminOnly`) to `super_admin` (`superAdminOnly`), commit `99d97b3`. A tenant admin now gets 403. A super admin still gets 201. The `GET` routes do not change: tenant admins still read and use domains and categories.
+- **Why.** Owner decision: tenants never author taxonomy. Domains and categories are shared structure. They belong to the platform, like packs and questions.
+- **Considered and rejected.** (1) Keep tenant-local taxonomy writes: this conflicts with the owner decision and with the curriculum taxonomy (RW-55). (2) Add a new super-admin route for the same action: the existing path with a stricter guard is a smaller change.
+- **Not included.** No change to `/api/admin/super/domains`, to the `GET` routes, or to existing tenant-local rows. The same commit removes the decommissioned `reviewer` role from the billing session type (RV60). That is a type change only.
+- **Impact.** Any client that calls these two routes as a tenant admin now fails with 403. The admin UI has no such call. Four gate tests are in `modules/04-question-bank/src/__tests__/taxonomy-write-gate.test.ts`. Rows added by later S9 tasks go under this heading.
+
+### Curriculum framework routes and node blueprint criteria (04, 05; RW-55)
+
+Commits `76daf4c` (routes) and `2e23622` (blueprint). Schema: `docs/02-data-model.md` § "Curriculum frameworks".
+
+**`GET /api/admin/frameworks[?status=active|all]`**
+- **Auth:** `adminOnly` (admin or super_admin). Runs in `withTenant`, so RLS returns platform (NULL-tenant) rows plus the caller's own rows.
+- **Query:** `status` is `active` (default) or `all`. Any other value gives 400 `INVALID_PARAM`.
+- **Response 200:** `{ "items": [ { "id", "slug", "name", "source", "status", "tenant_id" } ] }`, ordered by `name`, `slug`. `tenant_id` is `null` for platform frameworks.
+
+**`GET /api/admin/frameworks/:id/nodes[?kind=]`**
+- **Auth:** `adminOnly`, `withTenant`.
+- **Params and query:** `id` is a UUID. `kind` is one of `board`, `stage`, `grade`, `subject`, `unit`, `outcome`, `criterion`. A bad value gives 400 `INVALID_PARAM`.
+- **Response 200:** `{ "items": [ { "id", "parent_id", "kind", "code", "label", "position", "syllabus_edition", "external_id", "status", "tenant_id" } ] }`, ordered by `parent_id` (NULL first), `position`, `label`. The list is flat. The client builds the tree from `parent_id`. An unknown or invisible framework id gives an empty list, not 404.
+
+**Blueprint criterion shape (`POST/PATCH /api/admin/assessments`, `settings.blueprint`).** A criterion is now `{ category_id?, node_id?, type, count }`. At least one of `category_id` and `node_id` is required. `domain_id` is optional when every criterion has `node_id`; the domain comes from the unit node. The server resolves `node_id` to `(domain_id, category_id)` at write time and stores the resolved shape. The stored blueprint has `category_id` on every criterion, and `node_id` where the client sent one. Existing `category_id`-only blueprints work as before. Four new 400 codes:
+
+| Code | Cause |
+|---|---|
+| `BLUEPRINT_NODE_UNRESOLVED` | Node missing, not visible to the tenant, or no category for it in this tenant. |
+| `BLUEPRINT_NODE_KIND_UNSUPPORTED` | Node kind is not `unit`. |
+| `BLUEPRINT_NODE_MISMATCH` | `category_id` and `node_id` on one criterion point at different categories. |
+| `BLUEPRINT_MIXED_DOMAINS` | Criteria resolve to more than one domain, or conflict with `domain_id`. |
+
+**Why.** Curriculum frameworks (RW-55) need an addressable unit id that a blueprint can name. **Considered and rejected.** (1) Store only `node_id` in the blueprint: the draw, count, preview and frozen pool would then change. (2) Resolve at draw time: frozen pools must not move after publish. **Not included.** No write routes for frameworks or nodes (RW-61). No `outcome` or `criterion` draws. **Impact.** Clients that read a stored blueprint can rely on `domain_id` and `category_id` being present.
+
+### `cli_version` and `stage_inputs` on accept (07; RW-41)
+
+Commit `45e95e0`. The accept body (`POST /api/admin/attempts/:id/accept` and `POST /api/admin/super/evaluations/:attemptId/accept`) may carry optional `cli_version` (string, max 200) and `stage_inputs` (`{anchors, band, escalate}`, max 64 KiB) on each proposal. The route schema accepts them so older and newer clients both pass validation. **The server ignores them.** It copies both values from the server-side `attempts.ai_proposals` cache for the same `question_id` and writes them to `gradings`. A client cannot set or change them. **Why.** Provenance must not depend on the browser. **Not included.** No response field and no UI. Details: `docs/05-ai-pipeline.md` D4 and `docs/02-data-model.md` Grading & scoring.
+
+### RW-68: no API shape change (2026-10-11)
+
+- **What.** The registry refactor (RW-68) changes no route, status code or response shape. One schema widens: `McqAnswerPayloadSchema.selected` now allows 0-7 entries (was 0-3), because mcq options allow 8.
+- **Why.** The old cap of 3 contradicted the option limit. Stage 1 (`5125b3c`) fixed it while moving the schema into the registry.
+- **Considered and rejected.** Keeping the cap of 3: it would reject valid picks.
+- **Not included.** No new routes, no new error codes.
+- **Impact.** Stored answers stay valid, since the change is a widening. Clients that send up to 3 picks work as before.

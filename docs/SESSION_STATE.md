@@ -1,3 +1,42 @@
+# Session — 2026-10-11 — Hardening S9 (CLOSED: RW-38, RW-39, RW-40, RW-41, RW-55, RW-56, RW-68 done; RW-54 closed via RW-68; deployed)
+
+**Headline:** S9 pushed (5ecba3f, 17 commits) and deployed to VPS at 5ecba3f: migrations 0168 and 0169 applied by hand; assessiq-api, assessiq-worker, assessiq-frontend rebuilt and recreated; /api/health 200, /api/ready 200, site 200; 24 containers, all assessiq-* healthy. Nothing visible changes for users except that taxonomy writes (POST domains/categories) are super-admin only. New: `withSystemRole(reason, fn)` with a pool.connect allowlist lint; cron sweeps query due tenants cross-tenant; migration lint + post-migration seeds; gradings provenance (cli_version, stage_inputs); curriculum frameworks (frameworks, taxonomy_nodes, question_taxonomy, node_id on domains/categories, blueprint node_id criteria); question-type registry hooks with the registry lint strict in lint:repo.
+**Commits (origin/main, oldest first):** 6687e22 (0169 frameworks), 99d97b3 (RW-56), 9badb1d (RW-40), 45e95e0 (RW-41), 2e23622 (RW-55 blueprint), 66a7c50 (RW-38), 76daf4c (RW-55 linking + routes), 5125b3c (RW-68 stage 1), 9e6ded9 (review hardening 38/55/41), 67ad882 (RW-39), d0b5bb8 (RW-68 2A), ffa3eb4 (2D), b68523c (2B), 8353109 (06 hook-presence fix), 7802b73 (05 typed subsets + mint-session mock), f81b1ef (2C), 5ecba3f (registry lint strict). Docs/handoff commit follows (see below).
+**Tests:** final sequential gate on 5ecba3f-equivalent tree: 18 packages, 2951 pass, 0 fail, 12 skipped (01-auth 292, 02 75, 04 275, 05 151, 06 304, 07 419, 09 119, 10 110, 13 253, apps/api 224, apps/web 81, others green). `pnpm -r typecheck` 0 errors. `pnpm lint:repo` exit 0 (now includes lint:migrations and lint:question-type-registry --strict). tools/assessiq-mcp "rejection logger JSONL" still fails on Windows paths (pre-existing since S8).
+**Deploy steps run (2026-10-11):** (1) pre-check: /srv/assessiq is a git clone, 24 containers, all 6 assessiq-* healthy, 0 claude processes. (2) `git pull --ff-only` to 5ecba3f. (3) Drift gate: DB-only 0011 (moved seed), 0100, 0106, 0109 (known); repo-only 0168, 0169. (4) 0168 applied, checksum a418b86356ef80659c82719d54f1a9e42945cc44b36162a2e1c645547e477f3f; 0169 applied, checksum 54b358699b498cd869eb445d6621ce123583a9fc31310f721b8cf924f24c7100; post-checks: gradings has cli_version + stage_inputs; policies frameworks 4, taxonomy_nodes 4, question_taxonomy 2; 1 framework, 79 nodes, 514 question_taxonomy rows, 0 unlinked domains/categories. (5) Images built: api, frontend (worker runs the api image). (6) `up -d --no-deps --force-recreate` assessiq-api assessiq-worker assessiq-frontend. (7) Smoke: /api/health 200, /api/ready 200 (db, redis, claude true), https://assessiq.in/ 200; all 6 assessiq-* containers healthy within 46 s; 24 containers total; no startup errors in api or worker logs.
+**Next:** S10 = RW-45..RW-51, RW-57, RW-58; plus new rows RW-69 (erasure gap for gradings/ai_proposals), RW-70 (pool.connect lint aliases), RW-71 (registry parity test compares itself). Check the codex companion first: it failed to start 3 times in S9.
+**Open questions:**
+- codex:rescue companion returned "setup refresh had errors" on every call; all four adversarial gates were Sonnet takeovers (ACCEPT with hardening notes, applied in 9e6ded9). Re-run codex on 66a7c50 / 45e95e0 / 0169 / f81b1ef when the companion is healthy if the owner wants a second reviewer.
+- Behaviour differences recorded (RCA/doc): email retry count now read under RLS (was always 1); fresh-DB help rows 255 -> 325 (history rows, newest wins); default supported_types order for a new category follows registry order; McqAnswerPayloadSchema.selected max 3 -> 7; deterministicFraction returns 0 for unknown types (unreachable).
+- ~80 stale `.claude/worktrees/agent-*` directories from past sessions remain; cleanup not approved.
+- tools/assessiq-mcp keeps its own coerce copy (standalone VPS build); parity test guards it; the seed.ts data list is allowlisted in the registry lint.
+
+---
+
+## Agent utilization
+- Opus: plan; wrote migration 0169 and verified it on a scratch Postgres; approved the withSystemRole API and the RW-55 schema; line-by-line diff review of every builder diff (RW-38, 39, 40, 41, 55a/b, 56, 68 stage 1 and 2A-2D); review hardening edits (release(true), 0169 WITH CHECK + node visibility, stage_inputs cap, 06 hook-presence); merges, trailers, push, deploy.
+- Sonnet: builders RW-38, RW-40, RW-41 (+1 revision), RW-56, RW-55a, RW-55b, RW-39, RW-68 stage 1, 2A, 2B, 2C (+1 revision), 2D (+1 revision); pathfinder trace; 4 docs agents; 4 adversarial takeover reviews (RW-38, RW-41, RW-55, RW-68 non-07).
+- Haiku: STEP 0/Phase 0 digest; switch-site inventory; deploy-procedure digest; acceptance sweep.
+- codex:rescue: csvCell re-run ACCEPT (STEP 0); RW-38/41/55 calls failed to start (companion sandbox error) -> Sonnet takeover ACCEPT x3; RW-68 Sonnet takeover ACCEPT; no REVISE self-accepted.
+- claude-mem: pathfinder run as a single Sonnet trace (narrow scope); no PATHFINDER artifacts written.
+
+Routing telemetry (tier/model · task · reworked):
+- Sonnet · RW-38 withSystemRole sweep · reworked: N (review hardening by Opus)
+- Sonnet · RW-39 cron sweeps · reworked: N
+- Sonnet · RW-40 migration lint + seeds · reworked: N (help count decision by Opus)
+- Sonnet · RW-41 provenance · reworked: Y (Opus REVISE: provenance from server cache)
+- Sonnet · RW-55a linking + routes · reworked: N
+- Sonnet · RW-55b blueprint node_id · reworked: N
+- Sonnet · RW-56 superAdminOnly · reworked: N
+- Sonnet · RW-68 stage 1 hooks · reworked: N
+- Sonnet · RW-68 2A/2B · reworked: N (2B arity check replaced by Opus)
+- Sonnet · RW-68 2C · reworked: Y (Opus: restore generation order)
+- Sonnet · RW-68 2D · reworked: Y (Opus: wizard rubric filter subjective-only)
+- Haiku · digests, inventory, acceptance · reworked: N
+- Note: worktree agents branched from the stale HEAD; four needed `git merge --ff-only main` or a cherry-pick before starting.
+
+---
+
 # Session — 2026-10-11 — Hardening S8 (CLOSED: RW-35, RW-36, RW-37 done and deployed; RW-54 partial)
 
 **Headline:** S8 pushed (b06a426) and deployed to VPS at b06a426: assessiq-api, assessiq-worker, assessiq-frontend rebuilt and recreated; migration 0167 applied by hand; /api/health 200, /api/ready 200, site 200; 24 containers, all assessiq-* healthy. RW-35 shared core helpers, RW-36 SQL out of routes plus Zod, RW-37 audit events plus EMAIL_FROM production check: done and reviewed. RW-54 question-type registry: partial (see Open).

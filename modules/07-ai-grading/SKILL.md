@@ -300,3 +300,19 @@ Release / release-all / release-to-tenant already refuse an erased candidate (42
 - **RV62.** `topicFocus` flows route body (max 200 chars, no control characters, else 400 `INVALID_PARAM`) to the runtime input. The wizard has no field yet; the skills must read it (deploy event). Details: docs/05.
 - **RV58.** `GET /api/admin/attempts?status=` takes a comma-separated list; each value is checked against the status enum, a bad value gives 400 `AIG_INVALID_BODY` (`routes.ts`, `handlers/admin-attempts-list.ts`, `repository.ts`). Module 15 `homeKpis` / `queueSummary` keep the old filter with a comment (no callers).
 - **SP7.** The "needs evaluation" predicate in `repository.ts` and `handlers/super-evaluations.ts` excludes `structured_case` (commit `860bfc3`).
+
+## gradings provenance: cli_version and stage_inputs (RW-41, 2026-10-11)
+
+- Migration `0168` adds nullable `gradings.cli_version` and `gradings.stage_inputs` (raw `submit_anchors` / `submit_band` / `escalate` inputs). NULL for deterministic, override and manual rows.
+- `claude-code-vps.ts` captures them (init event `claude_code_version`, else one cached `claude --version`). The proposal schema caps `stage_inputs` at 64 KiB.
+- `admin-accept.ts` copies both from the `attempts.ai_proposals` cache and ignores client values. Test: `gradings-provenance.test.ts`.
+- Rejected: trusting the browser echo, and storing the inputs in the audit log. Not included: UI for `stage_inputs`, backfill.
+- The eval runner is unchanged. It evaluates generation goldens and does not write `gradings`.
+- Full text: `docs/05-ai-pipeline.md` D4, `docs/02-data-model.md` Grading & scoring.
+
+## RW-68: registry dispatch, stage 2C (merged as part of S9)
+
+- `coerce-question-content.ts` now calls `coerceContentFor`. The grading handler reads `AI_GRADEABLE_IDS`, `rubricSynthesis` and `synthConcepts` from the registry (`admin-grade.ts`).
+- Queue counts in `repository.ts` use `= ANY($n)` with `AI_GRADEABLE_IDS` and `DETERMINISTIC_IDS`. `kql_count` stays an explicit single-type constant.
+- The eval runner keeps its own five-type structural subset (`EVAL_STRUCTURAL_TYPES`) so eval baselines do not move.
+- Rubric synthesis rules are unchanged: `scenario` and `log_analysis` still get a grade-time ephemeral rubric. Prompts and the no-ambient-claude lint are untouched.

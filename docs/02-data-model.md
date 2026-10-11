@@ -19,7 +19,7 @@
 | 03-users | `users`, `user_credentials`, `user_invitations` |
 | 01-auth | `sessions`, `api_keys`, `embed_secrets`, `oauth_identities`, `totp_recovery_codes`, `candidate_login_tokens` |
 | 12-embed-sdk | No own tables — adds columns to `tenants` (`embed_origins`, `privacy_disclosed`), `sessions` (`session_type`), and `attempts` (`embed_origin`) via migrations 0070–0073 (Phase 4, 2026-05-03) |
-| 04-question-bank | `question_packs`, `levels`, `questions`, `question_versions`, `tags`, `question_tags` |
+| 04-question-bank | `question_packs`, `levels`, `questions`, `question_versions`, `tags`, `question_tags`, `frameworks`, `taxonomy_nodes`, `question_taxonomy` (RW-55, migration 0169; also adds `domains.node_id` and `categories.node_id`) |
 | 05-assessment-lifecycle | `assessments`, `assessment_invitations` |
 | 06-attempt-engine | `attempts`, `attempt_questions`, `attempt_answers`, `attempt_events` |
 | 07-ai-grading | **Phase 1 live:** `gradings`, `tenant_grading_budgets`, `generation_attempts` — **Phase 2 deferred (not yet applied):** `grading_jobs`, `prompt_versions` |
@@ -502,6 +502,159 @@ With `rubric` column:
 
 Rollback: none needed; the nine values equal those in 0152 and 0156. To revert before deploy, delete the file.
 
+#### RW-68 (2026-10-11): per-type behaviour lives in the registry
+
+Commits: `5125b3c` (stage 1, hooks), `d0b5bb8` (stage 2A, 04 + tools + apps/api), `b68523c` and `8353109` (stage 2B, 06 + 09), `ffa3eb4` (stage 2D, 10 views + apps/web), `7802b73` (05 typed subset, tools, mint-session mock). Stage 2C (module 07), merged as part of S9. This closes RW-54.
+
+**What.** `QuestionTypeDef` in `packages/question-types/src/registry.ts` now holds all per-type behaviour. The earlier "Not included" line above (the 07 and 04 switches) is closed.
+- Flags: `aiGradeable`, `rubricRequired`, `rubricSynthesis` (`none | expected_findings | steps_expected`), `shuffleField` (`options | items | null`).
+- Hooks (pure, no DB, no React): `candidateView`, `coerceContent`, `guidanceText`, `rubricText`, `synthConcepts` (only when `rubricSynthesis` is not `none`), `deterministicScore` (only when `scoring` is `deterministic`), `evalStructuralCheck`, `checkAnswer` (optional).
+- Derived arrays: `DETERMINISTIC_IDS`, `AI_GRADEABLE_IDS`, `RUBRIC_REQUIRED_IDS`, `RUBRIC_SYNTHESIS_IDS`. They keep the order of `QUESTION_TYPES`.
+- String-typed wrappers for callers that hold `type: string` from the DB: `candidateViewFor` (unknown type returns the question only), `coerceContentFor`, `deterministicScoreFor`, `checkAnswerFor`.
+- `CONTENT_SCHEMA_MAP` (04 `types.ts`) is deleted. Use `getQuestionType(id).contentSchema`.
+
+**Where each consumer dispatches now.**
+
+| Module | Reads from the registry |
+| --- | --- |
+| 04 | `guidanceText`, `rubricText`, the difficulty-spec map (`satisfies Record<QuestionType, ...>`), rubric-eligible SQL as `= ANY(AI_GRADEABLE_IDS)`, generate route keys and the JSON-schema enum |
+| 06 | `candidateViewFor`, `shuffleField`, `checkAnswerFor`, option-type SQL as `= ANY` / `<> ALL` |
+| 07 | `coerceContentFor`, `synthConcepts`, `AI_GRADEABLE_IDS`; the eval runner keeps its own Zod schemas and a typed `Record<EvalType, check>` map (it does not call `evalStructuralCheck`, see below) |
+| 09 | `deterministicScoreFor`; the scoring primitives are re-exported from the registry |
+| 10 and `apps/web` | Typed maps that `satisfies Record<QuestionType, Component>`. The two renderer maps stay (they hold React) |
+
+**Lint.** `tools/lint-question-type-registry.ts` (`pnpm lint:question-type-registry`) has six rules. R1 and R2 check definition keys and folder names. R3 flags `case`, `===`, `!==`, `==`, `!=`, reversed compares (`'mcq' === x`) and SQL `IN ('<id>'`. R4 checks the two renderer maps. R5 flags a re-declared union or array of two or more ids, on one line or one literal per line. R6 checks definition completeness (every member present, flags valid, `deterministicScore` and `synthConcepts` present exactly when they apply). The allowlist: the registry package, the two renderer maps, `tools/gen-question-type-check.ts`, tests, `e2e/`, migrations, `tools/assessiq-mcp/`, and the 04 `seed.ts` data list. S9 end state: the lint runs strict (`--strict`, zero hits) inside `lint:repo`.
+
+**Why.** Adding a type used to touch about 20 files, and a missed `switch` failed silently in production. With the registry, a missing part fails R6 or the typecheck.
+
+**Behaviour differences (recorded honestly).**
+- The default `supported_types` for a new category follows registry order.
+- `McqAnswerPayloadSchema.selected` max grows from 3 to 7 (options allow 8). No API shape change otherwise.
+- The eval runner keeps the old five-type structural subset (`mcq`, `log_analysis`, `scenario`, `kql`, `subjective`) and its own Zod schemas. The registry `evalStructuralCheck` folds some length checks into the structural step and uses a stricter scenario schema, so `schemaValid` would shift and baselines would move. The hook exists for new consumers; 07 does not call it.
+- `deterministicScoreFor` returns 0 for an unknown type. The path is unreachable because the DB CHECK allows only registry ids.
+
+**Considered and rejected.**
+- Per-type hooks as React components in the registry. This would pull React into a leaf package. The package stays React-free and the two renderer maps hold the components.
+- A `question_types` DB table. The generated CHECK from RW-54b already derives from the registry. A table adds a join and a seed step.
+- Converting `tools/assessiq-mcp`. It builds standalone on the VPS and cannot import the workspace package. A parity test pins it (`mcp-coerce-parity.test.ts`).
+
+**Not included.** The `assessiq-mcp` coerce copy (parity-tested). The 04 `seed.ts` data list (domain seed data, not dispatch). No migration and no schema change.
+
+**Downstream impact.** Adding a type is now one folder `packages/question-types/src/types/<id>/` with the definition and hooks, one entry in `QUESTION_TYPES`, the generated CHECK migration, two renderer-map entries and help content. See `modules/04-question-bank/SKILL.md` "How to add a question type" and `packages/question-types/README.md`. 04, 06, 07, 09, 10 and `apps/web` no longer hold per-type literals.
+
+Rollback: none needed for data. Revert the commits to restore the old switches. The `selected` max 7 is a widening, so stored answers stay valid.
+
+## Curriculum frameworks (RW-55, migration 0169, 2026-10-11)
+
+Migration: `modules/04-question-bank/migrations/0169_curriculum_frameworks.sql` (commit `6687e22`). Linking code, read routes and lint entry: commit `76daf4c`. Blueprint resolution: commit `2e23622`.
+
+**What.** Three new tables hold curriculum frameworks in the CASE style. Two nullable columns link the old domain and category rows to the new tree.
+
+```sql
+CREATE TABLE IF NOT EXISTS frameworks (
+  id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id   uuid        REFERENCES tenants(id) ON DELETE CASCADE,  -- NULL = platform-owned
+  slug        text        NOT NULL,
+  name        text        NOT NULL,
+  source      text        NOT NULL DEFAULT 'platform' CHECK (source IN ('platform','tenant')),
+  status      text        NOT NULL DEFAULT 'active'   CHECK (status IN ('active','archived')),
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now(),
+  UNIQUE NULLS NOT DISTINCT (tenant_id, slug)
+);
+
+CREATE TABLE IF NOT EXISTS taxonomy_nodes (
+  id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id         uuid        REFERENCES tenants(id) ON DELETE CASCADE,  -- NULL = platform-owned
+  framework_id      uuid        NOT NULL REFERENCES frameworks(id) ON DELETE CASCADE,
+  parent_id         uuid        REFERENCES taxonomy_nodes(id) ON DELETE CASCADE,
+  kind              text        NOT NULL CHECK (kind IN
+                      ('board','stage','grade','subject','unit','outcome','criterion')),
+  code              text        NOT NULL,          -- stable short id inside the parent ('soc', 'ch-3')
+  label             text        NOT NULL,
+  position          int         NOT NULL DEFAULT 0,
+  syllabus_edition  text,                          -- '2025-26'
+  external_id       text,                          -- CASE identifier or board code
+  status            text        NOT NULL DEFAULT 'active' CHECK (status IN ('active','archived')),
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  updated_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE NULLS NOT DISTINCT (tenant_id, framework_id, parent_id, code)
+);
+-- indexes: taxonomy_nodes_parent_idx (framework_id, parent_id, position),
+--          taxonomy_nodes_tenant_idx (tenant_id) WHERE tenant_id IS NOT NULL,
+--          taxonomy_nodes_external_idx (external_id) WHERE external_id IS NOT NULL
+
+CREATE TABLE IF NOT EXISTS question_taxonomy (
+  question_id  uuid NOT NULL REFERENCES questions(id)       ON DELETE CASCADE,
+  node_id      uuid NOT NULL REFERENCES taxonomy_nodes(id)  ON DELETE CASCADE,
+  created_at   timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (question_id, node_id)
+);
+-- index: question_taxonomy_node_idx (node_id)
+
+ALTER TABLE domains    ADD COLUMN IF NOT EXISTS node_id uuid REFERENCES taxonomy_nodes(id) ON DELETE SET NULL;
+ALTER TABLE categories ADD COLUMN IF NOT EXISTS node_id uuid REFERENCES taxonomy_nodes(id) ON DELETE SET NULL;
+-- partial indexes domains_node_idx / categories_node_idx WHERE node_id IS NOT NULL
+```
+
+**RLS.**
+- `frameworks` and `taxonomy_nodes` use the `help_content` variant (`0010`). Four scoped policies apply. SELECT shows `tenant_id IS NULL` rows and the caller's own rows. INSERT, UPDATE and DELETE need `tenant_id IS NOT NULL AND tenant_id = app.current_tenant`. The app role can never write a NULL-tenant row.
+- Writes to NULL-tenant rows go through `withSystemRole` from super-admin code. Those writes are audited.
+- `question_taxonomy` uses the JOIN variant of `question_tags` (`0014`): `EXISTS (questions JOIN question_packs ... p.tenant_id = app.current_tenant)`, one policy for reads and one for INSERT. `tools/lint-rls-policies.ts` lists it in `JOIN_RLS_TABLES`.
+- Review hardening (commit `9e6ded9`): the UPDATE policies on `frameworks` and `taxonomy_nodes` carry an explicit `WITH CHECK` with the same own-tenant predicate. The `question_taxonomy` INSERT policy also requires `EXISTS (SELECT 1 FROM taxonomy_nodes n WHERE n.id = question_taxonomy.node_id)`. Without it, a tenant could attach a question to another tenant's node, because the foreign key check runs as the table owner.
+
+**Framework 1, `legacy-domains`.** The migration inserts one NULL-tenant framework with slug `legacy-domains`. It maps the `0018` tree into that framework:
+
+| Source row | Node |
+|---|---|
+| Platform domain (`source = 'platform'`) | One NULL-tenant `subject` node for each slug. Label and position come from the `platform` tenant row if it exists. |
+| Tenant-local domain (`source = 'tenant'`) | One tenant-owned `subject` node (`tenant_id` = that tenant). |
+| Category under a platform domain, when the same (domain slug, category slug) exists in the `platform` tenant | One NULL-tenant `unit` node under the platform `subject` node. |
+| Every other category | A tenant-owned `unit` node under its domain node. |
+| `questions.domain_id` and `questions.category_id` | One `question_taxonomy` row each, from the matching `node_id`. |
+
+`code` is the slug and `position` is `display_order`. An archived row becomes an archived node. Every step is idempotent: `ON CONFLICT DO NOTHING` and `WHERE node_id IS NULL`.
+
+**Live maintenance.** The migration maps only existing rows. New rows get a node in the same transaction through the helpers in `modules/04-question-bank/src/taxonomy-nodes.ts` (`legacyFrameworkId`, `findNodeId`, `ensureNode`, and a link helper for copied platform domains). Callers: tenant domain and category create, platform domain create and status change, tenant seed, and clone provisioning. If framework 1 is missing, the helper throws `FRAMEWORK_MISSING` (500).
+
+**Blueprint node resolution (module 05).** A blueprint criterion may name a `unit` node instead of a category: `{ category_id?, node_id?, type, count }`. `resolveBlueprintNodes` in `modules/05-assessment-lifecycle/src/service.ts` runs once at write time (create and update), inside `withTenant`. It reads `categories.node_id` to find the tenant's `(domain_id, category_id)`. The stored `settings.blueprint` always has the resolved shape (`ResolvedBlueprint` in `types.ts`). `node_id` stays on the criterion for traceability only. The live draw, frozen draw, count, preview and `assessment_frozen_pool` read `domain_id` and `category_id` and do not change. A blueprint with no `node_id` takes the old path with no extra query. `domain_id` may be absent when every criterion has `node_id`. Four error codes (HTTP 400) are in `AL_ERROR_CODES`:
+
+| Code | Cause |
+|---|---|
+| `BLUEPRINT_NODE_UNRESOLVED` | The node does not exist, is not visible to the tenant, or has no category in this tenant. |
+| `BLUEPRINT_NODE_KIND_UNSUPPORTED` | The node kind is not `unit`. |
+| `BLUEPRINT_NODE_MISMATCH` | The criterion `category_id` differs from the category the node resolves to. |
+| `BLUEPRINT_MIXED_DOMAINS` | The criteria resolve to more than one domain, or differ from the given `domain_id`. |
+
+A golden test (`blueprint-node-golden.test.ts`) proves that a `category_id` blueprint and a `node_id` blueprint give the same stored shape, preview, live draw and frozen draw.
+
+**Why.** The owner wants one curriculum model for CBSE, ICSE and IB, with stable node ids and CASE ids. The old two-level domain and category tree cannot hold grade, unit or outcome levels. Putting the old tree in framework 1 keeps every current blueprint and pack valid and gives new frameworks a place to land.
+
+**Owner decisions (2026-10-11).**
+- Seven node kinds: `board`, `stage`, `grade`, `subject`, `unit`, `outcome`, `criterion`.
+- The UI keeps the words "Domain" and "Category". Tenants do not see "node".
+- `cognitive_level` stays a column on `questions` (`0086`). It does not become a node.
+
+**Considered and rejected.**
+- Per-tenant copies of nodes, propagated like platform domains. NULL-tenant rows are visible to all tenants, so propagation is implicit and no copy job is needed.
+- A `node_id` column on `assessment_frozen_pool`. This changes the frozen-pool shape and trips the RW-55 abort criterion.
+- Resolving nodes at draw time. A frozen pool must not change after publish, so resolution happens at write time.
+
+**Not included.**
+- Write routes for frameworks and nodes (RW-61). The only routes are two reads, in the API contract S9 notes.
+- Framework seeds for CBSE, ICSE and IB (RW-57).
+- Draws by `outcome` or `criterion` nodes.
+- Any UI.
+
+**Downstream impact.**
+- `tools/lint-rls-policies.ts` has `question_taxonomy` in `JOIN_RLS_TABLES`. The two nullable-tenant tables follow the `help_content` variant.
+- `modules/04-question-bank/SKILL.md` has an RW-55 section.
+- `modules/05-assessment-lifecycle/src/types.ts` exports `ResolvedBlueprint` and the four new codes. Code that reads a stored blueprint must use `ResolvedBlueprint`, not `AssessmentBlueprint`.
+- Any new code path that inserts a domain or category must call the `taxonomy-nodes.ts` helpers. Otherwise the row has a NULL `node_id` and a node criterion cannot resolve to it.
+- `tenant_id` has `ON DELETE CASCADE`, so a tenant purge removes the tenant's nodes.
+
+Rollback: stop calling the new helpers, then drop `question_taxonomy`, `taxonomy_nodes`, `frameworks`, `domains.node_id` and `categories.node_id`. No other table depends on them. Stored blueprints keep working, because they hold `category_id`.
+
 ## Assessment lifecycle
 
 > **Status: live as of 2026-05-02 (Phase 1 G1.B Session 3).** Migrations `0020_assessment_status_enum.sql`, `0021_assessments.sql`, `0022_assessment_invitations.sql` shipped under `modules/05-assessment-lifecycle/migrations/`. The Postgres `gen_random_uuid()` is used as the `DEFAULT` (not `uuidv7()`); the snippet below preserves the spec-style `uuidv7()` for documentation but the live migrations match the rest of the schema and use `gen_random_uuid()` as the column default while application code generates uuidv7 explicitly via `@assessiq/core uuidv7()`.
@@ -744,6 +897,17 @@ CREATE UNIQUE INDEX gradings_attempt_question_sha_idx
 -- directly at submit time for MCQ-only attempts (scoreMcqAndFinalizeIfComplete,
 -- same tx as gradings rows + attempt_scores + billing_events + audit row).
 -- admin-grade / admin-accept now accept auto_submitted as a pre-graded state.
+--
+-- RW-41 (migration 0168, 2026-10-11): two nullable provenance columns.
+--   cli_version  TEXT   -- claude CLI version that produced the row (claude-code-vps runtime)
+--   stage_inputs JSONB  -- raw tool inputs per stage {anchors, band, escalate}, as the model
+--                       -- submitted them (submit_anchors / submit_band / escalate)
+-- Both are NULL for deterministic, pattern, admin_override and manual rows, and for rows
+-- written before 0168. No backfill. Same table, so no RLS change. The stored anchor_hits and
+-- reasoning_band are post-processed (coerced, schema-checked, maybe edited by the admin);
+-- stage_inputs keeps the raw input so a row can be replayed against a later skill version.
+-- stage_inputs is capped at 64 KiB in the proposal schema. Server-side only: admin-accept
+-- copies both from attempts.ai_proposals and ignores client values (docs/05-ai-pipeline.md D4).
 
 -- Phase 1 live shape — modules/07-ai-grading/migrations/0041_tenant_grading_budgets.sql
 -- D6: per-tenant USD ceiling for Phase 2 anthropic-api runtime. PK = tenant_id
@@ -1036,6 +1200,47 @@ SET LOCAL app.current_tenant = '<tenant-uuid>';
 
 System-level operations (cross-tenant analytics, support tools) use a `BYPASSRLS` Postgres role for explicit elevation, audited separately.
 
+### System-role transactions: `withSystemRole(reason, fn)` (RW-38, 2026-10-11)
+
+**What.** `withSystemRole` in `modules/02-tenancy/src/with-tenant.ts` is the one way to run code under the `assessiq_system` role (commit `66a7c50`). It shares a private scaffold with `withTenant`.
+
+1. Check that `reason` is a non-empty string. Otherwise throw `ValidationError` with code `INVALID_SYSTEM_ROLE_REASON`.
+2. Throw `SYSTEM_ROLE_INSIDE_TENANT` if the call runs inside a `withTenant` scope. An `AsyncLocalStorage` marker tracks the scope.
+3. Log `system-role.tx` with `{reason, caller}` (stream `app`).
+4. `BEGIN`, then `SET LOCAL ROLE assessiq_system`, then run `fn`.
+5. `COMMIT` on success or `ROLLBACK` on error. Release the client. Run `onCommit` hooks after commit, as `withTenant` does.
+6. If `ROLLBACK` itself fails, the helper destroys the client with `release(true)` (commit `9e6ded9`). No connection returns to the pool in an open elevated transaction. `withTenant` does the same.
+
+**Mixed pattern.** A caller may read cross-tenant under the system role, then run `SET LOCAL ROLE assessiq_app` plus `set_config('app.current_tenant', ...)` in the same transaction for an audited tenant write. This is allowed. The caller owns the role switch and comments it at each site.
+
+**Raw connects.** `tools/pool-connect.allowlist.txt` lists every file that may call `pool.connect()` outside the two helpers. Format: `<path> | <reason>`. Four entries remain:
+
+| File | Reason |
+|---|---|
+| `modules/15-analytics/src/refresh-mv-job.ts` | `REFRESH MATERIALIZED VIEW` needs the MV owner role. The job uses session `SET ROLE assessiq_system` and `RESET ROLE`. |
+| `modules/02-tenancy/src/middleware.ts` | The request-scoped client lives across two Fastify hooks. A callback scaffold cannot wrap it. |
+| `modules/16-help-system/src/service.ts` | `withGlobalsOnly` reads anonymously under `assessiq_app` with the tenant GUC reset to NULL. Neither role fits. |
+| `modules/18-certification/src/repository.ts` | `withPublicVerifyContext` reads under `assessiq_app` with the `app.public_verify` GUC and the nil-UUID tenant. Neither role fits. |
+
+`pnpm lint:rls` (`tools/lint-rls-policies.ts`) fails on any raw `pool.connect()` that is not listed. It also fails on a listed file with no raw connect (a stale entry).
+
+**Behaviour changes.**
+- `verifyCandidateLoginTokenSystem` (`01-auth/src/candidate-login.ts`) now consumes the token inside a transaction. It used a session-level `SET ROLE` and `RESET ROLE`.
+- The email retry count in `13-notifications/src/email/index.ts` now reads `email_log` under `withTenant`. The old raw connect had no tenant role, so RLS hid the row and the count always fell back to attempt 1.
+- Three local system-role wrappers are deleted. Every hand-rolled system transaction in modules and `apps/api` now calls `withSystemRole`.
+
+**Why.** Before this, many sites opened the system role by hand. Each one had its own error handling and none was logged. One shared helper makes the role switch visible in logs and removes the missed-`RESET ROLE` risk.
+
+**Considered and rejected.**
+- Audit every system call automatically. An audit row needs a tenant, and many system reads are cross-tenant.
+- A separate `withSystemReadOnly`. Module 07 keeps a thin wrapper that adds `SET TRANSACTION READ ONLY`.
+
+**Not included.**
+- `refresh-mv-job` is not converted. It needs the MV owner role.
+- The `02-tenancy` middleware is not converted. It is superseded and not registered.
+
+**Downstream impact.** New code that needs the system role must call `withSystemRole(reason, fn)` with a reason that says why. A new raw connect needs an allowlist line with a reason, or `pnpm lint:rls` fails. See `docs/11-observability.md` for the `system-role.tx` log event and `modules/02-tenancy/SKILL.md` for the contract.
+
 ## Indexes worth calling out
 
 - `attempts (assessment_id, user_id)` — unique, the main lookup for "has this candidate started?"
@@ -1047,6 +1252,7 @@ System-level operations (cross-tenant analytics, support tools) use a `BYPASSRLS
 - `in_app_notifications (tenant_id, audience, created_at DESC) WHERE read_at IS NULL` — unread short-poll query
 - `billing_events_tenant_idx (tenant_id)` — tenant-scoped `COUNT(*)` for used-credit math (module 19-billing)
 - `webhook_deliveries` — no own index; queries always filter through `endpoint_id` which maps back to tenant via RLS JOIN
+- `assessments_open_boundary_idx` and `assessments_close_boundary_idx` (0021) and `attempts_timer_sweep_idx` (0030) — partial indexes. Since RW-39 (commit `67ad882`) they also serve the two cross-tenant sweep queries that find tenants with due boundaries or expired attempts. No new index was added. See `docs/11-observability.md` section 13.2.
 - `attempt_summary_mv (tenant_id, attempt_id)` — **UNIQUE** composite required for `REFRESH MATERIALIZED VIEW CONCURRENTLY` (Phase 3 G3.C)
 
 ---
@@ -1827,6 +2033,31 @@ Only one new table (0142). Everything else is a view, help rows, or JSONB settin
 - **Order.** The plain basename order fails on an empty database (`0010` runs before `020` users). The real order is the grouping in `tools/test-support/apply-all-migrations.ts`. The `find | sort` loop in `docs/06-deployment.md` sorts by path and is wrong for a fresh database (a warning is added there).
 
 **Why.** The review (RV78) found the gaps and doubles. **Considered and rejected.** Renumbering: it would break the applied-migration records on production. Filling the gaps with empty files: no value. **Not included.** Any change to a migration file or to the runner. **Impact.** A new migration must take the next free number above 153 and must be placed in the grouping of `apply-all-migrations.ts`.
+
+**Migration lint (RW-40, 2026-10-11).** `tools/lint-migrations.ts` checks every file in `modules/*/migrations/`. It runs in `pnpm lint:repo`. There are four rules:
+
+- **R1.** No two files share a basename.
+- **R2.** The prefix has 4 digits. The nine legacy 3-digit files are the only exception: `010`, `011`, `012`, `013`, `014`, `015`, `016`, `020`, `021`.
+- **R3.** A file does not use a table that a later file creates. The order source is `tools/test-support/apply-all-migrations.ts`, the real apply order, not the basename order.
+- **R4.** The name matches `^\d{3,4}_[a-z0-9_]+\.sql$`.
+
+Commit `9badb1d`. **Why.** The RV78 review found gaps, doubles and an order that basename sorting gets wrong. The lint stops new mistakes without a renumber. **Considered and rejected.** Timestamp names: the owner decided on 2026-10-11 to keep 4-digit numbers and add the lint. **Not included.** No migration file is renamed or edited, and the lint does not parse function bodies.
+
+## Post-migration seeds (RW-40, 2026-10-11)
+
+**What.** A seed is a SQL file in `modules/<module>/seeds/*.sql`. `tools/migrate.ts` runs all seeds after all migrations, in basename order, one transaction per file. The test harness (`tools/test-support/apply-all-migrations.ts`) does the same. A seed is not recorded in `schema_migrations`. Each seed must be idempotent (`ON CONFLICT ... DO NOTHING` or `DO UPDATE`), because it runs on every apply. The flag `--skip-seeds` turns the run off.
+
+The first seed is `modules/16-help-system/seeds/help_content.sql`. It moved from `modules/16-help-system/migrations/0011_seed_help_content.sql` with the same content. Production keeps its applied `0011` row in `schema_migrations`. `migrate.ts --check` ignores rows that exist only in the database, so there is no drift report.
+
+**Why.** The old `0011` was a numbered migration that the generator rewrote after it was applied. A numbered migration is checksummed and must not change after apply. A seed has no number and no checksum, so the generator can rewrite it at any time.
+
+**Fresh-database effect.** Global help rows go from 255 to 325. The forward help migrations (`0136` to `0166`) now insert before the seed runs. The reader still returns the newest active text: `DISTINCT ON (tenant_id, key, locale) ... ORDER BY version DESC` in `modules/16-help-system/src/repository.ts` (about line 186). Production is not affected.
+
+**Considered and rejected.** (1) Renumber (RV78): breaks the applied-migration records. (2) Timestamp names: the owner decision of 2026-10-11 keeps 4-digit numbers plus the lint. (3) Keep `0011` as a migration: every seed would then need a number for ever.
+
+**Not included.** The seed is not run again on production. Other seed-like migrations stay migrations: the taxonomy seeds `0019`, `0020` and `0083` are not converted.
+
+**Impact.** Hand-applied deploys do not run seeds (see `docs/06-deployment.md`, "Seeds"). New help text still ships as a forward migration plus a YAML edit. The generator `tools/generate-help-seed.ts` now writes the seed path. The CI drift check compares that path.
 
 ## Migration 0155: help ids under the page prefix (2026-10-03, N23)
 

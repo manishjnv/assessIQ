@@ -698,6 +698,30 @@ The handler must verify, in order: (a) `req.session.admin === true`; (b) `proces
 - Admin UI grading queue panel reads `prompt_version_sha` and compares against `skillSha()` to surface drift.
 - The eval harness (D5) records the same three columns on every eval run for cross-version regression analysis.
 
+#### RW-41 (2026-10-11): raw stage inputs and CLI version
+
+Migration `0168` adds two nullable columns to `gradings` (commit `45e95e0`): `cli_version TEXT` and `stage_inputs JSONB`. Both are NULL for deterministic, pattern, override and manual rows, and for older rows.
+
+**What.**
+- The `claude-code-vps` runtime keeps the raw tool inputs the model submits at each stage (`submit_anchors`, `submit_band`, `escalate`). It stores them as `stage_inputs = {anchors, band, escalate}`.
+- It also keeps the CLI version. `parseCliVersion` in `stream-json-parser.ts` reads `claude_code_version` from the stream-json `init` event. If the event has no version, the runtime runs `claude --version` once and caches the result. That spawn lives inside the runtime file only, so the no-ambient-AI lint is not affected.
+- Both values travel in the proposal (`GradingProposalSchema.cli_version`, `.stage_inputs`) into the `attempts.ai_proposals` cache.
+- `handleAdminAccept` copies both from the server cache for the same `question_id` and ignores any value in the request body. The spoof test is in `gradings-provenance.test.ts`.
+- `stage_inputs` is capped at 64 KiB (65,536 characters of JSON). The runtime applies the cap, because it is the only writer of the proposals cache (commit `9e6ded9`). If the whole object is larger, each oversized stage becomes `{truncated: true, bytes}`. The client-body refine in the proposal schema was removed. The accept handler never reads client provenance.
+- Review record: the `codex:rescue` companion failed to start three times. Sonnet takeover reviews gave ACCEPT for RW-38, RW-41 and RW-55, with the hardening notes in this section and in `docs/02-data-model.md`.
+
+**Why.** The stored `anchor_hits` and `reasoning_band` are post-processed: coerced, schema-checked, and maybe edited by the admin. The raw input lets an auditor replay a row and compare it with a later skill version. It also records which CLI build produced the row.
+
+**Contract deviation.** The task brief expected the eval runner to record these columns. It does not. The runner evaluates generation goldens, not grading runs, and never writes `gradings`. The runner is unchanged, and the D4 downstream line above ("the eval harness records the same three columns") stays as written.
+
+**Considered and rejected.**
+- Trust the value that the browser echoes back. This is the same gap as scores (Phase II): a client could forge provenance.
+- Store the raw inputs in the audit log. They are then not queryable per row.
+
+**Not included.** No UI shows `stage_inputs`. No backfill of old rows.
+
+**Downstream impact.** `GradingProposal` has two new optional fields. The accept route schema (`routes.ts`) and the super-evaluation accept route accept them but the server ignores them (see `docs/03-api-contract.md`, S9 notes). `insertGrading` in `repository.ts` writes both columns. Fixtures in other modules gained the two keys.
+
 ---
 
 ### D5 — Eval-harness baseline contract

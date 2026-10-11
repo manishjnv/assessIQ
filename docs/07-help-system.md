@@ -341,3 +341,9 @@ Guard: `modules/16-help-system/src/__tests__/help-id-page-prefix.test.ts` scans 
 **Not included.** No new help ids. No change to `help_id` names.
 
 **Downstream impact.** The help test constant is 253. A fresh database and prod now show the same text for the changed keys.
+
+## Seed moved to a post-migration script (RW-40, 2026-10-11)
+
+**What.** The global help seed is now `modules/16-help-system/seeds/help_content.sql`. Older sections above name `0011_seed_help_content.sql`: read that as this file. `tools/migrate.ts` runs it after all migrations (log events `seed.applied`, `seed.failed`, `seed.list`). Details: `docs/02-data-model.md`, "Post-migration seeds".
+
+**Why.** A seed has no number and no checksum, so the generator can rewrite it. **Not included.** No change to help text or keys. **Impact.** Fresh databases have 325 global rows (was 255). Production is unchanged.

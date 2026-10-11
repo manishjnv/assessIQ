@@ -2501,3 +2501,24 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the guard regex `/^[=+\-@\t\r]/` in 15-analytics, 14-audit-log and 10-admin-dashboard looked at the first character only.
 **Fix:** one `csvCell` in `modules/00-core/src/escape.ts` with guard `/^(?:[\t\r]|\s*[=+\-@])/`. A cell with leading whitespace then `= + - @` now gets a `'` prefix (output change). A leading tab or CR still triggers it. Quoting rules are unchanged. 14 keeps JSON-encoding of objects through `auditCsvCell`.
 **Prevention:** unit tests in `modules/00-core/src/shared-helpers.test.ts`; the lint blocks local copies.
+
+## 2026-10-11 — Email retry count read ran with no tenant context
+
+**Symptom:** the email send job computed `attempts` from a raw pool client with no tenant GUC. RLS returned no row, so the retry counter always restarted at 1.
+**Cause:** `modules/13-notifications/src/email/index.ts` (~line 285) used `getPool().connect()` with no role and no `app.current_tenant`.
+**Fix:** the read now runs inside `withTenant(tenantId, ...)` (commit `66a7c50`, RW-38).
+**Prevention:** the `pool.connect()` allowlist check in `tools/lint-rls-policies.ts` (`pnpm lint:rls`) fails on any raw connect that is not listed with a reason.
+
+## 2026-10-11 — Fresh-database help rows doubled after the seed moved behind the migrations
+
+**Symptom:** a help-system test expected 255 active global rows and got 325 on a fresh database.
+**Cause:** the forward help migrations (0136..0166) guard with `NOT EXISTS` against rows that the old `0011` seed inserted first. With the seed now last (RW-40), the migrations insert version 1 and the seed adds version N.
+**Fix:** none needed. The reader picks the newest active version (`modules/16-help-system/src/repository.ts` ~line 186). The test count was updated in commit `9badb1d`. Production is unaffected.
+**Prevention:** documented in `docs/02-data-model.md`, section "Post-migration seeds".
+
+## 2026-10-11 — Scenario rubric generation nearly widened in the wizard refactor
+
+**Symptom:** none shipped. In review, a stage-2D draft of `generate-wizard.tsx` replaced `type === 'subjective'` with `rubricRequired`. That flag includes `scenario`. The wizard would then have generated stored rubrics for scenario questions. Scenario rubrics are synthesized at grade time (grading invariant).
+**Cause:** the flag was chosen by its name, not by the intent of the call site. `rubricRequired` answers "must a stored rubric exist before activation", not "does the wizard generate a rubric".
+**Fix:** the predicate is `aiGradeable && rubricSynthesis === 'none'` (`ffa3eb4`, `modules/10-admin-dashboard/src/pages/generate-wizard.tsx`). It matches the 04 `service/packs.ts` rule.
+**Prevention:** `packages/question-types/README.md` ("Which flag answers which question") documents each flag. The lint cannot catch intent, so this stays manual discipline.

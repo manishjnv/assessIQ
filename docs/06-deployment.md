@@ -594,7 +594,7 @@ See `apps/web/e2e/README.md` for full local run + CI integration guide.
 
 **What changed 2026-05-03 (Phase 3 G3.C — 15-analytics):**
 - Migration `0060_attempt_summary_mv.sql` applied — `attempt_summary_mv` MV created (empty, no attempt_scores yet).
-- `0011_seed_help_content.sql` re-applied — 8 new analytics help keys inserted via `ON CONFLICT DO NOTHING` upsert.
+- `0011_seed_help_content.sql` re-applied — 8 new analytics help keys inserted via `ON CONFLICT DO NOTHING` upsert. (Since 2026-10-11 this file is the seed `modules/16-help-system/seeds/help_content.sql`.)
 - `assessiq-api` and `assessiq-worker` containers rebuilt with new `@assessiq/analytics` package.
 - 6 new routes: `GET /api/admin/reports/topic-heatmap`, `/archetype-distribution/:id`, `/cost-by-month`, `/exports/attempts.csv`, `/exports/attempts.jsonl`, `/exports/topic-heatmap.csv` — all return 401 unauthenticated (confirmed via smoke-curl).
 - No Caddy config changes — all routes are under `/api/*` which is already matched by the `@api` path matcher.
@@ -1565,6 +1565,8 @@ Same as before: API replicas → managed Postgres → worker pool → multi-regi
 5. **Before recreating:** make sure no AI grading run is in flight. `docker exec assessiq-api sh -c "ps -o args | grep -v grep | grep -c claude"` must print `0`.
 
 **Quoting gotcha:** SQL containing `$$` or nested quotes inside `ssh '…'` is mangled by the remote shell (`$$` becomes the shell's PID). Put the SQL in a file and pipe it into `psql` (`docker exec -i … psql … < /tmp/q.sql`).
+
+**Seeds (RW-40, 2026-10-11).** A hand-applied deploy does NOT run seeds. The steps above apply migrations only. `tools/migrate.ts` runs every `modules/*/seeds/*.sql` after the migrations, unless you pass `--skip-seeds`. A seed is idempotent and is not recorded in `schema_migrations`. `--dry-run` lists the seeds as `seed.list`. A real run logs `seed.applied` for each file, or `seed.failed` and exit code 1. The first seed is `modules/16-help-system/seeds/help_content.sql`. Do not run it by hand on production: the production help rows come from the forward migrations. Why and fresh-database effect: `docs/02-data-model.md`, "Post-migration seeds".
 
 Applied this way on 2026-10-01:
 - 0113–0116: scoring and result release, evaluation queue;

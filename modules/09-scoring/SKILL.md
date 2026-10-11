@@ -152,3 +152,7 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 ## Business webhook events (FU-B6, 2026-10-03)
 
 `finalizeAttemptIfComplete` emits `attempt.graded` and `releaseAttemptInTx` emits `result.released` via `emitAttemptEventAfterCommit` (13). Ids-only payload, after commit only. Details: modules/13-notifications/SKILL.md.
+
+## RW-68: deterministic scoring from the registry (2026-10-11)
+
+Commit `b68523c`. The per-type scoring code left `src/mcq.ts`. Call `deterministicScoreFor(type, content, answer)` (was `deterministicFraction`). It returns 0..1 and returns 0 for an unknown type, which is unreachable behind the DB CHECK. The scoring primitives are re-exported from the registry. SQL type lists use `DETERMINISTIC_IDS`. The 119 tests are unchanged.

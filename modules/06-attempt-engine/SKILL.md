@@ -192,3 +192,15 @@ For assessments with `settings.sections` (defined in 05). Assessments without it
 ## Business webhook events (FU-B6, 2026-10-03)
 
 `submitAttempt` emits `attempt.submitted` after commit via `emitAttemptEventAfterCommit` (13). The timer sweep does not emit. Details: modules/13-notifications/SKILL.md.
+
+## Timer sweep finds due tenants with one query (RW-39, 2026-10-11)
+
+`listTenantsWithExpiredAttempts(now)` (`src/service.ts`, repository query in `src/repository.ts`) runs under `withSystemRole` and returns the active tenants with an `in_progress` attempt past `ends_at`. The timer sweep then calls `sweepStaleTimersForTenant` under `withTenant` for those tenants only. Why: no empty transaction per idle tenant. Rejected: a per-tenant fallback loop, and a cross-tenant mutation (it must stay RLS-scoped and audited). Not included: new indexes (`attempts_timer_sweep_idx`, 0030, serves the query). Details: `docs/11-observability.md` section 13.2.
+
+## RW-68: per-type behaviour from the registry (2026-10-11)
+
+Commits `b68523c`, `8353109`. The candidate content allowlist, the answer save check and the option shuffle moved into `packages/question-types`.
+- Call `candidateViewFor(type, content)` (was `sanitizeContentForCandidate`) and `checkAnswerFor(type, answer, frozenContent)` (was `checkAnswerForSave`).
+- The shuffle reads `shuffleField` (`options`, `items` or `null`) from the definition.
+- The save path loads frozen content whenever the type has a `checkAnswer` hook (not by function arity).
+- SQL type lists use `= ANY` / `<> ALL` with the registry arrays. Exported names and the 304 tests are unchanged.

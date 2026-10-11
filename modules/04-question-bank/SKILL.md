@@ -205,7 +205,7 @@ AI-assisted question generation is the only AI-touching surface in this module's
 
 ## Question type `structured_case` (SP7, 2026-10-03)
 
-`StructuredCaseContentSchema` in `src/types.ts` (strict): `title`, `context`, optional `log_excerpt` (max 20000), 1-12 `steps` of `{ id, prompt, select: one|many, options (2-8), correct[] }`, optional `scoring` (`all_or_nothing` | `partial`, default partial), optional `explanation`. A `superRefine` enforces unique step ids, valid unique `correct` indexes, and one correct index for `select: one`. Migration `0152` widens `questions_type_check`. The type is in `QUESTION_TYPES` and `CONTENT_SCHEMA_MAP`.
+`StructuredCaseContentSchema` in `src/types.ts` (strict): `title`, `context`, optional `log_excerpt` (max 20000), 1-12 `steps` of `{ id, prompt, select: one|many, options (2-8), correct[] }`, optional `scoring` (`all_or_nothing` | `partial`, default partial), optional `explanation`. A `superRefine` enforces unique step ids, valid unique `correct` indexes, and one correct index for `select: one`. Migration `0152` widens `questions_type_check`. The type is in `QUESTION_TYPES` in the registry (`CONTENT_SCHEMA_MAP` was deleted in RW-68; use `getQuestionType(id).contentSchema`).
 - **Why.** Several linked choices about one log or story, scored with no AI.
 - **Rejected.** `scenario` with all-mcq steps (determinism would depend on content), extending `multi_select`.
 - **Not included.** AI generation (`difficulty-spec.ts` excludes it), edit form for existing questions, `/try` demo.
@@ -213,14 +213,16 @@ AI-assisted question generation is the only AI-touching surface in this module's
 
 ## How to add a question type
 
-1. Add one folder under `packages/question-types/src/types/<id>/` with its `definition`.
-2. Add the id to `QUESTION_TYPES` in `packages/question-types/src/registry.ts`.
-3. Run `pnpm gen:question-type-check`. It writes the next-numbered migration for both CHECK constraints.
-4. Commit the generated migration. Do not edit it by hand. `pnpm lint:question-type-check` and `question-type-check-live.test.ts` fail if it is stale.
-5. Add the renderer entries in the two renderer maps (see `tools/lint-question-type-registry.ts`).
-6. Follow-up (not automated yet): the per-type switches in `07-ai-grading` and `04-question-bank` still need a manual case for the new type.
+RW-68 (2026-10-11) moved all per-type behaviour into the registry. Do these steps in order.
 
-See `docs/02-data-model.md` section "Question type registry".
+1. Create `packages/question-types/src/types/<id>/index.ts`. Export `definition` with the schemas, the flags (`aiGradeable`, `rubricRequired`, `rubricSynthesis`, `shuffleField`) and the hooks (`candidateView`, `coerceContent`, `guidanceText`, `rubricText`, `evalStructuralCheck`; plus `synthConcepts`, `deterministicScore` and `checkAnswer` when they apply).
+2. Add the id to `QUESTION_TYPES` and the definition to `QUESTION_TYPE_REGISTRY` in `packages/question-types/src/registry.ts`.
+3. Run `pnpm gen:question-type-check` and commit the generated migration. Do not edit it by hand.
+4. Add an entry in each renderer map: `modules/10-admin-dashboard/src/question-types/renderers.tsx` and `apps/web/src/pages/take/renderers.tsx`.
+5. Add help content for the `helpKey` in `modules/16-help-system`.
+6. Run `pnpm lint:question-type-registry` and `pnpm typecheck`. Rule R6 and the `Record<QuestionType, ...>` maps fail until every part exists.
+
+No `switch` in 04, 06, 07 or 09 needs a new case. Do not add `if (type === '<id>')` anywhere: the lint (R3) blocks it. See `docs/02-data-model.md` "Question type registry" and `packages/question-types/README.md`.
 
 ## Generation: `topic_focus` reaches the runtime (RV62, 2026-10-03)
 
@@ -245,3 +247,7 @@ Migration `0169_curriculum_frameworks.sql`; read-only in this part.
 - New rows stay linked (`src/taxonomy-nodes.ts`): `createDomain` / `createCategory` (tenant-owned nodes), `createPlatformDomain` / `setPlatformDomainStatus` (NULL-tenant node, status mirrored, `node_id` in the audit `after`), `seedTenantTaxonomy` and `clone.ts` provisioning (link to the existing platform node by code). A missing `legacy-domains` framework throws `FRAMEWORK_MISSING`.
 - Routes (adminOnly, `taxonomy-routes.ts`): `GET /api/admin/frameworks` (`?status=all`), `GET /api/admin/frameworks/:id/nodes` (`?kind=`).
 - Not included: node write routes and super-admin node CRUD (RW-61), CBSE / ICSE / IB seeds (RW-57), draws by outcome or criterion nodes, any UI.
+
+## RW-68: registry dispatch (2026-10-11)
+
+`answer-guidance-derive.ts` calls `guidanceText`. `service/generation.ts` calls `rubricText` and selects rubric-eligible types with `= ANY(AI_GRADEABLE_IDS)`. `difficulty-spec.ts` uses a `satisfies Record<QuestionType, ...>` map. `service/packs.ts` follows registry order for the default `supported_types` of a new category. Commit `d0b5bb8`. Not changed: `tools/assessiq-mcp` (standalone, parity-tested) and the `seed.ts` data list.

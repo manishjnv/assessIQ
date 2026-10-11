@@ -226,3 +226,7 @@ Tests:
 ## Preview reads the frozen pool (RV63, 2026-10-03)
 
 `previewAssessment` (`src/service.ts`) checks `assessment_frozen_pool` first. When the assessment is not `draft` and frozen rows exist, the count and the sample come from the frozen rows (blueprint criteria filter by `domain_id`, `category_id`, `type` on the frozen table; legacy preview lists all frozen rows). The result has `frozen: true`. Draft and pre-0096 assessments keep the live path. Read helpers: `countFrozenPoolRows`, `countFrozenForCriterion`, `listFrozenForCriterionPreview`, `listFrozenForPreview` in `src/repository.ts`. Why: after a pack revision or a clone re-sync the admin saw a different pool than candidates got. Not included: content from the frozen version (the sample shows the live question text), no UI badge yet. Rejected: a cross-module import of the module 06 frozen-pool readers.
+
+## Cron finds due tenants with one query (RW-39, 2026-10-11)
+
+`listTenantsWithDueBoundaries(now)` (`src/boundaries.ts`, repository query in `src/repository.ts`) runs under `withSystemRole` and returns the active tenants with a due `opens_at` or `closes_at`. The boundary cron then calls `processBoundariesForTenant` under `withTenant` for those tenants only. Why: no empty transaction per idle tenant. Rejected: a per-tenant fallback loop, and a cross-tenant mutation (it must stay RLS-scoped and audited). Not included: auto-release (unchanged), new indexes (the 0021 partial indexes serve the query). Details: `docs/11-observability.md` section 13.2.
