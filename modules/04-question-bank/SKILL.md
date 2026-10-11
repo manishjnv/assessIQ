@@ -211,6 +211,17 @@ AI-assisted question generation is the only AI-touching surface in this module's
 - **Not included.** AI generation (`difficulty-spec.ts` excludes it), edit form for existing questions, `/try` demo.
 - **Impact.** Scoring in 09, save check and candidate sanitizer in 06, editor in 10, help keys in 16. Hand-authored only.
 
+## How to add a question type
+
+1. Add one folder under `packages/question-types/src/types/<id>/` with its `definition`.
+2. Add the id to `QUESTION_TYPES` in `packages/question-types/src/registry.ts`.
+3. Run `pnpm gen:question-type-check`. It writes the next-numbered migration for both CHECK constraints.
+4. Commit the generated migration. Do not edit it by hand. `pnpm lint:question-type-check` and `question-type-check-live.test.ts` fail if it is stale.
+5. Add the renderer entries in the two renderer maps (see `tools/lint-question-type-registry.ts`).
+6. Follow-up (not automated yet): the per-type switches in `07-ai-grading` and `04-question-bank` still need a manual case for the new type.
+
+See `docs/02-data-model.md` section "Question type registry".
+
 ## Generation: `topic_focus` reaches the runtime (RV62, 2026-10-03)
 
 `service.ts` passes `topicFocus` from the route body into the runtime input, so the skill variable `topic_focus` is the real string (it was always `null`). The route accepts at most 200 characters after trim and no control characters; else 400 `INVALID_PARAM`. The wizard has no field yet (API only). The generate skills must read `topic_focus` before it changes output; a prompt change is a deploy event with eval re-baseline. See 05, "Question generation: one shared plan".
