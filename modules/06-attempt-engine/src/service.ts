@@ -81,8 +81,10 @@ import {
   buildOrderingOrder,
   displayAnswers,
   displayQuestions,
+  shuffleFieldOf,
   usableOrder,
 } from "./option-shuffle.js";
+import { QUESTION_TYPE_REGISTRY, isQuestionType } from "@assessiq/question-types";
 
 const log = streamLogger("app");
 
@@ -690,7 +692,7 @@ export async function getAttemptForCandidate(
       answers: displayAnswers(
         visibleAnswers,
         orders,
-        new Set(questions.filter((q) => q.type === "ordering").map((q) => q.question_id)),
+        new Set(questions.filter((q) => shuffleFieldOf(q.type) === "items").map((q) => q.question_id)),
       ),
       remaining_seconds: computeRemainingSeconds(effectiveAttempt, now),
       integrity: {
@@ -781,7 +783,7 @@ export async function saveAnswer(
     const checked = checkAnswerForSave(
       savedType,
       input.answer,
-      savedType === "structured_case"
+      savedType !== null && isQuestionType(savedType) && (QUESTION_TYPE_REGISTRY[savedType].checkAnswer?.length ?? 0) >= 2
         ? await repo.findFrozenContent(client, input.questionId, aq.question_version)
         : undefined,
     );

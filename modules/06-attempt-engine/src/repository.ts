@@ -25,7 +25,11 @@ import type {
   AttemptStatus,
   FrozenQuestion,
 } from "./types.js";
+import { QUESTION_TYPES, QUESTION_TYPE_REGISTRY, candidateViewFor } from "@assessiq/question-types";
 import { answerGuidanceFor } from "./answer-guidance.js";
+
+/** Types whose content.options is shuffled per attempt (registry-derived). */
+const OPTION_TYPES = QUESTION_TYPES.filter((t) => QUESTION_TYPE_REGISTRY[t].shuffleField === "options");
 
 // ---------------------------------------------------------------------------
 // Column constants
@@ -424,8 +428,8 @@ export async function listMcqOptionsForPicks(
        FROM unnest($1::uuid[], $2::int[]) AS p(question_id, version)
        JOIN question_versions qv
          ON qv.question_id = p.question_id AND qv.version = p.version
-        AND qv.type IN ('mcq', 'multi_select')`,
-    [picks.map((p) => p.id), picks.map((p) => p.version)],
+        AND qv.type = ANY($3)`,
+    [picks.map((p) => p.id), picks.map((p) => p.version), OPTION_TYPES],
   );
   for (const r of result.rows) out.set(r.question_id, r.options);
   return out;
@@ -534,96 +538,7 @@ export async function findQuestionType(
  * unchanged — there is no answer key to strip and we must not crash.
  */
 export function sanitizeContentForCandidate(type: string, content: unknown): unknown {
-  if (content === null || typeof content !== "object" || Array.isArray(content)) {
-    return content;
-  }
-  const c = content as Record<string, unknown>;
-
-  function pick(keys: string[]): Record<string, unknown> {
-    const out: Record<string, unknown> = {};
-    for (const k of keys) {
-      if (Object.prototype.hasOwnProperty.call(c, k)) {
-        out[k] = c[k];
-      }
-    }
-    return out;
-  }
-
-  switch (type) {
-    case "mcq":
-      return pick(["question", "options"]);
-
-    // Answer keys (`correct`, `answer`, `tolerance`, `scoring`, `rationale`) never leave the server.
-    case "multi_select":
-      return pick(["question", "options"]);
-
-    case "numeric":
-      return pick(["question", "unit"]);
-
-    // ordering: `correct_order`, `scoring` and `explanation` never leave the server. The items are
-    // re-arranged into the attempt's (never-correct) display order by displayQuestions().
-    case "ordering":
-      return pick(["question", "items"]);
-
-    // structured_case: per-step allowlist id/prompt/select/options; `correct`, `scoring` and
-    // `explanation` never leave the server. Not shuffled (ponytail: shuffle per step is the upgrade).
-    case "structured_case": {
-      const base = pick(["title", "context", "log_excerpt"]);
-      const rawSteps = c["steps"];
-      base["steps"] = Array.isArray(rawSteps)
-        ? rawSteps.map((st) => {
-            const s = st !== null && typeof st === "object" ? (st as Record<string, unknown>) : {};
-            return { id: s["id"], prompt: s["prompt"], select: s["select"], options: s["options"] };
-          })
-        : [];
-      return base;
-    }
-
-    case "log_analysis":
-      return pick(["question", "log_format", "log_excerpt", "hint"]);
-
-    case "kql":
-      return pick(["question", "tables"]);
-
-    case "scenario": {
-      const base = pick(["title", "intro", "step_dependency"]);
-      if (Object.prototype.hasOwnProperty.call(c, "steps")) {
-        const rawSteps = c["steps"];
-        if (Array.isArray(rawSteps)) {
-          base["steps"] = rawSteps.map((step) => {
-            if (step !== null && typeof step === "object" && !Array.isArray(step)) {
-              const s = step as Record<string, unknown>;
-              const stepOut: Record<string, unknown> = {};
-              if (Object.prototype.hasOwnProperty.call(s, "prompt")) {
-                stepOut["prompt"] = s["prompt"];
-              }
-              // Bank-schema mcq step: allowlist id/type/prompt/options only. `correct`, `trap`
-              // and everything else stay server-side. Keyed on the declared step type; the
-              // generated `{prompt, expected}` shape has no type and keeps `prompt` only.
-              if (s["type"] === "mcq" && Array.isArray(s["options"])) {
-                stepOut["type"] = "mcq";
-                if (typeof s["id"] === "string") stepOut["id"] = s["id"];
-                stepOut["options"] = (s["options"] as unknown[]).filter(
-                  (o): o is string => typeof o === "string",
-                );
-              }
-              return stepOut;
-            }
-            return step;
-          });
-        }
-        // if steps is not an array, omit it entirely
-      }
-      return base;
-    }
-
-    case "subjective":
-      return pick(["question"]);
-
-    default:
-      // fail-closed: unknown type → question only
-      return pick(["question"]);
-  }
+  return candidateViewFor(type, content);
 }
 
 /**
