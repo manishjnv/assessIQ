@@ -472,8 +472,20 @@ export async function gradeSubjective(
     escalation_chosen_stage: escalationStage,
     generated_at: new Date().toISOString(),
     cli_version: cliVersion ?? (await claudeVersionFallback()),
-    stage_inputs: { anchors: anchorsRawInput, band: bandRaw, escalate: escalateRawInput },
+    stage_inputs: capStageInputs({ anchors: anchorsRawInput, band: bandRaw, escalate: escalateRawInput }),
   };
+}
+
+// RW-41: the cache row (attempts.ai_proposals) and gradings.stage_inputs are
+// bounded here, at the only writer; the accept body is never read for these.
+const STAGE_INPUTS_MAX_BYTES = 65536;
+function capStageInputs(v: { anchors: unknown; band: unknown; escalate: unknown }): typeof v {
+  if (JSON.stringify(v).length <= STAGE_INPUTS_MAX_BYTES) return v;
+  const cap = (x: unknown): unknown => {
+    const bytes = JSON.stringify(x ?? null).length;
+    return bytes <= STAGE_INPUTS_MAX_BYTES / 3 ? x : { truncated: true, bytes };
+  };
+  return { anchors: cap(v.anchors), band: cap(v.band), escalate: cap(v.escalate) };
 }
 
 // RW-41: fallback when the stream-json init event carries no version. Runs
