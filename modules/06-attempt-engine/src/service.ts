@@ -38,7 +38,7 @@ import {
   streamLogger,
   uuidv7,
 } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
 import { scoreMcqAndFinalizeSafely } from "@assessiq/scoring";
 import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
@@ -1124,6 +1124,13 @@ export async function listAnswersForAttempt(
 export interface SweepResult {
   autoSubmitted: number;
   attemptIds: string[];
+}
+
+/** Active tenants with at least one expired in_progress attempt (one cross-tenant query). */
+export async function listTenantsWithExpiredAttempts(now: Date): Promise<string[]> {
+  return withSystemRole("timer-sweep: tenants with expired attempts", (client) =>
+    repo.listTenantsWithExpiredAttempts(client, now),
+  );
 }
 
 /**

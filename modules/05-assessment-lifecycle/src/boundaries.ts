@@ -49,7 +49,7 @@
 //     event type lands in Phase 1.5 if the noise/value tradeoff justifies it.
 
 import { streamLogger } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import * as repo from "./repository.js";
 
 const log = streamLogger("app");
@@ -58,6 +58,17 @@ export interface BoundaryRunResult {
   tenantId: string;
   activated: number;
   closed: number;
+}
+
+/**
+ * Active tenants that have at least one assessment whose open/close boundary
+ * is due at `now`. One cross-tenant query (system role) so the cron only opens
+ * a withTenant transaction for tenants that actually have work.
+ */
+export async function listTenantsWithDueBoundaries(now: Date): Promise<string[]> {
+  return withSystemRole("boundary-cron: tenants with due assessment boundaries", (client) =>
+    repo.listTenantsWithDueBoundaries(client, now),
+  );
 }
 
 /**

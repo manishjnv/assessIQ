@@ -52,7 +52,7 @@ export type {
 // 2. Sweeper (cron-callable; BullMQ scheduling deferred)
 // ---------------------------------------------------------------------------
 
-export { sweepStaleTimersForTenant } from "./service.js";
+export { sweepStaleTimersForTenant, listTenantsWithExpiredAttempts } from "./service.js";
 export type { SweepResult } from "./service.js";
 
 // ---------------------------------------------------------------------------

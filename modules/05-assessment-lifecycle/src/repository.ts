@@ -1073,3 +1073,27 @@ export async function countInvitationsByAssessment(
   }
   return out;
 }
+
+/**
+ * Cross-tenant: ids of active tenants that own at least one assessment whose
+ * boundary is due at `now`. Caller MUST run this under withSystemRole (RLS is
+ * bypassed, so the usual no-tenant-filter rule does not apply). The predicate is
+ * the union of the three bulkUpdateBoundaries transitions; transition (3)
+ * (published, opens_at and closes_at both past) is a subset of (1)'s published
+ * + opens_at <= now arm. Uses the 0021 partial indexes.
+ */
+export async function listTenantsWithDueBoundaries(
+  client: PoolClient,
+  now: Date,
+): Promise<string[]> {
+  const result = await client.query<{ tenant_id: string }>(
+    `SELECT DISTINCT a.tenant_id
+       FROM assessments a
+       JOIN tenants t ON t.id = a.tenant_id AND t.status = 'active'
+      WHERE (a.status = 'published' AND a.opens_at IS NOT NULL AND a.opens_at <= $1)
+         OR (a.status = 'active' AND a.closes_at IS NOT NULL AND a.closes_at <= $1)
+      ORDER BY a.tenant_id`,
+    [now],
+  );
+  return result.rows.map((r) => r.tenant_id);
+}

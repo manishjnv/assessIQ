@@ -17,9 +17,9 @@
  *      Auto-submits in_progress attempts whose ends_at has passed. Idempotent
  *      via the partial WHERE filter on attempts.status='in_progress'.
  *
- * Multi-tenant strategy: list all active tenants via the 02-tenancy
- * listActiveTenantIds() helper (system-role bypass for cross-tenant read),
- * then iterate per-tenant calling the (RLS-scoped) service functions. The
+ * Multi-tenant strategy (RW-39): ONE cross-tenant query per tick (withSystemRole,
+ * in modules 05 / 06) returns only the tenants that have due work; the worker
+ * then calls the (RLS-scoped) per-tenant service functions for those tenants. The
  * service functions wrap their own withTenant context.
  *
  * Concurrency: each repeating job runs at most one in-flight execution
@@ -34,9 +34,9 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { Redis } from "ioredis";
 import { config, streamLogger } from "@assessiq/core";
-import { listActiveTenantIds, closePool } from "@assessiq/tenancy";
-import { processBoundariesForTenant } from "@assessiq/assessment-lifecycle";
-import { sweepStaleTimersForTenant } from "@assessiq/attempt-engine";
+import { closePool } from "@assessiq/tenancy";
+import { processBoundariesForTenant, listTenantsWithDueBoundaries } from "@assessiq/assessment-lifecycle";
+import { sweepStaleTimersForTenant, listTenantsWithExpiredAttempts } from "@assessiq/attempt-engine";
 import {
   processEmailSendJob,
   type EmailSendJobData,
@@ -252,19 +252,19 @@ export async function runJobWithLogging(
 // ---------------------------------------------------------------------------
 
 /**
- * Iterate every active tenant and call processBoundariesForTenant. Returns
+ * Call processBoundariesForTenant for every tenant with a due boundary. Returns
  * the totals so BullMQ can include them in the job result for debugging.
  */
-async function processBoundaryTick(): Promise<{
+export async function processBoundaryTick(): Promise<{
   tenants: number;
   activated: number;
   closed: number;
 }> {
-  const tenants = await listActiveTenantIds();
   const now = new Date();
+  const dueTenantIds = await listTenantsWithDueBoundaries(now);
   let activated = 0;
   let closed = 0;
-  for (const tenantId of tenants) {
+  for (const tenantId of dueTenantIds) {
     try {
       const result = await processBoundariesForTenant(tenantId, now);
       activated += result.activated;
@@ -279,9 +279,9 @@ async function processBoundaryTick(): Promise<{
     }
   }
   if (activated + closed > 0) {
-    log.info({ tenants: tenants.length, activated, closed }, "boundary-cron tick");
+    log.info({ tenants: dueTenantIds.length, activated, closed }, "boundary-cron tick");
   }
-  return { tenants: tenants.length, activated, closed };
+  return { tenants: dueTenantIds.length, activated, closed };
 }
 
 /**
@@ -310,13 +310,13 @@ async function processRetentionTick(): Promise<{
   return { tenants: reports.length, totalErased, totalSkipped, errorCount };
 }
 
-async function processTimerSweepTick(): Promise<{
+export async function processTimerSweepTick(): Promise<{
   tenants: number;
   autoSubmitted: number;
 }> {
-  const tenants = await listActiveTenantIds();
+  const dueTenantIds = await listTenantsWithExpiredAttempts(new Date());
   let autoSubmitted = 0;
-  for (const tenantId of tenants) {
+  for (const tenantId of dueTenantIds) {
     try {
       const result = await sweepStaleTimersForTenant(tenantId);
       autoSubmitted += result.autoSubmitted;
@@ -328,9 +328,9 @@ async function processTimerSweepTick(): Promise<{
     }
   }
   if (autoSubmitted > 0) {
-    log.info({ tenants: tenants.length, autoSubmitted }, "timer-sweep tick");
+    log.info({ tenants: dueTenantIds.length, autoSubmitted }, "timer-sweep tick");
   }
-  return { tenants: tenants.length, autoSubmitted };
+  return { tenants: dueTenantIds.length, autoSubmitted };
 }
 
 // ---------------------------------------------------------------------------
