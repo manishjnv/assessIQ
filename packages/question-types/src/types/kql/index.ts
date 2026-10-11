@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { QuestionTypeDef } from "../../registry.js";
+import { candidateViewOf, compact, pick, pickKeys, questionOrJson, questionStem, structuralOf, toStringArray, type Dict } from "../../helpers.js";
 
 export const KqlContentSchema = z.object({
   question: z.string().min(1),
@@ -16,6 +17,22 @@ export const KqlAnswerPayloadSchema = z.object({
   query: z.string(),
 });
 
+function coerceKqlContent(c: Dict): Dict {
+  const rawTables = pick(c, ["tables", "table", "data_tables", "table_names"]);
+  let tables: unknown = rawTables;
+  if (typeof rawTables === "string") tables = [rawTables];
+  else if (Array.isArray(rawTables)) tables = toStringArray(rawTables, ["name", "table", "table_name"]);
+  return compact({
+    question: pick(c, ["question", "task", "stem", "prompt", "question_text"]),
+    tables,
+    expected_keywords: toStringArray(
+      pick(c, ["expected_keywords", "keywords", "key_components", "expected_tokens", "must_include"]),
+      ["keyword", "text", "token", "value"],
+    ),
+    sample_solution: pick(c, ["sample_solution", "answer_key", "model_answer", "query", "target_query", "solution", "expected_query"]),
+  });
+}
+
 export const definition: QuestionTypeDef = {
   id: "kql",
   label: "KQL query",
@@ -26,4 +43,13 @@ export const definition: QuestionTypeDef = {
   generatorSkill: "generate-kql",
   scoring: "ai",
   helpKey: "question_type.kql",
+  aiGradeable: false,
+  rubricRequired: false,
+  rubricSynthesis: "none",
+  shuffleField: null,
+  candidateView: candidateViewOf((c) => pickKeys(c, ["question", "tables"])),
+  coerceContent: coerceKqlContent,
+  guidanceText: questionStem,
+  rubricText: questionOrJson,
+  evalStructuralCheck: structuralOf(KqlContentSchema, (d) => (d.expected_keywords.length >= 1 ? null : "kql: expected_keywords.length < 1")),
 };
