@@ -18,6 +18,7 @@
     "@assessiq/auth": "workspace:*",
     "@assessiq/users": "workspace:*",
     "@assessiq/question-bank": "workspace:*",
+    "@assessiq/question-types": "workspace:*",
     "@assessiq/assessment-lifecycle": "workspace:*",
     "@assessiq/attempt-engine": "workspace:*",
     "@assessiq/ai-grading": "workspace:*",

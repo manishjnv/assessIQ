@@ -16,6 +16,7 @@
  * target. Record this as "no spec by design", not a gap to fill.
  */
 
+import { QUESTION_TYPES, getQuestionType } from "@assessiq/question-types";
 import { type QuestionType } from "./types.js";
 
 // ---------------------------------------------------------------------------
@@ -100,6 +101,11 @@ export interface DifficultyTarget {
 
 /** AI-generated types only: numeric / multi_select / ordering / structured_case are authored by hand (no generation, no difficulty spec). */
 type GeneratedQuestionType = Exclude<QuestionType, "numeric" | "multi_select" | "ordering" | "structured_case">;
+
+/** Types the generator skills produce (the keys of DIFFICULTY_SPEC): those with a generatorSkill. */
+export const GENERATED_TYPES = QUESTION_TYPES.filter(
+  (t): t is GeneratedQuestionType => getQuestionType(t).generatorSkill !== null,
+);
 
 export const DIFFICULTY_SPEC: Record<GeneratedQuestionType, Record<DifficultyLevel, DifficultyTarget>> = {
   mcq: {
@@ -258,16 +264,19 @@ export function functionToNice(fn: string): string {
 // defer validation (rubric may not yet exist at generation time).
 // ---------------------------------------------------------------------------
 
-export function validateStructuralDifficulty(
-  type: GeneratedQuestionType,
+type StructuralResult = { ok: true } | { ok: false; reason: string };
+type StructuralCheck = (
   level: DifficultyLevel,
   content: unknown,
   rubric: unknown,
-): { ok: true } | { ok: false; reason: string } {
-  const spec = DIFFICULTY_SPEC[type][level];
+  spec: DifficultyTarget,
+) => StructuralResult;
+const ok: StructuralCheck = () => ({ ok: true });
 
-  switch (type) {
-    case "mcq": {
+// Per-type bodies depend on 04 spec shapes, so they stay here. `satisfies` makes a
+// missing question type a compile error. Hand-authored types have no difficulty gate.
+const STRUCTURAL_CHECKS = {
+  mcq: (level, content, rubric, spec) => {
       const c = content as Record<string, unknown> | null | undefined;
       if (!c || !Array.isArray(c["options"])) {
         return { ok: false, reason: "mcq content.options must be an array" };
@@ -280,9 +289,8 @@ export function validateStructuralDifficulty(
         };
       }
       return { ok: true };
-    }
-
-    case "kql": {
+  },
+  kql: (level, content, rubric, spec) => {
       const c = content as Record<string, unknown> | null | undefined;
       if (!c || !Array.isArray(c["tables"])) {
         return { ok: false, reason: "kql content.tables must be an array" };
@@ -297,9 +305,8 @@ export function validateStructuralDifficulty(
         };
       }
       return { ok: true };
-    }
-
-    case "scenario": {
+  },
+  scenario: (level, content, rubric, spec) => {
       const c = content as Record<string, unknown> | null | undefined;
       if (!c || !Array.isArray(c["steps"])) {
         return { ok: false, reason: "scenario content.steps must be an array" };
@@ -325,9 +332,8 @@ export function validateStructuralDifficulty(
         }
       }
       return { ok: true };
-    }
-
-    case "subjective": {
+  },
+  subjective: (level, content, rubric, spec) => {
       // D-3 RULE: rubric generated later — defer if absent or has no anchors array.
       if (rubric == null) return { ok: true };
       const r = rubric as Record<string, unknown>;
@@ -342,13 +348,24 @@ export function validateStructuralDifficulty(
         };
       }
       return { ok: true };
-    }
-
-    case "log_analysis":
+  },
+  log_analysis: (level, content, rubric, spec) => {
       // No hard gate in Phase A.
       return { ok: true };
+  },
+  numeric: ok,
+  multi_select: ok,
+  ordering: ok,
+  structured_case: ok,
+} satisfies Record<QuestionType, StructuralCheck>;
 
-    default:
-      return { ok: true };
-  }
+export function validateStructuralDifficulty(
+  type: QuestionType,
+  level: DifficultyLevel,
+  content: unknown,
+  rubric: unknown,
+): StructuralResult {
+  // Hand-authored types have no DIFFICULTY_SPEC row; their check ignores spec.
+  const spec = (DIFFICULTY_SPEC as Partial<Record<QuestionType, Record<DifficultyLevel, DifficultyTarget>>>)[type]?.[level] as DifficultyTarget;
+  return STRUCTURAL_CHECKS[type](level, content, rubric, spec);
 }

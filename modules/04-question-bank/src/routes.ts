@@ -26,6 +26,8 @@
 
 import type { FastifyInstance } from "fastify";
 import { ValidationError, NotFoundError, UUID_RE, parsePagination } from "@assessiq/core";
+import { QUESTION_TYPES } from "@assessiq/question-types";
+import { GENERATED_TYPES } from "./difficulty-spec.js";
 import { MAX_PAGE_SIZE } from "./service/_shared.js";
 import {
   scoreQuestion,
@@ -97,7 +99,7 @@ import { registerTaxonomyRoutes } from "./taxonomy-routes.js";
 // ---------------------------------------------------------------------------
 
 /** Allowed per-type override keys. */
-const GENERATE_TYPE_KEYS = ["mcq", "log_analysis", "scenario", "kql", "subjective"] as const;
+const GENERATE_TYPE_KEYS = GENERATED_TYPES;
 type GenerateTypeKey = typeof GENERATE_TYPE_KEYS[number];
 
 /**
@@ -415,7 +417,7 @@ export async function registerQuestionBankRoutes(
           : undefined;
 
       // Parse type_counts — optional; same validation as parseGenerateBody
-      const GENERATE_TYPE_KEYS_INNER = ["mcq", "log_analysis", "scenario", "kql", "subjective"] as const;
+      const GENERATE_TYPE_KEYS_INNER = GENERATED_TYPES;
       type GenerateTypeKeyInner = typeof GENERATE_TYPE_KEYS_INNER[number];
       let typeCounts: Partial<Record<GenerateTypeKeyInner, number>> | undefined;
       if (body?.type_counts !== undefined && body.type_counts !== null) {
@@ -686,7 +688,7 @@ export async function registerQuestionBankRoutes(
           properties: {
             pack_id: { type: "string", format: "uuid" },
             level_id: { type: "string", format: "uuid" },
-            type: { type: "string", enum: ["mcq", "subjective", "kql", "scenario", "log_analysis", "numeric", "multi_select", "ordering", "structured_case"] },
+            type: { type: "string", enum: [...QUESTION_TYPES] },
             topic: { type: "string", minLength: 1, maxLength: 200 },
             points: { type: "integer", minimum: 1 },
             content: {},

@@ -14,33 +14,15 @@
 // pass the full content because the rubric legitimately needs the reference
 // answer. Pure / dependency-free so the no-leak property is unit-testable.
 
+import { isQuestionType, getQuestionType } from "@assessiq/question-types";
+
 export function deriveQuestionTextForGuidance(
   question: { type: string; content: unknown },
 ): string {
-  const c = (question.content ?? {}) as Record<string, unknown>;
-  const str = (v: unknown): string => (typeof v === "string" ? v : "");
-
-  switch (question.type) {
-    case "scenario": {
-      const parts: string[] = [str(c.title), str(c.intro)];
-      if (Array.isArray(c.steps)) {
-        for (const s of c.steps) {
-          if (s && typeof s === "object") {
-            // ONLY the candidate-visible prompt — never steps[].expected.
-            parts.push(str((s as Record<string, unknown>).prompt));
-          }
-        }
-      }
-      return parts.filter(Boolean).join("\n").trim();
-    }
-    case "log_analysis":
-      // question + log_format only — never expected_findings/sample_solution/log_excerpt.
-      return [str(c.question), str(c.log_format)].filter(Boolean).join("\n").trim();
-    case "mcq":
-    case "subjective":
-    case "kql":
-    default:
-      // Stem only — for mcq this omits options/correct/rationale.
-      return str(c.question).trim();
+  // Unknown stored types fall back to the stem-only behaviour (was the switch default).
+  if (!isQuestionType(question.type)) {
+    const c = (question.content ?? {}) as Record<string, unknown>;
+    return typeof c.question === "string" ? c.question.trim() : "";
   }
+  return getQuestionType(question.type).guidanceText(question.content);
 }

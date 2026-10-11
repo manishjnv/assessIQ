@@ -21,7 +21,7 @@ export {
 // @assessiq/question-types (RW-54a). Re-exported here so existing importers keep working.
 import {
   QUESTION_TYPES,
-  QUESTION_TYPE_REGISTRY,
+  getQuestionType,
   McqContentSchema,
   NumericContentSchema,
   MultiSelectContentSchema,
@@ -64,17 +64,13 @@ export type LogAnalysisContent = z.infer<typeof LogAnalysisContentSchema>;
 // Per-type union dispatcher
 // ---------------------------------------------------------------------------
 
-const CONTENT_SCHEMA_MAP: Record<QuestionType, z.ZodTypeAny> = Object.fromEntries(
-  QUESTION_TYPES.map((t) => [t, QUESTION_TYPE_REGISTRY[t].contentSchema]),
-) as Record<QuestionType, z.ZodTypeAny>;
-
 export function validateQuestionContent(
   type: QuestionType,
   content: unknown,
 ):
   | { ok: true; data: McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent | OrderingContent | StructuredCaseContent }
   | { ok: false; errors: z.ZodIssue[] } {
-  const result = CONTENT_SCHEMA_MAP[type].safeParse(content);
+  const result = getQuestionType(type).contentSchema.safeParse(content);
   if (result.success) {
     return { ok: true, data: result.data as McqContent | SubjectiveContent | KqlContent | ScenarioContent | LogAnalysisContent | NumericContent | MultiSelectContent | OrderingContent | StructuredCaseContent };
   }
@@ -82,7 +78,7 @@ export function validateQuestionContent(
 }
 
 export function rubricRequiredFor(type: QuestionType): boolean {
-  return type === "subjective" || type === "scenario";
+  return getQuestionType(type).rubricRequired;
 }
 
 // FR25: one rubric validator, owned by module 08 (same ok/data|errors shape).

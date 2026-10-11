@@ -9,6 +9,7 @@ import {
   uuidv7,
 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { getQuestionType, isQuestionType } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import { resyncSetForTenant, listCloneTenantIdsForSource } from "../clone.js";
 import { QB_ERROR_CODES } from "../types.js";
@@ -41,6 +42,13 @@ import {
 // ---------------------------------------------------------------------------
 // listPacks
 // ---------------------------------------------------------------------------
+
+/** AI-graded type whose content carries no reference answer (stem only): publish needs a rubric anchor. */
+const isStemOnlyAiType = (t: string): boolean => {
+  if (!isQuestionType(t)) return false;
+  const d = getQuestionType(t);
+  return d.aiGradeable && d.rubricSynthesis === "none";
+};
 
 export async function listPacks(
   tenantId: string,
@@ -294,7 +302,7 @@ export async function publishPack(
     //      until re-published; ai_draft/archived are not activated, so excluded.
     const subjectiveNoRubric = questions.filter(
       (q) =>
-        q.type === "subjective" &&
+        isStemOnlyAiType(q.type) &&
         (q.status === "draft" || q.status === "active") &&
         !hasAnchorRubric(q.rubric),
     );
