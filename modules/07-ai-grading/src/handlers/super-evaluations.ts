@@ -33,6 +33,7 @@ import { AppError, streamLogger } from "@assessiq/core";
 import { assertTenantActive, withSystemRole, withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { getAttemptProgress, listSuperEvaluationQueue } from "../repository.js";
+import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import type { SuperEvaluationRow } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
@@ -127,7 +128,7 @@ export async function assertInEvaluationQueue(attemptId: string): Promise<void> 
           EXISTS (SELECT 1 FROM attempt_questions aq
                     JOIN question_versions qv -- N21: frozen type, same as 06/09
                       ON qv.question_id = aq.question_id AND qv.version = aq.question_version
-                   WHERE aq.attempt_id = a.id AND qv.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))
+                   WHERE aq.attempt_id = a.id AND qv.type <> ALL($2::text[]))
           AND u.erased_at IS NULL
           AND (a.status IN ('submitted', 'auto_submitted', 'pending_admin_grading')
                OR (a.status = 'graded' AND a.evaluation_released_at IS NULL))
@@ -137,7 +138,7 @@ export async function assertInEvaluationQueue(attemptId: string): Promise<void> 
          JOIN users u ON u.id = a.user_id
          LEFT JOIN tenant_settings ts ON ts.tenant_id = a.tenant_id -- FU-A11 pause flag
         WHERE a.id = $1`,
-      [attemptId],
+      [attemptId, DETERMINISTIC_IDS],
     );
     return res.rows[0];
   });

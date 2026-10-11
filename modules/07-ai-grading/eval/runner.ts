@@ -15,6 +15,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { QUESTION_TYPE_REGISTRY } from "@assessiq/question-types";
+import { GENERATION_ORDER, type GenerableQuestionType } from "../src/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,7 +25,16 @@ const __dirname = dirname(__filename);
 // Public type contracts
 // ---------------------------------------------------------------------------
 
-export type EvalType = "mcq" | "log_analysis" | "scenario" | "kql" | "subjective";
+export type EvalType = GenerableQuestionType;
+
+/**
+ * Types the eval harness structurally scores: the ones with a generator skill.
+ * The registry never scored numeric/multi_select/ordering/structured_case here
+ * (structuralCompleteness stayed false). Keep that, so eval baselines do not shift.
+ */
+export const EVAL_STRUCTURAL_TYPES: readonly EvalType[] = GENERATION_ORDER.filter(
+  (t) => QUESTION_TYPE_REGISTRY[t].generatorSkill !== null,
+);
 
 export interface KbSourceRef {
   id: string;
@@ -85,14 +96,17 @@ const KbSourceRefSchema = z.object({
 });
 
 const GoldenBaseSchema = z.object({
-  type: z.enum(["mcq", "log_analysis", "scenario", "kql", "subjective"]),
+  type: z.enum(EVAL_STRUCTURAL_TYPES as unknown as [EvalType, ...EvalType[]]),
   topic: z.string(),
   points: z.number().int().positive(),
   content: z.unknown(),
   knowledge_base_source_ids: z.array(z.string()).min(1),
 });
 
-// Per-type content schemas (mirror the omnibus skill's submit_questions shape)
+// Per-type content schemas (mirror the omnibus skill's submit_questions shape).
+// ponytail: kept local, NOT the registry hook. The registry contentSchema/evalStructuralCheck
+// differ from these (e.g. mcq/log_analysis length checks live in the structural step, scenario
+// schema is stricter), and scoreQuestion's schemaValid output feeds the eval baselines.
 const McqContentSchema = z.object({
   question: z.string().min(1),
   options: z.array(z.string()).length(4),
@@ -133,6 +147,29 @@ const KqlContentSchema = z.object({
 const SubjectiveContentSchema = z.object({
   question: z.string().min(1),
 });
+
+type StructuralResult = { schemaOk: false; issues: string } | { schemaOk: true; complete: boolean; failure: string };
+
+function structural<T>(
+  schema: z.ZodType<T>,
+  check: (d: T) => boolean,
+  failure: string,
+): (content: unknown) => StructuralResult {
+  return (content) => {
+    const r = schema.safeParse(content);
+    if (!r.success) return { schemaOk: false, issues: r.error.issues.map((e) => e.message).join("; ") };
+    return { schemaOk: true, complete: check(r.data), failure };
+  };
+}
+
+// Keyed by type (a renderer-style map, not a switch on literals).
+const EVAL_STRUCTURAL_CHECKS: Record<EvalType, (content: unknown) => StructuralResult> = {
+  mcq: structural(McqContentSchema, (d) => d.options.length === 4, "mcq: options.length !== 4"),
+  log_analysis: structural(LogAnalysisContentSchema, (d) => d.expected_findings.length >= 2, "log_analysis: expected_findings.length < 2"),
+  scenario: structural(ScenarioContentSchema, (d) => d.steps.length >= 1, "scenario: steps.length < 1"),
+  kql: structural(KqlContentSchema, (d) => d.expected_keywords.length >= 1, "kql: expected_keywords.length < 1"),
+  subjective: structural(SubjectiveContentSchema, (d) => d.question.trim().length > 0, "subjective: question is empty"),
+};
 
 // ---------------------------------------------------------------------------
 // loadGolden
@@ -216,61 +253,15 @@ export function scoreQuestion(
   let structuralCompleteness = false;
 
   // --- schemaValid + structuralCompleteness (type-specific) ---
-  switch (q.type) {
-    case "mcq": {
-      const r = McqContentSchema.safeParse(q.content);
-      if (r.success) {
-        schemaValid = true;
-        structuralCompleteness = r.data.options.length === 4;
-        if (!structuralCompleteness) failures.push("mcq: options.length !== 4");
-      } else {
-        failures.push(`schemaValid: ${r.error.issues.map((e) => e.message).join("; ")}`);
-      }
-      break;
-    }
-    case "log_analysis": {
-      const r = LogAnalysisContentSchema.safeParse(q.content);
-      if (r.success) {
-        schemaValid = true;
-        structuralCompleteness = r.data.expected_findings.length >= 2;
-        if (!structuralCompleteness) failures.push("log_analysis: expected_findings.length < 2");
-      } else {
-        failures.push(`schemaValid: ${r.error.issues.map((e) => e.message).join("; ")}`);
-      }
-      break;
-    }
-    case "scenario": {
-      const r = ScenarioContentSchema.safeParse(q.content);
-      if (r.success) {
-        schemaValid = true;
-        structuralCompleteness = r.data.steps.length >= 1;
-        if (!structuralCompleteness) failures.push("scenario: steps.length < 1");
-      } else {
-        failures.push(`schemaValid: ${r.error.issues.map((e) => e.message).join("; ")}`);
-      }
-      break;
-    }
-    case "kql": {
-      const r = KqlContentSchema.safeParse(q.content);
-      if (r.success) {
-        schemaValid = true;
-        structuralCompleteness = r.data.expected_keywords.length >= 1;
-        if (!structuralCompleteness) failures.push("kql: expected_keywords.length < 1");
-      } else {
-        failures.push(`schemaValid: ${r.error.issues.map((e) => e.message).join("; ")}`);
-      }
-      break;
-    }
-    case "subjective": {
-      const r = SubjectiveContentSchema.safeParse(q.content);
-      if (r.success) {
-        schemaValid = true;
-        structuralCompleteness = r.data.question.trim().length > 0;
-        if (!structuralCompleteness) failures.push("subjective: question is empty");
-      } else {
-        failures.push(`schemaValid: ${r.error.issues.map((e) => e.message).join("; ")}`);
-      }
-      break;
+  const check = EVAL_STRUCTURAL_CHECKS[q.type];
+  if (check) {
+    const r = check(q.content);
+    if (r.schemaOk) {
+      schemaValid = true;
+      structuralCompleteness = r.complete;
+      if (!r.complete) failures.push(r.failure);
+    } else {
+      failures.push(`schemaValid: ${r.issues}`);
     }
   }
 

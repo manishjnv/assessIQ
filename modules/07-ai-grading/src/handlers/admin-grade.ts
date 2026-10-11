@@ -26,6 +26,7 @@
 
 import { AppError, config, streamLogger } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { AI_GRADEABLE_IDS, getQuestionType, isQuestionType } from "@assessiq/question-types";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { assertTenantAiEnabled } from "../repository.js";
 import { gradeSubjective } from "../runtime-selector.js";
@@ -94,7 +95,7 @@ export interface HandleAdminGradeOutput {
 // Helper — load frozen questions WITH rubric (admin-only) and answers
 // ---------------------------------------------------------------------------
 
-const AI_GRADEABLE_TYPES = new Set(["subjective", "scenario", "log_analysis"]);
+const AI_GRADEABLE_TYPES: ReadonlySet<string> = new Set<string>(AI_GRADEABLE_IDS);
 
 // ---------------------------------------------------------------------------
 // Grade-time rubric synthesis (log_analysis + scenario)
@@ -126,15 +127,15 @@ type SynthReasoningBands = {
 // Per-type reasoning bands. log_analysis text is preserved verbatim from the
 // prior inline block so its grading is byte-identical; scenario gets step-
 // oriented wording.
-const SYNTH_REASONING_BANDS: Record<"log_analysis" | "scenario", SynthReasoningBands> = {
-  log_analysis: {
+const SYNTH_REASONING_BANDS: Record<"expected_findings" | "steps_expected", SynthReasoningBands> = {
+  expected_findings: {
     band_4: "Identifies all expected findings with clear supporting evidence from the log",
     band_3: "Identifies most expected findings with adequate supporting evidence",
     band_2: "Identifies some expected findings; evidence partially supported",
     band_1: "Identifies few findings; reasoning unclear or unsupported",
     band_0: "No relevant findings identified or completely incorrect analysis",
   },
-  scenario: {
+  steps_expected: {
     band_4: "Addresses all scenario steps correctly with clear, well-supported reasoning",
     band_3: "Addresses most steps adequately with reasonable supporting evidence",
     band_2: "Addresses some steps; reasoning partially supported",
@@ -150,28 +151,7 @@ const SYNTH_REASONING_BANDS: Record<"log_analysis" | "scenario", SynthReasoningB
  * stored rubric untouched, preserving the existing fail-on-missing behaviour).
  */
 function extractSynthConcepts(type: string, content: unknown): string[] {
-  const c = content as Record<string, unknown> | null | undefined;
-  if (type === "log_analysis") {
-    // Filter is byte-identical to the pre-2026-05-26 inline block (no trim) so
-    // existing log_analysis grading is unchanged for every input.
-    const raw = c?.["expected_findings"];
-    return Array.isArray(raw)
-      ? raw.filter((f): f is string => typeof f === "string")
-      : [];
-  }
-  if (type === "scenario") {
-    const steps = c?.["steps"];
-    return Array.isArray(steps)
-      ? steps
-          .map((s) =>
-            s && typeof s === "object"
-              ? (s as Record<string, unknown>)["expected"]
-              : undefined,
-          )
-          .filter((e): e is string => typeof e === "string" && e.trim().length > 0)
-      : [];
-  }
-  return [];
+  return isQuestionType(type) ? (getQuestionType(type).synthConcepts?.(content) ?? []) : [];
 }
 
 // Last-resort holistic rubric: no anchors, 100 % reasoning band. Used when a
@@ -248,7 +228,8 @@ function buildSynthesizedRubric(
  */
 export function resolveGradingRubric(type: string, content: unknown, rubric: unknown): unknown {
   let effectiveRubric = rubric;
-  if (type === "log_analysis" || type === "scenario") {
+  const synthKind = isQuestionType(type) ? getQuestionType(type).rubricSynthesis : "none";
+  if (synthKind !== "none") {
     const rubricVal = rubric as { anchors?: unknown[] } | null | undefined;
     if (
       !rubricVal ||
@@ -259,7 +240,7 @@ export function resolveGradingRubric(type: string, content: unknown, rubric: unk
       if (concepts.length > 0) {
         effectiveRubric = buildSynthesizedRubric(
           concepts,
-          SYNTH_REASONING_BANDS[type],
+          SYNTH_REASONING_BANDS[synthKind],
         );
       }
     }

@@ -32,6 +32,7 @@
 
 import { AppError, config, streamLogger } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { AI_GRADEABLE_IDS } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import { assertTenantAiEnabled } from "../repository.js";
@@ -84,7 +85,7 @@ export interface HandleAdminRerunOutput {
 // Helper — load attempt + questions + answers (same as admin-grade, DRY later)
 // ---------------------------------------------------------------------------
 
-const AI_GRADEABLE_TYPES = new Set(["subjective", "scenario", "log_analysis"]);
+const AI_GRADEABLE_TYPES: ReadonlySet<string> = new Set<string>(AI_GRADEABLE_IDS);
 
 async function loadGradingData(
   client: PoolClient,

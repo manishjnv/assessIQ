@@ -27,7 +27,7 @@ import { spawn } from "node:child_process";
 
 import { AppError, streamLogger, sha256Hex } from "@assessiq/core";
 
-import { AI_GRADING_ERROR_CODES } from "../types.js";
+import { AI_GRADING_ERROR_CODES, GENERABLE_IDS, type GenerableQuestionType } from "../types.js";
 import {
   AnchorFindingSchema,
   BandFindingSchema,
@@ -523,7 +523,7 @@ const MCP_SUBMIT_QUESTIONS = "mcp__assessiq__submit_questions";
  * the tools package (no dep in this package.json).
  */
 const GeneratedQuestionDraftSchema = z.object({
-  type: z.enum(["mcq", "subjective", "kql", "scenario", "log_analysis"]),
+  type: z.enum(GENERABLE_IDS as unknown as [GenerableQuestionType, ...GenerableQuestionType[]]),
   topic: z.string().min(3).max(200),
   points: z.number().int().min(1).max(10),
   knowledge_base_source_ids: z.array(z.string().min(1)).min(1),
