@@ -79,7 +79,6 @@ export const GradingProposalSchema = z.object({
       band: z.unknown().nullable(),
       escalate: z.unknown().nullable(),
     })
-    .refine((v) => v == null || JSON.stringify(v).length <= 65536, "stage_inputs too large")
     .nullable()
     .optional(),
 });

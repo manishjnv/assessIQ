@@ -67,6 +67,10 @@ CREATE POLICY tenant_isolation_update ON frameworks
   USING (
     tenant_id IS NOT NULL
     AND tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid
+  )
+  WITH CHECK (
+    tenant_id IS NOT NULL
+    AND tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid
   );
 DROP POLICY IF EXISTS tenant_isolation_delete ON frameworks;
 CREATE POLICY tenant_isolation_delete ON frameworks
@@ -123,6 +127,10 @@ CREATE POLICY tenant_isolation_update ON taxonomy_nodes
   USING (
     tenant_id IS NOT NULL
     AND tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid
+  )
+  WITH CHECK (
+    tenant_id IS NOT NULL
+    AND tenant_id = NULLIF(current_setting('app.current_tenant', true), '')::uuid
   );
 DROP POLICY IF EXISTS tenant_isolation_delete ON taxonomy_nodes;
 CREATE POLICY tenant_isolation_delete ON taxonomy_nodes
@@ -176,6 +184,9 @@ CREATE POLICY tenant_isolation_insert ON question_taxonomy
        WHERE q.id = question_taxonomy.question_id
          AND p.tenant_id = current_setting('app.current_tenant', true)::uuid
     )
+    -- The node must be visible to this tenant too (NULL-tenant or own). The FK
+    -- alone runs as the table owner and would accept another tenant's node id.
+    AND EXISTS (SELECT 1 FROM taxonomy_nodes n WHERE n.id = question_taxonomy.node_id)
   );
 
 -- ---------------------------------------------------------------------------

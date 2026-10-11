@@ -79,6 +79,9 @@ async function runInTx<T>(
   const hooks: Array<() => Promise<void>> = [];
   afterCommit.set(client, hooks);
   let result: T;
+  // If ROLLBACK itself fails the connection may still sit in an open tx with the
+  // elevated role; destroy it instead of returning it to the pool (RW-38 review).
+  let destroyClient = false;
   try {
     await client.query("BEGIN");
     await setup(client);
@@ -90,11 +93,12 @@ async function runInTx<T>(
     await client.query("ROLLBACK").catch(() => {
       // Secondary failure during rollback — connection is likely dead.
       // Swallow so the caller sees the original error.
+      destroyClient = true;
     });
     throw err;
   } finally {
     afterCommit.delete(client);
-    client.release();
+    client.release(destroyClient || undefined);
   }
 
   // After release: a hook may open its own withTenant (fanout does), and holding
