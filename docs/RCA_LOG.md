@@ -2488,6 +2488,13 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Fix:** one `escapeHtml` in `modules/00-core/src/escape.ts` (escapes `& < > " '`). `render.ts` and `contact.ts` import it. Rendered meta-card HTML now has `&#39;` where a value contains an apostrophe.
 **Prevention:** `tools/lint-core-helpers.ts` (in `pnpm lint:repo`) fails on any local `escapeHtml` outside 00-core.
 
+## 2026-10-11 — RW-35: CSV formula guard still missed invisible leads and tab-then-formula values
+
+**Symptom:** Codex review of RW-35 found values that reached a spreadsheet unprefixed: a zero-width or direction mark (U+200B, U+200E, U+202E), braille blank (U+2800), a leading quote before `=`, and a letter or digit before a tab then `=`.
+**Cause:** `modules/00-core/src/escape.ts` `csvCell` enumerated the characters it skipped. Each round of review found one more character outside the list.
+**Fix:** `modules/00-core/src/escape.ts:18-19`: prefix when the value contains a tab or CR, or when the first run of characters that are not letters or digits is followed by `= + - @`. Tests in `modules/00-core/src/shared-helpers.test.ts`. Residual, accepted: a letter or digit first character is never guarded; spreadsheets read it as text.
+**Prevention:** the rule is a principle (lead run of non-alphanumerics), not a list. Codex verdict recorded in commit `0f410ac`.
+
 ## 2026-10-11 — RW-35: CSV formula guard missed values with leading whitespace
 
 **Symptom:** none seen in use. Review found `csvCell` guarded only a first character of `= + - @ tab CR`, so `" =1+1"` or `"\n=1"` reached the file unguarded. Spreadsheet apps can still read such a cell as a formula.

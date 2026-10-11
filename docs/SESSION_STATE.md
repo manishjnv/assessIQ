@@ -1,3 +1,37 @@
+# Session — 2026-10-11 — Hardening S8 (IN PROGRESS: RW-35, RW-36, RW-37 done; RW-54 partial; deploy pending)
+
+**Headline:** S8 built on main, not yet pushed or deployed at time of writing. RW-35 shared core helpers, RW-36 SQL out of routes plus Zod, RW-37 audit events plus EMAIL_FROM production check: done and reviewed. RW-54 question-type registry: partial (see Open).
+**Commits (local main, in order, not pushed):** dfdb0e7 (RW-37), ffddbf4 (RW-36), aa75333 (RW-54a steps 1-4), b9a4bbb (RW-35), 51aa801 (addLevel actor in tests), 6ece627 (RW-54a steps 5-8), a19a786 (RW-54b generated CHECK), 0f410ac (csvCell guard fix), def9523 (this handoff).
+**Tests:** sequential gate on a19a786: 2882 pass, 1 fail, 12 skipped. Typecheck exit 0. `pnpm lint:repo` exit 0. The one fail is `tools/assessiq-mcp` "rejection writes a JSONL line": a Windows path issue, fails the same on base b9faa95, not an S8 regression.
+**Deploy blockers found and fixed before deploy:** (1) VPS `.env` had no `EMAIL_VERIFIED_DOMAINS`; RW-37 makes production boot fail without it. Set to `assessiq.in` (the EMAIL_FROM domain), backup taken first. Owner to confirm assessiq.in is verified with the mail provider. (2) Migrations 0157-0166 are in modules 16 and 19, not 04; the VPS "gap" was a wrong-folder check.
+**Next:** push (needs trailers, done in this commit), VPS `git pull`, drift gate, apply 0167, rebuild and recreate api, worker, frontend, smoke, then a final handoff commit with deploy results.
+**Open questions:**
+- RW-54 open items: `CONTENT_SCHEMA_MAP` still exists (derived from the registry, not removed); per-type switches in 07 coerce and eval, 04 answer-guidance and difficulty-spec, and 10 ExpectedAnswer, QuestionContent and QuestionPrompt views are not replaced (no per-type behaviour hooks in the registry; follow-up row, eval-gated); registry lint is warn-only (171 hits) and not in `lint:repo`; Opus gaps: R3 misses reversed comparisons, R5 misses one-literal-per-line unions.
+- Residual CSV risk: a letter or digit first character is never prefixed. Spreadsheets read those as text (RCA 2026-10-11).
+- Owner decision: accept `assessiq.in` as the verified EMAIL_VERIFIED_DOMAINS value.
+- Deviation: question-type registry is a new leaf package `packages/question-types`, not inside 04, because 04 to 07 to 06 to 04 would be a cycle.
+
+---
+
+## Agent utilization
+- Opus: plan; design review of the RW-54 registry; diff critique of RW-35, RW-36 (a+b), RW-37, RW-54a steps 5-8, RW-54b.
+- Sonnet: implementation of RW-35, RW-36 (a and b), RW-37, RW-54a steps 1-8 (partial), RW-54b; plus worktree rework rounds.
+- Haiku: STEP 0 state check, Phase 0 digest, sequential test gates (x2), VPS pre-deploy read-only check, round reports.
+- codex:rescue: RW-37 accept (round 4); RW-36 accept (a and b); RW-54a steps 1-8 accept; RW-54b accept; RW-35 revise, addressed in rounds 1-5, last point rebutted with Node evidence (`0f410ac`).
+
+Routing telemetry (tier/model · task · reworked):
+- Sonnet · RW-35 core helpers · reworked: Y (codex guard, 4 rounds)
+- Sonnet · RW-37 audit and EMAIL_FROM · reworked: Y (Opus REVISE, codex REVISE x3)
+- Sonnet · RW-36 SQL and Zod · reworked: Y (Opus NITs round 2)
+- Sonnet · RW-54a registry steps 1-4 · reworked: Y (Dockerfile blocker found by Opus)
+- Sonnet · RW-54a steps 5-6 · reworked: N (partial, scope decision; no switches replaced)
+- Sonnet · RW-54a steps 7-8 · reworked: N
+- Sonnet · RW-54b generated CHECK · reworked: Y (codex generator revisions)
+- Haiku · sequential test gate · reworked: N
+- Haiku · VPS pre-deploy check · reworked: N (its migration-gap blocker was a wrong-folder false alarm)
+
+---
+
 # Session — 2026-10-10 — Hardening S7 (CLOSED: RW-32, RW-33, RW-34 done; deployed)
 
 **Headline:** S7 closed. RW-32 shared primitives, RW-33 overlays and tables, RW-34 one HTTP client. CI green on f588ee2 (quality and e2e). Deployed to VPS at aa7f2fc: assessiq-api, assessiq-worker, assessiq-frontend, assessiq-marketing recreated and healthy; https://assessiq.in/api/health 200; /api/ready 200 (db, redis, claude true); site 200.
