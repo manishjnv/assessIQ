@@ -24,6 +24,7 @@ import { Chip, Table, formatRelative, formatDateTime } from "@assessiq/ui-system
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
+import type { QuestionType } from "@assessiq/question-types";
 import { adminApi, AdminApiError, scoreGenerationAttempt } from "../api.js";
 import type { ScoreAttemptResponse } from "../api.js";
 
@@ -177,7 +178,8 @@ function VerdictPill({ verdict }: { verdict: "pass" | "regression" | "warning" |
 // ---------------------------------------------------------------------------
 
 function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.ReactElement {
-  const ALL_TYPES = ["mcq", "kql", "subjective", "log_analysis", "scenario"] as const;
+  // Display order differs from the registry order, so a typed one-line subset rather than QUESTION_TYPES.
+  const ALL_TYPES: readonly Extract<QuestionType, string>[] = ["mcq", "kql", "subjective", "log_analysis", "scenario"];
   const typeMap = new Map(result.structural.per_type.map((r) => [r.type, r]));
 
   // The five AI-generated types always show (zero rows when absent); any other
