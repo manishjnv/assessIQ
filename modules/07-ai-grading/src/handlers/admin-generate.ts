@@ -33,7 +33,7 @@
 import { AppError, config, streamLogger, uuidv7 } from "@assessiq/core";
 import { withTenant, findTenantSettings } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
-import { AI_GRADING_ERROR_CODES } from "../types.js";
+import { AI_GRADING_ERROR_CODES, GENERATION_ORDER } from "../types.js";
 import { generateQuestions, generateQuestionsByType } from "../runtime-selector.js";
 import { singleFlight } from "../single-flight.js";
 import { allocateByWeight, applyOverride } from "../auto-weight.js";
@@ -730,9 +730,7 @@ export async function handleAdminGenerate(
           : baseAllocation;
 
         // Build one GenerateByTypeInput per non-zero type
-        const typeEntries = (
-          ["mcq", "log_analysis", "scenario", "kql", "subjective"] as const
-        ).filter((t) => shardedAllocation[t] > 0);
+        const typeEntries = GENERATION_ORDER.filter((t) => shardedAllocation[t] > 0);
 
         chunksPlanned = typeEntries.length;
 

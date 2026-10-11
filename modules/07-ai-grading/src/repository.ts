@@ -25,6 +25,7 @@
 
 import type { PoolClient } from "pg";
 import { AppError, displayCandidate } from "@assessiq/core";
+import { AI_GRADEABLE_IDS, DETERMINISTIC_IDS, type QuestionType } from "@assessiq/question-types";
 import { AI_GRADING_ERROR_CODES } from "./types.js";
 import type {
   AnchorFinding,
@@ -781,6 +782,9 @@ interface SuperEvaluationDbRow {
 
 /** Hard cap on one queue response; counts below are over the WHOLE queue, not the page. */
 export const SUPER_QUEUE_LIMIT = 500;
+// The queue kql_count column is a real business subset (types an evaluator marks by hand),
+// not a registry flag, so it stays an explicit single-type constant.
+const KQL_COUNT_TYPES: readonly QuestionType[] = ["kql"];
 
 /**
  * List the platform evaluation queue across ALL tenants, oldest first.
@@ -830,9 +834,9 @@ export async function listSuperEvaluationQueue(
        LEFT JOIN assessments asm ON asm.id = a.assessment_id
        LEFT JOIN levels lvl      ON lvl.id = asm.level_id
        JOIN LATERAL (
-         SELECT COUNT(*) FILTER (WHERE qv.type IN ('subjective', 'scenario', 'log_analysis'))::int AS written_count,
-                COUNT(*) FILTER (WHERE qv.type = 'kql')::int                                       AS kql_count,
-                COUNT(*) FILTER (WHERE qv.type NOT IN ('mcq', 'numeric', 'multi_select', 'ordering', 'structured_case'))::int                                      AS non_mcq
+         SELECT COUNT(*) FILTER (WHERE qv.type = ANY($2::text[]))::int AS written_count,
+                COUNT(*) FILTER (WHERE qv.type = ANY($3::text[]))::int                                 AS kql_count,
+                COUNT(*) FILTER (WHERE qv.type <> ALL($4::text[]))::int                                                          AS non_mcq
            FROM attempt_questions aq
            JOIN question_versions qv -- N21: frozen type, same as 06/09
              ON qv.question_id = aq.question_id AND qv.version = aq.question_version
@@ -843,7 +847,7 @@ export async function listSuperEvaluationQueue(
         AND ($1::uuid IS NULL OR a.tenant_id = $1::uuid)
       ORDER BY COALESCE(a.submitted_at, a.started_at) ASC, a.id ASC
       LIMIT ${SUPER_QUEUE_LIMIT}`,
-    [opts.tenantId ?? null],
+    [opts.tenantId ?? null, AI_GRADEABLE_IDS, KQL_COUNT_TYPES, DETERMINISTIC_IDS],
   );
 
   const items: SuperEvaluationRow[] = res.rows.map((r) => ({

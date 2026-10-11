@@ -9,7 +9,7 @@
 // skeleton — Phase 1" (lines 357-432) and D4 (prompt SHA + model column shape).
 
 import { z } from "zod";
-import type { QuestionType as RegistryQuestionType } from "@assessiq/question-types";
+import { QUESTION_TYPES, QUESTION_TYPE_REGISTRY, type QuestionType as RegistryQuestionType } from "@assessiq/question-types";
 
 // ---------------------------------------------------------------------------
 // AnchorFinding — Stage 1 output (claude-haiku-4-5 via grade-anchors skill)
@@ -220,7 +220,7 @@ export interface GenerateQuestionsInput {
  * submit_questions MCP tool call.
  */
 export interface GeneratedQuestionDraft {
-  type: "mcq" | "subjective" | "kql" | "scenario" | "log_analysis";
+  type: GenerableQuestionType;
   topic: string;
   points: number;
   content: unknown;
@@ -247,13 +247,20 @@ export interface GeneratedQuestionDraft {
 /**
  * Question type union — canonical alias used across generation & weighting logic.
  */
-// ponytail: the registry type is not narrowable by generatorSkill at type level; Extract
-// pins the ids to the registry, generable-types.test.ts pins them to generatorSkill != null.
-export type GenerableQuestionType = Extract<
-  RegistryQuestionType,
-  "mcq" | "subjective" | "kql" | "scenario" | "log_analysis"
+// ponytail: the registry type is not narrowable by generatorSkill at type level, so the narrow
+// type comes from this key set (checked against the registry ids by `satisfies`); the runtime
+// list GENERABLE_IDS is derived from generatorSkill, and generable-types.test.ts pins the two.
+const GENERABLE_KEYS = { mcq: 1, subjective: 1, kql: 1, scenario: 1, log_analysis: 1 } satisfies Partial<
+  Record<RegistryQuestionType, 1>
 >;
+export type GenerableQuestionType = keyof typeof GENERABLE_KEYS;
 export type QuestionType = GenerableQuestionType;
+/** Historical iteration order of the generable types (insert/loop order is behaviour). */
+export const GENERATION_ORDER: readonly Extract<GenerableQuestionType, string>[] = ["mcq", "log_analysis", "scenario", "kql", "subjective"];
+/** Types the generation pipeline can produce (generatorSkill != null), registry order. */
+export const GENERABLE_IDS: readonly GenerableQuestionType[] = QUESTION_TYPES.filter(
+  (t): t is GenerableQuestionType => QUESTION_TYPE_REGISTRY[t].generatorSkill !== null,
+);
 
 /**
  * Returned by generateQuestions() — the full set of generated drafts plus
@@ -331,7 +338,7 @@ export interface GenerateRubricInput {
   questionText: string;
   /** Question type — controls anchor depth guidance.
    * mcq and kql are excluded: they use deterministic grading and have no rubric semantics. */
-  questionType: "subjective" | "scenario" | "log_analysis";
+  questionType: GenerableQuestionType;
   /** Level ordinal (1-5) — calibrates complexity when levelDefaults is null. */
   levelOrdinal: number;
   /** Optional level-defaults from levels.rubric_defaults JSONB. */
@@ -375,7 +382,7 @@ export interface GenerateAnswerGuidanceInput {
    *  question-bank service's answer-key-free deriver. */
   questionText: string;
   /** Question type — drives the per-type baseline hint (all 5 types supported). */
-  questionType: "mcq" | "subjective" | "kql" | "scenario" | "log_analysis";
+  questionType: GenerableQuestionType;
   /** Short topic label for light context (e.g. "alert-triage"). */
   topic: string;
   /** For structured logging only — not sent to the model. */

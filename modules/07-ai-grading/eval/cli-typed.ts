@@ -25,6 +25,7 @@ import {
   scoreQuestion,
   loadAttemptDiagnostic,
   loadRuntimeThresholds,
+  EVAL_STRUCTURAL_TYPES,
 } from "./runner.js";
 import type { EvalResult, EvalType, GoldenQuestion, KbSourceRef, AttemptDiagnostic, RuntimeThresholds } from "./runner.js";
 
@@ -32,7 +33,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const LEVELS = ["L1", "L2", "L3"] as const;
-const TYPES: EvalType[] = ["mcq", "log_analysis", "scenario", "kql", "subjective"];
+const TYPES: readonly EvalType[] = EVAL_STRUCTURAL_TYPES;
 
 type Level = "L1" | "L2" | "L3";
 
@@ -42,7 +43,7 @@ type Level = "L1" | "L2" | "L3";
 
 export async function cmdScoreGoldens(level?: Level, type?: EvalType, _strict?: boolean): Promise<boolean> {
   const levels: readonly string[] = level ? [level] : LEVELS;
-  const types: EvalType[] = type ? [type] : TYPES;
+  const types: readonly EvalType[] = type ? [type] : TYPES;
 
   const results: EvalResult[] = [];
   for (const l of levels) {
@@ -699,13 +700,7 @@ export function renderAttemptReport(
   lines.push(`type           total inserted   topics (truncated)`);
   lines.push(`--------------+----------------+-------------------------------`);
 
-  const allTypes: AttemptDiagnostic["insertedQuestions"][0]["type"][] = [
-    "mcq",
-    "log_analysis",
-    "scenario",
-    "kql",
-    "subjective",
-  ];
+  const allTypes: AttemptDiagnostic["insertedQuestions"][0]["type"][] = [...EVAL_STRUCTURAL_TYPES];
 
   // Build per-type map from inserted questions
   const byType = new Map<string, AttemptDiagnostic["insertedQuestions"]>();

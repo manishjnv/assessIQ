@@ -23,6 +23,8 @@
 // within the workspace and avoid pnpm-install chicken-and-egg ordering.
 
 import { sha256Hex } from "@assessiq/core";
+import { AI_GRADEABLE_IDS } from "@assessiq/question-types";
+import type { GenerableQuestionType } from "../src/types.js";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,7 +61,7 @@ interface CaseRubric {
 
 interface CaseInput {
   id: string;
-  type: "subjective" | "mcq" | "kql" | "scenario" | "log_analysis";
+  type: GenerableQuestionType;
   question: { title: string; text: string };
   rubric: CaseRubric;
   candidate_answer: string;
@@ -686,7 +688,7 @@ async function cmdHarvestOverrides(since: string): Promise<void> {
     override_grading_id: string;
     override_reasoning_band: number | null;
     original_reasoning_band: number | null;
-    type: "subjective" | "scenario" | "log_analysis";
+    type: GenerableQuestionType;
     topic: string;
     content: unknown;
     rubric: unknown;
@@ -704,9 +706,9 @@ async function cmdHarvestOverrides(since: string): Promise<void> {
          JOIN question_versions qv ON qv.question_id = aq.question_id AND qv.version = aq.question_version
          JOIN attempt_answers aa ON aa.attempt_id = v.attempt_id AND aa.question_id = v.question_id
         WHERE v.override_created_at >= $1::date
-          AND q.type IN ('subjective', 'scenario', 'log_analysis')
+          AND q.type = ANY($2::text[])
         ORDER BY v.override_created_at`,
-      [since],
+      [since, AI_GRADEABLE_IDS],
     );
     return res.rows;
   });
