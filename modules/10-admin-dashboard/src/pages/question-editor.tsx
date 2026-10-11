@@ -22,9 +22,25 @@ import type { RubricDraft, BandDraft } from "../components/RubricEditor.js";
 import { QuestionContentView } from "../components/QuestionContentView.js";
 import { StructuredCaseEditor, EMPTY_SC, buildStructuredCaseContent, structuredCaseError } from "../components/StructuredCaseEditor.js";
 import type { ScState } from "../components/StructuredCaseEditor.js";
-import { QUESTION_TYPES, type QuestionType } from "@assessiq/question-types";
+import { QUESTION_TYPES, isQuestionType, getQuestionType, type QuestionType } from "@assessiq/question-types";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
+
+/** Which bespoke editor form a type uses; everything else edits raw JSON. */
+const EDITOR_KIND = {
+  mcq: "json",
+  subjective: "json",
+  kql: "json",
+  scenario: "json",
+  log_analysis: "json",
+  numeric: "keyed-json",
+  multi_select: "keyed-json",
+  ordering: "item-list",
+  structured_case: "stepped-case",
+} satisfies Record<QuestionType, string>;
+
+/** Rubric-section help anchors that exist; a type absent here gets none. */
+const RUBRIC_HELP_ID: Partial<Record<string, string>> = { subjective: "admin.question.editor.subjective.rubric" };
 
 
 const DEFAULT_CONTENT: Record<QuestionType, unknown> = {
@@ -283,13 +299,13 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
     setSubmitError(null);
 
     let content: unknown;
-    if (type === "ordering") {
+    if (EDITOR_KIND[type] === "item-list") {
       if (!ordQuestion.trim() || ordItems.length < 2 || ordItems.some((s) => !s.trim())) {
         setSubmitError("Ordering needs a question and 2 to 10 items, none blank.");
         return;
       }
       content = buildOrderingContent(ordQuestion, ordItems, ordScoring);
-    } else if (type === "structured_case") {
+    } else if (EDITOR_KIND[type] === "stepped-case") {
       const problem = structuredCaseError(sc);
       if (problem !== null) {
         setSubmitError(problem);
@@ -406,7 +422,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
           </div>
         </div>
 
-        {type === "ordering" ? (
+        {EDITOR_KIND[type] === "item-list" ? (
           <div className="aiq-form-group" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
             <HelpTip helpId="admin.question.editor.content.ordering">
               <label className="aiq-label" htmlFor="q-ord-question">Question *</label>
@@ -448,11 +464,11 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
               <option value="partial">Partial credit (items in the right place)</option>
             </select>
           </div>
-        ) : type === "structured_case" ? (
+        ) : EDITOR_KIND[type] === "stepped-case" ? (
           <StructuredCaseEditor value={sc} onChange={setSc} />
         ) : (
         <div className="aiq-form-group">
-          {type === "numeric" || type === "multi_select" ? (
+          {EDITOR_KIND[type] === "keyed-json" ? (
             <HelpTip helpId={`admin.question.editor.content.${type}`}>
               <label className="aiq-label" htmlFor="q-content">Content (JSON) *</label>
             </HelpTip>
@@ -741,10 +757,8 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
     );
   }
 
-  const supportsRubric =
-    question.type === "subjective" ||
-    question.type === "scenario" ||
-    question.type === "log_analysis";
+  const typeDef = isQuestionType(question.type) ? getQuestionType(question.type) : null;
+  const supportsRubric = typeDef?.aiGradeable === true;
 
   // Live anchor weight total for the badge
   const anchorWeightTotal = rubricDraft
@@ -924,7 +938,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
         {/* Rubric section */}
         <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)" }}>
           <h2
-            {...(question.type === "subjective" ? { "data-help-id": "admin.question.editor.subjective.rubric" } : {})}
+            {...(RUBRIC_HELP_ID[question.type] ? { "data-help-id": RUBRIC_HELP_ID[question.type] } : {})}
             style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: "0 0 var(--aiq-space-lg)" }}
           >
             Rubric
@@ -940,7 +954,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
                   <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", color: "var(--aiq-color-fg-muted)" }}>
                     No rubric yet.
                   </p>
-                  {question.type === "log_analysis" && (
+                  {typeDef?.rubricSynthesis === "expected_findings" && (
                     <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
                       log_analysis questions auto-synthesize a rubric at grade time from expected_findings.
                       Generate a draft here and click <strong>Save rubric</strong> only if you want to override the auto-synth with a curated key-point list.

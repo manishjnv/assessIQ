@@ -26,6 +26,7 @@ import { difficultyLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Spinner } from "@assessiq/ui-system";
+import { isQuestionType, RUBRIC_REQUIRED_IDS, getQuestionType, type QuestionType } from "@assessiq/question-types";
 import { AdminShell } from "../components/AdminShell.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
 import {
@@ -45,7 +46,7 @@ import {
   getActiveGenerationBatchApi,
   setGenerationBatchStatusApi,
 } from "../api.js";
-import type { DomainItem, CategoryItem, QuestionListItem, GenerationAttemptSummary } from "../api.js";
+import type { DomainItem, CategoryItem, QuestionListItem, GenerationAttemptSummary, GenerateQuestionType } from "../api.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -164,7 +165,8 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
     whiteSpace: "pre-wrap",
   };
 
-  if (type === "mcq") {
+  const PREVIEWS: Partial<Record<QuestionType, () => React.ReactElement>> = {
+  mcq: () => {
     const question = typeof content["question"] === "string" ? content["question"] : null;
     const options = Array.isArray(content["options"]) ? content["options"] as unknown[] : null;
     const correctRaw = content["correct_answer"] ?? content["correct"] ?? content["answer"];
@@ -225,9 +227,9 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
         )}
       </div>
     );
-  }
+  },
 
-  if (type === "kql") {
+  kql: () => {
     // Real kql content schema: { question, tables[], expected_keywords[], sample_solution }
     const question = typeof content["question"] === "string" ? content["question"] : null;
     const tables = Array.isArray(content["tables"]) ? content["tables"] as unknown[] : null;
@@ -265,9 +267,9 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
         )}
       </div>
     );
-  }
+  },
 
-  if (type === "log_analysis") {
+  log_analysis: () => {
     // Real log_analysis schema: { question, log_format, log_excerpt, hint,
     //                             expected_findings, sample_solution }
     const question = typeof content["question"] === "string" ? content["question"] : null;
@@ -325,9 +327,9 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
         )}
       </div>
     );
-  }
+  },
 
-  if (type === "scenario") {
+  scenario: () => {
     // Real scenario schema: { title, intro, steps[{prompt, expected?}], step_dependency }
     const title = typeof content["title"] === "string" ? content["title"] : null;
     const intro = typeof content["intro"] === "string" ? content["intro"] : null;
@@ -376,7 +378,10 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
         )}
       </div>
     );
-  }
+  },
+  };
+  const preview = isQuestionType(type) ? PREVIEWS[type] : undefined;
+  if (preview) return preview();
 
   // subjective (and any unknown type): real subjective schema is { question }.
   // Rubric lives in the separate `rubric` column, not in content — not shown here.
@@ -541,7 +546,7 @@ export function AdminGenerateWizard(): React.ReactElement {
           count: cat.default_question_count ?? 3,
           selectedTypes: Array.isArray(cat.supported_types)
             ? [...(cat.supported_types as string[])]
-            : ["subjective", "scenario"],
+            : [...RUBRIC_REQUIRED_IDS],
           checked: cat.default_selected,
         }));
         setCategoryConfigs(configs);
@@ -603,7 +608,7 @@ export function AdminGenerateWizard(): React.ReactElement {
         count: cat.default_question_count ?? 3,
         selectedTypes: Array.isArray(cat.supported_types)
           ? [...(cat.supported_types as string[])]
-          : ["subjective", "scenario"],
+          : [...RUBRIC_REQUIRED_IDS],
         checked: cat.id === created.id ? true : cat.default_selected,
       }));
       setCategoryConfigs(configs);
@@ -709,9 +714,9 @@ export function AdminGenerateWizard(): React.ReactElement {
         // at least sends the correct count total so the right number of questions generates.
         const C = cat.count;
         // These five are the AI-generated types by design; numeric, multi_select, ordering and structured_case are authored by hand (modules/04-question-bank/src/difficulty-spec.ts:96).
-        const typeCounts: Partial<Record<"mcq" | "log_analysis" | "scenario" | "kql" | "subjective", number>> = {};
+        const typeCounts: Partial<Record<GenerateQuestionType, number>> = {};
         for (const t of cat.selectedTypes) {
-          typeCounts[t as "mcq" | "log_analysis" | "scenario" | "kql" | "subjective"] = C;
+          typeCounts[t as GenerateQuestionType] = C;
         }
         const totalCount = cat.selectedTypes.length * C;
 
@@ -751,7 +756,7 @@ export function AdminGenerateWizard(): React.ReactElement {
       const draftList = await listQuestionsApi({ status: "ai_draft", pageSize: 500 });
       const needRubric = draftList.items.filter(
         (d) =>
-          d.type === "subjective" &&
+          isQuestionType(d.type) && getQuestionType(d.type).aiGradeable && getQuestionType(d.type).rubricSynthesis === "none" &&
           (d.rubric === null || d.rubric === undefined) &&
           d.category_id !== null &&
           categoryIdsThisRun.has(d.category_id),
@@ -1032,7 +1037,7 @@ export function AdminGenerateWizard(): React.ReactElement {
 
                         {/* D1: Type checkboxes — disabled when unchecked */}
                         <div style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
-                          {(Array.isArray(cfg.category.supported_types) ? cfg.category.supported_types as string[] : ["subjective", "scenario"]).map((t) => (
+                          {(Array.isArray(cfg.category.supported_types) ? cfg.category.supported_types as string[] : [...RUBRIC_REQUIRED_IDS]).map((t) => (
                             <label
                               key={t}
                               style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "var(--aiq-font-mono)", fontSize: 10, color: controlsDisabled ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)", cursor: controlsDisabled ? "not-allowed" : "pointer", opacity: controlsDisabled ? 0.5 : 1 }}

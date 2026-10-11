@@ -10,6 +10,7 @@
 //  - Never crashes on malformed content — each section falls back independently.
 
 import React from "react";
+import { isQuestionType, type QuestionType } from "@assessiq/question-types";
 import { StructuredCaseView } from "./StructuredCaseView.js";
 
 export interface QuestionContentViewProps {
@@ -597,25 +598,18 @@ export function QuestionContentView({ type, content }: QuestionContentViewProps)
     return <JsonFallback value={content} />;
   }
 
-  switch (type) {
-    case "mcq":
-    case "multi_select":
-      return <McqView c={c} />;
-    case "ordering":
-      return <OrderingView c={c} />;
-    case "structured_case":
-      return <StructuredCaseView c={c} mode="key" />;
-    case "numeric":
-      return <NumericView c={c} />;
-    case "subjective":
-      return <SubjectiveView c={c} />;
-    case "kql":
-      return <KqlView c={c} />;
-    case "scenario":
-      return <ScenarioView c={c} />;
-    case "log_analysis":
-      return <LogAnalysisView c={c} />;
-    default:
-      return <JsonFallback value={content} />;
-  }
+  return isQuestionType(type) ? CONTENT_VIEWS[type](c) : <JsonFallback value={content} />;
 }
+
+// Own file-local map (not renderers.tsx): these are per-type VIEW components, not answer renderers.
+const CONTENT_VIEWS = {
+  mcq: (c) => <McqView c={c} />,
+  multi_select: (c) => <McqView c={c} />,
+  ordering: (c) => <OrderingView c={c} />,
+  structured_case: (c) => <StructuredCaseView c={c} mode="key" />,
+  numeric: (c) => <NumericView c={c} />,
+  subjective: (c) => <SubjectiveView c={c} />,
+  kql: (c) => <KqlView c={c} />,
+  scenario: (c) => <ScenarioView c={c} />,
+  log_analysis: (c) => <LogAnalysisView c={c} />,
+} satisfies Record<QuestionType, (c: Record<string, unknown>) => React.ReactElement>;

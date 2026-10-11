@@ -23,8 +23,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Chip, ConfirmDialog, Modal, formatDate, formatDateTime, formatRelative } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
+import type { QuestionType } from "@assessiq/question-types";
 import { adminApi, AdminApiError, bulkUpdateQuestionStatus } from "../api.js";
 import { useAdminSession } from "../session.js";
+
+// Chip display order differs from the registry order; "" = all types.
+const TYPE_CHIPS: readonly ("" | Extract<QuestionType, string>)[] = ["", "mcq", "log_analysis", "scenario", "kql", "subjective", "numeric", "multi_select", "ordering", "structured_case"];
 
 type PackStatus = "draft" | "published" | "archived";
 
@@ -1017,7 +1021,7 @@ export function AdminPackDetail(): React.ReactElement {
                         {/* Type chips */}
                         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "4px" }}>
                           <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginRight: 2 }}>Type:</span>
-                          {(["", "mcq", "log_analysis", "scenario", "kql", "subjective", "numeric", "multi_select", "ordering", "structured_case"] as const).map((t) => {
+                          {TYPE_CHIPS.map((t) => {
                             const count = t === "" ? levelQs.length : (typeCounts[t] ?? 0);
                             const active = levelFilter.type === t;
                             const zero = t !== "" && count === 0;

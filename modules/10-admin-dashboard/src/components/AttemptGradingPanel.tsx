@@ -36,7 +36,7 @@ import { GradingProposalCard } from "./GradingProposalCard.js";
 import { EscalationDiff } from "./EscalationDiff.js";
 import { ScoreDetail } from "./ScoreDetail.js";
 import { BandPicker } from "./BandPicker.js";
-import { isQuestionType } from "@assessiq/question-types";
+import { isQuestionType, getQuestionType, AI_GRADEABLE_IDS, type QuestionType } from "@assessiq/question-types";
 import { rendererMap, NoAnswer, ANSWER_TEXT_STYLE, asAnswerObj } from "../question-types/renderers.js";
 import { QuestionPromptView } from "./QuestionPromptView.js";
 import { ExpectedAnswerView } from "./ExpectedAnswerView.js";
@@ -94,7 +94,9 @@ const EMPTY_OVERRIDE: OverrideFormState = {
 
 /** Attempt statuses the server will grade (admin-grade.ts). */
 const GRADEABLE_STATUSES = ["submitted", "auto_submitted", "pending_admin_grading"];
-const AI_GRADEABLE_TYPES = new Set(["subjective", "scenario", "log_analysis"]);
+const AI_GRADEABLE_TYPES = new Set<string>(AI_GRADEABLE_IDS);
+/** Types scored by a human only: AI-scored in the registry but not AI-gradeable (kql). */
+const isManualScoreOnly = (type: string): boolean => isQuestionType(type) && getQuestionType(type).scoring === "ai" && !getQuestionType(type).aiGradeable;
 /** A grading marker older than this is treated as stalled (API restarted mid-batch). */
 const STALE_MARKER_SEC = 600;
 /** Stop polling a marker older than this. */
@@ -138,32 +140,35 @@ function serializeAnswerForCoverage(type: string, answer: unknown): string {
   if (answer === null || answer === undefined) return "";
   if (typeof answer !== "object") return "";
   const a = answer as Record<string, unknown>;
-  switch (type) {
-    case "subjective":
-      return typeof a.response === "string" ? a.response : "";
-    case "log_analysis": {
-      const findings = Array.isArray(a.findings)
-        ? a.findings.filter((f) => typeof f === "string").join("\n")
-        : "";
-      const explanation = typeof a.explanation === "string" ? a.explanation : "";
-      return [findings, explanation].filter(Boolean).join("\n\n");
-    }
-    case "scenario": {
-      if (!Array.isArray(a.steps)) return "";
-      return a.steps
-        .map((s, i) => {
-          const obj = s as Record<string, unknown> | null;
-          const resp = obj && typeof obj.response === "string" ? obj.response : "";
-          return resp ? `Step ${i + 1}: ${resp}` : "";
-        })
-        .filter(Boolean)
-        .join("\n\n");
-    }
-    default:
-      // mcq, kql, unknown types — return "" so the coverage view is omitted
-      return "";
-  }
+  // mcq, kql, unknown types serialise to "" so the coverage view is omitted
+  return isQuestionType(type) ? COVERAGE_SERIALIZERS[type](a) : "";
 }
+
+const COVERAGE_SERIALIZERS = {
+  subjective: (a) => (typeof a.response === "string" ? a.response : ""),
+  log_analysis: (a) => {
+    const findings = Array.isArray(a.findings) ? a.findings.filter((f) => typeof f === "string").join("\n") : "";
+    const explanation = typeof a.explanation === "string" ? a.explanation : "";
+    return [findings, explanation].filter(Boolean).join("\n\n");
+  },
+  scenario: (a) => {
+    if (!Array.isArray(a.steps)) return "";
+    return a.steps
+      .map((s, i) => {
+        const obj = s as Record<string, unknown> | null;
+        const resp = obj && typeof obj.response === "string" ? obj.response : "";
+        return resp ? `Step ${i + 1}: ${resp}` : "";
+      })
+      .filter(Boolean)
+      .join("\n\n");
+  },
+  mcq: () => "",
+  kql: () => "",
+  numeric: () => "",
+  multi_select: () => "",
+  ordering: () => "",
+  structured_case: () => "",
+} satisfies Record<QuestionType, (a: Record<string, unknown>) => string>;
 
 function AttemptAnswerView({ type, content, answer }: { type: string; content: unknown; answer: unknown }): React.ReactElement {
   // Legacy / plain-string answers render directly.
@@ -173,7 +178,7 @@ function AttemptAnswerView({ type, content, answer }: { type: string; content: u
 
   const a = asAnswerObj(answer);
   const isEmpty = answer === null || answer === undefined || (a !== null && Object.keys(a).length === 0);
-  if (isEmpty && !(type === "mcq" && typeof answer === "number")) {
+  if (isEmpty) {
     return <NoAnswer label="No answer submitted." />;
   }
 
@@ -750,7 +755,7 @@ export function AttemptGradingPanel({
         const existing = effective.get(q.id);
         const proposal = shown.get(q.id);
         const escalation = proposal ? escalationProposals[q.id] : undefined;
-        const manualShown = manualOpen[q.id] ?? q.type === "kql";
+        const manualShown = manualOpen[q.id] ?? isManualScoreOnly(q.type);
 
         let stLabel: string;
         let stBg: string;
@@ -855,7 +860,7 @@ export function AttemptGradingPanel({
                 {!existing && !proposal && (
                   <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontStyle: "italic", color: "var(--aiq-color-fg-muted)" }}>
                     {isGradeable
-                      ? q.type === "kql"
+                      ? isManualScoreOnly(q.type)
                         ? "Not yet scored — enter a score below."
                         : "Not yet graded — click “Grade all” above to generate a proposal."
                       : "Not graded."}
@@ -964,7 +969,7 @@ export function AttemptGradingPanel({
                           <ReleaseNotice tenantName={tenantName} action="Saving the last score" />
                         ) : undefined
                       }
-                      {...(q.type === "kql" ? {} : { onCancel: () => setManualOpen((m) => ({ ...m, [q.id]: false })) })}
+                      {...(isManualScoreOnly(q.type) ? {} : { onCancel: () => setManualOpen((m) => ({ ...m, [q.id]: false })) })}
                     />
                   ) : (
                     !proposal && (

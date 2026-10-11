@@ -53,8 +53,21 @@ import type {
   AttemptAnswerWire,
 } from '@assessiq/candidate-ui';
 import { CandidateHelp } from '@assessiq/candidate-ui';
-import { isQuestionType } from '@assessiq/question-types';
+import { isQuestionType, type QuestionType } from '@assessiq/question-types';
 import { rendererMap, type QuestionRenderer } from './renderers.js';
+
+/** Content field that holds the on-screen stem: title for the multi-part types, question for the rest. */
+const STEM_FIELD = {
+  mcq: 'question',
+  subjective: 'question',
+  kql: 'question',
+  scenario: 'title',
+  log_analysis: 'question',
+  numeric: 'question',
+  multi_select: 'question',
+  ordering: 'question',
+  structured_case: 'title',
+} satisfies Record<QuestionType, 'title' | 'question'>;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -806,10 +819,8 @@ export function AttemptPage(): React.JSX.Element {
               {(() => {
                 if (hasForbiddenSynonym(currentQuestion.content)) return null;
                 const c = currentQuestion.content as Record<string, unknown>;
-                const text =
-                  currentQuestion.type === 'scenario' || currentQuestion.type === 'structured_case'
-                    ? (typeof c.title === 'string' ? c.title : null)
-                    : (typeof c.question === 'string' ? c.question : null);
+                const field = isQuestionType(currentQuestion.type) ? STEM_FIELD[currentQuestion.type] : 'question';
+                const text = typeof c[field] === 'string' ? (c[field] as string) : null;
                 if (text === null) return null;
                 return (
                   <p className="aiq-serif aiq-attempt-q-text" style={QUESTION_TEXT}>

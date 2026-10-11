@@ -30,6 +30,7 @@ import {
   type DemoAnswers,
   type DemoQuestion,
 } from './demoContent';
+import { isDeterministicType } from '@assessiq/question-types';
 
 type Phase = 'intro' | 'run' | 'result';
 
@@ -290,48 +291,35 @@ const TEXTAREA: CSSProperties = {
   resize: 'vertical',
 };
 
-function AnswerArea({
-  q,
-  answer,
-  onChange,
-}: {
-  q: DemoQuestion;
-  answer: DemoAnswer;
-  onChange: (v: DemoAnswer) => void;
-}): React.JSX.Element {
-  const question = { question_id: q.id, content: { options: q.options, unit: q.unit } };
-  if (q.type === 'mcq' || q.type === 'log') {
-    return (
-      <McqAnswerArea
-        question={question}
-        answer={typeof answer === 'number' ? { selected: answer } : null}
-        disabled={false}
-        onAnswerChange={(v) => onChange((v as { selected: number }).selected)}
-      />
-    );
-  }
-  if (q.type === 'multi_select') {
-    return (
-      <MultiSelectAnswerArea
-        question={question}
-        answer={{ selected: Array.isArray(answer) ? answer : [] }}
-        disabled={false}
-        onAnswerChange={(v) => onChange((v as { selected: number[] }).selected)}
-      />
-    );
-  }
-  if (q.type === 'numeric') {
-    return (
-      <NumericAnswerArea
-        question={question}
-        answer={answer}
-        disabled={false}
-        onAnswerChange={(v) => onChange(v as number | null)}
-        onBlur={() => {}}
-      />
-    );
-  }
-  return (
+interface AreaProps { q: DemoQuestion; answer: DemoAnswer; onChange: (v: DemoAnswer) => void }
+
+const ANSWER_AREAS = {
+  mcq: ({ q, answer, onChange }) => (
+    <McqAnswerArea
+      question={demoQuestion(q)}
+      answer={typeof answer === 'number' ? { selected: answer } : null}
+      disabled={false}
+      onAnswerChange={(v) => onChange((v as { selected: number }).selected)}
+    />
+  ),
+  multi_select: ({ q, answer, onChange }) => (
+    <MultiSelectAnswerArea
+      question={demoQuestion(q)}
+      answer={{ selected: Array.isArray(answer) ? answer : [] }}
+      disabled={false}
+      onAnswerChange={(v) => onChange((v as { selected: number[] }).selected)}
+    />
+  ),
+  numeric: ({ q, answer, onChange }) => (
+    <NumericAnswerArea
+      question={demoQuestion(q)}
+      answer={answer}
+      disabled={false}
+      onAnswerChange={(v) => onChange(v as number | null)}
+      onBlur={() => {}}
+    />
+  ),
+  subjective: ({ q, answer, onChange }) => (
     <>
       <label htmlFor={`ans-${q.id}`} style={{ display: 'block', fontSize: 13, color: 'var(--aiq-color-fg-muted)', marginBottom: 8 }}>
         Your answer
@@ -343,7 +331,13 @@ function AnswerArea({
         onChange={(e) => onChange(e.target.value)}
       />
     </>
-  );
+  ),
+} satisfies Record<DemoQuestion['type'], (p: AreaProps) => React.JSX.Element>;
+
+const demoQuestion = (q: DemoQuestion) => ({ question_id: q.id, content: { options: q.options, unit: q.unit } });
+
+function AnswerArea(props: AreaProps): React.JSX.Element {
+  return ANSWER_AREAS[props.q.type](props);
 }
 
 // ── result ───────────────────────────────────────────────────────────────────
@@ -435,7 +429,7 @@ function Result({
                 <strong>Model answer:</strong> {q.modelAnswer}
               </p>
               {q.why && <p style={{ margin: 0, fontSize: 13, color: 'var(--aiq-color-fg-muted)' }}>{q.why}</p>}
-              {q.type === 'written' && (
+              {!isDeterministicType(q.type) && (
                 <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--aiq-color-fg-muted)' }}>
                   In a real assessment this is graded by AssessIQ.
                 </p>

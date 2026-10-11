@@ -16,6 +16,7 @@
 //  - Emits NO answer-key material (correct/rationale/expected*/sample_solution).
 
 import React from "react";
+import { isQuestionType, type QuestionType } from "@assessiq/question-types";
 import { StructuredCaseView } from "./StructuredCaseView.js";
 import { cleanText, unescapeJsonString, safeStr, safeArr, obj, JsonFallback, Chip, OPTION_LABELS } from "./question-format.js";
 
@@ -176,47 +177,47 @@ export function QuestionPromptView({ type, content }: QuestionPromptViewProps): 
   const c = obj(content);
   if (c === null) return <JsonFallback value={content} />;
 
-  switch (type) {
-    case "mcq":
-    case "multi_select":
-      return <McqPrompt c={c} />;
-    case "ordering":
-      // Items in AUTHORED order only as a plain list; the answer key lives in ExpectedAnswerView.
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-          <PromptText value={c.question} />
-          <ul style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", fontSize: "var(--aiq-text-sm)" }}>
-            {(safeArr<unknown>(c.items) ?? []).map((it, i) => (
-              <li key={i}>{typeof it === "string" ? cleanText(it) : ""}</li>
-            ))}
-          </ul>
-          <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
-            Candidates arrange these items in order. They see them shuffled.
-          </span>
-        </div>
-      );
-    case "structured_case":
-      return <StructuredCaseView c={c} mode="prompt" />;
-    case "numeric":
-      return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-          <PromptText value={c.question} />
-          {typeof c.unit === "string" && c.unit !== "" && (
-            <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>Unit: {c.unit}</span>
-          )}
-        </div>
-      );
-    case "subjective":
-      return <PromptText value={c.question} />;
-    case "kql":
-      return <KqlPrompt c={c} />;
-    case "scenario":
-      return <ScenarioPrompt c={c} />;
-    case "log_analysis":
-      return <LogAnalysisPrompt c={c} />;
-    default:
-      return <JsonFallback value={content} />;
-  }
+  return isQuestionType(type) ? PROMPT_VIEWS[type](c) : <JsonFallback value={content} />;
 }
+
+// Items in AUTHORED order only as a plain list; the answer key lives in ExpectedAnswerView.
+function OrderingPrompt({ c }: { c: Record<string, unknown> }): React.ReactElement {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+      <PromptText value={c.question} />
+      <ul style={{ margin: 0, paddingLeft: "var(--aiq-space-xl)", fontSize: "var(--aiq-text-sm)" }}>
+        {(safeArr<unknown>(c.items) ?? []).map((it, i) => (
+          <li key={i}>{typeof it === "string" ? cleanText(it) : ""}</li>
+        ))}
+      </ul>
+      <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+        Candidates arrange these items in order. They see them shuffled.
+      </span>
+    </div>
+  );
+}
+
+function NumericPrompt({ c }: { c: Record<string, unknown> }): React.ReactElement {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+      <PromptText value={c.question} />
+      {typeof c.unit === "string" && c.unit !== "" && (
+        <span style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>Unit: {c.unit}</span>
+      )}
+    </div>
+  );
+}
+
+const PROMPT_VIEWS = {
+  mcq: (c) => <McqPrompt c={c} />,
+  multi_select: (c) => <McqPrompt c={c} />,
+  ordering: (c) => <OrderingPrompt c={c} />,
+  structured_case: (c) => <StructuredCaseView c={c} mode="prompt" />,
+  numeric: (c) => <NumericPrompt c={c} />,
+  subjective: (c) => <PromptText value={c.question} />,
+  kql: (c) => <KqlPrompt c={c} />,
+  scenario: (c) => <ScenarioPrompt c={c} />,
+  log_analysis: (c) => <LogAnalysisPrompt c={c} />,
+} satisfies Record<QuestionType, (c: Record<string, unknown>) => React.ReactElement>;
 
 QuestionPromptView.displayName = "QuestionPromptView";

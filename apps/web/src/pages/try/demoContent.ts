@@ -4,7 +4,11 @@
 // multi-select = exact set or partial) but is re-implemented here because that
 // module pulls server-only deps. The questions are demo-only dummy content.
 
-export type DemoType = 'mcq' | 'numeric' | 'multi_select' | 'written' | 'log';
+import { deterministicScoreFor, getQuestionType, isDeterministicType, type QuestionType } from '@assessiq/question-types';
+
+// The demo's log-analysis question is an options question (chip label carries "Log analysis"), so it is an mcq here.
+// The written question is a subjective one, never scored in the demo.
+export type DemoType = Extract<QuestionType, 'mcq' | 'numeric' | 'multi_select' | 'subjective'>;
 
 export interface DemoQuestion {
   id: string;
@@ -62,7 +66,7 @@ export const DEMO_QUESTIONS: DemoQuestion[] = [
     why: '301 is a redirect, 404 means not found, 503 means the service is unavailable.',
   },
   {
-    id: 'd5', type: 'log', typeLabel: 'Log analysis', points: 10,
+    id: 'd5', type: 'mcq', typeLabel: 'Log analysis', points: 10,
     prompt: 'Read this authentication log excerpt. What is the most likely explanation?',
     excerpt: [
       '10:02:11 sshd[412]: Failed password for root from 203.0.113.45',
@@ -89,7 +93,7 @@ export const DEMO_QUESTIONS: DemoQuestion[] = [
     why: 'The gaps are 4, 6, 8, so the next gap is 10 and 20 + 10 = 30.',
   },
   {
-    id: 'd7', type: 'written', typeLabel: 'Written answer', points: 0,
+    id: 'd7', type: 'subjective', typeLabel: 'Written answer', points: 0,
     prompt: 'In two or three sentences, explain why a password-reset link should expire after a short time.',
     modelAnswer:
       'An unused reset link is a live credential. If it sits in an inbox or browser history it can be found or forwarded and used to take over the account, so a short expiry (and single use) limits how long an attacker has to exploit it.',
@@ -108,26 +112,12 @@ export function parseNumber(raw: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** 0..1 fraction of the question's points earned. Written is never scored. */
+/** 0..1 fraction of the question's points earned. Written (subjective) is never scored; scoring goes through the registry. */
 export function fractionFor(q: DemoQuestion, a: DemoAnswer): number {
-  if (q.type === 'written' || a == null) return 0;
-  if (q.type === 'mcq' || q.type === 'log') return a === q.correct ? 1 : 0;
-  if (q.type === 'numeric') {
-    const n = parseNumber(a);
-    if (n === null || typeof q.correct !== 'number') return 0;
-    return Math.abs(n - q.correct) <= (q.tolerance ?? 0) + 1e-9 ? 1 : 0;
-  }
-  // multi_select
-  const key = new Set(q.correct as number[]);
-  const picked = new Set(Array.isArray(a) ? (a as number[]) : []);
-  let right = 0;
-  let wrong = 0;
-  for (const i of picked) {
-    if (key.has(i)) right++;
-    else wrong++;
-  }
-  if (q.partial) return Math.max(0, (right - wrong) / key.size);
-  return right === key.size && wrong === 0 ? 1 : 0;
+  if (a == null) return 0;
+  // Registry content shapes: mcq/multi_select use options+correct, numeric uses answer+tolerance.
+  const content = { options: q.options, correct: q.correct, answer: q.correct, tolerance: q.tolerance, scoring: q.partial ? 'partial' : 'all_or_nothing' };
+  return deterministicScoreFor(q.type, content, a);
 }
 
 export function isAnswered(a: DemoAnswer): boolean {
@@ -160,8 +150,8 @@ export function scoreDemo(answers: DemoAnswers, questions = DEMO_QUESTIONS): Dem
 /** Readable form of the candidate's answer for the breakdown. */
 export function describeAnswer(q: DemoQuestion, a: DemoAnswer): string {
   if (!isAnswered(a)) return 'Not answered';
-  if (q.type === 'written') return String(a);
-  if (q.type === 'numeric') return `${a}${q.unit ? ' ' + q.unit : ''}`;
+  if (!isDeterministicType(q.type)) return String(a);
+  if (getQuestionType(q.type).shuffleField !== 'options') return `${a}${q.unit ? ' ' + q.unit : ''}`;
   const opts = q.options ?? [];
   if (Array.isArray(a)) return a.map((i) => opts[i]).join(', ');
   return opts[a as number] ?? 'Not answered';

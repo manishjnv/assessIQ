@@ -3,6 +3,10 @@
 
 import { Button, Card } from '@assessiq/ui-system';
 import type { FrozenQuestionWire } from '@assessiq/candidate-ui';
+import type { QuestionType } from '@assessiq/question-types';
+
+/** A scenario step of this type renders as radio options (the step's own type, not the question's). */
+const SINGLE_CHOICE_STEP: QuestionType = 'mcq';
 
 // log_analysis: { question, log_format?, log_excerpt, expected_findings?, sample_solution?, hint? }
 interface LogAnalysisContent {
@@ -522,7 +526,7 @@ export function ScenarioAnswerArea({
           >
             {step.prompt}
           </p>
-          {step.type === 'mcq' && Array.isArray(step.options) ? (
+          {step.type === SINGLE_CHOICE_STEP && Array.isArray(step.options) ? (
             // The chosen option TEXT is saved as the step response (same string shape as
             // free-text steps; the AI grader reads it).
             <div role="radiogroup" aria-label={`Step ${idx + 1} options`} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>

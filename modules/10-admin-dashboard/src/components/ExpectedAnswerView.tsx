@@ -24,6 +24,7 @@
 //  - Never crashes on malformed content (per-section fallbacks).
 
 import React from "react";
+import { isQuestionType, type QuestionType } from "@assessiq/question-types";
 import { StructuredCaseView } from "./StructuredCaseView.js";
 import { cleanText, safeStr, safeArr, obj, JsonFallback, SUBLABEL_STYLE, OPTION_LABELS } from "./question-format.js";
 
@@ -278,13 +279,16 @@ export function ExpectedAnswerView({ type, content, rubric }: ExpectedAnswerView
   const anchors = anchorsOf(rubric);
   const c = obj(content);
 
-  switch (type) {
-    case "mcq":
-    case "multi_select":
-      return c ? <McqExpected c={c} /> : <JsonFallback value={content} />;
-    case "structured_case":
-      return c ? <StructuredCaseView c={c} mode="key" withCase={false} /> : <JsonFallback value={content} />;
-    case "ordering": {
+  return isQuestionType(type) ? EXPECTED_VIEWS[type]({ c, content, anchors }) : <RubricOrEmpty anchors={anchors} />;
+}
+
+interface ExpectedArgs { c: Record<string, unknown> | null; content: unknown; anchors: RubricAnchorForReview[] }
+
+function RubricOrEmpty({ anchors }: { anchors: RubricAnchorForReview[] }): React.ReactElement {
+  return anchors.length > 0 ? <RubricBlock anchors={anchors} heading="Rubric (grading basis)" /> : <EmptyExpected />;
+}
+
+function orderingExpected({ c, content }: ExpectedArgs): React.ReactElement {
       if (!c) return <JsonFallback value={content} />;
       const items = safeArr<unknown>(c.items) ?? [];
       const key = Array.isArray(c.correct_order) ? c.correct_order.filter((x): x is number => typeof x === "number") : [];
@@ -307,8 +311,9 @@ export function ExpectedAnswerView({ type, content, rubric }: ExpectedAnswerView
           )}
         </div>
       );
-    }
-    case "numeric": {
+}
+
+function numericExpected({ c, content }: ExpectedArgs): React.ReactElement {
       if (!c) return <JsonFallback value={content} />;
       const tol = typeof c.tolerance === "number" && c.tolerance > 0 ? c.tolerance : 0;
       return (
@@ -321,20 +326,21 @@ export function ExpectedAnswerView({ type, content, rubric }: ExpectedAnswerView
           </p>
         </div>
       );
-    }
-    case "subjective":
-      // Subjective has no answer-key fields in content — the rubric IS the
-      // expected answer.
-      return anchors.length > 0 ? <RubricBlock anchors={anchors} heading="Key points we grade for" /> : <EmptyExpected />;
-    case "kql":
-      return c ? <KqlExpected c={c} anchors={anchors} /> : (anchors.length > 0 ? <RubricBlock anchors={anchors} heading="Rubric (grading basis)" /> : <EmptyExpected />);
-    case "scenario":
-      return c ? <ScenarioExpected c={c} anchors={anchors} /> : (anchors.length > 0 ? <RubricBlock anchors={anchors} heading="Rubric (grading basis)" /> : <EmptyExpected />);
-    case "log_analysis":
-      return c ? <LogAnalysisExpected c={c} anchors={anchors} /> : (anchors.length > 0 ? <RubricBlock anchors={anchors} heading="Rubric (grading basis)" /> : <EmptyExpected />);
-    default:
-      return anchors.length > 0 ? <RubricBlock anchors={anchors} heading="Rubric (grading basis)" /> : <EmptyExpected />;
-  }
 }
+
+const mcqExpected = ({ c, content }: ExpectedArgs): React.ReactElement => (c ? <McqExpected c={c} /> : <JsonFallback value={content} />);
+
+const EXPECTED_VIEWS = {
+  mcq: mcqExpected,
+  multi_select: mcqExpected,
+  structured_case: ({ c, content }) => (c ? <StructuredCaseView c={c} mode="key" withCase={false} /> : <JsonFallback value={content} />),
+  ordering: orderingExpected,
+  numeric: numericExpected,
+  // Subjective has no answer-key fields in content — the rubric IS the expected answer.
+  subjective: ({ anchors }) => (anchors.length > 0 ? <RubricBlock anchors={anchors} heading="Key points we grade for" /> : <EmptyExpected />),
+  kql: ({ c, anchors }) => (c ? <KqlExpected c={c} anchors={anchors} /> : <RubricOrEmpty anchors={anchors} />),
+  scenario: ({ c, anchors }) => (c ? <ScenarioExpected c={c} anchors={anchors} /> : <RubricOrEmpty anchors={anchors} />),
+  log_analysis: ({ c, anchors }) => (c ? <LogAnalysisExpected c={c} anchors={anchors} /> : <RubricOrEmpty anchors={anchors} />),
+} satisfies Record<QuestionType, (a: ExpectedArgs) => React.ReactElement>;
 
 ExpectedAnswerView.displayName = "ExpectedAnswerView";
