@@ -32,6 +32,7 @@ import { ConflictError, NotFoundError, ValidationError, uuidv7, UUID_RE } from "
 import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
+import { ensureNode } from "./taxonomy-nodes.js";
 
 export interface PlatformDomainRow {
   id: string;
@@ -191,6 +192,15 @@ export async function createPlatformDomain(
     );
     const propagatedTenants = propRes.rowCount ?? 0;
 
+    // RW-55: ONE NULL-tenant subject node per platform slug; link every platform-source copy.
+    const nodeId = await ensureNode(client, {
+      tenantId: null, parentId: null, kind: "subject", code: slug, label: name, position: nextOrder,
+    });
+    await client.query(
+      `UPDATE domains SET node_id = $2 WHERE slug = $1 AND source = 'platform' AND node_id IS NULL`,
+      [slug, nodeId],
+    );
+
     // Audit in the assessiq_app role + tenant GUC context (auditInTx contract).
     // system read, then tenant-scoped write under assessiq_app in the same tx
     await client.query("SET LOCAL ROLE assessiq_app");
@@ -208,6 +218,7 @@ export async function createPlatformDomain(
         source: "platform",
         status: "active",
         propagated_tenants: propagatedTenants,
+        node_id: nodeId,
       },
     });
 
@@ -286,6 +297,16 @@ export async function setPlatformDomainStatus(
     );
     const affectedRows = updRes.rowCount ?? 0;
 
+    // RW-55: mirror status onto the shared NULL-tenant node.
+    const nodeRes = await client.query<{ id: string }>(
+      `UPDATE taxonomy_nodes SET status = $2, updated_at = now()
+        WHERE tenant_id IS NULL AND parent_id IS NULL AND kind = 'subject' AND code = $1
+          AND framework_id = (SELECT id FROM frameworks WHERE tenant_id IS NULL AND slug = 'legacy-domains')
+        RETURNING id`,
+      [slug, status],
+    );
+    const nodeId = nodeRes.rows[0]?.id ?? null;
+
     // Re-read the canonical platform row for the response.
     const after = await client.query<PlatformDomainRow>(
       `SELECT id, slug, name, description, status, display_order, source
@@ -306,7 +327,7 @@ export async function setPlatformDomainStatus(
       tenantId: platformTenantId,
       entityType: "domain",
       entityId: domainId,
-      after: { slug, status, affected_rows: affectedRows },
+      after: { slug, status, affected_rows: affectedRows, node_id: nodeId },
     });
 
     return { ...domainRow, affectedRows };

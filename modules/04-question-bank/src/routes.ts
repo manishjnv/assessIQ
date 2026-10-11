@@ -85,6 +85,7 @@ import {
   handleAdminCreateCategory,
 } from "./handlers/admin-domains.js";
 import { registerGenerationBatchRoutes } from "./generation-batches.js";
+import { registerTaxonomyRoutes } from "./taxonomy-routes.js";
 
 // ---------------------------------------------------------------------------
 // Pagination helper — shared by list endpoints
@@ -470,6 +471,9 @@ export async function registerQuestionBankRoutes(
 
   // E6: durable batch plan for the generate wizard (same super-admin guard).
   registerGenerationBatchRoutes(app, superAdminOnly);
+
+  // RW-55: read-only curriculum frameworks (adminOnly; RLS shows NULL-tenant + own rows).
+  registerTaxonomyRoutes(app, adminOnly);
 
   // -------------------------------------------------------------------------
   // Pack routes

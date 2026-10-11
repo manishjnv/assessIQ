@@ -66,7 +66,8 @@ describe("handleAdminCreateDomain", () => {
           description: null,
           status: "active",
           display_order: 4,
-        }] }),
+        }] })
+        .mockResolvedValue({ rows: [{ id: "00000000-0000-7000-8000-0000000000aa" }] }), // RW-55 node queries
     };
 
     (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
@@ -201,7 +202,8 @@ describe("handleAdminCreateCategory", () => {
           supported_types: ["mcq", "scenario", "subjective", "kql", "log_analysis"],
           default_question_count: 1,
           status: "active",
-        }] }),
+        }] })
+        .mockResolvedValueOnce({ rows: [{ node_id: null }] }), // RW-55 parent node lookup (none -> skip)
     };
 
     (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
