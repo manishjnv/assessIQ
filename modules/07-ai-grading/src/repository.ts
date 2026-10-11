@@ -185,6 +185,9 @@ export interface InsertGradingInput {
   graded_by: string | null;
   override_of: string | null;
   override_reason: string | null;
+  /** RW-41 provenance; omitted/null for non-AI rows. */
+  cli_version?: string | null;
+  stage_inputs?: unknown;
 }
 
 /**
@@ -217,13 +220,15 @@ export async function insertGrading(
        score_earned, score_max, status,
        anchor_hits, reasoning_band, ai_justification, error_class,
        prompt_version_sha, prompt_version_label, model,
-       escalation_chosen_stage, graded_by, override_of, override_reason
+       escalation_chosen_stage, graded_by, override_of, override_reason,
+       cli_version, stage_inputs
      ) VALUES (
        $1, $2, $3, $4,
        $5, $6, $7,
        $8::jsonb, $9, $10, $11,
        $12, $13, $14,
-       $15, $16, $17, $18
+       $15, $16, $17, $18,
+       $19, $20::jsonb
      )
      RETURNING ${GRADING_COLUMNS}`,
     [
@@ -245,6 +250,8 @@ export async function insertGrading(
       input.graded_by,
       input.override_of,
       input.override_reason,
+      input.cli_version ?? null,
+      input.stage_inputs != null ? JSON.stringify(input.stage_inputs) : null,
     ],
   );
   const row = result.rows[0];

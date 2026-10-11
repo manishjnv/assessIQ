@@ -70,6 +70,18 @@ export const GradingProposalSchema = z.object({
   source: z.enum(["rule", "reuse", "ai"]).optional(),
   /** SP5: for source 'reuse', the gradings.id whose band was reused. */
   reused_from_grading_id: z.string().uuid().optional(),
+  /** RW-41: claude CLI version that produced the proposal (claude-code-vps only). */
+  cli_version: z.string().max(200).nullable().optional(),
+  /** RW-41: raw tool inputs per stage as submitted by the model. */
+  stage_inputs: z
+    .object({
+      anchors: z.unknown().nullable(),
+      band: z.unknown().nullable(),
+      escalate: z.unknown().nullable(),
+    })
+    .refine((v) => v == null || JSON.stringify(v).length <= 65536, "stage_inputs too large")
+    .nullable()
+    .optional(),
 });
 export type GradingProposal = z.infer<typeof GradingProposalSchema>;
 
