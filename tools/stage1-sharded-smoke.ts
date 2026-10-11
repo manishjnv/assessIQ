@@ -29,13 +29,7 @@ import { getPool } from "@assessiq/tenancy";
 // ---------------------------------------------------------------------------
 
 /** Canonical question types — mirrors QuestionType union in types.ts. */
-const CANONICAL_TYPES: readonly QuestionType[] = [
-  "mcq",
-  "log_analysis",
-  "scenario",
-  "kql",
-  "subjective",
-];
+const CANONICAL_TYPES: readonly Extract<QuestionType, string>[] = ["mcq", "log_analysis", "scenario", "kql", "subjective"];
 
 /**
  * Build a full per-type allocation from SMOKE_TYPE + count.

@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@assessiq/question-types": "workspace:*",
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/auth": "workspace:*",
     "@assessiq/billing": "workspace:*",

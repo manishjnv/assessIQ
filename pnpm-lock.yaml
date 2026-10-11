@@ -408,6 +408,9 @@ importers:
       '@assessiq/question-bank':
         specifier: workspace:*
         version: link:../04-question-bank
+      '@assessiq/question-types':
+        specifier: workspace:*
+        version: link:../../packages/question-types
       '@assessiq/tenancy':
         specifier: workspace:*
         version: link:../02-tenancy
