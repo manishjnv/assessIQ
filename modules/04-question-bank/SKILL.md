@@ -233,3 +233,15 @@ See `docs/02-data-model.md` section "Question type registry".
 ## FU-C13 (2026-10-06) - difficulty tags read back
 
 `QUESTION_COLUMNS`, the list projection in `listQuestionRows`, `mapQuestionRow` and the `Question` type now carry `cognitive_level`, `nice_task_id`, `difficulty_params`, `attack_technique` (migration 0086). Read-only; the generator (`07 admin-generate.ts`) stays the only writer. The admin UI shows Bloom and NICE chips (question editor header, pack question rows).
+
+## Curriculum frameworks (RW-55, 2026-10-11)
+
+Migration `0169_curriculum_frameworks.sql`; read-only in this part.
+
+- `frameworks` (slug, name, source, status), `taxonomy_nodes` (typed tree: board / stage / grade / subject / unit / outcome / criterion), `question_taxonomy` (question <-> node, JOIN RLS like `question_tags`).
+- `tenant_id` NULL means platform-owned: visible to every tenant (SELECT policy), writable only by `assessiq_system`. Tenant-owned rows are writable by that tenant only.
+- Framework 1 is `legacy-domains`: the old domains and categories tree. `domains.node_id` / `categories.node_id` point at a node. Blueprint draws resolve a node to `(domain_id, category_id)` inside the tenant through these columns, so the frozen pool keeps its shape.
+- Mapping rule: domain = `subject` node (code = slug, position = display_order); category = `unit` node under its domain's node. A platform domain slug is ONE NULL-tenant node shared by all tenant copies; a category shared with the platform tenant is also one NULL-tenant node; tenant-local domains and categories get tenant-owned nodes.
+- New rows stay linked (`src/taxonomy-nodes.ts`): `createDomain` / `createCategory` (tenant-owned nodes), `createPlatformDomain` / `setPlatformDomainStatus` (NULL-tenant node, status mirrored, `node_id` in the audit `after`), `seedTenantTaxonomy` and `clone.ts` provisioning (link to the existing platform node by code). A missing `legacy-domains` framework throws `FRAMEWORK_MISSING`.
+- Routes (adminOnly, `taxonomy-routes.ts`): `GET /api/admin/frameworks` (`?status=all`), `GET /api/admin/frameworks/:id/nodes` (`?kind=`).
+- Not included: node write routes and super-admin node CRUD (RW-61), CBSE / ICSE / IB seeds (RW-57), draws by outcome or criterion nodes, any UI.

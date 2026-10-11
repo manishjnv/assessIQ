@@ -18,6 +18,7 @@
 
 import { ConflictError, ValidationError, uuidv7, UUID_RE } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { ensureNode } from "../taxonomy-nodes.js";
 
 
 export interface DomainRow {
@@ -170,6 +171,11 @@ export async function handleAdminCreateDomain(
          RETURNING id, slug, name, description, status, display_order`,
         [id, input.tenantId, slug, name, input.description ?? null, nextOrder],
       );
+      // RW-55: tenant-owned subject node under framework 'legacy-domains'.
+      const nodeId = await ensureNode(client, {
+        tenantId: input.tenantId, parentId: null, kind: "subject", code: slug, label: name, position: nextOrder,
+      });
+      await client.query("UPDATE domains SET node_id = $2 WHERE id = $1", [id, nodeId]);
       return res.rows[0]!;
     });
   } catch (err: unknown) {
@@ -322,6 +328,19 @@ export async function handleAdminCreateCategory(
           defaultCount,
         ],
       );
+      // RW-55: tenant-owned unit node under the domain's node (skipped if the domain has none).
+      const parent = await client.query<{ node_id: string | null }>(
+        "SELECT node_id FROM domains WHERE id = $1",
+        [input.domain_id],
+      );
+      const parentNode = parent.rows[0]?.node_id ?? null;
+      if (parentNode !== null) {
+        const nodeId = await ensureNode(client, {
+          tenantId: input.tenantId, parentId: parentNode, kind: "unit",
+          code: slug, label: name, position: nextScore,
+        });
+        await client.query("UPDATE categories SET node_id = $2 WHERE id = $1", [id, nodeId]);
+      }
       return res.rows[0]!;
     });
   } catch (err: unknown) {

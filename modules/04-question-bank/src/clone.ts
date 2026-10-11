@@ -36,6 +36,7 @@ import { uuidv7, NotFoundError, ValidationError, ConflictError } from "@assessiq
 import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import type { QuestionType, QuestionStatus, LevelRubricDefaults } from "./types.js";
+import { linkPlatformCategories, linkPlatformDomain } from "./taxonomy-nodes.js";
 
 const MAX_SLUG_RETRIES = 10;
 
@@ -711,6 +712,7 @@ async function provisionPlatformTaxonomyForQuestions(
       )
     ).rows[0];
     if (ins?.id !== undefined) {
+      await linkPlatformDomain(client, ins.id, pd.slug); // RW-55
       tgtDomBySlug.set(pd.slug, { id: ins.id, source: "platform" });
     } else {
       // ON CONFLICT fired — a row with this slug already exists (e.g. a
@@ -772,6 +774,9 @@ async function provisionPlatformTaxonomyForQuestions(
       ],
     );
     tgtCatKeys.add(key);
+    // RW-55: link the new platform-source category to its NULL-tenant node.
+    const dn = await client.query<{ node_id: string | null }>(`SELECT node_id FROM domains WHERE id = $1`, [tgtDom.id]);
+    await linkPlatformCategories(client, tgtDom.id, dn.rows[0]?.node_id ?? null);
   }
 }
 

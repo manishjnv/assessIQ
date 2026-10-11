@@ -32,6 +32,7 @@
 
 import { withSystemRole } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
+import { ensureNode, linkPlatformCategories, linkPlatformDomain } from "./taxonomy-nodes.js";
 
 // ---------------------------------------------------------------------------
 // Per-domain supported_types — from 0020_supported_types_per_domain.sql
@@ -235,8 +236,18 @@ async function seedDomainHardcoded(
   // Supported types for this domain (from 0020 correction).
   const supportedTypes = DOMAIN_SUPPORTED_TYPES[domain.slug] ?? ["mcq", "scenario", "subjective"];
 
+  // RW-55: fresh-DB fallback has no platform nodes to link to -> tenant-owned nodes.
+  const domainNodeId = await ensureNode(client, {
+    tenantId, parentId: null, kind: "subject", code: domain.slug, label: domain.name,
+    position: domain.display_order,
+  });
+  await client.query(`UPDATE domains SET node_id = $2 WHERE id = $1 AND node_id IS NULL`, [domainId, domainNodeId]);
+
   // INSERT categories (idempotent).
   for (const cat of domain.categories) {
+    const catNodeId = await ensureNode(client, {
+      tenantId, parentId: domainNodeId, kind: "unit", code: cat.slug, label: cat.name, position: 0,
+    });
     await client.query(
       `INSERT INTO categories
          (tenant_id, domain_id, slug, name, relevance_score, default_selected,
@@ -253,6 +264,10 @@ async function seedDomainHardcoded(
         JSON.stringify(supportedTypes),
         cat.default_question_count,
       ],
+    );
+    await client.query(
+      `UPDATE categories SET node_id = $3 WHERE tenant_id = $1 AND domain_id = $2 AND slug = $4 AND node_id IS NULL`,
+      [tenantId, domainId, catNodeId, cat.slug],
     );
   }
 
@@ -328,6 +343,9 @@ async function seedFromPlatform(
       targetDomainId = existing.id;
     }
 
+    // RW-55: platform-source copy -> link to the existing NULL-tenant node by code.
+    const domainNodeId = await linkPlatformDomain(client, targetDomainId, pd.slug);
+
     const catsRes = await client.query<{
       slug: string;
       name: string;
@@ -364,6 +382,7 @@ async function seedFromPlatform(
         ],
       );
     }
+    await linkPlatformCategories(client, targetDomainId, domainNodeId);
   }
 
   return domainsRes.rows.length;
