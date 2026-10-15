@@ -1,6 +1,6 @@
 # Raw pool.connect() / getPool().connect() / aliased-pool / new Pool() / new Client() allowlist (RW-38, RW-70).
 # Format: <repo-relative path> | <reason>
-# One entry per FILE. A hit is allowed only when its file is listed here AND the hit line (or the line
+# One entry per HIT: repeat the file line once per connect in it, or use <path>:<line>. A hit is allowed only when its file is listed here AND the hit line (or the line
 # directly above) carries `// pool-connect-ok: <reason>`. A listed file with an unmarked hit fails;
 # a marker in an unlisted file fails; a listed file with no hit is stale and also fails.
 modules/15-analytics/src/refresh-mv-job.ts | REFRESH MATERIALIZED VIEW needs the MV owner role: session-level SET ROLE assessiq_system + RESET ROLE, release(true) on reset failure

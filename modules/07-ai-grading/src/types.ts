@@ -185,6 +185,10 @@ export interface GenerateQuestionsInput {
   count: number;
   /** Optional KbSource.function category to prefer. */
   topicFocus?: string;
+  /** RW-92: subject (domain) name; sent to the skill as `subject`. Omitted when unknown. */
+  subject?: string;
+  /** RW-92: category name; sent to the skill as `category`. Omitted when unknown. */
+  category?: string;
   /** Existing topic strings to avoid duplication. */
   existingTopics: string[];
   /**
@@ -298,6 +302,10 @@ export interface GenerateByTypeInput {
   type: QuestionType;
   count: number;
   topicFocus?: string | null;
+  /** RW-92: subject (domain) name; sent to the skill as `subject`. Omitted when unknown. */
+  subject?: string;
+  /** RW-92: category name; sent to the skill as `category`. Omitted when unknown. */
+  category?: string;
   existingTopics: string[];
   sources: Array<{
     id: string;

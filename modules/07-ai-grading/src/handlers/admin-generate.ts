@@ -127,6 +127,15 @@ export interface HandleAdminGenerateInput {
    */
   topicFocus?: string | undefined;
   /**
+   * RW-92: names resolved by the caller (04) after its tenant guard. Forwarded
+   * to the skill as `subject` / `category` so the run stays on the chosen topic.
+   * Log + prompt input only; never used for tagging or isolation.
+   */
+  domainName?: string | undefined;
+  categoryName?: string | undefined;
+  /** RW-93: caller-minted id for the generation_attempts row (detached start route). Default: generated here. */
+  attemptId?: string | undefined;
+  /**
    * Difficulty injection (Phase A3). Built by the caller (04 service.ts) which
    * owns difficulty-spec.ts; passed as in-process data + bound closures to
    * preserve the ai-grading → question-bank no-import boundary (04 depends on
@@ -413,7 +422,7 @@ interface GenerationChunk {
   /** Extra fields for the per-chunk log lines (e.g. { type } or { chunk }). */
   logFields: Record<string, unknown>;
   /** Runs the runtime call; `focus` carries the optional topicFocus (RV62). */
-  run: (focus: { topicFocus?: string }) => Promise<GenerateQuestionsOutput>;
+  run: (focus: { topicFocus?: string; subject?: string; category?: string }) => Promise<GenerateQuestionsOutput>;
 }
 
 /** Counters the finally block of handleAdminGenerate reads to finalize the attempt row. */
@@ -443,7 +452,11 @@ async function runGenerationPlan(
   chunkEvents: { ok: string; fail: string } | null,
   stats: GenerationStats,
 ): Promise<HandleAdminGenerateOutput & { _model?: string }> {
-  const focus = input.topicFocus !== undefined ? { topicFocus: input.topicFocus } : {};
+  const focus = {
+    ...(input.topicFocus ? { topicFocus: input.topicFocus } : {}),
+    ...(input.domainName ? { subject: input.domainName } : {}),
+    ...(input.categoryName ? { category: input.categoryName } : {}),
+  };
   const settled = await withConcurrencyLimit(chunks, PLAN_CONCURRENCY, (c) => {
     const start = Date.now();
     return c.run(focus).then((output) => {
@@ -619,7 +632,7 @@ export async function handleAdminGenerate(
     );
   }
 
-  const attemptId = uuidv7();
+  const attemptId = input.attemptId ?? uuidv7();
   const generationStartedAt = Date.now();
 
   // ── Insert 'running' attempt row ──────────────────────────────────────────
@@ -659,6 +672,9 @@ export async function handleAdminGenerate(
       levelId: input.levelId,
       count: input.count,
       socLevel: input.socLevel,
+      topicFocus: input.topicFocus,
+      domainName: input.domainName,
+      categoryName: input.categoryName,
     },
     "generation.start",
   );

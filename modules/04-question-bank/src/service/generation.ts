@@ -214,6 +214,7 @@ export async function generateQuestions(
   domainId?: string,
   categoryId?: string,
   batchId?: string,
+  attemptId?: string,
 ): Promise<{ questionIds: string[]; generated: number; skillSha: string }> {
   // Dynamic import to break the load-time cycle: at module load time
   // neither package has finished resolving. Dynamic import defers until
@@ -321,6 +322,23 @@ export async function generateQuestions(
     }
   }
 
+  // RW-92: resolve display names for the prompt. The guard above already proved
+  // the pair belongs to this tenant; the tenant_id filter repeats it defensively.
+  let domainName: string | undefined;
+  let categoryName: string | undefined;
+  if (domainId !== undefined && categoryId !== undefined) {
+    const names = await withTenant(tenantId, (client) =>
+      client.query<{ domain_name: string; category_name: string }>(
+        `SELECT d.name AS domain_name, c.name AS category_name
+           FROM categories c JOIN domains d ON d.id = c.domain_id AND d.tenant_id = c.tenant_id
+          WHERE c.id = $1 AND c.domain_id = $2 AND c.tenant_id = $3`,
+        [categoryId, domainId, tenantId],
+      ),
+    );
+    domainName = names.rows[0]?.domain_name || undefined;
+    categoryName = names.rows[0]?.category_name || undefined;
+  }
+
   return handleAdminGenerate({
     tenantId,
     userId,
@@ -336,6 +354,9 @@ export async function generateQuestions(
     ...(categoryId !== undefined ? { categoryId } : {}),
     ...(batchId !== undefined ? { batchId } : {}),
     ...(topicFocus !== undefined ? { topicFocus } : {}),
+    ...(domainName !== undefined ? { domainName } : {}),
+    ...(categoryName !== undefined ? { categoryName } : {}),
+    ...(attemptId !== undefined ? { attemptId } : {}),
   });
 }
 
