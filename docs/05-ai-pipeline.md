@@ -37,6 +37,17 @@ Anthropic's consumer ToS allows individual subscribers to script their own use o
 
 If asked: *"the admin uses their personal Anthropic Max subscription via Claude Code as a productivity tool to assist their grading work. AssessIQ does not call Anthropic APIs."*
 
+### Detached generation (RW-93)
+
+*Type: explanation.*
+
+- **What.** `POST /api/admin/generate/start` starts `generateQuestions` detached in the API process and returns 202 `{ attempt_id }`. The wizard polls `GET /api/admin/generation-attempts/:id`. Code: `modules/04-question-bank/src/service/generation-async.ts`.
+- **Why it is still admin click, single-flight.** Only the admin click starts the run. There is no cron, queue, webhook or worker. The run takes the same single-flight lock (`modules/07-ai-grading/src/single-flight.ts`) and writes the same attempt row. The `lint-no-ambient-claude.ts` allow-list is unchanged (2 spawn sites).
+- **300 ms ceiling.** The start route waits 300 ms. An error inside that window (409 `AIG_GRADING_IN_PROGRESS`, 503 `AIG_LOCK_UNAVAILABLE`, 501 wrong pipeline mode) goes to the start request. A later error marks the attempt row `failed` (only if it is still `running`) and the poller reads it.
+- **API restart mid-run.** The CLI child dies with the API process. The attempt row stays `running`. The RW-7 Redis lease (120 s, refreshed every 40 s) expires and frees the lock. The wizard stops after 10 min, and the admin runs the category again. Nothing flips the stale row yet (ROADMAP RW-94).
+- **Considered and rejected.** BullMQ or a worker (hard rule 1), SSE or websockets (edge buffering), a new table, replacing the sync route.
+- **Not included.** Cancel; resume after a restart.
+
 ### Architecture — sync-on-click flow
 
 ```
@@ -1493,3 +1504,13 @@ Commit `9084a53`. Review: Sonnet adversarial verdict revise (fixed), then codex 
 **Considered and rejected.** Deleting the `gradings` rows. It breaks score history and the billing link.
 
 **Not included.** No change to the grading pipeline, to the Phase 1 compliance frame or to the receipt shape. Guard test and open followups: `docs/RCA_LOG.md` entry "Erasure left the answer text readable in the AI-grading columns".
+
+## Generation input: subject, category and topic focus (RW-92, S10, 2026-10-15)
+
+*Type: reference.*
+
+- **What.** `modules/04-question-bank/src/service/generation.ts` resolves `domains.name` and `categories.name` in one tenant-scoped query, after the cross-tenant guard. It passes `domainName` and `categoryName` to `handleAdminGenerate`. Module 07 forwards them to every omnibus, chunked and sharded call as JSON keys `subject` and `category`. A key is omitted when empty. `topic_focus` stays and is `null` when absent. The route rules for `topic_focus` are in `docs/03-api-contract.md`; both domain routes now validate it.
+- **Appended line.** `runSkill` (`modules/07-ai-grading/src/runtimes/claude-code-vps.ts`, `focusNote`) adds one line after the JSON: "Subject: X. Category: Y. Topic focus: Z. Every question must be about this category and topic." The line is absent when all three are absent. The values are logged on `generation.start`.
+- **Why.** A run for "Phishing" / "Email Header Analysis" produced CVSS questions, because the prompt held only the SOC knowledge-base sources and the existing topics (RCA 2026-10-15).
+- **Owner step.** The generation skills on the VPS may read `subject`, `category` and `topic_focus`. A skill edit is `scp` plus an eval re-baseline; the sha256 is recorded on each attempt. The appended line steers the current skills already, so the step is optional.
+- **Not included.** Skill files, the grading runtime, the schema.

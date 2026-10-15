@@ -1090,3 +1090,15 @@ Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-sys
 **Why.** The API accepted `topic_focus` (RW-46 backend) but the wizard had no input for it.
 
 **Not included.** A prompt change. The generation skills live on the VPS; if they must read `topic_focus` explicitly, the owner copies the skill and re-baselines the eval harness (docs/05-ai-pipeline.md).
+
+## Generate wizard: polling (RW-93, S10, 2026-10-15)
+
+*Type: reference.*
+
+**What.** `runBatch` in `modules/10-admin-dashboard/src/pages/generate-wizard.tsx` calls `startGenerateForDomainApi` (`POST /api/admin/generate/start`). Then it reads `getGenerationAttemptApi` every 3 s, for at most 10 min. The category row shows the elapsed time as `m:ss`. A `failed` attempt shows its error and the wizard continues with the next category. A `success` or `partial` attempt goes on with `count_inserted`. After 10 min the wizard shows a time-out error. The run continues on the server if the admin leaves the page.
+
+**Why.** The edge cut a single long request at about 100 to 125 s, and the wizard then started the next category into a held lock (RCA 2026-10-15).
+
+**Considered and rejected.** SSE or websockets (edge buffering). Keeping the single long request.
+
+**Not included.** Cancel; resume after an API restart (the row can stay `running`, ROADMAP RW-94).

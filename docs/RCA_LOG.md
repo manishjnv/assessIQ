@@ -4,6 +4,20 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-15 — Generation ignored subject, category and topic focus
+
+**Symptom:** a production run on 2026-10-15 for subject "Phishing" and category "Email Header Analysis" produced CVSS questions.
+**Cause:** the prompt carried only the SOC knowledge-base sources for the level plus the existing topics. `topic_focus` only narrowed the knowledge sources, and only when it equalled a SOC knowledge-base function name. `modules/04-question-bank/src/service/generation.ts` never passed the domain or category name, and the `runSkill` prompt in `modules/07-ai-grading/src/runtimes/claude-code-vps.ts` held no such keys. The domain route `POST /api/admin/generate` also dropped `topic_focus` silently; only the legacy per-pack route read it. Now both the domain route and `/generate/start` parse and validate `topic_focus` through one shared helper (trim, at most 200 characters, no control characters, else 400 `INVALID_PARAM` `topic_focus`).
+**Fix:** `generation.ts` (after the cross-tenant guard) resolves `domains.name` and `categories.name` in one tenant-scoped query and passes `domainName` and `categoryName` to `handleAdminGenerate` (`modules/07-ai-grading/src/handlers/admin-generate.ts`, `runGenerationPlan`). 07 forwards them to every omnibus, chunked and sharded call as JSON keys `subject` and `category`. `runSkill` appends the line from `focusNote`. The names are also logged on `generation.start`. Owner step: the generation skills on the VPS may read the three keys (skill edit = scp + eval re-baseline); the appended line steers the current skills already.
+**Prevention:** tests in the RW-92 block of `modules/07-ai-grading/src/__tests__/claude-code-vps.runtime.test.ts`. The skill read of the keys is a manual owner step.
+
+## 2026-10-15 — Generate wizard broke on categories slower than the 100 s edge timeout
+
+**Symptom:** in production one category took 152 s. The edge cut the response at about 100 to 125 s. The wizard moved on to the next category, and the single-flight lock refused it (`AIG_GRADING_IN_PROGRESS`). The first category's drafts landed after the wizard showed Review with 0 drafts.
+**Cause:** the wizard (`generateForDomainApi` in `modules/10-admin-dashboard/src/api.ts`, used by `runBatch` in `pages/generate-wizard.tsx`) held one HTTP request open for the whole run. A run longer than the edge limit looked like a failure, while the server still ran it and held the lock.
+**Fix:** `POST /api/admin/generate/start` (`modules/04-question-bank/src/routes.ts`, `service/generation-async.ts`) returns 202 `{ attempt_id }` and runs `generateQuestions` detached. `GET /api/admin/generation-attempts/:id` returns the attempt state. `runBatch` starts, then polls every 3 s for up to 10 min. A failed attempt shows its error and the wizard continues. The sync route is unchanged.
+**Prevention:** tests `modules/04-question-bank/src/__tests__/generate-start-route.test.ts` and `generate-start-detached.test.ts`, and `modules/10-admin-dashboard/src/__tests__/generate-wizard-polling.test.tsx`. Open gap: a row left `running` after an API restart (RW-94).
+
 ## 2026-10-09 — Wave 2 session stopped with uncommitted load-bearing work; the next session committed around it
 
 **Symptom:** on 2026-10-06 11:45 the Wave 2 session stopped after Batch 4 with Batches 5 and 6 on disk only: `apps/api/src/server.ts` (audit routes mount, module 14, load-bearing), `apps/api/src/__tests__/routes/mint-session.test.ts`, `.github/workflows/ci.yml` (e2e required), `apps/web/e2e/fixtures/factories.ts`, plus the untracked `audit-routes.test.ts`. No Wave 2 handoff was written. The Wave 3A session (2026-10-09) committed `ac77086`, `6cbd838`, `cbecc09` around these hunks, so for three days `main` and the working tree disagreed on a load-bearing file, and the audit routes still answered 404 in production (`6cbd838` deploy).
