@@ -137,6 +137,8 @@ export interface GradingInput {
    * with Stage 2 exactly; any band difference or Stage-3 failure routes to review.
    */
   high_stakes?: boolean;
+  /** RW-64: aborted when the single-flight lease is lost; the runtime kills the CLI. */
+  signal?: AbortSignal | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +191,8 @@ export interface GenerateQuestionsInput {
   subject?: string;
   /** RW-92: category name; sent to the skill as `category`. Omitted when unknown. */
   category?: string;
+  /** RW-64: aborted when the single-flight lease is lost; the runtime kills the CLI. */
+  signal?: AbortSignal | undefined;
   /** Existing topic strings to avoid duplication. */
   existingTopics: string[];
   /**
@@ -322,6 +326,8 @@ export interface GenerateByTypeInput {
   levelId: string;
   /** Per-type difficulty target for this level (Phase A3); serializable, injected into the skill prompt. Absent for back-compat. */
   difficulty?: unknown;
+  /** RW-64: aborted when the single-flight lease is lost; the runtime kills the CLI. */
+  signal?: AbortSignal | undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -355,6 +361,8 @@ export interface GenerateRubricInput {
   existingRubric?: unknown;
   /** For structured logging only — not sent to the model. */
   questionId: string;
+  /** RW-64: aborted when the single-flight lease is lost; the runtime kills the CLI. */
+  signal?: AbortSignal | undefined;
 }
 
 /**
@@ -395,6 +403,8 @@ export interface GenerateAnswerGuidanceInput {
   topic: string;
   /** For structured logging only — not sent to the model. */
   questionId: string;
+  /** RW-64: aborted when the single-flight lease is lost; the runtime kills the CLI. */
+  signal?: AbortSignal | undefined;
 }
 
 /** Output of generateAnswerGuidanceDraft(): the proposal + audit metadata. */
@@ -418,8 +428,10 @@ export const AI_GRADING_ERROR_CODES = {
   MODE_NOT_CLAUDE_CODE_VPS: "AIG_MODE_NOT_CLAUDE_CODE_VPS",
   /** Single-flight: another grading is already in flight for this attempt or process */
   GRADING_IN_PROGRESS: "AIG_GRADING_IN_PROGRESS",
-  /** Single-flight Redis lock unreachable � fail-closed 503 */
+  /** Single-flight Redis lock unreachable � fail-closed 503 */
   LOCK_UNAVAILABLE: "AIG_LOCK_UNAVAILABLE",
+  /** RW-64: the single-flight lease was lost mid-run; the subprocess was killed */
+  LEASE_LOST: "AIG_LEASE_LOST",
   /** Heartbeat: admin session inactive > 60s — fresh click required */
   HEARTBEAT_STALE: "AIG_HEARTBEAT_STALE",
   /** Skill file missing or unreadable on the VPS */

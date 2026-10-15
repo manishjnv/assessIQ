@@ -47,6 +47,8 @@ import type { HandleAdminGenerateInput, KbSourceRef } from "../handlers/admin-ge
 
 // Types
 import type { GenerateQuestionsOutput, GeneratedQuestionDraft } from "../types.js";
+import { AI_GRADING_ERROR_CODES } from "../types.js";
+import { singleFlight } from "../single-flight.js";
 
 // ---------------------------------------------------------------------------
 // Mock runtime-selector — no real claude subprocess is spawned.
@@ -420,4 +422,95 @@ describe("handleAdminGenerate — omnibus single-call path citation enforcement"
       expect(attemptRow.count_inserted).toBe(1);
     },
   );
+});
+
+// ---------------------------------------------------------------------------
+// RW-88 — difficulty warnings are surfaced, stored, and never block insertion
+// RW-64 — lost lease fails the attempt with AIG_LEASE_LOST
+// ---------------------------------------------------------------------------
+
+describe("handleAdminGenerate — RW-88 difficulty warnings", () => {
+  const WARNING = { code: "MCQ_STEM_SHORT", message: "stem is short" };
+
+  async function run(warn: (() => Array<{ code: string; message: string }>) | undefined) {
+    const { packId, levelId } = await withSuperClient((c) => seedPack(c, TENANT_ID, ADMIN_ID));
+    mockGenerateQuestions.mockResolvedValue({
+      questions: [makeDraft([SRC_VALID_1], "mcq", `W-${randomUUID().slice(0, 6)}`)],
+      skillSha: "aabbccdd",
+      model: "claude-sonnet-4-6",
+    });
+    delete process.env["AI_GENERATE_MODE"];
+    const result = await handleAdminGenerate({
+      ...makeInput(packId, levelId, 1),
+      difficulty: {
+        byType: { mcq: { cognitiveLevel: ["remember"] } },
+        validate: () => ({ ok: true }),
+        ...(warn ? { warn } : {}),
+        niceForFunction: () => "nice",
+      },
+    });
+    const row = await withTenant(TENANT_ID, async (client) => {
+      const r = await client.query(`SELECT difficulty_params FROM questions WHERE id = $1`, [result.questionIds[0]]);
+      return r.rows[0] as { difficulty_params: Record<string, unknown> };
+    });
+    return { result, row };
+  }
+
+  it.skipIf(!dockerAvailable)("warnings do not block insertion; they reach the result and difficulty_params", async () => {
+    const { result, row } = await run(() => [WARNING]);
+    expect(result.generated).toBe(1);
+    expect(result.warningCount).toBe(1);
+    expect(result.warnings[result.questionIds[0]!]).toEqual([WARNING]);
+    expect(row.difficulty_params).toEqual({ cognitiveLevel: ["remember"], warnings: [WARNING] });
+  });
+
+  it.skipIf(!dockerAvailable)("a throwing warn never blocks the insert", async () => {
+    const { result } = await run(() => {
+      throw new Error("warn boom");
+    });
+    expect(result.generated).toBe(1);
+    expect(result.warningCount).toBe(0);
+  });
+
+  it.skipIf(!dockerAvailable)("no warnings: empty result and no warnings key stored", async () => {
+    const { result, row } = await run(() => []);
+    expect(result.warningCount).toBe(0);
+    expect(result.warnings).toEqual({});
+    expect(row.difficulty_params).toEqual({ cognitiveLevel: ["remember"] });
+  });
+});
+
+describe("handleAdminGenerate — RW-64 lease lost", () => {
+  it.skipIf(!dockerAvailable)("aborted slot: no drafts inserted, attempt failed with AIG_LEASE_LOST", async () => {
+    const { packId, levelId } = await withSuperClient((c) => seedPack(c, TENANT_ID, ADMIN_ID));
+    const ctrl = new AbortController();
+    const acquire = vi.spyOn(singleFlight, "acquire").mockResolvedValue({
+      kind: "acquired",
+      release: async () => undefined,
+      signal: ctrl.signal,
+    });
+    // The lease dies while the run is in flight; the runtime still returns output.
+    mockGenerateQuestions.mockImplementation(async () => {
+      ctrl.abort();
+      return { questions: [makeDraft([SRC_VALID_1], "mcq", "Lease-lost-topic")], skillSha: "aabbccdd", model: "m" };
+    });
+    delete process.env["AI_GENERATE_MODE"];
+    try {
+      await expect(handleAdminGenerate(makeInput(packId, levelId, 1))).rejects.toMatchObject({
+        code: AI_GRADING_ERROR_CODES.LEASE_LOST,
+      });
+    } finally {
+      acquire.mockRestore();
+    }
+    const rows = await withTenant(TENANT_ID, async (client) => {
+      const a = await client.query(
+        `SELECT status, error_code FROM generation_attempts WHERE pack_id = $1 AND level_id = $2`,
+        [packId, levelId],
+      );
+      const q = await client.query(`SELECT count(*)::int AS n FROM questions WHERE pack_id = $1`, [packId]);
+      return { a: a.rows[0] as { status: string; error_code: string }, n: (q.rows[0] as { n: number }).n };
+    });
+    expect(rows.a).toEqual({ status: "failed", error_code: "AIG_LEASE_LOST" });
+    expect(rows.n).toBe(0);
+  });
 });

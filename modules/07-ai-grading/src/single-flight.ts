@@ -9,12 +9,12 @@
  * cannot cover them. The lease is 120s and refreshed every 40s while held; a
  * crashed holder frees the lock within 120s.
  *
- * ponytail: a lost lease (Redis gone >80s mid-run, then back) only logs; the
- * running subprocess is not killed, so a second holder could overlap until the
- * first one's runtime timeout. Upgrade path: pass an AbortSignal into the
- * runtime and abort on lease loss. Scope note: the lock is per AI *operation*
- * (sharded generation fans out inside one lease, by design); rubric and
- * answer-guidance drafts in 04-question-bank do not take it yet (follow-up row).
+ * RW-64 lease loss: the slot carries `signal`. It aborts when a refresh finds the
+ * lease gone (refresh returned false), or after LOST_AFTER_FAILURES (2) refresh
+ * errors in a row (2 x 40s = 80s, inside the 120s TTL, so we abort before the
+ * lease can lapse unseen). The runtime kills the subprocess on abort; the
+ * handler fails the attempt with AIG_LEASE_LOST. Scope note: the lock is per AI
+ * *operation* (sharded generation fans out inside one lease, by design).
  *
  * FAIL-CLOSED (owner decision): if Redis is unreachable, acquire throws 503
  * AIG_LOCK_UNAVAILABLE. There is deliberately no in-process fallback.
@@ -35,9 +35,11 @@ const log = streamLogger("ai-grading");
 const LOCK_KEY = "aiq:ai:single-flight";
 const TTL_MS = 120_000;
 const HEARTBEAT_MS = 40_000;
+/** Consecutive refresh errors (Redis unreachable) that count as a lost lease. */
+const LOST_AFTER_FAILURES = 2;
 
 export type AcquireResult =
-  | { kind: "acquired"; release: () => Promise<void> }
+  | { kind: "acquired"; release: () => Promise<void>; signal: AbortSignal }
   | { kind: "rejected"; reason: "same_attempt_in_flight" | "other_attempt_in_flight" };
 
 export const singleFlight = {
@@ -63,17 +65,33 @@ export const singleFlight = {
       };
     }
 
+    const lost = new AbortController();
+    let failures = 0;
     const timer = setInterval(() => {
-      refreshLock(LOCK_KEY, token, TTL_MS)
+      // A hung Redis counts as a failed refresh after one heartbeat period.
+      let hung: NodeJS.Timeout | undefined;
+      const deadline = new Promise<never>((_, rej) => {
+        hung = setTimeout(() => rej(new Error("lease refresh timed out")), HEARTBEAT_MS);
+      });
+      Promise.race([refreshLock(LOCK_KEY, token, TTL_MS), deadline])
+        .finally(() => clearTimeout(hung))
         .then((ok) => {
-          if (!ok) log.warn({ key }, "single-flight: lease lost (refresh returned false)");
+          failures = 0;
+          if (!ok) {
+            log.warn({ key }, "single-flight: lease lost (refresh returned false)");
+            lost.abort(new Error("single-flight lease lost"));
+          }
         })
-        .catch((err) => log.warn({ err, key }, "single-flight: lease refresh failed"));
+        .catch((err) => {
+          log.warn({ err, key }, "single-flight: lease refresh failed");
+          if (++failures >= LOST_AFTER_FAILURES) lost.abort(new Error("single-flight lease refresh failing"));
+        });
     }, HEARTBEAT_MS);
     timer.unref();
 
     return {
       kind: "acquired",
+      signal: lost.signal,
       async release() {
         clearInterval(timer);
         try {

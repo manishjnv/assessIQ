@@ -222,6 +222,7 @@ export async function gradeSubjective(
   if (rubric.anchors.length > 0) {
     const anchorsEvents = await runSkill({
       skill: SKILL_ANCHORS,
+      signal: input.signal,
       promptVars: {
         question_text: serializeQuestion(input.question_content),
         anchors: rubric.anchors,
@@ -280,6 +281,7 @@ export async function gradeSubjective(
   // ----- Stage 2 — band ----------------------------------------------------
   const bandEvents = await runSkill({
     skill: SKILL_BAND,
+    signal: input.signal,
     promptVars: {
       question_text: serializeQuestion(input.question_content),
       rubric,
@@ -326,6 +328,7 @@ export async function gradeSubjective(
     try {
       const escEvents = await runSkill({
         skill: SKILL_ESCALATE,
+        signal: input.signal,
         promptVars: {
           question_text: serializeQuestion(input.question_content),
           rubric,
@@ -649,6 +652,7 @@ export async function generateQuestions(
 
   const events = await runSkill({
     skill: SKILL_GENERATE,
+    signal: input.signal,
     promptVars,
     focusNote: focusNote(promptVars),
     allowedTools: [MCP_SUBMIT_QUESTIONS],
@@ -820,6 +824,7 @@ export async function generateQuestionsByType(
 
   const events = await runSkill({
     skill: skillName,
+    signal: input.signal,
     promptVars,
     focusNote: focusNote(promptVars),
     allowedTools: [MCP_SUBMIT_QUESTIONS],
@@ -1013,6 +1018,7 @@ export async function generateRubricDraft(
 
   const events = await runSkill({
     skill: SKILL_RUBRIC,
+    signal: input.signal,
     promptVars,
     allowedTools: [MCP_SUBMIT_RUBRIC],
     attemptId: "rubric-generation",
@@ -1146,6 +1152,7 @@ export async function generateAnswerGuidanceDraft(
 
   const events = await runSkill({
     skill: SKILL_ANSWER_GUIDANCE,
+    signal: input.signal,
     promptVars,
     allowedTools: [MCP_SUBMIT_ANSWER_GUIDANCE],
     attemptId: "answer-guidance-generation",
@@ -1225,6 +1232,8 @@ interface RunSkillOpts {
   questionId: string;
   timeoutMs?: number;
   model?: string;
+  /** RW-64: abort = kill the child (SIGTERM, SIGKILL after 5s) and reject AIG_LEASE_LOST. */
+  signal?: AbortSignal | undefined;
 }
 
 /**
@@ -1241,7 +1250,18 @@ export function focusNote(v: { subject?: string; category?: string; topic_focus?
   return parts.length ? `${parts.join(" ")} Every question must be about this category and topic.` : undefined;
 }
 
+function leaseLostError(opts: RunSkillOpts): AppError {
+  return new AppError(
+    `claude subprocess aborted: single-flight lease lost (skill=${opts.skill})`,
+    AI_GRADING_ERROR_CODES.LEASE_LOST,
+    503,
+    { details: { skill: opts.skill, attemptId: opts.attemptId } },
+  );
+}
+
 function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
+  // RW-64: never spawn for a run that already lost its lease.
+  if (opts.signal?.aborted) return Promise.reject(leaseLostError(opts));
   const prompt =
     `Use the ${opts.skill} skill with these inputs:\n\n` +
     JSON.stringify(opts.promptVars, null, 2) +
@@ -1322,6 +1342,22 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
       );
     }, timeoutMs);
 
+    // RW-64: lease lost -> kill the child, fail fast. Same spawn site; no new spawn.
+    // Reject happens in the close handler, so the slot is released only after the child is gone.
+    let aborted = false;
+    const onAbort = (): void => {
+      aborted = true;
+      clearTimeout(timer);
+      proc.kill("SIGTERM");
+      const hardKill = setTimeout(() => proc.kill("SIGKILL"), 5000);
+      hardKill.unref();
+      proc.once("close", () => clearTimeout(hardKill));
+    };
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+    const dropAbort = (): void => opts.signal?.removeEventListener("abort", onAbort);
+    proc.once("close", dropAbort);
+    proc.once("error", dropAbort);
+
     proc.stdout.on("data", (chunk: Buffer) => {
       stdoutBuf += chunk.toString("utf8");
       const { events: parsed, remainder } = parseStreamLines(stdoutBuf);
@@ -1383,6 +1419,10 @@ function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
 
     proc.on("close", (code) => {
       clearTimeout(timer);
+      if (aborted) {
+        reject(leaseLostError(opts));
+        return;
+      }
       // Flush any partial last line.
       if (stdoutBuf.trim()) {
         const { events: parsed } = parseStreamLines(stdoutBuf + "\n");

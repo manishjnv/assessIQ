@@ -56,6 +56,12 @@ const MAX_PARALLEL = 3;
 // Public types
 // ---------------------------------------------------------------------------
 
+/** RW-88: warn-level structural difficulty finding (mirrors DifficultyWarning in 04 difficulty-spec.ts). */
+export interface DifficultyWarningRef {
+  code: string;
+  message: string;
+}
+
 /** One KB source entry — mirrors KbSource from @assessiq/question-bank KB. */
 export interface KbSourceRef {
   id: string;
@@ -152,6 +158,8 @@ export interface HandleAdminGenerateInput {
       content: unknown,
       rubric: unknown,
     ) => { ok: true } | { ok: false; reason: string };
+    /** RW-88: warn-level heuristics bound to this level. Never blocks insertion. */
+    warn?: (type: QuestionType, content: unknown) => DifficultyWarningRef[];
     /** KbSource.function → NICE work-role. */
     niceForFunction: (fn: string) => string;
   };
@@ -164,6 +172,10 @@ export interface HandleAdminGenerateOutput {
   generated: number;
   /** Short SHA of the generate-questions skill used for this run. */
   skillSha: string;
+  /** RW-88: structural difficulty warnings per inserted question id (only non-empty entries). */
+  warnings: Record<string, DifficultyWarningRef[]>;
+  /** RW-88: total number of warnings across all inserted questions. */
+  warningCount: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -254,6 +266,7 @@ async function insertDrafts(
   input: HandleAdminGenerateInput,
   output: GenerateQuestionsOutput,
   attemptId: string,
+  warningsOut: Record<string, DifficultyWarningRef[]>,
 ): Promise<string[]> {
   const ids: string[] = [];
   for (const q of output.questions) {
@@ -276,8 +289,19 @@ async function insertDrafts(
               | undefined)
           : undefined;
       const cognitiveLevel = diffTarget?.cognitiveLevel?.[0] ?? null;
+      // RW-88: warnings ride in difficulty_params.warnings (JSONB, no schema
+      // change); written only when non-empty. They never block the insert.
+      let warnings: DifficultyWarningRef[] = [];
+      try {
+        warnings = input.difficulty?.warn?.(q.type, q.content) ?? [];
+      } catch (warnErr) {
+        // Warnings are advisory: a throwing warn must never block the insert.
+        log.warn({ attemptId, topic: q.topic, err: (warnErr as Error).message }, "generation.difficulty.warn.failed");
+      }
       const difficultyParams =
-        diffTarget !== undefined ? JSON.stringify(diffTarget) : null;
+        diffTarget !== undefined || warnings.length > 0
+          ? JSON.stringify({ ...diffTarget, ...(warnings.length > 0 ? { warnings } : {}) })
+          : null;
       const niceTaskId =
         input.difficulty !== undefined
           ? input.difficulty.niceForFunction(
@@ -312,6 +336,7 @@ async function insertDrafts(
         ],
       );
       ids.push(id);
+      if (warnings.length > 0) warningsOut[id] = warnings;
     } catch (err) {
       // Log the failing question's identity before rethrowing so admins
       // can find the structural mismatch without reading the DB payload.
@@ -422,7 +447,7 @@ interface GenerationChunk {
   /** Extra fields for the per-chunk log lines (e.g. { type } or { chunk }). */
   logFields: Record<string, unknown>;
   /** Runs the runtime call; `focus` carries the optional topicFocus (RV62). */
-  run: (focus: { topicFocus?: string; subject?: string; category?: string }) => Promise<GenerateQuestionsOutput>;
+  run: (focus: { topicFocus?: string; subject?: string; category?: string; signal?: AbortSignal }) => Promise<GenerateQuestionsOutput>;
 }
 
 /** Counters the finally block of handleAdminGenerate reads to finalize the attempt row. */
@@ -451,11 +476,13 @@ async function runGenerationPlan(
   chunks: GenerationChunk[],
   chunkEvents: { ok: string; fail: string } | null,
   stats: GenerationStats,
+  signal: AbortSignal,
 ): Promise<HandleAdminGenerateOutput & { _model?: string }> {
   const focus = {
     ...(input.topicFocus ? { topicFocus: input.topicFocus } : {}),
     ...(input.domainName ? { subject: input.domainName } : {}),
     ...(input.categoryName ? { category: input.categoryName } : {}),
+    signal,
   };
   const settled = await withConcurrencyLimit(chunks, PLAN_CONCURRENCY, (c) => {
     const start = Date.now();
@@ -475,6 +502,16 @@ async function runGenerationPlan(
       return output;
     });
   });
+
+  // RW-64: lease lost mid-run -> the children were killed; fail the whole
+  // attempt (never insert drafts from a run that no longer holds the lock).
+  if (signal.aborted) {
+    throw new AppError(
+      "AI generation aborted: single-flight lease lost",
+      AI_GRADING_ERROR_CODES.LEASE_LOST,
+      503,
+    );
+  }
 
   const fulfilled: GenerateQuestionsOutput[] = [];
   let firstError: unknown = null;
@@ -581,7 +618,9 @@ async function runGenerationPlan(
     ...(model !== undefined ? { model } : {}),
   };
 
-  const ids = await insertDrafts(client, input, mergedOutput, attemptId);
+  const warnings: Record<string, DifficultyWarningRef[]> = {};
+  const ids = await insertDrafts(client, input, mergedOutput, attemptId, warnings);
+  const warningCount = Object.values(warnings).reduce((n, w) => n + w.length, 0);
 
   await auditInTx(client, {
     action: "question.ai_generated",
@@ -610,11 +649,12 @@ async function runGenerationPlan(
       levelId: input.levelId,
       generated: ids.length,
       skillSha,
+      warningCount,
     },
     "generation.complete",
   );
 
-  return { questionIds: ids, generated: ids.length, skillSha, _model: model } as HandleAdminGenerateOutput & { _model?: string };
+  return { questionIds: ids, generated: ids.length, skillSha, warnings, warningCount, _model: model } as HandleAdminGenerateOutput & { _model?: string };
 }
 
 // ---------------------------------------------------------------------------
@@ -782,6 +822,7 @@ export async function handleAdminGenerate(
           })),
           { ok: "generation.sharded.type.complete", fail: "generation.sharded.type.failed" },
           stats,
+          slot.signal,
         );
       }
 
@@ -834,6 +875,7 @@ export async function handleAdminGenerate(
         })),
         single ? null : { ok: "generation.chunked.chunk", fail: "generation.chunked.chunk.failed" },
         stats,
+        slot.signal,
       );
     });
   } catch (err) {
