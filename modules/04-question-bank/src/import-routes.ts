@@ -44,9 +44,9 @@ export function registerImportRoutes(
   app: FastifyInstance,
   preHandler: preHandlerHookHandler[] | preHandlerHookHandler,
 ): void {
-  const base = "/api/admin/super/question-imports";
+  // Literal paths on purpose: tools/lint-ui-api-contract.ts matches route strings, not template variables.
 
-  app.post(base, { preHandler, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
+  app.post("/api/admin/super/question-imports", { preHandler, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
     const body = parse(UploadBody, req.body, "body");
     const data = Buffer.from(body.content_base64, "base64");
     const parsed = await parseImportFile(body.format, data);
@@ -58,7 +58,7 @@ export function registerImportRoutes(
   });
 
   // Static "/templates/:type" is registered before "/:id".
-  app.get(`${base}/templates/:type`, { preHandler }, async (req, reply) => {
+  app.get(`/api/admin/super/question-imports/templates/:type`, { preHandler }, async (req, reply) => {
     const { type } = parse(TemplateParams, req.params, "type");
     const { format } = parse(TemplateQuery, req.query, "query");
     const file = await buildTemplate(type, format);
@@ -68,23 +68,23 @@ export function registerImportRoutes(
       .send(file);
   });
 
-  app.get(`${base}/:id`, { preHandler }, async (req) => {
+  app.get(`/api/admin/super/question-imports/:id`, { preHandler }, async (req) => {
     const { id } = parse(IdParams, req.params, "id");
     return getImportReport(req.session!.tenantId, id);
   });
 
-  app.patch(`${base}/:id/rows/:row`, { preHandler }, async (req) => {
+  app.patch(`/api/admin/super/question-imports/:id/rows/:row`, { preHandler }, async (req) => {
     const { id, row } = parse(RowParams, req.params, "params");
     const body = parse(PatchBody, req.body, "body");
     return fixImportRow(req.session!.tenantId, req.session!.userId, id, row, body);
   });
 
-  app.post(`${base}/:id/commit`, { preHandler }, async (req) => {
+  app.post(`/api/admin/super/question-imports/:id/commit`, { preHandler }, async (req) => {
     const { id } = parse(IdParams, req.params, "id");
     return commitImport(req.session!.tenantId, req.session!.userId, id, { mode: "skip-errors" });
   });
 
-  app.post(`${base}/:id/discard`, { preHandler }, async (req) => {
+  app.post(`/api/admin/super/question-imports/:id/discard`, { preHandler }, async (req) => {
     const { id } = parse(IdParams, req.params, "id");
     return discardImport(req.session!.tenantId, req.session!.userId, id);
   });

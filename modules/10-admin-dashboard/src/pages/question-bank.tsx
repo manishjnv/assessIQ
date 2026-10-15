@@ -606,6 +606,10 @@ export function AdminQuestionBank(): React.ReactElement {
               </p>
             </div>
             {isSuperAdmin && (
+              <div style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
+                <button type="button" className="aiq-btn aiq-btn-outline" onClick={() => navigate("/admin/question-import")}>
+                  Import questions
+                </button>
               <HelpTip helpId="admin.question_bank.list.new_pack">
                 <button
                   type="button"
@@ -618,6 +622,7 @@ export function AdminQuestionBank(): React.ReactElement {
                   {showNewForm ? "Cancel" : "+ New question set"}
                 </button>
               </HelpTip>
+              </div>
             )}
           </div>
         </div>
