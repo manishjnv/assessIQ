@@ -85,7 +85,7 @@ export async function registerNotificationsRoutes(
 
   function getTenantId(req: FastifyRequest): string {
     const tenantId = (req as AiqReq).session?.tenantId;
-    if (!tenantId) throw new AuthzError('No tenant context');
+    if (!tenantId) throw new AuthzError('No organisation context');
     return tenantId;
   }
 

@@ -143,7 +143,7 @@ export async function createPlatformDomain(
 
     const platformTenantId = await getPlatformTenantId(client);
     if (platformTenantId === null) {
-      throw new NotFoundError("platform tenant not found", {
+      throw new NotFoundError("platform organisation not found", {
         details: { code: "PLATFORM_TENANT_MISSING" },
       });
     }
@@ -171,7 +171,7 @@ export async function createPlatformDomain(
         "code" in err &&
         (err as { code: string }).code === "23505"
       ) {
-        throw new ConflictError(`A platform domain with slug '${slug}' already exists.`, {
+        throw new ConflictError(`A platform subject with slug '${slug}' already exists.`, {
           details: { code: "DOMAIN_SLUG_EXISTS", slug },
         });
       }
@@ -266,7 +266,7 @@ export async function setPlatformDomainStatus(
 
     const platformTenantId = await getPlatformTenantId(client);
     if (platformTenantId === null) {
-      throw new NotFoundError("platform tenant not found", {
+      throw new NotFoundError("platform organisation not found", {
         details: { code: "PLATFORM_TENANT_MISSING" },
       });
     }
@@ -281,7 +281,7 @@ export async function setPlatformDomainStatus(
     );
     const target = found.rows[0];
     if (target === undefined || target.source !== "platform") {
-      throw new NotFoundError("platform domain not found", {
+      throw new NotFoundError("platform subject not found", {
         details: { code: "DOMAIN_NOT_FOUND", id: domainId },
       });
     }

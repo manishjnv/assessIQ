@@ -61,7 +61,7 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
       // D13: block creation if tenant has not disclosed privacy terms.
       if (!(await isPrivacyDisclosed(sess.tenantId))) {
         throw new AppError(
-          'Tenant must confirm privacy disclosure before creating embed secrets.',
+          'Your organisation must confirm privacy disclosure before creating embed secrets.',
           'EMBED_REGISTRATION_REQUIRES_PRIVACY_DISCLOSURE',
           403,
         );

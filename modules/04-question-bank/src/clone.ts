@@ -104,7 +104,7 @@ async function getPlatformTenantId(client: PoolClient): Promise<string> {
   );
   const id = r.rows[0]?.id;
   if (id === undefined) {
-    throw new ValidationError("platform tenant not found", {
+    throw new ValidationError("platform organisation not found", {
       details: { code: "PLATFORM_TENANT_MISSING" },
     });
   }
@@ -140,7 +140,7 @@ async function deriveCloneSlug(
     if (!existing.has(candidate)) return candidate;
   }
   throw new ConflictError(
-    `Could not derive a unique clone slug for '${sourceSlug}' in tenant ${targetTenantId}`,
+    `Could not derive a unique clone slug for '${sourceSlug}' in organisation ${targetTenantId}`,
     { details: { code: "CLONE_SLUG_EXHAUSTED" } },
   );
 }
@@ -163,7 +163,7 @@ export async function clonePackToTenant(
   // ── Guards ────────────────────────────────────────────────────────────────
   const platformTenantId = await getPlatformTenantId(client);
   if (targetTenantId === platformTenantId) {
-    throw new ValidationError("cannot clone a pack into the platform tenant", {
+    throw new ValidationError("cannot clone a question set into the platform organisation", {
       details: { code: "CLONE_INTO_PLATFORM" },
     });
   }
@@ -176,17 +176,17 @@ export async function clonePackToTenant(
     )
   ).rows[0];
   if (srcPack === undefined) {
-    throw new NotFoundError(`Source pack not found: ${sourcePackId}`, {
+    throw new NotFoundError(`Source question set not found: ${sourcePackId}`, {
       details: { code: "SOURCE_PACK_NOT_FOUND" },
     });
   }
   if (srcPack.tenant_id !== platformTenantId) {
-    throw new ValidationError("source pack must be in the platform library", {
+    throw new ValidationError("source question set must be in the platform question bank", {
       details: { code: "SOURCE_NOT_PLATFORM" },
     });
   }
   if (srcPack.status !== "published") {
-    throw new ValidationError("source pack must be published before it can be shared", {
+    throw new ValidationError("source question set must be published before it can be shared", {
       details: { code: "SOURCE_NOT_PUBLISHED" },
     });
   }
@@ -879,7 +879,7 @@ export async function resyncClonedPack(
 ): Promise<ResyncResult> {
   const platformTenantId = await getPlatformTenantId(client);
   if (targetTenantId === platformTenantId) {
-    throw new ValidationError("cannot re-sync within the platform tenant", {
+    throw new ValidationError("cannot re-sync within the platform organisation", {
       details: { code: "RESYNC_IN_PLATFORM" },
     });
   }
@@ -893,17 +893,17 @@ export async function resyncClonedPack(
     )
   ).rows[0];
   if (srcPack === undefined) {
-    throw new NotFoundError(`Source pack not found: ${sourcePackId}`, {
+    throw new NotFoundError(`Source question set not found: ${sourcePackId}`, {
       details: { code: "SOURCE_PACK_NOT_FOUND" },
     });
   }
   if (srcPack.tenant_id !== platformTenantId) {
-    throw new ValidationError("source pack must be in the platform library", {
+    throw new ValidationError("source question set must be in the platform question bank", {
       details: { code: "SOURCE_NOT_PLATFORM" },
     });
   }
   if (srcPack.status !== "published") {
-    throw new ValidationError("source pack must be published", {
+    throw new ValidationError("source question set must be published", {
       details: { code: "SOURCE_NOT_PUBLISHED" },
     });
   }

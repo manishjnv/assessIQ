@@ -109,7 +109,7 @@ export async function registerAdminTenantSettingsRoutes(
     const session = req.session!;
     const settings = await withTenant(session.tenantId, (client) => findTenantSettings(client));
     if (settings === null) {
-      throw new NotFoundError('tenant_settings not found for current tenant');
+      throw new NotFoundError('Organisation settings not found for this organisation.');
     }
     const tenant = await getTenantById(session.tenantId);
     return reply.code(200).send({

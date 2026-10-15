@@ -173,7 +173,7 @@ export async function createUser(
       (err as { code: string }).code === '23505'
     ) {
       throw new ConflictError(
-        'A user with this email already exists in this tenant.',
+        'A user with this email already exists in this organisation.',
         { details: { code: 'USER_EMAIL_EXISTS', email: normalizedEmail } },
       );
     }

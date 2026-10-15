@@ -275,7 +275,7 @@ async function assertBlueprintFKOwnership(
   );
   if (domainGuard.rows.length === 0) {
     throw new ValidationError(
-      "blueprint.domain_id does not exist or does not belong to this tenant",
+      "blueprint.domain_id does not exist or does not belong to this organisation",
       {
         details: {
           code: AL_ERROR_CODES.CROSS_TENANT_FK_REJECTED,
@@ -297,7 +297,7 @@ async function assertBlueprintFKOwnership(
     );
     if (catGuard.rows.length === 0) {
       throw new ValidationError(
-        `blueprint category_id does not exist, does not belong to this tenant, or does not belong to the specified domain`,
+        `blueprint category_id does not exist, does not belong to this organisation, or does not belong to the specified subject`,
         {
           details: {
             code: AL_ERROR_CODES.CROSS_TENANT_FK_REJECTED,
@@ -339,7 +339,7 @@ export async function resolveBlueprintNodes(
     );
     const row = r.rows[0];
     if (row === undefined) {
-      throw new ValidationError("blueprint node_id does not exist or is not visible to this tenant", {
+      throw new ValidationError("blueprint node_id does not exist or is not visible to this organisation", {
         details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_UNRESOLVED, node_id: crit.node_id },
       });
     }
@@ -349,7 +349,7 @@ export async function resolveBlueprintNodes(
       });
     }
     if (row.category_id === null || row.domain_id === null) {
-      throw new ValidationError("blueprint node_id has no category in this tenant", {
+      throw new ValidationError("blueprint node_id has no category in this organisation", {
         details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_UNRESOLVED, node_id: crit.node_id },
       });
     }
@@ -365,7 +365,7 @@ export async function resolveBlueprintNodes(
     }
     domainId ??= row.domain_id;
     if (domainId !== row.domain_id) {
-      throw new ValidationError("blueprint criteria resolve to more than one domain", {
+      throw new ValidationError("blueprint criteria resolve to more than one subject", {
         details: { code: AL_ERROR_CODES.BLUEPRINT_MIXED_DOMAINS, node_id: crit.node_id },
       });
     }
@@ -572,7 +572,7 @@ export async function createAssessment(
     // a. Pack must exist (RLS scopes the SELECT to this tenant)
     const pack = await qbRepo.findPackById(client, resolvedInput.pack_id);
     if (pack === null) {
-      throw new NotFoundError(`Pack not found: ${resolvedInput.pack_id}`, {
+      throw new NotFoundError(`Question set not found: ${resolvedInput.pack_id}`, {
         details: { code: AL_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
@@ -594,7 +594,7 @@ export async function createAssessment(
     // published-status check does NOT weaken the tenancy guard.
     if (rawBlueprint === undefined && pack.status !== "published") {
       throw new ConflictError(
-        `Pack '${resolvedInput.pack_id}' must be in 'published' status to create an assessment (current: '${pack.status}')`,
+        `Question set '${resolvedInput.pack_id}' must be in 'published' status to create an assessment (current: '${pack.status}')`,
         { details: { code: AL_ERROR_CODES.PACK_NOT_PUBLISHED } },
       );
     }
@@ -610,7 +610,7 @@ export async function createAssessment(
     // d. Level must belong to the specified pack
     if (level.pack_id !== resolvedInput.pack_id) {
       throw new ValidationError(
-        `Level '${resolvedInput.level_id}' does not belong to pack '${resolvedInput.pack_id}'`,
+        `Level '${resolvedInput.level_id}' does not belong to question set '${resolvedInput.pack_id}'`,
         { details: { code: AL_ERROR_CODES.LEVEL_NOT_IN_PACK } },
       );
     }
@@ -1685,14 +1685,14 @@ async function resolveTenantNameForEmail(
   const tenantRow = await tenancyRepo.findTenantById(client, tenantId);
   if (tenantRow === null) {
     throw new NotFoundError(
-      `Tenant not found while preparing invitation emails: ${tenantId}`,
+      `Organisation not found while preparing invitation emails: ${tenantId}`,
       { details: { code: AL_ERROR_CODES.TENANT_NAME_MISSING, tenantId } },
     );
   }
   const tenantName = tenantRow.name?.trim() ?? "";
   if (tenantName.length === 0) {
     throw new ValidationError(
-      `Tenant has empty name; cannot send invitation emails (tenant ${tenantId})`,
+      `Organisation has an empty name; cannot send invitation emails (organisation ${tenantId})`,
       { details: { code: AL_ERROR_CODES.TENANT_NAME_MISSING, tenantId } },
     );
   }

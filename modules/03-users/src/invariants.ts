@@ -44,7 +44,7 @@ export async function assertNotLastAdmin(
 
   if (count === 0) {
     throw new ConflictError(
-      'Cannot remove or disable the last active admin in this tenant. Promote another user to admin first.',
+      'Cannot remove or disable the last active admin in this organisation. Promote another user to admin first.',
       { details: { code: 'LAST_ADMIN', mutationKind, userId: targetUserId } },
     );
   }

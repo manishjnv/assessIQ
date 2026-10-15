@@ -301,7 +301,7 @@ export async function registerAdminSuperTenantRoutes(app: FastifyInstance): Prom
       const admin = await findTenantFirstAdmin(tenantId);
 
       if (admin === null) {
-        throw new NotFoundError('This tenant has no admin user to resend an invitation to.', {
+        throw new NotFoundError('This organisation has no admin user to resend an invitation to.', {
           details: { code: 'NO_PENDING_ADMIN' },
         });
       }

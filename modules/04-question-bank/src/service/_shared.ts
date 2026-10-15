@@ -36,7 +36,7 @@ export const MAX_SLUG_RETRIES = 10;
 export function assertValidSlug(slug: string): void {
   if (!SLUG_REGEX.test(slug)) {
     throw new ValidationError(
-      `Pack slug must match /^[a-z0-9-]{3,80}$/: got '${slug}'`,
+      `Question set slug must match /^[a-z0-9-]{3,80}$/: got '${slug}'`,
       { details: { code: QB_ERROR_CODES.IMPORT_VALIDATION_FAILED, field: "slug" } },
     );
   }

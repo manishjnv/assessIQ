@@ -267,7 +267,7 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
   return withSystemRole("cross-tenant billing detail (super-admin)", async (client) => {
     const plan = await getTenantPlanRow(client, tenantId);
     if (plan === null) {
-      throw new NotFoundError(`No billing plan found for tenant ${tenantId}`, {
+      throw new NotFoundError(`No billing plan found for organisation ${tenantId}`, {
         details: { code: 'PLAN_NOT_FOUND', tenantId },
       });
     }
@@ -463,7 +463,7 @@ export async function revokeEntitlement(
       // Nothing was active to revoke — throw BEFORE writing any audit row
       // (withSystemRole rolls back on throw).
       throw new NotFoundError(
-        `No active entitlement found for tenant ${tenantId} scope ${scopeType}:${scopeId}`,
+        `No active entitlement found for organisation ${tenantId} scope ${scopeType}:${scopeId}`,
         { details: { code: 'ENTITLEMENT_NOT_FOUND', tenantId, scopeType, scopeId } },
       );
     }
@@ -639,7 +639,7 @@ export async function assertPublishEntitled(
 
   if (!entitled) {
     throw new AppError(
-      `This assessment's question pack is not entitled for your plan (pack ${packId}${domain ? `, domain ${domain}` : ''}). Contact your platform operator to enable it.`,
+      `This assessment's question set is not entitled for your plan (question set ${packId}${domain ? `, subject ${domain}` : ''}). Contact your platform operator to enable it.`,
       'NOT_ENTITLED',
       403,
       { details: { code: 'NOT_ENTITLED', pack_id: packId, domain } },
@@ -682,7 +682,7 @@ export async function assertLicensedForSourcePack(
     );
     if (!licensed) {
       throw new AppError(
-        `Your tenant is not licensed for this question set. Contact your platform operator to enable it.`,
+        `Your organisation is not licensed for this question set. Contact your platform operator to enable it.`,
         'NOT_LICENSED',
         403,
         { details: { code: 'NOT_LICENSED', source_pack_id: sourcePackId, domain } },
@@ -855,7 +855,7 @@ export async function updateTenantPlan(
     // 1. Lock the row
     const planRow = await getTenantPlanRow(client, tenantId, true);
     if (planRow === null) {
-      throw new NotFoundError(`No billing plan found for tenant ${tenantId}`, {
+      throw new NotFoundError(`No billing plan found for organisation ${tenantId}`, {
         details: { code: 'PLAN_NOT_FOUND', tenantId },
       });
     }
