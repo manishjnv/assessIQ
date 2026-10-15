@@ -26,6 +26,8 @@ import { BillingDrawer } from "./platform/BillingDrawer.js";
 import { ManageMenu } from "./platform/ManageMenu.js";
 import { PlatformDomainsSection } from "./platform/PlatformDomainsSection.js";
 import { BackgroundJobsSection } from "./platform/BackgroundJobsSection.js";
+import { PlatformFrameworksSection } from "./platform/PlatformFrameworksSection.js";
+import { useAdminSession } from "../session.js";
 import { LIFECYCLE_COPY } from "./platform/LifecycleConfirmModal.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -55,6 +57,7 @@ const ROW_GRID_GAP = 12;
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function AdminPlatform(): React.ReactElement {
+  const { session } = useAdminSession();
   const [tenants, setTenants] = useState<TenantListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -567,6 +570,9 @@ export function AdminPlatform(): React.ReactElement {
 
         {/* Platform domains — super-admin catalog management */}
         <PlatformDomainsSection />
+
+        {/* Curriculum frameworks (RW-57): super admin only */}
+        {session?.user.role === "super_admin" && <PlatformFrameworksSection />}
 
         {/* Background jobs — shared BullMQ queue (FU-D9) */}
         <BackgroundJobsSection />

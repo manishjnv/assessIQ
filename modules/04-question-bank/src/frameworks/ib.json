@@ -1,0 +1,494 @@
+{
+  "code": "ib",
+  "name": "International Baccalaureate",
+  "board": "IB",
+  "version": "IB MYP 2014 / DP 2020 guides",
+  "sourceUrls": [
+    "https://www.ibo.org/programmes/primary-years-programme/",
+    "https://www.ibo.org/programmes/middle-years-programme/",
+    "https://www.ibo.org/programmes/diploma-programme/"
+  ],
+  "nodes": [
+    {
+      "code": "pyp",
+      "title": "Primary Years Programme",
+      "kind": "stage",
+      "children": [
+        {
+          "code": "who-we-are",
+          "title": "Who we are",
+          "kind": "unit"
+        },
+        {
+          "code": "where-we-are-in-place-and-time",
+          "title": "Where we are in place and time",
+          "kind": "unit"
+        },
+        {
+          "code": "how-we-express-ourselves",
+          "title": "How we express ourselves",
+          "kind": "unit"
+        },
+        {
+          "code": "how-the-world-works",
+          "title": "How the world works",
+          "kind": "unit"
+        },
+        {
+          "code": "how-we-organize-ourselves",
+          "title": "How we organize ourselves",
+          "kind": "unit"
+        },
+        {
+          "code": "sharing-the-planet",
+          "title": "Sharing the planet",
+          "kind": "unit"
+        }
+      ]
+    },
+    {
+      "code": "myp",
+      "title": "Middle Years Programme",
+      "kind": "stage",
+      "children": [
+        {
+          "code": "language-and-literature",
+          "title": "Language and literature",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "criterion-a",
+              "title": "Criterion A: Analysing",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-b",
+              "title": "Criterion B: Organizing",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-c",
+              "title": "Criterion C: Producing text",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-d",
+              "title": "Criterion D: Using language",
+              "kind": "criterion"
+            }
+          ]
+        },
+        {
+          "code": "language-acquisition",
+          "title": "Language acquisition",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "criterion-a",
+              "title": "Criterion A: Listening",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-b",
+              "title": "Criterion B: Reading",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-c",
+              "title": "Criterion C: Speaking",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-d",
+              "title": "Criterion D: Writing",
+              "kind": "criterion"
+            }
+          ]
+        },
+        {
+          "code": "individuals-and-societies",
+          "title": "Individuals and societies",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "criterion-a",
+              "title": "Criterion A: Knowing and understanding",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-b",
+              "title": "Criterion B: Investigating",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-c",
+              "title": "Criterion C: Communicating",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-d",
+              "title": "Criterion D: Thinking critically",
+              "kind": "criterion"
+            }
+          ]
+        },
+        {
+          "code": "sciences",
+          "title": "Sciences",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "criterion-a",
+              "title": "Criterion A: Knowing and understanding",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-b",
+              "title": "Criterion B: Inquiring and designing",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-c",
+              "title": "Criterion C: Processing and evaluating",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-d",
+              "title": "Criterion D: Reflecting on the impacts of science",
+              "kind": "criterion"
+            }
+          ]
+        },
+        {
+          "code": "mathematics",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "criterion-a",
+              "title": "Criterion A: Knowing and understanding",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-b",
+              "title": "Criterion B: Investigating patterns",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-c",
+              "title": "Criterion C: Communicating",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-d",
+              "title": "Criterion D: Applying mathematics in real-world contexts",
+              "kind": "criterion"
+            }
+          ]
+        },
+        {
+          "code": "arts",
+          "title": "Arts",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "criterion-a",
+              "title": "Criterion A: Knowing and understanding",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-b",
+              "title": "Criterion B: Developing skills",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-c",
+              "title": "Criterion C: Thinking creatively",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-d",
+              "title": "Criterion D: Responding",
+              "kind": "criterion"
+            }
+          ]
+        },
+        {
+          "code": "physical-and-health-education",
+          "title": "Physical and health education",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "criterion-a",
+              "title": "Criterion A: Knowing and understanding",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-b",
+              "title": "Criterion B: Planning for performance",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-c",
+              "title": "Criterion C: Applying and performing",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-d",
+              "title": "Criterion D: Reflecting and improving performance",
+              "kind": "criterion"
+            }
+          ]
+        },
+        {
+          "code": "design",
+          "title": "Design",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "criterion-a",
+              "title": "Criterion A: Inquiring and analysing",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-b",
+              "title": "Criterion B: Developing ideas",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-c",
+              "title": "Criterion C: Creating the solution",
+              "kind": "criterion"
+            },
+            {
+              "code": "criterion-d",
+              "title": "Criterion D: Evaluating",
+              "kind": "criterion"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "dp",
+      "title": "Diploma Programme",
+      "kind": "stage",
+      "children": [
+        {
+          "code": "group-1-studies-in-language-and-literature",
+          "title": "Group 1: Studies in language and literature",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "language-a-literature",
+              "title": "Language A: Literature",
+              "kind": "unit"
+            },
+            {
+              "code": "language-a-language-and-literature",
+              "title": "Language A: Language and Literature",
+              "kind": "unit"
+            },
+            {
+              "code": "literature-and-performance",
+              "title": "Literature and Performance",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "group-2-language-acquisition",
+          "title": "Group 2: Language acquisition",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "language-b",
+              "title": "Language B",
+              "kind": "unit"
+            },
+            {
+              "code": "language-ab-initio",
+              "title": "Language ab initio",
+              "kind": "unit"
+            },
+            {
+              "code": "classical-languages",
+              "title": "Classical Languages",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "group-3-individuals-and-societies",
+          "title": "Group 3: Individuals and societies",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "business-management",
+              "title": "Business Management",
+              "kind": "unit"
+            },
+            {
+              "code": "economics",
+              "title": "Economics",
+              "kind": "unit"
+            },
+            {
+              "code": "geography",
+              "title": "Geography",
+              "kind": "unit"
+            },
+            {
+              "code": "history",
+              "title": "History",
+              "kind": "unit"
+            },
+            {
+              "code": "global-politics",
+              "title": "Global Politics",
+              "kind": "unit"
+            },
+            {
+              "code": "psychology",
+              "title": "Psychology",
+              "kind": "unit"
+            },
+            {
+              "code": "digital-society",
+              "title": "Digital Society",
+              "kind": "unit"
+            },
+            {
+              "code": "philosophy",
+              "title": "Philosophy",
+              "kind": "unit"
+            },
+            {
+              "code": "social-and-cultural-anthropology",
+              "title": "Social and Cultural Anthropology",
+              "kind": "unit"
+            },
+            {
+              "code": "environmental-systems-and-societies",
+              "title": "Environmental Systems and Societies",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "group-4-sciences",
+          "title": "Group 4: Sciences",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "biology",
+              "title": "Biology",
+              "kind": "unit"
+            },
+            {
+              "code": "chemistry",
+              "title": "Chemistry",
+              "kind": "unit"
+            },
+            {
+              "code": "physics",
+              "title": "Physics",
+              "kind": "unit"
+            },
+            {
+              "code": "computer-science",
+              "title": "Computer Science",
+              "kind": "unit"
+            },
+            {
+              "code": "design-technology",
+              "title": "Design Technology",
+              "kind": "unit"
+            },
+            {
+              "code": "sports-exercise-and-health-science",
+              "title": "Sports, Exercise and Health Science",
+              "kind": "unit"
+            },
+            {
+              "code": "environmental-systems-and-societies",
+              "title": "Environmental Systems and Societies",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "group-5-mathematics",
+          "title": "Group 5: Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "mathematics-analysis-and-approaches",
+              "title": "Mathematics: Analysis and Approaches",
+              "kind": "unit"
+            },
+            {
+              "code": "mathematics-applications-and-interpretation",
+              "title": "Mathematics: Applications and Interpretation",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "group-6-the-arts",
+          "title": "Group 6: The arts",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "visual-arts",
+              "title": "Visual Arts",
+              "kind": "unit"
+            },
+            {
+              "code": "music",
+              "title": "Music",
+              "kind": "unit"
+            },
+            {
+              "code": "theatre",
+              "title": "Theatre",
+              "kind": "unit"
+            },
+            {
+              "code": "film",
+              "title": "Film",
+              "kind": "unit"
+            },
+            {
+              "code": "dance",
+              "title": "Dance",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "dp-core",
+          "title": "DP core",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "theory-of-knowledge",
+              "title": "Theory of Knowledge",
+              "kind": "unit"
+            },
+            {
+              "code": "extended-essay",
+              "title": "Extended Essay",
+              "kind": "unit"
+            },
+            {
+              "code": "creativity-activity-service",
+              "title": "Creativity, Activity, Service",
+              "kind": "unit"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -11,6 +11,9 @@ import { z } from "zod";
 import type { PoolClient } from "pg";
 import { findNodeId } from "./taxonomy-nodes.js";
 import sampleSeed from "./frameworks/sample.json" with { type: "json" };
+import cbseSeed from "./frameworks/cbse.json" with { type: "json" };
+import icseSeed from "./frameworks/icse.json" with { type: "json" };
+import ibSeed from "./frameworks/ib.json" with { type: "json" };
 
 const Code = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const KINDS = ["board", "stage", "grade", "subject", "unit", "outcome", "criterion"] as const;
@@ -61,7 +64,7 @@ const SeedSchema = z
 export type FrameworkSeed = z.infer<typeof SeedSchema>;
 
 // Add new bundled seeds here (one static import each, so they ship in the API image).
-const BUNDLED: Record<string, unknown> = { sample: sampleSeed };
+const BUNDLED: Record<string, unknown> = { sample: sampleSeed, cbse: cbseSeed, icse: icseSeed, ib: ibSeed };
 
 /** Validate; throws ValidationError naming the schema path of the FIRST error (e.g. nodes.0.children.1.kind). */
 export function validateFrameworkSeed(raw: unknown): FrameworkSeed {
@@ -159,7 +162,7 @@ export async function loadFrameworkSeedData(actorUserId: string, raw: unknown): 
   const seed = validateFrameworkSeed(raw);
   return withSystemRole("framework seed load", async (client) => {
     const platform = (await client.query<{ id: string }>(`SELECT id FROM tenants WHERE slug = 'platform' LIMIT 1`)).rows[0];
-    if (!platform) throw new NotFoundError("platform tenant not found");
+    if (!platform) throw new NotFoundError("platform organisation not found");
     await client.query(
       `INSERT INTO frameworks (tenant_id, slug, name, source, status) VALUES (NULL, $1, $2, 'platform', 'active')
        ON CONFLICT (tenant_id, slug) DO UPDATE SET name = EXCLUDED.name, updated_at = now()

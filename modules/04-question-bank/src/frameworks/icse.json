@@ -1,0 +1,1838 @@
+{
+  "code": "icse",
+  "name": "ICSE and ISC (CISCE)",
+  "board": "CISCE",
+  "version": "CISCE 2025-26 syllabus",
+  "sourceUrls": [
+    "https://cisce.org/",
+    "https://cisce.org/regulations-syllabuses/"
+  ],
+  "nodes": [
+    {
+      "code": "icse",
+      "title": "ICSE",
+      "kind": "stage",
+      "children": [
+        {
+          "code": "grade-9",
+          "title": "Grade 9",
+          "kind": "grade",
+          "children": [
+            {
+              "code": "mathematics",
+              "title": "Mathematics",
+              "kind": "subject",
+              "description": "partial: verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "rational-and-irrational-numbers",
+                  "title": "Rational and Irrational Numbers",
+                  "kind": "unit"
+                },
+                {
+                  "code": "compound-interest",
+                  "title": "Compound Interest",
+                  "kind": "unit"
+                },
+                {
+                  "code": "expansions",
+                  "title": "Expansions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "factorisation",
+                  "title": "Factorisation",
+                  "kind": "unit"
+                },
+                {
+                  "code": "simultaneous-linear-equations",
+                  "title": "Simultaneous Linear Equations",
+                  "kind": "unit"
+                },
+                {
+                  "code": "indices",
+                  "title": "Indices",
+                  "kind": "unit"
+                },
+                {
+                  "code": "logarithms",
+                  "title": "Logarithms",
+                  "kind": "unit"
+                },
+                {
+                  "code": "triangles",
+                  "title": "Triangles",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mid-point-theorem",
+                  "title": "Mid-point Theorem",
+                  "kind": "unit"
+                },
+                {
+                  "code": "pythagoras-theorem",
+                  "title": "Pythagoras Theorem",
+                  "kind": "unit"
+                },
+                {
+                  "code": "rectilinear-figures",
+                  "title": "Rectilinear Figures",
+                  "kind": "unit"
+                },
+                {
+                  "code": "construction-of-polygons",
+                  "title": "Construction of Polygons",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mensuration",
+                  "title": "Mensuration",
+                  "kind": "unit"
+                },
+                {
+                  "code": "trigonometrical-ratios",
+                  "title": "Trigonometrical Ratios",
+                  "kind": "unit"
+                },
+                {
+                  "code": "statistics",
+                  "title": "Statistics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "graphs-of-linear-equations",
+                  "title": "Graphs of Linear Equations",
+                  "kind": "unit"
+                },
+                {
+                  "code": "coordinate-geometry",
+                  "title": "Coordinate Geometry",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "english-language",
+              "title": "English Language",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "composition",
+                  "title": "Composition",
+                  "kind": "unit"
+                },
+                {
+                  "code": "letter-writing",
+                  "title": "Letter Writing",
+                  "kind": "unit"
+                },
+                {
+                  "code": "comprehension",
+                  "title": "Comprehension",
+                  "kind": "unit"
+                },
+                {
+                  "code": "grammar",
+                  "title": "Grammar",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "english-literature",
+              "title": "English Literature",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "drama",
+                  "title": "Drama",
+                  "kind": "unit"
+                },
+                {
+                  "code": "prose",
+                  "title": "Prose",
+                  "kind": "unit"
+                },
+                {
+                  "code": "poetry",
+                  "title": "Poetry",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "hindi",
+              "title": "Hindi",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "gadya-prose",
+                  "title": "Gadya (Prose)",
+                  "kind": "unit"
+                },
+                {
+                  "code": "padya-poetry",
+                  "title": "Padya (Poetry)",
+                  "kind": "unit"
+                },
+                {
+                  "code": "vyakaran-grammar",
+                  "title": "Vyakaran (Grammar)",
+                  "kind": "unit"
+                },
+                {
+                  "code": "rachna-composition",
+                  "title": "Rachna (Composition)",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "physics",
+              "title": "Physics",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "force-work-power-and-energy",
+                  "title": "Force, Work, Power and Energy",
+                  "kind": "unit"
+                },
+                {
+                  "code": "light",
+                  "title": "Light",
+                  "kind": "unit"
+                },
+                {
+                  "code": "sound",
+                  "title": "Sound",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electricity-and-magnetism",
+                  "title": "Electricity and Magnetism",
+                  "kind": "unit"
+                },
+                {
+                  "code": "heat-and-energy",
+                  "title": "Heat and Energy",
+                  "kind": "unit"
+                },
+                {
+                  "code": "modern-physics",
+                  "title": "Modern Physics",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "chemistry",
+              "title": "Chemistry",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "the-language-of-chemistry",
+                  "title": "The Language of Chemistry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "chemical-changes-and-reactions",
+                  "title": "Chemical Changes and Reactions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "water",
+                  "title": "Water",
+                  "kind": "unit"
+                },
+                {
+                  "code": "atomic-structure-and-chemical-bonding",
+                  "title": "Atomic Structure and Chemical Bonding",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-periodic-table",
+                  "title": "The Periodic Table",
+                  "kind": "unit"
+                },
+                {
+                  "code": "study-of-gas-laws",
+                  "title": "Study of Gas Laws",
+                  "kind": "unit"
+                },
+                {
+                  "code": "acids-bases-and-salts",
+                  "title": "Acids, Bases and Salts",
+                  "kind": "unit"
+                },
+                {
+                  "code": "analytical-chemistry",
+                  "title": "Analytical Chemistry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mole-concept-and-stoichiometry",
+                  "title": "Mole Concept and Stoichiometry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electrolysis",
+                  "title": "Electrolysis",
+                  "kind": "unit"
+                },
+                {
+                  "code": "metallurgy",
+                  "title": "Metallurgy",
+                  "kind": "unit"
+                },
+                {
+                  "code": "study-of-compounds",
+                  "title": "Study of Compounds",
+                  "kind": "unit"
+                },
+                {
+                  "code": "organic-chemistry",
+                  "title": "Organic Chemistry",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "biology",
+              "title": "Biology",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "cell-the-unit-of-life",
+                  "title": "Cell: The Unit of Life",
+                  "kind": "unit"
+                },
+                {
+                  "code": "tissues",
+                  "title": "Tissues",
+                  "kind": "unit"
+                },
+                {
+                  "code": "flowering-plants",
+                  "title": "Flowering Plants",
+                  "kind": "unit"
+                },
+                {
+                  "code": "plant-physiology",
+                  "title": "Plant Physiology",
+                  "kind": "unit"
+                },
+                {
+                  "code": "human-anatomy-and-physiology",
+                  "title": "Human Anatomy and Physiology",
+                  "kind": "unit"
+                },
+                {
+                  "code": "reproduction",
+                  "title": "Reproduction",
+                  "kind": "unit"
+                },
+                {
+                  "code": "genetics",
+                  "title": "Genetics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "pollution-and-environment",
+                  "title": "Pollution and Environment",
+                  "kind": "unit"
+                },
+                {
+                  "code": "health-and-hygiene",
+                  "title": "Health and Hygiene",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "history-and-civics",
+              "title": "History and Civics",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "the-union-legislature",
+                  "title": "The Union Legislature",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-union-executive",
+                  "title": "The Union Executive",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-judiciary",
+                  "title": "The Judiciary",
+                  "kind": "unit"
+                },
+                {
+                  "code": "growth-of-nationalism",
+                  "title": "Growth of Nationalism",
+                  "kind": "unit"
+                },
+                {
+                  "code": "first-war-of-independence-1857",
+                  "title": "First War of Independence 1857",
+                  "kind": "unit"
+                },
+                {
+                  "code": "indian-national-congress",
+                  "title": "Indian National Congress",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-freedom-movement",
+                  "title": "The Freedom Movement",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mahatma-gandhi-and-the-national-movement",
+                  "title": "Mahatma Gandhi and the National Movement",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-united-nations",
+                  "title": "The United Nations",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "geography",
+              "title": "Geography",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "map-study-and-interpretation-of-topographical-maps",
+                  "title": "Map Study and Interpretation of Topographical Maps",
+                  "kind": "unit"
+                },
+                {
+                  "code": "climate-of-india",
+                  "title": "Climate of India",
+                  "kind": "unit"
+                },
+                {
+                  "code": "soil-resources",
+                  "title": "Soil Resources",
+                  "kind": "unit"
+                },
+                {
+                  "code": "natural-vegetation",
+                  "title": "Natural Vegetation",
+                  "kind": "unit"
+                },
+                {
+                  "code": "water-resources",
+                  "title": "Water Resources",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mineral-and-energy-resources",
+                  "title": "Mineral and Energy Resources",
+                  "kind": "unit"
+                },
+                {
+                  "code": "agriculture",
+                  "title": "Agriculture",
+                  "kind": "unit"
+                },
+                {
+                  "code": "manufacturing-industries",
+                  "title": "Manufacturing Industries",
+                  "kind": "unit"
+                },
+                {
+                  "code": "transport",
+                  "title": "Transport",
+                  "kind": "unit"
+                },
+                {
+                  "code": "waste-management",
+                  "title": "Waste Management",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "computer-applications",
+              "title": "Computer Applications",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "object-oriented-programming-concepts",
+                  "title": "Object-Oriented Programming Concepts",
+                  "kind": "unit"
+                },
+                {
+                  "code": "values-and-data-types",
+                  "title": "Values and Data Types",
+                  "kind": "unit"
+                },
+                {
+                  "code": "operators-and-expressions",
+                  "title": "Operators and Expressions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "input-in-java",
+                  "title": "Input in Java",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mathematical-library-methods",
+                  "title": "Mathematical Library Methods",
+                  "kind": "unit"
+                },
+                {
+                  "code": "conditional-statements",
+                  "title": "Conditional Statements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "iterative-constructs",
+                  "title": "Iterative Constructs",
+                  "kind": "unit"
+                },
+                {
+                  "code": "nested-loops",
+                  "title": "Nested Loops",
+                  "kind": "unit"
+                },
+                {
+                  "code": "functions-and-classes",
+                  "title": "Functions and Classes",
+                  "kind": "unit"
+                },
+                {
+                  "code": "arrays",
+                  "title": "Arrays",
+                  "kind": "unit"
+                },
+                {
+                  "code": "strings",
+                  "title": "Strings",
+                  "kind": "unit"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "grade-10",
+          "title": "Grade 10",
+          "kind": "grade",
+          "children": [
+            {
+              "code": "mathematics",
+              "title": "Mathematics",
+              "kind": "subject",
+              "description": "partial: verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "goods-and-services-tax",
+                  "title": "Goods and Services Tax",
+                  "kind": "unit"
+                },
+                {
+                  "code": "banking",
+                  "title": "Banking",
+                  "kind": "unit"
+                },
+                {
+                  "code": "shares-and-dividends",
+                  "title": "Shares and Dividends",
+                  "kind": "unit"
+                },
+                {
+                  "code": "linear-inequations",
+                  "title": "Linear Inequations",
+                  "kind": "unit"
+                },
+                {
+                  "code": "quadratic-equations",
+                  "title": "Quadratic Equations",
+                  "kind": "unit"
+                },
+                {
+                  "code": "ratio-and-proportion",
+                  "title": "Ratio and Proportion",
+                  "kind": "unit"
+                },
+                {
+                  "code": "factorisation-of-polynomials",
+                  "title": "Factorisation of Polynomials",
+                  "kind": "unit"
+                },
+                {
+                  "code": "matrices",
+                  "title": "Matrices",
+                  "kind": "unit"
+                },
+                {
+                  "code": "arithmetic-and-geometric-progression",
+                  "title": "Arithmetic and Geometric Progression",
+                  "kind": "unit"
+                },
+                {
+                  "code": "coordinate-geometry",
+                  "title": "Coordinate Geometry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "similarity",
+                  "title": "Similarity",
+                  "kind": "unit"
+                },
+                {
+                  "code": "loci",
+                  "title": "Loci",
+                  "kind": "unit"
+                },
+                {
+                  "code": "circles",
+                  "title": "Circles",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mensuration",
+                  "title": "Mensuration",
+                  "kind": "unit"
+                },
+                {
+                  "code": "trigonometry",
+                  "title": "Trigonometry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "statistics",
+                  "title": "Statistics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "probability",
+                  "title": "Probability",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "english-language",
+              "title": "English Language",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "composition",
+                  "title": "Composition",
+                  "kind": "unit"
+                },
+                {
+                  "code": "letter-writing",
+                  "title": "Letter Writing",
+                  "kind": "unit"
+                },
+                {
+                  "code": "comprehension",
+                  "title": "Comprehension",
+                  "kind": "unit"
+                },
+                {
+                  "code": "grammar",
+                  "title": "Grammar",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "english-literature",
+              "title": "English Literature",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "drama",
+                  "title": "Drama",
+                  "kind": "unit"
+                },
+                {
+                  "code": "prose",
+                  "title": "Prose",
+                  "kind": "unit"
+                },
+                {
+                  "code": "poetry",
+                  "title": "Poetry",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "hindi",
+              "title": "Hindi",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "gadya-prose",
+                  "title": "Gadya (Prose)",
+                  "kind": "unit"
+                },
+                {
+                  "code": "padya-poetry",
+                  "title": "Padya (Poetry)",
+                  "kind": "unit"
+                },
+                {
+                  "code": "vyakaran-grammar",
+                  "title": "Vyakaran (Grammar)",
+                  "kind": "unit"
+                },
+                {
+                  "code": "rachna-composition",
+                  "title": "Rachna (Composition)",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "physics",
+              "title": "Physics",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "force-work-power-and-energy",
+                  "title": "Force, Work, Power and Energy",
+                  "kind": "unit"
+                },
+                {
+                  "code": "light",
+                  "title": "Light",
+                  "kind": "unit"
+                },
+                {
+                  "code": "sound",
+                  "title": "Sound",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electricity-and-magnetism",
+                  "title": "Electricity and Magnetism",
+                  "kind": "unit"
+                },
+                {
+                  "code": "heat-and-energy",
+                  "title": "Heat and Energy",
+                  "kind": "unit"
+                },
+                {
+                  "code": "modern-physics",
+                  "title": "Modern Physics",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "chemistry",
+              "title": "Chemistry",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "the-language-of-chemistry",
+                  "title": "The Language of Chemistry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "chemical-changes-and-reactions",
+                  "title": "Chemical Changes and Reactions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "water",
+                  "title": "Water",
+                  "kind": "unit"
+                },
+                {
+                  "code": "atomic-structure-and-chemical-bonding",
+                  "title": "Atomic Structure and Chemical Bonding",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-periodic-table",
+                  "title": "The Periodic Table",
+                  "kind": "unit"
+                },
+                {
+                  "code": "study-of-gas-laws",
+                  "title": "Study of Gas Laws",
+                  "kind": "unit"
+                },
+                {
+                  "code": "acids-bases-and-salts",
+                  "title": "Acids, Bases and Salts",
+                  "kind": "unit"
+                },
+                {
+                  "code": "analytical-chemistry",
+                  "title": "Analytical Chemistry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mole-concept-and-stoichiometry",
+                  "title": "Mole Concept and Stoichiometry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electrolysis",
+                  "title": "Electrolysis",
+                  "kind": "unit"
+                },
+                {
+                  "code": "metallurgy",
+                  "title": "Metallurgy",
+                  "kind": "unit"
+                },
+                {
+                  "code": "study-of-compounds",
+                  "title": "Study of Compounds",
+                  "kind": "unit"
+                },
+                {
+                  "code": "organic-chemistry",
+                  "title": "Organic Chemistry",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "biology",
+              "title": "Biology",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "cell-the-unit-of-life",
+                  "title": "Cell: The Unit of Life",
+                  "kind": "unit"
+                },
+                {
+                  "code": "tissues",
+                  "title": "Tissues",
+                  "kind": "unit"
+                },
+                {
+                  "code": "flowering-plants",
+                  "title": "Flowering Plants",
+                  "kind": "unit"
+                },
+                {
+                  "code": "plant-physiology",
+                  "title": "Plant Physiology",
+                  "kind": "unit"
+                },
+                {
+                  "code": "human-anatomy-and-physiology",
+                  "title": "Human Anatomy and Physiology",
+                  "kind": "unit"
+                },
+                {
+                  "code": "reproduction",
+                  "title": "Reproduction",
+                  "kind": "unit"
+                },
+                {
+                  "code": "genetics",
+                  "title": "Genetics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "pollution-and-environment",
+                  "title": "Pollution and Environment",
+                  "kind": "unit"
+                },
+                {
+                  "code": "health-and-hygiene",
+                  "title": "Health and Hygiene",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "history-and-civics",
+              "title": "History and Civics",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "the-union-legislature",
+                  "title": "The Union Legislature",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-union-executive",
+                  "title": "The Union Executive",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-judiciary",
+                  "title": "The Judiciary",
+                  "kind": "unit"
+                },
+                {
+                  "code": "growth-of-nationalism",
+                  "title": "Growth of Nationalism",
+                  "kind": "unit"
+                },
+                {
+                  "code": "first-war-of-independence-1857",
+                  "title": "First War of Independence 1857",
+                  "kind": "unit"
+                },
+                {
+                  "code": "indian-national-congress",
+                  "title": "Indian National Congress",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-freedom-movement",
+                  "title": "The Freedom Movement",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mahatma-gandhi-and-the-national-movement",
+                  "title": "Mahatma Gandhi and the National Movement",
+                  "kind": "unit"
+                },
+                {
+                  "code": "the-united-nations",
+                  "title": "The United Nations",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "geography",
+              "title": "Geography",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "map-study-and-interpretation-of-topographical-maps",
+                  "title": "Map Study and Interpretation of Topographical Maps",
+                  "kind": "unit"
+                },
+                {
+                  "code": "climate-of-india",
+                  "title": "Climate of India",
+                  "kind": "unit"
+                },
+                {
+                  "code": "soil-resources",
+                  "title": "Soil Resources",
+                  "kind": "unit"
+                },
+                {
+                  "code": "natural-vegetation",
+                  "title": "Natural Vegetation",
+                  "kind": "unit"
+                },
+                {
+                  "code": "water-resources",
+                  "title": "Water Resources",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mineral-and-energy-resources",
+                  "title": "Mineral and Energy Resources",
+                  "kind": "unit"
+                },
+                {
+                  "code": "agriculture",
+                  "title": "Agriculture",
+                  "kind": "unit"
+                },
+                {
+                  "code": "manufacturing-industries",
+                  "title": "Manufacturing Industries",
+                  "kind": "unit"
+                },
+                {
+                  "code": "transport",
+                  "title": "Transport",
+                  "kind": "unit"
+                },
+                {
+                  "code": "waste-management",
+                  "title": "Waste Management",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "computer-applications",
+              "title": "Computer Applications",
+              "kind": "subject",
+              "description": "partial: syllabus topics shared across the two-year course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "object-oriented-programming-concepts",
+                  "title": "Object-Oriented Programming Concepts",
+                  "kind": "unit"
+                },
+                {
+                  "code": "values-and-data-types",
+                  "title": "Values and Data Types",
+                  "kind": "unit"
+                },
+                {
+                  "code": "operators-and-expressions",
+                  "title": "Operators and Expressions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "input-in-java",
+                  "title": "Input in Java",
+                  "kind": "unit"
+                },
+                {
+                  "code": "mathematical-library-methods",
+                  "title": "Mathematical Library Methods",
+                  "kind": "unit"
+                },
+                {
+                  "code": "conditional-statements",
+                  "title": "Conditional Statements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "iterative-constructs",
+                  "title": "Iterative Constructs",
+                  "kind": "unit"
+                },
+                {
+                  "code": "nested-loops",
+                  "title": "Nested Loops",
+                  "kind": "unit"
+                },
+                {
+                  "code": "functions-and-classes",
+                  "title": "Functions and Classes",
+                  "kind": "unit"
+                },
+                {
+                  "code": "arrays",
+                  "title": "Arrays",
+                  "kind": "unit"
+                },
+                {
+                  "code": "strings",
+                  "title": "Strings",
+                  "kind": "unit"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "isc",
+      "title": "ISC",
+      "kind": "stage",
+      "children": [
+        {
+          "code": "grade-11",
+          "title": "Grade 11",
+          "kind": "grade",
+          "children": [
+            {
+              "code": "english",
+              "title": "English",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "paper-1-english-language",
+                  "title": "Paper 1: English Language",
+                  "kind": "unit"
+                },
+                {
+                  "code": "paper-2-literature-in-english",
+                  "title": "Paper 2: Literature in English",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "physics",
+              "title": "Physics",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "electrostatics",
+                  "title": "Electrostatics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "current-electricity",
+                  "title": "Current Electricity",
+                  "kind": "unit"
+                },
+                {
+                  "code": "magnetic-effects-of-current-and-magnetism",
+                  "title": "Magnetic Effects of Current and Magnetism",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electromagnetic-induction-and-alternating-current",
+                  "title": "Electromagnetic Induction and Alternating Current",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electromagnetic-waves",
+                  "title": "Electromagnetic Waves",
+                  "kind": "unit"
+                },
+                {
+                  "code": "ray-and-wave-optics",
+                  "title": "Ray and Wave Optics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "dual-nature-of-radiation-and-matter",
+                  "title": "Dual Nature of Radiation and Matter",
+                  "kind": "unit"
+                },
+                {
+                  "code": "atoms-and-nuclei",
+                  "title": "Atoms and Nuclei",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electronic-devices",
+                  "title": "Electronic Devices",
+                  "kind": "unit"
+                },
+                {
+                  "code": "communication-systems",
+                  "title": "Communication Systems",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "chemistry",
+              "title": "Chemistry",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "solid-state",
+                  "title": "Solid State",
+                  "kind": "unit"
+                },
+                {
+                  "code": "solutions",
+                  "title": "Solutions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electrochemistry",
+                  "title": "Electrochemistry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "chemical-kinetics",
+                  "title": "Chemical Kinetics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "surface-chemistry",
+                  "title": "Surface Chemistry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "general-principles-of-isolation-of-elements",
+                  "title": "General Principles of Isolation of Elements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "p-block-elements",
+                  "title": "p-Block Elements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "d-and-f-block-elements",
+                  "title": "d- and f-Block Elements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "coordination-compounds",
+                  "title": "Coordination Compounds",
+                  "kind": "unit"
+                },
+                {
+                  "code": "haloalkanes-and-haloarenes",
+                  "title": "Haloalkanes and Haloarenes",
+                  "kind": "unit"
+                },
+                {
+                  "code": "alcohols-phenols-and-ethers",
+                  "title": "Alcohols, Phenols and Ethers",
+                  "kind": "unit"
+                },
+                {
+                  "code": "aldehydes-ketones-and-carboxylic-acids",
+                  "title": "Aldehydes, Ketones and Carboxylic Acids",
+                  "kind": "unit"
+                },
+                {
+                  "code": "organic-compounds-containing-nitrogen",
+                  "title": "Organic Compounds Containing Nitrogen",
+                  "kind": "unit"
+                },
+                {
+                  "code": "biomolecules",
+                  "title": "Biomolecules",
+                  "kind": "unit"
+                },
+                {
+                  "code": "polymers",
+                  "title": "Polymers",
+                  "kind": "unit"
+                },
+                {
+                  "code": "chemistry-in-everyday-life",
+                  "title": "Chemistry in Everyday Life",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "mathematics",
+              "title": "Mathematics",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "relations-and-functions",
+                  "title": "Relations and Functions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "algebra",
+                  "title": "Algebra",
+                  "kind": "unit"
+                },
+                {
+                  "code": "calculus",
+                  "title": "Calculus",
+                  "kind": "unit"
+                },
+                {
+                  "code": "probability",
+                  "title": "Probability",
+                  "kind": "unit"
+                },
+                {
+                  "code": "vectors",
+                  "title": "Vectors",
+                  "kind": "unit"
+                },
+                {
+                  "code": "three-dimensional-geometry",
+                  "title": "Three-Dimensional Geometry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "application-of-integrals",
+                  "title": "Application of Integrals",
+                  "kind": "unit"
+                },
+                {
+                  "code": "linear-programming",
+                  "title": "Linear Programming",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "biology",
+              "title": "Biology",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "reproduction",
+                  "title": "Reproduction",
+                  "kind": "unit"
+                },
+                {
+                  "code": "genetics-and-evolution",
+                  "title": "Genetics and Evolution",
+                  "kind": "unit"
+                },
+                {
+                  "code": "biology-and-human-welfare",
+                  "title": "Biology and Human Welfare",
+                  "kind": "unit"
+                },
+                {
+                  "code": "biotechnology-and-its-applications",
+                  "title": "Biotechnology and its Applications",
+                  "kind": "unit"
+                },
+                {
+                  "code": "ecology-and-environment",
+                  "title": "Ecology and Environment",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "computer-science",
+              "title": "Computer Science",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "boolean-algebra",
+                  "title": "Boolean Algebra",
+                  "kind": "unit"
+                },
+                {
+                  "code": "object-oriented-programming-in-java",
+                  "title": "Object-Oriented Programming in Java",
+                  "kind": "unit"
+                },
+                {
+                  "code": "data-structures",
+                  "title": "Data Structures",
+                  "kind": "unit"
+                },
+                {
+                  "code": "recursion",
+                  "title": "Recursion",
+                  "kind": "unit"
+                },
+                {
+                  "code": "computational-thinking",
+                  "title": "Computational Thinking",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "accounts",
+              "title": "Accounts",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "partnership-accounts",
+                  "title": "Partnership Accounts",
+                  "kind": "unit"
+                },
+                {
+                  "code": "accounting-for-companies",
+                  "title": "Accounting for Companies",
+                  "kind": "unit"
+                },
+                {
+                  "code": "analysis-of-financial-statements",
+                  "title": "Analysis of Financial Statements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "cash-flow-statement",
+                  "title": "Cash Flow Statement",
+                  "kind": "unit"
+                },
+                {
+                  "code": "not-for-profit-organisations",
+                  "title": "Not-for-Profit Organisations",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "commerce",
+              "title": "Commerce",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "introduction-to-business",
+                  "title": "Introduction to Business",
+                  "kind": "unit"
+                },
+                {
+                  "code": "forms-of-business-organisation",
+                  "title": "Forms of Business Organisation",
+                  "kind": "unit"
+                },
+                {
+                  "code": "management-principles",
+                  "title": "Management Principles",
+                  "kind": "unit"
+                },
+                {
+                  "code": "marketing",
+                  "title": "Marketing",
+                  "kind": "unit"
+                },
+                {
+                  "code": "banking-and-insurance",
+                  "title": "Banking and Insurance",
+                  "kind": "unit"
+                },
+                {
+                  "code": "consumer-protection",
+                  "title": "Consumer Protection",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "economics",
+              "title": "Economics",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "introductory-microeconomics",
+                  "title": "Introductory Microeconomics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "introductory-macroeconomics",
+                  "title": "Introductory Macroeconomics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "indian-economic-development",
+                  "title": "Indian Economic Development",
+                  "kind": "unit"
+                },
+                {
+                  "code": "money-and-banking",
+                  "title": "Money and Banking",
+                  "kind": "unit"
+                },
+                {
+                  "code": "government-budget",
+                  "title": "Government Budget",
+                  "kind": "unit"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "code": "grade-12",
+          "title": "Grade 12",
+          "kind": "grade",
+          "children": [
+            {
+              "code": "english",
+              "title": "English",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "paper-1-english-language",
+                  "title": "Paper 1: English Language",
+                  "kind": "unit"
+                },
+                {
+                  "code": "paper-2-literature-in-english",
+                  "title": "Paper 2: Literature in English",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "physics",
+              "title": "Physics",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "electrostatics",
+                  "title": "Electrostatics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "current-electricity",
+                  "title": "Current Electricity",
+                  "kind": "unit"
+                },
+                {
+                  "code": "magnetic-effects-of-current-and-magnetism",
+                  "title": "Magnetic Effects of Current and Magnetism",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electromagnetic-induction-and-alternating-current",
+                  "title": "Electromagnetic Induction and Alternating Current",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electromagnetic-waves",
+                  "title": "Electromagnetic Waves",
+                  "kind": "unit"
+                },
+                {
+                  "code": "ray-and-wave-optics",
+                  "title": "Ray and Wave Optics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "dual-nature-of-radiation-and-matter",
+                  "title": "Dual Nature of Radiation and Matter",
+                  "kind": "unit"
+                },
+                {
+                  "code": "atoms-and-nuclei",
+                  "title": "Atoms and Nuclei",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electronic-devices",
+                  "title": "Electronic Devices",
+                  "kind": "unit"
+                },
+                {
+                  "code": "communication-systems",
+                  "title": "Communication Systems",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "chemistry",
+              "title": "Chemistry",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "solid-state",
+                  "title": "Solid State",
+                  "kind": "unit"
+                },
+                {
+                  "code": "solutions",
+                  "title": "Solutions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "electrochemistry",
+                  "title": "Electrochemistry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "chemical-kinetics",
+                  "title": "Chemical Kinetics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "surface-chemistry",
+                  "title": "Surface Chemistry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "general-principles-of-isolation-of-elements",
+                  "title": "General Principles of Isolation of Elements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "p-block-elements",
+                  "title": "p-Block Elements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "d-and-f-block-elements",
+                  "title": "d- and f-Block Elements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "coordination-compounds",
+                  "title": "Coordination Compounds",
+                  "kind": "unit"
+                },
+                {
+                  "code": "haloalkanes-and-haloarenes",
+                  "title": "Haloalkanes and Haloarenes",
+                  "kind": "unit"
+                },
+                {
+                  "code": "alcohols-phenols-and-ethers",
+                  "title": "Alcohols, Phenols and Ethers",
+                  "kind": "unit"
+                },
+                {
+                  "code": "aldehydes-ketones-and-carboxylic-acids",
+                  "title": "Aldehydes, Ketones and Carboxylic Acids",
+                  "kind": "unit"
+                },
+                {
+                  "code": "organic-compounds-containing-nitrogen",
+                  "title": "Organic Compounds Containing Nitrogen",
+                  "kind": "unit"
+                },
+                {
+                  "code": "biomolecules",
+                  "title": "Biomolecules",
+                  "kind": "unit"
+                },
+                {
+                  "code": "polymers",
+                  "title": "Polymers",
+                  "kind": "unit"
+                },
+                {
+                  "code": "chemistry-in-everyday-life",
+                  "title": "Chemistry in Everyday Life",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "mathematics",
+              "title": "Mathematics",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "relations-and-functions",
+                  "title": "Relations and Functions",
+                  "kind": "unit"
+                },
+                {
+                  "code": "algebra",
+                  "title": "Algebra",
+                  "kind": "unit"
+                },
+                {
+                  "code": "calculus",
+                  "title": "Calculus",
+                  "kind": "unit"
+                },
+                {
+                  "code": "probability",
+                  "title": "Probability",
+                  "kind": "unit"
+                },
+                {
+                  "code": "vectors",
+                  "title": "Vectors",
+                  "kind": "unit"
+                },
+                {
+                  "code": "three-dimensional-geometry",
+                  "title": "Three-Dimensional Geometry",
+                  "kind": "unit"
+                },
+                {
+                  "code": "application-of-integrals",
+                  "title": "Application of Integrals",
+                  "kind": "unit"
+                },
+                {
+                  "code": "linear-programming",
+                  "title": "Linear Programming",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "biology",
+              "title": "Biology",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "reproduction",
+                  "title": "Reproduction",
+                  "kind": "unit"
+                },
+                {
+                  "code": "genetics-and-evolution",
+                  "title": "Genetics and Evolution",
+                  "kind": "unit"
+                },
+                {
+                  "code": "biology-and-human-welfare",
+                  "title": "Biology and Human Welfare",
+                  "kind": "unit"
+                },
+                {
+                  "code": "biotechnology-and-its-applications",
+                  "title": "Biotechnology and its Applications",
+                  "kind": "unit"
+                },
+                {
+                  "code": "ecology-and-environment",
+                  "title": "Ecology and Environment",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "computer-science",
+              "title": "Computer Science",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "boolean-algebra",
+                  "title": "Boolean Algebra",
+                  "kind": "unit"
+                },
+                {
+                  "code": "object-oriented-programming-in-java",
+                  "title": "Object-Oriented Programming in Java",
+                  "kind": "unit"
+                },
+                {
+                  "code": "data-structures",
+                  "title": "Data Structures",
+                  "kind": "unit"
+                },
+                {
+                  "code": "recursion",
+                  "title": "Recursion",
+                  "kind": "unit"
+                },
+                {
+                  "code": "computational-thinking",
+                  "title": "Computational Thinking",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "accounts",
+              "title": "Accounts",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "partnership-accounts",
+                  "title": "Partnership Accounts",
+                  "kind": "unit"
+                },
+                {
+                  "code": "accounting-for-companies",
+                  "title": "Accounting for Companies",
+                  "kind": "unit"
+                },
+                {
+                  "code": "analysis-of-financial-statements",
+                  "title": "Analysis of Financial Statements",
+                  "kind": "unit"
+                },
+                {
+                  "code": "cash-flow-statement",
+                  "title": "Cash Flow Statement",
+                  "kind": "unit"
+                },
+                {
+                  "code": "not-for-profit-organisations",
+                  "title": "Not-for-Profit Organisations",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "commerce",
+              "title": "Commerce",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "introduction-to-business",
+                  "title": "Introduction to Business",
+                  "kind": "unit"
+                },
+                {
+                  "code": "forms-of-business-organisation",
+                  "title": "Forms of Business Organisation",
+                  "kind": "unit"
+                },
+                {
+                  "code": "management-principles",
+                  "title": "Management Principles",
+                  "kind": "unit"
+                },
+                {
+                  "code": "marketing",
+                  "title": "Marketing",
+                  "kind": "unit"
+                },
+                {
+                  "code": "banking-and-insurance",
+                  "title": "Banking and Insurance",
+                  "kind": "unit"
+                },
+                {
+                  "code": "consumer-protection",
+                  "title": "Consumer Protection",
+                  "kind": "unit"
+                }
+              ]
+            },
+            {
+              "code": "economics",
+              "title": "Economics",
+              "kind": "subject",
+              "description": "partial: topics shared across the two-year ISC course; verify against the CISCE syllabus",
+              "children": [
+                {
+                  "code": "introductory-microeconomics",
+                  "title": "Introductory Microeconomics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "introductory-macroeconomics",
+                  "title": "Introductory Macroeconomics",
+                  "kind": "unit"
+                },
+                {
+                  "code": "indian-economic-development",
+                  "title": "Indian Economic Development",
+                  "kind": "unit"
+                },
+                {
+                  "code": "money-and-banking",
+                  "title": "Money and Banking",
+                  "kind": "unit"
+                },
+                {
+                  "code": "government-budget",
+                  "title": "Government Budget",
+                  "kind": "unit"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
