@@ -118,7 +118,7 @@ export function BillingDrawer({
     void getTenantContentScopes(tenant.id)
       .then((s) => setContentScopes(s))
       .catch((err) => {
-        setContentScopesError(err instanceof AdminApiError ? err.apiError.message : "couldn't load list — type manually");
+        setContentScopesError(err instanceof AdminApiError ? err.apiError.message : "Could not load the list. Type the value manually.");
       });
   }, [tenant.id]);
 
@@ -130,7 +130,7 @@ export function BillingDrawer({
     void listPlatformPublishedPacks()
       .then((r) => setPlatformPacks(r.packs))
       .catch((err) => {
-        setPlatformPacksError(err instanceof AdminApiError ? err.apiError.message : "couldn't load question sets — type the question set id manually");
+        setPlatformPacksError(err instanceof AdminApiError ? err.apiError.message : "Could not load the question sets. Type the question set ID manually.");
       });
   }, []);
 

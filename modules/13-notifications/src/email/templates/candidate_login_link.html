@@ -8,7 +8,7 @@
     {{> email-lede-short
       eyebrow="SIGN-IN"
       title=_t_heading
-      body=(concat "Hi " display_name ", you asked for a sign-in link. Use the button to sign in. You won't need a password.")}}
+      body=(concat "Hi " display_name ", you asked for a sign-in link. Use the button to sign in. You do not need a password.")}}
 
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px">
       <tr><td>{{> email-cta label=_t_cta href=link_url width_px=190}}</td></tr>
@@ -18,7 +18,7 @@
       This link works for the next <strong style="color:#3f3f46">{{expires_minutes}} minutes</strong>. After that, request a new one.
     </p>
     <p style="margin:14px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.55">
-      If you didn't ask for this link, you can ignore this email. Nobody can sign in to your account without the link in this email.
+      If you did not ask for this link, you can ignore this email. Nobody can sign in to your account without the link in this email.
     </p>
 
   {{/email-body}}

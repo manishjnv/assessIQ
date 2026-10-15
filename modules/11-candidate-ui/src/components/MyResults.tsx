@@ -45,7 +45,7 @@ export function MyResults(): React.ReactElement {
       })
       .catch(() => {
         if (!cancelled) {
-          setError("We couldn't load your results. Refresh the page to try again.");
+          setError("We could not load your results. Refresh the page to try again.");
         }
       });
     return () => {

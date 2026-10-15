@@ -548,7 +548,7 @@ describe('email template rendering', () => {
 
     it('renders subject, count, oldest age and the queue link in both variants', () => {
       const r = renderTemplate('evaluation_queue_alert', base);
-      expect(r.subject).toBe('Evaluation queue: 4 waiting more than 24 hours');
+      expect(r.subject).toBe('Grading queue: 4 waiting more than 24 hours');
       for (const body of [r.html, r.text]) {
         expect(body).toContain('4');
         expect(body).toContain('37.5');
@@ -1205,8 +1205,8 @@ describe('html/text content parity', () => {
     expect(html).not.toContain('{{resultsLink}}');
     expect(text).not.toContain('{{resultsLink}}');
     // Both should show the login prompt (not the CTA button)
-    expect(html).toContain('Log in');
-    expect(text).toContain('Log in');
+    expect(html).toContain('Sign in');
+    expect(text).toContain('Sign in');
   });
 
   it('weekly_digest_admin: all four stats appear in both variants', () => {
@@ -1466,7 +1466,7 @@ describe('i18n resolver (email/i18n.ts)', () => {
       enrolledAt: '2026-05-10T12:00:00Z',
     });
     expect(html).toContain(
-      'If you did not perform this action, contact your administrator immediately and change your password.',
+      'If you did not do this, contact your administrator at once and change your password.',
     );
   });
 

@@ -175,7 +175,7 @@ function FaqContent(): React.ReactElement {
             whatever you've saved.
           </li>
           <li style={LI}>
-            <strong>Magic link doesn't work</strong> → contact the person who
+            <strong>Magic link does not work</strong> → contact the person who
             invited you. The link expires 7 days after it's sent, and is
             single-use after you start. If it has expired, ask them to resend it
             — when you get the new email, use that link; the older one stops

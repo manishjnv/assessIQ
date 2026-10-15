@@ -1,10 +1,10 @@
-Subject: Evaluation queue: {{count}} waiting more than 24 hours
+Subject: Grading queue: {{count}} waiting more than 24 hours
 
 Hello,
 
-{{count}} evaluation(s) have waited more than 24 hours. The oldest has waited {{oldestAgeHours}} hours.
+{{count}} attempt(s) have waited more than 24 hours for grading. The oldest has waited {{oldestAgeHours}} hours.
 
-Open the evaluation queue:
+Open the grading queue:
 {{queueLink}}
 
 — The AssessIQ team

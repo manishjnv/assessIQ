@@ -15,14 +15,15 @@
 
 admin.auth.login.tenant_slug:
   audience: admin
-  short_text: "Your organisation's slug — the unique URL-safe ID we issued during onboarding (e.g. acme-soc)."
+  version: 2
+  short_text: "Your organisation's slug — the unique URL-safe ID we issued during onboarding (for example acme-soc)."
   long_md: |
     ## Organisation slug
 
-    Each AssessIQ organisation has a short, URL-safe identifier you'll use at every
-    sign-in. It usually mirrors your team or product name (e.g. `acme-soc`,
+    Each AssessIQ organisation has a short, URL-safe identifier you use at every
+    sign-in. It usually mirrors your team or product name (for example `acme-soc`,
     `acme-secops`). Your AssessIQ administrator received the slug at onboarding;
-    if you don't have it, ask them — it is not the same as your email domain.
+    if you do not have it, ask them — it is not the same as your email domain.
 
     The slug is also used in webhook payloads and embed-iframe URLs, so once it
     is set it stays stable. Renaming an organisation is a manual operation that
@@ -43,6 +44,7 @@ admin.auth.mfa.skip:
 
 admin.auth.mfa.enroll_vs_verify:
   audience: admin
+  version: 2
   short_text: "First-time admins enroll an authenticator app here; returning admins enter their 6-digit code to sign in."
   long_md: |
     ## TOTP enrollment vs verification
@@ -54,9 +56,9 @@ admin.auth.mfa.enroll_vs_verify:
 
     Returning admins skip the QR code and only enter the 6-digit code. Codes
     rotate every 30 seconds; AssessIQ accepts the previous, current, and next
-    code to absorb small clock drifts.
+    code to allow for small clock differences.
 
-    Lockout policy: five wrong codes in a row locks the account for 15 minutes.
+    Five wrong codes in a row lock the account for 15 minutes.
     When you enroll, AssessIQ shows 10 one-time recovery codes. Save them. If you
     lose the authenticator and the codes, another admin must reset your enrollment.
 
@@ -76,6 +78,7 @@ admin.users.list.role:
 
 admin.users.list.candidate.fields:
   audience: admin
+  version: 2
   short_text: "Candidates are added directly with no email sent. Name is shown in their assessment link; designation is optional."
   long_md: |
     ## Adding a candidate
@@ -87,7 +90,7 @@ admin.users.list.candidate.fields:
     **Name** is required. It is shown in the candidate's assessment invitation
     email and appears in grading and reporting views.
 
-    **Designation** is optional free-text context (e.g. "SOC Analyst L1",
+    **Designation** is optional free-text context (for example "SOC Analyst L1",
     "Junior DevOps Engineer"). It is stored as metadata on the user record and
     surfaced in exports and the grading UI to help admins distinguish between
     candidates with similar profiles. It does not affect scoring or access.
@@ -96,7 +99,8 @@ admin.users.list.candidate.fields:
 
 admin.question_bank.list.create.domain:
   audience: admin
-  short_text: "The role-readiness subject this question set covers (SOC analyst, DevOps, etc.). Set once; choose carefully."
+  version: 2
+  short_text: "The role-readiness subject this question set covers (for example SOC analyst or DevOps). Set once; choose carefully."
   long_md: |
     ## Question set subject
 
@@ -113,6 +117,7 @@ admin.question_bank.list.create.domain:
 
 admin.questions.generate.draft:
   audience: admin
+  version: 2
   short_text: "Generate 1–30 AI draft questions from the question-set detail page. Review and activate each draft."
   long_md: |
     ## AI-assisted question generation
@@ -125,12 +130,12 @@ admin.questions.generate.draft:
     **Using the generator:**
 
     1. Open a question set, expand the difficulty you want to fill.
-    2. Click **Generate questions**, set the count (1–30), optionally narrow
-       the topic focus, then click **Generate**.
+    2. Select **Generate questions**, set the count (1–30), optionally narrow
+       the topic focus, then select **Generate**.
     3. New `ai_draft` questions appear in the question list. Open each one
        in the question editor to review key points and rubric, then activate.
 
-    Wall-clock for a single call:
+    Time for a single call:
 
     - count ≤ 10  → one model call, ~30–90 s per question (cold cache)
     - count 11–20 → two parallel model calls, ~3–4 min total
@@ -200,7 +205,8 @@ admin.questions.type.kql.expected_keywords:
 
 admin.questions.type.scenario.step_dependency:
   audience: admin
-  short_text: "Lock a step so it can't be answered until the previous step is submitted. Use sparingly."
+  version: 2
+  short_text: "Lock a step so it cannot be answered until the previous step is submitted. Use sparingly."
   long_md: |
     ## Step dependency
 
@@ -225,6 +231,7 @@ admin.questions.type.scenario.step_dependency:
 
 admin.question.editor.subjective.rubric:
   audience: admin
+  version: 2
   short_text: "Key points describe each score band (0/25/50/75/100). Write score band 100 first, then 0, then fill the middle."
   long_md: |
     ## Subjective rubric key points
@@ -248,8 +255,8 @@ admin.question.editor.subjective.rubric:
     **Anti-patterns:**
 
     - "It depends" or "looks reasonable" — too vague for the AI to ground on.
-    - Numeric thresholds the AI can't verify (e.g. "discusses at least three
-      mitigations" works; "scores 7/10 on accuracy" doesn't).
+    - Numeric thresholds the AI cannot verify (for example "discusses at least three
+      mitigations" works; "scores 7/10 on accuracy" does not work).
     - More than ~80 words per score band — the rubric is a contract, not an essay.
 
     Override the AI verdict any time. Your override sits *beside* the AI's
@@ -259,6 +266,7 @@ admin.question.editor.subjective.rubric:
 
 admin.question_bank.list.new_pack:
   audience: admin
+  version: 2
   short_text: "Create a new question set for a subject. Super-admin only — it starts empty, in Draft."
   long_md: |
     ## New question set
@@ -266,7 +274,7 @@ admin.question_bank.list.new_pack:
     Creates an empty question set for one role-readiness subject. A new question set
     starts in **Draft**: you add difficulties and questions, then **Publish** it to
     make it usable in assessments. Only super-admins can create question sets — organisation
-    admins build assessments from question sets they've been licensed.
+    admins build assessments from question sets granted to them.
 
 admin.question_bank.list.add_to_workspace:
   audience: admin
@@ -305,6 +313,7 @@ admin.question_bank.pack.publish:
 
 admin.question_bank.pack.revise:
   audience: admin
+  version: 2
   short_text: "Move a published question set to draft, edit, then re-publish as a new version. Existing assessments are unaffected."
   long_md: |
     ## Revise (new version)
@@ -312,19 +321,20 @@ admin.question_bank.pack.revise:
     Moves a **Published** question set back to **Draft** so you can edit it, then you
     re-publish it as a new version. Super-admin only — this acts on the platform
     master question bank. Already-published assessments keep the exact content they were
-    locked with at publish (they're frozen, so candidates are unaffected). When you
+    locked with at publish (they are frozen, so candidates are unaffected). When you
     re-publish, every organisation clone of this set auto-updates in place, and only
-    NEWLY-published assessments draw the new content.
+    newly published assessments draw the new content.
 
 admin.question_bank.pack.archive:
   audience: admin
+  version: 2
   short_text: "Retire this question set and hide it from pickers. Reversible in Archived; blocked if a live assessment uses it."
   long_md: |
     ## Archive question set
 
     Soft-deletes the question set: it disappears from the default list and the
     assessment-creation pickers. This is the only delete path — there is no hard
-    delete. It's reversible (find it under the **Archived** filter). Archiving is
+    delete. You can reverse it: find the question set under the **Archived** filter. Archiving is
     refused if a currently-live assessment still references the question set.
 
 admin.question_bank.pack.activate_drafts:
@@ -535,6 +545,7 @@ admin.reports.heatmap.colors:
 
 admin.reports.archetype.disclaimer:
   audience: admin
+  version: 2
   short_text: "Archetypes are statistical descriptors, not diagnostic labels. Use them to guide learning — not hiring decisions."
   long_md: |
     ## Archetype disclaimer
@@ -546,7 +557,7 @@ admin.reports.archetype.disclaimer:
 
     **Do not use archetypes as the sole basis for hiring, promotion, or
     compensation decisions.** They are complementary signals to human
-    review, structured interviews, and on-the-job evaluation.
+    review, structured interviews, and on-the-job performance review.
 
     Archetype accuracy depends on:
     - Question prompt quality (well-scoped rubric key points improve score band accuracy)
@@ -669,13 +680,14 @@ admin.audit.archives:
 
 admin.audit.export.format:
   audience: admin
+  version: 2
   short_text: "The audit log already records admin actions today; the export screen (CSV/JSONL) is available soon."
   long_md: |
     ## Audit log recording — live; export screen available soon
 
     AssessIQ already maintains an append-only audit log for every significant
-    admin action. Entries are written synchronously with the operation (not
-    fire-and-forget) to guarantee no silent loss.
+    admin action. The system writes each entry at the same time as the action, so no entry is
+    lost silently.
 
     **Audited actions include:**
     - `attempt.exported` — admin downloaded a CSV or JSONL export
@@ -689,7 +701,7 @@ admin.audit.export.format:
     by the platform operator).
 
     **The admin screen to export this log (CSV/JSONL) is not built yet.**
-    Need an extract today? Contact your platform operator.
+    If you need an extract today, contact your platform operator.
 
 admin.audit.archives.restore_procedure:
   audience: admin
@@ -788,6 +800,7 @@ admin.assessments.list.content_source:
 
 admin.platform:
   audience: admin
+  version: 2
   short_text: "Platform operator control centre. Add organisations and see all of them. Organisation admins never see this page."
   long_md: |
     ## What you can do here
@@ -796,7 +809,7 @@ admin.platform:
     AssessIQ for every organisation. This page is your control centre.
 
     **Add a new organisation.**
-    Click **Create organisation**, then fill in three things:
+    Select **Create organisation**, then enter three items:
 
     - the organisation's name,
     - a short web-friendly name for it (the "slug" — lowercase letters,
@@ -805,7 +818,7 @@ admin.platform:
       administrator.
 
     AssessIQ then sets the organisation up and emails that person an invitation
-    to sign in and take over their organisation. You do not manage the organisation's
+    to sign in and manage their organisation. You do not manage the organisation's
     day-to-day work — its own administrator does that.
 
     **See every organisation.**
@@ -826,8 +839,8 @@ admin.platform:
       switches the organisation on. If anything goes wrong partway through, the
       organisation is left switched off and you see an error — so a half-finished
       organisation is never live.
-    - **What you cannot do from here.** This page does not let you log in as
-      an organisation, change an organisation's questions or candidates, or remove a
+    - **What you cannot do from here.** This page does not let you sign in as
+      an organisation, change an organisation's questions or candidates, or remove an
       organisation. Those are deliberately separate; ask for them if you need them.
 
   related_keys:
@@ -877,11 +890,12 @@ admin.platform.admin_email:
 
 admin.platform.domain:
   audience: admin
-  short_text: "Optional email domain for the organisation (e.g. company.com). Used for display — not enforced as a sign-in restriction."
+  version: 2
+  short_text: "Optional email domain, such as company.com. Display only; it does not restrict sign-in."
   long_md: |
     ## Organisation domain (optional)
 
-    Recording the organisation's email domain (e.g. `company.com`) is informational
+    Recording the organisation's email domain (for example `company.com`) is informational
     only. It is stored with the organisation record and shown in the organisation list
     for operator reference.
 
@@ -903,15 +917,16 @@ admin.platform.admin_name:
 
 admin.platform.edit_company_name:
   audience: admin
+  version: 2
   short_text: "The organisation's display name (the organisations.name column). Editable; the slug stays fixed. Requires fresh MFA."
   long_md: |
     ## Organisation name
 
     The organisation's display name, shown in the Platform list and across the admin
-    UI. You can rename it here at any time — it's a label only, with no effect
+    UI. You can rename it here at any time. It is a label only, with no effect
     on data, logins, or isolation.
 
-    **The slug is permanent.** The short URL-safe identifier (e.g. `acme-corp`)
+    **The slug is permanent.** The short URL-safe identifier (for example `acme-corp`)
     issued at provisioning is used in webhook payloads and embed URLs, so it
     cannot be changed here. Only the display name is editable.
 
@@ -936,6 +951,7 @@ admin.platform.edit_admin:
 
 admin.platform.edit_admin.email:
   audience: admin
+  version: 2
   short_text: "An admin signs in with Google or an emailed code at this address. Changing it transfers the login identity."
   long_md: |
     ## Admin email — the login identity
@@ -951,7 +967,7 @@ admin.platform.edit_admin.email:
 
     **Accepted admin.** Changing the email **transfers account ownership**. The
     admin is signed out and can only sign back in with Google or an emailed
-    code at the new address. If they don't control that address they will be locked out; if
+    code at the new address. If they do not control that address they will be locked out; if
     someone else controls it, that person gains access. Because of this, the
     change requires an explicit confirmation checkbox.
 
@@ -960,6 +976,7 @@ admin.platform.edit_admin.email:
 
 admin.platform.mfa_code:
   audience: admin
+  version: 2
   short_text: "6-digit code from your authenticator app. Required before provisioning a new organisation (fresh-MFA gate)."
   long_md: |
     ## MFA step-up — authenticator code
@@ -970,7 +987,7 @@ admin.platform.mfa_code:
 
     If your session's MFA is stale, the create form switches to a step-up
     prompt. Enter the current 6-digit code from your authenticator app
-    (Google Authenticator, Authy, 1Password, etc.) and click **Verify & create**.
+    (Google Authenticator, Authy or 1Password) and select **Verify & create**.
 
     On success the platform automatically retries the create operation — you
     do not need to re-enter the form values.
@@ -980,6 +997,7 @@ admin.platform.mfa_code:
 
 admin.platform.billing:
   audience: admin
+  version: 2
   short_text: "Per-organisation billing drawer: set tier, set credits, view used and included credits, download CSV."
   long_md: |
     ## Per-organisation billing drawer
@@ -990,7 +1008,7 @@ admin.platform.billing:
 
     - **Set the plan tier** — free, pro, enterprise, or internal. The internal
       tier is unlimited and is exempt from credit metering.
-    - **Set a custom included-credit number** — override the tier default if a
+    - **Set a custom included-credit number** — override the tier default if an
       organisation has a bespoke arrangement. Leave blank for the internal tier
       (unlimited).
     - **See used / included** — a live read-only display of how many credits the
@@ -1110,6 +1128,7 @@ admin.platform.domain_name:
 
 admin.notifications.in_app.short_poll_interval:
   audience: admin
+  version: 2
   short_text: "In-app notifications are fetched every 15 seconds. There is no live push yet."
   long_md: |
     ## In-app notification polling
@@ -1119,7 +1138,7 @@ admin.notifications.in_app.short_poll_interval:
 
     - Grading complete (an attempt's AI grading finished)
     - Bulk invite batch complete (all emails sent)
-    - Assessment boundary transitions (e.g. attempt timer expired)
+    - Assessment boundary transitions (for example attempt timer expired)
 
     **Why short-poll?** AssessIQ does not run a live-push server yet. Short
     polling over HTTPS is simpler to operate and sufficient for the current
@@ -1165,7 +1184,8 @@ admin.grading.queue.empty:
 
 admin.grading.proposal.anchors:
   audience: admin
-  short_text: "Green chips = key point phrases the AI found; grey chips = key points it didn't detect."
+  version: 2
+  short_text: "Green chips = key point phrases the AI found; grey chips = key points it did not detect."
   long_md: |
     ## Key point findings
 
@@ -1290,6 +1310,7 @@ admin.grading.rerun.opus:
 
 admin.grading.skill_drift:
   audience: admin
+  version: 2
   short_text: "The prompt version used for this grade differs from the current live prompt. Consider re-grading."
   long_md: |
     ## Skill drift
@@ -1299,7 +1320,7 @@ admin.grading.skill_drift:
     graded with the old version are flagged with a **drift** badge.
 
     Drift is informational — it does not block releasing results. Use it as a
-    signal to re-run affected attempts when a prompt change was material (e.g.
+    signal to re-run affected attempts when a prompt change was material (for example
     a rubric key point was corrected).
 
 admin.scoring.attempt.total:
@@ -1340,6 +1361,7 @@ admin.reports.individual.archetype:
 
 admin.scoring.archetype.disclaimer:
   audience: admin
+  version: 2
   short_text: "Behavioral signals are observational only. They do not affect the score and are not a proxy for integrity."
   long_md: |
     ## Archetype signal disclaimer
@@ -1351,7 +1373,7 @@ admin.scoring.archetype.disclaimer:
     - Are context-dependent: a slow pace on Advanced scenarios is normal; the same
       pace on a Beginner triage question might indicate difficulty.
 
-    Use signals to understand cohort patterns (e.g. "Intermediate candidates average
+    Use signals to understand cohort patterns (for example "Intermediate candidates average
     200 edits per attempt") not to make individual pass/fail decisions.
 
 admin.reports.cohort.percentiles:
@@ -1385,6 +1407,7 @@ admin.scoring.leaderboard.privacy:
 
 admin.rubric.anchor.weight:
   audience: admin
+  version: 2
   short_text: "Fractional contribution of this key point to the total rubric weight. All key point weights must sum ≤ 1.0."
   long_md: |
     ## Key point weight
@@ -1395,7 +1418,7 @@ admin.rubric.anchor.weight:
 
     Recommended allocation: identify 2–4 *essential* key points (weight 0.2–0.3
     each) and 2–4 *supporting* key points (weight 0.05–0.1 each). Leave room in
-    the total so a strong answer that covers most key points isn't penalized by
+    the total so a strong answer that covers most key points is not penalized by
     one missed nuance.
 
 admin.rubric.anchor.synonyms:
@@ -1635,6 +1658,7 @@ admin.gen_score.score_button:
 
 admin.gen_score.verdict:
   audience: admin
+  version: 2
   short_text: "Roll-up call for this run — pass, warning, or regression — from the structural and runtime checks below."
   long_md: |
     ## Overall verdict
@@ -1642,11 +1666,11 @@ admin.gen_score.verdict:
     A single roll-up of the structural-quality and runtime checks for this run:
 
     - **pass** — structural checks pass and no runtime metric failed.
-    - **warning** — minor issues worth a look (e.g. a soft metric miss), but not
+    - **warning** — minor issues worth a look (for example a soft metric miss), but not
       a regression.
     - **regression** — a structural baseline regressed, or a runtime metric
       failed its threshold.
-    - **n/a** — not enough data to score (e.g. the run produced no questions).
+    - **n/a** — not enough data to score (for example the run produced no questions).
 
     The verdict is derived from the tables below; it does not change any drafts.
 
@@ -2010,6 +2034,7 @@ admin.certificates.list:
 
 admin.certificates.revoke:
   audience: admin
+  version: 2
   short_text: "Revoke marks the certificate revoked and blocks the PDF. The reason shows on the public verify page."
   long_md: |
     ## Revoking a certificate
@@ -2028,7 +2053,7 @@ admin.certificates.revoke:
 
     **The reason field is required** (10–500 characters). It appears on the
     public verify page, so write it as a professional explanation that a
-    recruiter might read: e.g., "Certificate issued in error — assessment was
+    recruiter might read, for example: "Certificate issued in error — assessment was
     invalidated." rather than internal jargon.
 
     **Revocation is irreversible.** A revoked certificate cannot be reissued.
@@ -2041,7 +2066,8 @@ admin.certificates.revoke:
 
 admin.certificates.reissue:
   audience: admin
-  short_text: "Re-snapshots display fields (name etc.) without rotating credential_id or issued_at — LinkedIn share URLs stay valid."
+  version: 2
+  short_text: "Updates display fields such as the name. credential_id and issued_at stay the same, so share URLs stay valid."
   long_md: |
     ## Reissuing a certificate
 
@@ -2250,7 +2276,8 @@ admin.platform.jobs.retry:
 
 admin.webhooks:
   audience: admin
-  short_text: "Register outbound webhooks for real-time events when AssessIQ actions occur (submitted, graded, cert issued, etc.)."
+  version: 2
+  short_text: "Register outbound webhooks for real-time events when AssessIQ actions occur (submitted, graded, certificate issued)."
   long_md: |
     ## Webhooks
 
@@ -2476,6 +2503,7 @@ admin.users.list.erase:
 
 admin.tenant_settings.company_name:
   audience: admin
+  version: 2
   short_text: "The organisation name shown in the app header and in emails to your candidates."
   long_md: |
     ## Organisation name
@@ -2485,7 +2513,7 @@ admin.tenant_settings.company_name:
 
     - Use 2–120 characters; extra spaces are tidied automatically.
     - Changing it does **not** change your sign-in address, organisation ID, or
-      anything candidates use to log in.
+      anything candidates use to sign in.
     - The new name also appears on certificates you issue or view afterwards.
     - Each change is recorded in the audit log.
 
@@ -2832,7 +2860,8 @@ admin.attempts.detail.send_back:
 
 admin.attempts.detail.release_button:
   audience: admin
-  short_text: "Release this result to the candidate, who is emailed. Released results can't be changed."
+  version: 2
+  short_text: "Release this result to the candidate, who is emailed. Released results cannot be changed."
   long_md: |
     ## Release to candidate
 
@@ -2885,7 +2914,8 @@ admin.assessments.invitations.resend:
 
 admin.assessments.invitations.resend_all:
   audience: admin
-  short_text: "Email a new 7-day link to every candidate who hasn't started. Their old links stop working."
+  version: 2
+  short_text: "Email a new 7-day link to every candidate who has not started. Their old links stop working."
   long_md: |
     ## Resend to everyone who hasn't started
 
@@ -3371,7 +3401,8 @@ admin.assessment.sections.edit:
 
 admin.attempts.release_confirm:
   audience: admin
-  short_text: "Release this result to the candidate and email them. Released results can't be changed."
+  version: 2
+  short_text: "Release this result to the candidate and email them. Released results cannot be changed."
   long_md: |
     ## Confirm release
 

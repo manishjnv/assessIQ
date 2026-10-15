@@ -5,7 +5,7 @@ Hi {{candidateName}},
 Your results for {{assessmentName}} on {{tenantName}} are available.
 
 {{#if resultsLink}}Review your results:
-{{resultsLink}}{{else}}Log in to AssessIQ to view your results.{{/if}}
+{{resultsLink}}{{else}}Sign in to AssessIQ to view your results.{{/if}}
 
 — The AssessIQ team
 {{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

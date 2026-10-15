@@ -1,5 +1,5 @@
 <!-- Composes kit partials (Email Kit Port E2a). Diverges from kit/emails/templates-1.jsx <Invite> only where docs/13-email-system.md §4 records. -->
-{{#> email-shell preheader=(concat "You've been invited to take " assessmentName " on AssessIQ.")}}
+{{#> email-shell preheader=(concat "You have been invited to take " assessmentName " on AssessIQ.")}}
 
   {{> email-header}}
 
@@ -7,7 +7,7 @@
 
     {{> email-lede-editorial
       eyebrow="INVITATION"
-      title="You've been invited."
+      title="You have been invited."
       body=(concat "Hi " candidateName ", an AssessIQ assessment is waiting for you. The details are below.")}}
 
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">

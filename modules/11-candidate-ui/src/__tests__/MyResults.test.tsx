@@ -84,7 +84,7 @@ describe('MyResults', () => {
     mockListMyResults.mockRejectedValue(new Error('boom'));
     render(<MyResults />);
     const alert = await screen.findByRole('alert');
-    expect(alert.textContent).toContain("couldn't load your results");
+    expect(alert.textContent).toContain("could not load your results");
     expect(alert.textContent).toContain('Refresh');
   });
 });

@@ -218,7 +218,7 @@ function renderQuestionContent(type: string, content: Record<string, unknown>): 
         )}
         {correctRaw !== undefined && correctRaw !== null && (
           <div style={{ marginBottom: "var(--aiq-space-xs)" }}>
-            <div style={labelStyle}>Correct Answer</div>
+            <div style={labelStyle}>Correct answer</div>
             <div style={{ ...textStyle, color: "var(--aiq-color-success)" }}>
               {correctIdx != null
                 ? `${OPTION_LABELS[correctIdx] ?? `Option ${correctIdx + 1}`}${correctText ? `) ${correctText}` : ""}`
@@ -1128,7 +1128,7 @@ export function AdminGenerateWizard(): React.ReactElement {
             disabled={!canGenerate}
             onClick={() => void handleGenerate()}
           >
-            {grandTotal > 0 ? `Generate ${grandTotal} questions` : "Generate Question Set"}
+            {grandTotal > 0 ? `Generate ${grandTotal} questions` : "Generate question set"}
           </button>
           {!canGenerate && (
             <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>

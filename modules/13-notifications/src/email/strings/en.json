@@ -39,7 +39,7 @@
     "brand_wordmark": "AssessIQ",
     "greeting": "Hi {{candidateName}},",
     "cta": "Review your results",
-    "login_fallback": "Log in to AssessIQ to view your results."
+    "login_fallback": "Sign in to AssessIQ to view your results."
   },
   "result_released": {
     "page_title": "Your result is ready",
@@ -49,10 +49,10 @@
     "certificate_cta": "View your certificate"
   },
   "evaluation_queue_alert": {
-    "page_title": "Evaluations are waiting",
+    "page_title": "Attempts are waiting for grading",
     "brand_wordmark": "AssessIQ",
-    "heading": "Evaluations are waiting.",
-    "cta": "Open the evaluation queue"
+    "heading": "Attempts are waiting for grading.",
+    "cta": "Open the grading queue"
   },
   "attempt_ready_for_review_admin": {
     "page_title": "Attempt ready for review",
@@ -65,7 +65,7 @@
     "page_title": "Two-factor authentication enrolled",
     "brand_wordmark": "AssessIQ",
     "greeting": "Hi {{recipientName}},",
-    "security_warning": "If you did not perform this action, contact your administrator immediately and change your password."
+    "security_warning": "If you did not do this, contact your administrator at once and change your password."
   },
   "totp_reset_notice": {
     "page_title": "Two-factor sign-in reset",

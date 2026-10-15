@@ -6,6 +6,7 @@
 
 candidate.intro.integrity:
   audience: candidate
+  version: 2
   short_text: "AssessIQ measures judgment and reasoning, not memory. Use any reference you would in a real workday."
   long_md: |
     ## Integrity expectations
@@ -15,7 +16,7 @@ candidate.intro.integrity:
 
     - **Documentation** for the tools and languages you would normally
       reference at work.
-    - **Search engines** to look up syntax or operators.
+    - **Search engines** to find syntax or operators.
     - **Notes** you would normally have open.
 
     Do **not** ask another person to answer for you, share screens, or paste
@@ -31,6 +32,7 @@ candidate.intro.integrity:
 
 candidate.intro.system_check:
   audience: candidate
+  version: 2
   short_text: "A quick automatic check that your connection, browser and storage are ready. Fix any item marked Fix needed."
   long_md: |
     ## System check
@@ -42,7 +44,7 @@ candidate.intro.system_check:
     - **Cookies and storage**: needed to keep you signed in and keep a local
       backup of your answers. Private or incognito windows often block them.
     - **Browser**: use the latest Chrome, Edge, Firefox or Safari.
-    - **Screen size**: a very small screen only shows a heads-up.
+    - **Screen size**: a very small screen only shows a notice.
 
     Nothing is sent about your device. If something needs fixing, follow the
     hint, then choose **Check again**. You can begin once every item is OK.
@@ -59,36 +61,37 @@ candidate.intro.practice:
 
 candidate.intro.consent:
   audience: candidate
+  version: 2
   short_text: "Confirm it is you, taking the assessment alone, and agree to the Terms and Privacy Policy before you begin."
   long_md: |
     ## Consent and AI-use notice
 
-    Before the timer starts we ask you to confirm that you are the person
-    invited, that you will take the assessment on your own, and that you agree to the
-    Terms and Privacy Policy. Your results may be shared with the organisation that
-    invited you. We record when you agreed.
+    Before the timer starts, confirm that you are the person invited. Confirm that
+    you will take the assessment on your own. Agree to the Terms and Privacy Policy.
+    Your results may be shared with the organisation that invited you. We record
+    when you agreed.
 
-    **How answers are scored:** multiple-choice answers are scored
-    automatically. Written answers, if any, are graded by AssessIQ
-    graders with AI assistance, before the organisation that invited you
-    releases the results.
+    **How answers are scored:** AssessIQ scores multiple-choice answers
+    automatically. AssessIQ graders grade written answers, if any, with AI
+    assistance. The organisation that invited you then releases the results.
 
 # ─── During the attempt ───
 
 candidate.attempt.timer:
   audience: candidate
-  short_text: "Wall-clock time remaining. Auto-submits at zero. Pausing is not supported."
+  version: 2
+  short_text: "Time left for the whole assessment. It submits at zero. You cannot pause the timer."
   long_md: |
     ## Timer
 
-    The countdown shows time remaining for the entire assessment, not the
-    current question. When it reaches zero, AssessIQ auto-submits whatever
-    answers you have entered.
+    The countdown shows the time left for the entire assessment, not the
+    current question. When it reaches zero, AssessIQ submits the answers
+    you have entered.
 
     **The timer keeps running even if you close the tab.** Network dropouts
-    do not pause it. If you genuinely cannot continue (power outage,
+    do not pause it. If you cannot continue (for example a power outage or a
     medical emergency), close the tab and contact your administrator
-    immediately — they can grant a one-time extension before you submit.
+    at once. Your administrator can grant a one-time extension before you submit.
 
     Behavioral signals recorded by AssessIQ include time spent per question,
     number of edits, and navigation pattern. None of these signals affect
@@ -96,7 +99,8 @@ candidate.attempt.timer:
 
 candidate.attempt.flag:
   audience: candidate
-  short_text: "Bookmark the question to revisit before final submit. Flags have no scoring impact."
+  version: 2
+  short_text: "Mark a question to review before you submit. A flag does not change your score."
   long_md: |
     ## Flag for review
 
@@ -107,7 +111,7 @@ candidate.attempt.flag:
     multiple questions; the **Review** screen lists all flagged + unanswered
     items together so you do not miss anything.
 
-    Flagging has no scoring impact. It is just a personal bookmark.
+    Flagging does not change your score. It is a personal bookmark.
 
 candidate.attempt.kql.editor:
   audience: candidate
@@ -143,7 +147,8 @@ candidate.shell.nav.mobile_menu:
 
 candidate.attempt.kql.mobile_tip:
   audience: candidate
-  short_text: "KQL is easier on a desktop browser. Switching is recommended for syntax-heavy queries."
+  version: 2
+  short_text: "KQL is easier on a desktop browser. Use a desktop for long queries."
   long_md: |
     ## Why KQL is shown with a desktop tip on phones
 
@@ -218,7 +223,8 @@ candidate.attempt.subjective.length:
 
 candidate.attempt.disconnect:
   audience: candidate
-  short_text: "Your answers autosave every 5 seconds. Refresh and continue — the timer keeps running."
+  version: 2
+  short_text: "AssessIQ saves your answers every 5 seconds. Refresh the page and continue. The timer keeps running."
   long_md: |
     ## If your connection drops
 
@@ -330,6 +336,7 @@ candidate.result.bands:
 
 candidate.results.list:
   audience: candidate
+  version: 2
   short_text: "Every result your organisation has released to you, newest first, with a link to any certificate you earned."
   long_md: |
     ## My results
@@ -342,7 +349,7 @@ candidate.results.list:
       released — never earlier, and never as a partial score.
     - When a result is released we also email you, with a link back to this
       page.
-    - Don't see an assessment you took? Its result has not been released yet.
+    - If an assessment you took is missing, its result is not released yet.
 
 # ─── Certificates ───
 
@@ -409,7 +416,8 @@ candidate.auth.request_link:
 
 candidate.auth.org_code:
   audience: candidate
-  short_text: "Your organisation's short code, for example acme-college. If you don't have it, ask your administrator."
+  version: 2
+  short_text: "Your organisation's short code, for example acme-college. If you do not have it, ask your administrator."
   long_md: |
     ## Organisation code
 
@@ -423,7 +431,8 @@ candidate.auth.org_code:
 
 candidate.auth.link_sent:
   audience: candidate
-  short_text: "Check your inbox — a sign-in link is on its way. It expires in 15 minutes. Didn't get it? Wait a minute and try again."
+  version: 2
+  short_text: "A sign-in link is on its way. It expires in 15 minutes. If it does not arrive, wait one minute and try again."
   long_md: |
     ## Check your email
 
@@ -476,7 +485,8 @@ candidate.auth.expiring_soon:
 
 candidate.activity:
   audience: candidate
-  short_text: "Personal activity dashboard: completions, avg score, 52-week heatmap, weekly chart, and question set rankings."
+  version: 2
+  short_text: "Personal activity dashboard: completions, average score, 52-week heatmap, weekly chart and question set rankings."
   long_md: |
     ## My activity
 
