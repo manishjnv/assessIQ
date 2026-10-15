@@ -56,6 +56,13 @@ interface SquareStyles {
   fontWeight?: number | string;
 }
 
+const STATUS_LABEL: Record<NavigatorItem["status"], string> = {
+  unanswered: "unanswered",
+  answered: "answered",
+  flagged: "flagged",
+  current: "current",
+};
+
 const STATUS_STYLES: Record<NavigatorItem["status"], SquareStyles> = {
   unanswered: {
     border:     "1px solid var(--aiq-color-border)",
@@ -118,7 +125,7 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
             type="button"
             className="aiq-question-navigator-square"
             data-current={isCurrent ? "true" : undefined}
-            aria-label={`Question ${item.position}: ${item.status}`}
+            aria-label={`Question ${item.position}: ${STATUS_LABEL[item.status]}`}
             aria-current={isCurrent ? "step" : undefined}
             onClick={() => onSelect(item.questionId)}
             style={{

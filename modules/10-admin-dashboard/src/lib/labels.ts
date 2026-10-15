@@ -143,3 +143,8 @@ export function difficultyLabel(value: string | null | undefined): string {
 export function bandLabel(band: number | null | undefined): string {
   return band === null || band === undefined ? "" : `Band ${band}`;
 }
+
+/** First 8 characters of an ID, for compact display next to a full-ID tooltip. */
+export function shortId(id: string): string {
+  return id.slice(0, 8);
+}
