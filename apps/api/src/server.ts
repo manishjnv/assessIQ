@@ -8,6 +8,7 @@ import {
 } from '@assessiq/core';
 import { extractClientIp } from '@assessiq/auth';
 import { registerAdminUserRoutes } from './routes/admin-users.js';
+import { registerAdminUserTotpResetRoute } from './routes/admin-users-totp-reset.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
 import { registerContactRoutes } from './routes/contact.js';
 import { registerHealthRoutes } from './routes/health.js';
@@ -149,6 +150,7 @@ export async function buildServer() {
   await registerHealthRoutes(app);
   await registerLogIngestRoutes(app);
   await registerAdminUserRoutes(app);
+  await registerAdminUserTotpResetRoute(app);
   await registerInvitationRoutes(app);
   // public, unauthenticated, rate-limited contact form → emails connect@assessiq.in
   await registerContactRoutes(app);
@@ -308,4 +310,8 @@ if (isCliEntry) {
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen({ host: '0.0.0.0', port });
   appLog.info({ port }, 'assessiq-api listening');
+  // RW-94: clear runs the previous process left 'running'. Fire-and-forget; never blocks listen.
+  void import('@assessiq/question-bank')
+    .then((m) => m.sweepStaleGenerationAttempts())
+    .catch((err: unknown) => appLog.error({ err }, 'generation stale sweep failed'));
 }

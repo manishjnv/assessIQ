@@ -44,6 +44,7 @@ export {
   saveRubric,
   bulkGenerateMissingRubrics,
 } from "./service.js";
+export { sweepStaleGenerationAttempts } from "./service/generation-async.js";
 
 // ---------------------------------------------------------------------------
 // 2. Types and schemas
@@ -173,3 +174,10 @@ export { clonePackToTenant, materializeSetForTenant } from "./clone.js";
 export { resyncClonedPack, resyncSetForTenant } from "./clone.js";
 export type { ResyncResult } from "./clone.js";
 export type { ClonePackResult, MaterializeSetResult } from "./clone.js";
+
+// RW-58: CSV/XLSX question import
+export { parseImportFile } from "./import/parse.js";
+export { buildTemplate } from "./import/templates.js";
+export { stageImport, getImportReport, fixImportRow, discardImport } from "./import/staging.js";
+export { commitImport } from "./import/commit.js";
+export type { DryRunReport, ParsedRow, RowError } from "./import/types.js";

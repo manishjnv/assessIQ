@@ -89,6 +89,7 @@ import {
 import { startGenerateDetached } from "./service/generation-async.js";
 import { registerGenerationBatchRoutes } from "./generation-batches.js";
 import { registerTaxonomyRoutes } from "./taxonomy-routes.js";
+import { registerImportRoutes } from "./import-routes.js";
 
 // ---------------------------------------------------------------------------
 // Pagination helper — shared by list endpoints
@@ -521,6 +522,7 @@ export async function registerQuestionBankRoutes(
 
   // RW-55: read-only curriculum frameworks (adminOnly; RLS shows NULL-tenant + own rows).
   registerTaxonomyRoutes(app, adminOnly, superAdminOnly);
+  registerImportRoutes(app, superAdminOnly); // RW-58
 
   // -------------------------------------------------------------------------
   // Pack routes
