@@ -547,6 +547,8 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, AE_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, AI_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, SCORING_MIGRATIONS_DIR);
+    // finalize emits attempt.graded webhooks after commit (emitWebhook reads webhook_endpoints).
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "13-notifications", "migrations"));
     await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, DATA_RIGHTS_MIGRATIONS_DIR, ["0102_users_erased_at.sql"]);
     await applyMigrationsFromDir(client, AUDIT_MIGRATIONS_DIR); // must be last
