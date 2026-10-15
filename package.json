@@ -38,6 +38,8 @@
     "lint:public-collisions:self-test": "tsx tools/lint-public-collisions.ts --self-test",
     "lint:core-helpers": "tsx tools/lint-core-helpers.ts",
     "lint:core-helpers:self-test": "tsx tools/lint-core-helpers.ts --self-test",
+    "lint:file-size": "tsx tools/lint-file-size.ts",
+    "lint:file-size:self-test": "tsx tools/lint-file-size.ts --self-test",
     "lint:ui-labels": "tsx tools/lint-ui-labels.ts --strict",
     "lint:ui-labels:self-test": "tsx tools/lint-ui-labels.ts --self-test",
     "lint:question-type-registry": "tsx tools/lint-question-type-registry.ts --strict",
