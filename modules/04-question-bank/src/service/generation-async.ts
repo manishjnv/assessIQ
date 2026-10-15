@@ -8,7 +8,7 @@
  */
 
 import { uuidv7 } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withSystemRole, withTenant } from "@assessiq/tenancy";
 import { generateQuestions } from "./generation.js";
 import { log } from "./_shared.js";
 
@@ -78,4 +78,34 @@ export async function startGenerateDetached(
   await deps.sleep(300);
   if (early !== null) throw (early as { err: unknown }).err;
   return { attemptId };
+}
+
+/**
+ * RW-94: flip generation_attempts rows left 'running' by an API restart or a lost lease.
+ * Pure SQL, cross-tenant, no AI call (safe in the worker). A live run refreshes its RW-7
+ * lease and finishes well inside the threshold.
+ * ponytail: ceiling 10 min and floor 5 min; a legitimate run longer than that would be
+ * flipped to failed (its own finalize then wins nothing). Raise the default if runs grow.
+ */
+export async function sweepStaleGenerationAttempts(
+  opts: { olderThanMs?: number } = {},
+): Promise<{ count: number; ids: string[] }> {
+  const ms = Math.max(opts.olderThanMs ?? 10 * 60_000, 5 * 60_000);
+  const ids = await withSystemRole("generation attempts: sweep stale running rows", async (c) => {
+    const r = await c.query<{ id: string }>(
+      `UPDATE generation_attempts
+          SET status = 'failed',
+              error_code = 'AIG_STALE_AFTER_RESTART',
+              error_message = 'run did not finish (API restart or lost lease); re-run the category',
+              finished_at = now(),
+              duration_ms = LEAST(2147483647, (EXTRACT(EPOCH FROM (now() - started_at)) * 1000)::bigint)::int
+        WHERE status = 'running'
+          AND started_at < now() - ($1::int * interval '1 millisecond')
+      RETURNING id`,
+      [ms],
+    );
+    return r.rows.map((x) => x.id);
+  });
+  if (ids.length > 0) log.warn({ count: ids.length }, "generation.stale_sweep");
+  return { count: ids.length, ids };
 }
