@@ -9,7 +9,8 @@ vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("../api.js", () => ({
   AdminApiError: class AdminApiError extends Error {},
   adminApi: vi.fn(async () => ({ items: [] })),
-  generateForDomainApi: (...a: unknown[]) => generate(...a),
+  startGenerateForDomainApi: (...a: unknown[]) => generate(...a),
+  getGenerationAttemptApi: async () => ({ id: "a1", status: "success", count_requested: 2, count_inserted: 2, error_code: null, error_message: null }),
   listDomainsApi: async () => ({ items: [{ id: "d1", slug: "soc", name: "SOC", description: null, status: "active", display_order: 1 }], total: 1 }),
   listCategoriesApi: async () => ({ items: [{ id: "c1", domain_id: "d1", slug: "c", name: "Cat one", description: null, relevance_score: 1, default_selected: true, supported_types: ["mcq"], default_question_count: 2, status: "active" }] }),
   createPlatformDomainApi: vi.fn(),
@@ -36,7 +37,7 @@ import { AdminGenerateWizard } from "../pages/generate-wizard.js";
 afterEach(() => { cleanup(); generate.mockReset(); });
 
 async function setup(): Promise<HTMLButtonElement> {
-  generate.mockResolvedValue({ questionIds: [], generated: 2, skillSha: "x" });
+  generate.mockResolvedValue({ attempt_id: "a1" });
   render(React.createElement(AdminGenerateWizard));
   const select = await screen.findByRole("combobox");
   await waitFor(() => expect(select.querySelectorAll("option").length).toBeGreaterThan(1));
