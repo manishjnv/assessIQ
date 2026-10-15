@@ -459,6 +459,36 @@ export async function generateForDomainApi(
   );
 }
 
+/**
+ * POST /api/admin/generate/start (RW-93) - same body as generateForDomainApi, but the
+ * server returns 202 { attempt_id } at once and finishes the run in the background.
+ * Poll getGenerationAttemptApi. This avoids the ~100 s Cloudflare edge timeout.
+ */
+export async function startGenerateForDomainApi(
+  domainId: string,
+  level: DomainGenerateLevel,
+  body: GenerateForDomainRequest,
+): Promise<{ attempt_id: string }> {
+  return adminApi<{ attempt_id: string }>("/admin/generate/start", {
+    method: "POST",
+    body: JSON.stringify({ domain_id: domainId, level, ...body }),
+  });
+}
+
+export interface GenerationAttemptPoll {
+  id: string;
+  status: string; // running | success | partial | failed
+  count_requested: number;
+  count_inserted: number;
+  error_code: string | null;
+  error_message: string | null;
+}
+
+/** GET /api/admin/generation-attempts/:id (RW-93) - poll one attempt. */
+export async function getGenerationAttemptApi(id: string): Promise<GenerationAttemptPoll> {
+  return adminApi<GenerationAttemptPoll>(`/admin/generation-attempts/${encodeURIComponent(id)}`);
+}
+
 // ---------------------------------------------------------------------------
 // Typed helpers — super-admin company provisioning + tenant list (Slice 1)
 // ---------------------------------------------------------------------------

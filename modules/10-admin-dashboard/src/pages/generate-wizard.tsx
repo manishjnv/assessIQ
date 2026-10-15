@@ -33,7 +33,8 @@ import { TopicFocusField, TOPIC_FOCUS_MAX } from "../components/TopicFocusField.
 import {
   adminApi,
   AdminApiError,
-  generateForDomainApi,
+  startGenerateForDomainApi,
+  getGenerationAttemptApi,
   listDomainsApi,
   listCategoriesApi,
   createPlatformDomainApi,
@@ -52,6 +53,11 @@ import type { DomainItem, CategoryItem, QuestionListItem, GenerationAttemptSumma
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+// RW-93: poll the attempt every 3 s (1 s ticks), give up after 10 min.
+const GEN_POLL_EVERY_TICKS = 3;
+const GEN_NOT_FOUND_GRACE_MS = 15 * 1000;
+const GEN_POLL_MAX_MS = 10 * 60 * 1000;
 
 type SelectedLevel = "L1" | "L2" | "L3";
 
@@ -441,6 +447,7 @@ export function AdminGenerateWizard(): React.ReactElement {
   // Generating state (D4)
   const [genResults, setGenResults] = useState<CategoryGenResult[]>([]);
   const [genCurrentIdx, setGenCurrentIdx] = useState<number>(0);
+  const [genElapsedSec, setGenElapsedSec] = useState<number>(0);
   // FU-D21 (2026-10-06): set when a best-effort batch-plan save/status call
   // fails, so the resume table's silence has a visible reason.
   const [planSaveWarning, setPlanSaveWarning] = useState(false);
@@ -722,13 +729,35 @@ export function AdminGenerateWizard(): React.ReactElement {
         }
         const totalCount = cat.selectedTypes.length * C;
 
-        const res = await generateForDomainApi(plan.domainId, plan.level, {
+        // RW-93: start returns at once; poll the attempt so a >100 s run is not cut by the edge.
+        const { attempt_id } = await startGenerateForDomainApi(plan.domainId, plan.level, {
           count: totalCount,
           type_counts: typeCounts,
           ...(topicFocus.trim() ? { topic_focus: topicFocus.trim() } : {}),
           category_id: cat.categoryId,
           batch_id: batchId,
         });
+        const t0 = Date.now();
+        setGenElapsedSec(0);
+        // The attempt row is inserted by the server after its guard queries, so an early 404 means "not yet".
+        const pollOnce = async (): Promise<Awaited<ReturnType<typeof getGenerationAttemptApi>>> => {
+          try {
+            return await getGenerationAttemptApi(attempt_id);
+          } catch (e) {
+            if ((e as { status?: number }).status !== 404) throw e;
+            if (Date.now() - t0 > GEN_NOT_FOUND_GRACE_MS) throw new Error("Generation attempt not found. Check the history page.");
+            return { id: attempt_id, status: "running", count_requested: 0, count_inserted: 0, error_code: null, error_message: null };
+          }
+        };
+        let att = await pollOnce();
+        for (let tick = 1; att.status === "running"; tick++) {
+          if (Date.now() - t0 > GEN_POLL_MAX_MS) throw new Error("Generation did not finish within 10 minutes. Check the history page.");
+          await new Promise((r) => setTimeout(r, 1000));
+          setGenElapsedSec(Math.floor((Date.now() - t0) / 1000));
+          if (tick % GEN_POLL_EVERY_TICKS === 0) att = await pollOnce();
+        }
+        if (att.status === "failed") throw new Error(att.error_message ?? att.error_code ?? "Generation failed");
+        const res = { generated: att.count_inserted };
         results[ri] = { ...results[ri]!, status: "done", questionCount: res.generated };
         // Server already recorded this category (admin-generate.ts); keep local copy in sync.
         livePlan.completedCategoryIds.push(cat.categoryId);
@@ -1132,7 +1161,7 @@ export function AdminGenerateWizard(): React.ReactElement {
         {/* D4: current progress line */}
         {currentResult?.status === "generating" && currentCfg && (
           <div style={{ marginBottom: "var(--aiq-space-lg)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-accent-soft)", border: "1px solid var(--aiq-color-accent)", borderRadius: "var(--aiq-radius-md)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}>
-            Generating category {genCurrentIdx + 1} of {total}: <strong>{currentCfg.category.name}</strong> ({currentCfg.selectedTypes.join(", ")})…
+            Generating category {genCurrentIdx + 1} of {total}: <strong>{currentCfg.category.name}</strong> ({currentCfg.selectedTypes.join(", ")})… <span data-testid="gen-elapsed">{Math.floor(genElapsedSec / 60)}:{String(genElapsedSec % 60).padStart(2, "0")}</span>
           </div>
         )}
 

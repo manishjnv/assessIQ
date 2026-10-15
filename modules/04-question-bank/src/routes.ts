@@ -24,7 +24,7 @@
 // pull tenantId from req.session (populated by the auth chain). Cross-tenant
 // reads are impossible at the DB layer.
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import { ValidationError, NotFoundError, UUID_RE, parsePagination } from "@assessiq/core";
 import { QUESTION_TYPES } from "@assessiq/question-types";
 import { GENERATED_TYPES } from "./difficulty-spec.js";
@@ -86,6 +86,7 @@ import {
   handleAdminCreateDomain,
   handleAdminCreateCategory,
 } from "./handlers/admin-domains.js";
+import { startGenerateDetached } from "./service/generation-async.js";
 import { registerGenerationBatchRoutes } from "./generation-batches.js";
 import { registerTaxonomyRoutes } from "./taxonomy-routes.js";
 
@@ -101,6 +102,17 @@ import { registerTaxonomyRoutes } from "./taxonomy-routes.js";
 /** Allowed per-type override keys. */
 const GENERATE_TYPE_KEYS = GENERATED_TYPES;
 type GenerateTypeKey = typeof GENERATE_TYPE_KEYS[number];
+
+/** topic_focus reaches the AI prompt: trim, undefined when empty, cap length, reject control characters. */
+function parseTopicFocus(raw: unknown): string | undefined {
+  const topicFocus = typeof raw === "string" && raw.trim().length > 0 ? raw.trim() : undefined;
+  if (topicFocus !== undefined && (topicFocus.length > 200 || /[\u0000-\u001f\u007f]/.test(topicFocus))) {
+    throw new ValidationError("topic_focus must be at most 200 characters with no control characters", {
+      details: { code: "INVALID_PARAM", param: "topic_focus" },
+    });
+  }
+  return topicFocus;
+}
 
 /**
  * Parse and validate the body for POST .../generate.
@@ -130,16 +142,7 @@ export function parseGenerateBody(raw: unknown): {
     });
   }
 
-  const topicFocus =
-    typeof body?.topic_focus === "string" && body.topic_focus.trim().length > 0
-      ? body.topic_focus.trim()
-      : undefined;
-  // topic_focus reaches the AI prompt: cap length and reject control characters.
-  if (topicFocus !== undefined && (topicFocus.length > 200 || /[\u0000-\u001f\u007f]/.test(topicFocus))) {
-    throw new ValidationError("topic_focus must be at most 200 characters with no control characters", {
-      details: { code: "INVALID_PARAM", param: "topic_focus" },
-    });
-  }
+  const topicFocus = parseTopicFocus(body?.topic_focus);
 
   // Parse domain_id / category_id — optional UUID strings (Slice 2).
   // Invalid or missing -> undefined; do NOT throw (these are optional fields).
@@ -357,117 +360,159 @@ export async function registerQuestionBankRoutes(
   //   - category_id cross-tenant guard runs inside generateQuestions
   //     (unchanged from Slice 2, both-or-neither rule enforced there).
   //   - Legacy POST /api/admin/packs/:id/levels/:levelId/generate is NOT touched.
+  // Shared by POST /api/admin/generate and /generate/start: validate body, resolve pack/level.
+  const resolveGenerateArgs = async (req: FastifyRequest) => {
+    const tenantId = req.session!.tenantId;
+    const userId = req.session!.userId;
+
+    const body = req.body as {
+      domain_id?: unknown;
+      level?: unknown;
+      count?: unknown;
+      type_counts?: unknown;
+      category_id?: unknown;
+      batch_id?: unknown;
+      topic_focus?: unknown;
+    } | null | undefined;
+
+    // Validate domain_id — required UUID
+    if (typeof body?.domain_id !== "string" || !UUID_RE.test(body.domain_id)) {
+      throw new ValidationError("domain_id must be a valid UUID", {
+        details: { code: "INVALID_PARAM", param: "domain_id" },
+      });
+    }
+    const domainId = body.domain_id;
+
+    // Validate level — required, must be L1|L2|L3
+    const VALID_LEVELS = ["L1", "L2", "L3"] as const;
+    type LevelKey = typeof VALID_LEVELS[number];
+    if (typeof body?.level !== "string" || !VALID_LEVELS.includes(body.level as LevelKey)) {
+      throw new ValidationError("level must be one of L1, L2, L3", {
+        details: { code: "INVALID_PARAM", param: "level" },
+      });
+    }
+    const level = body.level as LevelKey;
+
+    // Parse count + type_counts + category_id reusing parseGenerateBody logic
+    // (inline here to avoid extra abstraction — the shape is slightly different
+    // from the legacy endpoint since domain_id and level are required, not optional).
+    const count = typeof body?.count === "number" ? body.count : 5;
+    if (!Number.isInteger(count) || count < 1 || count > 30) {
+      throw new ValidationError("count must be an integer between 1 and 30", {
+        details: { code: "INVALID_PARAM", param: "count" },
+      });
+    }
+
+    // Parse category_id — optional UUID; invalid → undefined (same as legacy parser)
+    const categoryId =
+      typeof body?.category_id === "string" && UUID_RE.test(body.category_id)
+        ? body.category_id
+        : undefined;
+
+    // Parse batch_id — optional UUID grouping all per-category calls of one
+    // wizard "Generate question set" action. Invalid/absent → undefined (the
+    // row gets batch_id=NULL and renders standalone). Purely a display-grouping
+    // tag; never a tenant boundary (tenantId is always from the session).
+    const batchId =
+      typeof body?.batch_id === "string" && UUID_RE.test(body.batch_id)
+        ? body.batch_id
+        : undefined;
+
+    // Parse type_counts — optional; same validation as parseGenerateBody
+    const GENERATE_TYPE_KEYS_INNER = GENERATED_TYPES;
+    type GenerateTypeKeyInner = typeof GENERATE_TYPE_KEYS_INNER[number];
+    let typeCounts: Partial<Record<GenerateTypeKeyInner, number>> | undefined;
+    if (body?.type_counts !== undefined && body.type_counts !== null) {
+      if (typeof body.type_counts !== "object" || Array.isArray(body.type_counts)) {
+        throw new ValidationError("type_counts must be an object", {
+          details: { code: "INVALID_PARAM", param: "type_counts" },
+        });
+      }
+      const tc = body.type_counts as Record<string, unknown>;
+      const parsed: Partial<Record<GenerateTypeKeyInner, number>> = {};
+      for (const key of GENERATE_TYPE_KEYS_INNER) {
+        const v = tc[key];
+        if (v !== undefined) {
+          if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 30) {
+            throw new ValidationError(
+              `type_counts.${key} must be an integer between 0 and 30`,
+              { details: { code: "INVALID_PARAM", param: `type_counts.${key}` } },
+            );
+          }
+          parsed[key] = v;
+        }
+      }
+      const sum = (Object.values(parsed) as number[]).reduce((acc, v) => acc + v, 0);
+      if (sum !== count) {
+        throw new ValidationError("type_counts values must sum to count", {
+          details: { code: "INVALID_TYPE_COUNTS_SUM", sum, count },
+        });
+      }
+      typeCounts = parsed;
+    }
+
+    // Resolve (or create) the auto-managed pack + heal L1/L2/L3 levels.
+    // Cross-tenant domain guard runs inside findOrCreatePackForDomain.
+    const { packId, levelIds } = await findOrCreatePackForDomain(tenantId, domainId, userId);
+    const levelId = levelIds[level];
+
+    const topicFocus = parseTopicFocus(body?.topic_focus);
+    return { tenantId, userId, packId, levelId, count, typeCounts, domainId, categoryId, batchId, topicFocus };
+  };
+
   app.post(
     "/api/admin/generate",
     { preHandler: superAdminOnly },
     async (req) => {
-      const tenantId = req.session!.tenantId;
-      const userId = req.session!.userId;
-
-      const body = req.body as {
-        domain_id?: unknown;
-        level?: unknown;
-        count?: unknown;
-        type_counts?: unknown;
-        category_id?: unknown;
-        batch_id?: unknown;
-      } | null | undefined;
-
-      // Validate domain_id — required UUID
-      if (typeof body?.domain_id !== "string" || !UUID_RE.test(body.domain_id)) {
-        throw new ValidationError("domain_id must be a valid UUID", {
-          details: { code: "INVALID_PARAM", param: "domain_id" },
-        });
-      }
-      const domainId = body.domain_id;
-
-      // Validate level — required, must be L1|L2|L3
-      const VALID_LEVELS = ["L1", "L2", "L3"] as const;
-      type LevelKey = typeof VALID_LEVELS[number];
-      if (typeof body?.level !== "string" || !VALID_LEVELS.includes(body.level as LevelKey)) {
-        throw new ValidationError("level must be one of L1, L2, L3", {
-          details: { code: "INVALID_PARAM", param: "level" },
-        });
-      }
-      const level = body.level as LevelKey;
-
-      // Parse count + type_counts + category_id reusing parseGenerateBody logic
-      // (inline here to avoid extra abstraction — the shape is slightly different
-      // from the legacy endpoint since domain_id and level are required, not optional).
-      const count = typeof body?.count === "number" ? body.count : 5;
-      if (!Number.isInteger(count) || count < 1 || count > 30) {
-        throw new ValidationError("count must be an integer between 1 and 30", {
-          details: { code: "INVALID_PARAM", param: "count" },
-        });
-      }
-
-      // Parse category_id — optional UUID; invalid → undefined (same as legacy parser)
-      const categoryId =
-        typeof body?.category_id === "string" && UUID_RE.test(body.category_id)
-          ? body.category_id
-          : undefined;
-
-      // Parse batch_id — optional UUID grouping all per-category calls of one
-      // wizard "Generate question set" action. Invalid/absent → undefined (the
-      // row gets batch_id=NULL and renders standalone). Purely a display-grouping
-      // tag; never a tenant boundary (tenantId is always from the session).
-      const batchId =
-        typeof body?.batch_id === "string" && UUID_RE.test(body.batch_id)
-          ? body.batch_id
-          : undefined;
-
-      // Parse type_counts — optional; same validation as parseGenerateBody
-      const GENERATE_TYPE_KEYS_INNER = GENERATED_TYPES;
-      type GenerateTypeKeyInner = typeof GENERATE_TYPE_KEYS_INNER[number];
-      let typeCounts: Partial<Record<GenerateTypeKeyInner, number>> | undefined;
-      if (body?.type_counts !== undefined && body.type_counts !== null) {
-        if (typeof body.type_counts !== "object" || Array.isArray(body.type_counts)) {
-          throw new ValidationError("type_counts must be an object", {
-            details: { code: "INVALID_PARAM", param: "type_counts" },
-          });
-        }
-        const tc = body.type_counts as Record<string, unknown>;
-        const parsed: Partial<Record<GenerateTypeKeyInner, number>> = {};
-        for (const key of GENERATE_TYPE_KEYS_INNER) {
-          const v = tc[key];
-          if (v !== undefined) {
-            if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 30) {
-              throw new ValidationError(
-                `type_counts.${key} must be an integer between 0 and 30`,
-                { details: { code: "INVALID_PARAM", param: `type_counts.${key}` } },
-              );
-            }
-            parsed[key] = v;
-          }
-        }
-        const sum = (Object.values(parsed) as number[]).reduce((acc, v) => acc + v, 0);
-        if (sum !== count) {
-          throw new ValidationError("type_counts values must sum to count", {
-            details: { code: "INVALID_TYPE_COUNTS_SUM", sum, count },
-          });
-        }
-        typeCounts = parsed;
-      }
-
-      // Resolve (or create) the auto-managed pack + heal L1/L2/L3 levels.
-      // Cross-tenant domain guard runs inside findOrCreatePackForDomain.
-      const { packId, levelIds } = await findOrCreatePackForDomain(tenantId, domainId, userId);
-      const levelId = levelIds[level];
-
-      // Delegate to the existing generation engine.
-      // category_id cross-tenant guard (both-or-neither rule) stays inside generateQuestions — unchanged.
+      const a = await resolveGenerateArgs(req);
       return generateQuestions(
-        tenantId,
-        userId,
-        packId,
-        levelId,
-        count,
-        undefined,          // topicFocus — not exposed on this endpoint
-        typeCounts,
-        domainId,           // domain_id for question tagging
-        categoryId,         // category_id for question tagging (may be undefined)
-        batchId,            // batch_id for history grouping (may be undefined)
+        a.tenantId,
+        a.userId,
+        a.packId,
+        a.levelId,
+        a.count,
+        a.topicFocus,
+        a.typeCounts,
+        a.domainId,
+        a.categoryId,
+        a.batchId,
       );
+    },
+  );
+
+  // POST /api/admin/generate/start (RW-93): same body/guard/single-flight as /generate, but returns
+  // 202 { attempt_id } at once; the run continues detached. The admin click is the only trigger.
+  app.post(
+    "/api/admin/generate/start",
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const a = await resolveGenerateArgs(req);
+      const { attemptId } = await startGenerateDetached(a);
+      return reply.code(202).send({ attempt_id: attemptId });
+    },
+  );
+
+  // GET /api/admin/generation-attempts/:id (RW-93): poll one attempt. Super-admin only.
+  app.get(
+    "/api/admin/generation-attempts/:id",
+    { preHandler: superAdminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const { id } = req.params as { id: string };
+      if (!UUID_RE.test(id)) {
+        throw new ValidationError("id must be a valid UUID", { details: { code: "INVALID_PARAM", param: "id" } });
+      }
+      const { withTenant: wt } = await import("@assessiq/tenancy");
+      return wt(tenantId, async (client) => {
+        const r = await client.query(
+          `SELECT id, status, count_requested, count_inserted, error_code, error_message,
+                  duration_ms, started_at, finished_at
+           FROM generation_attempts WHERE id = $1`,
+          [id],
+        );
+        if (r.rows[0] === undefined) throw new NotFoundError("generation attempt not found");
+        return r.rows[0];
+      });
     },
   );
 
