@@ -281,7 +281,7 @@ export async function listTenantsWithAdminSummary(
                AND u.status = 'active'
                AND u.deleted_at IS NULL
            ) rc ON true
-           ${includeArchived ? '' : "WHERE t.status <> 'archived'"}
+           ${includeArchived ? '' : "WHERE t.status NOT IN ('archived', 'purged')"}
            ORDER BY t.created_at ASC`,
   );
   return result.rows;

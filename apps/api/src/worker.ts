@@ -34,7 +34,7 @@
 import { Queue, Worker, type Job } from "bullmq";
 import { Redis } from "ioredis";
 import { config, streamLogger } from "@assessiq/core";
-import { closePool } from "@assessiq/tenancy";
+import { closePool, purgeArchivedTenants } from "@assessiq/tenancy";
 import { processBoundariesForTenant, listTenantsWithDueBoundaries } from "@assessiq/assessment-lifecycle";
 import { sweepStaleTimersForTenant, listTenantsWithExpiredAttempts } from "@assessiq/attempt-engine";
 import {
@@ -85,6 +85,10 @@ const MV_REFRESH_CRON = "0 2 * * *";
 // via eraseCandidatePii's alreadyErased short-circuit; safe to retry.
 const RETENTION_JOB_NAME = "dsr-retention-cron";
 const RETENTION_CRON = "0 3 * * *";
+// RW-48b: nightly purge of tenants archived >= 180 days (non-AI). 03:30 UTC, after the retention job.
+// Dry run unless TENANT_PURGE_ENABLED=true (read from process.env here; worker-only flag, not in 00-core config).
+const TENANT_PURGE_JOB_NAME = "tenant-purge-cron";
+const TENANT_PURGE_CRON = "30 3 * * *";
 
 const BOUNDARY_INTERVAL_MS = 60_000;
 const TIMER_SWEEP_INTERVAL_MS = 30_000;
@@ -129,6 +133,8 @@ export const JOB_RETRY_POLICY: Record<
   // attempts than other crons because a misfire could erase additional PII on
   // re-run (it won't — alreadyErased guards — but conservative is fine).
   [RETENTION_JOB_NAME]: { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
+  // tenant-purge-cron: 1 attempt. Per-tenant errors are isolated inside the sweep; the job reruns tomorrow.
+  [TENANT_PURGE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
   // result.auto_release — attempts 1: the sweep re-runs every 15 s anyway, and a
   // retry of a failed tick would only double the work. processAutoReleaseTick never
   // throws (per-attempt errors are logged + cooled down), so this is belt and braces.
@@ -310,6 +316,19 @@ async function processRetentionTick(): Promise<{
   return { tenants: reports.length, totalErased, totalSkipped, errorCount };
 }
 
+async function processTenantPurgeTick(): Promise<{ dryRun: boolean; candidates: number; purged: number; failed: number }> {
+  const report = await purgeArchivedTenants({
+    now: new Date(),
+    enabled: process.env["TENANT_PURGE_ENABLED"] === "true",
+  });
+  const purged = report.tenants.filter((t) => t.purged).length;
+  const failed = report.tenants.filter((t) => t.error !== undefined).length;
+  if (report.tenants.length > 0) {
+    log.info({ dryRun: report.dryRun, candidates: report.tenants.length, purged, failed }, "tenant-purge-cron tick");
+  }
+  return { dryRun: report.dryRun, candidates: report.tenants.length, purged, failed };
+}
+
 export async function processTimerSweepTick(): Promise<{
   tenants: number;
   autoSubmitted: number;
@@ -436,6 +455,21 @@ async function start(): Promise<void> {
     },
   );
 
+  // RW-48b: nightly archived-tenant purge at 03:30 UTC (dry run unless TENANT_PURGE_ENABLED=true).
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const tenantPurgePolicy = JOB_RETRY_POLICY[TENANT_PURGE_JOB_NAME]!;
+  await queue.add(
+    TENANT_PURGE_JOB_NAME,
+    {},
+    {
+      repeat: { pattern: TENANT_PURGE_CRON },
+      attempts: tenantPurgePolicy.attempts,
+      backoff: tenantPurgePolicy.backoff,
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  );
+
   // SP2 — auto-release sweep: publishes finished results of tenants in
   // result_release_mode='auto' (no AI; see jobs/auto-release.ts). Every 15 s.
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -511,6 +545,8 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processRefreshMvJob);
         case RETENTION_JOB_NAME:
           return runJobWithLogging(job, processRetentionTick);
+        case TENANT_PURGE_JOB_NAME:
+          return runJobWithLogging(job, processTenantPurgeTick);
         case AUTO_RELEASE_JOB_NAME:
           return runJobWithLogging(job, () => processAutoReleaseTick());
         case EVAL_QUEUE_ALERT_JOB_NAME:
