@@ -322,6 +322,12 @@ function checkVersions(base: string): void {
   const rel = "modules/16-help-system/content/en";
   const git = (...a: string[]): string =>
     execFileSync("git", a, { cwd: REPO_ROOT, encoding: "utf8" });
+  try {
+    git("rev-parse", "--verify", "--quiet", `${base}^{commit}`);
+  } catch {
+    process.stderr.write(`ERROR: base ref "${base}" does not exist (fetch it, e.g. git fetch origin main)\n`);
+    process.exit(2);
+  }
   const baseSnap: Snap = {};
   const curSnap: Snap = {};
   for (const f of git("ls-tree", "--name-only", base, `${rel}/`)

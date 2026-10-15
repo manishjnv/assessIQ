@@ -17,6 +17,8 @@ jobs:
       # 1. Checkout
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # origin/main needed by lint:help-seed-version:ci
 
       # 2. pnpm setup
       # Version comes from root package.json's "packageManager" field
@@ -196,6 +198,10 @@ jobs:
 
       - name: Deploy-procedure lint (repo scan)
         run: pnpm lint:deploy-procedure
+
+      - name: Help-seed version lint (vs origin/main)
+        if: github.event_name == 'pull_request'
+        run: pnpm lint:help-seed-version:ci
 
       # 10. Secrets scan — exact regex set from .claude/hooks/precommit-gate.sh lines 40-51
       # plus the hardcoded-credential-literal pattern. Runs on all files (not just diff)
