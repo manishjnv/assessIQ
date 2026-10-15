@@ -47,6 +47,8 @@ interface TombstoneRow {
  *   3. UPDATE users: replace name + email with sha256-derived pseudonyms,
  *      drop metadata roll_number / branch, set erased_at = now().
  *   4. UPDATE attempt_answers: set answer = '"[erased]"' for non-mcq rows.
+ *   4c. RW-89: login-token ip/ua NULL, invitation + email_log address
+ *      pseudonymised, attempts.evaluation_note NULL.
  *   5. UPDATE sessions: NULL out ip + user_agent.
  *   6. SELECT count(*) from certificates (preserved, never mutated).
  *   7. auditInTx: action = 'user.pii.erased', after = counts only.
@@ -174,6 +176,36 @@ export async function eraseCandidatePii(
     );
     const aiProposalsCleared: number = proposalsRes.rowCount ?? 0;
 
+    // ── 4c. Scrub other identifying copies (RW-89) ──────────────────────────
+    // user.email is the PRE-erasure address (read in step 1, before step 3
+    // pseudonymised it). Pseudonym pattern is identical to users.email.
+    const pseudo = `'deleted+' || substr(encode(sha256($1::text::bytea),'hex'),1,12) || '@erased.assessiq.local'`;
+    const tokensRes = await client.query(
+      `UPDATE candidate_login_tokens SET requested_ip = NULL, requested_ua = NULL
+        WHERE user_id = $1 AND (requested_ip IS NOT NULL OR requested_ua IS NOT NULL)`,
+      [userId],
+    );
+    const loginTokensRedacted: number = tokensRes.rowCount ?? 0;
+    // Tenant pinned by RLS (withTenant). Status and timestamps are kept.
+    const invitesRes = await client.query(
+      `UPDATE user_invitations SET email = ${pseudo}
+        WHERE lower(email) = lower($2)`,
+      [userId, user.email],
+    );
+    const invitationsPseudonymised: number = invitesRes.rowCount ?? 0;
+    const emailLogRes = await client.query(
+      `UPDATE email_log SET to_address = ${pseudo}
+        WHERE lower(to_address) = lower($2)`,
+      [userId, user.email],
+    );
+    const emailLogPseudonymised: number = emailLogRes.rowCount ?? 0;
+    const notesRes = await client.query(
+      `UPDATE attempts SET evaluation_note = NULL
+        WHERE user_id = $1 AND evaluation_note IS NOT NULL`,
+      [userId],
+    );
+    const evaluationNotesCleared: number = notesRes.rowCount ?? 0;
+
     // ── 5. Redact sessions ──────────────────────────────────────────────────
     const sessionsRes = await client.query(
       `UPDATE sessions SET ip = NULL, user_agent = NULL
@@ -205,6 +237,10 @@ export async function eraseCandidatePii(
         attemptAnswersErased,
         gradingsScrubbed,
         aiProposalsCleared,
+        loginTokensRedacted,
+        invitationsPseudonymised,
+        emailLogPseudonymised,
+        evaluationNotesCleared,
         sessionsRedacted,
         certificatesPreserved,
         erased: true,
