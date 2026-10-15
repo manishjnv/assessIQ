@@ -29,6 +29,7 @@ import { Spinner } from "@assessiq/ui-system";
 import { isQuestionType, RUBRIC_REQUIRED_IDS, getQuestionType, type QuestionType } from "@assessiq/question-types";
 import { AdminShell } from "../components/AdminShell.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
+import { TopicFocusField, TOPIC_FOCUS_MAX } from "../components/TopicFocusField.js";
 import {
   adminApi,
   AdminApiError,
@@ -412,6 +413,7 @@ export function AdminGenerateWizard(): React.ReactElement {
 
   // Config state
   const [selectedLevel, setSelectedLevel] = useState<SelectedLevel>("L1");
+  const [topicFocus, setTopicFocus] = useState("");
   const [domains, setDomains] = useState<DomainItem[]>([]);
   const [selectedDomainId, setSelectedDomainId] = useState<string>("");
   const [categoryConfigs, setCategoryConfigs] = useState<CategoryConfig[]>([]);
@@ -723,6 +725,7 @@ export function AdminGenerateWizard(): React.ReactElement {
         const res = await generateForDomainApi(plan.domainId, plan.level, {
           count: totalCount,
           type_counts: typeCounts,
+          ...(topicFocus.trim() ? { topic_focus: topicFocus.trim() } : {}),
           category_id: cat.categoryId,
           batch_id: batchId,
         });
@@ -786,7 +789,7 @@ export function AdminGenerateWizard(): React.ReactElement {
     // Load all drafts for the review screen after generation
     await loadDrafts();
     setStep("review");
-  }, [loadDrafts]);
+  }, [loadDrafts, topicFocus]);
 
   // Generate handler — sequential to respect single-flight mutex (D3-FE + D4).
   // Builds a fresh GenBatchPlan from the current wizard config, persists it, then
@@ -860,7 +863,8 @@ export function AdminGenerateWizard(): React.ReactElement {
   function renderConfig(): React.ReactElement {
     const checkedConfigs = categoryConfigs.filter((c) => c.checked && c.selectedTypes.length > 0);
     const grandTotal = computeGrandTotal(categoryConfigs);
-    const canGenerate = !!selectedDomainId && !!selectedLevel && checkedConfigs.length > 0 && grandTotal > 0;
+    const canGenerate = !!selectedDomainId && !!selectedLevel && checkedConfigs.length > 0 && grandTotal > 0
+      && topicFocus.trim().length <= TOPIC_FOCUS_MAX;
 
     return (
       <div style={{ maxWidth: 760 }}>
@@ -1077,6 +1081,8 @@ export function AdminGenerateWizard(): React.ReactElement {
             )}
           </section>
         )}
+
+        <TopicFocusField value={topicFocus} onChange={setTopicFocus} helpId="admin.generate_wizard.topic_focus" />
 
         {/* D2: Fan-out info line — makes per-category runs + total + level explicit */}
         {grandTotal > 0 && (

@@ -3555,6 +3555,18 @@ admin.generate_wizard.page:
     - **Types.** Multiple-choice, log analysis, scenario, KQL and subjective questions are made here. Numeric, multi-select, ordering and structured case questions are written by hand.
     - Nothing reaches a candidate until you approve it.
 
+admin.generate_wizard.topic_focus:
+  audience: admin
+  short_text: "Optional. A short subject that the new questions must stay close to."
+  long_md: |
+    ## Topic focus
+
+    Use this field to point the generator at one narrow subject.
+
+    - **Optional.** Leave it empty and the tool uses the category only.
+    - **Length.** Use 200 characters or fewer. The Generate button stays off while the text is too long.
+    - **Scope.** The focus applies to every category in this run.
+
 admin.attempts.detail.page:
   audience: admin
   short_text: "One candidate attempt: review the final scores and release them to the candidate."

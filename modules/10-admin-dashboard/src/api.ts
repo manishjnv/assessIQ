@@ -434,6 +434,7 @@ export interface GenerateForDomainRequest {
   count: number;
   type_counts?: Partial<Record<GenerateQuestionType, number>>;
   category_id?: string;
+  topic_focus?: string;
   batch_id?: string;
 }
 
