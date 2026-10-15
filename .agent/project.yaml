@@ -227,7 +227,7 @@ budget_usd:
   per_task: 20
   per_phase: 150
   daily: 200
-  total: 5000
+  total: 10
   wait_for_next_day: true # when daily cap is hit: sleep until midnight instead of stopping
 
 scheduling:
