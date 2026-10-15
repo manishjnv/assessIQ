@@ -24,6 +24,8 @@ export const ACTION_CATALOG = [
   'auth.totp.enrolled',
   'auth.totp.reset',
   'auth.recovery.used',
+  // RW-45 (2026-10-15): signed-in user regenerates recovery codes (re-auth with a TOTP code); payload never holds codes.
+  'auth.recovery.regenerated',
   // Tenant
   'tenant.settings.updated',
   'tenant.branding.updated',
@@ -168,6 +170,11 @@ export const ACTION_CATALOG = [
   // system-role tx as the entitlement grant. See
   // docs/design/question-set-sharing-clone-on-grant.md.
   'tenant.pack_cloned',
+  // RW-47 (2026-10-15): revoking a pack or domain entitlement archives the tenant's clone(s) of that scope
+  // in the same tx as the entitlement UPDATE. Content is never deleted; re-grant does not un-archive.
+  'tenant.pack_clone_archived',
+  // RW-57 (2026-10-15): super admin loads (or reloads) a bundled curriculum framework seed into the platform tenant.
+  'framework.seed_loaded',
   // B3 licensed-set re-sync (2026-05-25) — a tenant admin pulls a newer master
   // version into an existing clone (in-place content refresh + question
   // versioning). Written in the same system-role tx as the refresh
