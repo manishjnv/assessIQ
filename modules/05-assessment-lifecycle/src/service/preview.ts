@@ -2,7 +2,7 @@ import { NotFoundError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import * as repo from "../repository.js";
 import { AL_ERROR_CODES } from "../types.js";
-import type { Assessment, ResolvedBlueprint, PreviewCriterionResult, PreviewQuestionSet } from "../types.js";
+import type { ResolvedBlueprint, PreviewCriterionResult, PreviewQuestionSet } from "../types.js";
 import { countActiveQuestionsForLevel, listActiveQuestionsForPreview } from "./_shared.js";
 import { countActiveQuestionsForCriterion, listActiveQuestionsForCriterion } from "./blueprint.js";
 

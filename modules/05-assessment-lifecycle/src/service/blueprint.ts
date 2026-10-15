@@ -3,7 +3,7 @@ import { withTenant } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
 import { findOrCreatePackForDomain } from "../../../04-question-bank/src/service.js";
 import { AL_ERROR_CODES } from "../types.js";
-import type { Assessment, AssessmentBlueprint, ResolvedBlueprint } from "../types.js";
+import type { AssessmentBlueprint, ResolvedBlueprint } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Blueprint helpers (Phase 2 Slice A)
