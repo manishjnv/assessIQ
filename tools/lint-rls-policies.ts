@@ -305,7 +305,7 @@ function checkPoolConnect(hits: PoolHit[], allowed: readonly string[]): string[]
   for (const h of hits) {
     const listed = left.includes(h.loc) || left.includes(h.file);
     if (listed && h.marked) {
-      take(h.loc) || take(h.file);
+      if (!take(h.loc)) take(h.file);
       continue;
     }
     const why = listed ? `missing '${POOL_MARKER} <reason>' marker` : "no free entry in tools/pool-connect.allowlist.txt (one entry per hit line)";
