@@ -156,6 +156,24 @@ export async function eraseCandidatePii(
     );
     const attemptAnswersErased: number = answersRes.rowCount ?? 0;
 
+    // ── 4b. Scrub AI-grading copies of the answer text (RW-69) ──────────────
+    // gradings.{stage_inputs,anchor_hits,ai_justification} and
+    // attempts.ai_proposals echo the verbatim answer. Band, score, error class,
+    // model, prompt sha and override rows are kept (audit trail).
+    const gradingsRes = await client.query(
+      `UPDATE gradings
+          SET stage_inputs = NULL, anchor_hits = '[]'::jsonb, ai_justification = NULL
+        WHERE attempt_id IN (SELECT id FROM attempts WHERE user_id = $1)`,
+      [userId],
+    );
+    const gradingsScrubbed: number = gradingsRes.rowCount ?? 0;
+    const proposalsRes = await client.query(
+      `UPDATE attempts SET ai_proposals = NULL
+        WHERE user_id = $1 AND ai_proposals IS NOT NULL`,
+      [userId],
+    );
+    const aiProposalsCleared: number = proposalsRes.rowCount ?? 0;
+
     // ── 5. Redact sessions ──────────────────────────────────────────────────
     const sessionsRes = await client.query(
       `UPDATE sessions SET ip = NULL, user_agent = NULL
@@ -185,6 +203,8 @@ export async function eraseCandidatePii(
       after: {
         reason,
         attemptAnswersErased,
+        gradingsScrubbed,
+        aiProposalsCleared,
         sessionsRedacted,
         certificatesPreserved,
         erased: true,

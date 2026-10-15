@@ -112,6 +112,7 @@ Out of scope (defer):
 | `02-tenancy` | `withTenant` for RLS; owns `tenant_settings` (S1 adds `retention_days`) |
 | `03-users` | `users` table (S1 adds `erased_at`); primary tombstone target |
 | `06-attempt-engine` | `attempt_answers.answer` free-text JSONB (erasure target; question-type filter excludes `mcq`) |
+| `07-ai-grading` | `gradings.stage_inputs` / `anchor_hits` / `ai_justification` and `attempts.ai_proposals` echo the verbatim answer (erasure target, RW-69): set to NULL / `'[]'` / NULL / NULL. Band, score, error class, model, prompt sha and override rows are kept. Audit `after` gains `gradingsScrubbed` + `aiProposalsCleared` (receipt shape unchanged) |
 | `01-auth` | `sessions.ip` / `sessions.user_agent` — candidate IP/UA (erasure target; candidates get a session row via `mintCandidateSession`) |
 | `14-audit-log` | `auditInTx()` for every DSR action; **immutability is a hard constraint** (D1, D7); S1 extends `redact.ts` |
 | `13-notifications` | Email export-ready, erasure-confirmation, consent receipts (S2+) |
