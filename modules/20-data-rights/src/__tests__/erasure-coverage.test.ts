@@ -42,6 +42,8 @@ const EXEMPT: Record<string, string> = {
   'webhook_endpoints.name': 'admin-chosen label for an endpoint',
   'questions.answer_guidance': 'author-written content for graders, not candidate input',
   'tenant_plans.notes': 'platform-operator billing notes about a tenant',
+  'question_imports.file_name': 'uploaded file name chosen by the super admin (RW-58); content metadata, not candidate data',
+  'question_imports.pack_name': 'draft question-set name typed by the super admin (RW-58); content metadata',
   // Kept by design
   'certificates.display_name': 'D5: certificates are immutable HMAC snapshots, never mutated',
   'audit_log.ip': 'audit_log is append-only by design (14-audit-log invariant)',
