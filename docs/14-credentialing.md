@@ -2,334 +2,199 @@
 
 *Type: reference* — This page describes the certificate model: issue rules, signing and public verification.
 
-> Public-facing reference for the credentialing model. Module-internal
-> details live in `modules/18-certification/SKILL.md`. The full Phase 5
-> blueprint is in `docs/plans/archive/CERTIFICATION_PLAN_GENERIC.md`.
+**Status:** Phase 5 is shipped. The `honors` tier is deferred and has no threshold yet.
 
-## What ships in Phase 5
+Module-internal details are in `modules/18-certification/SKILL.md`. The full Phase 5 blueprint is in `docs/plans/archive/CERTIFICATION_PLAN_GENERIC.md`.
 
-A `Certificate` row is issued when an admin confirms a graded attempt has
-crossed a tier threshold. The row carries a point-in-time snapshot of the
-candidate's display name, course title, and level; later profile edits do
-NOT retro-update issued certs (that is intentional — a credential is a
-point-in-time record).
+## Certificate record
 
-The public face of a certificate is its **credential_id**, a slug of the
-form `PREFIX-YYYY-MM-XXXXXX`:
+| Item | Rule |
+| --- | --- |
+| Issue event | An admin confirms that a graded attempt crossed a tier threshold |
+| Snapshot fields | Candidate display name, course title and level, at the time of issue |
+| Later profile edits | They do NOT update issued certificates. A credential is a point-in-time record |
+| Public identifier | `credential_id` |
+| Storage case | Uppercase |
+| Lookup | The verify page changes the input to uppercase. Lowercase input still resolves |
+
+## Credential ID format
+
+Format: `PREFIX-YYYY-MM-XXXXXX`.
 
 | Segment | Source | Notes |
-|---|---|---|
-| `PREFIX` | issuer code (default `AIQ`) | 2–4 uppercase letters |
-| `YYYY-MM` | issuance month (UTC) | for eyeballable age, not crypto |
-| `XXXXXX` | 6 chars from `[0-9ABCDEFGHJKMNPQRSTVWXYZ]` | CSPRNG (`crypto.randomInt`), retry on DB UNIQUE conflict |
+| --- | --- | --- |
+| `PREFIX` | Issuer code (default `AIQ`) | 2 to 4 uppercase letters |
+| `YYYY-MM` | Issuance month (UTC) | Shows the age to the eye. Not used for crypto |
+| `XXXXXX` | 6 characters from `[0-9ABCDEFGHJKMNPQRSTVWXYZ]` | CSPRNG (`crypto.randomInt`). Retry on DB UNIQUE conflict |
 
-The suffix alphabet is a **Crockford-style 32-character set** that
-deliberately excludes I, L, O, and U — characters that are visually
-ambiguous when reading a credential_id off a printed certificate, LinkedIn
-profile, or business card (I looks like 1, L looks like 1, O looks like 0).
-This means you will never see a credential_id that could be misread. The
-CREDENTIAL_ID_REGEX still accepts all `[A-Z0-9]` characters so any certs
-issued before this change (none in production at the time of this update)
-remain valid.
-
-Slugs are stored uppercase. The verify-page lookup normalises input to
-upper, so recruiters typing them lowercase still resolve correctly.
+- The suffix alphabet is a Crockford-style set of 32 characters.
+- The alphabet excludes I, L, O and U. These characters look like other characters on a printed certificate, a LinkedIn profile or a business card (I and L look like 1, O looks like 0).
+- `CREDENTIAL_ID_REGEX` still accepts all `[A-Z0-9]` characters. Certificates issued before this change remain valid. None existed in production at the time of the change.
 
 ## HMAC signing
 
-Each cert row stores a `signed_hash`: the HMAC-SHA256 hex digest of a
-canonical-JSON serialization of the row's identity + display-snapshot
-fields, keyed by `process.env.CERT_SIGNING_SECRET`. The canonical
-serialization sorts keys alphabetically and emits `JSON.stringify` with no
-whitespace, so the digest is byte-identical across Node processes and
-versions.
+| Item | Rule |
+| --- | --- |
+| Field | `signed_hash` on each certificate row |
+| Algorithm | HMAC-SHA256, hex digest |
+| Input | Canonical JSON of the identity and display-snapshot fields |
+| Canonical form | Keys sorted alphabetically. `JSON.stringify` with no whitespace. The digest is byte-identical across Node processes and versions |
+| Key | `process.env.CERT_SIGNING_SECRET` |
+| Compare | `crypto.timingSafeEqual` on equal-length `Buffer`s. A length mismatch returns `false` and does not throw |
+| Excluded from the payload | `pdf_downloads`, `linkedin_shares`, `verification_views` and the revocation fields. A counter bump or a revocation does not need a new signature |
 
-Signature compare in the verify path uses `crypto.timingSafeEqual` on
-equal-length `Buffer`s. Length mismatch returns `false` rather than throws.
+**Stability invariant.**
 
-**Stability invariant.** A tier upgrade (e.g. completion → distinction)
-re-signs the row in the same DB transaction as the tier UPDATE. The
-**`credential_id` and `issued_at` are preserved** — never rotated — so
-shared LinkedIn URLs continue to verify against the current row state.
-Counters (`pdf_downloads`, `linkedin_shares`, `verification_views`) and
-revocation fields are deliberately excluded from the signed payload so
-counter bumps and revocations do not require re-signing.
+- A tier upgrade (for example completion to distinction) re-signs the row in the same DB transaction as the tier UPDATE.
+- `credential_id` and `issued_at` are preserved and never rotated. Shared LinkedIn URLs keep verifying against the current row state.
 
-**`issued_at` second-precision invariant.** The `issued_at` timestamp is
-truncated to second precision (`2026-05-11T17:46:23Z`, no milliseconds)
-before signing and before storage. The public verify page reconstructs the
-HMAC payload from the stored row; the DB projection also strips
-milliseconds. Both sides must agree on the format for the signature to
-verify. Sub-second precision is irrelevant for a certificate issued to a
-human.
+**`issued_at` second-precision invariant.**
+
+- The system truncates `issued_at` to second precision before it signs and before it stores (`2026-05-11T17:46:23Z`, no milliseconds).
+- The public verify page rebuilds the HMAC payload from the stored row. The DB projection also removes milliseconds.
+- Both sides must use the same format, or the signature does not verify.
 
 ## Secret management
 
-- `CERT_SIGNING_SECRET` is required. There is no default and no dev
-  fallback — `getCertSigningSecret()` throws at first call if unset.
-- **Rotation invalidates every existing signature.** If rotation is ever
-  needed, the procedure is: add a `signed_hash_v2` column, run a one-shot
-  resigner under the new secret, update `verifyCertificateSignature` to
-  accept either column during the cutover window, then drop v1.
-- The secret lives in the production VPS environment file; the ops
-  procedure for setting it is in `docs/06-deployment.md`. Treat it with
-  the same operational care as `SESSION_SECRET` and
-  `ASSESSIQ_MASTER_KEY`.
+| Item | Rule |
+| --- | --- |
+| `CERT_SIGNING_SECRET` | Required. No default and no dev fallback. `getCertSigningSecret()` throws at the first call if the variable is unset |
+| Rotation | It invalidates every existing signature |
+| Rotation procedure | 1. Add a `signed_hash_v2` column. 2. Run a one-shot resigner under the new secret. 3. Update `verifyCertificateSignature` to accept either column during the cutover window. 4. Drop v1 |
+| Storage | The production VPS environment file. The ops procedure is in `docs/06-deployment.md` |
+| Care level | The same as `SESSION_SECRET` and `ASSESSIQ_MASTER_KEY` |
 
-## Audit trail
+## Audit actions
 
-Two audit-log actions are recorded:
+| Action | When | Payload |
+| --- | --- | --- |
+| `certification.cert.issue` | First issue | `after` holds `{credential_id, tier, candidate_id, attempt_id}` only |
+| `certification.cert.upgrade` | Tier upgrade | `before` holds the prior tier. `after` holds the same identity fields |
+| `certificates.revoked` | Revoke (admin) | Emitted through `auditInTx`. It does not hold `revoke_reason` |
+| `certificates.reissued` | Reissue (admin) | Emitted through `auditInTx` |
 
-- `certification.cert.issue` — first-time issue. `after`-state carries
-  `{credential_id, tier, candidate_id, attempt_id}` only.
-- `certification.cert.upgrade` — tier upgrade. `before` carries the prior
-  tier; `after` carries the same identity fields.
-
-Both writes occur in the same transaction as the cert INSERT/UPDATE via
-`auditInTx`. An audit failure rolls back the cert mutation; there is never
-a cert row without a corresponding audit entry, and vice versa.
+Both `certification.cert.*` writes happen in the same transaction as the cert INSERT or UPDATE, through `auditInTx`. An audit failure rolls back the cert change. A cert row never exists without its audit entry, and the reverse also holds.
 
 ## Share previews (Open Graph)
 
-When a candidate shares their verify URL on LinkedIn, Twitter, or another
-crawler-driven platform, the receiving site fetches the URL to build a link
-preview. The verify page renders Open Graph + Twitter Card meta tags in its
-`<head>` so these previews come up as **rich cards** (1200×630 image, name,
-course title, tier) rather than plain title-only links.
+The verify page puts Open Graph and Twitter Card meta tags in its `<head>`. A link shared on LinkedIn, Twitter or another crawler-driven platform shows a rich card: a 1200×630 image, name, course title and tier.
 
-Two image endpoints back the previews:
+| Endpoint | Format | Used by |
+| --- | --- | --- |
+| `GET /verify/:credentialId/og.svg` | Vector SVG | Twitter, Facebook, Mastodon, Slack and most general crawlers |
+| `GET /verify/:credentialId/og.png` | Raster PNG, 1200×630 | LinkedIn, which rejects SVG previews |
 
-- `GET /verify/:credentialId/og.svg` — vector SVG; used by Twitter, Facebook,
-  Mastodon, Slack, and most general-purpose crawlers.
-- `GET /verify/:credentialId/og.png` — rasterized PNG (1200×630); used by
-  LinkedIn, which rejects SVG previews. Rendered server-side at request time
-  via `@resvg/resvg-js` (pure-Rust, no headless browser), cached for one hour.
+- The PNG is rendered on the server at request time with `@resvg/resvg-js` (pure Rust, no headless browser). It is cached for one hour.
+- Both endpoints follow the current certificate status. A revoked certificate shows a red "REVOKED" badge. A tampered signature shows "INVALID".
+- `og:image` in the HTML head always points to the PNG endpoint, because LinkedIn is the main share target.
+- The system builds absolute URLs from the `PUBLIC_BASE_URL` env var. If it is unset (test environments), the meta tags are omitted and the page still renders.
 
-Both endpoints respect the cert's current status. A revoked certificate
-renders a red "REVOKED" badge in the preview image; a tampered signature
-renders "INVALID". Recruiters scrolling LinkedIn see the status before they
-even click through.
+## Automatic issuance on release
 
-`og:image` in the HTML head always points at the PNG endpoint, since
-LinkedIn is the dominant share target for credentialing. Absolute URLs are
-built from the `PUBLIC_BASE_URL` env var; if unset (test environments) the
-meta tags are silently omitted rather than crashing the page render.
+| Item | Rule |
+| --- | --- |
+| Trigger | An admin releases a graded attempt: `POST /admin/attempts/:id/release` |
+| Transaction | The same `withTenant()` transaction as the `graded→released` status update and the `grading.released` audit row. The cert row and the release are atomic |
+| Entry point | `issueCertificateOnRelease(client, { tenantId, attemptId, actorUserId })` in `modules/18-certification/src/service.ts` |
+| Caller | `handleAdminReleaseAttempt` in `modules/07-ai-grading/src/handlers/admin-claim-release.ts` |
+| Placement | Inside `withTenant()`, after `auditInTx`. This satisfies the R2 open-transaction precondition of `issueCertificate` (`pg_current_xact_id_if_assigned()` sentinel) |
+| Rollback | If the cert INSERT throws despite the outer `.catch()`, `withTenant()` rolls back the `graded→released` UPDATE and the audit row. Retry the release |
+| Manual fallback | Re-issue from the admin certificates page |
 
-## Automatic issuance trigger (Phase 5 Session 8)
-
-Certificates are issued automatically when an admin releases a graded attempt
-(`POST /admin/attempts/:id/release`). The trigger runs inside the same
-`withTenant()` transaction as the `graded→released` status update and the
-`grading.released` audit row — so the cert row and the release are atomic.
-
-### Entry point
-
-`issueCertificateOnRelease(client, { tenantId, attemptId, actorUserId })`
-in `modules/18-certification/src/service.ts`. Called by
-`handleAdminReleaseAttempt` in `modules/07-ai-grading/src/handlers/admin-claim-release.ts`.
-
-### Tier thresholds (AssessIQ-specific)
+### Tier thresholds
 
 | `auto_pct` from `attempt_scores` | Tier issued |
-|---|---|
-| `< 90` | No cert — `null` returned |
-| `≥ 90` and `< 100` | `completion` |
-| `= 100` | `distinction` |
-| `NaN` / `Infinity` | No cert — guarded by `isFinite()` check |
-| `NULL` (scores not yet computed) | No cert — `null` returned |
+| --- | --- |
+| Below 90 | No cert. `null` is returned |
+| 90 or more and below 100 | `completion` |
+| Equal to 100 | `distinction` |
+| `NaN` or `Infinity` | No cert. The `isFinite()` check guards this |
+| `NULL` (scores not yet computed) | No cert. `null` is returned |
 
-`auto_pct` is stored as `NUMERIC(5,2)` — node-postgres returns it as a string;
-`parseFloat()` is used, followed by an `isFinite()` guard.
-
-`honors` tier is deferred; there is no threshold wired for it yet.
+`auto_pct` is stored as `NUMERIC(5,2)`. node-postgres returns it as a string. The code calls `parseFloat()` and then the `isFinite()` guard.
 
 ### Never-raise invariant
 
-Cert failure **must not block the release**. The call site wraps the dynamic
-import and the function call in `.catch((err) => log.warn(…))`. A cert failure
-logs `grading.release.cert_issuance_failed` and continues; the release HTTP
-response still returns `{ attempt: { status: "released" } }`.
+- A cert failure must not block the release.
+- The call site wraps the dynamic import and the function call in `.catch((err) => log.warn(…))`.
+- A cert failure logs `grading.release.cert_issuance_failed` and continues.
+- The release HTTP response still returns `{ attempt: { status: "released" } }`.
 
-Manual re-issue is available via the admin certificates page.
+### Dynamic import
 
-### Why dynamic import
+| Item | Rule |
+| --- | --- |
+| Reason | Module `07-ai-grading` has no static dependency on `@assessiq/certification` |
+| Pattern | `new Function('specifier', 'return import(specifier)')`. Module 13 notifications uses the same indirection |
+| Effect | The grading module compiles and works in test environments where the certification package is absent or removed |
 
-Module `07-ai-grading` does not have a static dependency on
-`@assessiq/certification`. The import uses the `new Function('specifier', 'return
-import(specifier)')` pattern — the same indirection used for module 13
-notifications — so the grading module compiles and works in test environments
-where the certification package is absent or stripped.
+## Related references
 
-### Transaction placement
+These parts are shipped (Phase 5 Sessions 3, 4, 6 and 7, May 2026). Other references describe them:
 
-The cert call is placed **inside** `withTenant()`, after `auditInTx`. This
-satisfies `issueCertificate`'s R2 open-transaction precondition
-(`pg_current_xact_id_if_assigned()` sentinel). If the cert INSERT fails and
-throws despite the outer `.catch()`, the `withTenant()` transaction rolls back,
-taking the `graded→released` UPDATE and the audit row with it. The release must
-be retried.
-
-## What's not in this doc
-
-These parts are shipped (Phase 5 Sessions 3, 4, 6 and 7, May 2026). They have their own references and are not described on this page:
-
-- PDF generation and the `/api/certificates/:credentialId/pdf` endpoint: `modules/18-certification/src/pdf/` and `docs/03-api-contract.md`.
-- The public `/verify/:credentialId` page and its non-RLS DB lookup strategy: `modules/18-certification/src/routes-public.ts` and `modules/18-certification/SKILL.md`.
-- The LinkedIn share counter (`POST /api/certificates/:credentialId/share-linkedin`): `modules/18-certification/src/routes.ts`.
-- The OG and LinkedIn PNG previews (`/verify/:credentialId/og.svg` and `og.png`): `modules/18-certification/src/routes-public.ts`.
+| Part | Where |
+| --- | --- |
+| PDF generation and `/api/certificates/:credentialId/pdf` | `modules/18-certification/src/pdf/` and `docs/03-api-contract.md` |
+| Public `/verify/:credentialId` page and its non-RLS DB lookup | `modules/18-certification/src/routes-public.ts` and `modules/18-certification/SKILL.md` |
+| LinkedIn share counter (`POST /api/certificates/:credentialId/share-linkedin`) | `modules/18-certification/src/routes.ts` |
+| OG and LinkedIn PNG previews | `modules/18-certification/src/routes-public.ts` |
 
 ## Admin surface
 
-The admin certificate management surface is the fallback for edge cases where
-the automatic `issueCertificateOnRelease` trigger fails (e.g., `CERT_SIGNING_SECRET`
-unset at release time) and for legitimate name corrections.
+The admin certificate surface is the fallback for two cases. The first case is a failed automatic `issueCertificateOnRelease` trigger (for example, `CERT_SIGNING_SECRET` unset at release time). The second case is a legitimate name correction.
 
-### Endpoints
+### Admin endpoints
 
-```
-GET  /api/admin/certificates
-POST /api/admin/certificates/:credentialId/revoke
-POST /api/admin/certificates/:credentialId/reissue
-```
+All three endpoints need the tenant-admin role.
 
-**`GET /api/admin/certificates`** — paginated list of all cert rows in the
-current tenant. Filterable by `tier` (`completion | distinction | honors`) and
-`status` (`active | revoked`). Response is cursor-paginated; standard
-`?page=` + `?limit=` params. Requires tenant-admin role.
-
-**`POST /api/admin/certificates/:credentialId/revoke`** — revokes a cert.
-
-Request body:
-
-```json
-{ "revoke_reason": "string, min 10 chars" }
-```
-
-Sets `revoked_at` (current timestamp) and `revoke_reason` on the `certificates`
-row. Emits a `certificates.revoked` audit row via `auditInTx`. Returns 409 if
-already revoked. Requires tenant-admin role.
-
-**`POST /api/admin/certificates/:credentialId/reissue`** — corrects the
-display name on a cert without changing its identity.
-
-Request body:
-
-```json
-{ "display_name": "string (optional)" }
-```
-
-Updates `display_name` and re-signs `signed_hash` in the same transaction.
-Emits a `certificates.reissued` audit row via `auditInTx`. Returns 410 if the
-cert is revoked — a revoked cert cannot be reissued; issue a new cert instead.
-Requires tenant-admin role.
+| Method and path | Purpose | Request body | Result and errors |
+| --- | --- | --- | --- |
+| `GET /api/admin/certificates` | Paginated list of all cert rows in the current tenant | none. Filters: `tier` (`completion`, `distinction`, `honors`) and `status` (`active`, `revoked`). Params `?page=` and `?limit=` | Cursor-paginated list |
+| `POST /api/admin/certificates/:credentialId/revoke` | Revoke a certificate | `{ "revoke_reason": "string, min 10 chars" }` | Sets `revoked_at` (current timestamp) and `revoke_reason`. Emits `certificates.revoked`. Returns 409 if already revoked |
+| `POST /api/admin/certificates/:credentialId/reissue` | Correct the display name without a change of identity | `{ "display_name": "string (optional)" }` | Updates `display_name` and re-signs `signed_hash` in the same transaction. Emits `certificates.reissued`. Returns 410 if the cert is revoked |
 
 ### Revoke rules
 
-1. **`revoke_reason` is persisted permanently.** It is stored on the
-   `certificates` row and survives the admin action indefinitely. It is not
-   cleared if the row is otherwise updated.
-
-2. **`revoke_reason` is NOT included in `audit_log.after`.** The audit row's
-   `entity_id` is the cert UUID. Auditors who need the reason look up the
-   certificate row directly. This follows the same PII scoping policy as
-   `override_reason` on grading decisions — reasons may reference personal
-   details that belong on the entity row, not in the immutable audit log.
-
-3. **A revoked cert returns 410 on PDF download and 200 with a red badge on
-   the verify page.** The OG/preview images also render the red "REVOKED"
-   badge (see § Share previews).
-
-4. **A revoked cert cannot be reissued — throw 410.** Issue a new cert via
-   `issueCertificateOnRelease` (or manually) instead. Reissue is exclusively
-   for name corrections on active certs; revocation is terminal.
-
-5. **`revoke_reason` min length: 10 chars.** Validated in the route handler
-   and enforced in the UI text field. Short strings like "mistake" are
-   rejected.
+1. `revoke_reason` is stored permanently on the `certificates` row. Other updates to the row do not clear it.
+2. `revoke_reason` is NOT in `audit_log.after`. The `entity_id` of the audit row is the cert UUID. An auditor reads the reason from the certificate row. This follows the PII policy for `override_reason` on grading decisions: reasons can name personal details, and those details belong on the entity row, not in the immutable audit log.
+3. A revoked cert returns 410 on PDF download. The verify page returns 200 with a red badge. The OG and preview images also show the red "REVOKED" badge (see "Share previews (Open Graph)").
+4. A revoked cert cannot be reissued (410). Issue a new cert with `issueCertificateOnRelease` or manually. Reissue is only for name corrections on active certs. Revocation is final.
+5. The minimum length of `revoke_reason` is 10 characters. The route handler validates it and the UI text field enforces it. A short string such as "mistake" is rejected.
 
 ### Reissue rules
 
-1. **Preserves `credential_id` and `issued_at`.** These fields are never
-   rotated on reissue — shared LinkedIn URLs continue to resolve and verify
-   correctly against the updated row.
+1. Reissue preserves `credential_id` and `issued_at`. Shared LinkedIn URLs keep resolving and verifying against the updated row.
+2. Reissue updates `display_name` and re-signs `signed_hash` in the same transaction. The HMAC payload is recomputed from the new `display_name` and the unchanged identity fields. The old signature is no longer valid after the update.
+3. Use reissue only for name corrections. `issueCertificateOnRelease` handles normal first issuance. Reissue covers a cert issued with a misspelled or legally changed display name.
 
-2. **Updates `display_name` and re-signs `signed_hash` in the same
-   transaction.** The HMAC payload is recomputed from the new `display_name`
-   plus the unchanged identity fields; the `signed_hash` column is overwritten
-   atomically. The prior signature is no longer valid after this point.
+### Admin page `/admin/certificates`
 
-3. **Used only for name corrections.** Normal first-issuance is handled
-   automatically by `issueCertificateOnRelease` on attempt release. Reissue
-   addresses the narrow case where a cert was issued with a misspelled or
-   legally changed display name.
-
-### Admin page — `/admin/certificates`
-
-```
-/admin/certificates
-┌──────────────────────────────────────────────────────────────────────┐
-│  Certificates.                         [N certificates]              │
-│  Credentials issued to candidates in this tenant.                    │
-│  Tier: [All] [Completion] [Distinction] [Honors]                     │
-│  Status: [All] [Active] [Revoked]                                    │
-├───────────┬──────────────┬────────────┬──────────┬────────┬─────────┤
-│ Cred. ID  │ Email        │ Tier       │ Course   │ Issued │ Status  │
-├───────────┼──────────────┼────────────┼──────────┼────────┼─────────┤
-│ AIQ-…     │ alice@…      │ Completion │ SOC L1   │ 11 May │ Active  │ ← row click → details drawer
-└───────────┴──────────────┴────────────┴──────────┴────────┴─────────┘
-
-Details drawer (row click):
-  Credential ID: AIQ-2026-05-ABCDEF  [copy]
-  Verify URL: https://assessiq.automateedge.cloud/verify/AIQ-2026-05-ABCDEF [↗]
-  Display name: Alice Smith
-  Course: SOC L1
-  Issued: 11 May 2026
-  Status: Active
-  [Revoke]  ← opens revoke confirmation modal
-
-Revoke modal:
-  Reason (min 10 chars): [________________________]  [Cancel] [Revoke certificate]
-```
-
-A revoked cert's drawer replaces `[Revoke]` with the reason text and
-`revoked_at` timestamp; no further actions are available. The `[Reissue]`
-action (for name corrections on active certs) is accessible from the same
-drawer.
+| Element | Content |
+| --- | --- |
+| Header | "Certificates." with a count `[N certificates]`, and the text "Credentials issued to candidates in this tenant." |
+| Filters | Tier: All, Completion, Distinction, Honors. Status: All, Active, Revoked |
+| Table columns | Cred. ID, Email, Tier, Course, Issued, Status |
+| Row action | A row click opens the details drawer |
+| Drawer fields | Credential ID with a copy action (for example `AIQ-2026-05-ABCDEF`), verify URL (`https://assessiq.automateedge.cloud/verify/AIQ-2026-05-ABCDEF`), display name, course, issued date, status |
+| Drawer actions | `[Revoke]` opens the revoke confirmation modal. `[Reissue]` (name corrections on active certs) is in the same drawer |
+| Revoke modal | Reason field (min 10 chars) with `[Cancel]` and `[Revoke certificate]` |
+| Revoked cert drawer | `[Revoke]` is replaced by the reason text and the `revoked_at` timestamp. No further action is available |
 
 ## LinkedIn share button (Phase 5 Session 10)
 
-The public verify page renders a **"Share on LinkedIn"** CTA for active
-(non-revoked) certificates. This completes the Phase 5 MVP scope.
-
-### Behavior
+The public verify page shows a "Share on LinkedIn" call to action for active (not revoked) certificates. This completes the Phase 5 MVP scope.
 
 | Certificate status | Button |
-|---|---|
-| `valid` (active) | Active `<a>` — opens LinkedIn share dialog in new tab |
-| `revoked` | Disabled `<button>` — tooltip "Revoked certificates can't be shared" |
+| --- | --- |
+| `valid` (active) | Active `<a>` that opens the LinkedIn share dialog in a new tab |
+| `revoked` | Disabled `<button>` with the tooltip "Revoked certificates can't be shared" |
 | `tampered` | No button |
-| `PUBLIC_BASE_URL` unset | No button (degrades gracefully, same as OG meta) |
+| `PUBLIC_BASE_URL` unset | No button (degrades the same way as OG meta) |
 
-### URL pattern
-
-```
-https://www.linkedin.com/sharing/share-offsite/?url=<encoded verify URL>
-```
-
-No Company Page, no LinkedIn API auth, no SDK. LinkedIn's feed composer
-fetches the verify URL and renders a rich preview card using the existing
-Session 7 OG meta + `/og.png` endpoint.
-
-The link uses `target="_blank"` with `rel="noopener noreferrer"`.
-
-### Help ID
-
-`public.verify.share_linkedin` — content in
-`modules/16-help-system/content/en/candidate.yml`.
-
-### Counter note
-
-The `POST /api/certificates/:credentialId/share-linkedin` counter endpoint
-(Session 6) requires authentication. Shares from the public verify page are
-**not** counted — the `linkedin_shares` field tracks shares from the
-authenticated My Certificates dashboard only. Acceptable for MVP.
+| Item | Rule |
+| --- | --- |
+| URL pattern | `https://www.linkedin.com/sharing/share-offsite/?url=<encoded verify URL>` |
+| Integration | No Company Page, no LinkedIn API auth, no SDK. The LinkedIn feed composer fetches the verify URL and renders a rich preview card from the Session 7 OG meta and the `/og.png` endpoint |
+| Link attributes | `target="_blank"` with `rel="noopener noreferrer"` |
+| Help ID | `public.verify.share_linkedin`, content in `modules/16-help-system/content/en/candidate.yml` |
+| Counter | `POST /api/certificates/:credentialId/share-linkedin` (Session 6) needs authentication. Shares from the public verify page are NOT counted. `linkedin_shares` tracks shares from the authenticated My Certificates dashboard only. This is acceptable for the MVP |

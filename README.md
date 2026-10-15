@@ -85,7 +85,7 @@ PROJECT_BRAIN.md             ← READ FIRST in every session
 README.md                    ← this file
 
 docs/
-├── 01-architecture-overview.md
+├── 01-architecture-overview.md  ← explanation: system context, parts, data flows
 ├── 02-data-model.md           ← Postgres schema + RLS
 ├── 03-api-contract.md          ← REST endpoint catalog
 ├── 04-auth-flows.md            ← Google SSO + TOTP + embed JWT + API keys
@@ -93,12 +93,12 @@ docs/
 ├── 06-deployment.md            ← VPS, Docker Compose, Caddy, Cloudflare
 ├── 07-help-system.md           ← Tooltip + drawer architecture
 ├── 08-ui-system.md             ← Tokens, components, theming
-├── 09-integration-guide.md     ← Host-app embed + REST + webhook integration
+├── 09-integration-guide.md     ← how-to: host-app embed + REST + webhook integration
 ├── 10-branding-guideline.md    ← Visual identity: typography, palette, layouts, idioms
 ├── 11-observability.md         ← Logs, streams, metrics
-├── 12-test-coverage.md         ← Test coverage map
+├── 12-test-coverage.md         ← reference: test coverage map
 ├── 13-email-system.md          ← SMTP, templates, queue
-├── 14-credentialing.md         ← Certificates: signing, verify, PDF
+├── 14-credentialing.md         ← reference: certificates, signing, verify, PDF
 └── STYLE.md                    ← Documentation standard: page types, sentences, Vale
 
 modules/
