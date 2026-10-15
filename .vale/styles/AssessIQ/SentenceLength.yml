@@ -1,0 +1,8 @@
+# ASD-STE100: description max 25 words (instruction max 20; Vale cannot tell them apart).
+extends: existence
+message: "Sentence is longer than 25 words. Split it (ASD-STE100)."
+level: warning
+scope: sentence
+nonword: true
+tokens:
+  - '(?:\S+\s+){25,}\S+'

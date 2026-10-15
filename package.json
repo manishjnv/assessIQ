@@ -26,6 +26,7 @@
     "lint:rls": "tsx tools/lint-rls-policies.ts",
     "lint:mv-tenant-filter": "tsx tools/lint-mv-tenant-filter.ts",
     "lint:mv-tenant-filter:self-test": "tsx tools/lint-mv-tenant-filter.ts --self-test",
+    "lint:docs": "node tools/lint-docs.mjs",
     "lint:doc-anchors": "tsx tools/lint-doc-anchors.ts",
     "lint:doc-anchors:self-test": "tsx tools/lint-doc-anchors.ts --self-test",
     "lint:vitest-coverage": "tsx tools/lint-vitest-coverage.ts",
