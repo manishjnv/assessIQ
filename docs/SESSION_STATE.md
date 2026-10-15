@@ -1,3 +1,34 @@
+# Session — 2026-10-15 (afternoon) — main test suite repaired; Autopilot status check
+
+**Headline:** `pnpm test` is green again (237 files, 2996 tests). Two causes: six integration tests built their schema from hand-picked migration lists that never got `13-notifications` after business webhooks were wired into submit/finalize/release (logged `relation "webhook_endpoints" does not exist` after every commit hook, caught, not fatal); two tests resolved paths with the global `URL`, which under the vitest jsdom environment is jsdom's and rewrites `file:` to `http://localhost:3000` (this was the real red). Autopilot ran once (16:05 to 17:11), built no task, and left `pnpm lint` red on main.
+**Commits:** `99cdf88` — test: apply 13-notifications migrations in hand-picked DB test sets; resolve paths without jsdom URL (rebased by Autopilot from `08ef126`) · `82c0374`, `c75ece6` — Autopilot's own commits (snapshot of `.agent/`; RCA entry only) · docs/handoff commit follows.
+**Tests:** `pnpm test` 237 files pass, 2996 pass, 3 skipped, 2 todo (834 s). `pnpm lint` still exits 1 with 16 errors (pre-existing `no-explicit-any` and unused-var hits, see Open questions).
+**Next:** `git stash list` shows two identical stashes "autopilot fixer lint edits 16:11" (4 files, the lint fix). Apply one (`git stash apply stash@{0}`), run `pnpm lint` and the touched tests, commit, drop both stashes; then `rm .agent/STOP` (or `ap resume`) and `ap start`. Push main first (ahead of origin).
+**Open questions:**
+- Autopilot's RCA entry `2026-10-15 · fixer repair main branch` says the lint fix landed; it did not. Only the RCA text is on main (`c75ece6`); the code edits are in the stash. Correct the entry when the stash is applied.
+- Autopilot spent 89% of its tokens on the fixer (verification), 0 on tasks, $1.34. If the fixer loops again after lint is green, lower its share or raise the task budget before a long run.
+- Eight more `no-explicit-any` hits in `blueprint-node-golden.test.ts` are part of the 16 lint errors; the stash rewrites them with typed helpers.
+
+---
+
+## What happened
+
+1. **Reproduce.** Full `pnpm test` on main: 235 of 237 files pass; the 2 failures were `blueprint-node-golden.test.ts` and `14-audit-log/audit-writes.test.ts` with `TypeError: The URL must be of scheme file`. The webhook error from the report appeared only as logged errors inside passing tests (after-commit hooks swallow it in `02-tenancy/src/with-tenant.ts`).
+2. **Probe.** A throwaway test showed `new URL("../x", import.meta.url)` returns `http://localhost:3000/...` under the jsdom environment: the global `URL` is not Node's. `fileURLToPath(import.meta.url)` plus `node:path` works, which is the pattern the other tests already use.
+3. **Attribute the webhook noise.** `emitAttemptEventAfterCommit` is called from 06 `submitAttempt` and `getAttemptForCandidate` (auto-submit), 09 `finalize.ts` and `release.ts`. Tests that reach those with a real container and a hand-picked migration list: attempt-engine, attempt-state-machine, candidate-result (POST /submit), 07 audit-writes, completion-gate, release. Each got the `13-notifications` folder added (its migrations only reference `tenants` and `users`).
+4. **Verify.** Seven changed files alone: 196 pass, zero webhook or scheme errors. Full suite green. `candidate-result` re-run alone: 0 webhook errors.
+5. **Roadmap count** (asked by the owner): about 60 open rows; 34 Claude alone, 19 Claude with owner input, 7 owner only. Table is in the chat transcript, not in a doc.
+6. **Autopilot check.** `ap status`: STOPPED, 5/31 done (all "done before Autopilot"), 26 pending, next P01-T01 RW-70. Sessions this run: 3, all fixer. No `autopilot/*` branch left; the fixer's work is a stash. `.agent/STOP` present.
+
+## Agent utilization
+- Opus (Fable 5.1 main session): investigation, all edits (8 files, 17 lines), 5 test runs, Autopilot forensics, handoff.
+- Sonnet: n/a — edits were small and cache-hot; delegation would have cost more than it saved.
+- Haiku: n/a — greps done inline.
+- codex:rescue: Sonnet takeover (review-gate rule: tests and fixtures → Sonnet): ACCEPT, 0 must-fix, on `99cdf88`; recorded as the `Adversarial-Review` trailer on the handoff commit.
+- Autopilot: 3 fixer sessions, Opus 1.0M + Sonnet 198k tokens, $1.34, 0 tasks.
+
+---
+
 # Session — 2026-10-15 (Autopilot onboarding and docs reorganization)
 
 **Headline:** Autopilot false start undone (it had treated the repo as new); Autopilot onboarded with the 12 S10 rows (7 phases, 31 tasks, 5 marked done, deletion gate in the lint step); docs consolidated into `docs/ROADMAP.md` + `docs/plans/` + `docs/plans/archive/` with a plans index. No code changed.

@@ -2536,3 +2536,23 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 - Fix: difficulty-spec.ts:352 — log_analysis check takes no params; renderers.tsx:164/227/258 — destructure only `answer`; types.ts:253 — renamed to _GENERABLE_KEYS; blueprint-node-golden.test.ts — typed Bp/BpCriterion + bpOf() helper, non-null assertions on indexed criteria, `as unknown as Parameters<typeof createAssessment>[1]` for the invalid-input case.
 - Prevention: `pnpm lint` is already part of the verify gate; this failure came from commits that landed without running it. Running `pnpm lint` before commit, or in a pre-commit hook, stops a repeat.
 
+## 2026-10-15 — Test paths resolved with jsdom's URL; two suites failed with "The URL must be of scheme file"
+
+**Symptom:** `pnpm test` red on main: `modules/05-assessment-lifecycle/src/__tests__/blueprint-node-golden.test.ts` and `modules/14-audit-log/src/__tests__/audit-writes.test.ts` failed at module load with `TypeError: The URL must be of scheme file`.
+**Cause:** `vitest.config.ts` sets `environment: "jsdom"`. Under it the global `URL` is jsdom's, and `new URL("../x", import.meta.url)` resolves to `http://localhost:3000/...` instead of a `file:` URL. `readFileSync` and `fileURLToPath` then reject it. These two tests were the only ones using `new URL(..., import.meta.url)`; the rest use `fileURLToPath(import.meta.url)` with `node:path`.
+**Fix:** `99cdf88`. `blueprint-node-golden.test.ts:49` and `14-audit-log/.../audit-writes.test.ts:12` now use `resolve(dirname(fileURLToPath(import.meta.url)), "...")`.
+**Prevention:** manual discipline. Rule: in tests, never pass `import.meta.url` to the global `URL`; use `fileURLToPath` and `node:path`. A lint is cheap (`new URL\(.*import\.meta\.url` under `__tests__/`) if it recurs.
+
+## 2026-10-15 — Hand-picked test migration lists missed 13-notifications; every submit/finalize/release logged "relation webhook_endpoints does not exist"
+
+**Symptom:** after every commit hook in six integration suites, the log showed `business-event: emitWebhook failed` with `relation "webhook_endpoints" does not exist`. Tests still passed because `02-tenancy/src/with-tenant.ts` swallows after-commit hook errors and `business-events.ts` only logs. The webhook path was therefore never exercised in those suites.
+**Cause:** `emitAttemptEventAfterCommit` was wired into 06 `submitAttempt` / `getAttemptForCandidate`, 09 `finalize.ts` and `release.ts`, but the suites that build their schema from a hand-picked module list (attempt-engine, attempt-state-machine, candidate-result, 07 audit-writes, completion-gate, release) were not updated to include `modules/13-notifications/migrations`. The shared helper `tools/test-support/apply-all-migrations.ts` exists to avoid this and is not used by them.
+**Fix:** `99cdf88`. Each of the six lists now includes the `13-notifications` folder (its migrations reference only `tenants` and `users`). Full suite: 0 occurrences of the error.
+**Prevention:** manual discipline. When a module gets wired into a flow that other modules' integration tests exercise, grep `__tests__` for hand-picked `migrations` lists and add it, or move the suite to `applyAllMigrations`. Candidate lint: a test that imports `GenericContainer` and reads `migrations` folders without `applyAllMigrations` is a hand-picked list.
+
+## 2026-10-15 — Correction to "fixer repair main branch" (Autopilot entry above)
+
+**Symptom:** the entry above says the lint fix landed. On main only the RCA text landed (`c75ece6`); `pnpm lint` still exits 1 with 16 errors.
+**Cause:** the Autopilot run was stopped with `ap stop --now` while the fixer was on `autopilot/fixer`; its edits were stashed ("autopilot fixer lint edits 16:11", twice), the branch was deleted, and the RCA commit went to main without the code.
+**Fix:** pending. Apply `stash@{0}`, lint, test, commit, drop both stashes.
+**Prevention:** after any `ap stop --now`, check `git stash list` before trusting Autopilot's RCA text.
