@@ -65,6 +65,7 @@ export { TenantSettings as AdminTenantSettings } from "./pages/tenant-settings.j
 export { AdminGenerateWizard } from "./pages/generate-wizard.js";
 export { AdminPlatform } from "./pages/platform.js";
 export { SuperAdminUsers } from "./pages/super-admin-users.js";
+export { AdminAccountSecurity } from "./pages/account-security.js";
 export { AdminEvaluationsQueue } from "./pages/evaluations-queue.js";
 export { AdminEvaluationDetail } from "./pages/evaluation-detail.js";
 export { default as AdminAuditLog } from "./pages/audit-log.js";

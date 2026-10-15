@@ -29,6 +29,8 @@ import {
   type SuperUserListItem,
   type SuperPendingInvitation,
 } from "../api.js";
+import { useAdminSession } from "../session.js";
+import { ResetTotpDialog } from "../components/ResetTotpDialog.js";
 import { AdminUsers, type AdminUser, type PendingInvitation, type UserLifecycleApiHandlers } from "./users.js";
 
 // ── Type coercions ────────────────────────────────────────────────────────────
@@ -43,6 +45,7 @@ function toAdminUser(u: SuperUserListItem): AdminUser {
     status: u.status as AdminUser["status"],
     created_at: u.created_at,
     deleted_at: u.deleted_at,
+    totp_enrolled: u.totp_enrolled,
   };
 }
 
@@ -80,6 +83,8 @@ export function SuperAdminUsers(): React.ReactElement {
   // include_deleted = true) so the toggles work purely client-side.
 
   const resolvedTenantId = tenantId ?? "";
+  const { session } = useAdminSession();
+  const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
 
   const fetchTenantMeta = useCallback(async (): Promise<void> => {
     if (!resolvedTenantId) return;
@@ -136,6 +141,15 @@ export function SuperAdminUsers(): React.ReactElement {
   };
 
   return (
+    <>
+    {resetTarget !== null && (
+      <ResetTotpDialog
+        tenantId={resolvedTenantId}
+        user={resetTarget}
+        onCancel={() => setResetTarget(null)}
+        onDone={() => { setResetTarget(null); void fetchUsers(); }}
+      />
+    )}
     <AdminUsers
       superContext={{
         tenantId: resolvedTenantId,
@@ -147,7 +161,10 @@ export function SuperAdminUsers(): React.ReactElement {
         loading,
         fetchError,
         onRefetch: fetchUsers,
+        ...(session?.user.id !== undefined ? { currentUserId: session.user.id } : {}),
+        onResetTotp: setResetTarget,
       }}
     />
+    </>
   );
 }

@@ -293,6 +293,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
 
   const accountEntries: NavEntry[] = [
     { label: "Help guide", href: "/admin/guide", icon: "book" },
+    { label: "Account security", href: "/admin/account-security", icon: "settings" },
     // Settings hosts billing + DPDP retention controls (tenant-settings is
     // embedded as a section at the bottom of the billing page).
     { label: "Settings", href: "/admin/settings", icon: "settings", adminOnly: true },

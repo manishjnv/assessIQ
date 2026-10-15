@@ -23,7 +23,8 @@ import { totpEpochAvailable, totpToken, HashAlgorithms, KeyEncodings } from "@ot
 import type { AuthenticatorOptions } from "@otplib/core";
 import { encryptEnvelope, decryptEnvelope, constantTimeEqual } from "./crypto-util.js";
 import { getRedis } from "./redis.js";
-import { audit } from "@assessiq/audit-log";
+import { sessions } from "./sessions.js";
+import { audit, auditInTx } from "@assessiq/audit-log";
 
 // ---------------------------------------------------------------------------
 // Internal constants
@@ -437,6 +438,17 @@ async function regenerateRecoveryCodes(
       [userId],
     );
     await insertRecoveryCodes(client, userId, tenantId, hashes);
+    // Same tx as the swap: audit failure rolls the regeneration back.
+    // Payload is a count only — never codes or hashes.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: userId,
+      action: "auth.recovery.regenerated",
+      entityType: "user",
+      entityId: userId,
+      after: { issued: plaintexts.length },
+    });
   });
 
   return { recoveryCodes: plaintexts };
@@ -451,12 +463,13 @@ async function regenerateRecoveryCodes(
  * Clears totp_secret_enc + all recovery codes, requiring the user to re-enroll.
  * Emits `auth.totp.reset` audit event.
  *
- * Called by: POST /api/admin/users/:id/totp/reset (fresh-MFA gated at route layer).
+ * Called by: POST /api/admin/super/tenants/:tenantId/users/:userId/totp/reset.
  */
 async function adminResetTotp(
   adminUserId: string,
   tenantId: string,
   targetUserId: string,
+  reason?: string,
 ): Promise<void> {
   await withTenant(tenantId, async (client) => {
     // Clear the TOTP secret.
@@ -467,21 +480,31 @@ async function adminResetTotp(
       [targetUserId],
     );
     // Purge all recovery codes.
-    await client.query(
+    const purged = await client.query(
       `DELETE FROM totp_recovery_codes WHERE user_id = $1`,
       [targetUserId],
     );
+    // Revoke the target's Postgres session mirror in the same tx (the admin's own
+    // session is a different user_id, so it is untouched).
+    const revoked = await client.query(
+      `DELETE FROM sessions WHERE user_id = $1`,
+      [targetUserId],
+    );
+    // G3.A audit hook, same tx as the reset: audit failure rolls the reset back.
+    // Payload: reason + counts only — never secrets, codes or hashes.
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: adminUserId,
+      action: "auth.totp.reset",
+      entityType: "user",
+      entityId: targetUserId,
+      after: { reason: reason ?? null, recoveryCodesPurged: purged.rowCount ?? 0, sessionsRevoked: revoked.rowCount ?? 0 },
+    });
   });
-
-  // G3.A audit hook: admin forced a TOTP reset.
-  await audit({
-    tenantId,
-    actorKind: "user",
-    actorUserId: adminUserId,
-    action: "auth.totp.reset",
-    entityType: "user",
-    entityId: targetUserId,
-  });
+  // Redis holds the authoritative session records: drop them after commit so the
+  // target's cookies stop working now. The DELETE above makes this idempotent.
+  await sessions.destroyAllForUser(targetUserId, tenantId);
 }
 
 // ---------------------------------------------------------------------------

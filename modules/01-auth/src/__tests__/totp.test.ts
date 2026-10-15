@@ -566,3 +566,79 @@ it("getEnrollmentStatus returns enrolled:true after enrollConfirm", async () => 
   const after = await totp.getEnrollmentStatus(esUserId, tenantId);
   expect(after.enrolled).toBe(true);
 });
+
+// ---------------------------------------------------------------------------
+// RW-45 — audit rows written in the same tx, no secrets, old codes dead
+// ---------------------------------------------------------------------------
+
+async function enrolledUser(email: string): Promise<{ id: string; recoveryCodes: string[] }> {
+  const id = randomUUID();
+  await withSuperClient((c) =>
+    c.query(`INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, 'RW45 User', 'admin')`, [id, tenantId, email]),
+  );
+  const { secretBase32 } = await totp.enrollStart(id, tenantId, email);
+  const { recoveryCodes } = await totp.enrollConfirm(id, tenantId, authenticator.generate(secretBase32));
+  return { id, recoveryCodes };
+}
+
+const auditRows = (entityId: string, action: string) =>
+  withSuperClient((c) =>
+    c.query<{ actor_user_id: string; before: unknown; after: Record<string, unknown> | null }>(
+      `SELECT actor_user_id::text, before, after FROM audit_log WHERE entity_id = $1 AND action = $2`,
+      [entityId, action],
+    ),
+  ).then((r) => r.rows);
+
+it("regenerateRecoveryCodes writes exactly one auth.recovery.regenerated row (count only) and kills old codes", async () => {
+  const u = await enrolledUser("rw45-regen@example.com");
+  const { recoveryCodes } = await totp.regenerateRecoveryCodes(u.id, tenantId);
+
+  const rows = await auditRows(u.id, "auth.recovery.regenerated");
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.actor_user_id).toBe(u.id);
+  expect(rows[0]!.after).toEqual({ issued: 10 });
+  const dump = JSON.stringify(rows[0]);
+  for (const c of [...recoveryCodes, ...u.recoveryCodes]) expect(dump).not.toContain(c);
+  expect(dump).not.toMatch(/argon2/);
+
+  expect(await totp.consumeRecovery(u.id, tenantId, u.recoveryCodes[0]!)).toBe(false);
+  expect(await totp.consumeRecovery(u.id, tenantId, recoveryCodes[0]!)).toBe(true);
+}, 60_000);
+
+it("adminResetTotp writes exactly one auth.totp.reset row (reason + count only) and clears secret and codes", async () => {
+  const u = await enrolledUser("rw45-reset@example.com");
+  const adminId = randomUUID();
+  await withSuperClient((c) =>
+    c.query(`INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, 'rw45-admin@example.com', 'RW45 Admin', 'admin')`, [adminId, tenantId]),
+  );
+  const insSess = (uid: string, h: string) =>
+    withSuperClient((c) =>
+      c.query(
+        `INSERT INTO sessions (user_id, tenant_id, role, token_hash, expires_at) VALUES ($1, $2, 'admin', $3, now() + interval '1 hour')`,
+        [uid, tenantId, h],
+      ),
+    );
+  const countSess = (uid: string) =>
+    withSuperClient(async (c) => (await c.query(`SELECT 1 FROM sessions WHERE user_id = $1`, [uid])).rowCount);
+  await insSess(u.id, "rw45-target-1");
+  await insSess(u.id, "rw45-target-2");
+  await insSess(adminId, "rw45-admin-1");
+  expect(await countSess(u.id)).toBe(2);
+  await totp.adminResetTotp(adminId, tenantId, u.id, "lost phone");
+  expect(await countSess(u.id)).toBe(0);
+  expect(await countSess(adminId)).toBe(1);
+
+  const rows = await auditRows(u.id, "auth.totp.reset");
+  expect(rows).toHaveLength(1);
+  expect(rows[0]!.actor_user_id).toBe(adminId);
+  expect(rows[0]!.after).toEqual({ reason: "lost phone", recoveryCodesPurged: 10, sessionsRevoked: 2 });
+  const dump = JSON.stringify(rows[0]);
+  for (const c of u.recoveryCodes) expect(dump).not.toContain(c);
+
+  const left = await withSuperClient(async (c) => ({
+    cred: (await c.query(`SELECT totp_secret_enc FROM user_credentials WHERE user_id = $1`, [u.id])).rows[0],
+    codes: (await c.query(`SELECT 1 FROM totp_recovery_codes WHERE user_id = $1`, [u.id])).rowCount,
+  }));
+  expect(left.cred.totp_secret_enc).toBeNull();
+  expect(left.codes).toBe(0);
+}, 60_000);

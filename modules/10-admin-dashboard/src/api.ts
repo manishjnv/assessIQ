@@ -548,8 +548,8 @@ export async function listTenantsApi(
 export interface LifecycleResponse {
   tenantId: string;
   slug: string;
-  status: 'active' | 'suspended' | 'archived';
-  previousStatus: 'active' | 'suspended' | 'archived';
+  status: 'active' | 'suspended' | 'archived' | 'purged';
+  previousStatus: 'active' | 'suspended' | 'archived' | 'purged';
   sessionsRevoked?: { count: number; affectedUsers: string[] };
   noOp: boolean;
   auditId: string | null;
@@ -716,6 +716,36 @@ export async function verifyTotpApi(code: string): Promise<void> {
     method: "POST",
     body: JSON.stringify({ code }),
   });
+}
+
+/**
+ * POST /api/auth/totp/recovery-codes/regenerate
+ *
+ * Replaces all recovery codes. Needs a current TOTP code. The new codes are
+ * returned once. A wrong code gives 401 and the old codes stay valid.
+ */
+export async function regenerateRecoveryCodesApi(code: string): Promise<{ codes: string[] }> {
+  return adminApi<{ codes: string[] }>("/auth/totp/recovery-codes/regenerate", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
+/**
+ * POST /api/admin/super/tenants/:tenantId/users/:userId/totp/reset
+ *
+ * Super admin only. Clears the user's TOTP secret and recovery codes (204).
+ * Self-reset gives 409 SELF_RESET_FORBIDDEN.
+ */
+export async function superResetUserTotpApi(
+  tenantId: string,
+  userId: string,
+  reason: string,
+): Promise<void> {
+  return adminApi<void>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/users/${encodeURIComponent(userId)}/totp/reset`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -1330,6 +1360,7 @@ export interface SuperUserListItem {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  totp_enrolled: boolean;
 }
 
 export interface SuperPendingInvitation {

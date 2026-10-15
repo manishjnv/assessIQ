@@ -26,6 +26,7 @@ import { registerAdminSuperBillingRoutes } from './admin-super/billing-entitleme
 import { registerAdminSuperDomainRoutes } from './admin-super/domains.js';
 import { registerAdminSuperUserRoutes } from './admin-super/users.js';
 import { registerAdminSuperEntitlementRevokeRoute } from './admin-super/entitlement-revoke.js';
+import { registerAdminSuperUserTotpResetRoute } from './admin-super/user-totp-reset.js';
 
 // Registration order is unchanged from the pre-split file (Fastify plugin order).
 export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<void> {
@@ -34,4 +35,5 @@ export async function registerAdminSuperRoutes(app: FastifyInstance): Promise<vo
   await registerAdminSuperDomainRoutes(app);
   await registerAdminSuperUserRoutes(app);
   await registerAdminSuperEntitlementRevokeRoute(app);
+  await registerAdminSuperUserTotpResetRoute(app);
 }

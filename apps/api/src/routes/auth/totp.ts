@@ -199,4 +199,39 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(204).send();
     },
   );
+
+  // POST /api/auth/totp/recovery-codes/regenerate
+  // Signed-in, TOTP-verified admin replaces all recovery codes. Step-up: the
+  // body must carry a CURRENT TOTP code, checked through totp.verify (so the
+  // 5-fail lockout and audit apply). Wrong code -> 401 and the old codes stay
+  // valid (nothing is touched before verify succeeds). New plaintext codes are
+  // returned once. Audit row auth.recovery.regenerated is written in the same
+  // tx as the swap (modules/01-auth/src/totp.ts).
+  app.post(
+    '/api/auth/totp/recovery-codes/regenerate',
+    {
+      config: { skipAuth: true },
+      schema: { body: codeBodySchema },
+      preHandler: authChain({
+        roles: ['admin', 'super_admin'],
+        // requireTotpVerified left at its default: session must be TOTP-verified.
+        credentialEndpoint: true,
+      }),
+    },
+    async (req) => {
+      const sess = req.session!;
+      const { code } = req.body as { code: string };
+      let ok = false;
+      try {
+        ok = await totp.verify(sess.userId, sess.tenantId, code);
+      } catch (err) {
+        mapLockout(err);
+      }
+      if (!ok) {
+        throw new AppError('invalid totp code', 'INVALID_CODE', 401);
+      }
+      const { recoveryCodes } = await totp.regenerateRecoveryCodes(sess.userId, sess.tenantId);
+      return { codes: recoveryCodes };
+    },
+  );
 }
