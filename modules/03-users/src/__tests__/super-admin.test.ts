@@ -72,6 +72,10 @@ beforeAll(async () => {
     [ADMIN, ADMIN2, PENDING, T],
   );
   await sql(
+    `INSERT INTO user_credentials (user_id, tenant_id, totp_secret_enc, totp_enrolled_at) VALUES ($1, $2, decode('00', 'hex'), now())`,
+    [ADMIN, T],
+  );
+  await sql(
     `INSERT INTO user_invitations (id, tenant_id, email, role, token_hash, invited_by, expires_at)
      VALUES ($1, $2, 'p@sa.test', 'admin', 'h1', $3, now() + interval '1 day')`,
     [INV, T, ADMIN],
@@ -93,6 +97,12 @@ describe('system-role reads', () => {
     const r = await listTenantUsersForSuperAdmin(T, { includeDisabled: false, includeDeleted: false });
     expect(r.users.map((u) => u.email)).toEqual(['p@sa.test', 'a2@sa.test', 'a1@sa.test']);
     expect(r.pending_invitations.map((i) => i.id)).toEqual([INV]);
+    // totp_enrolled: true only for the user with a TOTP secret set (a1).
+    expect(r.users.map((u) => [u.email, u.totp_enrolled])).toEqual([
+      ['p@sa.test', false],
+      ['a2@sa.test', false],
+      ['a1@sa.test', true],
+    ]);
   });
 
   it('resolves user tenant, first admin and invitation tenant', async () => {

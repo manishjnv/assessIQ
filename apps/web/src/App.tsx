@@ -35,6 +35,7 @@ const AdminTenantSettings = lazy(() => import('@assessiq/admin-dashboard').then(
 const AdminGenerateWizard = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerateWizard })));
 const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminPlatform })));
 const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
+const AdminAccountSecurity = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminAccountSecurity })));
 const AdminEvaluationsQueue = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEvaluationsQueue })));
 const AdminEvaluationDetail = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEvaluationDetail })));
 const AdminAuditLog = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminAuditLog })));
@@ -131,6 +132,7 @@ export function App(): React.JSX.Element {
           <Route path="/admin/platform/evaluations" element={<RequireSession role="super_admin"><AdminEvaluationsQueue /></RequireSession>} />
           <Route path="/admin/platform/evaluations/:attemptId" element={<RequireSession role="super_admin"><AdminEvaluationDetail /></RequireSession>} />
           {/* Phase C — super-admin per-tenant user drill-down */}
+          <Route path="/admin/account-security" element={<RequireSession role="admin"><AdminAccountSecurity /></RequireSession>} />
           <Route path="/admin/platform/:tenantId/users" element={<RequireSession role="super_admin"><SuperAdminUsers /></RequireSession>} />
           <Route path="/admin/invite/accept" element={<InviteAccept />} />
 

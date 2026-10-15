@@ -3683,3 +3683,85 @@ admin.reports.landing.page:
     - **Cohort reports.** Each row is an assessment that is not a draft. Select **View report** to see the number of attempts, the average and percentile scores, and the archetype mix.
     - **Individual reports.** Each row is a candidate with a released result. Select **View report** to see the score history of that person.
     - An empty list means that no assessment has data yet. Publish an assessment and collect attempts first.
+
+admin.account.security.page:
+  audience: admin
+  short_text: "Your two-factor sign-in status and backup codes."
+  long_md: |
+    ## Account security
+
+    This page shows if two-factor sign-in is on for your account.
+
+    - Select **Regenerate recovery codes** to make a new set of backup codes.
+    - If two-factor is off, select the link to set it up.
+
+admin.account.security.regenerate:
+  audience: admin
+  short_text: "Make a new set of backup codes. The old codes stop working."
+  long_md: |
+    ## Regenerate recovery codes
+
+    Enter a current code from your authenticator app to confirm it is you.
+    After this, the old backup codes no longer work.
+
+admin.account.security.code_field:
+  audience: admin
+  short_text: "The 6-digit code that your authenticator app shows now."
+  long_md: |
+    ## Authenticator code
+
+    Open your authenticator app and type the 6-digit code for AssessIQ.
+    If the code is not correct, your old backup codes stay valid.
+
+admin.account.security.confirm:
+  audience: admin
+  short_text: "Check the code and make the new backup codes."
+  long_md: |
+    ## Make new codes
+
+    This button checks your code. If the code is correct, the page shows the new backup codes once.
+
+admin.account.security.new_codes:
+  audience: admin
+  short_text: "Your new backup codes. They show once only."
+  long_md: |
+    ## New backup codes
+
+    Each code works one time if you lose your authenticator app.
+    Save the codes in a safe place before you leave this page.
+
+admin.account.security.copy_codes:
+  audience: admin
+  short_text: "Copy all new backup codes to the clipboard."
+  long_md: |
+    ## Copy all
+
+    Copies the backup codes so that you can paste them in a password manager.
+
+admin.account.security.codes_saved:
+  audience: admin
+  short_text: "Confirm that you saved the new backup codes."
+  long_md: |
+    ## I saved them
+
+    Select this button only after you saved the codes. The codes are not shown again.
+
+admin.account.security.enrol:
+  audience: admin
+  short_text: "Set up two-factor sign-in with an authenticator app."
+  long_md: |
+    ## Set up two-factor sign-in
+
+    Opens the set-up page. You get backup codes at the end of set-up.
+
+admin.users.list.reset_totp:
+  audience: admin
+  short_text: "Remove the two-factor sign-in of a user. Needs a reason."
+  long_md: |
+    ## Reset two-factor
+
+    Removes the authenticator app and all backup codes of this user.
+    The user must set up two-factor again at next sign-in.
+
+    - A reason is required. It is saved in the audit log.
+    - You cannot reset your own two-factor here.

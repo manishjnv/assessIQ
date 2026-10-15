@@ -480,6 +480,7 @@ export interface SuperAdminUserRow {
   deleted_at: Date | null;
   created_at: Date;
   updated_at: Date;
+  totp_enrolled: boolean;
 }
 
 export interface SuperAdminPendingInvitationRow {
@@ -512,8 +513,10 @@ export async function listTenantUsersSystem(
 
   const result = await client.query<SuperAdminUserRow>(
     `SELECT u.id, u.email, u.name, u.role, u.status,
-                  u.deleted_at, u.created_at, u.updated_at
+                  u.deleted_at, u.created_at, u.updated_at,
+                  (uc.totp_secret_enc IS NOT NULL) AS totp_enrolled
            FROM users u
+           LEFT JOIN user_credentials uc ON uc.user_id = u.id
            WHERE ${userWhere}
            ORDER BY u.created_at DESC, u.id DESC`,
     [tenantId],

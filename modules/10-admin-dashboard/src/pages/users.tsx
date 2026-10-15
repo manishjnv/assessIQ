@@ -70,6 +70,8 @@ export interface AdminUser {
   status: UserStatus;
   created_at: string;
   deleted_at?: string | null;
+  /** Super-admin list only: true when the user has TOTP enrolled. */
+  totp_enrolled?: boolean;
 }
 
 export interface PendingInvitation {
@@ -140,6 +142,10 @@ export interface AdminUsersProps {
     fetchError: string | null;
     /** Trigger a refetch in the parent after a mutation */
     onRefetch: () => void;
+    /** Signed-in super admin; their own row gets no "Reset two-factor". */
+    currentUserId?: string;
+    /** Opens the reset-two-factor dialog (RW-45). Omit to hide the action. */
+    onResetTotp?: (user: AdminUser) => void;
   };
 }
 
@@ -645,6 +651,7 @@ function UserManageMenu({
   readOnly,
   onAction,
   onExport,
+  onResetTotp,
 }: {
   user: AdminUser;
   currentUserId?: string;
@@ -652,6 +659,7 @@ function UserManageMenu({
   readOnly: boolean;
   onAction: (action: UserLifecycleAction, extraWarning?: string) => void;
   onExport: (user: AdminUser) => void;
+  onResetTotp?: (user: AdminUser) => void;
 }): React.ReactElement {
   const [open, setOpen] = useState(false);
   const triggerRef = React.useRef<HTMLDivElement>(null);
@@ -769,6 +777,11 @@ function UserManageMenu({
   if (user.deleted_at) {
     items.length = 0; // clear status-based items — deleted overrides
     items.push(menuItem("Restore user", () => onAction("restore")));
+  }
+
+  // RW-45: super admin resets another admin's two-factor, only when TOTP is enrolled.
+  if (onResetTotp !== undefined && user.totp_enrolled === true && !isSelf && user.role !== "candidate" && user.status === "active" && !user.deleted_at) {
+    items.push(menuItem("Reset two-factor", () => onResetTotp(user), true));
   }
 
   // Candidate-only DPDP data-rights actions (always shown for candidate rows,
@@ -1082,7 +1095,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
   // Resolve the current user's ID from session for self-disable guard
   // We don't have a session hook here; super-admin context leaves it undefined
   // (the backend enforces CANNOT_DISABLE_SELF anyway — this is a UX convenience only).
-  const currentUserId: string | undefined = undefined;
+  const currentUserId: string | undefined = isSuperContext ? superContext.currentUserId : undefined;
 
   // Detect last-active-admin: only meaningful in super context where we have
   // the full list. In tenant-admin context the backend enforces LAST_ADMIN.
@@ -1512,6 +1525,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                           setActionError(null);
                         }}
                         onExport={handleExport}
+                        {...(isSuperContext && superContext.onResetTotp !== undefined ? { onResetTotp: superContext.onResetTotp } : {})}
                       />
                     </div>
                   </div>
