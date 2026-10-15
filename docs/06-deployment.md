@@ -865,6 +865,9 @@ SENTRY_DSN=
 # Phase 2 will introduce AI_PIPELINE_MODE=anthropic-api with a budgeted key, gated.
 AI_PIPELINE_MODE=claude-code-vps
 
+# Tenant purge (RW-48b) — worker only. Unset or any value but "true" = dry run.
+# TENANT_PURGE_ENABLED=true
+
 # Rate limiting — optional; Zod defaults are 100/30/30/600 req/min/IP per tier.
 # Set only to tune for your traffic; zero-config deploy works without any of these.
 # RATE_LIMIT_IP_ADMIN=100     # admin/reviewer session: 100 req/min/IP
@@ -874,6 +877,22 @@ AI_PIPELINE_MODE=claude-code-vps
 ```
 
 **Local development:** the same keys live in `.env.local` at the repo root (gitignored — `.gitignore` covers `.env.*` with `!.env.example` allowlist). Never commit values; only `.env.example` is in the repo.
+
+### `TENANT_PURGE_ENABLED` (RW-48b, S10, 2026-10-15)
+
+- **What it does.** The worker job `tenant-purge-cron` runs daily at 03:30 UTC (1 attempt). It purges tenants that stayed archived for 180 days or more. Design: `docs/04-auth-flows.md` § "Tenant purge".
+- **Default.** Unset means off. The job runs as a dry run. It lists candidates and changes no row.
+- **Where it is read.** Only the worker reads `process.env.TENANT_PURGE_ENABLED === "true"`. The API and the `00-core` config do not read it. Set it in the worker environment only.
+- **Before you enable it.**
+  1. Read the worker log line `tenant-purge-cron tick`. It shows `dryRun`, `candidates`, `purged` and `failed`.
+  2. Make sure that every candidate is a tenant you want to destroy. The purge cannot be undone.
+  3. Take a database backup.
+  4. Set `TENANT_PURGE_ENABLED=true` and recreate the worker.
+- **Not included.** The job does not purge S3 or Redis data. It has no cap on tenants per run.
+
+**Migrations for this change.** This deploy applies two migrations by hand with the existing procedure (`psql -1 -v ON_ERROR_STOP=1`, then record in `schema_migrations` with the sha256):
+- `0170` (`modules/02-tenancy/migrations/0170_tenant_purge.sql`) adds `purged` to `tenants_status_check`.
+- `0171` (`modules/16-help-system/migrations/0171_seed_rw45_account_security_help.sql`) adds 9 help rows. Do not run the seed file by hand.
 
 ## Email sender (Resend cutover)
 

@@ -16,7 +16,7 @@
 **Symptom:** after FU-B3 rewrote three `admin.audit*` entries in `modules/16-help-system/content/en/admin.yml` and the seed migration `0011_seed_help_content.sql` was regenerated, re-running that migration on `assessiq-vps` left the old text in place.
 **Cause:** `0011_seed_help_content.sql` inserts with `ON CONFLICT (tenant_id, key, locale, version) DO NOTHING`. The three rows already existed with `version = 1`, so the conflict path skipped them silently; the file has no `DO UPDATE` branch for a content-only edit at the same version.
 **Fix:** on `assessiq-vps`, ran a one-off `DELETE FROM help_content WHERE tenant_id IS NULL AND key IN ('admin.audit','admin.audit.archives','admin.audit.export.format') AND version = 1;` (script kept at `tools/ops/fu-b3-delete-stale-audit-help.sql`), then re-applied `0011_seed_help_content.sql` so the INSERT path (not the conflict path) fired. Verified: global row count unchanged at 210, new "available soon" text confirmed live via `tools/ops/fu-b3-verify.sql`.
-**Prevention:** manual discipline for now — a content-only edit to an already-seeded help key at the same `version` needs a delete-then-reseed, or the next edit must bump `version`. No lint or migration-tooling change made; flagged as a gap in `modules/16-help-system/SKILL.md`'s seed workflow for a future task.
+**Prevention:** manual discipline for now — a content-only edit to an already-seeded help key at the same `version` needs a delete-then-reseed, or the next edit must bump `version`. No lint or migration-tooling change made; flagged as a gap in `modules/16-help-system/SKILL.md`'s seed workflow for a future task. Update (S10, 2026-10-15): now enforced by `pnpm lint:help-seed-version` (`tools/generate-help-seed.ts --check`), which fails when a help key's text changes at the same `version`. CI must pass `--base origin/main` (not wired yet, RW-90).
 
 ## 2026-10-06 — FU-B17's new notifications export broke 3 more vi.mock factories than the Batch D gate caught
 
@@ -886,7 +886,7 @@ Wired into `.github/workflows/ci.yml` step 12 (self-test + repo scan, both requi
   - `E2E_CANDIDATE_TOKEN` (take-happy-path.spec.ts:7) — E2E fixture token
 - CHECK D: ✓ clean (magic-link fix a79282c confirmed effective)
 
-**Prevention:** The lint itself, with self-test (17 assertions) confirming all four check classes detect violations correctly. `pnpm lint:deploy-procedure:self-test` in CI ensures the lint doesn't silently regress.
+**Prevention:** The lint itself, with self-test (17 assertions) confirming all four check classes detect violations correctly. `pnpm lint:deploy-procedure:self-test` in CI ensures the lint doesn't silently regress. Update (S10, 2026-10-15): the migration path rule is also enforced by `tools/lint-migrations.ts` rule R5 (every `modules/**/*.sql` sits in `migrations/` or `seeds/`), and `tools/migrate.ts` warns `migration.skipped` for a `.sql` one level deeper.
 
 ## 2026-05-08 — 3 remaining 2026-05-03 punch-list bugs closed (punch-list #4, #6, #7)
 
@@ -2120,7 +2120,7 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 
 **Fix:** the same UPDATE now sets `metadata = COALESCE(metadata, '{}'::jsonb) - 'roll_number' - 'branch'`. The expression was checked read-only on prod Postgres: `{"roll_number":…,"branch":…,"keep":1}` → `{"keep": 1}`. Docs: `docs/02-data-model.md` § users.metadata keys.
 
-**Prevention:** manual discipline. Module 20 has no DB test harness (see the 2026-05-29 entry). Rule: any change that writes new personal data, including into JSONB, must update `erasure.ts` in the same commit. Add it to the Phase 3 checklist for 03-users and 20-data-rights.
+**Prevention:** manual discipline. Module 20 has no DB test harness (see the 2026-05-29 entry). Rule: any change that writes new personal data, including into JSONB, must update `erasure.ts` in the same commit. Add it to the Phase 3 checklist for 03-users and 20-data-rights. Update (S10, 2026-10-15): now enforced by `modules/20-data-rights/src/__tests__/erasure-coverage.test.ts` (RW-51b), which fails on a new personal or answer-like column that is not registered or exempted with a reason.
 
 ## 2026-10-02 — "database system is starting up" test flake; e2e job could never pass
 
@@ -2556,3 +2556,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the Autopilot run was stopped with `ap stop --now` while the fixer was on `autopilot/fixer`; its edits were stashed ("autopilot fixer lint edits 16:11", twice), the branch was deleted, and the RCA commit went to main without the code.
 **Fix:** pending. Apply `stash@{0}`, lint, test, commit, drop both stashes.
 **Prevention:** after any `ap stop --now`, check `git stash list` before trusting Autopilot's RCA text.
+
+## 2026-10-15 — Erasure left the answer text readable in the AI-grading columns
+
+**Symptom:** after erasure, `attempt_answers` was blanked but the verbatim answer text was still readable in the AI-grading columns.
+**Cause:** `modules/20-data-rights/src/erasure.ts` step 4 blanked only `attempt_answers`. `gradings.anchor_hits`, `gradings.ai_justification` and `gradings.stage_inputs` (migration 0168) and `attempts.ai_proposals` (migration 0100) echo the answer text.
+**Fix:** step 4b in `erasure.ts` (about lines 159-175), in the same transaction: `gradings.stage_inputs = NULL`, `anchor_hits = '[]'::jsonb`, `ai_justification = NULL` for the user's attempts, and `attempts.ai_proposals = NULL`. Band, score, error class, model, prompt sha and override rows stay. The audit `after` gains `gradingsScrubbed` and `aiProposalsCleared`. The receipt shape is unchanged. `data-rights.test.ts` covers the erased user and a same-tenant bystander (RW-69).
+**Prevention:** `modules/20-data-rights/src/__tests__/erasure-coverage.test.ts` (RW-51b) holds a registry of personal-data columns, asserts that `erasure.ts` handles each one, and scans every migration for new personal or answer-like columns. It fails unless the column is registered or exempted with a reason. Open followups (exempted columns erasure does not scrub yet): roadmap RW-89.

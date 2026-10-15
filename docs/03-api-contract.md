@@ -94,6 +94,7 @@ Retry-After: <seconds>               (only on 429)
 | `POST` | `/auth/totp/enroll/start` | Generates TOTP secret + QR (returns once) |
 | `POST` | `/auth/totp/enroll/confirm` | Confirms enrollment with first code |
 | `POST` | `/auth/totp/recovery`  | Login via recovery code |
+| `POST` | `/auth/totp/recovery-codes/regenerate` | Replace all recovery codes after a current TOTP code (RW-45; see below) |
 | `POST` | `/auth/logout`         | Destroys session |
 | `GET`  | `/auth/whoami`         | Returns `{ user, tenant, roles, mfa_status }` |
 
@@ -606,6 +607,7 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | `POST` | `/api/admin/super/users/:userId/reenable` | Super-admin user reenable | **live 2026-05-20** |
 | `DELETE` | `/api/admin/super/users/:userId` | Super-admin soft-delete; LAST_ADMIN override path | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/restore` | Super-admin restore soft-deleted user | **live 2026-05-20** |
+| `POST` | `/api/admin/super/tenants/:tenantId/users/:userId/totp/reset` | Super-admin force-reset of a user's two-factor (RW-45; see below) | **S10, 2026-10-15** |
 | `DELETE` | `/api/admin/super/users/invitations/:invitationId` | Super-admin cancel pending invitation | **live 2026-05-20** |
 | `PATCH` | `/api/admin/super/users/:userId` | Super-admin edit of a tenant user (name / role / email); identity-transfer guard on email | **live 2026-05-24** |
 | `PATCH` | `/api/admin/super/tenants/:tenantId` | Super-admin rename a tenant's display name (`tenants.name`); slug unchanged | **branch `feat/platform-edit-company`, PR-pending** |
@@ -1029,7 +1031,7 @@ Returns all users in the target tenant plus all pending (unaccepted) invitations
 ```json
 {
   "users": [
-    { "id": "uuid", "email": "...", "name": "...", "role": "admin", "status": "active", "deleted_at": null, "created_at": "...", "updated_at": "..." }
+    { "id": "uuid", "email": "...", "name": "...", "role": "admin", "status": "active", "totp_enrolled": true, "deleted_at": null, "created_at": "...", "updated_at": "..." }
   ],
   "pending_invitations": [
     { "id": "uuid", "email": "...", "role": "admin", "expires_at": "...", "created_at": "..." }
@@ -1039,7 +1041,55 @@ Returns all users in the target tenant plus all pending (unaccepted) invitations
 
 Users are ordered `created_at DESC, id DESC`. Pending invitations are `accepted_at IS NULL`, ordered `created_at DESC`.
 
+**`totp_enrolled` (RW-45, S10, 2026-10-15).** Each user item carries `totp_enrolled: boolean`. It is true when the user has a TOTP secret. The query LEFT JOINs `user_credentials` (`modules/03-users/src/repository.ts`). The Users page uses it to show "Reset two-factor" only for enrolled users.
+
 **Source:** `apps/api/src/routes/admin-super.ts:974`.
+
+---
+
+#### `POST /api/auth/totp/recovery-codes/regenerate` (RW-45, S10, 2026-10-15)
+
+An admin replaces all recovery codes after proving a current TOTP code. Source: `apps/api/src/routes/auth/totp.ts`.
+
+**Auth:** `authChain` with roles `admin` and `super_admin`, `credentialEndpoint: true` (credential rate-limit tier). The session must be TOTP-verified.
+
+**Body:** `{ "code": "123456" }`. The code is 6 digits. The route reuses the existing `codeBodySchema` (Fastify JSON schema, like the other TOTP routes).
+
+**Response 200:** `{ "codes": ["...", "... (10 items)"] }`. The server shows the codes once. It stores only hashes.
+
+**Errors:**
+- `400` bad body, or the user has no TOTP enrolment.
+- `401` `INVALID_CODE`, or the session is not TOTP-verified.
+- `403` role is not `admin` or `super_admin`.
+- `423` `ACCOUNT_LOCKED`. The existing 5-failure TOTP lockout applies.
+
+**Behaviour.** A wrong code changes nothing, so the old recovery codes stay valid. A correct code deletes the old codes and inserts 10 new ones in one transaction. The same transaction writes one `auth.recovery.regenerated` audit row (`after: { issued: 10 }`).
+
+**Not included:** a recovery-code fallback instead of a TOTP code (a stolen recovery code could then mint more codes).
+
+---
+
+#### `POST /api/admin/super/tenants/:tenantId/users/:userId/totp/reset` (RW-45, S10, 2026-10-15)
+
+A super admin clears the two-factor setup of one user. Use it when the user lost the authenticator and has no recovery codes. Source: `apps/api/src/routes/admin-super/user-totp-reset.ts`.
+
+**Auth:** `superAdminOnly` (super admin role, TOTP-verified session). It does not need fresh MFA.
+
+**Path params:** `tenantId` and `userId`, both UUID. The route calls `assertTenantActive(tenantId)`.
+
+**Body:** `{ "reason": "text" }`. The reason is required, 1 to 500 characters after trim.
+
+**Response 204:** no body.
+
+**Errors:**
+- `400` bad params or body.
+- `403` caller is not a super admin.
+- `404` the user is not in that tenant.
+- `409` `SELF_RESET_FORBIDDEN`. A super admin cannot reset their own two-factor here.
+
+**Behaviour.** `adminResetTotp` clears the TOTP secret, deletes the recovery codes and deletes the Postgres session rows of the target. It then calls `sessions.destroyAllForUser` after the commit. The user must enrol again at the next login. Flow and audit details: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
+
+**Not included:** a message to the target user, and a tenant-admin variant (roadmap RW-91).
 
 ---
 
@@ -2574,6 +2624,14 @@ Note: this `DELETE` carries a JSON body — required because the scope identity 
 - `403 AUTHZ_FAILED` — caller is not `super_admin`.
 
 **Audit:** Emits `tenant.entitlement_revoked` (`ACTION_CATALOG` in `modules/14-audit-log/src/types.ts`). Same two-role transaction pattern as grant.
+
+**Clone archival (RW-47, S10, 2026-10-15).** In the same system-role transaction as the entitlement `UPDATE`, the revoke also sets the tenant's cloned `question_packs` of that scope to `status='archived'`.
+- Pack scope: clones whose `source_pack_id` is the revoked pack. The `scopeId` can be the source id or a clone id.
+- Domain scope: every clone whose source pack has the revoked domain slug.
+- When at least one clone is archived, the transaction writes one `tenant.pack_clone_archived` audit row. It holds ids and counts only (`source_pack_ids`, `archived_clone_ids`, `archived_count`).
+- The response shape does not change.
+- The code never deletes content. Attempts in progress are not affected, because questions are snapshotted at attempt start.
+- A later grant does NOT un-archive the clones. The admin must clone again.
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`revokeTenantEntitlement`).
 

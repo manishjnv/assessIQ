@@ -2040,6 +2040,7 @@ Only one new table (0142). Everything else is a view, help rows, or JSONB settin
 - **R2.** The prefix has 4 digits. The nine legacy 3-digit files are the only exception: `010`, `011`, `012`, `013`, `014`, `015`, `016`, `020`, `021`.
 - **R3.** A file does not use a table that a later file creates. The order source is `tools/test-support/apply-all-migrations.ts`, the real apply order, not the basename order.
 - **R4.** The name matches `^\d{3,4}_[a-z0-9_]+\.sql$`.
+- **R5 (RW-51c, S10, 2026-10-15).** Every `modules/**/*.sql` file sits at `modules/<n>/migrations/` or `modules/<n>/seeds/`. The `R5_EXEMPT` list is empty. `tools/migrate.ts` reads only those folders, so a `.sql` file one level deeper never ran. The runner now logs a `migration.skipped` warning for such a file.
 
 Commit `9badb1d`. **Why.** The RV78 review found gaps, doubles and an order that basename sorting gets wrong. The lint stops new mistakes without a renumber. **Considered and rejected.** Timestamp names: the owner decided on 2026-10-11 to keep 4-digit numbers and add the lint. **Not included.** No migration file is renamed or edited, and the lint does not parse function bodies.
 
@@ -2090,3 +2091,22 @@ The first seed is `modules/16-help-system/seeds/help_content.sql`. It moved from
 **Open follow-ups (minor).**
 - `restoreVersion` can copy old content onto a row whose type has changed. Write `target.type` or reject the restore.
 - Add a guard test that keeps `questions_type_check` and `question_versions_type_check` equal.
+
+## Tenant purge: status `purged` and user tombstones (RW-48b, migration 0170, 2026-10-15)
+
+**What changed.**
+- `modules/02-tenancy/migrations/0170_tenant_purge.sql` widens `tenants_status_check` to `('active','suspended','archived','provisioning','purged')`. It changes nothing else.
+- `purged` is a final state. `TenantStatus` in `modules/02-tenancy/src/types.ts` gains `"purged"`. `assertTenantActive` already rejects it.
+- The purge job (`modules/02-tenancy/src/purge.ts`) deletes the tenant rows of every public table with a `tenant_id` column. Exceptions: `audit_log`, `tenants`, `users`. Full design: [04-auth-flows.md](04-auth-flows.md) § "Tenant purge".
+
+**Users tombstone rule.** A purged tenant keeps its `users` rows, pseudonymised with the same expressions as `modules/20-data-rights/src/erasure.ts` step 3. `name` and `email` become `deleted_user_<sha12>` and `deleted+<sha12>@erased.assessiq.local`. `metadata` loses `roll_number` and `branch`. `erased_at` is set.
+
+**Why keep users.** `audit_log.actor_user_id` has a foreign key to `users(id)`. The audit trail must survive. Dropping the foreign key would weaken the append-only rule, so the code keeps the rows instead.
+
+**`audit_log` is unchanged.** No column, no constraint and no row is touched. The purge adds one `tenant.purged` row per tenant.
+
+**Considered and rejected.** An `archived_at` column (needs a trigger or a service edit; the job uses `updated_at`). A hand-written table list (stale after the next migration).
+
+**Not included.** Purge of S3 or Redis data. Un-purge. A DB-level guard on the 180-day rule (the job enforces it).
+
+**Migration 0171.** `modules/16-help-system/migrations/0171_seed_rw45_account_security_help.sql` carries 9 `help_content` rows for the Account security page and the Reset two-factor menu item (`admin.account.security.*` and `admin.users.super.reset_totp`). It adds no table or column. Production help rows come from forward migrations, not from the seed file. Apply 0170 and 0171 by hand per [06-deployment.md](06-deployment.md).

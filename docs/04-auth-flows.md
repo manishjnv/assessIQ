@@ -242,6 +242,40 @@ Implementation: routes annotated `requireFreshMfa(maxAgeMinutes=15)`. If `sessio
 
 ---
 
+## Self-service MFA — recovery-code regeneration and admin reset (RW-45, S10, 2026-10-15)
+
+**What changed.** Two flows now have a route and a UI. Both write an audit row inside the same transaction as the change.
+
+**Regenerate recovery codes.**
+1. An admin or super admin opens `/admin/account-security` and enters a current TOTP code.
+2. The client calls `POST /api/auth/totp/recovery-codes/regenerate` with `{code}`.
+3. The server verifies the code with the normal TOTP check and the 5-failure lockout (`423 ACCOUNT_LOCKED`).
+4. `regenerateRecoveryCodes` (`modules/01-auth/src/totp.ts`) deletes the old codes and inserts 10 new hashes.
+5. The same transaction writes `auth.recovery.regenerated` with `after: { issued: 10 }`. It never stores codes or hashes.
+6. The response returns the 10 plaintext codes once.
+
+A wrong code touches nothing. The old codes stay valid.
+
+**Admin reset of a user's two-factor.**
+1. A super admin calls `POST /api/admin/super/tenants/:tenantId/users/:userId/totp/reset` with a `reason`.
+2. `adminResetTotp(adminUserId, tenantId, targetUserId, reason?)` clears the TOTP secret, deletes the recovery codes and deletes the target's Postgres `sessions` rows. All three happen in one transaction.
+3. The same transaction writes `auth.totp.reset` with `after: { reason, recoveryCodesPurged, sessionsRevoked }`.
+4. After the commit, the function calls `sessions.destroyAllForUser`. Redis holds the authoritative session records. Redis cannot join the Postgres transaction. The Postgres delete makes the call safe to repeat.
+5. The target must enrol again at the next login.
+
+**Why in the transaction.** If the audit write fails, the change rolls back. No reset or regeneration can happen without a trace.
+
+**Considered and rejected.**
+- A Zod body on regenerate. The sibling TOTP routes use Fastify JSON schema, so this route uses `codeBodySchema` too.
+- A recovery-code fallback for regenerate. A stolen recovery code would then mint new codes.
+- `superAdminFreshMfa` on reset. The route needs a TOTP-verified super admin session and a written reason. Fresh MFA adds a step-up form for a rare action.
+
+**Not included.** A message to the target user after reset. A tenant-admin variant of reset. Both are roadmap RW-91.
+
+**Downstream impact.** The super-admin Users list returns `totp_enrolled` (see [03-api-contract.md](03-api-contract.md)). Two new audit actions exist: `auth.recovery.regenerated` and `auth.totp.reset`. UI: [08-ui-system.md](08-ui-system.md) § "Account security page".
+
+---
+
 ## Flow 2 — Candidate login
 
 Two modes per assessment, set by admin:
@@ -757,7 +791,7 @@ Source: [`modules/14-audit-log/src/types.ts`](modules/14-audit-log/src/types.ts)
 - `tenant.resumed` — suspended → active
 - `tenant.archived` — active/suspended → archived
 - `tenant.unarchived` — archived → active
-- `tenant.purged` — forward-compat for 6-month retention purge; wired in a later phase
+- `tenant.purged` — `archived → purged` by the retention job (RW-48b). One row per purged tenant. See "Tenant purge" below.
 
 **User lifecycle actions:**
 
@@ -776,11 +810,43 @@ Audit rows are written inside the **same `withTenant` transaction** as the statu
 
 ---
 
+### Tenant purge (RW-48b, S10, 2026-10-15)
+
+**What.** `purgeArchivedTenants({now, enabled, minDays})` in `modules/02-tenancy/src/purge.ts` removes the data of tenants that stayed archived for at least 180 days. The module also exports `MIN_PURGE_DAYS = 180` and the report types.
+
+**Selection.**
+- Status is `archived` and `updated_at` is older than `minDays`. `minDays` is clamped to 180 or more.
+- `tenants` has no `archived_at` column. `archiveTenant` stamps `updated_at`, and an archived tenant is otherwise frozen. So `updated_at` is the archive time. A later rename can only delay the purge, which is the safe direction.
+- The platform tenant never qualifies. The code checks `config.PLATFORM_TENANT_ID` and the slug `platform`.
+
+**Purge steps.** Each tenant runs in its own `withSystemRole` transaction. One tenant failure rolls back only that tenant.
+1. Delete rows `WHERE tenant_id = $1` from every public base table that has a `tenant_id` column. Exceptions: `audit_log`, `tenants`, `users`.
+2. The order comes from the catalog (`information_schema` and `pg_constraint`), children first.
+3. Tables with no `tenant_id` that point to `users` by foreign key are cleared for the tenant's users. `audit_log` is excluded.
+4. Keep the `users` rows as pseudonymised tombstones. The code uses the step 3 expressions of `modules/20-data-rights/src/erasure.ts`: `deleted_user_<sha12>`, `deleted+<sha12>@erased.assessiq.local`, metadata without `roll_number` and `branch`, and `erased_at`.
+5. Set `tenants.status = 'purged'`.
+6. Write one `tenant.purged` audit row with per-table counts, including `counts.users_pseudonymised`.
+
+`audit_log` rows survive. Its foreign key `actor_user_id → users` stays as it is, which is why the user rows stay.
+
+**Gate.** `enabled` defaults to false. A false value is a dry run: the function reports candidates and changes nothing. The worker (`apps/api/src/worker.ts`) registers the repeatable job `tenant-purge-cron` at 03:30 UTC with 1 attempt. It sets `enabled` from `process.env.TENANT_PURGE_ENABLED === "true"`. Only the worker reads this flag. It is not in the `00-core` config. See [06-deployment.md](06-deployment.md).
+
+**State.** Migration `modules/02-tenancy/migrations/0170_tenant_purge.sql` widens `tenants_status_check` to allow `purged`. `TenantStatus` gains `"purged"`. `assertTenantActive` already rejects any status other than active or provisioning, so a purged tenant cannot log in.
+
+**Considered and rejected.**
+- A new `archived_at` column. It needs a trigger or a service edit to stay correct.
+- A hand-written table list. It goes stale when a migration adds a table. The catalog query does not.
+- Dropping the `audit_log → users` foreign key. It would weaken the append-only audit invariant.
+
+**Not included.** Per-table counts in a dry run. Purge of external storage (S3, Redis). Un-purge. A cap on tenants per run.
+
+**Downstream impact.** New audit action `tenant.purged` is now emitted. Data model: [02-data-model.md](02-data-model.md) § "tenants.status".
+
 ### Lifecycle carry-forwards (not in this commit)
 
 - **Mint-time `assertTenantActive` on magic-link / SSO / email-OTP session creation.** Session creation endpoints do not call `assertTenantActive` at mint time. A suspended tenant's new-login attempt is not blocked at the `createSession` call — it is blocked by `sessionLoaderMiddleware` on the very next authenticated request (so no privilege escalation is possible), but the minted cookie exists for a brief window before the next request evicts it. Listed as a carry-forward hardening pass.
 - **Provisioning TTL.** There is no TTL on `tenants.status = 'provisioning'`. A tenant whose first admin never accepts the invitation will sit in `provisioning` indefinitely; a background cleanup sweep is not implemented.
-- **Phase D state-aware copy.** The frontend does not yet render different UI copy for `details.scope = "user"` vs `"tenant"`. The structured field exists in the error envelope so it can be wired to Phase D screens without a backend change.
+- **Phase D state-aware copy — DONE (RW-48a, shipped earlier; verified S10, 2026-10-15).** The login pages render different copy for `details.scope = "user"` vs `"tenant"`. The scope-to-copy mapping lives in `apps/web/src/lib/authScope.ts`. See "Session-revocation UX" below.
 
 ## Role-aware IP rate limiting
 

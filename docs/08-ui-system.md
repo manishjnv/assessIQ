@@ -1061,3 +1061,18 @@ Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-sys
 - Modules 10, 11, 17 and `apps/web` depend on `@assessiq/http-client` (workspace). `pnpm-lock.yaml` is updated.
 - Visible: confirm dialogs now use the kit style; Escape and backdrop close these dialogs; a close button with `aria-label="Close modal"`; converted tables use the grid style.
 - Lint: `lint:repo` does not run the new script yet (warn mode; run it with `npx tsx tools/lint-no-fixed-overlay.ts`).
+
+## Account security page and Reset two-factor (RW-45, S10, 2026-10-15)
+
+**Account security page.** `modules/10-admin-dashboard/src/pages/account-security.tsx`, route `/admin/account-security`, reached from the Account menu in the admin shell.
+- It shows the TOTP status of the signed-in admin.
+- "Regenerate recovery codes" opens a dialog that asks for a current 6-digit code. After success the dialog shows the 10 codes once, with "Copy all" and "I saved them". Closing the dialog before that loses the codes, so the server never shows them again.
+- A user with no TOTP enrolment sees a link to `/admin/mfa` and no regenerate button.
+
+**Reset two-factor dialog.** On the super-admin Users page, "Reset two-factor" sits in the Manage menu. It appears only when the row has `totp_enrolled` true, and never on the signed-in user's own row. It opens `modules/10-admin-dashboard/src/components/ResetTotpDialog.tsx`, a `ConfirmDialog` with a required reason field (up to 500 characters).
+
+**Help.** Keys `admin.account.security.*` (8) and `admin.users.super.reset_totp`, in `modules/16-help-system/content/en/admin.yml`. Migration 0171 carries the 9 rows to production.
+
+**Why.** The backends existed but had no screen. An admin who lost recovery codes, or a user who lost the authenticator, had no way to recover without database access.
+
+**Not included.** A notice to the target user after reset. A tenant-admin reset. Backend contract: [03-api-contract.md](03-api-contract.md). Flow and audit: [04-auth-flows.md](04-auth-flows.md).

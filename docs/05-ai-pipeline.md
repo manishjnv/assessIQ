@@ -1479,3 +1479,15 @@ Commit `9084a53`. Review: Sonnet adversarial verdict revise (fixed), then codex 
 - **Behaviour check pending.** The owner runs one subjective generation and checks that `wrongTypeDropped` is 0.
 - **Not included.** The prompt text is never committed to git. No change to the other generate skills.
 - **Rollback.** Copy `/root/assessiq-skills-backup-20261003/generate-subjective/SKILL.md` back to `/srv/assessiq/prompts/skills/generate-subjective/SKILL.md`, then restart api and worker (the mount is read at process start).
+
+## Erasure and AI-grading data (RW-69, S10, 2026-10-15)
+
+**What.** Right-to-erasure (`modules/20-data-rights/src/erasure.ts`, step 4b) now also clears the AI copies of the answer text. In the same transaction it sets `gradings.stage_inputs = NULL`, `gradings.anchor_hits = '[]'::jsonb` and `gradings.ai_justification = NULL`, and `attempts.ai_proposals = NULL`, for every attempt of the erased user.
+
+**Why.** Step 4 blanked only `attempt_answers`. The columns above echo the answer text: `stage_inputs` (migration 0168), `anchor_hits`, `ai_justification`, and the proposals cache of migration 0100. The text stayed readable after erasure.
+
+**Kept.** Band, score, error class, model, prompt sha256 and override rows stay. They hold no answer text and they keep the grading audit trail valid.
+
+**Considered and rejected.** Deleting the `gradings` rows. It breaks score history and the billing link.
+
+**Not included.** No change to the grading pipeline, to the Phase 1 compliance frame or to the receipt shape. Guard test and open followups: `docs/RCA_LOG.md` entry "Erasure left the answer text readable in the AI-grading columns".
