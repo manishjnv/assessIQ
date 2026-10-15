@@ -23,7 +23,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { join, dirname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -534,8 +534,10 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
   // Coverage assertion: service.ts contains exactly N auditInTx call-sites.
   // -------------------------------------------------------------------------
   it("service.ts contains exactly 12 auditInTx call-sites (one per wired admin-mutating function)", async () => {
-    const servicePath = join(AL_MODULE_ROOT, "src", "service.ts");
-    const source = await readFile(servicePath, "utf-8");
+    // service.ts is a barrel; the code lives in src/service/*.ts (RW-53 split).
+    const serviceDir = join(AL_MODULE_ROOT, "src", "service");
+    const files = [join(AL_MODULE_ROOT, "src", "service.ts"), ...(await readdir(serviceDir)).filter((n) => n.endsWith(".ts")).map((n) => join(serviceDir, n))];
+    const source = (await Promise.all(files.map((p) => readFile(p, "utf-8")))).join("");
     const matches = source.match(/auditInTx\(/g) ?? [];
     // 12 wired call-sites: createAssessment, updateAssessment, publishAssessment,
     // closeAssessment, cancelAssessment, deleteAssessment, reopenAssessment,
