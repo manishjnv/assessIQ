@@ -1,3 +1,36 @@
+# Session — 2026-10-15 (evening) — S10 hardening: RW-45/46/47/48/50/51/57p1/66/69/70/71/85 shipped and deployed
+
+**Headline:** Twelve roadmap rows built by parallel Sonnet agents, reviewed line by line, gated (typecheck, eslint, lint:repo, full suite green), adversarially reviewed (Sonnet takeover: ACCEPT), committed in 13 commits, pushed, and deployed twice to the VPS (migrations 0170, 0171, 0172 applied by hand; api, worker, frontend rebuilt and healthy). GitHub main = VPS /srv/assessiq = `45e1ddc`.
+**Commits:** `d6ab5f8` lint fix (Autopilot stash) · `1169f81` RW-51/70/71 guards · `187ff35` RW-69 erasure · `288a39b` RW-50 warn heuristics · `5556e87` audit actions · `64cea96` RW-45 MFA self-service (API + UI + help 0171) · `3bf35b8` RW-47 clone archive on revoke · `315c18c` RW-48b tenant purge (0170) · `ab729bb` docs · `55a6891` RW-57 part 1 · `bb5d614` RW-85 docs tooling · `1233c44` docs (deploy log, type lines) · `36cc795` RW-66 ui-labels strict · `45e1ddc` RW-46 topic focus (0172) · handoff commit follows.
+**Tests:** full `pnpm test` on the S10 tree: 239 of 243 files passed; the 3 real failures (help-id prefix, seeded count) were fixed and re-run green (24 files, 214 tests); 2 files were container start timeouts under load, green on rerun. `pnpm -r typecheck` 0 errors; `pnpm lint` 0 errors; `pnpm lint:repo` green (ui-labels now --strict, 0 hits; help-seed-version added). Later suites per task: 04 seeds + taxonomy 17 pass, help-system 23 pass, admin-dashboard 119 pass, candidate-ui 113 pass.
+**Deploy:** two runs, both per docs/06 § "Deploy procedure": drift gate (known DB-only 0011/0100/0106/0109), 0170/0171 then 0172 applied with `psql -v ON_ERROR_STOP=1 -1` and recorded with sha256; images api + frontend built; api, worker, frontend recreated; all 6 containers healthy; /api/health, /api/ready, site, /admin/account-security all 200; no startup errors. `TENANT_PURGE_ENABLED` is NOT set on the VPS: the purge job (03:30 UTC) runs as a dry run.
+**Next:** (1) owner: watch `docker logs assessiq-worker | grep tenant-purge-cron` after the first 03:30 UTC tick, then decide `TENANT_PURGE_ENABLED=true` (and whether certificates / billing rows need a retention carve-out: purge deletes every tenant_id table except audit_log, tenants, users); (2) RW-57 part 2: CBSE/ICSE/IB seed files + Platform page "Frameworks" section; (3) RW-58 import pipeline; (4) RW-46 owner part (skill scp + eval re-baseline) only if the generation skills must read topic_focus explicitly; (5) RW-88..91 follow-up rows in ROADMAP; (6) Autopilot: `.agent/STOP` still present; the S10 tasks it was going to do are now done by hand, so re-plan before `ap start` (`ap change`).
+**Open questions:**
+- Purge scope: certificates, billing_events, consent_events of a purged tenant are deleted (append-only audit_log stays). Owner decision needed before enabling (adversarial review SHOULD-FIX 3).
+- RW-47: revoking a pack scope archives the clone even when a domain entitlement still covers the pack (and vice versa). Documented as current behaviour; decide if it should check other live entitlements (review SHOULD-FIX 2).
+- Erasure follow-ups (RW-89): candidate_login_tokens ip/ua, user_invitations.email, email_log.to_address, consent_events ip/ua, attempts.evaluation_note are not scrubbed; the coverage test exempts them with FOLLOWUP comments.
+- help-seed version check compares with HEAD; CI must pass `--base origin/main` (RW-90).
+- Vale and markdownlint are not installed locally; the RW-85 styles are untested until `vale sync` runs once.
+
+---
+
+## What happened
+
+1. **Wave 0.** Applied Autopilot's stashed lint fix (lint red on main), committed, dropped both stashes. Pre-added the audit actions the later tasks needed (14 types.ts).
+2. **Waves 1-3 (Sonnet, up to 6 concurrent).** One agent per task with file lists, contract, acceptance tests and report shape. Opus reviewed every diff; three revisions: RW-70 (file:line allowlist → marker comment on the hit line), RW-48b (migration dropped the audit_log→users FK and referenced audit_log from a tenancy migration, which broke the hand-picked 01-auth suites → users kept as pseudonymised tombstones, migration only widens the status CHECK), RW-45 API (revoke the target's sessions on reset; expose totp_enrolled on the super users list so the UI can hide the action).
+3. **Orchestrator fixes.** Mojibake in the RW-50 comment; reasoning_band exemption reclassified; `.claude/` and `.agent/` skipped by lint-cross-module-deps (kept worktrees made it red); forward migration 0171 for the 9 new help rows (production help rows come from migrations, not the seed); help page prefix `admin.account.security` and key rename `admin.users.list.reset_totp` (page-scoped loader rule); seeded-count assertions 325 → 334 → 335; typecheck fix in the RW-47 test; `TENANT_PURGE_ENABLED` declared in .env.example (CHECK_C); purged tenants hidden from the tenant list; RW-57 routes wired to the real superAdminOnly chain.
+4. **Gates and review.** typecheck, eslint, lint:repo, full suite; Sonnet takeover adversarial review of 01/02/03/14/19/20 diffs (ACCEPT, 0 MUST-FIX, 4 SHOULD-FIX: one fixed, three recorded above).
+5. **Docs.** Two Sonnet docs passes (03, 04, 02, 05, 06, 08, RCA, ROADMAP, SKILL.md files, deploy log, Diátaxis type line under every doc H1, STYLE.md, CHANGELOG, ADR template).
+
+## Agent utilization
+- Opus (Fable 5.1 main session): plan, 14 agent briefs, line-by-line review of every diff, 3 revision rounds, 12 small fixes, gates, commits, two deploys, handoff.
+- Sonnet: 17 runs — RW-70, RW-71, RW-51a, RW-51c, RW-69, RW-50, RW-45 API (+1 revision), RW-48b (+1 revision), RW-47, RW-51b, RW-45 UI (+1 follow-up), docs pass 1, adversarial review, RW-85, RW-57 p1, RW-66, RW-46, docs pass 2.
+- Haiku: n/a — no bulk read-only sweeps were needed; VPS smoke was 6 curls, done inline.
+- codex:rescue: Sonnet takeover (fallback ladder: companion unhealthy in S9/S10, `codex exec` hung on stdin earlier today): ACCEPT, 0 MUST-FIX, 4 SHOULD-FIX.
+- Routing telemetry: Sonnet · RW-70 lint · reworked: Y (allowlist design: file:line → marker) · Sonnet · RW-48b purge · reworked: Y (FK drop + cross-module migration reference) · Sonnet · RW-45 API · reworked: Y (missing session revocation; list flag) · Sonnet · RW-47 · reworked: N (contract deviation accepted: no 19→04 dep) · Sonnet · RW-50 · reworked: N (07 wiring deferred as planned) · Sonnet · RW-51a/b/c, RW-71, RW-69, RW-45 UI, RW-66, RW-46, RW-57 p1, RW-85, docs ×2 · reworked: N.
+
+---
+
 # Session — 2026-10-15 (afternoon) — main test suite repaired; Autopilot status check
 
 **Headline:** `pnpm test` is green again (237 files, 2996 tests). Two causes: six integration tests built their schema from hand-picked migration lists that never got `13-notifications` after business webhooks were wired into submit/finalize/release (logged `relation "webhook_endpoints" does not exist` after every commit hook, caught, not fatal); two tests resolved paths with the global `URL`, which under the vitest jsdom environment is jsdom's and rewrites `file:` to `http://localhost:3000` (this was the real red). Autopilot ran once (16:05 to 17:11), built no task, and left `pnpm lint` red on main.

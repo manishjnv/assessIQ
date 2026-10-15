@@ -2184,3 +2184,10 @@ Do the enumerate-first checks of project rule 8 before step 1.
 **Purge job is in dry-run mode.** `TENANT_PURGE_ENABLED` is NOT set in the VPS `.env`. The first tick is at 03:30 UTC. Check it with `docker logs assessiq-worker | grep tenant-purge-cron`.
 
 **Rollback.** Run `git revert` on the commit, then rebuild and recreate the services. Migration `0170` needs no rollback: it only widens a CHECK. The `0171` rows are inert for older builds.
+
+### Hardening S10 deploy, second run (2026-10-15, evening)
+
+**Commits:** `55a6891` RW-57 part 1 (seed routes), `bb5d614` RW-85, `1233c44` docs, `36cc795` RW-66, `45e1ddc` RW-46 (migration 0172). GitHub main = VPS = `45e1ddc`.
+**Steps:** `git pull --ff-only`; 0 grading runs in flight; `0172_seed_rw46_topic_focus_help.sql` applied with `psql -v ON_ERROR_STOP=1 -1` and recorded (checksum `7b6c07e3d6f8b4d64dc9d2e4f09efed218b7e6eaf351cba31a23af30ffec1b2a`); 1 help row present; images assessiq-api and assessiq-frontend built; assessiq-api, assessiq-worker, assessiq-frontend recreated with `up -d --no-deps --force-recreate`.
+**Smoke:** all 6 assessiq-* containers healthy within 50 s; /api/health 200, /api/ready 200, https://assessiq.in/ 200; no startup errors in the api log.
+**Rollback:** `git revert` the commit, rebuild and recreate; 0172 is one idempotent help row, inert for older builds.
