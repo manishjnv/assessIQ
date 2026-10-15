@@ -151,6 +151,7 @@ Phase 0 reads this. Phase 3 critique uses recurring patterns as guardrails.
 
 ## Caveats / sharp edges
 
+- **Agent worktrees pile up under `.claude/worktrees/` (31 GB, 91 folders on 2026-10-15).** Every session that used `isolation: "worktree"` or `superpowers:using-git-worktrees` must remove its worktrees at Phase 6. On Windows `git worktree remove --force` fails with "Directory not empty" (pnpm links, long paths): delete the folder with `cmd /c rmdir /s /q <path>` from PowerShell, then `git worktree prune`. Before deleting, check `git -C <wt> status --porcelain`; a file whose blob is not in `git log main --find-object=<hash>` is unmerged work. Never touch `docs/`, `.git`, `apps`, `modules`, `tools`, `.agent`.
 - A literal directory named `{docs,modules,infra}/` exists at the repo root — almost certainly a brace-expansion accident from a `mkdir` shell quoting bug. **Confirm with the user before removing it** in case it shadows real work.
 - The Phase 1 architecture is *intentional* — the temptation to "fix" sync-on-click grading by adding a worker means you're solving the wrong problem. Re-read `docs/05-ai-pipeline.md` § Compliance frame before suggesting any async grading.
 - Three plugins (Superpowers, claude-mem, your global playbook) all want to drive workflow. Skills are namespaced — `superpowers:*`, `claude-mem:*`, `codex:*`; the global playbook has none. The table above is the tiebreaker. If two skills auto-fire on the same trigger, the table wins; otherwise prefer the global playbook over Superpowers.
