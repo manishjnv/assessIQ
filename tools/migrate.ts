@@ -165,6 +165,12 @@ async function findMigrationFiles(): Promise<string[]> {
     for (const entry of entries) {
       if (entry.isFile() && entry.name.endsWith(".sql")) {
         results.push(path.join(migrationsDir, entry.name));
+      } else if (entry.isDirectory() && entry.name !== "node_modules") {
+        // RW-51c: a .sql one level deeper is never applied — warn so it is not lost silently
+        const sub = await fsp.readdir(path.join(migrationsDir, entry.name)).catch(() => [] as string[]);
+        for (const n of sub.filter((n) => n.endsWith(".sql"))) {
+          log.warn({ file: `${moduleEntry.name}/migrations/${entry.name}/${n}` }, "migration.skipped — nested .sql is not scanned");
+        }
       }
     }
   }

@@ -45,7 +45,7 @@ const helpLog = streamLogger("app");
 // ---------------------------------------------------------------------------
 
 async function withGlobalsOnly<T>(fn: (client: PoolClient) => Promise<T>): Promise<T> {
-  const client = await getPool().connect();
+  const client = await getPool().connect(); // pool-connect-ok: withGlobalsOnly: anonymous read under assessiq_app with app.current_tenant reset to NULL; neither tenant nor system role fits
   try {
     await client.query("BEGIN");
     // SET LOCAL ROLE is defense-in-depth: if the connection user is a superuser

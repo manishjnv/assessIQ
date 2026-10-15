@@ -3,11 +3,12 @@
 //   R2 4-digit prefix (except the documented legacy 3-digit set)
 //   R3 no forward reference to a table created by a LATER file in the real apply order
 //   R4 file name matches ^\d{3,4}_[a-z0-9_]+\.sql$
+//   R5 every modules/**/*.sql sits at modules/<n>/migrations/ or modules/<n>/seeds/ (else migrate.ts skips it silently)
 // The real apply order comes from tools/test-support/apply-all-migrations.ts (allMigrationFiles).
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
-import { finish, rel } from "./lint-util.js";
+import { finish, rel, walk, REPO_ROOT } from "./lint-util.js";
 import { allMigrationFiles } from "./test-support/apply-all-migrations.js";
 
 /** The nine legacy 3-digit migrations. See docs/02-data-model.md "Migration numbering facts (RV78)". */
@@ -22,6 +23,17 @@ export const LEGACY_3_DIGIT = new Set([
   "020_users.sql",
   "021_user_invitations.sql",
 ]);
+
+/** R5 exemptions: repo-relative .sql paths allowed outside migrations/ and seeds/. None on the current tree. */
+const R5_EXEMPT = new Set<string>([]);
+const R5_OK = /^modules\/[^/]+\/(migrations|seeds)\/[^/]+\.sql$/;
+
+/** R5: input is repo-relative forward-slash paths of every modules/**\/*.sql (node_modules already excluded). */
+export function lintSqlLocations(paths: string[]): string[] {
+  return paths
+    .filter((p) => !R5_OK.test(p) && !R5_EXEMPT.has(p))
+    .map((p) => `${p}: R5 .sql must be at modules/<n>/migrations/ or modules/<n>/seeds/ (tools/migrate.ts skips other locations)`);
+}
 
 const NAME_RE = /^\d{3,4}_[a-z0-9_]+\.sql$/;
 const IDENT = String.raw`(?:public\.)?"?(\w+)"?`;
@@ -94,9 +106,21 @@ export function lintMigrations(files: { path: string; content: string }[], order
 }
 
 async function main(): Promise<never> {
+  if (process.argv.includes("--self-test")) {
+    const good = ["modules/x/migrations/0001_a.sql", "modules/x/seeds/a.sql"];
+    const bad = [...good, "modules/x/migrations/sub/0001_a.sql", "modules/x/src/0001_a.sql"];
+    if (lintSqlLocations(good).length !== 0 || lintSqlLocations(bad).length !== 2) {
+      console.error("lint-migrations self-test FAILED (R5)");
+      process.exit(1);
+    }
+    console.log("lint-migrations self-test: OK");
+    process.exit(0);
+  }
   const abs = await allMigrationFiles();
   const files = abs.map((p) => ({ path: rel(p), content: fs.readFileSync(p, "utf8") }));
-  return finish("lint-migrations", lintMigrations(files, files.map((f) => f.path)), `ok (${files.length} files)`);
+  const sql = walk(path.join(REPO_ROOT, "modules"), (f) => f.endsWith(".sql")).map(rel);
+  const v = [...lintMigrations(files, files.map((f) => f.path)), ...lintSqlLocations(sql)];
+  return finish("lint-migrations", v, `ok (${files.length} files)`);
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

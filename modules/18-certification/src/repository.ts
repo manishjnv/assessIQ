@@ -194,7 +194,7 @@ export async function findByCredentialIdPublic(
 export async function withPublicVerifyContext<T>(
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await getPool().connect();
+  const client = await getPool().connect(); // pool-connect-ok: withPublicVerifyContext: public verify read under assessiq_app with app.public_verify GUC and the nil-UUID tenant sentinel; neither tenant nor system role fits
   try {
     await client.query('BEGIN');
     await client.query('SET LOCAL ROLE assessiq_app');

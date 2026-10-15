@@ -27,7 +27,7 @@ export async function processRefreshMvJob(): Promise<{ duration_ms: number }> {
   const pool = getPool();
   const start = Date.now();
 
-  const client = await pool.connect();
+  const client = await pool.connect(); // pool-connect-ok: REFRESH MATERIALIZED VIEW needs the MV owner role: session-level SET ROLE assessiq_system + RESET ROLE, release(true) on reset failure
   try {
     // The MV aggregates the RLS-subject base tables (attempt_scores / attempts /
     // assessments) across ALL tenants, and REFRESH requires the executing role to
