@@ -188,15 +188,21 @@ async function findFiles(rootRel: string): Promise<string[]> {
  * variants whose first argument is the literal string `"claude"` (or
  * `'claude'`).
  *
+ * RW-65: the first argument may be any string or template literal that
+ * CONTAINS `claude` (e.g. "claude -p ...", "/usr/bin/claude"), so a call
+ * rewritten from spawn to exec/execSync is still caught. Over-approximate
+ * on purpose (also hits "claudeBin" strings): a false positive is a visible
+ * lint failure, a false negative breaks the compliance frame.
+ *
  * Examples that match:
  *   spawn("claude", [...])
  *   execFile('claude', { ... })
  *   exec("claude -p ...")
  *
- * The `[\s,)]` lookahead avoids matching variable names like `claudeBin`.
+ * The `(?:^|[^\w])` prefix avoids matching names like `myspawn(`.
  */
 const RE_SPAWN_CLAUDE =
-  /(?:^|[^\w])(spawn|exec|execFile|fork|spawnSync|execSync|execFileSync)\s*\(\s*["']claude["']/;
+  /(?:^|[^\w])(spawn|exec|execFile|fork|spawnSync|execSync|execFileSync)\s*\(\s*["'`][^"'`]*claude/;
 
 /**
  * Pattern 2 — Agent SDK import. Matches any ESM/CJS import of the
@@ -251,6 +257,109 @@ const BANNED_PATH_PATTERNS: ReadonlyArray<{ name: string; matches: (rel: string)
 ];
 
 // ---------------------------------------------------------------------------
+// Comment stripper (RW-65)
+// ---------------------------------------------------------------------------
+
+/**
+ * A `/` starts a regex literal (not a division) when the code before it is
+ * empty, ends in one of these punctuators, or ends in one of these keywords.
+ */
+const RE_REGEX_ALLOWED_AFTER =
+  /(?:^|[(,=:\[!&|?{};+\-*%<>~^]|(?:^|[^\w$.])(?:return|typeof|case|in|of|delete|void|throw|else|do|yield|await))$/;
+
+/**
+ * Remove `//` and block comments so prose that quotes a pattern (RCA
+ * 2026-10-09) cannot trip the regexes. String, template and regex literals
+ * are copied verbatim, so a real call site inside a string still counts and
+ * a `//` inside a URL string or regex is not mistaken for a comment.
+ * Newlines survive.
+ *
+ * ponytail: a small state machine, not a parser. A regex literal is
+ * recognised by the preceding token; `${ }` nesting in templates is tracked
+ * with a brace-depth stack. Ceiling: a regex after `)` or an identifier is
+ * read as division, so its body is scanned as code (only a `//` or block
+ * comment opener inside such a body could mis-pair). Fail closed: an
+ * unterminated block comment or unclosed regex is NOT stripped.
+ */
+function stripComments(src: string): string {
+  let out = "";
+  let i = 0;
+  let inTpl = false; // inside template text (not inside a ${ } expression)
+  let depth = 0; // brace depth inside the current ${ } expression
+  const stack: number[] = []; // saved depths of enclosing ${ } expressions
+  while (i < src.length) {
+    const c = src[i]!;
+    const n = src[i + 1];
+    if (inTpl) {
+      if (c === "\\") {
+        out += src.slice(i, i + 2);
+        i += 2;
+        continue;
+      }
+      if (c === "`") inTpl = false;
+      else if (c === "$" && n === "{") {
+        stack.push(depth);
+        depth = 0;
+        inTpl = false;
+        out += "${";
+        i += 2;
+        continue;
+      }
+      out += c;
+      i++;
+    } else if (c === "/" && n === "/") {
+      while (i < src.length && src[i] !== "\n") i++;
+    } else if (c === "/" && n === "*") {
+      const end = src.indexOf("*/", i + 2);
+      if (end === -1) return out + src.slice(i); // fail closed
+      out += src.slice(i, end).replace(/[^\n]/g, " ") + "  ";
+      i = end + 2;
+    } else if (c === "/" && RE_REGEX_ALLOWED_AFTER.test(out.trimEnd())) {
+      // Regex literal: copy verbatim (escapes and [...] classes may hold `/`).
+      let j = i + 1;
+      let inClass = false;
+      while (j < src.length && src[j] !== "\n") {
+        const r = src[j]!;
+        if (r === "\\") j++;
+        else if (r === "[") inClass = true;
+        else if (r === "]") inClass = false;
+        else if (r === "/" && !inClass) break;
+        j++;
+      }
+      if (src[j] === "/") {
+        j++;
+        while (j < src.length && /[a-z]/.test(src[j]!)) j++;
+        out += src.slice(i, j);
+        i = j;
+      } else {
+        out += c; // not a closed literal: treat the `/` as plain code
+        i++;
+      }
+    } else if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < src.length && src[j] !== c && src[j] !== "\n") {
+        if (src[j] === "\\") j++;
+        j++;
+      }
+      out += src.slice(i, j + 1);
+      i = j + 1;
+    } else {
+      if (c === "`") inTpl = true;
+      else if (c === "{") depth++;
+      else if (c === "}") {
+        if (depth === 0 && stack.length > 0) {
+          depth = stack.pop()!;
+          inTpl = true;
+        } else if (depth > 0) depth--;
+      }
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Violation record
 // ---------------------------------------------------------------------------
 
@@ -274,6 +383,9 @@ function validateFile(
 
   // Skip self / docs / mock fixtures
   if (SELF_AND_DOC_PATHS.has(normalised)) return [];
+
+  // RW-65: match on code only; comments never produce hits.
+  content = stripComments(content);
 
   // Pattern 1 — claude CLI spawn outside allow-list
   if (RE_SPAWN_CLAUDE.test(content) && !CLAUDE_SPAWN_ALLOW_LIST.has(normalised)) {
@@ -425,7 +537,40 @@ function runSelfTest(): void {
     content: `// service layer: calls generateAnswerGuidanceDraft from ai-grading\nconst output = await generateAnswerGuidanceDraft(input);`,
   };
 
+  // --- Fixtures 15-23: RW-65 comment stripping + exec variants ---
+  const T = "tools/some-script.ts";
+  const extra: Array<[string, string, number]> = [
+    ["comment-only-line", `// we never call spawn("claude", args) here
+export const x = 1;`, 0],
+    ["comment-only-block", `/* spawn("claude", []) 
+ exec("claude -p") */
+export const x = 1;`, 0],
+    ["url-then-real-spawn", `const u = "http://x.test/a"; spawn("claude", [u]);`, 1],
+    ["real-spawn-after-block", `/* note */ spawn("claude", []);`, 1],
+    ["spawn-in-template", "const r = exec(`claude -p ${q}`);", 1],
+    ["execSync-claude", `execSync("claude -p hi");`, 1],
+    ["execFileSync-path", `execFileSync('/usr/bin/claude', []);`, 1],
+    ["execFile-claude", `execFile("claude", ["-p"], cb);`, 1],
+    ["spawnSync-claude", `spawnSync("claude", []);`, 1],
+    ["exec-unrelated", `exec("ls -la"); execSync("git status");`, 0],
+    ["regex-tail-then-spawn", "/^https?:\\/\\//; spawn(\"claude\", []);", 1],
+    ["regex-slash-star-then-doc", "const r = /\\/*/; spawn(\"claude\", []);\n/** doc */", 1],
+    ["regex-class-slash-star", "const r = /[/*]/;\nspawn(\"claude\", []);\n/** doc */", 1],
+    ["nested-template-then-spawn", "const a = `a${`b`}c`; spawn(\"claude\", []);", 1],
+    ["slash-string-then-spawn", "const s = \"//\"; spawn(\"claude\", []);", 1],
+    ["multiline-template-spawn", "const t = `l1\nspawn(\"claude\", [])\nl3`;", 1],
+    ["regex-quotes-then-spawn", "const r = /[\"']/g;\nspawn(\"claude\", []);", 1],
+    ["regex-then-comment", "const r = /ab+c/g; // spawn(\"claude\", [])", 0],
+    ["unterminated-block-fails-closed", `/* oops
+spawn("claude", []);`, 1],
+  ];
+
   const results = [
+    ...extra.map(([fixture, content, expectViolations]) => ({
+      fixture,
+      actual: validateFile(T, content),
+      expectViolations,
+    })),
     { fixture: "ok", actual: validateFile(okFile.path, okFile.content), expectViolations: 0 },
     { fixture: "spawn-violation", actual: validateFile(spawnViolation.path, spawnViolation.content), expectViolations: 1 },
     { fixture: "spawn-allowed", actual: validateFile(spawnAllowed.path, spawnAllowed.content), expectViolations: 0 },
