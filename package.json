@@ -21,6 +21,7 @@
     "test:watch": "vitest",
     "help:seed:regen": "tsx tools/generate-help-seed.ts",
     "lint:help-seed-version": "tsx tools/generate-help-seed.ts --check",
+    "lint:help-seed-version:ci": "tsx tools/generate-help-seed.ts --check --base origin/main",
     "lint:help-seed-version:self-test": "tsx tools/generate-help-seed.ts --self-test",
     "lint:migrations": "tsx tools/lint-migrations.ts",
     "lint:rls": "tsx tools/lint-rls-policies.ts",
