@@ -27,6 +27,7 @@ import { AdminShell } from "../components/AdminShell.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession, fetchAdminWhoami } from "../session.js";
+import { shortId } from "../lib/labels.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1156,7 +1157,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                   columns={[
                     { key: "erasedAt", label: "Erased on", render: (row) => formatDateTime(row.erasedAt) },
                     { key: "userId", label: "Erase", render: (row) => (
-                      <span title={row.userId} style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 12, color: "var(--aiq-color-fg-secondary)" }}>{row.userId.slice(0, 8)}…</span>
+                      <span title={row.userId} style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 12, color: "var(--aiq-color-fg-secondary)" }}>{shortId(row.userId)}…</span>
                     ) },
                     { key: "erasedBy", label: "Erased by", render: (row) => row.erasedById === null ? (
                       <span style={{ color: "var(--aiq-color-fg-secondary)", fontStyle: "italic" }}>system (retention cron)</span>

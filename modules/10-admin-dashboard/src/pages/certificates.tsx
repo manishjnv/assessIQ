@@ -24,6 +24,7 @@ import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
+import { shortId } from "../lib/labels.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -378,7 +379,7 @@ export function AdminCertificates(): React.ReactElement {
     { key: "revoke_reason", label: "Revoke reason",
       render: (c) => cell(c, c.revoke_reason ?? "—", { fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }, c.revoke_reason ?? undefined) },
     ...(isSuperAdmin ? [{ key: "tenant_id", label: "Organisation",
-      render: (c: CertAdminRow) => cell(c, c.tenant_id ? `${c.tenant_id.slice(0, 8)}…` : "—", { fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }, c.tenant_id) }] : []),
+      render: (c: CertAdminRow) => cell(c, c.tenant_id ? `${shortId(c.tenant_id)}…` : "—", { fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }, c.tenant_id) }] : []),
     { key: "actions", label: "Actions",
       render: (c) => cell(c, (
         <>

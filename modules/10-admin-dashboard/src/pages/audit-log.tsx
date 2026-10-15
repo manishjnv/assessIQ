@@ -12,6 +12,7 @@ import { Button, Input, Spinner, Table, formatDateTime } from "@assessiq/ui-syst
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { adminApi } from "../api.js";
+import { shortId } from "../lib/labels.js";
 
 interface AuditRow {
   id: string;
@@ -106,10 +107,10 @@ export default function AuditLogPage(): React.ReactElement {
                 emptyMessage="No events match these filters."
                 columns={[
                   { key: "at", label: "Timestamp", width: "minmax(160px, 1fr)", render: (r) => <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)" }}>{formatDateTime(r.at)}</span> },
-                  { key: "entity", label: "Entity", render: (r) => <span>{r.entity_type}{r.entity_id && <span style={{ fontFamily: "var(--aiq-font-mono)", color: "var(--aiq-color-fg-muted)" }}> {r.entity_id.slice(0, 8)}</span>}</span> },
+                  { key: "entity", label: "Entity", render: (r) => <span>{r.entity_type}{r.entity_id && <span style={{ fontFamily: "var(--aiq-font-mono)", color: "var(--aiq-color-fg-muted)" }}> {shortId(r.entity_id)}</span>}</span> },
                   { key: "action", label: "Action", render: (r) => r.action },
                   // API returns the actor id, not an email; show short id or actor kind.
-                  { key: "user", label: "User", render: (r) => <span style={{ fontFamily: "var(--aiq-font-mono)" }}>{r.actor_user_id ? r.actor_user_id.slice(0, 8) : r.actor_kind}</span> },
+                  { key: "user", label: "User", render: (r) => <span style={{ fontFamily: "var(--aiq-font-mono)" }}>{r.actor_user_id ? shortId(r.actor_user_id) : r.actor_kind}</span> },
                   { key: "details", label: "Details", width: "minmax(0, 2fr)", render: (r) => { const details = r.after ? JSON.stringify(r.after) : ""; return <span title={details} style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{details || "—"}</span>; } },
                 ]}
               />

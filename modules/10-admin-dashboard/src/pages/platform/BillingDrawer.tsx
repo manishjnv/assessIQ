@@ -1,6 +1,6 @@
 // BillingDrawer — split from platform.tsx (E9, no behaviour change).
 
-import { planTierLabel, grantScopeLabel, organisationStatusDisplay } from "../../lib/labels.js";
+import { shortId, planTierLabel, grantScopeLabel, organisationStatusDisplay } from "../../lib/labels.js";
 import React, { useEffect, useState } from "react";
 import { Button, Card, Chip, Spinner } from "@assessiq/ui-system";
 import { AdminApiError, getTenantBillingDetail, updateTenantPlan, tenantBillingCsvUrl, getTenantEntitlements, getTenantContentScopes, listPlatformPublishedPacks, grantTenantEntitlement, revokeTenantEntitlement, type TenantListItem, type TenantBillingDetail, type TenantEntitlement, type TenantContentScopes, type PlatformPackOption } from "../../api.js";
@@ -395,7 +395,7 @@ export function BillingDrawer({
                       }}
                     >
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={ev.attempt_id}>
-                        {ev.attempt_id.slice(0, 8)}…
+                        {shortId(ev.attempt_id)}…
                       </span>
                       <span style={{ textAlign: "right" }}>
                         {formatDate(ev.occurred_at)}
