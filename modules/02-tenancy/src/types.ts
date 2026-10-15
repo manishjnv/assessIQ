@@ -1,4 +1,4 @@
-export type TenantStatus = "active" | "suspended" | "archived" | "provisioning";
+export type TenantStatus = "active" | "suspended" | "archived" | "provisioning" | "purged";
 
 export interface TenantBranding {
   logo_url?: string;

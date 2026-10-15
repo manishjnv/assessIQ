@@ -32,6 +32,8 @@ export type {
   CreateTenantResult,
   TenantLifecycleResult,
 } from "./service.js";
+export { purgeArchivedTenants, MIN_PURGE_DAYS } from "./purge.js";
+export type { PurgeOptions, PurgeReport, TenantPurgeReport } from "./purge.js";
 export { findTenantSettings } from "./repository.js";
 export type {
   Tenant,
