@@ -36,7 +36,7 @@
 import { assessmentStatusDisplay } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { Chip, Modal, Table, formatDate, formatDateTime } from "@assessiq/ui-system";
+import { Chip, Modal, Table, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
@@ -49,7 +49,7 @@ import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
-import { type Assessment, type Invitation, INV_PAGE_SIZE, type InvitationsResponse, type ResendAllResponse, RESEND_ALL_CAP, RESEND_SKIP_REASON, type UserItem, type UsersResponse, type ReleaseAllResponse, SKIP_REASON, type SortDir, sortRows, assessmentStatusVariant, invitationStatusColor, invitationStatusLabel, invitationExpiry } from "./assessment-detail/shared.js";
+import { type Assessment, type Invitation, INV_PAGE_SIZE, type InvitationsResponse, type ResendAllResponse, RESEND_ALL_CAP, RESEND_SKIP_REASON, type UserItem, type UsersResponse, type ReleaseAllResponse, SKIP_REASON, type SortDir, sortRows, assessmentStatusVariant } from "./assessment-detail/shared.js";
 
 export function AdminAssessmentDetail(): React.ReactElement {
   const { id } = useParams<{ id: string }>();

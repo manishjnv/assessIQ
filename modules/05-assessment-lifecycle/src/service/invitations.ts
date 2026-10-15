@@ -8,7 +8,7 @@ import { generateInvitationToken, DEFAULT_INVITATION_TTL_HOURS } from "../tokens
 import { sendInvitationEmail } from "../email.js";
 import type { SendAssessmentInvitationInput } from "../email.js";
 import { AL_ERROR_CODES } from "../types.js";
-import type { Assessment, AssessmentInvitation, AssessmentStatus, BulkResendResult, InvitationStatus, ListInvitationsInput, PaginatedInvitations, InviteUsersResult } from "../types.js";
+import type { Assessment, AssessmentInvitation, AssessmentStatus, BulkResendResult, ListInvitationsInput, PaginatedInvitations, InviteUsersResult } from "../types.js";
 import { log, BULK_RESEND_MAX, BULK_RESEND_RECENT_MINUTES, PUBLIC_URL, assertPageSize } from "./_shared.js";
 
 // ===========================================================================

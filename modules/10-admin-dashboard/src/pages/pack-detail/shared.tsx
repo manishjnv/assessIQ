@@ -1,5 +1,5 @@
 import React from "react";
-import { formatDate, formatDateTime } from "@assessiq/ui-system";
+import { formatDateTime } from "@assessiq/ui-system";
 import type { QuestionType } from "@assessiq/question-types";
 
 export const TYPE_CHIPS: readonly ("" | Extract<QuestionType, string>)[] = ["", "mcq", "log_analysis", "scenario", "kql", "subjective", "numeric", "multi_select", "ordering", "structured_case"];
