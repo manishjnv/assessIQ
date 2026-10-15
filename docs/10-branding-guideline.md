@@ -2,9 +2,21 @@
 
 *Type: reference* — This page gives the visual identity rules: type, colour, layout and component idioms.
 
-> **Source of truth for every page, layout, and component built going forward.** Distilled from the design-canvas template at `modules/17-ui-system/AssessIQ_UI_Template/`. Read this before opening Figma, before drafting a new screen, before adding a new component.
->
-> The kit's internal files (`CLAUDE.md`, `README.md`, `AccessIQ.html`, `brand/brand-guidelines.html`, and logo SVG filenames like `accessiq-horizontal.svg`) still spell the product name as **AccessIQ** — a vendor-side typo carried over when the kit was authored. The outer folder is correctly named `AssessIQ_UI_Template`. In all production code, copy, page titles, and OG/meta tags, use *AssessIQ*. Do not mass-rewrite kit internals on every refresh; the typo is design-time only and never reaches runtime (HTML links in `apps/web/index.html` reference `favicon/*` and `social/og-image.*` which match across kit revisions).
+**Status:** open decisions remain for the brand kit (see "Pending decisions" in section 13.b). The OG card and the stacked lockup still show placeholder text.
+
+## Scope
+
+- This page is the **source of truth** for every page, layout and component built from now on.
+- It is distilled from the design-canvas template at `modules/17-ui-system/AssessIQ_UI_Template/`.
+- Read it before you open Figma, draft a new screen or add a new component.
+
+## Product name in the kit
+
+- The kit's internal files spell the product name as **AccessIQ**. This is a vendor-side typo carried over when the kit was authored.
+  - Affected files: `CLAUDE.md`, `README.md`, `AccessIQ.html`, `brand/brand-guidelines.html`, and logo SVG filenames such as `accessiq-horizontal.svg`.
+- The outer folder is correctly named `AssessIQ_UI_Template`.
+- In all production code, copy, page titles and OG/meta tags, use *AssessIQ*.
+- Do not mass-rewrite the kit internals on every refresh. The typo is design-time only and never reaches runtime. The HTML links in `apps/web/index.html` reference `favicon/*` and `social/og-image.*`, which match across kit revisions.
 
 ## 0. Working agreement — the design-system kit is the canonical reference
 
@@ -18,11 +30,20 @@
 6. [`AssessIQ_UI_Template/design-system/copy-and-voice.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/copy-and-voice.md) — tone, microcopy, number formatting.
 7. [`AssessIQ_UI_Template/screens/`](../modules/17-ui-system/AssessIQ_UI_Template/screens/) — reference JSX implementations. Today: `login`, `dashboard`, `activity` (v1.1 — heatmap + leaderboard + stat-card breakdowns), `library`, `assessment`, `results`, plus `atoms.jsx` for primitives. Open [`AccessIQ.html`](../modules/17-ui-system/AssessIQ_UI_Template/AccessIQ.html) in a browser to see them; open [`component-gallery.html`](../modules/17-ui-system/AssessIQ_UI_Template/component-gallery.html) for every primitive on one page.
 >
-> **Kit version: v1.1 (May 2026).** Differences from v1.0: type tokens darkened (`--text` is now near-black `#0a0a0b`, serif headings weight 500); new `activity.jsx` screen with GitHub-style heatmap, stacked-bar timeline, leaderboard rows, and stat cards with colored breakdowns; brand assets moved from `Logo/` to `brand/` (downstream consumer `apps/web/scripts/copy-brand-assets.mjs` updated accordingly).
->
-> **Port status: v1.1 fully shipped (2026-05-14).** All 14 phases of `docs/plans/archive/UI_KIT_V1_1_PORT.md` are complete. Every admin and candidate page now uses count `Chip` + serif h1 (weight 400, −0.02em tracking) + lede paragraph, `Spinner` for all loading states, and the `--aiq-color-bg-raised` surface token. Phase 14 adds `@axe-core/playwright` a11y gate (unauthenticated pages). Visual regression + Lighthouse sweep deferred to Phase 15.
+| Item | Value |
+| --- | --- |
+| Kit version | v1.1 (May 2026) |
+| Differences from v1.0 | Type tokens darkened (`--text` is now near-black `#0a0a0b`, serif headings weight 500). New `activity.jsx` screen with a GitHub-style heatmap, stacked-bar timeline, leaderboard rows and stat cards with colored breakdowns. Brand assets moved from `Logo/` to `brand/` (the consumer `apps/web/scripts/copy-brand-assets.mjs` is updated) |
+| Port status | v1.1 fully shipped (2026-05-14). All 14 phases of `docs/plans/archive/UI_KIT_V1_1_PORT.md` are complete |
+| Result of the port | Every admin and candidate page uses count `Chip` + serif h1 (weight 400, −0.02em tracking) + lede paragraph, `Spinner` for all loading states, and the `--aiq-color-bg-raised` surface token |
+| Phase 14 | Adds the `@axe-core/playwright` a11y gate (unauthenticated pages) |
+| Deferred | Visual regression and Lighthouse sweep (Phase 15) |
 
-This guideline (`docs/10-branding-guideline.md`) is the **production-translation companion** to that kit — it explains how the kit's un-prefixed tokens (`--accent`, `--bg`, `.btn`) become the production `--aiq-*` namespace and `aiq-*` classes, and adds AssessIQ-specific deltas (the banded score model, accessibility deltas, multi-tenant accent override, light-mode-only lock). **The kit wins on visual conflicts; this doc updates next; [docs/08-ui-system.md](./08-ui-system.md) tracks the system implications last.**
+This guideline (`docs/10-branding-guideline.md`) is the **production-translation companion** to the kit.
+
+- It explains how the kit's un-prefixed tokens (`--accent`, `--bg`, `.btn`) become the production `--aiq-*` namespace and `aiq-*` classes.
+- It adds AssessIQ-specific deltas: the banded score model, accessibility deltas, the multi-tenant accent override and the light-mode-only lock.
+- Order of authority: **the kit wins on visual conflicts; this page updates next; [docs/08-ui-system.md](./08-ui-system.md) tracks the system implications last.**
 
 The rules:
 
@@ -45,19 +66,38 @@ This rule is encoded in memory at `branding-guideline-from-template.md` and `fee
 
 ## 1. Visual identity in one paragraph
 
-AssessIQ reads like an editorial publication that happens to grade you. **Newsreader** (serif) carries headlines, hero numbers, and quotes. **Geist** (sans) carries everything you click and read in passing. **JetBrains Mono** (mono) carries microcopy — labels, IDs, kbd hints, timestamps — letter-spaced and uppercase. Color is restrained: white-on-white surfaces, a confident accent in the indigo-violet 258 hue, status colors used sparingly. Density adjusts via a single `--u` spacing unit. Components are pill-shaped buttons, low-shadow cards with thin borders, and animated numbers (count-up, ring fill, sparklines) that reward completion. Nothing shouts.
+AssessIQ reads like an editorial publication that happens to grade you.
+
+| Element | Rule |
+| --- | --- |
+| **Newsreader** (serif) | Headlines, hero numbers and quotes |
+| **Geist** (sans) | Everything you click and read in passing |
+| **JetBrains Mono** (mono) | Microcopy: labels, IDs, kbd hints and timestamps, letter-spaced and uppercase |
+| Colour | Restrained: white-on-white surfaces, a confident accent in the indigo-violet 258 hue, status colours used sparingly |
+| Density | A single `--u` spacing unit adjusts it |
+| Components | Pill-shaped buttons, low-shadow cards with thin borders, and animated numbers (count-up, ring fill, sparklines) that reward completion |
+| Overall | Nothing shouts |
 
 ### 1.1 Light mode is canonical; dark mode is opt-in
 
-`AssessIQ_UI_Template/screens/*.jsx` ship **light-mode tokens only**. The visual identity in the paragraph above is *the* identity — white-on-white, restrained colour, low contrast, editorial calm. The dark-mode block in `modules/17-ui-system/src/styles/tokens.css` exists as **infrastructure** for a future opt-in (per `modules/17-ui-system/SKILL.md` Help/tooltip surface: `admin.profile.theme` — light/dark/system explanation), but is NOT the brand and must NOT render by default.
+| Fact | Detail |
+| --- | --- |
+| Template tokens | `AssessIQ_UI_Template/screens/*.jsx` ship **light-mode tokens only** |
+| Identity | White-on-white, restrained colour, low contrast, editorial calm |
+| Dark-mode block | `modules/17-ui-system/src/styles/tokens.css` holds it as **infrastructure** for a future opt-in (per `modules/17-ui-system/SKILL.md` Help/tooltip surface: `admin.profile.theme`, light/dark/system explanation). It is NOT the brand and must NOT render by default |
 
-**Hard rule**: `apps/web` mounts `<ThemeProvider theme="light">` — never `"system"`. `"system"` resolves to dark on any OS in dark mode (Windows 11 default, macOS evening, etc.) and applies `data-theme="dark"` to the wrapping div, which overrides `--aiq-color-bg-base` to `#0e0e10` and gives the SPA a black background that diverges from every template screen. Dark mode adoption is gated on:
+**Hard rule:** `apps/web` mounts `<ThemeProvider theme="light">`. Never use `"system"`.
 
-1. The template ships dark-mode variants of every screen in `AssessIQ_UI_Template/screens/`, demonstrating the brand survives the inversion.
+- `"system"` resolves to dark on any OS in dark mode (Windows 11 default, macOS evening and others).
+- It applies `data-theme="dark"` to the wrapping div. That overrides `--aiq-color-bg-base` to `#0e0e10` and gives the SPA a black background that differs from every template screen.
+
+Dark mode adoption needs all three conditions:
+
+1. The template ships dark-mode variants of every screen in `AssessIQ_UI_Template/screens/`, and they show that the brand survives the inversion.
 2. An explicit user-toggle UI lands at `admin.profile.theme` (Phase 1+).
 3. Both `light` and `dark` variants pass the same accessibility audit (axe, contrast ≥ 4.5:1).
 
-Until all three land, the SPA is locked to light. This decision is encoded in the page-mount comment at [apps/web/src/App.tsx](../apps/web/src/App.tsx) so future sessions don't silently flip back to `"system"`.
+Until all three land, the SPA is locked to light. The page-mount comment at [apps/web/src/App.tsx](../apps/web/src/App.tsx) records this decision, so future sessions do not flip back to `"system"`.
 
 ## 2. Typography
 
@@ -473,7 +513,11 @@ Per-tenant override sets the accent only:
 }
 ```
 
-Surfaces, text, and status colors stay AssessIQ's. Embed mode receives the same tokens via `postMessage`; the iframe applies only `--aiq-*` keys (origin-verified) to prevent host-page CSS bleed.
+Rules:
+
+- Surfaces, text and status colours stay AssessIQ's.
+- Embed mode receives the same tokens through `postMessage`.
+- The iframe applies only `--aiq-*` keys (origin-verified). This prevents host-page CSS bleed.
 
 ## 12. Recipe — building a new page in this style
 
@@ -509,7 +553,10 @@ modules/17-ui-system/AssessIQ_UI_Template/      # reference only — DO NOT IMPO
 └── .design-canvas.state.json   # designer state — exclude from build
 ```
 
-The four "exclude from build" files are the omelette/Claude-design-canvas wrapper that produced this template. They are useful for visual reference (open `AccessIQ.html` in a browser to see all screens) but must never be imported by production code.
+The four "exclude from build" files are the omelette/Claude-design-canvas wrapper that produced this template.
+
+- Use them for visual reference only. Open `AccessIQ.html` in a browser to see all screens.
+- Production code must never import them.
 
 ### 13.b — Brand kit (logo, favicon, OG card, web manifest)
 
@@ -576,7 +623,14 @@ The mobile UI kit lives at [`modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-
 
 ### 15.1 Viewport mechanism
 
-The SPA distinguishes two viewports: `mobile` and `desktop`. The current viewport is published as `data-viewport="mobile" | "desktop"` on `<html>`, driven by `window.matchMedia('(max-width: 719px), ((pointer: coarse) and (max-width: 1024px))')`. The initial value is set by an inline script in [`apps/web/index.html`](../apps/web/index.html) before the React bundle loads (avoids first-paint flicker); the React side keeps it in sync via `useViewportSync()` in [`modules/17-ui-system/src/hooks/useViewportSync.ts`](../modules/17-ui-system/src/hooks/useViewportSync.ts), wired into the existing `ThemeProvider`. Components that need to branch on viewport import `useViewport()` from `@assessiq/ui-system`.
+| Item | Detail |
+| --- | --- |
+| Viewports | `mobile` and `desktop` |
+| Published as | `data-viewport="mobile" \| "desktop"` on `<html>` |
+| Driver | `window.matchMedia('(max-width: 719px), ((pointer: coarse) and (max-width: 1024px))')` |
+| Initial value | Set by an inline script in [`apps/web/index.html`](../apps/web/index.html) before the React bundle loads (avoids first-paint flicker) |
+| Sync | `useViewportSync()` in [`modules/17-ui-system/src/hooks/useViewportSync.ts`](../modules/17-ui-system/src/hooks/useViewportSync.ts), wired into the existing `ThemeProvider` |
+| Branching in components | Import `useViewport()` from `@assessiq/ui-system` |
 
 ### 15.2 Token deltas
 
