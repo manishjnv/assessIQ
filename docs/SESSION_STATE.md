@@ -2,6 +2,7 @@
 
 **Headline:** Autopilot false start undone (it had treated the repo as new); Autopilot onboarded with the 12 S10 rows (7 phases, 31 tasks, 5 marked done, deletion gate in the lint step); docs consolidated into `docs/ROADMAP.md` + `docs/plans/` + `docs/plans/archive/` with a plans index. No code changed.
 **Commits:** `a11c5ef` — docs(pending): renumber RW-69..76 to RW-77..84 · `f42577c` — chore(ap): onboard autopilot with S10 plan · `<this>` — docs: consolidate roadmap and plans
+**Addendum (same day):** RW-85 (docs standard + Vale/markdownlint gates), RW-86 (Diátaxis rewrite) and RW-87 (UI/help/email copy pass) added to `docs/ROADMAP.md` § P0-W and to the suggested order; validated against the repo first (no Vale, markdownlint, STYLE, CHANGELOG, ADR or Mermaid exist today). Rows only; RW-85 tooling not built yet.
 **Tests:** not run (docs, `.agent/` and comment-only reference changes). `pnpm lint:doc-anchors` OK (964 files). `autopilot validate` OK.
 **Next:** owner runs the Autopilot trial: close other Claude sessions, `ap budget 10`, `ap start`, `ap watch`; review `git diff pre-ap-2026-10-15..main` after the first task (P01-T01, RW-70) before anything else runs.
 **Open questions:**
