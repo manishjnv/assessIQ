@@ -182,15 +182,20 @@ afterAll(async () => {
   if (container !== undefined) await container.stop();
 });
 
+type CriterionType = Parameters<typeof listActiveQuestionPoolForCriterion>[5];
+type BpCriterion = { node_id?: string; category_id: string; type: CriterionType; [k: string]: unknown };
+type Bp = { domain_id: string; criteria: BpCriterion[]; [k: string]: unknown };
+const bpOf = (a: typeof X): Bp => (a.settings as unknown as { blueprint: Bp }).blueprint;
+
 describe("RW-55 blueprint node_id golden", () => {
   it("node blueprint stores the same resolved blueprint (only node_id differs)", () => {
     expect(nodeOf[cat1]).toBeTruthy();
-    const bx = (X.settings as any).blueprint;
-    const by = (Y.settings as any).blueprint;
-    expect(by.criteria.every((c: any) => typeof c.node_id === "string")).toBe(true);
-    const strip = (b: any) => ({
+    const bx = bpOf(X);
+    const by = bpOf(Y);
+    expect(by.criteria.every((c) => typeof c.node_id === "string")).toBe(true);
+    const strip = (b: Bp) => ({
       ...b,
-      criteria: b.criteria.map(({ node_id: _n, ...rest }: any) => rest),
+      criteria: b.criteria.map(({ node_id: _n, ...rest }) => rest),
     });
     expect(strip(by)).toEqual(strip(bx));
     expect(Y.pack_id).toBe(X.pack_id);
@@ -209,8 +214,8 @@ describe("RW-55 blueprint node_id golden", () => {
     await withTenant(tenant, async (client) => {
       for (const c of CRITERIA) {
         const a = await listActiveQuestionPoolForCriterion(client, X.pack_id, X.level_id, domainId, c.cat(), c.type);
-        const bBp = (Y.settings as any).blueprint;
-        const crit = bBp.criteria[CRITERIA.indexOf(c)];
+        const bBp = bpOf(Y);
+        const crit = bBp.criteria[CRITERIA.indexOf(c)]!;
         const b = await listActiveQuestionPoolForCriterion(client, Y.pack_id, Y.level_id, bBp.domain_id, crit.category_id, crit.type);
         expect(b).toEqual(a);
         expect(a.length, `${c.type}`).toBeGreaterThan(0);
@@ -222,10 +227,10 @@ describe("RW-55 blueprint node_id golden", () => {
     await publishAssessment(tenant, X.id, admin);
     await publishAssessment(tenant, Y.id, admin);
     await withTenant(tenant, async (client) => {
-      const bBp = (Y.settings as any).blueprint;
+      const bBp = bpOf(Y);
       for (const [i, c] of CRITERIA.entries()) {
         const a = await listFrozenPoolForCriterion(client, X.id, domainId, c.cat(), c.type);
-        const b = await listFrozenPoolForCriterion(client, Y.id, bBp.domain_id, bBp.criteria[i].category_id, c.type);
+        const b = await listFrozenPoolForCriterion(client, Y.id, bBp.domain_id, bBp.criteria[i]!.category_id, c.type);
         expect(b).toEqual(a);
         expect(a.length, `${c.type}`).toBeGreaterThan(0);
       }
@@ -243,7 +248,7 @@ describe("RW-55 blueprint node_id golden", () => {
         question_count: 1,
         opens_at: opens(),
         settings: { blueprint: { level: "L1", criteria } },
-      } as any,
+      } as unknown as Parameters<typeof createAssessment>[1],
       admin,
     );
 

@@ -161,7 +161,7 @@ function multiSelectAnswer({ content, answer }: { content: unknown; answer: unkn
   );
 }
 
-function subjectiveAnswer({ content, answer }: { content: unknown; answer: unknown }): React.ReactElement | null {
+function subjectiveAnswer({ answer }: { content: unknown; answer: unknown }): React.ReactElement | null {
   const a = asAnswerObj(answer);
   const text = typeof a?.response === "string" ? a.response : null;
   if (text === null) return null;
@@ -224,7 +224,7 @@ function kqlAnswer({ content, answer }: { content: unknown; answer: unknown }): 
   );
 }
 
-function logAnalysisAnswer({ content, answer }: { content: unknown; answer: unknown }): React.ReactElement | null {
+function logAnalysisAnswer({ answer }: { content: unknown; answer: unknown }): React.ReactElement | null {
   const a = asAnswerObj(answer);
   const findings = Array.isArray(a?.findings)
     ? (a!.findings as unknown[]).filter((f): f is string => typeof f === "string" && f.trim() !== "")
@@ -255,7 +255,7 @@ function logAnalysisAnswer({ content, answer }: { content: unknown; answer: unkn
   );
 }
 
-function scenarioAnswer({ content, answer }: { content: unknown; answer: unknown }): React.ReactElement | null {
+function scenarioAnswer({ answer }: { content: unknown; answer: unknown }): React.ReactElement | null {
   const a = asAnswerObj(answer);
   const steps = Array.isArray(a?.steps) ? (a!.steps as unknown[]) : [];
   const rows = steps
