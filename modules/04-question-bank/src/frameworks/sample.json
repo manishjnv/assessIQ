@@ -1,0 +1,40 @@
+{
+  "code": "sample",
+  "name": "Sample framework",
+  "board": "SAMPLE",
+  "version": "2026-27",
+  "sourceUrls": ["https://example.org/sample-syllabus"],
+  "nodes": [
+    {
+      "code": "grade-9",
+      "title": "Grade 9",
+      "kind": "grade",
+      "children": [
+        {
+          "code": "science",
+          "title": "Science",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "matter",
+              "title": "Matter in our surroundings",
+              "kind": "unit",
+              "children": [
+                { "code": "states", "title": "Describe the states of matter", "kind": "outcome" },
+                { "code": "phase-change", "title": "Explain phase changes", "kind": "outcome" }
+              ]
+            },
+            { "code": "motion", "title": "Motion", "kind": "unit" }
+          ]
+        },
+        {
+          "code": "maths",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [{ "code": "number-systems", "title": "Number systems", "kind": "unit" }]
+        }
+      ]
+    },
+    { "code": "grade-10", "title": "Grade 10", "kind": "grade" }
+  ]
+}

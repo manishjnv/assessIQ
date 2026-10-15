@@ -143,6 +143,7 @@ export type { RegisterQuestionBankRoutesOptions } from "./routes.js";
 // ---------------------------------------------------------------------------
 
 export { seedTenantTaxonomy } from "./seed.js";
+export { listBundledSeeds, loadFrameworkSeed, validateFrameworkSeed } from "./framework-seeds.js";
 
 // ---------------------------------------------------------------------------
 // 4b. Platform domain management + cross-tenant propagation (super-admin)

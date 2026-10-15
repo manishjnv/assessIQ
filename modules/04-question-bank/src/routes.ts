@@ -475,7 +475,7 @@ export async function registerQuestionBankRoutes(
   registerGenerationBatchRoutes(app, superAdminOnly);
 
   // RW-55: read-only curriculum frameworks (adminOnly; RLS shows NULL-tenant + own rows).
-  registerTaxonomyRoutes(app, adminOnly);
+  registerTaxonomyRoutes(app, adminOnly, superAdminOnly);
 
   // -------------------------------------------------------------------------
   // Pack routes

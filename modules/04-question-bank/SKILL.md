@@ -260,3 +260,18 @@ Migration `0169_curriculum_frameworks.sql`; read-only in this part.
 - Thresholds live in the `DIFFICULTY_SPEC` rows (`logLines*`, `findings*`, `distractorSpreadMax`, `scenarioWords*`); the MCQ stem-overlap gap is a constant. Dispatch is a keyed `WARN_CHECKS` table.
 - Lexical only (word match). Local embedder is out of scope. Thresholds are first guesses; tune from the Phase C drift report.
 - Not included: wiring. Drafts are inserted inside `07 handleAdminGenerate`, which this task could not edit. `generateQuestions` returns only ids. Followup: 07 calls a `difficulty.warn` closure (like `validate`) and returns warnings in its result; 04 then passes them on.
+
+## Framework seeds (RW-57)
+
+Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/framework-seed.schema.json`: `code`, `name`, `board`, `version`, `sourceUrls[]` and `nodes[]`. Each node has `code`, `title`, `kind`, `description`, `externalId` and `children`.
+
+- `kind` is one of `board`, `stage`, `grade`, `subject`, `unit`, `outcome`, `criterion`. This is the `0169` CHECK list. Sibling codes are unique. Extra properties are rejected.
+- The Zod schema in `src/framework-seeds.ts` is the runtime validator. There is no ajv. `import.schema.json` is validated the same way.
+- To add a seed: drop the JSON file in `src/frameworks/` and add one static import to the `BUNDLED` map.
+- Nodes are NULL-tenant platform rows. This matches `0169` and `platform-domains.ts`.
+- `version` is stored in `taxonomy_nodes.syllabus_edition`. `externalId` is stored in `external_id`.
+- `board`, `sourceUrls` and `description` are validated but NOT stored. Storing them needs a `meta jsonb` migration. The decision is deferred.
+- `ensureNode` is not used. It is wired to `legacy-domains` and to the kinds `subject` and `unit`.
+- Exports: `listBundledSeeds`, `loadFrameworkSeed`, `validateFrameworkSeed`.
+- `sample.json` (board `SAMPLE`, 9 nodes) is for tests and is the example seed.
+- Routes: see `docs/03-api-contract.md` section "Framework seeds". Part 1 only; board files CBSE, ICSE and IB are pending.
