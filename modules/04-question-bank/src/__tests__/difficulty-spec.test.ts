@@ -10,6 +10,7 @@ import {
   validateStructuralDifficulty,
   resolveDifficulty,
   functionToNice,
+  warnStructuralDifficulty,
 } from "../difficulty-spec.js";
 
 // ---------------------------------------------------------------------------
@@ -369,5 +370,52 @@ describe("functionToNice", () => {
   it('unknown input → "Cyber Defense Analyst" (safe default)', () => {
     expect(functionToNice("totally_unknown_function")).toBe("Cyber Defense Analyst");
     expect(functionToNice("")).toBe("Cyber Defense Analyst");
+  });
+});
+
+describe("warnStructuralDifficulty (Phase B, warn-only)", () => {
+  const codes = (t: Parameters<typeof warnStructuralDifficulty>[0], l: "L1" | "L2" | "L3", c: unknown) =>
+    warnStructuralDifficulty(t, l, c).map((w) => w.code);
+  const lines = (n: number) => Array.from({ length: n }, (_, i) => `line ${i}`).join("\n");
+
+  it("log_analysis lines out of range warns; in range is clean", () => {
+    const f = ["a"];
+    expect(codes("log_analysis", "L1", { log_excerpt: lines(15), expected_findings: f })).toEqual(["LOG_LINES_OUT_OF_RANGE"]);
+    expect(codes("log_analysis", "L1", { log_excerpt: lines(5), expected_findings: f })).toEqual([]);
+  });
+
+  it("log_analysis findings out of range warns; in range is clean", () => {
+    expect(codes("log_analysis", "L2", { log_excerpt: lines(12), expected_findings: ["a"] })).toEqual(["LOG_FINDINGS_OUT_OF_RANGE"]);
+    expect(codes("log_analysis", "L2", { log_excerpt: lines(12), expected_findings: ["a", "b"] })).toEqual([]);
+  });
+
+  it("mcq distractor length spread warns; similar lengths are clean", () => {
+    const q = "Which control applies here?";
+    const bad = { question: q, options: ["Block", "x", "A very long distractor option text here", "Y"], correct: 0 };
+    const good = { question: q, options: ["Block it", "Allow it", "Log them", "Skip it"], correct: 0 };
+    expect(codes("mcq", "L3", bad)).toContain("MCQ_DISTRACTOR_LENGTH_SPREAD");
+    expect(codes("mcq", "L3", good)).toEqual([]);
+  });
+
+  it("mcq correct option echoing the stem warns; neutral options are clean", () => {
+    const q = "Which firewall rule blocks inbound traffic on port 22?";
+    const bad = { question: q, options: ["firewall rule blocks inbound port", "Disable logging", "Rotate keys", "Add user"], correct: 0 };
+    const good = { question: q, options: ["Deny tcp 22 in", "Disable logging", "Rotate keys", "Add user"], correct: 0 };
+    expect(codes("mcq", "L1", bad)).toContain("MCQ_STEM_OVERLAP");
+    expect(codes("mcq", "L1", good)).not.toContain("MCQ_STEM_OVERLAP");
+  });
+
+  it("scenario length vs level target warns; in range is clean", () => {
+    const mk = (n: number) => ({ intro: Array(n).fill("word").join(" "), steps: [{ prompt: "check logs" }] });
+    expect(codes("scenario", "L3", mk(10))).toEqual(["SCENARIO_LENGTH_OUT_OF_RANGE"]);
+    expect(codes("scenario", "L3", mk(150))).toEqual([]);
+  });
+
+  it("never throws or blocks: malformed content, hand-authored types give []", () => {
+    expect(warnStructuralDifficulty("mcq", "L1", null)).toEqual([]);
+    expect(warnStructuralDifficulty("mcq", "L1", { options: 5, question: 3, correct: "x" })).toEqual([]);
+    expect(warnStructuralDifficulty("numeric", "L1", {})).toEqual([]);
+    // pure advisory: result is data; the hard gate is independent of it
+    expect(validateStructuralDifficulty("log_analysis", "L1", { log_excerpt: lines(15) }, null).ok).toBe(true);
   });
 });
