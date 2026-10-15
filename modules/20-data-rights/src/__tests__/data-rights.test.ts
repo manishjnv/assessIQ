@@ -170,6 +170,22 @@ async function seedCandidate(t: Tenant, opts: { createdDaysAgo?: number } = {}):
        VALUES ($1,$2,$3,'standard',$4,'completion','Riya Sharma','SOC Analyst L1','L1','sig')`,
       [t.id, c0.attemptId, c0.userId, `CRED-${randomUUID().slice(0, 8)}`],
     );
+    // RW-89: identifying copies outside the main erasure path
+    await c.query(`UPDATE attempts SET evaluation_note = 'sent back: Riya wrote too little' WHERE id = $1`, [c0.attemptId]);
+    await c.query(
+      `INSERT INTO candidate_login_tokens (tenant_id, user_id, token_hash, expires_at, requested_ip, requested_ua)
+       VALUES ($1,$2,$3, now() + interval '15 minutes','10.9.8.7','Mozilla/5.0')`,
+      [t.id, c0.userId, randomUUID().replace(/-/g, "")],
+    );
+    await c.query(
+      `INSERT INTO user_invitations (tenant_id, email, role, token_hash, invited_by, expires_at)
+       VALUES ($1,$2,'candidate',$3,$4, now() + interval '7 days')`,
+      [t.id, c0.email, randomUUID().replace(/-/g, ""), t.admin],
+    );
+    await c.query(
+      `INSERT INTO email_log (tenant_id, to_address, subject, template_id, status) VALUES ($1,$2,'Invite','invite','sent')`,
+      [t.id, c0.email],
+    );
     await c.query(
       `INSERT INTO consent_events (tenant_id, user_id, purpose, policy_version, granted_at, lawful_basis)
        VALUES ($1,$2,'data_processing','v1',now(),'consent')`,
@@ -238,6 +254,28 @@ describe("eraseCandidatePii", () => {
     expect(g2?.stage_inputs).not.toBeNull();
     expect((await one<{ p: unknown }>(`SELECT ai_proposals AS p FROM attempts WHERE id = $1`, [other.attemptId]))?.p).not.toBeNull();
 
+    // RW-89: login tokens, invitations, email log, evaluation note
+    const tok = await one<{ requested_ip: string | null; requested_ua: string | null }>(
+      `SELECT requested_ip::text, requested_ua FROM candidate_login_tokens WHERE user_id = $1`, [cand.userId]);
+    expect(tok).toEqual({ requested_ip: null, requested_ua: null });
+    const tok2 = await one<{ requested_ip: string | null }>(
+      `SELECT host(requested_ip) AS requested_ip FROM candidate_login_tokens WHERE user_id = $1`, [other.userId]);
+    expect(tok2?.requested_ip).toBe("10.9.8.7");
+    const pseudoRe = /^deleted\+[0-9a-f]{12}@erased\.assessiq\.local$/;
+    const inv = await one<{ email: string; role: string; expires_at: Date }>(
+      `SELECT email, role, expires_at FROM user_invitations WHERE tenant_id = $1 AND email = $2`, [t.id, receipt.tombstone.email]);
+    expect(inv?.email).toMatch(pseudoRe);
+    expect(inv?.role).toBe("candidate"); // status/timestamps kept
+    expect((await one<{ email: string }>(`SELECT email FROM user_invitations WHERE email = $1`, [other.email]))?.email).toBe(other.email);
+    expect((await one<{ n: number }>(`SELECT count(*)::int n FROM user_invitations WHERE email = $1`, [cand.email]))?.n).toBe(0);
+    const el = await one<{ to_address: string; status: string }>(
+      `SELECT to_address, status FROM email_log WHERE tenant_id = $1 AND to_address = $2`, [t.id, receipt.tombstone.email]);
+    expect(el?.status).toBe("sent");
+    expect((await one<{ n: number }>(`SELECT count(*)::int n FROM email_log WHERE to_address = $1`, [other.email]))?.n).toBe(1);
+    expect((await one<{ n: number }>(`SELECT count(*)::int n FROM email_log WHERE to_address = $1`, [cand.email]))?.n).toBe(0);
+    expect((await one<{ e: string | null }>(`SELECT evaluation_note e FROM attempts WHERE id = $1`, [cand.attemptId]))?.e).toBeNull();
+    expect((await one<{ e: string | null }>(`SELECT evaluation_note e FROM attempts WHERE id = $1`, [other.attemptId]))?.e).toContain("Riya");
+
     // sessions redacted
     const s = await one<{ ip: string | null; user_agent: string | null }>(`SELECT ip::text, user_agent FROM sessions WHERE user_id = $1`, [cand.userId]);
     expect(s?.ip).toBeNull();
@@ -256,7 +294,7 @@ describe("eraseCandidatePii", () => {
     );
     expect(a?.actor_user_id).toBe(t.admin);
     expect(a?.actor_kind).toBe("user");
-    expect(a?.after).toMatchObject({ reason: "dsr_request", erased: true, attemptAnswersErased: 1, gradingsScrubbed: 1, aiProposalsCleared: 1 });
+    expect(a?.after).toMatchObject({ reason: "dsr_request", erased: true, attemptAnswersErased: 1, gradingsScrubbed: 1, aiProposalsCleared: 1, loginTokensRedacted: 1, invitationsPseudonymised: 1, emailLogPseudonymised: 1, evaluationNotesCleared: 1 });
     expect(JSON.stringify(a?.after)).not.toContain(cand.email);
   });
 

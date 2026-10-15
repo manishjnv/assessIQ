@@ -19,6 +19,11 @@ const REGISTRY = [
   'attempts.ai_proposals',
   'sessions.ip',
   'sessions.user_agent',
+  'candidate_login_tokens.requested_ip',
+  'candidate_login_tokens.requested_ua',
+  'user_invitations.email',
+  'email_log.to_address',
+  'attempts.evaluation_note',
 ];
 
 // Personal-looking columns deliberately NOT erased. One-line reason each.
@@ -41,14 +46,9 @@ const EXEMPT: Record<string, string> = {
   'certificates.display_name': 'D5: certificates are immutable HMAC snapshots, never mutated',
   'audit_log.ip': 'audit_log is append-only by design (14-audit-log invariant)',
   'audit_log.user_agent': 'audit_log is append-only by design (14-audit-log invariant)',
-  // FOLLOWUPS: personal data not yet erased by erasure.ts
-  'candidate_login_tokens.requested_ip': 'FOLLOWUP: candidate IP; add to erasure.ts (or TTL purge)',
-  'candidate_login_tokens.requested_ua': 'FOLLOWUP: candidate user agent; add to erasure.ts (or TTL purge)',
-  'user_invitations.email': 'FOLLOWUP: invitee email; scrub on erasure if candidate invites exist',
-  'email_log.to_address': 'FOLLOWUP: recipient email of sent mail; scrub on erasure',
-  'consent_events.ip': 'FOLLOWUP: candidate IP in consent trail; decide scrub vs legal retention',
-  'consent_events.user_agent': 'FOLLOWUP: candidate user agent in consent trail; decide scrub vs retention',
-  'attempts.evaluation_note': 'FOLLOWUP: admin note may name or quote the candidate',
+  // Kept: owner decision pending
+  'consent_events.ip': 'kept: legal retention, owner decision pending (RW-89)',
+  'consent_events.user_agent': 'kept: legal retention, owner decision pending (RW-89)',
   'gradings.reasoning_band': 'numeric band (0/25/50/75/100), not text; matched on the word reasoning',
 };
 
