@@ -420,7 +420,8 @@ export async function grantEntitlement(
  * exists for the given tenant + scope. In that case NO audit row is written
  * and NO row is changed — no-op must not produce an audit trail.
  *
- * Throws ValidationError (INVALID_SCOPE) on bad input.
+ * Also archives the tenant's cloned packs of the scope (same tx). Re-grant does
+ * NOT un-archive them. Throws ValidationError (INVALID_SCOPE) on bad input.
  */
 export async function revokeEntitlement(
   actorUserId: string,
@@ -467,10 +468,47 @@ export async function revokeEntitlement(
       );
     }
 
+    // Archive the tenant's clones of this scope in the SAME tx (clone-on-grant
+    // design, Phase 4 revoke). Runs under system role (cross-row UPDATE with a
+    // join to the platform source pack). Never deletes content; attempts
+    // snapshot their questions so in-flight attempts are unaffected.
+    // ponytail: SQL lives here, not in 04 clone.ts — 19 does not depend on 04.
+    const archived = (
+      await client.query<{ id: string; source_pack_id: string }>(
+        `UPDATE question_packs c
+            SET status = 'archived', updated_at = now()
+           FROM question_packs s
+          WHERE c.tenant_id = $1 AND c.status <> 'archived'
+            AND s.id = c.source_pack_id
+            AND (($2::text = 'domain' AND s.domain = $3::text)
+              OR ($2::text = 'pack' AND (s.id::text = $3::text OR c.id::text = $3::text)))
+          RETURNING c.id, c.source_pack_id`,
+        [tenantId, scopeType, scopeId],
+      )
+    ).rows;
+
     // Phase B — app role + tenant GUC: auditInTx in its required context.
     // system read, then tenant-scoped write under assessiq_app in the same tx
     await client.query('SET LOCAL ROLE assessiq_app');
     await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+
+    if (archived.length > 0) {
+      await auditInTx(client, {
+        action: 'tenant.pack_clone_archived',
+        actorKind: 'user',
+        actorUserId,
+        tenantId,
+        entityType: 'tenant_entitlement',
+        entityId: tenantId,
+        after: {
+          scope_type: scopeType,
+          scope_id: scopeId,
+          source_pack_ids: [...new Set(archived.map((r) => r.source_pack_id))],
+          archived_clone_ids: archived.map((r) => r.id),
+          archived_count: archived.length,
+        },
+      });
+    }
 
     const auditRow = await auditInTx(client, {
       action: 'tenant.entitlement_revoked',
