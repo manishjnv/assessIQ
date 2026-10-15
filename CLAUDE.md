@@ -153,3 +153,13 @@ Phase 0 reads this. Phase 3 critique uses recurring patterns as guardrails.
 - A literal directory named `{docs,modules,infra}/` exists at the repo root — almost certainly a brace-expansion accident from a `mkdir` shell quoting bug. **Confirm with the user before removing it** in case it shadows real work.
 - The Phase 1 architecture is *intentional* — the temptation to "fix" sync-on-click grading by adding a worker means you're solving the wrong problem. Re-read `docs/05-ai-pipeline.md` § Compliance frame before suggesting any async grading.
 - Three plugins (Superpowers, claude-mem, your global playbook) all want to drive workflow. Skills are namespaced — `superpowers:*`, `claude-mem:*`, `codex:*`; the global playbook has none. The table above is the tiebreaker. If two skills auto-fire on the same trigger, the table wins; otherwise prefer the global playbook over Superpowers.
+
+## Autopilot (autonomous sessions)
+This repo is driven by Autopilot. Project context lives in `.agent/`:
+- `.agent/BRAIN.md` — architecture, conventions, invariants (read first)
+- `.agent/DECISIONS.md` — decision log (stay consistent with it)
+- `.agent/HANDOFF.md` — what the previous session did
+Do not edit `.agent/plan.yaml`, `.agent/project.yaml` or anything under `.agent/state*` during a task session.
+Do not commit, push, or switch branches; the orchestrator owns git.
+Commands: `ap status` (where the project is), `ap next` (next task), `ap start` (run the plan).
+Do not make plan files. The plan is `.agent/plan.yaml`; change it with `ap change`.
