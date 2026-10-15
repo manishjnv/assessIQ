@@ -97,6 +97,6 @@ describe("framework seed routes", () => {
     const app = await buildApp("super_admin");
     const res = await app.inject({ method: "GET", url: "/api/admin/super/frameworks/seeds" });
     expect(res.statusCode).toBe(200);
-    expect(res.json().items[0]).toMatchObject({ code: "sample", board: "SAMPLE", nodeCount: 9, loadedVersion: "2026-27" });
+    expect((res.json().items as { code: string }[]).find((i) => i.code === "sample")).toMatchObject({ code: "sample", board: "SAMPLE", nodeCount: 9, loadedVersion: "2026-27" });
   });
 });

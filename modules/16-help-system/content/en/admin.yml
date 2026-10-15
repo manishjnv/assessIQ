@@ -1071,6 +1071,28 @@ admin.platform.domains:
     - admin.platform.entitlements
     - admin.platform
 
+admin.platform.frameworks:
+  audience: admin
+  short_text: "Board curricula that you can load into the shared catalog. Loading again updates the same entries."
+  long_md: |
+    ## Curriculum frameworks
+
+    A curriculum framework is a board syllabus: grades, subjects and chapter
+    titles. It holds structure only. It holds no questions.
+
+    **Load** adds the curriculum to the shared catalog. Every organisation
+    can then use it.
+
+    **Reload** runs the same load again. It updates changed entries and adds
+    no copies. It never removes an entry.
+
+    The Release column shows the edition in the bundled file. The Loaded
+    column shows the edition now in the catalog.
+
+  related_keys:
+    - admin.platform.domains
+    - admin.platform
+
 admin.platform.domain_name:
   audience: admin
   short_text: "The subject name; the URL slug is generated automatically and shared across all organisations."

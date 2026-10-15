@@ -1,0 +1,1794 @@
+{
+  "code": "cbse",
+  "name": "CBSE (NCERT)",
+  "board": "CBSE",
+  "version": "NCERT rationalised 2023-24",
+  "sourceUrls": [
+    "https://ncert.nic.in/textbook.php",
+    "https://cbseacademic.nic.in/curriculum.html"
+  ],
+  "nodes": [
+    {
+      "code": "grade-6",
+      "title": "Grade 6",
+      "kind": "grade",
+      "children": [
+        {
+          "code": "mathematics",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "knowing-our-numbers",
+              "title": "Knowing Our Numbers",
+              "kind": "unit"
+            },
+            {
+              "code": "whole-numbers",
+              "title": "Whole Numbers",
+              "kind": "unit"
+            },
+            {
+              "code": "playing-with-numbers",
+              "title": "Playing with Numbers",
+              "kind": "unit"
+            },
+            {
+              "code": "basic-geometrical-ideas",
+              "title": "Basic Geometrical Ideas",
+              "kind": "unit"
+            },
+            {
+              "code": "understanding-elementary-shapes",
+              "title": "Understanding Elementary Shapes",
+              "kind": "unit"
+            },
+            {
+              "code": "integers",
+              "title": "Integers",
+              "kind": "unit"
+            },
+            {
+              "code": "fractions",
+              "title": "Fractions",
+              "kind": "unit"
+            },
+            {
+              "code": "decimals",
+              "title": "Decimals",
+              "kind": "unit"
+            },
+            {
+              "code": "data-handling",
+              "title": "Data Handling",
+              "kind": "unit"
+            },
+            {
+              "code": "mensuration",
+              "title": "Mensuration",
+              "kind": "unit"
+            },
+            {
+              "code": "algebra",
+              "title": "Algebra",
+              "kind": "unit"
+            },
+            {
+              "code": "ratio-and-proportion",
+              "title": "Ratio and Proportion",
+              "kind": "unit"
+            },
+            {
+              "code": "symmetry",
+              "title": "Symmetry",
+              "kind": "unit"
+            },
+            {
+              "code": "practical-geometry",
+              "title": "Practical Geometry",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "science",
+          "title": "Science",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "food-where-does-it-come-from",
+              "title": "Food: Where Does It Come From?",
+              "kind": "unit"
+            },
+            {
+              "code": "components-of-food",
+              "title": "Components of Food",
+              "kind": "unit"
+            },
+            {
+              "code": "fibre-to-fabric",
+              "title": "Fibre to Fabric",
+              "kind": "unit"
+            },
+            {
+              "code": "sorting-materials-into-groups",
+              "title": "Sorting Materials into Groups",
+              "kind": "unit"
+            },
+            {
+              "code": "separation-of-substances",
+              "title": "Separation of Substances",
+              "kind": "unit"
+            },
+            {
+              "code": "changes-around-us",
+              "title": "Changes Around Us",
+              "kind": "unit"
+            },
+            {
+              "code": "getting-to-know-plants",
+              "title": "Getting to Know Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "body-movements",
+              "title": "Body Movements",
+              "kind": "unit"
+            },
+            {
+              "code": "the-living-organisms-and-their-surroundings",
+              "title": "The Living Organisms and Their Surroundings",
+              "kind": "unit"
+            },
+            {
+              "code": "motion-and-measurement-of-distances",
+              "title": "Motion and Measurement of Distances",
+              "kind": "unit"
+            },
+            {
+              "code": "light-shadows-and-reflections",
+              "title": "Light, Shadows and Reflections",
+              "kind": "unit"
+            },
+            {
+              "code": "electricity-and-circuits",
+              "title": "Electricity and Circuits",
+              "kind": "unit"
+            },
+            {
+              "code": "fun-with-magnets",
+              "title": "Fun with Magnets",
+              "kind": "unit"
+            },
+            {
+              "code": "water",
+              "title": "Water",
+              "kind": "unit"
+            },
+            {
+              "code": "air-around-us",
+              "title": "Air Around Us",
+              "kind": "unit"
+            },
+            {
+              "code": "garbage-in-garbage-out",
+              "title": "Garbage In, Garbage Out",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "social-science",
+          "title": "Social Science",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbook parts, not chapters",
+          "children": [
+            {
+              "code": "history-our-pasts-i",
+              "title": "History: Our Pasts I",
+              "kind": "unit"
+            },
+            {
+              "code": "geography-the-earth-our-habitat",
+              "title": "Geography: The Earth Our Habitat",
+              "kind": "unit"
+            },
+            {
+              "code": "social-and-political-life-i",
+              "title": "Social and Political Life I",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "english",
+          "title": "English",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "honeysuckle",
+              "title": "Honeysuckle",
+              "kind": "unit"
+            },
+            {
+              "code": "a-pact-with-the-sun",
+              "title": "A Pact with the Sun",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "hindi",
+          "title": "Hindi",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "vasant",
+              "title": "Vasant",
+              "kind": "unit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "grade-7",
+      "title": "Grade 7",
+      "kind": "grade",
+      "children": [
+        {
+          "code": "mathematics",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "integers",
+              "title": "Integers",
+              "kind": "unit"
+            },
+            {
+              "code": "fractions-and-decimals",
+              "title": "Fractions and Decimals",
+              "kind": "unit"
+            },
+            {
+              "code": "data-handling",
+              "title": "Data Handling",
+              "kind": "unit"
+            },
+            {
+              "code": "simple-equations",
+              "title": "Simple Equations",
+              "kind": "unit"
+            },
+            {
+              "code": "lines-and-angles",
+              "title": "Lines and Angles",
+              "kind": "unit"
+            },
+            {
+              "code": "the-triangle-and-its-properties",
+              "title": "The Triangle and Its Properties",
+              "kind": "unit"
+            },
+            {
+              "code": "congruence-of-triangles",
+              "title": "Congruence of Triangles",
+              "kind": "unit"
+            },
+            {
+              "code": "comparing-quantities",
+              "title": "Comparing Quantities",
+              "kind": "unit"
+            },
+            {
+              "code": "rational-numbers",
+              "title": "Rational Numbers",
+              "kind": "unit"
+            },
+            {
+              "code": "practical-geometry",
+              "title": "Practical Geometry",
+              "kind": "unit"
+            },
+            {
+              "code": "perimeter-and-area",
+              "title": "Perimeter and Area",
+              "kind": "unit"
+            },
+            {
+              "code": "algebraic-expressions",
+              "title": "Algebraic Expressions",
+              "kind": "unit"
+            },
+            {
+              "code": "exponents-and-powers",
+              "title": "Exponents and Powers",
+              "kind": "unit"
+            },
+            {
+              "code": "symmetry",
+              "title": "Symmetry",
+              "kind": "unit"
+            },
+            {
+              "code": "visualising-solid-shapes",
+              "title": "Visualising Solid Shapes",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "science",
+          "title": "Science",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "nutrition-in-plants",
+              "title": "Nutrition in Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "nutrition-in-animals",
+              "title": "Nutrition in Animals",
+              "kind": "unit"
+            },
+            {
+              "code": "fibre-to-fabric",
+              "title": "Fibre to Fabric",
+              "kind": "unit"
+            },
+            {
+              "code": "heat",
+              "title": "Heat",
+              "kind": "unit"
+            },
+            {
+              "code": "acids-bases-and-salts",
+              "title": "Acids, Bases and Salts",
+              "kind": "unit"
+            },
+            {
+              "code": "physical-and-chemical-changes",
+              "title": "Physical and Chemical Changes",
+              "kind": "unit"
+            },
+            {
+              "code": "weather-climate-and-adaptations-of-animals-to-climate",
+              "title": "Weather, Climate and Adaptations of Animals to Climate",
+              "kind": "unit"
+            },
+            {
+              "code": "winds-storms-and-cyclones",
+              "title": "Winds, Storms and Cyclones",
+              "kind": "unit"
+            },
+            {
+              "code": "soil",
+              "title": "Soil",
+              "kind": "unit"
+            },
+            {
+              "code": "respiration-in-organisms",
+              "title": "Respiration in Organisms",
+              "kind": "unit"
+            },
+            {
+              "code": "transportation-in-animals-and-plants",
+              "title": "Transportation in Animals and Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "reproduction-in-plants",
+              "title": "Reproduction in Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "motion-and-time",
+              "title": "Motion and Time",
+              "kind": "unit"
+            },
+            {
+              "code": "electric-current-and-its-effects",
+              "title": "Electric Current and its Effects",
+              "kind": "unit"
+            },
+            {
+              "code": "light",
+              "title": "Light",
+              "kind": "unit"
+            },
+            {
+              "code": "water-a-precious-resource",
+              "title": "Water: A Precious Resource",
+              "kind": "unit"
+            },
+            {
+              "code": "forests-our-lifeline",
+              "title": "Forests: Our Lifeline",
+              "kind": "unit"
+            },
+            {
+              "code": "wastewater-story",
+              "title": "Wastewater Story",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "social-science",
+          "title": "Social Science",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbook parts, not chapters",
+          "children": [
+            {
+              "code": "history-our-pasts-ii",
+              "title": "History: Our Pasts II",
+              "kind": "unit"
+            },
+            {
+              "code": "geography-our-environment",
+              "title": "Geography: Our Environment",
+              "kind": "unit"
+            },
+            {
+              "code": "social-and-political-life-ii",
+              "title": "Social and Political Life II",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "english",
+          "title": "English",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "honeycomb",
+              "title": "Honeycomb",
+              "kind": "unit"
+            },
+            {
+              "code": "an-alien-hand",
+              "title": "An Alien Hand",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "hindi",
+          "title": "Hindi",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "vasant",
+              "title": "Vasant",
+              "kind": "unit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "grade-8",
+      "title": "Grade 8",
+      "kind": "grade",
+      "children": [
+        {
+          "code": "mathematics",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "rational-numbers",
+              "title": "Rational Numbers",
+              "kind": "unit"
+            },
+            {
+              "code": "linear-equations-in-one-variable",
+              "title": "Linear Equations in One Variable",
+              "kind": "unit"
+            },
+            {
+              "code": "understanding-quadrilaterals",
+              "title": "Understanding Quadrilaterals",
+              "kind": "unit"
+            },
+            {
+              "code": "data-handling",
+              "title": "Data Handling",
+              "kind": "unit"
+            },
+            {
+              "code": "squares-and-square-roots",
+              "title": "Squares and Square Roots",
+              "kind": "unit"
+            },
+            {
+              "code": "cubes-and-cube-roots",
+              "title": "Cubes and Cube Roots",
+              "kind": "unit"
+            },
+            {
+              "code": "comparing-quantities",
+              "title": "Comparing Quantities",
+              "kind": "unit"
+            },
+            {
+              "code": "algebraic-expressions-and-identities",
+              "title": "Algebraic Expressions and Identities",
+              "kind": "unit"
+            },
+            {
+              "code": "mensuration",
+              "title": "Mensuration",
+              "kind": "unit"
+            },
+            {
+              "code": "exponents-and-powers",
+              "title": "Exponents and Powers",
+              "kind": "unit"
+            },
+            {
+              "code": "direct-and-inverse-proportions",
+              "title": "Direct and Inverse Proportions",
+              "kind": "unit"
+            },
+            {
+              "code": "factorisation",
+              "title": "Factorisation",
+              "kind": "unit"
+            },
+            {
+              "code": "introduction-to-graphs",
+              "title": "Introduction to Graphs",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "science",
+          "title": "Science",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "crop-production-and-management",
+              "title": "Crop Production and Management",
+              "kind": "unit"
+            },
+            {
+              "code": "microorganisms-friend-and-foe",
+              "title": "Microorganisms: Friend and Foe",
+              "kind": "unit"
+            },
+            {
+              "code": "synthetic-fibres-and-plastics",
+              "title": "Synthetic Fibres and Plastics",
+              "kind": "unit"
+            },
+            {
+              "code": "materials-metals-and-non-metals",
+              "title": "Materials: Metals and Non-Metals",
+              "kind": "unit"
+            },
+            {
+              "code": "coal-and-petroleum",
+              "title": "Coal and Petroleum",
+              "kind": "unit"
+            },
+            {
+              "code": "combustion-and-flame",
+              "title": "Combustion and Flame",
+              "kind": "unit"
+            },
+            {
+              "code": "conservation-of-plants-and-animals",
+              "title": "Conservation of Plants and Animals",
+              "kind": "unit"
+            },
+            {
+              "code": "cell-structure-and-functions",
+              "title": "Cell: Structure and Functions",
+              "kind": "unit"
+            },
+            {
+              "code": "reproduction-in-animals",
+              "title": "Reproduction in Animals",
+              "kind": "unit"
+            },
+            {
+              "code": "reaching-the-age-of-adolescence",
+              "title": "Reaching the Age of Adolescence",
+              "kind": "unit"
+            },
+            {
+              "code": "force-and-pressure",
+              "title": "Force and Pressure",
+              "kind": "unit"
+            },
+            {
+              "code": "friction",
+              "title": "Friction",
+              "kind": "unit"
+            },
+            {
+              "code": "sound",
+              "title": "Sound",
+              "kind": "unit"
+            },
+            {
+              "code": "chemical-effects-of-electric-current",
+              "title": "Chemical Effects of Electric Current",
+              "kind": "unit"
+            },
+            {
+              "code": "some-natural-phenomena",
+              "title": "Some Natural Phenomena",
+              "kind": "unit"
+            },
+            {
+              "code": "light",
+              "title": "Light",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "social-science",
+          "title": "Social Science",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbook parts, not chapters",
+          "children": [
+            {
+              "code": "history-our-pasts-iii",
+              "title": "History: Our Pasts III",
+              "kind": "unit"
+            },
+            {
+              "code": "geography-resources-and-development",
+              "title": "Geography: Resources and Development",
+              "kind": "unit"
+            },
+            {
+              "code": "social-and-political-life-iii",
+              "title": "Social and Political Life III",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "english",
+          "title": "English",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "honeydew",
+              "title": "Honeydew",
+              "kind": "unit"
+            },
+            {
+              "code": "it-so-happened",
+              "title": "It So Happened",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "hindi",
+          "title": "Hindi",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "vasant",
+              "title": "Vasant",
+              "kind": "unit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "grade-9",
+      "title": "Grade 9",
+      "kind": "grade",
+      "children": [
+        {
+          "code": "mathematics",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "number-systems",
+              "title": "Number Systems",
+              "kind": "unit"
+            },
+            {
+              "code": "polynomials",
+              "title": "Polynomials",
+              "kind": "unit"
+            },
+            {
+              "code": "coordinate-geometry",
+              "title": "Coordinate Geometry",
+              "kind": "unit"
+            },
+            {
+              "code": "linear-equations-in-two-variables",
+              "title": "Linear Equations in Two Variables",
+              "kind": "unit"
+            },
+            {
+              "code": "introduction-to-euclids-geometry",
+              "title": "Introduction to Euclid's Geometry",
+              "kind": "unit"
+            },
+            {
+              "code": "lines-and-angles",
+              "title": "Lines and Angles",
+              "kind": "unit"
+            },
+            {
+              "code": "triangles",
+              "title": "Triangles",
+              "kind": "unit"
+            },
+            {
+              "code": "quadrilaterals",
+              "title": "Quadrilaterals",
+              "kind": "unit"
+            },
+            {
+              "code": "circles",
+              "title": "Circles",
+              "kind": "unit"
+            },
+            {
+              "code": "herons-formula",
+              "title": "Heron's Formula",
+              "kind": "unit"
+            },
+            {
+              "code": "surface-areas-and-volumes",
+              "title": "Surface Areas and Volumes",
+              "kind": "unit"
+            },
+            {
+              "code": "statistics",
+              "title": "Statistics",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "science",
+          "title": "Science",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "matter-in-our-surroundings",
+              "title": "Matter in Our Surroundings",
+              "kind": "unit"
+            },
+            {
+              "code": "is-matter-around-us-pure",
+              "title": "Is Matter Around Us Pure?",
+              "kind": "unit"
+            },
+            {
+              "code": "atoms-and-molecules",
+              "title": "Atoms and Molecules",
+              "kind": "unit"
+            },
+            {
+              "code": "structure-of-the-atom",
+              "title": "Structure of the Atom",
+              "kind": "unit"
+            },
+            {
+              "code": "the-fundamental-unit-of-life",
+              "title": "The Fundamental Unit of Life",
+              "kind": "unit"
+            },
+            {
+              "code": "tissues",
+              "title": "Tissues",
+              "kind": "unit"
+            },
+            {
+              "code": "motion",
+              "title": "Motion",
+              "kind": "unit"
+            },
+            {
+              "code": "force-and-laws-of-motion",
+              "title": "Force and Laws of Motion",
+              "kind": "unit"
+            },
+            {
+              "code": "gravitation",
+              "title": "Gravitation",
+              "kind": "unit"
+            },
+            {
+              "code": "work-and-energy",
+              "title": "Work and Energy",
+              "kind": "unit"
+            },
+            {
+              "code": "sound",
+              "title": "Sound",
+              "kind": "unit"
+            },
+            {
+              "code": "improvement-in-food-resources",
+              "title": "Improvement in Food Resources",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "social-science",
+          "title": "Social Science",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbook parts, not chapters",
+          "children": [
+            {
+              "code": "history-india-and-the-contemporary-world-i",
+              "title": "History: India and the Contemporary World I",
+              "kind": "unit"
+            },
+            {
+              "code": "geography-contemporary-india-i",
+              "title": "Geography: Contemporary India I",
+              "kind": "unit"
+            },
+            {
+              "code": "political-science-democratic-politics-i",
+              "title": "Political Science: Democratic Politics I",
+              "kind": "unit"
+            },
+            {
+              "code": "economics",
+              "title": "Economics",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "english",
+          "title": "English",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "beehive",
+              "title": "Beehive",
+              "kind": "unit"
+            },
+            {
+              "code": "moments",
+              "title": "Moments",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "hindi",
+          "title": "Hindi",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "kshitij",
+              "title": "Kshitij",
+              "kind": "unit"
+            },
+            {
+              "code": "kritika",
+              "title": "Kritika",
+              "kind": "unit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "grade-10",
+      "title": "Grade 10",
+      "kind": "grade",
+      "children": [
+        {
+          "code": "mathematics",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "real-numbers",
+              "title": "Real Numbers",
+              "kind": "unit"
+            },
+            {
+              "code": "polynomials",
+              "title": "Polynomials",
+              "kind": "unit"
+            },
+            {
+              "code": "pair-of-linear-equations-in-two-variables",
+              "title": "Pair of Linear Equations in Two Variables",
+              "kind": "unit"
+            },
+            {
+              "code": "quadratic-equations",
+              "title": "Quadratic Equations",
+              "kind": "unit"
+            },
+            {
+              "code": "arithmetic-progressions",
+              "title": "Arithmetic Progressions",
+              "kind": "unit"
+            },
+            {
+              "code": "triangles",
+              "title": "Triangles",
+              "kind": "unit"
+            },
+            {
+              "code": "coordinate-geometry",
+              "title": "Coordinate Geometry",
+              "kind": "unit"
+            },
+            {
+              "code": "introduction-to-trigonometry",
+              "title": "Introduction to Trigonometry",
+              "kind": "unit"
+            },
+            {
+              "code": "some-applications-of-trigonometry",
+              "title": "Some Applications of Trigonometry",
+              "kind": "unit"
+            },
+            {
+              "code": "circles",
+              "title": "Circles",
+              "kind": "unit"
+            },
+            {
+              "code": "areas-related-to-circles",
+              "title": "Areas Related to Circles",
+              "kind": "unit"
+            },
+            {
+              "code": "surface-areas-and-volumes",
+              "title": "Surface Areas and Volumes",
+              "kind": "unit"
+            },
+            {
+              "code": "statistics",
+              "title": "Statistics",
+              "kind": "unit"
+            },
+            {
+              "code": "probability",
+              "title": "Probability",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "science",
+          "title": "Science",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "chemical-reactions-and-equations",
+              "title": "Chemical Reactions and Equations",
+              "kind": "unit"
+            },
+            {
+              "code": "acids-bases-and-salts",
+              "title": "Acids, Bases and Salts",
+              "kind": "unit"
+            },
+            {
+              "code": "metals-and-non-metals",
+              "title": "Metals and Non-metals",
+              "kind": "unit"
+            },
+            {
+              "code": "carbon-and-its-compounds",
+              "title": "Carbon and its Compounds",
+              "kind": "unit"
+            },
+            {
+              "code": "life-processes",
+              "title": "Life Processes",
+              "kind": "unit"
+            },
+            {
+              "code": "control-and-coordination",
+              "title": "Control and Coordination",
+              "kind": "unit"
+            },
+            {
+              "code": "how-do-organisms-reproduce",
+              "title": "How do Organisms Reproduce?",
+              "kind": "unit"
+            },
+            {
+              "code": "heredity",
+              "title": "Heredity",
+              "kind": "unit"
+            },
+            {
+              "code": "light-reflection-and-refraction",
+              "title": "Light: Reflection and Refraction",
+              "kind": "unit"
+            },
+            {
+              "code": "the-human-eye-and-the-colourful-world",
+              "title": "The Human Eye and the Colourful World",
+              "kind": "unit"
+            },
+            {
+              "code": "electricity",
+              "title": "Electricity",
+              "kind": "unit"
+            },
+            {
+              "code": "magnetic-effects-of-electric-current",
+              "title": "Magnetic Effects of Electric Current",
+              "kind": "unit"
+            },
+            {
+              "code": "our-environment",
+              "title": "Our Environment",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "social-science",
+          "title": "Social Science",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbook parts, not chapters",
+          "children": [
+            {
+              "code": "history-india-and-the-contemporary-world-ii",
+              "title": "History: India and the Contemporary World II",
+              "kind": "unit"
+            },
+            {
+              "code": "geography-contemporary-india-ii",
+              "title": "Geography: Contemporary India II",
+              "kind": "unit"
+            },
+            {
+              "code": "political-science-democratic-politics-ii",
+              "title": "Political Science: Democratic Politics II",
+              "kind": "unit"
+            },
+            {
+              "code": "economics-understanding-economic-development",
+              "title": "Economics: Understanding Economic Development",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "english",
+          "title": "English",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "first-flight",
+              "title": "First Flight",
+              "kind": "unit"
+            },
+            {
+              "code": "footprints-without-feet",
+              "title": "Footprints without Feet",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "hindi",
+          "title": "Hindi",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "kshitij",
+              "title": "Kshitij",
+              "kind": "unit"
+            },
+            {
+              "code": "kritika",
+              "title": "Kritika",
+              "kind": "unit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "grade-11",
+      "title": "Grade 11",
+      "kind": "grade",
+      "children": [
+        {
+          "code": "mathematics",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "sets",
+              "title": "Sets",
+              "kind": "unit"
+            },
+            {
+              "code": "relations-and-functions",
+              "title": "Relations and Functions",
+              "kind": "unit"
+            },
+            {
+              "code": "trigonometric-functions",
+              "title": "Trigonometric Functions",
+              "kind": "unit"
+            },
+            {
+              "code": "complex-numbers-and-quadratic-equations",
+              "title": "Complex Numbers and Quadratic Equations",
+              "kind": "unit"
+            },
+            {
+              "code": "linear-inequalities",
+              "title": "Linear Inequalities",
+              "kind": "unit"
+            },
+            {
+              "code": "permutations-and-combinations",
+              "title": "Permutations and Combinations",
+              "kind": "unit"
+            },
+            {
+              "code": "binomial-theorem",
+              "title": "Binomial Theorem",
+              "kind": "unit"
+            },
+            {
+              "code": "sequences-and-series",
+              "title": "Sequences and Series",
+              "kind": "unit"
+            },
+            {
+              "code": "straight-lines",
+              "title": "Straight Lines",
+              "kind": "unit"
+            },
+            {
+              "code": "conic-sections",
+              "title": "Conic Sections",
+              "kind": "unit"
+            },
+            {
+              "code": "introduction-to-three-dimensional-geometry",
+              "title": "Introduction to Three Dimensional Geometry",
+              "kind": "unit"
+            },
+            {
+              "code": "limits-and-derivatives",
+              "title": "Limits and Derivatives",
+              "kind": "unit"
+            },
+            {
+              "code": "statistics",
+              "title": "Statistics",
+              "kind": "unit"
+            },
+            {
+              "code": "probability",
+              "title": "Probability",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "physics",
+          "title": "Physics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "units-and-measurements",
+              "title": "Units and Measurements",
+              "kind": "unit"
+            },
+            {
+              "code": "motion-in-a-straight-line",
+              "title": "Motion in a Straight Line",
+              "kind": "unit"
+            },
+            {
+              "code": "motion-in-a-plane",
+              "title": "Motion in a Plane",
+              "kind": "unit"
+            },
+            {
+              "code": "laws-of-motion",
+              "title": "Laws of Motion",
+              "kind": "unit"
+            },
+            {
+              "code": "work-energy-and-power",
+              "title": "Work, Energy and Power",
+              "kind": "unit"
+            },
+            {
+              "code": "system-of-particles-and-rotational-motion",
+              "title": "System of Particles and Rotational Motion",
+              "kind": "unit"
+            },
+            {
+              "code": "gravitation",
+              "title": "Gravitation",
+              "kind": "unit"
+            },
+            {
+              "code": "mechanical-properties-of-solids",
+              "title": "Mechanical Properties of Solids",
+              "kind": "unit"
+            },
+            {
+              "code": "mechanical-properties-of-fluids",
+              "title": "Mechanical Properties of Fluids",
+              "kind": "unit"
+            },
+            {
+              "code": "thermal-properties-of-matter",
+              "title": "Thermal Properties of Matter",
+              "kind": "unit"
+            },
+            {
+              "code": "thermodynamics",
+              "title": "Thermodynamics",
+              "kind": "unit"
+            },
+            {
+              "code": "kinetic-theory",
+              "title": "Kinetic Theory",
+              "kind": "unit"
+            },
+            {
+              "code": "oscillations",
+              "title": "Oscillations",
+              "kind": "unit"
+            },
+            {
+              "code": "waves",
+              "title": "Waves",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "chemistry",
+          "title": "Chemistry",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "some-basic-concepts-of-chemistry",
+              "title": "Some Basic Concepts of Chemistry",
+              "kind": "unit"
+            },
+            {
+              "code": "structure-of-atom",
+              "title": "Structure of Atom",
+              "kind": "unit"
+            },
+            {
+              "code": "classification-of-elements-and-periodicity-in-properties",
+              "title": "Classification of Elements and Periodicity in Properties",
+              "kind": "unit"
+            },
+            {
+              "code": "chemical-bonding-and-molecular-structure",
+              "title": "Chemical Bonding and Molecular Structure",
+              "kind": "unit"
+            },
+            {
+              "code": "chemical-thermodynamics",
+              "title": "Chemical Thermodynamics",
+              "kind": "unit"
+            },
+            {
+              "code": "equilibrium",
+              "title": "Equilibrium",
+              "kind": "unit"
+            },
+            {
+              "code": "redox-reactions",
+              "title": "Redox Reactions",
+              "kind": "unit"
+            },
+            {
+              "code": "organic-chemistry-some-basic-principles-and-techniques",
+              "title": "Organic Chemistry: Some Basic Principles and Techniques",
+              "kind": "unit"
+            },
+            {
+              "code": "hydrocarbons",
+              "title": "Hydrocarbons",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "biology",
+          "title": "Biology",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "the-living-world",
+              "title": "The Living World",
+              "kind": "unit"
+            },
+            {
+              "code": "biological-classification",
+              "title": "Biological Classification",
+              "kind": "unit"
+            },
+            {
+              "code": "plant-kingdom",
+              "title": "Plant Kingdom",
+              "kind": "unit"
+            },
+            {
+              "code": "animal-kingdom",
+              "title": "Animal Kingdom",
+              "kind": "unit"
+            },
+            {
+              "code": "morphology-of-flowering-plants",
+              "title": "Morphology of Flowering Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "anatomy-of-flowering-plants",
+              "title": "Anatomy of Flowering Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "structural-organisation-in-animals",
+              "title": "Structural Organisation in Animals",
+              "kind": "unit"
+            },
+            {
+              "code": "cell-the-unit-of-life",
+              "title": "Cell: The Unit of Life",
+              "kind": "unit"
+            },
+            {
+              "code": "biomolecules",
+              "title": "Biomolecules",
+              "kind": "unit"
+            },
+            {
+              "code": "cell-cycle-and-cell-division",
+              "title": "Cell Cycle and Cell Division",
+              "kind": "unit"
+            },
+            {
+              "code": "photosynthesis-in-higher-plants",
+              "title": "Photosynthesis in Higher Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "respiration-in-plants",
+              "title": "Respiration in Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "plant-growth-and-development",
+              "title": "Plant Growth and Development",
+              "kind": "unit"
+            },
+            {
+              "code": "breathing-and-exchange-of-gases",
+              "title": "Breathing and Exchange of Gases",
+              "kind": "unit"
+            },
+            {
+              "code": "body-fluids-and-circulation",
+              "title": "Body Fluids and Circulation",
+              "kind": "unit"
+            },
+            {
+              "code": "excretory-products-and-their-elimination",
+              "title": "Excretory Products and their Elimination",
+              "kind": "unit"
+            },
+            {
+              "code": "locomotion-and-movement",
+              "title": "Locomotion and Movement",
+              "kind": "unit"
+            },
+            {
+              "code": "neural-control-and-coordination",
+              "title": "Neural Control and Coordination",
+              "kind": "unit"
+            },
+            {
+              "code": "chemical-coordination-and-integration",
+              "title": "Chemical Coordination and Integration",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "english",
+          "title": "English",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "hornbill",
+              "title": "Hornbill",
+              "kind": "unit"
+            },
+            {
+              "code": "snapshots",
+              "title": "Snapshots",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "hindi",
+          "title": "Hindi",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "aroh",
+              "title": "Aroh",
+              "kind": "unit"
+            },
+            {
+              "code": "vitan",
+              "title": "Vitan",
+              "kind": "unit"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "code": "grade-12",
+      "title": "Grade 12",
+      "kind": "grade",
+      "children": [
+        {
+          "code": "mathematics",
+          "title": "Mathematics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "relations-and-functions",
+              "title": "Relations and Functions",
+              "kind": "unit"
+            },
+            {
+              "code": "inverse-trigonometric-functions",
+              "title": "Inverse Trigonometric Functions",
+              "kind": "unit"
+            },
+            {
+              "code": "matrices",
+              "title": "Matrices",
+              "kind": "unit"
+            },
+            {
+              "code": "determinants",
+              "title": "Determinants",
+              "kind": "unit"
+            },
+            {
+              "code": "continuity-and-differentiability",
+              "title": "Continuity and Differentiability",
+              "kind": "unit"
+            },
+            {
+              "code": "application-of-derivatives",
+              "title": "Application of Derivatives",
+              "kind": "unit"
+            },
+            {
+              "code": "integrals",
+              "title": "Integrals",
+              "kind": "unit"
+            },
+            {
+              "code": "application-of-integrals",
+              "title": "Application of Integrals",
+              "kind": "unit"
+            },
+            {
+              "code": "differential-equations",
+              "title": "Differential Equations",
+              "kind": "unit"
+            },
+            {
+              "code": "vector-algebra",
+              "title": "Vector Algebra",
+              "kind": "unit"
+            },
+            {
+              "code": "three-dimensional-geometry",
+              "title": "Three Dimensional Geometry",
+              "kind": "unit"
+            },
+            {
+              "code": "linear-programming",
+              "title": "Linear Programming",
+              "kind": "unit"
+            },
+            {
+              "code": "probability",
+              "title": "Probability",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "physics",
+          "title": "Physics",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "electric-charges-and-fields",
+              "title": "Electric Charges and Fields",
+              "kind": "unit"
+            },
+            {
+              "code": "electrostatic-potential-and-capacitance",
+              "title": "Electrostatic Potential and Capacitance",
+              "kind": "unit"
+            },
+            {
+              "code": "current-electricity",
+              "title": "Current Electricity",
+              "kind": "unit"
+            },
+            {
+              "code": "moving-charges-and-magnetism",
+              "title": "Moving Charges and Magnetism",
+              "kind": "unit"
+            },
+            {
+              "code": "magnetism-and-matter",
+              "title": "Magnetism and Matter",
+              "kind": "unit"
+            },
+            {
+              "code": "electromagnetic-induction",
+              "title": "Electromagnetic Induction",
+              "kind": "unit"
+            },
+            {
+              "code": "alternating-current",
+              "title": "Alternating Current",
+              "kind": "unit"
+            },
+            {
+              "code": "electromagnetic-waves",
+              "title": "Electromagnetic Waves",
+              "kind": "unit"
+            },
+            {
+              "code": "ray-optics-and-optical-instruments",
+              "title": "Ray Optics and Optical Instruments",
+              "kind": "unit"
+            },
+            {
+              "code": "wave-optics",
+              "title": "Wave Optics",
+              "kind": "unit"
+            },
+            {
+              "code": "dual-nature-of-radiation-and-matter",
+              "title": "Dual Nature of Radiation and Matter",
+              "kind": "unit"
+            },
+            {
+              "code": "atoms",
+              "title": "Atoms",
+              "kind": "unit"
+            },
+            {
+              "code": "nuclei",
+              "title": "Nuclei",
+              "kind": "unit"
+            },
+            {
+              "code": "semiconductor-electronics",
+              "title": "Semiconductor Electronics",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "chemistry",
+          "title": "Chemistry",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "solutions",
+              "title": "Solutions",
+              "kind": "unit"
+            },
+            {
+              "code": "electrochemistry",
+              "title": "Electrochemistry",
+              "kind": "unit"
+            },
+            {
+              "code": "chemical-kinetics",
+              "title": "Chemical Kinetics",
+              "kind": "unit"
+            },
+            {
+              "code": "the-d-and-f-block-elements",
+              "title": "The d- and f-Block Elements",
+              "kind": "unit"
+            },
+            {
+              "code": "coordination-compounds",
+              "title": "Coordination Compounds",
+              "kind": "unit"
+            },
+            {
+              "code": "haloalkanes-and-haloarenes",
+              "title": "Haloalkanes and Haloarenes",
+              "kind": "unit"
+            },
+            {
+              "code": "alcohols-phenols-and-ethers",
+              "title": "Alcohols, Phenols and Ethers",
+              "kind": "unit"
+            },
+            {
+              "code": "aldehydes-ketones-and-carboxylic-acids",
+              "title": "Aldehydes, Ketones and Carboxylic Acids",
+              "kind": "unit"
+            },
+            {
+              "code": "amines",
+              "title": "Amines",
+              "kind": "unit"
+            },
+            {
+              "code": "biomolecules",
+              "title": "Biomolecules",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "biology",
+          "title": "Biology",
+          "kind": "subject",
+          "children": [
+            {
+              "code": "sexual-reproduction-in-flowering-plants",
+              "title": "Sexual Reproduction in Flowering Plants",
+              "kind": "unit"
+            },
+            {
+              "code": "human-reproduction",
+              "title": "Human Reproduction",
+              "kind": "unit"
+            },
+            {
+              "code": "reproductive-health",
+              "title": "Reproductive Health",
+              "kind": "unit"
+            },
+            {
+              "code": "principles-of-inheritance-and-variation",
+              "title": "Principles of Inheritance and Variation",
+              "kind": "unit"
+            },
+            {
+              "code": "molecular-basis-of-inheritance",
+              "title": "Molecular Basis of Inheritance",
+              "kind": "unit"
+            },
+            {
+              "code": "evolution",
+              "title": "Evolution",
+              "kind": "unit"
+            },
+            {
+              "code": "human-health-and-disease",
+              "title": "Human Health and Disease",
+              "kind": "unit"
+            },
+            {
+              "code": "microbes-in-human-welfare",
+              "title": "Microbes in Human Welfare",
+              "kind": "unit"
+            },
+            {
+              "code": "biotechnology-principles-and-processes",
+              "title": "Biotechnology: Principles and Processes",
+              "kind": "unit"
+            },
+            {
+              "code": "biotechnology-and-its-applications",
+              "title": "Biotechnology and its Applications",
+              "kind": "unit"
+            },
+            {
+              "code": "organisms-and-populations",
+              "title": "Organisms and Populations",
+              "kind": "unit"
+            },
+            {
+              "code": "ecosystem",
+              "title": "Ecosystem",
+              "kind": "unit"
+            },
+            {
+              "code": "biodiversity-and-conservation",
+              "title": "Biodiversity and Conservation",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "english",
+          "title": "English",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "flamingo",
+              "title": "Flamingo",
+              "kind": "unit"
+            },
+            {
+              "code": "vistas",
+              "title": "Vistas",
+              "kind": "unit"
+            }
+          ]
+        },
+        {
+          "code": "hindi",
+          "title": "Hindi",
+          "kind": "subject",
+          "description": "partial: verify against the NCERT textbook; units are the textbooks, not chapters",
+          "children": [
+            {
+              "code": "aroh",
+              "title": "Aroh",
+              "kind": "unit"
+            },
+            {
+              "code": "vitan",
+              "title": "Vitan",
+              "kind": "unit"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
