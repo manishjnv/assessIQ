@@ -250,10 +250,10 @@ export interface GeneratedQuestionDraft {
 // ponytail: the registry type is not narrowable by generatorSkill at type level, so the narrow
 // type comes from this key set (checked against the registry ids by `satisfies`); the runtime
 // list GENERABLE_IDS is derived from generatorSkill, and generable-types.test.ts pins the two.
-const GENERABLE_KEYS = { mcq: 1, subjective: 1, kql: 1, scenario: 1, log_analysis: 1 } satisfies Partial<
+const _GENERABLE_KEYS = { mcq: 1, subjective: 1, kql: 1, scenario: 1, log_analysis: 1 } satisfies Partial<
   Record<RegistryQuestionType, 1>
 >;
-export type GenerableQuestionType = keyof typeof GENERABLE_KEYS;
+export type GenerableQuestionType = keyof typeof _GENERABLE_KEYS;
 export type QuestionType = GenerableQuestionType;
 /** Historical iteration order of the generable types (insert/loop order is behaviour). */
 export const GENERATION_ORDER: readonly Extract<GenerableQuestionType, string>[] = ["mcq", "log_analysis", "scenario", "kql", "subjective"];

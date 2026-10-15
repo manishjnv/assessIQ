@@ -349,7 +349,7 @@ const STRUCTURAL_CHECKS = {
       }
       return { ok: true };
   },
-  log_analysis: (level, content, rubric, spec) => {
+  log_analysis: () => {
       // No hard gate in Phase A.
       return { ok: true };
   },
