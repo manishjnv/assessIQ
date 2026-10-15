@@ -185,14 +185,17 @@ export async function listUsersRows(
   const pageSize = filters.pageSize ?? 20;
   const offset = (page - 1) * pageSize;
 
-  const dataResult = await client.query<UserRow>(
-    `SELECT ${USER_COLUMNS} FROM users ${where}
+  // RW-91: totp_enrolled for the admin list (Reset two-factor menu); RLS scopes user_credentials.
+  const dataResult = await client.query<UserRow & { totp_enrolled: boolean }>(
+    `SELECT ${USER_COLUMNS},
+            COALESCE((SELECT uc.totp_secret_enc IS NOT NULL FROM user_credentials uc WHERE uc.user_id = users.id), false) AS totp_enrolled
+     FROM users ${where}
      ORDER BY created_at DESC, id DESC
      LIMIT $${i} OFFSET $${i + 1}`,
     [...values, pageSize, offset],
   );
 
-  return { items: dataResult.rows.map(mapUserRow), total };
+  return { items: dataResult.rows.map((r) => ({ ...mapUserRow(r), totp_enrolled: r.totp_enrolled })), total };
 }
 
 export async function insertUser(

@@ -12,6 +12,8 @@ export interface User {
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
+  /** Set on the admin list only (RW-91). */
+  totp_enrolled?: boolean;
 }
 
 export interface UserInvitation {

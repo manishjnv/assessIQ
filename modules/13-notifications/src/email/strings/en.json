@@ -67,6 +67,12 @@
     "greeting": "Hi {{recipientName}},",
     "security_warning": "If you did not perform this action, contact your administrator immediately and change your password."
   },
+  "totp_reset_notice": {
+    "page_title": "Two-factor sign-in reset",
+    "brand_wordmark": "AssessIQ",
+    "greeting": "Hi {{recipientName}},",
+    "security_warning": "If you did not ask for this, contact your administrator now."
+  },
   "admin_email_otp": {
     "page_title": "Your AssessIQ sign-in code",
     "brand_wordmark": "AssessIQ",

@@ -3,20 +3,22 @@
 
 import React, { useState } from "react";
 import { ConfirmDialog } from "@assessiq/ui-system";
-import { AdminApiError, superResetUserTotpApi } from "../api.js";
+import { AdminApiError, resetUserTotpApi, superResetUserTotpApi } from "../api.js";
+import { useMfaGuard } from "./useMfaGuard.js";
 
 export interface ResetTotpTarget {
   id: string;
   email: string;
 }
 
+// tenantId set: super-admin route (RW-45). Omitted: tenant-admin route, own tenant (RW-91).
 export function ResetTotpDialog({
   tenantId,
   user,
   onDone,
   onCancel,
 }: {
-  tenantId: string;
+  tenantId?: string;
   user: ResetTotpTarget;
   onDone: () => void;
   onCancel: () => void;
@@ -24,6 +26,7 @@ export function ResetTotpDialog({
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { guard, stepUp } = useMfaGuard("Enter your authenticator code to reset two-factor for this user.");
 
   const confirm = async (): Promise<void> => {
     if (reason.trim().length === 0) {
@@ -32,6 +35,15 @@ export function ResetTotpDialog({
     }
     setBusy(true);
     setError(null);
+    if (tenantId === undefined) {
+      // Tenant admin route needs a fresh code: a step-up failure opens the code prompt and retries.
+      await guard(
+        async () => { await resetUserTotpApi(user.id, reason.trim()); onDone(); },
+        (message) => setError(message),
+      );
+      setBusy(false);
+      return;
+    }
     try {
       await superResetUserTotpApi(tenantId, user.id, reason.trim());
       onDone();
@@ -46,6 +58,8 @@ export function ResetTotpDialog({
   };
 
   return (
+    <>
+    {stepUp}
     <ConfirmDialog
       open
       danger
@@ -87,5 +101,6 @@ export function ResetTotpDialog({
         </div>
       }
     />
+    </>
   );
 }

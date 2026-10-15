@@ -38,6 +38,7 @@ import {
   InvitationReminderVarsSchema,
   CandidateLoginLinkVarsSchema,
   TotpEnrolledVarsSchema,
+  TotpResetNoticeVarsSchema,
   AttemptSubmittedCandidateVarsSchema,
   AttemptGradedCandidateVarsSchema,
   AttemptReadyForReviewAdminVarsSchema,
@@ -65,6 +66,7 @@ const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   invitation_reminder: InvitationReminderVarsSchema,
   candidate_login_link: CandidateLoginLinkVarsSchema,
   totp_enrolled: TotpEnrolledVarsSchema,
+  totp_reset_notice: TotpResetNoticeVarsSchema,
   attempt_submitted_candidate: AttemptSubmittedCandidateVarsSchema,
   attempt_graded_candidate: AttemptGradedCandidateVarsSchema,
   attempt_ready_for_review_admin: AttemptReadyForReviewAdminVarsSchema,
@@ -226,6 +228,11 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
       }
       return rows;
     }
+    case 'totp_reset_notice':
+      return [
+        { k: 'Reset on', v: escapeHtml(String(p.resetAt)) },
+        { k: 'Reset by', v: escapeHtml(String(p.resetBy)) },
+      ];
     default:
       return [];
   }

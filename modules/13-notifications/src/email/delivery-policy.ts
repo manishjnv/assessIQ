@@ -43,6 +43,7 @@ export const EMAIL_CLASS: Record<EmailTemplateName, EmailClass> = {
   invitation_candidate: 'bulk',
   invitation_reminder: 'bulk',
   totp_enrolled: 'bulk',
+  totp_reset_notice: 'bulk',
   attempt_submitted_candidate: 'bulk',
   attempt_graded_candidate: 'bulk',
   attempt_ready_for_review_admin: 'bulk',
