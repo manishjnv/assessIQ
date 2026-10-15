@@ -3,6 +3,7 @@
  */
 
 import {
+  AppError,
   NotFoundError,
   ValidationError,
   uuidv7,
@@ -17,6 +18,30 @@ import * as repo from "../repository.js";
 type AiGrading = typeof import("@assessiq/ai-grading");
 type RubricQuestionType = Parameters<AiGrading["generateRubricDraft"]>[0]["questionType"];
 type GuidanceQuestionType = Parameters<AiGrading["generateAnswerGuidanceDraft"]>[0]["questionType"];
+
+/**
+ * RW-63: rubric / answer-guidance drafts spawn the same claude CLI as generation,
+ * so they take the same global single-flight lease. Held -> 409
+ * AIG_GRADING_IN_PROGRESS and the runtime is never called. `run` gets the
+ * lease-lost signal (RW-64). Fail-closed 503 from acquire propagates unchanged.
+ */
+async function withAiLock<T>(key: string, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const { singleFlight, AI_GRADING_ERROR_CODES } = await import("@assessiq/ai-grading");
+  const slot = await singleFlight.acquire(key);
+  if (slot.kind === "rejected") {
+    throw new AppError(
+      `AI work already in flight (reason: ${slot.reason})`,
+      AI_GRADING_ERROR_CODES.GRADING_IN_PROGRESS,
+      409,
+      { details: { key } },
+    );
+  }
+  try {
+    return await run(slot.signal);
+  } finally {
+    await slot.release();
+  }
+}
 
 const isAiGradeableType = (t: string): boolean => isQuestionType(t) && getQuestionType(t).aiGradeable;
 import {
@@ -226,7 +251,7 @@ export async function generateQuestions(
   } = await import("../knowledge-base/index.js");
   // difficulty-spec.ts (this module) — single source of truth for per-(type,level)
   // intrinsic-difficulty targets (Phase A3). Intra-module import; no boundary cross.
-  const { DIFFICULTY_SPEC, GENERATED_TYPES, validateStructuralDifficulty, functionToNice } =
+  const { DIFFICULTY_SPEC, GENERATED_TYPES, validateStructuralDifficulty, warnStructuralDifficulty, functionToNice } =
     await import("../difficulty-spec.js");
 
   // Resolve level label to SOC level
@@ -263,6 +288,9 @@ export async function generateQuestions(
       content: unknown,
       rubric: unknown,
     ) => validateStructuralDifficulty(type, socLevel, content, rubric),
+    // RW-88: warn-level heuristics (RW-50); surfaced by 07, never blocking.
+    warn: (type: Parameters<typeof warnStructuralDifficulty>[0], content: unknown) =>
+      warnStructuralDifficulty(type, socLevel, content),
     niceForFunction: functionToNice,
   };
 
@@ -442,14 +470,17 @@ export async function generateRubricForQuestion(
 
     const { generateRubricDraft } = await import("@assessiq/ai-grading");
 
-    const output = await generateRubricDraft({
-      questionText: deriveQuestionTextForRubric(question),
-      questionType: question.type as RubricQuestionType,
-      levelOrdinal: level.position,
-      levelDefaults: level.rubric_defaults ?? null,
-      existingRubric: question.rubric ?? undefined,
-      questionId,
-    });
+    const output = await withAiLock(`rubric:${questionId}`, (signal) =>
+      generateRubricDraft({
+        questionText: deriveQuestionTextForRubric(question),
+        questionType: question.type as RubricQuestionType,
+        levelOrdinal: level.position,
+        levelDefaults: level.rubric_defaults ?? null,
+        existingRubric: question.rubric ?? undefined,
+        questionId,
+        signal,
+      }),
+    );
 
     return {
       proposal: output.rubric,
@@ -485,12 +516,15 @@ export async function generateAnswerGuidanceForQuestion(
 
     const { generateAnswerGuidanceDraft } = await import("@assessiq/ai-grading");
 
-    const output = await generateAnswerGuidanceDraft({
-      questionText: deriveQuestionTextForGuidance(question),
-      questionType: question.type as GuidanceQuestionType,
-      topic: question.topic,
-      questionId,
-    });
+    const output = await withAiLock(`guidance:${questionId}`, (signal) =>
+      generateAnswerGuidanceDraft({
+        questionText: deriveQuestionTextForGuidance(question),
+        questionType: question.type as GuidanceQuestionType,
+        topic: question.topic,
+        questionId,
+        signal,
+      }),
+    );
 
     return {
       proposal: output.answerGuidance,
@@ -636,13 +670,16 @@ export async function bulkGenerateMissingRubrics(
 
     const { generateRubricDraft } = await import("@assessiq/ai-grading");
 
-    const output = await generateRubricDraft({
-      questionText: deriveQuestionTextForRubric(question),
-      questionType: question.type as RubricQuestionType,
-      levelOrdinal: level.position,
-      levelDefaults: level.rubric_defaults ?? null,
-      questionId: currentQuestionId,
-    });
+    const output = await withAiLock(`rubric:${currentQuestionId}`, (signal) =>
+      generateRubricDraft({
+        questionText: deriveQuestionTextForRubric(question),
+        questionType: question.type as RubricQuestionType,
+        levelOrdinal: level.position,
+        levelDefaults: level.rubric_defaults ?? null,
+        questionId: currentQuestionId,
+        signal,
+      }),
+    );
 
     return {
       proposal: output.rubric,

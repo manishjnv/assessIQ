@@ -716,3 +716,54 @@ describe("generateQuestions - RW-92 subject/category/topic_focus", () => {
     expect(prompt).not.toContain("Every question must be about");
   });
 });
+
+
+describe("runSkill - RW-64 lease-lost abort", () => {
+  const gen = { level: "L1" as const, count: 1, existingTopics: [], sources: [], packId: "p", levelId: "l" };
+
+  function hangingProc(): { proc: ChildProcess; kill: ReturnType<typeof vi.fn> } {
+    const proc = new EventEmitter() as FakeProc;
+    proc.stdout = new Readable({ read() {} });
+    proc.stderr = new Readable({ read() {} });
+    proc.kill = vi.fn();
+    return { proc: proc as unknown as ChildProcess, kill: proc.kill };
+  }
+
+  it("abort kills the child (SIGTERM, SIGKILL after 5s) and rejects AIG_LEASE_LOST only after close", async () => {
+    vi.useFakeTimers();
+    try {
+      const { proc, kill } = hangingProc();
+      mockSpawn.mockReturnValueOnce(proc);
+      const ctrl = new AbortController();
+      let done = false;
+      const settled = generateQuestions({ ...gen, signal: ctrl.signal }).then(
+        () => { done = true; return null; },
+        (e: unknown) => { done = true; return e; },
+      );
+      await vi.advanceTimersByTimeAsync(10);
+      ctrl.abort();
+      await vi.advanceTimersByTimeAsync(10);
+      expect(kill).toHaveBeenCalledWith("SIGTERM");
+      expect(done).toBe(false); // child still alive: no rejection yet
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(kill).toHaveBeenCalledWith("SIGKILL");
+      expect(done).toBe(false);
+      (proc as unknown as EventEmitter).emit("close", null);
+      const err = (await settled) as AppError;
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.code).toBe(AI_GRADING_ERROR_CODES.LEASE_LOST);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("an already-aborted signal rejects without spawning", async () => {
+    mockSpawn.mockClear();
+    const ctrl = new AbortController();
+    ctrl.abort();
+    await expect(generateQuestions({ ...gen, signal: ctrl.signal })).rejects.toMatchObject({
+      code: AI_GRADING_ERROR_CODES.LEASE_LOST,
+    });
+    expect(mockSpawn).not.toHaveBeenCalled();
+  });
+});
