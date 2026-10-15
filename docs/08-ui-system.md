@@ -1073,8 +1073,20 @@ Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-sys
 
 **Reset two-factor dialog.** On the super-admin Users page, "Reset two-factor" sits in the Manage menu. It appears only when the row has `totp_enrolled` true, and never on the signed-in user's own row. It opens `modules/10-admin-dashboard/src/components/ResetTotpDialog.tsx`, a `ConfirmDialog` with a required reason field (up to 500 characters).
 
-**Help.** Keys `admin.account.security.*` (8) and `admin.users.super.reset_totp`, in `modules/16-help-system/content/en/admin.yml`. Migration 0171 carries the 9 rows to production.
+**Help.** Keys `admin.account.security.*` (8) and `admin.users.list.reset_totp`, in `modules/16-help-system/content/en/admin.yml`. Migration 0171 carries the 9 rows to production.
 
 **Why.** The backends existed but had no screen. An admin who lost recovery codes, or a user who lost the authenticator, had no way to recover without database access.
 
 **Not included.** A notice to the target user after reset. A tenant-admin reset. Backend contract: [03-api-contract.md](03-api-contract.md). Flow and audit: [04-auth-flows.md](04-auth-flows.md).
+
+## Generate wizard: Topic focus (RW-46, S10, 2026-10-15)
+
+*Type: reference.*
+
+**What.** The config step has an optional text field, `TopicFocusField` (`modules/10-admin-dashboard/src/components/TopicFocusField.tsx`). The maximum is 200 characters, the same limit as the API's `topic_focus`. Over the limit, the field shows an error and the Generate button is disabled. A non-empty trimmed value is sent as `topic_focus` in every per-category `POST /admin/generate` call of the run. An empty value sends no key. A resumed batch uses the focus typed in the current session, because the saved batch plan does not store it.
+
+**Help.** Key `admin.generate_wizard.topic_focus` (migration 0172).
+
+**Why.** The API accepted `topic_focus` (RW-46 backend) but the wizard had no input for it.
+
+**Not included.** A prompt change. The generation skills live on the VPS; if they must read `topic_focus` explicitly, the owner copies the skill and re-baselines the eval harness (docs/05-ai-pipeline.md).
