@@ -148,3 +148,6 @@ export function bandLabel(band: number | null | undefined): string {
 export function shortId(id: string): string {
   return id.slice(0, 8);
 }
+
+/** Row decision in a question import report (RW-58). */
+export const importDecisionLabel = labeler({ ok: "Ready", error: "Needs a fix", duplicate: "Duplicate", skip: "Skipped" });

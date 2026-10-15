@@ -64,6 +64,7 @@ export { AdminUsers } from "./pages/users.js";
 export { TenantSettings as AdminTenantSettings } from "./pages/tenant-settings.js";
 export { AdminGenerateWizard } from "./pages/generate-wizard.js";
 export { AdminPlatform } from "./pages/platform.js";
+export { AdminQuestionImport } from "./pages/question-import.js";
 export { SuperAdminUsers } from "./pages/super-admin-users.js";
 export { AdminAccountSecurity } from "./pages/account-security.js";
 export { AdminEvaluationsQueue } from "./pages/evaluations-queue.js";

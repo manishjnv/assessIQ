@@ -34,6 +34,7 @@ const AdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ d
 const AdminTenantSettings = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminTenantSettings })));
 const AdminGenerateWizard = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerateWizard })));
 const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminPlatform })));
+const AdminQuestionImport = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminQuestionImport })));
 const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
 const AdminAccountSecurity = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminAccountSecurity })));
 const AdminEvaluationsQueue = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEvaluationsQueue })));
@@ -115,6 +116,7 @@ export function App(): React.JSX.Element {
           <Route path="/admin/generation-attempts" element={<RequireSession role="super_admin"><AdminGenerationAttempts /></RequireSession>} />
           {/* Generate Question Wizard — Phase B1: re-gated to super_admin */}
           <Route path="/admin/generate-wizard" element={<RequireSession role="super_admin"><AdminGenerateWizard /></RequireSession>} />
+          <Route path="/admin/question-import" element={<RequireSession role="super_admin"><AdminQuestionImport /></RequireSession>} />
           {/* Certificates admin (Phase 5 Session 5) — AdminCertificates wraps AdminShell internally */}
           <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
           {/* Activity page (Phase 11) */}
