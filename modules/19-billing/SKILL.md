@@ -54,6 +54,8 @@ assessiq_app is REVOKED UPDATE, DELETE (mirrors audit_log invariant).
 
 Stores feature flags and hard usage limits per tenant. `assertPublishEntitled` is a hard gate: `403 NOT_ENTITLED` at publish time; `internal` tier bypasses; fail-closed when no plan row. Super admin grants/revokes scope (`apps/api/src/routes/admin-super.ts:970,1024`).
 
+**Revoke archives clones (RW-47).** `revokeEntitlement` also sets the tenant's cloned packs of the scope to `status='archived'` in the SAME transaction (pack scope: clones whose `source_pack_id` is the pack, or the clone id itself; domain scope: every clone whose source pack is in that domain) and writes one `tenant.pack_clone_archived` audit row (scope, source pack ids, archived clone ids, count; no content) when at least one clone was archived. Content is never deleted; in-flight attempts keep their snapshotted questions. **Re-granting does NOT un-archive** a clone: a super-admin must restore it explicitly (re-sync / manual status change). The SQL lives in `service.ts`, not in 04 `clone.ts`, because 19 has no dependency on 04 (rejected: adding the dep, or a callback wired from the route).
+
 **Tier definition.** The full Starter/Growth/Enterprise table (owner-decided 2026-10-03) is `docs/plans/PRICING_TIERS_2026-10-06.md`. This SKILL still owns the mechanism (`tenant_plans`, `billing_events`, `tenant_entitlements`); the tier *contents* live in that doc so pricing changes don't require a module SKILL edit.
 
 ## Same-transaction revenue-leak invariant
