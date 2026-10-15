@@ -288,19 +288,30 @@ function scanPoolText(rel: string, text: string): PoolHit[] {
   return out;
 }
 
-/** Pure check: a hit passes only if its file is in `allowed` AND the hit line is marked. */
-function checkPoolConnect(hits: PoolHit[], allowed: ReadonlySet<string>): string[] {
+/**
+ * Pure check, per hit line. An allowlist entry is `<file>` (covers one marked hit in that file; list it once per
+ * hit) or `<file>:<line>` (covers exactly that line). A hit passes only if it is marked AND consumes an entry,
+ * so a second connect in an allowlisted file needs its own entry. Unused entries are stale.
+ */
+function checkPoolConnect(hits: PoolHit[], allowed: readonly string[]): string[] {
   const errors: string[] = [];
-  const hitFiles = new Set<string>();
+  const left = [...allowed];
+  const take = (key: string): boolean => {
+    const i = left.indexOf(key);
+    if (i < 0) return false;
+    left.splice(i, 1);
+    return true;
+  };
   for (const h of hits) {
-    hitFiles.add(h.file);
-    if (allowed.has(h.file) && h.marked) continue;
-    const why = allowed.has(h.file) ? `missing '${POOL_MARKER} <reason>' marker` : "file not in tools/pool-connect.allowlist.txt";
+    const listed = left.includes(h.loc) || left.includes(h.file);
+    if (listed && h.marked) {
+      take(h.loc) || take(h.file);
+      continue;
+    }
+    const why = listed ? `missing '${POOL_MARKER} <reason>' marker` : "no free entry in tools/pool-connect.allowlist.txt (one entry per hit line)";
     errors.push(`${h.loc} — ${h.msg} (${why})`);
   }
-  for (const a of allowed) {
-    if (!hitFiles.has(a)) errors.push(`tools/pool-connect.allowlist.txt: stale entry ${a} (no pool hit)`);
-  }
+  for (const a of left) errors.push(`tools/pool-connect.allowlist.txt: stale entry ${a} (no pool hit)`);
   return errors;
 }
 
@@ -330,12 +341,12 @@ async function scanPoolConnect(): Promise<string[]> {
   await collectTsFiles(path.join(REPO_ROOT, "apps", "api", "src"), roots);
 
   const allowText = await fsp.readFile(path.join(REPO_ROOT, "tools", "pool-connect.allowlist.txt"), "utf8");
-  const allowed = new Set(
+  const allowed = (
     allowText
       .split(/\r?\n/)
       .map((l) => l.trim())
       .filter((l) => l.length > 0 && !l.startsWith("#"))
-      .map((l) => l.split("|")[0]!.trim()),
+      .map((l) => l.split("|")[0]!.trim())
   );
 
   const hits: PoolHit[] = [];
@@ -551,16 +562,20 @@ CREATE POLICY tenant_isolation_insert ON public.questions
     ["new Client in __tests__ exempt", scan("modules/x/src/__tests__/a.ts", "new Client({})").length === 0],
     ["plain pool.connect still flagged", scan("modules/x/src/a.ts", "pool.connect()").length === 1],
   ];
-  const listed = new Set(["modules/x/src/a.ts"]);
-  const chk = (rel: string, txt: string, set: ReadonlySet<string>) => checkPoolConnect(scanPoolText(rel, txt), set);
+  const listed = ["modules/x/src/a.ts"];
+  const chk = (rel: string, txt: string, set: readonly string[]) => checkPoolConnect(scanPoolText(rel, txt), set);
   const mk = "// pool-connect-ok: r";
   pcCases.push(["marker on line + file listed ok", chk("modules/x/src/a.ts", `pool.connect(); ${mk}`, listed).length === 0]);
   pcCases.push(["marker on line above ok", chk("modules/x/src/a.ts", `${mk}${String.fromCharCode(10)}pool.connect();`, listed).length === 0]);
   const unmarked = chk("modules/x/src/a.ts", `pool.connect(); ${mk}${String.fromCharCode(10)}foo();${String.fromCharCode(10)}${String.fromCharCode(10)}pool.connect();`, listed);
   pcCases.push(["listed file + second unmarked connect fails", unmarked.length === 1 && unmarked[0]!.startsWith("modules/x/src/a.ts:4")]);
   const unlisted = chk("modules/x/src/b.ts", `pool.connect(); ${mk}`, listed);
-  pcCases.push(["marker but file not listed fails", unlisted.length === 2 && unlisted[0]!.includes("not in tools/pool-connect")]);
-  const stale = checkPoolConnect([], new Set(["modules/x/src/gone.ts"]));
+  pcCases.push(["marker but file not listed fails", unlisted.length === 2 && unlisted[0]!.includes("no free entry")]);
+  const twoMarked = chk("modules/x/src/a.ts", `pool.connect(); ${mk}${String.fromCharCode(10)}pool.connect(); ${mk}`, listed);
+  pcCases.push(["second marked connect, one entry, fails", twoMarked.length === 1 && twoMarked[0]!.startsWith("modules/x/src/a.ts:2")]);
+  pcCases.push(["two entries cover two marked hits", chk("modules/x/src/a.ts", `pool.connect(); ${mk}${String.fromCharCode(10)}pool.connect(); ${mk}`, [...listed, ...listed]).length === 0]);
+  pcCases.push(["file:line entry matches exact line", chk("modules/x/src/a.ts", `foo();${String.fromCharCode(10)}pool.connect(); ${mk}`, ["modules/x/src/a.ts:2"]).length === 0]);
+  const stale = checkPoolConnect([], ["modules/x/src/gone.ts"]);
   pcCases.push(["stale entry reported", stale.length === 1 && stale[0]!.includes("stale entry")]);
   for (const [name, ok] of pcCases) {
     if (ok) process.stdout.write(`  PASS: pool-connect fixture — ${name} (expected)\n`);

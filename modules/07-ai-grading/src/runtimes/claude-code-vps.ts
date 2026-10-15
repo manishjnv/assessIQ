@@ -637,6 +637,9 @@ export async function generateQuestions(
     level: input.level,
     count: input.count,
     topic_focus: input.topicFocus ?? null,
+    // RW-92: omitted (not null) when absent so skills see no key.
+    ...(input.subject ? { subject: input.subject } : {}),
+    ...(input.category ? { category: input.category } : {}),
     existing_topics: input.existingTopics,
     sources: input.sources,
     // Phase A3: per-(type,level) structural difficulty targets injected by the
@@ -647,6 +650,7 @@ export async function generateQuestions(
   const events = await runSkill({
     skill: SKILL_GENERATE,
     promptVars,
+    focusNote: focusNote(promptVars),
     allowedTools: [MCP_SUBMIT_QUESTIONS],
     attemptId: "generation",
     questionId: `${input.packId}:${input.levelId}`,
@@ -804,6 +808,9 @@ export async function generateQuestionsByType(
     level: input.level,
     count: input.count,
     topic_focus: input.topicFocus ?? null,
+    // RW-92: omitted (not null) when absent so skills see no key.
+    ...(input.subject ? { subject: input.subject } : {}),
+    ...(input.category ? { category: input.category } : {}),
     existing_topics: input.existingTopics,
     sources: input.sources,
     // Phase A3: per-(type,level) structural difficulty targets injected by the
@@ -814,6 +821,7 @@ export async function generateQuestionsByType(
   const events = await runSkill({
     skill: skillName,
     promptVars,
+    focusNote: focusNote(promptVars),
     allowedTools: [MCP_SUBMIT_QUESTIONS],
     attemptId: "generation",
     questionId: `${input.packId}:${input.levelId}:${input.type}`,
@@ -1210,6 +1218,8 @@ export async function generateAnswerGuidanceDraft(
 interface RunSkillOpts {
   skill: string;
   promptVars: object;
+  /** RW-92: optional instruction block appended after the JSON inputs. */
+  focusNote?: string | undefined;
   allowedTools: string[];
   attemptId: string;
   questionId: string;
@@ -1217,10 +1227,25 @@ interface RunSkillOpts {
   model?: string;
 }
 
+/**
+ * RW-92: one short instruction block for generation prompts. Undefined (no
+ * block) when subject, category and topic_focus are all absent.
+ */
+export function focusNote(v: { subject?: string; category?: string; topic_focus?: string | null }): string | undefined {
+  const one = (t: string): string => t.replace(/\s+/g, " ").trim(); // keep the block on one line
+  const parts = [
+    v.subject && one(v.subject) ? `Subject: ${one(v.subject)}.` : "",
+    v.category && one(v.category) ? `Category: ${one(v.category)}.` : "",
+    v.topic_focus ? `Topic focus: ${v.topic_focus}.` : "",
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(" ")} Every question must be about this category and topic.` : undefined;
+}
+
 function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
   const prompt =
     `Use the ${opts.skill} skill with these inputs:\n\n` +
-    JSON.stringify(opts.promptVars, null, 2);
+    JSON.stringify(opts.promptVars, null, 2) +
+    (opts.focusNote ? "\n\n" + opts.focusNote : "");
 
   return new Promise<StreamJsonEvent[]>((resolve, reject) => {
     const args = [

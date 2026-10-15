@@ -194,4 +194,38 @@ describe("generateQuestions — cross-tenant FK guard", () => {
       return true;
     });
   });
+
+  // RW-92: names + free-text topic reach handleAdminGenerate; omitted when not given.
+  it("forwards topicFocus, domainName and categoryName to handleAdminGenerate", async () => {
+    const { withTenant } = await import("@assessiq/tenancy");
+    const { handleAdminGenerate } = await import("@assessiq/ai-grading");
+    (withTenant as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_tenantId: string, fn: (client: unknown) => Promise<unknown>) => {
+        const query = vi.fn(async (sql: string) =>
+          sql.includes("domain_name")
+            ? { rows: [{ domain_name: "Phishing Defence", category_name: "Email Header Analysis" }] }
+            : { rows: [{ exists: true }] },
+        );
+        return fn({ query });
+      },
+    );
+    (handleAdminGenerate as ReturnType<typeof vi.fn>).mockResolvedValue({
+      questionIds: [], generated: 0, skillSha: "x",
+    });
+    const { generateQuestions } = await import("../service.js");
+
+    await generateQuestions("t", "u", "p", "l", 1, "Email Header Analysis", undefined, "d", "c");
+    const withNames = (handleAdminGenerate as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(withNames).toMatchObject({
+      topicFocus: "Email Header Analysis",
+      domainName: "Phishing Defence",
+      categoryName: "Email Header Analysis",
+    });
+
+    await generateQuestions("t", "u", "p", "l", 1);
+    const bare = (handleAdminGenerate as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(bare).not.toHaveProperty("topicFocus");
+    expect(bare).not.toHaveProperty("domainName");
+    expect(bare).not.toHaveProperty("categoryName");
+  });
 });

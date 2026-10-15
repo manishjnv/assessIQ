@@ -48,7 +48,7 @@ vi.mock("../skill-sha.js", () => ({
 // ---------------------------------------------------------------------------
 
 import { spawn } from "node:child_process";
-import { gradeSubjective } from "../runtimes/claude-code-vps.js";
+import { gradeSubjective, generateQuestions } from "../runtimes/claude-code-vps.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingInput } from "../types.js";
 import { AppError } from "@assessiq/core";
@@ -680,5 +680,39 @@ describe("gradeSubjective - high_stakes", () => {
     mockStages(2, "fail");
     const p = await gradeSubjective({ ...BASE_INPUT, force_escalate: true });
     expect(p.band.error_class).toBe("escalation_failure");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RW-92: subject / category / topic_focus reach the generation prompt
+// ---------------------------------------------------------------------------
+
+describe("generateQuestions - RW-92 subject/category/topic_focus", () => {
+  const gen = { level: "L1" as const, count: 1, existingTopics: [], sources: [], packId: "p", levelId: "l" };
+
+  async function promptFor(extra: object): Promise<string> {
+    mockSpawn.mockReturnValueOnce(makeFakeProc([]));
+    await generateQuestions({ ...gen, ...extra }).catch(() => undefined); // no submit tool -> throws; prompt is all we need
+    return String(mockSpawn.mock.calls.at(-1)![1]![1]);
+  }
+
+  it("includes the keys and the instruction block when given", async () => {
+    const prompt = await promptFor({ topicFocus: "Email Header Analysis", subject: "Phishing", category: "Email" });
+    expect(prompt).toContain('"topic_focus": "Email Header Analysis"');
+    expect(prompt).toContain('"subject": "Phishing"');
+    expect(prompt).toContain('"category": "Email"');
+    expect(prompt).toContain("Subject: Phishing. Category: Email. Topic focus: Email Header Analysis. Every question must be about this category and topic.");
+  });
+
+  it("collapses whitespace and newlines in subject and category", async () => {
+    const prompt = await promptFor({ subject: "Phish\ning  ops", category: "Email\n\nHeaders" });
+    expect(prompt).toContain("Subject: Phish ing ops. Category: Email Headers.");
+  });
+
+  it("omits subject, category and the block when absent", async () => {
+    const prompt = await promptFor({});
+    expect(prompt).not.toContain('"subject"');
+    expect(prompt).not.toContain('"category"');
+    expect(prompt).not.toContain("Every question must be about");
   });
 });
