@@ -307,6 +307,8 @@ beforeAll(async () => {
     // Order: embed_origin column add must follow 0030; audit_log is standalone.
     await applyMigrationsFromDir(client, EMBED_SDK_MIGRATIONS_DIR, ["0073_attempt_embed_origin.sql"]);
     await applyMigrationsFromDir(client, AUDIT_LOG_MIGRATIONS_DIR);
+    // submit/finalize/release emit business webhooks after commit (emitWebhook reads webhook_endpoints).
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "13-notifications", "migrations"));
     // Apply only the schema-creating billing migrations (0078 + 0081).
     // 0079 requires the attempts table which IS in this test set (AE migrations
     // run above), but 0080/0082 are backfills and 0090 is a noop UPDATE — skip all.

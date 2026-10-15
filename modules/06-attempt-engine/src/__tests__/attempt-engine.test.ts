@@ -285,6 +285,8 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, AE_MIGRATIONS_DIR);
     await applyMigrationsFromDir(client, EMBED_SDK_MIGRATIONS_DIR, ["0073_attempt_embed_origin.sql"]);
     await applyMigrationsFromDir(client, AUDIT_LOG_MIGRATIONS_DIR);
+    // submit/finalize/release emit business webhooks after commit (emitWebhook reads webhook_endpoints).
+    await applyMigrationsFromDir(client, join(MODULES_ROOT, "13-notifications", "migrations"));
     // Apply only the schema-creating billing migrations (0078 + 0081).
     // 0079 requires the attempts table (module 06) which may not yet exist at
     // this point in the apply sequence. 0080/0082 are backfills against live

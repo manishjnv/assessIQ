@@ -4,10 +4,13 @@
 // modules/04-question-bank/src/__tests__/audit-writes.test.ts (same-tx + rollback).
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { ACTION_CATALOG } from "../types.js";
 
+// jsdom environment: the global URL is not Node's, so resolve via node:path.
 const packsSrc = readFileSync(
-  new URL("../../../04-question-bank/src/service/packs.ts", import.meta.url),
+  resolve(dirname(fileURLToPath(import.meta.url)), "../../../04-question-bank/src/service/packs.ts"),
   "utf8",
 );
 

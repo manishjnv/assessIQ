@@ -13,6 +13,7 @@ import { Client } from "pg";
 import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "@assessiq/tenancy";
@@ -45,9 +46,8 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
 
 /** 0169 is re-runnable; run it again so the seeded domain/categories get node_id. */
 async function rerun0169(): Promise<void> {
-  const file = fileURLToPath(
-    new URL("../../../04-question-bank/migrations/0169_curriculum_frameworks.sql", import.meta.url),
-  );
+  // jsdom environment: the global URL is not Node's, so resolve via node:path.
+  const file = resolve(dirname(fileURLToPath(import.meta.url)), "../../../04-question-bank/migrations/0169_curriculum_frameworks.sql");
   const sql = await readFile(file, "utf8");
   await sup((c) => c.query(sql).then(() => undefined));
 }
