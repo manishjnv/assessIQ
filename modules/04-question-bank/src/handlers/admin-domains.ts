@@ -187,7 +187,7 @@ export async function handleAdminCreateDomain(
       (err as { code: string }).code === "23505"
     ) {
       throw new ConflictError(
-        `A domain with slug '${slug}' already exists in this tenant.`,
+        `A subject with slug '${slug}' already exists in this organisation.`,
         { details: { code: "DOMAIN_SLUG_EXISTS", slug } },
       );
     }
@@ -273,7 +273,7 @@ export async function handleAdminCreateCategory(
       );
       if (!guardRes.rows[0]?.exists) {
         throw new ValidationError(
-          "domain_id does not exist or does not belong to this tenant",
+          "domain_id does not exist or does not belong to this organisation",
           { details: { code: "CROSS_TENANT_FK_REJECTED", field: "domain_id" } },
         );
       }
@@ -346,7 +346,7 @@ export async function handleAdminCreateCategory(
       (err as { code: string }).code === "23505"
     ) {
       throw new ConflictError(
-        `A category with slug '${slug}' already exists in this tenant.`,
+        `A category with slug '${slug}' already exists in this organisation.`,
         { details: { code: "CATEGORY_SLUG_EXISTS", slug } },
       );
     }

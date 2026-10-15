@@ -101,13 +101,13 @@ export async function createQuestion(
     // Verify pack exists and is not archived
     const pack = await repo.findPackById(client, input.pack_id);
     if (pack === null) {
-      throw new NotFoundError(`Pack not found: ${input.pack_id}`, {
+      throw new NotFoundError(`Question set not found: ${input.pack_id}`, {
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
     if (pack.status === "archived") {
       throw new ConflictError(
-        `Cannot add questions to archived pack '${input.pack_id}'`,
+        `Cannot add questions to archived question set '${input.pack_id}'`,
         { details: { code: QB_ERROR_CODES.QUESTION_PACK_ARCHIVED } },
       );
     }
@@ -196,13 +196,13 @@ export async function updateQuestion(
     const pack = await repo.findPackById(client, current.pack_id);
     if (pack === null) {
       // Shouldn't happen — data integrity — but guard it
-      throw new NotFoundError(`Pack not found: ${current.pack_id}`, {
+      throw new NotFoundError(`Question set not found: ${current.pack_id}`, {
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
     if (pack.status === "archived") {
       throw new ConflictError(
-        `Cannot update questions in archived pack '${current.pack_id}'`,
+        `Cannot update questions in archived question set '${current.pack_id}'`,
         { details: { code: QB_ERROR_CODES.QUESTION_PACK_ARCHIVED } },
       );
     }

@@ -111,8 +111,8 @@ export async function releaseAttemptInTx(
 
   if (row.status !== "graded" || row.evaluation_released_at === null) {
     throw new AppError(
-      `Result is not ready to publish (status '${row.status}'${
-        row.status === "graded" ? ", evaluation not released to the tenant" : ""
+      `Result is not ready to release (status '${row.status}'${
+        row.status === "graded" ? ", grading not sent to the organisation" : ""
       })`,
       RELEASE_ERROR_CODES.RESULT_NOT_READY,
       409,
@@ -143,7 +143,7 @@ export async function releaseAttemptInTx(
     );
     if (gate.rows[0]?.ok !== true) {
       throw new AppError(
-        "Result is not eligible for automatic release (the tenant is not in auto-release mode, or the result was ready before auto-release was switched on)",
+        "Result is not eligible for automatic release (the organisation is not in auto-release mode, or the result was ready before auto-release was switched on)",
         RELEASE_ERROR_CODES.RESULT_NOT_READY,
         409,
       );

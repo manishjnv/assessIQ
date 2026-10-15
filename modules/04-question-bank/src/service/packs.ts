@@ -190,7 +190,7 @@ export async function createPack(
 export async function getPack(tenantId: string, id: string): Promise<QuestionPack> {
   const pack = await withTenant(tenantId, (client) => repo.findPackById(client, id));
   if (pack === null) {
-    throw new NotFoundError(`Pack not found: ${id}`, {
+    throw new NotFoundError(`Question set not found: ${id}`, {
       details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
     });
   }
@@ -209,7 +209,7 @@ export async function getPackWithLevels(
   return withTenant(tenantId, async (client) => {
     const pack = await repo.findPackById(client, id);
     if (pack === null) {
-      throw new NotFoundError(`Pack not found: ${id}`, {
+      throw new NotFoundError(`Question set not found: ${id}`, {
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
@@ -233,7 +233,7 @@ export async function updatePack(
   return withTenant(tenantId, async (client) => {
     const current = await repo.findPackById(client, id);
     if (current === null) {
-      throw new NotFoundError(`Pack not found: ${id}`, {
+      throw new NotFoundError(`Question set not found: ${id}`, {
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
@@ -278,13 +278,13 @@ export async function publishPack(
     // 1. Read pack + verify status = 'draft'
     const pack = await repo.findPackById(client, id);
     if (pack === null) {
-      throw new NotFoundError(`Pack not found: ${id}`, {
+      throw new NotFoundError(`Question set not found: ${id}`, {
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
     if (pack.status !== "draft") {
       throw new ConflictError(
-        `Pack '${id}' must be in 'draft' status to publish (current: '${pack.status}')`,
+        `Question set '${id}' must be in 'draft' status to publish (current: '${pack.status}')`,
         { details: { code: QB_ERROR_CODES.PACK_NOT_DRAFT } },
       );
     }
@@ -309,7 +309,7 @@ export async function publishPack(
     if (subjectiveNoRubric.length > 0) {
       throw new ValidationError(
         `Cannot publish: ${subjectiveNoRubric.length} subjective question(s) have no rubric. ` +
-          `Add a rubric (at least one anchor) — use "Generate rubric" or author it — then publish.`,
+          `Add a rubric (at least one key point) — use "Generate rubric" or author it — then publish.`,
         {
           details: {
             code: QB_ERROR_CODES.RUBRIC_REQUIRED,
@@ -415,13 +415,13 @@ export async function revisePack(
   return withTenant(tenantId, async (client) => {
     const pack = await repo.findPackById(client, id);
     if (pack === null) {
-      throw new NotFoundError(`Pack not found: ${id}`, {
+      throw new NotFoundError(`Question set not found: ${id}`, {
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
     if (pack.status !== "published") {
       throw new ConflictError(
-        `Pack '${id}' must be 'published' to revise (current: '${pack.status}')`,
+        `Question set '${id}' must be 'published' to revise (current: '${pack.status}')`,
         { details: { code: QB_ERROR_CODES.PACK_NOT_PUBLISHED } },
       );
     }
@@ -502,7 +502,7 @@ export async function archivePack(
   return withTenant(tenantId, async (client) => {
     const pack = await repo.findPackById(client, id);
     if (pack === null) {
-      throw new NotFoundError(`Pack not found: ${id}`, {
+      throw new NotFoundError(`Question set not found: ${id}`, {
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
@@ -512,7 +512,7 @@ export async function archivePack(
     // already-archived pack is rejected, to keep the audit trail honest.
     if (pack.status === "archived") {
       throw new ConflictError(
-        `Pack '${id}' is already archived`,
+        `Question set '${id}' is already archived`,
         { details: { code: QB_ERROR_CODES.PACK_ALREADY_ARCHIVED } },
       );
     }
@@ -523,7 +523,7 @@ export async function archivePack(
       const count = await repo.countAssessmentsReferencingPack(client, id);
       if (count > 0) {
         throw new ConflictError(
-          `Pack '${id}' is referenced by ${count} assessment(s) and cannot be archived`,
+          `Question set '${id}' is referenced by ${count} assessment(s) and cannot be archived`,
           { details: { code: QB_ERROR_CODES.PACK_HAS_ASSESSMENTS, count } },
         );
       }
@@ -585,13 +585,13 @@ export async function activateAllQuestionsForPack(
   return withTenant(tenantId, async (client) => {
     const pack = await repo.findPackById(client, packId);
     if (pack === null) {
-      throw new NotFoundError(`Pack not found: ${packId}`, {
+      throw new NotFoundError(`Question set not found: ${packId}`, {
         details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
       });
     }
     if (pack.status !== "published") {
       throw new ConflictError(
-        `Pack '${packId}' must be 'published' to activate questions (current: '${pack.status}')`,
+        `Question set '${packId}' must be 'published' to activate questions (current: '${pack.status}')`,
         { details: { code: QB_ERROR_CODES.PACK_NOT_PUBLISHED, status: pack.status } },
       );
     }
@@ -599,7 +599,7 @@ export async function activateAllQuestionsForPack(
     const result = await repo.bulkActivateDraftQuestionsForPack(client, packId);
     if (result.activated === 0) {
       throw new ConflictError(
-        `No draft questions to activate in pack '${packId}' (active: ${result.alreadyActive}, archived: ${result.archived})`,
+        `No draft questions to activate in question set '${packId}' (active: ${result.alreadyActive}, archived: ${result.archived})`,
         {
           details: {
             code: QB_ERROR_CODES.NO_DRAFT_QUESTIONS_TO_ACTIVATE,
@@ -656,7 +656,7 @@ export async function addLevel(
       // Verify pack exists (RLS scopes the SELECT to this tenant)
       const pack = await repo.findPackById(client, packId);
       if (pack === null) {
-        throw new NotFoundError(`Pack not found: ${packId}`, {
+        throw new NotFoundError(`Question set not found: ${packId}`, {
           details: { code: QB_ERROR_CODES.PACK_NOT_FOUND },
         });
       }
