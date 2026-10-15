@@ -779,6 +779,19 @@ export async function superResetUserTotpApi(
   );
 }
 
+/**
+ * POST /api/admin/users/:userId/totp/reset (RW-91)
+ *
+ * Tenant admin, own tenant, fresh two-factor needed (401 otherwise). 204 on success.
+ * Self-reset gives 409; a super admin target gives 403.
+ */
+export async function resetUserTotpApi(userId: string, reason: string): Promise<void> {
+  return adminApi<void>(`/admin/users/${encodeURIComponent(userId)}/totp/reset`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Typed helpers — list questions with filters (Slice 2.2/D5)
 // ---------------------------------------------------------------------------

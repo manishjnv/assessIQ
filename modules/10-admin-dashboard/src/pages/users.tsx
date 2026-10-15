@@ -46,6 +46,8 @@ import { createPortal } from "react-dom";
 import { Button, Chip, Field, Modal, Spinner, formatDate } from "@assessiq/ui-system";
 import type { ChipVariant } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { ResetTotpDialog } from "../components/ResetTotpDialog.js";
+import { useAdminSession } from "../session.js";
 import {
   adminApi,
   AdminApiError,
@@ -70,7 +72,7 @@ export interface AdminUser {
   status: UserStatus;
   created_at: string;
   deleted_at?: string | null;
-  /** Super-admin list only: true when the user has TOTP enrolled. */
+  /** Super-admin list and tenant admin list (RW-91): true when the user has TOTP enrolled. */
   totp_enrolled?: boolean;
 }
 
@@ -780,7 +782,7 @@ function UserManageMenu({
   }
 
   // RW-45: super admin resets another admin's two-factor, only when TOTP is enrolled.
-  if (onResetTotp !== undefined && user.totp_enrolled === true && !isSelf && user.role !== "candidate" && user.status === "active" && !user.deleted_at) {
+  if (onResetTotp !== undefined && user.totp_enrolled === true && !isSelf && user.role !== "candidate" && user.role !== "super_admin" && user.status === "active" && !user.deleted_at) {
     items.push(menuItem("Reset two-factor", () => onResetTotp(user), true));
   }
 
@@ -1008,6 +1010,10 @@ function InvitationManageMenu({
 export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactElement {
   const isSuperContext = superContext !== undefined;
 
+  // RW-91: tenant admin resets another admin's two-factor (self row hidden via session id).
+  const { session: adminSession } = useAdminSession();
+  const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
+
   // ── Tenant-admin–scoped fetch state (unused in super context) ──
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [total, setTotal] = useState(0);
@@ -1095,7 +1101,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
   // Resolve the current user's ID from session for self-disable guard
   // We don't have a session hook here; super-admin context leaves it undefined
   // (the backend enforces CANNOT_DISABLE_SELF anyway — this is a UX convenience only).
-  const currentUserId: string | undefined = isSuperContext ? superContext.currentUserId : undefined;
+  const currentUserId: string | undefined = isSuperContext ? superContext.currentUserId : adminSession?.user.id;
 
   // Detect last-active-admin: only meaningful in super context where we have
   // the full list. In tenant-admin context the backend enforces LAST_ADMIN.
@@ -1213,6 +1219,13 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
 
   return (
     <AdminShell breadcrumbs={breadcrumbs} helpPage="admin.users.list">
+      {resetTarget !== null && !isSuperContext && (
+        <ResetTotpDialog
+          user={resetTarget}
+          onCancel={() => setResetTarget(null)}
+          onDone={() => { setResetTarget(null); void fetchUsers(); }}
+        />
+      )}
       {showInvite && !isSuperContext && (
         <InviteForm
           onSuccess={() => { setShowInvite(false); void fetchUsers(); }}
@@ -1525,7 +1538,9 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                           setActionError(null);
                         }}
                         onExport={handleExport}
-                        {...(isSuperContext && superContext.onResetTotp !== undefined ? { onResetTotp: superContext.onResetTotp } : {})}
+                        {...(isSuperContext
+                          ? (superContext.onResetTotp !== undefined ? { onResetTotp: superContext.onResetTotp } : {})
+                          : adminSession?.user.role === "admin" ? { onResetTotp: setResetTarget } : {})}
                       />
                     </div>
                   </div>

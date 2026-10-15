@@ -18,6 +18,8 @@ export const EmailTemplateNameSchema = z.enum([
   'invitation_reminder',
   'candidate_login_link',
   'totp_enrolled',
+  // RW-91: sent to a user after an admin resets their two-factor. No secret in it.
+  'totp_reset_notice',
   'attempt_submitted_candidate',
   'attempt_graded_candidate',
   'attempt_ready_for_review_admin',
@@ -68,6 +70,13 @@ export const TotpEnrolledVarsSchema = z.object({
   recipientName: z.string().min(1),
   enrolledAt: z.string(), // ISO8601
   tenantName: z.string().optional(),
+});
+
+export const TotpResetNoticeVarsSchema = z.object({
+  recipientName: z.string().min(1),
+  resetAt: z.string().min(1),
+  /** Role label only, never a name: "an administrator" or "a platform administrator". */
+  resetBy: z.string().min(1),
 });
 
 export const AttemptSubmittedCandidateVarsSchema = z.object({
@@ -137,6 +146,7 @@ export type InvitationCandidateVars = z.infer<typeof InvitationCandidateVarsSche
 export type InvitationReminderVars = z.infer<typeof InvitationReminderVarsSchema>;
 export type CandidateLoginLinkVars = z.infer<typeof CandidateLoginLinkVarsSchema>;
 export type TotpEnrolledVars = z.infer<typeof TotpEnrolledVarsSchema>;
+export type TotpResetNoticeVars = z.infer<typeof TotpResetNoticeVarsSchema>;
 export type AttemptSubmittedCandidateVars = z.infer<typeof AttemptSubmittedCandidateVarsSchema>;
 export type AttemptGradedCandidateVars = z.infer<typeof AttemptGradedCandidateVarsSchema>;
 export type AttemptReadyForReviewAdminVars = z.infer<typeof AttemptReadyForReviewAdminVarsSchema>;
@@ -151,6 +161,7 @@ export type TemplateVarsMap = {
   invitation_reminder: InvitationReminderVars;
   candidate_login_link: CandidateLoginLinkVars;
   totp_enrolled: TotpEnrolledVars;
+  totp_reset_notice: TotpResetNoticeVars;
   attempt_submitted_candidate: AttemptSubmittedCandidateVars;
   attempt_graded_candidate: AttemptGradedCandidateVars;
   attempt_ready_for_review_admin: AttemptReadyForReviewAdminVars;

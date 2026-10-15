@@ -8,6 +8,7 @@ import { assertTenantActive } from '@assessiq/tenancy';
 import { getUser } from '@assessiq/users';
 import { parseBody, parseParams, requiredString, tenantIdParams, userIdParams, z } from '../_validate.js';
 import { superAdminOnly } from './_shared.js';
+import { notifyTotpReset } from '../admin-users-totp-reset.js';
 
 const resetBody = z.object({ reason: requiredString('reason is required', { max: 500, code: 'INVALID_REASON' }) });
 const params = tenantIdParams.merge(userIdParams);
@@ -28,8 +29,9 @@ export async function registerAdminSuperUserTotpResetRoute(app: FastifyInstance)
         throw new ConflictError('cannot reset your own TOTP', { details: { code: 'SELF_RESET_FORBIDDEN' } });
       }
       await assertTenantActive(tenantId);
-      await getUser(tenantId, userId); // NotFoundError -> 404 if not in this tenant
+      const target = await getUser(tenantId, userId); // NotFoundError -> 404 if not in this tenant
       await totp.adminResetTotp(req.session!.userId, tenantId, userId, reason.trim());
+      await notifyTotpReset(tenantId, target, 'super_admin'); // RW-91: after commit, failure only logged
       return reply.code(204).send();
     },
   );

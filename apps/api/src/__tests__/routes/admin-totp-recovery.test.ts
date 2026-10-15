@@ -54,11 +54,20 @@ vi.mock('@assessiq/auth', async () => {
     if (req.session !== undefined && Array.isArray(opts.roles) && !opts.roles.includes(req.session.role)) {
       throw new AuthzError(`role ${req.session.role} not authorized`);
     }
-    if (req.session !== undefined && opts.requireTotpVerified !== false && !req.session.totpVerified) {
+    if (req.session !== undefined && req.headers['x-test-mfa-off'] !== 'true' && opts.requireTotpVerified !== false && !req.session.totpVerified) {
       throw new AuthnError('totp verification required');
     }
-    // NOTE: this seam does NOT enforce freshMfaWithinMinutes — the real gate is
-    // exercised in 01-auth unit tests. These route tests focus on handler logic.
+    // Fresh-MFA step-up: mirrors the real gate (AuthnError). x-test-session-totp-stale=true
+    // makes the last TOTP older than any window. The age math is covered in 01-auth tests.
+    // x-test-mfa-off mimics MFA_REQUIRED=false for a non-super role: the middleware skips the TOTP/fresh gates.
+    // x-test-session-totp-stale sets lastTotpAt 20 min old (the middleware would reject; with mfa-off the handler must).
+    if (req.session !== undefined && req.headers['x-test-session-totp-stale'] === 'true') {
+      if (req.headers['x-test-mfa-off'] === 'true') {
+        req.session.lastTotpAt = new Date(Date.now() - 20 * 60 * 1000).toISOString();
+        return;
+      }
+      throw new AuthnError('fresh totp required');
+    }
   };
 
   return {
@@ -138,7 +147,11 @@ vi.mock('@assessiq/help-system', () => ({
   registerHelpAuthRoutes: vi.fn().mockResolvedValue(undefined),
   registerHelpAdminRoutes: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('@assessiq/notifications', () => ({ registerNotificationsRoutes: vi.fn().mockResolvedValue(undefined) }));
+const mockNotice = vi.fn();
+vi.mock('@assessiq/notifications', () => ({
+  registerNotificationsRoutes: vi.fn().mockResolvedValue(undefined),
+  sendTotpResetNoticeEmail: (...a: unknown[]) => mockNotice(...a),
+}));
 vi.mock('@assessiq/scoring', () => ({ registerScoringRoutes: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/analytics', () => ({ registerAnalyticsRoutes: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/embed-sdk', () => ({ EMBED_COOKIE_NAME: 'aiq_embed_sess', verifyEmbedToken: vi.fn() }));
@@ -159,7 +172,7 @@ describe('RW-45 routes', () => {
   let app: FastifyInstance;
   beforeAll(async () => { app = await buildServer(); });
   afterAll(async () => { await app.close(); });
-  beforeEach(() => { for (const m of [mockVerify, mockRegen, mockReset, mockGetUser]) m.mockReset(); });
+  beforeEach(() => { for (const m of [mockVerify, mockRegen, mockReset, mockGetUser, mockNotice]) m.mockReset(); });
 
   const regen = (headers: Record<string, string>, body: unknown) =>
     app.inject({ method: 'POST', url: '/api/auth/totp/recovery-codes/regenerate', headers: { ...headers, ...J }, payload: JSON.stringify(body) });
@@ -207,6 +220,14 @@ describe('RW-45 routes', () => {
       expect(res.statusCode).toBe(204);
       expect(mockReset).toHaveBeenCalledWith(SUPER['x-test-session-user'], T, U, 'lost phone');
     });
+    it('sends the notice after the reset, with the platform role and no secret', async () => {
+      mockGetUser.mockResolvedValue({ id: U, email: 'a@x.test', name: 'Asha', role: 'admin' });
+      mockReset.mockResolvedValue(undefined);
+      await reset(SUPER, { reason: 'lost phone' });
+      expect(mockNotice).toHaveBeenCalledTimes(1);
+      expect(mockNotice.mock.invocationCallOrder[0]).toBeGreaterThan(mockReset.mock.invocationCallOrder[0]!);
+      expect(mockNotice.mock.calls[0]![0]).toEqual({ to: 'a@x.test', recipientName: 'Asha', actorRole: 'super_admin', tenantId: T });
+    });
     it('403 for a tenant admin', async () => {
       const res = await reset(ADMIN, { reason: 'x' });
       expect(res.statusCode).toBe(403);
@@ -232,6 +253,71 @@ describe('RW-45 routes', () => {
       mockGetUser.mockRejectedValue(new NotFoundError('user not found'));
       const res = await reset(SUPER, { reason: 'x' });
       expect(res.statusCode).toBe(404);
+      expect(mockReset).not.toHaveBeenCalled();
+    });
+  });
+
+  // RW-91: tenant admin reset. Tenant comes from the session (T); RLS scopes getUser.
+  describe('POST /api/admin/users/:userId/totp/reset', () => {
+    const TARGET = '00000000-0000-4000-8000-0000000000d4';
+    const tenantReset = (headers: Record<string, string>, body: unknown, userId = TARGET) =>
+      app.inject({ method: 'POST', url: `/api/admin/users/${userId}/totp/reset`, headers: { ...headers, ...J }, payload: JSON.stringify(body) });
+
+    it('204 for an admin with fresh TOTP; resets then notifies with the role, never a secret', async () => {
+      mockGetUser.mockResolvedValue({ id: TARGET, email: 'b@x.test', name: '', role: 'admin' });
+      mockReset.mockResolvedValue(undefined);
+      const res = await tenantReset(ADMIN, { reason: '  lost phone  ' });
+      expect(res.statusCode).toBe(204);
+      expect(mockGetUser).toHaveBeenCalledWith(T, TARGET);
+      expect(mockReset).toHaveBeenCalledWith(U, T, TARGET, 'lost phone');
+      expect(mockNotice.mock.invocationCallOrder[0]).toBeGreaterThan(mockReset.mock.invocationCallOrder[0]!);
+      expect(mockNotice).toHaveBeenCalledWith({ to: 'b@x.test', recipientName: 'b@x.test', actorRole: 'admin', tenantId: T });
+    });
+    it('still 204 when the notice email fails', async () => {
+      mockGetUser.mockResolvedValue({ id: TARGET, email: 'b@x.test', name: 'B', role: 'admin' });
+      mockReset.mockResolvedValue(undefined);
+      mockNotice.mockRejectedValue(new Error('smtp down'));
+      expect((await tenantReset(ADMIN, { reason: 'x' })).statusCode).toBe(204);
+    });
+    it('401 without fresh TOTP; nothing is reset', async () => {
+      const res = await tenantReset({ ...ADMIN, 'x-test-session-totp-stale': 'true' }, { reason: 'x' });
+      expect(res.statusCode).toBe(401);
+      expect(mockReset).not.toHaveBeenCalled();
+    });
+    it('401 FRESH_TOTP_REQUIRED with MFA off and no TOTP at all (handler enforces)', async () => {
+      const res = await tenantReset({ ...ADMIN_NO_TOTP, 'x-test-mfa-off': 'true' }, { reason: 'x' });
+      expect(res.statusCode).toBe(401);
+      expect(res.json().error.details.code).toBe('FRESH_TOTP_REQUIRED');
+      expect(mockReset).not.toHaveBeenCalled();
+    });
+    it('401 with MFA off and a 20-minute-old TOTP', async () => {
+      const res = await tenantReset({ ...ADMIN, 'x-test-mfa-off': 'true', 'x-test-session-totp-stale': 'true' }, { reason: 'x' });
+      expect(res.statusCode).toBe(401);
+      expect(mockReset).not.toHaveBeenCalled();
+    });
+    it('403 for a super admin session (admin-only route)', async () => {
+      expect((await tenantReset(SUPER, { reason: 'x' })).statusCode).toBe(403);
+      expect(mockReset).not.toHaveBeenCalled();
+    });
+    it('409 on self-reset', async () => {
+      expect((await tenantReset(ADMIN, { reason: 'x' }, U)).statusCode).toBe(409);
+      expect(mockReset).not.toHaveBeenCalled();
+    });
+    it('403 when the target is a super admin', async () => {
+      mockGetUser.mockResolvedValue({ id: TARGET, email: 's@x.test', name: 'S', role: 'super_admin' });
+      expect((await tenantReset(ADMIN, { reason: 'x' })).statusCode).toBe(403);
+      expect(mockReset).not.toHaveBeenCalled();
+      expect(mockNotice).not.toHaveBeenCalled();
+    });
+    it('404 when the user is in another tenant', async () => {
+      mockGetUser.mockRejectedValue(new NotFoundError('user not found'));
+      expect((await tenantReset(ADMIN, { reason: 'x' })).statusCode).toBe(404);
+      expect(mockReset).not.toHaveBeenCalled();
+    });
+    it('400 on missing, blank or over-long reason', async () => {
+      for (const body of [{}, { reason: '   ' }, { reason: 'x'.repeat(501) }]) {
+        expect((await tenantReset(ADMIN, body)).statusCode).toBe(400);
+      }
       expect(mockReset).not.toHaveBeenCalled();
     });
   });

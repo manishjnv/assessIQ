@@ -1,0 +1,12 @@
+Subject: Your two-factor sign-in was reset
+
+Hi {{recipientName}},
+
+Your two-factor sign-in for AssessIQ was reset by {{resetBy}} on {{resetAt}}.
+
+Next step: sign in as usual. AssessIQ asks you to set up two-factor again.
+
+{{_t_security_warning}}
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}
