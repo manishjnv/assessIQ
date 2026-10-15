@@ -1,0 +1,17 @@
+{
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD033": false,
+    "MD041": true,
+    "MD024": { "siblings_only": true }
+  },
+  "globs": ["docs/**/*.md", "README.md"],
+  "ignores": [
+    "docs/plans/archive/**",
+    "docs/SESSION_STATE.md",
+    "docs/RCA_LOG.md",
+    ".claude/**",
+    "node_modules/**"
+  ]
+}

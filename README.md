@@ -1,5 +1,7 @@
 # AssessIQ — Architecture & Module Documentation
 
+*Type: reference* — This page gives the repository layout, local setup steps and the documentation index.
+
 > Scenario-driven, tier-based, hybrid-graded role-readiness assessment platform. The first real use is a university aptitude pilot; designed multi-tenant and embeddable from day one.
 
 ## Local Development
@@ -96,7 +98,8 @@ docs/
 ├── 11-observability.md         ← Logs, streams, metrics
 ├── 12-test-coverage.md         ← Test coverage map
 ├── 13-email-system.md          ← SMTP, templates, queue
-└── 14-credentialing.md         ← Certificates: signing, verify, PDF
+├── 14-credentialing.md         ← Certificates: signing, verify, PDF
+└── STYLE.md                    ← Documentation standard: page types, sentences, Vale
 
 modules/
 ├── 00-core/SKILL.md          ← Foundation utilities

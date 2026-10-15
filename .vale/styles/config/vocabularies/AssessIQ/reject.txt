@@ -1,0 +1,14 @@
+(?i)utili[sz]e[sd]?
+(?i)leverag(?:e|es|ed|ing)
+(?i)in order to
+(?i)prior to
+(?i)subsequent to
+(?i)via
+(?i)etc\.?
+(?i)e\.g\.
+(?i)i\.e\.
+(?i)commence[sd]?
+(?i)terminate[sd]?
+(?i)facilitate[sd]?
+(?i)endeavou?r
+(?i)ascertain

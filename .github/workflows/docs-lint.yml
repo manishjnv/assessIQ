@@ -1,0 +1,50 @@
+name: Docs lint
+
+# ADVISORY until 2026-10-29, then REQUIRED (RW-85, see docs/STYLE.md).
+# On 2026-10-29: set fail_on_error to true on the Vale step and remove
+# continue-on-error from the markdownlint step. tools/lint-docs.mjs
+# turns strict by itself from that date.
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'modules/16-help-system/content/**'
+      - 'modules/13-notifications/src/email/**'
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'README.md'
+      - 'modules/16-help-system/content/**'
+      - 'modules/13-notifications/src/email/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Vale
+        uses: errata-ai/vale-action@v2
+        with:
+          vale_flags: '--config=.vale.ini'
+          files: docs,README.md
+          fail_on_error: false # flip to true on 2026-10-29
+      - name: markdownlint
+        uses: DavidAnson/markdownlint-cli2-action@v19
+        continue-on-error: true # remove on 2026-10-29
+        with:
+          globs: |
+            docs/**/*.md
+            README.md
+      - name: Docs checks
+        run: node tools/lint-docs.mjs
