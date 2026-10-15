@@ -154,6 +154,13 @@ async function seedCandidate(t: Tenant, opts: { createdDaysAgo?: number } = {}):
       [t.id, c0.attemptId, c0.kqlQid],
     );
     await c.query(
+      `UPDATE gradings SET reasoning_band = 50, anchor_hits = '[{"quote":"riya@example.com"}]'::jsonb,
+              ai_justification = 'answer says riya@example.com', stage_inputs = '{"band":{"echo":"riya@example.com"}}'::jsonb
+        WHERE attempt_id = $1`,
+      [c0.attemptId],
+    );
+    await c.query(`UPDATE attempts SET ai_proposals = '[{"text":"riya@example.com"}]'::jsonb WHERE id = $1`, [c0.attemptId]);
+    await c.query(
       `INSERT INTO sessions (user_id, tenant_id, role, token_hash, ip, user_agent, expires_at)
        VALUES ($1,$2,'candidate',$3,'10.1.2.3','Mozilla/5.0', now() + interval '1 day')`,
       [c0.userId, t.id, randomUUID().replace(/-/g, "")],
@@ -183,6 +190,7 @@ describe("eraseCandidatePii", () => {
   it("tombstones PII + roll/branch, keeps aggregates, redacts free text and sessions", async () => {
     const t = await seedTenant();
     const cand = await seedCandidate(t);
+    const other = await seedCandidate(t);
 
     const receipt = await eraseCandidatePii(t.id, cand.userId, "dsr_request", t.admin);
     expect(receipt.alreadyErased).toBe(false);
@@ -209,6 +217,27 @@ describe("eraseCandidatePii", () => {
     expect(byQ[cand.kqlQid]).toBe("[erased]");
     expect(byQ[cand.mcqQid]).toEqual({ selected: 1 });
 
+    // AI-grading copies of the answer scrubbed; band/score kept
+    const g = await one<{ stage_inputs: unknown; anchor_hits: unknown; ai_justification: string | null; reasoning_band: number; score_earned: string }>(
+      `SELECT stage_inputs, anchor_hits, ai_justification, reasoning_band, score_earned FROM gradings WHERE attempt_id = $1`,
+      [cand.attemptId],
+    );
+    expect(g?.stage_inputs).toBeNull();
+    expect(g?.anchor_hits).toEqual([]);
+    expect(g?.ai_justification).toBeNull();
+    expect(g?.reasoning_band).toBe(50);
+    expect(Number(g?.score_earned)).toBe(5);
+    expect((await one<{ p: unknown }>(`SELECT ai_proposals AS p FROM attempts WHERE id = $1`, [cand.attemptId]))?.p).toBeNull();
+    // same-tenant bystander untouched
+    const g2 = await one<{ stage_inputs: unknown; anchor_hits: unknown; ai_justification: string | null }>(
+      `SELECT stage_inputs, anchor_hits, ai_justification FROM gradings WHERE attempt_id = $1`,
+      [other.attemptId],
+    );
+    expect(g2?.ai_justification).toContain("riya@example.com");
+    expect(JSON.stringify(g2?.anchor_hits)).toContain("riya@example.com");
+    expect(g2?.stage_inputs).not.toBeNull();
+    expect((await one<{ p: unknown }>(`SELECT ai_proposals AS p FROM attempts WHERE id = $1`, [other.attemptId]))?.p).not.toBeNull();
+
     // sessions redacted
     const s = await one<{ ip: string | null; user_agent: string | null }>(`SELECT ip::text, user_agent FROM sessions WHERE user_id = $1`, [cand.userId]);
     expect(s?.ip).toBeNull();
@@ -227,7 +256,7 @@ describe("eraseCandidatePii", () => {
     );
     expect(a?.actor_user_id).toBe(t.admin);
     expect(a?.actor_kind).toBe("user");
-    expect(a?.after).toMatchObject({ reason: "dsr_request", erased: true, attemptAnswersErased: 1 });
+    expect(a?.after).toMatchObject({ reason: "dsr_request", erased: true, attemptAnswersErased: 1, gradingsScrubbed: 1, aiProposalsCleared: 1 });
     expect(JSON.stringify(a?.after)).not.toContain(cand.email);
   });
 
