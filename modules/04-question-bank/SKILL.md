@@ -251,3 +251,12 @@ Migration `0169_curriculum_frameworks.sql`; read-only in this part.
 ## RW-68: registry dispatch (2026-10-11)
 
 `answer-guidance-derive.ts` calls `guidanceText`. `service/generation.ts` calls `rubricText` and selects rubric-eligible types with `= ANY(AI_GRADEABLE_IDS)`. `difficulty-spec.ts` uses a `satisfies Record<QuestionType, ...>` map. `service/packs.ts` follows registry order for the default `supported_types` of a new category. Commit `d0b5bb8`. Not changed: `tools/assessiq-mcp` (standalone, parity-tested) and the `seed.ts` data list.
+
+## RW-50: difficulty warn heuristics (Phase B, 2026-10-15)
+
+`warnStructuralDifficulty(type, level, content)` in `difficulty-spec.ts` returns `{ code, message }[]`. It never rejects and never throws. Codes: `LOG_LINES_OUT_OF_RANGE`, `LOG_FINDINGS_OUT_OF_RANGE`, `MCQ_DISTRACTOR_LENGTH_SPREAD`, `MCQ_STEM_OVERLAP`, `SCENARIO_LENGTH_OUT_OF_RANGE`.
+
+- Why: Phase A only gates hard structure. These catch drafts that pass the gate but miss the level's target.
+- Thresholds live in the `DIFFICULTY_SPEC` rows (`logLines*`, `findings*`, `distractorSpreadMax`, `scenarioWords*`); the MCQ stem-overlap gap is a constant. Dispatch is a keyed `WARN_CHECKS` table.
+- Lexical only (word match). Local embedder is out of scope. Thresholds are first guesses; tune from the Phase C drift report.
+- Not included: wiring. Drafts are inserted inside `07 handleAdminGenerate`, which this task could not edit. `generateQuestions` returns only ids. Followup: 07 calls a `difficulty.warn` closure (like `validate`) and returns warnings in its result; 04 then passes them on.

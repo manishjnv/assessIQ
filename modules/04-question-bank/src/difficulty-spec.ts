@@ -93,6 +93,13 @@ export interface DifficultyTarget {
   findingsMin?: number;
   /** log_analysis: maximum number of expected findings (descriptive only in Phase A). */
   findingsMax?: number;
+
+  /** scenario: min words in intro + step prompts (Phase B warn-level only). */
+  scenarioWordsMin?: number;
+  /** scenario: max words in intro + step prompts (Phase B warn-level only). */
+  scenarioWordsMax?: number;
+  /** mcq: max (longest-shortest)/longest distractor length spread (Phase B warn-level only). */
+  distractorSpreadMax?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +120,7 @@ export const DIFFICULTY_SPEC: Record<GeneratedQuestionType, Record<DifficultyLev
       cognitiveLevel: ["remember", "understand"],
       optionsExactly: 4,
       distractorHomogeneity: "low",
+      distractorSpreadMax: 0.8,
       stimulus: "none",
       inferenceSteps: 1,
     },
@@ -120,6 +128,7 @@ export const DIFFICULTY_SPEC: Record<GeneratedQuestionType, Record<DifficultyLev
       cognitiveLevel: ["apply", "analyze"],
       optionsExactly: 4,
       distractorHomogeneity: "medium",
+      distractorSpreadMax: 0.65,
       stimulus: "short_artifact",
       inferenceSteps: 2,
     },
@@ -127,6 +136,7 @@ export const DIFFICULTY_SPEC: Record<GeneratedQuestionType, Record<DifficultyLev
       cognitiveLevel: ["analyze", "evaluate"],
       optionsExactly: 4,
       distractorHomogeneity: "high",
+      distractorSpreadMax: 0.5,
       stimulus: "rich_multi_artifact",
       inferenceSteps: 3,
     },
@@ -179,18 +189,24 @@ export const DIFFICULTY_SPEC: Record<GeneratedQuestionType, Record<DifficultyLev
       cognitiveLevel: ["apply"],
       stepsMin: 2,
       stepsMax: 3,
+      scenarioWordsMin: 40,
+      scenarioWordsMax: 150,
       allowedStepDependency: ["linear"],
     },
     L2: {
       cognitiveLevel: ["analyze", "evaluate"],
       stepsMin: 3,
       stepsMax: 4,
+      scenarioWordsMin: 80,
+      scenarioWordsMax: 250,
       allowedStepDependency: ["linear"],
     },
     L3: {
       cognitiveLevel: ["evaluate", "create"],
       stepsMin: 4,
       stepsMax: 5,
+      scenarioWordsMin: 120,
+      scenarioWordsMax: 400,
       allowedStepDependency: ["linear", "parallel"],
     },
   },
@@ -368,4 +384,91 @@ export function validateStructuralDifficulty(
   // Hand-authored types have no DIFFICULTY_SPEC row; their check ignores spec.
   const spec = (DIFFICULTY_SPEC as Partial<Record<QuestionType, Record<DifficultyLevel, DifficultyTarget>>>)[type]?.[level] as DifficultyTarget;
   return STRUCTURAL_CHECKS[type](level, content, rubric, spec);
+}
+
+// ---------------------------------------------------------------------------
+// Phase B warn heuristics (RW-50) - pure, lexical, NEVER reject.
+//
+// Each check returns warnings only; callers must not use them to block draft
+// insertion. Thresholds come from the DIFFICULTY_SPEC rows (or the constant
+// below); per-type dispatch is a keyed table, not a switch.
+// ---------------------------------------------------------------------------
+
+export interface DifficultyWarning {
+  /** Stable machine code, safe to key UI/metrics on. */
+  code: string;
+  message: string;
+}
+
+type WarnCheck = (content: Record<string, unknown>, spec: DifficultyTarget) => DifficultyWarning[];
+
+/** MCQ: correct option's stem-overlap exceeding the best distractor's by this much hints at a giveaway. */
+const STEM_OVERLAP_GAP = 0.4;
+
+const words = (t: unknown): string[] =>
+  typeof t === "string" ? (t.toLowerCase().match(/[a-z0-9_]{3,}/g) ?? []) : [];
+
+const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+function rangeWarning(code: string, what: string, n: number, min = 0, max = Infinity): DifficultyWarning[] {
+  return n < min || n > max ? [{ code, message: `${what} ${n} outside target ${min}-${max}` }] : [];
+}
+
+const WARN_CHECKS: Partial<Record<QuestionType, WarnCheck>> = {
+  log_analysis: (c, spec) => {
+    const lines = typeof c["log_excerpt"] === "string" ? c["log_excerpt"].split(/\r?\n/).filter((l) => l.trim()).length : 0;
+    return [
+      ...rangeWarning("LOG_LINES_OUT_OF_RANGE", "log_analysis log lines", lines, spec.logLinesMin, spec.logLinesMax),
+      ...rangeWarning("LOG_FINDINGS_OUT_OF_RANGE", "log_analysis findings", strs(c["expected_findings"]).length, spec.findingsMin, spec.findingsMax),
+    ];
+  },
+  mcq: (c, spec) => {
+    const opts = strs(c["options"]);
+    const correct = typeof c["correct"] === "number" ? c["correct"] : -1;
+    const out: DifficultyWarning[] = [];
+    const lens = opts.filter((_, i) => i !== correct).map((o) => o.length);
+    if (lens.length > 1 && spec.distractorSpreadMax !== undefined) {
+      const hi = Math.max(...lens);
+      const spread = hi === 0 ? 0 : (hi - Math.min(...lens)) / hi;
+      if (spread > spec.distractorSpreadMax) {
+        out.push({ code: "MCQ_DISTRACTOR_LENGTH_SPREAD", message: `mcq distractor length spread ${spread.toFixed(2)} exceeds ${spec.distractorSpreadMax}` });
+      }
+    }
+    const stem = new Set(words(c["question"]));
+    const overlap = (o: string): number => {
+      const w = words(o);
+      return w.length === 0 ? 0 : w.filter((x) => stem.has(x)).length / w.length;
+    };
+    if (opts.length > 1 && correct >= 0 && correct < opts.length) {
+      const best = Math.max(...opts.filter((_, i) => i !== correct).map(overlap));
+      if (overlap(opts[correct]!) - best >= STEM_OVERLAP_GAP) {
+        out.push({ code: "MCQ_STEM_OVERLAP", message: "mcq correct option shares far more words with the stem than any distractor" });
+      }
+    }
+    return out;
+  },
+  scenario: (c, spec) => {
+    const steps = Array.isArray(c["steps"]) ? (c["steps"] as Array<Record<string, unknown>>) : [];
+    const n = words(c["intro"]).length + steps.reduce((a, s) => a + words(s?.["prompt"]).length, 0);
+    return rangeWarning("SCENARIO_LENGTH_OUT_OF_RANGE", "scenario words", n, spec.scenarioWordsMin, spec.scenarioWordsMax);
+  },
+};
+
+/**
+ * Warn-level (never blocking) lexical heuristics for a generated draft.
+ * Returns [] for unknown types, non-object content, or in-range drafts. Never throws.
+ */
+export function warnStructuralDifficulty(
+  type: QuestionType,
+  level: DifficultyLevel,
+  content: unknown,
+): DifficultyWarning[] {
+  const spec = (DIFFICULTY_SPEC as Partial<Record<QuestionType, Record<DifficultyLevel, DifficultyTarget>>>)[type]?.[level];
+  const check = WARN_CHECKS[type];
+  if (!spec || !check || content === null || typeof content !== "object") return [];
+  try {
+    return check(content as Record<string, unknown>, spec);
+  } catch {
+    return [];
+  }
 }
