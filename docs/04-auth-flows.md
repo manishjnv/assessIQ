@@ -1,5 +1,7 @@
 # 04 — Auth Flows
 
+*Type: explanation* — This page explains how sign-in, two-factor codes, sessions, embed tokens and API keys work.
+
 > Phase 1 ships **Google SSO + TOTP**. All other methods are designed in but admin-toggled per tenant in Phase 2. The architecture below assumes them all from day one so we don't refactor the session and identity model later.
 
 ## Identity model summary

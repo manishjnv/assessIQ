@@ -1,5 +1,7 @@
 # 09 — AssessIQ Integration Guide
 
+*Type: how-to* — This page gives the steps for a host-app engineer to embed an assessment with a signed token.
+
 > **Audience:** Host-app engineer who knows JWT, HTTPS, and iframe basics. No AssessIQ internals required.
 > For the AssessIQ-side implementation see `modules/12-embed-sdk/SKILL.md`.
 

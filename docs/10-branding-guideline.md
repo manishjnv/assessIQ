@@ -1,5 +1,7 @@
 # 10 — Branding & Visual Guideline
 
+*Type: reference* — This page gives the visual identity rules: type, colour, layout and component idioms.
+
 > **Source of truth for every page, layout, and component built going forward.** Distilled from the design-canvas template at `modules/17-ui-system/AssessIQ_UI_Template/`. Read this before opening Figma, before drafting a new screen, before adding a new component.
 >
 > The kit's internal files (`CLAUDE.md`, `README.md`, `AccessIQ.html`, `brand/brand-guidelines.html`, and logo SVG filenames like `accessiq-horizontal.svg`) still spell the product name as **AccessIQ** — a vendor-side typo carried over when the kit was authored. The outer folder is correctly named `AssessIQ_UI_Template`. In all production code, copy, page titles, and OG/meta tags, use *AssessIQ*. Do not mass-rewrite kit internals on every refresh; the typo is design-time only and never reaches runtime (HTML links in `apps/web/index.html` reference `favicon/*` and `social/og-image.*` which match across kit revisions).

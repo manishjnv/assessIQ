@@ -1,5 +1,7 @@
 # 08 — UI System
 
+*Type: reference* — This page describes the design tokens, components and theming rules of the UI system.
+
 > Design tokens + component library + theming, all in one module. **You said you'll share a UI template** — when you drop it in, the integration plan in this doc tells us how to wire it into the token system without touching the rest of the platform.
 
 ## 0. Working agreement — the design-system kit is the canonical reference

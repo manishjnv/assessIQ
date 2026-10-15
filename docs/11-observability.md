@@ -1,5 +1,7 @@
 # 11 — Observability
 
+*Type: reference* — This page describes the log contract, redaction rules, retention and triage steps.
+
 > **Read this when:** something broke and you need to figure out what happened.
 > **Read this before:** adding any `log.info(...)` call to a new module.
 

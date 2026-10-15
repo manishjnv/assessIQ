@@ -1,5 +1,7 @@
 # 03 — API Contract
 
+*Type: reference* — This page lists the REST endpoints, their inputs, outputs and error codes.
+
 > Base URL: `https://assessiq.in/api`
 > All requests are JSON. All authenticated requests carry either a session cookie (`aiq_sess`) or `Authorization: Bearer aiq_live_<key>`. Tenant context is derived from the session/key — never passed in URL or body.
 
@@ -602,6 +604,8 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | `GET` | `/api/admin/super/domains` | List the platform domain library (all statuses) for the management UI | **live 2026-05-25** |
 | `POST` | `/api/admin/super/domains` | Create a platform domain + propagate to every tenant (fresh MFA) | **live 2026-05-25** |
 | `PATCH` | `/api/admin/super/domains/:id` | Archive/reactivate a platform domain + propagate (catalog-only; fresh MFA) | **live 2026-05-25** |
+| `GET` | `/api/admin/super/frameworks/seeds` | List the bundled framework seeds with the loaded version | **live (RW-57 part 1, S10, 2026-10-15)** |
+| `POST` | `/api/admin/super/frameworks/seeds/:code/load` | Load one bundled framework seed (idempotent) | **live (RW-57 part 1, S10, 2026-10-15)** |
 | `GET` | `/api/admin/super/tenants/:tenantId/users` | List users + pending invitations for a tenant (Phase C) | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/disable` | Super-admin user disable; LAST_ADMIN override path | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/reenable` | Super-admin user reenable | **live 2026-05-20** |
@@ -1068,6 +1072,19 @@ An admin replaces all recovery codes after proving a current TOTP code. Source: 
 **Not included:** a recovery-code fallback instead of a TOTP code (a stolen recovery code could then mint more codes).
 
 ---
+
+#### Framework seeds (RW-57 part 1, S10, 2026-10-15)
+
+A super admin loads curriculum frameworks from JSON files that ship with the api. Both routes use `superAdminOnly`. `routes.ts` passes the real chain. The handler also checks the role, as defence in depth. Board files for CBSE, ICSE and IB follow in later parts.
+
+`GET /api/admin/super/frameworks/seeds` returns `{ items: [{ code, name, board, version, nodeCount, loadedVersion }] }`. `loadedVersion` is `null` when the seed is not loaded.
+
+`POST /api/admin/super/frameworks/seeds/:code/load` loads one seed. The `code` param matches `^[a-z0-9-]+$`. It returns `{ frameworks, nodesCreated, nodesUpdated, nodesUnchanged }`.
+
+- The load is idempotent. A node is matched by the framework slug plus (parent, node code).
+- One `framework.seed_loaded` audit row is written for each load.
+- An unknown `code` returns 404.
+- An invalid seed returns 400. The message has the schema path. Nothing is written.
 
 #### `POST /api/admin/super/tenants/:tenantId/users/:userId/totp/reset` (RW-45, S10, 2026-10-15)
 

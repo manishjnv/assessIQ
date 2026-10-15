@@ -1,5 +1,7 @@
 # 13 — Email System
 
+*Type: reference* — This page describes the email design tokens, atoms and templates.
+
 > **Status (2026-10-02): the port is shipped.** Phases E0, E1 (`db7d931`), E2a and E2b (`ed8252f`) are complete: all 9 templates use the partials in `modules/13-notifications/src/email/partials/`. Open decisions 1-7 were resolved on 2026-05-21; only #11 (Litmus budget, E3 only) stays open. The text below keeps the E0 design record. Read "before E1" as history.
 >
 > **Phase E0 output** (foundation: tokens reconciliation + email-safe atom designs).

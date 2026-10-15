@@ -1,5 +1,7 @@
 # 01 — Architecture Overview
 
+*Type: explanation* — This page explains the system context, the user classes and how the parts fit together.
+
 ## System context
 
 AssessIQ has three classes of users and three modes of access:

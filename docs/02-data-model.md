@@ -1,5 +1,7 @@
 # 02 — Data Model
 
+*Type: reference* — This page lists the Postgres tables, conventions and row-level security rules.
+
 > Every domain table has `tenant_id` (UUID, NOT NULL, indexed). Row-Level Security enforces isolation. Application sets `app.current_tenant` at session start; RLS policies reference it.
 
 ## Conventions

@@ -1,5 +1,7 @@
 # 05 — AI Grading Pipeline
 
+*Type: explanation* — This page explains how AI grading runs, the operating modes and why grading is synchronous.
+
 > **Phase 1 (current, $0 API budget):** Production grading runs synchronously through the **Claude Code CLI** on the VPS, authenticated against the admin's personal Max subscription. Every grading call is initiated by an explicit click of the platform super admin (the owner) in the platform evaluation queue — company admins can no longer trigger it (§ Platform evaluation queue, 2026-10-01) — single-admin-in-the-loop, no async workers, no Agent SDK, no API key.
 >
 > **Phase 2 (future, paid budget):** Same prompts and rubric move to the Claude Agent SDK with an `ANTHROPIC_API_KEY`, async BullMQ workers, prompt-cache savings, and tenant-level concurrency. The pipeline is designed so the swap is a single config flag (`AI_PIPELINE_MODE`).

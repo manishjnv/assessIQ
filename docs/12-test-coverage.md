@@ -1,5 +1,7 @@
 # 12 — Test Coverage Map
 
+*Type: reference* — This page maps test coverage for each module and lists the high-risk gaps.
+
 > **Audit date:** 2026-05-15. File-shape-based — no `vitest --coverage` run.
 > Re-run this audit whenever a module's test:source ratio changes materially.
 

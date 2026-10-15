@@ -1,5 +1,7 @@
 # 06 — Deployment
 
+*Type: how-to* — This page gives the steps to deploy, roll back and operate AssessIQ on the shared VPS.
+
 > **Status:** rewritten 2026-04-30 to reflect the actual VPS state. Earlier draft assumed nginx + certbot; reality is **Caddy** as the global TLS edge, **Cloudflare** in front, and **other apps already on the box** (`ti-platform`, `accessbridge`, `roadmap`).
 
 ## Target topology — actual
@@ -2152,3 +2154,33 @@ Do the enumerate-first checks of project rule 8 before step 1.
 5. Verify: `curl -i https://assessiq.in/` (200), spot-check `/admin/login` and `/admin/dashboard` for "No attempts.", "No results." empty states.
 
 **Result:** 24 containers, assessiq-frontend healthy, help rows 384 → 387 (3 new versions in 0166).
+
+## Hardening S10 deploy (2026-10-15)
+
+**What changed.** GitHub `main` and the VPS `/srv/assessiq` are both at `ab729bb`. The deploy has 8 commits:
+
+- `1169f81` test guards (RW-51, RW-70, RW-71)
+- `187ff35` RW-69 (erasure of AI grading data)
+- `288a39b` RW-50 (difficulty warn heuristics)
+- `5556e87` new audit actions
+- `64cea96` RW-45 (recovery codes, two-factor reset)
+- `3bf35b8` RW-47 (revoke archives clones)
+- `315c18c` RW-48b (nightly tenant purge)
+- `ab729bb` docs
+
+### Deploy steps
+
+1. Pre-check: the VPS is a git clone, the 6 `assessiq-*` containers are healthy, and 0 grading runs are in flight.
+2. Drift gate: the DB-only migrations `0011`, `0100`, `0106` and `0109` are known. The repo-only migrations are `0170` and `0171`.
+3. Apply `0170` and `0171` by hand with `psql -v ON_ERROR_STOP=1 -1`. Record both in `schema_migrations`:
+   - `0170_tenant_purge.sql`, checksum `e9e464924646956226359abee0c3186a515d7b6533433ee964469d2f7fe334f8`
+   - `0171_seed_rw45_account_security_help.sql`, checksum `1effa1257b767f15b00928b6a236831e4d2dd1547aa72c8a00228c812d285c0a`
+4. Post-checks: `tenants_status_check` now includes `'purged'`. The 9 new help rows are present.
+5. Build `assessiq-api` and `assessiq-frontend`.
+6. Recreate `assessiq-api`, `assessiq-worker` and `assessiq-frontend` with `up -d --no-deps --force-recreate`.
+
+**Result.** All 6 containers are healthy within 52 seconds. `/api/health` and `/api/ready` return 200. `https://assessiq.in/` and `/admin/account-security` return 200. The api and worker logs show no startup errors.
+
+**Purge job is in dry-run mode.** `TENANT_PURGE_ENABLED` is NOT set in the VPS `.env`. The first tick is at 03:30 UTC. Check it with `docker logs assessiq-worker | grep tenant-purge-cron`.
+
+**Rollback.** Run `git revert` on the commit, then rebuild and recreate the services. Migration `0170` needs no rollback: it only widens a CHECK. The `0171` rows are inert for older builds.
