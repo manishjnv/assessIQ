@@ -44,6 +44,8 @@ POST /api/admin/help/import?locale=             # bulk upsert
 ## Default content seeding
 On first migration: load `modules/16-help-system/content/en/*.yml` into `help_content` table with `tenant_id=NULL` (global default). Per-tenant overrides written by admin take precedence at read time.
 
+**Seed version rule (RW-51a).** The seed is `ON CONFLICT (tenant_id, key, locale, version) DO NOTHING`, so editing the text of an already-seeded key never reaches the DB. A YAML entry may carry an optional `version` (default 1, written into the seed row). If you change `short_text` or `long_md` of an existing key, bump `version` and add a migration that inserts that version row (see 0162). `pnpm lint:help-seed-version` (part of `lint:repo`) compares the YAML with git `HEAD` (`--base <ref>`; use `origin/main` in CI) and fails, naming the key, when text changed at the same version. Self-test: `pnpm lint:help-seed-version:self-test`. The YAML is the base, not `seeds/help_content.sql`, because the SQL is rewritten with a timestamp on each regen.
+
 ## Telemetry
 - Tooltip shown count per key (sample 10%; aggregate hourly)
 - Drawer opens per page

@@ -28,3 +28,7 @@ Derived arrays: `DETERMINISTIC_IDS`, `AI_GRADEABLE_IDS`, `RUBRIC_REQUIRED_IDS`, 
 ## Lint
 
 `pnpm lint:question-type-registry` (strict in `lint:repo`) blocks type-id literals outside this package and the allowlist. Rule R6 checks that every definition is complete. Details: `docs/02-data-model.md` "Question type registry".
+
+## Golden test
+
+`src/__tests__/golden.test.ts` compares `candidateView`, `guidanceText` and `deterministicScore` of every type with literal outputs in `src/__tests__/golden.fixtures.ts`. The module parity test cannot catch a hook change, because the modules delegate to the registry. After an intentional hook change, review the failing diff. Then regenerate the literals: run the hooks over the inputs in `fixtures.ts` (same order as the test), paste the new output into `golden.fixtures.ts`, and commit both with the hook change.

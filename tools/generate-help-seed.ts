@@ -8,6 +8,16 @@
  *
  * Usage:
  *   pnpm tsx tools/generate-help-seed.ts
+ *   pnpm tsx tools/generate-help-seed.ts --check [--base <git-ref>]  (default HEAD)
+ *   pnpm tsx tools/generate-help-seed.ts --self-test
+ *
+ * --check (RW-51a): fails when a key's short_text/long_md differs from the
+ * base ref while its `version` (optional YAML field, default 1) is unchanged.
+ * Such an edit never reaches the DB (ON CONFLICT DO NOTHING). Fix: bump
+ * `version` in the YAML and add a migration inserting that version row.
+ * Base is the yml in git, not seeds/help_content.sql: the SQL is rewritten
+ * with a timestamp on every regen, so it is a noisy, lossy comparison base.
+ * In CI pass --base origin/main, because HEAD already holds the PR commits.
  *
  * Exit codes:
  *   0 — success (seed emitted or placeholder emitted when no YAML found)
@@ -30,6 +40,8 @@
 
 import * as path from "node:path";
 import * as fsp from "node:fs/promises";
+import { readdirSync, readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
@@ -61,6 +73,7 @@ const OUTPUT_FILE = path.join(
 
 const HelpEntrySchema = z.object({
   audience: z.enum(["admin", "candidate", "all"]),
+  version: z.number().int().min(1).optional(),
   short_text: z.string().min(1).max(120),
   long_md: z.string().optional(),
   related_keys: z.array(z.string()).optional(),
@@ -129,7 +142,7 @@ function buildInsert(key: string, entry: HelpEntry): string {
     `  'en',\n` +
     `  '${sqEscape(entry.short_text)}',\n` +
     `  ${longMdValue},\n` +
-    `  1,\n` +
+    `  ${entry.version ?? 1},\n` +
     `  'active'\n` +
     `) ON CONFLICT (tenant_id, key, locale, version) DO NOTHING;`
   );
@@ -255,7 +268,92 @@ async function main(): Promise<void> {
   process.exit(0);
 }
 
-main().catch((err) => {
-  process.stderr.write(`generate-help-seed error: ${String(err)}\n`);
-  process.exit(1);
-});
+// ---------------------------------------------------------------------------
+// --check: text changed without a version bump
+// ---------------------------------------------------------------------------
+
+type Snap = Record<string, { v: number; short: unknown; long: unknown }>;
+
+function snapFromYaml(text: string, into: Snap): void {
+  const raw = parseYaml(text) as Record<string, Record<string, unknown>> | null;
+  for (const [k, e] of Object.entries(raw ?? {})) {
+    const ver = e?.version;
+    into[k] = {
+      v: typeof ver === "number" ? ver : 1,
+      short: e?.short_text,
+      long: e?.long_md,
+    };
+  }
+}
+
+/** Keys present in both snapshots, same version, different text. */
+function findStaleKeys(base: Snap, cur: Snap): string[] {
+  return Object.keys(cur).filter((k) => {
+    const b = base[k];
+    const c = cur[k]!;
+    return (
+      b !== undefined && b.v === c.v && (b.short !== c.short || b.long !== c.long)
+    );
+  });
+}
+
+function selfTest(): void {
+  const mk = (y: string): Snap => {
+    const s: Snap = {};
+    snapFromYaml(y, s);
+    return s;
+  };
+  const base = mk(`a.b:\n  audience: admin\n  short_text: "one"\n`);
+  const same = findStaleKeys(base, mk(`a.b:\n  audience: admin\n  short_text: "one"\n`));
+  const stale = findStaleKeys(base, mk(`a.b:\n  audience: admin\n  short_text: "two"\n`));
+  const bumped = findStaleKeys(
+    base,
+    mk(`a.b:\n  audience: admin\n  version: 2\n  short_text: "two"\n`),
+  );
+  const added = findStaleKeys(base, mk(`a.c:\n  audience: admin\n  short_text: "x"\n`));
+  if (same.length || bumped.length || added.length || stale.join() !== "a.b") {
+    process.stderr.write("self-test FAILED\n");
+    process.exit(1);
+  }
+  process.stdout.write("generate-help-seed --check self-test OK\n");
+}
+
+function checkVersions(base: string): void {
+  const rel = "modules/16-help-system/content/en";
+  const git = (...a: string[]): string =>
+    execFileSync("git", a, { cwd: REPO_ROOT, encoding: "utf8" });
+  const baseSnap: Snap = {};
+  const curSnap: Snap = {};
+  for (const f of git("ls-tree", "--name-only", base, `${rel}/`)
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.endsWith(".yml"))) {
+    snapFromYaml(git("show", `${base}:${f}`), baseSnap);
+  }
+  for (const f of readdirSync(CONTENT_DIR).filter((n) => n.endsWith(".yml"))) {
+    snapFromYaml(readFileSync(path.join(CONTENT_DIR, f), "utf8"), curSnap);
+  }
+  const stale = findStaleKeys(baseSnap, curSnap);
+  for (const k of stale) {
+    process.stderr.write(
+      `ERROR: help key "${k}": short_text/long_md changed but version did not. ` +
+        `The seed is ON CONFLICT DO NOTHING, so the edit never reaches the DB. ` +
+        `Bump \`version\` in the YAML and add a migration inserting that version row.\n`,
+    );
+  }
+  if (stale.length) process.exit(1);
+  process.stdout.write(`help-seed version check OK (base ${base})\n`);
+}
+
+const argv = process.argv.slice(2);
+if (argv.includes("--self-test")) {
+  selfTest();
+} else if (argv.includes("--check")) {
+  const i = argv.indexOf("--base");
+  checkVersions(i >= 0 && argv[i + 1] ? argv[i + 1]! : "HEAD");
+} else {
+  main().catch((err) => {
+    process.stderr.write(`generate-help-seed error: ${String(err)}\n`);
+    process.exit(1);
+  });
+}

@@ -98,7 +98,7 @@ export function tenantContextMiddleware(): TenantContextHooks {
         throw new AuthnError("no tenant context resolved for request");
       }
 
-      const client = await getPool().connect();
+      const client = await getPool().connect(); // pool-connect-ok: request-scoped tenant tx: the client is held across Fastify preHandler and onResponse hooks, so a callback scaffold cannot wrap it
       try {
         await client.query("BEGIN");
         await client.query("SET LOCAL ROLE assessiq_app");

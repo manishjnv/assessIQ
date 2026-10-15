@@ -1,3 +1,6 @@
+// NOTE (RW-68): candidateView, deterministicScore and guidanceText in the module twins now delegate to
+// the registry, so those three checks below are self-comparisons. Only coerceContent still has an
+// independent twin. golden.test.ts (literal expected outputs) is the real guard for the other three.
 // Golden parity: the registry hooks equal the module implementations they replace.
 // The only place in this package allowed to import from modules/* (test only; excluded from tsc).
 import { describe, expect, it } from "vitest";

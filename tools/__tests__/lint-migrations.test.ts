@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { lintMigrations } from "../lint-migrations.js";
+import { lintMigrations, lintSqlLocations } from "../lint-migrations.js";
 
 /** Write fixtures to a temp dir (module/migrations/name) and read them back as lint input. */
 function run(spec: Record<string, string>): string[] {
@@ -54,5 +54,17 @@ describe("lintMigrations", () => {
     });
     expect(v).toHaveLength(1);
     expect(v[0]).toMatch(/R3 forward reference to "parent"/);
+  });
+});
+
+describe("lintSqlLocations (R5)", () => {
+  it("accepts migrations/ and seeds/ files", () => {
+    expect(lintSqlLocations(["modules/x/migrations/0001_a.sql", "modules/x/seeds/a.sql"])).toEqual([]);
+  });
+
+  it("flags nested and out-of-place .sql", () => {
+    const v = lintSqlLocations(["modules/x/migrations/sub/0001_a.sql", "modules/x/src/0001_a.sql"]);
+    expect(v).toHaveLength(2);
+    expect(v.every((m) => m.includes("R5"))).toBe(true);
   });
 });

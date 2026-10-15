@@ -104,6 +104,8 @@ const SKIP_DIRS = new Set([
   ".turbo",
   "AssessIQ_UI_Template",
   "storybook-static",
+  ".claude", // agent worktrees kept for the owner are full repo copies; never lint them
+  ".agent",
 ]);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
