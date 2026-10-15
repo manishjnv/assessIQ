@@ -32,7 +32,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
 }) => {
   // Keep data-viewport on <html> in sync with matchMedia. The inline script in
   // apps/web/index.html sets the initial value before React mounts; this hook
-  // takes over for the lifetime of the app. See docs/plans/MOBILE_KIT_PORT.md § M0.
+  // takes over for the lifetime of the app. See docs/plans/archive/MOBILE_KIT_PORT.md § M0.
   useViewportSync();
 
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => {

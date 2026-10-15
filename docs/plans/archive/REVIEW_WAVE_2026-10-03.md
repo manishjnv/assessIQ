@@ -52,7 +52,7 @@
 
 **What changed.** Migration `modules/06-attempt-engine/migrations/0150_attempts_dashboard_count_idx.sql` creates the partial index `attempts_dashboard_count_idx`. `modules/07-ai-grading/src/repository.ts` (`countGradingQueue`) has an updated comment. `docs/02-data-model.md` records the index.
 
-**Why.** The dashboard cards count attempts with one query (see `docs/plans/SMALL_TASKS_N13_N18_RV16.md`). The codex review of that change asked for an index for the scale case.
+**Why.** The dashboard cards count attempts with one query (see `docs/plans/archive/SMALL_TASKS_N13_N18_RV16.md`). The codex review of that change asked for an index for the scale case.
 
 **How to verify.** On production, check that the index exists in `pg_indexes`. Open the admin dashboard. The cards load.
 
@@ -214,10 +214,10 @@
 ## 9. RS6 feature review (read only, no code)
 
 The review has 26 results: PT1 and FR1 to FR25. The full text is in four local files:
-- `docs/plans/RS6_FEATURE_REVIEW_A.md` (PT1, FR7, FR9, FR15, FR19)
-- `docs/plans/RS6_FEATURE_REVIEW_B.md` (FR1 to FR6)
-- `docs/plans/RS6_FEATURE_REVIEW_C.md` (FR8, FR10, FR11, FR12, FR13, FR20, FR25)
-- `docs/plans/RS6_FEATURE_REVIEW_D.md` (FR14, FR16, FR17, FR18, FR21, FR22, FR23, FR24)
+- `docs/plans/archive/RS6_FEATURE_REVIEW_A.md` (PT1, FR7, FR9, FR15, FR19)
+- `docs/plans/archive/RS6_FEATURE_REVIEW_B.md` (FR1 to FR6)
+- `docs/plans/archive/RS6_FEATURE_REVIEW_C.md` (FR8, FR10, FR11, FR12, FR13, FR20, FR25)
+- `docs/plans/archive/RS6_FEATURE_REVIEW_D.md` (FR14, FR16, FR17, FR18, FR21, FR22, FR23, FR24)
 
 | Id | Feature | Result |
 |---|---|---|
@@ -248,7 +248,7 @@ The review has 26 results: PT1 and FR1 to FR25. The full text is in four local f
 | FR24 | Generation modes | Improve (finish rollout; keep `omnibus` until Stage 4) |
 | FR25 | Rubric validation in two places | Improve (module 08 owns all rules) |
 
-**Counts.** 91 follow-up (FU) rows are in `docs/PENDING_TASKS_2026-10-01.md` § P0-V: 71 active and 20 parked. 29 owner decisions are listed there.
+**Counts.** 91 follow-up (FU) rows are in `docs/ROADMAP.md` § P0-V: 71 active and 20 parked. 29 owner decisions are listed there.
 
 **Register corrections found by the review.** The plan text was wrong in several rows, for example: the help text for audit describes a page that does not exist (FR1); 36 files use `auditInTx`, not 35 (FR2); Caddy sets `X-Frame-Options DENY` site wide, a likely iframe blocker (FR4); the Settings budget card no longer shows a budget (FR7); the `/me/assessments` routes are registered and tested (FR12); `smtp_config` has no writer and no value (FR15); the worker routes were open to tenant admins (FR17).
 
@@ -468,5 +468,5 @@ Run on `main` before wave B. Docker is the bottleneck: run suites with `--no-fil
 - `docs/06-deployment.md` wave A and wave B.
 - `docs/RCA_LOG.md` (nine entries dated 2026-10-03, from N20 to the CSV guard).
 - `docs/02-data-model.md` (structured_case, RV78 facts, N22 index), `docs/04-auth-flows.md` (reviewer role removed), `docs/12-test-coverage.md` (tool versions, e2e suite).
-- `docs/plans/RS6_FEATURE_REVIEW_A.md` to `D.md` (local only), `docs/PENDING_TASKS_2026-10-01.md` § P0-V (local only).
-- `docs/plans/SMALL_TASKS_N13_N18_RV16.md` (the session before this one).
+- `docs/plans/archive/RS6_FEATURE_REVIEW_A.md` to `D.md` (local only), `docs/ROADMAP.md` § P0-V (local only).
+- `docs/plans/archive/SMALL_TASKS_N13_N18_RV16.md` (the session before this one).

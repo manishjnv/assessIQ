@@ -5,7 +5,7 @@
 --   Stores tamper-evident course-completion credential records.
 --   Each row is a point-in-time snapshot of what was true at issuance.
 --   Profile or score changes after issuance do NOT retro-update certificates.
---   See docs/CERTIFICATION_PLAN_GENERIC.md §1.1 and modules/18-certification/SKILL.md.
+--   See docs/plans/archive/CERTIFICATION_PLAN_GENERIC.md §1.1 and modules/18-certification/SKILL.md.
 --
 -- DESIGN DECISIONS (adapted from the project-agnostic plan):
 --

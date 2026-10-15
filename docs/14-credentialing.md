@@ -2,7 +2,7 @@
 
 > Public-facing reference for the credentialing model. Module-internal
 > details live in `modules/18-certification/SKILL.md`. The full Phase 5
-> blueprint is in `docs/CERTIFICATION_PLAN_GENERIC.md`.
+> blueprint is in `docs/plans/archive/CERTIFICATION_PLAN_GENERIC.md`.
 
 ## What ships in Phase 5
 

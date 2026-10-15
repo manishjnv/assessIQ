@@ -12,7 +12,7 @@
 > | A5 — Editor pages | SHIPPED 2026-05-21 |
 > | A6 — ViewportLock removal + docs | SHIPPED 2026-05-21 |
 
-Sibling to [docs/plans/MOBILE_KIT_PORT.md](./MOBILE_KIT_PORT.md), which shipped the candidate-facing mobile port (M0–M6) on 2026-05-20. This plan extends the same playbook to the admin surface and ultimately removes the M5 graceful-degrade interstitial.
+Sibling to [docs/plans/archive/MOBILE_KIT_PORT.md](./MOBILE_KIT_PORT.md), which shipped the candidate-facing mobile port (M0–M6) on 2026-05-20. This plan extends the same playbook to the admin surface and ultimately removes the M5 graceful-degrade interstitial.
 
 This is the **spec**. The phase-by-phase implementation plan is generated next via the superpowers writing-plans skill.
 
@@ -498,7 +498,7 @@ Mined across 7 sessions to retune the routing matrix.
 ## 7. Docs to update (per-phase, same-PR rule)
 
 - **`docs/10-branding-guideline.md § 15.3`** — append "Admin pattern reflows" subsection cataloging R1–R6. M5 entry rewritten as superseded in A6.
-- **`docs/plans/ADMIN_MOBILE_PORT.md`** — the status header at the top of this doc is updated each phase (NOT YET STARTED → IN PROGRESS → SHIPPED).
+- **`docs/plans/archive/ADMIN_MOBILE_PORT.md`** — the status header at the top of this doc is updated each phase (NOT YET STARTED → IN PROGRESS → SHIPPED).
 - **`docs/08-ui-system.md § Mobile`** — extend with the new admin tokens and the drawer-wrap pattern.
 - **`docs/SESSION_STATE.md`** — replaced each session per the global Phase 6 rule.
 - **`docs/RCA_LOG.md`** — append only if a bug fix landed during the port.

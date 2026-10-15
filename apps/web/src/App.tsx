@@ -78,7 +78,7 @@ export function App(): React.JSX.Element {
         <Suspense fallback={null}>
           {/* Admin Mobile Port (A6, 2026-05-21) deleted the M5 ViewportLock
               wrapper that intercepted /admin/* on mobile. Admin pages are
-              now mobile-responsive (see docs/plans/ADMIN_MOBILE_PORT.md). */}
+              now mobile-responsive (see docs/plans/archive/ADMIN_MOBILE_PORT.md). */}
           <Routes>
           <Route path="/" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<AdminLogin />} />

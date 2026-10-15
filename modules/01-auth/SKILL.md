@@ -75,7 +75,7 @@ Reads: `users` (existence check), `tenants`, `tenant_settings`.
 
 ## Decisions captured (2026-05-01)
 
-This addendum pre-flights Window 4 (G0.C Session 4) by freezing every implementation ambiguity surfaced in the Phase 0 plan plus the deep-read of `docs/04-auth-flows.md`, `docs/03-api-contract.md`, and `docs/02-data-model.md`. Each entry: **Decision · Source · Rationale**. Source shorthand: `PLAN` = `docs/plans/PHASE_0_KICKOFF.md`, `04-AUTH` = `docs/04-auth-flows.md`, `02-DATA` = `docs/02-data-model.md`, `03-API` = `docs/03-api-contract.md`.
+This addendum pre-flights Window 4 (G0.C Session 4) by freezing every implementation ambiguity surfaced in the Phase 0 plan plus the deep-read of `docs/04-auth-flows.md`, `docs/03-api-contract.md`, and `docs/02-data-model.md`. Each entry: **Decision · Source · Rationale**. Source shorthand: `PLAN` = `docs/plans/archive/PHASE_0_KICKOFF.md`, `04-AUTH` = `docs/04-auth-flows.md`, `02-DATA` = `docs/02-data-model.md`, `03-API` = `docs/03-api-contract.md`.
 
 ### 1. Redis session schema
 

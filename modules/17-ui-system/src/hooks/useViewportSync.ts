@@ -15,7 +15,7 @@ import { VIEWPORT_QUERY } from "./useViewport.js";
  * directly. Use useViewport() if you need to read the viewport value in a
  * component.
  *
- * See docs/plans/MOBILE_KIT_PORT.md § Phase M0.
+ * See docs/plans/archive/MOBILE_KIT_PORT.md § Phase M0.
  */
 export function useViewportSync(): void {
   useEffect(() => {

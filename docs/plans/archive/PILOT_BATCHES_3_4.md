@@ -4,7 +4,7 @@
 - **Batch 3:** deployed at `273e2bc`; docs in `f8715a5`.
 - **Batch 4:** deployed at `e752be6`; docs in `ab5c884`.
 
-**Scope:** ten tasks from `docs/PENDING_TASKS_2026-10-01.md` that a Claude session could build without the owner.
+**Scope:** ten tasks from `docs/ROADMAP.md` that a Claude session could build without the owner.
 
 **Not included:** owner tasks (test runs, tenant creation, email plan, MFA flip, legal), and e2e in CI (E13, deliberately last).
 

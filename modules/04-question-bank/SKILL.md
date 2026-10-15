@@ -63,7 +63,7 @@ Every PATCH to `questions` snapshots the previous content into `question_version
 
 ## Decisions captured (2026-05-01)
 
-Pinned ahead of Phase 1 G1.A Session 1 per `docs/plans/PHASE_1_KICKOFF.md` § Decisions captured. User confirmed all four user-blocking decisions resolve to orchestrator defaults.
+Pinned ahead of Phase 1 G1.A Session 1 per `docs/plans/archive/PHASE_1_KICKOFF.md` § Decisions captured. User confirmed all four user-blocking decisions resolve to orchestrator defaults.
 
 ### `log_analysis` content shape (decision #3)
 

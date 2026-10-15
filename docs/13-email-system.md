@@ -3,7 +3,7 @@
 > **Status (2026-10-02): the port is shipped.** Phases E0, E1 (`db7d931`), E2a and E2b (`ed8252f`) are complete: all 9 templates use the partials in `modules/13-notifications/src/email/partials/`. Open decisions 1-7 were resolved on 2026-05-21; only #11 (Litmus budget, E3 only) stays open. The text below keeps the E0 design record. Read "before E1" as history.
 >
 > **Phase E0 output** (foundation: tokens reconciliation + email-safe atom designs).
-> Authored 2026-05-21 against [`docs/plans/EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md).
+> Authored 2026-05-21 against [`docs/plans/archive/EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md).
 >
 > **Scope of this doc.** Single source-of-truth for "what does an AssessIQ email look like." Resolves the kit-vs-production token deltas, designs the 8 email-safe atoms as table-based HTML, and surfaces the product decisions that Phase E1 needed before it materialized the Handlebars partials (E1 is shipped; see the status line above). **No production code lands as part of E0** — the atom HTML below is the *contract* E1 implements.
 >
@@ -352,7 +352,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 **Why.** `border-collapse:separate` is required for the outer `border-radius` to render in WebKit clients (otherwise the inner `<td>` borders punch through). `@first` / `@last` are Handlebars built-ins; no helper needed.
 
-**Why `{{{v}}}` (triple-stash exception).** The value cell may contain inline emphasis (`<strong>`) or a short link. Triple-stash is otherwise forbidden — this is the **sole allowed exception**, reconciled with [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) anti-pattern guard #9 (amended to document this exception). `v` is authored at the *template* level (e.g. `{ k: "Score", v: '<strong>Distinguished</strong>' }`), never substituted from candidate-supplied data.
+**Why `{{{v}}}` (triple-stash exception).** The value cell may contain inline emphasis (`<strong>`) or a short link. Triple-stash is otherwise forbidden — this is the **sole allowed exception**, reconciled with [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) anti-pattern guard #9 (amended to document this exception). `v` is authored at the *template* level (e.g. `{ k: "Score", v: '<strong>Distinguished</strong>' }`), never substituted from candidate-supplied data.
 
 **Enforcement (mandatory in E1):**
 
@@ -526,7 +526,7 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 
 **What E1/E2 still must do for TXT:**
 
-1. **Maintain HTML+TXT semantic parity** — anti-pattern guard #10 in [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md). When E2 adds a preheader to the HTML variant, the TXT variant gets a one-line summary in the same place (after the subject line). When E2 adds a meta-card row in HTML, the TXT variant gets the same data as `KEY: value` lines.
+1. **Maintain HTML+TXT semantic parity** — anti-pattern guard #10 in [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md). When E2 adds a preheader to the HTML variant, the TXT variant gets a one-line summary in the same place (after the subject line). When E2 adds a meta-card row in HTML, the TXT variant gets the same data as `KEY: value` lines.
 2. **Preserve the `Subject: <…>\n\n<body>` convention** — [render.ts:131-139](modules/13-notifications/src/email/render.ts#L131-L139) parses it.
 3. **Preserve i18n `{{_t_*}}` vars** — TXT compiles with `noEscape: true` but i18n substitution still happens. Don't inline literal English strings.
 4. **No HTML tags in TXT.** Even when the HTML uses `<strong>` inside `meta_rows.v`, the TXT variant uses uppercase or asterisks (`*Distinguished*`) instead. The render pipeline does NOT auto-strip — the template author writes the parallel text.
@@ -738,7 +738,7 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 
 ## §7 Cross-references
 
-- Plan: [`docs/plans/EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) — phases E0–E4, anti-pattern guards, open decisions.
+- Plan: [`docs/plans/archive/EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) — phases E0–E4, anti-pattern guards, open decisions.
 - Kit source: [`modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/`](../modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/) — atoms, tokens, kit-readme.
 - Production templates: [`modules/13-notifications/src/email/templates/`](../modules/13-notifications/src/email/templates/) — current 9 templates (HTML + TXT pairs).
 - Render pipeline: [`modules/13-notifications/src/email/render.ts`](../modules/13-notifications/src/email/render.ts) — Handlebars compile, Zod var validation, i18n substitution.
@@ -755,12 +755,12 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 - [x] Open decisions explicitly listed; defaults vs unresolved separated (§5).
 - [x] Cross-references to plan, kit, templates, render pipeline, module skill (§7).
 - [x] **Blocker 1 (composition syntax):** §3 rewritten against built-in Handlebars block partials (`{{#> name}}…{{> @partial-block}}…{{/name}}`); slot-var + subexpression-partial patterns explicitly rejected with rationale. A1 + A4 atoms updated.
-- [x] **Blocker 2 (triple-stash policy):** [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) anti-pattern guard #9 amended to document A7's sole exception; A7 strengthened with three enforcement layers (per-template SAFETY comment, runtime `assertSafeMetaRows()` invariant, CI lint against candidate/tenant/user var-name patterns).
-- [x] **Blocker 3 (snapshot strategy):** [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) E1 "Render unit tests" rewritten — frozen `.pre-e1.html` fixtures + `node-html-parser` DOM-tree canonical-form comparison, NOT raw-string snapshots. Pre-E1 fixture-capture commit lands first, on its own.
+- [x] **Blocker 2 (triple-stash policy):** [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) anti-pattern guard #9 amended to document A7's sole exception; A7 strengthened with three enforcement layers (per-template SAFETY comment, runtime `assertSafeMetaRows()` invariant, CI lint against candidate/tenant/user var-name patterns).
+- [x] **Blocker 3 (snapshot strategy):** [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) E1 "Render unit tests" rewritten — frozen `.pre-e1.html` fixtures + `node-html-parser` DOM-tree canonical-form comparison, NOT raw-string snapshots. Pre-E1 fixture-capture commit lands first, on its own.
 - [x] **Bug 4 (TXT atom set):** §2 A-TXT decision — TXT variants stay hand-authored, no shared partials. Lint added: `lint-txt-parity.test.ts` asserts both `.html` + `.txt` files exist per template and the `.txt` first line matches `/^Subject: \S/`.
 - [x] **Bug 5 (i18n keys):** §6.1 rewritten against the real per-template-namespaced `en.json`. Only ~6 new cross-template keys (under new `_shared` namespace) need adding — `page_title` and `brand_wordmark` already exist in all 9 templates. `buildVars()` extension scoped to merge `_shared.*` into every template's `_t_*` namespace.
 - [x] **Bug 6 (commercial footer endpoints):** §2 A9b updated against empirical grep finding (no `/unsubscribe`, `/preferences`, `/privacy` exist). Per-link conditional collapse for all 4 hrefs; outer `{{#if has_any_link}}` removes the row entirely on day zero. §3 composition example updated to day-zero shape (all 4 hrefs `null`).
-- [x] **Bug 7 (plan guard #11 over-broad):** [`EMAIL_KIT_PORT.md`](plans/EMAIL_KIT_PORT.md) anti-pattern guard #11 tightened with explicit enumeration of send-pipeline invariants (email_log/BullMQ contract/transport/dev-stub-fallback) and a carve-out documenting that `render.ts` partial registration + `concat` helper + `assertSafeMetaRows()` are content-layer changes, not pipeline — not a Phase 3 bounce.
+- [x] **Bug 7 (plan guard #11 over-broad):** [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) anti-pattern guard #11 tightened with explicit enumeration of send-pipeline invariants (email_log/BullMQ contract/transport/dev-stub-fallback) and a carve-out documenting that `render.ts` partial registration + `concat` helper + `assertSafeMetaRows()` are content-layer changes, not pipeline — not a Phase 3 bounce.
 - [ ] User has resolved open decision #5 (physical address) — **blocks E1**.
 
 E1 cannot start until decision #5 is resolved (the footer partial needs the literal address baked in). Decisions #7 (OTP preheader) and #11 (Litmus budget) can be deferred — they affect E2b and E3 respectively, both downstream of E1.
@@ -783,7 +783,7 @@ Templates are rendered as described above. Delivery is a BullMQ `email.send` job
 - **`email_log.status`:** `queued` between retries, `sent` on delivery, `failed` only when final. These writes persist since migration 0121.
 - **Timeouts:** SMTP connection 10 s, greeting 10 s, socket 30 s. They are appended to `SMTP_URL` unless set there, so a hung connection cannot hold the single worker slot.
 - **A new template must be classified:** `EMAIL_CLASS` is a `Record<EmailTemplateName, …>`, so a new template does not compile until it is marked auth or bulk.
-- **More:** log events and triage are in `docs/11-observability.md` § 35. Plan capacity (300/day on the shared free plan) is an owner decision; see `docs/PENDING_TASKS_2026-10-01.md` A5 (local).
+- **More:** log events and triage are in `docs/11-observability.md` § 35. Plan capacity (300/day on the shared free plan) is an owner decision; see `docs/ROADMAP.md` A5 (local).
 
 ## §8 Sender-domain startup assertion (RW-37)
 

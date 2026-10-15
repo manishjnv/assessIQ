@@ -1,7 +1,7 @@
 # Pilot readiness batch (2026-10-01): invites, email + webhook hardening, release on last accept, option shuffle
 
 **Status:** LIVE on production (https://assessiq.in) since 1 October 2026, at commit `a86bce2`. Reference docs are in `3593bec`; this file was added in the commit after it.
-**Scope.** These are the five tasks from `docs/PENDING_TASKS_2026-10-01.md` that a Claude session could build without the owner:
+**Scope.** These are the five tasks from `docs/ROADMAP.md` that a Claude session could build without the owner:
 - R7 core (invites);
 - A5, code side (email delivery);
 - R8, webhook part;

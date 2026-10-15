@@ -1,6 +1,6 @@
 # 01-auth migrations — schema sketches for Window 4
 
-> This directory will hold six SQL migrations created in Window 4 (G0.C Session 4 per `docs/plans/PHASE_0_KICKOFF.md`). Each migration corresponds to one auth-owned table per `docs/02-data-model.md` and the decisions captured in `modules/01-auth/SKILL.md` § Decisions captured (2026-05-01).
+> This directory will hold six SQL migrations created in Window 4 (G0.C Session 4 per `docs/plans/archive/PHASE_0_KICKOFF.md`). Each migration corresponds to one auth-owned table per `docs/02-data-model.md` and the decisions captured in `modules/01-auth/SKILL.md` § Decisions captured (2026-05-01).
 >
 > **Scope:** sketches only. The actual SQL is Window 4's deliverable. These sketches lock the column set, RLS posture, and FK shape so that the codex:rescue gate focuses on logic (auth flows, signature verification, token lifecycle) rather than schema drift.
 >

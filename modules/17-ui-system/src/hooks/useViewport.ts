@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
  *   const viewport = useViewport();
  *   if (viewport === 'mobile') { ... }
  *
- * See docs/plans/MOBILE_KIT_PORT.md § Phase M0.
+ * See docs/plans/archive/MOBILE_KIT_PORT.md § Phase M0.
  */
 export type Viewport = "mobile" | "desktop";
 

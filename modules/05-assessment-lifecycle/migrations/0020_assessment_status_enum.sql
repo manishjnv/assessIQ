@@ -23,7 +23,7 @@
 --   cancelled — terminal; for created-by-mistake assessments
 --
 -- WHY a Postgres ENUM type rather than TEXT + CHECK like other status columns:
---   The KICKOFF plan (`docs/plans/PHASE_1_KICKOFF.md` § Session 3 Migrations)
+--   The KICKOFF plan (`docs/plans/archive/PHASE_1_KICKOFF.md` § Session 3 Migrations)
 --   pinned ENUM for the assessment_status column specifically — it is the
 --   primary state-machine surface and the explicit type catches typos at the
 --   DB layer. Adding a new state requires `ALTER TYPE ... ADD VALUE`, which

@@ -3,7 +3,7 @@
 **Status:** DONE 2026-05-01 (6631d3f). Route layer and first VPS deploy closed.
 
 > **Generated:** 2026-05-01 by Opus 4.7 via `claude-mem:make-plan`.
-> **Parent:** `docs/plans/PHASE_0_KICKOFF.md` § Final phase (steps 1, 3, 4, 5 partial — closes the verification drills the kickoff plan deferred).
+> **Parent:** `docs/plans/archive/PHASE_0_KICKOFF.md` § Final phase (steps 1, 3, 4, 5 partial — closes the verification drills the kickoff plan deferred).
 > **Predecessor commits on `origin/main`:** `d9cfeb4` (W4 — `@assessiq/auth` library + DB), `be96623` (W5 mock-seam swap → real `@assessiq/auth.sessions`), `32e5e85` (handoff docs). Working tree clean at plan-write time.
 > **What this plan does:** stands up the API container + Fastify auth route layer that wraps the W4 library, swaps out the dev-auth shim across the apps/api + apps/web surface, deploys the API to the shared VPS additively, and runs the four live drills SESSION_STATE deferred (full-stack browser, alg=none, replay, plus Google SSO start curl).
 > **What this plan does NOT do:** rewrite `tools/migrate.ts` (separate session per Open Question carryover); patch the api-keys `last_used_at` RLS no-op or TOTP `recordFailure` TTL drift (Phase-1 follow-ups #2 and #3 from W4 handoff — deferred unless one blocks a drill); ship the `assessiq-frontend` Dockerfile (out of scope per user pin); ship `assessiq-worker` or `assessiq-redis` Dockerfiles (out of scope per user pin — Redis runs from the upstream `redis:7-alpine` image directly via compose, no custom Dockerfile needed; worker is a Phase-1+ deliverable when BullMQ work appears).
@@ -633,7 +633,7 @@ After rollback, the Caddyfile placeholder is restored and `/api/*` returns the p
 1. Open fresh incognito Chrome (no extensions, no cookies).
 2. Navigate to `https://assessiq.automateedge.cloud/admin/login`.
 3. Click "Continue with Google".
-4. Authenticate with the bootstrap admin Google account (provisioned per `docs/plans/PHASE_0_KICKOFF.md` Decision #1).
+4. Authenticate with the bootstrap admin Google account (provisioned per `docs/plans/archive/PHASE_0_KICKOFF.md` Decision #1).
 5. Expect redirect to `/admin/mfa`. Cookie `aiq_sess` should be set with `HttpOnly; Secure; SameSite=Lax`.
 6. If first login: scan QR with Google Authenticator → enter 6-digit code → expect 10 recovery codes shown ONCE.
    If returning: enter 6-digit code from authenticator app.
@@ -786,7 +786,7 @@ ALL must return zero hits.
 
 | Activity | Where |
 |---|---|
-| This plan itself | Anyone reads `docs/plans/PHASE_0_CLOSURE.md` (top-of-section then Phase 0 § Frozen contracts + § Allowed APIs + § Pattern files) |
+| This plan itself | Anyone reads `docs/plans/archive/PHASE_0_CLOSURE.md` (top-of-section then Phase 0 § Frozen contracts + § Allowed APIs + § Pattern files) |
 | Section 1 (Dockerfile) | Opus self-execute; Phase 3 Opus review |
 | Section 2 (route layer) | Opus self-execute scaffolding; Sonnet optional parallel for test sketches; Phase 3 Opus review; codex:rescue MANDATORY |
 | Section 3 (dev-auth swap) | Opus self-execute; rolls into Section 2 or trailing per Open Question #4 |
@@ -823,7 +823,7 @@ ALL must return zero hits.
 ## Status
 
 - **Plan version:** 1.0 (2026-05-01, orchestrator: Opus 4.7).
-- **Predecessor plan:** [`docs/plans/PHASE_0_KICKOFF.md`](PHASE_0_KICKOFF.md) (Phase 0 foundation).
+- **Predecessor plan:** [`docs/plans/archive/PHASE_0_KICKOFF.md`](PHASE_0_KICKOFF.md) (Phase 0 foundation).
 - **Successor plan:** Phase 1 G1.A onwards (`04-question-bank` + `16-help-system` per memory observation S101) — kicks off after this plan's Section 5 closes Phase 0.
 - **Open questions outstanding:** 1, 4, 5, 7 (user-blocking); 2, 3, 6 (orchestrator-recommended defaults captured above).
 - **Next action:** orchestrator delivers this plan to user for approval. On approval, opens Section 1 implementation as a fresh session per global Phase 0 warm-start.

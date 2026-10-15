@@ -71,7 +71,7 @@ export default tseslint.config(
             {
               group: ["**/AssessIQ-Mobile-Kit/**"],
               message:
-                "Do not import from the mobile UI kit at runtime. Hand-port idioms into modules/17-ui-system/src/components/ per docs/plans/MOBILE_KIT_PORT.md.",
+                "Do not import from the mobile UI kit at runtime. Hand-port idioms into modules/17-ui-system/src/components/ per docs/plans/archive/MOBILE_KIT_PORT.md.",
             },
           ],
         },

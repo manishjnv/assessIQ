@@ -488,7 +488,7 @@ If any step fails: open one bounce-back session, fix, re-verify the failed step 
 
 | Activity | Where |
 |---|---|
-| This plan | Anyone reads `docs/plans/PHASE_1_KICKOFF.md` |
+| This plan | Anyone reads `docs/plans/archive/PHASE_1_KICKOFF.md` |
 | Each session's day-one read | `PROJECT_BRAIN.md` + `docs/01-architecture-overview.md` + `docs/SESSION_STATE.md` + `docs/RCA_LOG.md` + this file's session block + the module's `SKILL.md` (per `CLAUDE.md` § Phase 0 reading list) |
 | Subagent delegation inside a session | Per global `CLAUDE.md` orchestration playbook (Sonnet for mechanical implements, Haiku for grep sweeps, Opus for diff critique) |
 | Adversarial review | `codex:rescue` mandatory on Session 4 (`06-attempt-engine` — embed JWT + magic-link surfaces); judgment-call on 1, 2, 3, 5 (recommended on each per the Session DoD notes) |

@@ -408,7 +408,7 @@ Same shape as E2a — compose from atoms via partials, add preheader, add eyebro
    - Validation results from E3.
    - The "functionality drives UI" rule, restated in production-doc form.
    - CAN-SPAM / DPDP compliance note: which templates carry which footer breadth and why.
-2. `PROJECT_BRAIN.md` decision log — one row: `2026-MM-DD | Email Kit Port shipped (E0–E4) | Centralized 9 production email templates against the kit visual contract via Handlebars partials. No new templates added; no backend changes; CAN-SPAM-compliant footer with physical address + unsubscribe on commercial templates only. | docs/plans/EMAIL_KIT_PORT.md`.
+2. `PROJECT_BRAIN.md` decision log — one row: `2026-MM-DD | Email Kit Port shipped (E0–E4) | Centralized 9 production email templates against the kit visual contract via Handlebars partials. No new templates added; no backend changes; CAN-SPAM-compliant footer with physical address + unsubscribe on commercial templates only. | docs/plans/archive/EMAIL_KIT_PORT.md`.
 3. `docs/RCA_LOG.md` — only entries for bugs actually surfaced during the port (typically Outlook rendering regressions, dark-mode invert breaks). Empty if clean.
 4. Mark this plan doc's "Progress" line all ✅ and add a "**Status: SHIPPED** (E0–E4 complete, YYYY-MM-DD)" header.
 

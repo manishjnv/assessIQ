@@ -1154,7 +1154,7 @@ This slice adds **0** new entries — `webhook.created`, `webhook.deleted`, `web
 
 Every admin-mutating service method in [modules/18-certification](../modules/18-certification/SKILL.md) — plus the candidate-lifecycle issuance/upgrade — writes one `audit_log` row inside the same Postgres transaction as the domain mutation, via `auditInTx(client, ...)`. Wiring shipped incrementally across Phase 5: issue/upgrade in Session 1 (`1402`/`6ab8e90`-era), revoke/reissue in Session 5 (`190acee`). Atomicity guarantee is identical to § 15.
 
-Certificates carry HMAC integrity signatures (see [modules/18-certification/SKILL.md § Cryptography](../modules/18-certification/SKILL.md) and `docs/CERTIFICATION_PLAN_GENERIC.md`). The audit row is the **administrative receipt** for the lifecycle event; the HMAC `signed_hash` on the `certificates` row is the **cryptographic receipt** for the cert payload itself. Both are required — neither replaces the other.
+Certificates carry HMAC integrity signatures (see [modules/18-certification/SKILL.md § Cryptography](../modules/18-certification/SKILL.md) and `docs/plans/archive/CERTIFICATION_PLAN_GENERIC.md`). The audit row is the **administrative receipt** for the lifecycle event; the HMAC `signed_hash` on the `certificates` row is the **cryptographic receipt** for the cert payload itself. Both are required — neither replaces the other.
 
 ### 28.1 Wired sites and action namespaces used
 

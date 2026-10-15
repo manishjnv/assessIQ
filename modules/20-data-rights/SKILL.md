@@ -64,7 +64,7 @@ Decision pins below are the v2 set, written at S1 start per the
 [consolidated skill plan](../../assessiq-skill-plan.md) §11.1.
 
 **Prior gate cleared:** the
-[grading-completion-fix-plan](../../docs/design/grading-completion-fix-plan.md)
+[grading-completion-fix-plan](../../docs/plans/archive/grading-completion-fix-plan.md)
 shipped on 2026-05-28 (`defb9f9`) with the navigate-away robustness follow-on
 on 2026-05-29 (`96b71a6`). Both LIVE.
 

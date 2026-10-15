@@ -18,7 +18,7 @@
 >
 > **Kit version: v1.1 (May 2026).** Differences from v1.0: type tokens darkened (`--text` is now near-black `#0a0a0b`, serif headings weight 500); new `activity.jsx` screen with GitHub-style heatmap, stacked-bar timeline, leaderboard rows, and stat cards with colored breakdowns; brand assets moved from `Logo/` to `brand/` (downstream consumer `apps/web/scripts/copy-brand-assets.mjs` updated accordingly).
 >
-> **Port status: v1.1 fully shipped (2026-05-14).** All 14 phases of `docs/plans/UI_KIT_V1_1_PORT.md` are complete. Every admin and candidate page now uses count `Chip` + serif h1 (weight 400, −0.02em tracking) + lede paragraph, `Spinner` for all loading states, and the `--aiq-color-bg-raised` surface token. Phase 14 adds `@axe-core/playwright` a11y gate (unauthenticated pages). Visual regression + Lighthouse sweep deferred to Phase 15.
+> **Port status: v1.1 fully shipped (2026-05-14).** All 14 phases of `docs/plans/archive/UI_KIT_V1_1_PORT.md` are complete. Every admin and candidate page now uses count `Chip` + serif h1 (weight 400, −0.02em tracking) + lede paragraph, `Spinner` for all loading states, and the `--aiq-color-bg-raised` surface token. Phase 14 adds `@axe-core/playwright` a11y gate (unauthenticated pages). Visual regression + Lighthouse sweep deferred to Phase 15.
 
 This guideline (`docs/10-branding-guideline.md`) is the **production-translation companion** to that kit — it explains how the kit's un-prefixed tokens (`--accent`, `--bg`, `.btn`) become the production `--aiq-*` namespace and `aiq-*` classes, and adds AssessIQ-specific deltas (the banded score model, accessibility deltas, multi-tenant accent override, light-mode-only lock). **The kit wins on visual conflicts; this doc updates next; [docs/08-ui-system.md](./08-ui-system.md) tracks the system implications last.**
 
@@ -570,7 +570,7 @@ If a future surface needs the richer kit mark (e.g. an admin "branding settings"
 
 ## 15. Mobile
 
-The mobile UI kit lives at [`modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/`](../modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/). It is a **palette of idioms** (tokens, atoms, layout patterns) for tuning existing pages on small viewports — *not* a product spec. Per [docs/plans/MOBILE_KIT_PORT.md](./plans/MOBILE_KIT_PORT.md), the port adopts kit visuals only for routes that already exist in the product. Adding a new page, route, or user flow because the kit ships a screen for it is out of scope.
+The mobile UI kit lives at [`modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/`](../modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/). It is a **palette of idioms** (tokens, atoms, layout patterns) for tuning existing pages on small viewports — *not* a product spec. Per [docs/plans/archive/MOBILE_KIT_PORT.md](./plans/archive/MOBILE_KIT_PORT.md), the port adopts kit visuals only for routes that already exist in the product. Adding a new page, route, or user flow because the kit ships a screen for it is out of scope.
 
 ### 15.1 Viewport mechanism
 
@@ -611,7 +611,7 @@ Pages: [`apps/web/src/pages/candidate/CandidateLogin.tsx`](../apps/web/src/pages
 Mechanism: outer container carries `.aiq-take-twopane` (or `.aiq-candidate-login` for the portal login) + `<main>` carries `.aiq-take-main` (or `.aiq-candidate-login-main`). All overrides live in [`tokens.css`](../modules/17-ui-system/src/styles/tokens.css) under `[data-viewport="mobile"]` (the M0 mechanism — *not* a page-local `@media` rule). For the hero H1, `.aiq-take-twopane` scopes two CSS vars (`--aiq-take-h1-size`, `--aiq-take-h1-lh`) that the inline `SERIF_H1` style object reads; the desktop value defaults to `44px` via `var()` fallback.
 
 **Anti-pattern guards** (apply when adding more pages to this reflow):
-- DOM tree must be identical between viewports. Mobile must NOT swap the component tree — only CSS layout deltas. Divergent behavior across viewports is a bounce (`docs/plans/MOBILE_KIT_PORT.md` § Anti-pattern guards #5).
+- DOM tree must be identical between viewports. Mobile must NOT swap the component tree — only CSS layout deltas. Divergent behavior across viewports is a bounce (`docs/plans/archive/MOBILE_KIT_PORT.md` § Anti-pattern guards #5).
 - Anti-enumeration copy and 200 ms timing floor remain unchanged.
 - Same backend payloads on both viewports; same rate-limit error surfaces.
 - `CandidateLoginVerify` (centered spinner intermediary) needs no reflow — it is viewport-agnostic by construction (`placeItems: 'center'`).
@@ -714,7 +714,7 @@ Mechanism:
 
 #### Admin graceful-degrade interstitial (M5 — 2026-05-20, **superseded 2026-05-21**)
 
-> **Superseded by the Admin Mobile Port (A0–A6, 2026-05-21).** Every admin page is now mobile-responsive; the `ViewportLock` component, the `aiq_admin_mobile_override` sessionStorage key, and the `admin.shell.mobile_continue_anyway` help_id are all removed. See [`docs/plans/ADMIN_MOBILE_PORT.md`](./plans/ADMIN_MOBILE_PORT.md) for the recipe catalog (R1 filter strip, R2 table scroll with sticky first column, R3 deferred, R4 two-col stack, R5 deferred wizard nav, R6 deferred editor accordion, cross-cutting iOS 16px+ input rule). The original M5 design is preserved in git history (last commit before A6: `9cd643f`).
+> **Superseded by the Admin Mobile Port (A0–A6, 2026-05-21).** Every admin page is now mobile-responsive; the `ViewportLock` component, the `aiq_admin_mobile_override` sessionStorage key, and the `admin.shell.mobile_continue_anyway` help_id are all removed. See [`docs/plans/archive/ADMIN_MOBILE_PORT.md`](./plans/archive/ADMIN_MOBILE_PORT.md) for the recipe catalog (R1 filter strip, R2 table scroll with sticky first column, R3 deferred, R4 two-col stack, R5 deferred wizard nav, R6 deferred editor accordion, cross-cutting iOS 16px+ input rule). The original M5 design is preserved in git history (last commit before A6: `9cd643f`).
 
 The original M5 description below is kept for historical context only.
 

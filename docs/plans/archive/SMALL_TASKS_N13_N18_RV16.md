@@ -229,4 +229,4 @@ Commands:
 - `docs/07-help-system.md` § "Help text correction pass (2026-10-02)".
 - `docs/02-data-model.md` (line 11, money fields).
 - `modules/06-attempt-engine/SKILL.md`, `modules/07-ai-grading/SKILL.md`, `modules/16-help-system/SKILL.md`.
-- `docs/plans/REVIEW_FIXES_RS1_RS5_N10_N12.md` (the session before this one).
+- `docs/plans/archive/REVIEW_FIXES_RS1_RS5_N10_N12.md` (the session before this one).

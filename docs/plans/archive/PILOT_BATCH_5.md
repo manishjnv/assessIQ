@@ -3,7 +3,7 @@
 **Status:** LIVE on production (https://assessiq.in), deployed 2026-10-02 at `27f6357` (`21502db..27f6357`).
 **Deploy:** migrations 0136, 0138, 0140, 0141, 0142 by hand; api/worker/frontend rebuilt and recreated; `AI_EVAL_GATE=warn` (no baseline blessed yet — N5); checks in `docs/06-deployment.md` § Batch 5 deploy. Adversarial review: codex:rescue on E1+E2 = accept (trailer on `27f6357`).
 
-**Scope:** five tasks from `docs/PENDING_TASKS_2026-10-01.md`: N1, E1, E2, E6, N2 (this also closes E7 and D6).
+**Scope:** five tasks from `docs/ROADMAP.md`: N1, E1, E2, E6, N2 (this also closes E7 and D6).
 
 **Not included:** section edit UI (new row N6), fixing the 17 high dependency advisories (N4), growing the eval golden set (N5), e2e in CI (E13, still last), owner tasks.
 

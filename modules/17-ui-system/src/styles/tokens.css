@@ -133,7 +133,7 @@
  * script in apps/web/index.html before React mounts, then kept in sync
  * by useViewportSync() inside ThemeProvider.
  *
- * See docs/plans/MOBILE_KIT_PORT.md § Phase M0. Mobile kit deltas
+ * See docs/plans/archive/MOBILE_KIT_PORT.md § Phase M0. Mobile kit deltas
  * documented in modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Mobile-Kit/README.md. */
 [data-viewport="mobile"] {
   --aiq-page-padding-x: 22px;
@@ -142,7 +142,7 @@
   --aiq-h1-size:        30px;  /* between mobile 28-34px range per kit README */
 
   /* Admin shell mobile overrides — A0 of Admin Mobile Port.
-   * docs/plans/ADMIN_MOBILE_PORT.md § 2.2 */
+   * docs/plans/archive/ADMIN_MOBILE_PORT.md § 2.2 */
   --aiq-admin-shell-topbar-padding-x: var(--aiq-space-md);
   --aiq-admin-shell-topbar-h:         48px;
   --aiq-admin-drawer-width:           min(280px, 85vw);
@@ -256,7 +256,7 @@
 
 /* ─────────────────────────────────────────────────────────────
  * Admin Mobile Port — A1 AdminShell drawer + reflow.
- * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 2.3
+ * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 2.3
  *
  * Strategy: the existing Sidebar primitive is always rendered.
  * On mobile, .aiq-admin-sidebar-wrap repositions it off-canvas
@@ -346,7 +346,7 @@
 
 /* ─────────────────────────────────────────────────────────────
  * Admin Mobile Port — A2 list recipes (R1 filter strip + R2 table scroll).
- * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4
+ * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 4
  *
  * IMPORTANT — AssessIQ's <Table> renders <div role="row|cell|columnheader">
  * with CSS Grid layout, NOT <table>/<tr>/<td>. Selectors target the role
@@ -401,7 +401,7 @@
 
 /* ─────────────────────────────────────────────────────────────
  * Admin Mobile Port — A3 detail recipes (R4 two-col stack + textarea).
- * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4 (R4)
+ * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 4 (R4)
  *
  * R4 — Two-column detail (1fr Nfr or 1fr Npx) → single-column stack
  * on mobile. Pages keep their inline desktop grid-template-columns;
@@ -424,7 +424,7 @@
 
 /* ─────────────────────────────────────────────────────────────
  * Admin Mobile Port — A4 cross-cutting input rule.
- * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4 (cross-cutting input)
+ * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 4 (cross-cutting input)
  *
  * Every <input>, <textarea>, <select> inside any admin page must
  * compute font-size ≥ 16px on mobile to defeat iOS Safari's

@@ -22,7 +22,7 @@ Details: `PROJECT_BRAIN.md` § What AssessIQ is, `docs/01-architecture-overview.
 - Data model: `docs/02-data-model.md`. API: `docs/03-api-contract.md`. Auth: `docs/04-auth-flows.md`.
   Deployment (shared Hostinger VPS, Caddy behind Cloudflare): `docs/06-deployment.md`. Help: `docs/07-help-system.md`.
   UI: `docs/08-ui-system.md`, `docs/10-branding-guideline.md`. Observability: `docs/11-observability.md`.
-  Email: `docs/13-email-system.md`. Incidents: `docs/RCA_LOG.md`. Open work: `docs/PENDING_TASKS_2026-10-01.md` § P0-W.
+  Email: `docs/13-email-system.md`. Incidents: `docs/RCA_LOG.md`. Open work: `docs/ROADMAP.md` § P0-W.
 
 ```layers
 apps: apps/**

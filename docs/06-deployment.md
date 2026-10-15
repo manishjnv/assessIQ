@@ -1572,7 +1572,7 @@ Applied this way on 2026-10-01:
 - 0113–0116: scoring and result release, evaluation queue;
 - 0117–0121: invitation resend, help, option shuffle, notifications UPDATE policies.
 
-See `docs/plans/SCORING_RESULT_RELEASE.md` and `docs/plans/PILOT_READINESS_BATCH.md`.
+See `docs/plans/archive/SCORING_RESULT_RELEASE.md` and `docs/plans/archive/PILOT_READINESS_BATCH.md`.
 
 ## Public "Try a sample test" demo — `/try` (apps/web, 2026-10-02)
 
@@ -1854,7 +1854,7 @@ Pull `8cc46c2` to `c788ed7`. `claude` processes: 0. Built `assessiq-api` only; r
 
 ## Small tasks deploy: RV16, N13 to N18 (2026-10-03, HEAD `38c76e3`; commits `62e01d8..38c76e3`)
 
-Work in this deploy: dashboard counts from the server (`511e1af`), scenario answer check at save (`e6eb22d`), small admin items and comment cleanup (`4ea20a8`), page help for eight admin pages (`2a15ce5`), and Astro 5 for the marketing site (`38c76e3`). Detail for each change: `docs/plans/SMALL_TASKS_N13_N18_RV16.md`.
+Work in this deploy: dashboard counts from the server (`511e1af`), scenario answer check at save (`e6eb22d`), small admin items and comment cleanup (`4ea20a8`), page help for eight admin pages (`2a15ce5`), and Astro 5 for the marketing site (`38c76e3`). Detail for each change: `docs/plans/archive/SMALL_TASKS_N13_N18_RV16.md`.
 
 **Migration:** 0148 (`modules/16-help-system/migrations/0148_seed_page_help.sql`). It inserts eight help rows (`<page>.page`) and changes nothing else. It is idempotent (`ON CONFLICT DO NOTHING`). It was applied by hand with `psql -1 -v ON_ERROR_STOP=1` and recorded in `schema_migrations`.
 

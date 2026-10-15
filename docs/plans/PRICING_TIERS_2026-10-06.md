@@ -1,8 +1,8 @@
 # Pricing tiers — definition (FU-A1, 2026-10-06)
 
-Source: `docs/plans/RS6_FEATURE_REVIEW_A.md` § PT1 (c) and (d), as finalized by the
+Source: `docs/plans/archive/RS6_FEATURE_REVIEW_A.md` § PT1 (c) and (d), as finalized by the
 owner decisions recorded there on 2026-10-03. This file is the canonical copy
-of the tier table referenced by `docs/PENDING_TASKS_2026-10-01.md` FU-A1 to
+of the tier table referenced by `docs/ROADMAP.md` FU-A1 to
 FU-A11 and `modules/19-billing/SKILL.md`. All prices are a proposal only and
 are not published on the pricing page (owner decision PT1-4).
 
@@ -54,5 +54,5 @@ calls at the route of each gated feature (FU-A5); (5) display-name map (FU-A3);
 ## Not included in this note
 
 Pricing numbers (INR ranges) are intentionally omitted from this file — they
-are a proposal in `docs/plans/RS6_FEATURE_REVIEW_A.md` § PT1 (d) #4 only, not
+are a proposal in `docs/plans/archive/RS6_FEATURE_REVIEW_A.md` § PT1 (d) #4 only, not
 a decided fact, and must not be copied into a customer-facing doc.

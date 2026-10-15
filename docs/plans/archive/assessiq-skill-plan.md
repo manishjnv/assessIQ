@@ -2,9 +2,9 @@
 
 **Version:** v3 (consolidated 2026-05-28)
 **Supersedes:** v1 (original 16-module proposal) + v2 (post-review revision) + standalone review document. This file is the single source of truth.
-**Repo location:** `assessiq-skill-plan.md` at repo root.
+**Repo location:** `docs/plans/archive/assessiq-skill-plan.md` at repo root.
 
-**Position in work order.** This plan sits **behind** the in-flight grading-completion fix (`docs/design/grading-completion-fix-plan.md` — Bug A/B). It is **independent of** the global-competitiveness roadmap (`docs/design/global-competitiveness-roadmap.md`, committed `dac8370`), which runs on its own cadence. Finish grading-completion first. Start Tier A modules below only when their binding constraint surfaces.
+**Position in work order.** This plan sits **behind** the in-flight grading-completion fix (`docs/plans/archive/grading-completion-fix-plan.md` — Bug A/B). It is **independent of** the global-competitiveness roadmap (`docs/plans/archive/global-competitiveness-roadmap.md`, committed `dac8370`), which runs on its own cadence. Finish grading-completion first. Start Tier A modules below only when their binding constraint surfaces.
 
 **Status of all prerequisites:** ✅ complete (see §10).
 
@@ -384,5 +384,5 @@ All existing `PROJECT_BRAIN.md` working agreements apply. Additional rules speci
 - `CLAUDE.md` (root) — project-overlay rules and load-bearing path lists
 - `docs/05-ai-pipeline.md` — AI grading runtime modes
 - `docs/06-deployment.md` — shared VPS conventions
-- `docs/design/grading-completion-fix-plan.md` — in-flight work that precedes this plan
-- `docs/design/global-competitiveness-roadmap.md` — independent strategic doc
+- `docs/plans/archive/grading-completion-fix-plan.md` — in-flight work that precedes this plan
+- `docs/plans/archive/global-competitiveness-roadmap.md` — independent strategic doc

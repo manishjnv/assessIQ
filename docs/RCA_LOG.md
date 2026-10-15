@@ -2205,7 +2205,7 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 
 **Symptom:** While verifying batch 4, six tests in `apps/api` failed, also on a clean `origin/main` checkout: auth `google/start`, `whoami`, `embed`; admin-super `ai-generate-mode` and its lifecycle test; `admin-tenant-rename`; tenant-settings `release-mode`. They are not caused by batch 4.
 **Cause:** They were hidden. CI runs `pnpm test`, which is the root `vitest run`; `vitest.config.ts` at the repo root includes only `modules/**/__tests__/**/*.test.ts` and `packages/**/__tests__/**/*.test.ts`. `apps/api` has its own `vitest.config.ts` and `test` script, but the root script does not run it and CI has no `pnpm -r test` or `--filter @assessiq/api test` step. The failures drifted unseen as routes changed (root cause per test not yet investigated).
-**Fix:** none yet (tracked in `docs/PENDING_TASKS_2026-10-01.md`, new row "apps/api tests not in CI").
+**Fix:** none yet (tracked in `docs/ROADMAP.md`, new row "apps/api tests not in CI").
 **Prevention:** add `apps/api` (and `apps/web` if not already covered) to CI: a `pnpm --filter @assessiq/api test` step after fixing or quarantining the six failures, so CI stays green. Until then, run `pnpm --filter @assessiq/api test` by hand before deploys that touch routes.
 
 

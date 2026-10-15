@@ -779,7 +779,7 @@ Never remove or rename existing keys.
 
 ### ViewportLock (M5 — removed 2026-05-21)
 
-> **Removed.** Commit `c8349df` (Admin Mobile Port A6) deleted `apps/web/src/lib/ViewportLock.tsx` and unwrapped it from `App.tsx`. Admin pages are now mobile-responsive, so no interstitial shows. See `docs/plans/ADMIN_MOBILE_PORT.md`. The text below is history.
+> **Removed.** Commit `c8349df` (Admin Mobile Port A6) deleted `apps/web/src/lib/ViewportLock.tsx` and unwrapped it from `App.tsx`. Admin pages are now mobile-responsive, so no interstitial shows. See `docs/plans/archive/ADMIN_MOBILE_PORT.md`. The text below is history.
 
 [`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx) wraps `<Routes>` in [`apps/web/src/App.tsx`](../apps/web/src/App.tsx) and renders the "Admin tools work best on desktop" interstitial when ALL hold: viewport is `mobile`, path starts with `/admin/`, path is not one of `{login, login/email, select-identity, mfa}`, no `sessionStorage.aiq_admin_mobile_override='1'` is set, not in embed mode (`?embed=true`). Pass-through otherwise — candidate, take-flow, embed, 404 routes are not affected because their pathnames don't match `/admin/`. Override storage is `sessionStorage` (per-tab, clears on tab close) — the plan's "per-session" + `localStorage` wording was contradictory; M5 honors the per-session intent. Security gates (rate-limit errors, locked-account, MFA prompts) render exactly as on desktop when the override is on — the override only relaxes layout.
 

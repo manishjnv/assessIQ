@@ -399,7 +399,7 @@ In `apps/web/src/lib/ViewportLock.tsx` (stubbed in M0), implement:
    - The "functionality drives UI" rule, restated in production-doc form (not just user memory).
    - Email-webview testing requirement (Gmail / Outlook / Apple Mail).
 2. [docs/08-ui-system.md § Mobile](../08-ui-system.md) — finalize: hook API, token namespace, `<ViewportLock>` shape, where the mobile-mode components live.
-3. [PROJECT_BRAIN.md](../../PROJECT_BRAIN.md) decision log — one row: `2026-MM-DD | Mobile kit port shipped (M0–M5) | Visual-only port; no flow/auth/backend changes; admin remains desktop-only with graceful-degrade interstitial. | docs/plans/MOBILE_KIT_PORT.md`.
+3. [PROJECT_BRAIN.md](../../PROJECT_BRAIN.md) decision log — one row: `2026-MM-DD | Mobile kit port shipped (M0–M5) | Visual-only port; no flow/auth/backend changes; admin remains desktop-only with graceful-degrade interstitial. | docs/plans/archive/MOBILE_KIT_PORT.md`.
 4. [docs/RCA_LOG.md](../RCA_LOG.md) — only entries for bugs actually surfaced during the port (typically: integrity-hook regressions, viewport-flicker, email-webview surprises). Empty if clean.
 5. Mark this plan doc's "Progress" line all ✅ and add a "**Status: SHIPPED** (M0–M6 complete, YYYY-MM-DD)" header.
 

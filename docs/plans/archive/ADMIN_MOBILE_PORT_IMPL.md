@@ -10,7 +10,7 @@
 
 **Tech Stack:** React 18 + Vite + TypeScript, `@assessiq/ui-system` (Sidebar, NavItem, Drawer, useViewport), `@assessiq/help-system`, Vitest, Playwright (a11y only, deferred to Phase 15).
 
-**Spec:** [docs/plans/ADMIN_MOBILE_PORT.md](./ADMIN_MOBILE_PORT.md)
+**Spec:** [docs/plans/archive/ADMIN_MOBILE_PORT.md](./ADMIN_MOBILE_PORT.md)
 
 ---
 
@@ -122,7 +122,7 @@
    page visually changes yet — overrides activate when A1 consumers
    reference them.
 
-   Spec: docs/plans/ADMIN_MOBILE_PORT.md § 2.2
+   Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 2.2
    EOF
    )" \
      --author="Manish Kumar <257227540+manishjnv@users.noreply.github.com>"
@@ -137,7 +137,7 @@
 
    Smoke check: open the admin in Chrome mobile emulation (Pixel 7), confirm no visual change vs desktop (correct — A0 ships tokens only, no consumers wired yet).
 
-- [ ] **Step 8: Update spec status header.** In `docs/plans/ADMIN_MOBILE_PORT.md`, change `A0 — Foundation tokens | NOT YET STARTED` to `A0 — Foundation tokens | SHIPPED <YYYY-MM-DD>`. Commit alongside the next phase.
+- [ ] **Step 8: Update spec status header.** In `docs/plans/archive/ADMIN_MOBILE_PORT.md`, change `A0 — Foundation tokens | NOT YET STARTED` to `A0 — Foundation tokens | SHIPPED <YYYY-MM-DD>`. Commit alongside the next phase.
 
 ---
 
@@ -430,7 +430,7 @@
    ```css
    /* ─────────────────────────────────────────────────────────────
     * Admin Mobile Port — A1 AdminShell drawer + reflow.
-    * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 2.3
+    * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 2.3
     *
     * Strategy: the existing Sidebar primitive is always rendered.
     * On mobile, .aiq-admin-sidebar-wrap repositions it off-canvas
@@ -603,7 +603,7 @@
 
    Adversarial: Sonnet+GLM-5.1 accept (load-bearing).
 
-   Spec: docs/plans/ADMIN_MOBILE_PORT.md § 2.3
+   Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 2.3
    EOF
    )" \
      --author="Manish Kumar <257227540+manishjnv@users.noreply.github.com>"
@@ -648,7 +648,7 @@ Each page gets the same recipe-paste pattern. Below is the per-page task templat
    ```css
    /* ─────────────────────────────────────────────────────────────
     * Admin Mobile Port — A2 list/table recipes (R1, R2, R3).
-    * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4 (R1/R2/R3)
+    * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 4 (R1/R2/R3)
     * ───────────────────────────────────────────────────────────── */
 
    /* R1 — filter / tab strip → horizontally-scrollable pill row.
@@ -819,7 +819,7 @@ Repeat for each of the 10 pages. Below uses `Attempts` as the example; substitut
    ```css
    /* ─────────────────────────────────────────────────────────────
     * Admin Mobile Port — A3 detail recipes (R4 + sticky action bar).
-    * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4 (R4)
+    * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 4 (R4)
     * ───────────────────────────────────────────────────────────── */
 
    .aiq-admin-detail-two-col {
@@ -952,7 +952,7 @@ Repeat for: Attempt Detail, Cohort Report, Individual Report, Pack Detail, Asses
     * iOS Safari auto-zooms <input> / <textarea> / <select> with
     * computed font-size < 16px on focus. Bumping to 16px on mobile
     * defeats it without affecting desktop ergonomics.
-    * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4 (cross-cutting)
+    * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 4 (cross-cutting)
     * ───────────────────────────────────────────────────────────── */
 
    [data-viewport="mobile"] .aiq-admin-input,
@@ -999,7 +999,7 @@ Pages: Billing, Help guide, Admin guide, Platform, Help Content.
    ```css
    /* ─────────────────────────────────────────────────────────────
     * Admin Mobile Port — A5 editor recipes (R5 wizard + R6 accordion).
-    * Spec: docs/plans/ADMIN_MOBILE_PORT.md § 4 (R5/R6)
+    * Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § 4 (R5/R6)
     * ───────────────────────────────────────────────────────────── */
 
    /* R5 — wizard mobile: vertical steps + sticky bottom nav */
@@ -1191,7 +1191,7 @@ Pages: Billing, Help guide, Admin guide, Platform, Help Content.
 
    M5 shipped a "desktop recommended" interstitial that intercepted /admin/*
    on mobile viewports. It was superseded by the Admin Mobile Port (see
-   `docs/plans/ADMIN_MOBILE_PORT.md`) on YYYY-MM-DD. Admin pages are now
+   `docs/plans/archive/ADMIN_MOBILE_PORT.md`) on YYYY-MM-DD. Admin pages are now
    responsive; ViewportLock and its sessionStorage override are removed.
    The original M5 design and the four excluded auth routes are preserved
    in git history (commit `<A6 sha>`); this entry is kept as a pointer.
@@ -1230,7 +1230,7 @@ Pages: Billing, Help guide, Admin guide, Platform, Help Content.
    Admin pages are now responsive on every viewport. Phase contracts
    A0–A5 ship at: <A0 sha>, <A1 sha>, <A2 sha>, <A3 sha>, <A4 sha>, <A5 sha>.
 
-   Spec: docs/plans/ADMIN_MOBILE_PORT.md § A6
+   Spec: docs/plans/archive/ADMIN_MOBILE_PORT.md § A6
    EOF
    )" \
      --author="Manish Kumar <257227540+manishjnv@users.noreply.github.com>"

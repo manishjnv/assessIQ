@@ -224,4 +224,4 @@ The lead corrected agent output before commit:
 - `docs/07-help-system.md` § "Help text correction pass (2026-10-02)".
 - `docs/08-ui-system.md` § "Brand consumer copies, static file routing and theme fixture key (2026-10-02)".
 - `modules/06-attempt-engine/SKILL.md`.
-- `docs/plans/PILOT_BATCH_8.md` (the batch before this one).
+- `docs/plans/archive/PILOT_BATCH_8.md` (the batch before this one).

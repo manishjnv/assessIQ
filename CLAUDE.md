@@ -9,8 +9,9 @@ In ONE parallel-tool-call message, read:
 1. `PROJECT_BRAIN.md` — orientation (mandatory every session)
 2. `docs/01-architecture-overview.md` — system context
 3. `docs/SESSION_STATE.md` — last-session handoff (skip silently if absent)
-4. `docs/RCA_LOG.md` — incident patterns to honor (skip silently if absent)
-5. `claude-mem:mem-search "<goal phrase>"` — only if the goal sounds like something you may have worked on before
+4. `docs/ROADMAP.md` — open work; status board at the top; plans index in `docs/plans/README.md` (layout 2026-10-15)
+5. `docs/RCA_LOG.md` — incident patterns to honor (skip silently if absent)
+6. `claude-mem:mem-search "<goal phrase>"` — only if the goal sounds like something you may have worked on before
 
 Then state the goal in one sentence, the relevant prior decisions / RCA entries you will honor, the plan, and what will be delegated. **Wait for user approval before touching code.**
 

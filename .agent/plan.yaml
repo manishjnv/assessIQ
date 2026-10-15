@@ -1,5 +1,5 @@
 # Autopilot plan for AssessIQ — S10 hardening rows (RW-45..51, RW-57, RW-58, RW-69..71).
-# Source: docs/PENDING_TASKS_2026-10-01.md § P0-W (rows tagged S10 / S10+). Everything else in that file is context.
+# Source: docs/ROADMAP.md § P0-W (rows tagged S10 / S10+). Everything else in that file is context.
 # Phases depend on the previous phase unless `depends_on` is given ([] = independent).
 # Task ids must be unique and stable — the state DB tracks progress by id.
 # Help-content files (modules/16-help-system/content/en/admin.yml + seeds/help_content.sql) are shared by every UI
@@ -705,4 +705,4 @@ phases:
         research: []
         depends_on: [P07-T05]
         owner_only: false
-plan_source: "docs/PLAN_S10.md"
+plan_source: "docs/plans/PLAN_S10.md"
