@@ -52,6 +52,7 @@ Stored in `modules/13-notifications/templates/<name>.{html,txt}` with Handlebars
 - `invitation_admin` — invite to manage AssessIQ
 - `invitation_candidate` — magic-link to take an assessment
 - `totp_enrolled` — TOTP enrollment confirmation
+- `totp_reset_notice` — an administrator reset the user's two-factor sign-in (RW-91; see the section below)
 - `attempt_submitted_candidate` — "we got it"
 - `attempt_graded_candidate` — "results released" — **parked, see FU-B19.** No `sendEmail` call site sends this template; `result_released` is the live equivalent. Do not delete (Rule A); FU-B20 wires `attempt_submitted_candidate`, a separate template, as the real "we got it" receipt.
 - `attempt_ready_for_review_admin` — when AI grading needs human review — **parked, see FU-B19.** No call site; `evaluation_queue_alert` is the live equivalent.
@@ -226,3 +227,17 @@ Mechanism: `emitAttemptEventAfterCommit(client, tenantId, attemptId, event)` (`w
 ## FU-B18 (2026-10-09): no reviewer audience
 
 The reviewer role was removed (RS8 / RO7, 2026-10-03). Module 13 never had a reviewer-specific template or recipient rule; the only traces were three comments on `admin_email_otp` ("admin/reviewer") and one test input that used `role: 'reviewer'`. All now say admin. Audience values stay `admin` and `candidate`. Not included: a data change (no row carries a reviewer value). Downstream: none.
+
+## `totp_reset_notice` email (RW-91, S10, 2026-10-16)
+
+Closed-enum template `totp_reset_notice`. It tells a user that an administrator reset their two-factor sign-in.
+
+- **Trigger.** `sendTotpResetNoticeEmail` (`modules/13-notifications/src/email/totp-reset-notice.ts`) runs after a reset returns. Both reset routes call it: `POST /api/admin/users/:userId/totp/reset` (tenant admin) and the super-admin route. The route helper `notifyTotpReset` in `apps/api/src/routes/admin-users-totp-reset.ts` logs a send failure and never fails the reset.
+- **Subject.** "Your two-factor sign-in was reset".
+- **Vars** (`TotpResetNoticeVarsSchema` in `src/types.ts`). `recipientName` (the user name, or the email if the name is empty). `resetAt` (UTC string, `Date.toUTCString()`). `resetBy` (a role label: "an administrator" or "a platform administrator").
+- **Content rule.** The notice has no secret, no code, no actor name and no link. The meta card shows "Reset on" and "Reset by". The body tells the user to sign in as usual and to set up two-factor again.
+- **Delivery class.** `bulk` (`email/delivery-policy.ts`). The mail is a notice, not a code, so a delay is acceptable and long retries help.
+- **Files.** `templates/totp_reset_notice.html` and `.txt`. The meta rows are in `render.ts` (`case 'totp_reset_notice'`).
+- **Rejected.** A link to the account page: the notice must not give a click target. The actor name: the role label is enough for the user.
+- **Not included.** A notice to the actor. A retry outside the normal bulk retries. A tenant-specific wording.
+- **Downstream impact.** The earlier count of 9 templates in this page is history. Flow and rationale: `docs/04-auth-flows.md` § "Self-service MFA".

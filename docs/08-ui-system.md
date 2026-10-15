@@ -1077,7 +1077,72 @@ Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-sys
 
 **Why.** The backends existed but had no screen. An admin who lost recovery codes, or a user who lost the authenticator, had no way to recover without database access.
 
-**Not included.** A notice to the target user after reset. A tenant-admin reset. Backend contract: [03-api-contract.md](03-api-contract.md). Flow and audit: [04-auth-flows.md](04-auth-flows.md).
+**Not included.** A notice to the target user after reset, and a tenant-admin reset. (Both shipped in RW-91, see "Users page: Reset two-factor" below.) Backend contract: [03-api-contract.md](03-api-contract.md). Flow and audit: [04-auth-flows.md](04-auth-flows.md).
+
+## Users page: Reset two-factor (RW-91, S10, 2026-10-16)
+
+*Type: reference.*
+
+**What.** The tenant-admin Users page (`modules/10-admin-dashboard/src/pages/users.tsx`) now offers "Reset two-factor" in the row menu. The same `ResetTotpDialog` (`components/ResetTotpDialog.tsx`) opens, with a required reason of up to 500 characters. The dialog calls `POST /api/admin/users/:userId/totp/reset`.
+
+**When the item shows.** All of these must hold: the signed-in user is a tenant `admin`, the row has `totp_enrolled` true, the row is not the signed-in user, the role is not `candidate` or `super_admin`, the status is `active` and the row is not deleted.
+
+**Step-up.** The route returns 401 `FRESH_TOTP_REQUIRED` when the last TOTP check is older than 15 minutes. The dialog uses `useMfaGuard`, shows an inline code prompt and retries the call.
+
+**Why.** The route existed only for a super admin. A tenant admin whose user lost an authenticator had to ask the platform owner.
+
+**Not included.** A reset for candidates (they have no TOTP). A bulk reset. Backend: [03-api-contract.md](03-api-contract.md). Flow: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
+
+## Platform page: Curriculum frameworks (RW-57 part 2, S10, 2026-10-16)
+
+*Type: reference.*
+
+**What.** `modules/10-admin-dashboard/src/pages/platform/PlatformFrameworksSection.tsx` is a section of the Platform page. `platform.tsx` renders it only when the session role is `super_admin`. A header chip shows how many curricula are available.
+
+- **Table.** Columns: Curriculum, Board, Release, Entries, Loaded. "Loaded" shows "Not loaded" or the loaded version.
+- **Actions.** A "Load" button for a curriculum that is not loaded, a "Reload" button for one that is. Both open a confirm dialog first. After success a toast shows the counts: added, updated, unchanged.
+- **Helpers.** `modules/10-admin-dashboard/src/api/frameworks.ts` (`listFrameworkSeedsApi`, `loadFrameworkSeedApi`). Routes: [03-api-contract.md](03-api-contract.md) § "Framework seeds".
+- **Help.** Key `admin.platform.frameworks` (migration 0173).
+
+**Content shipped with it.** The files `cbse.json`, `icse.json` and `ib.json` in `modules/04-question-bank/src/frameworks/` hold 335, 340 and 89 nodes. CBSE covers grades 6 to 12 with the core NCERT subjects. ICSE and ISC are by stage. IB has PYP, MYP (criteria A to D for each group) and DP. Chapter titles were written from memory. Subjects that are not verified carry the description "partial: verify".
+
+**Owner step.** Check one board against the official syllabus before real use.
+
+**Why.** Part 1 added the load routes but a super admin had no screen and no board content.
+
+**Not included.** Edit of a node in the UI. Removal of a loaded curriculum. A diff view for a reload.
+
+## Question import page (RW-58, S10, 2026-10-16)
+
+*Type: reference.*
+
+**What.** Page `/admin/question-import` (`modules/10-admin-dashboard/src/pages/question-import.tsx`). Only a super admin can open it (`RequireSession role="super_admin"` in `apps/web/src/App.tsx`). The question bank page has an "Import questions" button that links to it. Helpers: `src/api/question-imports.ts`. Routes: [03-api-contract.md](03-api-contract.md) § "Question import".
+
+**Flow, in three steps on one page.**
+1. "Get a template." The admin chooses a question type and a format (CSV or XLSX) and downloads the file.
+2. "Upload your file." The admin chooses a subject (domain), an optional question set name and the file (CSV or XLSX, up to 4 MB), then selects "Check file". Nothing is saved to a question set yet.
+3. "Check the report." Chips show the counts: rows, ready, need a fix, duplicate, skipped. A table lists each row with its result and errors. The admin can fix the values of a row or skip it. "Commit (skip errors)" and "Discard" each open a confirm dialog. After a commit, the page links to the new draft pack at `/admin/question-bank/<packId>`.
+
+**Help.** Keys `admin.question_import.page`, `.template`, `.upload`, `.report` and `.commit` (migration 0175).
+
+**Why.** The platform owner had no way to load many questions. A staged report lets the admin fix a row before any question exists.
+
+**Not included.** Drag and drop. Multipart upload. A rubric step for imported subjective questions (RW-97).
+
+## Page splits for file size (RW-53, S10, 2026-10-16)
+
+*Type: reference.* These moves are mechanical: no behaviour changed. Barrels keep the old import paths. `tools/lint-file-size.ts` (script `lint:file-size`) warns about files over 800 lines. It does not fail the build. 27 files were over the limit on this date.
+
+| File | Lines now | Where code moved |
+| --- | --- | --- |
+| `modules/10-admin-dashboard/src/pages/pack-detail.tsx` | 1300 | `pack-detail/shared.tsx` holds types, `packStatusColor`, `questionPrompt` and `GenerationAttemptLine`. The page is still over 800 |
+| `modules/10-admin-dashboard/src/pages/assessment-detail.tsx` | 1111 | `assessment-detail/shared.tsx` (types and helpers) and `assessment-detail/invitation-columns.tsx` (invitation table columns). Still over 800 |
+| `modules/10-admin-dashboard/src/pages/assessments.tsx` | 826 | `assessments/BlueprintBuilder.tsx`, `FromSetPicker.tsx`, `PreviewAdequacy.tsx`, `shared.tsx`. Still over 800 |
+| `apps/web/src/pages/take/Attempt.tsx` | 941 | `take/attempt-parts/AnswerArea.tsx` (the answer dispatcher) and `attempt-parts/shared.tsx`. Still over 800 |
+
+- **Backend splits in the same change.** Module 05 `service.ts` went from 2423 to 43 lines and is now a barrel over `src/service/`. Module 04 `clone.ts` went from 1299 to 38 lines, a barrel over `src/clone/`. See the SKILL.md files of both modules.
+- **Rejected.** A rewrite of the pages: it needs a behaviour review. Raising the limit: the warning is the point.
+- **Not included.** The four pages above still exceed 800 lines (RW-99).
 
 ## Generate wizard: Topic focus (RW-46, S10, 2026-10-15)
 

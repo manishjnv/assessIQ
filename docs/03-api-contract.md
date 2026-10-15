@@ -263,7 +263,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 |---|---|---|---|
 | `GET`  | `/admin/tenant`        | Current tenant settings + branding | Phase 1 |
 | `PATCH`| `/admin/tenant`        | Update tenant name, branding, settings | Phase 1 |
-| `GET`  | `/admin/users`         | List users (filter by role, status, search; pageSize cap 100 — stricter than the global 200 cap per `03-users` SKILL § 9) | live |
+| `GET`  | `/admin/users`         | List users (filter by role, status, search; pageSize cap 100 — stricter than the global 200 cap per `03-users` SKILL § 9). Each item carries `totp_enrolled: boolean` since RW-91 (S10, 2026-10-16); true when the user has a TOTP secret | live |
 | `POST` | `/admin/users`         | Create user record (no email sent). **Status is role-derived:** `role:'candidate'` → `active` immediately (candidates have no invite/login flow — they authenticate only via per-assessment magic links); `admin` → `pending` (must accept an emailed invite, see `inviteUser`). `role:'reviewer'` is rejected with 400 `INVALID_ROLE` (role removed 2026-10-03). No `status` field is accepted, so an active admin cannot be minted here. Optional candidate `designation` rides in `metadata.designation` (free-text, no schema column). | live |
 | `GET`  | `/admin/users/:id`     | Get user detail | live |
 | `PATCH`| `/admin/users/:id`     | Update role, status, name, metadata; enforces last-admin invariant (HTTP 409 `LAST_ADMIN`) and status-state-machine (HTTP 422 `INVALID_STATUS_TRANSITION`); sweeps Redis sessions on disable | live |
@@ -273,7 +273,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `POST` | `/admin/invitations`   | Issue admin invitation (role enum `admin | candidate`; `reviewer` → 400 `INVALID_ROLE` since 2026-10-03; candidate role → 501 `CANDIDATE_INVITATION_PHASE_1`); response carries the invitation row ID + email + role + expires_at but **never** the plaintext token (per `03-users` SKILL § 2) | live |
 | `POST` | `/invitations/accept`  | **Pre-auth** (no session required). Body: `{token: string}` (43–64 char base64url). Validates → marks invitation accepted (atomic single-use) → flips user `pending → active` → mints a session via `01-auth` (currently mocked — see `03-users` SKILL § 12). Sets `aiq_sess` cookie (httpOnly, sameSite=lax, secure in prod). Response body is `{user, expiresAt}` — sessionToken is cookie-only (no body bearer leak) | live |
 | `GET`  | `/admin/invitations`   | List invitations | Phase 1 |
-| `POST` | `/admin/users/:id/totp/reset` | Force TOTP re-enrollment | Phase 1 (after 01-auth) |
+| `POST` | `/admin/users/:id/totp/reset` | Force TOTP re-enrollment. **Live (RW-91, S10, 2026-10-16):** see "`POST /api/admin/users/:userId/totp/reset`" in the catalog below | live |
 
 #### Error contracts (live endpoints)
 
@@ -608,6 +608,12 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | `PATCH` | `/api/admin/super/domains/:id` | Archive/reactivate a platform domain + propagate (catalog-only; fresh MFA) | **live 2026-05-25** |
 | `GET` | `/api/admin/super/frameworks/seeds` | List the bundled framework seeds with the loaded version | **live (RW-57 part 1, S10, 2026-10-15)** |
 | `POST` | `/api/admin/super/frameworks/seeds/:code/load` | Load one bundled framework seed (idempotent) | **live (RW-57 part 1, S10, 2026-10-15)** |
+| `POST` | `/api/admin/super/question-imports` | Upload a CSV or XLSX file (JSON, base64). Stages and validates it | **live (RW-58, S10, 2026-10-16)** |
+| `GET` | `/api/admin/super/question-imports/templates/:type` | Download the CSV or XLSX template of one question type | **live (RW-58, S10, 2026-10-16)** |
+| `GET` | `/api/admin/super/question-imports/:id` | Read the report of one import | **live (RW-58, S10, 2026-10-16)** |
+| `PATCH` | `/api/admin/super/question-imports/:id/rows/:row` | Fix or skip one row | **live (RW-58, S10, 2026-10-16)** |
+| `POST` | `/api/admin/super/question-imports/:id/commit` | Create one draft pack from the ok rows | **live (RW-58, S10, 2026-10-16)** |
+| `POST` | `/api/admin/super/question-imports/:id/discard` | Discard a staged import | **live (RW-58, S10, 2026-10-16)** |
 | `GET` | `/api/admin/super/tenants/:tenantId/users` | List users + pending invitations for a tenant (Phase C) | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/disable` | Super-admin user disable; LAST_ADMIN override path | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/reenable` | Super-admin user reenable | **live 2026-05-20** |
@@ -1077,7 +1083,9 @@ An admin replaces all recovery codes after proving a current TOTP code. Source: 
 
 #### Framework seeds (RW-57 part 1, S10, 2026-10-15)
 
-A super admin loads curriculum frameworks from JSON files that ship with the api. Both routes use `superAdminOnly`. `routes.ts` passes the real chain. The handler also checks the role, as defence in depth. Board files for CBSE, ICSE and IB follow in later parts.
+A super admin loads curriculum frameworks from JSON files that ship with the api. Both routes use `superAdminOnly`. `routes.ts` passes the real chain. The handler also checks the role, as defence in depth. Board files for CBSE, ICSE and IB shipped in RW-57 part 2 (S10, 2026-10-16). They are bundled in `modules/04-question-bank/src/framework-seeds.ts` with `sample`, so the list route now returns four items.
+
+**UI calls (RW-57 part 2).** The Platform page section "Curriculum frameworks" calls these two routes through `modules/10-admin-dashboard/src/api/frameworks.ts` (`listFrameworkSeedsApi`, `loadFrameworkSeedApi`). It adds no new route. See [08-ui-system.md](08-ui-system.md) § "Platform page: Curriculum frameworks".
 
 `GET /api/admin/super/frameworks/seeds` returns `{ items: [{ code, name, board, version, nodeCount, loadedVersion }] }`. `loadedVersion` is `null` when the seed is not loaded.
 
@@ -1087,6 +1095,86 @@ A super admin loads curriculum frameworks from JSON files that ship with the api
 - One `framework.seed_loaded` audit row is written for each load.
 - An unknown `code` returns 404.
 - An invalid seed returns 400. The message has the schema path. Nothing is written.
+
+#### Question import (RW-58, S10, 2026-10-16)
+
+A super admin imports questions from a CSV or XLSX file. The file is staged and validated first. The admin fixes rows. A commit then creates one draft pack. Source: `modules/04-question-bank/src/import-routes.ts`. Logic: `src/import/{parse,templates,staging,commit}.ts`. Schema: [02-data-model.md](02-data-model.md) § "Question import".
+
+**Auth:** all six routes use `superAdminOnly`. The routes run in the tenant of the session (`req.session.tenantId`), under RLS. The routes call no AI.
+
+| Route | Body or query | Success |
+| --- | --- | --- |
+| `POST /api/admin/super/question-imports` | JSON `{ file_name, format, content_base64, domain, pack_name? }`. `format` is `csv` or `xlsx`. The body limit is 4 MB. `pack_name` defaults to the file name without its extension | 201 report |
+| `GET /api/admin/super/question-imports/templates/:type` | `:type` is a question type from the registry. Query `format=csv\|xlsx` (default `csv`) | The file, as an attachment named `question-import-<type>.<format>` |
+| `GET /api/admin/super/question-imports/:id` | none | 200 report |
+| `PATCH /api/admin/super/question-imports/:id/rows/:row` | `{ values?, skip? }`. One of the two is required. `values` is a map of column to string (each up to 20 000 characters) | 200 report |
+| `POST /api/admin/super/question-imports/:id/commit` | none | 200 `{ importId, packId, committed }` |
+| `POST /api/admin/super/question-imports/:id/discard` | none | 200 report |
+
+**Report shape.** The upload, `GET`, `PATCH` and discard routes return it:
+
+```json
+{
+  "importId": "uuid",
+  "status": "staged | committed | discarded",
+  "counts": { "total": 0, "ok": 0, "error": 0, "duplicate": 0, "skip": 0 },
+  "rows": [
+    { "row": 1, "decision": "ok | error | duplicate | skip",
+      "errors": [{ "row": 1, "column": "text", "message": "..." }],
+      "raw": {}, "normalized": {} }
+  ]
+}
+```
+
+**Behaviour.**
+- The file limit is 2 MB (decoded) and 2000 data rows. The header row must have a `type` column.
+- The parser reads CSV (RFC 4180) in the file itself. It reads XLSX with `exceljs` 4.4, a pure-JS dependency added in this change.
+- The templates come from the question type registry (`importColumns`). The code has no switch for each type.
+- Staging validates each row with `coerceContent` and `contentSchema`. It sets `content_hash` to the sha256 of the type plus the canonical content. A row is `duplicate` when its hash matches a non-archived question in the same domain, or an earlier row of the same file.
+- The same file (same sha256) uploaded again while a staged import exists returns that staged import, not a second one.
+- A commit creates one draft pack with `source = 'import'`. It adds levels named `L<position>` and draft questions for the `ok` rows. Rows with `error`, `duplicate` or `skip` are left out. One audit row is written.
+- Audit actions: `question_import.staged`, `question_import.committed`, `question_import.discarded`.
+
+**Errors.**
+- `400` `INVALID_PARAM` for a bad body, params or query.
+- `400` for a file that cannot be used. Codes: `IMPORT_CSV_MALFORMED`, `IMPORT_XLSX_UNREADABLE`, `IMPORT_XLSX_EMPTY`, `IMPORT_TOO_LARGE`, `IMPORT_TOO_MANY_ROWS`, `IMPORT_MISSING_TYPE_COLUMN`, `IMPORT_DOMAIN_NOT_FOUND`.
+- `400` `IMPORT_NO_OK_ROWS` on a commit with no `ok` row.
+- `403` caller is not a super admin.
+- `404` `IMPORT_NOT_FOUND` or `IMPORT_ROW_NOT_FOUND`. The import is not in the tenant of the session.
+- `409` `IMPORT_NOT_STAGED` on a commit, fix or discard of an import that is not `staged`.
+
+**Not included.**
+- Multipart upload. `@fastify/multipart` is not an api dependency, so the file travels as base64 in JSON.
+- Rubrics for imported subjective questions. The admin adds them in the pack editor.
+- Category linking.
+- A stored hash column on `questions`. The hash lives on `question_import_rows` only.
+
+**UI calls.** The page `/admin/question-import` calls these routes through `modules/10-admin-dashboard/src/api/question-imports.ts`. See [08-ui-system.md](08-ui-system.md) § "Question import page".
+
+---
+
+#### `POST /api/admin/users/:userId/totp/reset` (RW-91, S10, 2026-10-16)
+
+A tenant admin clears the two-factor setup of another user in the same organisation. Source: `apps/api/src/routes/admin-users-totp-reset.ts`. The super-admin variant is the next section.
+
+**Auth:** `authChain` with role `admin` and `freshMfaWithinMinutes: 15`. The handler also checks the fresh TOTP itself (see Behaviour).
+
+**Body:** `{ "reason": "text" }`. The reason is required, 1 to 500 characters.
+
+**Response 204:** no body.
+
+**Errors:**
+- `400` bad params or body.
+- `401` `FRESH_TOTP_REQUIRED`. The session has no TOTP check in the last 15 minutes.
+- `403` caller is not an admin, or the target is a `super_admin` (`SUPER_ADMIN_TARGET`).
+- `404` the user is in another tenant or does not exist.
+- `409` `SELF_RESET_FORBIDDEN`. An admin cannot reset their own two-factor here.
+
+**Behaviour.** The handler checks the fresh TOTP for every configuration, also when `MFA_REQUIRED=false`. The generic middleware check depends on `MFA_REQUIRED` for non-super roles, so the route does not rely on it. `adminResetTotp` clears the secret, deletes the recovery codes and the sessions of the target. After the reset returns, the route sends the notice email `totp_reset_notice` (see [13-email-system.md](13-email-system.md)). A send failure is logged and never fails the reset.
+
+**Not included:** a recovery-code fallback, and a link or the actor name in the notice. Flow: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
+
+---
 
 #### `POST /api/admin/super/tenants/:tenantId/users/:userId/totp/reset` (RW-45, S10, 2026-10-15)
 
@@ -1108,7 +1196,9 @@ A super admin clears the two-factor setup of one user. Use it when the user lost
 
 **Behaviour.** `adminResetTotp` clears the TOTP secret, deletes the recovery codes and deletes the Postgres session rows of the target. It then calls `sessions.destroyAllForUser` after the commit. The user must enrol again at the next login. Flow and audit details: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
 
-**Not included:** a message to the target user, and a tenant-admin variant (roadmap RW-91).
+**Update (RW-91, S10, 2026-10-16):** the route now sends the notice email `totp_reset_notice` to the target after the reset. The tenant-admin variant is `POST /api/admin/users/:userId/totp/reset`, above.
+
+**Not included:** a recovery-code fallback.
 
 ---
 

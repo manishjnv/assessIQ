@@ -1757,6 +1757,36 @@ Not covered: there is no queue-age metric beyond the platform queue page and the
 | Why no login | The body holds only booleans, and the cache caps the process cost. A monitor can call it without a secret |
 | Use | Point an uptime monitor at it next to `/api/health`. `/api/health` stays a pure liveness check. The platform evaluation page shows the result as a chip |
 
+## 37. Generation log events and two worker jobs (S10, 2026-10-16)
+
+*Type: reference.* Read this when a generation run shows `failed` with no cause, when the wizard shows a difficulty warning count, or when a nightly job did not run.
+
+### 37.1 Generation log events
+
+| Event (`msg`) | Level | Stream | Emitter | Fields | When |
+| --- | --- | --- | --- | --- | --- |
+| `generation.detached.start` | info | `app` | `startGenerateDetached`, `modules/04-question-bank/src/service/generation-async.ts` (RW-93) | `attemptId`, `packId`, `levelId`, `count` | `POST /api/admin/generate/start` begins a detached run |
+| `generation.detached.end` | info | `app` | same | `attemptId`, `generated` | The detached run finished |
+| `generation.detached.failed` | error | `app` | same | `attemptId`, `code`, `err` | The detached run threw. The code marks the attempt row `failed` if it is still `running` |
+| `generation.stale_sweep` | warn | `app` | `sweepStaleGenerationAttempts`, same file (RW-94) | `count` | The sweep set at least one `running` row to `failed` with `AIG_STALE_AFTER_RESTART`. No line when the count is 0 |
+| `generation.difficulty.warn.failed` | warn | `generation` | `insertDrafts`, `modules/07-ai-grading/src/handlers/admin-generate.ts` (RW-88) | `attemptId`, `topic`, `err` | The `difficulty.warn` function threw. The draft is still inserted, with no warnings |
+| `generation.complete` | info | `generation` | same file | includes `generated`, `skillSha` and, since RW-88, `warningCount` | The handler stored the drafts. `warningCount` is the total number of difficulty warnings |
+
+- **Stale rows.** A `generation_attempts` row that stays `running` after an API restart is cleared by the sweep. The sweep runs once at API start and then through the worker job below. Triage: grep `generation.stale_sweep` in `app.log`, then read the rows with `error_code = 'AIG_STALE_AFTER_RESTART'`.
+- **Lease loss.** A run that loses the single-flight lease ends as `failed` with `AIG_LEASE_LOST` and writes no drafts (RW-64). See [05-ai-pipeline.md](05-ai-pipeline.md) § "D7".
+
+### 37.2 Worker jobs
+
+Both jobs run on the `assessiq-cron` queue in the `assessiq-worker` container. The wrapper writes the normal `worker.job.start` and `worker.job.finished` lines (§ 13.1). Neither job calls AI.
+
+| Job | Schedule | Retry | What it does | `worker.job.finished` `result` |
+| --- | --- | --- | --- | --- |
+| `generation-stale-sweep` (RW-94) | every 15 min | attempts 1 | Runs `sweepStaleGenerationAttempts()`. Sets `generation_attempts` rows that are `running` and older than 10 min to `failed` | `{ count, ids }` |
+| `tenant-purge-cron` (RW-48b) | daily at 03:30 UTC, after `dsr-retention-cron` | attempts 1 | Purges tenants that were archived for 180 days or more. It is a dry run unless the worker env `TENANT_PURGE_ENABLED=true`. Design: [04-auth-flows.md](04-auth-flows.md) § "Tenant purge" | `{ dryRun, candidates, purged, failed }` |
+
+- **Quiet ticks.** `tenant-purge-cron` writes the line `tenant-purge-cron tick` (`dryRun`, `candidates`, `purged`, `failed`) only when it finds at least one candidate tenant.
+- **Not included.** An alert on `generation.stale_sweep`. The count is a signal for a manual look, not a page.
+
 ## Change history
 
 This table indexes every dated change on this page. The sections above hold the detail.
@@ -1775,3 +1805,4 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-03 | `tenant.provisioned`. Worker routes super admin only | `5e5aaa3`; `59a4816` | §§ 30.6, 30.7 |
 | 2026-10-11 | `system-role.tx` log event. One cross-tenant query for each tick (RW-39) | `67ad882` | §§ 8, 13.2 |
 | unknown | `GET /api/ready` readiness probe (RW-9) | n/a | § 36 |
+| 2026-10-16 | Generation log events (`generation.stale_sweep`, `generation.difficulty.warn.failed`, `generation.detached.*`). Worker jobs `generation-stale-sweep` and `tenant-purge-cron` | (S10, 2026-10-16) | § 37 |

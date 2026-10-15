@@ -796,3 +796,17 @@ Templates are rendered as described above. Delivery is a BullMQ `email.send` job
 - **Set on the VPS:** add `EMAIL_VERIFIED_DOMAINS=assessiq.in` to `/srv/assessiq/.env`. Then recreate `assessiq-api` and `assessiq-worker` with `up -d --no-deps --force-recreate`.
 - **Rollback:** add the domain to `EMAIL_VERIFIED_DOMAINS` and recreate `assessiq-api` and `assessiq-worker`. Do not unset `NODE_ENV`: it has no default and boot fails without it.
 - **Not included:** the check does not query the provider. It trusts the operator list. Per-tenant `from_address` is not checked.
+
+## §9 Template `totp_reset_notice` (RW-91, S10, 2026-10-16)
+
+Closed-enum template `totp_reset_notice`. It tells a user that an administrator reset their two-factor sign-in.
+
+- **Trigger.** `sendTotpResetNoticeEmail` (`modules/13-notifications/src/email/totp-reset-notice.ts`) runs after a reset returns. Both reset routes call it: `POST /api/admin/users/:userId/totp/reset` (tenant admin) and the super-admin route. The route helper `notifyTotpReset` in `apps/api/src/routes/admin-users-totp-reset.ts` logs a send failure and never fails the reset.
+- **Subject.** "Your two-factor sign-in was reset".
+- **Vars** (`TotpResetNoticeVarsSchema` in `src/types.ts`). `recipientName` (the user name, or the email if the name is empty). `resetAt` (UTC string, `Date.toUTCString()`). `resetBy` (a role label: "an administrator" or "a platform administrator").
+- **Content rule.** The notice has no secret, no code, no actor name and no link. The meta card shows "Reset on" and "Reset by". The body tells the user to sign in as usual and to set up two-factor again.
+- **Delivery class.** `bulk` (`email/delivery-policy.ts`). The mail is a notice, not a code, so a delay is acceptable and long retries help.
+- **Files.** `templates/totp_reset_notice.html` and `.txt`. The meta rows are in `render.ts` (`case 'totp_reset_notice'`).
+- **Rejected.** A link to the account page: the notice must not give a click target. The actor name: the role label is enough for the user.
+- **Not included.** A notice to the actor. A retry outside the normal bulk retries. A tenant-specific wording.
+- **Downstream impact.** The earlier count of 9 templates in this page is history. Flow and rationale: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".

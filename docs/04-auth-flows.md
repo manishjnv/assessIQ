@@ -272,7 +272,34 @@ A wrong code touches nothing. The old codes stay valid.
 - A recovery-code fallback for regenerate. A stolen recovery code would then mint new codes.
 - `superAdminFreshMfa` on reset. The route needs a TOTP-verified super admin session and a written reason. Fresh MFA adds a step-up form for a rare action.
 
-**Not included.** A message to the target user after reset. A tenant-admin variant of reset. Both are roadmap RW-91.
+**Not included.** A recovery-code fallback. (A message to the target and a tenant-admin variant were open here. RW-91 below closes both.)
+
+### Tenant-admin reset and the notice email (RW-91, S10, 2026-10-16)
+
+**What changed.** A tenant admin can reset the two-factor setup of a user in the same organisation. Every reset, from a tenant admin or a super admin, now sends a notice email to the target user.
+
+**Tenant-admin reset flow.**
+1. A tenant admin opens the Users page, chooses "Reset two-factor" on a row and writes a reason.
+2. The client calls `POST /api/admin/users/:userId/totp/reset` with `{ reason }` (1 to 500 characters). Route: `apps/api/src/routes/admin-users-totp-reset.ts`.
+3. The `authChain` gate needs role `admin` and a TOTP check in the last 15 minutes. The handler checks the same 15 minutes itself and returns 401 `FRESH_TOTP_REQUIRED` if the session is older. The UI then shows an inline TOTP step-up and retries.
+4. The handler refuses the caller's own account (409 `SELF_RESET_FORBIDDEN`) and a `super_admin` target (403 `SUPER_ADMIN_TARGET`). A user of another tenant returns 404, because RLS hides the row.
+5. `adminResetTotp` runs as in the super-admin flow above: it clears the secret, deletes the recovery codes and the sessions, and writes `auth.totp.reset` in one transaction.
+6. After the reset returns, the route sends the notice. A send failure is logged and never fails the reset.
+
+**Notice email.** Template `totp_reset_notice`, bulk lane. The subject is "Your two-factor sign-in was reset". The body has the recipient name, the reset time in UTC and who reset it ("an administrator" or "a platform administrator"). It has no secret, no actor name and no link. Both reset routes send it. See [13-email-system.md](13-email-system.md).
+
+**Why the handler checks the fresh TOTP itself.** The generic check in `modules/01-auth/src/middleware/require-auth.ts` sits inside `if (isSuperAdmin || config.MFA_REQUIRED)`. For a tenant admin with `MFA_REQUIRED=false`, the check was skipped, so a stale session could reset another user's two-factor. An adversarial review found this before push (RCA_LOG 2026-10-16). The route now enforces the step-up for every configuration.
+
+**Known gap.** The generic freshness check in the middleware still depends on `MFA_REQUIRED` for non-super roles. Any other route that relies on `freshMfaWithinMinutes` for an `admin` has the same hole while `MFA_REQUIRED=false`. Only this route has its own check. Followup: audit the other `freshMfaWithinMinutes` users, or make the middleware enforce the cap for every role.
+
+**Considered and rejected.**
+- A fix in the middleware for all routes in this change. It changes the behaviour of every step-up route and needs its own review.
+- A link or the actor name in the notice. The notice must not give an attacker a click target or reveal who acted. The user asks the organisation, not the notice.
+- A recovery-code fallback instead of a TOTP check. A stolen recovery code could then reset others.
+
+**Not included.** A reset of a `super_admin` by a tenant admin. A notice to the actor. A retry of a failed notice.
+
+**Downstream impact.** `GET /api/admin/users` items carry `totp_enrolled` (see [03-api-contract.md](03-api-contract.md)). The UI hides the menu item on the caller's own row, on users without TOTP, on candidates, on `super_admin` targets and on inactive or deleted users ([08-ui-system.md](08-ui-system.md) § "Users page: Reset two-factor"). The audit action is unchanged: `auth.totp.reset`.
 
 **Downstream impact.** The super-admin Users list returns `totp_enrolled` (see [03-api-contract.md](03-api-contract.md)). Two new audit actions exist: `auth.recovery.regenerated` and `auth.totp.reset`. UI: [08-ui-system.md](08-ui-system.md) § "Account security page".
 

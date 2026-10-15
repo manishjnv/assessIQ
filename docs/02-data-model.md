@@ -35,7 +35,7 @@ Money rules (checked against all migrations on 2026-10-03, task N18):
 | 03-users | `users`, `user_credentials`, `user_invitations` |
 | 01-auth | `sessions`, `api_keys`, `embed_secrets`, `oauth_identities`, `totp_recovery_codes`, `candidate_login_tokens` |
 | 12-embed-sdk | No own tables. It adds columns to `tenants` (`embed_origins`, `privacy_disclosed`), `sessions` (`session_type`) and `attempts` (`embed_origin`) through migrations 0070–0073 (Phase 4, 2026-05-03) |
-| 04-question-bank | `question_packs`, `levels`, `questions`, `question_versions`, `tags`, `question_tags`, `frameworks`, `taxonomy_nodes`, `question_taxonomy` (RW-55, migration 0169; also adds `domains.node_id` and `categories.node_id`) |
+| 04-question-bank | `question_packs`, `levels`, `questions`, `question_versions`, `tags`, `question_tags`, `frameworks`, `taxonomy_nodes`, `question_taxonomy` (RW-55, migration 0169; also adds `domains.node_id` and `categories.node_id`), `question_imports`, `question_import_rows` (RW-58, migration 0174; also adds `question_packs.source` and `question_packs.import_file_sha256`) |
 | 05-assessment-lifecycle | `assessments`, `assessment_invitations` |
 | 06-attempt-engine | `attempts`, `attempt_questions`, `attempt_answers`, `attempt_events` |
 | 07-ai-grading | **Phase 1 live:** `gradings`, `tenant_grading_budgets`, `generation_attempts`. **Phase 2 deferred (not yet applied):** `grading_jobs`, `prompt_versions` |
@@ -803,6 +803,27 @@ A golden test (`blueprint-node-golden.test.ts`) proves that a `category_id` blue
 | Impact: new inserts | Any new code path that inserts a domain or category must call the `taxonomy-nodes.ts` helpers. Otherwise the row has a NULL `node_id` and a node criterion cannot resolve to it |
 | Impact: purge | `tenant_id` has `ON DELETE CASCADE`, so a tenant purge removes the nodes of the tenant |
 | Rollback | Stop calling the new helpers. Then drop `question_taxonomy`, `taxonomy_nodes`, `frameworks`, `domains.node_id` and `categories.node_id`. No other table depends on them. Stored blueprints keep working because they hold `category_id` |
+
+## Question import (RW-58, migration 0174, S10, 2026-10-16)
+
+| Item | Detail |
+| --- | --- |
+| Migration | `modules/04-question-bank/migrations/0174_question_imports.sql`. Commit: (S10, 2026-10-16) |
+| What | Two new tables hold a staged CSV or XLSX import. `question_packs` gains two columns |
+| `question_imports` | One row for each uploaded file. Columns: `id`, `tenant_id`, `created_by` (users), `file_name`, `file_sha256`, `format` (`csv` or `xlsx`), `domain`, `pack_name`, `status` (`staged`, `committed`, `discarded`; default `staged`), `row_count`, `error_count`, `committed_pack_id` (question_packs), `created_at`, `updated_at` |
+| `question_import_rows` | One row for each file row. Columns: `id`, `import_id` (cascade delete), `tenant_id`, `row_number`, `raw` (JSONB), `normalized` (JSONB, null when invalid), `content_hash`, `errors` (JSONB array, default empty), `decision` (`ok`, `skip`, `duplicate`, `error`). Unique `(import_id, row_number)` |
+| `question_packs.source` | `TEXT NOT NULL DEFAULT 'authored'` with a CHECK for `authored`, `generated`, `import`. The default covers every existing row, so no backfill runs |
+| `question_packs.import_file_sha256` | Nullable. Set on a pack created by a commit. It links the pack to its source file |
+| Unique index | `question_imports_staged_file_idx` on `(tenant_id, file_sha256)` where `status = 'staged'`. An upload of the same file returns the staged import instead of a second one. A committed or discarded import does not block a new upload |
+| RLS | Both tables use the standard `tenant_id` pair of policies: `tenant_isolation` (USING) and `tenant_isolation_insert` (INSERT with check). This mirrors `generation_batches` (0142) |
+| Why | An admin must see and fix bad rows before any question exists. Staging in tables keeps the fix loop out of `questions`. Commit then writes only the `ok` rows |
+| Rejected | (a) Parse and insert in one step: one bad row would block the file, or bad data would reach `questions`. (b) A `content_hash` column on `questions`: the hash is computed when staging runs, so the extra column is not needed yet. (c) A Postgres ENUM for `source` and `status`: repo convention is TEXT + CHECK |
+| Not included | Multipart upload (the body is JSON with base64). Rubrics for imported subjective questions. Category linking. Retention or clean-up of old staged imports. A `source` filter in the pack list UI |
+| Downstream impact | Routes and report shape: [03-api-contract.md](03-api-contract.md) § "Question import". Code: `modules/04-question-bank/src/import/`. Audit actions: `question_import.staged`, `question_import.committed`, `question_import.discarded`. A tenant purge deletes the rows of both tables (they have `tenant_id`). A pack with `source = 'import'` is an ordinary draft pack for every other module |
+| Rollback | Stop calling the import routes. Then drop `question_import_rows`, `question_imports` and the two `question_packs` columns. No other table depends on them |
+| Migration 0173 | `modules/16-help-system/migrations/0173_seed_rw57_frameworks_help.sql` carries one `help_content` row, `admin.platform.frameworks`, for the Curriculum frameworks section of the Platform page. It adds no table or column |
+| Migration 0175 | `modules/16-help-system/migrations/0175_seed_rw58_question_import_help.sql` carries five `help_content` rows: `admin.question_import.page`, `.template`, `.upload`, `.report` and `.commit`. It adds no table or column |
+| Applying 0173 to 0175 | Production help rows come from forward migrations, not from the seed file. Apply them by hand per [06-deployment.md](06-deployment.md). The two help migrations are idempotent (`ON CONFLICT DO NOTHING`). Migration 0174 is not (plain `CREATE TABLE`), so apply it once |
 
 ## Assessment lifecycle
 
@@ -2415,3 +2436,5 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-06 | `billing_events` second meter and monthly window. `smtp_config` shape facts. Retention table | `0160` | `billing_events`; Assessment lifecycle; `tenant_settings.retention_days` |
 | 2026-10-11 | Question type registry and per-type behaviour. Curriculum frameworks. `withSystemRole`. Post-migration seeds. Migration lint. `gradings` provenance columns | `0167`; `0169`; `66a7c50`; `9badb1d`; `0168` | Question type registry; Curriculum frameworks; System-role transactions; Post-migration seeds |
 | 2026-10-15 | Tenant purge and user tombstones. Migration lint R5. Help rows for account security | `0170`, `0171` | Tenant purge |
+| 2026-10-15 | Help row for the Curriculum frameworks section (RW-57 part 2) | `0173` | Question import |
+| 2026-10-16 | Question import: `question_imports`, `question_import_rows`, `question_packs.source`, `question_packs.import_file_sha256` (RW-58). Help rows for the import page | `0174`; `0175` | Question import |

@@ -44,9 +44,21 @@ If asked: *"the admin uses their personal Anthropic Max subscription via Claude 
 - **What.** `POST /api/admin/generate/start` starts `generateQuestions` detached in the API process and returns 202 `{ attempt_id }`. The wizard polls `GET /api/admin/generation-attempts/:id`. Code: `modules/04-question-bank/src/service/generation-async.ts`.
 - **Why it is still admin click, single-flight.** Only the admin click starts the run. There is no cron, queue, webhook or worker. The run takes the same single-flight lock (`modules/07-ai-grading/src/single-flight.ts`) and writes the same attempt row. The `lint-no-ambient-claude.ts` allow-list is unchanged (2 spawn sites).
 - **300 ms ceiling.** The start route waits 300 ms. An error inside that window (409 `AIG_GRADING_IN_PROGRESS`, 503 `AIG_LOCK_UNAVAILABLE`, 501 wrong pipeline mode) goes to the start request. A later error marks the attempt row `failed` (only if it is still `running`) and the poller reads it.
-- **API restart mid-run.** The CLI child dies with the API process. The attempt row stays `running`. The RW-7 Redis lease (120 s, refreshed every 40 s) expires and frees the lock. The wizard stops after 10 min, and the admin runs the category again. Nothing flips the stale row yet (ROADMAP RW-94).
+- **API restart mid-run.** The CLI child dies with the API process. The attempt row stays `running`. The RW-7 Redis lease (120 s, refreshed every 40 s) expires and frees the lock. The wizard stops after 10 min, and the admin runs the category again. Since RW-94 (S10, 2026-10-16) a sweep flips the stale row (see "Bounded restart" below).
 - **Considered and rejected.** BullMQ or a worker (hard rule 1), SSE or websockets (edge buffering), a new table, replacing the sync route.
 - **Not included.** Cancel; resume after a restart.
+
+#### Bounded restart (RW-94, S10, 2026-10-16)
+
+*Type: explanation.*
+
+- **What.** `sweepStaleGenerationAttempts({ olderThanMs })` in `modules/04-question-bank/src/service/generation-async.ts` sets `generation_attempts` rows that are still `running` to `failed` with `error_code = 'AIG_STALE_AFTER_RESTART'`. A row qualifies when it is older than `olderThanMs`. The default is 10 min. The minimum is 5 min (a smaller value is raised to 5 min). The sweep runs through `withSystemRole`.
+- **When it runs.** (1) Once at API start (`apps/api/src/server.ts`, fire-and-forget; a failure does not stop the start). (2) As the worker job `generation-stale-sweep` every 15 min (1 attempt, `apps/api/src/worker.ts`).
+- **Log.** The warn line `generation.stale_sweep` carries `count`. It appears only when at least one row changed.
+- **Why.** After an API restart the child process is gone and no code reports the end of the run. The row stayed `running` for ever and the wizard waited 10 min. The sweep gives the admin a clear failed state and lets the admin run the category again.
+- **Why it is not ambient AI.** The sweep is pure SQL. It starts no `claude` process and calls no runtime. It is outside the lint ban, which covers AI starts only.
+- **Rejected.** Resume of the run after a restart (needs a durable work queue, which hard rule 1 forbids for AI). A DB trigger or `pg_cron` (hidden outside the repo).
+- **Not included.** Resume. A sweep for grading rows (grading is sync and has no `running` row of this kind).
 
 ### Architecture — sync-on-click flow
 
@@ -844,6 +856,14 @@ RLS template applies: `tenant_id` is the row's PK and the policy is the special-
 > - **Known limits (also in the `single-flight.ts` header; codex review).** (a) A lost lease (Redis down for more than 80 s during a run, then back) only writes a log line. The running subprocess is NOT killed. Upgrade path: pass an `AbortSignal` into the runtime. (b) The lock covers one AI operation. Sharded generation fans out inside one lease by design (2026-05-09 decision). (c) The rubric-draft and answer-guidance-draft calls in `modules/04-question-bank/src/service/generation.ts` (about lines 425 and 468) do not take the lock yet. This gap existed before RW-8.
 > - **Not included.** No abort of a running subprocess. No lock on the draft calls. No change to the "one click, one grade" rule or to D8.
 > - **Downstream impact.** `GET /api/ready` checks Redis (RW-9). A Redis outage now stops AI work and shows on the platform evaluation page. See `docs/06-deployment.md` section "Hardening S2 deploy (2026-10-09)".
+>
+> **Update (RW-63 and RW-64, S10, 2026-10-16): known limits (a) and (c) above are closed for generation.**
+>
+> - **RW-63, lock on the draft calls.** The rubric draft, the answer-guidance draft and the bulk rubric draft in `modules/04-question-bank/src/service/generation.ts` now take the global lease through `withAiLock`. Keys: `rubric:<questionId>` and `guidance:<questionId>`. The bulk draft takes the lock for each question. When the lease is held, the call returns 409 `AIG_GRADING_IN_PROGRESS` and the runtime is not called. The `finally` block releases the lease. A 503 `AIG_LOCK_UNAVAILABLE` from acquire passes through unchanged.
+> - **RW-64, lease loss aborts the run.** The slot from `single-flight.ts` now has a `signal` (`AbortSignal`). It aborts when a refresh returns false (the key is gone or holds another value). It also aborts after 2 refresh errors or timeouts in a row. A refresh times out at 40 s, so the abort happens within 80 s, before the 120 s TTL ends. `runSkill` (`runtimes/claude-code-vps.ts`) rejects at once with `AIG_LEASE_LOST` if the signal is already aborted. Otherwise it sends SIGTERM, then SIGKILL after 5 s, and rejects when the child process emits `close`. The generation handler (`handlers/admin-generate.ts`) discards the results of finished chunks and ends the attempt as `failed` with `AIG_LEASE_LOST`. It writes no drafts. The draft calls above pass the same signal to the runtime.
+> - **Rejected.** Letting the run finish after a lost lease: a second AI task could then start while the first one still writes. Killing at the first failed refresh: one slow Redis call would kill a healthy run.
+> - **Gap (followup RW-95).** The grading handlers `admin-grade` and `admin-rerun` do not pass the signal yet. A lost lease during grading still only writes a log line.
+> - **Not included.** The grading signal path. A change to the 120 s TTL or the 40 s refresh interval.
 
 **Chosen.** Phase 1 grading enforces **at most one concurrent grading subprocess per API process**, gated by an in-process module-level mutex map keyed by `attempt_id`:
 
@@ -1280,6 +1300,16 @@ D2 above (`### D2 — Definition of "ambient" + the lint contract`) is the canon
 
 **Per CLAUDE.md § Load-bearing paths, this file requires `codex:rescue` to modify.** That includes adding a new file to the spawn allow-list, widening the banned-path set, or relaxing the rejection patterns. A new file under `modules/07-ai-grading/src/runtimes/` would also bypass the parameterised `runSkill()` and therefore trigger the same gate (per `docs/design/2026-05-09-type-sharded-generation.md` § 8 "Constraint: codex:rescue gate scope").
 
+**Lint behaviour since RW-65 (S10, 2026-10-16).**
+
+- **What changed.** The lint removes comments before it matches. A state machine does this and it knows strings, template literals and regex literals. A comment that only names a banned symbol no longer trips the lint. A string or regex that holds `//` or `/*` is not read as a comment.
+- **New matches.** A call to `exec`, `execFile`, `execSync`, `execFileSync`, `spawnSync` or `fork` with `claude` as the first argument now fails the lint, in the same way as `spawn`.
+- **Fixtures.** 19 new fixtures cover comments, strings, templates, regex and the new call names.
+- **Allow-list.** Unchanged: 2 spawn sites and 1 SDK import.
+- **Why.** On 2026-10-09 a comment tripped the lint. The only prevention then was manual discipline. The lint now enforces the rule. See `docs/RCA_LOG.md`, entry "comment tripped the lint".
+- **Rejected.** A regex-only comment strip: it breaks on `//` inside a string or a regex.
+- **Not included.** A parse of the full TypeScript AST. The `codex:rescue` gate for edits to this file stays.
+
 **Worked example of a violation.** A cron registration like the following would fail the lint:
 
 ```ts
@@ -1311,6 +1341,18 @@ The same pattern applies for `generateQuestions`, `generateRubricDraft`, and any
 **Runtime defence-in-depth.** `selectValidContent()` (in `claude-code-vps.ts`, both generation paths) re-validates each coerced question against strict per-type content schemas and **drops** (logs `generation.content.dropped`) any that fail — so the runtime never persists content the MCP would have rejected, even if the model exits 0 after an MCP rejection. Partial batches are kept; the run throws only if zero questions survive.
 
 **Not included / downstream.** No schema/DB/API change — coercion is internal; `questions.content` shape is unchanged. The `generate-*/SKILL.md` files are untouched (they remain the documented canonical contract; coercion is the safety net, not a prompt edit → no eval re-baseline). codex:rescue ACCEPT after 2 revise rounds. Tests: `tools/assessiq-mcp/src/__tests__/submit-questions.test.ts` (41) pin coercion + fail-closed answer-key cases.
+
+## Generation — difficulty warnings (RW-88, S10, 2026-10-16)
+
+*Type: explanation.*
+
+- **What.** `insertDrafts` in `modules/07-ai-grading/src/handlers/admin-generate.ts` calls `difficulty.warn(type, content)` after `validate` for each draft. The function is `warnStructuralDifficulty` from `modules/04-question-bank/src/difficulty-spec.ts` (RW-50), passed in from `service/generation.ts`.
+- **Where the warnings go.** The handler stores them in `questions.difficulty_params.warnings` (JSONB, no schema change). It writes the key only when the list is not empty. The handler also returns `warnings` (a map of question id to warning list) and `warningCount`. The `generation.complete` log line carries `warningCount`.
+- **Never blocks.** A warning is advice. If `warn` throws, the handler logs `generation.difficulty.warn.failed` (warn level) and inserts the draft with no warnings.
+- **Why.** The admin saw a draft that broke the structural difficulty spec only after review. The warning shows the problem at draft time. The RW-50 heuristics already existed and nothing used them.
+- **Rejected.** Dropping the flagged draft (a heuristic can be wrong, and a drop loses work). A new `warnings` column (the JSONB key is enough and needs no migration).
+- **Not included.** UI. The wizard Review step does not show the warnings yet (followup RW-96). Warnings do not change grading or scoring.
+- **Downstream impact.** Readers of `difficulty_params` must ignore the `warnings` key if they only want the intended difficulty vector. The log fields are in [11-observability.md](11-observability.md).
 
 ## Deterministic MCQ scoring path (2026-10-01)
 
