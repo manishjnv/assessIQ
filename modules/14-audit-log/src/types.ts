@@ -129,7 +129,7 @@ export const ACTION_CATALOG = [
   'tenant.created',
   'tenant.create_incomplete',
   // Phase 5 Credentialize — certificate issuance + tier upgrade.
-  // See modules/18-certification/SKILL.md and docs/CERTIFICATION_PLAN_GENERIC.md.
+  // See modules/18-certification/SKILL.md and docs/plans/archive/CERTIFICATION_PLAN_GENERIC.md.
   'certification.cert.issue',
   'certification.cert.upgrade',
   // Phase 5 Session 5 — admin revoke + reissue operations.

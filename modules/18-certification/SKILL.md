@@ -19,7 +19,7 @@ completion, ≥90% → distinction** (honors deferred). Each certificate is:
 - **Publicly verifiable** via /verify/:credentialId (Phase 5 Session 3)
 - **Admin-revocable** with a reason (soft revoke; cert still visible, red badge)
 
-Full implementation plan: `docs/CERTIFICATION_PLAN_GENERIC.md`.
+Full implementation plan: `docs/plans/archive/CERTIFICATION_PLAN_GENERIC.md`.
 
 ## Dependencies
 

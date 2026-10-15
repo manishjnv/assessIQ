@@ -77,7 +77,7 @@ Owns: `assessments`, `assessment_invitations`.
 
 ## Decisions captured (2026-05-01)
 
-Pinned ahead of Phase 1 G1.B Session 3 per `docs/plans/PHASE_1_KICKOFF.md` § Decisions captured.
+Pinned ahead of Phase 1 G1.B Session 3 per `docs/plans/archive/PHASE_1_KICKOFF.md` § Decisions captured.
 
 ### `13-notifications` Phase 1 scope: real SMTP via Hostinger relay (decision #12)
 

@@ -6,7 +6,7 @@
 //   * published + opens_at ≤ now AND closes_at ≤ now → closed (skip active;
 //                  whole window already in the past)
 //
-// THIS FILE DOES NOT WIRE BULLMQ. The KICKOFF plan (`docs/plans/PHASE_1_KICKOFF.md`
+// THIS FILE DOES NOT WIRE BULLMQ. The KICKOFF plan (`docs/plans/archive/PHASE_1_KICKOFF.md`
 // § Session 3) calls for a BullMQ repeating job that invokes this logic every
 // 60s. The `apps/worker/` Node process that would host the BullMQ scheduler
 // does not exist yet (apps/api is the only application; no worker app, no

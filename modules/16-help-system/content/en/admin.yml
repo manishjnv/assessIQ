@@ -2373,7 +2373,7 @@ admin.webhooks.replay:
 # ─── Admin Mobile Port — A1 AdminShell mobile reflow (2026-05-21) ────────────
 # Note: admin.shell.mobile_continue_anyway was removed in A6 along with the
 # ViewportLock interstitial it documented. Admin pages are now responsive on
-# mobile; see docs/plans/ADMIN_MOBILE_PORT.md.
+# mobile; see docs/plans/archive/ADMIN_MOBILE_PORT.md.
 
 admin.shell.nav.mobile_menu:
   audience: admin
