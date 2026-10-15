@@ -274,4 +274,39 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 - `ensureNode` is not used. It is wired to `legacy-domains` and to the kinds `subject` and `unit`.
 - Exports: `listBundledSeeds`, `loadFrameworkSeed`, `validateFrameworkSeed`.
 - `sample.json` (board `SAMPLE`, 9 nodes) is for tests and is the example seed.
-- Routes: see `docs/03-api-contract.md` section "Framework seeds". Part 1 only; board files CBSE, ICSE and IB are pending.
+- Routes: see `docs/03-api-contract.md` section "Framework seeds". Board files CBSE, ICSE and IB shipped in part 2 (below).
+
+## Framework seeds: board files and Platform page (RW-57 part 2, S10, 2026-10-16)
+
+- **Bundled.** `src/frameworks/{cbse,icse,ib}.json` sit in the `BUNDLED` map of `src/framework-seeds.ts` next to `sample`. Node counts: CBSE 335, ICSE 340, IB 89.
+- **Content.** CBSE: grades 6 to 12, core NCERT subjects. ICSE and ISC: by stage. IB: PYP, MYP (criteria A to D for each subject group) and DP.
+- **Accuracy.** Chapter titles were written from memory. Subjects that are not verified have the description "partial: verify". Owner step: check one board against the official syllabus.
+- **UI.** The Platform page section `PlatformFrameworksSection` (super admin only) lists the seeds and loads or reloads one. See `docs/08-ui-system.md` § "Platform page: Curriculum frameworks". Help key `admin.platform.frameworks` (migration 0173).
+- **Not included.** Storing `board`, `sourceUrls` and `description` (still validated only).
+
+## Question import pipeline (RW-58, S10, 2026-10-16)
+
+- **What.** A super admin stages a CSV or XLSX file, fixes rows, then commits one draft pack. Tables: `question_imports` and `question_import_rows` (migration 0174, `docs/02-data-model.md` § "Question import"). Pack columns: `question_packs.source` (`authored`, `generated`, `import`) and `import_file_sha256`.
+- **Files.** `src/import-routes.ts` (six routes, `superAdminOnly`) and `src/import/`:
+  - `types.ts`: shared types.
+  - `parse.ts`: CSV (RFC 4180) in the file itself. XLSX through `exceljs` 4.4 (pure JS, new dependency in this package). Limits: 2 MB, 2000 data rows, a `type` header column.
+  - `templates.ts`: builds the template of one type from the registry (`getQuestionType(type).importColumns`). There is no per-type switch.
+  - `staging.ts`: validates each row with `coerceContent` and `contentSchema`. Sets `content_hash` = sha256(type + canonical content). Marks a row `duplicate` when the hash matches a non-archived question in the domain or an earlier row. Lets the admin fix or skip a row. Discards an import.
+  - `commit.ts`: creates one draft pack with `source = 'import'`, levels `L<position>` and draft questions for the `ok` rows. Writes one audit row.
+- **Audit actions.** `question_import.staged`, `question_import.committed`, `question_import.discarded`.
+- **Rules.** The same file (same sha256) while one is staged returns that import. The code calls no AI. The code adds no type switch: a new question type gets import support from its registry entry.
+- **Errors.** `IMPORT_*` codes, listed in `docs/03-api-contract.md` § "Question import".
+- **UI.** Page `/admin/question-import` (module 10). Help keys `admin.question_import.*` (migration 0175).
+- **Rejected.** Parse and insert in one step. A hash column on `questions`.
+- **Not included.** Multipart upload (`@fastify/multipart` is not an api dependency), rubrics for imported subjective questions, category linking, a stored hash column (followup RW-97).
+
+## `clone.ts` is a barrel over `src/clone/` (RW-53, S10, 2026-10-16)
+
+- **What.** `src/clone.ts` went from 1299 to 38 lines. It re-exports from `src/clone/`, so import paths do not change.
+- **Layout.**
+  - `helpers.ts`: shared row types, `uniqueNonNull`, `getPlatformTenantId`, `deriveCloneSlug`.
+  - `clone-on-grant.ts`: `clonePackToTenant`, `materializeSetForTenant`.
+  - `resync.ts`: `resyncClonedPack`, `resyncSetForTenant`, `listCloneTenantIdsForSource`.
+  - `resync-types.ts`: `CloneQuestionRow`, `ResyncResult`.
+  - `taxonomy.ts`: `provisionPlatformTaxonomyForQuestions`, `buildTaxonomyResolver`, `stableJson`.
+- **Not included.** Any behaviour change. Tests and callers are unchanged.

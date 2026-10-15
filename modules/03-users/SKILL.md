@@ -646,3 +646,10 @@ Tests:
 ## Reviewer role removed (RV60, 2026-10-03)
 
 **What.** `inviteUser`, `createUser`, `updateUser` and the invite route reject `role: 'reviewer'` (400 `INVALID_ROLE`; invite enum `admin | candidate`). Older text above that lists `reviewer` as a live role is history. **Why.** Owner decision RO7: simpler product; a reviewer could not open any admin page. The first purpose ("review grades and read reports without admin rights") is covered by the tenant admin review screen (override with reason, send back, publish). **Not included.** The DB CHECK, TS unions and the `reviewer_count` API field keep the value (Rule A, legacy rows); no data migration. **Impact.** The last-admin guard on demotion was deleted with the demotion path and must return with any future one. Commits `4cd6c8d`..`a50d573`; see `docs/04-auth-flows.md`.
+
+## `totp_enrolled` on user lists (RW-91, S10, 2026-10-16)
+
+- **What.** `listUsers` (`src/repository.ts`) adds `totp_enrolled: boolean` to every item. It is true when the user has a `totp_secret_enc` in `user_credentials`. The query uses a scalar subquery with `COALESCE(..., false)`. RLS scopes `user_credentials`. The optional field is on the user type in `src/types.ts`.
+- **Why.** The tenant-admin Users page shows "Reset two-factor" only for enrolled users. The super-admin list already had the field (RW-45).
+- **Contract.** `GET /api/admin/users` items carry the field. See `docs/03-api-contract.md` and `docs/04-auth-flows.md` § "Self-service MFA".
+- **Not included.** A filter on `totp_enrolled`.

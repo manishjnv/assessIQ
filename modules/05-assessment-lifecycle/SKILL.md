@@ -230,3 +230,17 @@ Tests:
 ## Cron finds due tenants with one query (RW-39, 2026-10-11)
 
 `listTenantsWithDueBoundaries(now)` (`src/boundaries.ts`, repository query in `src/repository.ts`) runs under `withSystemRole` and returns the active tenants with a due `opens_at` or `closes_at`. The boundary cron then calls `processBoundariesForTenant` under `withTenant` for those tenants only. Why: no empty transaction per idle tenant. Rejected: a per-tenant fallback loop, and a cross-tenant mutation (it must stay RLS-scoped and audited). Not included: auto-release (unchanged), new indexes (the 0021 partial indexes serve the query). Details: `docs/11-observability.md` section 13.2.
+
+## `service.ts` is a barrel over `src/service/` (RW-53, S10, 2026-10-16)
+
+- **What.** `src/service.ts` went from 2423 to 43 lines (a header comment and re-exports). Import paths do not change. This is a mechanical split with no behaviour change.
+- **Layout** (`src/service/`).
+  - `_shared.ts`: the logger, `assertPageSize`, `countActiveQuestionsForLevel`, `listActiveQuestionsForPreview`.
+  - `blueprint.ts`: blueprint resolution (`resolveBlueprint`, `resolveBlueprintNodes`, `resolveBlueprintPackLevel`, `assertBlueprintFKOwnership`, the criterion counters).
+  - `assessments.ts`: list, get, create, update, create from a set, licensed set import and resync, integrity and grading settings.
+  - `lifecycle.ts`: publish, close, cancel, delete, reopen.
+  - `invitation-token.ts`: the pre-auth resolver (`resolveInvitationToken`, `markInvitationViewedByToken`).
+  - `invitations.ts`: invite, resend, list, revoke.
+  - `preview.ts`: `previewAssessment`.
+- **Older text in this file.** Lines that say `src/service.ts` hold a function now mean the matching file in `src/service/`.
+- **Not included.** A change to the exports, the RLS-only rule or the tests.
