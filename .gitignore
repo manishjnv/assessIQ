@@ -117,3 +117,17 @@ tests/load/results/*
 
 # E2: harvested override eval cases (contain student answers — never tracked)
 modules/07-ai-grading/eval/cases-private/
+
+# Autopilot runtime (not committed)
+.agent/state.db
+.agent/state.db-*
+.agent/logs/
+.agent/run.lock
+.agent/STOP
+.agent/REPORT.md
+.agent/run.json
+.agent/inbox.jsonl
+.agent/helper.lock
+.agent/status.port
+.agent/status.token
+.agent/approvals/

@@ -1,0 +1,708 @@
+# Autopilot plan for AssessIQ — S10 hardening rows (RW-45..51, RW-57, RW-58, RW-69..71).
+# Source: docs/PENDING_TASKS_2026-10-01.md § P0-W (rows tagged S10 / S10+). Everything else in that file is context.
+# Phases depend on the previous phase unless `depends_on` is given ([] = independent).
+# Task ids must be unique and stable — the state DB tracks progress by id.
+# Help-content files (modules/16-help-system/content/en/admin.yml + seeds/help_content.sql) are shared by every UI
+# task, so UI phases are chained.
+
+version: 1
+goal: >
+  AssessIQ is a deployed, multi-tenant role-readiness assessment platform (Fastify API, React web app, PostgreSQL
+  with RLS, admin-triggered AI grading through the Claude Code CLI on a shared VPS). This plan closes the S10
+  hardening rows of the 2026-10-09 full review: test and lint guards that replace "manual discipline", the erasure
+  gap for AI grading data, MFA recovery-code regeneration and super-admin TOTP reset, the archived-tenant purge job,
+  generate-wizard topic focus, clone archival on entitlement revoke, difficulty warn heuristics, the DMARC tightening,
+  curriculum framework seeds (CBSE, ICSE, IB) and a super-admin CSV/XLSX question import pipeline. Every task edits
+  the existing codebase; CLAUDE.md and PROJECT_BRAIN.md rules bind (no ambient AI, tenant RLS, auditInTx, no
+  domain branches in code, never delete or rename files, never delete dormant features).
+
+phases:
+  - id: P01
+    title: Test and lint guards (RW-51 lints, RW-70, RW-71)
+    goal: Replace three "manual discipline" RCA preventions and two weak guards with lints and tests. No schema change.
+    depends_on: []
+    tasks:
+      - id: P01-T01
+        title: "RW-70: pool.connect lint catches aliases, new Pool/new Client, per-line allowlist"
+        risk: medium
+        description: |
+          tools/lint-rls-policies.ts (RW-38 section, POOL_CONNECT_RE near line 257) only matches `pool.connect(` and
+          `getPool().connect(`. Extend the scan so it also flags:
+          (a) aliased pools: a variable assigned from `getPool()` (e.g. `const p = getPool(); p.connect()`),
+          (b) `new Pool(` and `new Client(` (from `pg`) anywhere outside modules/02-tenancy/src,
+          (c) the allowlist (tools/pool-connect.allowlist.txt) must match per hit line (file:line or file + a marker
+          comment on the line), not per file, so a second unlisted connect in an allowlisted file fails.
+          Run the lint on the real tree; every new real hit is either a genuine allowlist entry with a reason
+          comment or reported under followups (do not edit app code in this task). Extend the existing --self-test
+          fixtures for each new case. Keep the rest of the lint unchanged.
+        acceptance_criteria:
+          - "`pnpm tsx tools/lint-rls-policies.ts --self-test` passes and has fixtures for an aliased pool, `new Pool(`, `new Client(` and a second unlisted connect in an allowlisted file"
+          - "`pnpm lint:rls` exits 0 on the current tree"
+          - "A `new Pool(` inside modules/02-tenancy/src is not flagged; the same line in any other module is"
+          - "Allowlist entries are checked per line; stale entries are still reported"
+        files_in_scope: ["tools/lint-rls-policies.ts", "tools/pool-connect.allowlist.txt", "tools/__tests__/lint-rls*.test.ts"]
+        verify: ["pnpm tsx tools/lint-rls-policies.ts --self-test", "pnpm lint:rls"]
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P01-T02
+        title: "RW-71: frozen golden fixtures for the question-type registry"
+        risk: low
+        description: |
+          After RW-68 the 06/09/04 functions delegate to the registry, so packages/question-types/src/__tests__/parity.test.ts
+          compares the registry with itself for candidateView, deterministicScore and guidanceText (coerceContent still
+          has an independent twin in 07 and the MCP tool). Add a new golden test file with hardcoded expected outputs
+          per question type (every id in QUESTION_TYPES; every deterministic id in DETERMINISTIC_IDS) for candidateView,
+          deterministicScore and guidanceText, using the inputs in fixtures.ts plus the null/odd inputs parity uses.
+          Expected values are literal data in the test (or a fixtures file), never computed by calling the registry.
+          Do not delete or weaken parity.test.ts; add a short header comment there saying which of its checks are
+          now self-comparisons and that golden.test.ts is the real guard.
+        acceptance_criteria:
+          - "A new golden test covers candidateView, deterministicScore and guidanceText for every registered type with literal expected outputs"
+          - "Changing one registry hook's output (e.g. dropping a field from candidateView) makes the golden test fail (checked locally, change reverted)"
+          - "parity.test.ts keeps all its existing assertions and passes"
+          - "`pnpm vitest run packages/question-types` passes"
+        files_in_scope: ["packages/question-types/src/__tests__/golden*.ts", "packages/question-types/src/__tests__/parity.test.ts", "packages/question-types/README.md"]
+        verify: ["pnpm vitest run packages/question-types"]
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P01-T03
+        title: "RW-51a: lint for help-seed content edits at an unchanged version"
+        risk: low
+        description: |
+          RCA_LOG (first "manual discipline" entry): editing an already-seeded help key's text without bumping its
+          `version` never reaches the DB, because the seed is ON CONFLICT (tenant_id, key, locale, version) DO NOTHING
+          (tools/generate-help-seed.ts). Add a check that compares the help content in
+          modules/16-help-system/content/en/*.yml with the committed modules/16-help-system/seeds/help_content.sql
+          (or with git HEAD) and fails when a key's short_text/long_md changed while its version did not.
+          Prefer extending tools/generate-help-seed.ts with a --check mode; a new tools/lint-help-seed-version.ts is
+          acceptable if cleaner (list it in new_files). Add a --self-test or unit test, and add the check to the
+          `lint:repo` script in package.json (script change only, no dependency change).
+          Update the seed-workflow note in modules/16-help-system/SKILL.md.
+        acceptance_criteria:
+          - "A fixture where a key's text changes at the same version fails the check with the key name in the message"
+          - "A fixture where the text changes and the version is bumped passes"
+          - "The check passes on the current tree and runs inside `pnpm lint:repo`"
+          - "modules/16-help-system/SKILL.md describes the rule"
+        files_in_scope: ["tools/generate-help-seed.ts", "tools/lint-help-seed*.ts", "tools/__tests__/*help-seed*.test.ts", "package.json", "modules/16-help-system/SKILL.md"]
+        verify: ["pnpm lint:repo"]
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P01-T04
+        title: "RW-51c: assert no SQL file sits outside modules/<n>/migrations or seeds"
+        risk: medium
+        description: |
+          RCA_LOG ("Migration apply chain gap"): SQL committed outside modules/<name>/migrations/<file>.sql is
+          silently skipped by tools/migrate.ts, so schema and code diverge with no error. Add rule R5 to
+          tools/lint-migrations.ts: every *.sql under modules/** must be at modules/<n>/migrations/<file>.sql or
+          modules/<n>/seeds/<file>.sql (node_modules and the gitignored aptitude seed excluded; any other legitimate
+          location gets an explicit, commented exemption list). Also make tools/migrate.ts log a warning (not fail)
+          when it sees a .sql file one level deeper than it scans. Extend tools/__tests__/lint-migrations.test.ts.
+        acceptance_criteria:
+          - "A fixture SQL file at modules/x/migrations/sub/0001_a.sql or modules/x/src/0001_a.sql is reported by R5"
+          - "`pnpm lint:migrations` passes on the current tree"
+          - "tools/__tests__/lint-migrations.test.ts covers R5 and passes"
+          - "tools/migrate.ts --dry-run output is unchanged for the current tree"
+        files_in_scope: ["tools/lint-migrations.ts", "tools/migrate.ts", "tools/__tests__/lint-migrations.test.ts"]
+        verify: ["pnpm lint:migrations", "pnpm vitest run tools/__tests__/lint-migrations.test.ts"]
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+  - id: P02
+    title: Data-rights erasure of AI grading data (RW-69, RW-51b)
+    goal: Right-to-erasure also clears verbatim answer text held in gradings and attempts, and a test guards field coverage.
+    depends_on: []
+    tasks:
+      - id: P02-T01
+        title: "RW-69: erasure clears gradings stage_inputs, anchor_hits, ai_justification and attempts.ai_proposals"
+        risk: high
+        description: |
+          modules/20-data-rights/src/erasure.ts blanks attempt_answers only. gradings.anchor_hits, gradings.ai_justification,
+          gradings.stage_inputs (added by RW-41, migration in modules/07-ai-grading) and attempts.ai_proposals keep
+          verbatim answer text after erasure. In the existing erasure transaction add, for the erased user's attempts:
+          UPDATE gradings SET stage_inputs = NULL, anchor_hits = '[]', ai_justification = NULL (keep band, score,
+          error class, model, prompt sha and override rows) and clear attempts.ai_proposals. Check column types and
+          NOT NULL constraints in the migrations first. Keep the erasure audit row shape. Do not edit
+          modules/07-ai-grading. Extend the data-rights tests (DB test via the existing harness) so an erased user's
+          gradings and proposals no longer contain the answer text. Document in modules/20-data-rights/SKILL.md and
+          append an RCA entry to docs/RCA_LOG.md.
+        acceptance_criteria:
+          - "After erasure, the user's gradings rows have stage_inputs NULL, anchor_hits '[]' and ai_justification NULL; band and score columns are unchanged"
+          - "After erasure, the user's attempts.ai_proposals is cleared"
+          - "Other users' gradings and attempts in the same tenant are untouched (asserted in the test)"
+          - "`pnpm vitest run modules/20-data-rights` passes"
+        files_in_scope: ["modules/20-data-rights/src/erasure.ts", "modules/20-data-rights/src/__tests__/**", "modules/20-data-rights/SKILL.md", "docs/RCA_LOG.md"]
+        verify: ["pnpm vitest run modules/20-data-rights"]
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P02-T02
+        title: "RW-51b: erasure field-coverage test"
+        risk: medium
+        description: |
+          RCA_LOG 2026-10-01 ("New roll-number field would have survived right-to-erasure") left the rule "any change
+          that writes new personal data must update erasure.ts" as manual discipline. Add a test in
+          modules/20-data-rights/src/__tests__/ that holds an explicit registry of personal-data columns
+          (users.name, users.email, users.metadata, attempt_answers answer columns, gradings.stage_inputs,
+          gradings.anchor_hits, gradings.ai_justification, attempts.ai_proposals, and others found in the migrations)
+          and asserts erasure.ts handles each one. It also scans modules/*/migrations/*.sql for new columns whose names
+          suggest personal or answer data (email, name, phone, roll, answer, justification, proposal, metadata, ...) and
+          fails unless each is in the registry or in a commented exemption list. Static test, no DB needed.
+        acceptance_criteria:
+          - "The test fails when a fixture migration adds a column like `users.phone_number` that is neither handled nor exempted"
+          - "The test passes on the current tree after P02-T01"
+          - "Every exemption has a one-line reason comment"
+        files_in_scope: ["modules/20-data-rights/src/__tests__/erasure-coverage.test.ts"]
+        verify: ["pnpm vitest run modules/20-data-rights"]
+        needs_decision: false
+        research: []
+        depends_on: [P02-T01]
+        owner_only: false
+
+  - id: P03
+    title: MFA self-service, state-aware login copy and tenant purge (RW-45, RW-48)
+    goal: Admins can regenerate recovery codes, the super admin can reset a user's TOTP, and archived tenants are purged after retention.
+    depends_on: []
+    tasks:
+      - id: P03-T01
+        title: "TOTP service functions regenerateRecoveryCodes and adminResetTotp"
+        risk: high
+        status: done
+        description: |
+          Already in modules/01-auth/src/totp.ts (backends for RW-45, from MFA_ENROLLMENT_UX). Kept as the base for P03-T02.
+        acceptance_criteria:
+          - "totp.regenerateRecoveryCodes and totp.adminResetTotp exist in modules/01-auth/src/totp.ts"
+          - "Covered by modules/01-auth/src/__tests__/totp.test.ts"
+        files_in_scope: ["modules/01-auth/src/totp.ts"]
+        verify: []
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P03-T02
+        title: "RW-45 API: recovery-code regeneration route and super-admin TOTP reset route"
+        risk: critical
+        description: |
+          Routes for the existing service functions (none exist today):
+          1. POST /api/auth/totp/recovery-codes/regenerate in apps/api/src/routes/auth/totp.ts — signed-in user with a
+             TOTP-verified session; body carries a current TOTP code (re-auth, verified with the existing verify path
+             and lockout); returns the new plaintext codes once; old codes stop working. Zod body.
+          2. POST /api/admin/super/tenants/:tenantId/users/:userId/totp/reset — superAdminOnly pre-handler,
+             assertTenantActive, a reason string required; new file apps/api/src/routes/admin-super/user-totp-reset.ts
+             registered in apps/api/src/routes/admin-super.ts (same split pattern as entitlement-revoke.ts).
+             A super admin may not reset their own TOTP through this route.
+          In modules/01-auth/src/totp.ts make adminResetTotp write its audit row with auditInTx inside the same
+          withTenant transaction (today it calls audit() after the tx), and audit regeneration too (add an action to
+          ACTION_CATALOG in modules/14-audit-log/src/types.ts if none fits; never put codes in the audit payload).
+          Update docs/03-api-contract.md and docs/04-auth-flows.md (what, why, rejected options, not included).
+        acceptance_criteria:
+          - "Regenerate without a valid current TOTP code returns 401/403 and leaves existing recovery codes valid; with one it returns 10 new codes and old codes fail"
+          - "The reset route returns 403 for a tenant admin and for a super admin without verified TOTP; for a super admin it clears the target's TOTP and recovery codes"
+          - "Each action writes exactly one audit_log row in the same transaction; no code or secret appears in it (tests assert this)"
+          - "`pnpm --filter @assessiq/api test` and `pnpm vitest run modules/01-auth` pass; `pnpm lint:route-validation` reports no new warning"
+        files_in_scope: ["modules/01-auth/src/totp.ts", "modules/01-auth/src/__tests__/totp*.test.ts", "apps/api/src/routes/auth/totp.ts", "apps/api/src/routes/admin-super/user-totp-reset.ts", "apps/api/src/routes/admin-super.ts", "apps/api/src/__tests__/routes/**", "modules/14-audit-log/src/types.ts", "docs/03-api-contract.md", "docs/04-auth-flows.md"]
+        verify: ["pnpm vitest run modules/01-auth", "pnpm --filter @assessiq/api test"]
+        needs_decision: true
+        research: []
+        depends_on: [P03-T01]
+        owner_only: false
+
+      - id: P03-T03
+        title: "RW-45 UI: admin account security page with recovery-code regeneration"
+        risk: high
+        description: |
+          Signed-in admins (tenant admin and super admin) get a Security page reachable from the admin shell account menu:
+          shows TOTP enrolment status (existing getEnrollmentStatus/whoami data) and a "Regenerate recovery codes" flow
+          that asks for a current TOTP code, calls the P03-T02 route, and shows the new codes once with copy and
+          "I saved them" acknowledgement (reuse the code display idiom from apps/web/src/pages/admin/mfa.tsx).
+          Build from modules/17-ui-system primitives (ConfirmDialog/Modal); reuse the existing step-up helpers
+          modules/10-admin-dashboard/src/components/mfa-step-up.tsx and useMfaGuard.tsx; copy from src/lib/labels.ts. New help_ids with
+          entries in modules/16-help-system/content/en/admin.yml, then `pnpm help:seed:regen`.
+          Users without TOTP see a link to enrol instead of the regenerate button.
+        acceptance_criteria:
+          - "Component test: entering a code and confirming calls the regenerate endpoint and renders the returned codes"
+          - "Component test: a 401 shows an error and no codes"
+          - "Every new interactive element has a help_id with content in admin.yml; help_content.sql regenerated"
+          - "`pnpm --filter @assessiq/web test` and `pnpm lint:ui-labels` pass"
+        files_in_scope: ["modules/10-admin-dashboard/src/pages/account-security.tsx", "modules/10-admin-dashboard/src/index.ts", "modules/10-admin-dashboard/src/api.ts", "modules/10-admin-dashboard/src/__tests__/account-security.test.tsx", "modules/10-admin-dashboard/src/lib/labels.ts", "modules/10-admin-dashboard/src/components/AdminShell*.tsx", "apps/web/src/App.tsx", "modules/16-help-system/content/en/admin.yml", "modules/16-help-system/seeds/help_content.sql", "docs/08-ui-system.md"]
+        verify: ["pnpm --filter @assessiq/web test", "pnpm lint:ui-labels"]
+        needs_decision: false
+        research: []
+        depends_on: [P03-T02]
+        owner_only: false
+
+      - id: P03-T04
+        title: "RW-45 UI: super-admin Reset TOTP action on the users page"
+        risk: high
+        description: |
+          On modules/10-admin-dashboard/src/pages/super-admin-users.tsx add a "Reset two-factor" row action for users
+          with TOTP enrolled: ConfirmDialog with a required reason, calls the P03-T02 reset route, refreshes the row.
+          Hidden for the super admin's own row. help_id + admin.yml entry + help seed regen. If the page file would grow
+          past the 400-line/25 percent limit, put the dialog in a new component file.
+        acceptance_criteria:
+          - "Component test: confirming with a reason calls the reset endpoint with tenantId, userId and reason"
+          - "Component test: the action is absent on the current super admin's own row and for users without TOTP"
+          - "help_id content added and help_content.sql regenerated; `pnpm --filter @assessiq/web test` passes"
+        files_in_scope: ["modules/10-admin-dashboard/src/pages/super-admin-users.tsx", "modules/10-admin-dashboard/src/components/ResetTotpDialog.tsx", "modules/10-admin-dashboard/src/api.ts", "modules/10-admin-dashboard/src/__tests__/super-admin-users*.test.tsx", "modules/10-admin-dashboard/src/lib/labels.ts", "modules/16-help-system/content/en/admin.yml", "modules/16-help-system/seeds/help_content.sql"]
+        verify: ["pnpm --filter @assessiq/web test"]
+        needs_decision: false
+        research: []
+        depends_on: [P03-T02, P03-T03]
+        owner_only: false
+
+      - id: P03-T05
+        title: "RW-48a: state-aware login copy for scope=user vs tenant"
+        risk: high
+        status: done
+        description: |
+          Already shipped as the Phase D banner: apps/web/src/lib/authScope.ts (readAuthScopeOnce, authScopeCopy) used by
+          apps/web/src/pages/admin/login.tsx and the candidate login (commits 7eb8604, 70ef330). The carry-forward note in
+          docs/04-auth-flows.md (~line 783) is stale.
+        acceptance_criteria:
+          - "authScopeCopy renders different copy for scope user and tenant (apps/web/src/lib/authScope.test.ts)"
+        files_in_scope: ["apps/web/src/lib/authScope.ts", "apps/web/src/pages/admin/login.tsx"]
+        verify: []
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P03-T06
+        title: "RW-48b: tenant.purged retention job for archived tenants"
+        risk: critical
+        description: |
+          docs/04-auth-flows.md (~line 760) and ACTION_CATALOG carry `tenant.purged` as forward-compat for a 6-month
+          retention purge of archived tenants; nothing implements it. Add a purge service in modules/02-tenancy
+          (new file src/purge.ts, exported from src/index.ts) and a nightly repeating job in apps/api/src/worker.ts
+          (non-AI work, allowed on BullMQ). Rules: only tenants with status 'archived' for at least 180 days
+          (configurable, never below 180); never the platform tenant; runs under withSystemRole with a reason;
+          deletes or pseudonymises tenant domain rows in FK-safe order, keeps audit_log rows (append-only) and writes
+          one `tenant.purged` audit row per tenant with counts; the tenants row is kept as a tombstone with status
+          'purged' only if the schema allows (otherwise record the decision and keep 'archived' plus purged_at — any
+          schema change goes in a migration plus docs/02-data-model.md). Gated by env TENANT_PURGE_ENABLED (default
+          off = dry-run report only). docs/06-deployment.md is out of scope here: list the new variable under
+          followups so the owner documents it with the next deploy. Reuse modules/20-data-rights/src/retention.ts patterns (per-tenant isolation of failures).
+          Update docs/04-auth-flows.md (replace the forward-compat note) and modules/02-tenancy/SKILL.md.
+        acceptance_criteria:
+          - "DB test: an archived tenant older than 180 days is purged; one archived 179 days ago, an active tenant and the platform tenant are untouched"
+          - "With TENANT_PURGE_ENABLED unset the job only reports what it would purge and changes no rows (tested)"
+          - "audit_log rows of the purged tenant survive and one tenant.purged row is written per purged tenant"
+          - "One tenant's failure does not stop the sweep for the others (tested)"
+          - "`pnpm vitest run modules/02-tenancy` and `pnpm lint:ambient-ai` pass"
+        files_in_scope: ["modules/02-tenancy/src/purge.ts", "modules/02-tenancy/src/index.ts", "modules/02-tenancy/src/__tests__/purge*.test.ts", "modules/02-tenancy/migrations/*tenant_purge*.sql", "modules/02-tenancy/SKILL.md", "apps/api/src/worker.ts", "docs/04-auth-flows.md", "docs/02-data-model.md"]
+        verify: ["pnpm vitest run modules/02-tenancy", "pnpm lint:ambient-ai", "pnpm lint:rls"]
+        needs_decision: true
+        research: []
+        depends_on: [P03-T02]
+        owner_only: false
+
+  - id: P04
+    title: Authoring improvements (RW-46, RW-47, RW-50)
+    goal: Topic focus in the generate wizard, revoked entitlements archive their clones, and difficulty warnings flag weak drafts.
+    depends_on: [P03]
+    tasks:
+      - id: P04-T01
+        title: "Generate API accepts topic_focus"
+        risk: medium
+        status: done
+        description: |
+          Already in code: modules/04-question-bank/src/routes.ts and service/generation.ts accept `topic_focus`, 07
+          passes it to the generation runtime, and modules/10-admin-dashboard/src/api.ts types it.
+        acceptance_criteria:
+          - "modules/04-question-bank/src/__tests__/generate-body-validation.test.ts covers topic_focus"
+        files_in_scope: ["modules/04-question-bank/src/routes.ts"]
+        verify: []
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P04-T02
+        title: "RW-46: topic-focus field in the generate wizard"
+        risk: medium
+        description: |
+          modules/10-admin-dashboard/src/pages/generate-wizard.tsx has no input for topic_focus although the API takes it.
+          Add an optional "Topic focus" text field (max length matching the API's Zod limit) to the wizard's generation
+          step and send it as topic_focus. The page is large: put the field in a small new component if the page would
+          grow past the file-growth limit. help_id + admin.yml entry + help seed regen; copy via the labels file.
+          No prompt change here (prompts live on the VPS; see P04-T03).
+        acceptance_criteria:
+          - "Component test: a typed topic focus is sent as topic_focus in the generate request body; empty sends nothing"
+          - "Input over the API's max length is blocked in the UI with a message"
+          - "help_id content added and help_content.sql regenerated; `pnpm --filter @assessiq/web test` passes"
+        files_in_scope: ["modules/10-admin-dashboard/src/pages/generate-wizard.tsx", "modules/10-admin-dashboard/src/components/TopicFocusField.tsx", "modules/10-admin-dashboard/src/__tests__/generate-wizard*.test.tsx", "modules/10-admin-dashboard/src/lib/labels.ts", "modules/16-help-system/content/en/admin.yml", "modules/16-help-system/seeds/help_content.sql"]
+        verify: ["pnpm --filter @assessiq/web test"]
+        needs_decision: false
+        research: []
+        depends_on: [P04-T01]
+        owner_only: false
+
+      - id: P04-T03
+        title: "RW-46 owner: copy the generation skill change to the VPS and re-baseline the eval"
+        risk: medium
+        description: |
+          Prompt skills live only on the VPS (/srv/assessiq/prompts/skills). If the generation skills must read
+          topic_focus explicitly, the owner edits them, copies them with scp, and re-baselines the eval harness
+          (modules/07-ai-grading/eval/) per docs/05-ai-pipeline.md. Owner-only: needs VPS access.
+        acceptance_criteria:
+          - "Generation skills on the VPS use topic_focus; new sha256 recorded; eval re-baselined"
+        files_in_scope: ["docs/05-ai-pipeline.md"]
+        verify: []
+        needs_decision: false
+        research: []
+        depends_on: [P04-T02]
+        owner_only: true
+
+      - id: P04-T04
+        title: "RW-47: archive cloned packs when an entitlement is revoked"
+        risk: high
+        description: |
+          docs/design/question-set-sharing-clone-on-grant.md § Phase 4 "Revoke" (deferred): revoking a pack or domain
+          entitlement must also set the tenant's cloned pack(s) of that scope to status 'archived' in the same
+          transaction as the entitlement UPDATE, with an audit row. Never delete cloned content; in-flight attempts are
+          unaffected (they snapshot questions). Extend revokeEntitlement in modules/19-billing/src/service.ts and add an
+          archive helper next to listCloneTenantIdsForSource in modules/04-question-bank/src/clone.ts (check
+          tools/lint-cross-module-deps.ts allows the 19→04 import; if not, invert via a callback parameter). Add a new
+          audit action to ACTION_CATALOG if none fits. Re-granting does not un-archive automatically (record this in
+          modules/19-billing/SKILL.md). DB tests for revoke of a pack scope and a domain scope.
+        acceptance_criteria:
+          - "Revoking a pack entitlement archives that tenant's clone(s) of the pack; other tenants' clones are untouched"
+          - "Revoking a domain entitlement archives every clone in that domain for the tenant"
+          - "An attempt started on the clone before revoke still loads its questions after revoke (test)"
+          - "Entitlement update, archive and audit row happen in one transaction; a failure rolls all back (test)"
+          - "`pnpm vitest run modules/19-billing modules/04-question-bank` and `pnpm lint:cross-module-deps` pass"
+        files_in_scope: ["modules/19-billing/src/service.ts", "modules/19-billing/src/__tests__/**", "modules/19-billing/SKILL.md", "modules/04-question-bank/src/clone.ts", "modules/04-question-bank/src/__tests__/clone-archive*.test.ts", "modules/14-audit-log/src/types.ts"]
+        verify: ["pnpm vitest run modules/19-billing", "pnpm lint:cross-module-deps"]
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P04-T05
+        title: "RW-50: difficulty Phase B warn-level heuristics"
+        risk: medium
+        description: |
+          docs/plans/QUESTION_DIFFICULTY_PHASE_A.md and docs/design/2026-05-23-question-difficulty-spec.md defer the
+          warn-level heuristics to Phase B. Add pure functions in modules/04-question-bank/src/difficulty-spec.ts
+          (next to validateStructuralDifficulty) that return warnings, never rejections: e.g. log_analysis line and
+          findings counts outside the level's range, MCQ distractor length spread, option lexical overlap with the
+          stem, scenario length vs level target. Lexical heuristics only; the local embedder is out of scope (it needs
+          a new dependency and a decision). Surface the warnings where module 04 already sees drafts (generation result
+          path in src/service/generation.ts or the draft list read) without editing modules/07-ai-grading; if wiring
+          needs 07, ship the functions plus tests and list the wiring under followups. No domain branches.
+          Document in modules/04-question-bank/SKILL.md.
+        acceptance_criteria:
+          - "Unit tests per heuristic: a fixture outside the target range yields a named warning; an in-range fixture yields none"
+          - "Warnings never block draft insertion (test)"
+          - "No `if (domain === ...)` and no per-type switch outside the spec tables (`pnpm lint:question-type-registry` passes)"
+          - "`pnpm vitest run modules/04-question-bank` passes"
+        files_in_scope: ["modules/04-question-bank/src/difficulty-spec.ts", "modules/04-question-bank/src/service/generation.ts", "modules/04-question-bank/src/__tests__/difficulty*.test.ts", "modules/04-question-bank/SKILL.md"]
+        verify: ["pnpm vitest run modules/04-question-bank", "pnpm lint:question-type-registry"]
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+  - id: P05
+    title: Email DMARC tightening (RW-49)
+    goal: DMARC moves to p=quarantine once 14 days of reports are clean.
+    depends_on: []
+    tasks:
+      - id: P05-T01
+        title: "RW-49 owner: DMARC p=quarantine after a 14-day report check"
+        risk: low
+        description: |
+          Extends C6. The owner reviews 14 days of DMARC aggregate reports for assessiq.in (Brevo SMTP sender
+          connect@assessiq.in), confirms SPF and DKIM alignment, then changes the DNS TXT record to p=quarantine and
+          records the change in docs/13-email-system.md. Owner-only: needs DNS access.
+        acceptance_criteria:
+          - "`_dmarc.assessiq.in` TXT shows p=quarantine"
+          - "docs/13-email-system.md records the date and the report check"
+        files_in_scope: ["docs/13-email-system.md"]
+        verify: []
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: true
+
+  - id: P06
+    title: Curriculum framework seeds (RW-57)
+    goal: CBSE, ICSE and IB frameworks ship as JSON seed files that the super admin loads into the taxonomy.
+    depends_on: [P04]
+    tasks:
+      - id: P06-T01
+        title: "Curriculum frameworks, taxonomy nodes and question_taxonomy (RW-55)"
+        risk: high
+        status: done
+        description: |
+          Already shipped: migration 0169_curriculum_frameworks.sql, modules/04-question-bank/src/taxonomy-nodes.ts
+          (ensureNode, findNodeId, link helpers) and taxonomy-routes.ts (commits 6687e22, 76daf4c, 2e23622).
+        acceptance_criteria:
+          - "taxonomy-live and taxonomy-migration tests pass"
+        files_in_scope: ["modules/04-question-bank/src/taxonomy-nodes.ts"]
+        verify: []
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P06-T02
+        title: "RW-57 contract: framework seed JSON schema, loader and super-admin load routes"
+        risk: high
+        description: |
+          Define the seed format and the loader before any board file is written.
+          - JSON schema modules/04-question-bank/schemas/framework-seed.schema.json: framework (code, name, board,
+            version or textbook edition, source URL) and a node tree (code, title, kind such as grade/subject/unit/
+            chapter or programme/subject-group/criterion, children). Shape must fit the 0169 tables; store extra fields
+            (edition, criteria) in existing JSONB columns if present, otherwise stop and record a decision.
+          - Seed files live in modules/04-question-bank/src/frameworks/<code>.json (src/ ships in the API image, like
+            src/knowledge-base/). Include one tiny valid sample used by tests only if needed.
+          - Loader modules/04-question-bank/src/framework-seeds.ts: validate against the schema, upsert framework and
+            nodes idempotently in the platform tenant via ensureNode, one auditInTx row per load, returns counts.
+          - Routes in taxonomy-routes.ts: GET /api/admin/super/frameworks/seeds (bundled files + loaded version) and
+            POST /api/admin/super/frameworks/seeds/:code/load, both superAdminOnly, Zod params.
+          Update docs/03-api-contract.md and modules/04-question-bank/SKILL.md.
+        acceptance_criteria:
+          - "Loading the same seed twice creates no duplicate nodes (DB test)"
+          - "An invalid seed is rejected with the schema path of the first error and writes nothing"
+          - "Both routes return 403 for a tenant admin; load writes one audit_log row"
+          - "`pnpm vitest run modules/04-question-bank` and `pnpm lint:rls` pass"
+        files_in_scope: ["modules/04-question-bank/schemas/framework-seed.schema.json", "modules/04-question-bank/src/framework-seeds.ts", "modules/04-question-bank/src/taxonomy-routes.ts", "modules/04-question-bank/src/index.ts", "modules/04-question-bank/src/__tests__/framework-seeds*.test.ts", "modules/04-question-bank/SKILL.md", "modules/14-audit-log/src/types.ts", "docs/03-api-contract.md"]
+        verify: ["pnpm vitest run modules/04-question-bank"]
+        needs_decision: true
+        research: []
+        depends_on: [P06-T01]
+        owner_only: false
+
+      - id: P06-T03
+        title: "RW-57: CBSE seed (NCERT chapters, grades 6-12)"
+        risk: low
+        description: |
+          Write modules/04-question-bank/src/frameworks/cbse.json in the P06-T02 format: CBSE board, grades 6-12,
+          subjects per grade (core NCERT subjects: Mathematics, Science / Physics / Chemistry / Biology, Social Science,
+          English, Hindi), chapters per current NCERT textbook with edition noted. Structure only: no question content,
+          no copyrighted text beyond chapter titles. Record the source URLs in the file.
+        acceptance_criteria:
+          - "cbse.json validates against framework-seed.schema.json (test)"
+          - "Every grade 6-12 has at least its core subjects with chapter nodes"
+          - "Node codes are unique and stable (test)"
+        files_in_scope: ["modules/04-question-bank/src/frameworks/cbse.json", "modules/04-question-bank/src/__tests__/framework-seed-cbse.test.ts"]
+        verify: ["pnpm vitest run modules/04-question-bank"]
+        needs_decision: false
+        research: ["NCERT textbook chapter lists grades 6-12 current rationalised edition"]
+        depends_on: [P06-T02]
+        owner_only: false
+
+      - id: P06-T04
+        title: "RW-57: ICSE / ISC seed (grade, subject, unit, textbook edition)"
+        risk: low
+        description: |
+          Write modules/04-question-bank/src/frameworks/icse.json in the P06-T02 format: grade / subject / unit with the
+          syllabus year or textbook edition recorded. Structure only, no question content. Record source URLs.
+        acceptance_criteria:
+          - "icse.json validates against framework-seed.schema.json (test)"
+          - "Each unit node records its syllabus year or edition"
+          - "Node codes are unique and stable (test)"
+        files_in_scope: ["modules/04-question-bank/src/frameworks/icse.json", "modules/04-question-bank/src/__tests__/framework-seed-icse.test.ts"]
+        verify: ["pnpm vitest run modules/04-question-bank"]
+        needs_decision: false
+        research: ["CISCE ICSE and ISC syllabus structure current year"]
+        depends_on: [P06-T02]
+        owner_only: false
+
+      - id: P06-T05
+        title: "RW-57: IB seed (PYP, MYP, DP subject groups and criteria)"
+        risk: low
+        description: |
+          Write modules/04-question-bank/src/frameworks/ib.json in the P06-T02 format: programmes PYP, MYP, DP; subject
+          groups per programme; MYP assessment criteria A-D per subject group; DP subjects per group. Structure only.
+          Record source URLs.
+        acceptance_criteria:
+          - "ib.json validates against framework-seed.schema.json (test)"
+          - "MYP subject groups carry criteria A-D nodes"
+          - "Node codes are unique and stable (test)"
+        files_in_scope: ["modules/04-question-bank/src/frameworks/ib.json", "modules/04-question-bank/src/__tests__/framework-seed-ib.test.ts"]
+        verify: ["pnpm vitest run modules/04-question-bank"]
+        needs_decision: false
+        research: ["IB PYP MYP DP subject groups and MYP assessment criteria"]
+        depends_on: [P06-T02]
+        owner_only: false
+
+      - id: P06-T06
+        title: "RW-57 UI: Frameworks section on the super-admin Platform page"
+        risk: medium
+        description: |
+          Add a Frameworks section to the Platform page (pattern: modules/10-admin-dashboard/src/pages/platform/
+          PlatformDomainsSection.tsx) listing bundled seeds with loaded version and a Load / Reload button behind a
+          ConfirmDialog, calling the P06-T02 routes. Super admin only. help_id + admin.yml entry + help seed regen.
+        acceptance_criteria:
+          - "Component test: the list renders bundled seeds and Load calls the load route for that code"
+          - "The section is not rendered for a tenant admin"
+          - "help_id content added and help_content.sql regenerated; `pnpm --filter @assessiq/web test` passes"
+        files_in_scope: ["modules/10-admin-dashboard/src/pages/platform/PlatformFrameworksSection.tsx", "modules/10-admin-dashboard/src/pages/platform.tsx", "modules/10-admin-dashboard/src/api.ts", "modules/10-admin-dashboard/src/__tests__/platform-frameworks*.test.tsx", "modules/10-admin-dashboard/src/lib/labels.ts", "modules/16-help-system/content/en/admin.yml", "modules/16-help-system/seeds/help_content.sql"]
+        verify: ["pnpm --filter @assessiq/web test"]
+        needs_decision: false
+        research: []
+        depends_on: [P06-T02]
+        owner_only: false
+
+      - id: P06-T07
+        title: "RW-57 owner: verify one board against the official syllabus"
+        risk: low
+        description: |
+          The owner checks one board's seed (suggested: CBSE) against the official syllabus and notes corrections as
+          new tasks or edits. Owner-only: subject-matter check.
+        acceptance_criteria:
+          - "One board seed checked; corrections recorded"
+        files_in_scope: ["modules/04-question-bank/src/frameworks/cbse.json"]
+        verify: []
+        needs_decision: false
+        research: []
+        depends_on: [P06-T03]
+        owner_only: true
+
+  - id: P07
+    title: Super-admin CSV/XLSX question import pipeline (RW-58)
+    goal: The super admin imports questions from CSV or XLSX through a staged, validated, deduplicated dry run and commits them as a draft pack.
+    depends_on: [P06, P01]
+    tasks:
+      - id: P07-T01
+        title: "Existing JSON question import (endpoint, schema, CLI)"
+        risk: medium
+        status: done
+        description: |
+          Already in code: POST /api/admin/questions/import (modules/04-question-bank/src/routes.ts, JSON only),
+          modules/04-question-bank/schemas/import.schema.json, tools/aiq-import-pack.ts. RW-58 builds on it and keeps it.
+        acceptance_criteria:
+          - "JSON import route and schema exist"
+        files_in_scope: ["modules/04-question-bank/schemas/import.schema.json"]
+        verify: []
+        needs_decision: false
+        research: []
+        depends_on: []
+        owner_only: false
+
+      - id: P07-T02
+        title: "RW-58 contract: question_imports staging table, types and service signatures"
+        risk: high
+        description: |
+          Migration modules/04-question-bank/migrations/NNNN_question_imports.sql (next free 4-digit number):
+          question_imports (id, tenant_id, created_by, file_name, file_sha256, format csv|xlsx, status
+          staged|committed|discarded, row_count, error_count, committed_pack_id, timestamps) and question_import_rows
+          (import_id, row_number, raw JSONB, normalized JSONB, content_hash, errors JSONB, decision ok|skip|duplicate).
+          Both with tenant_id and RLS policies (lint:rls entry in tools/lint-rls-policies.ts if the lint needs one).
+          Add packs.source ('authored'|'generated'|'import'|...) and packs.import_file_sha256 only if missing.
+          Shared types and stub signatures in modules/04-question-bank/src/import/types.ts (ParsedRow, RowError,
+          DryRunReport, parseFile, stageImport, commitImport) so P07-T03..T05 can run in parallel.
+          Update docs/02-data-model.md.
+        acceptance_criteria:
+          - "`pnpm lint:migrations` and `pnpm lint:rls` pass with the new migration"
+          - "DB test: the tables exist after the full migration chain and RLS hides one tenant's imports from another"
+          - "types.ts compiles (`pnpm -r typecheck`) and exports the stub signatures"
+          - "docs/02-data-model.md documents both tables and any packs column"
+        files_in_scope: ["modules/04-question-bank/migrations/*question_imports*.sql", "modules/04-question-bank/src/import/types.ts", "modules/04-question-bank/src/__tests__/question-imports-migration.test.ts", "tools/lint-rls-policies.ts", "docs/02-data-model.md"]
+        verify: ["pnpm lint:migrations", "pnpm lint:rls"]
+        needs_decision: true
+        research: []
+        depends_on: [P07-T01]
+        owner_only: false
+
+      - id: P07-T03
+        title: "RW-58: CSV/XLSX parser and per-type templates from the registry"
+        risk: medium
+        description: |
+          modules/04-question-bank/src/import/parse.ts: parse CSV (reuse the candidate CSV parser approach in
+          modules/03-users import.ts:99 or a shared 00-core helper if one exists) and XLSX into ParsedRow, one row per
+          question. modules/04-question-bank/src/import/templates.ts: generate a CSV and XLSX template per question
+          type from packages/question-types registry metadata (columns per type, example row), no per-type switch.
+          XLSX needs a library (prefer a maintained one with no native build, e.g. exceljs); declare it in new_deps.
+          Guard CSV formula injection on template and error-report output with the existing 00-core csvCell helper.
+        acceptance_criteria:
+          - "Unit tests: CSV and XLSX fixtures for at least MCQ and subjective parse into the same ParsedRow values"
+          - "Templates exist for every registered type and round-trip: a filled template parses with no errors"
+          - "Malformed rows produce RowError entries with row number and column, not exceptions"
+          - "`pnpm lint:question-type-registry` and `pnpm vitest run modules/04-question-bank` pass"
+        files_in_scope: ["modules/04-question-bank/src/import/parse.ts", "modules/04-question-bank/src/import/templates.ts", "modules/04-question-bank/src/__tests__/import-parse*.test.ts", "modules/04-question-bank/package.json", "pnpm-lock.yaml"]
+        verify: ["pnpm vitest run modules/04-question-bank", "pnpm lint:question-type-registry"]
+        needs_decision: false
+        research: ["exceljs vs SheetJS maintained npm package for server-side xlsx read 2026"]
+        depends_on: [P07-T02]
+        owner_only: false
+
+      - id: P07-T04
+        title: "RW-58: staging, per-row validation, content-hash dedupe and dry-run report"
+        risk: medium
+        description: |
+          modules/04-question-bank/src/import/staging.ts: stageImport(tenant, actor, file meta, rows) writes
+          question_imports + question_import_rows in one withTenant tx; validates each row through the registry's
+          coerceContent / schemas; computes content_hash (00-core hash helper) and marks duplicates against existing
+          questions in the target domain and within the file; returns a DryRunReport (counts, per-row errors,
+          duplicates). Re-staging the same file hash returns the existing staged import. No AI calls.
+        acceptance_criteria:
+          - "DB test: a file with 1 valid, 1 invalid and 1 duplicate row stages 3 rows with the right decisions"
+          - "The dry-run report lists each error with row number, column and message"
+          - "Staging the same file twice does not create a second import"
+          - "`pnpm vitest run modules/04-question-bank` passes"
+        files_in_scope: ["modules/04-question-bank/src/import/staging.ts", "modules/04-question-bank/src/__tests__/import-staging*.test.ts"]
+        verify: ["pnpm vitest run modules/04-question-bank"]
+        needs_decision: false
+        research: []
+        depends_on: [P07-T02]
+        owner_only: false
+
+      - id: P07-T05
+        title: "RW-58: commit as draft pack and super-admin import routes"
+        risk: high
+        description: |
+          modules/04-question-bank/src/import/commit.ts: commitImport(importId, mode 'skip-errors') creates a draft pack
+          in the platform tenant with source='import' and the file hash, inserts only ok rows, marks the import
+          committed, one auditInTx row. Routes in modules/04-question-bank/src/routes.ts, all superAdminOnly with Zod:
+          POST /api/admin/super/question-imports (multipart upload → staged dry-run report),
+          GET /api/admin/super/question-imports/:id (report), PATCH .../:id/rows/:row (fix a row's values; re-validate),
+          POST .../:id/commit, POST .../:id/discard, GET /api/admin/super/question-imports/templates/:type.
+          No tenant upload. The existing JSON import route stays unchanged. Update docs/03-api-contract.md.
+        acceptance_criteria:
+          - "DB test: commit creates one draft pack with source='import', the file hash and only the ok rows"
+          - "All routes return 403 for a tenant admin"
+          - "A fixed row re-validates and is included on commit; committing twice is rejected"
+          - "`pnpm lint:route-validation` and `pnpm lint:ui-api-contract` pass; existing JSON import tests still pass"
+        files_in_scope: ["modules/04-question-bank/src/import/commit.ts", "modules/04-question-bank/src/routes.ts", "modules/04-question-bank/src/index.ts", "modules/04-question-bank/src/__tests__/import-commit*.test.ts", "modules/14-audit-log/src/types.ts", "docs/03-api-contract.md"]
+        verify: ["pnpm vitest run modules/04-question-bank", "pnpm lint:route-validation"]
+        needs_decision: false
+        research: []
+        depends_on: [P07-T03, P07-T04]
+        owner_only: false
+
+      - id: P07-T06
+        title: "RW-58 UI: super-admin import page (upload, dry run, fix or skip, commit)"
+        risk: medium
+        description: |
+          New super-admin page modules/10-admin-dashboard/src/pages/question-import.tsx linked from the question bank:
+          template download per type, file upload, dry-run report table (17-ui-system Table with row expansion for
+          errors), inline fix of a row, "Skip errors and commit" and "Discard". help_ids + admin.yml entries + help
+          seed regen; copy via the labels file; route registered in apps/web/src/App.tsx.
+        acceptance_criteria:
+          - "Component test: uploading a file renders the dry-run counts and per-row errors from the API response"
+          - "Component test: commit calls the commit route and links to the new draft pack"
+          - "Page is not reachable for a tenant admin"
+          - "help_ids added, help_content.sql regenerated; `pnpm --filter @assessiq/web test` and `pnpm lint:ui-api-contract` pass"
+        files_in_scope: ["modules/10-admin-dashboard/src/pages/question-import.tsx", "modules/10-admin-dashboard/src/pages/question-bank.tsx", "modules/10-admin-dashboard/src/index.ts", "modules/10-admin-dashboard/src/api.ts", "modules/10-admin-dashboard/src/lib/labels.ts", "modules/10-admin-dashboard/src/__tests__/question-import*.test.tsx", "apps/web/src/App.tsx", "modules/16-help-system/content/en/admin.yml", "modules/16-help-system/seeds/help_content.sql"]
+        verify: ["pnpm --filter @assessiq/web test", "pnpm lint:ui-api-contract"]
+        needs_decision: false
+        research: []
+        depends_on: [P07-T05]
+        owner_only: false
+plan_source: "docs/PLAN_S10.md"
