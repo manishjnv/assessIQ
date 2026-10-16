@@ -14,6 +14,13 @@ export type { CancelInvitationResult } from './invitations.js';
 export { importCandidates, parseCandidateCsv, IMPORT_MAX_ROWS, IMPORT_MAX_BYTES } from './import.js';
 export type { ImportCandidatesResult, ImportSkip, ParsedCandidateCsv } from './import.js';
 export { sweepUserSessions } from './redis-sweep.js';
+export { purgeSoftDeletedUsers, MIN_USER_PURGE_DAYS } from './purge.js';
+export type {
+  UserPurgeOptions,
+  UserPurgeReport,
+  UserPurgeTenantReport,
+  UserPurgeSkipReason,
+} from './purge.js';
 export {
   listTenantUsersForSuperAdmin,
   resolveUserTenant,

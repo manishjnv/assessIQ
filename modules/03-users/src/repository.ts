@@ -19,6 +19,7 @@
  * acceptInvitation path and must not be used for tenant-scoped operations.
  */
 
+import { ConflictError } from '@assessiq/core';
 import type { PoolClient } from 'pg';
 import type {
   User,
@@ -142,12 +143,12 @@ export async function listUsersRows(
     conditions.push(`deleted_at IS NULL`);
   }
 
-  // DPDP erasure: always hide erased candidates from the user list.
+  // DPDP erasure / LC-2 purge: always hide erased users (any role) from the user list.
   // Erased users have users.erased_at set and tombstone name/email values.
   // This surface is an action surface (admin managing users), so erased
   // candidates must not appear per the HIDE display rule.
-  // Note: plain erased_at IS NULL is correct — only candidates can be erased
-  // (eraseCandidatePii enforces role='candidate'); no erased admins/reviewers exist.
+  // Erased rows: candidates (eraseCandidatePii) and any role purged after soft delete
+  // (LC-2 purgeSoftDeletedUsers), so plain erased_at IS NULL is the right filter.
   conditions.push(`erased_at IS NULL`);
 
   if (filters.role !== undefined) {
@@ -297,13 +298,24 @@ export async function softDeleteUser(client: PoolClient, id: string): Promise<vo
   );
 }
 
+/** LC-2: a purged (erased) tombstone must never come back to life. */
+async function throwIfPurged(client: PoolClient, id: string): Promise<void> {
+  const r = await client.query(`SELECT 1 FROM users WHERE id = $1 AND erased_at IS NOT NULL`, [id]);
+  if ((r.rowCount ?? 0) > 0) {
+    throw new ConflictError('This user was permanently erased and cannot be restored.', {
+      details: { code: 'USER_PURGED', userId: id },
+    });
+  }
+}
+
 export async function restoreUser(client: PoolClient, id: string): Promise<User> {
   const result = await client.query<UserRow>(
-    `UPDATE users SET deleted_at = NULL, updated_at = now() WHERE id = $1 RETURNING ${USER_COLUMNS}`,
+    `UPDATE users SET deleted_at = NULL, updated_at = now() WHERE id = $1 AND erased_at IS NULL RETURNING ${USER_COLUMNS}`,
     [id],
   );
   const row = result.rows[0];
   if (row === undefined) {
+    await throwIfPurged(client, id);
     throw new Error(`restoreUser: no row found for id ${id}`);
   }
   return mapUserRow(row);
@@ -508,7 +520,7 @@ export async function listTenantUsersSystem(
   if (!includeDisabled) {
     userConditions.push("u.status <> 'disabled'");
   }
-  // DPDP erasure: always hide erased candidates from this listing surface.
+  // DPDP erasure / LC-2 purge: always hide erased users (any role) from this listing surface.
   // This is an action surface (super-admin managing tenant users), so erased
   // candidates must not appear per the HIDE display rule.
   userConditions.push('u.erased_at IS NULL');
@@ -628,10 +640,11 @@ export async function restoreUserReturningStatus(
 ): Promise<{ id: string; status: string; deleted_at: Date | null } | undefined> {
   const res = await client.query<{ id: string; status: string; deleted_at: Date | null }>(
     `UPDATE users SET deleted_at = NULL, updated_at = now()
-           WHERE id = $1
+           WHERE id = $1 AND erased_at IS NULL
            RETURNING id, status, deleted_at`,
     [userId],
   );
+  if (res.rows[0] === undefined) await throwIfPurged(client, userId);
   return res.rows[0];
 }
 

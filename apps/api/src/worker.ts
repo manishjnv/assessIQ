@@ -35,6 +35,7 @@ import { Queue, Worker, type Job } from "bullmq";
 import { Redis } from "ioredis";
 import { config, streamLogger } from "@assessiq/core";
 import { closePool, purgeArchivedTenants } from "@assessiq/tenancy";
+import { purgeSoftDeletedUsers } from "@assessiq/users";
 import { processBoundariesForTenant, listTenantsWithDueBoundaries } from "@assessiq/assessment-lifecycle";
 import { sweepStaleTimersForTenant, listTenantsWithExpiredAttempts } from "@assessiq/attempt-engine";
 import {
@@ -89,6 +90,10 @@ const RETENTION_CRON = "0 3 * * *";
 // Dry run unless TENANT_PURGE_ENABLED=true (read from process.env here; worker-only flag, not in 00-core config).
 const TENANT_PURGE_JOB_NAME = "tenant-purge-cron";
 const TENANT_PURGE_CRON = "30 3 * * *";
+// LC-2: nightly purge of users soft-deleted >= 180 days (non-AI). 03:45 UTC, after the tenant purge.
+// Dry run unless USER_PURGE_ENABLED=true (read from process.env here; worker-only flag, not in 00-core config).
+const USER_PURGE_JOB_NAME = "user-purge-cron";
+const USER_PURGE_CRON = "45 3 * * *";
 
 // RW-94: every 15 min, flip generation_attempts stuck 'running' (pure SQL, no AI call).
 const GEN_STALE_JOB_NAME = "generation-stale-sweep";
@@ -139,6 +144,8 @@ export const JOB_RETRY_POLICY: Record<
   [RETENTION_JOB_NAME]: { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
   // tenant-purge-cron: 1 attempt. Per-tenant errors are isolated inside the sweep; the job reruns tomorrow.
   [TENANT_PURGE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
+  // user-purge-cron: 1 attempt. Per-tenant errors are isolated inside the sweep; the job reruns tomorrow.
+  [USER_PURGE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
   // result.auto_release — attempts 1: the sweep re-runs every 15 s anyway, and a
   // retry of a failed tick would only double the work. processAutoReleaseTick never
   // throws (per-attempt errors are logged + cooled down), so this is belt and braces.
@@ -334,6 +341,22 @@ async function processTenantPurgeTick(): Promise<{ dryRun: boolean; candidates: 
   return { dryRun: report.dryRun, candidates: report.tenants.length, purged, failed };
 }
 
+async function processUserPurgeTick(): Promise<{ dryRun: boolean; tenants: number; purged: number; skipped: number; failed: number }> {
+  const report = await purgeSoftDeletedUsers({
+    now: new Date(),
+    enabled: process.env["USER_PURGE_ENABLED"] === "true",
+  });
+  const skipped = report.tenants.reduce((n, t) => n + t.skipped.length, 0);
+  const failed = report.tenants.filter((t) => t.error !== undefined).length;
+  if (report.tenants.length > 0) {
+    log.info(
+      { dryRun: report.dryRun, tenants: report.tenants.length, purged: report.totalPurged, skipped, failed },
+      "user_purge.tick",
+    );
+  }
+  return { dryRun: report.dryRun, tenants: report.tenants.length, purged: report.totalPurged, skipped, failed };
+}
+
 export async function processTimerSweepTick(): Promise<{
   tenants: number;
   autoSubmitted: number;
@@ -475,6 +498,21 @@ async function start(): Promise<void> {
     },
   );
 
+  // LC-2: nightly soft-deleted-user purge at 03:45 UTC (dry run unless USER_PURGE_ENABLED=true).
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const userPurgePolicy = JOB_RETRY_POLICY[USER_PURGE_JOB_NAME]!;
+  await queue.add(
+    USER_PURGE_JOB_NAME,
+    {},
+    {
+      repeat: { pattern: USER_PURGE_CRON },
+      attempts: userPurgePolicy.attempts,
+      backoff: userPurgePolicy.backoff,
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  );
+
   // RW-94: stale generation-attempt sweep every 15 min (non-AI SQL).
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const genStalePolicy = JOB_RETRY_POLICY[GEN_STALE_JOB_NAME]!;
@@ -567,6 +605,8 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processRetentionTick);
         case TENANT_PURGE_JOB_NAME:
           return runJobWithLogging(job, processTenantPurgeTick);
+        case USER_PURGE_JOB_NAME:
+          return runJobWithLogging(job, processUserPurgeTick);
         case GEN_STALE_JOB_NAME:
           return runJobWithLogging(job, async () => (await import("@assessiq/question-bank")).sweepStaleGenerationAttempts());
         case AUTO_RELEASE_JOB_NAME:
