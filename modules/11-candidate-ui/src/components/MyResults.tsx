@@ -12,7 +12,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Card, Chip, Spinner, formatDate } from '@assessiq/ui-system';
-import { listMyResults } from '../api.js';
+import { listMyResults, markMyNotificationsRead } from '../api.js';
 import type { MyResultItemWire } from '../types.js';
 import { ResultSummary } from './ResultSummary.js';
 
@@ -42,6 +42,10 @@ export function MyResults(): React.ReactElement {
     listMyResults()
       .then((res) => {
         if (!cancelled) setItems(res.items);
+        // Z-3: seeing the list clears the "new result" notice. Best-effort.
+        void markMyNotificationsRead({ kind: 'result.released' })
+          .then(() => window.dispatchEvent(new CustomEvent('aiq:notifications-read')))
+          .catch(() => {});
       })
       .catch(() => {
         if (!cancelled) {

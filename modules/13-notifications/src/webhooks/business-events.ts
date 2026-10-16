@@ -96,3 +96,39 @@ export async function notifyEvaluationReadyAfterCommit(
   });
   if (!registered) log.warn({ tenantId, attemptId }, 'business-event: not inside withTenant, ready-to-publish notice not sent');
 }
+
+/**
+ * Z-3: tell the candidate "a new result is published". Looks up the owner
+ * inside the open tx (so the closure holds the id), then writes an
+ * audience='user' notice after commit. Best-effort; never throws.
+ */
+export async function notifyCandidateResultReleasedAfterCommit(
+  client: PoolClient,
+  tenantId: string,
+  attemptId: string,
+): Promise<void> {
+  const res = await client.query<{ user_id: string | null }>(
+    `SELECT user_id FROM attempts WHERE id = $1`,
+    [attemptId],
+  );
+  const userId = res.rows[0]?.user_id ?? null;
+  if (userId === null) {
+    log.info({ tenantId, attemptId }, 'in-app.result_released.skipped_no_user');
+    return;
+  }
+  const registered = onCommit(client, async () => {
+    try {
+      await notifyInApp({
+        tenantId,
+        audience: 'user',
+        userId,
+        kind: 'result.released',
+        message: 'A new result is published.',
+        link: '/candidate/results',
+      });
+    } catch (err: unknown) {
+      log.error({ err, tenantId, attemptId }, 'in-app.result_released.failed');
+    }
+  });
+  if (!registered) log.warn({ tenantId, attemptId }, 'business-event: not inside withTenant, candidate notice not sent');
+}

@@ -479,6 +479,10 @@ export interface ListInAppNotificationsInput {
   /** Cursor = id of the last-seen notification (exclusive lower bound by created_at) */
   since?: string;
   limit?: number;
+  /** Z-3: only rows with read_at IS NULL */
+  unreadOnly?: boolean;
+  /** S13 gate: only audience='user' rows (the candidate route; a candidate never sees role/all notices) */
+  ownOnly?: boolean;
 }
 
 export async function listInAppNotificationsForUser(
@@ -488,7 +492,7 @@ export async function listInAppNotificationsForUser(
   const limit = Math.min(input.limit ?? 50, 100);
 
   // Build cursor condition if provided
-  const params: unknown[] = [input.userId, input.userRole, limit];
+  const params: unknown[] = [input.userId, input.userRole, limit, input.unreadOnly === true, input.ownOnly === true];
   let cursorCondition = '';
   if (input.since !== undefined && input.since.length > 0) {
     // since is a created_at ISO timestamp (the cursor value from the last response)
@@ -503,6 +507,8 @@ export async function listInAppNotificationsForUser(
        OR (audience = 'role' AND role = $2)
        OR (audience = 'all')
      )
+     AND ($4::bool IS FALSE OR read_at IS NULL)
+     AND ($5::bool IS FALSE OR audience = 'user')
      ${cursorCondition}
      ORDER BY created_at ASC
      LIMIT $3`,
@@ -526,4 +532,38 @@ export async function markInAppNotificationRead(
        AND (user_id = $2 OR audience IN ('role', 'all'))`,
     [id, userId],
   );
+}
+
+/** Z-3: unread notices of one kind addressed to this user. */
+export async function countUnreadInAppNotifications(
+  client: PoolClient,
+  input: { userId: string; kind: string },
+): Promise<number> {
+  const r = await client.query<{ n: string }>(
+    `SELECT count(*)::text AS n FROM in_app_notifications
+     WHERE audience = 'user' AND user_id = $1 AND kind = $2 AND read_at IS NULL`,
+    [input.userId, input.kind],
+  );
+  return Number(r.rows[0]?.n ?? 0);
+}
+
+/**
+ * Z-3: bulk mark-read for the caller's OWN rows only (audience 'user'). Unlike
+ * markInAppNotificationRead this never touches 'role' or 'all' rows: the candidate
+ * route calls it, and a candidate must not clear an admin's shared notices.
+ */
+export async function markInAppNotificationsRead(
+  client: PoolClient,
+  input: { userId: string; ids?: string[]; kind?: string },
+): Promise<number> {
+  const r = await client.query(
+    `UPDATE in_app_notifications
+     SET read_at = now()
+     WHERE read_at IS NULL
+       AND audience = 'user' AND user_id = $1
+       AND ($2::uuid[] IS NULL OR id = ANY($2::uuid[]))
+       AND ($3::text IS NULL OR kind = $3)`,
+    [input.userId, input.ids ?? null, input.kind ?? null],
+  );
+  return r.rowCount ?? 0;
 }

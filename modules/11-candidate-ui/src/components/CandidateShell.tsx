@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { Icon, useApi } from '@assessiq/ui-system';
 import { createApiClient } from '@assessiq/http-client';
 import { CandidateSessionBanner } from './CandidateSessionBanner.js';
+import { listMyNotifications } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Local whoami hook — mirrors apps/web/src/lib/session.ts but lives here so
@@ -94,6 +95,19 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
   // on outside-click, Escape, or item-select.
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  // Z-3 — unread "result published" notices. One fetch after whoami, no polling.
+  const [newResults, setNewResults] = useState(0);
+  const signedIn = !loading && data !== null;
+  useEffect(() => {
+    if (!signedIn) return;
+    let cancelled = false;
+    listMyNotifications({ unread: true })
+      .then((r) => { if (!cancelled && typeof r.unread_count === 'number') setNewResults(r.unread_count); })
+      .catch(() => { /* best-effort notice */ });
+    const hide = (): void => setNewResults(0);
+    window.addEventListener('aiq:notifications-read', hide);
+    return () => { cancelled = true; window.removeEventListener('aiq:notifications-read', hide); };
+  }, [signedIn]);
 
   const handleSignOut = async (): Promise<void> => {
     try {
@@ -329,6 +343,23 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
           email={data.user.email}
           sessionId={data.user.id}
         />
+      )}
+
+      {newResults > 0 && (
+        <div
+          role="status"
+          data-help-id="candidate.shell.new_results_notice"
+          style={{
+            display: 'flex', gap: 12, alignItems: 'center', padding: '10px var(--aiq-space-xl)',
+            background: 'var(--aiq-color-bg-raised)', borderBottom: '1px solid var(--aiq-color-border)',
+            fontFamily: 'var(--aiq-font-sans)', fontSize: 13, color: 'var(--aiq-color-fg-primary)',
+          }}
+        >
+          <span>{newResults === 1 ? '1 new result is published.' : `${newResults} new results are published.`}</span>
+          <NavLink to="/candidate/results" style={{ color: 'var(--aiq-color-accent)', fontWeight: 500 }}>
+            View results
+          </NavLink>
+        </div>
       )}
 
       {/* Page content */}

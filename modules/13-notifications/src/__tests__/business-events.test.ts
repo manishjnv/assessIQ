@@ -10,8 +10,10 @@ vi.mock('@assessiq/tenancy', () => ({
   onCommit: (_c: unknown, h: () => Promise<void>) => { hooks.push(h); return true; },
 }));
 vi.mock('../webhooks/service.js', () => ({ emitWebhook: (a: unknown) => emitWebhook(a) }));
+const notifyInApp = vi.fn();
+vi.mock('../in-app/service.js', () => ({ notifyInApp: (a: unknown) => notifyInApp(a) }));
 
-import { emitAttemptEventAfterCommit } from '../webhooks/business-events.js';
+import { emitAttemptEventAfterCommit, notifyCandidateResultReleasedAfterCommit } from '../webhooks/business-events.js';
 
 const client = {
   query: vi.fn().mockResolvedValue({ rows: [{ assessment_id: 'as1', user_id: 'u1' }] }),
@@ -40,6 +42,33 @@ describe('business webhook events', () => {
   it('delivery failure does not throw', async () => {
     emitWebhook.mockRejectedValue(new Error('redis down'));
     await emitAttemptEventAfterCommit(client, 't1', 'a1', 'attempt.graded');
+    await expect(hooks[0]!()).resolves.toBeUndefined();
+  });
+});
+
+describe('Z-3 candidate result-released notice', () => {
+  beforeEach(() => { hooks.length = 0; notifyInApp.mockReset(); });
+
+  it('fires only after commit, audience user with the attempt owner', async () => {
+    await notifyCandidateResultReleasedAfterCommit(client, 't1', 'a1');
+    expect(notifyInApp).not.toHaveBeenCalled(); // rollback path: hook never runs
+    expect(hooks).toHaveLength(1);
+    await hooks[0]!();
+    expect(notifyInApp).toHaveBeenCalledWith({
+      tenantId: 't1', audience: 'user', userId: 'u1', kind: 'result.released',
+      message: 'A new result is published.', link: '/candidate/results',
+    });
+  });
+
+  it('skips silently when the attempt has no user', async () => {
+    const c = { query: vi.fn().mockResolvedValue({ rows: [{ user_id: null }] }) } as never;
+    await notifyCandidateResultReleasedAfterCommit(c, 't1', 'a1');
+    expect(hooks).toHaveLength(0);
+  });
+
+  it('a failing write never throws', async () => {
+    notifyInApp.mockRejectedValue(new Error('db down'));
+    await notifyCandidateResultReleasedAfterCommit(client, 't1', 'a1');
     await expect(hooks[0]!()).resolves.toBeUndefined();
   });
 });

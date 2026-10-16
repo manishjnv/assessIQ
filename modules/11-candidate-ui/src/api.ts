@@ -185,6 +185,19 @@ export async function listMyResults(): Promise<MyResultsResponseWire> {
   return call<MyResultsResponseWire>("/me/results");
 }
 
+/** Z-3: GET /api/me/notifications — the candidate's own notices (result.released). */
+export async function listMyNotifications(opts: { unread?: boolean } = {}): Promise<{ unread_count: number }> {
+  return call<{ unread_count: number }>(`/me/notifications?${opts.unread === true ? "unread=1&" : ""}limit=50`);
+}
+
+/** Z-3: POST /api/me/notifications/mark-read — marks the caller's notices of one kind read. */
+export async function markMyNotificationsRead(body: { kind: string }): Promise<{ updated: number }> {
+  return call<{ updated: number }>("/me/notifications/mark-read", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
 // Re-exported for callers that need to switch on the wire types.
 export type { AttemptAnswerWire };
 
