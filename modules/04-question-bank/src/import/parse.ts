@@ -4,7 +4,8 @@ import ExcelJS from "exceljs";
 import { ValidationError } from "@assessiq/core";
 import type { ImportFormat, ParsedRow, ParseResult, RowError } from "./types.js";
 
-export const IMPORT_MAX_BYTES = 2 * 1024 * 1024;
+// RW-97: 4 MB, the same cap as the route bodyLimit, the multipart fileSize limit and the UI check.
+export const IMPORT_MAX_BYTES = 4 * 1024 * 1024;
 export const IMPORT_MAX_ROWS = 2000;
 
 /** RFC-4180 tokenizer (same approach as 03-users/import.ts; no dependency). */
