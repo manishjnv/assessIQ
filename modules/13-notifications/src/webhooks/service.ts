@@ -203,6 +203,10 @@ export async function replayDelivery(
   if (original === null) {
     throw new Error(`Delivery not found: ${deliveryId}`);
   }
+  // S13 gate: a pending delivery is still in flight and a delivered one needs no replay.
+  if (original.status !== 'failed') {
+    throw new Error(`Delivery ${deliveryId} is ${original.status}; only a failed delivery can be replayed`);
+  }
 
   const newDeliveryId = uuidv7();
 

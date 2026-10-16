@@ -20,7 +20,10 @@ interface Delivery { id: string; endpoint_id: string; event: string; status: "pe
 
 const DELIVERY_PAGE = 20;
 const mono: React.CSSProperties = { fontFamily: "var(--aiq-font-mono)" };
-const deliveryColumns: ColumnDef<Delivery>[] = [
+const EVENTS = ["attempt.submitted", "attempt.graded", "result.released"] as const;
+const FILTERS = ["all", "failed", "delivered", "pending"] as const;
+type Filter = (typeof FILTERS)[number];
+const baseColumns: ColumnDef<Delivery>[] = [
   { key: "created_at", label: "Timestamp", render: (d) => <span style={{ ...mono, whiteSpace: "nowrap" }}>{formatDateTime(d.created_at)}</span> },
   { key: "status", label: "Status", render: (d) => <Chip variant={d.status === "delivered" ? "success" : d.status === "failed" ? "warn" : "default"}>{d.status === "delivered" ? "Success" : d.status === "failed" ? "Failed" : "Pending"}</Chip> },
   { key: "attempt", label: "Attempt ID", render: (d) => <span style={mono}>{d.payload?.attemptId ?? d.payload?.attempt_id ?? "—"}</span> },
@@ -41,7 +44,9 @@ export default function WebhooksPage(): React.ReactElement {
   const [dlError, setDlError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [adding, setAdding] = useState(false);
-  const [form, setForm] = useState({ name: "", url: "", events: "attempt.graded" });
+  const [form, setForm] = useState<{ name: string; url: string; events: string[] }>({ name: "", url: "", events: ["attempt.graded"] });
+  const [filter, setFilter] = useState<Filter>("all");
+  const [replaying, setReplaying] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -58,17 +63,23 @@ export default function WebhooksPage(): React.ReactElement {
     try {
       const r = await adminApi<{ endpoint: Endpoint; secret: string }>("/admin/webhooks", {
         method: "POST",
-        body: JSON.stringify({ name: form.name.trim(), url: form.url.trim(), events: form.events.split(",").map((s) => s.trim()).filter(Boolean) }),
+        body: JSON.stringify({ name: form.name.trim(), url: form.url.trim(), events: form.events }),
       });
       setSecret({ id: r.endpoint.id, value: r.secret });
       setAdding(false);
-      setForm({ name: "", url: "", events: "attempt.graded" });
+      setForm({ name: "", url: "", events: ["attempt.graded"] });
       load();
     } catch (e) { setNotice(err(e)); }
   }
   async function test(id: string) {
     try { await adminApi(`/admin/webhooks/${id}/test`, { method: "POST" }); setNotice("Test event sent."); load(); }
     catch (e) { setNotice(err(e)); }
+  }
+  async function replay(id: string) {
+    setReplaying(id); setNotice(null);
+    try { await adminApi(`/admin/webhooks/deliveries/${id}/replay`, { method: "POST" }); setNotice("Delivery queued again."); load(); }
+    catch (e) { setNotice(err(e)); }
+    finally { setReplaying(null); }
   }
   async function remove(id: string) {
     setDeleting(true);
@@ -82,10 +93,14 @@ export default function WebhooksPage(): React.ReactElement {
     [deliveries],
   );
   useEffect(() => () => { if (csvUrl) URL.revokeObjectURL(csvUrl); }, [csvUrl]);
-  const shown = deliveries?.slice(page * DELIVERY_PAGE, (page + 1) * DELIVERY_PAGE) ?? [];
+  const filtered = deliveries?.filter((d) => filter === "all" || d.status === filter) ?? [];
+  const shown = filtered.slice(page * DELIVERY_PAGE, (page + 1) * DELIVERY_PAGE);
+  // Replay only for failed rows: replayDelivery has no status guard, but a pending row is still in flight.
+  const columns: ColumnDef<Delivery>[] = [...baseColumns, { key: "actions", label: "Actions", render: (d) => d.status === "failed"
+    ? <Button size="sm" variant="outline" data-help-id="admin.webhooks.replay" disabled={replaying === d.id} onClick={() => void replay(d.id)}>Replay</Button> : null }];
 
   return (
-    <AdminShell breadcrumbs={["Integrations", "Webhooks"]}>
+    <AdminShell breadcrumbs={["Integrations", "Webhooks"]} helpPage="admin.webhooks">
       <div data-help-id="admin.webhooks.page" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }}>
         <PageHeader
           eyebrow="Integrations"
@@ -99,8 +114,15 @@ export default function WebhooksPage(): React.ReactElement {
           <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap", alignItems: "center" }}>
             <Input placeholder="Name" aria-label="Name" data-help-id="admin.webhooks.name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} style={{ width: 160 }} />
             <Input placeholder="https://example.com/hook" aria-label="URL" data-help-id="admin.webhooks.url" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} style={{ width: 280 }} />
-            <Input placeholder="Events, comma-separated" aria-label="Events" data-help-id="admin.webhooks.events" value={form.events} onChange={(e) => setForm({ ...form, events: e.target.value })} style={{ width: 240 }} />
-            <Button size="sm" disabled={!form.name.trim() || !form.url.trim()} onClick={() => void create()}>Create</Button>
+            <fieldset aria-label="Events" data-help-id="admin.webhooks.events" style={{ border: 0, padding: 0, margin: 0, display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap", fontSize: "var(--aiq-text-sm)" }}>
+              {EVENTS.map((ev) => (
+                <label key={ev} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input type="checkbox" checked={form.events.includes(ev)} onChange={(e) => setForm({ ...form, events: e.target.checked ? [...form.events, ev] : form.events.filter((x) => x !== ev) })} />
+                  {ev}
+                </label>
+              ))}
+            </fieldset>
+            <Button size="sm" disabled={!form.name.trim() || !form.url.trim() || form.events.length === 0} onClick={() => void create()}>Create</Button>
             <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>Cancel</Button>
           </div>
         )}
@@ -118,9 +140,11 @@ export default function WebhooksPage(): React.ReactElement {
                   {ep.events.map((ev) => <Chip key={ev}>{ev}</Chip>)}
                 </div>
                 {secret?.id === ep.id && (
-                  <div role="status" style={{ marginTop: 8, fontSize: "var(--aiq-text-sm)" }}>
-                    Signing secret (shown once): <code style={{ fontFamily: "var(--aiq-font-mono)" }}>{secret.value}</code>{" "}
-                    <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(secret.value).then(() => setNotice("Secret copied."))}>Copy secret</Button>
+                  <div role="status" data-help-id="admin.webhooks.secret_once" style={{ marginTop: 8, fontSize: "var(--aiq-text-sm)" }}>
+                    Signing secret: <code style={{ fontFamily: "var(--aiq-font-mono)" }}>{secret.value}</code>{" "}
+                    <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(secret.value).then(() => setNotice("Secret copied."))}>Copy secret</Button>{" "}
+                    <Button size="sm" variant="ghost" onClick={() => setSecret(null)}>Dismiss</Button>
+                    <div>Store it now. It is not shown again.</div>
                   </div>
                 )}
               </div>
@@ -132,7 +156,7 @@ export default function WebhooksPage(): React.ReactElement {
           ))}
         </section>
 
-        <section data-help-id="admin.webhooks.delivery-log" aria-label="Delivery log" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+        <section data-help-id="admin.webhooks.deliveries" aria-label="Delivery log" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: 18, fontWeight: 400, margin: 0 }}>Delivery log</h2>
             {csvUrl && <a className="aiq-btn aiq-btn-outline aiq-btn-sm" href={csvUrl} download="webhook-deliveries.csv">Export CSV</a>}
@@ -141,13 +165,18 @@ export default function WebhooksPage(): React.ReactElement {
           {dlError && <div role="alert" style={{ color: "var(--aiq-color-danger)" }}>{dlError}</div>}
           {deliveries && (
             <>
+              <div role="group" aria-label="Filter by status" data-help-id="admin.webhooks.delivery_filter" style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
+                {FILTERS.map((f) => (
+                  <Button key={f} size="sm" variant={filter === f ? "primary" : "outline"} aria-pressed={filter === f} onClick={() => { setFilter(f); setPage(0); }}>{f[0]!.toUpperCase() + f.slice(1)}</Button>
+                ))}
+              </div>
               <div style={{ overflowX: "auto", border: "1px solid var(--aiq-color-border)", borderRadius: 16 }}>
-                <Table data={shown} columns={deliveryColumns} emptyMessage="No deliveries yet." />
+                <Table data={shown} columns={columns} emptyMessage="No deliveries yet." />
               </div>
               <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", fontSize: "var(--aiq-text-sm)" }}>
                 <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button>
-                <span>Page {page + 1} of {Math.max(1, Math.ceil(deliveries.length / DELIVERY_PAGE))}</span>
-                <Button variant="outline" size="sm" disabled={(page + 1) * DELIVERY_PAGE >= deliveries.length} onClick={() => setPage(page + 1)}>Next</Button>
+                <span>Page {page + 1} of {Math.max(1, Math.ceil(filtered.length / DELIVERY_PAGE))}</span>
+                <Button variant="outline" size="sm" disabled={(page + 1) * DELIVERY_PAGE >= filtered.length} onClick={() => setPage(page + 1)}>Next</Button>
               </div>
             </>
           )}
