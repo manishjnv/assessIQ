@@ -35,7 +35,7 @@ jobs:
 
       # 4. Install dependencies
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # 5. Build apps/web (tsc + vite build → dist/)
       - name: Build apps/web

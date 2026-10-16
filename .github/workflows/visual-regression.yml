@@ -42,10 +42,10 @@ jobs:
           cache: pnpm
 
       # 4. Install dependencies
-      #    Using --no-frozen-lockfile to match lighthouse.yml style; switch to
-      #    --frozen-lockfile once the lockfile is consistently committed.
+      #    --frozen-lockfile like ci.yml (Z-2, 2026-10-16): CI must fail on a
+      #    lockfile that does not match package.json.
       - name: Install dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       # 5. Build apps/web (tsc + vite build → dist/)
       #    The visual spec runs against the Vite dev server (auto-started by
