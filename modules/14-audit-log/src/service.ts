@@ -24,6 +24,9 @@ const log = streamLogger('app');
 // Cursor batch size — 1000 rows keeps memory bounded for multi-GB exports.
 const CURSOR_BATCH_SIZE = 1000;
 
+/** Row cap for one export (FR1). */
+export const EXPORT_ROW_LIMIT = 100_000;
+
 // ---------------------------------------------------------------------------
 // list() — paginated admin viewer
 // ---------------------------------------------------------------------------
@@ -83,7 +86,7 @@ const CSV_HEADERS = [
 ].join(',');
 
 export async function exportCsv(input: AuditExportInput): Promise<Readable> {
-  const { tenantId, filters = {} } = input;
+  const { tenantId, filters = {}, limit = EXPORT_ROW_LIMIT } = input;
   const { whereClause, params } = buildWhereClause(filters);
 
   log.info({ tenantId }, 'audit.exportCsv: starting streaming export');
@@ -93,7 +96,7 @@ export async function exportCsv(input: AuditExportInput): Promise<Readable> {
 
   // Stream in background — caller pipes the Readable to the HTTP response.
   // write() waits while the consumer is slower than the cursor (FU-B1 review, 2026-10-09).
-  streamRows(tenantId, whereClause, params, (row) => write(rowToCsvLine(row) + '\n')).then(() => {
+  streamRows(tenantId, whereClause, params, limit, (row) => write(rowToCsvLine(row) + '\n')).then(() => {
     readable.push(null); // EOF
   }).catch((err) => {
     readable.destroy(err as Error);
@@ -107,20 +110,59 @@ export async function exportCsv(input: AuditExportInput): Promise<Readable> {
 // ---------------------------------------------------------------------------
 
 export async function exportJsonl(input: AuditExportInput): Promise<Readable> {
-  const { tenantId, filters = {} } = input;
+  const { tenantId, filters = {}, limit = EXPORT_ROW_LIMIT, truncated = false } = input;
   const { whereClause, params } = buildWhereClause(filters);
 
   log.info({ tenantId }, 'audit.exportJsonl: starting streaming export');
 
   const { readable, write } = lineStream();
 
-  streamRows(tenantId, whereClause, params, (row) => write(JSON.stringify(row) + '\n')).then(() => {
+  streamRows(tenantId, whereClause, params, limit, (row) => write(JSON.stringify(row) + '\n')).then(async () => {
+    if (truncated) {
+      await write(JSON.stringify({ _note: 'truncated', limit, hint: 'Narrow the date range and export again.' }) + '\n');
+    }
     readable.push(null);
   }).catch((err) => {
     readable.destroy(err as Error);
   });
 
   return readable;
+}
+
+// ---------------------------------------------------------------------------
+// countCapped() — cheap "is the export over the cap" check (FR1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Count the rows that match, but never scan past limit + 1 rows.
+ * Returns min(real count, limit + 1); a result above limit means "truncated".
+ */
+export async function countCapped(
+  tenantId: string,
+  whereClause: string,
+  params: unknown[],
+  limit: number,
+): Promise<number> {
+  const cap = Math.floor(limit) + 1;
+  return withTenant(tenantId, async (client) => {
+    // One row back, never cap rows: the sub-select stops scanning at cap.
+    const r = await client.query<{ n: number }>(
+      `SELECT COUNT(*)::int AS n FROM (SELECT 1 FROM audit_log ${whereClause} LIMIT $${params.length + 1}) s`,
+      [...params, cap],
+    );
+    return r.rows[0]?.n ?? 0;
+  });
+}
+
+/** Filters in, count out: the shared pre-flight for both exports and the archive call. */
+export async function countForExport(
+  tenantId: string,
+  filters: NonNullable<AuditListInput['filters']>,
+  limit: number,
+): Promise<{ rowCount: number; truncated: boolean }> {
+  const { whereClause, params } = buildWhereClause(filters);
+  const n = await countCapped(tenantId, whereClause, params, limit);
+  return { rowCount: Math.min(n, limit), truncated: n > limit };
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +267,7 @@ async function streamRows(
   tenantId: string,
   whereClause: string,
   params: unknown[],
+  limit: number,
   onRow: (row: AuditRow) => Promise<void>,
 ): Promise<void> {
   await withTenant(tenantId, async (client) => {
@@ -241,8 +284,9 @@ async function streamRows(
            at::text
          FROM audit_log
          ${whereClause}
-         ORDER BY at DESC`,
-        params,
+         ORDER BY at DESC
+         LIMIT $${params.length + 1}`,
+        [...params, Math.floor(limit)],
       );
 
       while (true) {

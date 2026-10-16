@@ -8,7 +8,7 @@
 // INVARIANTS: no claude/anthropic imports; loading spinner + inline error.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Button, Input, Spinner, Table, formatDateTime } from "@assessiq/ui-system";
+import { Button, ConfirmDialog, Input, Spinner, Table, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { adminApi } from "../api.js";
@@ -24,9 +24,11 @@ interface AuditRow {
   after: Record<string, unknown> | null;
   at: string;
 }
+interface ArchiveResult { archive_id: string | null; row_count: number; truncated: boolean; export_url: string }
 interface AuditList { rows: AuditRow[]; total: number; page: number; pageSize: number }
 
 const PAGE_SIZE = 50;
+const EXPORT_CAP = 100000; // matches the API export row cap (module 14, FR1)
 // Visible filter labels use the glossary; values are the API entity_type strings.
 const ENTITY_TYPES: Array<[string, string]> = [
   ["", "All entities"],
@@ -55,6 +57,10 @@ export default function AuditLogPage(): React.ReactElement {
   const [data, setData] = useState<AuditList | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [archived, setArchived] = useState<ArchiveResult | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -73,23 +79,76 @@ export default function AuditLogPage(): React.ReactElement {
 
   useEffect(() => { void load(); }, [load]);
 
+  const archive = async () => {
+    setArchiving(true);
+    setArchiveError(null);
+    try {
+      const q = filterQuery(from, to, "");
+      const res = await adminApi<ArchiveResult>("/admin/audit/archive", {
+        method: "POST",
+        body: JSON.stringify({ from: q.get("from"), to: q.get("to"), format: "jsonl" }),
+      });
+      setArchived(res);
+      setConfirmOpen(false);
+      const a = document.createElement("a"); // download the range that was just marked
+      a.href = res.export_url;
+      a.download = "";
+      a.click();
+    } catch (e) {
+      setArchiveError(e instanceof Error ? e.message : "Could not archive this range.");
+    } finally {
+      setArchiving(false);
+    }
+  };
+
   const csvHref = `/api/admin/audit/export.csv?${filterQuery(from, to, entityType).toString()}`;
+  const jsonlHref = `/api/admin/audit/export.jsonl?${filterQuery(from, to, entityType).toString()}`;
+  const overCap = (archived !== null && (archived.truncated || archived.row_count >= EXPORT_CAP)) || (data?.total ?? 0) > EXPORT_CAP;
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
 
   return (
-    <AdminShell breadcrumbs={["Admin", "Audit log"]}>
-      <div data-help-id="admin.audit-log.page" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }}>
+    <AdminShell breadcrumbs={["Admin", "Audit log"]} helpPage="admin.audit">
+      <div data-help-id="admin.audit.page" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }}>
         <PageHeader
           eyebrow="Audit log"
           title="Audit log."
           lede="Every change made in your organisation, with who made it and when."
-          actions={<a className="aiq-btn aiq-btn-outline aiq-btn-sm" href={csvHref} download>Export CSV</a>}
+          actions={
+            <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
+              <a className="aiq-btn aiq-btn-outline aiq-btn-sm" href={csvHref} download>Export CSV</a>
+              <a className="aiq-btn aiq-btn-outline aiq-btn-sm" data-help-id="admin.audit.export_jsonl" href={jsonlHref} download>Export JSONL</a>
+              <Button variant="outline" size="sm" data-help-id="admin.audit.archive" disabled={!from || !to} onClick={() => { setArchiveError(null); setConfirmOpen(true); }}>Archive range</Button>
+            </div>
+          }
+        />
+        <div style={{ fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+          Archiving marks the range in the audit trail and downloads it. Rows are never deleted.
+        </div>
+        {archived && <div role="status" style={{ fontSize: "var(--aiq-text-sm)" }}>{archived.row_count} rows marked as archived</div>}
+        {overCap && (
+          <div data-help-id="admin.audit.truncated_note" role="note" style={{ fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+            The export covers the first 100,000 rows. Narrow the date range and export again.
+          </div>
+        )}
+        <ConfirmDialog
+          open={confirmOpen}
+          title="Archive this range?"
+          confirmLabel={archiving ? "Archiving…" : "Archive and download"}
+          busy={archiving}
+          onConfirm={() => { void archive(); }}
+          onCancel={() => { if (!archiving) setConfirmOpen(false); }}
+          body={
+            <>
+              <div>From {from} to {to}. This marks the range in the audit trail and downloads it. Rows are never deleted.</div>
+              {archiveError && <div role="alert" style={{ marginTop: "var(--aiq-space-sm)", color: "var(--aiq-color-danger)" }}>{archiveError}</div>}
+            </>
+          }
         />
 
-        <div data-help-id="admin.audit-log.filters" style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap", alignItems: "center" }}>
-          <Input type="date" aria-label="From date" data-help-id="admin.audit-log.date-from" value={from} onChange={(e) => { setPage(1); setFrom(e.target.value); }} style={{ width: 160 }} />
-          <Input type="date" aria-label="To date" data-help-id="admin.audit-log.date-to" value={to} onChange={(e) => { setPage(1); setTo(e.target.value); }} style={{ width: 160 }} />
-          <select className="aiq-input" aria-label="Entity type" data-help-id="admin.audit-log.entity-type" value={entityType} onChange={(e) => { setPage(1); setEntityType(e.target.value); }} style={{ width: 180 }}>
+        <div data-help-id="admin.audit.filters" style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap", alignItems: "center" }}>
+          <Input type="date" aria-label="From date" data-help-id="admin.audit.date_from" value={from} onChange={(e) => { setPage(1); setFrom(e.target.value); }} style={{ width: 160 }} />
+          <Input type="date" aria-label="To date" data-help-id="admin.audit.date_to" value={to} onChange={(e) => { setPage(1); setTo(e.target.value); }} style={{ width: 160 }} />
+          <select className="aiq-input" aria-label="Entity type" data-help-id="admin.audit.entity_type" value={entityType} onChange={(e) => { setPage(1); setEntityType(e.target.value); }} style={{ width: 180 }}>
             {ENTITY_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
           {(from || to || entityType) && (
@@ -101,7 +160,7 @@ export default function AuditLogPage(): React.ReactElement {
         {error && <div role="alert" style={{ color: "var(--aiq-color-danger)", fontSize: "var(--aiq-text-sm)" }}>{error}</div>}
         {!loading && !error && data && (
           <>
-            <div data-help-id="admin.audit-log.table" style={{ overflowX: "auto", border: "1px solid var(--aiq-color-border)", borderRadius: 16 }}>
+            <div data-help-id="admin.audit.table" style={{ overflowX: "auto", border: "1px solid var(--aiq-color-border)", borderRadius: 16 }}>
               <Table<AuditRow>
                 data={data.rows}
                 emptyMessage="No events match these filters."

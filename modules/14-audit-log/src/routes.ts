@@ -20,7 +20,9 @@
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
 import { z } from 'zod';
 import { ValidationError } from '@assessiq/core';
-import { list, exportCsv, exportJsonl } from './service.js';
+import { withTenant } from '@assessiq/tenancy';
+import { list, exportCsv, exportJsonl, countForExport, EXPORT_ROW_LIMIT } from './service.js';
+import { auditInTx } from './audit.js';
 
 // ---------------------------------------------------------------------------
 // DI options
@@ -51,7 +53,22 @@ const LIST_QUERY_SCHEMA = z.object({
   to: z.string().datetime({ offset: true }).optional(),
 });
 
+const MAX_ARCHIVE_SPAN_MS = 366 * 24 * 60 * 60 * 1000;
+
+const ARCHIVE_BODY_SCHEMA = z.object({
+  from: z.string().datetime({ offset: true }),
+  to: z.string().datetime({ offset: true }),
+  format: z.literal('jsonl'),
+}).refine((b) => Date.parse(b.to) > Date.parse(b.from), { message: 'to must be after from', path: ['to'] })
+  .refine((b) => Date.parse(b.to) - Date.parse(b.from) <= MAX_ARCHIVE_SPAN_MS, { message: 'range must be 366 days or less', path: ['to'] });
+
+/** Drop undefined keys so the filters object stays clean in the audit payload. */
+function definedOnly<T extends Record<string, unknown>>(o: T): { [K in keyof T]?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as never;
+}
+
 const EXPORT_QUERY_SCHEMA = z.object({
+  limit: z.coerce.number().int().min(1).max(100000).default(100000),
   actorUserId: z.string().uuid().optional(),
   actorKind: z.enum(['user', 'api_key', 'system']).optional(),
   action: z.string().max(100).optional(),
@@ -100,54 +117,67 @@ export async function registerAuditRoutes(
     return reply.code(200).send(result);
   });
 
-  // GET /api/admin/audit/export.csv — streaming CSV
-  app.get('/api/admin/audit/export.csv', { preHandler }, async (req, reply) => {
-    const tenantId = (req as unknown as { session: { tenantId: string } }).session.tenantId;
-    const rawQuery = req.query as Record<string, string>;
-    const parsed = EXPORT_QUERY_SCHEMA.safeParse(rawQuery);
+  // GET /api/admin/audit/export.csv and export.jsonl — streaming, capped, self-audited.
+  for (const format of ['csv', 'jsonl'] as const) {
+    app.get(`/api/admin/audit/export.${format}`, { preHandler }, async (req, reply) => {
+      const { tenantId, userId } = (req as unknown as { session: { tenantId: string; userId: string } }).session;
+      const parsed = EXPORT_QUERY_SCHEMA.safeParse(req.query);
+      if (!parsed.success) {
+        throw new ValidationError('invalid query parameters: ' + parsed.error.message);
+      }
+      const { limit, ...rest } = parsed.data;
+      const filters = definedOnly(rest);
+
+      const { truncated } = await countForExport(tenantId, filters, limit);
+      // A read-only export is not an admin mutation, so its audit row gets its own short
+      // transaction, written BEFORE the stream starts. The row never holds audit row contents.
+      await withTenant(tenantId, (client) => auditInTx(client, {
+        tenantId,
+        actorKind: 'user',
+        actorUserId: userId,
+        action: 'audit.exported',
+        entityType: 'audit_log',
+        after: { format, filters, limit, truncated },
+      }));
+
+      const stream = format === 'csv'
+        ? await exportCsv({ tenantId, filters, limit })
+        : await exportJsonl({ tenantId, filters, limit, truncated });
+      return reply
+        .code(200)
+        .header('Content-Type', format === 'csv' ? 'text/csv; charset=utf-8' : 'application/x-ndjson')
+        .header('Content-Disposition', `attachment; filename="audit-${tenantId.slice(0, 8)}.${format}"`)
+        .header('X-Export-Truncated', String(truncated))
+        .send(stream);
+    });
+  }
+
+  // POST /api/admin/audit/archive
+  // Archive = export + mark. Deleting archived rows is the parked S3 job (archive-job.ts,
+  // owner decision FR1 2026-10-03); the app role cannot delete audit_log rows.
+  app.post('/api/admin/audit/archive', { preHandler }, async (req, reply) => {
+    const { tenantId, userId } = (req as unknown as { session: { tenantId: string; userId: string } }).session;
+    const parsed = ARCHIVE_BODY_SCHEMA.safeParse(req.body);
     if (!parsed.success) {
-      throw new ValidationError('invalid query parameters: ' + parsed.error.message);
+      throw new ValidationError('invalid archive request: ' + parsed.error.message);
     }
-
-    const stream = await exportCsv({ tenantId, filters: {
-      ...(parsed.data.actorUserId !== undefined ? { actorUserId: parsed.data.actorUserId } : {}),
-      ...(parsed.data.actorKind !== undefined ? { actorKind: parsed.data.actorKind } : {}),
-      ...(parsed.data.action !== undefined ? { action: parsed.data.action } : {}),
-      ...(parsed.data.entityType !== undefined ? { entityType: parsed.data.entityType } : {}),
-      ...(parsed.data.entityId !== undefined ? { entityId: parsed.data.entityId } : {}),
-      ...(parsed.data.from !== undefined ? { from: parsed.data.from } : {}),
-      ...(parsed.data.to !== undefined ? { to: parsed.data.to } : {}),
-    } });
-    return reply
-      .code(200)
-      .header('Content-Type', 'text/csv; charset=utf-8')
-      .header('Content-Disposition', `attachment; filename="audit-${tenantId.slice(0, 8)}.csv"`)
-      .send(stream);
-  });
-
-  // GET /api/admin/audit/export.jsonl — streaming JSONL
-  app.get('/api/admin/audit/export.jsonl', { preHandler }, async (req, reply) => {
-    const tenantId = (req as unknown as { session: { tenantId: string } }).session.tenantId;
-    const rawQuery = req.query as Record<string, string>;
-    const parsed = EXPORT_QUERY_SCHEMA.safeParse(rawQuery);
-    if (!parsed.success) {
-      throw new ValidationError('invalid query parameters: ' + parsed.error.message);
-    }
-
-    const stream = await exportJsonl({ tenantId, filters: {
-      ...(parsed.data.actorUserId !== undefined ? { actorUserId: parsed.data.actorUserId } : {}),
-      ...(parsed.data.actorKind !== undefined ? { actorKind: parsed.data.actorKind } : {}),
-      ...(parsed.data.action !== undefined ? { action: parsed.data.action } : {}),
-      ...(parsed.data.entityType !== undefined ? { entityType: parsed.data.entityType } : {}),
-      ...(parsed.data.entityId !== undefined ? { entityId: parsed.data.entityId } : {}),
-      ...(parsed.data.from !== undefined ? { from: parsed.data.from } : {}),
-      ...(parsed.data.to !== undefined ? { to: parsed.data.to } : {}),
-    } });
-    return reply
-      .code(200)
-      .header('Content-Type', 'application/x-ndjson')
-      .header('Content-Disposition', `attachment; filename="audit-${tenantId.slice(0, 8)}.jsonl"`)
-      .send(stream);
+    const { from, to, format } = parsed.data;
+    const { rowCount, truncated } = await countForExport(tenantId, { from, to }, EXPORT_ROW_LIMIT);
+    const exportUrl = `/api/admin/audit/export.jsonl?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+    const row = await withTenant(tenantId, (client) => auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId: userId,
+      action: 'audit.archived',
+      entityType: 'audit_log',
+      after: { from, to, row_count: rowCount, format, export_path: exportUrl },
+    }));
+    return reply.code(200).send({
+      archive_id: row?.id ?? null,
+      row_count: rowCount,
+      truncated,
+      export_url: exportUrl,
+    });
   });
 
   // GET /api/admin/audit/archives — list S3 archives
