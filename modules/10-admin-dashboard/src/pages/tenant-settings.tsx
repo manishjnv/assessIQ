@@ -39,6 +39,30 @@ interface TenantSettingsResponse {
   updated_at?: string;
   /** Absent on servers that predate the Result release setting. */
   result_release_mode?: ReleaseMode;
+  /** Current organisation logo, or null/absent when none is set. */
+  logo?: { url: string; width: number; height: number; byte_size: number } | null;
+}
+
+const LOGO_MAX_BYTES = 512 * 1024;
+const LOGO_TYPES: ReadonlyArray<string> = ["image/png", "image/jpeg"];
+
+const LOGO_ERROR_COPY: Readonly<Record<string, string>> = {
+  LOGO_BAD_FORMAT: "The logo must be a PNG or JPEG image.",
+  LOGO_BAD_DIMENSIONS: "The logo size is not allowed. Use an image between 64 and 2048 pixels on each side.",
+  LOGO_FILE_REQUIRED: "Choose a logo file first.",
+  LOGO_TOO_LARGE: "The logo is larger than 512 KB.",
+};
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error("read failed"));
+    reader.onload = () => {
+      const r = typeof reader.result === "string" ? reader.result : "";
+      resolve(r.slice(r.indexOf(",") + 1));
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 const RELEASE_OPTIONS: ReadonlyArray<{ value: ReleaseMode; label: string; help: string }> = [
@@ -121,6 +145,15 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // ── Organisation logo ─────────────────────────────────────────────────────
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const [logoSuccess, setLogoSuccess] = useState<string | null>(null);
+  const [logoError, setLogoError] = useState<string | null>(null);
+  const [logoMfa, setLogoMfa] = useState<"upload" | "remove" | null>(null);
+  const [showLogoRemove, setShowLogoRemove] = useState(false);
+
   // ── Result release mode ───────────────────────────────────────────────────
   // releaseMode = what the server has (null: unknown — older API or load
   // failed); releaseChoice = the radio the admin picked but has not saved.
@@ -194,6 +227,89 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
     }
   };
 
+  // ── Organisation logo: upload / remove ────────────────────────────────────
+  // Both need a fresh MFA check; a 401 (or 403 MFA_REQUIRED) opens the inline
+  // MfaStepUp and the action is retried once the code verifies.
+
+  const isFreshMfaError = (err: unknown): boolean =>
+    err instanceof AdminApiError &&
+    (err.status === 401 || (err.status === 403 && err.apiError.details?.code === "MFA_REQUIRED"));
+
+  const logoErrorMessage = (err: unknown): string => {
+    if (err instanceof AdminApiError) {
+      const code = typeof err.apiError.details?.code === "string" ? err.apiError.details.code : err.apiError.code;
+      return LOGO_ERROR_COPY[code] ?? LOGO_ERROR_COPY[err.apiError.code] ?? err.apiError.message;
+    }
+    return "Unexpected error — please try again.";
+  };
+
+  const handlePickLogo = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const file = e.target.files?.[0] ?? null;
+    setLogoSuccess(null);
+    setLogoError(null);
+    if (file === null) {
+      setLogoFile(null);
+      return;
+    }
+    if (!LOGO_TYPES.includes(file.type)) {
+      setLogoFile(null);
+      setLogoError(LOGO_ERROR_COPY["LOGO_BAD_FORMAT"] ?? "The logo must be a PNG or JPEG image.");
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setLogoFile(null);
+      setLogoError(LOGO_ERROR_COPY["LOGO_TOO_LARGE"] ?? "The logo is larger than 512 KB.");
+      return;
+    }
+    setLogoFile(file);
+  };
+
+  const handleUploadLogo = async (): Promise<void> => {
+    if (logoFile === null) return;
+    setLogoBusy(true);
+    setLogoError(null);
+    setLogoSuccess(null);
+    try {
+      const content_base64 = await readFileAsBase64(logoFile);
+      const res = await adminApi<{ logo: { url: string } }>("/admin/tenant-settings/logo", {
+        method: "PUT",
+        body: JSON.stringify({ content_base64 }),
+      });
+      setLogoUrl(res.logo.url);
+      setLogoFile(null);
+      setLogoMfa(null);
+      setLogoSuccess("Logo updated.");
+      setTimeout(() => setLogoSuccess(null), 4000);
+      void fetchAdminWhoami(true); // refresh the shell header logo
+    } catch (err) {
+      if (isFreshMfaError(err)) setLogoMfa("upload");
+      else setLogoError(logoErrorMessage(err));
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
+  const handleRemoveLogo = async (): Promise<void> => {
+    setShowLogoRemove(false);
+    setLogoBusy(true);
+    setLogoError(null);
+    setLogoSuccess(null);
+    try {
+      await adminApi("/admin/tenant-settings/logo", { method: "DELETE" });
+      setLogoUrl(null);
+      setLogoFile(null);
+      setLogoMfa(null);
+      setLogoSuccess("Logo removed.");
+      setTimeout(() => setLogoSuccess(null), 4000);
+      void fetchAdminWhoami(true);
+    } catch (err) {
+      if (isFreshMfaError(err)) setLogoMfa("remove");
+      else setLogoError(logoErrorMessage(err));
+    } finally {
+      setLogoBusy(false);
+    }
+  };
+
   // ── Load on mount ─────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -243,6 +359,7 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
       setRetentionDays(data.retention_days);
       setInputValue(String(data.retention_days));
       setUpdatedAt(data.updated_at ?? null);
+      setLogoUrl(data.logo?.url ?? null);
       setReleaseMode(
         data.result_release_mode === "auto" || data.result_release_mode === "manual"
           ? data.result_release_mode
@@ -502,6 +619,16 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
         onCancel={() => setShowRunConfirm(false)}
       />
 
+      <ConfirmDialog
+        open={showLogoRemove}
+        title="Remove the organisation logo?"
+        body="Your name is shown instead of the logo in the app header, in candidate emails and on certificates."
+        confirmLabel="Remove logo"
+        danger
+        onConfirm={() => void handleRemoveLogo()}
+        onCancel={() => setShowLogoRemove(false)}
+      />
+
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
 
         {!embedded && (
@@ -657,6 +784,112 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
                 Save organisation name
               </Button>
             </div>
+          </Card>
+        </section>
+
+        {/* ── Organisation logo section ───────────────────────────────────── */}
+        <section aria-labelledby="org-logo-heading" data-help-id="admin.tenant_settings.logo" style={{ marginTop: "var(--aiq-space-xl)" }}>
+          <div
+            style={{
+              paddingBottom: 16,
+              borderBottom: "1px solid var(--aiq-color-border)",
+              marginBottom: 24,
+            }}
+          >
+            <h2
+              id="org-logo-heading"
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: 22,
+                fontWeight: 400,
+                margin: 0,
+                letterSpacing: "-0.015em",
+              }}
+            >
+              Organisation logo.
+            </h2>
+          </div>
+          <Card padding="lg">
+            <div style={{ marginBottom: 16 }}>
+              {logoUrl !== null ? (
+                <img
+                  src={logoUrl}
+                  alt={`${currentName} logo`}
+                  style={{ maxHeight: 120, maxWidth: 120, objectFit: "contain", display: "block" }}
+                />
+              ) : (
+                <p style={{ margin: 0, fontSize: 13, color: "var(--aiq-color-fg-secondary)" }}>No logo set.</p>
+              )}
+            </div>
+            <label
+              htmlFor="org-logo-input"
+              style={{
+                display: "block",
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "var(--aiq-color-fg-primary)",
+                marginBottom: 6,
+              }}
+            >
+              Logo file
+            </label>
+            <input
+              id="org-logo-input"
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={handlePickLogo}
+              disabled={logoBusy}
+              style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 13 }}
+            />
+            <p style={{ marginTop: 8, fontSize: 12, color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
+              PNG or JPEG, up to 512 KB. It shows next to your organisation name, always with
+              &ldquo;via AssessIQ&rdquo;, in the app header, candidate emails and certificates.
+            </p>
+            {logoSuccess && (
+              <div style={{ marginTop: 16 }}>
+                <Chip variant="success">{logoSuccess}</Chip>
+              </div>
+            )}
+            {logoError && (
+              <div role="alert" style={{ marginTop: 16, fontSize: 13, color: "var(--aiq-color-danger, #dc2626)", lineHeight: 1.4 }}>
+                {logoError}
+              </div>
+            )}
+            {logoMfa !== null ? (
+              <div style={{ marginTop: 20, maxWidth: 520 }}>
+                <MfaStepUp
+                  prompt="Changing the logo needs a fresh authenticator check. Enter your 6-digit code to continue."
+                  confirmLabel="Verify & continue"
+                  onVerified={() => {
+                    const action = logoMfa;
+                    setLogoMfa(null);
+                    if (action === "upload") void handleUploadLogo();
+                    else void handleRemoveLogo();
+                  }}
+                  onCancel={() => setLogoMfa(null)}
+                />
+              </div>
+            ) : (
+              <div style={{ marginTop: 20, display: "flex", gap: "var(--aiq-space-sm)" }}>
+                <Button
+                  onClick={() => void handleUploadLogo()}
+                  loading={logoBusy}
+                  disabled={logoFile === null}
+                >
+                  Upload logo
+                </Button>
+                <span data-help-id="admin.tenant_settings.logo.remove">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowLogoRemove(true)}
+                    disabled={logoBusy || logoUrl === null}
+                  >
+                    Remove logo
+                  </Button>
+                </span>
+              </div>
+            )}
           </Card>
         </section>
         </div>

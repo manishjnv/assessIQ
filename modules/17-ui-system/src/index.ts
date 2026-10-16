@@ -18,6 +18,8 @@ export type { IconProps, IconName } from "./components/Icon.js";
 
 export { Logo } from "./components/Logo.js";
 export type { LogoProps } from "./components/Logo.js";
+export { TenantLogo } from "./components/TenantLogo.js";
+export type { TenantLogoProps } from "./components/TenantLogo.js";
 
 export { Num } from "./components/Num.js";
 export type { NumProps } from "./components/Num.js";

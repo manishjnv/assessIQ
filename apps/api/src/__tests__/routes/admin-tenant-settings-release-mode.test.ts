@@ -69,6 +69,8 @@ vi.mock('@assessiq/tenancy', () => ({
   archiveTenant: vi.fn(),
   unarchiveTenant: vi.fn(),
   updateAiGenerateMode: vi.fn(),
+  getTenantLogoMeta: vi.fn().mockResolvedValue(null),
+  tenantLogoUrl: vi.fn(),
 }));
 
 vi.mock('@assessiq/users', () => ({
@@ -131,6 +133,7 @@ describe('GET /api/admin/tenant-settings', () => {
       result_release_auto_since: '2026-10-01T10:00:00.000Z',
       retention_days: 730,
       company_name: 'Acme University',
+      logo: null,
     });
     expect(mockWithTenant).toHaveBeenCalledWith('tenant-a-uuid', expect.any(Function));
     expect(mockGetTenantById).toHaveBeenCalledWith('tenant-a-uuid');

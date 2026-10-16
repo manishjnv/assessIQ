@@ -15,7 +15,7 @@
 
 import React, { Fragment, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Icon, Sidebar, NavItem, SidebarSection, useViewport } from "@assessiq/ui-system";
+import { Icon, Sidebar, NavItem, SidebarSection, TenantLogo, useViewport } from "@assessiq/ui-system";
 import { HelpProvider } from "@assessiq/help-system/components";
 import { useAdminSession, adminLogout } from "../session.js";
 import { NotificationBell } from "./NotificationBell.js";
@@ -537,7 +537,14 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                     letterSpacing: "0.06em",
                   }}
                 >
-                  {session.tenant.name ?? session.tenant.slug}
+                  <span data-help-id="admin.shell.tenant_logo" style={{ display: "inline-flex" }}>
+                    <TenantLogo
+                      src={session.tenant.logo_url ?? null}
+                      name={session.tenant.name ?? session.tenant.slug}
+                      height={28}
+                      viaAssessIQ
+                    />
+                  </span>
                 </button>
               </span>
             )}

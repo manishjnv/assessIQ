@@ -18,6 +18,8 @@ export interface AdminSessionInfo {
     id: string;
     slug: string | null;
     name?: string | null;
+    /** Public URL of the organisation logo, or null when none is set. */
+    logo_url?: string | null;
   };
   mfaStatus: "verified" | "pending" | "n/a";
   totpEnrolled?: boolean;

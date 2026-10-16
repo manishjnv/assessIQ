@@ -42,6 +42,8 @@ import { ERASED_CANDIDATE_LABEL } from '@assessiq/core';
 import { extractClientIp } from '@assessiq/auth';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
+import { loadLogoDataUri } from './logo.js';
+import { SAFE_LOGO_DATA_URI } from './logo-pattern.js';
 import {
   findByCredentialIdPublic,
   incrementCounter,
@@ -151,6 +153,7 @@ function createViewDedup() {
 
 type CertStatus = 'valid' | 'tampered' | 'revoked';
 
+
 interface VerifyPageData {
   status: CertStatus;
   cert: Certificate;
@@ -158,14 +161,20 @@ interface VerifyPageData {
   orgName?: string | undefined;
   /** True when the certificate holder has exercised DPDP right to erasure. */
   isErased?: boolean | undefined;
+  /** Tenant logo as a PNG/JPEG data URI (server-read bytes); absent = name only. */
+  logoDataUri?: string | null | undefined;
 }
 
 function renderVerifyPage(data: VerifyPageData): string {
-  const { status, cert, orgName, isErased } = data;
-  const issuedBy =
-    orgName !== undefined && orgName.trim().length > 0
-      ? `${escHtml(orgName.trim())} &middot; via AssessIQ`
-      : 'AssessIQ';
+  const { status, cert, orgName, isErased, logoDataUri } = data;
+  const hasOrg = orgName !== undefined && orgName.trim().length > 0;
+  const logoImg =
+    hasOrg && typeof logoDataUri === 'string' && SAFE_LOGO_DATA_URI.test(logoDataUri)
+      ? `<img src="${logoDataUri}" alt="${escAttr(orgName.trim())} logo" width="80" height="32" style="height:32px;width:auto;max-width:80px;object-fit:contain;vertical-align:middle;margin-right:.5rem" />`
+      : '';
+  const issuedBy = hasOrg
+    ? `${logoImg}${escHtml(orgName.trim())} &middot; via AssessIQ`
+    : 'AssessIQ';
 
   const statusLabel =
     status === 'valid'
@@ -370,15 +379,23 @@ function escAttr(s: string): string {
 // OG SVG rendering (1200×630)
 // ---------------------------------------------------------------------------
 
-function renderOgSvg(cert: Certificate, status: CertStatus): string {
+function renderOgSvg(cert: Certificate, status: CertStatus, logoDataUri?: string | null): string {
   // sRGB colours derived from OKLCH hue 258 palette (matches AssessIQ brand).
   const bgColor = status === 'valid' ? '#1e3a5f' : '#5f1e1e';
   const badgeColor = status === 'valid' ? '#22c55e' : '#ef4444';
   const badgeText =
     status === 'valid' ? 'VERIFIED' : status === 'revoked' ? 'REVOKED' : 'INVALID';
 
+  // Tenant logo top-right in a 240x96 white plate (readable on any logo colour).
+  const logoSvg =
+    typeof logoDataUri === 'string' && SAFE_LOGO_DATA_URI.test(logoDataUri)
+      ? `
+  <rect x="900" y="60" width="240" height="96" rx="12" fill="#ffffff"/>
+  <image x="908" y="68" width="224" height="80" preserveAspectRatio="xMidYMid meet" href="${logoDataUri}"/>`
+      : '';
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
-  <rect width="1200" height="630" fill="${bgColor}"/>
+  <rect width="1200" height="630" fill="${bgColor}"/>${logoSvg}
   <rect x="60" y="60" width="300" height="48" rx="24" fill="${badgeColor}"/>
   <text x="210" y="93" font-family="Newsreader, Georgia, serif" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">${badgeText}</text>
   <text x="60" y="210" font-family="Newsreader, Georgia, serif" font-size="64" font-weight="700" fill="#fff">${escSvg(cert.display_name)}</text>
@@ -405,8 +422,8 @@ function escSvg(s: string): string {
 // pure-Rust (no Chromium), ~10ms per render. fitTo width=1200 produces a
 // 1200×630 PNG matching the SVG viewBox.
 
-function renderOgPng(cert: Certificate, status: CertStatus): Buffer {
-  const svg = renderOgSvg(cert, status);
+function renderOgPng(cert: Certificate, status: CertStatus, logoDataUri?: string | null): Buffer {
+  const svg = renderOgSvg(cert, status, logoDataUri);
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'width', value: 1200 },
     font: { loadSystemFonts: true },
@@ -554,6 +571,8 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         orgName = undefined;
       }
 
+      const logoDataUri = await loadLogoDataUri(cert.tenant_id);
+
       // DPDP erasure: check whether the certificate holder has been erased.
       // The HMAC snapshot (signed_hash payload) is NOT altered — verification
       // still works on the stored display_name. Only the rendered card changes.
@@ -570,7 +589,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         .code(200)
         .header('content-type', 'text/html; charset=utf-8')
         .header('cache-control', 'no-cache')
-        .send(renderVerifyPage({ status, cert, orgName, isErased }));
+        .send(renderVerifyPage({ status, cert, orgName, isErased, logoDataUri }));
     },
   );
 
@@ -606,7 +625,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         // so keep it out of image search (the HTML verify page is noindex too).
         // Social unfurlers ignore this header, so LinkedIn/OG previews still work.
         .header('x-robots-tag', 'noindex')
-        .send(renderOgSvg(cert, status));
+        .send(renderOgSvg(cert, status, await loadLogoDataUri(cert.tenant_id)));
     },
   );
 
@@ -637,7 +656,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
       }
 
       const status = determineStatus(cert);
-      const png = renderOgPng(cert, status);
+      const png = renderOgPng(cert, status, await loadLogoDataUri(cert.tenant_id));
 
       return reply
         .code(200)

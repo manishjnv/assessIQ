@@ -198,4 +198,32 @@ describe('TokenLanding pre-test screen', () => {
     expect(screen.getByText(/replaced it/i)).toBeTruthy();
     expect(screen.getByText(/ask the person who\s+invited you to resend your invitation/i)).toBeTruthy();
   });
+
+  it('Logo L3a - shows the tenant logo when company_logo_url is set', async () => {
+    takePreview.mockResolvedValue({
+      ...PREVIEW,
+      assessment: { ...PREVIEW.assessment, company_logo_url: '/api/public/tenant-logo/t1?v=abc' },
+    });
+    renderLanding();
+    await screen.findByText('Ready when you are.');
+    const img = screen.getByAltText('Acme College logo') as HTMLImageElement;
+    expect(img.getAttribute('src')).toBe('/api/public/tenant-logo/t1?v=abc');
+    expect(screen.getByText('via AssessIQ')).toBeTruthy();
+  });
+
+  it('Logo L3a - name only when the logo is null or the field is absent (older server)', async () => {
+    takePreview.mockResolvedValue({
+      ...PREVIEW,
+      assessment: { ...PREVIEW.assessment, company_logo_url: null },
+    });
+    renderLanding();
+    await screen.findByText('Ready when you are.');
+    expect(screen.queryByAltText('Acme College logo')).toBeNull();
+    expect(screen.getByText('via AssessIQ')).toBeTruthy();
+    cleanup();
+    takePreview.mockResolvedValue(PREVIEW);
+    renderLanding();
+    await screen.findByText('Ready when you are.');
+    expect(screen.queryByRole('img', { name: /logo/i })).toBeNull();
+  });
 });

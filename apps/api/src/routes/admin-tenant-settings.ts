@@ -11,6 +11,8 @@
 //   PATCH /api/admin/tenant-settings/result-release-mode — body { mode: 'manual'|'auto' }  (SP2)
 //   PATCH /api/admin/tenant-settings/retention-days   — body { retention_days }
 //   PATCH /api/admin/tenant                           — body { name }  (rename own company)
+//   PUT   /api/admin/tenant-settings/logo             — multipart `file` or JSON { content_base64 }  (Logo L1)
+//   DELETE /api/admin/tenant-settings/logo            — 204, also when no logo
 //   POST  /api/admin/retention/run-now                — query ?dryRun=true
 //
 // Mutations gated on { roles: ['admin'], freshMfaWithinMinutes: 15 }. Super-admins
@@ -35,7 +37,12 @@ import {
   findTenantSettings,
   getTenantById,
   withTenant,
+  setTenantLogo,
+  removeTenantLogo,
+  getTenantLogoMeta,
+  tenantLogoUrl,
 } from '@assessiq/tenancy';
+import { readLogoUpload } from './_logo-upload.js';
 import { runRetentionPurgeForTenant, listErasedCandidates } from '@assessiq/data-rights';
 import { parseBody, parseQuery } from './_validate.js';
 import { authChain } from '../middleware/auth-chain.js';
@@ -112,12 +119,35 @@ export async function registerAdminTenantSettingsRoutes(
       throw new NotFoundError('Organisation settings not found for this organisation.');
     }
     const tenant = await getTenantById(session.tenantId);
+    const logo = await getTenantLogoMeta(session.tenantId);
     return reply.code(200).send({
       result_release_mode: settings.result_release_mode,
       result_release_auto_since: settings.result_release_auto_since,
       retention_days: settings.retention_days,
       company_name: tenant.name,
+      logo: logo === null ? null : { ...logo, url: tenantLogoUrl(session.tenantId, logo.sha256) },
     });
+  });
+
+  // PUT /api/admin/tenant-settings/logo - replace the caller's OWN tenant logo (Logo L1).
+  // PNG/JPEG, 32-2048 px, max 512 KB. Tenant + actor come from the session only.
+  // 200: { logo: { mime, width, height, byte_size, sha256, updated_at, url } }
+  // 400: LOGO_BAD_FORMAT | LOGO_BAD_DIMENSIONS | LOGO_FILE_REQUIRED   413: LOGO_TOO_LARGE
+  // 403: caller not 'admin' or fresh MFA expired   409: TENANT_NOT_ACTIVE
+  app.put('/api/admin/tenant-settings/logo', { preHandler: adminFreshMfa }, async (req, reply) => {
+    const session = req.session!;
+    const data = await readLogoUpload(req);
+    await assertTenantActive(session.tenantId);
+    const meta = await setTenantLogo(session.tenantId, data, session.userId);
+    return reply.code(200).send({ logo: { ...meta, url: tenantLogoUrl(session.tenantId, meta.sha256) } });
+  });
+
+  // DELETE /api/admin/tenant-settings/logo - 204 whether or not a logo existed.
+  app.delete('/api/admin/tenant-settings/logo', { preHandler: adminFreshMfa }, async (req, reply) => {
+    const session = req.session!;
+    await assertTenantActive(session.tenantId);
+    await removeTenantLogo(session.tenantId, session.userId);
+    return reply.code(204).send();
   });
 
   // ──────────────────────────────────────────────────────────────────────────

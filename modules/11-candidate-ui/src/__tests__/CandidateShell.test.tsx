@@ -181,4 +181,39 @@ describe('CandidateShell', () => {
       await waitFor(() => expect(screen.queryByText(/new result/)).toBeNull());
     });
   });
+
+  it('Logo L3a - shows the tenant logo from whoami; name only when logo_url is null', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch([
+        {
+          url: /whoami/,
+          body: { ...WHOAMI_OK, tenant: { id: 't1', name: 'Acme College', logo_url: '/api/public/tenant-logo/t1?v=abc' } },
+        },
+      ]),
+    );
+    renderShell(<CandidateShell><div /></CandidateShell>);
+    await waitFor(() => {
+      expect(screen.getByAltText('Acme College logo').getAttribute('src')).toBe('/api/public/tenant-logo/t1?v=abc');
+    });
+    cleanup();
+    vi.stubGlobal(
+      'fetch',
+      mockFetch([{ url: /whoami/, body: { ...WHOAMI_OK, tenant: { id: 't1', name: 'Acme College', logo_url: null } } }]),
+    );
+    renderShell(<CandidateShell><div /></CandidateShell>);
+    await waitFor(() => {
+      expect(screen.getByText('Acme College')).toBeDefined();
+    });
+    expect(screen.queryByAltText('Acme College logo')).toBeNull();
+  });
+
+  it('Logo L3a - no tenant name or logo in whoami renders no org branding', async () => {
+    vi.stubGlobal('fetch', mockFetch([{ url: /whoami/, body: WHOAMI_OK }]));
+    renderShell(<CandidateShell><div /></CandidateShell>);
+    await waitFor(() => {
+      expect(screen.getByText('candidate@example.com')).toBeDefined();
+    });
+    expect(screen.queryByText('via AssessIQ')).toBeNull();
+  });
 });

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Icon, useApi } from '@assessiq/ui-system';
+import { Icon, TenantLogo, useApi } from '@assessiq/ui-system';
 import { createApiClient } from '@assessiq/http-client';
 import { CandidateSessionBanner } from './CandidateSessionBanner.js';
 import { listMyNotifications } from '../api.js';
@@ -20,6 +20,8 @@ interface WhoamiUser {
 
 interface WhoamiResult {
   user: WhoamiUser;
+  /** Logo L3a: present on candidate sessions; logo_url null = name only. */
+  tenant?: { name?: string | null; logo_url?: string | null } | null;
   expiresAt?: string;
 }
 
@@ -165,6 +167,18 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
           <span className="aiq-mark-dot" aria-hidden="true" />
           <span>AssessIQ</span>
         </div>
+
+        {/* Logo L3a — organisation co-brand next to the platform mark. */}
+        {!loading && (data?.tenant?.logo_url || data?.tenant?.name) && (
+          <span data-help-id="candidate.shell.logo" style={{ flexShrink: 1, minWidth: 0 }}>
+            <TenantLogo
+              src={data?.tenant?.logo_url ?? null}
+              name={data?.tenant?.name ?? ''}
+              height={28}
+              viaAssessIQ
+            />
+          </span>
+        )}
 
         {/* M4 — Desktop inline nav. Hidden on mobile via .aiq-candidate-nav-desktop
             CSS rule. Same routes as the mobile overflow menu below. */}

@@ -310,6 +310,10 @@ export interface SendEmailInput<T extends EmailTemplateName = EmailTemplateName>
   template: T;
   vars: TemplateVarsMap[T];
   tenantId?: string;
+  /** Public tenant-logo URL (Logo phase L3b). Undefined = load it for candidate templates. */
+  logoUrl?: string | null;
+  /** Organisation name for the logo alt text; defaults to vars.tenantName. */
+  orgName?: string;
 }
 
 // ---------------------------------------------------------------------------

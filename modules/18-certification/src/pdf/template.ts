@@ -16,6 +16,7 @@
 //
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
+import { SAFE_LOGO_DATA_URI } from '../logo-pattern.js';
 import type { Certificate } from '../types.js';
 
 // ---------------------------------------------------------------------------
@@ -62,7 +63,7 @@ function escHtml(s: string): string {
  * it is derived from PUBLIC_BASE_URL, so the printed domain always matches the
  * deployment (no hardcoded host). Text is selectable (not SVG) except the seal.
  */
-export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, verifyUrl: string, orgName?: string): string {
+export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, verifyUrl: string, orgName?: string, logoDataUri?: string | null): string {
   const issuedDate = new Date(cert.issued_at).toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
@@ -78,6 +79,14 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
   const hasOrg = orgName !== undefined && orgName.trim().length > 0;
   const issuer = hasOrg ? escHtml(orgName.trim()) : 'AssessIQ';
   const issuerSub = hasOrg ? 'Issued via AssessIQ' : 'Authorized Issuer';
+
+  // Tenant logo (Logo phase L4): 18 mm high, top-left, only for a PNG/JPEG data
+  // URI read server-side from the tenant row. The "Issued via AssessIQ" caption
+  // below the signature line keeps the co-branding.
+  const logoHtml =
+    typeof logoDataUri === 'string' && SAFE_LOGO_DATA_URI.test(logoDataUri)
+      ? `<img class="tenant-logo" src="${logoDataUri}" alt="${escHtml(hasOrg ? orgName.trim() : 'Organisation')} logo" />`
+      : '';
 
   // Inline SVG check — vector, so it renders without any installed font glyph
   // (the previous &#10003; entity tofu'd as a missing-glyph box on the VPS).
@@ -106,6 +115,8 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
       align-items: center;
       text-align: center;
     }
+
+    .tenant-logo { position: absolute; left: 10mm; top: 8mm; height: 18mm; width: auto; max-width: 60mm; object-fit: contain; }
 
     /* Header — centered brand wordmark + rule. */
     .brand {
@@ -238,6 +249,7 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
 <body>
   <div class="frame"></div>
   <div class="inner">
+    ${logoHtml}
     <div class="brand">ASSESSIQ</div>
     <div class="brand-sub">Skills Assessment Platform</div>
     <div class="title">Certificate of Completion</div>

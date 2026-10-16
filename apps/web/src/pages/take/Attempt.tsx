@@ -496,6 +496,8 @@ export function AttemptPage(): React.JSX.Element {
         refreshAfterSectionChange={refreshAfterSectionChange}
         autosave={autosave}
         setNavOpen={setNavOpen}
+        companyName={view.company_name ?? ''}
+        companyLogoUrl={view.company_logo_url ?? null}
       />
 
       {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}

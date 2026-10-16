@@ -6,7 +6,8 @@
  * P3.D14 rules:
  * - Every {{var}} is HTML-escaped (default Handlebars behaviour).
  * - NO {{{triple-stash}}} allowed — EXCEPT the email-meta-card `v` cell, which
- *   is template-author-controlled and guarded by assertSafeMetaRows() below.
+ *   is template-author-controlled and guarded by assertSafeMetaRows() below,
+ *   and the email-header `logo_url`, guarded by isSafeLogoUrl().
  *   See docs/13-email-system.md §2 A7.
  * - Per-template Zod validation of the vars shape before render.
  *
@@ -29,7 +30,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { escapeHtml } from '@assessiq/core';
+import { config, escapeHtml, UUID_RE } from '@assessiq/core';
 import type { EmailTemplateName, TemplateVarsMap } from '../types.js';
 import { buildVars } from './i18n.js';
 import {
@@ -161,6 +162,23 @@ function assertSafeMetaRows(rows: ReadonlyArray<{ k: string; v: string }>): void
 type MetaRow = { k: string; v: string };
 
 /**
+ * The ONLY value allowed into the unescaped logo attribute: the app's own
+ * public tenant-logo URL with the exact `?v=<12 hex>` query and nothing else.
+ */
+function isSafeLogoUrl(u: string): boolean {
+  let origin: string;
+  try {
+    origin = new URL(config.ASSESSIQ_BASE_URL).origin;
+  } catch {
+    return false;
+  }
+  const esc = origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // UUID pattern from the core helper (lint-core-helpers); anchors stripped for the inline use.
+  const uuid = UUID_RE.source.replace(/^\^/, '').replace(/\$$/, '');
+  return new RegExp(`^${esc}/api/public/tenant-logo/${uuid}\\?v=[0-9a-f]{12}$`).test(u);
+}
+
+/**
  * Build the meta-card rows for a template from its validated base vars.
  * Values that interpolate base vars are HTML-escaped here; literal emphasis
  * (<strong>) is template-author-controlled. Returns [] for templates with no
@@ -244,10 +262,15 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
  * are unaffected.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function augmentContext(name: EmailTemplateName, p: any): Record<string, unknown> {
+function augmentContext(name: EmailTemplateName, p: any, opts: RenderOptions): Record<string, unknown> {
   const meta_rows = buildMetaRows(name, p);
   assertSafeMetaRows(meta_rows);
+  // Tenant logo (Logo phase L3b). Rendered with {{{logo_url}}} in the
+  // email-header partial, so it is accepted ONLY when isSafeLogoUrl() passes.
+  const logo = typeof opts.logoUrl === 'string' && isSafeLogoUrl(opts.logoUrl) ? opts.logoUrl : null;
+  const orgName = opts.orgName ?? (typeof p.tenantName === 'string' ? p.tenantName : '');
   return {
+    ...(logo !== null ? { logo_url: logo, logo_org_name: orgName } : {}),
     meta_rows,
     copyright_year: String(new Date().getFullYear()),
     lang: 'en',
@@ -287,6 +310,13 @@ function loadAndCompile(name: EmailTemplateName): CompiledPair {
 // Public render function
 // ---------------------------------------------------------------------------
 
+export interface RenderOptions {
+  /** Public tenant-logo URL on the app origin; omitted/null/unsafe = no logo row. */
+  logoUrl?: string | null | undefined;
+  /** Organisation name for the logo alt text. Defaults to vars.tenantName. */
+  orgName?: string | undefined;
+}
+
 export interface RenderResult {
   subject: string;
   html: string;
@@ -303,6 +333,7 @@ export function renderTemplate<T extends EmailTemplateName>(
   name: T,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   vars: any,
+  opts: RenderOptions = {},
 ): RenderResult {
   // Validate vars against the per-template schema.
   const schema = TEMPLATE_VARS_SCHEMAS[name]!;
@@ -319,7 +350,7 @@ export function renderTemplate<T extends EmailTemplateName>(
   }
 
   // Derive the kit visual context (meta rows, copyright year, lang).
-  const derived = augmentContext(name, parsed);
+  const derived = augmentContext(name, parsed, opts);
 
   const ctx = { ...parsed, ...i18nVars, ...derived };
   const html = htmlTpl(ctx);
