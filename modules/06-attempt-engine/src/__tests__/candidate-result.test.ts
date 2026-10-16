@@ -302,9 +302,10 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
         email_masked: maskEmail(s.email),
         turnaround_text: config.EVALUATION_TURNAROUND_TEXT,
         tenant_name: "Acme University",
+        company_logo_url: null, // Logo L3a: no logo seeded
       });
       expect(Object.keys(v).sort()).toEqual( // no score-bearing key at all
-        ["email_masked", "release_mode", "result_expectation", "status", "tenant_name", "turnaround_text"],
+        ["company_logo_url", "email_masked", "release_mode", "result_expectation", "status", "tenant_name", "turnaround_text"],
       );
     },
   );
@@ -327,6 +328,9 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
       assessment_name: "SOC Analyst L1",
       released_at: "2026-10-01T10:00:00.000Z",
       certificate: null,
+      tenant_name: "Acme University", // Logo L3a: name fallback for the Submitted page
+      company_logo_url: null,
+      negative_marking: { enabled: false, penalty_total: 0 }, // EX-1: no deterministic question carries a penalty
     });
   });
 
@@ -391,7 +395,7 @@ describe("listCandidateResults", () => {
     expect(items.map((i) => i.attempt_id)).not.toContain(other.attemptId);
     expect(items.map((i) => i.total_earned)).not.toContain(59); // the provisional 'graded' score never appears
     expect(Object.keys(items[0]!).sort()).toEqual( // nothing per-question, no bands / justifications
-      ["assessment_name", "attempt_id", "certificate", "passed", "percent", "released_at", "total_earned", "total_max"],
+      ["assessment_name", "attempt_id", "certificate", "negative_marking", "passed", "percent", "released_at", "total_earned", "total_max"],
     );
   });
 
