@@ -29,7 +29,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import { useParams, useLocation, Navigate } from 'react-router-dom';
-import { Chip, Card, Logo, Spinner } from '@assessiq/ui-system';
+import { Chip, Card, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import {
   AFTER_SUBMIT_TEXT,
   getResult,
@@ -55,6 +55,8 @@ interface Pending {
   emailMasked: string | null;
   turnaroundText: string | null;
   tenantName: string | null;
+  /** Logo L3a: tenant logo URL; null when none or when the server is older. */
+  logoUrl: string | null;
   /** True only when the API says the tenant releases results manually. */
   manual: boolean;
 }
@@ -73,6 +75,7 @@ const UNKNOWN: Pending = {
   emailMasked: null,
   turnaroundText: null,
   tenantName: null,
+  logoUrl: null,
   manual: false,
 };
 
@@ -95,6 +98,7 @@ function toPending(src: unknown): Pending | null {
     emailMasked: text(o['email_masked']),
     turnaroundText: text(o['turnaround_text']),
     tenantName: text(o['tenant_name']),
+    logoUrl: text(o['company_logo_url']),
     manual: o['release_mode'] === 'manual',
   };
 }
@@ -232,6 +236,11 @@ export function Submitted(): React.JSX.Element {
   // ─── page ───────────────────────────────────────────────────────────────────
 
   const released = state.tag === 'released';
+  // Logo L3a: co-brand above the status chip. No logo = organisation name only.
+  const brandName =
+    (state.tag === 'released' ? text(state.result.tenant_name) : state.info.tenantName) ?? '';
+  const brandLogo =
+    (state.tag === 'released' ? text(state.result.company_logo_url) : state.info.logoUrl) ?? null;
 
   return (
     <div
@@ -257,6 +266,12 @@ export function Submitted(): React.JSX.Element {
         }}
       >
         <div style={{ width: '100%', maxWidth: 560, textAlign: 'center' }}>
+          {(brandLogo !== null || brandName !== '') && (
+            <div data-help-id="candidate.take.submitted.logo" style={{ marginBottom: 16 }}>
+              <TenantLogo src={brandLogo} name={brandName} height={40} />
+            </div>
+          )}
+
           {/* Status chip */}
           <span style={{ display: 'inline-block', marginBottom: 24 }}>
             <Chip variant="success">{released ? 'Completed' : 'Submitted'}</Chip>
@@ -293,6 +308,7 @@ export function Submitted(): React.JSX.Element {
                     percent={state.result.percent}
                     passed={state.result.passed}
                     certificate={state.result.certificate}
+                    negativeMarking={state.result.negative_marking}
                   />
                   {state.result.certificate && (
                     <NewCertificateModal credential_id={state.result.certificate.credential_id} />

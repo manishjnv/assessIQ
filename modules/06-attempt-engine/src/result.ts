@@ -24,12 +24,32 @@
 
 import type { PoolClient } from "pg";
 import { NotFoundError, config, streamLogger } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from "@assessiq/tenancy";
 import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import * as repo from "./repository.js";
 import { AE_ERROR_CODES } from "./types.js";
 
 const log = streamLogger("app");
+
+/**
+ * Tenant co-branding for candidate pages (Logo L3a): the tenant logo URL plus the
+ * organisation name used as the text fallback. Never throws: any failure yields
+ * `{ name: "", logoUrl: null }` so a logo problem cannot break the candidate flow.
+ */
+export async function getCompanyBranding(
+  tenantId: string,
+): Promise<{ name: string; logoUrl: string | null }> {
+  try {
+    const [tenant, meta] = await Promise.all([getTenantById(tenantId), getTenantLogoMeta(tenantId)]);
+    return {
+      name: tenant.name.trim(),
+      logoUrl: meta === null ? null : tenantLogoUrl(tenantId, meta.sha256),
+    };
+  } catch (err) {
+    log.warn({ err, tenantId }, "result.company_branding_failed");
+    return { name: "", logoUrl: null };
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Types (wire shapes)
@@ -54,6 +74,14 @@ export interface CandidateCertificateRef {
   verify_url: string;
 }
 
+/** EX-1: whether the attempt had any penalty configured, and how many marks wrong answers cost. */
+export interface NegativeMarkingSummary {
+  /** Any frozen attempt_questions.negative_marks > 0. */
+  enabled: boolean;
+  /** Marks deducted by wrong attempted answers (>= 0). total_earned is already net of this and may be negative. */
+  penalty_total: number;
+}
+
 export interface ReleasedResult {
   status: "released";
   total_earned: number;
@@ -65,11 +93,18 @@ export interface ReleasedResult {
   assessment_name: string;
   released_at: string;
   certificate: CandidateCertificateRef | null;
+  negative_marking: NegativeMarkingSummary;
+  /** Organisation name (text fallback when there is no logo). Added by getCandidateResult. */
+  tenant_name?: string;
+  /** Tenant logo URL for the co-branded Submitted page; null when none. Added by getCandidateResult. */
+  company_logo_url?: string | null;
 }
 
 export interface PendingResult extends SubmitExpectation {
   status: "pending";
   tenant_name: string;
+  /** Tenant logo URL for the co-branded Submitted page; null when none. Added by getCandidateResult. */
+  company_logo_url?: string | null;
 }
 
 export type CandidateResultView = ReleasedResult | PendingResult;
@@ -83,6 +118,7 @@ export interface ResultListItem {
   percent: number;
   passed: boolean;
   certificate: CandidateCertificateRef | null;
+  negative_marking: NegativeMarkingSummary;
 }
 
 // ---------------------------------------------------------------------------
@@ -103,6 +139,42 @@ export function maskEmail(email: string): string {
 export function resultPercent(totalEarned: number, totalMax: number): number {
   return totalMax > 0 ? Math.round((totalEarned / totalMax) * 1000) / 10 : 0;
 }
+
+/**
+ * EX-1: negative-marking summary per attempt. penalty_total sums the negative score_earned of the
+ * effective gradings (same latest-per-question rule as 09 getGradingsForAttempt, override wins a tie).
+ * `enabled` counts deterministic question types only (an essay-only test with a default penalty is "off").
+ * Known limitation: a passage-set row that nets positive hides its internal penalty from penalty_total.
+ */
+async function loadNegativeMarking(
+  client: PoolClient,
+  attemptIds: readonly string[],
+): Promise<Map<string, NegativeMarkingSummary>> {
+  const out = new Map<string, NegativeMarkingSummary>();
+  if (attemptIds.length === 0) return out;
+  const res = await client.query<{ attempt_id: string; enabled: boolean; penalty_total: string }>(
+    `WITH eff AS (
+       SELECT DISTINCT ON (g.attempt_id, g.question_id) g.attempt_id, g.score_earned
+         FROM gradings g
+        WHERE g.attempt_id = ANY($1::uuid[])
+        ORDER BY g.attempt_id, g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC
+     )
+     SELECT x.attempt_id,
+            EXISTS (SELECT 1 FROM attempt_questions aq
+                      JOIN question_versions qv
+                        ON qv.question_id = aq.question_id AND qv.version = aq.question_version
+                     WHERE aq.attempt_id = x.attempt_id AND aq.negative_marks > 0
+                       AND qv.type = ANY($2::text[])) AS enabled,
+            COALESCE(-(SELECT SUM(e.score_earned) FROM eff e
+                        WHERE e.attempt_id = x.attempt_id AND e.score_earned < 0), 0)::text AS penalty_total
+       FROM unnest($1::uuid[]) AS x(attempt_id)`,
+    [attemptIds, DETERMINISTIC_IDS],
+  );
+  for (const r of res.rows) out.set(r.attempt_id, { enabled: r.enabled, penalty_total: parseFloat(r.penalty_total) });
+  return out;
+}
+
+const NO_NEGATIVE_MARKING: NegativeMarkingSummary = { enabled: false, penalty_total: 0 };
 
 function verifyUrl(credentialId: string): string {
   return new URL(`/verify/${encodeURIComponent(credentialId)}`, config.ASSESSIQ_BASE_URL).toString();
@@ -227,6 +299,17 @@ export async function getCandidateResult(
   userId: string,
   attemptId: string,
 ): Promise<CandidateResultView> {
+  const view = await loadCandidateResult(tenantId, userId, attemptId);
+  const branding = await getCompanyBranding(tenantId);
+  const tenantName = view.status === "pending" && view.tenant_name !== "" ? view.tenant_name : branding.name;
+  return { ...view, tenant_name: tenantName, company_logo_url: branding.logoUrl };
+}
+
+async function loadCandidateResult(
+  tenantId: string,
+  userId: string,
+  attemptId: string,
+): Promise<CandidateResultView> {
   return withTenant(tenantId, async (client) => {
     const attempt = await repo.findAttemptById(client, attemptId);
     if (attempt === null || attempt.user_id !== userId) {
@@ -258,6 +341,7 @@ export async function getCandidateResult(
         const earned = parseFloat(r.total_earned);
         const max = parseFloat(r.total_max);
         const percent = resultPercent(earned, max);
+        const negativeMarking = (await loadNegativeMarking(client, [attemptId])).get(attemptId) ?? NO_NEGATIVE_MARKING;
         return {
           status: "released",
           total_earned: earned,
@@ -267,6 +351,7 @@ export async function getCandidateResult(
           assessment_name: r.assessment_name,
           released_at: new Date(r.released_at).toISOString(),
           certificate: certificateRef(r.credential_id),
+          negative_marking: negativeMarking,
         };
       }
       log.warn({ tenantId, attemptId }, "result.released_without_score_row");
@@ -311,6 +396,7 @@ export async function listCandidateResults(
         ORDER BY released_at DESC, a.created_at DESC`,
       [userId],
     );
+    const negMarking = await loadNegativeMarking(client, res.rows.map((r) => r.attempt_id));
     return {
       items: res.rows.map((r) => {
         const earned = parseFloat(r.total_earned);
@@ -325,6 +411,7 @@ export async function listCandidateResults(
           percent,
           passed: percent >= r.passing_score_pct,
           certificate: certificateRef(r.credential_id),
+          negative_marking: negMarking.get(r.attempt_id) ?? NO_NEGATIVE_MARKING,
         };
       }),
     };

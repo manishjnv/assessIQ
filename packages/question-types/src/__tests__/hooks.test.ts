@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AI_GRADEABLE_IDS, DETERMINISTIC_IDS, QUESTION_TYPES, QUESTION_TYPE_REGISTRY, RUBRIC_REQUIRED_IDS, RUBRIC_SYNTHESIS_IDS,
-  McqAnswerPayloadSchema, candidateViewFor, checkAnswerFor, coerceContentFor, deterministicScoreFor, isDeterministicType, questionTypeIds,
+  McqAnswerPayloadSchema, candidateViewFor, checkAnswerFor, coerceContentFor, deterministicScoreFor, deterministicMarks, isAnswerAttemptedFor, isDeterministicType, questionTypeIds,
 } from "../index.js";
 import { CONTENTS, RAW } from "./fixtures.js";
 
@@ -32,6 +32,48 @@ describe("flags", () => {
   });
   it("deterministicScore present exactly for deterministic types", () => {
     for (const t of QUESTION_TYPES) expect(typeof reg[t].deterministicScore === "function", t).toBe(DETERMINISTIC_IDS.includes(t));
+  });
+});
+
+describe("isAttempted / deterministicMarks (EX-1)", () => {
+  it("isAttempted present exactly for deterministic types", () => {
+    for (const t of QUESTION_TYPES) expect(typeof reg[t].isAttempted === "function", t).toBe(DETERMINISTIC_IDS.includes(t));
+  });
+  it("default for types without the hook is answer != null", () => {
+    expect(isAnswerAttemptedFor("subjective", "text")).toBe(true);
+    expect(isAnswerAttemptedFor("subjective", null)).toBe(false);
+    expect(isAnswerAttemptedFor("nope", undefined)).toBe(false);
+  });
+  it("known attempted values", () => {
+    expect(reg.mcq.isAttempted!({ selected: 0 })).toBe(true);
+    expect(reg.multi_select.isAttempted!({ selected: [] })).toBe(false);
+    expect(reg.numeric.isAttempted!("  ")).toBe(false);
+    expect(reg.numeric.isAttempted!("abc")).toBe(true);
+    expect(reg.ordering.isAttempted!({ order: [] })).toBe(false);
+    expect(reg.structured_case.isAttempted!({ steps: { a: [] } })).toBe(false);
+    expect(reg.structured_case.isAttempted!({ steps: { a: [], b: [1] } })).toBe(true);
+  });
+  it("deterministicMarks: correct, partial (no penalty), wrong attempted, unanswered", () => {
+    const ctx = { points: 4, negativeMarks: 1 };
+    expect(deterministicMarks("mcq", CONTENTS.mcq[0], { selected: 1 }, ctx)).toEqual({ earned: 4, max: 4, status: "correct" });
+    expect(deterministicMarks("mcq", CONTENTS.mcq[0], { selected: 0 }, ctx)).toEqual({ earned: -1, max: 4, status: "incorrect" });
+    expect(deterministicMarks("mcq", CONTENTS.mcq[0], null, ctx)).toEqual({ earned: 0, max: 4, status: "incorrect" });
+    expect(deterministicMarks("multi_select", CONTENTS.multi_select[0], [0], ctx)).toEqual({ earned: 2, max: 4, status: "partial" });
+    expect(deterministicMarks("mcq", CONTENTS.mcq[0], { selected: 0 }, { points: 4, negativeMarks: 0 })).toEqual({ earned: 0, max: 4, status: "incorrect" });
+    expect(deterministicMarks("kql", {}, { a: 1 }, ctx)).toEqual({ earned: 0, max: 4, status: "incorrect" }); // AI types never penalised
+  });
+  it("penalty is capped at the question points (never below -points)", () => {
+    expect(deterministicMarks("mcq", { ...(CONTENTS.mcq[0] as object) }, { selected: 0 }, { points: 1, negativeMarks: 1000 })).toEqual({ earned: -1, max: 1, status: "incorrect" });
+    const step = { id: "a", prompt: "p", select: "one", options: ["x", "y"], correct: [0], points: 1, negative_marks: 1000 };
+    expect(deterministicMarks("structured_case", { title: "t", context: "c", scoring: "partial", steps: [step] }, { steps: { a: [1] } }, { points: 10, negativeMarks: 0 })).toEqual({ earned: -10, max: 10, status: "incorrect" });
+    expect(deterministicMarks("structured_case", { title: "t", context: "c", scoring: "all_or_nothing", steps: [step] }, { steps: { a: [1] } }, { points: 10, negativeMarks: 1000 }).earned).toBe(-10);
+  });
+  it("never throws on junk", () => {
+    const junk = [null, undefined, 5, "x", [], {}];
+    for (const t of ["mcq", "numeric", "multi_select", "ordering", "structured_case"] as const) {
+      for (const a of junk) expect(() => reg[t].isAttempted!(a)).not.toThrow();
+      for (const c of junk) for (const a of junk) expect(() => deterministicMarks(t, c, a, { points: 4, negativeMarks: 1 })).not.toThrow();
+    }
   });
 });
 

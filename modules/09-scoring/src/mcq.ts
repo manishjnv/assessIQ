@@ -17,11 +17,14 @@
 //     A concurrent second writer blocks on the first's uncommitted row, then
 //     conflicts and skips. No advisory lock needed.
 //   - Never returns correctness / answer key to callers — only counts.
-//   - Unanswered or malformed = 0; no negative marking.
+//   - Unanswered or malformed = 0. Negative marking (EX-1): a WRONG, ATTEMPTED answer scores
+//     -attempt_questions.negative_marks (frozen at attempt start, 0 = off). Partial credit is never
+//     penalised. Totals may therefore be negative; the rollup does not clamp (band, certificate and
+//     pass/fail clamp at read time). Rule lives in deterministicMarks() (@assessiq/question-types).
 
 import type { PoolClient } from "pg";
 import { streamLogger } from "@assessiq/core";
-import { DETERMINISTIC_IDS, deterministicScoreFor } from "@assessiq/question-types";
+import { DETERMINISTIC_IDS, deterministicMarks, deterministicScoreFor } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import { finalizeAttemptIfComplete } from "./finalize.js";
 import { getAttemptScore } from "./repository.js";
@@ -54,6 +57,8 @@ interface McqRow {
   question_id: string;
   type: string;
   points: number;
+  /** NUMERIC(6,2) frozen at attempt start (0185): pg returns a string. */
+  negative_marks: string | number | null;
   content: unknown;
   answer: unknown;
 }
@@ -67,7 +72,7 @@ export async function scoreMcqForAttempt(
   attemptId: string,
 ): Promise<number> {
   const res = await client.query<McqRow>(
-    `SELECT aq.question_id, qv.type, aq.points, qv.content, aa.answer
+    `SELECT aq.question_id, qv.type, aq.points, aq.negative_marks, qv.content, aa.answer
        FROM attempt_questions aq
        JOIN question_versions qv
          ON qv.question_id = aq.question_id
@@ -82,8 +87,10 @@ export async function scoreMcqForAttempt(
 
   let inserted = 0;
   for (const r of res.rows) {
-    const fraction = deterministicFraction(r.type, r.content, r.answer);
-    const earned = fraction >= 1 ? r.points : Math.round(r.points * fraction * 100) / 100;
+    const marks = deterministicMarks(r.type, r.content, r.answer, {
+      points: r.points,
+      negativeMarks: r.negative_marks === null ? 0 : Number(r.negative_marks),
+    });
     const ins = await client.query(
       `INSERT INTO gradings (
          tenant_id, attempt_id, question_id, grader,
@@ -99,9 +106,9 @@ export async function scoreMcqForAttempt(
       [
         attemptId,
         r.question_id,
-        earned,
-        r.points,
-        fraction >= 1 ? "correct" : earned > 0 ? "partial" : "incorrect",
+        marks.earned,
+        marks.max,
+        marks.status,
         MCQ_SENTINEL_SHA,
         MCQ_SENTINEL_LABEL,
         MCQ_SENTINEL_MODEL,

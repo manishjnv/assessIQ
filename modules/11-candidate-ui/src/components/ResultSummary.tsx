@@ -15,7 +15,7 @@
 
 import React from 'react';
 import { Chip, Icon, Num, ScoreRing } from '@assessiq/ui-system';
-import type { ResultCertificateWire } from '../types.js';
+import type { ResultCertificateWire, ResultNegativeMarkingWire } from '../types.js';
 
 export interface ResultSummaryProps {
   totalEarned: number;
@@ -24,6 +24,8 @@ export interface ResultSummaryProps {
   percent: number;
   passed: boolean;
   certificate?: ResultCertificateWire | null;
+  /** EX-1: when enabled, a one-line note shows the marks deducted. totalEarned may be negative. */
+  negativeMarking?: ResultNegativeMarkingWire | undefined;
   /** List-row size: smaller ring and score number. */
   compact?: boolean;
 }
@@ -42,9 +44,10 @@ const MUTED_14: React.CSSProperties = {
   color: 'var(--aiq-color-fg-secondary)',
 };
 
-/** 42 → "42", 37.5 → "37.5", 66.666 → "66.67" (max `dp` decimals, no trailing zeros). */
+/** 42 → "42", 37.5 → "37.5", 66.666 → "66.67" (max `dp` decimals, no trailing zeros). Negatives use a true minus (U+2212). */
 function trim(n: number, dp: number): string {
-  return String(Number(n.toFixed(dp)));
+  const v = Number(n.toFixed(dp));
+  return v < 0 ? `−${String(-v)}` : String(v);
 }
 
 export function ResultSummary({
@@ -53,6 +56,7 @@ export function ResultSummary({
   percent,
   passed,
   certificate = null,
+  negativeMarking,
   compact = false,
 }: ResultSummaryProps): React.ReactElement {
   return (
@@ -67,7 +71,8 @@ export function ResultSummary({
       >
         {/* Decorative: the exact numbers are in the text beside the ring. */}
         <div aria-hidden="true" style={{ flexShrink: 0 }}>
-          <ScoreRing value={Math.round(percent)} size={compact ? 'md' : 'lg'} />
+          {/* EX-1: a net-negative score draws as an empty ring; the signed numbers beside it stay exact. */}
+          <ScoreRing value={Math.max(0, Math.round(percent))} size={compact ? 'md' : 'lg'} />
         </div>
 
         <div style={{ flex: '1 1 160px', minWidth: 0 }}>
@@ -101,6 +106,14 @@ export function ResultSummary({
               </Chip>
             )}
           </div>
+          {negativeMarking?.enabled === true && (
+            <div
+              data-help-id="candidate.result.negative_marking"
+              style={{ ...MUTED_14, marginTop: 10 }}
+            >
+              Negative marking: {'−'}{trim(negativeMarking.penalty_total, 2)} deducted for wrong answers
+            </div>
+          )}
         </div>
       </div>
 

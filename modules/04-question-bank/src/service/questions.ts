@@ -76,6 +76,16 @@ export async function getQuestion(tenantId: string, id: string): Promise<Questio
 // createQuestion
 // ---------------------------------------------------------------------------
 
+/** EX-1: negative_marks must be null/undefined or a finite number in 0..9999 (DB CHECK is the backstop). */
+function assertNegativeMarks(v: unknown): void {
+  if (v === undefined || v === null) return;
+  if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 9999) {
+    throw new ValidationError("negative_marks must be a number >= 0 or null", {
+      details: { code: QB_ERROR_CODES.NEGATIVE_MARKS_INVALID },
+    });
+  }
+}
+
 export async function createQuestion(
   tenantId: string,
   input: CreateQuestionInput,
@@ -89,6 +99,7 @@ export async function createQuestion(
       details: { code: QB_ERROR_CODES.INVALID_TOPIC },
     });
   }
+  assertNegativeMarks(input.negative_marks);
   // Validate content shape before touching the DB
   assertValidContent(input.type, input.content);
   // Validate rubric gate
@@ -135,6 +146,7 @@ export async function createQuestion(
       type: input.type,
       topic: input.topic,
       points: input.points,
+      negativeMarks: input.negative_marks ?? null,
       content: input.content,
       ...(input.rubric !== undefined ? { rubric: input.rubric } : {}),
       answerGuidance,
@@ -262,6 +274,10 @@ export async function updateQuestion(
     const repoPatch: Parameters<typeof repo.updateQuestionRow>[2] = {};
     if (patch.topic !== undefined) repoPatch.topic = patch.topic;
     if (patch.points !== undefined) repoPatch.points = patch.points;
+    if (patch.negative_marks !== undefined) {
+      assertNegativeMarks(patch.negative_marks);
+      repoPatch.negative_marks = patch.negative_marks;
+    }
     if (patch.status !== undefined) repoPatch.status = patch.status;
     if (patch.content !== undefined) repoPatch.content = patch.content;
     if (patch.rubric !== undefined) repoPatch.rubric = patch.rubric;

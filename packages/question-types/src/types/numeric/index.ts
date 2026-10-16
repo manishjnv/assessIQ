@@ -43,6 +43,12 @@ export function isNumericAnswerCorrect(content: unknown, answer: unknown): boole
   return Math.abs(given - c.answer) <= tol + 1e-9;
 }
 
+/** Attempted iff the value is a number or a non-blank string (even a non-numeric one: it is a wrong answer). Never throws. */
+export function isNumericAttempted(answer: unknown): boolean {
+  const v = answer !== null && typeof answer === "object" && !Array.isArray(answer) ? (answer as { value?: unknown }).value : answer;
+  return typeof v === "number" || (typeof v === "string" && v.trim() !== "");
+}
+
 export const definition: QuestionTypeDef = {
   id: "numeric",
   label: "Numeric",
@@ -63,5 +69,6 @@ export const definition: QuestionTypeDef = {
   guidanceText: questionStem,
   rubricText: questionOrJson,
   deterministicScore: (content, answer) => (isNumericAnswerCorrect(content, answer) ? 1 : 0),
+  isAttempted: isNumericAttempted,
   evalStructuralCheck: structuralOf(NumericContentSchema, () => null),
 };

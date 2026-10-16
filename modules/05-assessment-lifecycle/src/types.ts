@@ -157,6 +157,8 @@ export const AssessmentSettingsSchema = z
     reminders: AssessmentRemindersSettingsSchema.optional(),
     high_stakes: z.boolean().optional(),
     sections: AssessmentSectionsSchema.optional(),
+    /** EX-1: default penalty for a wrong attempted answer on auto-scored questions (a question's own value wins). */
+    scoring: z.object({ negative_marks_default: z.number().min(0).max(1000).optional() }).strict().optional(),
   })
   .passthrough();
 export type AssessmentSettings = z.infer<typeof AssessmentSettingsSchema>;

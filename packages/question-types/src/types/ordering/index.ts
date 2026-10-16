@@ -44,6 +44,12 @@ export function orderingFraction(content: unknown, answer: unknown): number {
   return hits === key.length ? 1 : 0;
 }
 
+/** Attempted iff {order} is a non-empty array. Never throws. */
+export function isOrderingAttempted(answer: unknown): boolean {
+  const o = answer !== null && typeof answer === "object" && !Array.isArray(answer) ? (answer as { order?: unknown }).order : undefined;
+  return Array.isArray(o) && o.length > 0;
+}
+
 export const definition: QuestionTypeDef = {
   id: "ordering",
   label: "Ordering",
@@ -65,5 +71,6 @@ export const definition: QuestionTypeDef = {
   guidanceText: questionStem,
   rubricText: questionOrJson,
   deterministicScore: orderingFraction,
+  isAttempted: isOrderingAttempted,
   evalStructuralCheck: structuralOf(OrderingContentSchema, () => null),
 };

@@ -87,8 +87,11 @@ export async function computeAttemptScoreInTx(
     // 3. Score aggregation
     const totalEarned = gradings.reduce((s, g) => s + g.score_earned, 0);
     const totalMax = gradings.reduce((s, g) => s + g.score_max, 0);
+    // Clamp to NUMERIC(5,2) so an extreme negative-marking total can never overflow the rollup INSERT.
     const autoPct =
-      totalMax > 0 ? parseFloat(((totalEarned / totalMax) * 100).toFixed(2)) : 0;
+      totalMax > 0
+        ? Math.max(-999.99, Math.min(999.99, parseFloat(((totalEarned / totalMax) * 100).toFixed(2))))
+        : 0;
     const pendingReview = gradings.some((g) => g.status === "review_needed");
 
     // 4. Behavioral signals from answers + events

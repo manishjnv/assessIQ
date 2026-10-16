@@ -18,7 +18,7 @@ export interface Assessment {
   created_at: string;
   level_label?: string | null;
   pack_name?: string | null;
-  settings?: { integrity?: IntegrityValue; reminders?: RemindersValue; high_stakes?: boolean; sections?: unknown } | null;
+  settings?: { integrity?: IntegrityValue; reminders?: RemindersValue; high_stakes?: boolean; sections?: unknown; scoring?: { negative_marks_default?: number } } | null;
   question_count?: number;
 }
 

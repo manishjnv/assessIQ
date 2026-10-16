@@ -22,7 +22,8 @@ const BOM = '﻿';
 
 export { csvCell };
 
-const pct = (e: number, m: number): string => (m > 0 ? String(Math.round((e / m) * 1000) / 10) : '');
+// number (not string) so csvCell's formula guard does not prefix a negative percent with an apostrophe.
+const pct = (e: number, m: number): number | '' => (m > 0 ? Math.round((e / m) * 1000) / 10 : '');
 
 export const RESULTS_SORTS = ['name', 'rank', 'branch'] as const;
 export type ResultsSort = (typeof RESULTS_SORTS)[number];

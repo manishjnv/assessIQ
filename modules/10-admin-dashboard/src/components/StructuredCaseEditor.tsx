@@ -10,6 +10,10 @@ export interface ScStep {
   select: "one" | "many";
   options: string[];
   correct: number[];
+  /** EX-3 optional weight; blank = default 1. */
+  points?: string;
+  /** EX-3 optional penalty; blank = default (question penalty scaled by weight). */
+  negativeMarks?: string;
 }
 
 export interface ScState {
@@ -32,6 +36,22 @@ export const EMPTY_SC: ScState = {
   explanation: "",
 };
 
+/** EX-3 "Passage set" preset: a passage placeholder plus 5 select-one children with 4 options each. */
+export function passageSetPreset(): ScState {
+  return {
+    ...EMPTY_SC,
+    title: "Passage set",
+    context: "Paste the passage here. Every question below refers to it.",
+    steps: Array.from({ length: 5 }, () => ({ prompt: "", select: "one" as const, options: ["", "", "", ""], correct: [0], points: "1" })),
+  };
+}
+
+/** Blank or non-numeric -> undefined (key omitted; the server default applies). */
+const num = (v: string | undefined, min: number): number | undefined => {
+  const n = v !== undefined && v.trim() !== "" ? Number(v) : NaN;
+  return Number.isFinite(n) && n >= min ? n : undefined;
+};
+
 /** Form value -> question content. Step ids are s1, s2, ... by position (create-only form). */
 export function buildStructuredCaseContent(s: ScState): unknown {
   return {
@@ -44,6 +64,8 @@ export function buildStructuredCaseContent(s: ScState): unknown {
       select: st.select,
       options: st.options.map((o) => o.trim()),
       correct: [...st.correct].sort((a, b) => a - b),
+      ...(num(st.points, Number.MIN_VALUE) !== undefined ? { points: num(st.points, Number.MIN_VALUE) } : {}),
+      ...(num(st.negativeMarks, 0) !== undefined ? { negative_marks: num(st.negativeMarks, 0) } : {}),
     })),
     scoring: s.scoring,
     ...(s.explanation.trim() ? { explanation: s.explanation.trim() } : {}),
@@ -59,6 +81,8 @@ export function structuredCaseError(s: ScState): string | null {
     if (st.options.length < 2 || st.options.length > 8 || st.options.some((o) => !o.trim())) return `Step ${i + 1} needs 2 to 8 options, none blank.`;
     if (st.correct.length < 1) return `Step ${i + 1} needs at least one correct option.`;
     if (st.select === "one" && st.correct.length !== 1) return `Step ${i + 1} (select one) needs exactly one correct option.`;
+    if (st.points?.trim() && num(st.points, Number.MIN_VALUE) === undefined) return `Step ${i + 1} marks must be a number above 0.`;
+    if (st.negativeMarks?.trim() && num(st.negativeMarks, 0) === undefined) return `Step ${i + 1} negative marks must be 0 or more.`;
   }
   return null;
 }
@@ -103,6 +127,9 @@ export function StructuredCaseEditor({ value, onChange }: { value: ScState; onCh
         onChange={(e) => set({ log: e.target.value })}
       />
 
+      <HelpTip helpId="admin.question.editor.structured_case.passage_preset">
+        <button type="button" className="aiq-btn aiq-btn-ghost" onClick={() => onChange(passageSetPreset())}>Passage set preset (5 questions)</button>
+      </HelpTip>
       <HelpTip helpId="admin.question.editor.structured_case.steps">
         <span className="aiq-label">Steps (1 to 12) *</span>
       </HelpTip>
@@ -114,6 +141,13 @@ export function StructuredCaseEditor({ value, onChange }: { value: ScState; onCh
             <option value="one">Select one (radio)</option>
             <option value="many">Select many (checkboxes)</option>
           </select>
+          <HelpTip helpId="admin.question.editor.structured_case.step_marks">
+            <span className="aiq-label">Marks (relative weight) and negative marks; blank = default</span>
+          </HelpTip>
+          <div style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
+            <input className="aiq-input" type="number" min="0" step="any" aria-label={`Step ${i + 1} marks`} placeholder="Marks (1)" value={st.points ?? ""} onChange={(e) => setStep(i, { points: e.target.value })} />
+            <input className="aiq-input" type="number" min="0" step="any" aria-label={`Step ${i + 1} negative marks`} placeholder="Negative marks" value={st.negativeMarks ?? ""} onChange={(e) => setStep(i, { negativeMarks: e.target.value })} />
+          </div>
           {st.options.map((text, o) => (
             <div key={o} style={{ display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}>
               <input

@@ -244,4 +244,31 @@ describe('Submitted — scoring + result release', () => {
     await tick(30_000);
     expect(getResult).toHaveBeenCalledTimes(1);
   });
+
+  it('Logo L3a - released result shows the tenant logo; null shows the name only', async () => {
+    getResult.mockResolvedValue({
+      ...RELEASED,
+      tenant_name: 'Acme College',
+      company_logo_url: '/api/public/tenant-logo/t1?v=abc',
+    });
+    renderSubmitted(SOON_STATE);
+    await tick(0);
+    expect(screen.getByAltText('Acme College logo').getAttribute('src')).toBe(
+      '/api/public/tenant-logo/t1?v=abc',
+    );
+    cleanup();
+    getResult.mockResolvedValue({ ...RELEASED, tenant_name: 'Acme College', company_logo_url: null });
+    renderSubmitted(SOON_STATE);
+    await tick(0);
+    expect(screen.queryByAltText('Acme College logo')).toBeNull();
+    expect(screen.getByText('Acme College')).toBeTruthy();
+  });
+
+  it('Logo L3a - pending payload without the fields (older server) renders without errors', async () => {
+    getResult.mockResolvedValue({ ...PENDING_EMAIL, tenant_name: undefined });
+    renderSubmitted(EMAIL_STATE);
+    await tick(0);
+    expect(screen.getByText(EMAIL_72H)).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /logo/i })).toBeNull();
+  });
 });

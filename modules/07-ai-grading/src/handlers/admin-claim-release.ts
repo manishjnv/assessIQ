@@ -43,6 +43,8 @@ import { deriveEvaluationStatus, findGradingsForAttempt } from "../repository.js
 import type { EvaluationStatus } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
+import { countTiers, tierOfGrading } from "../grading-tiers.js";
+import type { GradingTier } from "../grading-tiers.js";
 import type { PoolClient } from "pg";
 
 const log = streamLogger("grading");
@@ -70,6 +72,8 @@ export interface FrozenQuestionRow {
   type: string;
   topic: string;
   points: number;
+  /** EX-1: penalty frozen at attempt start (0 = none). Display only; scoring reads it in 09. */
+  negative_marks: number;
   content: unknown;
   /**
    * Rubric snapshot at the question_version pinned by attempt-start.
@@ -120,6 +124,8 @@ export interface HandleAdminClaimAttemptOutput {
   frozen_questions: FrozenQuestionRow[];
   /** Phase II: [] while the evaluation is still with AssessIQ (awaiting_evaluation). */
   gradings: GradingsRow[];
+  /** P4: how the effective gradings were produced, per tier (all zero while gradings are hidden). */
+  tiers: Record<GradingTier, number>;
   /**
    * Phase II: ALWAYS null for tenant roles. The AI review cache (the latest
    * `GradingProposal[]` from handleAdminGrade, Bug A robustness 2026-05-29) is
@@ -187,6 +193,7 @@ async function loadFrozenQuestions(
        qv.type, -- N21: frozen type, same as 06/09
        q.topic,
        aq.points,
+       aq.negative_marks::float8 AS negative_marks,
        qv.content,
        qv.rubric
      FROM attempt_questions aq
@@ -247,6 +254,7 @@ export interface AttemptReview {
   answers: AttemptAnswerRow[];
   frozen_questions: FrozenQuestionRow[];
   gradings: GradingsRow[];
+  tiers: Record<GradingTier, number>;
   score: AttemptScoreSummary | null;
   section_scores: SectionScore[];
 }
@@ -326,7 +334,20 @@ export async function loadAttemptReview(
     hidden ? Promise.resolve<SectionScore[]>([]) : getSectionScoresForAttempt(client, attemptId),
   ]);
 
-  return { row, evaluation_status, answers, frozen_questions, gradings, score, section_scores };
+  // P4 metrics: newest row per question (admin_override wins a tie), classified by tier.
+  const newest = new Map<string, GradingsRow>();
+  for (const g of gradings) {
+    const prev = newest.get(g.question_id);
+    const newer =
+      prev === undefined ||
+      g.graded_at > prev.graded_at ||
+      (g.graded_at.getTime() === prev.graded_at.getTime() &&
+        (g.grader === "admin_override" || prev.grader !== "admin_override"));
+    if (newer) newest.set(g.question_id, g);
+  }
+  const tiers = countTiers([...newest.values()].map(tierOfGrading));
+
+  return { row, evaluation_status, answers, frozen_questions, gradings, tiers, score, section_scores };
 }
 
 /**
@@ -370,6 +391,7 @@ export async function handleAdminClaimAttempt(input: {
       answers: r.answers,
       frozen_questions: r.frozen_questions,
       gradings: r.gradings,
+      tiers: r.tiers,
       // AI review state is platform-only (see HandleAdminClaimAttemptOutput).
       ai_proposals: null,
       grading_started_at: null,

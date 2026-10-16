@@ -49,6 +49,12 @@ export function multiSelectFraction(content: unknown, answer: unknown): number {
   return wrong === 0 && right === key.size ? 1 : 0;
 }
 
+/** Attempted iff at least one option is selected: bare array or {selected: []}. Never throws. */
+export function isMultiSelectAttempted(answer: unknown): boolean {
+  const s = answer !== null && typeof answer === "object" && !Array.isArray(answer) ? (answer as { selected?: unknown }).selected : answer;
+  return Array.isArray(s) && s.length > 0;
+}
+
 export const definition: QuestionTypeDef = {
   id: "multi_select",
   label: "Multi select",
@@ -69,5 +75,6 @@ export const definition: QuestionTypeDef = {
   guidanceText: questionStem,
   rubricText: questionOrJson,
   deterministicScore: multiSelectFraction,
+  isAttempted: isMultiSelectAttempted,
   evalStructuralCheck: structuralOf(MultiSelectContentSchema, () => null),
 };

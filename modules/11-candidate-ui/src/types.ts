@@ -69,6 +69,9 @@ export interface CandidateAttemptViewWire {
   sections?: SectionsViewWire;
   /** Test sections: per-section counts for the final-submit dialog (counts only). */
   sections_summary?: SectionSummaryWire[];
+  /** Logo L3a: organisation name + logo URL for the attempt top bar; absent on older servers. */
+  company_name?: string;
+  company_logo_url?: string | null;
 }
 
 export interface SectionSummaryWire {
@@ -115,6 +118,8 @@ export interface TakeStartResponseWire {
     duration_seconds: number;
     question_count?: number;
     company_name?: string;
+    /** Logo L3a: tenant logo URL; null/absent = name only. */
+    company_logo_url?: string | null;
   };
 }
 
@@ -131,6 +136,8 @@ export interface TakePreviewResponseWire {
     duration_seconds: number;
     question_count: number;
     company_name: string;
+    /** Logo L3a: tenant logo URL; null/absent (older servers) = name only. */
+    company_logo_url?: string | null;
   };
 }
 
@@ -165,6 +172,12 @@ export interface SubmitAttemptResponseWire {
   release_mode?: ReleaseMode;
 }
 
+/** EX-1: negative-marking summary on a released result. total_earned is net of the penalty and may be negative. */
+export interface ResultNegativeMarkingWire {
+  enabled: boolean;
+  penalty_total: number;
+}
+
 /** Certificate reference on a released result. */
 export interface ResultCertificateWire {
   credential_id: string;
@@ -180,6 +193,8 @@ export interface AttemptResultPendingWire {
   email_masked: string;
   turnaround_text: string;
   tenant_name: string;
+  /** Logo L3a: tenant logo URL; null/absent = name only. */
+  company_logo_url?: string | null;
   /** Optional hint — see SubmitAttemptResponseWire.release_mode. */
   release_mode?: ReleaseMode;
 }
@@ -195,6 +210,10 @@ export interface AttemptResultReleasedWire {
   assessment_name: string;
   released_at: string;
   certificate: ResultCertificateWire | null;
+  negative_marking?: ResultNegativeMarkingWire;
+  /** Logo L3a: organisation name and logo URL for the Submitted page; absent on older servers. */
+  tenant_name?: string;
+  company_logo_url?: string | null;
 }
 
 export type AttemptResultWire =
@@ -211,6 +230,7 @@ export interface MyResultItemWire {
   percent: number;
   passed: boolean;
   certificate: ResultCertificateWire | null;
+  negative_marking?: ResultNegativeMarkingWire;
 }
 
 export interface MyResultsResponseWire {
