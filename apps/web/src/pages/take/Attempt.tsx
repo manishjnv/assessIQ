@@ -22,13 +22,16 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Navigate } from "react-router-dom";
-import { Button, Chip, Drawer, Icon, Logo, Modal, Spinner } from "@assessiq/ui-system";
-import { AttemptTimer, Calculator, AutosaveIndicator, IntegrityBanner, FullscreenGate, QuestionNavigator, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
+import { Button, Drawer, Icon, Spinner } from "@assessiq/ui-system";
+import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } from "@assessiq/candidate-ui";
-import { CandidateHelp } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
-import { STEM_FIELD, type PageState, hasForbiddenSynonym, TOP_BAR, BOTTOM_BAR, QUESTION_TEXT, COUNTER_LABEL, isAnsweredValue } from "./attempt-parts/shared.js";
+import { STEM_FIELD, type PageState, hasForbiddenSynonym, BOTTOM_BAR, QUESTION_TEXT, isAnsweredValue } from "./attempt-parts/shared.js";
 import { AnswerArea } from "./attempt-parts/AnswerArea.js";
+import { NavigatorBody } from "./attempt-parts/NavigatorBody.js";
+import { AttemptTopBar } from "./attempt-parts/AttemptTopBar.js";
+import { FinishSectionModal } from "./attempt-parts/FinishSectionModal.js";
+import { SubmitConfirmModal } from "./attempt-parts/SubmitConfirmModal.js";
 export { isAnsweredValue } from "./attempt-parts/shared.js";
 
 export function AttemptPage(): React.JSX.Element {
@@ -443,53 +446,11 @@ export function AttemptPage(): React.JSX.Element {
   // cell states. The aside is hidden under [data-viewport="mobile"] (M2a CSS
   // in tokens.css); the Drawer mounts lazily only when navOpen is true.
   const navigatorBody = (
-    <>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--aiq-space-sm)' }}>
-        <CandidateHelp />
-      </div>
-      <QuestionNavigator
-        items={navigatorItems}
-        onSelect={(qid) => {
-          setCurrentQuestionId(qid);
-          setNavOpen(false); // close mobile drawer after pick; no-op on desktop
-          // Navigator click does NOT flush; debounced autosave handles it.
-        }}
-      />
-      {/* Legend */}
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--aiq-space-xs)',
-          marginTop: 'var(--aiq-space-md)',
-          paddingLeft: 'var(--aiq-space-md)',
-        }}
-      >
-        {[
-          { color: 'var(--aiq-color-accent)', label: 'Current' },
-          { color: 'var(--aiq-color-success-soft)', border: 'var(--aiq-color-success)', label: 'Answered' },
-          { color: 'var(--aiq-color-warning-soft)', border: 'var(--aiq-color-warning)', label: 'Flagged' },
-          { color: 'var(--aiq-color-bg-base)', border: 'var(--aiq-color-border)', label: 'Unseen' },
-        ].map(({ color, border, label }) => (
-          <span
-            key={label}
-            style={{ display: 'flex', alignItems: 'center', gap: 'var(--aiq-space-sm)', fontSize: 11, color: 'var(--aiq-color-fg-secondary)', fontFamily: 'var(--aiq-font-sans)' }}
-          >
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: 3,
-                background: color,
-                border: border ? `1px solid ${border}` : undefined,
-                flexShrink: 0,
-              }}
-            />
-            {label}
-          </span>
-        ))}
-      </div>
-    </>
+    <NavigatorBody
+      navigatorItems={navigatorItems}
+      setCurrentQuestionId={setCurrentQuestionId}
+      setNavOpen={setNavOpen}
+    />
   );
 
   // ── Locked banner ─────────────────────────────────────────────────────────
@@ -525,70 +486,17 @@ export function AttemptPage(): React.JSX.Element {
       )}
 
       {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
-      <header className="aiq-attempt-top" style={TOP_BAR}>
-        <Logo />
-
-        {sec !== undefined && (
-          <Chip variant="default" style={{ flexShrink: 0 }} data-help-id="candidate.attempt.section">
-            Section {sec.current + 1} of {sec.total} · {sec.name}
-          </Chip>
-        )}
-
-        <span style={{ ...COUNTER_LABEL, flex: 1 }}>
-          Question {safeIdx + 1} of {sorted.length}
-        </span>
-
-        {sec?.calculator === true && <Calculator data-help-id="candidate.attempt.calculator" />}
-
-        {sec !== undefined ? (
-          // Section timer: re-keyed per section so it restarts on the next deadline.
-          // The last section's end is the end of the test (existing expiry path).
-          <AttemptTimer
-            key={sec.current}
-            endsAt={sec.ends_at}
-            onExpire={isLastSection ? handleExpire : () => void refreshAfterSectionChange(sec.current, 5)}
-            data-help-id="candidate.attempt.timer"
-          />
-        ) : (
-          attempt.ends_at !== null && (
-            <AttemptTimer
-              endsAt={attempt.ends_at}
-              onExpire={handleExpire}
-              data-help-id="candidate.attempt.timer"
-            />
-          )
-        )}
-
-        <AutosaveIndicator
-          status={autosave.status}
-          lastSavedAt={autosave.lastSavedAt}
-          retryCount={autosave.retryCount}
-        />
-
-        {/* M2a — mobile-only: open the bottom-sheet question navigator.
-            Hidden on desktop (the right-side aside is always visible there). */}
-        <button
-          type="button"
-          className="aiq-attempt-nav-toggle"
-          onClick={() => setNavOpen(true)}
-          aria-label="Open question navigator"
-          data-help-id="candidate.attempt.navigator.toggle"
-          style={{
-            background: 'transparent',
-            border: '1px solid var(--aiq-color-border-strong)',
-            borderRadius: 'var(--aiq-radius-pill)',
-            width: 36,
-            height: 36,
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            padding: 0,
-            color: 'var(--aiq-color-fg-primary)',
-          }}
-        >
-          <Icon name="grid" size={14} />
-        </button>
-      </header>
+      <AttemptTopBar
+        sec={sec}
+        attempt={attempt}
+        safeIdx={safeIdx}
+        questionCount={sorted.length}
+        isLastSection={isLastSection}
+        handleExpire={handleExpire}
+        refreshAfterSectionChange={refreshAfterSectionChange}
+        autosave={autosave}
+        setNavOpen={setNavOpen}
+      />
 
       {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}
       <div>
@@ -832,95 +740,31 @@ export function AttemptPage(): React.JSX.Element {
       </footer>
 
       {/* ── FINISH SECTION CONFIRMATION (test sections) ─────────────────── */}
-      <Modal
-        open={finishOpen}
-        onClose={() => {
-          if (!finishing) setFinishOpen(false);
-        }}
-        title="Finish this section?"
-      >
-        <div style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
-          <p style={{ margin: '0 0 8px', color: 'var(--aiq-color-fg-primary)' }}>
-            You can't come back to this section.
-          </p>
-          <p style={{ margin: 0 }}>
-            You answered {answeredCount} of {totalCount} questions here. Unanswered questions will score 0.
-          </p>
-          {finishError !== null && (
-            <p role="alert" style={{ margin: '12px 0 0', color: 'var(--aiq-color-fg-primary)' }}>
-              {finishError}
-            </p>
-          )}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--aiq-space-sm)' }}>
-          <Button variant="outline" disabled={finishing} onClick={() => setFinishOpen(false)}>
-            Go back
-          </Button>
-          <Button
-            variant="primary"
-            disabled={finishing}
-            onClick={() => void handleFinishSection(sec?.current ?? 0)}
-          >
-            {finishing ? 'Finishing…' : 'Finish section'}
-          </Button>
-        </div>
-      </Modal>
+      <FinishSectionModal
+        finishOpen={finishOpen}
+        finishing={finishing}
+        finishError={finishError}
+        setFinishOpen={setFinishOpen}
+        answeredCount={answeredCount}
+        totalCount={totalCount}
+        sec={sec}
+        handleFinishSection={handleFinishSection}
+      />
 
       {/* ── SUBMIT CONFIRMATION ──────────────────────────────────────────
-          Kit Modal: Esc / backdrop = Go back, focus moves in and Tab is trapped. */}
-      <Modal
-        open={confirmOpen}
-        onClose={() => {
-          if (!submitting) setConfirmOpen(false);
-        }}
-        title="Submit your assessment?"
-      >
-        <div style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
-          {sectionLines.length === 0 ? (
-            <p style={{ margin: '0 0 8px', color: 'var(--aiq-color-fg-primary)' }}>
-              You answered {answeredCount} of {totalCount} questions.
-            </p>
-          ) : (
-            <ul
-              data-help-id="candidate.attempt.submit_sections"
-              style={{ margin: '0 0 8px', paddingLeft: 18, color: 'var(--aiq-color-fg-primary)' }}
-            >
-              {sectionLines.map((s) => (
-                <li key={s.index}>
-                  {s.name}: {s.answered_count} of {s.question_count} answered
-                  {s.status === 'done' ? ' (closed, cannot be changed)' : ''}
-                </li>
-              ))}
-            </ul>
-          )}
-          {overallUnanswered > 0 && (
-            <p style={{ margin: '0 0 8px' }}>
-              {overallUnanswered} question{overallUnanswered !== 1 ? 's are' : ' is'} unanswered
-              {sectionLines.length > 0 ? ' across all sections' : ''}
-              {' '}— {overallUnanswered !== 1 ? 'they' : 'it'} will score 0.
-            </p>
-          )}
-          {flaggedCount > 0 && (
-            <p style={{ margin: '0 0 8px' }}>
-              {flaggedCount} question{flaggedCount !== 1 ? 's are' : ' is'} flagged for review.
-            </p>
-          )}
-          <p style={{ margin: 0 }}>You cannot change your answers after you submit.</p>
-          {submitError !== null && (
-            <p role="alert" style={{ margin: '12px 0 0', color: 'var(--aiq-color-fg-primary)' }}>
-              {submitError}
-            </p>
-          )}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--aiq-space-sm)' }}>
-          <Button variant="outline" disabled={submitting} onClick={() => setConfirmOpen(false)}>
-            Go back
-          </Button>
-          <Button variant="primary" disabled={submitting} onClick={() => void handleSubmit()}>
-            {submitting ? 'Submitting…' : 'Submit assessment'}
-          </Button>
-        </div>
-      </Modal>
+      {/* ── SUBMIT CONFIRMATION ── */}
+      <SubmitConfirmModal
+        confirmOpen={confirmOpen}
+        submitting={submitting}
+        submitError={submitError}
+        setConfirmOpen={setConfirmOpen}
+        sectionLines={sectionLines}
+        answeredCount={answeredCount}
+        totalCount={totalCount}
+        overallUnanswered={overallUnanswered}
+        flaggedCount={flaggedCount}
+        handleSubmit={handleSubmit}
+      />
 
       {/* ── MOBILE NAVIGATOR DRAWER ───────────────────────────────────────
           Renders only when navOpen=true (Drawer returns null otherwise).
