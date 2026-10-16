@@ -155,6 +155,7 @@ CREATE TABLE users (
   deleted_at      TIMESTAMPTZ,
   UNIQUE (tenant_id, email)
 );
+-- Changed by 0179 (2026-10-16, Y-1): users_role_check is now role IN ('admin','super_admin','candidate'). The value 'reviewer' is removed (production had 0 rows).
 CREATE INDEX users_tenant_role_idx ON users (tenant_id, role) WHERE deleted_at IS NULL;
 CREATE INDEX users_email_lower_idx ON users (tenant_id, lower(email) text_pattern_ops) WHERE deleted_at IS NULL;  -- prefix-search hot path for listUsers (020_users.sql addendum §9)
 
@@ -208,6 +209,7 @@ CREATE TABLE sessions (
   user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   tenant_id       UUID NOT NULL REFERENCES tenants(id),
   role            TEXT NOT NULL CHECK (role IN ('admin','reviewer','candidate')),  -- copied from users.role at session create; saves a JOIN in middleware hot path
+  -- Changed by 0179 (2026-10-16, Y-1): sessions_role_check is now role IN ('admin','super_admin','candidate'). The value 'reviewer' is removed.
   token_hash      TEXT NOT NULL UNIQUE,        -- sha256 of the cookie value
   totp_verified   BOOLEAN NOT NULL DEFAULT false,
   last_totp_at    TIMESTAMPTZ,                 -- powers requireFreshMfa(maxAgeMinutes) per docs/04-auth-flows.md flow 1b
@@ -1317,7 +1319,7 @@ CREATE TABLE in_app_notifications (
   tenant_id   UUID NOT NULL REFERENCES tenants(id),
   audience    TEXT NOT NULL CHECK (audience IN ('user','role','all')),
   user_id     UUID REFERENCES users(id),                   -- set when audience='user'
-  role        TEXT CHECK (role IN ('admin','reviewer')),   -- set when audience='role'
+  role        TEXT CHECK (role IN ('admin','reviewer')),   -- set when audience='role'. Changed by 0179 (2026-10-16, Y-1): in_app_notifications_role_check is now role IN ('admin')
   kind        TEXT NOT NULL,                               -- 'attempt.graded', 'weekly.digest', etc.
   message     TEXT NOT NULL,
   link        TEXT,
@@ -1363,7 +1365,7 @@ CREATE TABLE help_content (
   id              UUID PRIMARY KEY DEFAULT uuidv7(),
   tenant_id       UUID,                                    -- NULL = global default
   key             TEXT NOT NULL,                           -- 'admin.assessment.create.duration'
-  audience        TEXT NOT NULL CHECK (audience IN ('admin','reviewer','candidate','all')),
+  audience        TEXT NOT NULL CHECK (audience IN ('admin','reviewer','candidate','all')),  -- 'reviewer' kept on purpose (RW-2, owner decision). 0179 does not change this CHECK
   locale          TEXT NOT NULL DEFAULT 'en',
   short_text      TEXT NOT NULL,                           -- tooltip (<=120 chars)
   long_md         TEXT,                                    -- full help drawer markdown
@@ -2438,3 +2440,4 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-15 | Tenant purge and user tombstones. Migration lint R5. Help rows for account security | `0170`, `0171` | Tenant purge |
 | 2026-10-15 | Help row for the Curriculum frameworks section (RW-57 part 2) | `0173` | Question import |
 | 2026-10-16 | Question import: `question_imports`, `question_import_rows`, `question_packs.source`, `question_packs.import_file_sha256` (RW-58). Help rows for the import page | `0174`; `0175` | Question import |
+| 2026-10-16 | Role CHECKs on `users`, `sessions`, `in_app_notifications` drop `reviewer` (Y-1). `help_content.audience` keeps it (RW-2) | `0179` | Users; Auth sessions; Notifications |
