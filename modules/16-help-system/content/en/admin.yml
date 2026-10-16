@@ -15,15 +15,14 @@
 
 admin.auth.login.tenant_slug:
   audience: admin
-  version: 2
+  version: 3
   short_text: "Your organisation's slug — the unique URL-safe ID we issued during onboarding (for example acme-soc)."
   long_md: |
     ## Organisation slug
 
     Each AssessIQ organisation has a short, URL-safe identifier you use at every
     sign-in. It usually mirrors your team or product name (for example `acme-soc`,
-    `acme-secops`). Your AssessIQ administrator received the slug at onboarding;
-    if you do not have it, ask them — it is not the same as your email domain.
+    `acme-secops`). Your AssessIQ administrator received the slug at onboarding. If you do not have it, ask them. It is not the same as your email domain.
 
     The slug is also used in webhook payloads and embed-iframe URLs, so once it
     is set it stays stable. Renaming an organisation is a manual operation that
@@ -44,14 +43,12 @@ admin.auth.mfa.skip:
 
 admin.auth.mfa.enroll_vs_verify:
   audience: admin
-  version: 2
+  version: 3
   short_text: "First-time admins enroll an authenticator app here; returning admins enter their 6-digit code to sign in."
   long_md: |
     ## TOTP enrollment vs verification
 
-    The first time an admin signs in, AssessIQ shows a QR code and asks you to
-    scan it with an authenticator app (Google Authenticator, Authy, 1Password,
-    Microsoft Authenticator). After scanning, enter the 6-digit code shown in
+    The first time an admin signs in, AssessIQ shows a QR code. Scan it with an authenticator app (Google Authenticator, Authy, 1Password, Microsoft Authenticator). After scanning, enter the 6-digit code shown in
     the app to confirm the secret matches.
 
     Returning admins skip the QR code and only enter the 6-digit code. Codes
@@ -78,7 +75,7 @@ admin.users.list.role:
 
 admin.users.list.candidate.fields:
   audience: admin
-  version: 2
+  version: 3
   short_text: "Candidates are added directly with no email sent. Name is shown in their assessment link; designation is optional."
   long_md: |
     ## Adding a candidate
@@ -91,23 +88,19 @@ admin.users.list.candidate.fields:
     email and appears in grading and reporting views.
 
     **Designation** is optional free-text context (for example "SOC Analyst L1",
-    "Junior DevOps Engineer"). It is stored as metadata on the user record and
-    surfaced in exports and the grading UI to help admins distinguish between
-    candidates with similar profiles. It does not affect scoring or access.
+    "Junior DevOps Engineer"). It is stored as metadata on the user record. Exports and the grading UI show it. It helps admins tell apart candidates with similar profiles. It does not affect scoring or access.
 
 # ─── Question set & question authoring ───
 
 admin.question_bank.list.create.domain:
   audience: admin
-  version: 2
+  version: 3
   short_text: "The role-readiness subject this question set covers (for example SOC analyst or DevOps). Set once; choose carefully."
   long_md: |
     ## Question set subject
 
     A *question set* is a collection of questions across difficulties for a single role-readiness
-    subject. The subject is metadata only — AssessIQ has no subject-specific
-    code paths — but it controls the default rubric key points, the example UI
-    copy, and how question sets sort in the admin browser.
+    subject. The subject is metadata only. AssessIQ has no subject-specific code paths. The subject does control the default rubric key points, the example UI copy, and how question sets sort in the admin browser.
 
     Common values: `soc-analyst`, `devops-engineer`, `cloud-architect`,
     `identity-engineer`, `incident-responder`. Use lowercase, dash-separated.
@@ -117,14 +110,12 @@ admin.question_bank.list.create.domain:
 
 admin.questions.generate.draft:
   audience: admin
-  version: 2
+  version: 3
   short_text: "Generate 1–30 AI draft questions from the question-set detail page. Review and activate each draft."
   long_md: |
     ## AI-assisted question generation
 
-    The **Generate questions** button (question-set detail page → difficulty row) sends
-    the question set's knowledge base and rubric key points to the AI pipeline and
-    returns 1–30 `ai_draft` questions per call. Each draft is staged
+    The **Generate questions** button is in the difficulty row of the question-set detail page. It sends the question set's knowledge base and rubric key points to the AI pipeline. It returns 1–30 `ai_draft` questions per call. Each draft is staged
     for review — generation does not auto-publish or activate any question.
 
     **Using the generator:**
@@ -181,15 +172,13 @@ admin.questions.import.format:
 
 admin.questions.type.kql.expected_keywords:
   audience: admin
+  version: 2
   short_text: "Tokens that MUST appear (case-insensitive) for the answer to score above score band 0. Add 1–5 per question."
   long_md: |
     ## KQL expected keywords
 
     KQL questions are graded on a hybrid: **deterministic keyword presence**
-    plus AI judgement on syntactic and semantic correctness. The keyword list
-    is the deterministic floor — if none of the listed tokens appear in the
-    candidate's query, the answer can score at most score band 0 regardless of how
-    elegant the rest of the query is.
+    plus AI judgement on syntactic and semantic correctness. The keyword list is the deterministic floor. If none of the listed tokens appear in the candidate's query, the answer can score at most score band 0. This is true however good the rest of the query is.
 
     **Recommendations:**
 
@@ -301,13 +290,12 @@ admin.question_bank.pack.generate:
 
 admin.question_bank.pack.publish:
   audience: admin
+  version: 2
   short_text: "Lock the question set and make it usable — snapshots questions and activates every draft so assessments can draw them."
   long_md: |
     ## Publish question set
 
-    Flips the question set from Draft to **Published**, snapshots every question as a
-    permanent version, and **activates all draft questions** so assessments can
-    immediately draw from them ("published = usable"). Editing a question after
+    Changes the question set from Draft to **Published** and snapshots every question as a permanent version. It also **activates all draft questions**, so assessments can use them immediately ("published = usable"). Editing a question after
     publish adds a new version; already-published assessments stay pinned to the
     snapshot they were built on.
 
@@ -339,13 +327,12 @@ admin.question_bank.pack.archive:
 
 admin.question_bank.pack.activate_drafts:
   audience: admin
+  version: 2
   short_text: "Activate draft questions added after publishing so assessments can draw them. Publish already activates the rest."
   long_md: |
     ## Activate drafts
 
-    Publishing a question set already activates its questions. This button only matters
-    for **draft questions added to a question set that is already published** — it flips
-    those remaining drafts to `active` so assessments can draw them. It appears
+    Publishing a question set already activates its questions. This button only matters for **draft questions added to a question set that is already published**. It changes those remaining drafts to `active` so assessments can draw them. It appears
     only when a difficulty actually has draft questions waiting.
 
 # ─── Assessment lifecycle ───
@@ -523,15 +510,16 @@ admin.reports.cohort.distribution:
 
 admin.reports.heatmap.colors:
   audience: admin
-  short_text: "Heat cell color = average reasoning band for that topic-level pair: green (3–4), amber (2), red (0–1)."
+  version: 2
+  short_text: "Heat cell colour = average reasoning band for that topic-level pair: green (3–4), amber (2), red (0–1)."
   long_md: |
-    ## Topic heatmap color scale
+    ## Topic heatmap colour scale
 
     Each cell in the topic heatmap represents one topic × difficulty combination.
-    The color encodes the mean **reasoning band** (0–4) of all graded questions
+    The colour encodes the mean **reasoning band** (0–4) of all graded questions
     in that cell:
 
-    | Color | Score band range | Interpretation |
+    | Colour | Score band range | Interpretation |
     |---|---|---|
     | Green | 3–4 | Strong reasoning; candidates consistently explained the concept |
     | Amber | 2 | Partial reasoning; correct answers but shallow justification |
@@ -765,6 +753,7 @@ admin.settings.billing.usage:
 
 admin.assessments.list.content_source:
   audience: admin
+  version: 2
   short_text: "Your platform operator generates questions. You build assessments from the content your organisation has been granted."
   long_md: |
     ## Where your questions come from
@@ -780,9 +769,7 @@ admin.assessments.list.content_source:
     you.
 
     **Publishing is checked on the server.**
-    If you try to publish an assessment whose question set has not been granted
-    to your organisation, publishing will be refused with a clear message and the
-    assessment stays in draft. You will need to contact your platform operator to
+    If you try to publish an assessment whose question set was not granted to your organisation, the server refuses with a clear message. The assessment stays in draft. You will need to contact your platform operator to
     get that question set enabled for your organisation.
 
     **Need more content?**
@@ -800,7 +787,7 @@ admin.assessments.list.content_source:
 
 admin.platform:
   audience: admin
-  version: 2
+  version: 3
   short_text: "Platform operator control centre. Add organisations and see all of them. Organisation admins never see this page."
   long_md: |
     ## What you can do here
@@ -830,9 +817,7 @@ admin.platform:
     - **Only you see this.** Organisation administrators never see
       the Platform page or this organisation list. Each organisation only ever sees
       its own data, never another organisation's.
-    - **Extra sign-in check.** When you create an organisation, AssessIQ may ask
-      for the 6-digit code from your authenticator app if it has been a
-      while since you signed in. Just enter the code if prompted — anything
+    - **Extra sign-in check.** AssessIQ may ask for the 6-digit code from your authenticator app when you create an organisation. This happens if it has been a while since you signed in. Just enter the code if prompted — anything
       you have already typed in the form is kept.
     - **What happens when you add an organisation.** AssessIQ creates the organisation,
       prepares its question categories, emails the first administrator, and
@@ -935,6 +920,7 @@ admin.platform.edit_company_name:
 
 admin.platform.edit_admin:
   audience: admin
+  version: 2
   short_text: "Update the organisation's primary admin — name or email. Requires fresh MFA."
   long_md: |
     ## Edit admin
@@ -945,9 +931,7 @@ admin.platform.edit_admin:
     **Email is the login identity** — see the email field's own help for the
     consequences of changing it.
 
-    This is a platform-operator action gated by fresh MFA (a TOTP code entered
-    within the last 15 minutes); you may be prompted to re-enter your
-    authenticator code. Every change is recorded in the audit log.
+    This is a platform-operator action gated by fresh MFA (a TOTP code entered within the last 15 minutes). AssessIQ may ask you to enter your authenticator code again. Every change is recorded in the audit log.
 
 admin.platform.edit_admin.email:
   audience: admin
@@ -997,7 +981,7 @@ admin.platform.mfa_code:
 
 admin.platform.billing:
   audience: admin
-  version: 2
+  version: 3
   short_text: "Per-organisation billing drawer: set tier, set credits, view used and included credits, download CSV."
   long_md: |
     ## Per-organisation billing drawer
@@ -1011,9 +995,7 @@ admin.platform.billing:
     - **Set a custom included-credit number** — override the tier default if an
       organisation has a bespoke arrangement. Leave blank for the internal tier
       (unlimited).
-    - **See used / included** — a live read-only display of how many credits the
-      organisation has consumed this cycle versus their allowance, with an overage
-      badge if they are over.
+    - **See used / included** shows how many credits the organisation has consumed this cycle against its allowance. It is live and read-only. An overage badge shows if the organisation is over.
     - **Download a CSV** — export the organisation's billing events for out-of-band
       invoicing or reconciliation.
 
@@ -1032,6 +1014,7 @@ admin.platform.billing:
 
 admin.platform.entitlements:
   audience: admin
+  version: 2
   short_text: "Grant or revoke an organisation's access to a subject or question set. Question generation is platform-operator-only."
   long_md: |
     ## Organisation entitlements
@@ -1043,10 +1026,7 @@ admin.platform.entitlements:
     Add a subject or a specific question set to an organisation's entitlements
     to make that content available when their admins build assessments. Remove
     an entitlement to stop the organisation publishing assessments that use that
-    content. An assessment that is already published keeps running — but if a
-    closed assessment is later reopened, it is re-checked against the organisation's
-    current grants, so a reopen can be refused if you have since revoked the
-    question set it uses.
+    content. An assessment that is already published keeps running. If you reopen a closed assessment, AssessIQ checks it again against the organisation's current grants. A reopen can fail if you have since revoked the question set it uses.
 
     **Question generation is yours, not theirs.**
     Only you, as the platform operator, can generate questions. Generation runs
@@ -1436,13 +1416,12 @@ admin.rubric.anchor.synonyms:
 
 admin.rubric.anchor.required:
   audience: admin
+  version: 2
   short_text: "Required key points must be present for the answer to score above score band 0, regardless of overall quality."
   long_md: |
     ## Required key point
 
-    Setting a key point as **required** creates a hard floor: if the AI does not
-    detect this concept, the score band is capped at 0 regardless of the rest of
-    the answer quality.
+    Setting a key point as **required** creates a hard floor. If the AI does not detect this concept, the score band is capped at 0. The quality of the rest of the answer does not change this.
 
     Use sparingly — for concepts so fundamental that their absence represents
     a complete misunderstanding. For most key points, leave required off and let
@@ -1676,18 +1655,14 @@ admin.gen_score.verdict:
 
 admin.gen_score.structural:
   audience: admin
+  version: 2
   short_text: "Per-type counts of drafts that passed or failed the schema and difficulty structural gates, with top failure reasons."
   long_md: |
     ## Structural quality
 
-    Per question-type, how many generated drafts **passed** or **failed** the
-    structural gates — the per-type content schema plus the difficulty
-    structural validator (Bloom/NICE tagging, required fields, distractor and
-    step shape). The **reasons** column lists the most common failure causes.
+    Per question-type, how many generated drafts **passed** or **failed** the structural gates. The gates are the per-type content schema and the difficulty structural validator (Bloom/NICE tagging, required fields, distractor and step shape). The **reasons** column lists the most common failure causes.
 
-    The footer line shows total passed / total and how many results regressed
-    against the stored baseline — a non-zero regression count is the usual
-    trigger for a `warning` or `regression` verdict.
+    The footer line shows total passed / total and how many results regressed against the stored baseline. A non-zero regression count usually triggers a `warning` or `regression` verdict.
 
 admin.gen_score.runtime:
   audience: admin
@@ -1712,6 +1687,7 @@ admin.gen_score.runtime:
 
 admin.settings.billing.ai_generate_mode:
   audience: admin
+  version: 2
   short_text: "Question generation mode: omnibus = single prompt; sharded = one prompt per question type. Effective on next request."
   long_md: |
     ## Generation mode
@@ -1728,8 +1704,7 @@ admin.settings.billing.ai_generate_mode:
     consistently, the global default stays omnibus and organisations move to
     sharded one at a time as a quality pilot.
 
-    **Audit trail:** every change to this setting is recorded in the audit log
-    with the before value, the after value and the person who made the change.
+    **Audit trail:** The audit log records every change to this setting. It holds the before value, the after value and the person who made the change.
 
     **Need a change without the screen?** Ask the AssessIQ engineering team.
     The change takes effect on the next generation request.
@@ -1848,6 +1823,7 @@ admin.questions.subjective:
 
 admin.question_bank.pack.attempt_status:
   audience: admin
+  version: 2
   short_text: "Colour-coded status on each difficulty row shows the latest generation result. Expands on failure."
   long_md: |
     ## Generation-attempt status on difficulty rows
@@ -1855,9 +1831,9 @@ admin.question_bank.pack.attempt_status:
     Each difficulty row in question-set detail shows a small status indicator reflecting
     the most recent generation attempt for that question set + difficulty combination.
 
-    **Status colors:**
+    **Status colours:**
 
-    | Color | Status | Meaning |
+    | Colour | Status | Meaning |
     |---|---|---|
     | Green | `success` | Last run succeeded; all requested questions inserted |
     | Amber | `partial` | Some questions inserted; one or more chunks failed |
@@ -2034,14 +2010,12 @@ admin.certificates.list:
 
 admin.certificates.revoke:
   audience: admin
-  version: 2
+  version: 3
   short_text: "Revoke marks the certificate revoked and blocks the PDF. The reason shows on the public verify page."
   long_md: |
     ## Revoking a certificate
 
-    Revocation is a **soft delete** — the credential record is preserved and
-    the verify page still loads, but displays a red "Revoked" badge instead of
-    a green verification check.
+    Revocation is a **soft delete**. The credential record is kept and the verify page still loads. The page shows a red "Revoked" badge instead of a green verification check.
 
     **Effects of revocation:**
 
@@ -2051,10 +2025,7 @@ admin.certificates.revoke:
     - The revoke action is recorded in the audit log (who and when). The
       reason text is kept on the certificate, not copied into the log.
 
-    **The reason field is required** (10–500 characters). It appears on the
-    public verify page, so write it as a professional explanation that a
-    recruiter might read, for example: "Certificate issued in error — assessment was
-    invalidated." rather than internal jargon.
+    **The reason field is required** (10–500 characters). It appears on the public verify page, so a recruiter might read it. Do not use internal jargon. Write a professional explanation, for example: "Certificate issued in error — assessment was invalidated."
 
     **Revocation is irreversible.** A revoked certificate cannot be reissued.
     If the candidate earns the credential again, AssessIQ issues a new
@@ -2126,7 +2097,8 @@ admin.certificates.revoke_reason:
 
 admin.activity.heatmap.legend:
   audience: admin
-  short_text: Heatmap color bands — from no activity (lightest) to highest activity (darkest indigo).
+  version: 2
+  short_text: Heatmap colour bands — from no activity (lightest) to highest activity (darkest indigo).
   long_md: |
     ## Heatmap intensity bands
 
@@ -2141,14 +2113,14 @@ admin.activity.heatmap.legend:
     | 4 (dark) | 11 or more submitted attempts |
 
     Counts reflect completed (submitted/graded/released) attempts in your organisation only.
-    The heatmap always shows the rolling 52-week window ending today — it does not
-    respond to the period toggle (which controls the stat cards and leaderboard).
+    The heatmap always shows the rolling 52-week window that ends today. It does not respond to the period toggle, which controls the stat cards and leaderboard.
 
   related_keys:
     - admin.activity.streak.explanation
 
 admin.activity.streak.explanation:
   audience: admin
+  version: 2
   short_text: Current streak counts consecutive days with at least one submitted attempt; longest streak is the all-time best.
   long_md: |
     ## Streak calculation
@@ -2158,18 +2130,16 @@ admin.activity.streak.explanation:
     submitted attempts resets the streak to 0.
 
     **Longest streak** — the longest unbroken run of active days in the 365-day
-    window queried by the heatmap endpoint. If today has no submitted attempts yet, the
-    current streak may be shorter than yesterday's value until the first submitted attempt
-    of the day is recorded.
+    window queried by the heatmap endpoint. If today has no submitted attempts yet, the current streak may be shorter than yesterday's value. It updates when AssessIQ records the first submitted attempt of the day.
 
-    Streaks are computed in TypeScript from the daily bucket data — no SQL window
-    functions — so they reflect the live `attempts` table with same-day precision.
+    AssessIQ computes streaks in TypeScript from the daily bucket data. It uses no SQL window functions. Streaks reflect the live `attempts` table with same-day precision.
 
   related_keys:
     - admin.activity.heatmap.legend
 
 admin.activity.leaderboard.delta:
   audience: admin
+  version: 2
   short_text: Delta % compares submitted attempts this period to the prior period of equal length; null for a new question set.
   long_md: |
     ## Leaderboard delta
@@ -2188,8 +2158,7 @@ admin.activity.leaderboard.delta:
     - ↓ Down — delta < −0.5%
     - Flat — delta within ±0.5% (small noise suppression)
 
-    **Null delta** — shown when the question set had zero submitted attempts in the prior period
-    but has submitted attempts in the current period (new entry, no baseline to compare).
+    **Null delta** shows when the question set had zero submitted attempts in the prior period but has submitted attempts in the current period. It is a new entry with no baseline to compare.
 
     The leaderboard groups by question set (catalog-wide rollup), so a question set with
     multiple active assessment cycles appears as one row.
@@ -2390,6 +2359,7 @@ admin.webhooks.deliveries:
 
 admin.webhooks.replay:
   audience: admin
+  version: 2
   short_text: "Replay re-fires a past delivery to its endpoint. A new delivery record is created — the original is never modified."
   long_md: |
     ## Replay and retry
@@ -2406,10 +2376,7 @@ admin.webhooks.replay:
     to the same endpoint and event payload. The original row is never updated —
     the delivery log is append-only for audit compliance.
 
-    **Idempotency:** your endpoint should handle duplicate deliveries. Include
-    the `X-AssessIQ-Delivery-ID` header in your deduplication logic — it is
-    unique per delivery row, so a replayed delivery has a different ID from the
-    original.
+    **Idempotency:** your endpoint should handle duplicate deliveries. Include the `X-AssessIQ-Delivery-ID` header in your deduplication logic. It is unique per delivery row, so a replayed delivery has a different ID from the original.
 
     **Signature:** replayed deliveries are re-signed with the current endpoint
     secret. If you rotated the secret between the original delivery and the
@@ -2426,13 +2393,12 @@ admin.webhooks.replay:
 
 admin.shell.nav.mobile_menu:
   audience: admin
+  version: 2
   short_text: "Open the navigation drawer. Available on phone-sized viewports — on a laptop the sidebar is always visible."
   long_md: |
     ## Open navigation menu
 
-    Tap to open the full admin navigation drawer. Available on phone-sized
-    viewports only — on a laptop or desktop the sidebar is always visible in
-    the left column and this button does not appear.
+    Tap to open the full admin navigation drawer. Available on phone-sized viewports only. On a laptop or desktop, the sidebar is always visible in the left column and this button does not appear.
 
     **Closing the drawer.**
     The drawer closes automatically when you:
@@ -2565,6 +2531,7 @@ admin.assessments.invite.import_csv:
 
 admin.assessments.invite.import_result:
   audience: admin
+  version: 2
   short_text: "What happened to each row: created, already existing, invited, or skipped (with the reason)."
   long_md: |
     ## Import result
@@ -2572,11 +2539,7 @@ admin.assessments.invite.import_result:
     - **Created** — new candidate accounts added to your organisation.
     - **Existing** — the email was already a candidate here, so it was reused.
     - **Invited** — invitation emails queued for this assessment.
-    - **Skipped** — rows that were not imported or not invited. Each shows the
-      row number (the header is row 1), the email and the reason, for example
-      an invalid email, a missing name, a repeated email in the file, an email
-      that belongs to a non-candidate (an admin), or a candidate who
-      already has an invitation for this assessment.
+    - **Skipped** — rows that were not imported or not invited. Each shows the row number (the header is row 1), the email and the reason. A reason can be an invalid email, a missing name or a repeated email in the file. It can also be an email that belongs to a non-candidate (an admin). It can also be a candidate who already has an invitation for this assessment.
 
     Use **Download skipped rows** to get a CSV you can correct and upload again.
     If you see an email-volume warning, some invitations may arrive later than
@@ -2584,16 +2547,14 @@ admin.assessments.invite.import_result:
 
 admin.assessments.results.download_csv:
   audience: admin
+  version: 2
   short_text: "Download a live spreadsheet of every invited candidate's result for this assessment, ready for a placement cell."
   long_md: |
     ## Download results (CSV)
 
     One row per invited candidate, always up to date (not the nightly report).
 
-    - **Columns:** name, email, roll number, branch, status, started and
-      submitted times, score, max score, percent, Pass/Fail, rank,
-      tab switches, paste count, full-screen exits, and one percentage column
-      per category.
+    - **Columns:** name, email, roll number, branch, status, started and submitted times, score, max score, percent, Pass/Fail, rank, tab switches, paste count, full-screen exits. Each category also has one percentage column.
     - **Rank** is 1, 2, 2, 4 style (ties share a rank) by percent, highest
       first. It is blank until a score is sent to you.
     - **Tab switches, paste count, full-screen exits** are integrity signals
@@ -2756,13 +2717,12 @@ admin.evaluations.queue.sent_back:
 
 admin.evaluations.accept_all:
   audience: admin
+  version: 2
   short_text: "Accepts every AI proposal that did not fail. The accept that completes the attempt sends it to the organisation."
   long_md: |
     ## Accept all
 
-    Commits every AI proposal on this attempt that has no failure. Proposals that
-    failed, or where the two AI models disagreed by two score bands or more, are skipped
-    so you can **Re-run** them or enter a **manual score**.
+    Commits every AI proposal on this attempt that has no failure. AssessIQ skips proposals that failed. It also skips proposals where the two AI models disagreed by two score bands or more. You can **Re-run** them or enter a **manual score**.
 
     When the accept gives every question a final grade, the grading is complete
     and the attempt is **sent to the organisation in that same step**. There is no
@@ -2793,12 +2753,12 @@ admin.evaluations.rerun_ai:
 
 admin.evaluations.manual_score:
   audience: admin
+  version: 2
   short_text: "Score an answer by hand when it has no grade, such as KQL. A reason is required."
   long_md: |
     ## Manual score
 
-    Use this when an answer has no grade, for example a KQL answer (the AI does not
-    grade those), or an AI proposal you do not want to accept.
+    Use this when an answer has no grade, for example a KQL answer (the AI does not grade those). Use it also for an AI proposal you do not want to accept.
 
     - Enter a score from 0 up to the question's points.
     - A reason is required. It is saved with the grade but kept out of the audit
@@ -2936,14 +2896,13 @@ admin.assessments.invitations.resend_all:
 
 admin.assessments.invitations.resend_result:
   audience: admin
+  version: 2
   short_text: "How many invitations were resent, how many were skipped (and why), and how many are still to send."
   long_md: |
     ## Resend result
 
     - **Resent** — new links emailed.
-    - **Skipped** — rows that could not be resent, with the reason, for example
-      the candidate started in the meantime, their account is disabled, or the
-      email could not be queued. Skipped rows are not lost: open the row and
+    - **Skipped** — rows that could not be resent, with the reason. A reason can be that the candidate started in the meantime, their account is disabled, or the email could not be queued. Skipped rows are not lost: open the row and
       press Resend to try again.
     - **Still to send** — more candidates are waiting than one click can send
       (200). Press **Resend to everyone who hasn't started** again to continue.
@@ -3064,6 +3023,7 @@ admin.evaluations.detail.high_stakes_edit:
 
 admin.assessment.reminders:
   audience: admin
+  version: 2
   short_text: "Automatically email a reminder to students who have not started this assessment."
   long_md: |
     ## Automatic reminders
@@ -3071,9 +3031,7 @@ admin.assessment.reminders:
     Tick **Send automatic reminders**, choose how many hours before the deadline,
     then press **Save reminder settings**. It is **off by default**.
 
-    - **Who gets one:** students who were invited but have not started, once per
-      invitation, when the invitation expires or the assessment closes (whichever is
-      sooner) within the hours you chose.
+    - **Who gets one:** students who were invited but have not started. Each invitation gets one reminder. It is sent within the hours you chose before the invitation expires or the assessment closes, whichever is sooner.
     - **The link in the reminder replaces the earlier one.** The deadline does
       not move; a reminder never extends anything.
     - **Sent in the background**, roughly every 30 minutes, after the invitation
@@ -3122,13 +3080,12 @@ admin.attempts.detail.behaviour:
 
 admin.reports.individual.open_attempt:
   audience: admin
+  version: 2
   short_text: "Opens the attempt page, where the behaviour and integrity card shows the recorded events and the radar."
   long_md: |
     ## Open attempt
 
-    The attempt page shows the answers, the scores and the **Behaviour and
-    integrity** card: the recorded events (tab changes, copy and paste, full
-    screen exits) and, once the result is released, the behaviour radar.
+    The attempt page shows the answers, the scores and the **Behaviour and integrity** card. The card lists the recorded events (tab changes, copy and paste, full screen exits). When the result is released, it also shows the behaviour radar.
 
 admin.reports.cohort.by_level:
   audience: admin
@@ -3152,13 +3109,12 @@ admin.reports.cohort.by_topic:
 
 admin.reports.cohort.heatmap:
   audience: admin
+  version: 2
   short_text: "Topic by score heatmap for one question set: answers, correct answers, hit rate and median score band."
   long_md: |
     ## Topic heatmap
 
-    For the selected question set, each row is a topic with the number of
-    answers, the number that earned full marks, the hit rate, and the mean and
-    median score band for written answers. Choose another question set with the
+    For the selected question set, each row is a topic. A row shows the number of answers and the number that earned full marks. It also shows the hit rate and the mean and median score band for written answers. Choose another question set with the
     selector to compare. Released results only.
 
 admin.reports.cohort.pack:

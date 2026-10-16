@@ -103,7 +103,7 @@ exports[`template snapshots — evaluation_queue_alert (Phase II SP11) > HTML re
                   </tr>
                   <tr>
                     <td style="padding-bottom:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;color:#3f3f46;line-height:1.55;max-width:460px">
-                      You&#x27;re receiving this because you&#x27;re a platform administrator of AssessIQ.
+                      You receive this because you are a platform administrator of AssessIQ.
                     </td>
                   </tr>
                   <tr>
@@ -254,7 +254,7 @@ exports[`template snapshots — invitation_candidate > HTML renders to a stable 
                   </tr>
                   <tr>
                     <td style="padding-bottom:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;color:#3f3f46;line-height:1.55;max-width:460px">
-                      You&#x27;re receiving this because an AssessIQ admin invited you to take an assessment.
+                      You receive this because an AssessIQ admin invited you to take an assessment.
                     </td>
                   </tr>
                   <tr>
@@ -418,7 +418,7 @@ exports[`template snapshots — result_released (SP4) > HTML renders to a stable
                   </tr>
                   <tr>
                     <td style="padding-bottom:18px;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:12px;color:#3f3f46;line-height:1.55;max-width:460px">
-                      You&#x27;re receiving this because you completed an AssessIQ assessment.
+                      You receive this because you completed an AssessIQ assessment.
                     </td>
                   </tr>
                   <tr>

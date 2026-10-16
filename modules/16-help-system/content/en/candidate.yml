@@ -99,13 +99,12 @@ candidate.attempt.timer:
 
 candidate.attempt.flag:
   audience: candidate
-  version: 2
+  version: 3
   short_text: "Mark a question to review before you submit. A flag does not change your score."
   long_md: |
     ## Flag for review
 
-    Use this when you want to come back to a question before you submit —
-    for instance, if you are not sure of your answer or want to verify a query.
+    Use this when you want to come back to a question before you submit. For instance, flag a question if you are not sure of your answer or want to verify a query.
 
     Flagged questions appear with a star in the navigation panel. You can flag
     multiple questions; the **Review** screen lists all flagged + unanswered
@@ -147,20 +146,15 @@ candidate.shell.nav.mobile_menu:
 
 candidate.attempt.kql.mobile_tip:
   audience: candidate
-  version: 2
+  version: 3
   short_text: "KQL is easier on a desktop browser. Use a desktop for long queries."
   long_md: |
     ## Why KQL is shown with a desktop tip on phones
 
-    The KQL question type expects you to write a structured query. Mobile
-    keyboards lack the punctuation, operators, and pipe character that KQL
-    uses frequently, and the small viewport makes it hard to see your full
-    query while you write it.
+    The KQL question type expects you to write a structured query. Mobile keyboards lack the punctuation, operators, and pipe character that KQL uses frequently. The small viewport also makes it hard to see your full query while you write it.
 
     You can still answer here — the textarea works the same on phone and
-    desktop, and your autosave runs identically. But if the question is
-    syntax-heavy (multiple pipes, complex joins, regex), it is meaningfully
-    faster to open the link on a laptop and answer from there.
+    desktop, and your autosave runs identically. But if the question is syntax-heavy (multiple pipes, complex joins, regex), open the link on a laptop. It is much faster to answer from there.
 
     This tip only appears on phones. On desktop you see the same editor
     without the notice.
@@ -246,6 +240,7 @@ candidate.attempt.disconnect:
 
 candidate.attempt.navigator.toggle:
   audience: candidate
+  version: 2
   short_text: "Open the question navigator. Jump to any question, see which are answered, flagged, or unseen."
   long_md: |
     ## Question navigator
@@ -254,7 +249,7 @@ candidate.attempt.navigator.toggle:
     in the top bar. Tap it to open a bottom-sheet panel that shows every
     question in the assessment as a numbered cell.
 
-    Cell colors mean:
+    Cell colours mean:
 
     - **Filled accent** — the question you are on right now.
     - **Soft green** — you have entered an answer.
@@ -455,13 +450,12 @@ candidate.auth.link_sent:
 
 candidate.auth.session_status:
   audience: candidate
+  version: 2
   short_text: "You are currently signed in. Your session lasts 30 days from when you first clicked your sign-in link."
   long_md: |
     ## Your sign-in session
 
-    You are signed in and your session is active. AssessIQ candidate sessions
-    last **30 days** from the moment you clicked your sign-in link — you do
-    not need to sign in again during that period.
+    You are signed in and your session is active. AssessIQ candidate sessions last **30 days** from the moment you clicked your sign-in link. You do not need to sign in again during that period.
 
     The session is tied to this browser. If you switch to a different browser
     or device you will need to request a new sign-in link.
@@ -485,7 +479,7 @@ candidate.auth.expiring_soon:
 
 candidate.activity:
   audience: candidate
-  version: 2
+  version: 3
   short_text: "Personal activity dashboard: completions, average score, 52-week heatmap, weekly chart and question set rankings."
   long_md: |
     ## My activity
@@ -519,9 +513,7 @@ candidate.activity:
 
     ### My question set rankings
 
-    One row per question set you have attempted. Shows your **best score** (the
-    highest auto-graded result across all your attempts) and your **rank**
-    among every candidate in this organisation who took the same question set. For example
+    One row per question set you have attempted. Shows your **best score** (the highest auto-graded result across all your attempts). It also shows your **rank** among every candidate in this organisation who took the same question set. For example
     "#3 of 24" means your best score places you third out of the 24 candidates
     who have submitted that question set.
 
