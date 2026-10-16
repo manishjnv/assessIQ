@@ -322,6 +322,15 @@ Release / release-all / release-to-tenant already refuse an erased candidate (42
 - **Difficulty warnings (RW-88).** `insertDrafts` in `handlers/admin-generate.ts` calls `difficulty.warn(type, content)` after `validate`. Warnings go to `questions.difficulty_params.warnings` only when the list is not empty. The handler returns `warnings` (a map of question id to list) and `warningCount`. `generation.complete` logs `warningCount`. A throwing `warn` is logged (`generation.difficulty.warn.failed`) and never blocks an insert. The wizard UI for the warnings is open (RW-96).
 - **Lock on the draft calls (RW-63).** The rubric, answer-guidance and bulk-rubric drafts in module 04 `service/generation.ts` take the global lease through `withAiLock`. Keys: `rubric:<id>` and `guidance:<id>`. A held lease returns 409 `AIG_GRADING_IN_PROGRESS`. The lease is released in `finally`. The bulk draft takes the lock for each question.
 - **Lease-loss signal (RW-64).** The `single-flight.ts` slot has a `signal`. It aborts when a refresh returns false, or after 2 refresh errors or timeouts in a row (40 s each, so 80 s, under the 120 s TTL). `runSkill` in `runtimes/claude-code-vps.ts` rejects with `AIG_LEASE_LOST` before it starts if the signal is already aborted. Otherwise it sends SIGTERM, then SIGKILL after 5 s, and rejects when the child emits `close`. The generation handler drops the results of finished chunks and ends the attempt `failed` with `AIG_LEASE_LOST`. It writes no drafts.
-- **Gap.** The grading handlers `admin-grade` and `admin-rerun` do not pass the signal yet (followup RW-95).
+- **Gap (closed by RW-95, S11).** The grading handlers did not pass the signal. See the next section.
 - **Lint (RW-65).** `ci/lint-no-ambient-claude.ts` strips comments (a state machine that knows strings, template literals and regex literals) before it matches. It also matches `exec`, `execFile`, `execSync`, `execFileSync`, `spawnSync` and `fork` with a `claude` first argument. 19 new fixtures. The allow-list is unchanged (2 spawn sites, 1 SDK import). Edits to this file still need the `codex:rescue` gate.
 - **Detail.** `docs/05-ai-pipeline.md` (sections "Bounded restart", "D7", "Generation: difficulty warnings", "CI sentinel"). Restart sweep (RW-94) lives in module 04 `service/generation-async.ts`.
+
+## Grading handlers pass the lease signal (RW-95, S11, 2026-10-16)
+
+- **What.** `handlers/admin-grade.ts` and `handlers/admin-rerun.ts` pass `signal: slot.signal` into `gradeSubjective`. The loop stops when the lease is lost. The handler throws `AIG_LEASE_LOST` (503) and caches no proposals. The lease is checked again inside the write callback for `ai_proposals`. Test: `admin-grade-lease-lost.test.ts`. Review follow-up: commit `b5cf493`.
+- **Why.** RW-64 covered generation only. A lost lease during grading let a second AI task start while the first still wrote.
+- **`grading_started_at` is not cleared on lease loss.** Another holder may own the marker. The page's 10-minute stall rule covers the case with no other holder.
+- **Rejected.** Caching a failed proposal per question. It adds a proposal state that Accept must handle.
+- **Not included.** A `grading_jobs` table (Phase 2). Changes to TTL, refresh or abort timing.
+- **Detail.** `docs/05-ai-pipeline.md` § "Lease loss during grading (RW-95, S11, 2026-10-16)".

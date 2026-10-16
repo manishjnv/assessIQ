@@ -298,7 +298,8 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 - **Errors.** `IMPORT_*` codes, listed in `docs/03-api-contract.md` § "Question import".
 - **UI.** Page `/admin/question-import` (module 10). Help keys `admin.question_import.*` (migration 0175).
 - **Rejected.** Parse and insert in one step. A hash column on `questions`.
-- **Not included.** Multipart upload (`@fastify/multipart` is not an api dependency), rubrics for imported subjective questions, category linking, a stored hash column (followup RW-97).
+- **Not included.** Category linking, a stored hash column.
+- **Multipart upload (RW-97, S11, 2026-10-16).** The upload route accepts `multipart/form-data` as well as the JSON base64 body. The plugin `@fastify/multipart` is registered once in `apps/api` (this module only imports its types). Text fields come BEFORE the `file` part. A file over 4 MB gives `413 FILE_TOO_LARGE`. Why: base64 grows the file by one third and the UI had to encode it. Rejected: removing the JSON body (existing callers). The UI then offers "Draft rubrics" after a commit (module 10 page; it uses `generate-rubric` and `save-rubric`, no new route here). Contract: `docs/03-api-contract.md` § "Question import".
 
 ## `clone.ts` is a barrel over `src/clone/` (RW-53, S10, 2026-10-16)
 
