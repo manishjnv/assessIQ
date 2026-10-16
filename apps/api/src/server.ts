@@ -18,6 +18,7 @@ import { registerAuthRoutes } from './routes/auth/index.js';
 import { registerAdminSuperRoutes } from './routes/admin-super.js';
 import { registerAdminSuperEvaluationsRoutes } from './routes/admin-super-evaluations.js';
 import { registerAdminTenantSettingsRoutes } from './routes/admin-tenant-settings.js';
+import { registerPublicTenantLogoRoutes } from './routes/public-tenant-logo.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
 import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes } from '@assessiq/attempt-engine';
@@ -30,6 +31,8 @@ import {
 } from '@assessiq/help-system';
 import { registerAdminWorkerRoutes } from './routes/admin-worker.js';
 import { registerAuditRoutes } from '@assessiq/audit-log';
+import { tenantRateLimit } from './middleware/tenant-rate-limit.js';
+import { requireTier } from './middleware/require-tier.js';
 import { registerNotificationsRoutes } from '@assessiq/notifications';
 import { registerScoringRoutes } from '@assessiq/scoring';
 import { registerAnalyticsRoutes } from '@assessiq/analytics';
@@ -173,6 +176,8 @@ export async function buildServer() {
   // tenant. Prefix: /api/admin/super/evaluations/*.
   await registerAdminSuperEvaluationsRoutes(app);
   await registerAdminTenantSettingsRoutes(app);
+  // Public tenant logo (Logo L1): skipAuth GET, tenant id from the URL.
+  await registerPublicTenantLogoRoutes(app);
   // Question-bank admin routes — same admin-gated authChain. The module
   // accepts the chain as an injected dep so the library stays Fastify-shape-
   // compatible without a hard apps/api import.
@@ -186,7 +191,11 @@ export async function buildServer() {
 
   // Assessment-lifecycle admin routes — same admin-gated authChain DI shape.
   // Registers /api/admin/assessments/* and /api/admin/invitations/:id (DELETE).
-  await registerAssessmentLifecycleRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+  await registerAssessmentLifecycleRoutes(app, {
+    adminOnly: authChain({ roles: ['admin'] }),
+    // 10 per 10 min per organisation: an admin may resend for several assessments in a row (review 2026-10-17).
+    bulkResendGuard: tenantRateLimit({ name: 'invitations-bulk-resend', max: 10, windowSeconds: 600 }),
+  });
 
   // Attempt-engine candidate routes — registers /api/me/assessments and
   // /api/me/attempts/* under the candidate authChain. Admin-side attempt
@@ -222,7 +231,11 @@ export async function buildServer() {
   // routes existed since Phase 3 G3.A but were never mounted. Admin chain:
   // tenant admin reads its own tenant's audit_log (withTenant / RLS); the two
   // archive routes answer with the S3 "not configured" stubs until Phase 4.
-  await registerAuditRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+  await registerAuditRoutes(app, {
+    // PT1: audit viewer is an Enterprise feature (no-op until PLAN_TIERS_ENFORCED).
+    adminOnly: [...authChain({ roles: ['admin'] }), requireTier('audit_viewer')],
+    heavyOpGuard: tenantRateLimit({ name: 'audit-export', max: 5, windowSeconds: 600 }),
+  });
 
   // Notifications + webhooks routes (Phase 3 G3.B):
   //   - /api/admin/webhooks/* (admin-gated)
@@ -233,6 +246,7 @@ export async function buildServer() {
   await registerNotificationsRoutes(app, {
     adminOnly: authChain({ roles: ['admin'] }),
     candidateOnly: authChain({ roles: ['candidate'] }),
+    webhooksGuard: requireTier('webhooks'), // PT1: webhook routes only
   });
 
   // Scoring admin routes — /api/admin/attempts/:id/score, /api/admin/reports/*
@@ -253,6 +267,7 @@ export async function buildServer() {
     adminOnly: authChain({ roles: ['admin'] }),
     superAdminOnly: authChain({ roles: ['super_admin'] }),
     candidateOnly: authChain({ roles: ['candidate'] }),
+    fullReportGuard: requireTier('cohort_analytics_full'), // PT1: full cohort breakdown only
   });
 
   // Embed admin routes (Phase 4 — module 12):
@@ -275,7 +290,7 @@ export async function buildServer() {
   //   POST /api/admin/certificates/:id/reissue → reissue (Session 6 stub)
   await registerCertificationRoutes(app, {
     candidateAuth: authChain(),
-    adminAuth: authChain({ roles: ['admin'] }),
+    adminAuth: [...authChain({ roles: ['admin'] }), requireTier('certificates') as unknown as ReturnType<typeof authChain>[number]], // PT1 (CertHook is 3-arg)
   });
 
   // Billing / usage-metering routes (Phase A1 — module 19):

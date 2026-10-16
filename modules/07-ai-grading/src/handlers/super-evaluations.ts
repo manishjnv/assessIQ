@@ -38,6 +38,7 @@ import type { SuperEvaluationRow } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingsRow } from "../types.js";
 import { loadAttemptReview } from "./admin-claim-release.js";
+import type { GradingTier } from "../grading-tiers.js";
 import type {
   AttemptAnswerRow,
   AttemptScoreSummary,
@@ -182,6 +183,8 @@ export interface HandleSuperGetEvaluationOutput {
   answers: AttemptAnswerRow[];
   frozen_questions: FrozenQuestionRow[];
   gradings: GradingsRow[];
+  /** P4: how the effective gradings were produced, per tier. */
+  tiers: Record<GradingTier, number>;
   /** The latest AI proposal batch (review cache); the platform evaluator's working state. */
   ai_proposals: unknown[] | null;
   grading_started_at: string | null;
@@ -222,6 +225,7 @@ export async function handleSuperGetEvaluation(input: {
       answers: r.answers,
       frozen_questions: r.frozen_questions,
       gradings: r.gradings,
+      tiers: r.tiers,
       ai_proposals: row.ai_proposals,
       grading_started_at: row.grading_started_at?.toISOString() ?? null,
       score: r.score,

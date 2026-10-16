@@ -352,6 +352,14 @@ function ManualScoreForm({
 // Panel
 // ---------------------------------------------------------------------------
 
+const TIER_LABELS: ReadonlyArray<readonly ["answer_key" | "reuse" | "rule" | "ai" | "human", string]> = [
+  ["answer_key", "answer key"],
+  ["reuse", "reuse"],
+  ["rule", "rule"],
+  ["ai", "AI"],
+  ["human", "human"],
+];
+
 export function AttemptGradingPanel({
   detail,
   reload,
@@ -585,6 +593,9 @@ export function AttemptGradingPanel({
   // ── Render ───────────────────────────────────────────────────────────────
 
   const aiGradeableCount = frozen_questions.filter((q) => AI_GRADEABLE_TYPES.has(q.type)).length;
+  const tierParts = TIER_LABELS.filter(([k]) => (detail.tiers?.[k] ?? 0) > 0)
+    .map(([k, label]) => `${label} ${detail.tiers?.[k]}`);
+  const tiersLine = tierParts.length > 0 ? `Graded by: ${tierParts.join(" · ")}` : "";
   const scoreEarned = [...effective.values()].reduce((s, g) => s + Number(g.score_earned ?? 0), 0);
   const scoreMax = [...effective.values()].reduce((s, g) => s + Number(g.score_max ?? 0), 0);
 
@@ -695,6 +706,14 @@ export function AttemptGradingPanel({
                 <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-md)" }}>
                   {effective.size} of {frozen_questions.length} ({aiGradeableCount} AI-gradeable)
                 </div>
+                {tiersLine !== "" && (
+                  <div
+                    data-help-id="admin.attempts.grading.tiers"
+                    style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginTop: 2 }}
+                  >
+                    {tiersLine}
+                  </div>
+                )}
               </div>
               {scoreMax > 0 && (
                 <div>
@@ -796,6 +815,7 @@ export function AttemptGradingPanel({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
               <div style={MONO_LABEL}>
                 Q{idx + 1} · {questionTypeLabel(q.type)} · {q.points} pts
+                {q.negative_marks !== undefined && q.negative_marks > 0 ? ` · −${q.negative_marks}` : ""}
               </div>
               <span style={{ ...PILL, border: `1px solid ${stFg}`, backgroundColor: stBg, color: stFg }}>{stLabel}</span>
             </div>

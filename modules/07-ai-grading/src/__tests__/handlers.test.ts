@@ -27,7 +27,7 @@
  *   - All superuser INSERTs bypass RLS — no role dance needed in withSuperClient.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readdir, readFile } from "node:fs/promises";
@@ -56,6 +56,13 @@ vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(a
   notifyEvaluationReadyAfterCommit: vi.fn(async () => undefined),
   sendResultReleasedEmail: vi.fn(async () => undefined),
 }));
+
+// P4: spy on the AI-answer meter (real implementation still runs).
+vi.mock("@assessiq/billing", async () => {
+  const actual = await vi.importActual<typeof import("@assessiq/billing")>("@assessiq/billing");
+  return { ...actual, recordAiAnswerEvaluated: vi.fn(actual.recordAiAnswerEvaluated) };
+});
+import { recordAiAnswerEvaluated } from "@assessiq/billing";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { withTenant } from "../../../02-tenancy/src/with-tenant.js";
@@ -1615,5 +1622,122 @@ describe("Per-type dispatch (handleAdminGrade routes by question type)", () => {
     expect(rubric.anchor_weight_total).toBe(0);
     expect(rubric.reasoning_weight_total).toBe(100);
     expect(typeof rubric.reasoning_bands.band_4).toBe("string");
+  });
+});
+
+describe("P4 least-AI: tenant ai_grading_scope + tier metrics", () => {
+  const freshActivity = (): Date => new Date(Date.now() - 5_000);
+
+  beforeEach(async () => {
+    mockGradeSubjective.mockReset();
+    await drainSingleFlight();
+  });
+
+  afterEach(async () => {
+    await withSuperClient((c) =>
+      c.query(`UPDATE tenant_settings SET ai_grading_scope = 'written' WHERE tenant_id = $1`, [TENANT_ID]),
+    );
+  });
+
+  it("10.1 scope 'none' -> gradeSubjective never called; manual placeholder; tiers.human counts it", async () => {
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "subjective",
+      { question: "Explain the kill chain model." },
+      VALID_RUBRIC,
+      { response: "The kill chain model describes the stages of a cyberattack..." },
+    );
+    await withSuperClient((c) =>
+      c.query(`UPDATE tenant_settings SET ai_grading_scope = 'none' WHERE tenant_id = $1`, [TENANT_ID]),
+    );
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    expect(mockGradeSubjective).not.toHaveBeenCalled();
+    expect(result.proposals).toHaveLength(1);
+    const p = result.proposals[0]!;
+    expect(p.question_id).toBe(questionId);
+    expect(p.escalation_chosen_stage).toBe("manual");
+    expect(p.model).toBe("none");
+    expect(p.source).toBeUndefined();
+    expect(p.band.ai_justification).toBe("AI grading is off for this organisation; score manually.");
+    expect(result.tiers.human).toBe(1);
+    expect(result.tiers.ai).toBe(0);
+  });
+
+  it("10.2 scope 'written' (default) -> unchanged: AI runs and tiers.ai counts it", async () => {
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "subjective",
+      { question: "Explain the kill chain model." },
+      VALID_RUBRIC,
+      { response: "The kill chain model describes the stages of a cyberattack..." },
+    );
+    mockGradeSubjective.mockResolvedValue({ ...makeProposal(attemptId, questionId), source: "ai" });
+
+    const result = await handleAdminGrade({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    expect(mockGradeSubjective).toHaveBeenCalledOnce();
+    expect(result.tiers.ai).toBe(1);
+    expect(result.tiers.human).toBe(0);
+  });
+
+  it("10.3 rerun with scope 'none' -> gradeSubjective not called; manual placeholder returned", async () => {
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "subjective",
+      { question: "Explain the kill chain model." },
+      VALID_RUBRIC,
+      { response: "The kill chain model describes the stages of a cyberattack..." },
+    );
+    await withSuperClient((c) =>
+      c.query(`UPDATE tenant_settings SET ai_grading_scope = 'none' WHERE tenant_id = $1`, [TENANT_ID]),
+    );
+
+    const result = await handleAdminRerun({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      sessionLastActivity: freshActivity(),
+    });
+
+    expect(mockGradeSubjective).not.toHaveBeenCalled();
+    expect(result.proposals).toHaveLength(1);
+    expect(result.proposals[0]!.question_id).toBe(questionId);
+    expect(result.proposals[0]!.model).toBe("none");
+    expect(result.proposals[0]!.escalation_chosen_stage).toBe("manual");
+  });
+
+  it("10.4 accepting a manual placeholder does not meter an AI answer", async () => {
+    const { attemptId, questionId } = await seedSingleTypeAttempt(
+      "subjective",
+      { question: "Explain the kill chain model." },
+      VALID_RUBRIC,
+      { response: "The kill chain model describes the stages of a cyberattack..." },
+    );
+    vi.mocked(recordAiAnswerEvaluated).mockClear();
+    const placeholder = makeProposal(attemptId, questionId, {
+      model: "none",
+      escalation_chosen_stage: "manual",
+      score_earned: 0,
+      prompt_version_sha: "error:no-sha",
+      prompt_version_label: "manual",
+    });
+
+    await handleAdminAccept({
+      tenantId: TENANT_ID,
+      userId: ADMIN_ID,
+      attemptId,
+      proposals: [placeholder],
+    });
+
+    expect(recordAiAnswerEvaluated).not.toHaveBeenCalled();
   });
 });

@@ -37,6 +37,10 @@ export type {
   TenantGradingBudget,
 } from "./types.js";
 
+// P4 least-AI tier order (pure; no AI call path)
+export { GRADING_TIERS, tierOfGrading, tierOfProposal } from "./grading-tiers.js";
+export type { GradingTier } from "./grading-tiers.js";
+
 // Runtime dispatch (D1 — single static switch)
 export { gradeSubjective, generateQuestions, generateRubricDraft, generateAnswerGuidanceDraft, generateQuestionsByType } from "./runtime-selector.js";
 

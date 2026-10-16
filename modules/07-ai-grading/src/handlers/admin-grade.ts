@@ -33,6 +33,9 @@ import { gradeSubjective } from "../runtime-selector.js";
 import { assertEvalGate } from "../eval-gate.js";
 import { singleFlight } from "../single-flight.js";
 import { isBlankAnswer, reuseProposal, ruleProposal } from "../least-ai.js";
+import { countTiers, tierOfProposal } from "../grading-tiers.js";
+import { manualPlaceholder, readAiGradingScope } from "./_ai-scope.js";
+import type { GradingTier } from "../grading-tiers.js";
 import { scoreMcqAndFinalizeIfComplete } from "@assessiq/scoring";
 import type { GradingProposal } from "../types.js";
 import type { PoolClient } from "pg";
@@ -83,6 +86,11 @@ export interface HandleAdminGradeOutput {
    */
   proposals: GradingProposal[];
   /**
+   * P4 metrics: how this attempt was graded, per tier. answer_key = deterministic
+   * gradings rows (one COUNT); the rest come from the proposals by tierOfProposal.
+   */
+  tiers: Record<GradingTier, number>;
+  /**
    * Present (status "graded") only when this click completed the attempt: the
    * MCQ scoring left every question graded (MCQ-only attempts), so module 09's
    * finalizeAttemptIfComplete flipped it (MCQ gradings + score rollup + graded +
@@ -96,6 +104,22 @@ export interface HandleAdminGradeOutput {
 // ---------------------------------------------------------------------------
 
 const AI_GRADEABLE_TYPES: ReadonlySet<string> = new Set<string>(AI_GRADEABLE_IDS);
+
+/** P4 metrics: deterministic gradings rows (one COUNT) + the proposals by tier. */
+async function tierCounts(
+  client: PoolClient,
+  attemptId: string,
+  proposals: readonly GradingProposal[],
+): Promise<Record<GradingTier, number>> {
+  const res = await client.query<{ n: string }>(
+    `SELECT COUNT(DISTINCT question_id)::text AS n FROM gradings
+      WHERE attempt_id = $1 AND grader IN ('deterministic','pattern')`,
+    [attemptId],
+  );
+  const out = countTiers(proposals.map(tierOfProposal));
+  out.answer_key = Number.parseInt(res.rows[0]?.n ?? "0", 10) || 0;
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 // Grade-time rubric synthesis (log_analysis + scenario)
@@ -394,7 +418,11 @@ export async function handleAdminGrade(
     );
     if (mcq.finalized) {
       log.info({ attemptId }, "grading.mcq_only.finalized");
-      return { proposals: [], attempt: { id: attemptId, status: "graded" } };
+      return {
+        proposals: [],
+        tiers: await withTenant(tenantId, (client) => tierCounts(client, attemptId, [])),
+        attempt: { id: attemptId, status: "graded" },
+      };
     }
 
     // Phase 2 cache (Bug A robustness, 2026-05-29): mark this attempt as
@@ -404,7 +432,7 @@ export async function handleAdminGrade(
     // the catch block (error path). Compliance frame UNCHANGED: this is
     // not an async worker — the grading still runs synchronously inside
     // this admin-triggered request handler.
-    await withTenant(tenantId, async (client) => {
+    const aiScope = await withTenant(tenantId, async (client) => {
       // FU-A11: the AI-start boundary re-checks the tenant pause flag (the route
       // guard read it earlier; a flip in between must still stop the run).
       await assertTenantAiEnabled(client, tenantId);
@@ -412,7 +440,10 @@ export async function handleAdminGrade(
         `UPDATE attempts SET grading_started_at = NOW() WHERE id = $1`,
         [attemptId],
       );
+      // P4: per-tenant AI cap, read once per run. No row = default 'written'.
+      return readAiGradingScope(client, tenantId);
     });
+    if (aiScope === "none") log.info({ attemptId }, "grading.scope.none");
 
     // Grade each AI-gradeable question; collect proposals
     const proposals: GradingProposal[] = [];
@@ -447,6 +478,13 @@ export async function handleAdminGrade(
       );
       if (reused !== null) {
         proposals.push(reused);
+        continue;
+      }
+
+      // P4 cap: tenant ai_grading_scope = 'none' -> no AI call; a human scores this
+      // question (rule and reuse above already ran because they call no AI).
+      if (aiScope === "none") {
+        proposals.push(manualPlaceholder(attemptId, q.question_id, q.points));
         continue;
       }
 
@@ -552,7 +590,8 @@ export async function handleAdminGrade(
       );
     });
 
-    return { proposals };
+    const tiers = await withTenant(tenantId, (client) => tierCounts(client, attemptId, proposals));
+    return { proposals, tiers };
   } catch (err) {
     // Phase 2 cache robustness: any thrown error inside the try block
     // (including pre-marker errors that are harmless no-ops here) must

@@ -69,6 +69,12 @@ export interface TenantSettings {
    */
   ai_generate_mode: "omnibus" | "sharded" | null;
   /**
+   * P4 least-AI cap (migration 0188). 'written' = AI may grade the written types;
+   * 'none' = no AI grading for this tenant (a human scores). Changed only through
+   * updateAiGradingScope (super admin, audited).
+   */
+  ai_grading_scope: "written" | "none";
+  /**
    * DPDP / GDPR per-tenant candidate-data retention window in DAYS.
    * Added by modules/20-data-rights migration 0103 (default 730 = 2 years).
    * The nightly retention cron (apps/api/src/worker.ts dsr-retention-cron)
