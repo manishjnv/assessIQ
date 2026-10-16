@@ -5,13 +5,13 @@ import { getQuestionType, type QuestionType } from "@assessiq/question-types";
 import type { ImportFormat } from "./types.js";
 
 /** Columns every type shares; the rest come from the registry's importColumns. */
-export const COMMON_COLUMNS = ["type", "topic", "points", "level"] as const;
+export const COMMON_COLUMNS = ["type", "topic", "points", "level", "negative_marks"] as const;
 
 export function templateRows(type: QuestionType): { header: string[]; example: string[] } {
   const cols = getQuestionType(type).importColumns;
   return {
     header: [...COMMON_COLUMNS, ...cols.map((c) => c.key)],
-    example: [type, "Example topic", "1", "1", ...cols.map((c) => (c.required ? "replace me" : ""))],
+    example: [type, "Example topic", "1", "1", "", ...cols.map((c) => (c.required ? "replace me" : ""))],
   };
 }
 

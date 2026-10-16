@@ -54,6 +54,16 @@ export function validateRow(row: number, cells: Record<string, string>): { norma
   };
   const points = intCell("points", 1, 1000);
   const level = intCell("level", 1, 20);
+  // EX-1: optional decimal column; blank = null (the assessment default applies at attempt start).
+  let negative_marks: number | null = null;
+  {
+    const t = (cells["negative_marks"] ?? "").trim();
+    if (t !== "") {
+      const n = Number(t);
+      if (!Number.isFinite(n) || n < 0 || n > 1000) err("negative_marks", "negative_marks must be a number from 0 to 1000");
+      else negative_marks = Math.round(n * 100) / 100;
+    }
+  }
 
   const def = getQuestionType(type);
   for (const col of def.importColumns) {
@@ -78,7 +88,7 @@ export function validateRow(row: number, cells: Record<string, string>): { norma
     }
   }
   if (errors.length > 0 || content === null) return { normalized: null, errors };
-  return { normalized: { type, topic, points, level, content }, errors };
+  return { normalized: { type, topic, points, level, negative_marks, content }, errors };
 }
 
 /** Decisions in row order: errors stay error, skip stays skip, repeats of a hash are duplicates. */
