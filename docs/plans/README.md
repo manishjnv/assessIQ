@@ -18,9 +18,9 @@ Rules: a new plan goes in `docs/plans/`. When its status line turns DONE or LIVE
 | [PLAN_S10](PLAN_S10.md) | no status line: verify before use | S10 Autopilot plan (`.agent/plan.yaml`) |
 | [PRICING_TIERS_2026-10-06](PRICING_TIERS_2026-10-06.md) | no status line: verify before use | plan tiers (owner decisions) |
 | [QUESTION_DIFFICULTY_PHASE_A](QUESTION_DIFFICULTY_PHASE_A.md) | DONE for Phase A (A1 `667286a`, A2 `fc61718`, A3 `2c102fa`), deployed (`7aed109`, `docs/SE | RW-50 (Phase B) |
-| [REVIEW_FIX_PLAN_2026-10-02](REVIEW_FIX_PLAN_2026-10-02.md) | PLAN (revision 2, 2026-10-02 late evening). RS1, RS2, RS3 and RS5 were worked on 2026-10-0 | P0-V rows in ROADMAP |
+| [REVIEW_FIX_PLAN_2026-10-02](REVIEW_FIX_PLAN_2026-10-02.md) | superseded 2026-10-16 (open items are in ROADMAP § P0-Z); was: PLAN (revision 2, 2026-10-02 late evening). RS1, RS2, RS3 and RS5 were worked on 2026-10-0 | P0-V rows in ROADMAP |
 | [TENANT_USER_LIFECYCLE](TENANT_USER_LIFECYCLE.md) | DONE for Phases A-E. A `a1db97c` (plan + foundation), B `2af9849` (tenant Suspend/Resume/A | RW-48b tenant purge (Phase F) |
-| [seo-audit-followups-plan](seo-audit-followups-plan.md) | NOT STARTED. Saved 2026-05-27. | P3-F rows |
+| [seo-audit-followups-plan](seo-audit-followups-plan.md) | superseded 2026-10-16 (open items are in ROADMAP § P0-Z); was: NOT STARTED. Saved 2026-05-27. | P3-F rows |
 
 ## Archive (closed)
 
