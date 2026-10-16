@@ -1,3 +1,86 @@
+# Session — 2026-10-16 (evening) — S13: P0-Z batch 2 (RW-100, RW-44, RW-61, RV44/FU-B14/FU-B15, FR1/FU-B2, FR2/FU-B7, Z-3) shipped and deployed; FU-B13 stops at the Caddy gate
+
+**Headline:** Seven P0-Z rows closed by eight Sonnet runs (two waves, max six) plus one Sonnet docs run, Opus review of every diff, one Sonnet adversarial gate (ACCEPT, 0 must-fix, 4 of 5 should-fix applied), 10 commits, one deploy with migration 0182. GitHub main = VPS /srv/assessiq = `11d7b94`. FU-B13 (iframe flow) is built up to the owner gate: the Caddy diff is below and NOT applied. Two real bugs found and fixed on the way (RCA): three RW-25 pages used hyphenated help ids that could never match, and the embed page rotated the webhook key under the label "API Secret".
+**Commits (main, oldest first):** `96d798a` RW-100 docs STE pass (03, 04, 05, 06, 08, 13; the S13 sections of 03 and 08 rode in it) · `9f76eba` RW-44 review (07 SKILL.md) · `454e369` FR1/FU-B2 audit export cap, self-audit, archive · `9a1a781` RV44/FU-B14/FU-B15 embed SDK build, served file, secrets page · `3a2f8a0` FR2/FU-B7 webhooks page · `41568d0` RW-61 framework tree picker · `92e0977` Z-3 candidate notice · `251470a` 0182 help rows + hyphen guard · `4d99576` docs (roadmap, RCA, 11, SKILLs) · handoff commit follows.
+**Tests:** full `pnpm test` on `4d99576`: 266 of 272 files passed, 4 failed, 2 skipped; 3198 tests passed, 11 failed. All 11 failures were one cause: `vi.mock("@assessiq/notifications")` factories without the new `notifyCandidateResultReleasedAfterCommit` export (the S12 trap). Fixed in `11d7b94` (seven mock files + the audit-routes fake client); the four files plus the whole apps/api suite (24 files, 256 tests; not part of the root run) are green after the fix. The root suite was not re-run in full after `11d7b94` (40 min); the fix touches test files only. `pnpm -r typecheck` 0 errors; `pnpm lint` 0 errors (22 pre-existing warnings); `pnpm lint:repo` green (`lint-migrations ok (154 files)`, `help-seed version check OK`); secrets scan and TODO grep clean (doc hits are pre-existing text).
+**Deploy (2026-10-16 17:05 IST):** docs/06 § Deploy history "S13 deploy". Drift gate: repo-only `0182` + the four known DB-only names (154 files, 157 rows). 0182 applied with `psql -v ON_ERROR_STOP=1 -1`, recorded with checksum `fb9baecaffd23861b358dfe0ee2f518afb90e7231f65968842eac5734a04383c`; global active help rows 434 → 464. Images api + frontend built; api, worker, frontend recreated; 6 containers healthy in 18 s. Smoke: health, ready, site, admin login 200; `/embed/sdk.js` 200 with the esbuild banner, `x-assessiq-sdk-version: 1.0.0`, `nosniff` (Cloudflare rewrites the ETag to a weak `-gzip` form and the cache-control to 14400, so the API 304 path is not reached through the edge; harmless); `/api/me/notifications`, audit export and frameworks 401 without a session; `/embed?token=x` shows `frame-ancestors 'none'` plus `x-frame-options: DENY` from the shared Caddy snippet (the FU-B13 blocker, confirmed live); no api or worker errors in the first 3 min.
+**Next:** (1) owner: apply or refuse the Caddy diff below (FU-B13), then the CSP design gap (the tenant `frame-ancestors` is set on the `/embed` 302, not on the final `/take/a/:id?embed=true` page served by the frontend container; the iframe stays blocked until that page carries it). (2) owner: nothing injects `window.__AIQ_EMBED_CONFIG__` (apps/web/src/lib/embedBus.ts reads it), so inbound host messages are dropped and outbound falls back to `'*'` (weakens D12): needs a follow-up row. (3) owner decisions still pending, untouched: history purge, moving P0-Z text, untracking REVIEW_FIX_PLAN, the 47 ahead-of-main branches, Z.1 conflicts 8 (FR4 Caddy), 9 (omnibus vs sharded), 12 (RV60 vs Y-1). (4) Claude, Z.2 remaining 18 rows + Z-1 re-verification sweep; should-fix left from the gate: a per-tenant rate limit on `/api/admin/audit/export.*` and `/archive`. (5) owner tests: embed-config secrets flow needs fresh MFA (15 min) and privacy disclosure; the webhooks Replay button; the candidate banner after a release.
+**Open questions:**
+- FU-B14 test token: the only minter is dev-only (`/embed/sdk-mint`, `ENABLE_EMBED_TEST_MINTER=1`). A production test-token route is security-adjacent and was not added. Say if you want it (own review).
+- RW-61: `PUT /api/admin/questions/:id/taxonomy` reuses audit action `question.updated` with `kind: 'taxonomy'` (the catalogue in 14 has no `question.taxonomy.updated`). Add the action if you want it distinct.
+- FR1 archive semantics: "archive = export + mark"; `audit.archived` is written even if the browser download fails. Fine while nothing deletes; the parked S3 job must not read the mark as proof.
+- Z-3: a candidate with `audience='all'` notices would have seen admin broadcasts; the list is now own rows only (`ownOnly`). No producer writes `all` today.
+**Old task or feature checked:** RV44/FU-B14 against the inline stub (Rule B table below; package kept, stub superseded as fallback); FR1 against the existing `export.jsonl` route (already there since FU-B1; only the page link, the cap, the self-audit and the archive were missing); FU-B7 against RW-25 webhooks.tsx (replay route existed server-side; only the button, filter, checkboxes were missing); Z-3 against FU-B17 `notifyEvaluationReadyAfterCommit` (same onCommit pattern reused); RW-61 against RW-55/RW-57 (taxonomy tables and read routes reused; `question_taxonomy` had no writer); RW-44 against RS6 reviews A and D (extended, not repeated); RW-100 against RW-86 (structure kept).
+
+---
+
+## FU-B13 — Caddy change for the owner (NOT applied; shared VPS rule)
+
+Facts checked on the VPS (read-only, 2026-10-16): `/opt/ti-platform/caddy/Caddyfile` defines `(security-headers)` once and SIX other sites import it (ti.intelwatch.in, scopewise.assessiq.in, hm.freshfusion.in, hm-ui.freshfusion.in, scopesense.in, plus two blocks). The snippet has `-Server`, so Caddy defers the whole header block and it OVERWRITES the per-tenant `Content-Security-Policy` and re-adds `X-Frame-Options: DENY` on the API's `/embed` response. A nested `header -X-Frame-Options` inside `handle @api` does not help: the outer deferred ops run last.
+
+Proposed diff (repo copy `infra/caddy/assessiq.caddy`; the live file is edited by hand with truncate-write and a backup first, per docs/06):
+
+```diff
++# AssessIQ-only copy of (security-headers): same headers, but /embed and /embed/*
++# keep the per-tenant frame-ancestors that the API sets (12-embed-sdk D8).
++# (security-headers) itself is shared by other sites and stays unchanged.
++(assessiq-security-headers) {
++	@notembed not path /embed /embed/*
++	header @notembed {
++		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
++		X-Content-Type-Options "nosniff"
++		X-Frame-Options "DENY"
++		X-XSS-Protection "1; mode=block"
++		Referrer-Policy "strict-origin-when-cross-origin"
++		Permissions-Policy "camera=(), microphone=(), geolocation=()"
++		Content-Security-Policy "frame-ancestors 'none'"
++		-Server
++	}
++	header /embed* {
++		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
++		X-Content-Type-Options "nosniff"
++		X-XSS-Protection "1; mode=block"
++		Referrer-Policy "strict-origin-when-cross-origin"
++		Permissions-Policy "camera=(), microphone=(), geolocation=()"
++		-Server
++	}
++}
+ assessiq.in {
+ ...
+-    import security-headers
++    import assessiq-security-headers
+```
+
+Verify after `caddy reload`: `curl -sI "https://assessiq.in/embed?token=x" | grep -iE "frame|security-policy"` must show `content-security-policy: frame-ancestors 'none'` from the API (invalid token, fail-closed) and NO `x-frame-options`; `curl -sI https://assessiq.in/admin/login | grep -i x-frame` must still show `DENY`. Then the design gap: `/take/a/:id?embed=true` is served by assessiq-frontend (nginx) under `@app`, so the final document still gets `frame-ancestors 'none'`; the fix needs either a `/take/a/*` matcher that forwards the tenant CSP from the API (a header round-trip) or the embed runner served through the API. Owner decision.
+
+## Rule B — inline stub vs packages/embed-sdk (RV44 / FU-B14)
+
+| Aspect | Inline stub (kept as fallback) | packages/embed-sdk (served now) |
+|---|---|---|
+| Public API | `window.AssessIQ.mount(sel, opts)`, `version` | same, plus `buildUrl`; package also exports `AssessIQEmbed`, `AssessIQEmbedUrl` with types |
+| Origin check | `e.origin !== baseUrl` raw string (breaks on a path or trailing slash) | `new URL(base).origin` |
+| Events | ready, submitted, error, height | same four plus `onBlocked` (no `aiq.ready` within `readyTimeoutMs`, default 15 s) |
+| Size | ~1.1 KB source | 1777 bytes minified; drift test fails CI when source and committed file differ |
+| Build | none | `node packages/embed-sdk/build.mjs` (esbuild through apps/web's vite; lockfile unchanged) |
+
+## What happened
+
+1. **Pre-flight.** Branch `main`, `.agent/STOP` present, `ap status` DEAD, VPS = local HEAD `b1f9b10`, next migration 0182. Found before briefing: the audit JSONL route and the webhook replay route already existed on the API; the Caddy snippet is shared by six other sites.
+2. **Wave 1 (6 Sonnet):** RW-100a (03+08+13), RW-100b (04+05+06), RW-61, embed, FR1, RW-44. **Wave 2:** Z-3, FU-B7 as slots freed. Opus reviewed every diff.
+3. **Opus fixes on the agent output:** parameterised the audit `LIMIT`s and made `countCapped` a `COUNT(*)` sub-select (the agent fetched 100k rows of `1`); restricted the candidate bulk mark-read to `audience='user'` rows (the agent reused the admin guard, which let a candidate clear admin notices); renamed the hyphenated help ids on three pages and set `helpPage`; one help YAML merge (27 keys, 4 bumps, 0182, count 389 → 419), eslint ignore for the built SDK, `sha256Hex` for the ETag (lint-core-helpers), the embed-config secrets wiring finding became an RCA.
+4. **Gate (Sonnet takeover, codex sandbox still dead since 2026-10-11):** ACCEPT, 0 must-fix, 5 should-fix: 4 applied (own-rows candidate list, replay refuses non-failed deliveries, CTE `UNION`, `nosniff` on the SDK); the export rate limit is deferred.
+5. **Docs pass (Sonnet):** 03 "S13 additions", 08 "Session S13 UI changes", 11 §38, SKILL sections for 04, 12, 13, 14, 16.
+6. **Deploy** per docs/06 (details there).
+
+## Agent utilization
+- Opus (Fable 5.1 main session): Phase 0, 10 briefs, diff review of every agent output, 7 inline fixes, help YAML merge + 0182, ROADMAP/RCA edits, gates, 10 commits, push, deploy, handoff.
+- Sonnet: 8 implementation/docs runs (RW-100 ×2, RW-61, embed, FR1, RW-44, Z-3, FU-B7) + 1 docs pass + 1 adversarial review.
+- Haiku: n/a — the smoke was a few curls and one SQL loop, done inline.
+- codex:rescue: Sonnet takeover (companion sandbox dead since 2026-10-11, newest job log confirms): ACCEPT, 0 MUST-FIX, 5 SHOULD-FIX (4 applied, 1 deferred).
+- Routing telemetry: Sonnet · FR1 audit export · reworked: Y (count query fetched 100k rows; LIMIT interpolated — fixed by Opus) · Sonnet · Z-3 notice · reworked: Y (candidate mark-read guard too wide — fixed by Opus) · Sonnet · embed, FU-B7, FR1 pages · reworked: Y (hyphenated help ids kept/added — renamed by Opus) · Sonnet · RW-100 ×2, RW-61, RW-44, docs pass, review · reworked: N.
+
+---
+
 # Session — 2026-10-16 (afternoon) — S12: P0-Z batch 1 (Y-1, Y-4, Y-5, Y-7, RW-1, FU-B21, FU-D14, RV79, Z-2, Z-4) shipped and deployed
 
 **Headline:** Ten P0-Z rows closed by six Sonnet runs (one wave) plus Opus inline work, Opus review of every diff, one Sonnet adversarial gate (ACCEPT, 0 must-fix), 11 commits, one deploy with migrations 0179, 0180, 0181. GitHub main = VPS /srv/assessiq = `78b3d83` + this handoff commit. The single 0179 broke two test files (module-local migration harness, legacy reviewer fixture) and was split per owning module before the push.
