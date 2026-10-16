@@ -25,6 +25,8 @@ import type { ScState } from "../components/StructuredCaseEditor.js";
 import { QUESTION_TYPES, isQuestionType, getQuestionType, type QuestionType } from "@assessiq/question-types";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
+import { FrameworkTreePicker } from "../components/FrameworkTreePicker.js";
+import { getQuestionTaxonomyApi, putQuestionTaxonomyApi } from "../api/frameworks.js";
 
 /** Which bespoke editor form a type uses; everything else edits raw JSON. */
 const EDITOR_KIND = {
@@ -533,6 +535,30 @@ export function AdminQuestionEditor(): React.ReactElement {
   return <AdminQuestionEditorInner id={id ?? ""} isSuperAdmin={isSuperAdmin} />;
 }
 
+// RW-61: framework nodes card. Super admin edits; tenant admins see the same tree read-only.
+function FrameworkNodesCard({ questionId, isSuperAdmin, cognitiveLevel }: { questionId: string; isSuperAdmin: boolean; cognitiveLevel?: string | null | undefined }): React.ReactElement {
+  const [ids, setIds] = useState<string[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    getQuestionTaxonomyApi(questionId).then((r) => setIds(r.node_ids)).catch(() => setMsg("Could not load framework nodes."));
+  }, [questionId]);
+  async function save(next: string[]) {
+    setIds(next);
+    try { await putQuestionTaxonomyApi(questionId, next); setMsg("Framework nodes saved."); }
+    catch (err) { setMsg(err instanceof AdminApiError ? err.apiError.message : "Could not save framework nodes."); }
+  }
+  return (
+    <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+      <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)", display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
+        Framework nodes
+        {cognitiveLevel && <Chip>Bloom: {cognitiveLevel}</Chip>}
+      </div>
+      <FrameworkTreePicker multiple readOnly={!isSuperAdmin} value={ids} onChange={(next) => void save(next)} helpId="admin.question.editor.framework_nodes" />
+      {msg && <div role="status" style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>{msg}</div>}
+    </div>
+  );
+}
+
 function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdmin: boolean }): React.ReactElement {
   const navigate = useNavigate();
   const [question, setQuestion] = useState<QuestionDetail | null>(null);
@@ -893,6 +919,8 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
             </div>
           )}
         </div>
+
+        <FrameworkNodesCard questionId={question.id} isSuperAdmin={isSuperAdmin} cognitiveLevel={question.cognitive_level} />
 
         {/* Approve / archive — super_admin only (curation); visible only for ai_draft */}
         {isSuperAdmin && question.status === "ai_draft" && (

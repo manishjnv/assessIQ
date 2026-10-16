@@ -2,13 +2,16 @@
 // returns NULL-tenant (platform) rows plus the caller's own rows. Writes: RW-61.
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { z } from "zod";
-import { AuthzError, ValidationError } from "@assessiq/core";
+import { AuthzError, NotFoundError, ValidationError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import { listBundledSeeds, loadFrameworkSeed } from "./framework-seeds.js";
 
 const FrameworksQuery = z.object({ status: z.enum(["active", "all"]).default("active") });
 const SeedCodeParams = z.object({ code: z.string().regex(/^[a-z0-9-]+$/) });
 const IdParams =z.object({ id: z.string().uuid() });
+const TaxonomyBody = z.object({ node_ids: z.array(z.string().uuid()).max(50) });
+const PackTaxonomyQuery = z.object({ node_id: z.string().uuid().optional() });
 const NodesQuery = z.object({
   kind: z.enum(["board", "stage", "grade", "subject", "unit", "outcome", "criterion"]).optional(),
 });
@@ -70,5 +73,80 @@ export function registerTaxonomyRoutes(
     requireSuper(req);
     const { code } = parse(SeedCodeParams, req.params, "params");
     return loadFrameworkSeed(req.session!.userId, code);
+  });
+
+  // RW-61: question <-> node links. Reads: any admin. Writes: super admin (question authoring is platform-only).
+  app.get("/api/admin/questions/:id/taxonomy", { preHandler }, async (req) => {
+    const { id } = parse(IdParams, req.params, "params");
+    return withTenant(req.session!.tenantId, async (client) => {
+      const q = await client.query(`SELECT 1 FROM questions WHERE id = $1`, [id]);
+      if (q.rows.length === 0) throw new NotFoundError("question not found");
+      const nodes = (await client.query(
+        `SELECT n.id, n.parent_id, n.kind, n.code, n.label
+           FROM question_taxonomy qt JOIN taxonomy_nodes n ON n.id = qt.node_id
+          WHERE qt.question_id = $1 ORDER BY n.label`,
+        [id],
+      )).rows as { id: string }[];
+      return { node_ids: nodes.map((n) => n.id), nodes };
+    });
+  });
+
+  app.put("/api/admin/questions/:id/taxonomy", { preHandler: superPreHandler }, async (req) => {
+    requireSuper(req);
+    const { id } = parse(IdParams, req.params, "params");
+    const { node_ids } = parse(TaxonomyBody, req.body, "body");
+    const ids = [...new Set(node_ids)];
+    const { tenantId, userId } = req.session!;
+    return withTenant(tenantId, async (client) => {
+      const q = await client.query(`SELECT 1 FROM questions WHERE id = $1`, [id]);
+      if (q.rows.length === 0) throw new NotFoundError("question not found");
+      // FK checks bypass RLS, so confirm every node is visible to this tenant first.
+      const vis = await client.query(`SELECT id FROM taxonomy_nodes WHERE id = ANY($1::uuid[])`, [ids]);
+      if (vis.rows.length !== ids.length) {
+        throw new ValidationError("unknown framework node", { details: { code: "INVALID_PARAM", param: "node_ids" } });
+      }
+      const before = (await client.query(`SELECT node_id FROM question_taxonomy WHERE question_id = $1`, [id])).rows.map((r: { node_id: string }) => r.node_id);
+      await client.query(`DELETE FROM question_taxonomy WHERE question_id = $1`, [id]);
+      if (ids.length > 0) {
+        await client.query(
+          `INSERT INTO question_taxonomy (question_id, node_id) SELECT $1, UNNEST($2::uuid[])`,
+          [id, ids],
+        );
+      }
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId: userId,
+        // ponytail: AuditAction (14-audit-log/types.ts) has no "question.taxonomy.updated"; reuse
+        // "question.updated" with kind "taxonomy" (same pattern as kind "save_rubric") until it is added.
+        action: "question.updated",
+        entityType: "question",
+        entityId: id,
+        before: { kind: "taxonomy", node_ids: before },
+        after: { kind: "taxonomy", node_ids: ids },
+      });
+      return { node_ids: ids };
+    });
+  });
+
+  // RW-61: question <-> node links of one question set, for the read-only filter.
+  // With ?node_id= only links under that node or any descendant are returned.
+  app.get("/api/admin/packs/:id/taxonomy", { preHandler }, async (req) => {
+    const { id } = parse(IdParams, req.params, "params");
+    const { node_id } = parse(PackTaxonomyQuery, req.query, "query");
+    const items = await withTenant(req.session!.tenantId, async (client) =>
+      (await client.query(
+        `WITH RECURSIVE sub AS (
+           SELECT id FROM taxonomy_nodes WHERE id = $2::uuid
+           UNION
+           SELECT c.id FROM taxonomy_nodes c JOIN sub ON c.parent_id = sub.id
+         )
+         SELECT qt.question_id, qt.node_id
+           FROM question_taxonomy qt JOIN questions q ON q.id = qt.question_id
+          WHERE q.pack_id = $1 AND ($2::uuid IS NULL OR qt.node_id IN (SELECT id FROM sub))`,
+        [id, node_id ?? null],
+      )).rows,
+    );
+    return { items };
   });
 }

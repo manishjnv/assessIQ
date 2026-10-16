@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { AdminApiError, listDomainsApi, listCategoriesApi } from "../../api.js";
 import type { DomainItem, CategoryItem } from "../../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
+import { FrameworkTreePicker } from "../../components/FrameworkTreePicker.js";
 import { type BlueprintLevel, BLUEPRINT_LEVELS, DIFFICULTY_LABEL, type BlueprintCriterion, type BlueprintCategoryRow, blueprintLiveTotal, flattenToCriteria } from "./shared.js";
 
 interface BlueprintBuilderProps {
@@ -19,6 +20,9 @@ export function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilte
 
   const [selectedDomainId, setSelectedDomainId] = useState<string>("");
   const [selectedLevel, setSelectedLevel] = useState<BlueprintLevel>("L1");
+  // RW-61: framework node as an alternative way to choose the subject (domain).
+  const [fwPick, setFwPick] = useState<string[]>([]);
+  const [fwNoMatch, setFwNoMatch] = useState(false);
 
   // Categories for the selected domain (fetched once per domain change)
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -164,6 +168,26 @@ export function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilte
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
+              <div style={{ marginTop: "var(--aiq-space-xs)" }}>
+                <div style={{ ...labelStyle, textTransform: "none", letterSpacing: 0 }}>Or pick a subject from a framework</div>
+                <FrameworkTreePicker
+                  kinds={["subject"]}
+                  value={fwPick}
+                  helpId="admin.assessments.blueprint.framework_pick"
+                  onChange={(ids) => {
+                    setFwPick(ids);
+                    if (ids.length === 0) { setFwNoMatch(false); return; }
+                    const match = domains.find((d) => (d as DomainItem & { node_id?: string | null }).node_id === ids[0]);
+                    setFwNoMatch(!match);
+                    if (match) setSelectedDomainId(match.id);
+                  }}
+                />
+                {fwNoMatch && (
+                  <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: "4px 0 0" }}>
+                    No question set uses this node yet.
+                  </p>
+                )}
+              </div>
               {!skipFilter && entitledDomains !== null && (
                 <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: "4px 0 0" }}>
                   Only content your organisation is entitled to is shown. Contact your platform operator to enable more.

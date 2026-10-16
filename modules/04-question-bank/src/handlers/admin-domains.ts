@@ -29,6 +29,8 @@ export interface DomainRow {
   description: string | null;
   status: string;
   display_order: number;
+  /** RW-61: taxonomy node of this domain (domains.node_id), null if unlinked. */
+  node_id?: string | null;
 }
 
 export interface HandleAdminListDomainsInput {
@@ -69,7 +71,7 @@ export async function handleAdminListDomains(
 ): Promise<HandleAdminListDomainsOutput> {
   return withTenant(input.tenantId, async (client) => {
     const result = await client.query<DomainRow & { count: string }>(
-      "SELECT id, slug, name, description, status, display_order, COUNT(*) OVER() AS count FROM domains WHERE status = 'active' ORDER BY display_order ASC",
+      "SELECT id, slug, name, description, status, display_order, node_id, COUNT(*) OVER() AS count FROM domains WHERE status = 'active' ORDER BY display_order ASC",
     );
     const total = result.rows.length > 0 ? parseInt(result.rows[0]!.count, 10) : 0;
     return {

@@ -27,6 +27,8 @@ import { adminApi, AdminApiError, bulkUpdateQuestionStatus } from "../api.js";
 import { useAdminSession } from "../session.js";
 import { type GenerationAttempt, type Level, type Pack, type QuestionItem, type PackDetailResponse, type QuestionsResponse, packStatusColor } from "./pack-detail/shared.js";
 import { LevelPanel } from "./pack-detail/LevelPanel.js";
+import { FrameworkTreePicker } from "../components/FrameworkTreePicker.js";
+import { getPackTaxonomyApi } from "../api/frameworks.js";
 
 // Chip display order differs from the registry order; "" = all types.
 export function AdminPackDetail(): React.ReactElement {
@@ -94,6 +96,18 @@ export function AdminPackDetail(): React.ReactElement {
   const [lastAttempts, setLastAttempts] = useState<Record<string, GenerationAttempt | null>>({});
   // Tracks which level's Details disclosure is open
   const [openAttemptDetails, setOpenAttemptDetails] = useState<string | null>(null);
+  // RW-61: read-only framework filter. null = no filter; else ids of questions under the node.
+  const [fwNode, setFwNode] = useState<string[]>([]);
+  const [fwQuestionIds, setFwQuestionIds] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    const node = fwNode[0];
+    if (!id || !node) { setFwQuestionIds(null); return; }
+    let live = true;
+    getPackTaxonomyApi(id, node)
+      .then((r) => { if (live) setFwQuestionIds(new Set(r.items.map((i) => i.question_id))); })
+      .catch(() => { if (live) setFwQuestionIds(new Set()); });
+    return () => { live = false; };
+  }, [id, fwNode]);
 
   const fetchPack = useCallback(async () => {
     if (!id) return;
@@ -365,7 +379,7 @@ export function AdminPackDetail(): React.ReactElement {
 
   const sc = packStatusColor(pack.status);
 
-  const questionsByLevel = questions.reduce<Record<string, QuestionItem[]>>((acc, q) => {
+  const questionsByLevel = questions.filter((q) => !fwQuestionIds || fwQuestionIds.has(q.id)).reduce<Record<string, QuestionItem[]>>((acc, q) => {
     const arr = acc[q.level_id];
     if (arr) arr.push(q);
     else acc[q.level_id] = [q];
@@ -601,6 +615,13 @@ export function AdminPackDetail(): React.ReactElement {
             >
               Levels.
             </h2>
+          </div>
+
+          <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+            <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)", marginBottom: "var(--aiq-space-xs)" }}>
+              Show only questions under a framework node.
+            </div>
+            <FrameworkTreePicker value={fwNode} onChange={setFwNode} helpId="admin.question_bank.pack.framework_filter" />
           </div>
 
           {levels.length === 0 ? (
