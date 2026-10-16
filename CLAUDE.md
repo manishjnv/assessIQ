@@ -122,6 +122,7 @@ Top section ≤ 30 lines, detail sections below as long as needed.
 **Tests:** pass / fail / skipped
 **Next:** one line — first thing the next session should do
 **Open questions:** bullets
+**Old task or feature checked:** <ids or "none"> (Rule B, PROJECT_BRAIN.md)
 
 ---
 

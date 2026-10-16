@@ -111,7 +111,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 | 2026-10-02 | **Owner decision: MFA for tenant admins is optional now and to be enabled later.** All MFA code stays. The super admin always uses TOTP. | Lower sign-in friction for the pilot; the gate stays available (`MFA_REQUIRED`). |
 | 2026-10-02 | **Owner decision: the reviewer role is to be removed.** | Keeps the product simple (owner). Company admins review and publish results. |
 | 2026-10-02 | **Rule A — dormant or stale features are never deleted because they are unused.** Review first: purpose, what operates now, a better option, a merge with a newer feature. Result: revive, merge, improve or park. A delete needs written research, an item that is absolutely useless for a professional product, and owner approval. | Prevents loss of working design. |
-| 2026-10-02 | **Rule B — before any new task, find the similar older task or feature.** Compare both. Implement the better or the combined version. Note "old task or feature checked" in the handoff. | Prevents duplicate features. |
+| 2026-10-02 | **Rule B — before any new task, find the similar older task or feature.** Compare both. Implement the better or the combined version. Note "old task or feature checked" in the handoff (the `**Old task or feature checked:**` line of the CLAUDE.md session-state template). | Prevents duplicate features. |
 
 ## Working agreements (for Claude Code sessions)
 
@@ -122,7 +122,7 @@ A scenario-driven, tier-based, hybrid-graded **role-readiness assessment platfor
 - New UI elements require a `help_id` and content entry in `16-help-system`.
 - AI prompts are skills stored on the production server only (not in git since 2026-10-01). The sha256 of each skill is recorded on every grading row.
 - **Rule A — keep dormant features, review them.** Never delete a dormant or stale feature because it is unused. Review it first: its purpose, what operates now, a better option, a merge with a newer feature. The result is revive, merge, improve or park. A delete needs written research, an item that is absolutely useless for a professional product, and owner approval.
-- **Rule B — check the old task first.** Before any new task, find the similar older task or feature. Compare both. Implement the better or the combined version. Note "old task or feature checked" in the handoff.
+- **Rule B — check the old task first.** Before any new task, find the similar older task or feature. Compare both. Implement the better or the combined version. Note "old task or feature checked" in the handoff: fill the `**Old task or feature checked:**` line of the session-state template in CLAUDE.md (added 2026-10-16, RV79).
 - **Every admin-mutating service function must write one `audit_log` row inside the same Postgres transaction via `auditInTx`** — never fire-and-forget, never in a separate transaction. Established by G3.D sweep (commits `eff0ba2`, `08d4b19`, `057de7d`).
 
 ## Where to look for what
