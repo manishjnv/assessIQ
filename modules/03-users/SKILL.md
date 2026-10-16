@@ -8,8 +8,8 @@ Manage the `users` table: who exists in a tenant, what role they hold, lifecycle
 - **Out:** authentication, password/TOTP credentials (01), tenant settings (02), permission checks beyond role (handled by `req.requireAuth(roles)`).
 
 ## Roles
+> `reviewer` was removed on 2026-10-03 (RV60) and dropped from the DB CHECKs by 0179 on 2026-10-16 (Y-1). Older sections below that mention it are history.
 - `admin` — full tenant control
-- `reviewer` — can review and override AI grades, cannot change tenant settings or invite admins
 - `candidate` — can take assigned assessments only
 
 Future: `analyst` (read-only reports), `pack_author` (question-bank only). Add via DB enum extension + role check helper.
@@ -23,7 +23,7 @@ Future: `analyst` (read-only reports), `pack_author` (question-bank only). Add v
 ```ts
 listUsers({ tenantId, role?, status?, search?, page, pageSize, includeDeleted? }): Promise<PaginatedUsers>
 getUser(id): Promise<User>
-createUser({ email, name, role, metadata }): Promise<User>   // status is role-derived: candidate→active, admin/reviewer→pending (§ 14). No status input ⇒ cannot mint an active admin/reviewer.
+createUser({ email, name, role, metadata }): Promise<User>   // status is role-derived: candidate→active, admin→pending (§ 14). No status input ⇒ cannot mint an active admin.
 updateUser(id, patch): Promise<User>
 softDelete(userId, actorUserId, reason?)  : Promise<void>   // Phase C: emits audit + cascades pending invitations for the user's email
 restore(userId, actorUserId, reason?)     : Promise<User>
@@ -82,7 +82,7 @@ email,name,role,employee_id,department,team
 |---|---|---|---|
 | `email` | yes | string | trimmed + lowercased before write (per § 10); RFC 5322 simple-regex shape |
 | `name` | yes | string | non-empty after trim, max 200 chars |
-| `role` | yes | enum | exactly one of `admin`, `reviewer`, `candidate` (lowercase) |
+| `role` | yes | enum | exactly one of `admin`, `candidate` (lowercase) |
 | `employee_id` | no | string | flows into `users.metadata.employee_id` |
 | `department` | no | string | flows into `users.metadata.department` |
 | `team` | no | string | flows into `users.metadata.team` |
@@ -347,7 +347,7 @@ The plaintext invitation token appears **inside `body`** as part of the user-cli
 
 ```ts
 listUsers({
-  role?: 'admin' | 'reviewer' | 'candidate',
+  role?: 'admin' | 'candidate',
   status?: 'active' | 'disabled' | 'pending',
   search?: string,            // case-insensitive prefix on name+email
   includeDeleted?: boolean,   // default false

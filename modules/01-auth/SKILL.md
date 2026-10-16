@@ -2,6 +2,8 @@
 
 > See `docs/04-auth-flows.md` for full sequence diagrams. This skill is the implementation orientation for that doc.
 
+> `reviewer` was removed on 2026-10-03 (RV60) and dropped from the DB CHECKs by 0179 on 2026-10-16 (Y-1). Older sections below that mention it are history.
+
 ## Purpose
 Authenticate every request: humans via Google SSO + TOTP, host applications via embed JWT, server-to-server via API keys.
 
@@ -86,7 +88,7 @@ This addendum pre-flights Window 4 (G0.C Session 4) by freezing every implementa
   "id": "<session uuid v7>",
   "userId": "<user uuid v7>",
   "tenantId": "<tenant uuid v7>",
-  "role": "admin | reviewer | candidate",
+  "role": "admin | super_admin | candidate",
   "totpVerified": false,
   "createdAt": "<ISO 8601 UTC>",
   "expiresAt": "<ISO 8601 UTC>",
@@ -215,7 +217,7 @@ declare module 'fastify' {
       id: string;          // session uuid v7
       userId: string;      // user uuid v7
       tenantId: string;    // tenant uuid v7  ← read by withTenant() at each call site (FU-D6: tenantContextMiddleware is SUPERSEDED, not registered)
-      role: 'admin' | 'reviewer' | 'candidate';
+      role: 'admin' | 'super_admin' | 'candidate';
       totpVerified: boolean;
       expiresAt: string;   // ISO 8601 UTC
       lastTotpAt: string | null;
@@ -269,7 +271,7 @@ export const sessions = {
   create(input: {
     userId: string;
     tenantId: string;
-    role: 'admin' | 'reviewer' | 'candidate';
+    role: 'admin' | 'super_admin' | 'candidate';
     totpVerified: boolean;
     ip: string;
     ua: string;
