@@ -158,3 +158,16 @@ Migration `0153_seed_structured_case_help.sql` (idempotent, `ON CONFLICT DO NOTH
 ## Migration 0163 - generate wizard help v2 (RW-5, 2026-10-09)
 
 Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the type list; the wizard itself does not generate it). A same-key fix needs a new version row because the 0153/0162 `ON CONFLICT DO NOTHING` pattern only adds new keys. Seed count 221 -> 222; `0011` not regenerated.
+
+## Migration 0182 - audit, embed, webhooks, framework and candidate help (S13, 2026-10-16)
+
+**What.** `0182_s13_audit_embed_webhooks_framework_help.sql` inserts 31 rows. 27 are new keys. Four are version bumps: `admin.audit` v2, `admin.audit.archives` v2, `admin.audit.export.format` v3 and `admin.webhooks.events` v2 (three business events). The seeded global row count goes from 389 to 419. `content/en/admin.yml`, `content/en/candidate.yml` and `seeds/help_content.sql` match.
+- New key groups: `admin.audit.*` (9), `admin.embed.*` (6), `admin.webhooks.*` (6), `admin.notifications.bell`, four framework picker keys (one for each page prefix), and `candidate.shell.new_results_notice`.
+
+**Why.** The pages used hyphenated ids (`admin.audit-log.*`, `admin.embed-config.*`, `admin.webhooks.delivery-log`). `isValidHelpKey` rejects hyphens (RCA 2026-10-03 class), so no help ever loaded. The commit renames the ids and adds the rows. The old text for `admin.audit.export.format` said "available soon".
+
+**Considered and rejected.** Allow hyphens in `isValidHelpKey` (it would break the key form rule, N16). Edit rows in place (the `ON CONFLICT DO NOTHING` pattern needs a new version row for a text fix).
+
+**Not included.** Hindi rows. A seed lint change.
+
+**Downstream impact.** Use the new ids on the three pages (`docs/08-ui-system.md` § "Session S13 UI changes (2026-10-16)"). Production help rows come from forward migrations, not from the seed.

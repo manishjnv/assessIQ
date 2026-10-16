@@ -558,3 +558,11 @@ candidate.attempt.submit_sections:
     - Sections marked **closed** are finished. You cannot change their answers.
     - Only the current section can still be edited before you submit.
     - Submitting ends the assessment.
+
+candidate.shell.new_results_notice:
+  audience: candidate
+  short_text: "You have new published results. Open Results to see them."
+  long_md: |
+    ## New results
+
+    This banner shows when your organisation publishes a new result for you. It shows the count of results that you have not seen yet. Select **View results** to open the list. The banner goes away after you open the Results page.

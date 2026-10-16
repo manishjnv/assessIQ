@@ -634,20 +634,16 @@ admin.reports.cohort.report:
 
 admin.audit:
   audience: admin
-  short_text: "Audit trail screen: available soon. The log is already recorded; browsing it here is not built yet."
+  version: 2
+  short_text: "Every change made in your organisation, with who made it and when. Filter, export and archive the log here."
   long_md: |
-    ## Audit log — available soon
+    ## Audit log
 
-    AssessIQ already records every significant administrative action to an
-    append-only audit log: user changes, grading overrides, certificate
-    operations, setting updates, and more. That recording runs today.
+    AssessIQ records every significant administrative action in an append-only log: user changes, grading overrides, certificate operations and setting updates.
 
-    **The admin screen to browse, filter, and export this log is not built
-    yet.** There is no `/admin/audit` page in this release. When it ships it
-    will let you filter by action, actor, entity type and date range, and
-    export the filtered view as CSV or JSONL.
-
-    Need an audit extract today? Contact your platform operator.
+    - **Filter.** Set a From date, a To date and an entity type.
+    - **Export.** Download the filtered view as CSV or JSONL. One export holds up to 100,000 rows.
+    - **Archive.** Mark a date range as archived and download it. The system never deletes audit rows.
 
   related_keys:
     - admin.audit.archives
@@ -655,41 +651,27 @@ admin.audit:
 
 admin.audit.archives:
   audience: admin
-  short_text: "Archive browsing and restore: available soon, part of the same unbuilt audit trail screen as admin.audit."
+  version: 2
+  short_text: "Archive marks a date range in the audit trail and downloads it as JSONL. Rows stay in the log."
   long_md: |
-    ## Archived audit log — available soon
+    ## Archive a date range
 
-    This card is part of the audit trail screen, which is not built yet (see
-    `admin.audit`). When it ships, older audit rows will be archived to cold
-    storage and this card will list available archives with a restore action.
+    1. Set a From date and a To date.
+    2. Select **Archive range** and confirm.
 
-  related_keys:
-    - admin.audit
+    The system adds one `audit.archived` entry to the trail and starts a JSONL download of the range. It never deletes or changes audit rows. Long-term storage outside AssessIQ is not built in this release.
 
 admin.audit.export.format:
   audience: admin
-  version: 2
-  short_text: "The audit log already records admin actions today; the export screen (CSV/JSONL) is available soon."
+  version: 3
+  short_text: "CSV opens in a spreadsheet. JSONL has one JSON object per line for SIEM tools. Both use your filters."
   long_md: |
-    ## Audit log recording — live; export screen available soon
+    ## Export formats
 
-    AssessIQ already maintains an append-only audit log for every significant
-    admin action. The system writes each entry at the same time as the action, so no entry is
-    lost silently.
+    - **CSV.** One row per event. Open it in a spreadsheet.
+    - **JSONL.** One JSON object per line, with the full before and after payloads. Use it for SIEM tools.
 
-    **Audited actions include:**
-    - `attempt.exported` — admin downloaded a CSV or JSONL export
-    - `grading.override` — admin manually changed a grading score band
-    - `user.created`, `user.role_changed`, `user.deactivated`
-    - `assessment.published`, `assessment.archived`
-    - `pack.version_bumped`
-
-    Audit log entries are immutable. They cannot be edited or deleted by any
-    admin — including organisation super-admins. Retention is 7 years (configurable
-    by the platform operator).
-
-    **The admin screen to export this log (CSV/JSONL) is not built yet.**
-    If you need an extract today, contact your platform operator.
+    Both exports use the filters that you set. One export holds up to 100,000 rows, newest first. The system records each export in the audit trail as `audit.exported`.
 
 admin.audit.archives.restore_procedure:
   audience: admin
@@ -2280,42 +2262,20 @@ admin.webhooks:
 
 admin.webhooks.events:
   audience: admin
-  short_text: "Subscribable event types: attempt lifecycle, assessment state changes, user events, cert issuance/revocation, audit.*."
+  version: 2
+  short_text: "Choose the events that this endpoint receives."
   long_md: |
-    ## Webhook event types
+    ## Webhook events
 
-    Select one or more events when registering a webhook endpoint. Your server
-    will receive a POST for each event that fires in your organisation.
+    Check each event that you want to receive.
 
     | Event | Fires when |
     |---|---|
-    | `attempt.submitted` | A candidate submits their assessment attempt |
-    | `attempt.graded` | AI grading completes for an attempt |
-    | `attempt.released` | An admin releases graded results to the candidate |
-    | `assessment.published` | An assessment moves to `published` status |
-    | `assessment.closed` | An assessment closes (scheduled or early) |
-    | `user.invited` | A new admin or candidate is invited |
-    | `user.role_changed` | An existing user's role is changed |
-    | `certificate.issued` | A new certificate is issued to a candidate |
-    | `certificate.revoked` | A certificate is revoked |
-    | `audit.*` | **All audit-log events** — requires fresh MFA at subscription time |
+    | `attempt.submitted` | A candidate submits an attempt. |
+    | `attempt.graded` | A grade is ready for an attempt. |
+    | `result.released` | You release a result to the candidate. |
 
-    **Payload shape (all events):**
-
-    ```json
-    {
-      "event": "attempt.submitted",
-      "tenant_id": "<uuid>",
-      "occurred_at": "<ISO8601>",
-      "data": { ... }
-    }
-    ```
-
-    The `data` object shape is event-specific. Use the **Test** action to verify
-    your endpoint accepts the envelope format before subscribing to live events.
-
-  related_keys:
-    - admin.webhooks
+    Your server receives one signed POST request for each event.
 
 admin.webhooks.deliveries:
   audience: admin
@@ -3869,3 +3829,217 @@ admin.question_import.draft_rubrics:
     - **Busy message.** The AI runs one job at a time. If you see a busy message, try again in a short while.
     - **Review.** Open each question in the question editor to read and change its rubric.
     - **Scope.** Only written and scenario questions get a rubric.
+
+# ─── S13 (2026-10-16): audit page, embed page, webhooks page tails, framework picker ───
+
+admin.audit.page:
+  audience: admin
+  short_text: "The audit log page. Filter the log, export it, or archive a date range."
+  long_md: |
+    ## Audit log page
+
+    This page lists every recorded administrative action in your organisation. Use the filters to narrow the list. Use **Export CSV** or **Export JSONL** to download the filtered view. Use **Archive range** to mark a date range and download it.
+
+admin.audit.filters:
+  audience: admin
+  short_text: "Narrow the list by date range and entity type. Exports use the same filters."
+  long_md: |
+    ## Filters
+
+    Set a From date, a To date and an entity type. The table and both exports use the same filters.
+
+admin.audit.date_from:
+  audience: admin
+  short_text: "Show events on or after this date."
+  long_md: |
+    ## From date
+
+    The list and the exports show events on or after this date. Leave it empty to start from the oldest event.
+
+admin.audit.date_to:
+  audience: admin
+  short_text: "Show events on or before this date."
+  long_md: |
+    ## To date
+
+    The list and the exports show events on or before this date. Leave it empty to end at the newest event.
+
+admin.audit.entity_type:
+  audience: admin
+  short_text: "Show events for one kind of record, for example users or attempts."
+  long_md: |
+    ## Entity type
+
+    Pick one kind of record to see only its events, for example users, attempts or settings. Pick **All entities** to clear the filter.
+
+admin.audit.table:
+  audience: admin
+  short_text: "One row per recorded action: when, who, what action and which record."
+  long_md: |
+    ## Audit table
+
+    Each row is one recorded action. The columns show the time, the actor, the action name, the record type and the record id. The newest rows come first.
+
+admin.audit.export_jsonl:
+  audience: admin
+  short_text: "Download the audit log as a JSONL file."
+  long_md: |
+    ## Export JSONL
+
+    Use this to get the audit log as JSON Lines. Each line is one event. The file uses the same date and entity filters that you set. It holds up to 100,000 rows.
+
+admin.audit.archive:
+  audience: admin
+  short_text: "Mark a date range as archived and download it."
+  long_md: |
+    ## Archive range
+
+    Choose a From date and a To date. Select **Archive range** and confirm. The system adds one entry to the audit trail and starts a JSONL download of the range. The system never deletes audit rows.
+
+admin.audit.truncated_note:
+  audience: admin
+  short_text: "The export stops at 100,000 rows."
+  long_md: |
+    ## Export limit
+
+    One export holds at most 100,000 rows. If your range has more rows, the file holds the newest 100,000. Narrow the date range and export again to get the rest.
+
+admin.embed.page:
+  audience: admin
+  short_text: "Embed settings: signing secrets, allowed host origins and the integration snippet."
+  long_md: |
+    ## Embed settings
+
+    Use this page to let your own website or portal show an assessment inside a frame.
+
+    - **Embed signing secrets** sign the tokens that your server creates.
+    - **Allowed origins** list the websites that may show the frame.
+    - **Integration snippet** gives you the code to add to your page.
+
+admin.embed.secrets_list:
+  audience: admin
+  short_text: "These secrets sign the embed tokens your server creates. Create, rotate or delete them here."
+  long_md: |
+    ## Embed signing secrets
+
+    Your server signs each embed token with an active secret. **Rotate** makes a new secret. The old one still works for 24 hours. **Delete** stops a secret at once. You need a recent two-factor check to change secrets.
+
+admin.embed.secret_once:
+  audience: admin
+  short_text: "Store the new secret now. It is not shown again."
+  long_md: |
+    ## New secret
+
+    AssessIQ shows a new secret only one time. Copy it to the secret store of your server. If you lose it, rotate to make a new one.
+
+admin.embed.snippet:
+  audience: admin
+  short_text: "Copy this code to add the assessment to your site."
+  long_md: |
+    ## Integration snippet
+
+    Add the script tag and the mount call to your page. Your server must create the token. See the integration guide for the token format.
+
+admin.embed.webhook_secret:
+  audience: admin
+  short_text: "The key that signs webhook requests to your endpoints. Regenerate shows the new key once."
+  long_md: |
+    ## Webhook secret
+
+    AssessIQ signs each webhook request with this key. Select **Regenerate** to make a new key. The new key is shown one time. Update your server before the old key stops.
+
+admin.embed.origins:
+  audience: admin
+  short_text: "Websites that may show the assessment in a frame, as scheme and host, for example https://portal.example.com."
+  long_md: |
+    ## Allowed origins
+
+    Add each website that may show the assessment in a frame. Enter the scheme and the host only, for example `https://portal.example.com`. A website that is not in this list cannot show the frame. Select **Save** to apply your changes.
+
+admin.notifications.bell:
+  audience: admin
+  short_text: "Notices for you: results ready to publish and failed webhook deliveries. Select one to open it."
+  long_md: |
+    ## Notifications
+
+    The bell shows the count of unread notices. Select the bell to read them. A notice tells you when a result is ready to publish or when a webhook delivery fails. Select a notice to open the related page and mark it read.
+
+admin.webhooks.page:
+  audience: admin
+  short_text: "Register endpoints that receive signed POST requests for assessment events, and review deliveries."
+  long_md: |
+    ## Webhooks page
+
+    Register an HTTPS endpoint, choose its events and copy its signing secret. The delivery log shows every request with its status and attempt count. You can send a test event and replay a failed delivery.
+
+admin.webhooks.endpoints:
+  audience: admin
+  short_text: "Your registered endpoints with their events. Test sends a sample event. Delete removes the endpoint."
+  long_md: |
+    ## Endpoints
+
+    Each row is one registered endpoint with its events. **Test** sends a sample event to it. **Delete** removes the endpoint and stops all deliveries to it.
+
+admin.webhooks.name:
+  audience: admin
+  short_text: "A short name for this endpoint, for example HR system."
+  long_md: |
+    ## Endpoint name
+
+    Give the endpoint a short name that tells your team which system receives the events, for example HR system. The name appears in the delivery log.
+
+admin.webhooks.url:
+  audience: admin
+  short_text: "The HTTPS address that receives the POST requests. Private network addresses are refused."
+  long_md: |
+    ## Endpoint URL
+
+    Enter a public HTTPS address. AssessIQ refuses private or internal network addresses. The request carries a signature header that your server checks with the signing secret.
+
+admin.webhooks.delivery_filter:
+  audience: admin
+  short_text: "Show only the deliveries with one status."
+  long_md: |
+    ## Delivery filter
+
+    Select a status to filter the delivery log. Select **All** to see every delivery. The filter applies to the loaded list only. The export file contains all deliveries.
+
+admin.webhooks.secret_once:
+  audience: admin
+  short_text: "The signing secret shows once. Copy it now."
+  long_md: |
+    ## Signing secret
+
+    The system shows the signing secret one time, after you create the endpoint. Select **Copy secret** and store it in a safe place. You use it to check the signature on each event. If you lose it, delete the endpoint and create a new one.
+
+admin.question.editor.framework_nodes:
+  audience: admin
+  short_text: "Link this question to curriculum framework nodes."
+  long_md: |
+    ## Framework nodes
+
+    Pick the framework nodes that this question covers. Use the search box to find a node by name or code. Open a node to see its children. Your choice saves when you tick or clear a box. Only the platform team can change nodes; organisation admins can view them.
+
+admin.question_bank.pack.framework_filter:
+  audience: admin
+  short_text: "Show only questions that match a framework node."
+  long_md: |
+    ## Framework filter
+
+    Pick a node to filter the questions in this question set. The list shows questions linked to that node or to any node below it. Clear the box to show all questions again. This filter does not change any question.
+
+admin.generate_wizard.framework_pick:
+  audience: admin
+  short_text: "Fill the topic focus from a framework node."
+  long_md: |
+    ## Pick from a framework
+
+    Pick a node to copy its name into **Topic focus**. For a unit or an outcome, the text starts with the parent name. You can edit the text after you pick. This step is optional and adds no new generation setting.
+
+admin.assessments.blueprint.framework_pick:
+  audience: admin
+  short_text: "Choose a subject through a framework node."
+  long_md: |
+    ## Subject from a framework
+
+    Pick a subject node to select its matching subject above. The blueprint still uses the subject for its question draw. If no question set uses the node, a note tells you. You can always choose the subject from the list instead.
