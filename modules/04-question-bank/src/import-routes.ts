@@ -9,13 +9,16 @@ import { parseImportFile, IMPORT_MAX_BYTES } from "./import/parse.js";
 import { stageImport, getImportReport, fixImportRow, discardImport } from "./import/staging.js";
 import { commitImport } from "./import/commit.js";
 import { buildTemplate } from "./import/templates.js";
+import { exportPackQti } from "./import/export.js";
 
 const uuid = z.string().uuid();
-const Format = z.enum(["csv", "xlsx"]);
+const Format = z.enum(["csv", "xlsx", "gift", "aiken", "qti"]);
+// Templates exist for the spreadsheet formats only.
+const TemplateFormat = z.enum(["csv", "xlsx"]);
 const IdParams = z.object({ id: uuid });
 const RowParams = z.object({ id: uuid, row: z.coerce.number().int().min(1) });
 const TemplateParams = z.object({ type: z.enum(QUESTION_TYPES) });
-const TemplateQuery = z.object({ format: Format.default("csv") });
+const TemplateQuery = z.object({ format: TemplateFormat.default("csv") });
 const UploadBody = z.object({
   file_name: z.string().min(1).max(200),
   format: Format,
@@ -37,6 +40,9 @@ function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, v: unknown, what:
   return r.data;
 }
 
+const ExportParams = z.object({ id: uuid });
+const ExportQuery = z.object({ format: z.literal("qti3") });
+
 const MIME = {
   csv: "text/csv; charset=utf-8",
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -50,7 +56,7 @@ export function registerImportRoutes(
 
   app.post("/api/admin/super/question-imports", { preHandler, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
     const tooLarge = () => new AppError("The file is larger than 4 MB.", "FILE_TOO_LARGE", 413);
-    let fileName: string; let format: "csv" | "xlsx"; let domain: string; let packName: string | undefined; let data: Buffer;
+    let fileName: string; let format: z.infer<typeof Format>; let domain: string; let packName: string | undefined; let data: Buffer;
     if (req.isMultipart()) {
       let part;
       try { part = await req.file(); } catch (e) {
@@ -92,6 +98,17 @@ export function registerImportRoutes(
     return reply
       .header("content-type", MIME[format])
       .header("content-disposition", `attachment; filename="question-import-${type}.${format}"`)
+      .send(file);
+  });
+
+  // RW-59: QTI 3.0 package of one pack. The answer key is included on purpose (super-admin only).
+  app.get(`/api/admin/super/packs/:id/export`, { preHandler }, async (req, reply) => {
+    const { id } = parse(ExportParams, req.params, "params");
+    parse(ExportQuery, req.query, "query");
+    const { file, fileName } = await exportPackQti(req.session!.tenantId, req.session!.userId, id);
+    return reply
+      .header("content-type", "application/zip")
+      .header("content-disposition", `attachment; filename="${fileName}"`)
       .send(file);
   });
 

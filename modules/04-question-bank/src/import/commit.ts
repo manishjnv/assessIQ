@@ -50,7 +50,7 @@ export async function commitImport(
     for (const q of ok) {
       await repo.insertQuestion(client, {
         id: uuidv7(), packId, levelId: levelIds.get(q.level)!, type: q.type as QuestionType,
-        topic: q.topic, points: q.points, content: q.content, createdBy: actorUserId,
+        topic: q.topic, points: q.points, negativeMarks: q.negative_marks, content: q.content, createdBy: actorUserId,
       });
     }
 

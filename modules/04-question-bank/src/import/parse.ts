@@ -2,11 +2,13 @@
 // RowError entries. Only file-level problems (unreadable file, no `type` header) throw.
 import ExcelJS from "exceljs";
 import { ValidationError } from "@assessiq/core";
+import { IMPORT_MAX_BYTES, IMPORT_MAX_ROWS } from "./limits.js";
+import { parseGift } from "./adapters/gift.js";
+import { parseAiken } from "./adapters/aiken.js";
+import { parseQtiPackage } from "./adapters/qti.js";
 import type { ImportFormat, ParsedRow, ParseResult, RowError } from "./types.js";
 
-// RW-97: 4 MB, the same cap as the route bodyLimit, the multipart fileSize limit and the UI check.
-export const IMPORT_MAX_BYTES = 4 * 1024 * 1024;
-export const IMPORT_MAX_ROWS = 2000;
+export { IMPORT_MAX_BYTES, IMPORT_MAX_ROWS };
 
 /** RFC-4180 tokenizer (same approach as 03-users/import.ts; no dependency). */
 function tokenizeCsv(text: string): string[][] {
@@ -69,6 +71,13 @@ export async function parseImportFile(format: ImportFormat, data: Buffer): Promi
   if (data.byteLength > IMPORT_MAX_BYTES) {
     throw new ValidationError(`File exceeds ${IMPORT_MAX_BYTES / 1024} KB`, { details: { code: "IMPORT_TOO_LARGE" } });
   }
+  // RW-59: interchange formats produce ParsedRow[] directly (cells already in the CSV template formats).
+  if (format === "gift" || format === "aiken") {
+    const text = data.toString("utf8");
+    const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+    return format === "gift" ? parseGift(body) : parseAiken(body);
+  }
+  if (format === "qti") return parseQtiPackage(data);
   let all: string[][];
   if (format === "csv") {
     const text = data.toString("utf8");

@@ -1,6 +1,6 @@
 // RW-58: CSV/XLSX question import. Shared shapes.
 
-export type ImportFormat = "csv" | "xlsx";
+export type ImportFormat = "csv" | "xlsx" | "gift" | "aiken" | "qti";
 export type ImportDecision = "ok" | "skip" | "duplicate" | "error";
 export type ImportStatus = "staged" | "committed" | "discarded";
 
@@ -36,6 +36,8 @@ export interface NormalizedRow {
   topic: string;
   points: number;
   level: number;
+  /** EX-1: optional penalty for a wrong attempted answer; null = the assessment default. */
+  negative_marks: number | null;
   content: Record<string, unknown>;
 }
 

@@ -2,7 +2,9 @@
 import { AdminApiError, adminApi } from "../api.js";
 import type { ApiError } from "../api.js";
 
-export type ImportFormat = "csv" | "xlsx";
+export type ImportFormat = "csv" | "xlsx" | "gift" | "aiken" | "qti";
+/** Formats that have a downloadable template. */
+export type TemplateFormat = "csv" | "xlsx";
 export type ImportDecision = "ok" | "error" | "duplicate" | "skip";
 
 export interface ImportRowError {
@@ -83,7 +85,7 @@ export async function discardImportApi(id: string): Promise<unknown> {
 }
 
 /** Downloads the template file for one question type (browser save). */
-export async function downloadImportTemplate(type: string, format: ImportFormat): Promise<void> {
+export async function downloadImportTemplate(type: string, format: TemplateFormat): Promise<void> {
   const res = await fetch(`/api/admin/super/question-imports/templates/${encodeURIComponent(type)}?format=${format}`, {
     credentials: "same-origin",
   });

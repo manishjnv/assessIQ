@@ -15,7 +15,7 @@ import type { DomainItem, QuestionListItem } from "../api.js";
 import {
   IMPORT_MAX_BYTES, commitImportApi, discardImportApi, downloadImportTemplate, fixImportRowApi, getImportApi, uploadImportApi,
 } from "../api/question-imports.js";
-import type { ImportFormat, ImportReport, ImportRow } from "../api/question-imports.js";
+import type { ImportFormat, ImportReport, ImportRow, TemplateFormat } from "../api/question-imports.js";
 import { useAdminSession } from "../session.js";
 import { importDecisionLabel, questionTypeLabel } from "../lib/labels.js";
 
@@ -26,13 +26,25 @@ const fieldStyle: React.CSSProperties = { display: "flex", flexDirection: "colum
 const labelStyle: React.CSSProperties = { fontSize: "var(--aiq-text-sm)", fontWeight: 500 };
 const h2Style: React.CSSProperties = { margin: "0 0 var(--aiq-space-md)", fontSize: "var(--aiq-text-xl)", fontWeight: 400 };
 
+/** File extension -> import format. .txt is ambiguous, so the user picks GIFT or Aiken. */
+function formatOfFile(name: string, text: "gift" | "aiken"): ImportFormat {
+  const n = name.toLowerCase();
+  if (n.endsWith(".xlsx")) return "xlsx";
+  if (n.endsWith(".gift")) return "gift";
+  if (n.endsWith(".aiken")) return "aiken";
+  if (n.endsWith(".txt")) return text;
+  if (n.endsWith(".xml") || n.endsWith(".zip")) return "qti";
+  return "csv";
+}
+
 export function AdminQuestionImport(): React.ReactElement {
   const { session } = useAdminSession();
   const isSuper = session?.user.role === "super_admin";
 
   const [domains, setDomains] = useState<DomainItem[]>([]);
   const [tplType, setTplType] = useState<string>(QUESTION_TYPES[0]);
-  const [tplFormat, setTplFormat] = useState<ImportFormat>("csv");
+  const [tplFormat, setTplFormat] = useState<TemplateFormat>("csv");
+  const [textFormat, setTextFormat] = useState<"gift" | "aiken">("gift");
   const [domain, setDomain] = useState("");
   const [packName, setPackName] = useState("");
   const [file, setFile] = useState<File | null>(null);
@@ -68,9 +80,9 @@ export function AdminQuestionImport(): React.ReactElement {
 
   async function onUpload(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    if (!file) { setError("Choose a CSV or XLSX file."); return; }
+    if (!file) { setError("Choose a file to upload."); return; }
     if (file.size > IMPORT_MAX_BYTES) { setError("This file is larger than 4 MB. Split it into smaller files."); return; }
-    const format: ImportFormat = file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : "csv";
+    const format = formatOfFile(file.name, textFormat);
     const r = await run(() => uploadImportApi({
       file_name: file.name, format, file, domain,
       ...(packName.trim() ? { pack_name: packName.trim() } : {}),
@@ -230,7 +242,7 @@ export function AdminQuestionImport(): React.ReactElement {
                   </div>
                   <div style={fieldStyle}>
                     <label htmlFor="qi-format" style={labelStyle}>File format</label>
-                    <select id="qi-format" className="aiq-input" value={tplFormat} onChange={(e) => setTplFormat(e.target.value as ImportFormat)}>
+                    <select id="qi-format" className="aiq-input" value={tplFormat} onChange={(e) => setTplFormat(e.target.value as TemplateFormat)}>
                       <option value="csv">CSV</option>
                       <option value="xlsx">XLSX</option>
                     </select>
@@ -240,6 +252,16 @@ export function AdminQuestionImport(): React.ReactElement {
                   </button>
                 </div>
               </HelpTip>
+              <div data-help-id="admin.question_import.formats" style={{ marginTop: "var(--aiq-space-md)" }}>
+                <div style={labelStyle}>Accepted formats</div>
+                <ul style={{ margin: 0, paddingLeft: "var(--aiq-space-lg)" }}>
+                  <li>CSV</li>
+                  <li>XLSX</li>
+                  <li>GIFT (multiple choice only)</li>
+                  <li>Aiken (multiple choice only)</li>
+                  <li>QTI 2.1, 2.2 or 3.0 package (.zip or one .xml item)</li>
+                </ul>
+              </div>
             </section>
 
             <section className="aiq-card" style={{ padding: "var(--aiq-space-lg)" }}>
@@ -259,9 +281,18 @@ export function AdminQuestionImport(): React.ReactElement {
                     value={packName} onChange={(e) => setPackName(e.target.value)} />
                 </div>
                 <div style={fieldStyle}>
-                  <label htmlFor="qi-file" style={labelStyle}>File (CSV or XLSX, up to 4 MB) *</label>
-                  <input id="qi-file" type="file" accept=".csv,.xlsx" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                  <label htmlFor="qi-file" style={labelStyle}>File (up to 4 MB) *</label>
+                  <input id="qi-file" type="file" accept=".csv,.xlsx,.txt,.gift,.aiken,.xml,.zip" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                 </div>
+                {file !== null && file.name.toLowerCase().endsWith(".txt") && (
+                  <div style={fieldStyle} data-help-id="admin.question_import.text_format">
+                    <label htmlFor="qi-text-format" style={labelStyle}>Text format</label>
+                    <select id="qi-text-format" className="aiq-input" value={textFormat} onChange={(e) => setTextFormat(e.target.value as "gift" | "aiken")}>
+                      <option value="gift">GIFT</option>
+                      <option value="aiken">Aiken</option>
+                    </select>
+                  </div>
+                )}
                 <div>
                   <button type="submit" className="aiq-btn aiq-btn-primary" disabled={busy}>{busy ? "Checking…" : "Check file"}</button>
                 </div>
