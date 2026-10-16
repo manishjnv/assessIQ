@@ -10,6 +10,7 @@ import { QUESTION_TYPES } from "@assessiq/question-types";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { AdminApiError, generateRubricApi, listDomainsApi, listQuestionsApi, saveRubricApi } from "../api.js";
+import { RUBRIC_REQUIRED_IDS, type QuestionType } from "@assessiq/question-types";
 import type { DomainItem, QuestionListItem } from "../api.js";
 import {
   IMPORT_MAX_BYTES, commitImportApi, discardImportApi, downloadImportTemplate, fixImportRowApi, getImportApi, uploadImportApi,
@@ -133,7 +134,7 @@ export function AdminQuestionImport(): React.ReactElement {
         setPackId(r.packId);
         try {
           const list = await listQuestionsApi({ pack_id: r.packId, pageSize: 500 });
-          setNeedRubric(list.items.filter((q) => (q.type === "subjective" || q.type === "scenario")
+          setNeedRubric(list.items.filter((q) => RUBRIC_REQUIRED_IDS.includes(q.type as QuestionType)
             && (q.rubric === null || q.rubric === undefined || Object.keys(q.rubric).length === 0)));
         } catch { /* non-critical: the rubric step is hidden */ }
       }
