@@ -29,6 +29,8 @@ describe("help ids sit under their page prefix", () => {
         const [page] = [...pages];
         const ids = [...src.matchAll(/(?:data-help-id|helpId)(?:=\{?|["']?\s*:\s*)[`"']([^"'`$]*)/g)].map((m) => m[1]!);
         for (const id of ids) {
+          // S13 (2026-10-16): a hyphenated segment never matches a YAML key (isValidHelpKey); three RW-25 pages shipped so.
+          if (!id.endsWith('.') && !isValidHelpKey(id)) bad.push(`${f.slice(ROOT.length + 1)}: ${id} (invalid key: hyphen, uppercase or one segment)`);
           if (id.startsWith(`${page}.`)) continue;
           if (ALLOWLIST.some((a) => f.endsWith(a.file) && a.id === id)) continue;
           bad.push(`${f.slice(ROOT.length + 1)}: ${id} (page ${page})`);
