@@ -45,6 +45,8 @@ const fakeClient = {
   query: vi.fn(async (sql: unknown) => {
     const text = typeof sql === 'string' ? sql : '';
     if (text.includes('COUNT(*)')) return { rows: [{ count: '0' }], rowCount: 1 };
+    // S13: the exports write an audit.exported row through the real auditInTx, which needs the RETURNING row.
+    if (text.startsWith('INSERT INTO audit_log')) return { rows: [{ id: 'a1', tenant_id: 't', actor_user_id: null, actor_kind: 'user', action: 'audit.exported', entity_type: 'audit_log', entity_id: null, before: null, after: null, ip: null, user_agent: null, at: new Date().toISOString() }], rowCount: 1 };
     return { rows: [], rowCount: 0 };
   }),
 };

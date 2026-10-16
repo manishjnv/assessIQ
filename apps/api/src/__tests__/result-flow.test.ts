@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const emailMock = vi.fn();
-vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined), handleAuditFanout: vi.fn(async () => undefined),
+vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined), notifyCandidateResultReleasedAfterCommit: vi.fn(async () => undefined), handleAuditFanout: vi.fn(async () => undefined),
   notifyEvaluationReadyAfterCommit: vi.fn(async () => undefined),
   sendResultReleasedEmail: (...a: unknown[]) => emailMock(...a),
   processEmailSendJob: vi.fn(),
