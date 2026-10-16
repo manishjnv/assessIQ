@@ -232,6 +232,7 @@ export async function buildServer() {
   // All routes are /api/admin/* prefix → covered by @api path /api/* Caddy matcher.
   await registerNotificationsRoutes(app, {
     adminOnly: authChain({ roles: ['admin'] }),
+    candidateOnly: authChain({ roles: ['candidate'] }),
   });
 
   // Scoring admin routes — /api/admin/attempts/:id/score, /api/admin/reports/*

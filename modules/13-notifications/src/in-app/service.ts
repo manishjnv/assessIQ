@@ -68,6 +68,8 @@ export async function listInAppNotifications(input: {
   userRole: string;
   since?: string;
   limit?: number;
+  unreadOnly?: boolean;
+  ownOnly?: boolean;
 }): Promise<ListInAppResult> {
   const repoInput: repo.ListInAppNotificationsInput = {
     tenantId: input.tenantId,
@@ -75,6 +77,8 @@ export async function listInAppNotifications(input: {
     userRole: input.userRole,
     ...(input.since !== undefined ? { since: input.since } : {}),
     ...(input.limit !== undefined ? { limit: input.limit } : {}),
+    ...(input.unreadOnly === true ? { unreadOnly: true } : {}),
+    ...(input.ownOnly === true ? { ownOnly: true } : {}),
   };
 
   const items = await withTenant(input.tenantId, (client) =>
@@ -101,5 +105,21 @@ export async function markRead(
 ): Promise<void> {
   await withTenant(tenantId, (client) =>
     repo.markInAppNotificationRead(client, notificationId, userId),
+  );
+}
+
+/** Z-3: count unread notices of one kind for a user. */
+export async function countUnreadForUser(tenantId: string, userId: string, kind: string): Promise<number> {
+  return withTenant(tenantId, (client) => repo.countUnreadInAppNotifications(client, { userId, kind }));
+}
+
+/** Z-3: mark the caller's notices read (by ids and/or kind). Returns the count updated. */
+export async function markManyRead(
+  tenantId: string,
+  userId: string,
+  filter: { ids?: string[]; kind?: string },
+): Promise<number> {
+  return withTenant(tenantId, (client) =>
+    repo.markInAppNotificationsRead(client, { userId, ...filter }),
   );
 }

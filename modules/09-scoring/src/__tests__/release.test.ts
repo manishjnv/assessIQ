@@ -10,7 +10,7 @@
  * FOR SHARE lock, so a switch back to manual between the sweep's read and its release
  * (committed or still in flight) can never be overtaken by a publish.
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { readFile as readSrc } from "node:fs/promises";
@@ -212,6 +212,8 @@ const audits = (id: string, action: string) =>
   );
 const certs = (attemptId: string) =>
   sup((c) => c.query(`SELECT tier, credential_id FROM certificates WHERE attempt_id=$1`, [attemptId]).then((r) => r.rows as Array<{ tier: string; credential_id: string }>));
+const notices = (userId: string) =>
+  sup((c) => c.query(`SELECT audience, kind, link FROM in_app_notifications WHERE user_id=$1`, [userId]).then((r) => r.rows as Array<{ audience: string; kind: string; link: string }>));
 const certAudits = (attemptId: string) =>
   sup((c) =>
     c
@@ -226,9 +228,11 @@ const certAudits = (attemptId: string) =>
 
 describe("releaseAttemptInTx — happy path", () => {
   it("publishes: status released, ONE grading.released audit row (user actor, trigger manual), certificate issued at >=70%", async () => {
-    const { attemptId } = await seed({ pct: 80 });
+    const { attemptId, candidateId } = await seed({ pct: 80 });
     expect(await release(attemptId, userActor())).toEqual({ released: true });
     expect(await status(attemptId)).toBe("released");
+    // Z-3: after-commit candidate notice (audience 'user'); poll briefly, it runs after the tx.
+    await vi.waitFor(async () => expect(await notices(candidateId)).toEqual([{ audience: "user", kind: "result.released", link: "/candidate/results" }]));
 
     const rows = await audits(attemptId, "grading.released");
     expect(rows).toHaveLength(1);
@@ -477,7 +481,7 @@ describe("releaseAttemptInTx — a certificate failure never rolls the release b
 
 describe("releaseAttemptInTx — atomicity + structure", () => {
   it("an audit INSERT failure rolls the whole release back (no half-published result)", async () => {
-    const { attemptId } = await seed({ pct: 85 });
+    const { attemptId, candidateId } = await seed({ pct: 85 });
     await sup((c) => c.query(`ALTER TABLE audit_log ADD CONSTRAINT _t_rel_atomic CHECK (false) NOT VALID`));
     try {
       await expect(release(attemptId, userActor())).rejects.toThrow();
@@ -486,6 +490,7 @@ describe("releaseAttemptInTx — atomicity + structure", () => {
     }
     expect(await status(attemptId)).toBe("graded");
     expect(await certs(attemptId)).toHaveLength(0);
+    expect(await notices(candidateId)).toHaveLength(0); // rollback sends nothing
   });
 
   it("release.ts has exactly one auditInTx call site, 'grading.released' (in ACTION_CATALOG), no `new Function`", async () => {
@@ -498,7 +503,7 @@ describe("releaseAttemptInTx — atomicity + structure", () => {
     // after-commit webhook helper (it runs on onCommit, never in the tx).
     const notifImports = [...src.matchAll(/import\s*\{([^}]*)\}\s*from\s+["']@assessiq\/notifications["']/g)]
       .flatMap((m) => m[1]!.split(",").map((s) => s.trim()).filter(Boolean));
-    expect(notifImports).toEqual(["emitAttemptEventAfterCommit"]);
+    expect(notifImports).toEqual(["emitAttemptEventAfterCommit", "notifyCandidateResultReleasedAfterCommit"]);
     expect(src.match(/from\s+["']@assessiq\/notifications["']/g) ?? []).toHaveLength(1);
   });
 });

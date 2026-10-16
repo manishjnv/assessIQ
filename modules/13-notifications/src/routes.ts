@@ -43,6 +43,8 @@ import * as inAppService from './in-app/service.js';
 export interface RegisterNotificationsRoutesOptions {
   /** Admin-only preHandler chain */
   adminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
+  /** Z-3: candidate-only chain; when absent the /api/me/notifications routes are not registered. */
+  candidateOnly?: preHandlerHookHandler[] | preHandlerHookHandler;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +66,17 @@ const NotificationsQuerySchema = z.object({
   since: z.string().optional(),
   limit: z.string().optional().transform((v) => (v !== undefined ? parseInt(v, 10) : 50)),
 });
+
+const MeNotificationsQuerySchema = z.object({
+  unread: z.enum(['0', '1', 'true', 'false']).transform((v) => v === '1' || v === 'true').optional(),
+  since: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+const MeMarkReadBodySchema = z.object({
+  ids: z.array(z.string().uuid()).max(100).optional(),
+  kind: z.string().min(1).max(100).optional(),
+}).strict();
 
 // ---------------------------------------------------------------------------
 // Fastify plugin
@@ -280,5 +293,54 @@ export async function registerNotificationsRoutes(
 
     await inAppService.markRead(tenantId, id, userId);
     return reply.code(204).send();
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Z-3: candidate notices (candidate-gated; own rows only)
+  // ──────────────────────────────────────────────────────────────────────────
+  if (opts.candidateOnly === undefined) return;
+  const candidateChain = Array.isArray(opts.candidateOnly) ? opts.candidateOnly : [opts.candidateOnly];
+
+  app.get('/api/me/notifications', { preHandler: candidateChain }, async (req: FastifyRequest) => {
+    const session = (req as AiqReq).session;
+    const tenantId = session?.tenantId;
+    const userId = session?.userId;
+    if (!tenantId || !userId) throw new AuthzError('No session context');
+
+    const parsed = MeNotificationsQuerySchema.safeParse(req.query);
+    if (!parsed.success) {
+      throw new ValidationError('Invalid query params', { details: { issues: parsed.error.issues } });
+    }
+    const q = parsed.data;
+    const [list, unread_count] = await Promise.all([
+      inAppService.listInAppNotifications({
+        tenantId,
+        userId,
+        userRole: 'candidate',
+        limit: q.limit,
+        unreadOnly: q.unread === true,
+        ownOnly: true,
+        ...(q.since !== undefined ? { since: q.since } : {}),
+      }),
+      inAppService.countUnreadForUser(tenantId, userId, 'result.released'),
+    ]);
+    return { items: list.items, cursor: list.cursor, unread_count };
+  });
+
+  app.post('/api/me/notifications/mark-read', { preHandler: candidateChain }, async (req: FastifyRequest) => {
+    const session = (req as AiqReq).session;
+    const tenantId = session?.tenantId;
+    const userId = session?.userId;
+    if (!tenantId || !userId) throw new AuthzError('No session context');
+
+    const parsed = MeMarkReadBodySchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      throw new ValidationError('Invalid mark-read input', { details: { issues: parsed.error.issues } });
+    }
+    const updated = await inAppService.markManyRead(tenantId, userId, {
+      ...(parsed.data.ids !== undefined ? { ids: parsed.data.ids } : {}),
+      ...(parsed.data.kind !== undefined ? { kind: parsed.data.kind } : {}),
+    });
+    return { updated };
   });
 }

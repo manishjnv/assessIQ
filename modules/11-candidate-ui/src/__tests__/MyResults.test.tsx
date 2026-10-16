@@ -2,16 +2,18 @@
 // Pattern: vitest + jsdom + @testing-library/react, matching MyCertificates.test.tsx.
 
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { MyResults } from '../components';
 import type { MyResultsResponseWire } from '../types';
 
-const { mockListMyResults } = vi.hoisted(() => ({
+const { mockListMyResults, mockMarkRead } = vi.hoisted(() => ({
   mockListMyResults: vi.fn<() => Promise<MyResultsResponseWire>>(),
+  mockMarkRead: vi.fn(async () => ({ updated: 1 })),
 }));
 
 vi.mock('../api.js', () => ({
   listMyResults: mockListMyResults,
+  markMyNotificationsRead: mockMarkRead,
 }));
 
 afterEach(() => {
@@ -71,6 +73,17 @@ describe('MyResults', () => {
     const links = screen.getAllByRole('link', { name: /View certificate/ });
     expect(links).toHaveLength(1);
     expect(links[0]?.getAttribute('href')).toBe('https://assessiq.example.com/verify/CERT-001');
+  });
+
+  it('marks result notices read after the list loads and tells the shell', async () => {
+    mockListMyResults.mockResolvedValue(TWO_RESULTS);
+    const seen = vi.fn();
+    window.addEventListener('aiq:notifications-read', seen);
+    render(<MyResults />);
+    await screen.findByText('Aptitude Test — Round 2');
+    expect(mockMarkRead).toHaveBeenCalledWith({ kind: 'result.released' });
+    await waitFor(() => expect(seen).toHaveBeenCalled());
+    window.removeEventListener('aiq:notifications-read', seen);
   });
 
   it('shows the empty state when nothing has been released', async () => {

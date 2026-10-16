@@ -149,4 +149,36 @@ describe('CandidateShell', () => {
     const results = within(menu).getByRole('menuitem', { name: 'Results' });
     expect(results.getAttribute('href')).toBe('/candidate/results');
   });
+
+  describe('new results notice (Z-3)', () => {
+    const withUnread = (n: number) =>
+      mockFetch([
+        { url: /whoami/, body: WHOAMI_OK },
+        { url: /me\/notifications/, body: { items: [], cursor: 'c', unread_count: n } },
+      ]);
+
+    it('shows the plural notice and a link when 2 are unread', async () => {
+      vi.stubGlobal('fetch', withUnread(2));
+      renderShell(<CandidateShell><div /></CandidateShell>);
+      const note = await screen.findByText('2 new results are published.');
+      expect(note.closest('[role="status"]')?.getAttribute('data-help-id')).toBe('candidate.shell.new_results_notice');
+      expect(screen.getByText('View results').getAttribute('href')).toBe('/candidate/results');
+    });
+
+    it('is hidden when nothing is unread', async () => {
+      const f = withUnread(0);
+      vi.stubGlobal('fetch', f);
+      renderShell(<CandidateShell><div /></CandidateShell>);
+      await waitFor(() => expect(f.mock.calls.some((c) => String(c[0]).includes('/me/notifications'))).toBe(true));
+      expect(screen.queryByText(/new result/)).toBeNull();
+    });
+
+    it('hides on the aiq:notifications-read event', async () => {
+      vi.stubGlobal('fetch', withUnread(1));
+      renderShell(<CandidateShell><div /></CandidateShell>);
+      await screen.findByText('1 new result is published.');
+      window.dispatchEvent(new CustomEvent('aiq:notifications-read'));
+      await waitFor(() => expect(screen.queryByText(/new result/)).toBeNull());
+    });
+  });
 });
