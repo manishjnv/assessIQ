@@ -4,7 +4,7 @@ Hi {{recipientName}},
 
 Two-factor authentication was turned on for your AssessIQ account{{#if tenantName}} at {{tenantName}}{{/if}} on {{enrolledAt}}.
 
-If you did not do this, contact your administrator at once and change your password.
+If you did not do this, contact your administrator at once.
 
 — The AssessIQ team
 {{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

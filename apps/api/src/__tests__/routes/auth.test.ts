@@ -113,6 +113,11 @@ vi.mock('@assessiq/auth', () => {
   };
 });
 
+vi.mock('@assessiq/notifications', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@assessiq/notifications')>()),
+  sendTotpEnrolledEmail: vi.fn().mockResolvedValue(undefined),
+}));
+
 // @assessiq/users — surface getUser only (whoami + totp enroll use it).
 vi.mock('@assessiq/users', () => ({
   listUsers: vi.fn(),
@@ -175,6 +180,8 @@ vi.mock('@assessiq/attempt-engine', async (importOriginal) => ({
 
 import { buildServer } from '../../server.js';
 import * as auth from '@assessiq/auth';
+import { sendTotpEnrolledEmail } from '@assessiq/notifications';
+import { ValidationError } from '@assessiq/core';
 
 const ADMIN_VERIFIED_HEADERS = {
   'x-test-session-tenant': 'tenant-uuid',
@@ -282,6 +289,42 @@ describe('AssessIQ auth routes — security-critical', () => {
     it('returns 400 on missing code or state', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/auth/google/cb' });
       expect(res.statusCode).toBe(400);
+    });
+  });
+
+  // TOTP enroll confirm (FU-B21 receipt email)
+  describe('POST /api/auth/totp/enroll/confirm', () => {
+    const confirm = () =>
+      app.inject({
+        method: 'POST',
+        url: '/api/auth/totp/enroll/confirm',
+        headers: { ...ADMIN_PRE_MFA_HEADERS, 'content-type': 'application/json' },
+        payload: JSON.stringify({ code: '123456' }),
+      });
+
+    it('sends the enrolment email once after a successful confirm', async () => {
+      vi.mocked(auth.totp.enrollConfirm).mockResolvedValue({ recoveryCodes: ['AAAAAAAA'] } as never);
+      const res = await confirm();
+      expect(res.statusCode).toBe(200);
+      expect(sendTotpEnrolledEmail).toHaveBeenCalledTimes(1);
+      expect(sendTotpEnrolledEmail).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'admin@example.com', recipientName: 'Admin' }),
+      );
+    });
+
+    it('does not send the email on a wrong code', async () => {
+      vi.mocked(auth.totp.enrollConfirm).mockRejectedValue(new ValidationError('invalid totp code'));
+      const res = await confirm();
+      expect(res.statusCode).toBe(400);
+      expect(sendTotpEnrolledEmail).not.toHaveBeenCalled();
+    });
+
+    it('still returns 200 when the email send fails', async () => {
+      vi.mocked(auth.totp.enrollConfirm).mockResolvedValue({ recoveryCodes: ['AAAAAAAA'] } as never);
+      vi.mocked(sendTotpEnrolledEmail).mockRejectedValueOnce(new Error('smtp down'));
+      const res = await confirm();
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ recoveryCodes: ['AAAAAAAA'] });
     });
   });
 

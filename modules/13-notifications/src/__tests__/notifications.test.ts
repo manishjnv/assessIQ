@@ -195,6 +195,7 @@ import { signPayload, verifySignature } from '../webhooks/signature.js';
 import { WEBHOOK_RETRY_DELAYS_MS, delayFor, webhookBackoffStrategy } from '../webhooks/retry-schedule.js';
 import { renderTemplate } from '../email/render.js';
 import { sendEmail } from '../email/index.js';
+import { sendTotpEnrolledEmail } from '../email/totp-enrolled.js';
 import { sendInvitationEmail, sendAssessmentInvitationEmail } from '../email/legacy-shims.js';
 import { notifyInApp, listInAppNotifications } from '../in-app/service.js';
 import { createWebhookEndpoint } from '../webhooks/service.js';
@@ -584,6 +585,16 @@ describe('sendEmail stub-fallback', () => {
         invitationLink: 'https://assessiq.test/invite?token=xyz',
         expiresInDays: 7,
       },
+    })).resolves.toBeUndefined();
+  });
+});
+
+describe('sendTotpEnrolledEmail (FU-B21)', () => {
+  it('sends the totp_enrolled template without throwing', async () => {
+    await expect(sendTotpEnrolledEmail({
+      to: 'test@example.com',
+      recipientName: 'Bob',
+      tenantId: '00000000-0000-0000-0000-000000000001',
     })).resolves.toBeUndefined();
   });
 });
@@ -1466,7 +1477,7 @@ describe('i18n resolver (email/i18n.ts)', () => {
       enrolledAt: '2026-05-10T12:00:00Z',
     });
     expect(html).toContain(
-      'If you did not do this, contact your administrator at once and change your password.',
+      'If you did not do this, contact your administrator at once.',
     );
   });
 

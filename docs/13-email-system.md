@@ -667,6 +667,14 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 - **Not included.** A notice to the actor. A retry outside the normal bulk retries. A tenant-specific wording.
 - **Downstream impact.** The earlier count of 9 templates in this page is history. Flow and rationale: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
 
+## Template `totp_enrolled` send and copy (FU-B21, 2026-10-16)
+
+- **What changed.** The enrolment email is now sent. `POST /api/auth/totp/enroll/confirm` (`apps/api/src/routes/auth/totp.ts`) calls `sendTotpEnrolledEmail` (`modules/13-notifications/src/email/totp-enrolled.ts`) after the confirm and the session promotion succeed. A failure is logged at warn level and never changes the response. The warning sentence is now "If you did not do this, contact your administrator at once." (`strings/en.json`, `templates/totp_enrolled.txt`).
+- **Why.** The template was rendered in tests but never sent. The old text told the user to change a password, but a TOTP enrolment is not a password event.
+- **Rejected.** Sending from inside `modules/01-auth`: that would add a notification import to 01-auth. RW-91 keeps its send in the route for the same reason.
+- **Not included.** A tenant name in the email (the var is optional and the route skips it, to avoid a tenants query). A resend. No email when the code is wrong or the account is locked.
+- **Downstream impact.** One more `email_log` row for each enrolment. Delivery class is `bulk` (`email/delivery-policy.ts`): 11 attempts over about 45 h.
+
 ## Delivery
 
 ### Delivery: classes, retries, timeouts (2026-10-01)

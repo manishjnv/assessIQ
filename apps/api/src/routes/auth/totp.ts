@@ -1,8 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import { AppError, AuthnError, config, ValidationError } from '@assessiq/core';
+import { AppError, AuthnError, config, streamLogger, ValidationError } from '@assessiq/core';
 import { totp, sessions } from '@assessiq/auth';
 import { getUser } from '@assessiq/users';
+import { sendTotpEnrolledEmail } from '@assessiq/notifications';
 import { authChain } from '../../middleware/auth-chain.js';
+
+const log = streamLogger('app');
 
 // TOTP routes — enrollment, verify, recovery. Library handles RFC 6238
 // crypto, lockout, recovery codes; route layer wires HTTP shape + session
@@ -110,6 +113,20 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
       try {
         const out = await totp.enrollConfirm(sess.userId, sess.tenantId, code);
         await promoteSessionToVerified(req.cookies?.[config.SESSION_COOKIE_NAME]);
+        // FU-B21: best-effort receipt email; a failure never changes the response.
+        try {
+          const user = await getUser(sess.tenantId, sess.userId);
+          await sendTotpEnrolledEmail({
+            to: user.email,
+            recipientName: user.name.length > 0 ? user.name : user.email,
+            tenantId: sess.tenantId,
+          });
+        } catch (mailErr: unknown) {
+          log.warn(
+            { err: mailErr, userId: sess.userId, tenantId: sess.tenantId },
+            'totp enroll: confirmation email failed; enrolment stands',
+          );
+        }
         return out;
       } catch (err) {
         // ValidationError "invalid totp code" is the wrong-code path (400).

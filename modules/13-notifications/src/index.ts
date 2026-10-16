@@ -33,6 +33,7 @@ export { sendResultReleasedEmail } from './email/result-released.js';
 // evaluation.queue_alert; best-effort per recipient, never throws).
 export { sendInvitationReminderEmail } from './email/invitation-reminder.js';
 export { sendTotpResetNoticeEmail } from './email/totp-reset-notice.js';
+export { sendTotpEnrolledEmail } from './email/totp-enrolled.js';
 export { sendEvaluationQueueAlertEmail } from './email/evaluation-queue-alert.js';
 
 // ---------------------------------------------------------------------------
