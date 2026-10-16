@@ -24,6 +24,7 @@ import {
   requestCandidateLoginLinkSystem,
   verifyCandidateLoginToken,
   checkCandidateLinkRateLimit,
+  checkCandidateSendCaps,
   CANDIDATE_LOGIN_TOKEN_TTL_SEC,
   CANDIDATE_SESSION_TTL_SEC,
 } from "../candidate-login.js";
@@ -417,6 +418,26 @@ describe("checkCandidateLinkRateLimit (Fix 2 — per-(IP, email) rate limit)", (
   });
 
   // Fix 6 (post-fix adversarial re-gate): Redis-outage fail-closed.
+  it("S2/N2: send caps count matches only: the 201st matched email from ONE IP in an hour is refused", async () => {
+    const ip = `10.9.${Math.floor(Math.random() * 250)}.${Math.floor(Math.random() * 250)}`;
+    const tenantId = "00000000-0000-4000-8000-0000000000aa";
+    for (let i = 0; i < 200; i++) {
+      expect(await checkCandidateSendCaps(ip, tenantId, `lab-${i}@example.edu`)).toBe(true);
+    }
+    expect(await checkCandidateSendCaps(ip, tenantId, "lab-200@example.edu")).toBe(false);
+    // Attempts that never match do not touch the send caps (a junk client cannot lock a lab out).
+    expect(await checkCandidateLinkRateLimit(ip, "nobody@example.edu")).toBe(true);
+  });
+
+  it("S2/N2: one inbox gets at most 20 sends per hour even from many IPs", async () => {
+    const tenantId = "00000000-0000-4000-8000-0000000000ab";
+    const email = `victim-${Math.floor(Math.random() * 1e6)}@example.edu`;
+    for (let i = 0; i < 20; i++) {
+      expect(await checkCandidateSendCaps(`10.8.${i}.1`, tenantId, email)).toBe(true);
+    }
+    expect(await checkCandidateSendCaps("10.8.99.1", tenantId, email)).toBe(false);
+  });
+
   it("fails closed (returns false) and logs a warning when Redis throws", async () => {
     const { setRedisForTesting } = await import("../redis.js");
     const warnSpy = vi.fn();

@@ -43,14 +43,16 @@ const EXPIRES_MINUTES = Math.round(CANDIDATE_LOGIN_TOKEN_TTL_SEC / 60); // 15
 
 export async function registerCandidateAuthRoutes(app: FastifyInstance): Promise<void> {
   // POST /api/auth/candidate/request-link
-  // Auth: none (public). Rate-limit: IP-level from publicAuthChain + per-(IP,email)
-  // inside requestCandidateLoginLinkSystem.
+  // Auth: none (public). Rate-limit: candidate-entry per-IP bucket (S2/N2, 2026-10-16:
+  // a college lab shares one IP, so the 120/min anon bucket is too small; the entry
+  // bucket is RATE_LIMIT_IP_CANDIDATE_ENTRY per route) + per-(IP,email) 5/h and
+  // per-IP 200/h send caps inside requestCandidateLoginLinkSystem.
   // Always returns 204 — never reveals whether the email matched or slug was valid.
   app.post(
     '/api/auth/candidate/request-link',
     {
       config: { skipAuth: true },
-      preHandler: authChain({ requireSession: false }),
+      preHandler: authChain({ requireSession: false, candidateEntry: true }),
     },
     async (req, reply) => {
       const body = tryParse(requestLinkBody, req.body);

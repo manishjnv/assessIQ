@@ -158,6 +158,7 @@ describe("AdminAssessmentDetail — resend invitations", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/emails will be sent/)).toBeTruthy();
     expect(within(dialog).getByText(/old links stop working/)).toBeTruthy();
+    expect(within(dialog).getByText(/received a resend in the last 24 hours are skipped/)).toBeTruthy();
     expect(posts(`/admin/assessments/${ID}/invitations/resend`)).toHaveLength(0); // nothing sent before Confirm
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Send 3 emails" }));

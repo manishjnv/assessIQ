@@ -29,12 +29,17 @@ export const ACTION_CATALOG = [
   // Tenant
   'tenant.settings.updated',
   'tenant.branding.updated',
+  // Logo phase L1 (2026-10-16): tenant logo uploaded/replaced or removed; payload holds metadata only, never bytes.
+  'tenant.logo.updated',
+  'tenant.logo.removed',
   'tenant.suspended',
   // User
   'user.created',
   'user.role.changed',
   'user.disabled',
   'user.deleted',
+  // LC-2: retention purge of a soft-deleted user (system actor, worker cron).
+  'user.purged',
   // Question bank
   'pack.created',
   'pack.published',
@@ -43,6 +48,7 @@ export const ACTION_CATALOG = [
   'level.added',
   'level.updated',
   'pack.archived',
+  'pack.exported',
   'question.created',
   'question.updated',
   'question.imported',
@@ -65,6 +71,8 @@ export const ACTION_CATALOG = [
   // 'assessment.invite' with after.kind='reinvite'. Naming mirrors
   // 'admin.invitation.resent'.
   'assessment.invitation.resent',
+  // S7/N5 — one row per bulk "resend to everyone who hasn't started" call.
+  'assessment.invitations.bulk_resent',
   // Attempt
   'attempt.started',
   'attempt.submitted',
@@ -124,6 +132,7 @@ export const ACTION_CATALOG = [
   'dev.mint_session',
   // Super-admin — per-tenant AI generation mode flip (Stage 3 rollout).
   'tenant_settings.ai_generate_mode.updated',
+  'tenant_settings.ai_grading_scope.updated',
   // Super-admin — company onboarding (C4 of super-admin-onboarding contract).
   // tenant.created: fired on full success (provisioning→active flip complete).
   // tenant.create_incomplete: fired when provisioning succeeds but a later step
