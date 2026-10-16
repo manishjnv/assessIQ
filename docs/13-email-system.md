@@ -47,23 +47,23 @@ The design history (divergences, decisions, contract, acceptance) is at the end.
 > **Phase E0 output** (foundation: tokens reconciliation + email-safe atom designs).
 > Authored 2026-05-21 against [`docs/plans/archive/EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md).
 >
-> **Scope of this doc.** Single source-of-truth for "what does an AssessIQ email look like." Resolves the kit-vs-production token deltas, designs the 8 email-safe atoms as table-based HTML, and surfaces the product decisions that Phase E1 needed before it materialized the Handlebars partials (E1 is shipped; see the status line above). **No production code lands as part of E0** — the atom HTML below is the *contract* E1 implements.
+> **Scope of this doc.** This doc is the single source of truth for "what does an AssessIQ email look like." It resolves the kit-versus-production token deltas. It designs the 8 email-safe atoms as table-based HTML. It lists the product decisions that Phase E1 needed before it built the Handlebars partials (E1 is shipped; see the status line above). **No production code lands as part of E0** — the atom HTML below is the *contract* E1 implements.
 >
 > **What this doc is NOT.** It is not the email send pipeline reference — that lives in [`modules/13-notifications/SKILL.md`](../modules/13-notifications/SKILL.md). It is not a marketing-content style guide — voice / copy conventions live in the kit's [`copy-and-voice.md`](../modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/design-system/copy-and-voice.md).
 >
-> **FU-A16 (2026-10-06): `tenants.smtp_config` shape conflict, facts only.** The sender (this doc's templates use whichever transport is live) is always the platform Brevo account today — `tenants.smtp_config` has no writer and is NULL on every tenant. Two shapes disagree about what it would look like once built: the migration (`docs/02-data-model.md` § `tenants`) says `{host, port, secure, user, password_enc, from_address, from_name}`; the code type (`modules/13-notifications/src/types.ts:195-203`) says `{provider, smtp_url, from_address, from_name, reply_to, template_overrides}` with a plaintext password in the URL. FU-A15 designs the single shape to use when a tenant sender ships (Enterprise tier, parked).
+> **FU-A16 (2026-10-06): `tenants.smtp_config` shape conflict, facts only.** The sender is always the platform Brevo account today. The templates in this doc use whichever transport is live. `tenants.smtp_config` has no writer and is NULL on every tenant. Two shapes disagree about the form of the column after the build: the migration (`docs/02-data-model.md` § `tenants`) says `{host, port, secure, user, password_enc, from_address, from_name}`; the code type (`modules/13-notifications/src/types.ts:195-203`) says `{provider, smtp_url, from_address, from_name, reply_to, template_overrides}` with a plaintext password in the URL. FU-A15 designs the single shape to use when a tenant sender ships (Enterprise tier, parked).
 
 ## §0 North-star rule (read first — non-negotiable)
 
 **The Email Kit is a design-philosophy reference, NOT a per-email mockup catalog.**
 
-The scope of this port is: **make every existing AssessIQ email follow the kit's design philosophy.** Tokens, atoms, type rhythm, footer breadth, voice — applied uniformly across the 9 production templates that we ALREADY send. The kit happens to draw explicit screens for 5 of those 9; that is a *work-order* convenience (those are faster to author because the kit gives more reference), not a *categorical* distinction. The other 4 (`candidate_login_link`, `admin_email_otp`, `totp_enrolled`, `attempt_submitted_candidate`) compose from the same atoms and follow the same philosophy.
+The scope of this port is: **make every existing AssessIQ email follow the design philosophy of the kit.** Apply tokens, atoms, type rhythm, footer breadth and voice to all 9 production templates that we ALREADY send. The kit draws explicit screens for 5 of those 9. This is a *work-order* convenience, not a *categorical* distinction: those 5 are faster to author because the kit gives more reference. The other 4 (`candidate_login_link`, `admin_email_otp`, `totp_enrolled`, `attempt_submitted_candidate`) compose from the same atoms and follow the same philosophy.
 
 Concrete implications, in case anyone is tempted to interpret the kit as a catalog:
 
 1. **Pulse newsletter is NOT a product addition.** The kit ships a "Pulse" mockup; production sends `weekly_digest_admin` and only that. The port applies the Pulse *philosophy* (editorial eyebrow, serif headline, stacked meta cards, footer breadth) to the existing weekly digest. It does NOT introduce a candidate-facing monthly newsletter.
-2. **Do not skip a template because the kit did not draw a screen for it.** `admin_email_otp`, `candidate_login_link`, `totp_enrolled`, `attempt_submitted_candidate` all get the same atom set + token contract + voice treatment as the kit-mapped ones. The plan's E2a / E2b split is sequencing, not a permission gate.
-3. **Do not add a new template because the kit hints at it.** If something feels missing (password reset, attempt-abandoned nudge, account-deletion confirmation, …) that is a separate product decision, surfaced and approved outside this port. The kit's atoms remain available for it when/if it ships.
+2. **Do not skip a template because the kit did not draw a screen for it.** `admin_email_otp`, `candidate_login_link`, `totp_enrolled` and `attempt_submitted_candidate` all get the same atom set + token contract + voice treatment as the kit-mapped ones. The plan's E2a / E2b split is sequencing, not a permission gate.
+3. **Do not add a new template because the kit hints at it.** If a template seems missing (password reset, attempt-abandoned nudge, account-deletion confirmation, …), that is a separate product decision. Make and approve that decision outside this port. The atoms of the kit remain available for it if it ships.
 4. **Do not lose existing content.** Every var, every i18n string, every condition in the 9 production templates today is load-bearing. E1 ports the wrapper; E2 reapplies the kit's *visual* contract to the *same* content surface. If a candidate or admin gets a noticeably different *message* after the port, that is a bounce.
 
 This rule mirrors `feedback-functionality-drives-ui.md` ("UI kits are palettes of idioms, not product specs") applied to the email surface. It is the same rule the Mobile Kit Port and the AccessIQ UI Template port followed.
@@ -201,7 +201,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 **Why.** Outer 100 % table = client width; inner fixed-640 table = card. `role="presentation"` tells screen-readers it is layout. `meta` tags suppress Outlook-Mobile reformatting and lock the email to light mode (we have not designed dark variants yet — see §4 open question).
 
-**Composition mechanism — block partials, not subexpressions.** `email-shell` is invoked as a Handlebars **block partial** (`{{#> email-shell preheader=...}}...{{/email-shell}}`). The block content is exposed inside the partial as `{{> @partial-block}}` — this is built-in Handlebars syntax requiring no custom helper. See §3 for the canonical composition shape. Do NOT attempt to pass body content via a `{{{body}}}` slot var or a `(partial 'name')` subexpression — both require either pre-rendering or a custom helper, both more fragile than the built-in block-partial pattern.
+**Composition mechanism — block partials, not subexpressions.** You call `email-shell` as a Handlebars **block partial** (`{{#> email-shell preheader=...}}...{{/email-shell}}`). The partial exposes the block content as `{{> @partial-block}}`. This is built-in Handlebars syntax and needs no custom helper. See §3 for the canonical composition shape. Do NOT pass body content through a `{{{body}}}` slot var or a `(partial 'name')` subexpression. Both need either pre-rendering or a custom helper. Both are more fragile than the built-in block-partial pattern.
 
 ### A2 — `{{> email-preheader }}`
 
@@ -217,7 +217,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 </div>
 ```
 
-**Why.** The `&#8199;&#65279;` (figure-space + zero-width no-break-space) pairs pad the preview line past the body's first chars so the client does not display "Set up your account · You're receiving this because…" mash-up. `mso-hide:all` hides from Outlook explicitly. `display:none` is respected by every modern client.
+**Why.** The `&#8199;&#65279;` (figure-space + zero-width no-break-space) pairs pad the preview line past the first characters of the body. This stops the client from showing a mixed line such as "Set up your account · You're receiving this because…". `mso-hide:all` hides the line from Outlook explicitly. Every modern client respects `display:none`.
 
 ### A3 — `{{> email-header }}`
 
@@ -356,7 +356,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 **Why two parallel renderings.** Outlook 2007–2019 (still ~15 % of B2B inboxes) ignores `border-radius` on `<a>`, rendering pill buttons as sharp rectangles. The `<v:roundrect>` is the VML equivalent, rendered only inside Outlook (`<!--[if mso]>`). `<!--[if !mso]><!-->` is a documented "everything-except-Outlook" comment trick that hides the HTML `<a>` from MSO and shows it everywhere else. The two never render together.
 
-**Note on `width_px`.** VML requires an explicit width; HTML `<a>` does not. For variable labels, per-template `width_px` is a best-effort approximation that wraps the label without clipping (rule of thumb: 8 px per ASCII character + 56 px button padding). E2a/E2b authors set this per template.
+**Note on `width_px`.** VML requires an explicit width; HTML `<a>` does not. For variable labels, the per-template `width_px` is a best-effort estimate. It fits the label without clipping (rule of thumb: 8 px per ASCII character + 56 px button padding). E2a/E2b authors set this per template.
 
 ### A7 — `{{> email-meta-card }}`
 
@@ -382,7 +382,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 </table>
 ```
 
-**Why.** `border-collapse:separate` is required for the outer `border-radius` to render in WebKit clients (otherwise the inner `<td>` borders punch through). `@first` / `@last` are Handlebars built-ins; no helper needed.
+**Why.** The outer `border-radius` needs `border-collapse:separate` to render in WebKit clients. Without it, the inner `<td>` borders show through. `@first` / `@last` are Handlebars built-ins; no helper needed.
 
 **Why `{{{v}}}` (triple-stash exception).** The value cell may contain inline emphasis (`<strong>`) or a short link. Triple-stash is otherwise forbidden — this is the **sole allowed exception**, reconciled with [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) anti-pattern guard #9 (amended to document this exception). `v` is authored at the *template* level (for example, `{ k: "Score", v: '<strong>Distinguished</strong>' }`), never substituted from candidate-supplied data.
 
@@ -414,9 +414,9 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
    }
    ```
 
-   Allow-list (initial): `<strong>`, `</strong>`, `<em>`, `</em>`, `<br>`, and `<a href="…">…</a>` with `href` matching `^https://[a-z0-9.-]+/` (no `javascript:`, no relative). Anything else → throw. The exception is enforced as a runtime invariant — failing loudly during local rendering is cheaper than a Litmus surprise or a candidate-name-injection report.
+   Allow-list (initial): `<strong>`, `</strong>`, `<em>`, `</em>`, `<br>`, and `<a href="…">…</a>` with `href` matching `^https://[a-z0-9.-]+/` (no `javascript:`, no relative). Anything else → throw. The code enforces this exception as a runtime invariant. A loud failure during local rendering costs less than a Litmus surprise or a candidate-name-injection report.
 
-3. **CI lint.** E1 adds an AST-level scan in `modules/13-notifications/test/lint-meta-rows.test.ts` that grep-walks every `templates/*.html` consumer file and flags any `meta_rows` literal whose `v:` value contains a Handlebars var reference not preceded by `escape(`. Patterns to bounce:
+3. **CI lint.** E1 adds an AST-level scan in `modules/13-notifications/test/lint-meta-rows.test.ts`. The scan walks every `templates/*.html` consumer file with grep. It flags any `meta_rows` literal whose `v:` value contains a Handlebars var reference without a preceding `escape(`. Patterns to bounce:
 
    ```ts
    v: `...${candidateName}...`       // raw candidate name → reject
@@ -492,7 +492,7 @@ For: `candidate_login_link`, `admin_email_otp`, `totp_enrolled`, `attempt_submit
 
 For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `weekly_digest_admin`.
 
-**Empirical check, 2026-05-21:** grep across the codebase for `/unsubscribe`, `/preferences`, `/account/preferences`, `/privacy`, `privacy-policy` — **zero matches**. **None of the 4 footer-row endpoints exist today.** Per anti-pattern guard "never ship a row that 404s", the entire link row must conditionally collapse when no href is provided. A9b is designed to be safe on day-zero with all 4 hrefs `null` (collapses the row + the trailing border), and to light up incrementally as each endpoint ships.
+**Empirical check, 2026-05-21:** grep across the codebase for `/unsubscribe`, `/preferences`, `/account/preferences`, `/privacy`, `privacy-policy` — **zero matches**. **None of the 4 footer-row endpoints exist today.** The anti-pattern guard says "never ship a row that 404s". So the entire link row must collapse when no href is provided. A9b is safe on day zero with all 4 hrefs `null`, because it collapses the row and the trailing border. It lights up step by step as each endpoint ships.
 
 **Inputs:**
 
@@ -542,19 +542,19 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 </tr>
 ```
 
-**Collapse logic.** The outer `{{#if has_any_link}}` removes the entire link row + its 20 px bottom padding when no hrefs are provided — otherwise the footer ships a 20 px gap of empty space above the legal line. Each inner `{{#if <name>_href}}` removes the individual link + its `margin-right`. The render-time context must compute `has_any_link = !!(unsubscribe_href || preferences_href || help_href || privacy_href)` and pass it on the partial invocation — this avoids a `{{#or}}` helper that Handlebars does not ship.
+**Collapse logic.** The outer `{{#if has_any_link}}` removes the entire link row and its 20 px bottom padding when no hrefs are provided. Without it, the footer ships a 20 px gap of empty space above the legal line. Each inner `{{#if <name>_href}}` removes the individual link + its `margin-right`. The render-time context must compute `has_any_link = !!(unsubscribe_href || preferences_href || help_href || privacy_href)` and pass it on the partial invocation — this avoids a `{{#or}}` helper that Handlebars does not ship.
 
 **Day-zero shape (2026-05-21).** Every commercial template calls A9b with all 4 hrefs `null`. The footer renders as: brand mark → reason copy → legal line. No dead links, no empty link row.
 
 **Incremental enable.** As each endpoint ships, the corresponding template passes the real href on the partial invocation. CAN-SPAM unsubscribe is the priority — when `/unsubscribe?token=<jwt>` lands, every commercial template starts passing `unsubscribe_href={{computed_per_recipient}}`. The other 3 (preferences, help, privacy) can stay collapsed indefinitely without legal exposure.
 
-**CAN-SPAM caveat.** US CAN-SPAM **requires** an unsubscribe mechanism on commercial messages. A9b's day-zero shape (no unsubscribe link) is technically non-compliant — but only matters if any commercial template actually ships to a US recipient before the unsubscribe endpoint is built. **Mitigation:** until `/unsubscribe` lands, treat all 4 commercial templates as **invitation-only** sends (recipients have an existing business relationship → exemption). When the product opens up to broader marketing-style sends, the endpoint MUST exist first. Track as an explicit follow-up.
+**CAN-SPAM caveat.** US CAN-SPAM **requires** an unsubscribe mechanism on commercial messages. The day-zero shape of A9b (no unsubscribe link) is technically non-compliant. This matters only if a commercial template ships to a US recipient before the unsubscribe endpoint exists. **Mitigation:** until `/unsubscribe` lands, treat all 4 commercial templates as **invitation-only** sends (recipients have an existing business relationship → exemption). Before the product starts broader marketing-style sends, the endpoint MUST exist. Track as an explicit follow-up.
 
 ### A-TXT — Plain-text variants (decision: NO atom set)
 
 **Decision:** TXT variants stay hand-authored. No shared partials, no TXT atom set.
 
-**Why.** The 9 production `.txt` templates are 15-17 lines each. Their structure is `Subject: <line>` + blank + body + `— AssessIQ` signature. Across the 9 templates, the only repeated content is the trailing signature (4 chars: `— AssessIQ`). Atomicizing a 4-char signature into a Handlebars partial adds machinery (one more partial file, one more register call, one more place to drift) for negative net benefit.
+**Why.** The 9 production `.txt` templates are 15-17 lines each. Their structure is `Subject: <line>` + blank + body + `— AssessIQ` signature. Across the 9 templates, the only repeated content is the trailing signature (4 chars: `— AssessIQ`). A Handlebars partial for a 4-character signature adds machinery for a net loss. It adds one more partial file, one more register call and one more place to drift.
 
 **What E1/E2 still must do for TXT:**
 
@@ -563,7 +563,7 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 3. **Preserve i18n `{{_t_*}}` vars** — TXT compiles with `noEscape: true` but i18n substitution still happens. Do not inline literal English strings.
 4. **No HTML tags in TXT.** Even when the HTML uses `<strong>` inside `meta_rows.v`, the TXT variant uses uppercase or asterisks (`*Distinguished*`) instead. The render pipeline does NOT auto-strip — the template author writes the parallel text.
 
-**Lint addition for E1:** `modules/13-notifications/test/lint-txt-parity.test.ts` — for each template name in the EmailTemplateNameSchema, assert both `.html` and `.txt` files exist and that the `.txt` file's first line matches `/^Subject: \S/`. Fails loudly if either invariant breaks.
+**Lint addition for E1:** `modules/13-notifications/test/lint-txt-parity.test.ts` — for each template name in the EmailTemplateNameSchema, assert that both the `.html` file and the `.txt` file exist. Also assert that the first line of the `.txt` file matches `/^Subject: \S/`. The test fails loudly if either invariant breaks.
 
 ### A10 — `{{> email-ghost-link }}`
 
@@ -584,7 +584,7 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 
 ## §3 Composition example
 
-Templates compose atoms via **Handlebars block partials** (`{{#> name args}}body{{/name}}`). The block content is rendered inside the partial via `{{> @partial-block}}` (a Handlebars built-in — no custom helper needed). This is the only composition pattern E1 must support.
+Templates compose atoms via **Handlebars block partials** (`{{#> name args}}body{{/name}}`). The partial renders the block content with `{{> @partial-block}}` (a Handlebars built-in that needs no custom helper). This is the only composition pattern E1 must support.
 
 A full template (`invitation_candidate` after E2a) reads:
 
@@ -619,8 +619,8 @@ A full template (`invitation_candidate` after E2a) reads:
 
 **Why block partials, not slot vars or subexpression partials.** Two patterns were considered and rejected:
 
-- `{{> email-shell body=(partial 'foo')}}` (subexpression): `(partial 'name')` is **not built-in Handlebars** — it requires a custom helper to look up `Handlebars.partials[name]`, compile-if-string, render with context, and mark the output as safe. Surface area + failure modes E1 does not need.
-- `{{> email-shell body=preRenderedHtml}}` (pre-rendered string in context): forces every template to pre-render its body string in `render.ts` before calling the shell — pushes composition logic out of templates into TS code and breaks the "partials compose; render.ts is content-agnostic" boundary.
+- `{{> email-shell body=(partial 'foo')}}` (subexpression): `(partial 'name')` is **not built-in Handlebars**. It needs a custom helper to find `Handlebars.partials[name]`, compile it if it is a string, render it with context, and mark the output as safe. E1 does not need this surface area and these failure modes.
+- `{{> email-shell body=preRenderedHtml}}` (pre-rendered string in context): this forces every template to pre-render its body string in `render.ts` before it calls the shell. It moves composition logic out of the templates into TS code. It also breaks the boundary "partials compose; render.ts is content-agnostic".
 
 Block partials (`{{#> name}}…{{/name}}` + `{{> @partial-block}}`) ship with Handlebars 4.x. Zero helper code, composition stays in templates.
 
@@ -686,10 +686,10 @@ Templates are rendered as described above. Delivery is a BullMQ `email.send` job
   - 5 attempts, exponential from 5 s. Codes expire, so there are no long retries.
 - **Bulk mail** (every other template: candidate invitations, result released, evaluation queue alert, …):
   - priority 100;
-  - 11 attempts over about 45 h (1m, 5m, 15m, 1h, 2h, 4h, 6h, 8h, 12h, 12h), so hitting the provider's daily limit delays mail instead of losing it.
+  - 11 attempts over about 45 h (1m, 5m, 15m, 1h, 2h, 4h, 6h, 8h, 12h, 12h), so a hit on the daily limit of the provider delays mail instead of losing it.
 - **Permanent recipient errors** (SMTP 5.1.x) fail at once.
 - **`email_log.status`:** `queued` between retries, `sent` on delivery, `failed` only when final. These writes persist since migration 0121.
-- **Timeouts:** SMTP connection 10 s, greeting 10 s, socket 30 s. They are appended to `SMTP_URL` unless set there, so a hung connection cannot hold the single worker slot.
+- **Timeouts:** SMTP connection 10 s, greeting 10 s, socket 30 s. The code adds them to `SMTP_URL` unless `SMTP_URL` already sets them, so a hung connection cannot hold the single worker slot.
 - **A new template must be classified:** `EMAIL_CLASS` is a `Record<EmailTemplateName, …>`, so a new template does not compile until it is marked auth or bulk.
 - **More:** log events and triage are in `docs/11-observability.md` § 35. Plan capacity (300/day on the shared free plan) is an owner decision; see `docs/ROADMAP.md` A5 (local).
 
@@ -750,11 +750,11 @@ E0 applied the plan's default recommendations where the call was low-risk. **Dec
 
 #### Pre-port copy cleanup (shipped 2026-05-21, commit `c8efed3`)
 
-Independent of E1–E4, the 9 production subject lines + several body strings were rewritten into plain English (operator copy review): removed `"quotes"` around assessment names, `(parens)` around tenant names, the `(TOTP)`/"enrolled" jargon, the `Attempt:`→`Reference:` microcopy, and em-dash subject separators. Auth templates (sign-in link, sign-in code) and all `{{placeholders}}` were left intact; content-layer only (no pipeline/schema/trigger change). **E2a/E2b MUST preserve this plain-English copy when restyling — do not regress to the old subjects.** 107 notifications tests + the updated `invitation_candidate` subject snapshot are green. Final subjects: see `modules/13-notifications/src/email/templates/*.txt` line 1.
+Independent of E1–E4, an operator copy review rewrote the 9 production subject lines and several body strings into plain English. The review removed `"quotes"` around assessment names, `(parens)` around tenant names, the `(TOTP)`/"enrolled" jargon, the `Attempt:`→`Reference:` microcopy, and em-dash subject separators. Auth templates (sign-in link, sign-in code) and all `{{placeholders}}` were left intact; content-layer only (no pipeline/schema/trigger change). **E2a/E2b MUST keep this plain-English copy when they restyle. Do not revert to the old subjects.** 107 notifications tests and the updated `invitation_candidate` subject snapshot are green. Final subjects: see `modules/13-notifications/src/email/templates/*.txt` line 1.
 
 ### §6 What E1 implements (the contract)
 
-> **Implementation status (2026-05-21, `db7d931`):** E1 SHIPPED. The 11 atoms below are live as `modules/13-notifications/src/email/partials/*.html` (A9b/commercial footer omitted — operator chose all-transactional, decision #4). `render.ts` registers them + the `concat` helper at init and derives `meta_rows` / `copyright_year` via `augmentContext()` (Zod schemas unchanged → no `sendEmail()` call-site changes); `assertSafeMetaRows()` enforces the §2 A7 allow-list. `i18n.ts` `buildVars()` merges the `_shared` namespace (`en.json._shared.legal_address = "Bangalore 560068, India"`). **E2a + E2b COMPLETE (`db7d931` + `ed8252f`, 2026-05-21):** all 9 templates compose the kit partials, are deployed (api+worker), and the full sample set was sent for review. `weekly_digest_admin` uses a bespoke kit-styled stats table (not the meta-card) so the pending-review count keeps `#e64242`; `totp_enrolled` keeps the security warning in `#e64242`; `admin_email_otp` renders the code in a large mono block and never leaks it to the preheader (decision #7). E3 = operator manual inbox review (free path; Litmus deferred).
+> **Implementation status (2026-05-21, `db7d931`):** E1 SHIPPED. The 11 atoms below are live as `modules/13-notifications/src/email/partials/*.html` (A9b/commercial footer omitted — operator chose all-transactional, decision #4). `render.ts` registers them + the `concat` helper at init and derives `meta_rows` / `copyright_year` via `augmentContext()` (Zod schemas unchanged → no `sendEmail()` call-site changes); `assertSafeMetaRows()` enforces the §2 A7 allow-list. `i18n.ts` `buildVars()` merges the `_shared` namespace (`en.json._shared.legal_address = "Bangalore 560068, India"`). **E2a + E2b COMPLETE (`db7d931` + `ed8252f`, 2026-05-21):** all 9 templates compose the kit partials and are deployed (api+worker). The team sent the full sample set for review. `weekly_digest_admin` uses a bespoke kit-styled stats table (not the meta-card) so the pending-review count keeps `#e64242`; `totp_enrolled` keeps the security warning in `#e64242`; `admin_email_otp` renders the code in a large mono block and never leaks it to the preheader (decision #7). E3 = operator manual inbox review (free path; Litmus deferred).
 
 E1 takes the 10 atom designs in §2 and materializes them as Handlebars partials in `modules/13-notifications/src/email/partials/`:
 
@@ -776,13 +776,13 @@ partials/
 
 `render.ts` registers each partial at module init via `Handlebars.registerPartial`. Module-load failure if any partial is missing (fail-loud at boot, not on first send).
 
-The 9 existing templates in `modules/13-notifications/src/email/templates/` are refactored to compose against the partials via the **block-partial composition pattern** documented in §3 (`{{#> name}}…{{/name}}` + `{{> @partial-block}}` inside the partial). **Structural-equivalence parity with the pre-E1 production templates is the E1 acceptance test** — visual changes land in E2. Parity is asserted via a DOM-tree comparison, not raw-string snapshot equality (see plan E1 testing notes for the comparator shape).
+The 9 existing templates in `modules/13-notifications/src/email/templates/` use the **block-partial composition pattern** documented in §3 to compose against the partials (`{{#> name}}…{{/name}}` + `{{> @partial-block}}` inside the partial). **Structural-equivalence parity with the pre-E1 production templates is the E1 acceptance test** — visual changes land in E2. A DOM-tree comparison asserts parity, not raw-string snapshot equality (see plan E1 testing notes for the comparator shape).
 
 Helpers E1 must register: `concat` (~5 lines, string join for serif H1 composition in templates). **No `partial` helper** — block partials are built-in Handlebars and need no helper. **No `ifEquals` helper** either — A5's `size` variant is implemented by splitting `email-lede` into two partials (see §6.1) instead of a runtime conditional.
 
 #### §6.1 i18n keys — what exists today vs what E1 must add
 
-**Verified against** [`modules/13-notifications/src/email/strings/en.json`](../modules/13-notifications/src/email/strings/en.json) **on 2026-05-21.** The file is **per-template namespaced** (not flat) — keys nest under `<template_name>.<key>`, and the `buildVars()` resolver in [`i18n.ts`](../modules/13-notifications/src/email/i18n.ts) flattens them to `_t_<key>` at render time.
+**Verified against** [`modules/13-notifications/src/email/strings/en.json`](../modules/13-notifications/src/email/strings/en.json) **on 2026-05-21.** The file is **per-template namespaced** (not flat). Keys nest under `<template_name>.<key>`. The `buildVars()` resolver in [`i18n.ts`](../modules/13-notifications/src/email/i18n.ts) flattens the keys to `_t_<key>` at render time.
 
 **Already present in all 9 templates** (no E1 work needed):
 
@@ -833,10 +833,10 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 - [x] **Blocker 3 (snapshot strategy):** [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) E1 "Render unit tests" rewritten — frozen `.pre-e1.html` fixtures + `node-html-parser` DOM-tree canonical-form comparison, NOT raw-string snapshots. Pre-E1 fixture-capture commit lands first, on its own.
 - [x] **Bug 4 (TXT atom set):** §2 A-TXT decision — TXT variants stay hand-authored, no shared partials. Lint added: `lint-txt-parity.test.ts` asserts both `.html` + `.txt` files exist per template and the `.txt` first line matches `/^Subject: \S/`.
 - [x] **Bug 5 (i18n keys):** §6.1 rewritten against the real per-template-namespaced `en.json`. Only ~6 new cross-template keys (under new `_shared` namespace) need adding — `page_title` and `brand_wordmark` already exist in all 9 templates. `buildVars()` extension scoped to merge `_shared.*` into every template's `_t_*` namespace.
-- [x] **Bug 6 (commercial footer endpoints):** §2 A9b updated against empirical grep finding (no `/unsubscribe`, `/preferences`, `/privacy` exist). Per-link conditional collapse for all 4 hrefs; outer `{{#if has_any_link}}` removes the row entirely on day zero. §3 composition example updated to day-zero shape (all 4 hrefs `null`).
-- [x] **Bug 7 (plan guard #11 over-broad):** [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) anti-pattern guard #11 tightened with explicit enumeration of send-pipeline invariants (email_log/BullMQ contract/transport/dev-stub-fallback) and a carve-out documenting that `render.ts` partial registration + `concat` helper + `assertSafeMetaRows()` are content-layer changes, not pipeline — not a Phase 3 bounce.
+- [x] **Bug 6 (commercial footer endpoints):** §2 A9b updated against empirical grep finding (no `/unsubscribe`, `/preferences`, `/privacy` exist). Each of the 4 hrefs has a conditional collapse. The outer `{{#if has_any_link}}` removes the row entirely on day zero. The §3 composition example now shows the day-zero shape (all 4 hrefs `null`).
+- [x] **Bug 7 (plan guard #11 over-broad):** [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) anti-pattern guard #11 now lists the send-pipeline invariants (email_log/BullMQ contract/transport/dev-stub-fallback). It also has a carve-out: the `render.ts` partial registration, the `concat` helper and `assertSafeMetaRows()` are content-layer changes, not pipeline changes. They are not a Phase 3 bounce.
 - [ ] User has resolved open decision #5 (physical address) — **blocks E1**.
 
-E1 cannot start until decision #5 is resolved (the footer partial needs the literal address baked in). Decisions #7 (OTP preheader) and #11 (Litmus budget) can be deferred — they affect E2b and E3 respectively, both downstream of E1.
+E1 cannot start until the team resolves decision #5 (the footer partial needs the literal address in its source). Decisions #7 (OTP preheader) and #11 (Litmus budget) can be deferred — they affect E2b and E3 respectively, both downstream of E1.
 
 — *AssessIQ · E0 foundation · 2026-05-21*

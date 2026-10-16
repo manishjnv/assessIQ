@@ -2,9 +2,9 @@
 
 *Type: explanation* — This page explains how AI grading runs, the operating modes and why grading is synchronous.
 
-> **Phase 1 (current, $0 API budget):** Production grading runs synchronously through the **Claude Code CLI** on the VPS, authenticated against the admin's personal Max subscription. Every grading call is initiated by an explicit click of the platform super admin (the owner) in the platform evaluation queue — company admins can no longer trigger it (§ Platform evaluation queue, 2026-10-01) — single-admin-in-the-loop, no async workers, no Agent SDK, no API key.
+> **Phase 1 (current, $0 API budget):** Production grading runs synchronously through the **Claude Code CLI** on the VPS. The CLI authenticates against the personal Max subscription of the admin. The platform super admin (the owner) starts every grading call with an explicit click in the platform evaluation queue. Company admins can no longer start it (§ Platform evaluation queue, 2026-10-01). A single admin stays in the loop. There are no async workers, no Agent SDK and no API key.
 >
-> **Phase 2 (future, paid budget):** Same prompts and rubric move to the Claude Agent SDK with an `ANTHROPIC_API_KEY`, async BullMQ workers, prompt-cache savings, and tenant-level concurrency. The pipeline is designed so the swap is a single config flag (`AI_PIPELINE_MODE`).
+> **Phase 2 (future, paid budget):** The same prompts and rubric move to the Claude Agent SDK with an `ANTHROPIC_API_KEY`, async BullMQ workers, prompt-cache savings and tenant-level concurrency. The pipeline is designed so that the swap is a single config flag (`AI_PIPELINE_MODE`).
 
 This page explains how AssessIQ grades answers with AI and generates questions with AI. It covers the operating modes, the grading stages, score computation, failure modes and question generation. The last section holds the dated decisions.
 
@@ -16,7 +16,7 @@ This section explains the three runtimes and why Phase 1 runs on the VPS with an
 
 ### Operating modes
 
-The grader is built behind one interface (`gradeSubjective(input) → SubjectiveGrading`) with three swappable runtimes:
+The grader sits behind one interface (`gradeSubjective(input) → SubjectiveGrading`) with three swappable runtimes:
 
 | Mode (`AI_PIPELINE_MODE`) | Auth | Trigger | When to use |
 |---|---|---|---|
@@ -24,13 +24,13 @@ The grader is built behind one interface (`gradeSubjective(input) → Subjective
 | `anthropic-api` (Phase 2) | `ANTHROPIC_API_KEY` | Async BullMQ worker on `attempt.submitted` | Multi-tenant scale, paid grading credits |
 | `open-weights` (fallback) | Local vLLM/Ollama, OpenAI-compatible | Async BullMQ worker | Compliance-driven on-prem, dedicated GPU |
 
-Stage prompts, rubric structure, scoring math, and the eval harness are mode-agnostic. Only the executor changes.
+The stage prompts, the rubric structure, the scoring math and the eval harness are mode-agnostic. Only the executor changes.
 
 ### Phase 1 — Claude Code on VPS, admin-in-the-loop
 
 #### Compliance frame
 
-Anthropic's consumer ToS allows individual subscribers to script their own use of Claude Code — what it forbids is using Max-subscription auth to power a *product* serving other people. The Phase 1 architecture stays inside that line by enforcing these invariants:
+The consumer ToS of Anthropic allows individual subscribers to script their own use of Claude Code. The ToS forbids the use of Max-subscription auth to power a *product* that serves other people. The Phase 1 architecture stays inside that line because it enforces these invariants:
 
 | Invariant | Enforcement |
 |---|---|
@@ -41,7 +41,7 @@ Anthropic's consumer ToS allows individual subscribers to script their own use o
 | Admin must visually confirm or override every proposed grade before it is committed | `gradings` row only written on admin "Accept"; proposal otherwise discarded |
 | Every Claude Code invocation is logged against the admin's identity | `PostToolUse` hook → `/var/log/assessiq/grading-audit.jsonl` |
 
-If asked: *"the admin uses their personal Anthropic Max subscription via Claude Code as a productivity tool to assist their grading work. AssessIQ does not call Anthropic APIs."*
+If someone asks, say: *"the admin uses their personal Anthropic Max subscription via Claude Code as a productivity tool to assist their grading work. AssessIQ does not call Anthropic APIs."*
 
 #### Detached generation (RW-93)
 
@@ -49,8 +49,8 @@ If asked: *"the admin uses their personal Anthropic Max subscription via Claude 
 
 - **What.** `POST /api/admin/generate/start` starts `generateQuestions` detached in the API process and returns 202 `{ attempt_id }`. The wizard polls `GET /api/admin/generation-attempts/:id`. Code: `modules/04-question-bank/src/service/generation-async.ts`.
 - **Why it is still admin click, single-flight.** Only the admin click starts the run. There is no cron, queue, webhook or worker. The run takes the same single-flight lock (`modules/07-ai-grading/src/single-flight.ts`) and writes the same attempt row. The `lint-no-ambient-claude.ts` allow-list is unchanged (2 spawn sites).
-- **300 ms ceiling.** The start route waits 300 ms. An error inside that window (409 `AIG_GRADING_IN_PROGRESS`, 503 `AIG_LOCK_UNAVAILABLE`, 501 wrong pipeline mode) goes to the start request. A later error marks the attempt row `failed` (only if it is still `running`) and the poller reads it.
-- **API restart mid-run.** The CLI child dies with the API process. The attempt row stays `running`. The RW-7 Redis lease (120 s, refreshed every 40 s) expires and frees the lock. The wizard stops after 10 min, and the admin runs the category again. Since RW-94 (S10, 2026-10-16) a sweep flips the stale row (see "Bounded restart" below).
+- **300 ms ceiling.** The start route waits 300 ms. An error inside that window (409 `AIG_GRADING_IN_PROGRESS`, 503 `AIG_LOCK_UNAVAILABLE`, 501 wrong pipeline mode) goes to the start request. A later error marks the attempt row `failed` (only if it is still `running`), and the poller reads it.
+- **API restart mid-run.** The CLI child dies with the API process. The attempt row stays `running`. The RW-7 Redis lease (120 s, refreshed every 40 s) expires and frees the lock. The wizard stops after 10 min, and the admin runs the category again. Since RW-94 (S10, 2026-10-16), a sweep changes the stale row to `failed` (see "Bounded restart" below).
 - **Considered and rejected.** BullMQ or a worker (hard rule 1), SSE or websockets (edge buffering), a new table, replacing the sync route.
 - **Not included.** Cancel; resume after a restart.
 
@@ -58,12 +58,12 @@ If asked: *"the admin uses their personal Anthropic Max subscription via Claude 
 
 *Type: explanation.*
 
-- **What.** `sweepStaleGenerationAttempts({ olderThanMs })` in `modules/04-question-bank/src/service/generation-async.ts` sets `generation_attempts` rows that are still `running` to `failed` with `error_code = 'AIG_STALE_AFTER_RESTART'`. A row qualifies when it is older than `olderThanMs`. The default is 10 min. The minimum is 5 min (a smaller value is raised to 5 min). The sweep runs through `withSystemRole`.
+- **What.** `sweepStaleGenerationAttempts({ olderThanMs })` in `modules/04-question-bank/src/service/generation-async.ts` sets `generation_attempts` rows that are still `running` to `failed` with `error_code = 'AIG_STALE_AFTER_RESTART'`. A row qualifies when it is older than `olderThanMs`. The default is 10 min. The minimum is 5 min (the code raises a smaller value to 5 min). The sweep runs through `withSystemRole`.
 - **When it runs.** (1) Once at API start (`apps/api/src/server.ts`, fire-and-forget; a failure does not stop the start). (2) As the worker job `generation-stale-sweep` every 15 min (1 attempt, `apps/api/src/worker.ts`).
 - **Log.** The warn line `generation.stale_sweep` carries `count`. It appears only when at least one row changed.
-- **Why.** After an API restart the child process is gone and no code reports the end of the run. The row stayed `running` for ever and the wizard waited 10 min. The sweep gives the admin a clear failed state and lets the admin run the category again.
+- **Why.** After an API restart, the child process is gone and no code reports the end of the run. The row stayed `running` forever, and the wizard waited 10 min. The sweep gives the admin a clear failed state and lets the admin run the category again.
 - **Why it is not ambient AI.** The sweep is pure SQL. It starts no `claude` process and calls no runtime. It is outside the lint ban, which covers AI starts only.
-- **Rejected.** Resume of the run after a restart (needs a durable work queue, which hard rule 1 forbids for AI). A DB trigger or `pg_cron` (hidden outside the repo).
+- **Rejected.** Resume of the run after a restart (it needs a durable work queue, which hard rule 1 forbids for AI). A DB trigger or `pg_cron` (hidden outside the repo).
 - **Not included.** Resume. A sweep for grading rows (grading is sync and has no `running` row of this kind).
 
 #### Architecture — sync-on-click flow
@@ -94,39 +94,39 @@ Admin reviews:
    • "Defer"       → leave attempt in pending_admin_grading
 ```
 
-> **Update 2026-10-01:** in the flow above the "admin" is the platform super admin working from the platform evaluation queue (`/admin/platform/evaluations`), not a company admin. The routes are `POST /api/admin/super/evaluations/:attemptId/{grade,accept,rerun}` (see `docs/03-api-contract.md` and § Platform evaluation queue below); the company routes of the same names answer 403 `AI_EVALUATION_BY_ASSESSIQ`. The heartbeat check in the code is a session active in the last 5 minutes (`AIG_HEARTBEAT_STALE`), not 60 s.
+> **Update 2026-10-01:** In the flow above, the "admin" is the platform super admin who works from the platform evaluation queue (`/admin/platform/evaluations`), not a company admin. The routes are `POST /api/admin/super/evaluations/:attemptId/{grade,accept,rerun}` (see `docs/03-api-contract.md` and § Platform evaluation queue below). The company routes of the same names answer 403 `AI_EVALUATION_BY_ASSESSIQ`. The heartbeat check in the code is a session that was active in the last 5 minutes (`AIG_HEARTBEAT_STALE`), not 60 s.
 
-Two structural shifts from a typical async pipeline:
+This pipeline differs from a typical async pipeline in two structural ways:
 1. **No BullMQ worker for grading.** BullMQ stays for non-AI work (emails, webhooks, exports). Grading is synchronous.
-2. **Claude Code's output is a *proposal*, not a verdict.** The admin's click is what makes a grade real. This is why the architecture is compliance-defensible: the AI is assisting the human admin, not replacing them.
+2. **The output of Claude Code is a *proposal*, not a verdict.** The click of the admin makes a grade real. This is why the architecture is compliance-defensible: the AI assists the human admin and does not replace the admin.
 
 #### Per-type grading dispatch
 
-`POST /admin/attempts/:id/grade` (2026-10-01: reached only as `POST /api/admin/super/evaluations/:attemptId/grade`; implemented in `modules/07-ai-grading/src/handlers/admin-grade.ts`) iterates every frozen question in the attempt and routes by type. The five types split into two paths — deterministic and AI-graded:
+`POST /admin/attempts/:id/grade` (2026-10-01: you can reach it only as `POST /api/admin/super/evaluations/:attemptId/grade`; implemented in `modules/07-ai-grading/src/handlers/admin-grade.ts`) iterates over every frozen question in the attempt and routes by type. The five types split into two paths, deterministic and AI-graded:
 
 | Type | Path | Answer shape | Notes |
 |---|---|---|---|
 | `mcq` | **Deterministic** (module 09 scoring) | `{ selected: number }` | `answer.selected === content.correct`; never reaches the AI pipeline |
-| `kql` | **No grader yet: manual first score** | `{ query: string }` | Not scored by module 09 or the AI (earlier text here described a keyword match that was never built). The platform evaluator enters a score (`POST /api/admin/super/evaluations/:attemptId/questions/:questionId/manual-score`, 2026-10-01) and the result is not complete until every KQL question has one; never reaches the AI pipeline |
-| `subjective` | **AI-graded** → `gradeSubjective()` | `{ response: string }` | Uses admin-authored rubric from DB; rubric required at question-activation time |
-| `scenario` | **AI-graded** → `gradeSubjective()` | `{ steps: [{stepIndex, response}] }` | Admin-authored rubric if present, else **synthesised at grade-time** from `content.steps[].expected` (see below, added 2026-05-26); `serializeAnswer` concatenates step responses (max 10 steps; extra steps truncated with a note in the prompt) |
-| `log_analysis` | **AI-graded** → `gradeSubjective()` | `{ findings: string[], explanation: string }` | Rubric is **synthesised at grade-time** from `content.expected_findings` (70 % anchor weight split evenly across findings, 30 % reasoning band); not persisted to `questions.rubric` |
+| `kql` | **No grader yet: manual first score** | `{ query: string }` | Neither module 09 nor the AI scores it (earlier text here described a keyword match that nobody built). The platform evaluator enters a score (`POST /api/admin/super/evaluations/:attemptId/questions/:questionId/manual-score`, 2026-10-01). The result is not complete until every KQL question has a score. It never reaches the AI pipeline |
+| `subjective` | **AI-graded** → `gradeSubjective()` | `{ response: string }` | Uses the rubric that the admin authored in the DB; a rubric is required at question-activation time |
+| `scenario` | **AI-graded** → `gradeSubjective()` | `{ steps: [{stepIndex, response}] }` | The rubric that the admin authored, if present. Otherwise the code **synthesises it at grade-time** from `content.steps[].expected` (see below, added 2026-05-26). `serializeAnswer` concatenates the step responses (max 10 steps; the prompt notes that extra steps are truncated) |
+| `log_analysis` | **AI-graded** → `gradeSubjective()` | `{ findings: string[], explanation: string }` | The code **synthesises the rubric at grade-time** from `content.expected_findings` (70 % anchor weight split evenly across findings, 30 % reasoning band). It does not persist the rubric to `questions.rubric` |
 
-**log_analysis + scenario rubric synthesis** (Stage 1 contract; scenario added 2026-05-26): admins historically do not author rubrics for these two types, and `rubricRequiredFor` returns `false` for them. At grade-time, if `questions.rubric` is null or has no anchors, `handleAdminGrade` synthesises an in-memory rubric from the reference answers carried in `content` — `expected_findings` for log_analysis, `steps[].expected` for scenario. Each concept becomes one anchor (`id: "anchor-{i}"`, `concept`, `synonyms: [concept]`), with 70 anchor points split evenly and the remainder added to the first anchor (30 reserved for the reasoning band). Concepts are capped at 70 so `floor(70 / N) ≥ 1` — beyond that, anchors past the first would round to weight 0 (silent zero-credit scoring) and the rubric would grow unbounded on malformed content; real questions carry far fewer concepts, so the cap is a no-op in practice. The synthesised rubric is ephemeral — passed directly to `gradeSubjective()` and never written back to `questions.rubric` (D8). An admin-authored rubric always takes precedence. `subjective` without an authored rubric falls through to the **reasoning-only fallback** below.
+**log_analysis + scenario rubric synthesis** (Stage 1 contract; scenario added 2026-05-26): Admins historically do not author rubrics for these two types, and `rubricRequiredFor` returns `false` for them. At grade-time, `questions.rubric` can be null or have no anchors. In that case `handleAdminGrade` synthesises an in-memory rubric from the reference answers in `content`: `expected_findings` for log_analysis and `steps[].expected` for scenario. Each concept becomes one anchor (`id: "anchor-{i}"`, `concept`, `synonyms: [concept]`). The 70 anchor points are split evenly, and the remainder goes to the first anchor (30 points are reserved for the reasoning band). The code caps concepts at 70, so `floor(70 / N) ≥ 1`. Without the cap, anchors after the first would round to weight 0 (silent zero-credit scoring), and the rubric would grow without bound on malformed content. Real questions carry far fewer concepts, so the cap is a no-op in practice. The synthesised rubric is ephemeral. The code passes it directly to `gradeSubjective()` and never writes it back to `questions.rubric` (D8). A rubric that an admin authored always takes precedence. A `subjective` question without an authored rubric falls through to the **reasoning-only fallback** below.
 
-**Subjective rubric-at-generation (A2, 2026-05-30, commit `c018194`):** to reduce reliance on that reasoning-only fallback, the Generate wizard now auto-generates + persists a rubric for every rubric-less `subjective` draft (in the categories of the current generation run) immediately after question generation, before the admin reaches Review. It orchestrates the existing `POST /admin/questions/:id/generate-rubric` → `save-rubric` endpoints as **sequential, separate admin-clicked HTTP requests** (one `claude` spawn each — respects the single-flight grading mutex and stays under the CF ~100s edge timeout). Best-effort + per-item isolated: a failure leaves that one subjective rubric-less (it then hits the reasoning-only fallback at grade time, unchanged). No classifier-prompt change and no eval re-baseline in A2 — that is the separate **A3** step below. `scenario`/`log_analysis` are unchanged — they keep grade-time synthesis (above).
+**Subjective rubric-at-generation (A2, 2026-05-30, commit `c018194`):** This change reduces reliance on the reasoning-only fallback. Right after question generation, the Generate wizard now auto-generates and persists a rubric for every rubric-less `subjective` draft (in the categories of the current generation run). This happens before the admin reaches Review. The wizard orchestrates the existing `POST /admin/questions/:id/generate-rubric` → `save-rubric` endpoints as **sequential, separate HTTP requests that the admin clicked**. Each request is one `claude` spawn. This respects the single-flight grading mutex and stays under the CF ~100s edge timeout. The step is best-effort and isolated for each item. A failure leaves that one subjective question rubric-less, and it then hits the reasoning-only fallback at grade time, unchanged. A2 has no classifier-prompt change and no eval re-baseline. That is the separate **A3** step below. `scenario` and `log_analysis` are unchanged. They keep grade-time synthesis (above).
 
-**Self-certifying rubric anchors (A3, 2026-05-30, commit `5982c0e`):** the `generate-rubric` skill now emits two extra per-anchor fields — `citation` (an AI-suggested source/standard backing the concept, for example "NIST SP 800-61r2 §3.2", "MITRE ATT&CK T1110") and `rationale` (≤30-word "why this concept matters"). Goal: let a **non-domain-expert** reviewer sanity-check an anchor by looking up its source rather than recalling doctrine (the accuracy backstop is automated, not expert — admin review is an additional view, not authority). Both are **display/review-only**: scoring math (`@assessiq/rubric-engine` `score.ts`) reads `id`/`weight`/`synonyms` only, and the `anchor_weight_total + reasoning_weight_total === 100` invariant is untouched. Schema: optional on both the canonical `AnchorSchema` (`08`, commit `e482db0`) and the runtime `SubmitRubricAnchorSchema` (`07`) → backward-compatible (pre-A3 rubrics + grade-time-synthesised rubrics validate fine). **Critical honesty guard (adversarial-review vector 4):** the citation is written by the *same model* that wrote the anchor, so it is NOT independent verification — a plausible-but-wrong citation would give a non-expert false confidence. The admin UI (`ExpectedAnswerView`, admin-only) therefore renders the block labelled **"AI-suggested · unverified"** so it reads as a starting point to check, never as authority. **Deploy ordering (resolved):** `prompts/skills` is bind-mounted `:ro` into the api image, so `git pull` refreshes the skill *immediately* while the runtime schema ships only on image rebuild — the api image MUST be rebuilt in the same deploy or the stale `.strict()` runtime rejects the new fields (this window was hit + closed on 2026-05-30; always rebuild api when this skill changes). **Eval re-baseline REQUIRED (post-deploy, VPS-only):** the skill-prompt change drifts `prompt_version_sha`; run `pnpm aiq:eval:run` → `bless` on the VPS (Max-OAuth-only; not CI/local) before the next eval run is meaningful. Affects only eval bookkeeping, not runtime grading correctness.
+**Self-certifying rubric anchors (A3, 2026-05-30, commit `5982c0e`):** The `generate-rubric` skill now emits two extra per-anchor fields. `citation` is an AI-suggested source or standard that backs the concept (for example "NIST SP 800-61r2 §3.2", "MITRE ATT&CK T1110"). `rationale` is a "why this concept matters" note of ≤30 words. The goal is to let a **non-domain-expert** reviewer check an anchor by looking up its source, not by recalling doctrine. The accuracy backstop is automated, not expert. The admin review is an additional view, not authority. Both fields are **display and review only**. The scoring math (`@assessiq/rubric-engine` `score.ts`) reads `id`, `weight` and `synonyms` only, and the `anchor_weight_total + reasoning_weight_total === 100` invariant is untouched. Schema: both fields are optional on the canonical `AnchorSchema` (`08`, commit `e482db0`) and on the runtime `SubmitRubricAnchorSchema` (`07`). This is backward-compatible: rubrics from before A3 and rubrics that grade-time synthesis creates validate fine. **Critical honesty guard (adversarial-review vector 4):** the *same model* that wrote the anchor also writes the citation. So the citation is NOT independent verification. A plausible but wrong citation would give a non-expert false confidence. The admin UI (`ExpectedAnswerView`, admin-only) therefore renders the block with the label **"AI-suggested · unverified"**. The label makes it read as a starting point to check, never as authority. **Deploy ordering (resolved):** `prompts/skills` is bind-mounted `:ro` into the api image. So `git pull` refreshes the skill *immediately*, but the runtime schema ships only when the image is rebuilt. You MUST rebuild the api image in the same deploy. Otherwise the stale `.strict()` runtime rejects the new fields (the team hit and closed this window on 2026-05-30; always rebuild api when this skill changes). **Eval re-baseline REQUIRED (post-deploy, VPS-only):** the skill-prompt change drifts `prompt_version_sha`. Run `pnpm aiq:eval:run` → `bless` on the VPS (Max-OAuth-only; not CI or local) before the next eval run is meaningful. This affects only eval bookkeeping, not runtime grading correctness.
 
-**Stage 1 tolerant coercion + degrade-to-reasoning-only** (Bug B fix, 2026-05-28, commit `defb9f9`): a Stage-1 `submit_anchors` payload that drifts from `SubmitAnchorsInputSchema` (for example top-level array instead of `{findings:[…]}`, `hit: "true"` string, `confidence: "0.83"` string, `anchor_id` as number, findings as numeric-keyed object) is repaired in-flight by `coerceSubmitAnchorsPayload` in `claude-code-vps.ts`, mirroring the `coerceQuestionsPayload` precedent from the question-generation runtime (commit `4242e…`, 2026-05-24). The coerced payload is bounded to `MAX_FINDINGS = 500` before per-item coercion to defeat memory-bomb payloads. If `safeParse` STILL fails after coercion, the runtime logs `grading.stage1.coerce_failed_degrade_to_reasoning_only` (with up to 5 zod issues, no answer content) and sets `anchors = []`. Stage 2 still runs holistically (`anchors_found: []` in the prompt); the score becomes band-only (anchor weight × zero hits). After all stages, the runtime tags `band.error_class = AIG_STAGE1_DEGRADED` (unless an earlier `AIG_*` class is already present — escalation_failure wins). The tag surfaces the degrade two ways: (a) FE `isAiFailure()` filters the proposal out of Accept-all so the admin cannot silently commit an under-scored verdict, and (b) backend `admin-accept.deriveStatus()` routes it to `gradings.status = 'review_needed'`. This extends the `943a41a` reasoning-only philosophy to anchored rubrics whose Stage-1 evidence is lost to model drift. The `parseToolInput === null` path (Claude emitted no tool_use at all) is UNCHANGED — still throws `AIG_SCHEMA_VIOLATION` as a true runtime failure. Coverage: `__tests__/stage1-coerce.test.ts` (12 unit tests, every drift class + MAX_FINDINGS).
+**Stage 1 tolerant coercion + degrade-to-reasoning-only** (Bug B fix, 2026-05-28, commit `defb9f9`): A Stage-1 `submit_anchors` payload can drift from `SubmitAnchorsInputSchema`. Examples: a top-level array instead of `{findings:[…]}`, `hit: "true"` as a string, `confidence: "0.83"` as a string, `anchor_id` as a number, and findings as a numeric-keyed object. `coerceSubmitAnchorsPayload` in `claude-code-vps.ts` repairs such a payload in flight. It mirrors the `coerceQuestionsPayload` precedent from the question-generation runtime (commit `4242e…`, 2026-05-24). Before the per-item coercion, the code bounds the coerced payload to `MAX_FINDINGS = 500` to defeat memory-bomb payloads. If `safeParse` STILL fails after coercion, the runtime logs `grading.stage1.coerce_failed_degrade_to_reasoning_only` (with up to 5 zod issues and no answer content) and sets `anchors = []`. Stage 2 still runs holistically (`anchors_found: []` in the prompt). The score becomes band-only (anchor weight × zero hits). After all stages, the runtime tags `band.error_class = AIG_STAGE1_DEGRADED` (unless an earlier `AIG_*` class is already present; escalation_failure wins). The tag surfaces the degrade in two ways. (a) The FE `isAiFailure()` filters the proposal out of Accept-all, so the admin cannot silently commit an under-scored verdict. (b) The backend `admin-accept.deriveStatus()` routes it to `gradings.status = 'review_needed'`. This extends the `943a41a` reasoning-only philosophy to anchored rubrics whose Stage-1 evidence is lost to model drift. The `parseToolInput === null` path (Claude emitted no tool_use at all) is UNCHANGED. It still throws `AIG_SCHEMA_VIOLATION` as a true runtime failure. Coverage: `__tests__/stage1-coerce.test.ts` (12 unit tests, every drift class + MAX_FINDINGS).
 
-**Reasoning-only fallback** (Bug B precedent, 2026-05-26, commit `943a41a`): when a rubric has zero usable anchors — authored or synthesised — `handleAdminGrade` substitutes `REASONING_ONLY_RUBRIC` (`anchors:[]`, `anchor_weight_total:0`, `reasoning_weight_total:100`). `gradeSubjective` then skips Stage 1 entirely (the `rubric.anchors.length > 0` guard is false) and grades holistically on the reasoning band: `finalScore` returns `(band/4)*100`, so band 0/1/2/3/4 maps to score 0/25/50/75/100. `prompt_version_sha` records `anchors:"-"` when Stage 1 is skipped so the audit trail does not falsely claim the grade-anchors prompt ran.
+**Reasoning-only fallback** (Bug B precedent, 2026-05-26, commit `943a41a`): When a rubric has zero usable anchors (authored or synthesised), `handleAdminGrade` substitutes `REASONING_ONLY_RUBRIC` (`anchors:[]`, `anchor_weight_total:0`, `reasoning_weight_total:100`). `gradeSubjective` then skips Stage 1 entirely (the `rubric.anchors.length > 0` guard is false) and grades holistically on the reasoning band. `finalScore` returns `(band/4)*100`, so band 0/1/2/3/4 maps to score 0/25/50/75/100. `prompt_version_sha` records `anchors:"-"` when Stage 1 is skipped, so the audit trail does not falsely claim that the grade-anchors prompt ran.
 
-**Prompt serialisation**: `serializeQuestion` exposes `content.log_excerpt` to the model for `log_analysis` (so the AI can verify whether the candidate's findings are supported by the log text); it renders `content.intro + steps[].prompt` for `scenario`. `serializeAnswer` extracts `answer.response` for `subjective`, formats `answer.findings + explanation` as a numbered list for `log_analysis`, and renders `answer.steps[].response` as `Step N: ...` blocks for `scenario`.
+**Prompt serialisation**: `serializeQuestion` exposes `content.log_excerpt` to the model for `log_analysis`, so the AI can verify whether the log text supports the findings of the candidate. For `scenario`, it renders `content.intro + steps[].prompt`. `serializeAnswer` extracts `answer.response` for `subjective`. For `log_analysis`, it formats `answer.findings + explanation` as a numbered list. For `scenario`, it renders `answer.steps[].response` as `Step N: ...` blocks.
 
 #### Headless invocation
 
-Claude Code's `--print` (`-p`) mode is built exactly for scripting your own workflows non-interactively:
+The `--print` (`-p`) mode of Claude Code is built for scripting your own workflows non-interactively:
 
 ```bash
 claude -p "$(cat /tmp/grading-prompt-attempt-123.txt)" \
@@ -137,18 +137,18 @@ claude -p "$(cat /tmp/grading-prompt-attempt-123.txt)" \
   --permission-mode auto
 ```
 
-`stream-json` emits one JSON line per agent event — every tool call, message, and turn. The backend reads the stream, finds `submit_anchors` / `submit_band` tool-use events, and extracts the inputs as the structured grade. Any other tool use is denied by `--disallowed-tools`.
+`stream-json` emits one JSON line per agent event: every tool call, message and turn. The backend reads the stream, finds the `submit_anchors` / `submit_band` tool-use events and extracts their inputs as the structured grade. `--disallowed-tools` denies any other tool use.
 
-The OS user that runs the backend handler must be the same OS user that did `claude login` once on the VPS — the OAuth token in `~/.claude/` is the auth.
+The OS user that runs the backend handler must be the same OS user that ran `claude login` once on the VPS. The OAuth token in `~/.claude/` is the auth.
 
 #### Custom MCP server for structured output
 
-Replace what the Agent SDK's `tool()` helper would have given us with a tiny stdio MCP server (`assessiq-mcp`) registered in `~/.claude/.mcp.json`. It exposes two tools:
+A tiny stdio MCP server (`assessiq-mcp`), registered in `~/.claude/.mcp.json`, replaces what the `tool()` helper of the Agent SDK would have given us. It exposes two tools:
 
 - `submit_anchors(findings: AnchorFinding[])`
 - `submit_band(band, justification, error_class, confidence)`
 
-Each tool's callback simply echoes the input back as the tool result; the backend reads the same input from the `stream-json` event stream. This is the same "force a JSON-shaped tool call" trick the original Agent SDK design used — the runtime is now Claude Code itself.
+The callback of each tool only echoes the input back as the tool result. The backend reads the same input from the `stream-json` event stream. This is the same "force a JSON-shaped tool call" trick that the original Agent SDK design used. The runtime is now Claude Code itself.
 
 #### Skills as versioned prompts
 
@@ -161,9 +161,9 @@ The three prompt templates live as Claude Code skills under `~/.claude/skills/`:
 └── grade-escalate/SKILL.md      # Stage 3 — Opus second-opinion prompt
 ```
 
-Skills are first-class in Claude Code, version-trackable in git, and **the sha256 of each `SKILL.md` becomes the version ID** stored on every grading row. Replaces the `prompt_versions` table from the Phase 2 design.
+Skills are first-class in Claude Code, and you can track their versions in git. **The sha256 of each `SKILL.md` becomes the version ID** that the system stores on every grading row. This replaces the `prompt_versions` table from the Phase 2 design.
 
-The admin panel's "Grade" button wraps invocation as:
+The "Grade" button in the admin panel wraps the invocation as follows:
 
 ```bash
 claude -p "Use the grade-anchors skill on this answer:\n\n<<answer>>" \
@@ -171,7 +171,7 @@ claude -p "Use the grade-anchors skill on this answer:\n\n<<answer>>" \
   --output-format stream-json
 ```
 
-The skill's frontmatter pins the model selection (`model: haiku` / `sonnet` / `opus`) — Claude Code respects skill-level model hints during the print-mode run.
+The frontmatter of the skill pins the model selection (`model: haiku` / `sonnet` / `opus`). Claude Code respects the skill-level model hints during the print-mode run.
 
 #### Single-user enforcement (technical guardrails)
 
@@ -206,39 +206,40 @@ export async function handleAdminAccept(req, attemptId, edits) {
 }
 ```
 
-Critical: **no other code path may import `runClaudeCodeGrading`.** Add a CI lint rule that fails the build if any cron registration, BullMQ processor, or webhook handler references it.
+Critical: **no other code path may import `runClaudeCodeGrading`.** Add a CI lint rule that fails the build if any cron registration, BullMQ processor or webhook handler references it.
 
 #### Audit + reproducibility
 
-A `PostToolUse` hook in `~/.claude/settings.json` writes one append-only audit record per Claude Code grading run:
+A `PostToolUse` hook in `~/.claude/settings.json` writes one append-only audit record for each Claude Code grading run:
 
 ```jsonl
 {"ts":"2026-04-29T14:02:11Z","admin_id":"u_1","attempt_id":"a_123","skill":"grade-band","skill_sha":"e3b0c44...","model":"claude-sonnet-4-6","tool":"submit_band","input":{...},"input_tokens":1284,"output_tokens":312}
 ```
 
-Together with the skill sha256 stored in every `gradings` row, this is the "auditable AI" trail required by the project's non-negotiables. Old gradings stay tied to their old skill version; re-running grading is opt-in and produces a new row.
+Together with the skill sha256 in every `gradings` row, this is the "auditable AI" trail that the non-negotiables of the project require. Old gradings stay tied to their old skill version. A re-run of grading is opt-in and produces a new row.
 
 #### Capacity ceiling
 
-This is the binding constraint of Phase 1: **AssessIQ's grading capacity = admin's personal grading-time × Max-plan rate-limit window.**
+This is the binding constraint of Phase 1: **the grading capacity of AssessIQ = the personal grading time of the admin × the Max-plan rate-limit window.**
 
 Rough envelope:
-- Max plan: 5-hour rolling window with usage caps based on token volume.
-- A typical 60-point subjective answer uses ~2k input + ~500 output tokens across Stages 1+2.
-- Realistic throughput: **~50–150 attempts per admin work-day** before either rate-limits or eyeball fatigue kicks in.
 
-When this becomes a bottleneck (a tenant pumping 500 attempts/week, a second admin needing access, multi-region SLAs), flip `AI_PIPELINE_MODE=anthropic-api` and switch on the Phase 2 path.
+- Max plan: a 5-hour rolling window with usage caps based on token volume.
+- A typical 60-point subjective answer uses ~2k input + ~500 output tokens across Stages 1+2.
+- Realistic throughput: **~50–150 attempts per admin work-day**, before rate limits or eye fatigue set in.
+
+When this becomes a bottleneck (a tenant sends 500 attempts each week, a second admin needs access, multi-region SLAs), set `AI_PIPELINE_MODE=anthropic-api` and switch on the Phase 2 path.
 
 ### Phase 2 — Paid API via Agent SDK (deferred)
 
-When admin throughput becomes the bottleneck, switch on `AI_PIPELINE_MODE=anthropic-api`. The cascade, prompts, scoring, and rubric structure stay identical. What changes:
+When admin throughput becomes the bottleneck, switch on `AI_PIPELINE_MODE=anthropic-api`. The cascade, prompts, scoring and rubric structure stay identical. These items change:
 
-- **Auth:** `ANTHROPIC_API_KEY` env var. Optionally `CLAUDE_CODE_USE_BEDROCK=1` or `CLAUDE_CODE_USE_VERTEX=1` for tenants with data-residency requirements those clouds offer.
-- **Trigger:** `attempt.submitted` enqueues `grading:{attemptId}` to BullMQ. Worker grades async, transitions `attempt.status='graded'`, fires `attempt.graded` webhook + admin email.
-- **Concurrency:** BullMQ workers cap at for example 4 × 4 = 16 parallel jobs; honor `Retry-After`.
-- **Cost control:** Prompt caching (system + rubric + question) cuts Sonnet repeat-cost ~70%. Per-tenant token budget with 80% admin alert; tenants pre-buy grading credits.
-- **Cost telemetry:** Every `grading_jobs` row records input/output tokens; weekly admin rollup per tenant.
-- **Determinism:** Same skill-sha versioning model, just stored in a `prompt_versions` table instead of read from `~/.claude/skills/`.
+- **Auth:** `ANTHROPIC_API_KEY` env var. Optionally `CLAUDE_CODE_USE_BEDROCK=1` or `CLAUDE_CODE_USE_VERTEX=1` for tenants with data-residency requirements that those clouds meet.
+- **Trigger:** `attempt.submitted` enqueues `grading:{attemptId}` to BullMQ. The worker grades async, sets `attempt.status='graded'`, and fires the `attempt.graded` webhook and an admin email.
+- **Concurrency:** BullMQ workers cap at, for example, 4 × 4 = 16 parallel jobs. They honor `Retry-After`.
+- **Cost control:** Prompt caching (system + rubric + question) cuts the repeat cost of Sonnet by ~70%. Each tenant has a token budget with an 80% admin alert, and tenants pre-buy grading credits.
+- **Cost telemetry:** Every `grading_jobs` row records the input and output tokens. An admin rollup for each tenant runs weekly.
+- **Determinism:** The same skill-sha versioning model, but the system stores it in a `prompt_versions` table instead of reading it from `~/.claude/skills/`.
 
 The skeleton (kept here for the Phase 2 lift):
 
@@ -262,11 +263,11 @@ export async function runApiGrading(input: GradingInput): Promise<SubjectiveGrad
 }
 ```
 
-When this is wired, both runtimes coexist; tenants on `ai_model_tier='premium'` route to API for guaranteed throughput, the rest stay on `claude-code-vps` until the admin retires Phase 1.
+When this is wired, both runtimes coexist. Tenants on `ai_model_tier='premium'` route to the API for guaranteed throughput. The rest stay on `claude-code-vps` until the admin retires Phase 1.
 
 ### Phase 3 — Open-weights fallback (compliance only)
 
-Reserved for tenants with on-prem requirements. Same interface; runtime points at a local vLLM/Ollama endpoint with Qwen 2.5 72B / Llama 3.3 70B. Quality drops; eval-harness threshold needs re-baselining. Do not promise this to a tenant until it is built and tested.
+This phase is reserved for tenants with on-prem requirements. It has the same interface. The runtime points at a local vLLM/Ollama endpoint with Qwen 2.5 72B / Llama 3.3 70B. Quality drops, and the eval-harness threshold needs a new baseline. Do not promise this to a tenant until the team builds and tests it.
 
 ## Grading stages and escalation
 
@@ -274,7 +275,7 @@ The grader runs up to three stages. Stage 1 extracts anchors, Stage 2 picks a re
 
 ### Multi-model cascade (mode-agnostic)
 
-Every subjective answer goes through three stages with three different models, picked for cost/quality/latency. The cascade is the same in every mode; only how each model is reached differs.
+Every subjective answer goes through three stages with three different models, which the team picked for cost, quality and latency. The cascade is the same in every mode. Only the way that the system reaches each model differs.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -310,11 +311,11 @@ Every subjective answer goes through three stages with three different models, p
 
 For **MCQ**: deterministic, no LLM. For **KQL**: manual score today; execution grading is design only (FU-D16, X4; owner decided NO 2026-10-03 — see D6 and FU-D18).
 
-In `claude-code-vps` mode the model is selected by the active skill's frontmatter (`grade-anchors` → Haiku, `grade-band` → Sonnet, `grade-escalate` → Opus). In `anthropic-api` mode it is selected by the `model:` parameter in the SDK call. Same models, same prompts, different conductor.
+In `claude-code-vps` mode, the frontmatter of the active skill selects the model (`grade-anchors` → Haiku, `grade-band` → Sonnet, `grade-escalate` → Opus). In `anthropic-api` mode, the `model:` parameter in the SDK call selects it. The models and prompts are the same. Only the conductor is different.
 
 ### Stage 1 prompt — Anchor extraction (Haiku)
 
-Stored in `~/.claude/skills/grade-anchors/SKILL.md`. Hash recorded in every grading audit row and `gradings.skill_sha`.
+The skill is stored in `~/.claude/skills/grade-anchors/SKILL.md`. The system records its hash in every grading audit row and in `gradings.skill_sha`.
 
 ```
 SYSTEM:
@@ -369,11 +370,11 @@ const submitAnchors = {
 };
 ```
 
-The tool callback echoes the input as its result; the backend extracts the input from the `stream-json` tool-use event.
+The tool callback echoes the input as its result. The backend extracts the input from the `stream-json` tool-use event.
 
 ### Stage 2 prompt — Reasoning band (Sonnet)
 
-Stored in `~/.claude/skills/grade-band/SKILL.md`.
+The skill is stored in `~/.claude/skills/grade-band/SKILL.md`.
 
 ```
 SYSTEM:
@@ -416,18 +417,18 @@ ERROR_CLASSES (pick at most one if band < 4):
 
 ### Stage 3 — Escalation rules
 
-Trigger Stage 3 (Opus) when any of:
+Start Stage 3 (Opus) when any of these conditions is true:
 - Stage 2 confidence < 0.7
-- The assessment has `settings.high_stakes = true` (batch 5, E1). This is an assessment-level setting, NOT per-question metadata: Stage 3 then always runs, and any band difference (not just 2 or more) routes to `review_needed`. A Stage 3 failure becomes `AIG_ESCALATION_FAILURE`. See "Batch 5 notes: high-stakes vote (E1)" at the end of this file.
-- Tenant setting `ai_model_tier='premium'` (always escalate)
-- **Phase 1 only:** admin manually clicks "Re-run with Opus" after reviewing the Stage 2 proposal
+- The assessment has `settings.high_stakes = true` (batch 5, E1). This is an assessment-level setting, NOT per-question metadata. Stage 3 then always runs, and any band difference (not only 2 or more) routes to `review_needed`. A Stage 3 failure becomes `AIG_ESCALATION_FAILURE`. See "Batch 5 notes: high-stakes vote (E1)" at the end of this file.
+- The tenant setting `ai_model_tier='premium'` (always escalate)
+- **Phase 1 only:** the admin manually clicks "Re-run with Opus" after the admin reviews the Stage 2 proposal
 
-Stage 3 produces a second band classification. Reconciliation:
+Stage 3 produces a second band classification. Reconciliation works as follows:
 - If Stage 2 and Stage 3 agree → use that band
 - If they disagree by 1 band → **show both verdicts to the admin** (Phase 1) or use the higher-confidence one (Phase 2)
-- If they disagree by ≥ 2 bands → flag `gradings.status='review_needed'`, surface raw both verdicts to admin
+- If they disagree by ≥ 2 bands → flag `gradings.status='review_needed'` and show both raw verdicts to the admin
 
-In Phase 1 the admin always sees both verdicts when escalation runs and chooses; this is more defensible than silently picking via self-reported confidence.
+In Phase 1, the admin always sees both verdicts when escalation runs, and the admin chooses. This is more defensible than a silent pick based on self-reported confidence.
 
 ### High-stakes vote and eval gate (batch 5)
 
@@ -435,28 +436,28 @@ In Phase 1 the admin always sees both verdicts when escalation runs and chooses;
 
 #### E1. High-stakes two-model vote
 
-- **What.** `assessments.settings.high_stakes` (see 02 § "Batch 5 schema changes"). `loadGradingData` in `admin-grade.ts` and `admin-rerun.ts` reads it per attempt (`COALESCE(settings->>'high_stakes' = 'true', false)`) and passes `high_stakes: true` into the runtime input. `claude-code-vps.ts`:
-  - Stage 3 runs always (same switch as `needs_escalation` and `force_escalate`).
-  - The reconcile threshold becomes 1 band: any difference between Stage 2 and Stage 3 sets `review_needed` and shows both verdicts to the admin.
+- **What.** `assessments.settings.high_stakes` (see 02 § "Batch 5 schema changes"). `loadGradingData` in `admin-grade.ts` and `admin-rerun.ts` reads it for each attempt (`COALESCE(settings->>'high_stakes' = 'true', false)`) and passes `high_stakes: true` into the runtime input. In `claude-code-vps.ts`:
+  - Stage 3 always runs (the same switch as `needs_escalation` and `force_escalate`).
+  - The reconcile threshold becomes 1 band. Any difference between Stage 2 and Stage 3 sets `review_needed` and shows both verdicts to the admin.
   - A Stage 3 failure sets `error_class = AIG_ESCALATION_FAILURE` (normally a lower-case class that did not map to `review_needed`).
-- **Least-AI.** `least-ai.ts` tier 2 (reuse an identical answer) returns null for high-stakes. Tier 1 (blank answer, band 0) still applies.
+- **Least-AI.** `least-ai.ts` tier 2 (reuse of an identical answer) returns null for high-stakes. Tier 1 (blank answer, band 0) still applies.
 - **Why.** A grade reused from a single-model run would silently weaken the guarantee.
-- **Considered and rejected.** Per-question metadata (old text, never wired); majority or confidence-based pick; a third model.
-- **Not included.** Tenant default; prompt changes (no eval re-baseline needed); the claim-release path only carries the flag for display.
-- **Impact.** More AI calls and wall time per answer. The super-admin evaluation page shows an "evaluation" badge and the evaluation detail notes the vote. D8 is unchanged: results are still proposals until an admin accepts.
+- **Considered and rejected.** Per-question metadata (old text, nobody wired it); a majority pick or a confidence-based pick; a third model.
+- **Not included.** A tenant default; prompt changes (no eval re-baseline needed). The claim-release path only carries the flag for display.
+- **Impact.** Each answer needs more AI calls and more wall time. The super-admin evaluation page shows an "evaluation" badge, and the evaluation detail notes the vote. D8 is unchanged: results are still proposals until an admin accepts them.
 
 ### Least-AI grading tiers 1 and 2 (SP5)
 
 *History: 2026-10-02, batch 4.*
 
-- **What.** `modules/07-ai-grading/src/least-ai.ts`, called from `admin-grade.ts` before the runtime. Tier 1 (rule): an answer with fewer than 3 non-whitespace characters across all string leaves gets band 0 "No answer given", score 0 (`model: "rule"`, `prompt_version_sha: "rule:blank-v1"`). It never awards marks and does no keyword or off-topic matching (that needs AI). Tier 2 (reuse): an identical answer already has a final accepted grade for the same tenant (RLS), same `question_id` and `question_version`, same `score_max`; the proposal then copies score, band and anchors (`model: "reuse"`, `reused_from_grading_id`). Both proposals carry `source: "rule" | "reuse"` and show a Rule / Reused chip on the proposal card.
-- **Reuse key.** Source grading must be `grader='ai'`, not an override row, status correct/incorrect/partial, the newest grading of its question (so later overrides or re-evaluations exclude it), on an attempt `graded` or `released`, and pinned to the CURRENT grade-band prompt sha (and grade-anchors sha when stage 1 ran). Prompt skill shas are read live; if unreadable, reuse fails closed. Matching sources must ALL agree on score AND band, else it is ambiguous and the AI decides.
-- **Case is KEPT.** Normalisation is trim plus whitespace collapse plus sorted keys, no case folding: KQL and code identifiers are case-sensitive, so `Foo` and `foo` can be different answers (codex revise). The rubric is bound by construction: grading reads the rubric of the frozen `question_version`, and reuse requires the same version.
-- **D8 preserved.** Tiers only produce PROPOSALS. `gradings` rows are still written only by accept or override. No new AI call, so `lint:ambient-ai` is unaffected.
-- **Why.** Fewer AI calls and consistent grades for identical answers (placement drives produce many duplicates and blanks).
-- **Considered and rejected.** Keyword or length rules for off-topic answers (high risk of unfair marks); case-insensitive matching; auto-accept of reused grades (would bypass D8); reusing across tenants (RLS and privacy).
+- **What.** `modules/07-ai-grading/src/least-ai.ts`, called from `admin-grade.ts` before the runtime. Tier 1 (rule): an answer with fewer than 3 non-whitespace characters across all string leaves gets band 0 "No answer given" and score 0 (`model: "rule"`, `prompt_version_sha: "rule:blank-v1"`). It never awards marks and does no keyword or off-topic matching (that needs AI). Tier 2 (reuse): an identical answer already has a final accepted grade for the same tenant (RLS), the same `question_id` and `question_version`, and the same `score_max`. The proposal then copies the score, band and anchors (`model: "reuse"`, `reused_from_grading_id`). Both proposals carry `source: "rule" | "reuse"` and show a Rule or Reused chip on the proposal card.
+- **Reuse key.** The source grading must be `grader='ai'`, not an override row, with status correct, incorrect or partial. It must be the newest grading of its question (so later overrides or re-evaluations exclude it), on an attempt that is `graded` or `released`. It must be pinned to the CURRENT grade-band prompt sha (and the grade-anchors sha when stage 1 ran). The code reads the prompt skill shas live. If it cannot read them, reuse fails closed. All matching sources must agree on score AND band. Otherwise the match is ambiguous, and the AI decides.
+- **Case is KEPT.** Normalisation is trim plus whitespace collapse plus sorted keys, with no case folding. KQL and code identifiers are case-sensitive, so `Foo` and `foo` can be different answers (codex revise). The rubric is bound by construction: grading reads the rubric of the frozen `question_version`, and reuse requires the same version.
+- **D8 preserved.** The tiers produce only PROPOSALS. Only accept or override writes `gradings` rows. There is no new AI call, so `lint:ambient-ai` is unaffected.
+- **Why.** Fewer AI calls, and consistent grades for identical answers (placement drives produce many duplicates and blanks).
+- **Considered and rejected.** Keyword or length rules for off-topic answers (high risk of unfair marks); case-insensitive matching; auto-accept of reused grades (this would bypass D8); reuse across tenants (RLS and privacy).
 - **Not included.** No fuzzy or semantic similarity; no cheaper-model tier; no eval re-baseline needed (prompts unchanged).
-- **Impact.** Reuse stops matching for a question after a prompt skill deploy until new grades exist under the new shas; that is intended. Sign-off: codex revise-addressed (trailer on `dea16b4`).
+- **Impact.** After a prompt skill deploy, reuse stops matching for a question until new grades exist under the new shas. This is intended. Sign-off: codex revise-addressed (trailer on `dea16b4`).
 
 ## Scoring
 
@@ -476,37 +477,45 @@ total_for_question = anchor_score + reasoning_score      // never raw %; built f
 # total: 42 / 60
 ```
 
-This is the **graduated, never-binary** behavior the project mandates. A perfectly correct answer can still lose points on reasoning band; a thin answer that hits all anchors still earns the anchor weight. No answer ever scores 100% from keyword matching alone, and few score 0% if any anchor coverage exists.
+This is the **graduated, never-binary** behavior that the project mandates. A perfectly correct answer can still lose points on the reasoning band. A thin answer that hits all anchors still earns the anchor weight. No answer ever scores 100% from keyword matching alone, and few score 0% if any anchor coverage exists.
 
 ### Deterministic MCQ scoring path (2026-10-01)
 
-**What changed.** MCQ questions are now scored by `scoreMcqForAttempt(client, attemptId)` (`modules/09-scoring/src/mcq.ts`), a pure-SQL + integer-compare function with no AI. It writes one `gradings` row per MCQ question (`grader='deterministic'`, `status` `correct`/`incorrect`, `score_max` = `questions.points`, `score_earned` = points or 0; unanswered/malformed = incorrect, no negative marking). Correctness is judged against the question version FROZEN for the attempt (`attempt_questions.question_version` -> `question_versions.content.correct`), never the live `questions` row. Wired in three places: candidate submit, timer auto-submit (sweep AND the read-time auto-submit in `getAttemptForCandidate`) in `06-attempt-engine`, and the start of `handleAdminGrade` (catches attempts submitted before this fix). `scoreMcqAndFinalizeIfComplete` additionally finalises an attempt whose questions are ALL `mcq`: `attempt_scores` rollup -> `status='graded'` -> `recordGradedAttempt` (billing) -> `grading.accepted` audit row (`actor_kind='system'`, `after.source='deterministic_mcq'`), all in the caller's single transaction.
+**What changed.** `scoreMcqForAttempt(client, attemptId)` (`modules/09-scoring/src/mcq.ts`) now scores MCQ questions. It is a pure-SQL + integer-compare function with no AI. It writes one `gradings` row for each MCQ question (`grader='deterministic'`, `status` `correct`/`incorrect`, `score_max` = `questions.points`, `score_earned` = points or 0; unanswered or malformed = incorrect, no negative marking). The code judges correctness against the question version FROZEN for the attempt (`attempt_questions.question_version` -> `question_versions.content.correct`), never the live `questions` row.
 
-**Why it was needed.** The only `gradings` writer was `insertGrading` (AI proposals/overrides). `admin-grade.ts` skipped MCQ as "graded elsewhere (module 09)" but module 09 only SUMS existing `gradings` rows. Result: an MCQ-only attempt had no rows, could never reach `graded` (so never released, no certificate, no billing) and mixed attempts silently dropped MCQ points from the total. See `docs/RCA_LOG.md` 2026-10-01.
+The code is wired in three places:
 
-**Why scoring at submit is compliant with the no-ambient-AI rule.** The rule bans ambient *AI* calls (cron/BullMQ/webhook/candidate-triggered `claude` invocations). This path makes no model call, spawns no process and touches no network; it compares an integer to an integer. `lint-no-ambient-claude.ts` is unchanged and still passes (none of the touched files import `claude` / `@anthropic-ai/*`). Phase 1 AI grading semantics are untouched: AI questions still require an admin click, are sync + single-flight, and write rows only on Accept (D8).
+1. Candidate submit.
+2. Timer auto-submit (the sweep AND the read-time auto-submit in `getAttemptForCandidate`) in `06-attempt-engine`.
+3. The start of `handleAdminGrade` (it catches attempts submitted before this fix).
+
+`scoreMcqAndFinalizeIfComplete` also finalises an attempt whose questions are ALL `mcq`. The steps are: `attempt_scores` rollup -> `status='graded'` -> `recordGradedAttempt` (billing) -> `grading.accepted` audit row (`actor_kind='system'`, `after.source='deterministic_mcq'`). All steps run in the single transaction of the caller.
+
+**Why it was needed.** The only `gradings` writer was `insertGrading` (AI proposals and overrides). `admin-grade.ts` skipped MCQ as "graded elsewhere (module 09)", but module 09 only SUMS existing `gradings` rows. The result: an MCQ-only attempt had no rows and could never reach `graded` (so it was never released, had no certificate and no billing). Mixed attempts silently dropped MCQ points from the total. See `docs/RCA_LOG.md` 2026-10-01.
+
+**Why scoring at submit is compliant with the no-ambient-AI rule.** The rule bans ambient *AI* calls (cron, BullMQ, webhook and candidate-triggered `claude` invocations). This path makes no model call, spawns no process and touches no network. It compares an integer to an integer. `lint-no-ambient-claude.ts` is unchanged and still passes (none of the touched files import `claude` / `@anthropic-ai/*`). The Phase 1 AI grading semantics are untouched: AI questions still require an admin click, are sync and single-flight, and write rows only on Accept (D8).
 
 **Sentinel values (gradings NOT NULL columns).** `prompt_version_sha='deterministic-mcq-v1'`, `prompt_version_label='deterministic-mcq-v1'`, `model='none'`, `escalation_chosen_stage=NULL`, `graded_by=NULL`. The sentinel sha also makes the existing D7 partial unique index `(attempt_id, question_id, prompt_version_sha) WHERE override_of IS NULL` the structural idempotency guard.
 
-**Idempotency / concurrency.** Insert is `ON CONFLICT (attempt_id, question_id, prompt_version_sha) WHERE override_of IS NULL DO NOTHING`. A concurrent second writer blocks on the first's uncommitted row, then conflicts and skips - no advisory lock needed. `scoreMcqAndFinalizeIfComplete` takes `SELECT ... FOR UPDATE` on the attempt row and only flips from `submitted`/`auto_submitted`/`pending_admin_grading`; billing is `ON CONFLICT (tenant_id, attempt_id) DO NOTHING`, so exactly one billing row.
+**Idempotency / concurrency.** The insert is `ON CONFLICT (attempt_id, question_id, prompt_version_sha) WHERE override_of IS NULL DO NOTHING`. A concurrent second writer blocks on the uncommitted row of the first writer, then conflicts and skips. No advisory lock is needed. `scoreMcqAndFinalizeIfComplete` takes `SELECT ... FOR UPDATE` on the attempt row and flips the status only from `submitted`, `auto_submitted` or `pending_admin_grading`. Billing is `ON CONFLICT (tenant_id, attempt_id) DO NOTHING`, so exactly one billing row exists.
 
-**Completion gate unchanged in meaning.** `admin-accept.ts` still flips a mixed attempt to `graded` only when every AI-gradable question (subjective | scenario | log_analysis) has a `grader IN ('ai','admin_override')` row; deterministic rows are outside both sides of the comparison but are included in the final `computeAttemptScore` total. The gate's `status IN (...)` list (and `handleAdminGrade`'s gradeable-status check) now also accepts `auto_submitted` - previously an auto-submitted attempt could neither be graded nor completed.
+**Completion gate unchanged in meaning.** `admin-accept.ts` still flips a mixed attempt to `graded` only when every AI-gradable question (subjective | scenario | log_analysis) has a `grader IN ('ai','admin_override')` row. Deterministic rows are outside both sides of the comparison, but the final `computeAttemptScore` total includes them. The `status IN (...)` list of the gate (and the gradeable-status check of `handleAdminGrade`) now also accepts `auto_submitted`. Before, an auto-submitted attempt could neither be graded nor completed.
 
-> **Superseded 2026-10-01 (SP1):** the completion gate described in this paragraph is gone. A result is now complete only when EVERY question of the attempt, KQL included, has an effective grade that is not `review_needed`, decided in one place (module 09 `finalizeAttemptIfComplete`). KQL still has no grader, but it can no longer be silently dropped from the total: it needs a manual first score. See § Platform evaluation queue below and `docs/02-data-model.md` § Scoring and result release.
+> **Superseded 2026-10-01 (SP1):** the completion gate that this paragraph describes is gone. A result is now complete only when EVERY question of the attempt, KQL included, has an effective grade that is not `review_needed`. One place decides this (module 09 `finalizeAttemptIfComplete`). KQL still has no grader, but the total can no longer silently drop it: it needs a manual first score. See § Platform evaluation queue below and `docs/02-data-model.md` § Scoring and result release.
 
-**Admin Grade on an MCQ-only attempt.** Returns `{ proposals: [], attempt: { id, status: "graded" } }` instead of an empty AI batch. Mixed attempts return the same shape as before (no `attempt` key).
+**Admin Grade on an MCQ-only attempt.** It returns `{ proposals: [], attempt: { id, status: "graded" } }` instead of an empty AI batch. Mixed attempts return the same shape as before (no `attempt` key).
 
-**Explicitly NOT included.** (a) KQL has the same gap (no grader at all) - an attempt containing KQL, scenario, log_analysis or subjective keeps the current admin flow; KQL is out of scope. (b) Multi-answer MCQ: the content schema is single-`correct` (int index) so only that is supported. (c) Scenario-step MCQs (inside `scenario` content) are graded by the AI path, unchanged. (d) No backfill job - pre-fix attempts are finalised by the admin Grade click (prod is pre-launch, forward-only).
+**Explicitly NOT included.** (a) KQL has the same gap (no grader at all). An attempt that contains KQL, scenario, log_analysis or subjective keeps the current admin flow. KQL is out of scope. (b) Multi-answer MCQ: the content schema is single-`correct` (int index), so only that is supported. (c) Scenario-step MCQs (inside `scenario` content) go through the AI path, unchanged. (d) No backfill job. The admin Grade click finalises attempts from before the fix (production is pre-launch, forward-only).
 
-**Downstream impact.** `GET /admin/attempts/:id` `gradings[]` now contains `grader='deterministic'` rows (model `none`); the attempt-detail UI should render them as "auto-scored". `09-scoring` exports `scoreMcqForAttempt`, `scoreMcqAndFinalizeIfComplete`, `computeAttemptScoreInTx`; `06-attempt-engine` and `09-scoring` gain workspace deps (`@assessiq/scoring`, `@assessiq/billing`).
+**Downstream impact.** `GET /admin/attempts/:id` `gradings[]` now contains `grader='deterministic'` rows (model `none`). The attempt-detail UI should render them as "auto-scored". `09-scoring` exports `scoreMcqForAttempt`, `scoreMcqAndFinalizeIfComplete` and `computeAttemptScoreInTx`. `06-attempt-engine` and `09-scoring` gain workspace dependencies (`@assessiq/scoring`, `@assessiq/billing`).
 
 ### `ordering` is deterministic and never AI-graded
 
 *History: 2026-10-02.*
 
-- **What.** The `ordering` question type ("put these steps in the right order") is scored by `orderingFraction` in `09-scoring/src/mcq.ts` with `grader='deterministic'`, exactly like mcq / numeric / multi_select. It is in `DETERMINISTIC_TYPES` and both deterministic SQL type lists in `scoreMcqForAttempt`. It is NOT in any `AI_GRADEABLE_TYPES` set (`admin-grade.ts`, `admin-rerun.ts`, `AttemptGradingPanel.tsx`) and a blank answer scores 0 without entering the queue.
+- **What.** The `ordering` question type ("put these steps in the right order") is scored by `orderingFraction` in `09-scoring/src/mcq.ts` with `grader='deterministic'`, exactly like mcq, numeric and multi_select. It is in `DETERMINISTIC_TYPES` and in both deterministic SQL type lists in `scoreMcqForAttempt`. It is NOT in any `AI_GRADEABLE_TYPES` set (`admin-grade.ts`, `admin-rerun.ts`, `AttemptGradingPanel.tsx`), and a blank answer scores 0 without entering the queue.
 - **Predicates.** The "needs evaluation" predicate is now `q.type NOT IN ('mcq','numeric','multi_select','ordering')` in `07 repository.ts`, `07 handlers/super-evaluations.ts`, `06 result.ts` and `apps/api/src/jobs/evaluation-queue-alert.ts`. A new deterministic type must widen all four.
-- **"Pick the log line"** needs no new type: author it as a `multi_select` (or `mcq`) whose options are the log lines.
+- **"Pick the log line"** needs no new type. Author it as a `multi_select` (or `mcq`) whose options are the log lines.
 - **Not included.** AI generation of ordering questions; no prompt, band scoring (0/25/50/75/100) or skill change.
 
 ### `structured_case` is deterministic and never AI-graded (SP7)
@@ -515,26 +524,26 @@ This is the **graduated, never-binary** behavior the project mandates. A perfect
 
 - **What.** The `structured_case` type (a log excerpt or incident story, then 1-12 choice steps) is scored by `structuredCaseFraction` in `09-scoring/src/mcq.ts` with `grader='deterministic'`. It is in `DETERMINISTIC_TYPES` and in both deterministic SQL type lists. It is in no `AI_GRADEABLE_TYPES` set.
 - **Tier 0 type list.** The deterministic types are now `mcq`, `numeric`, `multi_select`, `ordering`, `structured_case`. The "needs evaluation" predicate is `q.type NOT IN ('mcq','numeric','multi_select','ordering','structured_case')` in `07 repository.ts`, `07 handlers/super-evaluations.ts`, `06 result.ts` and `apps/api/src/jobs/evaluation-queue-alert.ts` (commit `860bfc3`). A new deterministic type must widen all four.
-- **Rule: one question never mixes deterministic and AI points.** Every step is a choice with a fixed key, so the whole question is deterministic. Free-text steps would break this rule. That is why `scenario` with mcq steps was rejected as the base: its AI or deterministic path would depend on content. The key is chosen from the question TYPE, never from the answer shape.
-- **Not included.** AI generation of this type, any prompt or skill change, band scoring (0/25/50/75/100). Shape and scoring detail: see 02.
+- **Rule: one question never mixes deterministic and AI points.** Every step is a choice with a fixed key, so the whole question is deterministic. Free-text steps would break this rule. That is why we rejected `scenario` with mcq steps as the base: its AI or deterministic path would depend on content. The code chooses the key from the question TYPE, never from the answer shape.
+- **Not included.** AI generation of this type, any prompt or skill change, and band scoring (0/25/50/75/100). For the shape and scoring detail, see 02.
 
 ### Module 07 reads the frozen question type (N21)
 
 *History: 2026-10-03.*
 
-Commit `9084a53`. Review: Sonnet adversarial verdict revise (fixed), then codex accept.
+Commit `9084a53`. Review: the Sonnet adversarial verdict was revise (fixed), then codex accepted.
 - **What.** Five 07 queries now read `question_versions.type` through `attempt_questions.question_version` and not `questions.type`: `repository.ts` queue counts, `admin-grade`, `admin-rerun`, `admin-claim-release`, `super-evaluations`. The migration is `0156` (see 02).
-- **Why.** A clone refresh could change a type while an attempt waited for grading. The grader and the queue then used a different type from the one the candidate answered.
+- **Why.** A clone refresh could change a type while an attempt waited for grading. The grader and the queue then used a different type from the type that the candidate answered.
 - **Considered and rejected.** Leaving 07 on the live type (the first review found this gap).
 - **Not included.** No prompt, skill, rubric or runtime change. Phase 1 stays sync-on-click.
-- **Impact.** The non-MCQ predicates in the evaluation queue use the frozen type. Test mocks updated in `6ed8ded`.
+- **Impact.** The non-MCQ predicates in the evaluation queue use the frozen type. The team updated the test mocks in `6ed8ded`.
 
 ### Frozen points and evaluation queue filters
 
 *History: 2026-10-02, batch 3.*
 
-- **Points frozen per attempt (390e39c, 0128).** `score_max` for every grading row now comes from `attempt_questions.points` (frozen at attempt start), not live `questions.points`. 07 `admin-grade`, `admin-manual-score`, `admin-rerun`, `admin-claim-release` and 09 deterministic scoring read it. Editing a question's points mid-drive no longer changes scores of attempts not yet graded. No prompt, skill or runtime change; the AI still runs only on the super admin's click.
-- **Evaluation queue excludes numeric and multi_select (273e2bc).** The "needs evaluation" predicate was `q.type <> 'mcq'`; it is now `q.type NOT IN ('mcq','numeric','multi_select')` in `07 handlers/super-evaluations.ts`, `07 repository.ts` (`non_mcq` count) and `apps/api/src/jobs/evaluation-queue-alert.ts`. An attempt made only of MCQ / numeric / multi_select completes at submit with deterministic scoring (numeric tolerance; multi_select all_or_nothing or partial) and enters no queue. Rejected: sending the new types through AI (they are objectively scorable). Not included: AI generation of these types. A new deterministic type must widen all three predicates.
+- **Points frozen per attempt (390e39c, 0128).** `score_max` for every grading row now comes from `attempt_questions.points` (frozen at attempt start), not from the live `questions.points`. 07 `admin-grade`, `admin-manual-score`, `admin-rerun`, `admin-claim-release` and 09 deterministic scoring read it. An edit to the points of a question during a drive no longer changes the scores of attempts that are not yet graded. No prompt, skill or runtime change. The AI still runs only on the click of the super admin.
+- **The evaluation queue excludes numeric and multi_select (273e2bc).** The "needs evaluation" predicate was `q.type <> 'mcq'`. It is now `q.type NOT IN ('mcq','numeric','multi_select')` in `07 handlers/super-evaluations.ts`, `07 repository.ts` (`non_mcq` count) and `apps/api/src/jobs/evaluation-queue-alert.ts`. An attempt that has only MCQ, numeric and multi_select questions completes at submit with deterministic scoring (numeric tolerance; multi_select all_or_nothing or partial) and enters no queue. Rejected: sending the new types through AI (they are objectively scorable). Not included: AI generation of these types. A new deterministic type must widen all three predicates.
 
 ## Implementation, reproducibility and failure modes
 
@@ -542,18 +551,13 @@ This section explains where the code lives, how a grade stays reproducible and w
 
 ### Implementation skeleton — Phase 1 (claude-code-vps) — **LIVE 2026-05-03 (G2.A 1.b)**
 
-> Status: shipped in commit `5aec6ad`. The skeleton below is what the runtime
-> at `modules/07-ai-grading/src/runtimes/claude-code-vps.ts` implements,
-> verbatim, plus three operational additions discovered during the build:
-> (a) Stage 3 escalation also triggers on `input.force_escalate === true`
-> (admin's "Re-run with Opus" affordance via `handleAdminRerun`); (b) when
-> Stage 2 and Stage 3 disagree by ≥ 2 bands, `escalation_chosen_stage` is
-> set to `"manual"` and Stage 2's band stays primary so the admin sees both
-> verdicts; (c) the runtime captures `skillSha()` post-Stage-3 wrapped in
-> a try/catch so a TOCTOU skill-file deletion between Stage 3 and the SHA
-> read silently falls through to `escalate:-` rather than losing the
-> proposal. See `modules/07-ai-grading/SKILL.md` § Status (G2.A 1.b) for
-> the full inventory + Sonnet adversarial rescue verdict.
+> Status: shipped in commit `5aec6ad`. The skeleton below is what the runtime at `modules/07-ai-grading/src/runtimes/claude-code-vps.ts` implements, verbatim. The build also added three operational items:
+>
+> 1. Stage 3 escalation also triggers on `input.force_escalate === true` (the "Re-run with Opus" affordance of the admin, through `handleAdminRerun`).
+> 2. When Stage 2 and Stage 3 disagree by ≥ 2 bands, `escalation_chosen_stage` is set to `"manual"`, and the band of Stage 2 stays primary. So the admin sees both verdicts.
+> 3. The runtime captures `skillSha()` after Stage 3, wrapped in a try/catch. So a TOCTOU skill-file deletion between Stage 3 and the SHA read silently falls through to `escalate:-` and does not lose the proposal.
+>
+> See `modules/07-ai-grading/SKILL.md` § Status (G2.A 1.b) for the full inventory and the Sonnet adversarial rescue verdict.
 
 ```typescript
 // modules/07-ai-grading/runtimes/claude-code-vps.ts
@@ -637,14 +641,14 @@ function runSkill(opts: { skill: string; promptVars: object; allowedTools: strin
 }
 ```
 
-Note the **`status: "proposed"`** return value: the function does not write to the database. The admin's "Accept" click is what flips the proposal into a real `gradings` row.
+Note the **`status: "proposed"`** return value. The function does not write to the database. The "Accept" click of the admin turns the proposal into a real `gradings` row.
 
 ### Determinism & reproducibility
 
 - Skills pin `temperature: 0.0` in their frontmatter where the skill author configures it.
-- Skills versioned by sha256 of the `SKILL.md` file; the version ID is stored on every grading row and audit entry.
-- When a skill is updated, old gradings stay tied to their old skill sha — re-grading is opt-in.
-- Test harness in `modules/07-ai-grading/eval/` — a golden-set of 50 hand-graded answers per question type. Run manually by the admin (`claude -p "Run the grading-eval skill"`) before publishing a skill change. Target: ≥ 85% agreement with the golden set.
+- The system versions skills by the sha256 of the `SKILL.md` file. It stores the version ID on every grading row and audit entry.
+- When a skill is updated, old gradings stay tied to their old skill sha. Re-grading is opt-in.
+- The test harness is in `modules/07-ai-grading/eval/`. It holds a golden set of 50 hand-graded answers for each question type. The admin runs it manually (`claude -p "Run the grading-eval skill"`) before publishing a skill change. Target: ≥ 85% agreement with the golden set.
 
 ### What lives where
 
@@ -681,17 +685,17 @@ modules/07-ai-grading/
 
 | Failure | Detection | Fallback |
 |---|---|---|
-| Claude Code OAuth expired | `claude -p` exits with auth error | Admin re-runs `claude login` on VPS; admin panel surfaces a banner |
-| Max plan rate-limit hit | Exit code / error text mentions usage | Admin panel shows reset time; grading paused, attempts stay `pending_admin_grading` |
-| Tool call malformed | Expected MCP tool event missing in stream | Mark proposal `status='review_needed'`; admin grades manually or retries |
-| Claude Code subprocess hangs | Timeout (default 120s per stage) | Kill process, surface error, admin retries |
-| Network egress blocked on VPS | Connection error | Pause grading queue, alert ops banner |
-| Toxic / out-of-policy candidate content | Anthropic content-policy refusal | Mark `status='review_needed'`, surface raw answer to admin |
-| Prompt injection attempt in answer | Stage 1/2 tool call returns suspicious band-4 with no anchors | Skill's untrusted-text framing + admin review catches it; eval harness should include adversarial cases |
+| Claude Code OAuth expired | `claude -p` exits with auth error | The admin runs `claude login` again on the VPS; the admin panel shows a banner |
+| Max plan rate-limit hit | Exit code or error text mentions usage | The admin panel shows the reset time; grading pauses, and attempts stay `pending_admin_grading` |
+| Tool call malformed | Expected MCP tool event missing in stream | Mark the proposal `status='review_needed'`; the admin grades manually or retries |
+| Claude Code subprocess hangs | Timeout (default 120s per stage) | Kill the process, show the error; the admin retries |
+| Network egress blocked on VPS | Connection error | Pause the grading queue, alert through an ops banner |
+| Toxic / out-of-policy candidate content | Anthropic content-policy refusal | Mark `status='review_needed'`, show the raw answer to the admin |
+| Prompt injection attempt in answer | Stage 1/2 tool call returns a suspicious band-4 with no anchors | The untrusted-text framing of the skill and the admin review catch it; the eval harness should include adversarial cases |
 
 ### Runtime-baseline known-gaps tracker
 
-`modules/07-ai-grading/eval/runtime-baseline.json` carries a `known_gaps` array. Each entry is a free-text incident note tagged with a status prefix:
+`modules/07-ai-grading/eval/runtime-baseline.json` carries a `known_gaps` array. Each entry is a free-text incident note with a status prefix:
 
 | Prefix | Meaning |
 | --- | --- |
@@ -700,48 +704,48 @@ modules/07-ai-grading/
 | `OPEN` | Investigation is open; new attempts may still exhibit the symptom. |
 | `PARTIAL (<date>)` | A first fix shipped but follow-up gaps remain; details inline. |
 
-**Why this exists.** It makes Phase 2 gate decisions auditable. A `partial` pass on an OPEN gap is acceptable during Stage 3.1; a regression on a CONFIRMED LIVE gap is not. The Stage 3 watch cron alerts on aggregate symptoms (chunks-failed rate, citation drops); the known-gaps array is the operator-facing record of *why* a metric might have moved.
+**Why this exists.** It makes Phase 2 gate decisions auditable. A `partial` pass on an OPEN gap is acceptable during Stage 3.1. A regression on a CONFIRMED LIVE gap is not. The Stage 3 watch cron alerts on aggregate symptoms (chunks-failed rate, citation drops). The known-gaps array is the operator-facing record of *why* a metric might have moved.
 
-**Live + open entries added 2026-05-10** (per `docs/SESSION_STATE.md` 2026-05-10 entry):
+**Live + open entries added 2026-05-10** (per the `docs/SESSION_STATE.md` 2026-05-10 entry):
 
-1. **CONFIRMED LIVE — per-chunk stderr aggregation.** Verified on attempt `019e103c`; `stderr_tail = "--- chunk: scenario ---\n(none)\n"`. The aggregation header is the canonical proof commit `b7e5552` is live. (See § Per-chunk stderr aggregation.)
-2. **OPEN — scenario chunk timeout retry-loop.** Attempt `019e103c` model retry-loop on `submit_questions` (3 emissions, 2 with empty input keys), SIGTERM at 630 s. Non-deterministic — `019e103a` succeeded with the same skill SHA two minutes earlier. Root-cause hypothesis: model cannot recover from MCP rejection within turn budget when initial submission was malformed. Recommended diagnostic: read MCP `submit_questions` rejection messages from the failed chunk via the `/var/log/assessiq/mcp-rejections.log` JSONL surface (`ab39667`).
-3. **OPEN — G2 fixture divergence.** `score-candidate` reports "unknown source ids" for real MITRE/NIST IDs on attempt `019e103a` (15/15 clean smoke at the handler level, `citation_dropped=0`); the handler validates against `input.sources[].id` from the live KB slice while `score-candidate` validates against `eval/fixtures/L*-sources.json`. The two ID sets diverge. Closure requires re-extracting the fixture from `modules/04-question-bank/src/knowledge-base/soc-l*.json` for each level. Commit `cd352c7` partially realigned; `ce00575` shipped a freshness guard + extraction script. See § G2 citation gate below.
+1. **CONFIRMED LIVE — per-chunk stderr aggregation.** Verified on attempt `019e103c`; `stderr_tail = "--- chunk: scenario ---\n(none)\n"`. The aggregation header is the canonical proof that commit `b7e5552` is live. (See § Per-chunk stderr aggregation.)
+2. **OPEN — scenario chunk timeout retry-loop.** On attempt `019e103c`, the model entered a retry loop on `submit_questions` (3 emissions, 2 with empty input keys) and SIGTERM came at 630 s. The failure is non-deterministic: `019e103a` succeeded with the same skill SHA two minutes earlier. Root-cause hypothesis: the model cannot recover from an MCP rejection within the turn budget when the initial submission was malformed. Recommended diagnostic: read the MCP `submit_questions` rejection messages from the failed chunk through the `/var/log/assessiq/mcp-rejections.log` JSONL surface (`ab39667`).
+3. **OPEN — G2 fixture divergence.** `score-candidate` reports "unknown source ids" for real MITRE/NIST IDs on attempt `019e103a` (15/15 clean smoke at the handler level, `citation_dropped=0`). The handler validates against `input.sources[].id` from the live KB slice, while `score-candidate` validates against `eval/fixtures/L*-sources.json`. The two ID sets diverge. To close it, re-extract the fixture from `modules/04-question-bank/src/knowledge-base/soc-l*.json` for each level. Commit `cd352c7` partially realigned the sets. Commit `ce00575` shipped a freshness guard and an extraction script. See § G2 citation gate below.
 
-Cross-reference: `docs/SESSION_STATE.md` 2026-05-10 entry ("Stage 3.0 commission + sharded smoke diagnose") records the per-attempt diagnostic data behind each entry.
+Cross-reference: the `docs/SESSION_STATE.md` 2026-05-10 entry ("Stage 3.0 commission + sharded smoke diagnose") records the per-attempt diagnostic data behind each entry.
 
 ### G2 citation gate + eval fixtures
 
-The Stage 3 promotion gating criteria in `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 2 include **G2 — citation fidelity across all 5 runs**. The check is mechanical: `score-candidate` (a subcommand of `modules/07-ai-grading/eval/cli-typed.ts`) loads every generated question from a live attempt and validates that each question's `knowledge_base_source_ids` references only sources present in `eval/fixtures/L*-sources.json` for the attempt's level. Exit codes: `0` pass, `1` regression, `2` error.
+The Stage 3 promotion gating criteria in `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 2 include **G2 — citation fidelity across all 5 runs**. The check is mechanical. `score-candidate` (a subcommand of `modules/07-ai-grading/eval/cli-typed.ts`) loads every generated question from a live attempt. It validates that the `knowledge_base_source_ids` of each question reference only sources that exist in `eval/fixtures/L*-sources.json` for the level of the attempt. Exit codes: `0` pass, `1` regression, `2` error.
 
 **Two enforcement layers.**
 
-- **Handler-side `filterByCitation()`** in `modules/07-ai-grading/src/handlers/admin-generate.ts` runs at generation time against `input.sources[].id` (the live KB slice taken from `modules/04-question-bank/src/knowledge-base/soc-l*.json` after pack-level filtering). Drops any question with empty or invalid IDs and counts them in `generation_attempts.citation_dropped` (migration 0043).
-- **Eval-side `score-candidate`** runs post-attempt against `eval/fixtures/L*-sources.json`. Passes iff every question resolves to a fixture entry.
+- **Handler-side `filterByCitation()`** in `modules/07-ai-grading/src/handlers/admin-generate.ts` runs at generation time against `input.sources[].id` (the live KB slice taken from `modules/04-question-bank/src/knowledge-base/soc-l*.json` after pack-level filtering). It drops any question with empty or invalid IDs and counts them in `generation_attempts.citation_dropped` (migration 0043).
+- **Eval-side `score-candidate`** runs after the attempt against `eval/fixtures/L*-sources.json`. It passes if and only if every question resolves to a fixture entry.
 
-**The divergence trap.** These two source-of-truth sets are *not* automatically aligned. The fixture file is a frozen snapshot used by the eval harness; the runtime KB is the live JSON shipped in `modules/04-question-bank/src/knowledge-base/`. When new KB entries land or existing entries are renamed, the fixture must be regenerated or `score-candidate` reports "unknown source ids" on every question whose chosen ID exists in the runtime KB but not in the fixture — exactly what attempt `019e103a` showed (16/27 = 59 % pass) while the handler-side filter reported `citation_dropped = 0`.
+**The divergence trap.** These two source-of-truth sets are *not* automatically aligned. The fixture file is a frozen snapshot that the eval harness uses. The runtime KB is the live JSON shipped in `modules/04-question-bank/src/knowledge-base/`. When new KB entries land or existing entries get new names, you must regenerate the fixture. Otherwise `score-candidate` reports "unknown source ids" on every question whose chosen ID exists in the runtime KB but not in the fixture. This is exactly what attempt `019e103a` showed (16/27 = 59 % pass) while the handler-side filter reported `citation_dropped = 0`.
 
-**Fixture regeneration step.** Commit `cd352c7` realigned `eval/fixtures/L*-sources.json` to real MITRE/NIST IDs from `soc-l*.json`. Commit `ce00575` then added the **G2 fixture freshness guard + extraction script** to prevent the divergence from re-emerging: the script re-extracts the fixture from the canonical KB JSON, and the freshness guard fails the eval run if the fixture is stale relative to the KB. Running the extraction script is therefore the standard unblocker before any G2 verification smoke. After this work the 2026-05-10 G2 gate moved from BLOCKED to PASSED (27/27).
+**Fixture regeneration step.** Commit `cd352c7` realigned `eval/fixtures/L*-sources.json` to real MITRE/NIST IDs from `soc-l*.json`. Commit `ce00575` then added the **G2 fixture freshness guard + extraction script** to prevent the divergence from re-emerging. The script re-extracts the fixture from the canonical KB JSON. The freshness guard fails the eval run if the fixture is stale relative to the KB. Running the extraction script is therefore the standard unblocker before any G2 verification smoke. After this work, the 2026-05-10 G2 gate moved from BLOCKED to PASSED (27/27).
 
-**Cross-reference.** `modules/07-ai-grading/eval/runtime-baseline.json` `known_gaps` entry "OPEN — G2 fixture divergence" carries the per-attempt diagnostic. The Stage 3 promotion design doc § 2 G2 still describes the score-candidate schema gap as the primary obstacle, which is the related but separate `knowledge_base_sources` vs `knowledge_base_source_ids` projection bug (closed separately; not detailed here).
+**Cross-reference.** The `modules/07-ai-grading/eval/runtime-baseline.json` `known_gaps` entry "OPEN — G2 fixture divergence" carries the per-attempt diagnostic. The Stage 3 promotion design doc § 2 G2 still describes the score-candidate schema gap as the primary obstacle. That gap is the related but separate `knowledge_base_sources` vs `knowledge_base_source_ids` projection bug (closed separately; not detailed here).
 
 ### CI sentinel — `lint-no-ambient-claude.ts` (live)
 
-D2 above (`### D2 — Definition of "ambient" + the lint contract`) is the canonical contract. The sentinel file at `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` is now **live** — it has been since the first 07-ai-grading runtime work (commits `7eea75b`, `526c9ff`, `3b4d742`). Each subsequent generation-side change widened the symbol set it enforces (notably `generateQuestions` and `generateRubricDraft`), but no change has touched the `CLAUDE_SPAWN_ALLOW_LIST` itself.
+D2 above (`### D2 — Definition of "ambient" + the lint contract`) is the canonical contract. The sentinel file at `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` is now **live**. It has been live since the first 07-ai-grading runtime work (commits `7eea75b`, `526c9ff`, `3b4d742`). Each later generation-side change widened the symbol set that it enforces (notably `generateQuestions` and `generateRubricDraft`), but no change has touched the `CLAUDE_SPAWN_ALLOW_LIST` itself.
 
-**Per CLAUDE.md § Load-bearing paths, this file requires `codex:rescue` to modify.** That includes adding a new file to the spawn allow-list, widening the banned-path set, or relaxing the rejection patterns. A new file under `modules/07-ai-grading/src/runtimes/` would also bypass the parameterised `runSkill()` and therefore trigger the same gate (per `docs/design/2026-05-09-type-sharded-generation.md` § 8 "Constraint: codex:rescue gate scope").
+**Per CLAUDE.md § Load-bearing paths, a change to this file requires `codex:rescue`.** That includes adding a new file to the spawn allow-list, widening the banned-path set and relaxing the rejection patterns. A new file under `modules/07-ai-grading/src/runtimes/` would also bypass the parameterised `runSkill()` and therefore trigger the same gate (per `docs/design/2026-05-09-type-sharded-generation.md` § 8 "Constraint: codex:rescue gate scope").
 
 **Lint behaviour since RW-65 (S10, 2026-10-16).**
 
-- **What changed.** The lint removes comments before it matches. A state machine does this and it knows strings, template literals and regex literals. A comment that only names a banned symbol no longer trips the lint. A string or regex that holds `//` or `/*` is not read as a comment.
+- **What changed.** The lint removes comments before it matches. A state machine does this, and it knows strings, template literals and regex literals. A comment that only names a banned symbol no longer trips the lint. The lint does not read a string or regex that holds `//` or `/*` as a comment.
 - **New matches.** A call to `exec`, `execFile`, `execSync`, `execFileSync`, `spawnSync` or `fork` with `claude` as the first argument now fails the lint, in the same way as `spawn`.
 - **Fixtures.** 19 new fixtures cover comments, strings, templates, regex and the new call names.
 - **Allow-list.** Unchanged: 2 spawn sites and 1 SDK import.
 - **Why.** On 2026-10-09 a comment tripped the lint. The only prevention then was manual discipline. The lint now enforces the rule. See `docs/RCA_LOG.md`, entry "comment tripped the lint".
-- **Rejected.** A regex-only comment strip: it breaks on `//` inside a string or a regex.
+- **Rejected.** A regex-only comment strip. It breaks on `//` inside a string or a regex.
 - **Not included.** A parse of the full TypeScript AST. The `codex:rescue` gate for edits to this file stays.
 
-**Worked example of a violation.** A cron registration like the following would fail the lint:
+**Worked example of a violation.** A cron registration like the following fails the lint:
 
 ```ts
 // apps/worker/scheduled-grade-sweep.ts  ← banned path under D2 rule 3
@@ -753,39 +757,39 @@ cron.schedule("*/5 * * * *", async () => {
 });
 ```
 
-The lint matches `node-cron` `.schedule()` callbacks whose transitive imports reach `runClaudeCodeGrading` (or any symbol from `modules/07-ai-grading/runtimes/*`). The fix is not to comment-suppress the line — it is to ask whether the work belongs to admin-click-driven sync grading at all. If it does, route it through the existing handler; if it does not, it has no business calling the runtime.
+The lint matches `node-cron` `.schedule()` callbacks whose transitive imports reach `runClaudeCodeGrading` (or any symbol from `modules/07-ai-grading/runtimes/*`). Do not suppress the line with a comment. Ask instead whether the work belongs to admin-click-driven sync grading at all. If it does, route it through the existing handler. If it does not, it has no business calling the runtime.
 
-The same pattern applies for `generateQuestions`, `generateRubricDraft`, and any future symbol that the sentinel adds to its banned-symbol set as new code surfaces ship.
+The same pattern applies to `generateQuestions`, `generateRubricDraft` and any future symbol that the sentinel adds to its banned-symbol set as new code ships.
 
 ### Eval gate (E2)
 
 *History: 2026-10-02, batch 5.*
 
-- **Skills hashed.** `grade-anchors`, `grade-band`, `grade-escalate` (short 8-hex via `skillSha`). A missing skill hashes to `"missing"`, so it never matches.
-- **Baseline match.** `eval run` writes `skill_shas` into `run.json`; `bless` copies it into `baselines/<date>.json` and refuses a run without it. At runtime `eval-gate.ts` approves iff some baseline file has all three shas equal. Baselines without `skill_shas` approve nothing.
-- **Where it runs.** `assertEvalGate()` at the start of grade-all and re-run, before any AI spawn. Never for generation, never for deterministic MCQ scoring.
-- **Modes.** `AI_EVAL_GATE`: `off`; `warn` (default, logs `grading.eval_gate.unapproved`); `enforce` (409 `AIG_EVAL_GATE`). Any other value is treated as `enforce` and logged. `AIQ_EVAL_BASELINES_DIR` overrides the baselines dir.
-- **`AIQ_EVAL_BASELINES_DIR` (batch 6).** Empty or unset means the default `eval/baselines` (the gate uses `||` since `2c66be6`, so an empty line in `.env.example` is fine). `eval/cli.ts` ignores the variable and always writes to `eval/baselines`, so set it only if both sides agree (N9).
-- **Why.** Prompts live as skill files on the VPS, so a prompt edit used to ship with no proof. Deploying a prompt edit is now: run, compare, bless inside the api container.
-- **Considered and rejected.** CI eval (no Max OAuth; D5). Default `enforce` (blocks all grading until the first bless). A host-side eval (hashes `/root/.claude/skills`, which may differ from the live mount).
-- **Not included.** A baseline does not exist yet; the golden set has about 1 case (N5); no auto-bless; no per-tenant gate.
+- **Skills hashed.** `grade-anchors`, `grade-band`, `grade-escalate` (short 8-hex through `skillSha`). A missing skill hashes to `"missing"`, so it never matches.
+- **Baseline match.** `eval run` writes `skill_shas` into `run.json`. `bless` copies it into `baselines/<date>.json` and refuses a run without it. At runtime, `eval-gate.ts` approves if and only if some baseline file has all three shas equal. Baselines without `skill_shas` approve nothing.
+- **Where it runs.** `assertEvalGate()` runs at the start of grade-all and re-run, before any AI spawn. It never runs for generation or for deterministic MCQ scoring.
+- **Modes.** `AI_EVAL_GATE`: `off`; `warn` (default, logs `grading.eval_gate.unapproved`); `enforce` (409 `AIG_EVAL_GATE`). The gate treats any other value as `enforce` and logs it. `AIQ_EVAL_BASELINES_DIR` overrides the baselines directory.
+- **`AIQ_EVAL_BASELINES_DIR` (batch 6).** An empty or unset value means the default `eval/baselines` (the gate uses `||` since `2c66be6`, so an empty line in `.env.example` is fine). `eval/cli.ts` ignores the variable and always writes to `eval/baselines`. Set the variable only if both sides agree (N9).
+- **Why.** Prompts live as skill files on the VPS, so a prompt edit used to ship with no proof. Now you deploy a prompt edit in these steps: run, compare, and bless inside the api container.
+- **Considered and rejected.** CI eval (no Max OAuth; D5). Default `enforce` (it blocks all grading until the first bless). A host-side eval (it hashes `/root/.claude/skills`, which may differ from the live mount).
+- **Not included.** A baseline does not exist yet. The golden set has about 1 case (N5). There is no auto-bless and no per-tenant gate.
 
 ### Override quality loop (E2)
 
 *History: 2026-10-02, batch 5.*
 
-- **Data.** Overrides already insert `gradings` rows (`grader='admin_override'`, `override_of`, `override_reason`) and keep the AI row. Migration 0140 adds view `grading_override_quality` pairing them.
-- **Read.** `GET /api/admin/super/grading-quality?days=90` aggregates per original `prompt_version_sha`: AI grades, overrides, override rate, mean absolute band delta, mean absolute score delta (percent of max). The evaluations page shows it.
-- **Harvest.** `pnpm tsx modules/07-ai-grading/eval/cli.ts harvest-overrides --since <date>` (needs `DATABASE_URL`) writes `cases-private/override-<gradingId>.{input,expected}.json`: question content and rubric from the frozen version, the candidate answer, expected band = the override band, no anchors. `run` and `compare` also load `cases-private/`.
-- **Privacy.** These files contain student answers. The directory is gitignored. Never commit or copy it off the server.
-- **Not included.** No automatic prompt tuning; anchors are not harvested (the expected side has only a band).
-- **Impact.** A rising override rate for a prompt sha is the signal to edit the skill, which then goes through the gate.
+- **Data.** Overrides already insert `gradings` rows (`grader='admin_override'`, `override_of`, `override_reason`) and keep the AI row. Migration 0140 adds the view `grading_override_quality`, which pairs them.
+- **Read.** `GET /api/admin/super/grading-quality?days=90` aggregates the data for each original `prompt_version_sha`: AI grades, overrides, override rate, mean absolute band delta, and mean absolute score delta (percent of max). The evaluations page shows it.
+- **Harvest.** `pnpm tsx modules/07-ai-grading/eval/cli.ts harvest-overrides --since <date>` (it needs `DATABASE_URL`) writes `cases-private/override-<gradingId>.{input,expected}.json`. The files hold the question content and rubric from the frozen version, the candidate answer, and the expected band = the override band, with no anchors. `run` and `compare` also load `cases-private/`.
+- **Privacy.** These files contain student answers. The directory is gitignored. Never commit it or copy it off the server.
+- **Not included.** No automatic prompt tuning. The harvest does not collect anchors (the expected side has only a band).
+- **Impact.** A rising override rate for a prompt sha is the signal to edit the skill. The edit then goes through the gate.
 
 ### Eval golden set
 
 *History: 2026-10-02, batch 7.*
 
-The golden set lives on the VPS only, in `modules/07-ai-grading/eval/cases-private` (bind-mounted into `assessiq-api`; gitignored and dockerignored). It is never committed because the repo is public (owner decision). It holds 150 AI-seeded cases: 50 each for subjective, scenario and log_analysis; per type 9 cases at each of bands 0-4 plus 5 adversarial (injection, empty, off-topic, keyword stuffing, pasted question or logs). Questions come from the already-public `golden-questions/`. `eval/runs` is mounted rw too, so runs survive recreates. Flow: eval run, compare, bless inside the api container (expect `case_count` 151), then `AI_EVAL_GATE=enforce`. Claim "AI-assisted, consistency-tested", not expert-verified. Detail: `docs/06-deployment.md` § Batch 7 deploy.
+The golden set lives on the VPS only, in `modules/07-ai-grading/eval/cases-private` (bind-mounted into `assessiq-api`; gitignored and dockerignored). The team never commits it, because the repo is public (owner decision). It holds 150 AI-seeded cases: 50 each for subjective, scenario and log_analysis. For each type, there are 9 cases at each of bands 0-4, plus 5 adversarial cases (injection, empty, off-topic, keyword stuffing, pasted question or logs). The questions come from the already-public `golden-questions/`. `eval/runs` is mounted rw too, so runs survive recreates. The flow is: eval run, compare, and bless inside the api container (expect `case_count` 151). Then set `AI_EVAL_GATE=enforce`. The claim is "AI-assisted, consistency-tested", not expert-verified. Detail: `docs/06-deployment.md` § Batch 7 deploy.
 
 ## Evaluation queue and data rights
 
@@ -797,76 +801,104 @@ The platform owner reviews AI proposals in one queue. This section explains who 
 
 #### Why
 
-- Anthropic's terms for Pro / Max plan credentials assume ordinary individual use and do not allow routing other people's requests through them (see the compliance frame above). Letting every company admin click Grade put the owner's subscription behind customers' requests.
-- Decision: **only the platform super admin (the owner) triggers AI**, per attempt, with a human accepting every grade. Companies never trigger AI: they review the finished evaluation and publish it. The product has plan tiers (owner decision 2026-10-02; contents and prices not yet decided).
-- If paid plans start, or volume grows well beyond one person's ordinary use, switch the engine to an API key (`AI_PIPELINE_MODE=anthropic-api`, decision OD2). The flow below does not change when the engine changes.
+- The terms of Anthropic for Pro / Max plan credentials assume ordinary individual use. They do not allow you to route the requests of other people through those credentials (see the compliance frame above). When every company admin could click Grade, the subscription of the owner served the requests of customers.
+- Decision: **only the platform super admin (the owner) triggers AI**, for each attempt, and a human accepts every grade. Companies never trigger AI. They review the finished evaluation and publish it. The product has plan tiers (owner decision 2026-10-02; contents and prices are not yet decided).
+- If paid plans start, or volume grows well beyond the ordinary use of one person, switch the engine to an API key (`AI_PIPELINE_MODE=anthropic-api`, decision OD2). The flow below does not change when the engine changes.
 
 #### End-to-end flow
 
-1. **Submit.** An attempt whose questions are all MCQ is complete at submit (deterministic scoring, `evaluation_released_at` set) and the company's release mode applies directly. An attempt with any written (`subjective`, `scenario`, `log_analysis`) or KQL question stays `submitted` and enters the queue. The candidate is told right away: wait about a minute on screen (auto tenants, all-MCQ tests) or "emailed to r***@… `<turnaround>`" (everything else).
-2. **Queue.** The super admin opens `/admin/platform/evaluations`: every active company's waiting attempts, oldest first, with age badges (amber from 24 h, red from 48 h), written / KQL counts, a "sent back" marker and a company filter. Blind: no candidate name or email anywhere.
-3. **Evaluate** (`/admin/platform/evaluations/:attemptId`). Grade all (the AI call; 5-minute session heartbeat, single-flight) → per-question proposals → Accept, Override, Re-run (optionally forcing the Opus second opinion) or a manual score for KQL. None of these releases anything. The attempt becomes `graded` (billed once) only when the result is **complete**: every question has an effective grade that is not `review_needed`.
-4. **Release to company** (one attempt or bulk) sets `evaluation_released_at` and writes audit `grading.evaluation_released`. Evaluating and handing over are two separate, audited acts.
+1. **Submit.** An attempt whose questions are all MCQ is complete at submit (deterministic scoring, `evaluation_released_at` set), and the release mode of the company applies directly. An attempt with any written (`subjective`, `scenario`, `log_analysis`) or KQL question stays `submitted` and enters the queue. The system tells the candidate right away. For auto tenants and all-MCQ tests, the candidate waits about a minute on screen. For everything else, the candidate sees "emailed to r***@… `<turnaround>`".
+2. **Queue.** The super admin opens `/admin/platform/evaluations`. The page shows the waiting attempts of every active company, oldest first. It has age badges (amber from 24 h, red from 48 h), written and KQL counts, a "sent back" marker and a company filter. It is blind: no candidate name or email appears anywhere.
+3. **Evaluate** (`/admin/platform/evaluations/:attemptId`). Grade all (the AI call; 5-minute session heartbeat, single-flight) → per-question proposals → Accept, Override, Re-run (optionally forcing the Opus second opinion) or a manual score for KQL. None of these actions releases anything. The attempt becomes `graded` (billed once) only when the result is **complete**: every question has an effective grade that is not `review_needed`.
+4. **Release to company** (one attempt or bulk) sets `evaluation_released_at` and writes the audit row `grading.evaluation_released`. Evaluating and handing over are two separate, audited acts.
 5. **Company reviews.** Grades and evidence are read-only. The company may **override** a score with a reason (fresh MFA, 5 min) or **send back** with a note (the attempt returns to the queue; no re-billing).
-6. **Publish.** Manual mode: the admin presses Publish or "Publish all ready". Auto mode: the worker sweep `result.auto_release` publishes within about 15 s, but only evaluations released after the switch to auto. Publishing issues the certificate when one is earned (inside a SAVEPOINT, so a certificate error never undoes the release) and sends the result email.
-7. **Candidate** sees only the complete result (score, percent, pass / fail, certificate) on the post-submit page, in "My results" and by email; never answers, bands or justifications. A published result is final.
+6. **Publish.** In manual mode, the admin presses Publish or "Publish all ready". In auto mode, the worker sweep `result.auto_release` publishes within about 15 s, but only evaluations that the system released after the switch to auto. Publishing issues the certificate when the candidate earned one (inside a SAVEPOINT, so a certificate error never undoes the release) and sends the result email.
+7. **Candidate:** the candidate sees only the complete result (score, percent, pass / fail, certificate) on the post-submit page, in "My results" and by email. The candidate never sees answers, bands or justifications. A published result is final.
 
 #### Queue eligibility
 
-An attempt is in the queue when it has at least one non-MCQ question, its candidate is not erased, its company is active, and it is either pre-graded (`submitted`, `auto_submitted`, `pending_admin_grading`) or `graded` with the evaluation not yet released (finished, or sent back). The same predicate is written in three places: the queue list (`listSuperEvaluationQueue`), the guard on `grade` / `rerun` (`assertInEvaluationQueue`, 409 `NOT_IN_EVALUATION_QUEUE`) and the worker's owner alert (which must not import `@assessiq/ai-grading`). Change all three together; the list and the alert job carry KEEP IN SYNC comments.
+An attempt is in the queue when it has at least one non-MCQ question, its candidate is not erased and its company is active. It must also be either pre-graded (`submitted`, `auto_submitted`, `pending_admin_grading`) or `graded` with the evaluation not yet released (finished, or sent back). The code writes the same predicate in three places:
+
+- the queue list (`listSuperEvaluationQueue`);
+- the guard on `grade` / `rerun` (`assertInEvaluationQueue`, 409 `NOT_IN_EVALUATION_QUEUE`);
+- the owner alert of the worker (which must not import `@assessiq/ai-grading`).
+
+Change all three together. The list and the alert job carry KEEP IN SYNC comments.
 
 #### Tenant AI pause (FU-A11, owner decision 2026-10-03, built 2026-10-09)
 
-- **What.** `tenant_settings.ai_grading_enabled = false` pauses AI evaluation for that company inside the platform queue. The queue list carries `ai_paused: true` on every row of that company (`listSuperEvaluationQueue`, `LEFT JOIN tenant_settings`); the page shows an **AI paused** chip (help id `admin.evaluations.queue.ai_paused`) and **Evaluate next** skips those rows. `assertInEvaluationQueue` (the guard on `grade` and `rerun`) answers `409 AIG_TENANT_AI_PAUSED` after the eligibility check, and `assertTenantAiEnabled` (07 `repository.ts`) re-reads the flag inside the handler's own tenant transaction right before the first AI call (`admin-grade.ts` with the in-progress marker, `admin-rerun.ts` before the loop), and again before EACH AI call in the loop, so a flag flipped between the route guard and a runtime call stops the next question (codex review 2026-10-09). An AI call already in flight still finishes, but its result is NOT kept: RW-7 (2026-10-09) calls `assertTenantAiEnabled` again as the first statement of the write transaction that caches `ai_proposals` (`admin-grade.ts`, `admin-rerun.ts`), so a pause that lands during a multi-minute call rolls the write back, discards the proposal, answers `409 AIG_TENANT_AI_PAUSED`, and the single-flight lock and in-progress marker are still released (existing catch/finally). Accept is BLOCKED while paused (owner decision 2026-10-09): `admin-accept.ts` runs the same check first in its tenant tx, so no `gradings`, billing or audit row is written (accept only commits AI proposals, grader `ai`). Why: a pause must not let an AI result leak into a company's grades. Manual score, override and release are not gated: a paused company can still get a human score. A strict lock between the settings PATCH and AI admission was rejected as over-engineering for a trusted-caller pause flag. The settings read in `assertTenantAiEnabled` uses `FOR SHARE` on the `tenant_settings` row. It therefore waits for the `FOR UPDATE` write that 02-tenancy makes when an admin pauses a company, and it closes the read-committed race (codex review 2026-10-09). Test: `rw7-pause-recheck.test.ts`.
-- **Why.** The flag existed since Phase 0 and was stored but never read (FR7 review). A company that wants no AI on its answers must be able to say so, and the only AI trigger (the super admin's click) must honour it. Rows stay visible so the owner sees the paused work instead of losing it.
-- **Rejected.** Hiding the rows (silent loss; the owner would not know the work exists). Gating manual score and override too (the flag is about AI, not about evaluation). A tenant-side 403 on the company routes (they already answer 403 `AI_EVALUATION_BY_ASSESSIQ` in every mode).
-- **Not included.** The 24-hour owner alert still counts paused rows (`evaluation-queue-alert.ts` predicate unchanged); a tenant settings UI toggle for the flag (today it is set through `PATCH /api/admin/tenant/settings`); any new AI call path. Super admin stays the only AI trigger; `lint:ambient-ai` untouched.
-- **Impact.** `docs/03-api-contract.md` (queue row field, 409 code), module 10 (chip, Evaluate next), module 16 (migration `0162`, seed count 221), module 07 tests (`super-evaluation.test.ts`), module 02 unchanged (reader only).
+- **What.** `tenant_settings.ai_grading_enabled = false` pauses AI evaluation for that company inside the platform queue. These parts of the system use the flag:
+  - The queue list carries `ai_paused: true` on every row of that company (`listSuperEvaluationQueue`, `LEFT JOIN tenant_settings`). The page shows an **AI paused** chip (help id `admin.evaluations.queue.ai_paused`), and **Evaluate next** skips those rows.
+  - `assertInEvaluationQueue` (the guard on `grade` and `rerun`) answers `409 AIG_TENANT_AI_PAUSED` after the eligibility check.
+  - `assertTenantAiEnabled` (07 `repository.ts`) reads the flag again inside the own tenant transaction of the handler, right before the first AI call (`admin-grade.ts` with the in-progress marker, `admin-rerun.ts` before the loop). It also reads the flag again before EACH AI call in the loop. So a flag that changes between the route guard and a runtime call stops the next question (codex review 2026-10-09).
+  - An AI call already in flight still finishes, but the system does NOT keep its result. RW-7 (2026-10-09) calls `assertTenantAiEnabled` again as the first statement of the write transaction that caches `ai_proposals` (`admin-grade.ts`, `admin-rerun.ts`). So a pause that lands during a multi-minute call rolls the write back and discards the proposal. The call answers `409 AIG_TENANT_AI_PAUSED`, and the existing catch/finally still releases the single-flight lock and the in-progress marker.
+  - Accept is BLOCKED while paused (owner decision 2026-10-09). `admin-accept.ts` runs the same check first in its tenant tx, so no `gradings`, billing or audit row is written (accept only commits AI proposals, grader `ai`). The reason: a pause must not let an AI result leak into the grades of a company.
+  - The flag does not gate manual score, override and release. A paused company can still get a human score.
+  - We rejected a strict lock between the settings PATCH and AI admission as over-engineering for a pause flag with a trusted caller.
+  - The settings read in `assertTenantAiEnabled` uses `FOR SHARE` on the `tenant_settings` row. It therefore waits for the `FOR UPDATE` write that 02-tenancy makes when an admin pauses a company, and it closes the read-committed race (codex review 2026-10-09). Test: `rw7-pause-recheck.test.ts`.
+- **Why.** The flag existed since Phase 0. The system stored it but never read it (FR7 review). A company that wants no AI on its answers must be able to say so, and the only AI trigger (the click of the super admin) must honour it. The rows stay visible, so the owner sees the paused work and does not lose it.
+- **Rejected.** Hiding the rows (silent loss; the owner would not know that the work exists). A gate on manual score and override too (the flag is about AI, not about evaluation). A tenant-side 403 on the company routes (they already answer 403 `AI_EVALUATION_BY_ASSESSIQ` in every mode).
+- **Not included.** The 24-hour owner alert still counts paused rows (the predicate of `evaluation-queue-alert.ts` is unchanged). A tenant settings UI toggle for the flag (today you set it through `PATCH /api/admin/tenant/settings`). Any new AI call path. The super admin stays the only AI trigger. `lint:ambient-ai` is untouched.
+- **Impact.** `docs/03-api-contract.md` (queue row field, 409 code), module 10 (chip, Evaluate next), module 16 (migration `0162`, seed count 221), module 07 tests (`super-evaluation.test.ts`). Module 02 is unchanged (reader only).
 
 #### What companies can no longer do
 
-Trigger or accept AI grading, re-run, enter a manual first score or retry a grading job (all `403 AI_EVALUATION_BY_ASSESSIQ`); see grades, proposals or the score on the attempt page before the evaluation is released; override before release (409 `EVALUATION_NOT_RELEASED`); change anything after publishing (409 `RESULT_ALREADY_PUBLISHED`).
+Companies can no longer do these things:
+
+- Trigger or accept AI grading, re-run, enter a manual first score or retry a grading job (all `403 AI_EVALUATION_BY_ASSESSIQ`).
+- See grades, proposals or the score on the attempt page before the release of the evaluation.
+- Override before release (409 `EVALUATION_NOT_RELEASED`).
+- Change anything after publishing (409 `RESULT_ALREADY_PUBLISHED`).
 
 #### Service levels
 
-- The owner is emailed (template `evaluation_queue_alert`: count, oldest age, link) when queue items are older than 24 hours. Worker job `evaluation.queue_alert`, hourly, at most one email per 24 h; recipients come from `SUPER_ADMIN_EMAILS`, which defaults to the platform owner's address.
-- The candidate's "emailed to you" message carries `EVALUATION_TURNAROUND_TEXT` (default "within 72 hours"); set it to the real turnaround.
-- Capacity (plan estimate, unchanged): one person on one subscription handles about 50-150 attempts a day; a written answer takes about 36 s of AI time (measured 2026-10-01), so a 100-candidate drive with 5 written answers each is about 5 hours of AI time plus review.
-- Consent: the Begin-test copy now says written answers are evaluated by AssessIQ evaluators with AI assistance (consent policy version `2026-10-02`). The privacy notice and tenant terms still need the same disclosure (tracked separately).
+- The system emails the owner (template `evaluation_queue_alert`: count, oldest age, link) when queue items are older than 24 hours. The worker job is `evaluation.queue_alert`, hourly, with at most one email each 24 h. Recipients come from `SUPER_ADMIN_EMAILS`, which defaults to the address of the platform owner.
+- The "emailed to you" message to the candidate carries `EVALUATION_TURNAROUND_TEXT` (default "within 72 hours"). Set it to the real turnaround.
+- Capacity (plan estimate, unchanged): one person on one subscription handles about 50-150 attempts a day. A written answer takes about 36 s of AI time (measured 2026-10-01). So a 100-candidate drive with 5 written answers each needs about 5 hours of AI time plus review.
+- Consent: the Begin-test copy now says that AssessIQ evaluators evaluate written answers with AI assistance (consent policy version `2026-10-02`). The privacy notice and the tenant terms still need the same disclosure (tracked separately).
 
 #### Considered and rejected / not included / impact
 
-- **Rejected (for the `claude-code-vps` engine):** company admins triggering AI (the compliance problem above); a per-company API key (BYOK: compliant and listed as an option in the product review, but not built; revisit with OD2); background grading after submit (Phase 2 / paid API; breaks the no-ambient-AI rule); a new `attempts.status` value for the hand-over (read by too many modules, so columns instead).
-- **Not included:** async or API-mode grading, per-company AI, two follow-ups the owner decided after this build (release to the company automatically when the super admin accepts the last grade; and an `AI_PIPELINE_MODE` switch that lets companies evaluate once an API budget exists; today the hand-over is an explicit step and the company routes answer 403 in every mode), answer-reuse and rule tiers (SP5), calibration examples and agreement tracking (SP6), more auto-gradable types and a KQL grader (SP7; until then KQL needs a manual score), calibrated auto-commit (SP8).
+- **Rejected (for the `claude-code-vps` engine):**
+  - Company admins that trigger AI (the compliance problem above).
+  - A per-company API key (BYOK: compliant and listed as an option in the product review, but not built; revisit with OD2).
+  - Background grading after submit (Phase 2 / paid API; it breaks the no-ambient-AI rule).
+  - A new `attempts.status` value for the hand-over (too many modules read it, so we used columns instead).
+- **Not included:** async or API-mode grading, per-company AI, answer-reuse and rule tiers (SP5), calibration examples and agreement tracking (SP6), more auto-gradable types and a KQL grader (SP7; until then KQL needs a manual score), and calibrated auto-commit (SP8).
+- **Also not included (two follow-ups that the owner decided after this build):**
+  - Release to the company automatically when the super admin accepts the last grade.
+  - An `AI_PIPELINE_MODE` switch that lets companies evaluate once an API budget exists.
+
+  Today the hand-over is an explicit step, and the company routes answer 403 in every mode.
 - **Impact:** `docs/02-data-model.md` (columns, derived states), `docs/03-api-contract.md` (routes), `docs/11-observability.md` § 34 (jobs, log events), modules 06, 07, 09, 10, 11, 13, 15, 16. CLAUDE.md rule #1 holds: the two new worker jobs never call AI (one publishes a finished result, the other counts rows and sends mail).
 
 #### Update 2026-10-01 (later): release on the last accept, Re-run AI for sent-back attempts
 
-- **Owner decision, now built** (`809e807`, `23c9f0b`). The platform evaluator's accept, manual score or override that COMPLETES an attempt also releases it to the company in the same transaction: finalize sets `evaluation_released_at` and `_by`.
-  - In Automatic mode the company's sweep then publishes within about 15 s.
-  - It is recorded in the existing audit row (`after.evaluation_released: true`); there is no separate release row.
-  - It is never applied to an erased candidate, or to an attempt that was already graded.
+- **Owner decision, now built** (`809e807`, `23c9f0b`). When the accept, manual score or override of the platform evaluator COMPLETES an attempt, it also releases the attempt to the company. This happens in the same transaction: finalize sets `evaluation_released_at` and `_by`.
+  - In Automatic mode, the sweep of the company then publishes within about 15 s.
+  - The existing audit row records it (`after.evaluation_released: true`). There is no separate release row.
+  - The system never applies it to an erased candidate or to an attempt that was already graded.
   - The evaluate page shows "Accepting the last grade releases this result to <company>…" before the last accept, and "Released to <company>." after it.
 - **Release to company** (single and bulk) remains for sent-back attempts after re-evaluation, and as a recovery action.
-- **Re-run AI on a sent-back attempt:** attempt-level, with the same click-only, single-flight and heartbeat rules as Grade all. Proposals are cached; nothing is committed until accept (D8).
-- **D7 refinement:** on an already-graded attempt, a proposal generated after the question's newest grading is written as a NEW row with `override_of` = the superseded same-SHA row. The newest row wins, and the D7 partial unique index stays satisfied. Replays and stale proposals are still skipped. Totals pick the newest row per question (`09-scoring/src/repository.ts` `getGradingsForAttempt`), so these rows count correctly.
+- **Re-run AI on a sent-back attempt:** it works at attempt level, with the same click-only, single-flight and heartbeat rules as Grade all. The system caches the proposals. Nothing is committed until accept (D8).
+- **D7 refinement:** on an already-graded attempt, the system can generate a proposal after the newest grading of the question. It writes that proposal as a NEW row with `override_of` = the superseded same-SHA row. The newest row wins, and the D7 partial unique index stays satisfied. The system still skips replays and stale proposals. Totals pick the newest row for each question (`09-scoring/src/repository.ts` `getGradingsForAttempt`), so these rows count correctly.
 - **Shared rubric resolution:** Re-run uses the same rubric resolution as Grade all (`resolveGradingRubric`, extracted from `admin-grade.ts`, same behaviour).
-- **Compliance frame unchanged:** AI runs only on the super admin's click, and `lint:ambient-ai` passes.
+- **Compliance frame unchanged:** AI runs only on the click of the super admin, and `lint:ambient-ai` passes.
 - **Not included:** the `AI_PIPELINE_MODE` switch that would let companies run AI once a paid API key exists. It has no effect until OD2, because API mode is still a stub.
 
 ### Erasure and AI-grading data (RW-69)
 
 *History: S10, 2026-10-15.*
 
-**What.** Right-to-erasure (`modules/20-data-rights/src/erasure.ts`, step 4b) now also clears the AI copies of the answer text. In the same transaction it sets `gradings.stage_inputs = NULL`, `gradings.anchor_hits = '[]'::jsonb` and `gradings.ai_justification = NULL`, and `attempts.ai_proposals = NULL`, for every attempt of the erased user.
+**What.** Right-to-erasure (`modules/20-data-rights/src/erasure.ts`, step 4b) now also clears the AI copies of the answer text. In the same transaction, it sets `gradings.stage_inputs = NULL`, `gradings.anchor_hits = '[]'::jsonb`, `gradings.ai_justification = NULL` and `attempts.ai_proposals = NULL`, for every attempt of the erased user.
 
-**Why.** Step 4 blanked only `attempt_answers`. The columns above echo the answer text: `stage_inputs` (migration 0168), `anchor_hits`, `ai_justification`, and the proposals cache of migration 0100. The text stayed readable after erasure.
+**Why.** Step 4 blanked only `attempt_answers`. The columns above echo the answer text: `stage_inputs` (migration 0168), `anchor_hits`, `ai_justification` and the proposals cache of migration 0100. The text stayed readable after erasure.
 
-**Kept.** Band, score, error class, model, prompt sha256 and override rows stay. They hold no answer text and they keep the grading audit trail valid.
+**Kept.** Band, score, error class, model, prompt sha256 and override rows stay. They hold no answer text, and they keep the grading audit trail valid.
 
-**Considered and rejected.** Deleting the `gradings` rows. It breaks score history and the billing link.
+**Considered and rejected.** Deleting the `gradings` rows. It breaks the score history and the billing link.
 
-**Not included.** No change to the grading pipeline, to the Phase 1 compliance frame or to the receipt shape. Guard test and open followups: `docs/RCA_LOG.md` entry "Erasure left the answer text readable in the AI-grading columns".
+**Not included.** No change to the grading pipeline, to the Phase 1 compliance frame or to the receipt shape. For the guard test and the open follow-ups, see `docs/RCA_LOG.md` entry "Erasure left the answer text readable in the AI-grading columns".
 
 ## AI question generation
 
@@ -878,7 +910,7 @@ Generation is a separate Phase 2 path. It uses the same rule: an admin starts it
 
 #### Architecture
 
-**Goal:** Admins can generate SOC-grounded `ai_draft` question drafts without writing them from scratch. The same `claude-code-vps` runtime used for grading now powers generation via a separate skill.
+**Goal:** Admins can generate SOC-grounded `ai_draft` question drafts without a need to write them from scratch. The same `claude-code-vps` runtime that grades answers now also powers generation, through a separate skill.
 
 **Call chain:**
 
@@ -897,62 +929,64 @@ Admin click "Generate" in pack-detail.tsx
             → questions rows with status='ai_draft', knowledge_base_sources JSONB
 ```
 
-**D2 compliance:** same rules as grading.
-- `handleAdminGenerate` is only called on admin click via a registered admin-only Fastify route.
-- `generateQuestions` symbol is now in `RE_GRADING_RUNTIME_IMPORT` — banned-path files (worker, candidate routes, webhooks) cannot import it.
-- `admin-generate.ts` is intentionally NOT in `CLAUDE_SPAWN_ALLOW_LIST` — it does not spawn `claude` directly; only `claude-code-vps.ts` does.
+**D2 compliance:** the same rules as for grading apply.
+
+- `handleAdminGenerate` runs only on an admin click, through a registered admin-only Fastify route.
+- The `generateQuestions` symbol is now in `RE_GRADING_RUNTIME_IMPORT`. Files in banned paths (worker, candidate routes, webhooks) cannot import it.
+- `admin-generate.ts` is intentionally NOT in `CLAUDE_SPAWN_ALLOW_LIST`. It does not spawn `claude` directly. Only `claude-code-vps.ts` does.
 - 10 self-test fixtures in `lint-no-ambient-claude.ts` now cover `generateQuestions` in both banned and allowed paths.
 
 #### D8 extension — ai_draft status
 
 Generated questions land with `status='ai_draft'` (distinct from `'draft'`). This enables:
-- Admin queue filtering: "needs AI-generated-review" vs "human-authored draft"
-- Citation chips in pack-detail UI: `knowledge_base_sources` JSONB shows which MITRE/NIST/SIEM entries grounded each question
-- Never auto-activated — admin must explicitly transition to `draft` → `active`
+
+- Admin queue filtering: "needs AI-generated-review" against "human-authored draft"
+- Citation chips in the pack-detail UI: the `knowledge_base_sources` JSONB shows which MITRE/NIST/SIEM entries grounded each question
+- The system never activates a question automatically. The admin must explicitly move it from `draft` to `active`.
 
 #### Knowledge base
 
 **Location:** `modules/04-question-bank/src/knowledge-base/`
 
-Three JSON files (Pattern A split to stay within skill token budget):
+Three JSON files (Pattern A split, to stay within the skill token budget):
 - `soc-l1.json` — 25 entries (alert triage, basic log analysis, common attack patterns)
 - `soc-l2.json` — 25 entries (SIEM correlation, behavioral analysis, lateral movement, C2)
 - `soc-l3.json` — 20 entries (threat hunting, advanced forensics, APT attribution)
 
-Each entry has: `id, name, citation, url, level_fit, function, description, tags, kb_version`.
+Each entry has these fields: `id, name, citation, url, level_fit, function, description, tags, kb_version`.
 
 SOC functions: `triage`, `detection`, `analysis`, `response`, `forensics`, `hunting`, `intelligence`, `governance`, `architecture`.
 
-**Version:** `2026-05-08`. When KB entries change, bump `version` in each JSON file. The `kb_version` field on every generated question row records which version was used at generation time.
+**Version:** `2026-05-08`. When KB entries change, bump `version` in each JSON file. The `kb_version` field on every generated question row records which version the run used at generation time.
 
 #### generate-questions skill
 
 **Location:** `prompts/skills/generate-questions/SKILL.md`
 **Install on VPS:** `~/.claude/skills/generate-questions/SKILL.md`
 
-The skill receives: `level` (L1/L2/L3), `count`, `topic_focus?`, `existing_topics[]`, `sources[]` (pre-selected KB entries from caller).
+The skill receives: `level` (L1/L2/L3), `count`, `topic_focus?`, `existing_topics[]`, and `sources[]` (KB entries that the caller pre-selected).
 
-Output: one `submit_questions` MCP tool call with all questions. Per-type content shapes (MCQ, subjective, KQL, scenario, log-analysis) are validated by the `submit_questions` tool in `tools/assessiq-mcp/src/tools/submit-questions.ts`.
+Output: one `submit_questions` MCP tool call with all questions. The `submit_questions` tool validates the per-type content shapes (MCQ, subjective, KQL, scenario, log-analysis) in `tools/assessiq-mcp/src/tools/submit-questions.ts`.
 
 #### Schema changes (migration 0016)
 
 - `questions.status` CHECK now includes `'ai_draft'`
 - `questions.knowledge_base_sources JSONB NOT NULL DEFAULT '[]'`
-- `question_versions.knowledge_base_sources JSONB NOT NULL DEFAULT '[]'` (snapshots inherit provenance)
+- `question_versions.knowledge_base_sources JSONB NOT NULL DEFAULT '[]'` (snapshots inherit the provenance)
 
-Applied manually to production via `docker cp` + `psql -f` on 2026-05-08.
+The team applied the migration manually to production through `docker cp` + `psql -f` on 2026-05-08.
 
-> The two "Phase 2 — …" subsections in this document (the AI Question Generation section above and the type-sharded fan-out section below) ship through the **Phase 1 `claude-code-vps` runtime** under the existing compliance frame. The "Phase 2" prefix refers to the *generation product surface*, not the Anthropic-API runtime described in § "Phase 2 — Paid API via Agent SDK (deferred)". The lint contract (D2) treats them identically — the call sites for generation are part of the same allow-list as grading.
+> The two "Phase 2 — …" subsections in this document (the AI Question Generation section above and the type-sharded fan-out section below) ship through the **Phase 1 `claude-code-vps` runtime** under the existing compliance frame. The "Phase 2" prefix refers to the *generation product surface*. It does not refer to the Anthropic-API runtime in § "Phase 2 — Paid API via Agent SDK (deferred)". The lint contract (D2) treats them identically. The call sites for generation are part of the same allow-list as grading.
 
 ### Type-sharded generation (Stage 1)
 
 *History: 2026-05-09.*
 
-This section describes the generation pipeline as it stands today on `origin/main`. Stage numbering follows `docs/design/2026-05-09-type-sharded-generation.md` § 7 (Stages 1 → 1.5 → 2 → 3 → 4). Stage 3 rollout — the per-tenant flip — is documented in the next top-level section.
+This section describes the generation pipeline as it stands today on `origin/main`. The stage numbering follows `docs/design/2026-05-09-type-sharded-generation.md` § 7 (Stages 1 → 1.5 → 2 → 3 → 4). The next top-level section documents the Stage 3 rollout, which is the per-tenant flip.
 
 #### What shipped — fan-out by question type
 
-The omnibus `generate-questions` skill that ships drafts of every type in one Claude subprocess has a sibling path: a five-way type-fan-out where each question type is generated by a dedicated specialist skill, in parallel, under a single admin click. The route stays the same (`POST /admin/packs/:packId/levels/:levelId/generate`); the handler chooses which path to run based on the effective `ai_generate_mode` resolution described in the next section.
+The omnibus `generate-questions` skill ships drafts of every type in one Claude subprocess. It has a sibling path, a five-way type fan-out. In that path, a dedicated specialist skill generates each question type, in parallel, under a single admin click. The route stays the same (`POST /admin/packs/:packId/levels/:levelId/generate`). The handler chooses which path to run based on the effective `ai_generate_mode` resolution described in the next section.
 
 ```
 Admin clicks "Generate { mcq:5, log_analysis:4, scenario:3, kql:2, subjective:1 }" (L2 count=15)
@@ -1003,73 +1037,73 @@ handleAdminGenerate()  (modules/07-ai-grading/src/handlers/admin-generate.ts)
 
 Key shape facts:
 
-- **Five type skills, all Sonnet 4.6.** `generate-mcq`, `generate-log-analysis`, `generate-scenario`, `generate-kql`, `generate-subjective`. SKILL.md files live in-repo under `prompts/skills/<name>/` and on the VPS under `~/.claude/skills/<name>/`. `submit_questions` MCP tool (declared in `tools/assessiq-mcp/src/tools/submit-questions.ts`) Zod-validates per-type content with `.strict()` and returns `isError=true` on shape mismatch so the model can recover inside the same turn budget.
-- **Concurrency cap = 2** in Stage 1 via `withConcurrencyLimit()` (per `docs/design/2026-05-09-type-sharded-generation.md` § 4). Stage 1.5 promotion to cap=4 is gated on a peak-RSS measurement. Two sequential batches keep wall-clock around 135 s for a 30-question run; cap=4 collapses to one batch around 90 s.
-- **Per-type timeout formula.** `claude-code-vps.ts:89` defines `GENERATION_PER_ITEM_TIMEOUT_MS = 240_000` (bumped from 180 s on 2026-05-10 in commit `a124812`). Effective per-chunk wall-clock is `GENERATION_BASE_TIMEOUT_MS (90 s) + count × 240 s` — for example 810 s at count=3. Scenario chunks consume the most wall-time; see § Scenario timeout coefficient below.
-- **Single-flight mutex** keyed `generation:<packId>:<levelId>` covers the entire fan-out — see `docs/design/2026-05-09-type-sharded-generation.md` § 4 "Single-flight shape" Decision Q1. A per-skill mutex was rejected because two simultaneous admin clicks on the same pack+level would read `existingTopics` from before either had inserted its drafts, breaking dedup atomicity.
-- **Citation enforcement** is mechanical at the handler boundary. After `Promise.allSettled`, `filterByCitation()` drops any question whose `knowledge_base_source_ids` references an id absent from `input.sources[].id`; the drop count is written to `generation_attempts.citation_dropped` (migration 0043). The HARD RULE wording in each SKILL.md stays as documentation but is no longer load-bearing — a model that emits `mitre.t1003` for a slice that does not contain it will see its question silently dropped, not its chunk failed.
-- **No `claude` spawn site added.** All five type skills route through the existing parameterised `runSkill()` in `runtimes/claude-code-vps.ts`, so the `CLAUDE_SPAWN_ALLOW_LIST` in the lint sentinel (D2) is unchanged. Adding a new file under `runtimes/` would trigger the `codex:rescue` gate per CLAUDE.md.
+- **Five type skills, all Sonnet 4.6.** The skills are `generate-mcq`, `generate-log-analysis`, `generate-scenario`, `generate-kql` and `generate-subjective`. The SKILL.md files live in the repo under `prompts/skills/<name>/` and on the VPS under `~/.claude/skills/<name>/`. The `submit_questions` MCP tool (declared in `tools/assessiq-mcp/src/tools/submit-questions.ts`) validates the per-type content with Zod `.strict()`. On a shape mismatch it returns `isError=true`, so the model can recover inside the same turn budget.
+- **Concurrency cap = 2** in Stage 1, through `withConcurrencyLimit()` (per `docs/design/2026-05-09-type-sharded-generation.md` § 4). A peak-RSS measurement gates the Stage 1.5 promotion to cap=4. Two sequential batches keep the wall-clock around 135 s for a 30-question run. Cap=4 collapses this to one batch of around 90 s.
+- **Per-type timeout formula.** `claude-code-vps.ts:89` defines `GENERATION_PER_ITEM_TIMEOUT_MS = 240_000` (bumped from 180 s on 2026-05-10 in commit `a124812`). The effective per-chunk wall-clock is `GENERATION_BASE_TIMEOUT_MS (90 s) + count × 240 s`. For example, it is 810 s at count=3. Scenario chunks consume the most wall time. See § Scenario timeout coefficient below.
+- **Single-flight mutex** keyed `generation:<packId>:<levelId>` covers the entire fan-out. See `docs/design/2026-05-09-type-sharded-generation.md` § 4 "Single-flight shape" Decision Q1. We rejected a per-skill mutex. With a per-skill mutex, two simultaneous admin clicks on the same pack and level would read `existingTopics` from before either click had inserted its drafts. That would break dedup atomicity.
+- **Citation enforcement** is mechanical at the handler boundary. After `Promise.allSettled`, `filterByCitation()` drops any question whose `knowledge_base_source_ids` references an id that is absent from `input.sources[].id`. The system writes the drop count to `generation_attempts.citation_dropped` (migration 0043). The HARD RULE wording in each SKILL.md stays as documentation but no longer carries the load. Suppose a model emits `mitre.t1003` for a slice that does not contain it. The system silently drops that question and does not fail the chunk.
+- **No `claude` spawn site added.** All five type skills route through the existing parameterised `runSkill()` in `runtimes/claude-code-vps.ts`, so the `CLAUDE_SPAWN_ALLOW_LIST` in the lint sentinel (D2) is unchanged. A new file under `runtimes/` would trigger the `codex:rescue` gate per CLAUDE.md.
 
-**Why this shape was chosen.** The omnibus path produced KQL queries that referenced invented Sentinel tables and log_analysis questions with field names that did not match the claimed log format. Per-type specialist skills with focused KB slices and Zod-enforced content shape raised structural validity and citation fidelity in the eval baselines; commit `f449203` shipped the Stage 1 backend. Mechanical citation enforcement landed in `13f6231` after a model-side prompt-only rule proved insufficient (RCA 2026-05-10 "Citation HARD RULE wording leaked external IDs"). MCP strict per-type schema landed in `3a7906d` after forbidden field-name synonyms leaked through three SKILL.md revisions (RCA 2026-05-10 "Forbidden field-name synonyms leaked through 3 SKILL.md revisions").
+**Why this shape was chosen.** The omnibus path produced KQL queries that referenced invented Sentinel tables. It also produced log_analysis questions with field names that did not match the claimed log format. Per-type specialist skills with focused KB slices and Zod-enforced content shape raised the structural validity and the citation fidelity in the eval baselines. Commit `f449203` shipped the Stage 1 backend. Mechanical citation enforcement landed in `13f6231`, after a prompt-only rule on the model side proved insufficient (RCA 2026-05-10 "Citation HARD RULE wording leaked external IDs"). The strict per-type MCP schema landed in `3a7906d`, after forbidden field-name synonyms leaked through three SKILL.md revisions (RCA 2026-05-10 "Forbidden field-name synonyms leaked through 3 SKILL.md revisions").
 
 **Alternatives considered and rejected** (from `docs/design/2026-05-09-type-sharded-generation.md` § 1 Non-goals and § 4):
 
-- *Monolithic single-skill generation.* Stays as the `omnibus` mode for rollback; will be retired in Stage 4 only after Stage 3 holds 30 days clean.
-- *Intra-type chunking (Option B from the original chunking plan — N chunks of the same type).* Deferred. Would multiply concurrent subprocesses by N; VPS RAM headroom and eval sample-size both need to land first. Stage 1.5 may compose intra-type chunking with type-fan-out for counts > 12 per type.
-- *Per-skill KB slicing.* Deferred to Stage 4. All five type skills receive the same level-filtered source list to avoid compounding two experimental variables before per-type quality baselines exist.
-- *Opus for `generate-scenario`.* Deferred. Opus throughput (~5 K t/min vs Sonnet ~20 K t/min) makes it the wall-clock bottleneck; a `generate-scenario-opus` escalation skill is reserved for L3 regression cases discovered after Stage 2.
-- *SPL and Sigma generation under `generate-kql`.* Out of scope; would ship as separate skills.
+- *Monolithic single-skill generation.* It stays as the `omnibus` mode for rollback. The team retires it in Stage 4, and only after Stage 3 holds 30 days clean.
+- *Intra-type chunking (Option B from the original chunking plan, N chunks of the same type).* Deferred. It would multiply the concurrent subprocesses by N. The VPS RAM headroom and the eval sample size both need to land first. Stage 1.5 may combine intra-type chunking with type fan-out for counts > 12 per type.
+- *Per-skill KB slicing.* Deferred to Stage 4. All five type skills receive the same level-filtered source list. This avoids a compound of two experimental variables before per-type quality baselines exist.
+- *Opus for `generate-scenario`.* Deferred. The Opus throughput (~5 K t/min against ~20 K t/min for Sonnet) makes it the wall-clock bottleneck. A `generate-scenario-opus` escalation skill is reserved for L3 regression cases that the team discovers after Stage 2.
+- *SPL and Sigma generation under `generate-kql`.* Out of scope. They would ship as separate skills.
 
 **Explicitly NOT included in the current state.**
 
-- A cross-chunk validation pass that compares questions across types for topic coherence — design doc § 1 calls this out as future.
+- A cross-chunk validation pass that compares questions across types for topic coherence. Design doc § 1 calls this out as future work.
 - Automatic fallback to `omnibus` on N consecutive chunk failures.
 - Per-question-pack toggling of `ai_generate_mode` (it is per-tenant only).
 - A `generate-spl` or `generate-sigma` skill.
-- Hard cap on the number of model retries inside a single chunk (see § Scenario timeout coefficient — the model can self-retry within wall-time budget until SIGTERM).
-- A standalone Stage 3 ops dashboard (Stage 3.5 scope; the existing `/admin/generation-attempts` page is the rollout signal until then).
+- A hard cap on the number of model retries inside a single chunk (see § Scenario timeout coefficient). The model can retry itself within the wall-time budget until SIGTERM.
+- A standalone Stage 3 ops dashboard (Stage 3.5 scope). Until then, the existing `/admin/generation-attempts` page is the rollout signal.
 
 **Downstream impact on other surfaces:**
 
-- `generation_attempts.skill_sha` is comma-joined across the per-type SHAs (for example `"a1b2c3d4,e5f6a7b8,..."`); a JSONB migration to a structured per-skill column is deferred to Stage 2.5 (design doc § 6).
-- Admin UI: `/admin/generation-attempts` and the pack-detail "Generate" modal expose per-type chip rows (commit `e016d14`); per-tenant mode toggle lives at `/admin/settings` under the super-admin scope.
-- Eval harness: per-type golden sets under `modules/07-ai-grading/eval/golden-questions/<type>/` and per-level KB fixtures under `eval/fixtures/L*-sources.json`; see § Runtime-baseline tracker and § G2 citation gate below.
+- `generation_attempts.skill_sha` is comma-joined across the per-type SHAs (for example `"a1b2c3d4,e5f6a7b8,..."`). A JSONB migration to a structured per-skill column is deferred to Stage 2.5 (design doc § 6).
+- Admin UI: `/admin/generation-attempts` and the pack-detail "Generate" modal expose per-type chip rows (commit `e016d14`). The per-tenant mode toggle lives at `/admin/settings` under the super-admin scope.
+- Eval harness: per-type golden sets under `modules/07-ai-grading/eval/golden-questions/<type>/` and per-level KB fixtures under `eval/fixtures/L*-sources.json`. See § Runtime-baseline tracker and § G2 citation gate below.
 
 #### Per-chunk stderr aggregation
 
-Before commit `b7e5552`, `generation_attempts.stderr_tail` was populated only when the *whole* attempt failed; chunk-level failures (for example 2 of 5 chunks exit-1) left the column NULL. Inspecting `attempt 019e0deb` returned `(none)`, the diagnostic surface was opaque, and Stage 3 promotion gate G4 was not met (`docs/design/2026-05-10-stage-3-promotion-rollout.md` § 2 G4).
+Before commit `b7e5552`, the system filled `generation_attempts.stderr_tail` only when the *whole* attempt failed. Chunk-level failures (for example 2 of 5 chunks exit-1) left the column NULL. The inspection of `attempt 019e0deb` returned `(none)`, the diagnostic surface was opaque, and the Stage 3 promotion gate G4 was not met (`docs/design/2026-05-10-stage-3-promotion-rollout.md` § 2 G4).
 
 **What shipped** (`modules/07-ai-grading/src/handlers/admin-generate.ts:449-490`):
 
-- `chunkStderrParts: string[]` accumulates one entry per failed chunk inside the `Promise.allSettled` reducer.
-- Each entry is prefixed with the header marker `--- chunk: <type> ---\n` then the chunk's `stderrTail` (extracted from `r.reason.details.stderrTail` thrown by `runSkill`) or the literal string `(none)` when the reason has no `stderrTail` field.
-- After the loop, the parts are joined and the **last 1024 bytes** are kept in an outer-scoped `aggregatedStderrTail` so the same value is written to `generation_attempts.stderr_tail` on both paths: the partial-success path (via the normal finalize) and the all-failed path (via a pre-throw `tryFinalizeAttempt` call).
-- Chunk errors without `stderrTail` write `(none)` instead of crashing.
-- The timeout-path `AppError` in `claude-code-vps.ts` carries `stderrTail` only when `isGenerationSkill` is true; grading-stage stderr never enters the buffer (privacy gate unchanged).
+- `chunkStderrParts: string[]` accumulates one entry for each failed chunk inside the `Promise.allSettled` reducer.
+- Each entry starts with the header marker `--- chunk: <type> ---\n`. Then it holds the `stderrTail` of the chunk (extracted from `r.reason.details.stderrTail`, which `runSkill` throws), or the literal string `(none)` when the reason has no `stderrTail` field.
+- After the loop, the code joins the parts and keeps the **last 1024 bytes** in an outer-scoped `aggregatedStderrTail`. The same value goes to `generation_attempts.stderr_tail` on both paths: the partial-success path (through the normal finalize) and the all-failed path (through a pre-throw `tryFinalizeAttempt` call).
+- Chunk errors without `stderrTail` write `(none)` and do not crash.
+- The timeout-path `AppError` in `claude-code-vps.ts` carries `stderrTail` only when `isGenerationSkill` is true. Grading-stage stderr never enters the buffer (the privacy gate is unchanged).
 
-**Why.** The 2026-05-09 → 2026-05-11 sharded-generation retry-loop saga is the precipitating incident — see `docs/RCA_LOG.md` § "2026-05-09 to 2026-05-11 — Sharded generation retry-loop: SKILL.md / Zod schema drift". Early sessions burned hours grepping host-side logs for `tool_input_keys` sequences because nothing was reaching the DB. Aggregating stderr per-chunk into the row a future investigator can pull with one SELECT collapses that loop.
+**Why.** The sharded-generation retry-loop saga of 2026-05-09 → 2026-05-11 is the incident that caused this change. See `docs/RCA_LOG.md` § "2026-05-09 to 2026-05-11 — Sharded generation retry-loop: SKILL.md / Zod schema drift". Early sessions spent hours on grep of host-side logs for `tool_input_keys` sequences, because nothing reached the DB. When the system aggregates stderr per chunk into the row, a future investigator can pull it with one SELECT. This collapses that loop.
 
-**Non-obvious diagnostic invariant.** When a chunk hits the wall-clock budget and the parent kills it (`SIGTERM`, exit 143), the subprocess does not flush stderr before exit. Attempt `019e103c` shows the canonical case: `stderr_tail = "--- chunk: scenario ---\n(none)\n"`. The `(none)` is correct behaviour — the **aggregation header itself** is the proof that commit `b7e5552` is live in that path. Reading `(none)` as "stderr aggregation broken" is the trap; the header is the signal. For payloads that the MCP tool rejected before SIGTERM, see the separate `/var/log/assessiq/mcp-rejections.log` JSONL surface added in commit `ab39667`.
+**Non-obvious diagnostic invariant.** When a chunk hits the wall-clock budget and the parent kills it (`SIGTERM`, exit 143), the subprocess does not flush stderr before exit. Attempt `019e103c` shows the canonical case: `stderr_tail = "--- chunk: scenario ---\n(none)\n"`. The `(none)` is correct behaviour. The **aggregation header itself** is the proof that commit `b7e5552` is live in that path. The trap is to read `(none)` as "stderr aggregation broken". The header is the signal. For payloads that the MCP tool rejected before SIGTERM, see the separate `/var/log/assessiq/mcp-rejections.log` JSONL surface that commit `ab39667` added.
 
 #### Scenario chunk timeout coefficient
 
-`modules/07-ai-grading/src/runtimes/claude-code-vps.ts:89` defines the per-type generation timeout as `GENERATION_BASE_TIMEOUT_MS + count × GENERATION_PER_ITEM_TIMEOUT_MS`. The coefficient is `240_000` ms (bumped from `180_000` on 2026-05-10 in commit `a124812`). At count=3 the budget is 810 s; at count=10 it is ~42 min — the hard ceiling for the longest sharded chunks today.
+`modules/07-ai-grading/src/runtimes/claude-code-vps.ts:89` defines the per-type generation timeout as `GENERATION_BASE_TIMEOUT_MS + count × GENERATION_PER_ITEM_TIMEOUT_MS`. The coefficient is `240_000` ms (bumped from `180_000` on 2026-05-10 in commit `a124812`). At count=3 the budget is 810 s. At count=10 it is ~42 min, which is the hard ceiling for the longest sharded chunks today.
 
-**Why the bump.** Attempt `019e103c` showed the model emitting `submit_questions` three times in the scenario chunk (+51 s, +200 s, +290 s into the chunk); the 2nd and 3rd calls carried empty `tool_input_keys=[]`. MCP rejected each malformed submission with `isError=true`; the model retried inside its turn budget until SIGTERM fired at 630 s. A scenario chunk on attempt `019e103a` (fired ~2 minutes earlier) succeeded cleanly in <630 s with the same skill SHA, so the failure was non-deterministic. The longer per-item budget reduces the chance that a slow but eventually-correct retry-loop is killed inside its own recovery window.
+**Why the bump.** Attempt `019e103c` showed the model that emitted `submit_questions` three times in the scenario chunk (+51 s, +200 s, +290 s into the chunk). The 2nd and 3rd calls carried empty `tool_input_keys=[]`. MCP rejected each malformed submission with `isError=true`. The model retried inside its turn budget until SIGTERM fired at 630 s. A scenario chunk on attempt `019e103a` (fired ~2 minutes earlier) succeeded cleanly in <630 s with the same skill SHA, so the failure was non-deterministic. The longer per-item budget reduces the chance that the system kills a slow but eventually correct retry loop inside its own recovery window.
 
 **Explicitly NOT included.**
 
-- A hard cap on model retries per chunk. The retry loop is bounded only by wall-time.
-- A root-cause fix for the retry behaviour. The bump is belt-and-braces; the structural cure — aligning SKILL.md prose/HARD RULE/FORBIDDEN sections with the MCP `.strict()` Zod schema — is documented in RCA "Sharded generation retry-loop" and was fully landed in commits `6fb4f5d` + `573aed7`. A re-baseline smoke remains pending.
+- A hard cap on model retries per chunk. Only the wall time bounds the retry loop.
+- A root-cause fix for the retry behaviour. The bump is belt and braces. The structural cure is to align the SKILL.md prose, HARD RULE and FORBIDDEN sections with the MCP `.strict()` Zod schema. The RCA "Sharded generation retry-loop" documents it, and commits `6fb4f5d` + `573aed7` fully landed it. A re-baseline smoke remains pending.
 - `generate-scenario-opus` escalation (deferred per design doc § 1 Non-goals).
 
-**Cross-reference.** RCA `docs/RCA_LOG.md` § "2026-05-09 to 2026-05-11 — Sharded generation retry-loop: SKILL.md / Zod schema drift" carries the full incident log including the "Don't bump timeouts as a first response" prevention note. The bump shipped in `a124812` did **not** cure the failure on its own — that record exists so the next investigator does not re-propose the same constant tweak.
+**Cross-reference.** RCA `docs/RCA_LOG.md` § "2026-05-09 to 2026-05-11 — Sharded generation retry-loop: SKILL.md / Zod schema drift" carries the full incident log, including the prevention note "Don't bump timeouts as a first response". The bump that shipped in `a124812` did **not** cure the failure on its own. That record exists so that the next investigator does not propose the same constant tweak again.
 
 ### Answer-format hint generation (feature 4 Phase B)
 
 *History: 2026-05-26.*
 
-Each question carries a candidate-facing **answer-format hint** (`questions.answer_guidance`, migration 0098) — a short instruction on HOW to answer ("Write a focused answer — about 3–6 sentences."). Phase A shipped the column + per-type defaults (resolved candidate-side in module 06's `answerGuidanceFor`). Phase B adds an admin-triggered AI generator that authors the hint.
+Each question carries a candidate-facing **answer-format hint** (`questions.answer_guidance`, migration 0098). It is a short instruction on HOW to answer ("Write a focused answer — about 3–6 sentences."). Phase A shipped the column and the per-type defaults (resolved on the candidate side in `answerGuidanceFor` of module 06). Phase B adds an AI generator that an admin triggers and that authors the hint.
 
 **Flow (admin-click-only, never ambient):**
 ```
@@ -1089,16 +1123,17 @@ super_admin reviews it in the editable field → clicks "Save guidance"
 ```
 
 **Why it cannot leak the answer (defense-in-depth):**
-1. **The generator never receives the answer key.** `deriveQuestionTextForGuidance` (`modules/04-question-bank/src/answer-guidance-derive.ts`) passes only the candidate-visible stem per type and strips mcq `options`/`correct`/`rationale`, log_analysis `expected_findings`/`sample_solution`/`log_excerpt`, and scenario `steps[].expected`. (Contrast `deriveQuestionTextForRubric`, which intentionally passes full content because a rubric needs the reference answer.) Unit-tested in `modules/04-question-bank/src/__tests__/answer-guidance-derive.test.ts`.
-2. **The skill is format-only** with a hard "never reveal the answer" rule and a ≤140-char target.
-3. **Admin review before save** — the proposal fills an editable field; nothing persists or reaches candidates until the admin clicks Save (the Phase A `answer_guidance` PATCH).
-4. **Output bounded** at 280 chars, validated twice: the `submit_answer_guidance` MCP tool (`tools/assessiq-mcp/src/tools/submit-answer-guidance.ts`, `.strict()` Zod) and again in the runtime (`SubmitAnswerGuidanceOutputSchema`).
 
-**Skill:** `prompts/skills/generate-answer-guidance/SKILL.md` (in-repo; bind-mounted to `~/.claude/skills/` on the VPS; model `claude-haiku-4-5-20251001`). It is a NEW skill — it does NOT touch the existing `generate-*` question skills or their eval baseline (project rule #6). No eval re-baseline: answer-guidance has no golden set; the admin-review-before-save gate is the quality control.
+1. **The generator never receives the answer key.** `deriveQuestionTextForGuidance` (`modules/04-question-bank/src/answer-guidance-derive.ts`) passes only the candidate-visible stem for each type. It strips mcq `options`/`correct`/`rationale`, log_analysis `expected_findings`/`sample_solution`/`log_excerpt`, and scenario `steps[].expected`. (Contrast `deriveQuestionTextForRubric`, which intentionally passes the full content because a rubric needs the reference answer.) A unit test covers it in `modules/04-question-bank/src/__tests__/answer-guidance-derive.test.ts`.
+2. **The skill is format-only**, with a hard "never reveal the answer" rule and a ≤140-char target.
+3. **Admin review before save.** The proposal fills an editable field. Nothing persists or reaches candidates until the admin clicks Save (the Phase A `answer_guidance` PATCH).
+4. **Output bounded** at 280 chars and validated twice: in the `submit_answer_guidance` MCP tool (`tools/assessiq-mcp/src/tools/submit-answer-guidance.ts`, `.strict()` Zod) and again in the runtime (`SubmitAnswerGuidanceOutputSchema`).
 
-**No-ambient-AI:** the only new `claude` spawn is inside the allow-listed `claude-code-vps.ts`; the dynamic import lives in non-banned `04 service.ts`. The sentinel (`lint-no-ambient-claude.ts`) was hardened to add `generateAnswerGuidanceDraft` to its banned-symbol set (with two self-test fixtures), matching `generateRubricDraft`. Adversarial sign-off (Sonnet takeover; codex companion down) = ACCEPT on both the feature and the lint hardening.
+**Skill:** `prompts/skills/generate-answer-guidance/SKILL.md` (in the repo; bind-mounted to `~/.claude/skills/` on the VPS; model `claude-haiku-4-5-20251001`). It is a NEW skill. It does NOT touch the existing `generate-*` question skills or their eval baseline (project rule #6). No eval re-baseline: answer-guidance has no golden set, and the admin-review-before-save gate is the quality control.
 
-**Deferred:** a bulk backfill of the 323 existing NULL-guidance questions — a 323-question AI run would break the single-admin-in-the-loop frame; existing questions serve per-type defaults and are upgradable per-question on demand.
+**No-ambient-AI:** the only new `claude` spawn is inside the allow-listed `claude-code-vps.ts`. The dynamic import lives in the non-banned `04 service.ts`. The team hardened the sentinel (`lint-no-ambient-claude.ts`) to add `generateAnswerGuidanceDraft` to its banned-symbol set (with two self-test fixtures), the same as `generateRubricDraft`. Adversarial sign-off (Sonnet takeover; codex companion down) = ACCEPT on both the feature and the lint hardening.
+
+**Deferred:** a bulk backfill of the 323 existing NULL-guidance questions. A 323-question AI run would break the single-admin-in-the-loop frame. Existing questions serve per-type defaults, and an admin can upgrade each question on demand.
 
 ### Stage 3 promotion: per-tenant `ai_generate_mode`
 
@@ -1106,7 +1141,7 @@ super_admin reviews it in the editable field → clicks "Save guidance"
 
 #### Per-tenant column + handler precedence
 
-A new column governs whether a tenant runs the legacy `omnibus` generator or the new `sharded` fan-out, without touching the global env var.
+A new column governs whether a tenant runs the legacy `omnibus` generator or the new `sharded` fan-out, without a change to the global env var.
 
 ```sql
 ALTER TABLE tenant_settings
@@ -1125,74 +1160,74 @@ const generateMode: "omnibus" | "sharded" =
   tenantSettings?.ai_generate_mode ?? config.AI_GENERATE_MODE;
 ```
 
-`findTenantSettings` reuses the existing `withTenant()` client (no extra round-trip; RLS-scoped to the resolved tenant). The fallback `?? config.AI_GENERATE_MODE` is safe when the column is NULL; it is *not* safe if the column has not yet been deployed, which is why `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 7 Risk #3 requires migration N+1 to deploy at least 3 days before any flag is flipped.
+`findTenantSettings` reuses the existing `withTenant()` client (no extra round trip; RLS-scoped to the resolved tenant). The fallback `?? config.AI_GENERATE_MODE` is safe when the column is NULL. It is *not* safe if the column is not yet deployed. This is why `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 7 Risk #3 requires migration N+1 to deploy at least 3 days before anyone flips a flag.
 
-**Write path** — super-admin only via `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode` (route registered in `apps/api/src/routes/admin-super.ts`). Body: `{ ai_generate_mode: "omnibus" | "sharded" | null }`. The handler enforces the `super_admin` role guard, then calls `updateAiGenerateMode(superAdminUserId, targetTenantId, newMode)` in `modules/02-tenancy/src/service.ts:155`. Three guarantees from that service method:
+**Write path:** only a super-admin can write, through `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode` (route registered in `apps/api/src/routes/admin-super.ts`). Body: `{ ai_generate_mode: "omnibus" | "sharded" | null }`. The handler enforces the `super_admin` role guard, then calls `updateAiGenerateMode(superAdminUserId, targetTenantId, newMode)` in `modules/02-tenancy/src/service.ts:155`. That service method gives three guarantees:
 
-1. **Single-column UPDATE**, deliberately *not* routed through `updateTenantSettingsRow`. Tenant admins can change their own settings via that path but cannot change `ai_generate_mode` — the `Pick<>` patch surface excludes it.
-2. **Audit row in the same transaction.** `auditInTx(client, { action: "tenant_settings.ai_generate_mode.updated", before, after, ... })` runs against the same `withTenant` client; if the audit INSERT fails, the column UPDATE rolls back. This satisfies CLAUDE.md's audit-atomicity hard rule.
-3. **Rollback is a SQL UPDATE.** `UPDATE tenant_settings SET ai_generate_mode = 'omnibus' WHERE …` takes effect on the next request — no container restart, no env edit, no deploy.
+1. **Single-column UPDATE**, deliberately *not* routed through `updateTenantSettingsRow`. Tenant admins can change their own settings through that path, but they cannot change `ai_generate_mode`, because the `Pick<>` patch surface excludes it.
+2. **Audit row in the same transaction.** `auditInTx(client, { action: "tenant_settings.ai_generate_mode.updated", before, after, ... })` runs against the same `withTenant` client. If the audit INSERT fails, the column UPDATE rolls back. This satisfies the audit-atomicity hard rule of CLAUDE.md.
+3. **Rollback is a SQL UPDATE.** `UPDATE tenant_settings SET ai_generate_mode = 'omnibus' WHERE …` takes effect on the next request. It needs no container restart, no env edit and no deploy.
 
-Commit trail: `d59ade4` added `super_admin` role + `updateAiGenerateMode` service + `auditInTx`; `80e713a` shipped the migration + handler precedence + types; `e70d267` registered the PATCH endpoint; `6eebc36` added the admin-UI toggle.
+Commit trail: `d59ade4` added the `super_admin` role, the `updateAiGenerateMode` service and `auditInTx`. `80e713a` shipped the migration, the handler precedence and the types. `e70d267` registered the PATCH endpoint. `6eebc36` added the admin-UI toggle.
 
-**Why this shape.** Per `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 3 Option A vs Option B: the recommended path is per-tenant containment so a regression on one tenant's content profile (for example sparse L3 KB causing scenario chunk failures) does not force a global rollback. Stage 3.1 enables `sharded` for one pilot tenant for 24 h, Stage 3.2 expands to ~25 %, Stage 3.3 to 100 %, Stage 3.4 flips the global env and clears the per-tenant column.
+**Why this shape.** Per `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 3 Option A vs Option B, the recommended path is per-tenant containment. A regression on the content profile of one tenant (for example a sparse L3 KB that causes scenario chunk failures) then does not force a global rollback. Stage 3.1 enables `sharded` for one pilot tenant for 24 h. Stage 3.2 expands to ~25 %. Stage 3.3 expands to 100 %. Stage 3.4 flips the global env and clears the per-tenant column.
 
 **Alternatives rejected.**
 
-- *Feature-flag service.* Overkill for one flag; introduces a new external dependency.
-- *`tenant_settings.features` JSONB column.* Already exists as a `Record<string, unknown>` bag and could carry `{ ai_generate_mode: "sharded" }` with no migration, but is rejected because (a) it bypasses the typed config schema and is invisible to TypeScript consumers, (b) a misspelled key fails silently, (c) it conflates a first-class operational mode flag with an untyped UI-experiment bag, (d) the handler would need a runtime cast (`docs/design/2026-05-10-stage-3-promotion-rollout.md` § 3 Option A).
-- *Global cutover with auto-rollback cron (Option B).* Faster to implement but no per-tenant containment; rejected as the primary path. The cron (§ 6 of the design doc) ships under Option A as well, but as alert-only — no auto-rollback.
+- *Feature-flag service.* Overkill for one flag, and it introduces a new external dependency.
+- *`tenant_settings.features` JSONB column.* It already exists as a `Record<string, unknown>` bag and could carry `{ ai_generate_mode: "sharded" }` with no migration. We reject it for four reasons. (a) It bypasses the typed config schema and is invisible to TypeScript consumers. (b) A misspelled key fails silently. (c) It conflates a first-class operational mode flag with an untyped UI-experiment bag. (d) The handler would need a runtime cast (`docs/design/2026-05-10-stage-3-promotion-rollout.md` § 3 Option A).
+- *Global cutover with auto-rollback cron (Option B).* It is faster to implement, but it has no per-tenant containment. We rejected it as the primary path. The cron (§ 6 of the design doc) ships under Option A as well, but as alert-only, with no auto-rollback.
 
 **Explicitly NOT included.**
 
 - Per-question-pack toggling. Mode is per-tenant only.
-- Tenant-admin self-service. Only `super_admin` can flip the column; the `updateTenantSettings` patch path explicitly excludes `ai_generate_mode`.
-- Automatic fallback to `omnibus` after N consecutive chunk failures. Rollback is a deliberate operator UPDATE — see `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 8 Q4 (cron alerts only).
+- Tenant-admin self-service. Only `super_admin` can flip the column. The `updateTenantSettings` patch path explicitly excludes `ai_generate_mode`.
+- Automatic fallback to `omnibus` after N consecutive chunk failures. Rollback is a deliberate operator UPDATE. See `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 8 Q4 (the cron only alerts).
 
 **Downstream impact.**
 
-- `docs/02-data-model.md` should document the `tenant_settings.ai_generate_mode` column. *Orchestrator follow-up — not edited from this session; data-model doc refresh is on a parallel scope.*
-- `docs/03-api-contract.md` should document `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode`. *Orchestrator follow-up — not edited from this session.*
-- 14-audit-log catalog: action namespace `tenant_settings.ai_generate_mode.updated` is one of the audited actions; admins can query history via `/admin/audit-log`.
+- `docs/02-data-model.md` should document the `tenant_settings.ai_generate_mode` column. *Orchestrator follow-up: this session did not edit it. The refresh of the data-model doc is on a parallel scope.*
+- `docs/03-api-contract.md` should document `PATCH /api/admin/super/tenants/:tenantId/ai-generate-mode`. *Orchestrator follow-up: this session did not edit it.*
+- 14-audit-log catalog: the action namespace `tenant_settings.ai_generate_mode.updated` is one of the audited actions. Admins can query the history through `/admin/audit-log`.
 
 #### Stage 3 watch cron
 
-A systemd timer fires the watch script every hour during Stage 3.1/3.2 (daily at Stage 3.3 by editing one line in the timer unit).
+A systemd timer fires the watch script every hour during Stage 3.1/3.2 (daily at Stage 3.3, when you edit one line in the timer unit).
 
 | File | Purpose |
 | --- | --- |
-| `infra/systemd/assessiq-stage3-watch.timer` | `OnCalendar=hourly` (edit to `daily` at Stage 3.3); `Persistent=true` catches up after VPS reboot. |
-| `infra/systemd/assessiq-stage3-watch.service` | One-shot, root, `ExecStart=/usr/bin/docker exec -w /app assessiq-api pnpm exec tsx /app/tools/stage3-watch.ts --window 1h`. `SuccessExitStatus=0 1` — exit 1 is "breach logged" (expected), exit 2 is "genuine error". |
-| `tools/stage3-watch.ts` | Reads `generation_attempts` for the last window via `SET LOCAL ROLE assessiq_system` (BYPASSRLS), computes `chunks_failed_rate` and `citation_dropped_total`, appends a timestamped entry to `/var/log/assessiq/stage3-watch.log` on breach. |
+| `infra/systemd/assessiq-stage3-watch.timer` | `OnCalendar=hourly` (edit it to `daily` at Stage 3.3). `Persistent=true` catches up after a VPS reboot. |
+| `infra/systemd/assessiq-stage3-watch.service` | One-shot, root, `ExecStart=/usr/bin/docker exec -w /app assessiq-api pnpm exec tsx /app/tools/stage3-watch.ts --window 1h`. `SuccessExitStatus=0 1`: exit 1 means "breach logged" (expected), and exit 2 means "genuine error". |
+| `tools/stage3-watch.ts` | Reads `generation_attempts` for the last window through `SET LOCAL ROLE assessiq_system` (BYPASSRLS), computes `chunks_failed_rate` and `citation_dropped_total`, and on a breach appends a timestamped entry to `/var/log/assessiq/stage3-watch.log`. |
 
 Thresholds (locked per `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 6):
 
-- `chunks_failed_rate > 0.25` (more than 25 % of planned chunks failed in the window), **OR**
+- `chunks_failed_rate > 0.25` (more than 25 % of the planned chunks failed in the window), **OR**
 - `citation_dropped_total > 0` (any citation-validation drops).
 
-**Why a docker-exec invocation instead of host-side tsx.** The service runs as root because all it does is invoke `docker exec` against the running `assessiq-api` container; the actual tsx script executes *inside* the container, where workspace deps, `DATABASE_URL`, and the `/var/log/assessiq` bind-mount are already wired by `infra/docker-compose.yml`. An earlier draft tried `User=assessiq` + `/usr/local/bin/tsx`, but tsx is not on the VPS host PATH — it only exists inside the api image's pnpm-exec environment. The docker-exec path is also the same pattern `tools/stage1-sharded-smoke.ts` uses for ad-hoc operator runs.
+**Why a docker-exec invocation instead of host-side tsx.** The service runs as root because it only invokes `docker exec` against the running `assessiq-api` container. The tsx script itself executes *inside* the container, where `infra/docker-compose.yml` already wires the workspace deps, `DATABASE_URL` and the `/var/log/assessiq` bind-mount. An earlier draft tried `User=assessiq` + `/usr/local/bin/tsx`. But tsx is not on the VPS host PATH. It exists only inside the pnpm-exec environment of the api image. The docker-exec path is also the same pattern that `tools/stage1-sharded-smoke.ts` uses for ad-hoc operator runs.
 
-**Decision locked: alert-only, NO auto-rollback.** `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 8 Q4 chose this explicitly: auto-reverting `ai_generate_mode` across multiple tenants on a single hourly threshold breach is more dangerous than the failure it would prevent. Cron writes to the log; rollback is a deliberate operator SQL UPDATE after root-cause analysis. If a paging mechanism is added later, wire the cron's non-zero exit to it.
+**Decision locked: alert-only, NO auto-rollback.** `docs/design/2026-05-10-stage-3-promotion-rollout.md` § 8 Q4 chose this explicitly. An automatic revert of `ai_generate_mode` across multiple tenants on a single hourly threshold breach is more dangerous than the failure it would prevent. The cron writes to the log. Rollback is a deliberate operator SQL UPDATE after root-cause analysis. If the team adds a paging mechanism later, wire the non-zero exit of the cron to it.
 
-**Non-obvious systemd posture.** `ReadWritePaths` and `ReadOnlyPaths` are **intentionally omitted** from `[Service]`. Adding them prevents `/usr/bin/docker` from talking to its socket inside the systemd sandbox; the unit silently fails to execute and the timer ticks become no-ops. A future hardening pass that wants to lock down the unit MUST verify the docker socket path is explicitly allowed before reintroducing those directives.
+**Non-obvious systemd posture.** `ReadWritePaths` and `ReadOnlyPaths` are **intentionally omitted** from `[Service]`. If you add them, `/usr/bin/docker` cannot talk to its socket inside the systemd sandbox. The unit then fails silently, and the timer ticks become no-ops. A future hardening pass that wants to lock down the unit MUST verify that the docker socket path is explicitly allowed before it adds those directives again.
 
-Commit: `05ea435` (cron + design doc). Units installed on VPS but the `[Install] WantedBy=` directive is on the timer, not the service — `systemctl enable --now assessiq-stage3-watch.timer` is the canonical activation command.
+Commit: `05ea435` (cron + design doc). The units are installed on the VPS, but the `[Install] WantedBy=` directive is on the timer, not on the service. The canonical activation command is `systemctl enable --now assessiq-stage3-watch.timer`.
 
 ### Tolerant input coercion
 
 *History: 2026-05-24.*
 
-**What.** A deterministic coercion layer normalises the model's `submit_questions` payload onto the canonical per-type `content` shape **before** Zod validation, at both gates: `tools/assessiq-mcp/src/tools/coerce-questions.ts` (the MCP `submit_questions` tool) and an **identical** `modules/07-ai-grading/src/coerce-question-content.ts` (the runtime). `coerceQuestionsPayload(args)` rebuilds each question with only canonical keys and maps known synonyms — `stem`/`prompt`→`question`, MCQ object-`options`→string array, `log_lines`/`log_snippet`→`log_excerpt`, prose→`log_format` enum, `steps_dependency`→`step_dependency`, `task`→`question`, source-id objects→id strings, etc.
+**What.** A deterministic coercion layer normalises the `submit_questions` payload of the model onto the canonical per-type `content` shape **before** Zod validation, at both gates. The gates are `tools/assessiq-mcp/src/tools/coerce-questions.ts` (the MCP `submit_questions` tool) and an **identical** `modules/07-ai-grading/src/coerce-question-content.ts` (the runtime). `coerceQuestionsPayload(args)` rebuilds each question with only canonical keys and maps known synonyms: `stem`/`prompt`→`question`, MCQ object-`options`→string array, `log_lines`/`log_snippet`→`log_excerpt`, prose→`log_format` enum, `steps_dependency`→`step_dependency`, `task`→`question`, source-id objects→id strings, and so on.
 
-**Why.** Generation produced **0 questions on every run** (RCA 2026-05-24): the model emits non-canonical field names, the `.strict()` MCP schema rejected the whole batch, `claude` burned its retry budget and exited 1. Three rounds of `SKILL.md` prompt hardening had already failed — the model invents *novel* wrong shapes, so the prompt cannot enumerate them. Coercion meets the model where it is ("be liberal in what you accept"); the SKILL.md canonical shape stays the documented target.
+**Why.** Generation produced **0 questions on every run** (RCA 2026-05-24). The model emits non-canonical field names, and the `.strict()` MCP schema rejected the whole batch. Then `claude` burned its retry budget and exited 1. Three rounds of `SKILL.md` prompt hardening had already failed, because the model invents *novel* wrong shapes and the prompt cannot list them all. Coercion meets the model where it is ("be liberal in what you accept"). The SKILL.md canonical shape stays the documented target.
 
-**Two gates, why both.** The runtime reads the model's **raw** tool input via `parseToolInput` (not the MCP's coerced result), so coercion must run in *both* places or the MCP would accept while the runtime stored raw/garbage content. Both copies are byte-identical except headers (codex-verified); the MCP package is standalone (no dep on `07-ai-grading`), hence the duplication with a "keep in sync" contract.
+**Two gates, why both.** The runtime reads the **raw** tool input of the model through `parseToolInput` (not the coerced result of the MCP). So coercion must run in *both* places. Otherwise the MCP would accept while the runtime stored raw or garbage content. Both copies are byte-identical except for the headers (codex-verified). The MCP package is standalone (no dependency on `07-ai-grading`), hence the duplication with a "keep in sync" contract.
 
-**Answer-key safety (fail closed).** `resolveCorrectIndex()` is the one place coercion must never guess: it gathers every answer signal (`correct`, `correct_answer`, `answer`, `answer_index`, `correct_option_id`, …) plus embedded option `correct:true` flags, resolves each to a 0-based index **only when unambiguous** (integer, bare letter A–H, or a unique exact option-text match), and returns an index **only if all signals agree on exactly one**. Empty/whitespace, quoted numbers (`"1"` — 0- vs 1-based ambiguous), prose, duplicate-text matches, multiple flags, any disagreement, **or any present-but-unresolvable signal** → `correct` is dropped → strict Zod rejects the question (regenerated) rather than storing a guessed key.
+**Answer-key safety (fail closed).** `resolveCorrectIndex()` is the one place where coercion must never guess. It gathers every answer signal (`correct`, `correct_answer`, `answer`, `answer_index`, `correct_option_id`, …) plus embedded option `correct:true` flags. It resolves each signal to a 0-based index **only when unambiguous** (integer, bare letter A–H, or a unique exact option-text match). It returns an index **only if all signals agree on exactly one**. In these cases it drops `correct`: empty or whitespace, quoted numbers (`"1"`: 0- against 1-based is ambiguous), prose, duplicate-text matches, multiple flags, any disagreement, **or any present-but-unresolvable signal**. Strict Zod then rejects the question (the system regenerates it) and does not store a guessed key.
 
-**Runtime defence-in-depth.** `selectValidContent()` (in `claude-code-vps.ts`, both generation paths) re-validates each coerced question against strict per-type content schemas and **drops** (logs `generation.content.dropped`) any that fail — so the runtime never persists content the MCP would have rejected, even if the model exits 0 after an MCP rejection. Partial batches are kept; the run throws only if zero questions survive.
+**Runtime defence-in-depth.** `selectValidContent()` (in `claude-code-vps.ts`, both generation paths) validates each coerced question again against strict per-type content schemas. It **drops** (and logs `generation.content.dropped`) any question that fails. So the runtime never persists content that the MCP would have rejected, even if the model exits 0 after an MCP rejection. The system keeps partial batches. The run throws only if zero questions survive.
 
-**Not included / downstream.** No schema/DB/API change — coercion is internal; `questions.content` shape is unchanged. The `generate-*/SKILL.md` files are untouched (they remain the documented canonical contract; coercion is the safety net, not a prompt edit → no eval re-baseline). codex:rescue ACCEPT after 2 revise rounds. Tests: `tools/assessiq-mcp/src/__tests__/submit-questions.test.ts` (41) pin coercion + fail-closed answer-key cases.
+**Not included / downstream.** No schema, DB or API change. Coercion is internal, and the `questions.content` shape is unchanged. The `generate-*/SKILL.md` files are untouched. They remain the documented canonical contract. Coercion is the safety net, not a prompt edit, so it needs no eval re-baseline. codex:rescue ACCEPT after 2 revise rounds. Tests: `tools/assessiq-mcp/src/__tests__/submit-questions.test.ts` (41) pin the coercion and the fail-closed answer-key cases.
 
 ### Difficulty warnings (RW-88)
 
@@ -1200,45 +1235,46 @@ Commit: `05ea435` (cron + design doc). Units installed on VPS but the `[Install]
 
 *Type: explanation.*
 
-- **What.** `insertDrafts` in `modules/07-ai-grading/src/handlers/admin-generate.ts` calls `difficulty.warn(type, content)` after `validate` for each draft. The function is `warnStructuralDifficulty` from `modules/04-question-bank/src/difficulty-spec.ts` (RW-50), passed in from `service/generation.ts`.
+- **What.** For each draft, `insertDrafts` in `modules/07-ai-grading/src/handlers/admin-generate.ts` calls `difficulty.warn(type, content)` after `validate`. The function is `warnStructuralDifficulty` from `modules/04-question-bank/src/difficulty-spec.ts` (RW-50), passed in from `service/generation.ts`.
 - **Where the warnings go.** The handler stores them in `questions.difficulty_params.warnings` (JSONB, no schema change). It writes the key only when the list is not empty. The handler also returns `warnings` (a map of question id to warning list) and `warningCount`. The `generation.complete` log line carries `warningCount`.
 - **Never blocks.** A warning is advice. If `warn` throws, the handler logs `generation.difficulty.warn.failed` (warn level) and inserts the draft with no warnings.
-- **Why.** The admin saw a draft that broke the structural difficulty spec only after review. The warning shows the problem at draft time. The RW-50 heuristics already existed and nothing used them.
+- **Why.** The admin saw a draft that broke the structural difficulty spec only after review. The warning shows the problem at draft time. The RW-50 heuristics already existed, and nothing used them.
 - **Rejected.** Dropping the flagged draft (a heuristic can be wrong, and a drop loses work). A new `warnings` column (the JSONB key is enough and needs no migration).
-- **Not included.** UI. The wizard Review step does not show the warnings yet (followup RW-96). Warnings do not change grading or scoring.
-- **Downstream impact.** Readers of `difficulty_params` must ignore the `warnings` key if they only want the intended difficulty vector. The log fields are in [11-observability.md](11-observability.md).
+- **Not included.** UI. The wizard Review step does not show the warnings yet (follow-up RW-96). Warnings do not change grading or scoring.
+- **Downstream impact.** Readers of `difficulty_params` must ignore the `warnings` key if they want only the intended difficulty vector. The log fields are in [11-observability.md](11-observability.md).
 
 ### One shared plan, topic focus and counters (RV64 and RV62)
 
 *History: 2026-10-03.*
 
-Commits `8723dc4`, `b0c09fd`, `a7ea234`. Adversarial review (Sonnet takeover): accept; four LOW/MEDIUM revisions applied in `a7ea234`.
-- **What changed (RV64).** `modules/07-ai-grading/src/handlers/admin-generate.ts` now has ONE `runGenerationPlan` for the sharded, single-call and chunked-omnibus paths. It runs the plan with concurrency 2 and `allSettled`, applies the citation filter, de-duplicates topics against existing questions AND against questions merged in the same run, applies the difficulty gate, inserts, and writes one `auditInTx` row with the real mode, model and de-duplicated skill shas from the runtime output. It finalizes only in the `finally` block. Chunked omnibus concurrency went from 3 to 2. `stderr_tail` is now aggregated on every path with `--- chunk: <label> ---` headers.
-- **Why.** The three paths were near-copies that had drifted. The sharded all-fail path finalized the same row twice. The single-call path had no topic de-dup.
-- **What changed (RV62).** `topicFocus` flows from the route body through `modules/04-question-bank/src/service.ts` into the runtime input, so the skill variable `topic_focus` is the real string. It was always `null` before; the field only narrowed knowledge sources. Route rule: `topic_focus` is at most 200 characters after trim and has no control characters; otherwise 400 `INVALID_PARAM`.
-- **Considered and rejected.** Keeping three paths and patching each (drift would return).
-- **Not included.** The generate wizard has NO topic-focus field yet (API only). The server-side generate skills must read `topic_focus` for it to change output. A prompt change is a deploy event with eval re-baseline (project rule 6), so no prompt edit was made.
+Commits `8723dc4`, `b0c09fd`, `a7ea234`. Adversarial review (Sonnet takeover): accept. The team applied four LOW/MEDIUM revisions in `a7ea234`.
+
+- **What changed (RV64).** `modules/07-ai-grading/src/handlers/admin-generate.ts` now has ONE `runGenerationPlan` for the sharded, single-call and chunked-omnibus paths. It runs the plan with concurrency 2 and `allSettled`. It applies the citation filter. It de-duplicates topics against existing questions AND against questions merged in the same run. It applies the difficulty gate and inserts. It writes one `auditInTx` row with the real mode, model and de-duplicated skill shas from the runtime output. It finalizes only in the `finally` block. The chunked omnibus concurrency went from 3 to 2. The code now aggregates `stderr_tail` on every path with `--- chunk: <label> ---` headers.
+- **Why.** The three paths were near-copies that had drifted apart. The sharded all-fail path finalized the same row twice. The single-call path had no topic de-dup.
+- **What changed (RV62).** `topicFocus` flows from the route body through `modules/04-question-bank/src/service.ts` into the runtime input, so the skill variable `topic_focus` is the real string. It was always `null` before, and the field only narrowed the knowledge sources. Route rule: `topic_focus` is at most 200 characters after trim and has no control characters. Otherwise the route returns 400 `INVALID_PARAM`.
+- **Considered and rejected.** Keeping three paths and patching each of them (the drift would return).
+- **Not included.** The generate wizard has NO topic-focus field yet (API only). The server-side generate skills must read `topic_focus` for it to change the output. A prompt change is a deploy event with an eval re-baseline (project rule 6), so the team made no prompt edit.
 - **Impact.** Audit rows carry the real mode and model. A sharded run where all chunks fail finalizes once. Tests: a trigger-based single-UPDATE test and a de-dup test.
 
 ### G4 skill patch: `generate-subjective` version 2026-10-03a (E4 and FU-D28)
 
 *History: 2026-10-03.*
 
-- **What.** The file `/srv/assessiq/prompts/skills/generate-subjective/SKILL.md` on the VPS gets a new section `## Question type (HARD RULE)`. The type must be exactly `subjective`. Logs and scenario context stay inside `content.question`. sha256 before: `4faeb29f…`. sha256 after: `35eeeeef85b1829a…`. The api and worker containers show the same sha. Backup: `/root/assessiq-skills-backup-20261003/`. Deployed by `scp` (the skill is not in git).
-- **Why.** The model sometimes returned another type for a subjective request. The code dropped these questions (`wrongTypeDropped`) and the sharded default produced too few.
+- **What.** The file `/srv/assessiq/prompts/skills/generate-subjective/SKILL.md` on the VPS gets a new section `## Question type (HARD RULE)`. The type must be exactly `subjective`. Logs and scenario context stay inside `content.question`. sha256 before: `4faeb29f…`. sha256 after: `35eeeeef85b1829a…`. The api and worker containers show the same sha. Backup: `/root/assessiq-skills-backup-20261003/`. The team deployed it by `scp` (the skill is not in git).
+- **Why.** The model sometimes returned another type for a subjective request. The code dropped these questions (`wrongTypeDropped`), and the sharded default produced too few.
 - **No eval re-baseline.** `generate-subjective` is a generation skill. It is not one of the eval-gated grading skills (anchors, band, escalate).
 - **Behaviour check pending.** The owner runs one subjective generation and checks that `wrongTypeDropped` is 0.
-- **Not included.** The prompt text is never committed to git. No change to the other generate skills.
-- **Rollback.** Copy `/root/assessiq-skills-backup-20261003/generate-subjective/SKILL.md` back to `/srv/assessiq/prompts/skills/generate-subjective/SKILL.md`, then restart api and worker (the mount is read at process start).
+- **Not included.** The team never commits the prompt text to git. No change to the other generate skills.
+- **Rollback.** Copy `/root/assessiq-skills-backup-20261003/generate-subjective/SKILL.md` back to `/srv/assessiq/prompts/skills/generate-subjective/SKILL.md`. Then restart api and worker (they read the mount at process start).
 
 ### Generation input: subject, category and topic focus (RW-92)
 
 *History: S10, 2026-10-15.*
 
-- **What.** `modules/04-question-bank/src/service/generation.ts` resolves `domains.name` and `categories.name` in one tenant-scoped query, after the cross-tenant guard. It passes `domainName` and `categoryName` to `handleAdminGenerate`. Module 07 forwards them to every omnibus, chunked and sharded call as JSON keys `subject` and `category`. A key is omitted when empty. `topic_focus` stays and is `null` when absent. The route rules for `topic_focus` are in `docs/03-api-contract.md`; both domain routes now validate it.
-- **Appended line.** `runSkill` (`modules/07-ai-grading/src/runtimes/claude-code-vps.ts`, `focusNote`) adds one line after the JSON: "Subject: X. Category: Y. Topic focus: Z. Every question must be about this category and topic." The line is absent when all three are absent. The values are logged on `generation.start`.
+- **What.** `modules/04-question-bank/src/service/generation.ts` resolves `domains.name` and `categories.name` in one tenant-scoped query, after the cross-tenant guard. It passes `domainName` and `categoryName` to `handleAdminGenerate`. Module 07 forwards them to every omnibus, chunked and sharded call as the JSON keys `subject` and `category`. The code omits a key when it is empty. `topic_focus` stays, and it is `null` when absent. The route rules for `topic_focus` are in `docs/03-api-contract.md`. Both domain routes now validate it.
+- **Appended line.** `runSkill` (`modules/07-ai-grading/src/runtimes/claude-code-vps.ts`, `focusNote`) adds one line after the JSON: "Subject: X. Category: Y. Topic focus: Z. Every question must be about this category and topic." The line is absent when all three are absent. The system logs the values on `generation.start`.
 - **Why.** A run for "Phishing" / "Email Header Analysis" produced CVSS questions, because the prompt held only the SOC knowledge-base sources and the existing topics (RCA 2026-10-15).
-- **Owner step.** The generation skills on the VPS may read `subject`, `category` and `topic_focus`. A skill edit is `scp` plus an eval re-baseline; the sha256 is recorded on each attempt. The appended line steers the current skills already, so the step is optional.
+- **Owner step.** The generation skills on the VPS may read `subject`, `category` and `topic_focus`. A skill edit is `scp` plus an eval re-baseline. The system records the sha256 on each attempt. The appended line already steers the current skills, so this step is optional.
 - **Not included.** Skill files, the grading runtime, the schema.
 
 ## Decisions and history
@@ -1261,15 +1297,15 @@ This section holds the decisions that shaped the pipeline. The table lists them 
 
 ### Decisions captured (2026-05-01)
 
-This section is the canonical statement of the Phase 1/2 boundary, the no-ambient-AI invariant, and the contract the future `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` lint MUST encode. Future sessions touching grading code, runtimes, or the lint cite this section by decision number. The detail level follows `CLAUDE.md` rule #9: each decision answers (a) Chosen, (b) Rationale, (c) Alternatives rejected, (d) Downstream impact.
+This section is the canonical statement of the Phase 1/2 boundary, the no-ambient-AI invariant, and the contract that the future `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` lint MUST encode. Future sessions that touch grading code, runtimes or the lint cite this section by decision number. The detail level follows `CLAUDE.md` rule #9: each decision answers (a) Chosen, (b) Rationale, (c) Alternatives rejected, (d) Downstream impact.
 
-The lint file does not yet exist — its slot is reserved in `CLAUDE.md` § Load-bearing paths. When it ships (with the first 07-ai-grading runtime work), it must encode exactly D2's rejection patterns; subsequent edits to widen or narrow that contract require `codex:rescue` per the load-bearing-paths rule.
+The lint file does not yet exist. `CLAUDE.md` § Load-bearing paths reserves its slot. When it ships (with the first 07-ai-grading runtime work), it must encode exactly the rejection patterns of D2. Later edits that widen or narrow that contract require `codex:rescue` per the load-bearing-paths rule.
 
 #### D1 — `AI_PIPELINE_MODE` allowed values and per-mode behavior
 
-> **FU-A12 (2026-10-06): not built.** `anthropic-api` and `open-weights` are design-only; only `claude-code-vps` runs in production. Park notice: FR9 review 2026-10-03, decided "park the API key" (OD2 not yet made).
+> **FU-A12 (2026-10-06): not built.** `anthropic-api` and `open-weights` are design-only. Only `claude-code-vps` runs in production. Park notice: FR9 review 2026-10-03, decided "park the API key" (OD2 is not yet made).
 
-**Chosen.** `AI_PIPELINE_MODE` is a Zod-validated env var owned by `modules/00-core/src/config.ts`. Allowed values:
+**Chosen.** `AI_PIPELINE_MODE` is a Zod-validated env var that `modules/00-core/src/config.ts` owns. Allowed values:
 
 | Value | Phase | Auth | Runtime file loaded |
 |---|---|---|---|
@@ -1279,111 +1315,118 @@ The lint file does not yet exist — its slot is reserved in `CLAUDE.md` § Load
 
 What flips per mode:
 
-- **Runtime selector.** `gradeSubjective` dispatches to the runtime whose name matches the mode through a single static switch in `modules/07-ai-grading/index.ts`; no other dispatch path (no string `eval`, no dynamic import, no plugin loader). The mode is read once at process start; changing it is a deploy event, never a runtime toggle.
-- **`ANTHROPIC_API_KEY` requirement.** Required if and only if `AI_PIPELINE_MODE === "anthropic-api"`. In `claude-code-vps` mode the env var **MUST be unset** — the `00-core` Zod schema rejects the env when the API key is set in this mode. Defense-in-depth: if the key is on the box and an attacker plants a script, Phase 1's compliance frame breaks; absence is the invariant.
-- **Agent SDK import (`@anthropic-ai/claude-agent-sdk`).** Allowed only inside `runtimes/anthropic-api.ts`. Forbidden everywhere else by the lint (D2). Mirrors `CLAUDE.md` rule #2.
-- **What the lint rejects per mode.** The lint is mode-independent — it is a static-analysis check on the source tree, not a runtime check. It bans Agent SDK imports outside the one allowed file regardless of mode, and bans `claude` CLI invocation outside the admin-grade handler regardless of mode. A wrong mode at runtime fails fast in `config.ts`; the lint catches the source-level invariants.
+- **Runtime selector.** `gradeSubjective` dispatches to the runtime whose name matches the mode through a single static switch in `modules/07-ai-grading/index.ts`. There is no other dispatch path (no string `eval`, no dynamic import, no plugin loader). The code reads the mode once at process start. A change of the mode is a deploy event, never a runtime toggle.
+- **`ANTHROPIC_API_KEY` requirement.** It is required if and only if `AI_PIPELINE_MODE === "anthropic-api"`. In `claude-code-vps` mode the env var **MUST be unset**. The `00-core` Zod schema rejects the env when the API key is set in this mode. This is defense in depth: if the key is on the box and an attacker plants a script, the compliance frame of Phase 1 breaks. The absence of the key is the invariant.
+- **Agent SDK import (`@anthropic-ai/claude-agent-sdk`).** It is allowed only inside `runtimes/anthropic-api.ts`. The lint (D2) forbids it everywhere else. This mirrors `CLAUDE.md` rule #2.
+- **What the lint rejects per mode.** The lint is mode-independent. It is a static-analysis check on the source tree, not a runtime check. It bans Agent SDK imports outside the one allowed file regardless of mode. It bans `claude` CLI invocation outside the admin-grade handler regardless of mode. A wrong mode at runtime fails fast in `config.ts`. The lint catches the source-level invariants.
 
-**Rationale.** Three runtimes, one interface. Mode-as-config keeps Phase 2 a deploy flag rather than a refactor while keeping Phase 1's compliance posture (no API key on the box) deterministic and statically observable.
+**Rationale.** Three runtimes, one interface. Mode-as-config keeps Phase 2 a deploy flag and not a refactor. It also keeps the compliance posture of Phase 1 (no API key on the box) deterministic and statically observable.
 
 **Alternatives rejected.**
-- *Boolean `USE_API` flag.* Too narrow when the third runtime (`open-weights`) lands; reads as "feature toggle" instead of "runtime selector."
-- *Build-time conditional compilation.* The same image must boot in any mode based on env so deploy rollback is a single env-var change.
-- *Allowing `ANTHROPIC_API_KEY` to be present-but-unused in Phase 1.* Defense-in-depth fails if the key is on the box. Make absence the invariant.
+
+- *Boolean `USE_API` flag.* It is too narrow when the third runtime (`open-weights`) lands. It reads as a "feature toggle" instead of a "runtime selector."
+- *Build-time conditional compilation.* The same image must boot in any mode based on env, so a deploy rollback is a single env-var change.
+- *Allowing `ANTHROPIC_API_KEY` to be present but unused in Phase 1.* Defense in depth fails if the key is on the box. Make absence the invariant.
 
 **Downstream impact.**
 - `modules/00-core/src/config.ts` declares the enum and the conditional `ANTHROPIC_API_KEY` rule.
 - `modules/07-ai-grading/index.ts` is the single dispatch point; each `runtimes/*.ts` exports a function with the same `gradeSubjective` signature.
-- The lint (D2) reads the source tree statically; nothing imports `runtimes/anthropic-api.ts` from anywhere except `modules/07-ai-grading/index.ts`.
-- `docs/06-deployment.md` gets a § "Pipeline mode" describing the env var and how to switch (added when the runtime ships, not in this addendum).
+- The lint (D2) reads the source tree statically. Nothing imports `runtimes/anthropic-api.ts` from anywhere except `modules/07-ai-grading/index.ts`.
+- `docs/06-deployment.md` gets a § "Pipeline mode" that describes the env var and how to switch it (the team adds it when the runtime ships, not in this addendum).
 
 #### D2 — Definition of "ambient" + the lint contract
 
-**Chosen.** "Ambient" means *any code path that can fire a Claude Code invocation without a fresh, just-now admin click.* The future `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` lint encodes this in source-static rules. The contract below is what the file MUST encode when it ships — no more, no less.
+**Chosen.** "Ambient" means *any code path that can fire a Claude Code invocation without a fresh, just-now admin click.* The future `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` lint encodes this in static source rules. The contract below is what the file MUST encode when it ships, no more and no less.
 
 **Positive list — allowed call sites.** Exactly two source files may spawn `claude` or import `runClaudeCodeGrading`:
 
-1. `modules/07-ai-grading/handlers/admin-grade.ts` — the `POST /admin/grade/:attemptId` Fastify handler — and only when reached through an admin-only route registration carrying the `requireAuth + requireRole('admin')` middleware stack.
+1. `modules/07-ai-grading/handlers/admin-grade.ts` — the `POST /admin/grade/:attemptId` Fastify handler. It qualifies only when the call reaches it through an admin-only route registration that carries the `requireAuth + requireRole('admin')` middleware stack.
 2. `modules/07-ai-grading/runtimes/claude-code-vps.ts` — the runtime implementation that the handler calls into.
 
-The handler must verify, in order: (a) `req.session.admin === true`; (b) `process.env.AI_PIPELINE_MODE === "claude-code-vps"`; (c) admin session activity heartbeat within last 60s; (d) no other grading subprocess is alive (single-flight, D7). Any third call site is a lint failure.
+The handler must verify these items, in order: (a) `req.session.admin === true`; (b) `process.env.AI_PIPELINE_MODE === "claude-code-vps"`; (c) the admin session activity heartbeat is within the last 60s; (d) no other grading subprocess is alive (single-flight, D7). Any third call site is a lint failure.
 
-**Rejection patterns the lint MUST encode.** Static-grep + transitive-import rules over the entire repo, scoped to `modules/**`, `apps/**`, `tools/**`, `infra/**`:
+**Rejection patterns the lint MUST encode.** The rules are static-grep and transitive-import rules over the entire repo, scoped to `modules/**`, `apps/**`, `tools/**`, `infra/**`:
 
-1. **`claude` CLI invocation outside the allow-list.** Match `child_process` `spawn`/`exec`/`execFile`/`fork` calls whose first argument resolves to the literal `"claude"`. Allow only the two paths above; anywhere else fails.
-2. **Agent SDK imports outside the one Phase 2 runtime.** Match any `import` of `@anthropic-ai/claude-agent-sdk` (default, named, or namespace). Allow only `modules/07-ai-grading/runtimes/anthropic-api.ts`. Anywhere else fails. (Mirrors `CLAUDE.md` rule #2.)
-3. **Cron / scheduler registrations referencing the grading runtime.** Match registrations to `node-cron`, `agenda`, BullMQ `repeat`/`every` options, or `setInterval`/`setTimeout` of duration ≥ 1s, where the callback transitively imports `runClaudeCodeGrading` or any symbol from `modules/07-ai-grading/runtimes/*`. Allow-list: empty. (BullMQ repeating jobs for non-AI work — boundary cron in 05-lifecycle, sweepStaleTimers in 06-attempt-engine, budget rollover in D6 — are unaffected because they do not transitively import the grading runtime.)
-4. **BullMQ `Worker` / `Queue.process` callbacks referencing the grading runtime.** Allow-list: empty in Phase 1. Phase 2 widens this to allow `apps/worker/grading-consumer.ts` only when `AI_PIPELINE_MODE=anthropic-api`; that single exception itself goes through `codex:rescue` when the worker first ships.
-5. **Webhook handlers referencing the grading runtime.** Match any Fastify route registered under a `webhook*` path prefix that transitively imports the grading runtime. Allow-list: empty.
-6. **Candidate routes referencing the grading runtime.** Match any Fastify route under `/take/*`, `/me/*`, or `/embed/*` that transitively imports the grading runtime. Allow-list: empty.
-7. **Background-worker entrypoints referencing the grading runtime.** Match any file under `apps/worker/**` that transitively imports the grading runtime. Allow-list: empty in Phase 1; Phase 2 exception per (4).
+1. **`claude` CLI invocation outside the allow-list.** Match `child_process` `spawn`/`exec`/`execFile`/`fork` calls whose first argument resolves to the literal `"claude"`. Allow only the two paths above. Anywhere else fails.
+2. **Agent SDK imports outside the one Phase 2 runtime.** Match any `import` of `@anthropic-ai/claude-agent-sdk` (default, named or namespace). Allow only `modules/07-ai-grading/runtimes/anthropic-api.ts`. Anywhere else fails. (This mirrors `CLAUDE.md` rule #2.)
+3. **Cron / scheduler registrations that reference the grading runtime.** Match registrations to `node-cron`, `agenda`, BullMQ `repeat`/`every` options, or `setInterval`/`setTimeout` of duration ≥ 1s, where the callback transitively imports `runClaudeCodeGrading` or any symbol from `modules/07-ai-grading/runtimes/*`. Allow-list: empty. (BullMQ repeating jobs for non-AI work are unaffected, because they do not transitively import the grading runtime. Examples are the boundary cron in 05-lifecycle, sweepStaleTimers in 06-attempt-engine and the budget rollover in D6.)
+4. **BullMQ `Worker` / `Queue.process` callbacks that reference the grading runtime.** Allow-list: empty in Phase 1. Phase 2 widens this to allow `apps/worker/grading-consumer.ts` only when `AI_PIPELINE_MODE=anthropic-api`. That single exception itself goes through `codex:rescue` when the worker first ships.
+5. **Webhook handlers that reference the grading runtime.** Match any Fastify route registered under a `webhook*` path prefix that transitively imports the grading runtime. Allow-list: empty.
+6. **Candidate routes that reference the grading runtime.** Match any Fastify route under `/take/*`, `/me/*` or `/embed/*` that transitively imports the grading runtime. Allow-list: empty.
+7. **Background-worker entrypoints that reference the grading runtime.** Match any file under `apps/worker/**` that transitively imports the grading runtime. Allow-list: empty in Phase 1. The Phase 2 exception is in (4).
 
-**Rationale.** The compliance frame at the top of this doc rests on a human admin clicking before any inference runs. "Ambient" is the antonym — automation that fires without a click. Every rejection above is a way to fire automation. The positive list isolates the one defensible call site; the runtime checks (admin session, heartbeat, mutex, accept-before-commit) are belt-and-suspenders. Static-source enforcement is faster, cheaper, and harder to silently bypass than a runtime check.
+**Rationale.** The compliance frame at the top of this doc rests on a human admin who clicks before any inference runs. "Ambient" is the opposite: automation that fires without a click. Every rejection above is a way to fire automation. The positive list isolates the one defensible call site. The runtime checks (admin session, heartbeat, mutex, accept-before-commit) are belt and suspenders. Static-source enforcement is faster and cheaper than a runtime check, and it is harder to bypass silently.
 
 **Alternatives rejected.**
-- *Runtime-only enforcement.* A single `if` removed in a refactor would break the contract silently. Static enforcement at lint time fails the build.
-- *Allow-list by tag/comment annotation.* Too easy to add a comment as a "fix." Path-based allow-list is explicit and grep-able.
-- *Letting BullMQ workers run grading "as long as the admin clicked once."* Once the click triggers a queue write, the click is no longer in-the-loop. Phase 1 grading is sync; the click and the spawn happen in the same request.
+
+- *Runtime-only enforcement.* A refactor that removes a single `if` would break the contract silently. Static enforcement at lint time fails the build.
+- *Allow-list by tag or comment annotation.* It is too easy to add a comment as a "fix." A path-based allow-list is explicit and easy to grep.
+- *Letting BullMQ workers run grading "as long as the admin clicked once."* Once the click triggers a queue write, the click is no longer in the loop. Phase 1 grading is sync. The click and the spawn happen in the same request.
 
 **Downstream impact.**
-- The lint file at `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` ships at the start of the first 07-ai-grading runtime work, or earlier as a sentinel. From the moment it lands it is load-bearing per `CLAUDE.md` (`codex:rescue` to modify).
+
+- The lint file at `modules/07-ai-grading/ci/lint-no-ambient-claude.ts` ships at the start of the first 07-ai-grading runtime work, or earlier as a sentinel. From the moment it lands, it is load-bearing per `CLAUDE.md` (`codex:rescue` to modify).
 - `.github/workflows/ci.yml` runs the lint as a required check.
-- Phase 1 sessions writing question-bank, lifecycle, attempt-engine, candidate-UI code use rules (3)–(6) as a checklist when wiring background work — never reach into 07-ai-grading from those paths.
+- Phase 1 sessions that write question-bank, lifecycle, attempt-engine or candidate-UI code use rules (3)–(6) as a checklist when they wire background work. They never reach into 07-ai-grading from those paths.
 - The `submitAttempt` handler in 06-attempt-engine MUST NOT enqueue an AI grading job (rule (4); also Phase 1 plan decision #6).
 
 #### D3 — `grading_jobs` state machine and Phase-1 vs Phase-2 ownership
 
-**Chosen.** Phase 1 has **no `grading_jobs` table.** In-flight grading is tracked entirely by (a) the in-process single-flight mutex (D7) and (b) the per-row `attempts.status` enum, where `pending_admin_grading → graded` happens on admin accept. Phase 2 adds the `grading_jobs` table with the state machine below.
+**Chosen.** Phase 1 has **no `grading_jobs` table.** Two things track in-flight grading entirely: (a) the in-process single-flight mutex (D7) and (b) the per-row `attempts.status` enum, where `pending_admin_grading → graded` happens on admin accept. Phase 2 adds the `grading_jobs` table with the state machine below.
 
 **Phase 2 state machine:** `pending → in_progress → done | failed`.
 
 | Transition | Writer (Phase 2) | Trigger |
 |---|---|---|
-| `(none) → pending` | BullMQ producer in the `attempt.submitted` handler | `submitAttempt` enqueues a job; row inserted with `status='pending'`, `attempt_id`, `prompt_version_sha`, `model`, `created_at`. |
-| `pending → in_progress` | BullMQ worker in `apps/worker/grading-consumer.ts` (Phase 2) | Worker `claim()` updates row to `in_progress` with `claimed_at` and `worker_id`. |
-| `in_progress → done` | Same worker | All three stages returned a structured proposal; worker writes the `gradings` row in the same transaction and flips `grading_jobs.status='done'`. |
-| `in_progress → failed` | Same worker | Stream parse fail, content-policy refusal, exhausted retries, missing tool call, etc. Worker writes `grading_jobs.status='failed'` with `error_class` + `error_message`; attempt stays `pending_admin_grading`; admin retries via UI. |
+| `(none) → pending` | BullMQ producer in the `attempt.submitted` handler | `submitAttempt` enqueues a job. The system inserts a row with `status='pending'`, `attempt_id`, `prompt_version_sha`, `model`, `created_at`. |
+| `pending → in_progress` | BullMQ worker in `apps/worker/grading-consumer.ts` (Phase 2) | The worker `claim()` updates the row to `in_progress` with `claimed_at` and `worker_id`. |
+| `in_progress → done` | Same worker | All three stages returned a structured proposal. The worker writes the `gradings` row in the same transaction and sets `grading_jobs.status='done'`. |
+| `in_progress → failed` | Same worker | Stream parse fail, content-policy refusal, exhausted retries, missing tool call, and so on. The worker writes `grading_jobs.status='failed'` with `error_class` + `error_message`. The attempt stays `pending_admin_grading`, and the admin retries through the UI. |
 
-**Phase 1 retry policy.** Manual re-trigger only. Admin clicks "Re-run" in the panel, which fires a fresh `POST /admin/grade/:attemptId` — the same single-flight mutex applies. There is no auto-retry; flaky `claude` exits surface to the admin who decides whether to retry or grade manually. A non-zero `claude` exit raises HTTP 503 to the panel with the underlying exit code; the panel surfaces the error and a "Re-run" button.
+**Phase 1 retry policy.** Manual re-trigger only. The admin clicks "Re-run" in the panel, which fires a fresh `POST /admin/grade/:attemptId`. The same single-flight mutex applies. There is no auto-retry. Flaky `claude` exits surface to the admin, who decides whether to retry or to grade manually. A non-zero `claude` exit raises HTTP 503 to the panel with the underlying exit code. The panel shows the error and a "Re-run" button.
 
-**Phase 2 retry policy.** BullMQ exponential backoff on transient errors (network, 5xx, rate-limited) up to 3 attempts. Permanent errors (content policy, schema violation) skip retry and go straight to `failed`. Beyond 3 attempts, the row stays `failed` and the admin sees it in the queue with manual retry available.
+**Phase 2 retry policy.** BullMQ uses exponential backoff on transient errors (network, 5xx, rate-limited), up to 3 attempts. Permanent errors (content policy, schema violation) skip the retry and go straight to `failed`. After 3 attempts, the row stays `failed`, and the admin sees it in the queue with a manual retry available.
 
-**Idempotency key.** `(attempt_id, prompt_version_sha)`. Two jobs with the same key collapse to the first one's outcome; replays are no-ops. Phase 1 enforces this implicitly (sync, single-flight, attempt-status guard); Phase 2 enforces it as a `UNIQUE (attempt_id, prompt_version_sha)` constraint on `grading_jobs`.
+**Idempotency key.** `(attempt_id, prompt_version_sha)`. Two jobs with the same key collapse to the outcome of the first one. Replays are no-ops. Phase 1 enforces this implicitly (sync, single-flight, attempt-status guard). Phase 2 enforces it as a `UNIQUE (attempt_id, prompt_version_sha)` constraint on `grading_jobs`.
 
-**Rationale.** Phase 1 does not need a job table because there is no async fan-out to coordinate — the admin's request is the unit of work and the response is the proposal. Phase 2 needs the table because workers are decoupled from requesters and the state machine needs durable rows. Splitting the design lets Phase 1 ship without table churn that only matters when Phase 2 is enabled.
+**Rationale.** Phase 1 does not need a job table, because there is no async fan-out to coordinate. The request of the admin is the unit of work, and the response is the proposal. Phase 2 needs the table, because workers are decoupled from requesters and the state machine needs durable rows. The split design lets Phase 1 ship without table churn that matters only when Phase 2 is enabled.
 
 **Alternatives rejected.**
-- *Use `grading_jobs` in Phase 1 too.* A synchronous handler writing then reading the same row is ceremony without benefit — adds a write the admin's first round-trip pays for, with nothing reading the row before the response returns.
-- *Auto-retry in Phase 1.* The compliance frame requires admin-in-the-loop; auto-retry on a `claude` failure is automation without a human click — exactly what D2 rejects.
-- *Idempotency key = `attempt_id` only.* When a skill SHA changes, a re-grade on the same attempt is a different unit of work and must produce a new row, not collapse with the prior one (also D4).
+
+- *Use `grading_jobs` in Phase 1 too.* A synchronous handler that writes and then reads the same row is ceremony without benefit. It adds a write that the first round trip of the admin pays for, and nothing reads the row before the response returns.
+- *Auto-retry in Phase 1.* The compliance frame requires an admin in the loop. An auto-retry on a `claude` failure is automation without a human click, which is exactly what D2 rejects.
+- *Idempotency key = `attempt_id` only.* When a skill SHA changes, a re-grade on the same attempt is a different unit of work. It must produce a new row and not collapse with the prior one (also D4).
 
 **Downstream impact.**
-- Phase 1 `attempts.status` enum already includes `pending_admin_grading`, `graded`, `released` per `02-data-model.md:368` and Phase 1 plan decision #6. No schema change in Phase 1 for grading.
-- Phase 2 adds migration `0040_grading_jobs.sql` with the columns above and the UNIQUE constraint. Out of scope for any Phase 1 session.
-- 06-attempt-engine `submitAttempt` writes `attempts.status='pending_admin_grading'` in Phase 1 (waits for admin click). In Phase 2 it transitions through `submitted → grading` only momentarily before the queue write — but note that Phase 1 plan decision #6 explicitly forbids writing `grading` in Phase 1.
+
+- The Phase 1 `attempts.status` enum already includes `pending_admin_grading`, `graded` and `released` per `02-data-model.md:368` and Phase 1 plan decision #6. Phase 1 needs no schema change for grading.
+- Phase 2 adds migration `0040_grading_jobs.sql` with the columns above and the UNIQUE constraint. It is out of scope for any Phase 1 session.
+- In Phase 1, 06-attempt-engine `submitAttempt` writes `attempts.status='pending_admin_grading'` (it waits for the admin click). In Phase 2, it passes through `submitted → grading` only momentarily before the queue write. Note that Phase 1 plan decision #6 explicitly forbids writing `grading` in Phase 1.
 
 #### D4 — Prompt SHA pinning at grading-row level
 
-**Chosen.** Every `gradings` row stores three columns capturing the exact skill versions that produced it:
+**Chosen.** Every `gradings` row stores three columns that capture the exact skill versions that produced it:
 
-- `prompt_version_sha` — `text NOT NULL`. Concatenated truncated sha256s across the skills used in this grading. Format: `anchors:<8-hex>;band:<8-hex>;escalate:<8-hex|->`. (Truncated to 8-hex for readability; full sha256 reconstructable from the per-skill audit log.)
-- `prompt_version_label` — `text NOT NULL`. Human-readable version label (for example `2026-05-anchors-v3`) read from the skill's frontmatter `version:` field. Used in admin UI; not part of the integrity check.
-- `model` — `text NOT NULL`. Concatenated model identifiers, for example `haiku-4-5;sonnet-4-6;opus-4-7`. In `claude-code-vps` mode read from skill frontmatter; in `anthropic-api` mode read from the SDK call options.
+- `prompt_version_sha` — `text NOT NULL`. Concatenated truncated sha256s across the skills used in this grading. Format: `anchors:<8-hex>;band:<8-hex>;escalate:<8-hex|->`. (The format truncates to 8-hex for readability. You can reconstruct the full sha256 from the per-skill audit log.)
+- `prompt_version_label` — `text NOT NULL`. A human-readable version label (for example `2026-05-anchors-v3`), read from the `version:` field in the skill frontmatter. The admin UI uses it. It is not part of the integrity check.
+- `model` — `text NOT NULL`. Concatenated model identifiers, for example `haiku-4-5;sonnet-4-6;opus-4-7`. In `claude-code-vps` mode the system reads it from the skill frontmatter. In `anthropic-api` mode it reads it from the SDK call options.
 
-**How the skill SHA is captured at grade time.** At runtime, `skillSha(name)` reads `~/.claude/skills/<name>/SKILL.md`, runs `crypto.createHash('sha256').update(content).digest('hex')`, and returns the first 8 hex chars (full hash also written to `/var/log/assessiq/grading-audit.jsonl` via the `PostToolUse` hook documented in § Audit + reproducibility above). The full hashes for all skills used in a grading run also land in the same audit log line.
+**How the skill SHA is captured at grade time.** At runtime, `skillSha(name)` reads `~/.claude/skills/<name>/SKILL.md`, runs `crypto.createHash('sha256').update(content).digest('hex')` and returns the first 8 hex chars. The `PostToolUse` hook (documented in § Audit + reproducibility above) also writes the full hash to `/var/log/assessiq/grading-audit.jsonl`. The full hashes for all skills used in a grading run also land in the same audit log line.
 
-**Recompute trigger on skill-SHA mismatch.** When an admin opens a previously-graded attempt and the current `skillSha("grade-band")` differs from the stored `prompt_version_sha` for the band stage, the panel surfaces a yellow "skill version drift" badge with a "Re-grade" button. Re-grading writes a NEW `gradings` row (does not update the old one); old rows stay tied to their old SHA — the project's "auditable AI" non-negotiable. Re-grading is opt-in per row, never automatic.
+**Recompute trigger on skill-SHA mismatch.** An admin can open a previously graded attempt when the current `skillSha("grade-band")` differs from the stored `prompt_version_sha` for the band stage. The panel then shows a yellow "skill version drift" badge with a "Re-grade" button. Re-grading writes a NEW `gradings` row (it does not update the old one). Old rows stay tied to their old SHA, which is the "auditable AI" non-negotiable of the project. Re-grading is opt-in for each row and never automatic.
 
-**Rationale.** Skill SHA is the only durable proof of which prompt produced which grade. Storing it on the row makes the audit trail self-contained — querying `gradings` is enough; you do not need to time-travel the filesystem. The 8-hex truncation balances readability against collision risk (1 in 4 billion is fine for human review; the audit log holds the full hash for forensics).
+**Rationale.** The skill SHA is the only durable proof of which prompt produced which grade. When the row stores it, the audit trail is self-contained. A query on `gradings` is enough, and you do not need to time-travel the filesystem. The 8-hex truncation balances readability against collision risk (1 in 4 billion is fine for human review; the audit log holds the full hash for forensics).
 
 **Alternatives rejected.**
-- *Store only a `prompt_versions.id` FK.* The `prompt_versions` table is Phase 2 only (per `07-ai-grading/SKILL.md` § Data model). In Phase 1 the skill files on disk are the source; SHA-on-row is the durable pin.
+
+- *Store only a `prompt_versions.id` FK.* The `prompt_versions` table is Phase 2 only (per `07-ai-grading/SKILL.md` § Data model). In Phase 1, the skill files on disk are the source, and the SHA on the row is the durable pin.
 - *Recompute the proposal on first read after deploy.* Silent re-grading is exactly what the compliance frame forbids.
-- *Use the skill `version:` label as the integrity check.* A label is editable; SHA is not. Label is for UX, SHA is for integrity.
+- *Use the skill `version:` label as the integrity check.* Anyone can edit a label, but not a SHA. The label is for UX, and the SHA is for integrity.
 
 **Downstream impact.**
-- `gradings` table migration adds the three columns with `NOT NULL` constraints (Phase 2 work, not Phase 1).
-- Admin UI grading queue panel reads `prompt_version_sha` and compares against `skillSha()` to surface drift.
+
+- The `gradings` table migration adds the three columns with `NOT NULL` constraints (Phase 2 work, not Phase 1).
+- The admin UI grading queue panel reads `prompt_version_sha` and compares it against `skillSha()` to show drift.
 - The eval harness (D5) records the same three columns on every eval run for cross-version regression analysis.
 
 ##### RW-41 (2026-10-11): raw stage inputs and CLI version
@@ -1391,28 +1434,30 @@ The handler must verify, in order: (a) `req.session.admin === true`; (b) `proces
 Migration `0168` adds two nullable columns to `gradings` (commit `45e95e0`): `cli_version TEXT` and `stage_inputs JSONB`. Both are NULL for deterministic, pattern, override and manual rows, and for older rows.
 
 **What.**
-- The `claude-code-vps` runtime keeps the raw tool inputs the model submits at each stage (`submit_anchors`, `submit_band`, `escalate`). It stores them as `stage_inputs = {anchors, band, escalate}`.
+
+- The `claude-code-vps` runtime keeps the raw tool inputs that the model submits at each stage (`submit_anchors`, `submit_band`, `escalate`). It stores them as `stage_inputs = {anchors, band, escalate}`.
 - It also keeps the CLI version. `parseCliVersion` in `stream-json-parser.ts` reads `claude_code_version` from the stream-json `init` event. If the event has no version, the runtime runs `claude --version` once and caches the result. That spawn lives inside the runtime file only, so the no-ambient-AI lint is not affected.
 - Both values travel in the proposal (`GradingProposalSchema.cli_version`, `.stage_inputs`) into the `attempts.ai_proposals` cache.
-- `handleAdminAccept` copies both from the server cache for the same `question_id` and ignores any value in the request body. The spoof test is in `gradings-provenance.test.ts`.
-- `stage_inputs` is capped at 64 KiB (65,536 characters of JSON). The runtime applies the cap, because it is the only writer of the proposals cache (commit `9e6ded9`). If the whole object is larger, each oversized stage becomes `{truncated: true, bytes}`. The client-body refine in the proposal schema was removed. The accept handler never reads client provenance.
+- `handleAdminAccept` copies both values from the server cache for the same `question_id` and ignores any value in the request body. The spoof test is in `gradings-provenance.test.ts`.
+- `stage_inputs` is capped at 64 KiB (65,536 characters of JSON). The runtime applies the cap, because it is the only writer of the proposals cache (commit `9e6ded9`). If the whole object is larger, each oversized stage becomes `{truncated: true, bytes}`. The team removed the client-body refine in the proposal schema. The accept handler never reads client provenance.
 - Review record: the `codex:rescue` companion failed to start three times. Sonnet takeover reviews gave ACCEPT for RW-38, RW-41 and RW-55, with the hardening notes in this section and in `docs/02-data-model.md`.
 
-**Why.** The stored `anchor_hits` and `reasoning_band` are post-processed: coerced, schema-checked, and maybe edited by the admin. The raw input lets an auditor replay a row and compare it with a later skill version. It also records which CLI build produced the row.
+**Why.** The stored `anchor_hits` and `reasoning_band` are post-processed: the code coerces them, checks their schema, and the admin may edit them. The raw input lets an auditor replay a row and compare it with a later skill version. It also records which CLI build produced the row.
 
-**Contract deviation.** The task brief expected the eval runner to record these columns. It does not. The runner evaluates generation goldens, not grading runs, and never writes `gradings`. The runner is unchanged, and the D4 downstream line above ("the eval harness records the same three columns") stays as written.
+**Contract deviation.** The task brief expected the eval runner to record these columns. It does not. The runner evaluates generation goldens, not grading runs, and it never writes `gradings`. The runner is unchanged, and the D4 downstream line above ("the eval harness records the same three columns") stays as written.
 
 **Considered and rejected.**
-- Trust the value that the browser echoes back. This is the same gap as scores (Phase II): a client could forge provenance.
-- Store the raw inputs in the audit log. They are then not queryable per row.
+
+- Trust the value that the browser echoes back. This is the same gap as for scores (Phase II): a client could forge provenance.
+- Store the raw inputs in the audit log. You then cannot query them for each row.
 
 **Not included.** No UI shows `stage_inputs`. No backfill of old rows.
 
-**Downstream impact.** `GradingProposal` has two new optional fields. The accept route schema (`routes.ts`) and the super-evaluation accept route accept them but the server ignores them (see `docs/03-api-contract.md`, S9 notes). `insertGrading` in `repository.ts` writes both columns. Fixtures in other modules gained the two keys.
+**Downstream impact.** `GradingProposal` has two new optional fields. The accept route schema (`routes.ts`) and the super-evaluation accept route accept them, but the server ignores them (see `docs/03-api-contract.md`, S9 notes). `insertGrading` in `repository.ts` writes both columns. Fixtures in other modules gained the two keys.
 
 #### D5 — Eval-harness baseline contract
 
-**Chosen.** `modules/07-ai-grading/eval/` directory layout (does not exist yet; ships with the first 07-ai-grading runtime work):
+**Chosen.** The directory layout of `modules/07-ai-grading/eval/` (it does not exist yet; it ships with the first 07-ai-grading runtime work):
 
 ```
 modules/07-ai-grading/eval/
@@ -1433,38 +1478,44 @@ modules/07-ai-grading/eval/
 └── compare.ts                             # Diffs a run against a baseline; outputs drift report
 ```
 
-**Case file shape.** `<id>.input.json` is `{question, rubric, candidate_answer}`. `<id>.expected.json` is `{anchors: [{anchor_id, hit, evidence_quote_substring, confidence_min}], band, error_class | null}`. `evidence_quote_substring` is a substring match (not exact) to allow Stage-1 phrasing variance; `confidence_min` is the minimum acceptable confidence (model can be more confident, not less).
+**Case file shape.** `<id>.input.json` is `{question, rubric, candidate_answer}`. `<id>.expected.json` is `{anchors: [{anchor_id, hit, evidence_quote_substring, confidence_min}], band, error_class | null}`. `evidence_quote_substring` is a substring match (not exact), to allow Stage-1 phrasing variance. `confidence_min` is the minimum acceptable confidence (the model can be more confident, not less).
 
-**Case counts (updated 2026-10-02).** The golden set holds 150 cases: 50 each for `subjective`, `scenario` and `log_analysis`, with 5 adversarial cases per type (prompt-injection attempts in the answer body, empty answers, off-topic answers, "ignore the rubric and assign band 4" payloads). The set is stored on the server only (`eval/cases-private`), never in git. See "Eval golden set" later in this doc. `mcq` and `kql` have no AI grading, so they have no cases.
+**Case counts (updated 2026-10-02).** The golden set holds 150 cases: 50 each for `subjective`, `scenario` and `log_analysis`. Each type has 5 adversarial cases (prompt-injection attempts in the answer body, empty answers, off-topic answers, "ignore the rubric and assign band 4" payloads). The set is stored on the server only (`eval/cases-private`), never in git. See "Eval golden set" later in this doc. `mcq` and `kql` have no AI grading, so they have no cases.
 
 **Baseline-blessing process.**
-1. Admin runs `pnpm aiq:eval:run --mode claude-code-vps` from the VPS with the current skills.
-2. Tool produces `runs/<ISO>/`.
-3. Admin reviews per-case diffs (Phase 1: manual JSON inspection — admin UI panel deferred to Phase 2).
-4. Admin runs `pnpm aiq:eval:bless --run <ISO>`, which copies the run summary into `baselines/<YYYY-MM-DD>.json` and signs it via the admin's session token (sha256 over the baseline JSON + admin user-id; not cryptographic — an audit signal showing who blessed it).
+
+1. The admin runs `pnpm aiq:eval:run --mode claude-code-vps` from the VPS with the current skills.
+2. The tool produces `runs/<ISO>/`.
+3. The admin reviews the per-case diffs (Phase 1: manual JSON inspection; the admin UI panel is deferred to Phase 2).
+4. The admin runs `pnpm aiq:eval:bless --run <ISO>`. This copies the run summary into `baselines/<YYYY-MM-DD>.json`. It signs the file with the session token of the admin (sha256 over the baseline JSON + admin user-id). The signature is not cryptographic. It is an audit signal that shows who blessed the baseline.
 
 **Failure criteria — when an eval run is "no-ship."**
 - **Hard fail (block deploy):** band-classification agreement < 85%; OR Stage-1 anchor F1 < 0.80; OR any adversarial case where Stage 2 returned band 4 (silent injection success).
-- **Soft fail (warn, admin must explicitly bless):** agreement dropped ≥ 3 percentage points from the prior blessed baseline; per-error-class F1 dropped ≥ 10% on any class; new error classes introduced.
+- **Soft fail (warn, the admin must explicitly bless):**
+  - The agreement dropped ≥ 3 percentage points from the prior blessed baseline.
+  - The per-error-class F1 dropped ≥ 10% on any class.
+  - New error classes appeared.
 - **Hold:** if Phase 1 admin throughput is the only driver of the eval run, hold the deploy until the admin has actually reviewed the soft-fail cases.
 
-**CI integration.** Phase 1 — manual only. The admin runs the harness from the VPS before editing prompt skills. CI does NOT auto-run the eval because it requires the Max OAuth on the admin's box (which CI will never have). Phase 2 — eval runs in CI on every change to a skill or to anything in `modules/07-ai-grading/runtimes/*`, gated behind a separate `ANTHROPIC_API_KEY_EVAL` budget (small, capped). Phase-2 automation is itself a future decision; current contract is "manual in Phase 1; the Phase-2 plan is tracked in this section."
+**CI integration.** Phase 1 is manual only. The admin runs the harness from the VPS before editing prompt skills. CI does NOT auto-run the eval, because it needs the Max OAuth on the box of the admin (which CI will never have). In Phase 2, the eval runs in CI on every change to a skill or to anything in `modules/07-ai-grading/runtimes/*`, gated behind a separate `ANTHROPIC_API_KEY_EVAL` budget (small, capped). Phase-2 automation is itself a future decision. The current contract is "manual in Phase 1; this section tracks the Phase-2 plan."
 
-**Rationale.** The skills are the prompt, the prompt is the product, and prompt drift is a silent regression. A blessed baseline + per-skill-edit re-baselining is the cheapest insurance against silent regressions in subjective grading. Failure thresholds match `07-ai-grading/SKILL.md`'s 85% agreement bar.
+**Rationale.** The skills are the prompt, the prompt is the product, and prompt drift is a silent regression. A blessed baseline plus a re-baseline after each skill edit is the cheapest insurance against silent regressions in subjective grading. The failure thresholds match the 85% agreement bar of `07-ai-grading/SKILL.md`.
 
 **Alternatives rejected.**
-- *Use synthetic answers instead of hand-graded.* Model failure modes are most visible on real candidate ambiguity; synthetic answers under-cover the long tail.
-- *Run eval on every grading.* Cost-prohibitive in Phase 2; pointless in Phase 1 (single-admin-in-the-loop, the admin is the eval).
-- *Skip eval until Phase 2.* Prompt edits in Phase 1 still drift quality. Manual eval is the floor.
+
+- *Use synthetic answers instead of hand-graded answers.* Model failure modes are most visible on real candidate ambiguity. Synthetic answers under-cover the long tail.
+- *Run eval on every grading.* It is cost-prohibitive in Phase 2. It is pointless in Phase 1 (a single admin in the loop; the admin is the eval).
+- *Skip eval until Phase 2.* Prompt edits in Phase 1 still drift the quality. A manual eval is the floor.
 
 **Downstream impact.**
-- Eval harness ships alongside the first runtime work in 07-ai-grading. Out of scope for any current Phase 0/Phase 1 session.
-- The baseline file format is part of the deploy contract — changing the schema is a same-PR doc update here.
-- The admin's `claude login` session on the VPS is the eval auth; `docs/06-deployment.md` gets a § "Eval harness auth" pointer when the harness ships.
+
+- The eval harness ships alongside the first runtime work in 07-ai-grading. It is out of scope for any current Phase 0/Phase 1 session.
+- The baseline file format is part of the deploy contract. A change to the schema is a same-PR doc update here.
+- The `claude login` session of the admin on the VPS is the eval auth. `docs/06-deployment.md` gets a § "Eval harness auth" pointer when the harness ships.
 
 #### D6 — Phase 2 budget enforcement (deferred)
 
-> **FU-A10/FU-A12 (2026-10-06): not built, parked API-mode only.** `tenant_grading_budgets` and the route at `modules/07-ai-grading/src/routes.ts:538` (`GET /api/admin/settings/billing`) exist only as a Phase 1 zero-cost stub; no migration creates this table today. Park notice: FR7 review 2026-10-03, folded into the billing AI meter (PT1-2).
+> **FU-A10/FU-A12 (2026-10-06): not built, parked API-mode only.** `tenant_grading_budgets` and the route at `modules/07-ai-grading/src/routes.ts:538` (`GET /api/admin/settings/billing`) exist only as a Phase 1 zero-cost stub. No migration creates this table today. Park notice: FR7 review 2026-10-03, folded into the billing AI meter (PT1-2).
 
 **Chosen (designed, not built).** Phase 2 introduces a per-tenant token budget table:
 
@@ -1480,60 +1531,62 @@ CREATE TABLE tenant_grading_budgets (
 );
 ```
 
-RLS template applies: `tenant_id` is the row's PK and the policy is the special-case (`id = current_setting('app.current_tenant')::uuid`) — same shape as the `tenants` table policy.
+The RLS template applies. `tenant_id` is the PK of the row, and the policy is the special case (`id = current_setting('app.current_tenant')::uuid`), the same shape as the `tenants` table policy.
 
-**Enforcement point.** In-runtime, **BEFORE** each model call, not after. The Phase 2 runtime (`runtimes/anthropic-api.ts`) reads the row in the same transaction that decrements `used_usd` after the call completes; the pre-call check rejects fast if `used_usd >= monthly_budget_usd`.
+**Enforcement point.** In-runtime, **BEFORE** each model call, not after. The Phase 2 runtime (`runtimes/anthropic-api.ts`) reads the row in the same transaction that decrements `used_usd` after the call completes. The pre-call check rejects fast if `used_usd >= monthly_budget_usd`.
 
 **Exhaustion behavior.**
 - Phase 1: N/A (no token cost).
-- Phase 2: pre-call check fails with HTTP 429 surfaced to the worker; worker writes `grading_jobs.status='failed'` with `error_class='budget_exhausted'`; admin gets a notification (13-notifications); the attempt stays `pending_admin_grading` until either the admin acknowledges (and grades manually or pauses), or the budget is reset by tenant top-up.
+- Phase 2: the pre-call check fails with HTTP 429, which the worker sees. The worker writes `grading_jobs.status='failed'` with `error_class='budget_exhausted'`. The admin gets a notification (13-notifications). The attempt stays `pending_admin_grading` until the admin acknowledges (and grades manually or pauses), or a tenant top-up resets the budget.
 
-**Period rollover.** A daily BullMQ repeating job (`tenant_grading_budgets:rollover`, non-AI) checks each row's `period_start`; if a calendar month has passed, resets `used_usd=0`, updates `period_start`, clears `alerted_at`. Rollover is non-AI work, allowed under `CLAUDE.md` rule #1.
+**Period rollover.** A daily BullMQ repeating job (`tenant_grading_budgets:rollover`, non-AI) checks the `period_start` of each row. If a calendar month has passed, the job resets `used_usd=0`, updates `period_start` and clears `alerted_at`. Rollover is non-AI work, which `CLAUDE.md` rule #1 allows.
 
-**Rationale.** Pre-call enforcement matches Anthropic's own rate-limit surface (429); post-call accounting risks one-call overruns when a single Opus call costs more than the remaining budget. Per-tenant scoping matches the multi-tenant invariant. `numeric(10,2)` for cents-precision USD avoids float drift.
+**Rationale.** Pre-call enforcement matches the own rate-limit surface of Anthropic (429). Post-call accounting risks a one-call overrun when a single Opus call costs more than the remaining budget. Per-tenant scoping matches the multi-tenant invariant. `numeric(10,2)` for cents-precision USD avoids float drift.
 
 **Alternatives rejected.**
-- *Token-count budget instead of USD.* Tenants pay in USD; bills come in USD; surfacing tokens is implementation leakage.
-- *Hard-cap per-call instead of per-period.* A 10-second test scenario answer could legitimately need a $0.10 Opus call; a per-call hard cap chokes legitimate use.
+
+- *Token-count budget instead of USD.* Tenants pay in USD, and bills come in USD. Surfacing tokens is implementation leakage.
+- *Hard cap per call instead of per period.* A 10-second test scenario answer could legitimately need a $0.10 Opus call. A hard cap per call chokes legitimate use.
 - *Deduct from a shared global budget.* Violates per-tenant isolation.
 
 **Downstream impact.**
-- Phase 2 work adds the migration, the cron job, and the budget-check call site in `runtimes/anthropic-api.ts`. Out of scope for Phase 1.
-- Admin dashboard (module 10) gets a budget-status panel showing `(used_usd / monthly_budget_usd)` with the alert threshold.
+
+- Phase 2 work adds the migration, the cron job and the budget-check call site in `runtimes/anthropic-api.ts`. It is out of scope for Phase 1.
+- The admin dashboard (module 10) gets a budget-status panel that shows `(used_usd / monthly_budget_usd)` with the alert threshold.
 - The 13-notifications module gets a `budget_exhausted` template (Phase 2 work).
 
 #### D7 — Single-flight semantics for Phase 1 admin grading
 
-> **Update 2026-10-09 (RW-8): the in-process Map below is superseded by a Redis lease.** The text under it stays as history.
+> **Update 2026-10-09 (RW-8): a Redis lease supersedes the in-process Map below.** The text under it stays as history.
 >
 > - **What changed.** `modules/07-ai-grading/src/single-flight.ts` now takes one global Redis key, `aiq:ai:single-flight`, through the helpers in `modules/00-core/src/lock.ts` (`acquireLock` = `SET NX PX`, `refreshLock` and `releaseLock` = Lua compare-and-pexpire / compare-and-delete, `peekLock`). The value is `${key}|uuidv7`. The TTL is 120 s. A heartbeat refreshes the lease every 40 s. Grading AND generation share the one key, as they shared the old Map. `modules/00-core/src/redis.ts` now owns the single ioredis connection for each process (`01-auth/src/redis.ts` re-exports it).
 > - **Fail-closed (owner decision).** If Redis is unreachable, the call returns `503 AIG_LOCK_UNAVAILABLE`. There is no in-process fallback. `admin-generate` closes its attempt row when it gets this 503. Redis is now REQUIRED for AI grading and generation.
-> - **Why.** The Map held per process. Two API replicas, or an API restart overlap, could run two AI subprocesses at the same time. The compliance frame says one concurrent AI task.
+> - **Why.** The Map held state for each process. Two API replicas, or an overlap during an API restart, could run two AI subprocesses at the same time. The compliance frame says one concurrent AI task.
 > - **Rejected.** (1) A fixed long TTL: generation can last 90 s plus 240 s for each item, and a dead holder would then block AI for up to an hour. (2) An in-process fallback when Redis is down: two replicas could each run one subprocess.
-> - **Known limits (also in the `single-flight.ts` header; codex review).** (a) A lost lease (Redis down for more than 80 s during a run, then back) only writes a log line. The running subprocess is NOT killed. Upgrade path: pass an `AbortSignal` into the runtime. (b) The lock covers one AI operation. Sharded generation fans out inside one lease by design (2026-05-09 decision). (c) The rubric-draft and answer-guidance-draft calls in `modules/04-question-bank/src/service/generation.ts` (about lines 425 and 468) do not take the lock yet. This gap existed before RW-8.
+> - **Known limits (also in the `single-flight.ts` header; codex review).** (a) A lost lease (Redis down for more than 80 s during a run, then back) only writes a log line. The system does NOT kill the running subprocess. Upgrade path: pass an `AbortSignal` into the runtime. (b) The lock covers one AI operation. Sharded generation fans out inside one lease by design (2026-05-09 decision). (c) The rubric-draft and answer-guidance-draft calls in `modules/04-question-bank/src/service/generation.ts` (about lines 425 and 468) do not take the lock yet. This gap existed before RW-8.
 > - **Not included.** No abort of a running subprocess. No lock on the draft calls. No change to the "one click, one grade" rule or to D8.
 > - **Downstream impact.** `GET /api/ready` checks Redis (RW-9). A Redis outage now stops AI work and shows on the platform evaluation page. See `docs/06-deployment.md` section "Hardening S2 deploy (2026-10-09)".
 >
-> **Update (RW-63 and RW-64, S10, 2026-10-16): known limits (a) and (c) above are closed for generation.**
+> **Update (RW-63 and RW-64, S10, 2026-10-16): the team closed known limits (a) and (c) above for generation.**
 >
-> - **RW-63, lock on the draft calls.** The rubric draft, the answer-guidance draft and the bulk rubric draft in `modules/04-question-bank/src/service/generation.ts` now take the global lease through `withAiLock`. Keys: `rubric:<questionId>` and `guidance:<questionId>`. The bulk draft takes the lock for each question. When the lease is held, the call returns 409 `AIG_GRADING_IN_PROGRESS` and the runtime is not called. The `finally` block releases the lease. A 503 `AIG_LOCK_UNAVAILABLE` from acquire passes through unchanged.
-> - **RW-64, lease loss aborts the run.** The slot from `single-flight.ts` now has a `signal` (`AbortSignal`). It aborts when a refresh returns false (the key is gone or holds another value). It also aborts after 2 refresh errors or timeouts in a row. A refresh times out at 40 s, so the abort happens within 80 s, before the 120 s TTL ends. `runSkill` (`runtimes/claude-code-vps.ts`) rejects at once with `AIG_LEASE_LOST` if the signal is already aborted. Otherwise it sends SIGTERM, then SIGKILL after 5 s, and rejects when the child process emits `close`. The generation handler (`handlers/admin-generate.ts`) discards the results of finished chunks and ends the attempt as `failed` with `AIG_LEASE_LOST`. It writes no drafts. The draft calls above pass the same signal to the runtime.
-> - **Rejected.** Letting the run finish after a lost lease: a second AI task could then start while the first one still writes. Killing at the first failed refresh: one slow Redis call would kill a healthy run.
-> - **Gap (followup RW-95).** The grading handlers `admin-grade` and `admin-rerun` do not pass the signal yet. A lost lease during grading still only writes a log line. **Closed in S11, see "Lease loss during grading (RW-95, S11, 2026-10-16)" below.**
+> - **RW-63, lock on the draft calls.** The rubric draft, the answer-guidance draft and the bulk rubric draft in `modules/04-question-bank/src/service/generation.ts` now take the global lease through `withAiLock`. Keys: `rubric:<questionId>` and `guidance:<questionId>`. The bulk draft takes the lock for each question. When another caller holds the lease, the call returns 409 `AIG_GRADING_IN_PROGRESS` and does not call the runtime. The `finally` block releases the lease. A 503 `AIG_LOCK_UNAVAILABLE` from acquire passes through unchanged.
+> - **RW-64, lease loss aborts the run.** The slot from `single-flight.ts` now has a `signal` (`AbortSignal`). It aborts when a refresh returns false (the key is gone or holds another value). It also aborts after 2 refresh errors or timeouts in a row. A refresh times out at 40 s, so the abort happens within 80 s, before the 120 s TTL ends. If the signal is already aborted, `runSkill` (`runtimes/claude-code-vps.ts`) rejects at once with `AIG_LEASE_LOST`. Otherwise it sends SIGTERM, then SIGKILL after 5 s, and rejects when the child process emits `close`. The generation handler (`handlers/admin-generate.ts`) discards the results of finished chunks and ends the attempt as `failed` with `AIG_LEASE_LOST`. It writes no drafts. The draft calls above pass the same signal to the runtime.
+> - **Rejected.** Letting the run finish after a lost lease: a second AI task could then start while the first one still writes. Killing the run at the first failed refresh: one slow Redis call would kill a healthy run.
+> - **Gap (follow-up RW-95).** The grading handlers `admin-grade` and `admin-rerun` do not pass the signal yet. A lost lease during grading still only writes a log line. **Closed in S11, see "Lease loss during grading (RW-95, S11, 2026-10-16)" below.**
 > - **Not included.** The grading signal path. A change to the 120 s TTL or the 40 s refresh interval.
 
 ##### Lease loss during grading (RW-95, S11, 2026-10-16)
 
 *Type: explanation.*
 
-- **What changed.** `admin-grade.ts` and `admin-rerun.ts` (module 07 handlers) now pass `signal: slot.signal` into `gradeSubjective`. The loop over questions stops when the lease is lost. The handler then throws `AIG_LEASE_LOST` (HTTP 503). It does not cache proposals. The handler checks the lease again inside the write callback that stores `ai_proposals`, so a lease that is lost during the pause re-check (RW-7) cannot write either. Source: `modules/07-ai-grading/src/handlers/`. Test: `admin-grade-lease-lost.test.ts`.
+- **What changed.** `admin-grade.ts` and `admin-rerun.ts` (module 07 handlers) now pass `signal: slot.signal` into `gradeSubjective`. The loop over questions stops when the lease is lost. The handler then throws `AIG_LEASE_LOST` (HTTP 503). It does not cache proposals. The handler checks the lease again inside the write callback that stores `ai_proposals`. So a lease that is lost during the pause re-check (RW-7) cannot write either. Source: `modules/07-ai-grading/src/handlers/`. Test: `admin-grade-lease-lost.test.ts`.
 - **Why.** RW-64 closed the gap for generation only. During grading, a lost lease only wrote a log line. A second AI task could then start while the first one still ran and wrote proposals. The compliance frame allows one concurrent AI task.
-- **Why the marker is not cleared.** The handler does NOT clear `attempts.grading_started_at` on lease loss. Another holder may now own the marker, and a clear would hide its run from the page. When no other holder exists, the page applies its own 10-minute stall rule (see the proposals-cache note under D7) and the admin can click Grade all again.
-- **Rejected.** Per-question failed proposals cached (a partial result with an error entry per question): it adds a new proposal state that Accept and the review page must handle, and the partial data came from a run that lost its lock. Kept simple: the admin re-runs the whole attempt.
+- **Why the marker is not cleared.** The handler does NOT clear `attempts.grading_started_at` on lease loss. Another holder may now own the marker, and a clear would hide its run from the page. When no other holder exists, the page applies its own 10-minute stall rule (see the proposals-cache note under D7), and the admin can click Grade all again.
+- **Rejected.** Cached per-question failed proposals (a partial result with an error entry for each question). They add a new proposal state that Accept and the review page must handle, and the partial data came from a run that lost its lock. The design stays simple: the admin re-runs the whole attempt.
 - **Not included.** A `grading_jobs` table. Phase 1 has none (see "Phase 1 job state" under Decisions). No change to the 120 s TTL, the 40 s refresh or the abort rules of RW-64. No auto-retry.
 - **Downstream impact.** The API answers `503 AIG_LEASE_LOST` to the grade and re-run calls. The UI shows the normal error and the Grade all button. No schema change, no help key. `lint:ambient-ai` is unchanged.
 
-**Chosen.** Phase 1 grading enforces **at most one concurrent grading subprocess per API process**, gated by an in-process module-level mutex map keyed by `attempt_id`:
+**Chosen.** Phase 1 grading enforces **at most one concurrent grading subprocess for each API process**. An in-process module-level mutex map, keyed by `attempt_id`, gates it:
 
 ```ts
 // modules/07-ai-grading/handlers/admin-grade.ts (Phase 1)
@@ -1555,57 +1608,69 @@ export async function handleAdminGrade(req, attemptId) {
 ```
 
 **Behavior on conflict.**
-- Same admin clicks "Grade" on the same attempt twice while the first is mid-flight → second click returns 409 `grading_in_progress`. The panel UI also disables the button while the request is in flight (belt-and-suspenders).
-- Admin clicks "Grade" on a *different* attempt while the first is mid-flight → second click returns 409 with the same code. Panel surfaces "another grading is running" and the admin retries when the first completes.
-- No queueing, no merging, no auto-retry. The 409 is intentional UX — the admin sees that single-flight is enforced and learns the rhythm.
 
-**Multi-replica safety.** In Phase 1 the API runs as a single process (`assessiq-api` container, no horizontal scaling), so the in-process mutex is sufficient. If Phase 1 is ever scaled horizontally (it should not be — Phase 1 capacity is admin-time-bound, not request-bound), a Redis-backed `SETNX` mutex with TTL would be the upgrade path. Phase 2 sidesteps this entirely: the BullMQ queue's `concurrency: 1` for the grading queue achieves the same single-flight at the worker layer, and BullMQ's own job-level locking prevents double-claim.
+- The same admin clicks "Grade" on the same attempt twice while the first call is in flight → the second click returns 409 `grading_in_progress`. The panel UI also disables the button while the request is in flight (belt and suspenders).
+- The admin clicks "Grade" on a *different* attempt while the first call is in flight → the second click returns 409 with the same code. The panel shows "another grading is running", and the admin retries when the first call completes.
+- No queueing, no merging, no auto-retry. The 409 is intentional UX: the admin sees that single-flight is enforced and learns the rhythm.
 
-**Idempotency.** Combined with D3's idempotency key `(attempt_id, prompt_version_sha)`, a click on an already-graded attempt returns the existing `gradings` row without re-running.
+**Multi-replica safety.** In Phase 1 the API runs as a single process (`assessiq-api` container, no horizontal scaling), so the in-process mutex is sufficient. Suppose the team ever scales Phase 1 horizontally (it should not, because Phase 1 capacity is bound by admin time, not by requests). Then a Redis-backed `SETNX` mutex with TTL is the upgrade path. Phase 2 sidesteps this entirely. The BullMQ queue `concurrency: 1` for the grading queue achieves the same single-flight at the worker layer, and the own job-level locking of BullMQ prevents a double claim.
 
-**Rationale.** The compliance frame requires "one concurrent grading task per admin click" (table line 32 of this doc). In-process map is the simplest enforcement that holds in Phase 1 (single-replica) and degrades gracefully when Phase 2 takes over.
+**Idempotency.** Together with the D3 idempotency key `(attempt_id, prompt_version_sha)`, a click on an already-graded attempt returns the existing `gradings` row without a re-run.
+
+**Rationale.** The compliance frame requires "one concurrent grading task per admin click" (table line 32 of this doc). The in-process map is the simplest enforcement that holds in Phase 1 (single replica) and degrades gracefully when Phase 2 takes over.
 
 **Alternatives rejected.**
-- *Allow N parallel gradings up to a token-budget cap.* Violates the "one click, one grade, then accept" loop the compliance frame rests on.
-- *Queue subsequent clicks instead of 409.* Queueing is automation; the admin does not see what is happening; failure modes (for example "queue stuck while admin walked away") become invisible.
-- *Per-attempt mutex but allow cross-attempt parallelism.* Rejected for Phase 1 — Max-plan rate-limit windows are easier to manage with a single concurrent subprocess.
+
+- *Allow N parallel gradings up to a token-budget cap.* This violates the "one click, one grade, then accept" loop that the compliance frame rests on.
+- *Queue subsequent clicks instead of 409.* Queueing is automation. The admin does not see what is happening, and failure modes (for example "queue stuck while the admin walked away") become invisible.
+- *Per-attempt mutex but allow cross-attempt parallelism.* Rejected for Phase 1. Max-plan rate-limit windows are easier to manage with a single concurrent subprocess.
 
 **Downstream impact.**
-- The admin panel UI disables both "Grade" and "Re-run" buttons globally while any grading subprocess is alive (separate from the per-button click guard).
-- The `attempts.status` enum's `pending_admin_grading` state is the durable record of "no grading subprocess is alive but admin hasn't clicked yet"; the in-process mutex is the ephemeral record of "subprocess alive right now."
-- `00-core` does not need to expose the mutex — it lives entirely inside the 07-ai-grading handler module.
+
+- The admin panel UI disables both the "Grade" and "Re-run" buttons globally while any grading subprocess is alive (separate from the click guard of each button).
+- The `pending_admin_grading` state of the `attempts.status` enum is the durable record of "no grading subprocess is alive but the admin has not clicked yet". The in-process mutex is the ephemeral record of "a subprocess is alive right now."
+- `00-core` does not need to expose the mutex. It lives entirely inside the 07-ai-grading handler module.
 
 #### D8 — Anthropic ToS compliance frame (canonical statement)
 
-**Chosen.** The compliance-frame block above (§ "Phase 1 — Compliance frame") is the canonical, load-bearing argument that the entire Phase 1 architecture rests on. It must be cited verbatim in any change that touches Phase 1 grading code or its lint. The summary, repeated here for cross-reference:
+**Chosen.** The compliance-frame block above (§ "Phase 1 — Compliance frame") is the canonical, load-bearing argument that the entire Phase 1 architecture rests on. Cite it verbatim in any change that touches Phase 1 grading code or its lint. The summary, repeated here for cross-reference:
 
-> Anthropic's consumer ToS allows individual subscribers to script their own use of Claude Code — what it forbids is using Max-subscription auth to power a *product* serving other people. The Phase 1 architecture stays inside that line by enforcing: only the admin (a single human) ever triggers Claude Code; only while the admin is actively at the panel; no cron, scheduler, webhook, or candidate-triggered AI call; one concurrent grading task per admin click; admin must visually confirm or override every proposed grade before it is committed; every Claude Code invocation logged against the admin's identity.
+> The consumer ToS of Anthropic allows individual subscribers to script their own use of Claude Code. The ToS forbids the use of Max-subscription auth to power a *product* that serves other people. The Phase 1 architecture stays inside that line because it enforces these invariants:
 >
-> *If asked: "the admin uses their personal Anthropic Max subscription via Claude Code as a productivity tool to assist their grading work. AssessIQ does not call Anthropic APIs."*
+> - Only the admin (a single human) ever triggers Claude Code.
+> - Only while the admin is actively at the panel.
+> - No cron, scheduler, webhook, or candidate-triggered AI call.
+> - One concurrent grading task per admin click.
+> - The admin must visually confirm or override every proposed grade before it is committed.
+> - Every Claude Code invocation is logged against the identity of the admin.
+>
+> *If someone asks, say: "the admin uses their personal Anthropic Max subscription via Claude Code as a productivity tool to assist their grading work. AssessIQ does not call Anthropic APIs."*
 
 **What this means for the lint, runtime, and eval harness.**
 - The lint (D2) is the source-static enforcement of "no cron, scheduler, webhook, or candidate-triggered AI call."
 - The runtime (`runtimes/claude-code-vps.ts`) is the runtime enforcement of "only while admin is actively at the panel" (heartbeat) and "one concurrent grading task per admin click" (D7 mutex).
-- The eval harness (D5) runs only on admin-initiated invocation; CI does not run it in Phase 1 because CI has no Max OAuth.
+- The eval harness (D5) runs only on an invocation that the admin starts. CI does not run it in Phase 1, because CI has no Max OAuth.
 - The `gradings`-row writer (`handleAdminAccept`) is the runtime enforcement of "admin must visually confirm or override every proposed grade before it is committed."
-- **Accept-all + completion-gate (2026-05-28, commit `defb9f9`).** The admin dashboard now exposes a single **Accept all** button that posts every fresh proposal in one body. This stays inside the compliance frame: (a) the proposals are rendered in the per-question panels FIRST — the admin can see every band, justification, and any flagged failures BEFORE clicking; (b) Accept-all FILTERS OUT AI-failures (`model="none"` OR `prompt_version_sha="error:no-sha"` OR `band.error_class` matching `/^AIG_/` including new `AIG_STAGE1_DEGRADED`) so a runtime failure can never silently auto-commit a score-0 row; the admin must explicitly Re-run or Override each such question; (c) `attempts.status='graded'` AND the billing-events `recordGradedAttempt` call fire ONLY when EVERY AI-gradeable question has a non-overridden gradings row (subquery gate in `acceptProposals`), so a partial accept-all run keeps the attempt at `pending_admin_grading` and does NOT bill. Net: one click can commit N proposals, but each one was a deliberate review by the admin (the UI rendered them), and a true completion event is what bills.
+- **Accept-all + completion-gate (2026-05-28, commit `defb9f9`).** The admin dashboard now exposes a single **Accept all** button that posts every fresh proposal in one body. This stays inside the compliance frame for three reasons. (a) The per-question panels render the proposals FIRST. The admin can see every band, justification and any flagged failures BEFORE the click. (b) Accept-all FILTERS OUT AI failures (`model="none"` OR `prompt_version_sha="error:no-sha"` OR `band.error_class` that matches `/^AIG_/`, including the new `AIG_STAGE1_DEGRADED`). So a runtime failure can never silently auto-commit a score-0 row. The admin must explicitly Re-run or Override each such question. (c) `attempts.status='graded'` AND the billing-events `recordGradedAttempt` call fire ONLY when EVERY AI-gradeable question has a non-overridden gradings row (subquery gate in `acceptProposals`). So a partial accept-all run keeps the attempt at `pending_admin_grading` and does NOT bill. Net: one click can commit N proposals, but the admin deliberately reviewed each one (the UI rendered them), and a true completion event is what bills.
 
-- **Proposals cache + navigate-away robustness (2026-05-29, commit `96b71a6`).** Operator-observed after the `defb9f9` deploy: Grade-all ran fine server-side (`grading.proposal.batch` fired with 3/3 proposals in 229s) but the synchronous POST response NEVER reached the browser. Root cause: Cloudflare's free-plan edge timeout (~100s) was killing the 4-minute synchronous HTTP response — server kept computing, proposals went into memory, response was dropped, FE state never received them. The whole sync-grade flow was structurally incompatible with internet HTTP infrastructure. **Fix** is a review cache: migration 0100 adds `attempts.ai_proposals JSONB` + `attempts.grading_started_at TIMESTAMPTZ`. `handleAdminGrade` marks the row in-flight on entry, writes proposals + nulls the marker at batch completion, catches any thrown error to null the marker (defensive). The GET `/admin/attempts/:id` endpoint returns both fields. FE auto-polls every 15s while the marker is set and hydrates `proposals` state from the cache when it appears, so the admin can click Grade-all, navigate away to another attempt, come back, and find the proposals waiting. `acceptProposals` clears the cache in the same transaction as the gate-flip (so cache only exists between Grade-all and the successful Accept-all). **Compliance frame UNCHANGED:** the cache is review-state, not gradings. `insertGrading` is still only called from `admin-accept.ts` and `admin-override.ts` — both are admin-click-gated. No async worker, no cron, no candidate trigger. The AI call still runs synchronously inside the admin's request handler; the cache just makes the OUTPUT durable so a proxy timeout cannot lose it. Stale-marker recovery: FE treats `grading_started_at > 10 min` as stalled (likely API container SIGKILL mid-batch — the catch-block clear never ran), re-enables Grade-all (the backend single-flight is fresh after a restart so the new click WILL overwrite the stale marker), caps polling at 12 min. Scaling note: cache payload scales with question count × proposal size; typical 3-question batch is ~15KB, 50-question pack would be ~250KB — revisit if pack sizes grow.
-- The audit hook (`PostToolUse → /var/log/assessiq/grading-audit.jsonl`) is the runtime enforcement of "every Claude Code invocation logged against the admin's identity."
+- **Proposals cache + navigate-away robustness (2026-05-29, commit `96b71a6`).** The operator observed a problem after the `defb9f9` deploy. Grade-all ran fine server-side (`grading.proposal.batch` fired with 3/3 proposals in 229s), but the synchronous POST response NEVER reached the browser. Root cause: the Cloudflare free-plan edge timeout (~100s) killed the 4-minute synchronous HTTP response. The server kept computing, the proposals went into memory, the response was dropped, and the FE state never received them. The whole sync-grade flow was structurally incompatible with internet HTTP infrastructure. **Fix:** a review cache. Migration 0100 adds `attempts.ai_proposals JSONB` + `attempts.grading_started_at TIMESTAMPTZ`. `handleAdminGrade` marks the row in-flight on entry, writes the proposals and nulls the marker at batch completion, and catches any thrown error to null the marker (defensive). The GET `/admin/attempts/:id` endpoint returns both fields. The FE auto-polls every 15s while the marker is set and hydrates the `proposals` state from the cache when it appears. So the admin can click Grade-all, navigate away to another attempt, come back, and find the proposals waiting. `acceptProposals` clears the cache in the same transaction as the gate flip, so the cache exists only between Grade-all and the successful Accept-all. **Compliance frame UNCHANGED:** the cache is review state, not gradings. `insertGrading` is still called only from `admin-accept.ts` and `admin-override.ts`, and both need an admin click. There is no async worker, no cron and no candidate trigger. The AI call still runs synchronously inside the request handler of the admin. The cache only makes the OUTPUT durable, so a proxy timeout cannot lose it. Stale-marker recovery: the FE treats `grading_started_at > 10 min` as stalled (likely an API container SIGKILL during the batch, so the catch-block clear never ran). It re-enables Grade-all (the backend single-flight is fresh after a restart, so the new click WILL overwrite the stale marker) and caps polling at 12 min. Scaling note: the cache payload scales with question count × proposal size. A typical 3-question batch is ~15KB, and a 50-question pack would be ~250KB. Revisit if pack sizes grow.
+- The audit hook (`PostToolUse → /var/log/assessiq/grading-audit.jsonl`) is the runtime enforcement of "every Claude Code invocation logged against the identity of the admin."
 
-**Why pinning this matters.** A future "small refactor" — say, "move grading into a BullMQ worker for cleaner separation," "add an auto-retry on transient failures," "let the candidate trigger Stage 1 to surface progress" — can each individually look reasonable in isolation but each one breaks a different leg of the compliance frame. Documenting the frame as a numbered, citeable decision (this section) makes it impossible for a future session to undermine it accidentally; any such refactor must propose moving to `AI_PIPELINE_MODE=anthropic-api` first, with a paid `ANTHROPIC_API_KEY` and the budget enforcement of D6.
+**Why pinning this matters.** A future "small refactor" can look reasonable in isolation, but it breaks a different leg of the compliance frame. Examples are "move grading into a BullMQ worker for cleaner separation", "add an auto-retry on transient failures" and "let the candidate trigger Stage 1 to show progress". This section documents the frame as a numbered decision that people can cite. So a future session cannot undermine it accidentally. Any such refactor must propose a move to `AI_PIPELINE_MODE=anthropic-api` first, with a paid `ANTHROPIC_API_KEY` and the budget enforcement of D6.
 
-**Rationale.** Without this frame, Phase 1's $0-API-budget design has no compliance argument; with it, the architecture is defensible. Codifying it as a decision makes it a hard rule, not a vibe.
+**Rationale.** Without this frame, the $0-API-budget design of Phase 1 has no compliance argument. With it, the architecture is defensible. When the team codifies it as a decision, it becomes a hard rule, not a vibe.
 
 **Alternatives rejected.**
-- *Just rely on `CLAUDE.md` rule #1.* Rule #1 is a one-line summary; this section is the substrate that makes the rule defensible. Both stay (rule #1 is the developer-facing pointer; this section is the project-level rationale).
-- *Use Claude Code on the admin's laptop instead of the VPS.* Rejected at project start — VPS centralizes the audit log, the OAuth token, and the "admin-at-panel" posture in one execution surface.
+
+- *Rely on `CLAUDE.md` rule #1 only.* Rule #1 is a one-line summary. This section is the substrate that makes the rule defensible. Both stay (rule #1 is the developer-facing pointer, and this section is the rationale at project level).
+- *Use Claude Code on the laptop of the admin instead of the VPS.* We rejected it at project start. The VPS centralizes the audit log, the OAuth token and the "admin-at-panel" posture in one execution surface.
 
 **Downstream impact.**
-- `CLAUDE.md` rule #1 already references this doc; no edit required.
-- `PROJECT_BRAIN.md` decision-log 2026-04-29 entry is consistent with this section; no edit required.
-- A future Phase-2 swap to `AI_PIPELINE_MODE=anthropic-api` makes the Max-OAuth ToS argument moot for that mode (the API is paid-for use), but the lint stays in place because Phase 1 may still run alongside Phase 2 on the same box for tenants who have not migrated.
+
+- `CLAUDE.md` rule #1 already references this doc, so it needs no edit.
+- The `PROJECT_BRAIN.md` decision-log entry of 2026-04-29 is consistent with this section, so it needs no edit.
+- A future Phase-2 swap to `AI_PIPELINE_MODE=anthropic-api` makes the Max-OAuth ToS argument moot for that mode (the API is paid-for use). But the lint stays in place, because Phase 1 may still run alongside Phase 2 on the same box for tenants who have not migrated.
 
 #### Carry-forwards (out of this session's scope, but flagged)
 
-- **`docs/01-architecture-overview.md` lines ~30–80** still describe a BullMQ "grading queue" + "Grading Worker — Claude Agent SDK" subscribing to the queue. That diagram is the pre-2026-04-29 architecture and is now stale per the decision-log entry in `PROJECT_BRAIN.md`. A future session cleaning up `01-architecture-overview.md` should redraw the application-layer diagram around the sync-on-click flow above and demote the BullMQ box to non-AI work only. Not fixed in this PR — Window D scope is the AI-pipeline contract, not the architecture-overview rewrite.
+- **`docs/01-architecture-overview.md` lines ~30–80** still describe a BullMQ "grading queue" and a "Grading Worker — Claude Agent SDK" that subscribes to the queue. That diagram is the architecture from before 2026-04-29, and the decision-log entry in `PROJECT_BRAIN.md` now makes it stale. A future session that cleans up `01-architecture-overview.md` should redraw the application-layer diagram around the sync-on-click flow above and demote the BullMQ box to non-AI work only. This PR does not fix it. The scope of Window D is the AI-pipeline contract, not the rewrite of the architecture overview.
