@@ -29,6 +29,14 @@ export const updatePlanBody = z.object({
     .number({ invalid_type_error: 'includedCredits must be a number or null' })
     .nullable()
     .optional(),
+  // PT-4: contract override of AI answers included; null clears it.
+  aiAnswersIncludedOverride: z
+    .number({ invalid_type_error: 'aiAnswersIncludedOverride must be a number or null' })
+    .int('aiAnswersIncludedOverride must be a whole number')
+    .min(0, 'aiAnswersIncludedOverride must be 0 or more')
+    .max(1_000_000, 'aiAnswersIncludedOverride must be 1000000 or less')
+    .nullable()
+    .optional(),
 });
 
 // ---- admin-super domains -----------------------------------------
@@ -56,6 +64,7 @@ export const setAiModeBody = z.object({
     { message: 'mode must be "omnibus", "sharded", or null' },
   ),
 });
+export const setAiGradingScopeBody = z.object({ scope: z.enum(['written', 'none']) });
 export const renameTenantBody = z.object({
   name: requiredString('name is required', {
     code: 'MISSING_NAME',

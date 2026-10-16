@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { ValidationError, UUID_RE } from '@assessiq/core';
 import { apiKeys } from '@assessiq/auth';
 import { authChain } from '../../middleware/auth-chain.js';
+import { requireTier } from '../../middleware/require-tier.js';
 
 // API key admin endpoints — list / create / revoke. Library owns the storage
 // + sha256 hashing + system-role lookup. Plaintext key returned ONCE on POST.
@@ -46,7 +47,7 @@ export async function registerApiKeysRoutes(app: FastifyInstance): Promise<void>
     '/api/admin/api-keys',
     {
       config: { skipAuth: true },
-      preHandler: authChain({ roles: ['admin'] }),
+      preHandler: [...authChain({ roles: ['admin'] }), requireTier('api_keys')],
     },
     async (req) => {
       const sess = req.session!;
@@ -61,7 +62,7 @@ export async function registerApiKeysRoutes(app: FastifyInstance): Promise<void>
     {
       config: { skipAuth: true },
       schema: { body: createBodySchema },
-      preHandler: authChain({ roles: ['admin'], freshMfaWithinMinutes: FRESH_MFA_MINUTES }),
+      preHandler: [...authChain({ roles: ['admin'], freshMfaWithinMinutes: FRESH_MFA_MINUTES }), requireTier('api_keys')],
     },
     async (req, reply) => {
       const sess = req.session!;

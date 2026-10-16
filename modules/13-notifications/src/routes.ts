@@ -45,6 +45,8 @@ export interface RegisterNotificationsRoutesOptions {
   adminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
   /** Z-3: candidate-only chain; when absent the /api/me/notifications routes are not registered. */
   candidateOnly?: preHandlerHookHandler[] | preHandlerHookHandler;
+  /** PT1: appended after adminOnly on /api/admin/webhook* routes (plan-tier gate injected by apps/api). */
+  webhooksGuard?: preHandlerHookHandler;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +90,9 @@ export async function registerNotificationsRoutes(
 ): Promise<void> {
   const { adminOnly } = opts;
   const adminChain = Array.isArray(adminOnly) ? adminOnly : [adminOnly];
+  // PT1: optional plan-tier guard, webhook routes only (not in-app notifications).
+  // Removal (DELETE /api/admin/webhooks/:id) stays on adminChain: a downgraded tenant can still remove a webhook.
+  const webhooksChain = opts.webhooksGuard ? [...adminChain, opts.webhooksGuard] : adminChain;
 
   // ──────────────────────────────────────────────────────────────────────────
   // Webhook endpoints CRUD
@@ -103,7 +108,7 @@ export async function registerNotificationsRoutes(
   }
 
   /** GET /api/admin/webhooks — list all webhook endpoints for the tenant */
-  app.get('/api/admin/webhooks', { preHandler: adminChain }, async (req: FastifyRequest) => {
+  app.get('/api/admin/webhooks', { preHandler: webhooksChain }, async (req: FastifyRequest) => {
     const tenantId = getTenantId(req);
     const endpoints = await webhookService.listWebhookEndpoints(tenantId);
     return { items: endpoints };
@@ -115,7 +120,7 @@ export async function registerNotificationsRoutes(
    * must come from a request with fresh MFA (within 5 minutes).
    * Returns plaintext secret ONCE — never again.
    */
-  app.post('/api/admin/webhooks', { preHandler: adminChain }, async (req: FastifyRequest, reply: FastifyReply) => {
+  app.post('/api/admin/webhooks', { preHandler: webhooksChain }, async (req: FastifyRequest, reply: FastifyReply) => {
     const tenantId = getTenantId(req);
     const userId = (req as AiqReq).session?.userId;
 
@@ -186,7 +191,7 @@ export async function registerNotificationsRoutes(
   });
 
   /** POST /api/admin/webhooks/:id/test — send a synthetic test event */
-  app.post('/api/admin/webhooks/:id/test', { preHandler: adminChain }, async (req: FastifyRequest) => {
+  app.post('/api/admin/webhooks/:id/test', { preHandler: webhooksChain }, async (req: FastifyRequest) => {
     const tenantId = getTenantId(req);
     const { id } = req.params as { id: string };
 
@@ -199,7 +204,7 @@ export async function registerNotificationsRoutes(
   // ──────────────────────────────────────────────────────────────────────────
 
   /** GET /api/admin/webhooks/deliveries — list delivery history (with optional filter) */
-  app.get('/api/admin/webhooks/deliveries', { preHandler: adminChain }, async (req: FastifyRequest) => {
+  app.get('/api/admin/webhooks/deliveries', { preHandler: webhooksChain }, async (req: FastifyRequest) => {
     const tenantId = getTenantId(req);
 
     const queryParsed = ListDeliveriesQuerySchema.safeParse(req.query);
@@ -218,7 +223,7 @@ export async function registerNotificationsRoutes(
   });
 
   /** GET /api/admin/webhook-failures — convenience alias for failed deliveries */
-  app.get('/api/admin/webhook-failures', { preHandler: adminChain }, async (req: FastifyRequest) => {
+  app.get('/api/admin/webhook-failures', { preHandler: webhooksChain }, async (req: FastifyRequest) => {
     const tenantId = getTenantId(req);
 
     const queryParsed = ListDeliveriesQuerySchema.safeParse(req.query);
@@ -232,7 +237,7 @@ export async function registerNotificationsRoutes(
   });
 
   /** POST /api/admin/webhooks/deliveries/:id/replay — replay (append-only) */
-  app.post('/api/admin/webhooks/deliveries/:id/replay', { preHandler: adminChain }, async (req: FastifyRequest) => {
+  app.post('/api/admin/webhooks/deliveries/:id/replay', { preHandler: webhooksChain }, async (req: FastifyRequest) => {
     const tenantId = getTenantId(req);
     const userId = (req as AiqReq).session?.userId;
     const { id } = req.params as { id: string };
@@ -242,7 +247,7 @@ export async function registerNotificationsRoutes(
   });
 
   /** POST /api/admin/webhook-failures/:id/retry — convenience alias for replay */
-  app.post('/api/admin/webhook-failures/:id/retry', { preHandler: adminChain }, async (req: FastifyRequest) => {
+  app.post('/api/admin/webhook-failures/:id/retry', { preHandler: webhooksChain }, async (req: FastifyRequest) => {
     const tenantId = getTenantId(req);
     const userId = (req as AiqReq).session?.userId;
     const { id } = req.params as { id: string };

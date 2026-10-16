@@ -167,3 +167,36 @@ The billing export now prefixes a cell that starts with `= + - @` with `'` (one 
 **What changed.** `countBillingEvents` (and the system-role twin) returns `{ used, ai_used, cycle_window_start }` counted inside the current monthly window; `getAllTenantUsageRaw` does the same per tenant. `insertAiAnswerEvent` writes `event_type = 'ai_answer_evaluated'` rows keyed by (tenant, attempt, question). Migration `0160` (schema in `docs/02-data-model.md`). `BillingUsage`, `TenantUsageRow`, `TenantBillingDetail` carry the new fields; the plan card (`billing.tsx`) and the super-admin drawer show "AI-evaluated answers used / included" and "Counting since".
 
 **Why.** Owner decisions 2026-10-03 (PT1): monthly credits, a second meter for AI evaluation. **Rejected:** rolling `cycle_start` with an UPDATE (no app-role policy; derived value is equivalent); a per-tenant `included_ai_answers` column (tier contents live in the pricing doc; contract overrides are FU-A7). **Not included:** hard caps, overage pricing, the `pending_admin_grading` rename. **Downstream:** 07 `admin-accept.ts` imports `recordAiAnswerEvaluated` (the only call site); `billing-events.test.ts` covers idempotency + window; `compute-usage.test.ts` covers `cycleWindowStart`. The pre-existing Docker probe race (`docker info` 5 s timeout when 5 test files start together) still skips the DB files when the whole package runs at once; run them one file at a time locally.
+
+## Plan tier limits and gates (PT1, PT-4, S14, 2026-10-16)
+
+**What.**
+- `TIER_LIMITS` in `src/service.ts`: free has 2 licensed packs, 200 candidates for each drive, and an overage hard cap of 120 % (`overage_hard_cap_ratio` 1.2). Other tiers have `null` (no limit).
+- Feature `cohort_analytics_full` is included from the pro tier.
+- Assert helpers: `assertTierAllows(tenantId, feature)`, `assertTierLimit(tenantId, kind, current)`, `assertCreditsUnderHardCap(tenantId)`. Reads: `getTierLimits`, `tierDenial`. A denied call returns 403 with `TIER_NOT_INCLUDED`, `TIER_LIMIT_REACHED` or `CREDITS_HARD_CAP` (`details { code, tier, feature?, limit?, current? }`).
+- `PLAN_TIERS_ENFORCED` (00-core config, default false, `.env.example`). While false, every assert is a no-op and `getUsage` reports `tiers_enforced: false`. `getUsage` adds `tier_limits` and `tiers_enforced`.
+- Override column (migration `0186`): `tenant_plans.ai_answers_included_override INT NULL CHECK (>= 0)`. The AI answers included value is `ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier]`. `PATCH /api/admin/super/tenants/:id/plan` accepts `aiAnswersIncludedOverride` (400 `INVALID_AI_ANSWERS_OVERRIDE`). The super list `getAllTenantUsage` still shows the tier default.
+
+**Gated routes.**
+- Certificates admin routes (module 18, composed in `server.ts`).
+- `/api/admin/webhook*` (module 13, option `webhooksGuard`).
+- Audit routes (module 14, the `adminOnly` array).
+- Cohort breakdown (module 15, option `fullReportGuard`).
+- `GET` and `POST` of api-keys. `DELETE` stays open, so a downgraded organisation can revoke keys.
+- `embed-admin` and embed secrets.
+- Entitlement grant (pack cap; a re-grant of an active scope is not counted).
+- Bulk import and single invite with `assessment_id` (hard cap first, then the per-drive cap; the count includes revoked invitations).
+
+**Owner gate to flip the flag.** Flip `PLAN_TIERS_ENFORCED` only after you confirm that no current organisation is blocked. Run this query, and check webhooks, API keys and embed secrets for free-tier organisations:
+
+```sql
+SELECT p.tenant_id, count(e.*) FILTER (WHERE e.status='active') AS packs
+FROM tenant_plans p LEFT JOIN tenant_entitlements e USING (tenant_id)
+WHERE p.tier='free' GROUP BY 1;
+```
+
+**Why.** The tier table existed, but no route used `tierAllows`. The flag lets the owner turn the gates on after the check.
+
+**Not included.** Payment flow. Per-tenant limit overrides other than the AI answers override.
+
+**Downstream impact.** Billing page "Plan limits" block: `docs/08-ui-system.md`. Env flag: `docs/06-deployment.md`. Gate wording: `docs/03-api-contract.md`.

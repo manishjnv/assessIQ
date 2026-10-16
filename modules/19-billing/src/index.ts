@@ -8,6 +8,7 @@ export type {
   TenantPlanRow,
   UsageStatus,
   BillingUsage,
+  TierLimitsView,
   // A2 types
   TenantUsageRow,
   TenantBillingDetail,
@@ -50,6 +51,13 @@ export {
   // FU-A3 exports
   tierAllows,
   TIER_DISPLAY_NAMES,
+  // PT1 / PT-4 exports
+  TIER_LIMITS,
+  tierDenial,
+  assertTierAllows,
+  assertTierLimit,
+  assertCreditsUnderHardCap,
+  getTierLimits,
 } from './service.js';
 
 export type { TierFeature } from './service.js';

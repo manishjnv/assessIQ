@@ -3,6 +3,7 @@ import { config, RateLimitError, ValidationError } from '@assessiq/core';
 import { consumeRateLimit, extractClientIp, isRateLimited } from '@assessiq/auth';
 import { inviteUser, acceptInvitation } from '@assessiq/users';
 import { authChain } from '../middleware/auth-chain.js';
+import { assertInviteWithinTier } from '../middleware/require-tier.js';
 
 // Admin gate: full @assessiq/auth chain. Replaces the pre-W4 dev-auth shim.
 const adminOnly = authChain({ roles: ['admin'] });
@@ -45,6 +46,11 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
         role: 'admin' | 'candidate';
         assessmentIds?: string[];
       };
+
+      // PT-4: Starter credit hard cap + candidates-per-drive cap (no-op until PLAN_TIERS_ENFORCED).
+      for (const assessmentId of body.assessmentIds ?? []) {
+        await assertInviteWithinTier(tenantId, assessmentId, 1);
+      }
 
       // Conditional spread to satisfy exactOptionalPropertyTypes.
       const input: import('@assessiq/users').InviteUserInput = {

@@ -140,7 +140,7 @@ export async function getPlan(
   tenantId: string,
 ): Promise<TenantPlanRow | null> {
   const result = await client.query<TenantPlanRow>(
-    `SELECT tier, included_credits, status FROM tenant_plans WHERE tenant_id = $1`,
+    `SELECT tier, included_credits, status, ai_answers_included_override FROM tenant_plans WHERE tenant_id = $1`,
     [tenantId],
   );
   return result.rows[0] ?? null;
@@ -190,15 +190,16 @@ export async function getTenantPlanRow(
   client: PoolClient,
   tenantId: string,
   forUpdate = false,
-): Promise<{ tier: string; included_credits: number | null; status: string; cycle_start: Date } | null> {
+): Promise<{ tier: string; included_credits: number | null; status: string; cycle_start: Date; ai_answers_included_override: number | null } | null> {
   const lockClause = forUpdate ? ' FOR UPDATE' : '';
   const result = await client.query<{
     tier: string;
     included_credits: number | null;
     status: string;
     cycle_start: Date;
+    ai_answers_included_override: number | null;
   }>(
-    `SELECT tier, included_credits, status, cycle_start
+    `SELECT tier, included_credits, status, cycle_start, ai_answers_included_override
      FROM tenant_plans WHERE tenant_id = $1${lockClause}`,
     [tenantId],
   );
@@ -541,13 +542,14 @@ export async function updateTenantPlanRow(
   tenantId: string,
   tier: string,
   includedCredits: number | null,
+  aiAnswersOverride: number | null,
 ): Promise<{ updated_at: Date }> {
   const result = await client.query<{ updated_at: Date }>(
     `UPDATE tenant_plans
-     SET tier = $2, included_credits = $3, updated_at = now()
+     SET tier = $2, included_credits = $3, ai_answers_included_override = $4, updated_at = now()
      WHERE tenant_id = $1
      RETURNING updated_at`,
-    [tenantId, tier, includedCredits],
+    [tenantId, tier, includedCredits, aiAnswersOverride],
   );
   // Caller has already verified the row exists with FOR UPDATE, so this
   // should always return a row. Propagate if not.

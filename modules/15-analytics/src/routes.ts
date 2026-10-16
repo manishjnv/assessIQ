@@ -72,6 +72,8 @@ export interface RegisterAnalyticsRoutesOptions {
    * could be used to mask data-staleness in reports — restrict to platform ops.
    */
   superAdminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
+  /** PT1: appended after adminOnly on the full cohort breakdown route (plan-tier gate injected by apps/api). */
+  fullReportGuard?: preHandlerHookHandler;
   /** Candidate-gated preHandler — authChain({ roles: ['candidate'] }) from apps/api. */
   candidateOnly: preHandlerHookHandler[] | preHandlerHookHandler;
 }
@@ -368,7 +370,7 @@ export async function registerAnalyticsRoutes(
   // -------------------------------------------------------------------------
   app.get(
     '/api/admin/reports/cohort/:assessmentId/breakdown',
-    { preHandler },
+    { preHandler: opts.fullReportGuard ? [...preHandler, opts.fullReportGuard] : preHandler },
     async (req, reply) => {
       const { assessmentId } = req.params as { assessmentId: string };
       if (!/^[0-9a-f-]{36}$/i.test(assessmentId)) {

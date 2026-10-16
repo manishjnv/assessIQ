@@ -5,7 +5,7 @@
 
 import type { PoolClient } from 'pg';
 import { withTenant, withSystemRole } from '@assessiq/tenancy';
-import { streamLogger, NotFoundError, ValidationError, AppError } from '@assessiq/core';
+import { streamLogger, NotFoundError, ValidationError, AppError, config } from '@assessiq/core';
 import { auditInTx } from '@assessiq/audit-log';
 import {
   insertBillingEvent,
@@ -204,9 +204,11 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
       used,
     );
 
-    const aiIncluded = TIER_AI_ANSWERS_INCLUDED[tier];
+    const aiIncluded = plan?.ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier];
     return {
       tier,
+      tier_limits: TIER_LIMITS[tier],
+      tiers_enforced: config.PLAN_TIERS_ENFORCED,
       included_credits: includedCredits,
       used,
       remaining,
@@ -294,7 +296,7 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
       overage,
       usage_status: status,
       ai_answers_used: meters.ai_used,
-      ai_answers_included: TIER_AI_ANSWERS_INCLUDED[tier],
+      ai_answers_included: plan.ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier],
       recent_events: recentEvents,
     };
   });
@@ -729,6 +731,7 @@ export type TierFeature =
   | 'api_keys'
   | 'embed'
   | 'audit_viewer'
+  | 'cohort_analytics_full'
   | 'own_email_sender';
 
 const TIER_RANK: Record<PlanTier, number> = { free: 0, pro: 1, enterprise: 2, internal: 3 };
@@ -739,6 +742,7 @@ const FEATURE_MIN_TIER: Record<TierFeature, PlanTier> = {
   api_keys: 'enterprise',
   embed: 'enterprise',
   audit_viewer: 'enterprise',
+  cohort_analytics_full: 'pro',
   own_email_sender: 'enterprise',
 };
 
@@ -757,6 +761,93 @@ export async function tierAllows(tenantId: string, feature: TierFeature): Promis
   const tier = tierRaw as PlanTier;
   if (tier === 'internal') return true;
   return TIER_RANK[tier] >= TIER_RANK[FEATURE_MIN_TIER[feature]];
+}
+
+// ---------------------------------------------------------------------------
+// PT1 / PT-4 — plan-tier gates and limits (docs/plans/PRICING_TIERS_2026-10-06.md)
+//
+// Everything below is a no-op while PLAN_TIERS_ENFORCED is false (default).
+// Credits are NOT gated inside the grade transaction (billing there must never
+// block completion); the hard cap is checked at invite time instead.
+// ---------------------------------------------------------------------------
+
+/** Per-tier limits. null = no limit. pro/enterprise/internal are uncapped. */
+export const TIER_LIMITS: Record<
+  PlanTier,
+  { licensed_packs: number | null; per_drive_candidates: number | null; overage_hard_cap_ratio: number | null }
+> = {
+  free: { licensed_packs: 2, per_drive_candidates: 200, overage_hard_cap_ratio: 1.2 },
+  pro: { licensed_packs: null, per_drive_candidates: null, overage_hard_cap_ratio: null },
+  enterprise: { licensed_packs: null, per_drive_candidates: null, overage_hard_cap_ratio: null },
+  internal: { licensed_packs: null, per_drive_candidates: null, overage_hard_cap_ratio: null },
+};
+
+export type TierDenialCode = 'TIER_NOT_INCLUDED' | 'TIER_LIMIT_REACHED' | 'CREDITS_HARD_CAP';
+
+/** 403 for a tier gate or limit; `details.code` mirrors the error code. */
+export function tierDenial(
+  message: string,
+  code: TierDenialCode,
+  details: { tier: PlanTier | null; feature?: string; limit?: number; current?: number },
+): AppError {
+  return new AppError(message, code, 403, { details: { code, ...details } });
+}
+
+async function readTier(tenantId: string): Promise<PlanTier | null> {
+  const raw = await withTenant(tenantId, (c) => getTenantTier(c, tenantId));
+  return raw === null ? null : (raw as PlanTier);
+}
+
+/** Throw TIER_NOT_INCLUDED when the tenant's tier lacks `feature`. No-op when not enforced. */
+export async function assertTierAllows(tenantId: string, feature: TierFeature): Promise<void> {
+  if (!config.PLAN_TIERS_ENFORCED) return;
+  if (await tierAllows(tenantId, feature)) return;
+  throw tierDenial(
+    `Your plan does not include this feature (${feature}). Contact your platform operator to upgrade.`,
+    'TIER_NOT_INCLUDED',
+    { tier: await readTier(tenantId), feature },
+  );
+}
+
+/** Throw TIER_LIMIT_REACHED when `current` has reached the tier limit. No-op when off or unlimited. */
+export async function assertTierLimit(
+  tenantId: string,
+  kind: 'licensed_packs' | 'per_drive_candidates',
+  current: number,
+): Promise<void> {
+  if (!config.PLAN_TIERS_ENFORCED) return;
+  const tier = (await readTier(tenantId)) ?? 'free'; // missing plan row = free, same fallback as getUsage
+  const limit = TIER_LIMITS[tier][kind];
+  if (limit === null || current < limit) return;
+  throw tierDenial(
+    `Your plan allows at most ${limit} for ${kind.replace(/_/g, ' ')}. Contact your platform operator to upgrade.`,
+    'TIER_LIMIT_REACHED',
+    { tier, feature: kind, limit, current },
+  );
+}
+
+/** Throw CREDITS_HARD_CAP when used >= included * ratio (Starter: 120 %). No-op when off or uncapped. */
+export async function assertCreditsUnderHardCap(tenantId: string): Promise<void> {
+  if (!config.PLAN_TIERS_ENFORCED) return;
+  const { tier, included_credits, used } = await getUsage(tenantId);
+  const ratio = TIER_LIMITS[tier].overage_hard_cap_ratio;
+  // included <= 0 (incl. the missing-plan fallback) is not a cap: 120 % of nothing must not read as "limit reached".
+  if (ratio === null || included_credits === null || included_credits <= 0) return;
+  const cap = included_credits * ratio;
+  if (used < cap) return;
+  throw tierDenial(
+    'Your plan has reached its credit limit. Contact your platform operator to upgrade or add credits.',
+    'CREDITS_HARD_CAP',
+    { tier, limit: Math.floor(cap), current: used },
+  );
+}
+
+/** Tier, its limits and whether they are enforced (read-only helper for callers). */
+export async function getTierLimits(
+  tenantId: string,
+): Promise<{ tier: PlanTier | null; limits: (typeof TIER_LIMITS)[PlanTier] | null; enforced: boolean }> {
+  const tier = await readTier(tenantId);
+  return { tier, limits: tier === null ? null : TIER_LIMITS[tier], enforced: config.PLAN_TIERS_ENFORCED };
 }
 
 // ---------------------------------------------------------------------------
@@ -902,7 +993,17 @@ export async function updateTenantPlan(
     }
 
     // 4. UPDATE (still under assessiq_system)
-    const { updated_at } = await updateTenantPlanRow(client, tenantId, nextTier, nextCredits);
+    const nextOverride: number | null =
+      'aiAnswersIncludedOverride' in patch
+        ? (patch.aiAnswersIncludedOverride ?? null)
+        : (planRow.ai_answers_included_override ?? null);
+    if (nextOverride !== null && (!Number.isInteger(nextOverride) || nextOverride < 0 || nextOverride > 1_000_000)) {
+      throw new ValidationError(
+        `aiAnswersIncludedOverride must be null or an integer from 0 to 1000000`,
+        { details: { code: 'INVALID_AI_ANSWERS_OVERRIDE', received: nextOverride } },
+      );
+    }
+    const { updated_at } = await updateTenantPlanRow(client, tenantId, nextTier, nextCredits, nextOverride);
 
     // Phase B — app role + tenant GUC: put auditInTx in exactly the context
     // its contract (audit.ts) and the reviewed updateAiGenerateMode precedent
@@ -924,6 +1025,8 @@ export async function updateTenantPlan(
         included_credits: nextCredits,
         previous_tier: prevTier,
         previous_included_credits: prevCredits,
+        ai_answers_included_override: nextOverride,
+        previous_ai_answers_override: planRow.ai_answers_included_override ?? null,
       },
     });
 
