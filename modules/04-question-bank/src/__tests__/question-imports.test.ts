@@ -5,6 +5,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import Fastify from "fastify";
+import multipart from "@fastify/multipart";
 import { randomUUID } from "node:crypto";
 import { AppError, sha256Hex } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
@@ -41,6 +42,7 @@ async function stage(tenant: string, user: string, data: Buffer) {
 
 async function buildApp(tenantId: string, userId: string) {
   const app = Fastify({ logger: false });
+  await app.register(multipart, { limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 10 } });
   app.addHook("preHandler", async (req) => {
     (req as unknown as { session: unknown }).session = { tenantId, userId, role: req.headers["x-role"] };
   });
@@ -147,6 +149,47 @@ describe("routes", () => {
       app.inject({ method: "GET", url: "/api/admin/super/question-imports/templates/mcq", headers: { "x-role": "admin" } }),
     ];
     for (const r of await Promise.all(calls)) expect(r.statusCode).toBe(403);
+    await app.close();
+  });
+
+  const mp = (fields: Record<string, string>, file?: { name: string; data: Buffer }) => {
+    const B = "----aiqtest";
+    const L = "\r\n";
+    const parts: Buffer[] = Object.entries(fields).map(([k, v]) => Buffer.from(`--${B}${L}Content-Disposition: form-data; name="${k}"${L}${L}${v}${L}`));
+    if (file) parts.push(Buffer.from(`--${B}${L}Content-Disposition: form-data; name="file"; filename="${file.name}"${L}Content-Type: text/csv${L}${L}`), file.data, Buffer.from(L));
+    parts.push(Buffer.from(`--${B}--${L}`));
+    return { payload: Buffer.concat(parts), headers: { "x-role": "super_admin", "content-type": `multipart/form-data; boundary=${B}` } };
+  };
+
+  it("super admin: multipart upload stages the same report as the base64 upload", async () => {
+    const app = await buildApp(tA, uA);
+    const data = csv(GOOD.replace("Which port", "Multipart: which port"), BAD.replace("Broken", "Multipart broken"));
+    const j = await app.inject({
+      method: "POST", url: "/api/admin/super/question-imports", headers: { "x-role": "super_admin" },
+      payload: { file_name: "flow.csv", format: "csv", content_base64: data.toString("base64"), domain: "soc" },
+    });
+    const m = await app.inject({ method: "POST", url: "/api/admin/super/question-imports", ...mp({ format: "csv", domain: "soc" }, { name: "flow.csv", data }) });
+    expect(j.statusCode).toBe(201);
+    expect(m.statusCode).toBe(201);
+    expect(m.json().rows.map((r: { decision: string }) => r.decision)).toEqual(j.json().rows.map((r: { decision: string }) => r.decision));
+    expect(m.json().rows).toHaveLength(j.json().rows.length);
+    await app.close();
+  });
+
+  it("multipart without a file part is 400", async () => {
+    const app = await buildApp(tA, uA);
+    const r = await app.inject({ method: "POST", url: "/api/admin/super/question-imports", ...mp({ format: "csv", domain: "soc" }) });
+    expect(r.statusCode).toBe(400);
+    await app.close();
+  });
+
+  it("a 5 MB multipart file is 413 FILE_TOO_LARGE", async () => {
+    const app = await buildApp(tA, uA);
+    const r = await app.inject({
+      method: "POST", url: "/api/admin/super/question-imports",
+      ...mp({ format: "csv", domain: "soc" }, { name: "big.csv", data: Buffer.alloc(5 * 1024 * 1024, "a") }),
+    });
+    expect(r.statusCode).toBe(413);
     await app.close();
   });
 

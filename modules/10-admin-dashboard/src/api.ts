@@ -800,6 +800,7 @@ export interface ListQuestionsFilters {
   status?: string;
   domain_id?: string;
   category_id?: string;
+  pack_id?: string;
   pageSize?: number;
   page?: number;
 }
@@ -857,6 +858,7 @@ export async function listQuestionsApi(
   if (filters.status !== undefined) params.set("status", filters.status);
   if (filters.domain_id !== undefined) params.set("domain_id", filters.domain_id);
   if (filters.category_id !== undefined) params.set("category_id", filters.category_id);
+  if (filters.pack_id !== undefined) params.set("pack_id", filters.pack_id);
   if (filters.pageSize !== undefined) params.set("pageSize", String(filters.pageSize));
   if (filters.page !== undefined) params.set("page", String(filters.page));
   const qs = params.toString();

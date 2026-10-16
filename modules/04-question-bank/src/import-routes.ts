@@ -1,8 +1,9 @@
 // RW-58: super-admin CSV/XLSX question import routes (staged -> fix rows -> commit | discard).
-// Body is JSON with a base64 file; multipart is a follow-up (@fastify/multipart is not an apps/api dependency).
+// Body is JSON with a base64 file, or multipart/form-data (RW-97).
+import type {} from "@fastify/multipart"; // request.file() / isMultipart() types only; the plugin is registered by apps/api
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { z } from "zod";
-import { ValidationError, sha256Hex } from "@assessiq/core";
+import { AppError, ValidationError, sha256Hex } from "@assessiq/core";
 import { QUESTION_TYPES } from "@assessiq/question-types";
 import { parseImportFile, IMPORT_MAX_BYTES } from "./import/parse.js";
 import { stageImport, getImportReport, fixImportRow, discardImport } from "./import/staging.js";
@@ -22,6 +23,7 @@ const UploadBody = z.object({
   domain: z.string().min(1).max(80),
   pack_name: z.string().min(1).max(200).optional(),
 });
+const MultipartFields = UploadBody.omit({ content_base64: true });
 const PatchBody = z.object({
   values: z.record(z.string().max(20_000)).optional(),
   skip: z.boolean().optional(),
@@ -47,12 +49,37 @@ export function registerImportRoutes(
   // Literal paths on purpose: tools/lint-ui-api-contract.ts matches route strings, not template variables.
 
   app.post("/api/admin/super/question-imports", { preHandler, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
-    const body = parse(UploadBody, req.body, "body");
-    const data = Buffer.from(body.content_base64, "base64");
-    const parsed = await parseImportFile(body.format, data);
+    const tooLarge = () => new AppError("The file is larger than 4 MB.", "FILE_TOO_LARGE", 413);
+    let fileName: string; let format: "csv" | "xlsx"; let domain: string; let packName: string | undefined; let data: Buffer;
+    if (req.isMultipart()) {
+      let part;
+      try { part = await req.file(); } catch (e) {
+        if ((e as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") throw tooLarge();
+        throw e;
+      }
+      if (part === undefined) throw new ValidationError("invalid body", { details: { code: "INVALID_PARAM", issues: [{ message: "file part is required" }] } });
+      try { data = await part.toBuffer(); } catch (e) {
+        if ((e as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") throw tooLarge();
+        throw e;
+      }
+      if (part.file.truncated) throw tooLarge();
+      const text = (k: string): string | undefined => {
+        const f = part.fields[k] as { value?: unknown } | undefined;
+        return typeof f?.value === "string" ? f.value : undefined;
+      };
+      const f = parse(MultipartFields, {
+        file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"),
+      }, "body");
+      ({ file_name: fileName, format, domain, pack_name: packName } = f);
+    } else {
+      const body = parse(UploadBody, req.body, "body");
+      ({ file_name: fileName, format, domain, pack_name: packName } = body);
+      data = Buffer.from(body.content_base64, "base64");
+    }
+    const parsed = await parseImportFile(format, data);
     const report = await stageImport(req.session!.tenantId, req.session!.userId, {
-      fileName: body.file_name, fileSha256: sha256Hex(data), format: body.format,
-      domain: body.domain, packName: body.pack_name ?? body.file_name.replace(/\.[^.]+$/, ""),
+      fileName, fileSha256: sha256Hex(data), format,
+      domain, packName: packName ?? fileName.replace(/\.[^.]+$/, ""),
     }, parsed);
     return reply.code(201).send(report);
   });

@@ -6,11 +6,21 @@ import React from "react";
 
 const upload = vi.fn();
 const commit = vi.fn();
+const listQ = vi.fn();
+const genRubric = vi.fn();
+const saveRubric = vi.fn();
 let role = "super_admin";
 
 vi.mock("../api.js", () => ({
   adminApi: vi.fn(),
-  AdminApiError: class AdminApiError extends Error {},
+  AdminApiError: class AdminApiError extends Error {
+    status: number;
+    apiError: { code: string; message: string };
+    constructor(status: number, apiError: { code: string; message: string }) { super(apiError.message); this.status = status; this.apiError = apiError; }
+  },
+  listQuestionsApi: (...a: unknown[]) => listQ(...a),
+  generateRubricApi: (...a: unknown[]) => genRubric(...a),
+  saveRubricApi: (...a: unknown[]) => saveRubric(...a),
   listDomainsApi: vi.fn().mockResolvedValue({ items: [{ id: "d1", slug: "security", name: "Security" }], total: 1 }),
 }));
 vi.mock("../api/question-imports.js", () => ({
@@ -31,6 +41,7 @@ vi.mock("@assessiq/help-system/components", () => ({
 }));
 
 import { AdminQuestionImport } from "../pages/question-import.js";
+import { AdminApiError } from "../api.js";
 
 const REPORT = {
   importId: "imp-1",
@@ -42,7 +53,7 @@ const REPORT = {
   ],
 };
 
-afterEach(() => { cleanup(); upload.mockReset(); commit.mockReset(); role = "super_admin"; });
+afterEach(() => { cleanup(); upload.mockReset(); commit.mockReset(); listQ.mockReset(); genRubric.mockReset(); saveRubric.mockReset(); role = "super_admin"; });
 
 async function uploadFile(): Promise<void> {
   render(<MemoryRouter><AdminQuestionImport /></MemoryRouter>);
@@ -73,6 +84,43 @@ describe("Question import page", () => {
     await waitFor(() => expect(commit).toHaveBeenCalledWith("imp-1"));
     const link = await screen.findByRole("link", { name: "Open the draft question set" });
     expect(link.getAttribute("href")).toBe("/admin/question-bank/pack-9");
+  });
+
+  async function commitWithRubricless(): Promise<void> {
+    upload.mockResolvedValue(REPORT);
+    commit.mockResolvedValue({ importId: "imp-1", packId: "pack-9", committed: 3 });
+    listQ.mockResolvedValue({ total: 3, items: [
+      { id: "q1", type: "subjective", topic: "Phishing", rubric: null },
+      { id: "q2", type: "scenario", topic: null, rubric: {} },
+      { id: "q3", type: "mcq", topic: "X", rubric: null },
+    ] });
+    await uploadFile();
+    fireEvent.click(await screen.findByRole("button", { name: "Commit (skip errors)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Add questions" }));
+  }
+
+  it("offers Draft rubrics after commit and drafts each question in order", async () => {
+    genRubric.mockResolvedValue({ proposal: { p: 1 } });
+    saveRubric.mockResolvedValue({});
+    await commitWithRubricless();
+    expect(await screen.findByText("2 imported questions have no rubric.")).toBeTruthy();
+    expect(listQ).toHaveBeenCalledWith({ pack_id: "pack-9", pageSize: 200 });
+    fireEvent.click(screen.getByRole("button", { name: "Draft rubrics" }));
+    await waitFor(() => expect(saveRubric).toHaveBeenCalledTimes(2));
+    expect(genRubric.mock.calls.map((c) => c[0])).toEqual(["q1", "q2"]);
+    expect(saveRubric.mock.calls.map((c) => c[0])).toEqual(["q1", "q2"]);
+    expect(saveRubric).toHaveBeenCalledWith("q1", { p: 1 });
+  });
+
+  it("stops with a busy message when the AI is busy", async () => {
+    genRubric.mockRejectedValue(new AdminApiError(409, { code: "AIG_GRADING_IN_PROGRESS", message: "busy" }));
+    await commitWithRubricless();
+    await screen.findByText("2 imported questions have no rubric.");
+    fireEvent.click(screen.getByRole("button", { name: "Draft rubrics" }));
+    expect(await screen.findByText("The AI is busy. Try again in a moment.")).toBeTruthy();
+    expect(genRubric).toHaveBeenCalledTimes(1);
+    expect(saveRubric).not.toHaveBeenCalled();
+    expect((screen.getByRole("button", { name: "Draft rubrics" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("is blocked for a tenant admin", async () => {

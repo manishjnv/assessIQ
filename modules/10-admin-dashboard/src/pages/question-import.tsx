@@ -9,8 +9,8 @@ import type { ColumnDef } from "@assessiq/ui-system";
 import { QUESTION_TYPES } from "@assessiq/question-types";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
-import { AdminApiError, listDomainsApi } from "../api.js";
-import type { DomainItem } from "../api.js";
+import { AdminApiError, generateRubricApi, listDomainsApi, listQuestionsApi, saveRubricApi } from "../api.js";
+import type { DomainItem, QuestionListItem } from "../api.js";
 import {
   IMPORT_MAX_BYTES, commitImportApi, discardImportApi, downloadImportTemplate, fixImportRowApi, getImportApi, uploadImportApi,
 } from "../api/question-imports.js";
@@ -19,16 +19,6 @@ import { useAdminSession } from "../session.js";
 import { importDecisionLabel, questionTypeLabel } from "../lib/labels.js";
 
 const msg = (err: unknown, fallback: string): string => (err instanceof AdminApiError ? err.apiError.message : fallback);
-
-// Reads a file as base64 (data URL minus its prefix); FileReader works in every browser and in jsdom.
-function readBase64(f: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
-    r.onerror = () => reject(r.error);
-    r.readAsDataURL(f);
-  });
-}
 
 const errorStyle: React.CSSProperties = { color: "var(--aiq-color-danger)", fontSize: "var(--aiq-text-sm)" };
 const fieldStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" };
@@ -52,6 +42,10 @@ export function AdminQuestionImport(): React.ReactElement {
   const [fixValues, setFixValues] = useState<Record<string, string>>({});
   const [confirm, setConfirm] = useState<"commit" | "discard" | null>(null);
   const [packId, setPackId] = useState<string | null>(null);
+  const [needRubric, setNeedRubric] = useState<QuestionListItem[]>([]);
+  const [rubricStatus, setRubricStatus] = useState<Record<string, string>>({});
+  const [rubricBusy, setRubricBusy] = useState(false);
+  const [rubricNote, setRubricNote] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSuper) return;
@@ -76,8 +70,8 @@ export function AdminQuestionImport(): React.ReactElement {
     if (!file) { setError("Choose a CSV or XLSX file."); return; }
     if (file.size > IMPORT_MAX_BYTES) { setError("This file is larger than 4 MB. Split it into smaller files."); return; }
     const format: ImportFormat = file.name.toLowerCase().endsWith(".xlsx") ? "xlsx" : "csv";
-    const r = await run(async () => uploadImportApi({
-      file_name: file.name, format, content_base64: await readBase64(file), domain,
+    const r = await run(() => uploadImportApi({
+      file_name: file.name, format, file, domain,
       ...(packName.trim() ? { pack_name: packName.trim() } : {}),
     }), "Could not read this file.");
     if (r) setReport(r);
@@ -105,13 +99,44 @@ export function AdminQuestionImport(): React.ReactElement {
     if (r) setReport(r);
   }
 
+  // Sequential on purpose: the server runs one AI call at a time (same as the generate wizard).
+  async function onDraftRubrics(): Promise<void> {
+    setRubricBusy(true);
+    setRubricNote(null);
+    for (let i = 0; i < needRubric.length; i++) {
+      const q = needRubric[i]!;
+      if (rubricStatus[q.id] === "Done") continue;
+      setRubricStatus((s) => ({ ...s, [q.id]: "Drafting…" }));
+      try {
+        const { proposal } = await generateRubricApi(q.id);
+        await saveRubricApi(q.id, proposal);
+        setRubricStatus((s) => ({ ...s, [q.id]: "Done" }));
+      } catch (err) {
+        if (err instanceof AdminApiError && err.apiError.code === "AIG_GRADING_IN_PROGRESS") {
+          setRubricStatus((s) => { const n = { ...s }; delete n[q.id]; return n; });
+          setRubricNote("The AI is busy. Try again in a moment.");
+          break;
+        }
+        setRubricStatus((s) => ({ ...s, [q.id]: `Failed: ${msg(err, "Could not draft this rubric.")}` }));
+      }
+    }
+    setRubricBusy(false);
+  }
+
   async function onConfirm(): Promise<void> {
     if (!report || !confirm) return;
     const which = confirm;
     setConfirm(null);
     if (which === "commit") {
       const r = await run(() => commitImportApi(report.importId), "Could not add the questions.");
-      if (r) setPackId(r.packId);
+      if (r) {
+        setPackId(r.packId);
+        try {
+          const list = await listQuestionsApi({ pack_id: r.packId, pageSize: 200 });
+          setNeedRubric(list.items.filter((q) => (q.type === "subjective" || q.type === "scenario")
+            && (q.rubric === null || q.rubric === undefined || Object.keys(q.rubric).length === 0)));
+        } catch { /* non-critical: the rubric step is hidden */ }
+      }
     } else {
       const r = await run(() => discardImportApi(report.importId), "Could not discard this import.");
       if (r !== undefined) { setReport(null); setFile(null); }
@@ -171,6 +196,24 @@ export function AdminQuestionImport(): React.ReactElement {
           <div className="aiq-card" style={{ padding: "var(--aiq-space-lg)" }}>
             <p style={{ margin: 0 }}>The questions are in a new draft question set.</p>
             <p style={{ margin: "8px 0 0" }}><Link to={`/admin/question-bank/${packId}`}>Open the draft question set</Link></p>
+            {needRubric.length > 0 && (
+              <div style={{ marginTop: "var(--aiq-space-md)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+                <p style={{ margin: 0 }}>{needRubric.length} imported {needRubric.length === 1 ? "question has" : "questions have"} no rubric.</p>
+                <div>
+                  <HelpTip helpId="admin.question_import.draft_rubrics">
+                    <button type="button" className="aiq-btn aiq-btn-outline" disabled={rubricBusy} onClick={() => void onDraftRubrics()}>
+                      {rubricBusy ? "Drafting…" : "Draft rubrics"}
+                    </button>
+                  </HelpTip>
+                </div>
+                {rubricNote && <div role="alert" style={errorStyle}>{rubricNote}</div>}
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {needRubric.filter((q) => rubricStatus[q.id]).map((q) => (
+                    <li key={q.id}>{q.topic ?? `Question ${needRubric.indexOf(q) + 1} of ${needRubric.length}`}: {rubricStatus[q.id]}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         ) : report === null ? (
           <>
