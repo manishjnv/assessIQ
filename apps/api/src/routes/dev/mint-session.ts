@@ -174,7 +174,8 @@ export async function registerDevMintSessionRoute(app: FastifyInstance): Promise
       // NOTE (adversarial finding 2): the old inline expression here ended in
       // `?? '127.0.0.1'`; extractClientIp's terminal sentinel is '0.0.0.0'.
       // This is the ONE site where off-mode is not byte-identical. Harmless:
-      // dev-only route (NODE_ENV-gated), and the sentinel is only reached if
+      // dev-only route (registered only when config.ENABLE_E2E_TEST_MINTER is
+      // true, see server.ts), and the sentinel is only reached if
       // both cf-connecting-ip AND req.ip are absent, which never happens under
       // Fastify (req.ip is always populated). Audit-cosmetic only.
       const ip = extractClientIp(req);
