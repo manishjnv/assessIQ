@@ -2,9 +2,17 @@
 
 *Type: explanation* — This page explains how sign-in, two-factor codes, sessions, embed tokens and API keys work.
 
-> Phase 1 ships **Google SSO + TOTP**. All other methods are designed in but admin-toggled per tenant in Phase 2. The architecture below assumes them all from day one so we don't refactor the session and identity model later.
+> Phase 1 ships **Google SSO + TOTP**. All other methods are designed in but admin-toggled per tenant in Phase 2. The architecture below assumes them all from day one so we do not refactor the session and identity model later.
 
-## Identity model summary
+This page explains how a person or a program proves who it is to AssessIQ, and how AssessIQ keeps that proof safe. It covers identity, sessions, each sign-in flow, the user and tenant life cycle, rate limits and edge trust. The last section lists the dated decisions.
+
+Read the sections in order for the full picture. Each section explains how a mechanism works and why it works that way.
+
+## Identity and roles
+
+An identity is a `users` row for one email in one tenant. This section explains who can exist, what each role may do and how a login finds the right identity.
+
+### Identity model summary
 
 | Concept | Where it lives |
 |---|---|
@@ -17,9 +25,7 @@
 
 A `users` row exists *before* the first login. Admins create users (or import via CSV/SCIM in v2); SSO links the Google identity to that pre-existing row on first login. **No self-registration in v1** — protects against tenant pollution.
 
----
-
-## Roles and capabilities
+### Roles and capabilities
 
 Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set membership** (`opts.roles.includes(sess.role)`) — passing `roles: ['admin']` does NOT admit a `super_admin` session. Each route lists every accepted role explicitly. (`modules/01-auth/src/sessions.ts:23`, `modules/01-auth/src/middleware/require-auth.ts:26`)
 
@@ -30,7 +36,7 @@ Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set me
 | `admin` | Per-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Full `/api/admin/*` for their tenant |
 | `super_admin` | Cross-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Routes explicitly gated to `['super_admin']` only |
 
-**super_admin detail (commit d59ade4):** authenticates via the same Google SSO → TOTP path as admin. Session still carries a `tenant_id` (the tenant the operator authenticated against); cross-tenant writes are enabled in specific service functions (e.g. `updateAiGenerateMode` accepts a target `tenantId` as an explicit argument). Shipped endpoints gated to `roles: ['super_admin']`:
+**super_admin detail (commit d59ade4):** authenticates via the same Google SSO → TOTP path as admin. Session still carries a `tenant_id` (the tenant the operator authenticated against); cross-tenant writes are enabled in specific service functions (for example `updateAiGenerateMode` accepts a target `tenantId` as an explicit argument). Shipped endpoints gated to `roles: ['super_admin']`:
 
 | Endpoint | Purpose |
 |---|---|
@@ -43,7 +49,9 @@ Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set me
 
 > **DB note (resolved 2026-05-17):** the earlier "`011_sessions.sql` lacks `super_admin`" caveat is **closed**. Slice-1 migration `modules/01-auth/migrations/016_super_admin.sql` (Steps 1a/1b) drops+re-adds `sessions_role_check` and `users_role_check` to include `'super_admin'`, and seeds the platform tenant (`00000000-0000-7000-0000-000000000001`, slug `platform`) + the bootstrap super_admin user (`…0002`, manishjnvk@gmail.com). Applied surgically to prod and confirmed (the platform Google-SSO branch is reachable end-to-end).
 
-## P1 — Tenant-less login + cross-tenant identity resolution (2026-05-19, commit `62c2558`)
+### Tenant-less login and cross-tenant identity resolution
+
+*History: 2026-05-19, commit `62c2558`. This section replaces the older tenant-slug login.*
 
 **Spec:** `docs/superpowers/specs/2026-05-19-login-identity-simplification-design.md`. Load-bearing `modules/01-auth`. No session/JWT/RLS/data-model change. (P2 — admin/reviewer email-OTP — is a separate, not-yet-built phase.)
 
@@ -65,7 +73,9 @@ Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set me
 
 **Adversarial gate (mandatory, 01-auth):** Sonnet review **VERDICT accept** — all 7 highest-stakes invariants CLEAN with traced proofs (no super-admin escalation on either path; cross-tenant read post-verification only; `normalizeEmail` = trim+lowercase only → no dot/plus impersonation; `/select` anti-tamper double-checked; always-MFA; CSRF/nonce sound; behaviour-preserving). Opus adjudication: finding-1 (`email_verified`) **fixed** (step 4b above); **finding-2 — open accepted residual:** the continuation ip-binding derives client IP via `cf-connecting-ip ?? req.ip`, spoofable if the origin is reached without Cloudflare in front — this is a **pre-existing codebase-wide pattern** (sessions, candidate-login, rate-limit derive IP identically) and is gated behind a 256-bit HttpOnly single-use token; the correct fix is an app-wide `trustProxy`/CF-range config (tracked follow-up, not a P1-scoped change); finding-3 (non-consuming peek) is design-intent, SameSite=Lax-bounded.
 
-### P2 — email-OTP for admin (2026-05-19, commit `a16fdb1`; reviewer part removed 2026-10-03)
+### Email one-time code for admin
+
+*History: 2026-05-19, commit `a16fdb1`. The reviewer part was removed on 2026-10-03.*
 
 An **alternative primary login to Google SSO, for `admin` only.** (Until 2026-10-03 `reviewer` was also eligible; the role is removed.) `super_admin` can NEVER use it (Google + authenticator MFA only); `candidate` magic-link is untouched. Reuses P1's resolver/continuation/picker/`mintForIdentity`.
 
@@ -77,11 +87,13 @@ An **alternative primary login to Google SSO, for `admin` only.** (Until 2026-10
 - **P1-code change:** `mintForIdentity.ctx.subject` is now optional; the `oauth_identities` INSERT is wrapped `if (subject !== undefined)`. Google callback + P1 `/select` always pass a `subject` ⇒ those paths are byte-unchanged; only email-OTP (no Google identity) skips the link. `LoginContinuationPayload.subject` widened to `string | undefined`; `selectLoginIdentity` logic unchanged (only the subject-forwarding spread).
 - **Adversarial gate (mandatory, 01-auth):** Sonnet review VERDICT *revise* — all security invariants HELD with traced proofs (super_admin/candidate impossible incl. races; brute-force infeasible: 5 tries/code over a 10⁶ space + dual rate-limit; recipient-injection/code-exfil blocked by resolve-before-send; P1 byte-preservation; continuation reuse). Opus adjudication: **BLOCKER-1** (missing `admin_email_otp` template — feature DOA) FIXED; **MAJOR-2** (timing oracle breaking anti-enum) FIXED (constant-work + 800 ms floor); **MINOR-3** (per-email cap) FIXED; **MINOR-4** (tenantId → audited send, no plaintext-code dev-log) FIXED; **MINOR-5** (`cf-connecting-ip` spoofable) = accepted PRE-EXISTING codebase-wide residual (same as P1 finding-2; app-wide `trustProxy` follow-up, not P2-scoped).
 
-## Super-admin "Edit admin" — email is the login identity (2026-05-24, branch `feat/platform-edit-admin`, PR-pending)
+### Super-admin "Edit admin": email is the login identity
+
+*History: 2026-05-24, branch `feat/platform-edit-admin`, PR-pending.*
 
 **What:** the Platform page gains a per-row "Manage ▸ Edit admin" modal that edits the primary-contact admin's `name`, `role` (fixed to `admin`; reviewer is rejected with `INVALID_ROLE` since 2026-10-03), and `email` via `PATCH /api/admin/super/users/:userId` (gate: `super_admin` + fresh MFA). See `docs/03-api-contract.md` for the full contract.
 
-**Why this is an auth-flow concern:** because login resolution is **by Google-verified email** (`resolveLoginIdentities(verifiedEmail)` — "the SOLE cross-tenant identity key", per the P1 section below), `users.email` *is* the login identity. There is no separate immutable login id that survives an email change. Therefore editing an admin's email is not a contact-detail edit — it changes who can sign into that account.
+**Why this is an auth-flow concern:** because login resolution is **by Google-verified email** (`resolveLoginIdentities(verifiedEmail)` — "the SOLE cross-tenant identity key", per the tenant-less login section above), `users.email` *is* the login identity. There is no separate immutable login id that survives an email change. Therefore editing an admin's email is not a contact-detail edit — it changes who can sign into that account.
 
 **Semantics (enforced server-side; the UI confirm checkbox is defence-in-depth only):**
 - **Pending** admin (invite not yet accepted, never logged in): the email is freely re-addressable. In-transaction we retire the old-address invitation; post-commit we re-issue a fresh invite to the new address. No confirmation needed.
@@ -92,11 +104,15 @@ An **alternative primary login to Google SSO, for `admin` only.** (Until 2026-10
 
 **Adversarial gate (mandatory, touches 01-auth identity):** Sonnet review **VERDICT revise** — two real findings fixed before merge: (F5) email change on a *disabled* account also requires the identity-transfer confirm (the guard now keys on `status !== 'pending'`, not just `active`); (F2) a post-rename invite-send failure returns `200 reinvited:false` instead of a `500` (the rename already committed; recover via "Resend invite"). Finding-1 (cross-tenant invitation DELETE) verified safe — `user_invitations` carries the `tenant_isolation` RLS policy (`FOR ALL`), so the `withTenant`-scoped DELETE cannot cross tenants. Opus independent second pass: **ACCEPT** after fixes. (GLM-5.1 half blocked by the harness data-exfiltration classifier; Opus took the second-reviewer slot.)
 
-### Super-admin platform login (option c — isolated path)
+### Super-admin platform login (superseded)
 
-> **⚠ SUPERSEDED BY P1 (2026-05-19) — see "## P1 — Tenant-less login + cross-tenant identity resolution" below.** The Tenant field is removed; super_admin is no longer reached by typing `platform`. The Gate-2/3/4 *semantics* (allowlist, platform users row, always-MFA, no `oauth_identities`) are **unchanged** — they now live in `resolveLoginIdentities` (Gate-2 filter) + `mintForIdentity` (Gate-3/4), reached after cross-tenant resolution + the identity picker instead of a typed tenant slug embedded in OAuth state. The historical description below is kept for the pre-P1 contract.
+> **⚠ SUPERSEDED BY P1 (2026-05-19) — see "Tenant-less login and cross-tenant identity resolution" above.** The Tenant field is removed; super_admin is no longer reached by typing `platform`. The Gate-2/3/4 *semantics* (allowlist, platform users row, always-MFA, no `oauth_identities`) are **unchanged** — they now live in `resolveLoginIdentities` (Gate-2 filter) + `mintForIdentity` (Gate-3/4), reached after cross-tenant resolution + the identity picker instead of a typed tenant slug embedded in OAuth state. The historical description below is kept for the pre-P1 contract.
 
 The super-admin logs in through the **normal `/admin/login` page with the Tenant field set to `platform`** (not `wipro-soc`). This embeds the platform tenant id in the OAuth state; `handleGoogleCallback` takes the isolated platform branch: Gate1 id_token (RS256/JWKS/nonce/CSRF) · Gate2 email ∈ `SUPER_ADMIN_EMAILS` (defaults to manishjnvk@gmail.com) · Gate3 platform-tenant `users` row `role='super_admin' status='active'` · Gate4 mint session `totpVerified=false` and redirect `/admin/mfa`. No `oauth_identities` row is read or written on this path (the global `UNIQUE(provider,subject)` constraint stays intact for customer tenants). (`modules/01-auth/src/google-sso.ts:336-428`)
+
+## Sessions and multi-factor authentication
+
+After a person proves identity, AssessIQ mints a session. This section explains the session flags, the second factor and how secrets are stored.
 
 ### First-login MFA bootstrap (RCA 2026-05-17 — lockout fix)
 
@@ -117,15 +133,91 @@ totpVerified = user.role === "candidate" || !config.MFA_REQUIRED
 ```
 
 - **What changed.** Previously the customer branch always minted `totpVerified=false`. It now mints `true` for `candidate` (parity with magic-link, which hardcodes `true`) and for `admin` (and legacy `reviewer`) **when `MFA_REQUIRED=false`**. (`modules/01-auth/src/google-sso.ts` ~line 486.) The super_admin branch is unchanged — it always mints `false` and always requires TOTP (Gate-4 above), and is never reached by this line.
-- **Why.** Production runs `MFA_REQUIRED=false` (opt-in MFA, pre-launch). With the old code an SSO admin was `totpVerified=false` for the entire 8h session and there is **no TOTP step to ever flip it true** — so `rate-limit.ts` permanently kept them in the conservative **60/min `aiq:rl:user:<id>`** tier (vs 300/min for verified admins). A normal dashboard page fires >60 authenticated calls/min (`whoami` + `/api/admin/assessments` + `/api/billing/usage` + polling), exhausting the bucket; every subsequent request then `429`s with `scope=user` — including `GET /api/auth/google/start` (the session cookie is still sent), so the admin can't even re-login out of the lockout. Recurring 3× because all three prior fixes raised **IP-scope** caps (anon 30→120, IP-admin 100→500, verified-admin 5000) and never the per-user tier that was actually binding. See `docs/RCA_LOG.md` 2026-05-30.
+- **Why.** Production runs `MFA_REQUIRED=false` (opt-in MFA, pre-launch). With the old code an SSO admin was `totpVerified=false` for the entire 8h session and there is **no TOTP step to ever flip it true** — so `rate-limit.ts` permanently kept them in the conservative **60/min `aiq:rl:user:<id>`** tier (vs 300/min for verified admins). A normal dashboard page fires >60 authenticated calls/min (`whoami` + `/api/admin/assessments` + `/api/billing/usage` + polling), exhausting the bucket; every subsequent request then `429`s with `scope=user` — including `GET /api/auth/google/start` (the session cookie is still sent), so the admin cannot even re-login out of the lockout. Recurring 3× because all three prior fixes raised **IP-scope** caps (anon 30→120, IP-admin 100→500, verified-admin 5000) and never the per-user tier that was actually binding. See `docs/RCA_LOG.md` 2026-05-30.
 - **Why this is safe (adversarial-reviewed, VERDICT accept).** `require-auth.ts` wraps the **entire** TOTP-verified gate *and* the fresh-MFA step-up gate in `if (isSuperAdmin || config.MFA_REQUIRED)` (require-auth.ts:59). So for non-super_admin roles when `MFA_REQUIRED=false`, `totpVerified` is **never read by any auth gate** — flipping it `true` only restores the correct rate-limit tier and relaxes **no** authorization. super_admin is always-MFA on a separate branch. Credential endpoints keep their own 20/min per-route bucket regardless of tier, so brute-force protection is unaffected.
 - **Considered and rejected.** (a) Bumping the hardcoded `60` user cap — that is a 4th whack-a-mole on a symptom; a heavy page can exceed any fixed number, and it leaves the trust-tier semantics wrong. (b) Making the rate-limit tier itself `MFA_REQUIRED`-aware without touching the session field (Option A) — smaller blast radius but leaves `totpVerified` semantically dishonest; rejected in favour of fixing the field at the source.
 - **NOT included / known residual (V3).** A session minted `totpVerified=true` while `MFA_REQUIRED=false` persists ~8h in Redis. If an operator flips `MFA_REQUIRED=true` mid-session, that stale session **bypasses the newly-enabled TOTP gate until it expires** (≤8h). This is a bounded, operator-initiated (config change + redeploy), non-attacker-exploitable risk and is accepted; super_admin is unaffected. If a future deploy enables MFA, treat it as a session-invalidation event (or accept the ≤8h tail).
 - **Downstream impact.** `rate-limit.ts` (tier resolution — no code change, reads the field), the email-OTP login path (reaches the same customer-branch mint, so admin email-OTP logins get the same fix). No schema or API-contract change.
 
----
+### Session-status cache (R11)
 
-## Flow 1 — Admin login (Google SSO + TOTP)
+*History: 2026-10-02, commit `d9a0813`.*
+
+- **What.** `modules/01-auth/src/middleware/session-loader.ts` caches the "is this user / tenant still active?" verdict in Redis, saving two `withTenant` DB round trips per request (campus drives: hundreds of students on one IP polling). Keys: `aiq:sess-status:u:<userId>` -> the tenantId it was verified under; `aiq:sess-status:t:<tenantId>` -> `"1"`. TTL `SESS_STATUS_TTL_SEC = 30`. No PII in values.
+- **Invariants (tested in `session-status-cache.test.ts`).**
+  1. Positive-only: only an "active" verdict is stored; a negative is never cached, so the cache can delay a lockout by at most 30 s and never extend one.
+  2. Tenant-bound: a user-key hit must equal `session.tenantId`, else it is ignored.
+  3. Invalidation (DEL): `sessions.destroyAllForUser` (user key), `sessions.destroyAllForTenant` (tenant key; used by suspend/archive), `03-users/redis-sweep.sweepUserSessions` (disable / soft-delete), and the admin erase route.
+  4. Redis down or erroring on get/set: fall through to the DB check. Fail-safe, never fail-open.
+  5. The DB check now also rejects `users.erased_at IS NOT NULL`; before, erased candidates kept working sessions.
+- **Known bounded race.** A DB read that straddles a suspend can re-write "active" after the DEL; it expires within 30 s.
+- **Considered and rejected.** Caching negatives (would need invalidation on un-suspend); a longer TTL; a pre-guard before sessionLoader (middleware order unchanged).
+- **Not included.** Any change to session lifetime, JWT or MFA. PG pool budget set alongside: api 40, worker 15 (`API_PG_POOL_MAX` / `WORKER_PG_POOL_MAX`, Postgres `max_connections` 100).
+- **Impact.** Any new "kill sessions" path must DEL these keys, or lockout waits up to 30 s.
+
+### Session revocation: state-aware login banner
+
+*History: Phase D, 2026-05-22, LIVE.*
+
+**What:** When a session is destroyed mid-use because the operator suspended/archived the tenant or disabled/deleted the user, `session-loader` (`modules/01-auth/src/middleware/session-loader.ts`) throws a 401 carrying `details.scope` (`"tenant"` | `"user"`) and `details.reason`. The SPA captures that scope on the failing `whoami` (`apps/web/src/lib/session.ts` + the admin-dashboard mirror `modules/10-admin-dashboard/src/session.ts`), stores it single-shot in `sessionStorage` under `aiq.lastAuthScope`, and **both** the admin login (`apps/web/src/pages/admin/login.tsx`) and the candidate login (`apps/web/src/pages/candidate/CandidateLogin.tsx`) read + clear it on mount via the shared helper `apps/web/src/lib/authScope.ts` (`readAuthScopeOnce()` + `authScopeCopy(scope, audience)`) to render a state-aware notice with **audience-tuned copy**:
+
+- `scope: "tenant"` → admin **"Your organisation's access is paused."** (operator-facing body) / candidate same title, calmer body ("Your assessment workspace has been suspended. Please contact your assessment administrator.")
+- `scope: "user"` → admin **"Your account has been disabled."** / candidate **"Your access has been removed."**
+- any unknown / absent scope → no banner (silent fallthrough)
+
+Each page owns its own visual treatment (admin login is single-column; candidate login uses its two-pane warning-soft alert idiom), but the single-shot read and scope→copy mapping live once in `authScope.ts` so the two cannot drift.
+
+**Why:** Before this, a revoked session bounced to a generic "session expired" feel that misrepresented a suspend/disable — the user had no idea their org or account was the cause. The error `code` and raw message are deliberately NOT surfaced; the scope alone drives the copy, so a cookie-holding attacker cannot distinguish "my account was disabled" from "my company was suspended" via the error string (matches the session-loader error-hygiene note).
+
+**Considered & rejected:** Surfacing `details.reason` text directly (rejected — leaks state granularity, and the two-bucket scope copy is sufficient). A toast instead of a login-page banner (rejected — the user has already been redirected to /login by the time the SPA reacts; the banner must live there).
+
+**Excluded:** No `help_id` (CLAUDE.md rule #5) — the banner is a transient pre-auth status notice, not a help-targeted interactive control, and the help system is not active pre-session. (Candidate-login coverage, originally deferred, shipped 2026-05-22 in `7eb8604`.)
+
+**Impact:** Frontend-only; server-side scope enforcement (Phase A, tenant/user status checks in `session-loader`) was already live. Both login pages share `apps/web/src/lib/authScope.ts`; built from design-system tokens (`--aiq-color-warning`, `--aiq-color-bg-sunken`/candidate `--aiq-color-warning-soft`, `--aiq-radius-md`); `role="status"`. Commits `60d4d23` (admin login + the `whoami` 429-backoff) and `7eb8604` (candidate login + shared `authScope.ts` + apps/web jsdom unit-test infra). **Behaviour is now proven by unit tests** — `pnpm --filter @assessiq/web test` (22 pass): `authScope.test.ts` (single-shot read, scope parse, audience copy), `admin/login.test.tsx` + `candidate/CandidateLogin.test.tsx` (tenant/user/none + single-shot), plus the now-unblocked `mfa.test.tsx`. No longer "pending operator"; banner copy also confirmed in the served bundle. The web test-infra mirrors `modules/10-admin-dashboard` (`@testing-library/react` + `jsdom` + `vitest`, `apps/web/vitest.config.ts`); run per-package like the other UI packages (not yet in the root `pnpm test` include — same gap as the existing UI packages).
+
+### Token & secret storage standards
+
+| Secret | Storage | Reveal policy |
+|---|---|---|
+| Session cookie value | sha256 hashed in `sessions.token_hash` | Never revealed after issuance |
+| TOTP secret | AES-256-GCM in `user_credentials.totp_secret_enc` | Never revealed after enrollment (QR shown once) |
+| Recovery codes | argon2id hashed | Plaintext shown once at generation |
+| API keys | sha256 hashed | Plaintext shown once at creation |
+| Embed secrets | AES-256-GCM | Plaintext shown once at creation |
+| Passwords (if used) | argon2id (m=64MB, t=3, p=4) | Never revealed |
+| Webhook signing secrets | AES-256-GCM | Plaintext shown once |
+
+Master encryption key: 32-byte random, in env var `ASSESSIQ_MASTER_KEY` (base64). For v1, plain env file with strict perms (0600, owned by service user). For v2, integrate Doppler / Vault.
+
+### Security must-do checklist
+
+- [ ] Verify every JWT signature (no `alg: none` ever)
+- [ ] CSRF protection on state-changing routes (double-submit cookie)
+- [x] **Role-aware IP rate limiting on all routes** (2026-05-15) — four-tier design, see § below
+- [ ] Account lockout after 5 failed TOTP attempts in 15 min
+
+### Shared AES-256-GCM envelope and fixed-window rate-limit script (N24)
+
+*History: 2026-10-03.*
+
+**What changed.** Commits `34abc0e`, `c58438a`, `9b585a7`.
+- `modules/00-core/src/aes-gcm.ts` is the one AES-256-GCM implementation: `sealTagLast`/`openTagLast` and `sealTagMid`/`openTagMid`. Both stored layouts stay. Previous-key fallback stays. Auth tag is 16 bytes. An envelope under 28 bytes fails with "envelope too short".
+- Wrappers keep their old names: `modules/01-auth/src/crypto-util.ts` (TagLast), `modules/13-notifications/src/webhooks/crypto.ts` (TagMid), `modules/12-embed-sdk/src/webhook-secret-service.ts` (TagLast, base64).
+- `modules/01-auth/src/fixed-window-lua.ts` holds `FIXED_WINDOW_LUA` and `incrFixedWindow`. `rate-limit.ts`, `candidate-login.ts` and `email-otp.ts` use it. `ATTEMPT_LUA` is a different script and is untouched.
+
+**Why.** Three copies of each piece could drift (review RV77).
+
+**Considered and rejected.** One stored layout (needs a data migration; production row counts could not be read). Rename of the wrappers (churn).
+
+**Not included.** No data migration, no re-encryption. `tenant_settings.webhook_secret` is write-only (nothing decrypts it): an open question for the owner.
+
+**Impact.** Module 00 has a new subpath export `@assessiq/core/aes-gcm` (`exports` map in its `package.json`). The 13-notifications tests mock the barrel. codex: accept.
+
+## Sign-in flows
+
+Each flow below ends in a session or a token. The flows are: admin login, enrolment, step-up, candidate login, embed, API key, public verify and magic link.
+
+### Flow 1 — Admin login (Google SSO + TOTP)
 
 > **Status (2026-05-01, Phase 0 closure — route layer + first API deploy live end-to-end):** library + DB layer + Fastify route layer + container deploy ALL LIVE on `origin/main`. Commits `d9cfeb4` (W4 library + migrations 010-015), `58eba33` (assessiq-api Dockerfile + auth route layer), `335d055` (dev-auth shim swap → real `@assessiq/auth` chain across `apps/api` and `apps/web`), `0789e4f` (Dockerfile build-strategy fix + `getTenantBySlug` system-role implementation). Routes serving Flow 1: `GET /api/auth/google/start?tenant=<slug>` (302 to Google, sets `aiq_oauth_state` + `aiq_oauth_nonce`), `GET /api/auth/google/cb` (mints pre-MFA `aiq_sess`, redirects to `/admin/mfa`), `POST /api/auth/totp/enroll/start` + `POST /api/auth/totp/enroll/confirm` (returns 10 plaintext recovery codes ONCE), `POST /api/auth/totp/verify` (promotes to `totp_verified`), `POST /api/auth/totp/recovery`, `POST /api/auth/logout`, `GET /api/auth/whoami`. Container live behind Caddy split-route on `https://assessiq.automateedge.cloud/api/*`; verified by direct curl on the deployed surface. **Drill B (curl `/api/auth/google/start` 302) is DEFERRED** — route + tenant resolution PASS but `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are empty in `/srv/assessiq/.env`, so the route returns 401 `"Google SSO is not configured"` cleanly (rate-limit headers populated, no leak, no stack trace). To clear: provision OAuth client in Google Cloud Console with redirect URI `https://assessiq.automateedge.cloud/api/auth/google/cb`, add credentials to `.env`, restart `assessiq-api`. **Drill 1 (full-stack browser SSO+MFA flow) is DEFERRED** — `assessiq-frontend` Dockerfile is a Phase 1+ deliverable, so the `/admin/login` HTML route currently serves the Caddy default placeholder, not the SPA. The dev-auth `FIXME(post-01-auth)` markers are now ZERO across the repo (`apps/api/src/middleware/dev-auth.ts` deleted; `apps/web` SPA edits in commit `335d055`).
 
@@ -210,7 +302,7 @@ The strict path. Every admin must clear both factors.
 
 > **Chain reorder note (2026-05-04):** The original order was `requestId → rateLimit → cookieParser → sessionLoader → ...`. sessionLoader was moved before rateLimit so role-aware IP bucket resolution can inspect `req.session`. This is safe: `@fastify/cookie` runs as an `onRequest` hook (before all `preHandlers`), so `req.cookies` is always populated when `sessionLoader` runs. Anonymous requests (no `aiq_sess` cookie) incur zero extra overhead — sessionLoader short-circuits on missing cookie without touching Redis.
 
-## Flow 1a — TOTP enrollment (first admin login)
+### Flow 1a — TOTP enrollment (first admin login)
 
 ```
 1. Server generates random 20-byte secret, base32-encodes for QR
@@ -232,7 +324,7 @@ The strict path. Every admin must clear both factors.
 - User can regenerate (admin can force regenerate); old codes invalidated
 - Used at the same `/admin/mfa` prompt with a "Use recovery code instead" link
 
-## Flow 1b — Step-up MFA for sensitive actions
+### Flow 1b — Step-up MFA for sensitive actions
 
 Some admin actions require fresh MFA even within an active session:
 - Override an AI grading score
@@ -242,9 +334,9 @@ Some admin actions require fresh MFA even within an active session:
 
 Implementation: routes annotated `requireFreshMfa(maxAgeMinutes=15)`. If `sessions.last_totp_at < now() - 15min`, return `403 mfa_required` with a re-auth challenge. Frontend shows the TOTP modal, then retries the original action.
 
----
+### Self-service MFA: recovery-code regeneration and admin reset (RW-45)
 
-## Self-service MFA — recovery-code regeneration and admin reset (RW-45, S10, 2026-10-15)
+*History: S10, 2026-10-15.*
 
 **What changed.** Two flows now have a route and a UI. Both write an audit row inside the same transaction as the change.
 
@@ -274,7 +366,7 @@ A wrong code touches nothing. The old codes stay valid.
 
 **Not included.** A recovery-code fallback. (A message to the target and a tenant-admin variant were open here. RW-91 below closes both.)
 
-### Tenant-admin reset and the notice email (RW-91, S10, 2026-10-16)
+#### Tenant-admin reset and the notice email (RW-91, S10, 2026-10-16)
 
 **What changed.** A tenant admin can reset the two-factor setup of a user in the same organisation. Every reset, from a tenant admin or a super admin, now sends a notice email to the target user.
 
@@ -303,20 +395,18 @@ A wrong code touches nothing. The old codes stay valid.
 
 **Downstream impact.** The super-admin Users list returns `totp_enrolled` (see [03-api-contract.md](03-api-contract.md)). Two new audit actions exist: `auth.recovery.regenerated` and `auth.totp.reset`. UI: [08-ui-system.md](08-ui-system.md) § "Account security page".
 
----
-
-## Flow 2 — Candidate login
+### Flow 2 — Candidate login
 
 Two modes per assessment, set by admin:
 
-### Mode A: SSO (default, internal)
+#### Mode A: SSO (default, internal)
 
 Same Google SSO flow as admin, but:
 - `requireAuth(role: 'candidate', mfaRequired: tenant.totp_required_for_candidates)` — TOTP optional for candidates by default; enforced if tenant requires it
 - No admin UI access, candidate routes only
 - Redirect target after auth: the assessment they were invited to (`/take/<invitation-token>`)
 
-### Mode B: Magic link (cross-org, external candidates)
+#### Mode B: Magic link (cross-org, external candidates)
 
 ```
 1. Admin invites candidate by email
@@ -341,21 +431,20 @@ Same Google SSO flow as admin, but:
 
 **Magic links are single-attempt:** once `attempt.status` moves past `in_progress`, the token is dead. If the candidate's browser crashes mid-attempt, they re-use the same link until the attempt is `submitted`. After that, the link returns "already submitted, contact your admin."
 
----
-
-## Flow 3 — Embed (host application iframes AssessIQ)
+### Flow 3 — Embed (host application iframes AssessIQ)
 
 > **Status: LIVE 2026-05-03 (Phase 4 commit `b20858b`).** All implementation gaps in the spec-drift note below have been resolved. The `/embed` handler is fully implemented in `apps/api/src/routes/auth/embed.ts`. Migrations 0070–0073 have been applied to production. The `aiq_embed_sess` ↔ `aiq_sess` cookie bridge is live in `apps/api/src/server.ts`.
 
 Used when AssessIQ is dropped inside another app (Wipro internal portal, client product, etc.). The host app already authenticated the user; AssessIQ trusts the host's assertion via signed JWT.
 
-### Setup (one-time per tenant)
+#### Setup (one-time per tenant)
+
 1. Tenant admin creates an embed secret in AssessIQ admin UI
    → `POST /api/admin/embed-secrets { name }`
    → server returns the secret value ONCE (then stores only encrypted form)
 2. Host app stores the secret in its own backend env var
 
-### Per-request flow
+#### Per-request flow
 
 ```
 Host app backend builds JWT:
@@ -409,7 +498,7 @@ AssessIQ /embed handler (Phase 4 implementation — LIVE):
 >
 > 3. **Cookie bridging** — `aiq_embed_sess` (SameSite=None) and `aiq_sess` (SameSite=Lax) are distinct cookies. An `onRequest` hook in `apps/api/src/server.ts` copies the embed cookie value to the standard cookie name so all existing auth-chain middleware works unmodified on embed requests.
 
-### Embed JWT — claim contract
+#### Embed JWT — claim contract
 
 All claims are required. The verifier rejects any token with a missing or wrong-type field before touching the DB. (`modules/01-auth/src/embed-jwt.ts:25-36,188-199`)
 
@@ -426,7 +515,7 @@ All claims are required. The verifier rejects any token with a missing or wrong-
 | `exp` | unix seconds | Must be > now; `exp − iat` must not exceed 600 s |
 | `jti` | UUID string | Replay guard; cached in Redis for `exp − now` seconds |
 
-### Embed secret rotation
+#### Embed secret rotation
 
 `rotateEmbedSecret()` is a two-step atomic operation within a single `withTenant` transaction:
 
@@ -435,7 +524,7 @@ All claims are required. The verifier rejects any token with a missing or wrong-
 
 The verification path tries the active key first. On **signature mismatch only**, it falls back to the single most-recent rotated row (`ORDER BY rotated_at DESC LIMIT 1`). Any other failure (`alg` confusion, expired `exp`, wrong `aud`, malformed payload) does NOT trigger the fallback — it rejects immediately. No TTL is enforced on rotated rows in the DB; the 90-day rotation cadence is a convention, not a code constraint. (`modules/01-auth/src/embed-jwt.ts:244-265`, `modules/01-auth/migrations/014_embed_secrets.sql:7-10`)
 
-### Embed JWT — request sequence
+#### Embed JWT — request sequence
 
 ```
 Host app backend           Browser (iframe)           AssessIQ /embed handler
@@ -472,21 +561,37 @@ Set iframe src="…/embed?token=<JWT>"
 
 Consumer-facing integration guide: `docs/09-integration-guide.md`.
 
----
+#### Embed JIT user rules (FR4)
 
-## Flow 4 — API key (back-end integration)
+*History: 2026-10-03.*
 
-For host applications that don't iframe but call the REST API server-to-server.
+**What changed.** `resolveJitUser` in `modules/12-embed-sdk/src/jit-user.ts` (commits `eafeeac`, `7e2af3d`).
+- It inserts only real `users` columns: id, tenant_id, email, name, role `candidate`, status, metadata, timestamps. The old code wrote `password_hash` and `email_verified`, which do not exist, so every first embed login failed.
+- The insert uses `ON CONFLICT (tenant_id, email) DO NOTHING` and then a re-select, so two parallel first logins end with one row.
+- The lookup is case-insensitive (`lower(email)`).
+- It refuses with `AuthzError` 403 unless EVERY case variant row is role `candidate`, status `active`, `deleted_at` null and `erased_at` null.
+
+**Why.** The old code accepted any existing row, also an admin row (privilege risk). A mixed-case admin row could shadow a lower-case candidate row.
+
+**Considered and rejected.** Accept the first matching row (the shadow risk). A migration for a unique index on `lower(email)` (no need; the check reads all variants).
+
+**Not included.** Embed iframe and Caddy `frame-ancestors` (FU-B13), FU-B14, FU-B15.
+
+**Impact.** Behaviour change: an invited user in status `pending` is refused by embed. Module 12 SKILL.md and `docs/RCA_LOG.md` carry the same facts.
+
+### Flow 4 — API key (back-end integration)
+
+For host applications that do not iframe but call the REST API server-to-server.
 
 ```
 Authorization: Bearer aiq_live_<32-char-random>
 ```
 
-- Keys are tenant-scoped, with `scopes` array (e.g. `['attempts:read','results:read','assessments:write']`)
+- Keys are tenant-scoped, with `scopes` array (for example `['attempts:read','results:read','assessments:write']`)
 - Server stores `key_hash` (sha256); the full key shown to user only at creation
 - Display prefix: first 8 chars (`aiq_live_abc12345…`) for identification in admin UI
 - Rate limits: per-key (configurable, default 1000 req/hour) and per-tenant aggregate
-- `last_used_at` updated async (don't block requests)
+- `last_used_at` updated async (do not block requests)
 - Rotation: admin creates new key, has 30-day grace period to migrate, then revokes old
 
 **Scope catalog (v1):**
@@ -497,15 +602,13 @@ Authorization: Bearer aiq_live_<32-char-random>
 - `webhooks:manage`
 - `admin:*` (rare, for full automation)
 
----
-
-## Flow 4b — Public credential verify (auth-bypass surface)
+### Flow 4b — Public credential verify (auth-bypass surface)
 
 > **Status: LIVE 2026-05-11 (commit 7208008).** Phase 5 Session 3.
 
 Recruiters and external verifiers check a certificate's authenticity at `GET /verify/:credentialId` — no account, session cookie, API key, or tenant context required.
 
-### Why this is safe without authentication
+#### Why this is safe without authentication
 
 The route accesses `certificates` via a **GUC-based RLS policy** (`public_verify_lookup`) rather than the standard `withTenant()` + `app.current_tenant` path. The policy covers SELECT only; UPDATE/INSERT/DELETE are never permitted through it. (`modules/18-certification/migrations/0074_public_verify_policy.sql`)
 
@@ -525,7 +628,7 @@ SELECT ... FROM certificates WHERE credential_id = $1    -- public_verify_lookup
 COMMIT                                                    -- GUC reverts here
 ```
 
-### HMAC guard (app-layer)
+#### HMAC guard (app-layer)
 
 Every render calls `verifyCertificateSignature()` using `crypto.timingSafeEqual`. Three outcomes, all HTTP 200 when the credential exists:
 
@@ -535,13 +638,13 @@ Every render calls `verifyCertificateSignature()` using `crypto.timingSafeEqual`
 
 404 is returned only when `credential_id` is unknown. A recruiter who sees "Revoked" knows the credential existed but was invalidated — they do not mistake it for a forgery. (`modules/18-certification/src/routes-public.ts:327-368`)
 
-### Rate limiting and view dedup
+#### Rate limiting and view dedup
 
 - Per-IP: 60 req/hour, fixed-window, in-memory, 10 000-bucket cap. (`routes-public.ts:54-56`)
 - Per-(IP, credentialId) view dedup: 1 h window, 50 000-entry cap. (`routes-public.ts:96-97`)
 - `verification_views` counter: fire-and-forget via a **separate** `withTenant()` transaction; the main request path uses `withPublicVerifyContext` and never sets `app.current_tenant`. (`routes-public.ts:355-361`)
 
-### Request sequence
+#### Request sequence
 
 ```
 Recruiter / LinkedIn crawler     apps/api (no authChain, no tenant middleware)
@@ -570,13 +673,11 @@ Routes are registered by `registerVerifyRoutes(app)` at `apps/api/src/server.ts:
 
 Also ships: `GET /verify/:credentialId/og.svg` — 1200×630 SVG for LinkedIn link previews; `Cache-Control: public, max-age=3600`. Same RLS path, same HMAC check. (`routes-public.ts:374-424`)
 
----
-
-## Flow 6 — Candidate magic-link login
+### Flow 6 — Candidate magic-link login
 
 > **Status: LIVE 2026-05-13 (Phase 5).** Migration `0076_candidate_login_tokens.sql` applied to production. Routes `POST /api/auth/candidate/request-link` and `POST /api/auth/candidate/verify-link` registered in `apps/api/src/routes/auth/candidate.ts`. Implementation in `modules/01-auth/src/candidate-login.ts`. See `modules/01-auth/SKILL.md` § Candidate magic-link login.
 >
-> **Why the verify endpoint is POST, not GET.** Email-preview crawlers (Gmail, Outlook, Slack, Teams) prefetch link URLs with GET to render previews and scan for malware. A GET verify-link would consume the single-use token on prefetch, before the candidate ever clicked. The email link therefore points at a SPA route `/candidate/login/verify?token=…`, which is safe to prefetch (it returns HTML); the actual verification is a POST from that page's JavaScript, which crawlers do not execute. Crawlers also don't follow `Set-Cookie` headers, so even a successful crawler GET wouldn't mint a session — but the token would be burned, locking the real candidate out.
+> **Why the verify endpoint is POST, not GET.** Email-preview crawlers (Gmail, Outlook, Slack, Teams) prefetch link URLs with GET to render previews and scan for malware. A GET verify-link would consume the single-use token on prefetch, before the candidate ever clicked. The email link therefore points at a SPA route `/candidate/login/verify?token=…`, which is safe to prefetch (it returns HTML); the actual verification is a POST from that page's JavaScript, which crawlers do not execute. Crawlers also do not follow `Set-Cookie` headers, so even a successful crawler GET would not mint a session — but the token would be burned, locking the real candidate out.
 
 This flow lets a candidate sign in to view their certificates at `/candidate/certificates` without a password. It is deliberately separate from the assessment-taking magic link (Flow 2 / `/take/:token`): that link is invitation-scoped and single-use-per-attempt; this login link is identity-scoped and produces a long-lived 30-day session so candidates can return to their certificate portfolio at any time without admin re-intervention.
 
@@ -648,7 +749,7 @@ The trigger is the candidate navigating to `/candidate/login` on their own — e
      │  (SPA navigates to /candidate/login?error=invalid_link)│
 ```
 
-### Session cookie spec for candidate sessions
+#### Session cookie spec for candidate sessions
 
 The session produced by this flow uses the same `aiq_sess` cookie as admin and assessment-taking sessions; the role discriminator inside the session (`role='candidate'`) is what `requireAuth` checks.
 
@@ -664,15 +765,15 @@ The session produced by this flow uses the same `aiq_sess` cookie as admin and a
 
 The 30-day fixed lifetime is intentional and differs from the 8-hour sliding admin session. Candidates are not expected to visit daily; a long fixed window avoids forcing re-auth on infrequent returners. Idle eviction (the 60-minute `lastSeenAt` check in sessionLoader) is **disabled** for candidate sessions — see `modules/01-auth/src/candidate-login.ts` for the `skipIdleEviction: true` flag on `sessions.create`.
 
-### Anti-enumeration
+#### Anti-enumeration
 
 `POST /api/auth/candidate/request-link` returns `204 No Content` regardless of whether the submitted email address matched, the tenant slug was valid, or the rate limit was exceeded. This is intentional: callers must never be able to distinguish "found" from "not found" or "slug valid" from "slug invalid" via HTTP responses.
 
 **Timing oracle defence (Fix 3 — 2026-05-13):** The no-match path (slug miss before any DB work) was measurably faster than the match path (slug resolve + RLS user SELECT + token INSERT + audit + email enqueue). `requestCandidateLoginLinkSystem` now wraps all work in `Promise.all([actualWork, sleep(200)])` so both paths complete in ≥ 200 ms. The 200 ms floor swamps the ~10–50 ms timing difference at network noise levels.
 
-Do not add any response field that differentiates "email found" from "email not found". If a future feature requires a "we could not find that address" UX, it must be implemented with a server-side hint that is time-limited and authenticated (e.g., a short-lived signed cookie), not an inline HTTP body diff.
+Do not add any response field that differentiates "email found" from "email not found". If a future feature requires a "we could not find that address" UX, it must be implemented with a server-side hint that is time-limited and authenticated (for example, a short-lived signed cookie), not an inline HTTP body diff.
 
-### Rate limits
+#### Rate limits
 
 | Dimension | Limit | Window | Notes |
 |---|---|---|---|
@@ -685,15 +786,13 @@ Do not add any response field that differentiates "email found" from "email not 
 
 Unconsumed, expired tokens are swept by the existing session expiry sweeper (Phase 3 follow-up). The partial index `candidate_login_tokens_user_unconsumed_idx ON (user_id) WHERE consumed_at IS NULL` keeps the live-token lookup fast even with a long history of expired rows.
 
-### Mobile rendering (M1 — 2026-05-20)
+#### Mobile rendering (M1 — 2026-05-20)
 
 The candidate magic-link UI (`/candidate/login`, `/candidate/login/verify`) is mobile-tuned via CSS only; **no flow, no API, no semantics change.** Under `[data-viewport="mobile"]` (M0 mechanism — see [`docs/10-branding-guideline.md` § 15](./10-branding-guideline.md#15-mobile)) the two-pane layout collapses to a single column, the right aside is hidden via `display: none`, and `<main>` padding shrinks from `48px 64px` to `24px 22px`. `CandidateLoginVerify` (centered spinner) is viewport-agnostic and unchanged.
 
 Anti-enumeration timing, rate-limit copy, the unconditional 204 response, and the magic-link token semantics are identical across viewports. See [`docs/10-branding-guideline.md` § 15.3](./10-branding-guideline.md#153-pattern-reflows-catalog--m1m5-shipped-2026-05-20) for the full reflow catalog entry.
 
----
-
-## Flow 5 — Future auth methods (designed in)
+### Flow 5 — Future auth methods (designed in)
 
 Tenant admin opens *Settings → Authentication* and toggles:
 
@@ -710,30 +809,9 @@ Tenant admin opens *Settings → Authentication* and toggles:
 
 Each method is a Fastify plugin under `01-auth/providers/`. The `tenant_settings.auth_methods` JSONB tells the login page which buttons to show. Adding a new method is: add a provider plugin + add to the toggle UI + add to tenant settings JSON schema.
 
----
+## Tenant and user life cycle
 
-## Token & secret storage standards
-
-| Secret | Storage | Reveal policy |
-|---|---|---|
-| Session cookie value | sha256 hashed in `sessions.token_hash` | Never revealed after issuance |
-| TOTP secret | AES-256-GCM in `user_credentials.totp_secret_enc` | Never revealed after enrollment (QR shown once) |
-| Recovery codes | argon2id hashed | Plaintext shown once at generation |
-| API keys | sha256 hashed | Plaintext shown once at creation |
-| Embed secrets | AES-256-GCM | Plaintext shown once at creation |
-| Passwords (if used) | argon2id (m=64MB, t=3, p=4) | Never revealed |
-| Webhook signing secrets | AES-256-GCM | Plaintext shown once |
-
-Master encryption key: 32-byte random, in env var `ASSESSIQ_MASTER_KEY` (base64). For v1, plain env file with strict perms (0600, owned by service user). For v2, integrate Doppler / Vault.
-
-## Security must-do checklist
-
-- [ ] Verify every JWT signature (no `alg: none` ever)
-- [ ] CSRF protection on state-changing routes (double-submit cookie)
-- [x] **Role-aware IP rate limiting on all routes** (2026-05-15) — four-tier design, see § below
-- [ ] Account lockout after 5 failed TOTP attempts in 15 min
-
-## Tenant + User lifecycle state machines (Phase B + Phase C, 2026-05-20)
+*History: Phase B and Phase C, 2026-05-20.*
 
 Commits: `ae89669` (Phase B — tenant lifecycle), `2af9849` + `a888a43` (Phase C — user lifecycle + super-admin drill-down).
 
@@ -761,8 +839,6 @@ Any transition where source equals target is **idempotent**: the endpoint return
 
 **Session revocation.** `suspend` and `archive` both call `sessions.destroyAllForTenant(tenantId)` ([`modules/01-auth/src/sessions.ts:296–323`](modules/01-auth/src/sessions.ts#L296)) immediately after the DB status flip. The sweep collects all `user_id`s with active Postgres session rows for the tenant, then calls `destroyAllForUser` per user — clearing both the Redis hash keys and the Postgres `sessions` rows — so every active cookie becomes invalid on the very next request. This is defence-in-depth: even a cookie-holder who did not observe the suspend cannot reuse their session. `resume` and `unarchive` do **not** recreate sessions; affected users must sign in again normally.
 
----
-
 ### User state machine
 
 States: `pending`, `active`, `disabled` (the `users.status` column) plus the orthogonal `deleted_at IS NOT NULL` soft-delete flag. The two axes are independent: a user can be `disabled` and then soft-deleted, or `active` and soft-deleted.
@@ -785,8 +861,6 @@ States: `pending`, `active`, `disabled` (the `users.status` column) plus the ort
 
 **Self-action guards.** The tenant-admin path (`apps/api/src/routes/admin-users.ts`) throws `ConflictError { code: "CANNOT_DISABLE_SELF" }` and `{ code: "CANNOT_DELETE_SELF" }` when the actor targets their own user record. The super-admin path has no equivalent guard: `super_admin` sessions carry the platform tenant context and do not live inside any company tenant, so the guard does not apply.
 
----
-
 ### Session-loader enforcement contract
 
 Every authenticated request runs `userIsActive` then `tenantIsActive` inside `sessionLoaderMiddleware` ([`modules/01-auth/src/middleware/session-loader.ts:86–178`](modules/01-auth/src/middleware/session-loader.ts#L86)), after the Redis session lookup and idle-eviction check.
@@ -808,8 +882,6 @@ User check runs **first** — a disabled user receives a `scope: "user"` error e
 
 `tenantIsActive` allows both `'active'` and `'provisioning'` — the latter permits the `createTenant` orchestration window (seed + invite steps) without blocking the first admin's session mid-flow.
 
----
-
 ### Audit log emissions
 
 Source: [`modules/14-audit-log/src/types.ts`](modules/14-audit-log/src/types.ts) `ACTION_CATALOG`.
@@ -829,15 +901,13 @@ Source: [`modules/14-audit-log/src/types.ts`](modules/14-audit-log/src/types.ts)
 - `user.soft_deleted` / `user.deleted` — any status → soft-deleted. The catalog keeps both names for backward compatibility:
   - Tenant-admin path: `auditInTx` (audit_log) emits `user.deleted`; `logLifecycleEvent` (operational JSONL) emits `user.soft_deleted`.
   - Super-admin path: BOTH channels emit `user.soft_deleted`.
-  - Catalog comment in [`modules/14-audit-log/src/types.ts:157`](modules/14-audit-log/src/types.ts#L157) notes the two are functionally equivalent — the duplicate exists so admin queries scoped to `user.deleted` don't miss historic rows.
+  - Catalog comment in [`modules/14-audit-log/src/types.ts:157`](modules/14-audit-log/src/types.ts#L157) notes the two are functionally equivalent — the duplicate exists so admin queries scoped to `user.deleted` do not miss historic rows.
 - `user.restored` — soft-deleted → prior status
 - `user.invitation_cancelled` — pending invitation explicitly cancelled before acceptance
 
 Audit rows are written inside the **same `withTenant` transaction** as the status mutation via `auditInTx` — if the audit write fails, the status change rolls back. No-op transitions (idempotent same-state calls) do not emit an audit row.
 
 **Override rows.** When the super-admin bypass path is used (`confirm_last_admin: true` + non-empty `reason`), the audit row's `after` JSONB column includes `is_override: true` ([`admin-super.ts:1199`](apps/api/src/routes/admin-super.ts#L1199), [`admin-super.ts:1412`](apps/api/src/routes/admin-super.ts#L1412)). `logLifecycleEvent` emits at `WARN` level when `isOverride=true` ([`admin-super.ts:1066`](apps/api/src/routes/admin-super.ts#L1066)).
-
----
 
 ### Tenant purge (RW-48b, S10, 2026-10-15)
 
@@ -877,11 +947,15 @@ Audit rows are written inside the **same `withTenant` transaction** as the statu
 - **Provisioning TTL.** There is no TTL on `tenants.status = 'provisioning'`. A tenant whose first admin never accepts the invitation will sit in `provisioning` indefinitely; a background cleanup sweep is not implemented.
 - **Phase D state-aware copy — DONE (RW-48a, shipped earlier; verified S10, 2026-10-15).** The login pages render different copy for `details.scope = "user"` vs `"tenant"`. The scope-to-copy mapping lives in `apps/web/src/lib/authScope.ts`. See "Session-revocation UX" below.
 
-## Role-aware IP rate limiting
+## Rate limits, trust and edge protection
+
+This section explains how AssessIQ limits request volume, which client IP it trusts and how the edge proves that a request came through Cloudflare.
+
+### Role-aware IP rate limiting
 
 > **Status: LIVE 2026-05-15** — redesign replaces the 2026-05-04 opt-in bypass. See `modules/01-auth/src/middleware/rate-limit.ts` + `apps/api/src/middleware/auth-chain.ts`.
 
-### Design
+#### Design
 
 Role is resolved per-request from `req.session.role`, `req.apiKey`, or anonymous fallback:
 
@@ -897,17 +971,17 @@ Role is resolved per-request from `req.session.role`, `req.apiKey`, or anonymous
 
 All four `RATE_LIMIT_IP_*` env vars are optional — `00-core` Zod config provides safe defaults via `.default(N)`, so existing deploys work without `.env` changes.
 
-### Chain order (unchanged from 2026-05-04)
+#### Chain order (unchanged from 2026-05-04)
 
 `sessionLoader` runs before `rateLimit` so `resolveIpBucketMax(req)` can read `req.session.role` when choosing the bucket max. Anonymous requests (no `aiq_sess` cookie) short-circuit sessionLoader in <1 ms — no Redis hit.
 
-### Bypass — removed
+#### Bypass — removed
 
 `allowVerifiedAdminBypass: boolean` in `rateLimitMiddleware(opts)` and `authChain({ allowVerifiedAdminBypass })` is **gone** as of this redesign. There is no opt-in per-route bypass; the IP bucket scales automatically with the session role.
 
 The old bypass predicate required `session.totpVerified === true`, which was **never true** while `MFA_REQUIRED=false` (production default). The bypass was effectively dead code in production, causing every admin login flow (`/start` → `/cb` → `/whoami` × retries) to hit the old 10/min/IP cap and 429 itself.
 
-### Path N decision — TOTP/recovery endpoints not special-cased
+#### Path N decision — TOTP/recovery endpoints not special-cased
 
 `POST /api/auth/totp/verify`, `POST /api/auth/totp/recovery`, `POST /api/auth/totp/enroll/confirm` are **not** given a separate tighter IP bucket. Admin sessions hit 100/min/IP on these routes, same as all other routes.
 
@@ -915,7 +989,7 @@ The old bypass predicate required `session.totpVerified === true`, which was **n
 
 **Brute-force window regression:** old design — 10/min/IP on auth routes → ~35 days before lockout triggers at anon rate. New design — 30/min anon, 100/min verified admin → ~3.5 days at admin rate before lockout. Deliberate regression, accepted by user on 2026-05-15. Pinned in `modules/01-auth/src/__tests__/middleware.test.ts` test "admin gets 100/min/IP on TOTP verify (Path N — blacklist dropped per user decision 2026-05-15, brute-force window ~3.5 days)".
 
-### Production override — admin IP cap 100 → 500 (2026-05-20)
+#### Production override — admin IP cap 100 → 500 (2026-05-20)
 
 **What changed:** `RATE_LIMIT_IP_ADMIN=500` set in `/srv/assessiq/.env` on the production VPS. Code default in `modules/00-core/src/config.ts` stays at 100 — dev/test/CI continue at the conservative default; only prod takes the higher cap.
 
@@ -925,7 +999,7 @@ The old bypass predicate required `session.totpVerified === true`, which was **n
 
 - *Stay at 100/min and fix the `whoami` spam.* Still the right structural fix (cuts ~40% of admin request volume), but it is its own session — separating it from this immediate UX unblock.
 - *Raise the code default to 500.* Rejected: it weakens dev/test/CI's ability to catch a client-side request storm early. Env override keeps the safety net in non-prod.
-- *Raise per-user (60/min) or per-tenant (600/min) instead.* Doesn't help — the bucket actually exhausting is the per-IP one (the most restrictive of the three for a single admin).
+- *Raise per-user (60/min) or per-tenant (600/min) instead.* Does not help — the bucket actually exhausting is the per-IP one (the most restrictive of the three for a single admin).
 
 **Not included:** ANON (30/min), USER/candidate (30/min), and APIKEY (600/min) tiers unchanged — none have shown legitimate-traffic 429s. Code defaults in `00-core` unchanged. `trustProxy:true` and origin-verify gate unchanged.
 
@@ -933,18 +1007,18 @@ The old bypass predicate required `session.totpVerified === true`, which was **n
 
 - Brute-force window per IP: ~3.5d → ~0.7d for a single TOTP (5× the rate).
 - **Primary TOTP defense is unchanged:** the 5-failures-in-15-min per-user lockout (counter `aiq:auth:totpfail:<userId>` + `aiq:auth:lockedout:<userId>` TTL 15m) keeps any one user's TOTP at ~2.85 years to brute-force *regardless of the IP limit*. The IP bucket is a *mass-scale* throttle (one IP probing many users), not the per-TOTP defense.
-- Origin-verify `enforce` is live (`3b2fe73`, 2026-05-19) — IP spoofing via direct-to-origin is blocked, so the 500/min only applies to verified Cloudflare traffic. An attacker can't trivially rotate IPs to evade.
+- Origin-verify `enforce` is live (`3b2fe73`, 2026-05-19) — IP spoofing via direct-to-origin is blocked, so the 500/min only applies to verified Cloudflare traffic. An attacker cannot trivially rotate IPs to evade.
 - Net: this loosens mass-scale single-IP throttling 5×, which is the right tradeoff because the per-user lockout already carries the primary defense.
 
 **Supersedes** the "100/min admin / ~3.5d brute-force window" sentence above **for production only**. Dev/test still sees 100/min. Reverse on prod by removing the `.env` line and `force-recreate assessiq-api`; timestamped `.env.bak.<TS>` backups exist on the VPS.
 
 **Downstream impact:** the `middleware.test.ts` PathN test updated (2026-05-20) to use `totpVerified: false` explicitly; the credential bucket test was added as PathN-Credential. Future tuning should revisit if (a) the per-user lockout decision #4 ever changes, or (b) origin-verify ever drops from `enforce`. Both invariants would need to be re-reasoned together.
 
-### Tiered model by auth state (2026-05-20 redesign)
+#### Tiered model by auth state (2026-05-20 redesign)
 
 **Status: LIVE 2026-05-20** — shifts the model from single-cap-by-role to a two-layer model: a per-IP cap that scales with MFA state, plus an immovable per-route credential cap that protects TOTP/OTP endpoints regardless of tier.
 
-#### What changed
+##### What changed
 
 Three new env vars added to `modules/00-core/src/config.ts`, three new rate-limit buckets in `modules/01-auth/src/middleware/rate-limit.ts`:
 
@@ -972,27 +1046,27 @@ Credential routes with `credentialEndpoint: true` (the 9 token/credential-consum
 
 **Credential bucket key construction (adversarial finding 3):** the per-route bucket key is built from `req.routeOptions?.url ?? "unknown"`. The `req.url` fallback was REMOVED — `req.url` includes query params, which would let an attacker vary the query (`?nonce=1`, `?nonce=2`…) to mint fresh per-query buckets and defeat the 20/min cap. With the fix, an unmatched route falls into one shared `"unknown"` bucket — strictly safer than an attacker-controllable key.
 
-#### Why
+##### Why
 
 Operator-observed: verified admins (post-MFA) doing normal admin work were being throttled by the same 100/min cap as brute-force attackers. The redesign separates concerns:
 - **Verified admin** → relaxed IP cap (5000/min, DoS ceiling only); per-user (300/min) and credential (20/min) are the actual meaningful constraints.
 - **Brute-force surface (credential endpoints)** → IMPROVED from 100/min to 20/min. The IP lift for verified admins does not weaken TOTP protection because the credential bucket is unconditional.
 - **Everyone else** → unchanged.
 
-#### What was considered and rejected
+##### What was considered and rejected
 
 - *Apply the credential cap to ALL routes for all tiers.* Rejected — the goal is targeted protection for credential endpoints, not global tightening. Credential cap on non-credential routes would throttle legitimate admin workflows.
 - *Raise per-user from 60 to 300 for all admins (not just verified).* Rejected — pre-MFA sessions are lower-assurance; conservative 60/min is correct until TOTP is proven.
 - *Configurable per-route caps.* Rejected — scope creep. The credential cap is a security invariant, not a tuning knob. Making it per-route invites drift.
 - *Use the existing `RATE_LIMIT_IP_ADMIN` at a higher value.* Rejected — conflates pre-MFA and post-MFA admins into one bucket; the redesign preserves independent control.
 
-#### What is NOT included
+##### What is NOT included
 
 - Verified-admin bypass of the credential cap. The 20/min credential cap is unconditional by design — there is no `credentialEndpointBypass` option and none will be added.
 - Dynamic credential cap (auto-tighten on surge). Not included; account-lockout (decision #4) handles per-user surge.
 - Candidate-session differentiation from pre-MFA admin at the IP layer. Both stay at their existing tiers.
 
-#### Downstream impact
+##### Downstream impact
 
 - `modules/00-core/src/config.ts`: three new Zod env vars (`RATE_LIMIT_IP_VERIFIED_ADMIN`, `RATE_LIMIT_USER_VERIFIED_ADMIN`, `RATE_LIMIT_CREDENTIAL`).
 - `modules/01-auth/src/middleware/rate-limit.ts`: `resolveIpBucketMax` updated; `RateLimitOptions.credentialEndpoint` added; `Limit.scope` extended with `"credential"`; per-user bucket is tier-aware; `resolveIpBucketMax` exported (was already exported since 2026-05-15 redesign).
@@ -1004,18 +1078,18 @@ Operator-observed: verified admins (post-MFA) doing normal admin work were being
 - `modules/00-core/src/__tests__/config.test.ts`: three default tests + three override tests + three invalid tests added.
 - `.env.example`: three new vars with comments.
 
-#### 2026-05-22 — anon IP cap raised 30 → 120 (login-screen 429 fix)
+##### 2026-05-22 — anon IP cap raised 30 → 120 (login-screen 429 fix)
 
 `RATE_LIMIT_IP_ANON` default raised 30 → **120/min** (`modules/00-core/src/config.ts`, commit `ad88f72`). The anonymous tier gates the ENTIRE pre-auth surface — every load/return to a protected `/admin/*` route fires a `GET /api/auth/whoami` probe (`RequireSession`), and the login/MFA flow is anonymous until the cookie is set. At 30/min a single admin reloading the live login page (or several users behind one NAT) exhausted it and got `RATE_LIMITED (scope=ip)` **on the login screen** — before they could reach MFA and the 5000/min verified-admin tier. 120/min is a DoS knob only; credential brute-force stays on the unconditional 20/min credential bucket above, unaffected. Not pinned in prod `.env`, so the code default applies. The frontend pairs this with the Phase D `whoami` 429-backoff (commit `60d4d23`; honours `retryAfterSeconds`, no re-fire storm). Full RCA: `docs/RCA_LOG.md` 2026-05-22 "429 on the admin login screen". NB: the "What changed vs 2026-05-04" comparison table below still reads "100/30/30/600 per tier" for the historical redesign — **anon is now 120**.
 
-### Redis key
+#### Redis key
 
 Old: `aiq:rl:auth:ip:<ip>` (applied to `/api/auth/*` only)
 New: `aiq:rl:ip:<ip>` (applies to all routes)
 
 Old keys expire naturally within 60 seconds — no migration script required.
 
-### What changed vs 2026-05-04 design
+#### What changed vs 2026-05-04 design
 
 | Component | Before | After |
 |---|---|---|
@@ -1026,19 +1100,19 @@ Old keys expire naturally within 60 seconds — no migration script required.
 | Env var knobs | None (hardcoded) | `RATE_LIMIT_IP_{ADMIN,USER,ANON,APIKEY}` |
 | Redis key | `aiq:rl:auth:ip:<ip>` | `aiq:rl:ip:<ip>` |
 
-### What was considered and rejected
+#### What was considered and rejected
 
 - **Keep bypass but widen predicate to `MFA_REQUIRED=false` path.** Rejected — the opt-in whitelist design requires every new route to opt in; missed routes silently have the wrong limit. Role-aware design is correct-by-default.
 - **Separate tighter buckets for TOTP endpoints.** Rejected — account-lockout (decision #4) is the right defense for TOTP brute force; a second bucket adds complexity without meaningful security gain given the session pre-requisite.
 - **Configurable per-endpoint limits.** Rejected — scope creep; four-tier role-based design covers all known use cases.
 
-### What is NOT included
+#### What is NOT included
 
 - Per-endpoint limit overrides.
-- Dynamic limit adjustment (e.g., auto-tighten on failed-login surge).
+- Dynamic limit adjustment (for example, auto-tighten on failed-login surge).
 - Candidate session differentiation from reviewer (both use `RATE_LIMIT_IP_USER` default). Reviewer is removed (2026-10-03); a legacy reviewer row falls to the user tier.
 
-### Downstream impact
+#### Downstream impact
 
 - `modules/01-auth/src/middleware/rate-limit.ts`: full rewrite — `resolveIpBucketMax()` replaces `shouldBypassIpBucket()`; Redis key renamed.
 - `apps/api/src/middleware/auth-chain.ts`: single `rateLimitMiddleware()` instance; `allowVerifiedAdminBypass` removed from `AuthChainOpts`.
@@ -1051,29 +1125,44 @@ Old keys expire naturally within 60 seconds — no migration script required.
 - [ ] HSTS header at edge with preload-eligible config
 - [ ] CSP header tight enough to prevent inline-script execution in admin UI
 
----
+### Campus-scale rate limits and DB pool (task R2)
 
-## Session-revocation UX — state-aware login banner (Phase D, 2026-05-22, LIVE)
+*History: 2026-10.*
 
-**What:** When a session is destroyed mid-use because the operator suspended/archived the tenant or disabled/deleted the user, `session-loader` (`modules/01-auth/src/middleware/session-loader.ts`) throws a 401 carrying `details.scope` (`"tenant"` | `"user"`) and `details.reason`. The SPA captures that scope on the failing `whoami` (`apps/web/src/lib/session.ts` + the admin-dashboard mirror `modules/10-admin-dashboard/src/session.ts`), stores it single-shot in `sessionStorage` under `aiq.lastAuthScope`, and **both** the admin login (`apps/web/src/pages/admin/login.tsx`) and the candidate login (`apps/web/src/pages/candidate/CandidateLogin.tsx`) read + clear it on mount via the shared helper `apps/web/src/lib/authScope.ts` (`readAuthScopeOnce()` + `authScopeCopy(scope, audience)`) to render a state-aware notice with **audience-tuned copy**:
+**Problem.** A campus placement drive is 100-500 students in one lab behind ONE public IP, all taking the test at once. The per-IP bucket (30/min candidate, 120/min anon), the 20/min credential cap on `verify-link`, the hardcoded 600/min per-tenant cap and a 10-connection pg pool all 429'd or starved the lab mid-test.
 
-- `scope: "tenant"` → admin **"Your organisation's access is paused."** (operator-facing body) / candidate same title, calmer body ("Your assessment workspace has been suspended. Please contact your assessment administrator.")
-- `scope: "user"` → admin **"Your account has been disabled."** / candidate **"Your access has been removed."**
-- any unknown / absent scope → no banner (silent fallthrough)
+**What changed (`rate-limit.ts`, `auth-chain.ts`, `config.ts`, `pool.ts`, `server.ts`):**
 
-Each page owns its own visual treatment (admin login is single-column; candidate login uses its two-pane warning-soft alert idiom), but the single-shot read and scope→copy mapping live once in `authScope.ts` so the two cannot drift.
+| Control | Before | After | Env var |
+|---|---|---|---|
+| Per-IP, valid candidate session | 30/min | 3000/min (DoS ceiling; mirrors the verified-admin lift) | `RATE_LIMIT_IP_CANDIDATE_SESSION` |
+| Per-user, candidate | 60/min | 120/min | `RATE_LIMIT_USER_CANDIDATE` |
+| Per-tenant (session + apiKey) | 600/min hardcoded | 6000/min | `RATE_LIMIT_TENANT` |
+| Entry routes `POST /take/start`, `POST /api/auth/candidate/verify-link` | 120/min anon IP (and 20/min credential on verify-link) | dedicated per-route per-IP bucket `aiq:rl:entry:<route>:<ip>` 2000/min (2 calls per student: preview + Begin, plus reloads) via `authChain({ candidateEntry: true })` | `RATE_LIMIT_IP_CANDIDATE_ENTRY` |
+| pg pool max | 10 | 30 | `PG_POOL_MAX` |
 
-**Why:** Before this, a revoked session bounced to a generic "session expired" feel that misrepresented a suspend/disable — the user had no idea their org or account was the cause. The error `code` and raw message are deliberately NOT surfaced; the scope alone drives the copy, so a cookie-holding attacker cannot distinguish "my account was disabled" from "my company was suspended" via the error string (matches the session-loader error-hygiene note).
+**Why these numbers.** Autosave debounces 5 s per question (`useAutosave`, ~12 saves/min), plus flush-on-blur/navigation, timer sync, flag/event posts: ~30/min worst realistic case per student, so 120/min per user is 4x headroom including client retry bursts while still stopping a runaway script. Tenant 6000 = 500 students x 12 req/min. Session IP 3000 = 500 x 6. Entry 600 = 2x a 300-student lab. Pool: Postgres `max_connections` is the default 100 (compose sets none); api 30 + worker 30 = 60, ~37 left for migrations/psql/backups; lower the worker via env if needed.
 
-**Considered & rejected:** Surfacing `details.reason` text directly (rejected — leaks state granularity, and the two-bucket scope copy is sufficient). A toast instead of a login-page banner (rejected — the user has already been redirected to /login by the time the SPA reacts; the banner must live there).
+**Why safe.** Session validity comes from `sessionLoader` (Redis lookup) before the limiter runs, so a forged cookie stays on the anon tier. The per-user bucket is still the real per-student limit. Magic-link tokens are 256-bit random + single-use, so 2000/min/IP leaves brute force infeasible; the entry bucket uses its own key so an entry burst does not consume the lab's general anonymous bucket. Admin credential endpoints (TOTP, email OTP, login select/identities) keep the unchanged 20/min `credentialEndpoint` bucket. Fail-closed on missing client IP in production is unchanged. `verify-link` moved from `credentialEndpoint` to `candidateEntry` deliberately.
 
-**Excluded:** No `help_id` (CLAUDE.md rule #5) — the banner is a transient pre-auth status notice, not a help-targeted interactive control, and the help system is not active pre-session. (Candidate-login coverage, originally deferred, shipped 2026-05-22 in `7eb8604`.)
+**Considered and rejected.** Raising the global anon IP cap (weakens every public route); keying the limiter by attempt id (needs a DB/Redis lookup before the limiter, and the session already identifies the student).
 
-**Impact:** Frontend-only; server-side scope enforcement (Phase A, tenant/user status checks in `session-loader`) was already live. Both login pages share `apps/web/src/lib/authScope.ts`; built from design-system tokens (`--aiq-color-warning`, `--aiq-color-bg-sunken`/candidate `--aiq-color-warning-soft`, `--aiq-radius-md`); `role="status"`. Commits `60d4d23` (admin login + the `whoami` 429-backoff) and `7eb8604` (candidate login + shared `authScope.ts` + apps/web jsdom unit-test infra). **Behaviour is now proven by unit tests** — `pnpm --filter @assessiq/web test` (22 pass): `authScope.test.ts` (single-shot read, scope parse, audience copy), `admin/login.test.tsx` + `candidate/CandidateLogin.test.tsx` (tenant/user/none + single-shot), plus the now-unblocked `mfa.test.tsx`. No longer "pending operator"; banner copy also confirmed in the served bundle. The web test-infra mirrors `modules/10-admin-dashboard` (`@testing-library/react` + `jsdom` + `vitest`, `apps/web/vitest.config.ts`); run per-package like the other UI packages (not yet in the root `pnpm test` include — same gap as the existing UI packages).
+**Request-scoped tenant transaction removed.** `tenantContextMiddleware` was a global `preHandler` that checked out a pool client + `BEGIN` per request. Evidence: nothing reads `req.db`/`req.tenant` (only `server.ts` referenced `req.db`), all DB access uses `withTenant()`; and because `sessionLoader` is a per-route preHandler while Fastify runs global preHandlers first, the hook never saw `req.session` in production (it was dead code that would have pinned a second connection for the whole request if it ever fired). The registration in `server.ts` is removed; the exported helper stays in `02-tenancy` with a "do not register globally" note.
 
----
+**Not included.** Per-route-group candidate caps, Redis-cluster sharding of the buckets, pgbouncer. Load script: `tests/load/scenarios/candidate-drive.js` (staging/local only).
 
-## Auth-bypass route inventory
+### Client IP trust and production boot rule
+
+*History: 2026-10-02, batch 4.*
+
+- **What.** `extractClientIp` (01-auth) takes `CF-Connecting-IP` only through `validCfIp`: it must be a syntactically valid IP literal (`net.isIP`). Junk, comma lists or oversized strings are ignored. The header is honoured only when the request is origin-verified (`ORIGIN_TRUST_MODE` enforce or log with a matching `x-origin-verify`). The remaining raw `req.ip` / cf-header reads (06 take and consent, 18 `/verify`) now go through `extractClientIp`. `isRateLimited(key, max)` is a read-only peek used by failure-only throttles.
+- **Boot rule.** `modules/00-core/src/config.ts` refuses to start when `NODE_ENV=production` and `ORIGIN_TRUST_MODE !== 'enforce'` (message: requires enforce with `ORIGIN_VERIFY_SECRET`). Prod has run enforce since 2026-05-19; api and worker were checked live after deploy.
+- **Why.** The client IP keys rate limits, session binding and audit. An origin-bypasser in off/log mode could inject any header value and mint unlimited buckets or spoof an IP. Making enforce mandatory removes the foot-gun (codex revise).
+- **Considered and rejected.** Trusting `X-Forwarded-For` (spoofable); validating only in the rate limiter (other callers stay exposed).
+- **Not included.** No Cloudflare IP-range allowlist; origin verification remains the trust anchor.
+- **Impact.** Local dev and CI keep `off`/`log` (non-production). Any new production deployment must set `ORIGIN_TRUST_MODE=enforce` and `ORIGIN_VERIFY_SECRET` or the API and worker will not boot.
+
+### Auth-bypass route inventory
 
 The canonical trust-boundary table. Every route that runs without a `requireAuth` session gate is listed here with the alternative trust model that makes it safe. Security reviews start here.
 
@@ -1099,19 +1188,17 @@ The canonical trust-boundary table. Every route that runs without a `requireAuth
 | `POST /api/auth/candidate/request-link` | None (per-IP+email rate-limited; 204 always) | Auth-establishing; anti-enumeration requires unconditional 204 |
 | `POST /api/auth/candidate/verify-link` | `candidate_login_tokens` sha256 hash (DB lookup); body `{token}` | Token IS the credential; session minted after hash validation + atomic consume. POST (not GET) to avoid email-preview crawler prefetch consuming the single-use token before the candidate clicks. |
 
-> Routes using `publicChain: authChain({ requireSession: false })` (e.g. `/take/*`) still pass through the session-loader hook — a valid session is loaded if present, but its absence is not an error. This is auth-**optional**, not auth-bypassed.
+> Routes using `publicChain: authChain({ requireSession: false })` (for example `/take/*`) still pass through the session-loader hook — a valid session is loaded if present, but its absence is not an error. This is auth-**optional**, not auth-bypassed.
 
 > Routes in `/api/auth/*` are auth-**establishing** — they CREATE or complete sessions. They are listed here because they accept unauthenticated callers, not because they skip authorization logic.
 
----
+### Origin-verify header (anti-IP-spoof)
 
-## Origin-verify header (anti-IP-spoof)
-
-### Threat
+#### Threat
 
 Production topology is `Cloudflare (DNS-proxy) → shared Caddy → assessiq-api (Fastify)`. The origin IP `:443` is directly reachable — an attacker can bypass Cloudflare and set arbitrary `cf-connecting-ip` headers, spoofing any client IP. This defeats all per-IP rate limits (§ Rate limit tiers) and any IP-bound session tokens (magic-link, email-OTP continuation).
 
-### Mechanism
+#### Mechanism
 
 Cloudflare injects a shared secret as the `x-origin-verify` request header via a **Cloudflare Transform Rule** (operator-applied out-of-band; see TODO below). The API extracts the client IP via `extractClientIp(req)` (implemented in `modules/01-auth/src/client-ip.ts`) which validates this header before trusting `cf-connecting-ip`.
 
@@ -1124,7 +1211,7 @@ Config vars (`modules/00-core/src/config.ts`, `.env.example`):
 
 **Boot guard (config `superRefine`):** `ORIGIN_TRUST_MODE=enforce` with a missing/short `ORIGIN_VERIFY_SECRET` **refuses to load config** — the process exits at startup rather than booting into a state where `isOriginVerified()` returns `false` for every request (which would make the rate-limit fail-closed path throw on *every* request = silent site-wide outage). A failed config load means the new container never goes healthy and the old one keeps serving — loud and recoverable. `off`/`log` with no secret boot fine.
 
-### Three modes
+#### Three modes
 
 | Mode | Behaviour | Use when |
 |---|---|---|
@@ -1136,10 +1223,10 @@ Secret comparison: both sides are hashed to fixed-length 32-byte **SHA-256 diges
 
 The function never throws — the entire body is wrapped in a try/catch that returns `req.ip ?? '0.0.0.0'` on any unexpected error, preventing a crypto exception from crashing every request.
 
-### Rollout order — **all 4 steps DONE (2026-05-19/20)**
+#### Rollout order — **all 4 steps DONE (2026-05-19/20)**
 
 1. ✅ **Deployed `off`** (`3b2fe73`, 2026-05-19) — no behaviour change.
-2. ✅ **Cloudflare Transform Rule `assessiq-origin-verify`** added (Hostname == assessiq.automateedge.cloud → set request header `x-origin-verify: <64-hex secret>`); matching secret in `/srv/assessiq/.env` (NOT `.env.local` — that's inert).
+2. ✅ **Cloudflare Transform Rule `assessiq-origin-verify`** added (Hostname == assessiq.automateedge.cloud → set request header `x-origin-verify: <64-hex secret>`); matching secret in `/srv/assessiq/.env` (NOT `.env.local` — that is inert).
 3. ✅ **Flipped to `log`** — soak confirmed real CF traffic carries the verified header; the only "unverified" log was the benign loopback `/api/health` heartbeat (not rate-limited, no enforce impact). 0 false-positives on real traffic.
 4. ✅ **Flipped to `enforce`** — spoofed-IP probe on a rate-limited route now returns **429** (was 200). Legit CF traffic 200. Health 200. crontab scan confirmed no internal HTTP callers to rate-limited routes.
 
@@ -1147,7 +1234,7 @@ The function never throws — the entire body is wrapped in a try/catch that ret
 
 See **Network-layer origin lockdown (AOP)** below — the second, stronger layer added 2026-05-20 that closes the residual at the TLS handshake itself.
 
-### Adjudicated adversarial residuals (Sonnet review + Opus adjudication)
+#### Adjudicated adversarial residuals (Sonnet review + Opus adjudication)
 
 The 01-auth gate (`feedback-adversarial-reviewer-routing`) ran a Sonnet adversarial pass (verdict REVISE, 7 findings) adjudicated by Opus. Fixed-with-tests: F1 boot guard (CRITICAL), F5 SHA-256 compare, F6 secret min-16, F7 extractor rename. Remaining **accepted residuals**:
 
@@ -1155,9 +1242,9 @@ The 01-auth gate (`feedback-adversarial-reviewer-routing`) ran a Sonnet adversar
 - **F3 — `_log.ts checkIpRateLimit` shares one bucket for unverified traffic.** *By design.* Verified traffic uses its real cf-ip (independent buckets, unaffected); unverified traffic sharing one throttled bucket is the intended conservative posture for traffic that did not provably traverse Cloudflare.
 - **F2 — `mint-session.ts` sentinel `'0.0.0.0'` vs old `'127.0.0.1'`.** The one site where `off` mode is not byte-identical. Dev-only (`NODE_ENV`-gated), and the sentinel is unreachable in practice (`req.ip` always populated under Fastify). Inline comment at the site; audit-cosmetic only.
 
-### Network-layer origin lockdown (Cloudflare Authenticated Origin Pulls) — **LIVE 2026-05-20**
+#### Network-layer origin lockdown (Cloudflare Authenticated Origin Pulls) — **LIVE 2026-05-20**
 
-The shared-secret app-layer above is one half of the defense. The **complete** fix is at the TLS layer: make the origin refuse any TLS handshake that isn't presenting Cloudflare's client certificate. With AOP enforcing, a direct-to-origin attacker can't even open an HTTPS connection — they're rejected before any HTTP header (spoofed or not) reaches the application.
+The shared-secret app-layer above is one half of the defense. The **complete** fix is at the TLS layer: make the origin refuse any TLS handshake that is not presenting Cloudflare's client certificate. With AOP enforcing, a direct-to-origin attacker cannot even open an HTTPS connection — they are rejected before any HTTP header (spoofed or not) reaches the application.
 
 **Architecture.** `Cloudflare (AOP-enabled) → ti-platform Caddy (require_and_verify) → assessiq-api`. Cloudflare presents its zone-level Origin Pull client cert on every outbound connection to origin; Caddy's per-site `client_auth { mode require_and_verify; trusted_ca_cert_file /etc/caddy/ssl/cf-origin-pull-ca.pem }` rejects everything else at the TLS handshake.
 
@@ -1165,7 +1252,7 @@ The shared-secret app-layer above is one half of the defense. The **complete** f
 
 **CA cert identity.** `/etc/caddy/ssl/cf-origin-pull-ca.pem` is the canonical Cloudflare zone-level Origin Pull CA: `CN = origin-pull.cloudflare.net, O = "CloudFlare, Inc.", OU = Origin Pull`, SHA-256 `9A:1A:C2:B4:BE:15:F9:F2:7E:EE:20:A7:34:CB:A4:E9:89:8F:61:00:1B:3B:D7:C8:4B:69:B5:6A:3E:25:A2:B9`, valid through Nov 2029.
 
-**Rollout: canary flip with auto-revert.** Phase 1 (`mode request` — asks for cert but doesn't reject; no-op) was staged 2026-05-20 05:32 UTC. Phase 2 (`mode require_and_verify`) was flipped via a single sed truncate-write (per the `cat >` bind-mount-inode rule from RCA 2026-04-30, *never* `mv`), `caddy validate` + `caddy reload`, then a 4-probe acceptance gate:
+**Rollout: canary flip with auto-revert.** Phase 1 (`mode request` — asks for cert but does not reject; no-op) was staged 2026-05-20 05:32 UTC. Phase 2 (`mode require_and_verify`) was flipped via a single sed truncate-write (per the `cat >` bind-mount-inode rule from RCA 2026-04-30, *never* `mv`), `caddy validate` + `caddy reload`, then a 4-probe acceptance gate:
 
 | Probe | Expected | Result |
 |---|---|---|
@@ -1178,14 +1265,14 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 
 **Rollback.** `cat /opt/ti-platform/caddy/Caddyfile.bak.<latest> > /opt/ti-platform/caddy/Caddyfile && docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`. Truncate-write only (never `mv`/`cp` over the live Caddyfile).
 
-### What is NOT included
+#### What is NOT included
 
 - **`trustProxy: false`** — the Fastify `trustProxy: true` flag (`server.ts:44`) is intentionally untouched. With AOP enforcing, Fastify only ever sees TLS connections from CF (via Caddy), so XFF coming through that path is trustworthy by construction. Still: a separate audit of `trustProxy` semantics is a low-priority hygiene follow-up.
 - **Automatic secret rotation** for `x-origin-verify` — operator responsibility (Transform Rule + `.env`). Now defense-in-depth (network-layer AOP is the primary), so rotation cadence is no longer the only thing holding back an attacker.
 - **`trusted_ca_cert_file` → `trust_pool` migration** — Caddy v2.11 deprecation warning, cosmetic; tracked as low-priority Caddyfile hygiene.
 - **Caddyfile formatting** — `caddy fmt --overwrite` would clean line-38 inconsistencies; not applied this round to keep the diff minimal and the inline RCA comments intact.
 
-### Downstream impact
+#### Downstream impact
 
 - `modules/00-core/src/config.ts`: two new env vars (`ORIGIN_VERIFY_SECRET`, `ORIGIN_TRUST_MODE`).
 - `modules/01-auth/src/client-ip.ts`: new module; exports `extractClientIp(req): string`.
@@ -1198,57 +1285,28 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 
 > **TODO (operator, out-of-band):** Apply the Cloudflare Transform Rule to inject `x-origin-verify: <secret>` on every request to the zone. This is a Cloudflare dashboard action — it is NOT applied by any code in this repo. Until it is applied, `ORIGIN_TRUST_MODE=off` is the correct setting.
 
-## Campus-scale rate limits and DB pool (2026-10, task R2)
+## Decisions and history
 
-**Problem.** A campus placement drive is 100-500 students in one lab behind ONE public IP, all taking the test at once. The per-IP bucket (30/min candidate, 120/min anon), the 20/min credential cap on `verify-link`, the hardcoded 600/min per-tenant cap and a 10-connection pg pool all 429'd or starved the lab mid-test.
+This section holds the decisions that shaped the flows above. Each row names the date, the decision and the section that explains it.
 
-**What changed (`rate-limit.ts`, `auth-chain.ts`, `config.ts`, `pool.ts`, `server.ts`):**
+| Date | Decision | Where explained |
+| --- | --- | --- |
+| 2026-05-17 | Pre-TOTP super_admin may reach the TOTP routes only (lockout fix) | First-login MFA bootstrap |
+| 2026-05-19 | Login resolves by Google-verified email; no tenant field (P1) | Tenant-less login and cross-tenant identity resolution |
+| 2026-05-19 | Email one-time code for admin only (P2) | Email one-time code for admin |
+| 2026-05-19 and 2026-05-20 | Origin-verify header and Authenticated Origin Pulls | Origin-verify header |
+| 2026-05-20 | Tenant and user state machines | Tenant and user life cycle |
+| 2026-05-24 | Editing an admin email transfers account ownership | Super-admin "Edit admin" |
+| 2026-05-30 | `totpVerified` means all required factors are met (RCA 2026-05-30) | `totpVerified` at mint |
+| 2026-10-02 | Client IP trust and production boot rule | Client IP trust and production boot rule |
+| 2026-10-03 | Reviewer role removed (RV60) | Reviewer role removed |
+| 2026-10-03 | Embed JIT user rules (FR4) | Embed JIT user rules |
+| 2026-10-03 | Shared AES-256-GCM envelope (N24) | Shared AES-256-GCM envelope and fixed-window rate-limit script (N24) |
+| 2026-10-15 | Tenant purge (RW-48b) and self-service MFA (RW-45) | Tenant purge, Self-service MFA |
 
-| Control | Before | After | Env var |
-|---|---|---|---|
-| Per-IP, valid candidate session | 30/min | 3000/min (DoS ceiling; mirrors the verified-admin lift) | `RATE_LIMIT_IP_CANDIDATE_SESSION` |
-| Per-user, candidate | 60/min | 120/min | `RATE_LIMIT_USER_CANDIDATE` |
-| Per-tenant (session + apiKey) | 600/min hardcoded | 6000/min | `RATE_LIMIT_TENANT` |
-| Entry routes `POST /take/start`, `POST /api/auth/candidate/verify-link` | 120/min anon IP (and 20/min credential on verify-link) | dedicated per-route per-IP bucket `aiq:rl:entry:<route>:<ip>` 2000/min (2 calls per student: preview + Begin, plus reloads) via `authChain({ candidateEntry: true })` | `RATE_LIMIT_IP_CANDIDATE_ENTRY` |
-| pg pool max | 10 | 30 | `PG_POOL_MAX` |
+### Reviewer role removed (RV60)
 
-**Why these numbers.** Autosave debounces 5 s per question (`useAutosave`, ~12 saves/min), plus flush-on-blur/navigation, timer sync, flag/event posts: ~30/min worst realistic case per student, so 120/min per user is 4x headroom including client retry bursts while still stopping a runaway script. Tenant 6000 = 500 students x 12 req/min. Session IP 3000 = 500 x 6. Entry 600 = 2x a 300-student lab. Pool: Postgres `max_connections` is the default 100 (compose sets none); api 30 + worker 30 = 60, ~37 left for migrations/psql/backups; lower the worker via env if needed.
-
-**Why safe.** Session validity comes from `sessionLoader` (Redis lookup) before the limiter runs, so a forged cookie stays on the anon tier. The per-user bucket is still the real per-student limit. Magic-link tokens are 256-bit random + single-use, so 2000/min/IP leaves brute force infeasible; the entry bucket uses its own key so an entry burst does not consume the lab's general anonymous bucket. Admin credential endpoints (TOTP, email OTP, login select/identities) keep the unchanged 20/min `credentialEndpoint` bucket. Fail-closed on missing client IP in production is unchanged. `verify-link` moved from `credentialEndpoint` to `candidateEntry` deliberately.
-
-**Considered and rejected.** Raising the global anon IP cap (weakens every public route); keying the limiter by attempt id (needs a DB/Redis lookup before the limiter, and the session already identifies the student).
-
-**Request-scoped tenant transaction removed.** `tenantContextMiddleware` was a global `preHandler` that checked out a pool client + `BEGIN` per request. Evidence: nothing reads `req.db`/`req.tenant` (only `server.ts` referenced `req.db`), all DB access uses `withTenant()`; and because `sessionLoader` is a per-route preHandler while Fastify runs global preHandlers first, the hook never saw `req.session` in production (it was dead code that would have pinned a second connection for the whole request if it ever fired). The registration in `server.ts` is removed; the exported helper stays in `02-tenancy` with a "do not register globally" note.
-
-**Not included.** Per-route-group candidate caps, Redis-cluster sharding of the buckets, pgbouncer. Load script: `tests/load/scenarios/candidate-drive.js` (staging/local only).
-
-
-## Session-status cache (R11, 2026-10-02, commit d9a0813)
-
-- **What.** `modules/01-auth/src/middleware/session-loader.ts` caches the "is this user / tenant still active?" verdict in Redis, saving two `withTenant` DB round trips per request (campus drives: hundreds of students on one IP polling). Keys: `aiq:sess-status:u:<userId>` -> the tenantId it was verified under; `aiq:sess-status:t:<tenantId>` -> `"1"`. TTL `SESS_STATUS_TTL_SEC = 30`. No PII in values.
-- **Invariants (tested in `session-status-cache.test.ts`).**
-  1. Positive-only: only an "active" verdict is stored; a negative is never cached, so the cache can delay a lockout by at most 30 s and never extend one.
-  2. Tenant-bound: a user-key hit must equal `session.tenantId`, else it is ignored.
-  3. Invalidation (DEL): `sessions.destroyAllForUser` (user key), `sessions.destroyAllForTenant` (tenant key; used by suspend/archive), `03-users/redis-sweep.sweepUserSessions` (disable / soft-delete), and the admin erase route.
-  4. Redis down or erroring on get/set: fall through to the DB check. Fail-safe, never fail-open.
-  5. The DB check now also rejects `users.erased_at IS NOT NULL`; before, erased candidates kept working sessions.
-- **Known bounded race.** A DB read that straddles a suspend can re-write "active" after the DEL; it expires within 30 s.
-- **Considered and rejected.** Caching negatives (would need invalidation on un-suspend); a longer TTL; a pre-guard before sessionLoader (middleware order unchanged).
-- **Not included.** Any change to session lifetime, JWT or MFA. PG pool budget set alongside: api 40, worker 15 (`API_PG_POOL_MAX` / `WORKER_PG_POOL_MAX`, Postgres `max_connections` 100).
-- **Impact.** Any new "kill sessions" path must DEL these keys, or lockout waits up to 30 s.
-
-
-
-## Batch 4 notes (2026-10-02): client IP trust and production boot rule
-
-- **What.** `extractClientIp` (01-auth) takes `CF-Connecting-IP` only through `validCfIp`: it must be a syntactically valid IP literal (`net.isIP`). Junk, comma lists or oversized strings are ignored. The header is honoured only when the request is origin-verified (`ORIGIN_TRUST_MODE` enforce or log with a matching `x-origin-verify`). The remaining raw `req.ip` / cf-header reads (06 take and consent, 18 `/verify`) now go through `extractClientIp`. `isRateLimited(key, max)` is a read-only peek used by failure-only throttles.
-- **Boot rule.** `modules/00-core/src/config.ts` refuses to start when `NODE_ENV=production` and `ORIGIN_TRUST_MODE !== 'enforce'` (message: requires enforce with `ORIGIN_VERIFY_SECRET`). Prod has run enforce since 2026-05-19; api and worker were checked live after deploy.
-- **Why.** The client IP keys rate limits, session binding and audit. An origin-bypasser in off/log mode could inject any header value and mint unlimited buckets or spoof an IP. Making enforce mandatory removes the foot-gun (codex revise).
-- **Considered and rejected.** Trusting `X-Forwarded-For` (spoofable); validating only in the rate limiter (other callers stay exposed).
-- **Not included.** No Cloudflare IP-range allowlist; origin verification remains the trust anchor.
-- **Impact.** Local dev and CI keep `off`/`log` (non-production). Any new production deployment must set `ORIGIN_TRUST_MODE=enforce` and `ORIGIN_VERIFY_SECRET` or the API and worker will not boot.
-
-## Reviewer role removed (2026-10-03)
+*History: 2026-10-03.*
 
 **What changed.** The tenant `reviewer` role no longer has any access path. Commits `4cd6c8d`, `4374344`, `7ca7cfb`, `a50d573` (review item RV60, owner decision 2026-10-02).
 - Invites, `createUser`/`updateUser` and the super-admin edit-admin reject `role: 'reviewer'` with `400 INVALID_ROLE`. The invite route enum is `admin | candidate`.
@@ -1264,34 +1322,3 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 **Not included.** No data migration. The value `reviewer` stays in the DB CHECK, the TS unions and the `reviewer_count` API field. Pending reviewer invitations are not revoked (none exist). The old last-admin guard on demotion is gone with the demotion path; it must return with any future demotion path.
 
 **Impact.** 03-users, 13-notifications, 15-analytics, 10-admin-dashboard, 01-auth (see each SKILL.md). Help: 7 keys rewritten (migration 0154). Adversarial review (Sonnet takeover): accept, 5 LOW. The open LOW items are in roadmap row N26.
-
-## Embed JIT user rules (FR4, 2026-10-03)
-
-**What changed.** `resolveJitUser` in `modules/12-embed-sdk/src/jit-user.ts` (commits `eafeeac`, `7e2af3d`).
-- It inserts only real `users` columns: id, tenant_id, email, name, role `candidate`, status, metadata, timestamps. The old code wrote `password_hash` and `email_verified`, which do not exist, so every first embed login failed.
-- The insert uses `ON CONFLICT (tenant_id, email) DO NOTHING` and then a re-select, so two parallel first logins end with one row.
-- The lookup is case-insensitive (`lower(email)`).
-- It refuses with `AuthzError` 403 unless EVERY case variant row is role `candidate`, status `active`, `deleted_at` null and `erased_at` null.
-
-**Why.** The old code accepted any existing row, also an admin row (privilege risk). A mixed-case admin row could shadow a lower-case candidate row.
-
-**Considered and rejected.** Accept the first matching row (the shadow risk). A migration for a unique index on `lower(email)` (no need; the check reads all variants).
-
-**Not included.** Embed iframe and Caddy `frame-ancestors` (FU-B13), FU-B14, FU-B15.
-
-**Impact.** Behaviour change: an invited user in status `pending` is refused by embed. Module 12 SKILL.md and `docs/RCA_LOG.md` carry the same facts.
-
-## Shared AES-256-GCM envelope and fixed-window rate-limit script (N24, 2026-10-03)
-
-**What changed.** Commits `34abc0e`, `c58438a`, `9b585a7`.
-- `modules/00-core/src/aes-gcm.ts` is the one AES-256-GCM implementation: `sealTagLast`/`openTagLast` and `sealTagMid`/`openTagMid`. Both stored layouts stay. Previous-key fallback stays. Auth tag is 16 bytes. An envelope under 28 bytes fails with "envelope too short".
-- Wrappers keep their old names: `modules/01-auth/src/crypto-util.ts` (TagLast), `modules/13-notifications/src/webhooks/crypto.ts` (TagMid), `modules/12-embed-sdk/src/webhook-secret-service.ts` (TagLast, base64).
-- `modules/01-auth/src/fixed-window-lua.ts` holds `FIXED_WINDOW_LUA` and `incrFixedWindow`. `rate-limit.ts`, `candidate-login.ts` and `email-otp.ts` use it. `ATTEMPT_LUA` is a different script and is untouched.
-
-**Why.** Three copies of each piece could drift (review RV77).
-
-**Considered and rejected.** One stored layout (needs a data migration; production row counts could not be read). Rename of the wrappers (churn).
-
-**Not included.** No data migration, no re-encryption. `tenant_settings.webhook_secret` is write-only (nothing decrypts it): an open question for the owner.
-
-**Impact.** Module 00 has a new subpath export `@assessiq/core/aes-gcm` (`exports` map in its `package.json`). The 13-notifications tests mock the barrel. codex: accept.

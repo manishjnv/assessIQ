@@ -2,8 +2,85 @@
 
 *Type: reference* — This page lists the REST endpoints, their inputs, outputs and error codes.
 
+This page is the reference for the AssessIQ REST API. It lists each endpoint with its authorisation, request, response and error codes.
+Conventions come first. Endpoints follow, grouped by area, then the feature sections for reports, billing, entitlements and scoring.
+Dated notes sit in the History line of the endpoint they change.
+
 > Base URL: `https://assessiq.in/api`
 > All requests are JSON. All authenticated requests carry either a session cookie (`aiq_sess`) or `Authorization: Bearer aiq_live_<key>`. Tenant context is derived from the session/key — never passed in URL or body.
+
+## Contents
+- [Convention](#convention)
+- [Request validation (RW-36b, Zod)](#request-validation-rw-36b-zod)
+- [Rate-limit response headers](#rate-limit-response-headers)
+- [Endpoint catalog](#endpoint-catalog)
+  - [Auth](#auth)
+  - [Candidate magic-link login (Phase 5, 2026-05-13)](#candidate-magic-link-login-phase-5-2026-05-13)
+  - [Magic-link (candidate, mode B)](#magic-link-candidate-mode-b)
+  - [Public — Contact form](#public--contact-form)
+  - [Admin — Tenants & users](#admin--tenants--users)
+  - [Admin — Question bank](#admin--question-bank)
+  - [Admin — Rubric generation & generation attempts](#admin--rubric-generation--generation-attempts)
+  - [Admin — Assessments & invitations](#admin--assessments--invitations)
+  - [Admin — Grading & review](#admin--grading--review)
+  - [Admin — Dashboard & reports](#admin--dashboard--reports)
+  - [Admin — Webhooks, API keys, embed secrets](#admin--webhooks-api-keys-embed-secrets)
+  - [Admin — Audit & help authoring](#admin--audit--help-authoring)
+  - [Admin — Worker observability](#admin--worker-observability)
+  - [Admin — Super (cross-tenant platform operations)](#admin--super-cross-tenant-platform-operations)
+  - [Candidate](#candidate)
+  - [Embed](#embed)
+  - [Admin — Embed origins & webhook secrets](#admin--embed-origins--webhook-secrets)
+  - [Public](#public)
+  - [Dev / Test (internal, gated)](#dev--test-internal-gated)
+- [Worked examples](#worked-examples)
+  - [Worked example — Admin creates an assessment and invites SOC L1 cohort](#worked-example--admin-creates-an-assessment-and-invites-soc-l1-cohort)
+  - [Worked example — Candidate takes assessment](#worked-example--candidate-takes-assessment)
+  - [Worked example — Webhook payload (host integration)](#worked-example--webhook-payload-host-integration)
+  - [Worked example — Embed JWT (host issuing)](#worked-example--embed-jwt-host-issuing)
+- [Business events for webhooks (FU-B6, 2026-10-03)](#business-events-for-webhooks-fu-b6-2026-10-03)
+- [Admin — Reports & Exports (Phase 3 G3.C, module 15-analytics)](#admin--reports--exports-phase-3-g3c-module-15-analytics)
+  - [`GET /api/admin/reports/topic-heatmap`](#get-apiadminreportstopic-heatmap)
+  - [`GET /api/admin/reports/archetype-distribution/:assessmentId`](#get-apiadminreportsarchetype-distributionassessmentid)
+  - [`GET /api/admin/reports/cost-by-month`](#get-apiadminreportscost-by-month)
+  - [`GET /api/admin/assessments/:id/results.csv`](#get-apiadminassessmentsidresultscsv)
+  - [`GET /api/admin/attempts/:id/integrity`](#get-apiadminattemptsidintegrity)
+  - [`GET /api/admin/reports/exports/attempts.csv`](#get-apiadminreportsexportsattemptscsv)
+  - [`GET /api/admin/reports/exports/attempts.jsonl`](#get-apiadminreportsexportsattemptsjsonl)
+  - [`GET /api/admin/reports/exports/topic-heatmap.csv`](#get-apiadminreportsexportstopic-heatmapcsv)
+  - [`GET /api/admin/reports/cohort/:assessmentId/breakdown` (FU-C4, 2026-10-06)](#get-apiadminreportscohortassessmentidbreakdown-fu-c4-2026-10-06)
+  - [`GET /api/admin/cycles/:cycleId/cohort-report`](#get-apiadmincyclescycleidcohort-report)
+  - [`POST /api/admin/analytics/refresh`](#post-apiadminanalyticsrefresh)
+- [Admin — Activity (Phase 9, module 15-analytics)](#admin--activity-phase-9-module-15-analytics)
+  - [`GET /api/admin/activity/stats`](#get-apiadminactivitystats)
+  - [`GET /api/admin/activity/heatmap`](#get-apiadminactivityheatmap)
+  - [`GET /api/admin/activity/timeline`](#get-apiadminactivitytimeline)
+  - [`GET /api/admin/activity/leaderboard`](#get-apiadminactivityleaderboard)
+- [Candidate Activity (module 15 — Phase 10)](#candidate-activity-module-15--phase-10)
+  - [`GET /api/me/activity/stats`](#get-apimeactivitystats)
+  - [`GET /api/me/activity/heatmap`](#get-apimeactivityheatmap)
+  - [`GET /api/me/activity/timeline`](#get-apimeactivitytimeline)
+  - [`GET /api/me/activity/leaderboard`](#get-apimeactivityleaderboard)
+- [Certificates (module 18-certification)](#certificates-module-18-certification)
+  - [Candidate-facing](#candidate-facing)
+  - [Admin-facing](#admin-facing)
+- [Admin — Billing (Phase A1, module 19-billing)](#admin--billing-phase-a1-module-19-billing)
+  - [`GET /api/billing/usage`](#get-apibillingusage)
+- [Admin — Super Billing (Phase A2, module 19-billing)](#admin--super-billing-phase-a2-module-19-billing)
+  - [`GET /api/admin/super/tenants/:tenantId/billing`](#get-apiadminsupertenantstenantidbilling)
+  - [`GET /api/admin/super/tenants/:tenantId/billing/export.csv`](#get-apiadminsupertenantstenantidbillingexportcsv)
+  - [`PATCH /api/admin/super/tenants/:tenantId/plan`](#patch-apiadminsupertenantstenantidplan)
+- [Entitlements and publish-time enforcement](#entitlements-and-publish-time-enforcement)
+  - [Phase B1 — generation endpoints re-gated to super_admin](#phase-b1--generation-endpoints-re-gated-to-super_admin)
+  - [Phase B1 (cont.) — question-bank authoring re-gated to super_admin](#phase-b1-cont--question-bank-authoring-re-gated-to-super_admin)
+  - [Phase B1 — tenant entitlement endpoints](#phase-b1--tenant-entitlement-endpoints)
+  - [Phase B2 — publish-time enforcement](#phase-b2--publish-time-enforcement)
+- [Scoring and result release (2026-10-01)](#scoring-and-result-release-2026-10-01)
+  - [Candidate (`/api/me/*`, candidate session)](#candidate-apime-candidate-session)
+  - [Company (tenant) admin (`/api/admin/*`, admin session)](#company-tenant-admin-apiadmin-admin-session)
+  - [Platform evaluation queue (`/api/admin/super/evaluations*`, `super_admin` only)](#platform-evaluation-queue-apiadminsuperevaluations-super_admin-only)
+  - [2026-10-01 (later): invitations, webhooks, evaluation flow, option shuffle](#2026-10-01-later-invitations-webhooks-evaluation-flow-option-shuffle)
+- [OpenAPI spec](#openapi-spec)
 
 ## Convention
 
@@ -100,13 +177,38 @@ Retry-After: <seconds>               (only on 429)
 | `POST` | `/auth/logout`         | Destroys session |
 | `GET`  | `/auth/whoami`         | Returns `{ user, tenant, roles, mfa_status }` |
 
+#### `POST /api/auth/totp/recovery-codes/regenerate` (RW-45, S10, 2026-10-15)
+
+An admin replaces all recovery codes after proving a current TOTP code. Source: `apps/api/src/routes/auth/totp.ts`.
+
+**Auth:** `authChain` with roles `admin` and `super_admin`, `credentialEndpoint: true` (credential rate-limit tier). The session must be TOTP-verified.
+
+**Body:** `{ "code": "123456" }`. The code is 6 digits. The route reuses the existing `codeBodySchema` (Fastify JSON schema, like the other TOTP routes).
+
+**Response 200:** `{ "codes": ["...", "... (10 items)"] }`. The server shows the codes once. It stores only hashes.
+
+**Errors:**
+- `400` bad body, or the user has no TOTP enrolment.
+- `401` `INVALID_CODE`, or the session is not TOTP-verified.
+- `403` role is not `admin` or `super_admin`.
+- `423` `ACCOUNT_LOCKED`. The existing 5-failure TOTP lockout applies.
+
+**Behaviour.** A wrong code changes nothing, so the old recovery codes stay valid. A correct code deletes the old codes and inserts 10 new ones in one transaction. The same transaction writes one `auth.recovery.regenerated` audit row (`after: { issued: 10 }`).
+
+**Not included:** a recovery-code fallback instead of a TOTP code (a stolen recovery code could then mint more codes).
+
+#### Auth note: session-status cache
+
+**History:** added in the 2026-10-02 batch 3 notes.
+
+Every authenticated request now consults a 30 s positive-only Redis cache for the user/tenant active check. Suspend, disable, delete, erase take effect at once on the normal path; worst case 30 s. Details in 04 "Session-status cache". Responses are unchanged.
+
 ### Candidate magic-link login (Phase 5, 2026-05-13)
 
 > **Status: LIVE 2026-05-13.** Routes in `apps/api/src/routes/auth/candidate.ts`. Implementation in `modules/01-auth/src/candidate-login.ts`. Migration `0076_candidate_login_tokens.sql` applied to production. See `docs/04-auth-flows.md` § Flow 6 for the full sequence diagram.
 
 These two endpoints implement passwordless email sign-in for candidates who want to view their certificates at `/candidate/certificates`. They are distinct from the assessment-taking magic link (`/take/:token`) — that link is invitation-scoped and single-use-per-attempt; these routes are identity-scoped and produce a 30-day reusable session.
 
----
 
 #### `POST /api/auth/candidate/request-link`
 
@@ -141,13 +243,12 @@ The web client (`CandidateLogin.tsx`) currently hardcodes `tenant_slug: 'wipro-s
 
 **Constant-time floor:** Both match and no-match paths are bounded to ≥ 200 ms via `Promise.all([work, sleep(200)])` in `requestCandidateLoginLinkSystem`. This prevents timing-based enumeration of registered emails even across the slug-miss fast path.
 
----
 
 #### `POST /api/auth/candidate/verify-link`
 
 Validates the token from the sign-in email, consumes it atomically, mints a 30-day candidate session, sets the cookie, and returns a JSON instruction the SPA uses to navigate.
 
-**Why POST, not GET.** Email-preview crawlers (Gmail, Outlook, Slack, Teams) prefetch link URLs with GET to render previews / scan for malware. A GET endpoint would consume the single-use token on prefetch, locking out the real candidate. The email link therefore targets a SPA route at `/candidate/login/verify?token=…` (idempotent on GET — it returns HTML); the SPA reads `?token=` from the URL and POSTs it here. Crawlers don't execute JS or POST, so the token survives prefetch.
+**Why POST, not GET.** Email-preview crawlers (Gmail, Outlook, Slack, Teams) prefetch link URLs with GET to render previews / scan for malware. A GET endpoint would consume the single-use token on prefetch, locking out the real candidate. The email link therefore targets a SPA route at `/candidate/login/verify?token=…` (idempotent on GET — it returns HTML); the SPA reads `?token=` from the URL and POSTs it here. Crawlers do not execute JS or POST, so the token survives prefetch.
 
 **Auth:** none required. Token IS the credential.
 
@@ -179,8 +280,6 @@ Validates the token from the sign-in email, consumes it atomically, mints a 30-d
 - No refresh or re-issue of the same token — each sign-in requires a new `POST /request-link` cycle
 - No TOTP step — the magic link itself is the sole factor for candidate sessions
 - No sliding-window session extension — the 30-day window is fixed at mint time
-
----
 
 ### Magic-link (candidate, mode B)
 
@@ -245,15 +344,13 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 |---|---|---|
 | `200` | `{ "ok": true }` | Sent successfully (or honeypot triggered, or SMTP unset) |
 | `400` | `{ "error": { "code": "CONTACT_EMPTY" \| "CONTACT_BAD_EMAIL", "message": "..." } }` | Validation failure |
-| `400` | `{ "error": { "code": "VALIDATION_FAILED", "message": "...", "details": { "validation": [...] } } }` | Fastify schema validation failure (e.g. field over maxLength) |
+| `400` | `{ "error": { "code": "VALIDATION_FAILED", "message": "...", "details": { "validation": [...] } } }` | Fastify schema validation failure (for example, field over maxLength) |
 | `403` | `{ "error": { "code": "TURNSTILE_FAILED", "message": "..." } }` | Turnstile token missing/invalid (fail-closed) |
 | `429` | rate-limit headers | Per-IP credential bucket exceeded |
 | `429` | `{ "error": { "code": "RATE_LIMITED", "message": "..." } }` | Global 20/hour submission budget exceeded |
 | `502` | `{ "error": { "code": "SEND_FAILED", "message": "Could not send your message. Please email connect@assessiq.in directly." } }` | SMTP transport threw (Brevo down, auth error, etc.) |
 
 **Email delivery:** `from: config.EMAIL_FROM`, `to: connect@assessiq.in`, `replyTo: <submitter email>`. Plain-text + HTML multipart. `name` has CR/LF stripped before use in the `Subject` header (email-header-injection defense). All user-supplied fields are HTML-escaped in the HTML body.
-
----
 
 ### Admin — Tenants & users
 
@@ -269,7 +366,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `PATCH`| `/admin/users/:id`     | Update role, status, name, metadata; enforces last-admin invariant (HTTP 409 `LAST_ADMIN`) and status-state-machine (HTTP 422 `INVALID_STATUS_TRANSITION`); sweeps Redis sessions on disable | live |
 | `DELETE` | `/admin/users/:id`   | Soft delete; cascades to pending invitations for the user's email; sweeps Redis sessions; enforces last-admin invariant | live |
 | `POST` | `/admin/users/:id/restore` | Restore a soft-deleted user (clears `deleted_at`); does NOT recreate invitations or sessions | live |
-| `POST` | `/admin/users/import`  | **Bulk candidate CSV import (live 2026-10-01).** Admin only; authChain rate limit. JSON body `{ csv: string, assessment_id?: string }`. CSV: UTF-8 (BOM stripped), header row required with `name`,`email` (case-insensitive; extra columns ignored), max 1000 data rows, max 512 KB; values trimmed, emails lowercased + shape-validated, in-file duplicates deduped (first wins), blank lines ignored. Each valid row creates a `candidate` (status `active`) in the admin's tenant; an email already in this tenant as a candidate is reused (`existing`); a non-candidate email is skipped (`EXISTING_USER_NOT_CANDIDATE`). One bad row never aborts the rest. With `assessment_id` (must be `published`/`active`, checked BEFORE any user is created → 409 `INVALID_STATE_TRANSITION`, 404 cross-tenant), all created+existing candidates go through the existing `inviteUsers` (same skip reasons e.g. `INVITATION_EXISTS`, `USER_INACTIVE`; same queued emails). Response 200: `{ created, existing, invited, skipped: [{ row, email, reason }], warning? }` — `row` is the spreadsheet row (header = 1); skip reasons: `INVALID_EMAIL`, `MISSING_NAME`, `NAME_TOO_LONG`, `DUPLICATE_IN_FILE`, `EXISTING_USER_NOT_CANDIDATE`, `INSERT_FAILED`, plus invite reasons. `warning` ("Email plan sends ~300/day shared; some invites may be delayed") is present when `invited` > 150. Errors (400 `ValidationError`): `INVALID_PARAM` (csv not a string / bad assessment_id), `CSV_MISSING_COLUMNS`, `CSV_TOO_MANY_ROWS`, `CSV_TOO_LARGE`, `CSV_MALFORMED` (unterminated quote). Audit: exactly ONE `audit_log` row per request (`user.created`, `after = { kind:'bulk_import', rows_total, created, existing, skipped }` — counts only, no names/emails) written in the same tx as the user inserts; invites additionally write their normal per-invitation `assessment.invite` rows. Replaces the former 501 stub (no longer returns `BULK_IMPORT_PHASE_1`). |
+| `POST` | `/admin/users/import`  | **Bulk candidate CSV import (live 2026-10-01).** Admin only; authChain rate limit. JSON body `{ csv: string, assessment_id?: string }`. CSV: UTF-8 (BOM stripped), header row required with `name`,`email` (case-insensitive; extra columns ignored), max 1000 data rows, max 512 KB; values trimmed, emails lowercased + shape-validated, in-file duplicates deduped (first wins), blank lines ignored. Each valid row creates a `candidate` (status `active`) in the admin's tenant; an email already in this tenant as a candidate is reused (`existing`); a non-candidate email is skipped (`EXISTING_USER_NOT_CANDIDATE`). One bad row never aborts the rest. With `assessment_id` (must be `published`/`active`, checked BEFORE any user is created → 409 `INVALID_STATE_TRANSITION`, 404 cross-tenant), all created+existing candidates go through the existing `inviteUsers` (same skip reasons for example, `INVITATION_EXISTS`, `USER_INACTIVE`; same queued emails). Response 200: `{ created, existing, invited, skipped: [{ row, email, reason }], warning? }` — `row` is the spreadsheet row (header = 1); skip reasons: `INVALID_EMAIL`, `MISSING_NAME`, `NAME_TOO_LONG`, `DUPLICATE_IN_FILE`, `EXISTING_USER_NOT_CANDIDATE`, `INSERT_FAILED`, plus invite reasons. `warning` ("Email plan sends ~300/day shared; some invites may be delayed") is present when `invited` > 150. Errors (400 `ValidationError`): `INVALID_PARAM` (csv not a string / bad assessment_id), `CSV_MISSING_COLUMNS`, `CSV_TOO_MANY_ROWS`, `CSV_TOO_LARGE`, `CSV_MALFORMED` (unterminated quote). Audit: exactly ONE `audit_log` row per request (`user.created`, `after = { kind:'bulk_import', rows_total, created, existing, skipped }` — counts only, no names/emails) written in the same tx as the user inserts; invites additionally write their normal per-invitation `assessment.invite` rows. Replaces the former 501 stub (no longer returns `BULK_IMPORT_PHASE_1`). |
 | `POST` | `/admin/invitations`   | Issue admin invitation (role enum `admin | candidate`; `reviewer` → 400 `INVALID_ROLE` since 2026-10-03; candidate role → 501 `CANDIDATE_INVITATION_PHASE_1`); response carries the invitation row ID + email + role + expires_at but **never** the plaintext token (per `03-users` SKILL § 2) | live |
 | `POST` | `/invitations/accept`  | **Pre-auth** (no session required). Body: `{token: string}` (43–64 char base64url). Validates → marks invitation accepted (atomic single-use) → flips user `pending → active` → mints a session via `01-auth` (currently mocked — see `03-users` SKILL § 12). Sets `aiq_sess` cookie (httpOnly, sameSite=lax, secure in prod). Response body is `{user, expiresAt}` — sessionToken is cookie-only (no body bearer leak) | live |
 | `GET`  | `/admin/invitations`   | List invitations | Phase 1 |
@@ -280,7 +377,7 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `details.code` | HTTP | Where |
 |---|---|---|
 | `LAST_ADMIN` | 409 | `PATCH /admin/users/:id` (demote/disable last admin); `DELETE /admin/users/:id` (delete last admin) |
-| `INVALID_STATUS_TRANSITION` | 422 | `PATCH /admin/users/:id` (e.g. disabled→pending, active→pending) |
+| `INVALID_STATUS_TRANSITION` | 422 | `PATCH /admin/users/:id` (for example, disabled→pending, active→pending) |
 | `USER_EMAIL_EXISTS` | 409 | `POST /admin/users` (collision on `(tenant_id, lower(email))`) |
 | `USER_DISABLED` / `USER_DELETED` | 409 | `POST /admin/invitations` (re-invite hits disabled or soft-deleted user) |
 | `INVITATION_NOT_FOUND` | 404 | `POST /invitations/accept` |
@@ -291,6 +388,203 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `VALIDATION_FAILED` | 400 | Schema validation (Fastify `validation` array surfaced under `details.validation`) |
 
 `AUTHN_FAILED` (401) and `AUTHZ_FAILED` (403) come from the dev-auth shim today (`x-aiq-test-tenant` / `x-aiq-test-user-id` / `x-aiq-test-user-role` headers; production hard-fails until 01-auth Window 4 lands).
+
+#### `POST /api/admin/users/:userId/totp/reset` (RW-91, S10, 2026-10-16)
+
+A tenant admin clears the two-factor setup of another user in the same organisation. Source: `apps/api/src/routes/admin-users-totp-reset.ts`. The super-admin variant is the next section.
+
+**Auth:** `authChain` with role `admin` and `freshMfaWithinMinutes: 15`. The handler also checks the fresh TOTP itself (see Behaviour).
+
+**Body:** `{ "reason": "text" }`. The reason is required, 1 to 500 characters.
+
+**Response 204:** no body.
+
+**Errors:**
+- `400` bad params or body.
+- `401` `FRESH_TOTP_REQUIRED`. The session has no TOTP check in the last 15 minutes.
+- `403` caller is not an admin, or the target is a `super_admin` (`SUPER_ADMIN_TARGET`).
+- `404` the user is in another tenant or does not exist.
+- `409` `SELF_RESET_FORBIDDEN`. An admin cannot reset their own two-factor here.
+
+**Behaviour.** The handler checks the fresh TOTP for every configuration, also when `MFA_REQUIRED=false`. The generic middleware check depends on `MFA_REQUIRED` for non-super roles, so the route does not rely on it. `adminResetTotp` clears the secret, deletes the recovery codes and the sessions of the target. After the reset returns, the route sends the notice email `totp_reset_notice` (see [13-email-system.md](13-email-system.md)). A send failure is logged and never fails the reset.
+
+**Not included:** a recovery-code fallback, and a link or the actor name in the notice. Flow: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
+
+#### Tenant-admin user lifecycle endpoints (Phase C)
+
+These five endpoints are gated by `adminOnly` (tenant `admin` role, `totpVerified`). RLS enforces tenant scoping — a `userId` that belongs to a different tenant is invisible and returns `404`. The LAST_ADMIN invariant is enforced unconditionally (no override path).
+
+##### `POST /api/admin/users/:userId/disable`
+
+Disables a user account. Sweeps all active Redis sessions for the target user after the DB commit.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:** `{ userId, status: "disabled", previousStatus: "active" }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `CANNOT_DISABLE_SELF` | 400 | Caller is attempting to disable their own account |
+| `LAST_ADMIN` | 409 | Target is the last active admin in the tenant |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit action emitted:** `user.disabled`.
+
+**Source:** `apps/api/src/routes/admin-users.ts:169`, `modules/03-users/src/service.ts` (`updateUser`).
+
+
+##### `POST /api/admin/users/:userId/reenable`
+
+Re-enables a previously disabled user account. Sets `status` back to `active`.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:** `{ userId, status: "active", previousStatus: "disabled" }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit action emitted:** `user.reenabled`.
+
+**Source:** `apps/api/src/routes/admin-users.ts:210`.
+
+
+##### `DELETE /api/admin/users/:userId`
+
+Soft-deletes a user (sets `deleted_at = now()`). Cascades to pending invitations for the user's email (deletes `user_invitations` rows where `lower(email) = lower(target.email) AND accepted_at IS NULL`). Sweeps Redis sessions after commit.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:** `{ userId, deleted: true }`
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `CANNOT_DELETE_SELF` | 400 | Caller is attempting to delete their own account |
+| `LAST_ADMIN` | 409 | Target is the last active admin in the tenant |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit actions emitted:** `user.deleted` in `audit_log` (via `auditInTx` in the service-layer transaction) plus `user.soft_deleted` in the lifecycle operational JSONL log (via `logLifecycleEvent` in the route handler). The two action names are catalogued as equivalent — see [`modules/14-audit-log/src/types.ts:157`](modules/14-audit-log/src/types.ts#L157).
+
+**Source:** `apps/api/src/routes/admin-users.ts:304`, `modules/03-users/src/service.ts` (`softDelete`).
+
+
+##### `POST /api/admin/users/:userId/restore`
+
+Restores a soft-deleted user by clearing `deleted_at`. Does NOT recreate invitations or sessions — the user must be re-invited or log in again.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:** `{ userId, status }` — `status` reflects the user's current `users.status` (for example, `"active"` or `"disabled"` — whatever it was before soft-delete).
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit action emitted:** `user.restored`.
+
+**Source:** `apps/api/src/routes/admin-users.ts:242`, `modules/03-users/src/service.ts` (`restore`).
+
+
+##### `DELETE /api/admin/users/invitations/:invitationId`
+
+Cancels a pending (unaccepted) invitation. Deletes the `user_invitations` row and, if the associated user record is still `status='pending'`, also deletes that `users` row (`cascadedPendingUser: true` in the response).
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Path params:** `invitationId` — UUID of the invitation.
+
+**Body:** `{ reason?: string }`
+
+**Response 200:**
+```json
+{ "invitationId": "uuid", "email": "...", "cascadedPendingUser": true, "cancelledUserId": "uuid" }
+```
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `INVITATION_NOT_FOUND` | 404 | No invitation row with this id (or cross-tenant — RLS makes it invisible) |
+| `INVITATION_ALREADY_ACCEPTED` | 409 | `accepted_at IS NOT NULL` — invitation was already used |
+| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
+
+**Audit action emitted:** `user.invitation_cancelled`.
+
+**Source:** `apps/api/src/routes/admin-users.ts:265`, `modules/03-users/src/service.ts` (`cancelInvitation`).
+
+#### DPDP data-rights endpoints (Module 20, 2026-05-29)
+
+Admin-mediated data-subject rights for **candidates** (who never log in — they are reached only via single-purpose magic links, so there is no candidate-facing portal). Both endpoints are gated `admin` role: under the DPDP the tenant is the **data fiduciary** for its own candidates, and Postgres RLS confines every statement to the caller's tenant, so a cross-tenant `userId` resolves to `USER_NOT_FOUND`. (This deliberately widens the originally-planned `super_admin`-only erase gate; see `modules/20-data-rights/SKILL.md` D-route note.)
+
+##### `GET /api/admin/users/:userId/data-export`
+
+Right of access / portability. Returns a JSON bundle of everything the platform holds for the candidate, assembled synchronously (no S3, no worker — the narrow candidate PII surface does not warrant async generation). The admin's browser downloads it as `assessiq-data-export-<userId>.json`; nothing is stored server-side.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Response 200:** `DataExportBundle`
+```json
+{
+  "manifest": { "schemaVersion": 1, "generatedAt": "ISO", "userId": "uuid" },
+  "profile": { "id", "name", "email", "role", "createdAt", "erasedAt": null },
+  "attempts": [ { "id", "assessmentId", "status", "startedAt", "submittedAt", "total_earned", "total_max", "auto_pct" } ],
+  "answers": [ { "questionId", "type", "answer", "savedAt" } ],
+  "certificates": [ { "credentialId", "issuedAt" } ],
+  "consents": [ { "purpose", "policyVersion", "grantedAt", "withdrawnAt", "lawfulBasis", "createdAt" } ],
+  "auditEvents": [ { "action", "entityType", "at", "before", "after" } ]
+}
+```
+`auditEvents` are the rows where the candidate is the **entity**; PII in `before`/`after` was already redacted at write time (14-audit-log `redact.ts`), so the bundle carries no raw audit PII.
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `USER_NOT_FOUND` | 404 | No user with this id in the caller's tenant (RLS-invisible cross-tenant ids included) |
+
+**Audit action emitted:** `user.data.exported` (best-effort access log, written after the read).
+
+**Source:** `apps/api/src/routes/admin-users.ts` (route), `modules/20-data-rights/src/export.ts` (`exportCandidateData`).
+
+##### `POST /api/admin/users/:userId/erase`
+
+Right to erasure. Tombstones the candidate's PII in a single transaction: `users.name`/`email` → deterministic `sha256(id)`-derived pseudonyms + `erased_at = now()`; `attempt_answers.answer` → `"[erased]"` for every answer **not positively confirmed MCQ**; `sessions.ip`/`user_agent` → NULL. Never DELETEs rows. **Certificates are never mutated** — the issued name snapshot is part of the HMAC payload, so public `/verify/:credentialId` keeps working (D5). Idempotent: re-erasing an already-erased candidate is a no-op returning `alreadyErased: true`.
+
+**Auth:** `admin` role + `totpVerified`.
+
+**Body:** `{ reason: string }` — **required** (non-empty, ≤500 chars, no control chars). Recorded in the audit `after` payload.
+
+**Response 200:** `ErasureReceipt`
+```json
+{ "userId", "erasedAt", "alreadyErased": false,
+  "tombstone": { "name": "deleted_user_…", "email": "deleted+…@erased.assessiq.local" },
+  "attemptAnswersErased": 0, "sessionsRedacted": 0, "certificatesPreserved": 0 }
+```
+
+**Error codes:**
+| `details.code` | HTTP | Meaning |
+|---|---|---|
+| `REASON_REQUIRED` | 400 | body had no `reason` |
+| `INVALID_REASON` | 400 | reason wrong type / too long / control chars |
+| `ERASE_NOT_CANDIDATE` | 400 | target user's role is not `candidate` (admin/super_admin erasure is out of scope — handled manually) |
+| `USER_NOT_FOUND` | 404 | No candidate with this id in the caller's tenant |
+
+**Audit action emitted:** `user.pii.erased` (`auditInTx`, same transaction as the tombstone; `after` carries counts + reason only, never raw name/email).
+
+**Source:** `apps/api/src/routes/admin-users.ts` (route), `modules/20-data-rights/src/erasure.ts` (`eraseCandidatePii`).
+
+> **Reviewer role removed (2026-10-03, RV60).** Invites, user create/update and super-admin edit-admin return 400 `INVALID_ROLE` for `reviewer`. Notifications and the results CSV are admin only. See `docs/04-auth-flows.md` § "Reviewer role removed". The dev minter section still names `reviewer` in its body type, for legacy rows only.
 
 ### Admin — Question bank
 
@@ -318,6 +612,123 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `POST` | `/admin/packs/:id/levels/:levelId/generate` | **AI question generation** — generates SOC-grounded `ai_draft` questions for the given level. Body: `{ count?: number (1–10, default 5), topic_focus?: string }`. Returns `{ questionIds: string[], generated: number, skillSha: string }`. Requires `AI_PIPELINE_MODE=claude-code-vps`. Single-flight: 409 `GRADING_IN_PROGRESS` if generation already in flight for this pack/level. Questions land as `status='ai_draft'` with `knowledge_base_sources` provenance. **live 2026-05-08** — **⚠ Phase B1: re-gated to `super_admin`; tenant admins receive 403.** **`topic_focus` (2026-10-03, RV62):** at most 200 characters after trim, no control characters; otherwise 400 `INVALID_PARAM`. The value reaches the generation skill input as `topic_focus` (it was always null before). Since RW-46/RW-92 (S10, 2026-10-15) the generate wizard has a Topic focus field and the domain routes forward it to the prompt (see the detached generation section). |
 | `POST` | `/admin/questions/bulk-update-status` | Bulk-flip a batch of questions to `active` or `archived` (admin grid action). Body: `{ ids: string[] (1–200 UUIDs), status: 'active' \| 'archived' }`. Returns `{ updated: string[], notFound: string[] }`. Service filters source statuses (`active` only accepts `ai_draft`; `archived` accepts `ai_draft` \| `draft` \| `active`); ids in disallowed source states OR cross-tenant ids land in `notFound`. Always writes a single `bulk_status` summary audit row (G3.D). 400 `INVALID_BULK_SIZE` for empty / >200 ids; 400 `VALIDATION_ERROR` for non-UUID id or bad status. **live 2026-05-11** |
 
+#### Framework seeds (RW-57 part 1, S10, 2026-10-15)
+
+A super admin loads curriculum frameworks from JSON files that ship with the api. Both routes use `superAdminOnly`. `routes.ts` passes the real chain. The handler also checks the role, as defence in depth. Board files for CBSE, ICSE and IB shipped in RW-57 part 2 (S10, 2026-10-16). They are bundled in `modules/04-question-bank/src/framework-seeds.ts` with `sample`, so the list route now returns four items.
+
+**UI calls (RW-57 part 2).** The Platform page section "Curriculum frameworks" calls these two routes through `modules/10-admin-dashboard/src/api/frameworks.ts` (`listFrameworkSeedsApi`, `loadFrameworkSeedApi`). It adds no new route. See [08-ui-system.md](08-ui-system.md) § "Platform page: Curriculum frameworks".
+
+`GET /api/admin/super/frameworks/seeds` returns `{ items: [{ code, name, board, version, nodeCount, loadedVersion }] }`. `loadedVersion` is `null` when the seed is not loaded.
+
+`POST /api/admin/super/frameworks/seeds/:code/load` loads one seed. The `code` param matches `^[a-z0-9-]+$`. It returns `{ frameworks, nodesCreated, nodesUpdated, nodesUnchanged }`.
+
+- The load is idempotent. A node is matched by the framework slug plus (parent, node code).
+- One `framework.seed_loaded` audit row is written for each load.
+- An unknown `code` returns 404.
+- An invalid seed returns 400. The message has the schema path. Nothing is written.
+
+#### Question import (RW-58, S10, 2026-10-16)
+
+A super admin imports questions from a CSV or XLSX file. The file is staged and validated first. The admin fixes rows. A commit then creates one draft pack. Source: `modules/04-question-bank/src/import-routes.ts`. Logic: `src/import/{parse,templates,staging,commit}.ts`. Schema: [02-data-model.md](02-data-model.md) § "Question import".
+
+**Auth:** all six routes use `superAdminOnly`. The routes run in the tenant of the session (`req.session.tenantId`), under RLS. The routes call no AI.
+
+| Route | Body or query | Success |
+| --- | --- | --- |
+| `POST /api/admin/super/question-imports` | JSON `{ file_name, format, content_base64, domain, pack_name? }`. `format` is `csv` or `xlsx`. The body limit is 4 MB. `pack_name` defaults to the file name without its extension | 201 report |
+| `GET /api/admin/super/question-imports/templates/:type` | `:type` is a question type from the registry. Query `format=csv\|xlsx` (default `csv`) | The file, as an attachment named `question-import-<type>.<format>` |
+| `GET /api/admin/super/question-imports/:id` | none | 200 report |
+| `PATCH /api/admin/super/question-imports/:id/rows/:row` | `{ values?, skip? }`. One of the two is required. `values` is a map of column to string (each up to 20 000 characters) | 200 report |
+| `POST /api/admin/super/question-imports/:id/commit` | none | 200 `{ importId, packId, committed }` |
+| `POST /api/admin/super/question-imports/:id/discard` | none | 200 report |
+
+**Report shape.** The upload, `GET`, `PATCH` and discard routes return it:
+
+```json
+{
+  "importId": "uuid",
+  "status": "staged | committed | discarded",
+  "counts": { "total": 0, "ok": 0, "error": 0, "duplicate": 0, "skip": 0 },
+  "rows": [
+    { "row": 1, "decision": "ok | error | duplicate | skip",
+      "errors": [{ "row": 1, "column": "text", "message": "..." }],
+      "raw": {}, "normalized": {} }
+  ]
+}
+```
+
+**Behaviour.**
+- The file limit is 2 MB (decoded) and 2000 data rows. The header row must have a `type` column.
+- The parser reads CSV (RFC 4180) in the file itself. It reads XLSX with `exceljs` 4.4, a pure-JS dependency added in this change.
+- The templates come from the question type registry (`importColumns`). The code has no switch for each type.
+- Staging validates each row with `coerceContent` and `contentSchema`. It sets `content_hash` to the sha256 of the type plus the canonical content. A row is `duplicate` when its hash matches a non-archived question in the same domain, or an earlier row of the same file.
+- The same file (same sha256) uploaded again while a staged import exists returns that staged import, not a second one.
+- A commit creates one draft pack with `source = 'import'`. It adds levels named `L<position>` and draft questions for the `ok` rows. Rows with `error`, `duplicate` or `skip` are left out. One audit row is written.
+- Audit actions: `question_import.staged`, `question_import.committed`, `question_import.discarded`.
+
+**Errors.**
+- `400` `INVALID_PARAM` for a bad body, params or query.
+- `400` for a file that cannot be used. Codes: `IMPORT_CSV_MALFORMED`, `IMPORT_XLSX_UNREADABLE`, `IMPORT_XLSX_EMPTY`, `IMPORT_TOO_LARGE`, `IMPORT_TOO_MANY_ROWS`, `IMPORT_MISSING_TYPE_COLUMN`, `IMPORT_DOMAIN_NOT_FOUND`.
+- `400` `IMPORT_NO_OK_ROWS` on a commit with no `ok` row.
+- `403` caller is not a super admin.
+- `404` `IMPORT_NOT_FOUND` or `IMPORT_ROW_NOT_FOUND`. The import is not in the tenant of the session.
+- `409` `IMPORT_NOT_STAGED` on a commit, fix or discard of an import that is not `staged`.
+
+**Not included.**
+- Multipart upload. `@fastify/multipart` is not an api dependency, so the file travels as base64 in JSON.
+- Rubrics for imported subjective questions. The admin adds them in the pack editor.
+- Category linking.
+- A stored hash column on `questions`. The hash lives on `question_import_rows` only.
+
+**UI calls.** The page `/admin/question-import` calls these routes through `modules/10-admin-dashboard/src/api/question-imports.ts`. See [08-ui-system.md](08-ui-system.md) § "Question import page".
+
+#### `POST /api/admin/domains` and `POST /api/admin/categories` (04): super_admin only (RW-56)
+
+**History:** added in the S9 notes of 2026-10-11.
+
+- **What.** Auth changes from `admin` (`adminOnly`) to `super_admin` (`superAdminOnly`), commit `99d97b3`. A tenant admin now gets 403. A super admin still gets 201. The `GET` routes do not change: tenant admins still read and use domains and categories.
+- **Why.** Owner decision: tenants never author taxonomy. Domains and categories are shared structure. They belong to the platform, like packs and questions.
+- **Considered and rejected.** (1) Keep tenant-local taxonomy writes: this conflicts with the owner decision and with the curriculum taxonomy (RW-55). (2) Add a new super-admin route for the same action: the existing path with a stricter guard is a smaller change.
+- **Not included.** No change to `/api/admin/super/domains`, to the `GET` routes, or to existing tenant-local rows. The same commit removes the decommissioned `reviewer` role from the billing session type (RV60). That is a type change only.
+- **Impact.** Any client that calls these two routes as a tenant admin now fails with 403. The admin UI has no such call. Four gate tests are in `modules/04-question-bank/src/__tests__/taxonomy-write-gate.test.ts`. Rows added by later S9 tasks go under this heading.
+
+#### Curriculum framework routes and node blueprint criteria (04, 05; RW-55)
+
+**History:** added in the S9 notes of 2026-10-11.
+
+Commits `76daf4c` (routes) and `2e23622` (blueprint). Schema: `docs/02-data-model.md` § "Curriculum frameworks".
+
+**`GET /api/admin/frameworks[?status=active|all]`**
+- **Auth:** `adminOnly` (admin or super_admin). Runs in `withTenant`, so RLS returns platform (NULL-tenant) rows plus the caller's own rows.
+- **Query:** `status` is `active` (default) or `all`. Any other value gives 400 `INVALID_PARAM`.
+- **Response 200:** `{ "items": [ { "id", "slug", "name", "source", "status", "tenant_id" } ] }`, ordered by `name`, `slug`. `tenant_id` is `null` for platform frameworks.
+
+**`GET /api/admin/frameworks/:id/nodes[?kind=]`**
+- **Auth:** `adminOnly`, `withTenant`.
+- **Params and query:** `id` is a UUID. `kind` is one of `board`, `stage`, `grade`, `subject`, `unit`, `outcome`, `criterion`. A bad value gives 400 `INVALID_PARAM`.
+- **Response 200:** `{ "items": [ { "id", "parent_id", "kind", "code", "label", "position", "syllabus_edition", "external_id", "status", "tenant_id" } ] }`, ordered by `parent_id` (NULL first), `position`, `label`. The list is flat. The client builds the tree from `parent_id`. An unknown or invisible framework id gives an empty list, not 404.
+
+**Blueprint criterion shape (`POST/PATCH /api/admin/assessments`, `settings.blueprint`).** A criterion is now `{ category_id?, node_id?, type, count }`. At least one of `category_id` and `node_id` is required. `domain_id` is optional when every criterion has `node_id`; the domain comes from the unit node. The server resolves `node_id` to `(domain_id, category_id)` at write time and stores the resolved shape. The stored blueprint has `category_id` on every criterion, and `node_id` where the client sent one. Existing `category_id`-only blueprints work as before. Four new 400 codes:
+
+| Code | Cause |
+|---|---|
+| `BLUEPRINT_NODE_UNRESOLVED` | Node missing, not visible to the tenant, or no category for it in this tenant. |
+| `BLUEPRINT_NODE_KIND_UNSUPPORTED` | Node kind is not `unit`. |
+| `BLUEPRINT_NODE_MISMATCH` | `category_id` and `node_id` on one criterion point at different categories. |
+| `BLUEPRINT_MIXED_DOMAINS` | Criteria resolve to more than one domain, or conflict with `domain_id`. |
+
+**Why.** Curriculum frameworks (RW-55) need an addressable unit id that a blueprint can name. **Considered and rejected.** (1) Store only `node_id` in the blueprint: the draw, count, preview and frozen pool would then change. (2) Resolve at draw time: frozen pools must not move after publish. **Not included.** No write routes for frameworks or nodes (RW-61). No `outcome` or `criterion` draws. **Impact.** Clients that read a stored blueprint can rely on `domain_id` and `category_id` being present.
+
+#### RW-68: no API shape change (2026-10-11)
+
+**History:** added in the S9 notes of 2026-10-11.
+
+- **What.** The registry refactor (RW-68) changes no route, status code or response shape. One schema widens: `McqAnswerPayloadSchema.selected` now allows 0-7 entries (was 0-3), because mcq options allow 8.
+- **Why.** The old cap of 3 contradicted the option limit. Stage 1 (`5125b3c`) fixed it while moving the schema into the registry.
+- **Considered and rejected.** Keeping the cap of 3: it would reject valid picks.
+- **Not included.** No new routes, no new error codes.
+- **Impact.** Stored answers stay valid, since the change is a widening. Clients that send up to 3 picks work as before.
+
 ### Admin — Rubric generation & generation attempts
 
 > **Status: live.** Routes registered in `modules/04-question-bank/src/routes.ts` via `registerQuestionBankRoutes(app, { adminOnly: authChain({roles:['admin']}) })`. All routes were admin-only; tenant scope enforced via RLS + `withTenant`.
@@ -336,16 +747,42 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 | `GET`  | `/admin/generation-attempts/:id` | Poll one attempt: `{ id, status, count_requested, count_inserted, error_code, error_message, duration_ms, started_at, finished_at }`. 404 for an unknown or other-tenant id; 400 for a non-UUID. **`super_admin` only.** |
 | `POST` | `/admin/generation-attempts/:id/score` | Server-side structural + runtime eval scoring for a single generation attempt. **Read-only — no writes to any table.** Resolves attempt via RLS (404 if absent or cross-tenant), loads inserted questions, runs `scoreQuestion` per question, compares per-type pass rates against `eval/baseline.json` regression thresholds. Response: `{ structural: <per-type breakdown>, runtime: <metrics>, verdict: "pass" \| "regression" \| "warning" \| "n/a" }`. **⚠ Phase B1: `super_admin` only.** |
 
+#### Generation batches (04, super admin)
+
+**History:** added in the 2026-10-02 batch 5 notes.
+All three use the same guard as the other generate routes. `id` must be a uuid (else 400 `INVALID_PARAM`).
+- `GET /api/admin/generation-batches/active` returns `{ batch: Batch | null }`, the caller's newest `active` batch.
+- `PUT /api/admin/generation-batches/:id`, body `{ domainId?: uuid|null, level?: string<=10|null, categories: object[] (max 50), completedCategoryIds?: uuid[] (max 50) }`. Upsert. `completed_category_ids` is unioned with the stored value. Returns `{ batch }`. 409 if the id belongs to another user or tenant (never says which).
+- `PATCH /api/admin/generation-batches/:id`, body `{ status: "done"|"dismissed" }`. Returns `{ ok: true }`. 404 if not found for this user.
+- `Batch` = `{ id, domainId, level, categories, completedCategoryIds, status, updatedAt }`.
+- **Why.** Durable wizard plan, see 02 migration 0142.
+- **Not included.** No list-all, no delete.
+
+#### Detached generation routes and `topic_focus` (04; RW-92, RW-93; S10, 2026-10-15)
+
+**History:** added in the S9 notes of 2026-10-11.
+
+*Type: reference.*
+
+- **`POST /api/admin/generate/start`** (`super_admin` only). The body and the checks are the same as for `POST /api/admin/generate`, through the shared `resolveGenerateArgs`: `domain_id` (UUID), `level` (`L1` to `L3`), `count` (1 to 30), optional `type_counts`, `category_id`, `batch_id`, and `topic_focus`. The route mints a uuidv7 attempt id and starts `generateQuestions` detached in the API process. The same single-flight lock and the same `generation_attempts` row (with that id) apply. It waits at most 300 ms for an early error. Responses: 202 `{ attempt_id }`; 409 `AIG_GRADING_IN_PROGRESS` (lock held); 503 `AIG_LOCK_UNAVAILABLE`; 501 (wrong `AI_PIPELINE_MODE`); 400 `INVALID_PARAM`.
+- **`GET /api/admin/generation-attempts/:id`** (`super_admin` only, tenant-scoped). Returns `{ id, status, count_requested, count_inserted, error_code, error_message, duration_ms, started_at, finished_at }`. `status` is `running`, `success`, `partial` or `failed`. It answers 404 for an unknown id or an id of another tenant, and 400 for an id that is not a UUID.
+- **`POST /api/admin/generate`** is unchanged: it still holds the request until the run ends.
+- **`topic_focus` (RW-92).** Free text. The server trims it. The maximum is 200 characters. Control characters are not allowed. Otherwise the answer is 400 `INVALID_PARAM` with param `topic_focus`. The domain route `POST /api/admin/generate` and `/generate/start` parse it through one shared helper. Before this change the domain route dropped it silently; only the legacy per-pack route read it. The value now reaches the prompt (see `docs/05-ai-pipeline.md`).
+- **Why.** A run of 152 s was cut by the edge at about 100 to 125 s (RCA 2026-10-15).
+- **Considered and rejected.** A queue or worker (hard rule 1), SSE or websockets (edge buffering), a new table (`generation_attempts` already holds the state), replacing the sync route.
+- **Not included.** Cancel; resume after an API restart.
+- **Impact.** Module 10 uses the two routes (`docs/08-ui-system.md`). The history routes above are unchanged. No schema change.
+
 ### Admin — Assessments & invitations
 
 > **Status: live as of 2026-05-02 (Phase 1 G1.B Session 3).** All 11 routes below registered into `apps/api/src/server.ts` via `registerAssessmentLifecycleRoutes(app, { adminOnly: authChain({roles:['admin']}) })`. Smoke verified live: `GET /api/admin/assessments` returns 401 AUTHN_FAILED without session, full lifecycle + cross-tenant RLS exercised by 69 testcontainer integration tests in `modules/05-assessment-lifecycle/src/__tests__/lifecycle.test.ts`. The `GET /:id`, `POST /:id/reopen`, `GET /:id/preview`, `GET /:id/invitations`, and `DELETE /admin/invitations/:id` rows are Phase 1 service-method extensions added in the same PR — same admin-only auth gate. `GET /admin/assessments/:id/attempts` belongs to module 06-attempt-engine and is NOT shipped here; it stays in the table as the canonical contract line for Group G1.C.
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET`  | `/admin/assessments`              | List assessments (paginated; filter by `status`, `pack_id`). **2026-05-30:** each item now includes two optional display fields: `level_label` (string, from `levels.label` via LEFT JOIN, e.g. "L1") and `domain` (string, the bound pack's domain as a **human name** — `domains.name` resolved server-side from `question_packs.domain` via a correlated subselect, e.g. "SOC", "Application Security", with COALESCE-fallback to the raw slug when no `domains` row matches). Both are `null` only if level/pack FK is dangling. Used by the admin list page's Level + Domain columns. Additive — existing callers unaffected. Domain is sourced from the bound pack (uniform for blueprint and non-blueprint) rather than `settings.blueprint.domain_id`; resolved server-side (not via the FE static `DOMAIN_LABELS` map) so it tracks super-admin domain renames. **2026-05-30b:** `cancelled` assessments are now EXCLUDED by default (no `status` filter → `status <> 'cancelled'`); they remain reachable via explicit `?status=cancelled`. |
+| `GET`  | `/admin/assessments`              | List assessments (paginated; filter by `status`, `pack_id`). **2026-05-30:** each item now includes two optional display fields: `level_label` (string, from `levels.label` via LEFT JOIN, for example, "L1") and `domain` (string, the bound pack's domain as a **human name** — `domains.name` resolved server-side from `question_packs.domain` via a correlated subselect, for example, "SOC", "Application Security", with COALESCE-fallback to the raw slug when no `domains` row matches). Both are `null` only if level/pack FK is dangling. Used by the admin list page's Level + Domain columns. Additive — existing callers unaffected. Domain is sourced from the bound pack (uniform for blueprint and non-blueprint) rather than `settings.blueprint.domain_id`; resolved server-side (not via the FE static `DOMAIN_LABELS` map) so it tracks super-admin domain renames. **2026-05-30b:** `cancelled` assessments are now EXCLUDED by default (no `status` filter → `status <> 'cancelled'`); they remain reachable via explicit `?status=cancelled`. |
 | `POST` | `/admin/assessments`              | Create draft assessment (returns 201). **Blueprint restriction:** if the request body carries `settings.blueprint`, the caller must be `super_admin`; a tenant admin receives `403 AuthzError` ("Blueprint assessments are restricted to super_admin"). See § Blueprint authoring restriction below. |
 | `POST` | `/admin/assessments/from-set`     | **Step 2:** create a draft assessment from a licensed PLATFORM-library set. Body: `{ source_pack_id, level_position, name, question_count, opens_at, closes_at?, randomize?, description?, settings? }`. License-checked (`403 NOT_LICENSED`), cloned-on-use into the tenant (idempotent), then created from the clone (returns 201). **Defense-in-depth:** any `settings.blueprint` field in the request body is stripped before delegating (even though this route is `adminOnly` — see § Blueprint authoring restriction). |
-| `GET`  | `/admin/assessments/:id`          | Get assessment by id. **2026-05-29:** response now includes two optional fields joined from related tables: `level_label` (string, from `levels.label` — the human-readable level code, e.g. "L1") and `pack_name` (string, from `question_packs.name`). Both are `null` if the JOIN misses (should not happen on well-formed data). Used by the admin detail page header. All other callers of this endpoint are unaffected — the fields are additive. |
+| `GET`  | `/admin/assessments/:id`          | Get assessment by id. **2026-05-29:** response now includes two optional fields joined from related tables: `level_label` (string, from `levels.label` — the human-readable level code, for example, "L1") and `pack_name` (string, from `question_packs.name`). Both are `null` if the JOIN misses (should not happen on well-formed data). Used by the admin detail page header. All other callers of this endpoint are unaffected — the fields are additive. |
 | `PATCH`| `/admin/assessments/:id`          | Update — only allowed in `draft` status. **Blueprint restriction:** if the request body carries `settings.blueprint`, the caller must be `super_admin`; a tenant admin receives `403 AuthzError` ("Blueprint assessments are restricted to super_admin"). |
 | `POST` | `/admin/assessments/:id/publish`  | `draft → published` — runs pool-size pre-flight (count active questions ≥ `question_count` else 422 `POOL_TOO_SMALL`). **B2: 403 `NOT_ENTITLED` if pack is not entitled for the tenant's plan.** |
 | `POST` | `/admin/assessments/:id/close`    | `active → closed` — illegal on `draft` (state-machine reject) |
@@ -378,7 +815,6 @@ Accepts a contact enquiry from the public marketing site and delivers it to `con
 
 **Downstream:** the admin-dashboard hides the "Blueprint" mode button on the New Assessment form for non-super-admin sessions (FE defense-in-depth; the backend gate is authoritative).
 
----
 
 #### `POST /api/admin/sets/:sourcePackId/import` (2026-05-24)
 
@@ -439,6 +875,51 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 
 > **FU-C8 (2026-10-06) — behaviour and integrity card.** The attempt page card (`AttemptIntegrityCard`) now shows the live recorded-event counts (`GET /admin/attempts/:id/integrity`) and, once the result is released to the company, the behaviour radar from `GET /admin/attempts/:id/score` -> `score.archetype_signals`, plus the disclaimer text. No archetype label is shown to tenant admins (owner decision 2026-10-03). The individual report links each attempt row to the attempt page. Help ids moved under the page prefix (`admin.attempts.detail.integrity`, `admin.attempts.detail.behaviour`, migration 0159). **Rejected:** a second radar on the individual report (one card, one place). **Not included:** a score or an automatic flag (FR11 result: never).
 
+#### `PATCH /api/admin/assessments/:id/integrity`
+
+**History:** added in the 2026-10-02 batch 3 notes.
+
+- Auth: admin session (`adminOnly`), tenant-scoped. Body, strict (unknown keys rejected): `{ "fullscreen": boolean, "block_copy_paste": boolean }`; both required. Bad body: 400 `VALIDATION_ERROR`, `details.code = INVALID_PARAM`, `param = body`. Unknown id: 404 `ASSESSMENT_NOT_FOUND`.
+- Effect: merges only `settings.integrity` (`jsonb_set`, one UPDATE); blueprint and other settings keys are untouched. Allowed in ANY status, including published: the candidate view reads settings live, so it applies to attempts started afterwards and a student mid-test picks it up on next page load. Audit: `assessment.updated` with `before/after { integrity }`. Returns the updated assessment.
+- Why: switches could be set only on the create form. Rejected: a general PATCH of settings (wider surface, would let a published blueprint change). Not included: the tab-leave warning is not switchable.
+
+#### `GET /api/admin/assessments/:id/invitations` paging
+
+**History:** added in the 2026-10-02 batch 3 notes.
+
+`page` (1-based) and `pageSize` (cap 100) were already accepted; the admin UI now uses them: 100 per page, "Showing x-y of N", Previous/Next, page clamped to the last real page when rows shrink. The picker and has-attempts guard use ids gathered across all pages. No API shape change; `total` in the response is the paging source.
+
+#### `PATCH /api/admin/assessments/:id/reminders` (admin)
+
+**History:** added in the 2026-10-02 batch 4 notes.
+
+- **What.** Body `{ enabled: boolean, hours_before?: int 1..168 }`, strict. Allowed in any assessment status. Merged into `settings.reminders` server-side; audited as `assessment.updated`; returns the assessment. 400 `INVALID_PARAM` (param `body`) on a bad body.
+- **Why a dedicated route.** Works on a published assessment without re-sending the whole settings object (same pattern as `/integrity`).
+- `GET /api/admin/assessments/:id/invitations` rows gain `reminded_at` (nullable).
+
+#### `POST /api/invitations/accept`: 429 behaviour
+
+**History:** added in the 2026-10-02 batch 4 notes.
+
+- **What.** A per-IP brake that counts FAILED redemptions only (unknown, expired or used token): 30 per 60 s per client IP (`INVITE_FAIL_MAX`). A valid accept is never blocked or counted. Only a failure past the cap returns 429 `scope=ip` with `Retry-After: 60`, instead of the specific error (so it is not an oracle).
+- **Why.** Replaces the old FIXME. Tokens are 256-bit so guessing is infeasible; the brake bounds DB lookups and log noise from scanners. The first version checked the limit before redeeming, which let one scanner lock a whole campus NAT out of valid accepts (codex revise); it now redeems first.
+- **Not included.** No per-token or per-email limit; the route-level limiters are unchanged.
+
+#### `PATCH /api/admin/assessments/:id/grading` (05, admin)
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **What.** Body `{ "high_stakes": boolean }`, strict (extra keys give 400). Works in any assessment status. Merges only `settings.high_stakes`. Audited as `assessment.updated`. Returns the full assessment.
+- **Errors.** 400 `INVALID_PARAM` (param `body`) on a bad body; 404 `ASSESSMENT_NOT_FOUND` (also for another tenant's id).
+- **Why.** Same pattern as `/integrity` and `/reminders`: one setting key, any status, no sections-lock side effects.
+- **Not included.** Per-question flag; tenant default.
+- **Impact.** Takes effect for AI grading runs started afterwards (07 reads it live). `settings.high_stakes` is also accepted at create/update.
+
+#### `PATCH /api/admin/assessments/:id` and create: `SECTIONS_LOCKED` (409)
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **What.** If `settings.sections` would change and any attempt exists: `409 { error: { details: { code: "SECTIONS_LOCKED" } } }`, message "Sections cannot be changed after students have started this test."
+- **Not included.** Other settings keys are not affected.
+
 ### Admin — Grading & review
 
 > **Status (2026-05-03, Phase 2 G2.A Session 1.b — LIVE in commit `5aec6ad`):** All 10 admin endpoints below registered into `apps/api/src/server.ts` via `registerGradingRoutes(app, { adminOnly: authChain({roles:['admin']}), adminFreshMfa: authChain({roles:['admin'], freshMfaWithinMinutes: 5}) })`. Smoke verified live: 11/11 Haiku checks PASS (every endpoint returns 401 AUTHN_FAILED without session — none 404). Service handlers under `modules/07-ai-grading/src/handlers/admin-*.ts`, registrar at `routes.ts`. Grading runtime at `runtimes/claude-code-vps.ts` spawns `claude -p` per D1-D8 in `docs/05-ai-pipeline.md`. Override never replaces — INSERTs new `gradings` row with `grader='admin_override'`, `override_of` FK, `override_reason`. Multi-tenancy guard: `/accept` validates every `proposal.attempt_id === URL attemptId` AND every `proposal.question_id ∈ attempt_questions` for the attempt. D7 single-flight is in-process `Map<attemptId>`; same-attempt OR other-attempt 409. Skill SHAs at deploy time: `anchors=1f04c875`, `band=15c14f96`, `escalate=f3588256` (claude CLI v2.1.119 on the VPS).
@@ -447,7 +928,7 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 
 | Method | Path | Purpose | Status |
 |---|---|---|---|
-| `POST` | `/admin/attempts/:id/grade`           | Trigger sync AI grading. D1 mode + D7 heartbeat + D7 single-flight. Returns `{ proposals: GradingProposal[] }` — does NOT write `gradings` rows (D8 accept-before-commit). **2026-10-01:** also runs deterministic MCQ scoring first; for an attempt with only MCQ questions the click finalises it (graded + billed, no AI) and returns `{ proposals: [], attempt: { id, status: "graded" } }` (`attempt` is absent otherwise). `auto_submitted` attempts are now gradeable. 409 `AIG_HEARTBEAT_STALE` if session idle > 60s. 409 `AIG_GRADING_IN_PROGRESS` on single-flight reject. 503 `AIG_RUNTIME_FAILURE` on `claude` subprocess error. **Phase 2 cache (2026-05-29, commit `96b71a6`):** ALSO sets `attempts.grading_started_at = NOW()` on entry, writes `attempts.ai_proposals = proposals_jsonb` + nulls the marker at batch completion. On any thrown error a catch best-effort nulls the marker (so the FE banner doesn't stick on a failed run). Recovery path for "client got CF/proxy 504/524 on the 4-minute synchronous response" — proposals are persisted server-side regardless of whether the response reached the browser. Cache is review-state only — admin Accept click is still required to write `gradings` rows. | **live 2026-05-29** |
+| `POST` | `/admin/attempts/:id/grade`           | Trigger sync AI grading. D1 mode + D7 heartbeat + D7 single-flight. Returns `{ proposals: GradingProposal[] }` — does NOT write `gradings` rows (D8 accept-before-commit). **2026-10-01:** also runs deterministic MCQ scoring first; for an attempt with only MCQ questions the click finalises it (graded + billed, no AI) and returns `{ proposals: [], attempt: { id, status: "graded" } }` (`attempt` is absent otherwise). `auto_submitted` attempts are now gradeable. 409 `AIG_HEARTBEAT_STALE` if session idle > 60s. 409 `AIG_GRADING_IN_PROGRESS` on single-flight reject. 503 `AIG_RUNTIME_FAILURE` on `claude` subprocess error. **Phase 2 cache (2026-05-29, commit `96b71a6`):** ALSO sets `attempts.grading_started_at = NOW()` on entry, writes `attempts.ai_proposals = proposals_jsonb` + nulls the marker at batch completion. On any thrown error a catch best-effort nulls the marker (so the FE banner does not stick on a failed run). Recovery path for "client got CF/proxy 504/524 on the 4-minute synchronous response" — proposals are persisted server-side regardless of whether the response reached the browser. Cache is review-state only — admin Accept click is still required to write `gradings` rows. | **live 2026-05-29** |
 | `POST` | `/admin/attempts/:id/accept`          | Commit accepted proposals. Body: `{ proposals: Array<GradingProposal & { edits?: AcceptEdits }> }` — exported as `ACCEPT_BODY_SCHEMA` from `routes.ts`, regression-guarded by `accept-contract.test.ts`. C1 guard: every `proposal.attempt_id` MUST match URL id. Pre-loop: every `proposal.question_id ∈ attempt_questions` for the attempt. Idempotent on `(attempt_id, question_id, prompt_version_sha)` per D7 — re-call returns existing rows. Status derivation: ratio ≥ 0.85 → `correct`, ≤ 0.15 → `incorrect`, else `partial`; AI runtime failures (`AIG_*` error_class incl. new `AIG_STAGE1_DEGRADED`) → `review_needed`; rubric error_class flows through ratio. **Completion-gate (2026-05-28, commit `defb9f9`):** flips `attempts.status='graded'` AND fires `recordGradedAttempt` (billing, same-tx) **only when** every AI-gradeable question (subjective \| scenario \| log_analysis) has a non-overridden `gradings` row by `grader IN ('ai','admin_override')`. MCQ/KQL excluded from the denominator (scored deterministically by `09-scoring.computeAttemptScore`, no `gradings` row). Partial accepts return `attempt.status = "pending_admin_grading"`; the per-batch audit honestly records `attempt_status_now`. Response: `{ gradings, attempt: { id, status: "graded" \| "pending_admin_grading" } }`. | **live 2026-05-28** |
 | `GET`  | `/admin/attempts/:id`                 | Full attempt detail with `{ attempt, answers, frozen_questions, gradings, ai_proposals, grading_started_at }`. Idempotent claim semantic on read: transitions `submitted → pending_admin_grading` if currently `submitted` (no-op otherwise). Each `frozen_questions[]` row now carries `rubric: { anchors: [{id, concept, weight, synonyms?}], … } \| null` (added 2026-05-29, commit `d5ad835`) so the admin review UI can render anchor concepts + weights on grading cards and the concept-coverage highlight view. Admin-only route gate; candidates never reach this endpoint. **Phase 2 cache (2026-05-29, commit `96b71a6`):** `ai_proposals: GradingProposal[] \| null` carries the latest grade-batch result so the FE can hydrate proposals state on page load even when the original `/grade` POST response was lost to a proxy timeout. `grading_started_at: ISO-8601 \| null` is the in-flight marker; FE shows "Grading in progress" banner while set, auto-polls this endpoint every 15s, and treats > 10 min as stalled (likely API SIGKILL — FE re-enables Grade-all). | **live 2026-05-29** |
 | `POST` | `/admin/attempts/:id/release`         | Transition `graded → released`. 422 `AIG_ATTEMPT_NOT_GRADEABLE` if status is not `graded`. **422 `AIG_ATTEMPT_NOT_RELEASABLE_ERASED` if the attempt's candidate has been DPDP/GDPR-erased (`users.erased_at IS NOT NULL`) — fail-closed gate added 2026-05-30 (commit `d324bba`), checked inside the same `withTenant` tx BEFORE the transition, so cert issuance + result-released email are also skipped.** Best-effort `13-notifications.sendResultReleasedEmail` via dynamic-import indirection — notification failure logs warn, never blocks the release. | **live 2026-05-03**, erasure gate **2026-05-30** |
@@ -478,6 +959,40 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | `AIG_RUNTIME_NOT_IMPLEMENTED` | 503 | `/grading-jobs/:id/retry` in claude-code-vps mode; runtime-selector default branch on unknown mode |
 | `AIG_FRESH_MFA_REQUIRED` | 401 | `/override` route layer (`requireFreshMfa({maxAge: 5min})` middleware reject) |
 | `VALIDATION_FAILED` | 400 | All routes (Zod body / query parse fail) — `details.issues` carries the Zod issue list |
+
+#### `AIG_EVAL_GATE` (409, 07)
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **What.** Returned by grade-all and re-run (including super-admin evaluations) before any AI call, only when `AI_EVAL_GATE=enforce` (or an unknown value) and the current grading skill shas match no blessed baseline. `details.current = { anchors, band, escalate }`. In `warn` (default) it is only logged as `grading.eval_gate.unapproved`.
+- **Not included.** Question generation is never gated.
+
+#### `AIG_ESCALATION_FAILURE` on high-stakes grading (07)
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **What.** Not a new route. For a high-stakes assessment, a failed Stage 3 now returns this code on the proposal, so status derives to `review_needed` and the FE keeps it out of "Accept all".
+
+#### `GET /api/admin/super/eval-gate` (07, super admin)
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **Response.** `{ mode: "off"|"warn"|"enforce", approved: boolean, current: {anchors, band, escalate}, baseline_date: string|null }`. Read-only. `baseline_date` is the file name (date) of the approving baseline.
+
+#### `GET /api/admin/super/grading-quality?days=90` (07, super admin)
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **Query.** `days` integer 1..730, default 90. Bad query gives 400.
+- **Response.** `{ days, items: [{ prompt_version_sha, ai_grades, overrides, override_rate, mean_abs_band_delta, mean_abs_score_delta_pct }] }`. `override_rate` is null with no AI rows. Cross-tenant aggregate, no candidate data, read-only transaction.
+
+#### Admin attempt detail: `section_scores`
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **What.** `GET /api/admin/attempts/:id` adds `section_scores: [{ index, name, earned, max }]`, from 09 `getSectionScoresForAttempt`. Empty array when the assessment has no sections or the score is not visible (not released to the tenant).
+- **Impact.** The attempt page shows a "Section scores" table (score and %).
+
+#### `cli_version` and `stage_inputs` on accept (07; RW-41)
+
+**History:** added in the S9 notes of 2026-10-11.
+
+Commit `45e95e0`. The accept body (`POST /api/admin/attempts/:id/accept` and `POST /api/admin/super/evaluations/:attemptId/accept`) may carry optional `cli_version` (string, max 200) and `stage_inputs` (`{anchors, band, escalate}`, max 64 KiB) on each proposal. The route schema accepts them so older and newer clients both pass validation. **The server ignores them.** It copies both values from the server-side `attempts.ai_proposals` cache for the same `question_id` and writes them to `gradings`. A client cannot set or change them. **Why.** Provenance must not depend on the browser. **Not included.** No response field and no UI. Details: `docs/05-ai-pipeline.md` D4 and `docs/02-data-model.md` Grading & scoring.
 
 ### Admin — Dashboard & reports
 
@@ -515,6 +1030,11 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 | `SCORING_ATTEMPT_NOT_FOUND` | 404 | `/admin/attempts/:id/score` — attempt absent / RLS-blocked |
 | `VALIDATION_FAILED` | 400 | `/admin/reports/leaderboard/:id` — invalid `topN` / `anonymize` query params |
 
+#### `GET /api/admin/assessments/:id/results.csv`: section columns
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **What.** After the existing columns, one column per section named `Section: <name> (%)` (names from `settings.sections`). Blank when the row's score is not visible. Sort and other params unchanged.
+- **Not included.** No per-section rank or earned/max columns.
 
 ### Admin — Webhooks, API keys, embed secrets
 
@@ -750,7 +1270,7 @@ Re-issue a pending admin invitation for an existing tenant when the original mag
 
 **Why this exists, not `PATCH /companies`:** A super-admin who just provisioned a company should not have to re-run the entire `POST /companies` flow (which would 409 on the slug) to get a new invitation token. This route is the surgical fix.
 
-**Why it's idempotent (in effect):** Calling it twice in a row produces two emails but only the second token is valid — the second call replaces the first pending invitation. The user cannot end up with two simultaneous live tokens for the same email.
+**Why it is idempotent (in effect):** Calling it twice in a row produces two emails but only the second token is valid — the second call replaces the first pending invitation. The user cannot end up with two simultaneous live tokens for the same email.
 
 **Auth:** `super_admin` + **fresh MFA** (15-minute window) — same gate as `POST /companies` because this is privilege-granting (the magic link grants admin role on accept). A stale-TOTP session cannot blast invite emails.
 
@@ -788,7 +1308,7 @@ Returns all provisioned tenants. Read-only, no pagination in v1.
 
 **Auth:** `super_admin` only.
 
-**Response 200:** each tenant also carries its **first admin** (earliest `users` row with `role='admin'` in that tenant — the person invited at company-creation). `admin_*` are `null` for tenants with no admin user (e.g. the `platform` tenant, whose operator is `super_admin`). `admin_status` is `pending` until the admin accepts the invite, then `active`.
+**Response 200:** each tenant also carries its **first admin** (earliest `users` row with `role='admin'` in that tenant — the person invited at company-creation). `admin_*` are `null` for tenants with no admin user (for example, the `platform` tenant, whose operator is `super_admin`). `admin_status` is `pending` until the admin accepts the invite, then `active`.
 
 **2026-05-20 addition.** Each row also carries `admin_invitation_expires_at: string | null`, sourced from a second `LEFT JOIN LATERAL` against `user_invitations` scoped to `(tenant_id, lower(email), accepted_at IS NULL)` (matches the partial index in `021_user_invitations.sql`; cross-tenant safe). Non-null only while `admin_status === 'pending'`; the Platform UI uses it to render an "Invite pending · expires …" Chip and gate the new Resend-invite action.
 
@@ -840,7 +1360,6 @@ The shared response type is `LifecycleResponse` (from `modules/10-admin-dashboar
 }
 ```
 
----
 
 #### `POST /api/admin/super/tenants/:tenantId/suspend`
 
@@ -883,7 +1402,6 @@ Transitions the target tenant from `active` to `suspended`. Suspending a tenant 
 
 **Source:** `apps/api/src/routes/admin-super.ts:471`, `modules/02-tenancy/src/service.ts` (`suspendTenant`, allowed source: `["active"]`).
 
----
 
 #### `POST /api/admin/super/tenants/:tenantId/resume`
 
@@ -925,7 +1443,6 @@ Transitions the target tenant from `suspended` back to `active`. Does not destro
 
 **Source:** `apps/api/src/routes/admin-super.ts:513`, `modules/02-tenancy/src/service.ts` (`resumeTenant`, allowed source: `["suspended"]`).
 
----
 
 #### `POST /api/admin/super/tenants/:tenantId/archive`
 
@@ -970,7 +1487,6 @@ Transitions the target tenant from `active` or `suspended` to `archived`. Archiv
 
 **Source:** `apps/api/src/routes/admin-super.ts:545`, `modules/02-tenancy/src/service.ts` (`archiveTenant`, allowed sources: `["active", "suspended"]`).
 
----
 
 #### `POST /api/admin/super/tenants/:tenantId/unarchive`
 
@@ -1012,7 +1528,6 @@ Transitions the target tenant from `archived` back to `active`. Does not restore
 
 **Source:** `apps/api/src/routes/admin-super.ts:587`, `modules/02-tenancy/src/service.ts` (`unarchiveTenant`, allowed source: `["archived"]`).
 
----
 
 #### User lifecycle endpoints (Phase C)
 
@@ -1023,7 +1538,6 @@ Shipped in commit `a888a43` (2026-05-20). Two parallel surfaces:
 
 Both surfaces share the same `parseLifecycleBody` reason-validation logic (max 500 chars, no control chars, `400 INVALID_REASON` on violation).
 
----
 
 #### `GET /api/admin/super/tenants/:tenantId/users`
 
@@ -1057,124 +1571,6 @@ Users are ordered `created_at DESC, id DESC`. Pending invitations are `accepted_
 
 **Source:** `apps/api/src/routes/admin-super.ts:974`.
 
----
-
-#### `POST /api/auth/totp/recovery-codes/regenerate` (RW-45, S10, 2026-10-15)
-
-An admin replaces all recovery codes after proving a current TOTP code. Source: `apps/api/src/routes/auth/totp.ts`.
-
-**Auth:** `authChain` with roles `admin` and `super_admin`, `credentialEndpoint: true` (credential rate-limit tier). The session must be TOTP-verified.
-
-**Body:** `{ "code": "123456" }`. The code is 6 digits. The route reuses the existing `codeBodySchema` (Fastify JSON schema, like the other TOTP routes).
-
-**Response 200:** `{ "codes": ["...", "... (10 items)"] }`. The server shows the codes once. It stores only hashes.
-
-**Errors:**
-- `400` bad body, or the user has no TOTP enrolment.
-- `401` `INVALID_CODE`, or the session is not TOTP-verified.
-- `403` role is not `admin` or `super_admin`.
-- `423` `ACCOUNT_LOCKED`. The existing 5-failure TOTP lockout applies.
-
-**Behaviour.** A wrong code changes nothing, so the old recovery codes stay valid. A correct code deletes the old codes and inserts 10 new ones in one transaction. The same transaction writes one `auth.recovery.regenerated` audit row (`after: { issued: 10 }`).
-
-**Not included:** a recovery-code fallback instead of a TOTP code (a stolen recovery code could then mint more codes).
-
----
-
-#### Framework seeds (RW-57 part 1, S10, 2026-10-15)
-
-A super admin loads curriculum frameworks from JSON files that ship with the api. Both routes use `superAdminOnly`. `routes.ts` passes the real chain. The handler also checks the role, as defence in depth. Board files for CBSE, ICSE and IB shipped in RW-57 part 2 (S10, 2026-10-16). They are bundled in `modules/04-question-bank/src/framework-seeds.ts` with `sample`, so the list route now returns four items.
-
-**UI calls (RW-57 part 2).** The Platform page section "Curriculum frameworks" calls these two routes through `modules/10-admin-dashboard/src/api/frameworks.ts` (`listFrameworkSeedsApi`, `loadFrameworkSeedApi`). It adds no new route. See [08-ui-system.md](08-ui-system.md) § "Platform page: Curriculum frameworks".
-
-`GET /api/admin/super/frameworks/seeds` returns `{ items: [{ code, name, board, version, nodeCount, loadedVersion }] }`. `loadedVersion` is `null` when the seed is not loaded.
-
-`POST /api/admin/super/frameworks/seeds/:code/load` loads one seed. The `code` param matches `^[a-z0-9-]+$`. It returns `{ frameworks, nodesCreated, nodesUpdated, nodesUnchanged }`.
-
-- The load is idempotent. A node is matched by the framework slug plus (parent, node code).
-- One `framework.seed_loaded` audit row is written for each load.
-- An unknown `code` returns 404.
-- An invalid seed returns 400. The message has the schema path. Nothing is written.
-
-#### Question import (RW-58, S10, 2026-10-16)
-
-A super admin imports questions from a CSV or XLSX file. The file is staged and validated first. The admin fixes rows. A commit then creates one draft pack. Source: `modules/04-question-bank/src/import-routes.ts`. Logic: `src/import/{parse,templates,staging,commit}.ts`. Schema: [02-data-model.md](02-data-model.md) § "Question import".
-
-**Auth:** all six routes use `superAdminOnly`. The routes run in the tenant of the session (`req.session.tenantId`), under RLS. The routes call no AI.
-
-| Route | Body or query | Success |
-| --- | --- | --- |
-| `POST /api/admin/super/question-imports` | JSON `{ file_name, format, content_base64, domain, pack_name? }`. `format` is `csv` or `xlsx`. The body limit is 4 MB. `pack_name` defaults to the file name without its extension | 201 report |
-| `GET /api/admin/super/question-imports/templates/:type` | `:type` is a question type from the registry. Query `format=csv\|xlsx` (default `csv`) | The file, as an attachment named `question-import-<type>.<format>` |
-| `GET /api/admin/super/question-imports/:id` | none | 200 report |
-| `PATCH /api/admin/super/question-imports/:id/rows/:row` | `{ values?, skip? }`. One of the two is required. `values` is a map of column to string (each up to 20 000 characters) | 200 report |
-| `POST /api/admin/super/question-imports/:id/commit` | none | 200 `{ importId, packId, committed }` |
-| `POST /api/admin/super/question-imports/:id/discard` | none | 200 report |
-
-**Report shape.** The upload, `GET`, `PATCH` and discard routes return it:
-
-```json
-{
-  "importId": "uuid",
-  "status": "staged | committed | discarded",
-  "counts": { "total": 0, "ok": 0, "error": 0, "duplicate": 0, "skip": 0 },
-  "rows": [
-    { "row": 1, "decision": "ok | error | duplicate | skip",
-      "errors": [{ "row": 1, "column": "text", "message": "..." }],
-      "raw": {}, "normalized": {} }
-  ]
-}
-```
-
-**Behaviour.**
-- The file limit is 2 MB (decoded) and 2000 data rows. The header row must have a `type` column.
-- The parser reads CSV (RFC 4180) in the file itself. It reads XLSX with `exceljs` 4.4, a pure-JS dependency added in this change.
-- The templates come from the question type registry (`importColumns`). The code has no switch for each type.
-- Staging validates each row with `coerceContent` and `contentSchema`. It sets `content_hash` to the sha256 of the type plus the canonical content. A row is `duplicate` when its hash matches a non-archived question in the same domain, or an earlier row of the same file.
-- The same file (same sha256) uploaded again while a staged import exists returns that staged import, not a second one.
-- A commit creates one draft pack with `source = 'import'`. It adds levels named `L<position>` and draft questions for the `ok` rows. Rows with `error`, `duplicate` or `skip` are left out. One audit row is written.
-- Audit actions: `question_import.staged`, `question_import.committed`, `question_import.discarded`.
-
-**Errors.**
-- `400` `INVALID_PARAM` for a bad body, params or query.
-- `400` for a file that cannot be used. Codes: `IMPORT_CSV_MALFORMED`, `IMPORT_XLSX_UNREADABLE`, `IMPORT_XLSX_EMPTY`, `IMPORT_TOO_LARGE`, `IMPORT_TOO_MANY_ROWS`, `IMPORT_MISSING_TYPE_COLUMN`, `IMPORT_DOMAIN_NOT_FOUND`.
-- `400` `IMPORT_NO_OK_ROWS` on a commit with no `ok` row.
-- `403` caller is not a super admin.
-- `404` `IMPORT_NOT_FOUND` or `IMPORT_ROW_NOT_FOUND`. The import is not in the tenant of the session.
-- `409` `IMPORT_NOT_STAGED` on a commit, fix or discard of an import that is not `staged`.
-
-**Not included.**
-- Multipart upload. `@fastify/multipart` is not an api dependency, so the file travels as base64 in JSON.
-- Rubrics for imported subjective questions. The admin adds them in the pack editor.
-- Category linking.
-- A stored hash column on `questions`. The hash lives on `question_import_rows` only.
-
-**UI calls.** The page `/admin/question-import` calls these routes through `modules/10-admin-dashboard/src/api/question-imports.ts`. See [08-ui-system.md](08-ui-system.md) § "Question import page".
-
----
-
-#### `POST /api/admin/users/:userId/totp/reset` (RW-91, S10, 2026-10-16)
-
-A tenant admin clears the two-factor setup of another user in the same organisation. Source: `apps/api/src/routes/admin-users-totp-reset.ts`. The super-admin variant is the next section.
-
-**Auth:** `authChain` with role `admin` and `freshMfaWithinMinutes: 15`. The handler also checks the fresh TOTP itself (see Behaviour).
-
-**Body:** `{ "reason": "text" }`. The reason is required, 1 to 500 characters.
-
-**Response 204:** no body.
-
-**Errors:**
-- `400` bad params or body.
-- `401` `FRESH_TOTP_REQUIRED`. The session has no TOTP check in the last 15 minutes.
-- `403` caller is not an admin, or the target is a `super_admin` (`SUPER_ADMIN_TARGET`).
-- `404` the user is in another tenant or does not exist.
-- `409` `SELF_RESET_FORBIDDEN`. An admin cannot reset their own two-factor here.
-
-**Behaviour.** The handler checks the fresh TOTP for every configuration, also when `MFA_REQUIRED=false`. The generic middleware check depends on `MFA_REQUIRED` for non-super roles, so the route does not rely on it. `adminResetTotp` clears the secret, deletes the recovery codes and the sessions of the target. After the reset returns, the route sends the notice email `totp_reset_notice` (see [13-email-system.md](13-email-system.md)). A send failure is logged and never fails the reset.
-
-**Not included:** a recovery-code fallback, and a link or the actor name in the notice. Flow: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
-
----
 
 #### `POST /api/admin/super/tenants/:tenantId/users/:userId/totp/reset` (RW-45, S10, 2026-10-15)
 
@@ -1200,189 +1596,6 @@ A super admin clears the two-factor setup of one user. Use it when the user lost
 
 **Not included:** a recovery-code fallback.
 
----
-
-#### Tenant-admin user lifecycle endpoints (Phase C)
-
-These five endpoints are gated by `adminOnly` (tenant `admin` role, `totpVerified`). RLS enforces tenant scoping — a `userId` that belongs to a different tenant is invisible and returns `404`. The LAST_ADMIN invariant is enforced unconditionally (no override path).
-
-##### `POST /api/admin/users/:userId/disable`
-
-Disables a user account. Sweeps all active Redis sessions for the target user after the DB commit.
-
-**Auth:** `admin` role + `totpVerified`.
-
-**Body:** `{ reason?: string }`
-
-**Response 200:** `{ userId, status: "disabled", previousStatus: "active" }`
-
-**Error codes:**
-| `details.code` | HTTP | Meaning |
-|---|---|---|
-| `CANNOT_DISABLE_SELF` | 400 | Caller is attempting to disable their own account |
-| `LAST_ADMIN` | 409 | Target is the last active admin in the tenant |
-| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
-
-**Audit action emitted:** `user.disabled`.
-
-**Source:** `apps/api/src/routes/admin-users.ts:169`, `modules/03-users/src/service.ts` (`updateUser`).
-
----
-
-##### `POST /api/admin/users/:userId/reenable`
-
-Re-enables a previously disabled user account. Sets `status` back to `active`.
-
-**Auth:** `admin` role + `totpVerified`.
-
-**Body:** `{ reason?: string }`
-
-**Response 200:** `{ userId, status: "active", previousStatus: "disabled" }`
-
-**Error codes:**
-| `details.code` | HTTP | Meaning |
-|---|---|---|
-| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
-
-**Audit action emitted:** `user.reenabled`.
-
-**Source:** `apps/api/src/routes/admin-users.ts:210`.
-
----
-
-##### `DELETE /api/admin/users/:userId`
-
-Soft-deletes a user (sets `deleted_at = now()`). Cascades to pending invitations for the user's email (deletes `user_invitations` rows where `lower(email) = lower(target.email) AND accepted_at IS NULL`). Sweeps Redis sessions after commit.
-
-**Auth:** `admin` role + `totpVerified`.
-
-**Body:** `{ reason?: string }`
-
-**Response 200:** `{ userId, deleted: true }`
-
-**Error codes:**
-| `details.code` | HTTP | Meaning |
-|---|---|---|
-| `CANNOT_DELETE_SELF` | 400 | Caller is attempting to delete their own account |
-| `LAST_ADMIN` | 409 | Target is the last active admin in the tenant |
-| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
-
-**Audit actions emitted:** `user.deleted` in `audit_log` (via `auditInTx` in the service-layer transaction) plus `user.soft_deleted` in the lifecycle operational JSONL log (via `logLifecycleEvent` in the route handler). The two action names are catalogued as equivalent — see [`modules/14-audit-log/src/types.ts:157`](modules/14-audit-log/src/types.ts#L157).
-
-**Source:** `apps/api/src/routes/admin-users.ts:304`, `modules/03-users/src/service.ts` (`softDelete`).
-
----
-
-##### `POST /api/admin/users/:userId/restore`
-
-Restores a soft-deleted user by clearing `deleted_at`. Does NOT recreate invitations or sessions — the user must be re-invited or log in again.
-
-**Auth:** `admin` role + `totpVerified`.
-
-**Body:** `{ reason?: string }`
-
-**Response 200:** `{ userId, status }` — `status` reflects the user's current `users.status` (e.g. `"active"` or `"disabled"` — whatever it was before soft-delete).
-
-**Error codes:**
-| `details.code` | HTTP | Meaning |
-|---|---|---|
-| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
-
-**Audit action emitted:** `user.restored`.
-
-**Source:** `apps/api/src/routes/admin-users.ts:242`, `modules/03-users/src/service.ts` (`restore`).
-
----
-
-##### `DELETE /api/admin/users/invitations/:invitationId`
-
-Cancels a pending (unaccepted) invitation. Deletes the `user_invitations` row and, if the associated user record is still `status='pending'`, also deletes that `users` row (`cascadedPendingUser: true` in the response).
-
-**Auth:** `admin` role + `totpVerified`.
-
-**Path params:** `invitationId` — UUID of the invitation.
-
-**Body:** `{ reason?: string }`
-
-**Response 200:**
-```json
-{ "invitationId": "uuid", "email": "...", "cascadedPendingUser": true, "cancelledUserId": "uuid" }
-```
-
-**Error codes:**
-| `details.code` | HTTP | Meaning |
-|---|---|---|
-| `INVITATION_NOT_FOUND` | 404 | No invitation row with this id (or cross-tenant — RLS makes it invisible) |
-| `INVITATION_ALREADY_ACCEPTED` | 409 | `accepted_at IS NOT NULL` — invitation was already used |
-| `INVALID_REASON` | 400 | reason is wrong type, too long, or contains control chars |
-
-**Audit action emitted:** `user.invitation_cancelled`.
-
-**Source:** `apps/api/src/routes/admin-users.ts:265`, `modules/03-users/src/service.ts` (`cancelInvitation`).
-
----
-
-#### DPDP data-rights endpoints (Module 20, 2026-05-29)
-
-Admin-mediated data-subject rights for **candidates** (who never log in — they are reached only via single-purpose magic links, so there is no candidate-facing portal). Both endpoints are gated `admin` role: under the DPDP the tenant is the **data fiduciary** for its own candidates, and Postgres RLS confines every statement to the caller's tenant, so a cross-tenant `userId` resolves to `USER_NOT_FOUND`. (This deliberately widens the originally-planned `super_admin`-only erase gate; see `modules/20-data-rights/SKILL.md` D-route note.)
-
-##### `GET /api/admin/users/:userId/data-export`
-
-Right of access / portability. Returns a JSON bundle of everything the platform holds for the candidate, assembled synchronously (no S3, no worker — the narrow candidate PII surface does not warrant async generation). The admin's browser downloads it as `assessiq-data-export-<userId>.json`; nothing is stored server-side.
-
-**Auth:** `admin` role + `totpVerified`.
-
-**Response 200:** `DataExportBundle`
-```json
-{
-  "manifest": { "schemaVersion": 1, "generatedAt": "ISO", "userId": "uuid" },
-  "profile": { "id", "name", "email", "role", "createdAt", "erasedAt": null },
-  "attempts": [ { "id", "assessmentId", "status", "startedAt", "submittedAt", "total_earned", "total_max", "auto_pct" } ],
-  "answers": [ { "questionId", "type", "answer", "savedAt" } ],
-  "certificates": [ { "credentialId", "issuedAt" } ],
-  "consents": [ { "purpose", "policyVersion", "grantedAt", "withdrawnAt", "lawfulBasis", "createdAt" } ],
-  "auditEvents": [ { "action", "entityType", "at", "before", "after" } ]
-}
-```
-`auditEvents` are the rows where the candidate is the **entity**; PII in `before`/`after` was already redacted at write time (14-audit-log `redact.ts`), so the bundle carries no raw audit PII.
-
-**Error codes:**
-| `details.code` | HTTP | Meaning |
-|---|---|---|
-| `USER_NOT_FOUND` | 404 | No user with this id in the caller's tenant (RLS-invisible cross-tenant ids included) |
-
-**Audit action emitted:** `user.data.exported` (best-effort access log, written after the read).
-
-**Source:** `apps/api/src/routes/admin-users.ts` (route), `modules/20-data-rights/src/export.ts` (`exportCandidateData`).
-
-##### `POST /api/admin/users/:userId/erase`
-
-Right to erasure. Tombstones the candidate's PII in a single transaction: `users.name`/`email` → deterministic `sha256(id)`-derived pseudonyms + `erased_at = now()`; `attempt_answers.answer` → `"[erased]"` for every answer **not positively confirmed MCQ**; `sessions.ip`/`user_agent` → NULL. Never DELETEs rows. **Certificates are never mutated** — the issued name snapshot is part of the HMAC payload, so public `/verify/:credentialId` keeps working (D5). Idempotent: re-erasing an already-erased candidate is a no-op returning `alreadyErased: true`.
-
-**Auth:** `admin` role + `totpVerified`.
-
-**Body:** `{ reason: string }` — **required** (non-empty, ≤500 chars, no control chars). Recorded in the audit `after` payload.
-
-**Response 200:** `ErasureReceipt`
-```json
-{ "userId", "erasedAt", "alreadyErased": false,
-  "tombstone": { "name": "deleted_user_…", "email": "deleted+…@erased.assessiq.local" },
-  "attemptAnswersErased": 0, "sessionsRedacted": 0, "certificatesPreserved": 0 }
-```
-
-**Error codes:**
-| `details.code` | HTTP | Meaning |
-|---|---|---|
-| `REASON_REQUIRED` | 400 | body had no `reason` |
-| `INVALID_REASON` | 400 | reason wrong type / too long / control chars |
-| `ERASE_NOT_CANDIDATE` | 400 | target user's role is not `candidate` (admin/super_admin erasure is out of scope — handled manually) |
-| `USER_NOT_FOUND` | 404 | No candidate with this id in the caller's tenant |
-
-**Audit action emitted:** `user.pii.erased` (`auditInTx`, same transaction as the tombstone; `after` carries counts + reason only, never raw name/email).
-
-**Source:** `apps/api/src/routes/admin-users.ts` (route), `modules/20-data-rights/src/erasure.ts` (`eraseCandidatePii`).
-
----
 
 #### Super-admin user lifecycle override endpoints (Phase C)
 
@@ -1394,7 +1607,6 @@ Gated by `superAdminFreshMfa` (`super_admin` + TOTP within **15 minutes**). Thes
 
 **Body shape for all super-admin lifecycle endpoints:** `{ reason?: string, confirm_last_admin?: boolean }`
 
----
 
 ##### `POST /api/admin/super/users/:userId/disable`
 
@@ -1415,7 +1627,6 @@ Cross-tenant disable. Sweeps Redis sessions for the target user after DB commit.
 
 **Source:** `apps/api/src/routes/admin-super.ts:1139`.
 
----
 
 ##### `POST /api/admin/super/users/:userId/reenable`
 
@@ -1435,7 +1646,6 @@ Cross-tenant reenable. Sets `status = 'active'`. No LAST_ADMIN check (enabling, 
 
 **Source:** `apps/api/src/routes/admin-super.ts:1227`.
 
----
 
 ##### `DELETE /api/admin/super/users/:userId`
 
@@ -1456,7 +1666,6 @@ Cross-tenant soft-delete. Sets `deleted_at = now()`. Cascades to pending invitat
 
 **Source:** `apps/api/src/routes/admin-super.ts:1354`.
 
----
 
 ##### `POST /api/admin/super/users/:userId/restore`
 
@@ -1476,7 +1685,6 @@ Cross-tenant restore. Clears `deleted_at`. Does not recreate invitations or sess
 
 **Source:** `apps/api/src/routes/admin-super.ts:1433`.
 
----
 
 ##### `DELETE /api/admin/super/users/invitations/:invitationId`
 
@@ -1528,6 +1736,55 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 > **Update 2026-10-01:** `submit` returns `result_expectation`, `release_mode`, `email_masked` and `turnaround_text`. `GET /api/me/results` lists released results. See § Scoring and result release at the end of this doc.
 
 > **FU-C10 (2026-10-06): `GET /api/me/assessments` wire fixed.** The response shape was `{ items: [{ assessment_id, name, description, status, opens_at, closes_at, duration_minutes, invitation_status, invitation_expires_at }] }` — the client type `InvitedAssessmentWire` (`modules/11-candidate-ui/src/types.ts`) expects `{ id, name, duration_seconds, question_count, opens_at, closes_at }`. Nothing called this route yet (FR12 review, 2026-10-03), so this was a latent bug, not a live regression. Fixed: the route now returns the aligned field names, and additionally filters out assessments outside their `opens_at`/`closes_at` window and invitations past their own `expires_at` — previously the list had no window or expiry filter at all.
+
+#### Candidate attempt payload: numeric and multi_select
+
+**History:** added in the 2026-10-02 batch 3 notes.
+
+- `numeric`: content sent to the candidate is `{ question, unit? }` (sanitiser allowlist; `answer`, `tolerance`, `rationale` are never sent). Answer saved: a JSON number or null.
+- `multi_select`: `{ question, options }` in the student's shuffled order (shuffle covers up to 10 options); `correct`, `scoring`, `rationale` stripped. Answer saved: `{ "selected": [int] }` of displayed indexes, translated to original indexes at the save seam (all-or-nothing: one bad element leaves the answer untouched). Scoring and result shapes: see 02 and 05.
+
+#### `POST /api/me/attempts/:id/finish-section` (candidate)
+
+**History:** added in the 2026-10-02 batch 4 notes.
+
+- **What.** Candidate-only. No body. Returns `{ section_index }` (the section just opened). Opens the next section now and re-pins `attempts.ends_at = now + the remaining sections' minutes`.
+- **Errors.** 409 `AE_SECTION_NOT_FINISHABLE` on the last section (submit instead) or on an attempt without sections. Standard attempt ownership / state errors otherwise.
+- **Candidate attempt payload `sections`.** `GET` of an in-progress sectioned attempt adds `sections: { current, total, name, calculator, ends_at, remaining_seconds }`. `questions` and `answers` are already limited to the running section; later sections are not sent. Finished attempts return everything as before. Plain tests have no `sections` key.
+- **`AE_SECTION_LOCKED` (409).** `saveAnswer` / `toggleFlag` on a question whose section is not the running one (finished or not yet open).
+- **Why.** Deadlines are server-authoritative; a locked section cannot be edited from a stale tab. Details in 02 (migration 0132) and `modules/06-attempt-engine/SKILL.md`.
+- **Not included.** Per-section score breakdown in any response.
+
+#### `CANDIDATE_ERASED` (409)
+
+**History:** added in the 2026-10-02 batch 4 notes.
+
+- **What.** Server-side refusal when the target candidate has `erased_at` set, on: 05 invite and resend; 07 manual-score and override; 18 reissue and issue-on-release (the latter treats an erased candidate as null, no certificate); 20 data-rights export.
+- **Why.** Hiding buttons in the UI is not a block; a stale tab or direct API call could still touch erased data.
+- **Not included.** Release itself already refused erased candidates (older guard).
+
+#### Candidate attempt view: `sections_summary`
+
+**History:** added in the 2026-10-02 batch 5 notes.
+- **What.** `GET /api/me/attempts/:id` (sectioned assessments only) adds `sections_summary: [{ index, name, question_count, answered_count, status: "done"|"current"|"upcoming" }]` over ALL sections. Counts only: no question ids, no content. "Answered" uses the take-page emptiness rule (null, empty string, empty array, all-empty object = unanswered).
+- **Why.** The final submit dialog must total unanswered questions across all sections, but the view only carries the running section's questions.
+- **Impact.** Absent for attempts without sections. Type in 11 `SectionSummaryWire`.
+
+#### Candidate attempt payload: ordering
+
+**History:** added in the 2026-10-02 batch 5 notes.
+
+- Content sent to the candidate is `{ question, items }` only (sanitiser allowlist; `correct_order`, `scoring`, `explanation` are never sent). `items` are in the attempt's own shuffled order, which is never the correct order and does not change between reloads.
+- Answer saved (`PUT` answer route): `{ "order": [int] }` of DISPLAYED item positions in the sequence the candidate chose. The server translates it to original item indexes before storing (all-or-nothing: one bad element leaves the answer untouched and it scores 0). The candidate's own reads translate it back to displayed positions. No new route; `answer` is untyped JSON as for the other types.
+- Scoring and result shapes: see 02 and 05. Admin attempt detail shows the candidate order next to the correct order (admin only).
+
+#### Candidate attempt payload: structured_case (2026-10-03)
+
+**History:** added in the 2026-10-02 batch 5 notes.
+
+- Content sent to the candidate is `{ title, context, log_excerpt?, steps: [{ id, prompt, select, options }] }` only. The sanitiser keeps an allowlist per step; `correct`, `scoring` and `explanation` are never sent. Options are in authored order (no shuffle for this type).
+- Answer saved (`PUT` answer route): `{ "steps": { "<stepId>": [int] } }` with original option indexes. Check rule: see the answer-save row above. The candidate runner marks a question answered when at least one step has a pick.
+- Scoring and result shapes: see 02 and 05. The admin attempt detail shows the key and the candidate picks per step (admin only).
 
 ### Embed
 
@@ -1596,6 +1853,12 @@ All routes mounted under `/api/me/*`, gated by the candidate auth chain (`requir
 | `GET`  | `/verify/:credentialId/og.svg`  | OG/social-preview image as SVG (1200×630). Returns `image/svg+xml`, `Cache-Control: public, max-age=3600`. Used by Twitter, Facebook, Mastodon, Slack. 404 on missing/malformed credential. — **live 2026-05-11** |
 | `GET`  | `/verify/:credentialId/og.png`  | OG/social-preview image as PNG (1200×630), rasterized from the SVG via `@resvg/resvg-js`. Returns `image/png`, `Cache-Control: public, max-age=3600`. Used by LinkedIn (which rejects SVG previews). 404 on missing/malformed credential. — **live 2026-05-13** |
 
+#### `/try` is not an API route
+
+**History:** added in the 2026-10-02 batch 4 notes.
+
+`/try` and `/try/certificate` are static SPA pages (`apps/web/src/pages/try`): fixed content, client-side scoring, no network calls, no session. Nothing was added to this contract. The edge routes them to the SPA through the Caddy `@app` matcher (see 06 deployment).
+
 ### Dev / Test (internal, gated)
 
 > **These routes do NOT exist in the production module graph.** `POST /api/dev/mint-session` is only registered when `ENABLE_E2E_TEST_MINTER=true` (a conditional dynamic `await import(...)` in `apps/api/src/server.ts`). Setting this env var in production is a misconfiguration.
@@ -1626,9 +1889,9 @@ Provides Playwright E2E specs with a real session cookie without requiring Googl
 
 **Source:** `apps/api/src/routes/dev/mint-session.ts:129`.
 
----
+## Worked examples
 
-## Worked example — Admin creates an assessment and invites SOC L1 cohort
+### Worked example — Admin creates an assessment and invites SOC L1 cohort
 
 ```http
 # 1. Authenticate (browser does this; abbreviated)
@@ -1663,7 +1926,7 @@ POST /api/admin/assessments/assess_.../invite
 → 202 { "invited": 3, "skipped": 0 }
 ```
 
-## Worked example — Candidate takes assessment
+### Worked example — Candidate takes assessment
 
 ```http
 # 1. Land on magic link (no session yet)
@@ -1701,29 +1964,7 @@ GET /api/me/attempts/att_.../result
 
 > Note (2026-10-01): the `/submit` and `/result` bodies in steps 4 and 5 above are out of date. Current shapes: § Scoring and result release at the end of this doc.
 
-## Business events for webhooks (FU-B6, 2026-10-03)
-
-**What.** Three events go to the registered webhook endpoints of a tenant. Code: `modules/13-notifications/src/business-events.ts`, function `emitAttemptEventAfterCommit` (commits `28ab66f`, `5b02fa1`).
-
-| Event | Sent from |
-|---|---|
-| `attempt.submitted` | 06 candidate submit, and both timer auto-submit paths |
-| `attempt.graded` | 09 `finalizeAttemptIfComplete` (the only writer of status `graded`) |
-| `result.released` | 09 `releaseAttemptInTx`: manual release, bulk release and the auto-release sweep |
-
-**Payload.** `{ event, tenant_id, attempt_id, assessment_id, candidate_id, occurred_at }`. The payload has no scores, no answers and no personal data. The host reads details with the API. The worked example below shows the older, richer `attempt.graded` shape.
-
-**Timing.** The call runs after the database commit through `onCommit` (FU-B5). A rolled-back transaction sends nothing. If the code runs outside `withTenant`, the helper writes a warning log and sends nothing.
-
-**Why.** A host needs a stable trigger. Ids only keep the payload safe when a result is not yet released.
-
-**Considered and rejected.** Scores in the payload (leaks an unreleased result). A BullMQ job per event (not needed; the webhook worker already retries).
-
-**Not included.** Other events, a per-event subscription filter in the UI, a plan-tier check (webhooks are Growth and up by owner decision; no code gate yet).
-
-**Impact.** Modules 06 and 09 now depend on `@assessiq/notifications`. Tests that mock that package must export `emitAttemptEventAfterCommit` (see `docs/RCA_LOG.md` 2026-10-03). `release.ts` may import only that helper (structure test, `74f1f46`).
-
-## Worked example — Webhook payload (host integration)
+### Worked example — Webhook payload (host integration)
 
 When a host app has registered for `attempt.graded`:
 
@@ -1770,7 +2011,7 @@ if (receivedV2.length !== expected.length || !timingSafeEqual(Buffer.from(receiv
 - **After the final failure:** the delivery is marked `failed`, and an admin can replay it from the UI.
 - **Details:** see § "2026-10-01 (later)" at the end of this file.
 
-## Worked example — Embed JWT (host issuing)
+### Worked example — Embed JWT (host issuing)
 
 ```js
 // Host backend — Node example
@@ -1794,11 +2035,27 @@ function buildAssessIQEmbedUrl(tenantId, user, assessmentId) {
 }
 ```
 
-## OpenAPI spec
+## Business events for webhooks (FU-B6, 2026-10-03)
 
-A formal OpenAPI 3.1 spec lives at `infra/openapi.yaml`, kept in sync with this doc. Generated from Fastify route schemas via `fastify-swagger`. Tenants can pull it from `/api/openapi.yaml` (auth required).
+**What.** Three events go to the registered webhook endpoints of a tenant. Code: `modules/13-notifications/src/business-events.ts`, function `emitAttemptEventAfterCommit` (commits `28ab66f`, `5b02fa1`).
 
----
+| Event | Sent from |
+|---|---|
+| `attempt.submitted` | 06 candidate submit, and both timer auto-submit paths |
+| `attempt.graded` | 09 `finalizeAttemptIfComplete` (the only writer of status `graded`) |
+| `result.released` | 09 `releaseAttemptInTx`: manual release, bulk release and the auto-release sweep |
+
+**Payload.** `{ event, tenant_id, attempt_id, assessment_id, candidate_id, occurred_at }`. The payload has no scores, no answers and no personal data. The host reads details with the API. The worked example below shows the older, richer `attempt.graded` shape.
+
+**Timing.** The call runs after the database commit through `onCommit` (FU-B5). A rolled-back transaction sends nothing. If the code runs outside `withTenant`, the helper writes a warning log and sends nothing.
+
+**Why.** A host needs a stable trigger. Ids only keep the payload safe when a result is not yet released.
+
+**Considered and rejected.** Scores in the payload (leaks an unreleased result). A BullMQ job per event (not needed; the webhook worker already retries).
+
+**Not included.** Other events, a per-event subscription filter in the UI, a plan-tier check (webhooks are Growth and up by owner decision; no code gate yet).
+
+**Impact.** Modules 06 and 09 now depend on `@assessiq/notifications`. Tests that mock that package must export `emitAttemptEventAfterCommit` (see `docs/RCA_LOG.md` 2026-10-03). `release.ts` may import only that helper (structure test, `74f1f46`).
 
 ## Admin — Reports & Exports (Phase 3 G3.C, module 15-analytics)
 
@@ -1822,7 +2079,6 @@ Returns per-topic average score buckets for a given pack.
 
 **Response 400:** `packId` missing or malformed.
 
----
 
 ### `GET /api/admin/reports/archetype-distribution/:assessmentId`
 
@@ -1839,7 +2095,6 @@ Returns count of each archetype for a given assessment.
 }
 ```
 
----
 
 ### `GET /api/admin/reports/cost-by-month`
 
@@ -1865,7 +2120,6 @@ Returns per-month grading cost (API token spend). In Phase 3 (`claude-code-vps` 
 }
 ```
 
----
 
 ### `GET /api/admin/assessments/:id/results.csv`
 
@@ -1880,14 +2134,13 @@ LIVE placement-cell export (reads live tables, NOT `attempt_summary_mv`). Roles:
 **Columns since `1a4f82d`:** `name, email, roll_number, branch, status, started_at, submitted_at, score, max_score, percent, result, rank, tab_switches, paste_count, fullscreen_exits, <Category name> (%)...`
 - `roll_number` / `branch` come from `users.metadata` (set by the CSV import, see 02).
 - `rank` is competition ranking ("1,2,2,4") by percent DESC over rows with a visible score. It is blank for rows still awaiting evaluation, or not started.
-- `tab_switches`, `paste_count` and `fullscreen_exits` count `tab_blur` / `paste` / `fullscreen_exit` events. They are integrity signals, not scores, so they show whatever the release state. They are 0 for an attempt with no events and blank when there's no attempt.
+- `tab_switches`, `paste_count` and `fullscreen_exits` count `tab_blur` / `paste` / `fullscreen_exit` events. They are integrity signals, not scores, so they show whatever the release state. They are 0 for an attempt with no events and blank when there is no attempt.
 - **Why:** the university placement cell needs a ranked, branch-wise list.
 - **Rejected:** a separate "rank list" endpoint. One CSV with a sort option keeps a single export path and one audit action.
 - **Not included:** rank within branch as its own column. `sort=branch` orders by overall rank inside each branch.
 
 **Audit:** `action: 'attempt.exported'`, `entityType: 'assessments'`, `entityId` = assessment id.
 
----
 
 ### `GET /api/admin/attempts/:id/integrity`
 
@@ -1904,7 +2157,6 @@ LIVE 2026-10-01 (`0d9999e`, `79a853a`). Module 06 (`routes.admin.ts`). Roles: ad
 - `copy` / `paste` payloads accept an optional `blocked: boolean`.
 - Event catalog: `modules/06-attempt-engine/EVENTS.md`.
 
----
 
 ### `GET /api/admin/reports/exports/attempts.csv`
 
@@ -1918,7 +2170,6 @@ Streams all scored attempts as CSV (RFC 4180). Capped at `EXPORT_ROW_CAP = 10_00
 
 **Audit:** `action: 'attempt.exported'` written to audit log on each call.
 
----
 
 ### `GET /api/admin/reports/exports/attempts.jsonl`
 
@@ -1930,7 +2181,6 @@ Same data as attempts.csv but as JSON Lines (one JSON object per line, `\n` deli
 
 **Audit:** `action: 'attempt.exported'` written to audit log.
 
----
 
 ### `GET /api/admin/reports/exports/topic-heatmap.csv`
 
@@ -1944,7 +2194,6 @@ Exports the topic heatmap report as CSV.
 
 **Response 400:** `packId` missing or malformed.
 
----
 
 ### `GET /api/admin/reports/cohort/:assessmentId/breakdown` (FU-C4, 2026-10-06)
 
@@ -1987,7 +2236,6 @@ Returns a detailed cohort report for an assessment. The URL parameter is named `
 
 **Source:** `modules/15-analytics/src/routes.ts:305` (commit `a455bd3`).
 
----
 
 ### `POST /api/admin/analytics/refresh`
 
@@ -2003,13 +2251,11 @@ Triggers `REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv`. All analyt
 
 **Source:** `modules/15-analytics/src/routes.ts:339`.
 
----
-
 ## Admin — Activity (Phase 9, module 15-analytics)
 
 All routes require admin session; tenant-scoped via `withTenant` (RLS). Served at `/api/admin/activity/*`. Each endpoint owns its full vertical slice under [`modules/15-analytics/src/activity/`](../modules/15-analytics/src/activity/) (one file per endpoint).
 
-**Decision (locked `db020d1`):** backend returns raw `question_packs.domain` slugs (e.g. `"soc"`, `"devops"`, `"cloud-architect"`). Frontend maps slugs → display names. No schema migration in v1.1.
+**Decision (locked `db020d1`):** backend returns raw `question_packs.domain` slugs (for example, `"soc"`, `"devops"`, `"cloud-architect"`). Frontend maps slugs → display names. No schema migration in v1.1.
 
 ### `GET /api/admin/activity/stats`
 
@@ -2042,7 +2288,6 @@ All routes require admin session; tenant-scoped via `withTenant` (RLS). Served a
 
 **Source:** [`modules/15-analytics/src/activity/stats.ts`](../modules/15-analytics/src/activity/stats.ts).
 
----
 
 ### `GET /api/admin/activity/heatmap`
 
@@ -2073,7 +2318,6 @@ All routes require admin session; tenant-scoped via `withTenant` (RLS). Served a
 
 **Source:** [`modules/15-analytics/src/activity/heatmap.ts`](../modules/15-analytics/src/activity/heatmap.ts).
 
----
 
 ### `GET /api/admin/activity/timeline`
 
@@ -2107,7 +2351,6 @@ All routes require admin session; tenant-scoped via `withTenant` (RLS). Served a
 
 **Source:** [`modules/15-analytics/src/activity/timeline.ts`](../modules/15-analytics/src/activity/timeline.ts).
 
----
 
 ### `GET /api/admin/activity/leaderboard`
 
@@ -2151,8 +2394,6 @@ Catalog-wide **question-pack** ranking by submission volume, with prior-period d
 - Pagination DOS guards: `page ≤ 1000`, `pageSize ≤ 50`.
 
 **Source:** [`modules/15-analytics/src/activity/leaderboard.ts`](../modules/15-analytics/src/activity/leaderboard.ts).
-
----
 
 ## Candidate Activity (module 15 — Phase 10)
 
@@ -2256,14 +2497,12 @@ Response:
 
 **Source:** [`modules/15-analytics/src/activity-candidate/leaderboard.ts`](../modules/15-analytics/src/activity-candidate/leaderboard.ts).
 
----
-
+## Certificates (module 18-certification)
 
 > **Status: live.** All endpoints below are implemented in `modules/18-certification/src/routes.ts`. They return `401` without a session, `404` for an unknown or foreign certificate, `403` for a wrong owner, `409` or `410` for revoked states, and `422` for a malformed `credential_id`. The earlier `501 Not Implemented` stub status ended when the issuance engine and PDF generator shipped.
 
 ### Candidate-facing
 
----
 
 #### `GET /api/certificates`
 
@@ -2297,7 +2536,6 @@ List all certificates belonging to the authenticated candidate (newest first).
 
 **Source:** `modules/18-certification/src/routes.ts` — `GET /api/certificates`.
 
----
 
 #### `GET /api/certificates/:credentialId/pdf`
 
@@ -2315,7 +2553,6 @@ Increments `pdf_downloads` counter.
 
 **Source:** `modules/18-certification/src/routes.ts` — `GET /api/certificates/:credentialId/pdf`.
 
----
 
 #### `POST /api/certificates/:credentialId/share-linkedin`
 
@@ -2329,13 +2566,11 @@ Increment the `linkedin_shares` counter. Fire-and-forget from the frontend befor
 
 **Source:** `modules/18-certification/src/routes.ts` — `POST /api/certificates/:credentialId/share-linkedin`.
 
----
 
 ### Admin-facing
 
 > All admin endpoints require tenant-context middleware (CLAUDE.md rule #4). Tenant scope is derived from the session — never passed in URL or body.
 
----
 
 #### `GET /api/admin/certificates`
 
@@ -2343,7 +2578,7 @@ List all certificates for the calling tenant (paginated, filterable).
 
 **Auth:** admin session + tenant-context middleware.
 
-**Query params:** `candidate_id?` (UUID), `tier?` (completion|distinction|honors), `revoked?` (true|false), `limit` (default 20, max 100), `offset` (default 0), `sort?` (allowlist enum: `credential_id`|`user_email`|`tier`|`course_title`|`issued_at`|`status`), `dir?` (`asc`|`desc`). Default sort `issued_at desc`. `sort` maps through a fixed column allowlist server-side (ORDER BY can't be parameterized); invalid values fall back to the default. **2026-05-21**
+**Query params:** `candidate_id?` (UUID), `tier?` (completion|distinction|honors), `revoked?` (true|false), `limit` (default 20, max 100), `offset` (default 0), `sort?` (allowlist enum: `credential_id`|`user_email`|`tier`|`course_title`|`issued_at`|`status`), `dir?` (`asc`|`desc`). Default sort `issued_at desc`. `sort` maps through a fixed column allowlist server-side (ORDER BY cannot be parameterized); invalid values fall back to the default. **2026-05-21**
 
 **Response 200:**
 ```json
@@ -2352,7 +2587,6 @@ List all certificates for the calling tenant (paginated, filterable).
 
 **Source:** `modules/18-certification/src/routes.ts` — `GET /api/admin/certificates`.
 
----
 
 #### `POST /api/admin/certificates/:id/revoke`
 
@@ -2373,7 +2607,6 @@ Revoke a certificate. Sets `revoked_at` + `revoke_reason`. The verify page conti
 
 **Source:** `modules/18-certification/src/routes.ts` — `POST /api/admin/certificates/:id/revoke`.
 
----
 
 #### `POST /api/admin/certificates/:id/reissue`
 
@@ -2386,8 +2619,6 @@ Re-snapshot `display_name` from the current `users` record and recompute `signed
 **Response 200:** updated Certificate object.
 
 **Response 404:** cert not found in calling tenant.
-
----
 
 ## Admin — Billing (Phase A1, module 19-billing)
 
@@ -2434,8 +2665,6 @@ Returns the calling tenant's credit tier, allowance, and current consumption. So
 **Note:** RLS-scoped to the session tenant via `withTenant`. The credit count query is `COUNT(*) FROM billing_events WHERE tenant_id = $1` — no mutable counter, always self-consistent.
 
 **Source:** `modules/19-billing/src/routes.ts` — `GET /api/billing/usage`.
-
----
 
 ## Admin — Super Billing (Phase A2, module 19-billing)
 
@@ -2492,7 +2721,6 @@ Returns full billing detail for a single tenant. Intended for the platform opera
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts`.
 
----
 
 ### `GET /api/admin/super/tenants/:tenantId/billing/export.csv`
 
@@ -2518,7 +2746,6 @@ Downloads all billing events for a tenant as an RFC4180 CSV file.
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts`.
 
----
 
 ### `PATCH /api/admin/super/tenants/:tenantId/plan`
 
@@ -2572,9 +2799,11 @@ Updates a tenant's billing tier and/or credit allowance. Both fields are optiona
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`updateTenantPlan`).
 
----
+## Entitlements and publish-time enforcement
 
-## Phase B1 — generation endpoints re-gated to super_admin
+Phase B1 and B2 changed who may call the question-bank and generation routes. They also added the tenant entitlement routes and the publish-time check.
+
+### Phase B1 — generation endpoints re-gated to super_admin
 
 > **Status: LIVE — 2026-05-18 (commits `2ba822d` + `9f073a5`).** Follows Phase A2.
 
@@ -2592,9 +2821,7 @@ Previously `roles:['admin']`, now `roles:['super_admin']` for the following 7 pa
 
 **Source:** `modules/04-question-bank/src/routes.ts` — `superAdminOnly` chain swapped in for `adminOnly` on the 6 generation/history routes; per-route auth documented inline in § Admin — Rubric generation & generation attempts above.
 
----
-
-## Phase B1 (cont.) — question-bank authoring re-gated to super_admin
+### Phase B1 (cont.) — question-bank authoring re-gated to super_admin
 
 > **Status: LIVE — 2026-05-21 (backend `7500abb`, frontend `ef9d2d8`).** Completes the Phase B1 model on every QB mutation, not just generation.
 
@@ -2621,13 +2848,11 @@ The Phase B1 model — super_admin curates the shared question-pack library; ten
 
 **Source:** `modules/04-question-bank/src/routes.ts`.
 
----
-
-## Phase B1 — tenant entitlement endpoints
+### Phase B1 — tenant entitlement endpoints
 
 > **Status: LIVE — 2026-05-18 (commits `2ba822d` + `9f073a5`).** Schema in `docs/02-data-model.md` § `tenant_entitlements`.
 
-### `GET /api/admin/super/tenants/:tenantId/entitlements`
+#### `GET /api/admin/super/tenants/:tenantId/entitlements`
 
 Returns all entitlement rows for the named tenant, including revoked rows.
 
@@ -2658,9 +2883,8 @@ Returns all entitlement rows for the named tenant, including revoked rows.
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts`.
 
----
 
-### `POST /api/admin/super/tenants/:tenantId/entitlements`
+#### `POST /api/admin/super/tenants/:tenantId/entitlements`
 
 Grants a domain or pack-level entitlement to the named tenant. Idempotent — if the `(tenant, scope_type, scope_id)` already exists and is active, returns the existing row unchanged. If the row exists but is revoked, reactivates it (`ON CONFLICT DO UPDATE`).
 
@@ -2698,9 +2922,8 @@ Grants a domain or pack-level entitlement to the named tenant. Idempotent — if
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`grantTenantEntitlement`).
 
----
 
-### `DELETE /api/admin/super/tenants/:tenantId/entitlements`
+#### `DELETE /api/admin/super/tenants/:tenantId/entitlements`
 
 Revokes an active entitlement by soft-delete (sets `status='revoked'`, records `revoked_by` and `revoked_at`). Never hard-deletes.
 
@@ -2744,9 +2967,8 @@ Note: this `DELETE` carries a JSON body — required because the scope identity 
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`revokeTenantEntitlement`).
 
----
 
-### `GET /api/admin/super/tenants/:tenantId/content-scopes` (2026-05-24)
+#### `GET /api/admin/super/tenants/:tenantId/content-scopes` (2026-05-24)
 
 Returns the PLATFORM library's **grantable scopes** for the named tenant — the set of domain slugs and published platform packs that a super-admin can grant via `POST /entitlements`, minus scopes that are already actively granted to this tenant.
 
@@ -2760,7 +2982,7 @@ Returns the PLATFORM library's **grantable scopes** for the named tenant — the
 
 Scopes that already have an `active` row in `tenant_entitlements` for this tenant are **excluded** — the result is the delta the super-admin can still grant, not a full catalog re-listing.
 
-**Why this endpoint replaced the old behavior.** The previous implementation read the **target tenant's own** `question_packs.domain` column values and returned those as grantable scopes. That produced non-canonical free-text domains (e.g. `'SOC'`, mixed-case values entered via the old free-text Domain field) that never matched the lowercase platform slug `'soc'` during license-resolution at publish time (`assertPublishEntitled` matches entitlement `scope_id` against `question_packs.domain` by exact string). The fix sources scopes from the platform's `domains` table instead, ensuring the granted `scope_id` always matches the canonical lowercase slug written to `question_packs.domain` by the write-path enforcement (see migration `0090_normalize_domain_slugs.sql` in `docs/02-data-model.md`).
+**Why this endpoint replaced the old behavior.** The previous implementation read the **target tenant's own** `question_packs.domain` column values and returned those as grantable scopes. That produced non-canonical free-text domains (for example, `'SOC'`, mixed-case values entered via the old free-text Domain field) that never matched the lowercase platform slug `'soc'` during license-resolution at publish time (`assertPublishEntitled` matches entitlement `scope_id` against `question_packs.domain` by exact string). The fix sources scopes from the platform's `domains` table instead, ensuring the granted `scope_id` always matches the canonical lowercase slug written to `question_packs.domain` by the write-path enforcement (see migration `0090_normalize_domain_slugs.sql` in `docs/02-data-model.md`).
 
 **Response 200:**
 ```json
@@ -2779,15 +3001,14 @@ Scopes that already have an `active` row in `tenant_entitlements` for this tenan
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/19-billing/src/service.ts` (`listGrantableScopesForTenant`).
 
----
 
-### Platform domain management (2026-05-25)
+#### Platform domain management (2026-05-25)
 
 Super-admin management of the canonical domain taxonomy. These are **platform-wide** operations (no `:tenantId`): they read/write the platform master tenant's `domains` and **propagate** changes into every company tenant so the whole fleet shares one consistent domain set. Provenance (`domains.source`, migration 0091) keeps propagation from ever touching a tenant-LOCAL domain. Cross-tenant writes run under `SET LOCAL ROLE assessiq_system`; each mutation writes one audit row in the same transaction.
 
 **Why a new namespace (not the existing `POST /api/admin/domains`).** `POST /api/admin/domains` (module 04) was the **tenant-local** domain-create path. Since 2026-10-11 (RW-56) it is `superAdminOnly`: a tenant admin gets 403 and no longer adds domains. The `/api/admin/super/domains` namespace is for **platform** domains that mirror across tenants and is gated by `super_admin` + fresh MFA, consistent with every other cross-tenant `/super` operation.
 
-#### `GET /api/admin/super/domains`
+##### `GET /api/admin/super/domains`
 
 Lists the platform master tenant's domains — **all statuses** (active + archived + legacy inactive) so the UI can show the full library and offer reactivate.
 
@@ -2802,7 +3023,7 @@ Lists the platform master tenant's domains — **all statuses** (active + archiv
 ```
 Empty `domains` array when the platform tenant does not exist (fresh DB).
 
-#### `POST /api/admin/super/domains`
+##### `POST /api/admin/super/domains`
 
 Creates a platform domain and propagates it (`source='platform'`, `status='active'`) into every non-platform tenant. The propagation INSERT is `ON CONFLICT (tenant_id, slug) DO NOTHING`, so a tenant that already has the slug — **including a tenant-local domain on the same slug** — is skipped and left untouched.
 
@@ -2822,7 +3043,7 @@ Creates a platform domain and propagates it (`source='platform'`, `status='activ
 
 **Audit:** `domain.created`.
 
-#### `PATCH /api/admin/super/domains/:id`
+##### `PATCH /api/admin/super/domains/:id`
 
 Archives (`status='archived'`) or reactivates (`status='active'`) a platform domain and propagates the status to **every platform-origin copy** of that slug across all tenants (`UPDATE … WHERE slug=$ AND source='platform'`). Tenant-local domains sharing the slug are never touched.
 
@@ -2848,9 +3069,8 @@ Archives (`status='archived'`) or reactivates (`status='active'`) a platform dom
 
 **Source:** `apps/api/src/routes/admin-super.ts`, `modules/04-question-bank/src/platform-domains.ts`.
 
----
 
-### `GET /api/billing/entitlements`
+#### `GET /api/billing/entitlements`
 
 Returns the calling tenant's own active entitlements. Read-only; drives the B2 publish-time scope picker (not yet built).
 
@@ -2879,7 +3099,7 @@ Active rows only — revoked rows are excluded. RLS-scoped to the session tenant
 
 **Source:** `modules/19-billing/src/routes.ts` — `GET /api/billing/entitlements`.
 
-### `GET /api/billing/available-sets`
+#### `GET /api/billing/available-sets`
 
 **Step 2 (standing-license + clone-on-use).** Returns the published PLATFORM-library question sets the calling tenant is licensed for — a **domain** license surfaces ALL current AND future sets in that domain; a **pack** license surfaces one set. Metadata only (no question content); license filter is applied in SQL so an unlicensed set is never returned. Drives the company-admin "assess from a set" picker, which calls `POST /admin/assessments/from-set` (clone-on-use).
 
@@ -2907,9 +3127,7 @@ Empty `sets` when the tenant has no active licenses. `cloned`/`update_available`
 
 **Source:** `modules/19-billing/src/routes.ts` — `GET /api/billing/available-sets` → `listAvailableSetsForTenant`.
 
----
-
-## Phase B2 — publish-time enforcement
+### Phase B2 — publish-time enforcement
 
 > **Status: LIVE — 2026-05-18 (commit `5c80aaa`).** Follows Phase B1. Schema in `docs/02-data-model.md` § `tenant_entitlements` → Phase B2 note.
 
@@ -2946,8 +3164,6 @@ Reads (`tenant_plans`, `tenant_entitlements`, `question_packs`) run under the pu
 ```
 
 A 403 rolls back the publish attempt — there is no partial published state and no `assessment.published` audit row.
-
----
 
 ## Scoring and result release (2026-10-01)
 
@@ -3007,9 +3223,7 @@ Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the rout
 
 **Impact.** `modules/11-candidate-ui` wire types and the post-submit / My results pages, `modules/10-admin-dashboard` (tenant settings, review states, platform queue and evaluate pages), 15 results CSV and candidate activity, 13 `result_released` template. Rollback: deploy the previous image; the new columns are additive (data model doc).
 
----
-
-## 2026-10-01 (later): invitations, webhooks, evaluation flow, option shuffle
+### 2026-10-01 (later): invitations, webhooks, evaluation flow, option shuffle
 
 **Invitations** (company admin; same auth chain as `/api/admin/invitations/:id`)
 
@@ -3048,184 +3262,6 @@ Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the rout
 - `POST /api/me/attempts/:id/answer` takes the displayed index; the server stores the original one.
 - No new fields and no new errors.
 
+## OpenAPI spec
 
-## Batch 3 API changes (2026-10-02)
-
-### `PATCH /api/admin/assessments/:id/integrity`
-
-- Auth: admin session (`adminOnly`), tenant-scoped. Body, strict (unknown keys rejected): `{ "fullscreen": boolean, "block_copy_paste": boolean }`; both required. Bad body: 400 `VALIDATION_ERROR`, `details.code = INVALID_PARAM`, `param = body`. Unknown id: 404 `ASSESSMENT_NOT_FOUND`.
-- Effect: merges only `settings.integrity` (`jsonb_set`, one UPDATE); blueprint and other settings keys are untouched. Allowed in ANY status, including published: the candidate view reads settings live, so it applies to attempts started afterwards and a student mid-test picks it up on next page load. Audit: `assessment.updated` with `before/after { integrity }`. Returns the updated assessment.
-- Why: switches could be set only on the create form. Rejected: a general PATCH of settings (wider surface, would let a published blueprint change). Not included: the tab-leave warning is not switchable.
-
-### `GET /api/admin/assessments/:id/invitations` paging
-
-`page` (1-based) and `pageSize` (cap 100) were already accepted; the admin UI now uses them: 100 per page, "Showing x-y of N", Previous/Next, page clamped to the last real page when rows shrink. The picker and has-attempts guard use ids gathered across all pages. No API shape change; `total` in the response is the paging source.
-
-### Candidate attempt payload: numeric and multi_select
-
-- `numeric`: content sent to the candidate is `{ question, unit? }` (sanitiser allowlist; `answer`, `tolerance`, `rationale` are never sent). Answer saved: a JSON number or null.
-- `multi_select`: `{ question, options }` in the student's shuffled order (shuffle covers up to 10 options); `correct`, `scoring`, `rationale` stripped. Answer saved: `{ "selected": [int] }` of displayed indexes, translated to original indexes at the save seam (all-or-nothing: one bad element leaves the answer untouched). Scoring and result shapes: see 02 and 05.
-
-### Auth note: session-status cache
-
-Every authenticated request now consults a 30 s positive-only Redis cache for the user/tenant active check. Suspend, disable, delete, erase take effect at once on the normal path; worst case 30 s. Details in 04 "Session-status cache". Responses are unchanged.
-
-
-
-## Batch 4 notes (2026-10-02)
-
-### `POST /api/me/attempts/:id/finish-section` (candidate)
-
-- **What.** Candidate-only. No body. Returns `{ section_index }` (the section just opened). Opens the next section now and re-pins `attempts.ends_at = now + the remaining sections' minutes`.
-- **Errors.** 409 `AE_SECTION_NOT_FINISHABLE` on the last section (submit instead) or on an attempt without sections. Standard attempt ownership / state errors otherwise.
-- **Candidate attempt payload `sections`.** `GET` of an in-progress sectioned attempt adds `sections: { current, total, name, calculator, ends_at, remaining_seconds }`. `questions` and `answers` are already limited to the running section; later sections are not sent. Finished attempts return everything as before. Plain tests have no `sections` key.
-- **`AE_SECTION_LOCKED` (409).** `saveAnswer` / `toggleFlag` on a question whose section is not the running one (finished or not yet open).
-- **Why.** Deadlines are server-authoritative; a locked section cannot be edited from a stale tab. Details in 02 (migration 0132) and `modules/06-attempt-engine/SKILL.md`.
-- **Not included.** Per-section score breakdown in any response.
-
-### `PATCH /api/admin/assessments/:id/reminders` (admin)
-
-- **What.** Body `{ enabled: boolean, hours_before?: int 1..168 }`, strict. Allowed in any assessment status. Merged into `settings.reminders` server-side; audited as `assessment.updated`; returns the assessment. 400 `INVALID_PARAM` (param `body`) on a bad body.
-- **Why a dedicated route.** Works on a published assessment without re-sending the whole settings object (same pattern as `/integrity`).
-- `GET /api/admin/assessments/:id/invitations` rows gain `reminded_at` (nullable).
-
-### `POST /api/invitations/accept`: 429 behaviour
-
-- **What.** A per-IP brake that counts FAILED redemptions only (unknown, expired or used token): 30 per 60 s per client IP (`INVITE_FAIL_MAX`). A valid accept is never blocked or counted. Only a failure past the cap returns 429 `scope=ip` with `Retry-After: 60`, instead of the specific error (so it is not an oracle).
-- **Why.** Replaces the old FIXME. Tokens are 256-bit so guessing is infeasible; the brake bounds DB lookups and log noise from scanners. The first version checked the limit before redeeming, which let one scanner lock a whole campus NAT out of valid accepts (codex revise); it now redeems first.
-- **Not included.** No per-token or per-email limit; the route-level limiters are unchanged.
-
-### `CANDIDATE_ERASED` (409)
-
-- **What.** Server-side refusal when the target candidate has `erased_at` set, on: 05 invite and resend; 07 manual-score and override; 18 reissue and issue-on-release (the latter treats an erased candidate as null, no certificate); 20 data-rights export.
-- **Why.** Hiding buttons in the UI is not a block; a stale tab or direct API call could still touch erased data.
-- **Not included.** Release itself already refused erased candidates (older guard).
-
-### `/try` is not an API route
-
-`/try` and `/try/certificate` are static SPA pages (`apps/web/src/pages/try`): fixed content, client-side scoring, no network calls, no session. Nothing was added to this contract. The edge routes them to the SPA through the Caddy `@app` matcher (see 06 deployment).
-
-
-## Batch 5 notes (2026-10-02)
-
-### `PATCH /api/admin/assessments/:id/grading` (05, admin)
-- **What.** Body `{ "high_stakes": boolean }`, strict (extra keys give 400). Works in any assessment status. Merges only `settings.high_stakes`. Audited as `assessment.updated`. Returns the full assessment.
-- **Errors.** 400 `INVALID_PARAM` (param `body`) on a bad body; 404 `ASSESSMENT_NOT_FOUND` (also for another tenant's id).
-- **Why.** Same pattern as `/integrity` and `/reminders`: one setting key, any status, no sections-lock side effects.
-- **Not included.** Per-question flag; tenant default.
-- **Impact.** Takes effect for AI grading runs started afterwards (07 reads it live). `settings.high_stakes` is also accepted at create/update.
-
-### `PATCH /api/admin/assessments/:id` and create: `SECTIONS_LOCKED` (409)
-- **What.** If `settings.sections` would change and any attempt exists: `409 { error: { details: { code: "SECTIONS_LOCKED" } } }`, message "Sections can't be changed after students have started this test."
-- **Not included.** Other settings keys are not affected.
-
-### `AIG_EVAL_GATE` (409, 07)
-- **What.** Returned by grade-all and re-run (including super-admin evaluations) before any AI call, only when `AI_EVAL_GATE=enforce` (or an unknown value) and the current grading skill shas match no blessed baseline. `details.current = { anchors, band, escalate }`. In `warn` (default) it is only logged as `grading.eval_gate.unapproved`.
-- **Not included.** Question generation is never gated.
-
-### `AIG_ESCALATION_FAILURE` on high-stakes grading (07)
-- **What.** Not a new route. For a high-stakes assessment, a failed Stage 3 now returns this code on the proposal, so status derives to `review_needed` and the FE keeps it out of "Accept all".
-
-### `GET /api/admin/super/eval-gate` (07, super admin)
-- **Response.** `{ mode: "off"|"warn"|"enforce", approved: boolean, current: {anchors, band, escalate}, baseline_date: string|null }`. Read-only. `baseline_date` is the file name (date) of the approving baseline.
-
-### `GET /api/admin/super/grading-quality?days=90` (07, super admin)
-- **Query.** `days` integer 1..730, default 90. Bad query gives 400.
-- **Response.** `{ days, items: [{ prompt_version_sha, ai_grades, overrides, override_rate, mean_abs_band_delta, mean_abs_score_delta_pct }] }`. `override_rate` is null with no AI rows. Cross-tenant aggregate, no candidate data, read-only transaction.
-
-### Generation batches (04, super admin)
-All three use the same guard as the other generate routes. `id` must be a uuid (else 400 `INVALID_PARAM`).
-- `GET /api/admin/generation-batches/active` returns `{ batch: Batch | null }`, the caller's newest `active` batch.
-- `PUT /api/admin/generation-batches/:id`, body `{ domainId?: uuid|null, level?: string<=10|null, categories: object[] (max 50), completedCategoryIds?: uuid[] (max 50) }`. Upsert. `completed_category_ids` is unioned with the stored value. Returns `{ batch }`. 409 if the id belongs to another user or tenant (never says which).
-- `PATCH /api/admin/generation-batches/:id`, body `{ status: "done"|"dismissed" }`. Returns `{ ok: true }`. 404 if not found for this user.
-- `Batch` = `{ id, domainId, level, categories, completedCategoryIds, status, updatedAt }`.
-- **Why.** Durable wizard plan, see 02 migration 0142.
-- **Not included.** No list-all, no delete.
-
-### Candidate attempt view: `sections_summary`
-- **What.** `GET /api/me/attempts/:id` (sectioned assessments only) adds `sections_summary: [{ index, name, question_count, answered_count, status: "done"|"current"|"upcoming" }]` over ALL sections. Counts only: no question ids, no content. "Answered" uses the take-page emptiness rule (null, empty string, empty array, all-empty object = unanswered).
-- **Why.** The final submit dialog must total unanswered questions across all sections, but the view only carries the running section's questions.
-- **Impact.** Absent for attempts without sections. Type in 11 `SectionSummaryWire`.
-
-### Admin attempt detail: `section_scores`
-- **What.** `GET /api/admin/attempts/:id` adds `section_scores: [{ index, name, earned, max }]`, from 09 `getSectionScoresForAttempt`. Empty array when the assessment has no sections or the score is not visible (not released to the tenant).
-- **Impact.** The attempt page shows a "Section scores" table (score and %).
-
-### `GET /api/admin/assessments/:id/results.csv`: section columns
-- **What.** After the existing columns, one column per section named `Section: <name> (%)` (names from `settings.sections`). Blank when the row's score is not visible. Sort and other params unchanged.
-- **Not included.** No per-section rank or earned/max columns.
-
-### Candidate attempt payload: ordering
-
-- Content sent to the candidate is `{ question, items }` only (sanitiser allowlist; `correct_order`, `scoring`, `explanation` are never sent). `items` are in the attempt's own shuffled order, which is never the correct order and does not change between reloads.
-- Answer saved (`PUT` answer route): `{ "order": [int] }` of DISPLAYED item positions in the sequence the candidate chose. The server translates it to original item indexes before storing (all-or-nothing: one bad element leaves the answer untouched and it scores 0). The candidate's own reads translate it back to displayed positions. No new route; `answer` is untyped JSON as for the other types.
-- Scoring and result shapes: see 02 and 05. Admin attempt detail shows the candidate order next to the correct order (admin only).
-
-
-### Candidate attempt payload: structured_case (2026-10-03)
-
-- Content sent to the candidate is `{ title, context, log_excerpt?, steps: [{ id, prompt, select, options }] }` only. The sanitiser keeps an allowlist per step; `correct`, `scoring` and `explanation` are never sent. Options are in authored order (no shuffle for this type).
-- Answer saved (`PUT` answer route): `{ "steps": { "<stepId>": [int] } }` with original option indexes. Check rule: see the answer-save row above. The candidate runner marks a question answered when at least one step has a pick.
-- Scoring and result shapes: see 02 and 05. The admin attempt detail shows the key and the candidate picks per step (admin only).
-
-> **Reviewer role removed (2026-10-03, RV60).** Invites, user create/update and super-admin edit-admin return 400 `INVALID_ROLE` for `reviewer`. Notifications and the results CSV are admin only. See `docs/04-auth-flows.md` § "Reviewer role removed". The dev minter section still names `reviewer` in its body type, for legacy rows only.
-
-## S9 notes (2026-10-11)
-
-### `POST /api/admin/domains` and `POST /api/admin/categories` (04): super_admin only (RW-56)
-
-- **What.** Auth changes from `admin` (`adminOnly`) to `super_admin` (`superAdminOnly`), commit `99d97b3`. A tenant admin now gets 403. A super admin still gets 201. The `GET` routes do not change: tenant admins still read and use domains and categories.
-- **Why.** Owner decision: tenants never author taxonomy. Domains and categories are shared structure. They belong to the platform, like packs and questions.
-- **Considered and rejected.** (1) Keep tenant-local taxonomy writes: this conflicts with the owner decision and with the curriculum taxonomy (RW-55). (2) Add a new super-admin route for the same action: the existing path with a stricter guard is a smaller change.
-- **Not included.** No change to `/api/admin/super/domains`, to the `GET` routes, or to existing tenant-local rows. The same commit removes the decommissioned `reviewer` role from the billing session type (RV60). That is a type change only.
-- **Impact.** Any client that calls these two routes as a tenant admin now fails with 403. The admin UI has no such call. Four gate tests are in `modules/04-question-bank/src/__tests__/taxonomy-write-gate.test.ts`. Rows added by later S9 tasks go under this heading.
-
-### Curriculum framework routes and node blueprint criteria (04, 05; RW-55)
-
-Commits `76daf4c` (routes) and `2e23622` (blueprint). Schema: `docs/02-data-model.md` § "Curriculum frameworks".
-
-**`GET /api/admin/frameworks[?status=active|all]`**
-- **Auth:** `adminOnly` (admin or super_admin). Runs in `withTenant`, so RLS returns platform (NULL-tenant) rows plus the caller's own rows.
-- **Query:** `status` is `active` (default) or `all`. Any other value gives 400 `INVALID_PARAM`.
-- **Response 200:** `{ "items": [ { "id", "slug", "name", "source", "status", "tenant_id" } ] }`, ordered by `name`, `slug`. `tenant_id` is `null` for platform frameworks.
-
-**`GET /api/admin/frameworks/:id/nodes[?kind=]`**
-- **Auth:** `adminOnly`, `withTenant`.
-- **Params and query:** `id` is a UUID. `kind` is one of `board`, `stage`, `grade`, `subject`, `unit`, `outcome`, `criterion`. A bad value gives 400 `INVALID_PARAM`.
-- **Response 200:** `{ "items": [ { "id", "parent_id", "kind", "code", "label", "position", "syllabus_edition", "external_id", "status", "tenant_id" } ] }`, ordered by `parent_id` (NULL first), `position`, `label`. The list is flat. The client builds the tree from `parent_id`. An unknown or invisible framework id gives an empty list, not 404.
-
-**Blueprint criterion shape (`POST/PATCH /api/admin/assessments`, `settings.blueprint`).** A criterion is now `{ category_id?, node_id?, type, count }`. At least one of `category_id` and `node_id` is required. `domain_id` is optional when every criterion has `node_id`; the domain comes from the unit node. The server resolves `node_id` to `(domain_id, category_id)` at write time and stores the resolved shape. The stored blueprint has `category_id` on every criterion, and `node_id` where the client sent one. Existing `category_id`-only blueprints work as before. Four new 400 codes:
-
-| Code | Cause |
-|---|---|
-| `BLUEPRINT_NODE_UNRESOLVED` | Node missing, not visible to the tenant, or no category for it in this tenant. |
-| `BLUEPRINT_NODE_KIND_UNSUPPORTED` | Node kind is not `unit`. |
-| `BLUEPRINT_NODE_MISMATCH` | `category_id` and `node_id` on one criterion point at different categories. |
-| `BLUEPRINT_MIXED_DOMAINS` | Criteria resolve to more than one domain, or conflict with `domain_id`. |
-
-**Why.** Curriculum frameworks (RW-55) need an addressable unit id that a blueprint can name. **Considered and rejected.** (1) Store only `node_id` in the blueprint: the draw, count, preview and frozen pool would then change. (2) Resolve at draw time: frozen pools must not move after publish. **Not included.** No write routes for frameworks or nodes (RW-61). No `outcome` or `criterion` draws. **Impact.** Clients that read a stored blueprint can rely on `domain_id` and `category_id` being present.
-
-### `cli_version` and `stage_inputs` on accept (07; RW-41)
-
-Commit `45e95e0`. The accept body (`POST /api/admin/attempts/:id/accept` and `POST /api/admin/super/evaluations/:attemptId/accept`) may carry optional `cli_version` (string, max 200) and `stage_inputs` (`{anchors, band, escalate}`, max 64 KiB) on each proposal. The route schema accepts them so older and newer clients both pass validation. **The server ignores them.** It copies both values from the server-side `attempts.ai_proposals` cache for the same `question_id` and writes them to `gradings`. A client cannot set or change them. **Why.** Provenance must not depend on the browser. **Not included.** No response field and no UI. Details: `docs/05-ai-pipeline.md` D4 and `docs/02-data-model.md` Grading & scoring.
-
-### Detached generation routes and `topic_focus` (04; RW-92, RW-93; S10, 2026-10-15)
-
-*Type: reference.*
-
-- **`POST /api/admin/generate/start`** (`super_admin` only). The body and the checks are the same as for `POST /api/admin/generate`, through the shared `resolveGenerateArgs`: `domain_id` (UUID), `level` (`L1` to `L3`), `count` (1 to 30), optional `type_counts`, `category_id`, `batch_id`, and `topic_focus`. The route mints a uuidv7 attempt id and starts `generateQuestions` detached in the API process. The same single-flight lock and the same `generation_attempts` row (with that id) apply. It waits at most 300 ms for an early error. Responses: 202 `{ attempt_id }`; 409 `AIG_GRADING_IN_PROGRESS` (lock held); 503 `AIG_LOCK_UNAVAILABLE`; 501 (wrong `AI_PIPELINE_MODE`); 400 `INVALID_PARAM`.
-- **`GET /api/admin/generation-attempts/:id`** (`super_admin` only, tenant-scoped). Returns `{ id, status, count_requested, count_inserted, error_code, error_message, duration_ms, started_at, finished_at }`. `status` is `running`, `success`, `partial` or `failed`. It answers 404 for an unknown id or an id of another tenant, and 400 for an id that is not a UUID.
-- **`POST /api/admin/generate`** is unchanged: it still holds the request until the run ends.
-- **`topic_focus` (RW-92).** Free text. The server trims it. The maximum is 200 characters. Control characters are not allowed. Otherwise the answer is 400 `INVALID_PARAM` with param `topic_focus`. The domain route `POST /api/admin/generate` and `/generate/start` parse it through one shared helper. Before this change the domain route dropped it silently; only the legacy per-pack route read it. The value now reaches the prompt (see `docs/05-ai-pipeline.md`).
-- **Why.** A run of 152 s was cut by the edge at about 100 to 125 s (RCA 2026-10-15).
-- **Considered and rejected.** A queue or worker (hard rule 1), SSE or websockets (edge buffering), a new table (`generation_attempts` already holds the state), replacing the sync route.
-- **Not included.** Cancel; resume after an API restart.
-- **Impact.** Module 10 uses the two routes (`docs/08-ui-system.md`). The history routes above are unchanged. No schema change.
-
-### RW-68: no API shape change (2026-10-11)
-
-- **What.** The registry refactor (RW-68) changes no route, status code or response shape. One schema widens: `McqAnswerPayloadSchema.selected` now allows 0-7 entries (was 0-3), because mcq options allow 8.
-- **Why.** The old cap of 3 contradicted the option limit. Stage 1 (`5125b3c`) fixed it while moving the schema into the registry.
-- **Considered and rejected.** Keeping the cap of 3: it would reject valid picks.
-- **Not included.** No new routes, no new error codes.
-- **Impact.** Stored answers stay valid, since the change is a widening. Clients that send up to 3 picks work as before.
+A formal OpenAPI 3.1 spec lives at `infra/openapi.yaml`, kept in sync with this doc. Generated from Fastify route schemas via `fastify-swagger`. Tenants can pull it from `/api/openapi.yaml` (auth required).

@@ -2,11 +2,54 @@
 
 *Type: reference* — This page describes the design tokens, components and theming rules of the UI system.
 
+This page is the reference for the AssessIQ UI system. It lists the design tokens, the component library, the theming pipeline and the mobile rules.
+It then lists the shared admin patterns and the behaviour of each admin page. Dated notes sit with the page or pattern they change.
+
+## Contents
+- [0. Working agreement — the design-system kit is the canonical reference](#0-working-agreement--the-design-system-kit-is-the-canonical-reference)
+- [Architecture goals](#architecture-goals)
+- [Token layer](#token-layer)
+  - [Naming convention](#naming-convention)
+  - [Token catalog](#token-catalog)
+- [Component library (atomic → composite)](#component-library-atomic--composite)
+- [Theming pipeline](#theming-pipeline)
+- [Template integration status](#template-integration-status)
+- [Storybook](#storybook)
+- [Accessibility](#accessibility)
+- [Density modes](#density-modes)
+- [Iconography](#iconography)
+- [What lives where](#what-lives-where)
+- [Mobile (Mobile Kit Port M0–M6 SHIPPED — 2026-05-20)](#mobile-mobile-kit-port-m0m6-shipped--2026-05-20)
+  - [Viewport hooks (`@assessiq/ui-system`)](#viewport-hooks-assessiqui-system)
+  - [First-paint hint](#first-paint-hint)
+  - [Mobile token block](#mobile-token-block)
+  - [ViewportLock (M5 — removed 2026-05-21)](#viewportlock-m5--removed-2026-05-21)
+  - [ESLint guard](#eslint-guard)
+  - [Where mobile-mode components live](#where-mobile-mode-components-live)
+  - [Help-system entries added by the port](#help-system-entries-added-by-the-port)
+- [Shared patterns and primitives](#shared-patterns-and-primitives)
+  - [Shared admin primitives (RW-32, 2026-10-10)](#shared-admin-primitives-rw-32-2026-10-10)
+  - [RW-33 and RW-34 (S7): shared overlays, tables and one HTTP client](#rw-33-and-rw-34-s7-shared-overlays-tables-and-one-http-client)
+  - [Admin list-page kit alignment + Table grid fix (2026-05-21)](#admin-list-page-kit-alignment--table-grid-fix-2026-05-21)
+  - [Labels, dates and shared copy (S3, 2026-10-09)](#labels-dates-and-shared-copy-s3-2026-10-09)
+  - [Brand consumer copies, static file routing and theme fixture key (2026-10-02)](#brand-consumer-copies-static-file-routing-and-theme-fixture-key-2026-10-02)
+  - [Completion modal on new certificates (FR13, 2026-10-03)](#completion-modal-on-new-certificates-fr13-2026-10-03)
+  - [404 page main landmark (N25, 2026-10-03)](#404-page-main-landmark-n25-2026-10-03)
+  - [Page splits for file size (RW-53, S10, 2026-10-16)](#page-splits-for-file-size-rw-53-s10-2026-10-16)
+- [Admin pages](#admin-pages)
+  - [Super-admin Platform page (2026-05-17)](#super-admin-platform-page-2026-05-17)
+  - [Admin dashboard UI changes (2026-05-24)](#admin-dashboard-ui-changes-2026-05-24)
+  - [Add-candidate drawer + invite-picker filter (2026-05-26)](#add-candidate-drawer--invite-picker-filter-2026-05-26)
+  - [Attempt detail pages](#attempt-detail-pages)
+  - [Generation admin UI — wizard resume + scorecard help (2026-05-24)](#generation-admin-ui--wizard-resume--scorecard-help-2026-05-24)
+  - [Account security page and Reset two-factor (RW-45, S10, 2026-10-15)](#account-security-page-and-reset-two-factor-rw-45-s10-2026-10-15)
+  - [Users page: Reset two-factor (RW-91, S10, 2026-10-16)](#users-page-reset-two-factor-rw-91-s10-2026-10-16)
+
 > Design tokens + component library + theming, all in one module. **You said you'll share a UI template** — when you drop it in, the integration plan in this doc tells us how to wire it into the token system without touching the rest of the platform.
 
 ## 0. Working agreement — the design-system kit is the canonical reference
 
-**Every UI change starts at the design-system kit shipped in [`modules/17-ui-system/AccessIQ_UI_Template/`](../modules/17-ui-system/AccessIQ_UI_Template/) — *consult the kit, don't lift-and-shift it*.** The kit is now a complete brand contract, not just a visual reference. Read it in this order before any UI work:
+**Every UI change starts at the design-system kit shipped in [`modules/17-ui-system/AccessIQ_UI_Template/`](../modules/17-ui-system/AccessIQ_UI_Template/) — *consult the kit, do not lift-and-shift it*.** The kit is now a complete brand contract, not just a visual reference. Read it in this order before any UI work:
 
 1. [`AccessIQ_UI_Template/CLAUDE.md`](../modules/17-ui-system/AccessIQ_UI_Template/CLAUDE.md) — folder-local entry point + non-negotiables.
 2. [`design-system/README.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/README.md), [`tokens.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/tokens.md), [`components.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/components.md), [`patterns.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/patterns.md), [`copy-and-voice.md`](../modules/17-ui-system/AccessIQ_UI_Template/design-system/copy-and-voice.md) — philosophy, exact values, recipes, layouts, voice.
@@ -29,7 +72,7 @@ This rule is encoded in memory at `branding-guideline-from-template.md` and `fee
 1. **Token-driven** — colors, spacing, type, shadows, motion all defined as CSS custom properties. Components reference tokens, never hard-coded values.
 2. **Per-tenant theming** — `tenants.branding` in DB → CSS vars at runtime → instant white-label.
 3. **Two surfaces, shared primitives** — admin UI and candidate UI share atomic components (Button, Input, Card) but compose them into different layouts. No duplicate Button implementations.
-4. **Embed-friendly** — when `?embed=true`, host can override tokens via `postMessage`. Component code doesn't change; tokens do.
+4. **Embed-friendly** — when `?embed=true`, host can override tokens via `postMessage`. Component code does not change; tokens do.
 5. **Accessible by default** — WCAG 2.1 AA target. Focus rings visible, color contrast ≥ 4.5:1, every interactive element keyboard-reachable.
 
 ## Token layer
@@ -280,7 +323,6 @@ ARIA: `ActivityHeatmap` and `StackedBarChart` are `role="img"` with `aria-label`
 
 The new components are exported from `@assessiq/ui-system` and ready for Phases 11 (admin `/activity`) + 12 (candidate `/activity`) page consumers.
 
----
 
 What's live (UI v1.1 Phase 5 — 2026-05-14):
 
@@ -300,7 +342,7 @@ Admin dashboard + AdminShell sidebar refresh. Commit `3b7e2d9`. Source: [`Assess
 | "Continue where you left off" | Candidate-context in-progress assessments — no equivalent admin data from `/admin/dashboard/queue` |
 | "Performance" sparkline card | Requires time-series data — queue endpoint returns status snapshot only, no historical points |
 | "Recommended for you" grid | AI-recommendation context for candidates; no admin equivalent planned |
-| `StatCard.breakdown` prop | Would need categorical breakdown data (e.g. by domain); queue items have only status |
+| `StatCard.breakdown` prop | Would need categorical breakdown data (for example, by domain); queue items have only status |
 | 4th stat card | Kit's "Time saved via auto-grading" derives from AI grading stats; no endpoint for it yet |
 
 **Token decisions:** All tokens already present from Phases 1–3. No new tokens added. `fontSize: 10` (bare numeric, not `"10px"`) used for role label — smallest mono size, no `--aiq-text-xxs` token exists; matches the existing `SidebarSection` pattern.
@@ -335,7 +377,6 @@ Candidate take-flow page refresh. Commit `7e89875`. Source: [`AssessIQ_UI_Templa
 
 **Verification:** `pnpm -C apps/web typecheck` ✓. Zero inline hex. Zero residual `animation:` styles. `/take/expired` → HTTP 200, `/take/error` → HTTP 200.
 
----
 
 What's live (UI v1.1 Phase 7a — 2026-05-14):
 
@@ -370,7 +411,6 @@ pager: ghost prev/next + mono "X / Y" label
 
 **Verification:** `modules/10-admin-dashboard` typecheck ✓, `apps/web` typecheck ✓. Zero `--aiq-color-bg-elevated`. `/admin/users` → 200, `/admin/attempts` → 200.
 
----
 
 What's live (UI v1.1 Phase 7b — 2026-05-14):
 
@@ -390,7 +430,6 @@ Applied the list-page recipe (count Chip + serif h1 + lede) from Phase 7a to all
 
 **Verification:** `modules/10-admin-dashboard` typecheck ✓, `modules/11-candidate-ui` typecheck ✓. Zero inline hex introduced. Zero `--aiq-color-bg-elevated`. `/admin/assessments` → 200, `/admin/question-bank` → 200.
 
----
 
 What's live (UI v1.1 Phase 8a — 2026-05-14):
 
@@ -401,7 +440,6 @@ Applied Spinner loading state + count Chip + serif h1 + lede to the two results/
 | `modules/10-admin-dashboard/src/pages/cohort-report.tsx` | Added `Chip, Spinner` imports. Replaced "Loading…" div with centered `<Spinner>`. Replaced mono meta line (cohort name) with count Chip `{N} candidate(s)` + h1 "Cohort Report." + lede "Score distribution and archetype breakdown across all scored attempts." |
 | `modules/10-admin-dashboard/src/pages/attempt-detail.tsx` | Added `Chip, Spinner` imports. Spinner loading state. Status Chip (attempt.status) above h1 displaying `{attempt.assessment_name}.` Mono meta row below: `candidate_email · level_label · submitted_at`. |
 
----
 
 What's live (UI v1.1 Phase 8b — 2026-05-14):
 
@@ -412,7 +450,6 @@ Applied Spinner + count Chip + serif h1 + lede to individual report and reports 
 | `modules/10-admin-dashboard/src/pages/individual-report.tsx` | Added `Chip, Spinner` to existing Sparkline/StatCard import. Spinner loading state. Count Chip `{N} attempt(s)` + h1 `{report.email}.` + lede "Attempt history and progression for this candidate." |
 | `modules/10-admin-dashboard/src/pages/reports.tsx` | Added `Spinner` import. Replaced "Loading…" in `ReportSection` with `<Spinner size="sm">`. Added lede below existing h1: "Cohort summaries and per-candidate progression across all assessments." |
 
----
 
 What's live (UI v1.1 Phase 12 — 2026-05-14):
 
@@ -422,7 +459,6 @@ Spinner loading states for all 4 async sections in CandidateActivity. Commit `b0
 | --- | --- |
 | `modules/11-candidate-ui/src/components/CandidateActivity.tsx` | Added `Spinner` to existing ui-system import (StatCard, ActivityHeatmap, StackedBarChart, LeaderboardList). Replaced 4 "Loading…" inline divs — statsLoading, heatmapLoading, timelineLoading, leaderboardLoading — with `<Spinner size="sm" aria-label="Loading [section]" />`. |
 
----
 
 What's live (UI v1.1 Phase 13 — 2026-05-14):
 
@@ -435,9 +471,7 @@ Kit treatment for settings + low-traffic admin pages. Commit `e624184`.
 | `modules/10-admin-dashboard/src/pages/help-content.tsx` | Added `Spinner` to existing Modal import. Spinner replaces "Loading…" div. h1 already correct (text-3xl, "Help content.", period present). |
 | `modules/10-admin-dashboard/src/pages/question-editor.tsx` | Added `Spinner` import. Full-page loading state → centered `<Spinner>`. Two h1s upgraded: text-2xl → text-3xl, period appended — "New question." and "Edit rubric." |
 
-**Not changed (Phase 13):** `guide.tsx` doesn't exist as a separate page file — `<AdminGuide>` is wrapped by App.tsx externally with `<AdminShell>`; no file to modify.
-
----
+**Not changed (Phase 13):** `guide.tsx` does not exist as a separate page file — `<AdminGuide>` is wrapped by App.tsx externally with `<AdminShell>`; no file to modify.
 
 ## Storybook
 
@@ -524,66 +558,170 @@ apps/storybook/                        # Storybook 8 + @storybook/react-vite hos
 
 Server-side theme resolver (`theme-resolver.ts`) lands in Phase 1 alongside `02-tenancy`, when the `tenants.branding` JSONB query becomes available; the Phase-0 `ThemeProvider` reads `fixtures/tenants.ts` instead. A future `tokens.ts` (TS export of token names for typesafe usage) is deferred until a consumer actually needs it.
 
-## Super-admin Platform page (2026-05-17)
+## Mobile (Mobile Kit Port M0–M6 SHIPPED — 2026-05-20)
 
-### `/admin/platform` — company provisioning
+See [docs/10-branding-guideline.md § 15. Mobile](./10-branding-guideline.md#15-mobile) for the canonical visual contract + the full per-pattern reflow catalog (M1 magic-link landing, M2a AttemptPage chrome, M2b per-question-type sizing, M3 Submitted, M4 CandidateShell nav + Activity, M5 admin graceful-degrade). This section catalogs the API surface that lives in `@assessiq/ui-system` and `apps/web/src/lib/`.
 
-Route: `apps/web/src/App.tsx` → `<Route path="/admin/platform" element={<RequireSession role="super_admin"><AdminPlatform /></RequireSession>} />`
+### Viewport hooks (`@assessiq/ui-system`)
 
-Component: `modules/10-admin-dashboard/src/pages/platform.tsx` → `export function AdminPlatform()`
+- `useViewport(): 'mobile' | 'desktop'` — SSR-safe (returns `'desktop'` when `window` is undefined). Subscribes to `matchMedia` change events so live resize / orientation changes update the value. Source: [`modules/17-ui-system/src/hooks/useViewport.ts`](../modules/17-ui-system/src/hooks/useViewport.ts).
+- `useViewportSync(): void` — side-effect hook that writes `data-viewport` on `<html>` and keeps it in sync. Called once inside `ThemeProvider`; consumers never call it directly. Source: [`modules/17-ui-system/src/hooks/useViewportSync.ts`](../modules/17-ui-system/src/hooks/useViewportSync.ts).
+- Predicate constant: `VIEWPORT_QUERY` = `(max-width: 719px), ((pointer: coarse) and (max-width: 1024px))`. The combined OR covers small phones AND iPads in portrait. Single source-of-truth — never duplicate this predicate elsewhere.
 
-**`RequireSession role="super_admin"` exact-match semantics:** when `role="super_admin"` is passed, only a session with `session.user.role === "super_admin"` is admitted. A plain `admin` is redirected to `/admin/login`. This is asymmetric with all other role gates (`admin`, `reviewer`) where `super_admin` satisfies the gate — because `super_admin` is a platform-level role above the tenant hierarchy, not a peer of admin. The asymmetry is documented with a code comment in `apps/web/src/lib/RequireSession.tsx`. The backend enforces the real gate; this is FE defense-in-depth.
+### First-paint hint
 
-**Nav entry:** `AdminShell` renders a "Platform" nav entry with `superAdminOnly: true`. Tenant admins (`role === "admin"`) do not see this entry.
+[`apps/web/index.html`](../apps/web/index.html) carries a tiny inline IIFE in `<head>` that sets `data-viewport` on `<html>` BEFORE the React bundle loads. Without this, the page paints in desktop layout for one frame then re-flows to mobile. The IIFE has a try/catch with `'desktop'` fallback so any `matchMedia` weirdness cannot blank the page.
 
-**Admin nav (S4, 2026-10-09):** Platform section now separate from Account. Super-admin items (Grading queue, Platform, Help content) render under Platform. Order: Work → Content → Admin → Account → Platform.
+### Mobile token block
 
-**Page pattern:** mirrors `users.tsx` exactly — `AdminShell breadcrumbs={["Platform"]}`, serif h1 `Companies.`, count Chip, `listTenantsApi()` on mount, `Spinner` / error Chip / empty-state card / read-only zebra table (columns: slug mono, name, status Chip, created en-GB date).
+Lives in [`modules/17-ui-system/src/styles/tokens.css`](../modules/17-ui-system/src/styles/tokens.css) as the `[data-viewport="mobile"]` block + per-page class-scoped overrides. Final set of M0-introduced viewport-aware tokens:
 
-**Create-company modal:** fixed-position Card with backdrop, required fields (name, slug, admin email), collapsible Advanced section (domain, admin display name). Slug auto-derived from name; client-side `[a-z0-9-]+` validation. MFA step-up sub-state on `401 AUTHN_FAILED` + message `/fresh totp/i` — preserves all entered form values, calls `verifyTotpApi`, refreshes session via `fetchAdminWhoami(true)`, auto-retries `createCompanyApi`. No secrets stored beyond the transient 6-digit TOTP code (cleared on success/close).
+| Token | Desktop | Mobile |
+| --- | --- | --- |
+| `--aiq-page-padding-x` | `40px` | `22px` |
+| `--aiq-page-padding-y` | `32px` | `20px` |
+| `--aiq-card-padding` | `24px` | `18px` |
+| `--aiq-h1-size` | `var(--aiq-text-3xl)` = 36px | `30px` |
 
-**Tenant lifecycle (Manage menu + confirmation modal):** each tenant row carries a `Manage ▾` dropdown (`ManageMenu`, rendered via `createPortal` to `document.body` so it escapes the table's `overflow:hidden`; closes on outside-click / scroll / resize). It offers Open billing, Manage users, and **status-aware** lifecycle actions: Suspend + Archive (when `active`), Resume + Archive (when `suspended`), Unarchive (when `archived`), and a non-actionable "Provisioning in progress" note (when `provisioning`). Selecting a lifecycle action opens `LifecycleConfirmModal` with action-specific copy, an optional **Reason** textarea (≤500 chars, recorded in the audit log) and a confirm button; success surfaces a toast with the idempotent-no-op state or the `sessionsRevoked` count. The four lifecycle endpoints are gated server-side by **fresh MFA** (TOTP within 15 min — `superAdminFreshMfa` on `apps/api/src/routes/admin-super.ts`), so as of **2026-05-24** the modal carries the same **MFA step-up sub-state** as Create-company: a stale-MFA `401` + `/fresh totp/i` flips it in-place to `MfaStepUp` (lifecycle-specific `prompt` + a `Verify & {action}` `confirmLabel`), then on `onVerified` auto-retries the original action with the typed reason preserved. The page-level `handleLifecycleConfirm` re-throws **only** that fresh-MFA 401 (narrow `status===401 && /fresh totp/i` match) so the modal owns recovery; every other error (incl. `INVALID_LIFECYCLE_TRANSITION`) surfaces as a page-level Chip and closes the modal. `MfaStepUp` is shared by Create-company, Edit-admin, and the lifecycle modal — its `confirmLabel` defaults to `"Verify & create"` so the first two are unchanged.
+Later phases added scoped CSS vars on container classes (not in the global token registry):
 
-**Help page key:** `admin.platform` (wired via `AdminShell helpPage="admin.platform"`). Field-level keys: `admin.platform.slug`, `admin.platform.admin_email`, `admin.platform.domain`, `admin.platform.admin_name`, `admin.platform.mfa_code`.
+| Scope | Var | Desktop | Mobile | Phase |
+| --- | --- | --- | --- | --- |
+| `.aiq-take-twopane` | `--aiq-take-h1-size` / `--aiq-take-h1-lh` | `44px` / `1.05` | `30px` / `1.1` | M1 |
+| `.aiq-attempt-shell` | `--aiq-attempt-q-size` | `var(--aiq-text-2xl)` = 30px | `22px` | M2a |
+| `.aiq-attempt-shell` | `--aiq-answer-input-size` | `15px` | `16px` | M2b (defeats iOS auto-zoom on form inputs < 16px) |
+| `.aiq-attempt-shell` | `--aiq-answer-mono-size` | `13px` | `16px` | M2b (same defeat, mono-font preserved) |
 
----
+Never remove or rename existing keys.
 
-## Admin list-page kit alignment + Table grid fix (2026-05-21)
+### ViewportLock (M5 — removed 2026-05-21)
+
+> **Removed.** Commit `c8349df` (Admin Mobile Port A6) deleted `apps/web/src/lib/ViewportLock.tsx` and unwrapped it from `App.tsx`. Admin pages are now mobile-responsive, so no interstitial shows. See `docs/plans/archive/ADMIN_MOBILE_PORT.md`. The text below is history.
+
+[`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx) wraps `<Routes>` in [`apps/web/src/App.tsx`](../apps/web/src/App.tsx) and renders the "Admin tools work best on desktop" interstitial when ALL hold: viewport is `mobile`, path starts with `/admin/`, path is not one of `{login, login/email, select-identity, mfa}`, no `sessionStorage.aiq_admin_mobile_override='1'` is set, not in embed mode (`?embed=true`). Pass-through otherwise — candidate, take-flow, embed, 404 routes are not affected because their pathnames do not match `/admin/`. Override storage is `sessionStorage` (per-tab, clears on tab close) — the plan's "per-session" + `localStorage` wording was contradictory; M5 honors the per-session intent. Security gates (rate-limit errors, locked-account, MFA prompts) render exactly as on desktop when the override is on — the override only relaxes layout.
+
+### ESLint guard
+
+[`eslint.config.js`](../eslint.config.js) blocks runtime imports from `**/AssessIQ-Mobile-Kit/**` (in addition to the existing `**/AssessIQ_UI_Template/**` block). Hand-port idioms into `modules/17-ui-system/src/components/` per the desktop-kit pattern. The Mobile Kit is REFERENCE-ONLY — never imported from production code.
+
+### Where mobile-mode components live
+
+- Foundation: `modules/17-ui-system/src/hooks/{useViewport,useViewportSync}.ts`, `modules/17-ui-system/src/styles/tokens.css` (`[data-viewport="mobile"]` block + per-page scoped overrides).
+- Magic-link auth (M1): `apps/web/src/pages/candidate/CandidateLogin.tsx`, `apps/web/src/pages/take/{TokenLanding,Expired,ErrorPage}.tsx` (CSS-only reflow on the M1 shared `.aiq-take-twopane` class).
+- Take-flow chrome (M2a): `apps/web/src/pages/take/Attempt.tsx` (header padding shrink, navigator-aside hidden + lazy `<Drawer>` mount via the new `aiq-attempt-nav-toggle` button, footer flex-wrap restack).
+- Take-flow answer areas (M2b): same file — textareas + the log-analysis finding `<input>` read `--aiq-answer-input-size`; the KQL textarea reads `--aiq-answer-mono-size` and renders a mobile-only `.aiq-attempt-kql-mobile-tip` caveat above the editor.
+- Submitted page (M3): `apps/web/src/pages/take/Submitted.tsx` (class-managed header/main padding + hero h1 size).
+- Candidate portal (M4): `modules/11-candidate-ui/src/components/CandidateShell.tsx` (new shell-level nav + mobile overflow menu via controlled state + outside-click + Escape), `CandidateActivity.tsx` (stats grid 3→1 col, heatmap horizontal-scroll wrapper, leaderboard `columns={viewport === 'mobile' ? 1 : 2}` via `useViewport()`), `MyCertificates.tsx` (1-line h1 size swap to `var(--aiq-h1-size)`).
+- Admin graceful-degrade (M5): `ViewportLock.tsx` — removed in A6 (see above); admin pages are responsive instead.
+
+### Help-system entries added by the port
+
+- `candidate.attempt.navigator.toggle` (M2a — bottom-sheet navigator toggle).
+- `candidate.attempt.kql.mobile_tip` (M2b — KQL caveat tip).
+- `candidate.shell.nav.mobile_menu` (M4 — candidate-shell overflow menu).
+- `admin.shell.mobile_continue_anyway` (M5 — admin interstitial override).
+
+All four wired via `data-help-id` on the actual control and seeded into 0011 by `pnpm help:seed:regen`.
+
+## Shared patterns and primitives
+
+### Shared admin primitives (RW-32, 2026-10-10)
+
+Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-system/src/components/`, with a story and tests in `src/__tests__/rw32-primitives.test.tsx`.
+
+**Why.** Admin pages each built their own status chips, headers, empty states, confirm modals and pager. One shared set keeps the look the same.
+
+**Not included.** No data-table recipe exists in the kit (kit gap). The existing `Table` is unchanged. The admin `PageHeader` in `modules/10-admin-dashboard` is unchanged and has an eyebrow prop that the new one lacks. Migrating pages to the new components is a later task.
+
+#### StatusPill
+- Props: `status: string`, `labels?: Record<string,string>`, `tone?: ChipVariant` (default `default`), `label?: string`.
+- Text is `label ?? labels?.[status] ?? status`. It renders a `Chip`.
+- Use for any status or enum value. Pass the glossary label map from `lib/labels.ts`.
+- Kit gap: no StatusPill recipe; built on Chip (`design-system/components.md` "Chips").
+
+#### PageHeader
+- Props: `title`, `count?: number`, `lede?: ReactNode`, `actions?: ReactNode`.
+- Renders `<header>` with `h1.aiq-serif`, a `Chip` only when `count` is given (0 is shown), a muted lede, and actions on the right.
+- Follows the kit "Page header recipe (universal)" without the mono eyebrow.
+
+#### EmptyState
+- Props: `title`, `body?`, `action?`, `icon?`.
+- Centered, 64px vertical padding, serif `h2`, muted body (max 360px), action below. No illustrations. Follows kit "Empty state".
+
+#### ConfirmDialog
+- Props: `open`, `title`, `body`, `confirmLabel`, `cancelLabel='Cancel'`, `danger?`, `busy?`, `onConfirm`, `onCancel`, `mfaGuard?`.
+- Built on `Modal`. Escape and backdrop call `onCancel`. `busy` disables both buttons.
+- `danger` sets the confirm button to `--aiq-color-danger` (the kit has no danger button class). `mfaGuard` is a slot above the buttons and has no logic.
+- Use for destructive or irreversible actions.
+
+#### Pagination
+- Props: `page` (1-based), `pageSize`, `total`, `onPageChange`.
+- `<nav aria-label="Pagination">` with Previous, "Page X of Y", Next. Y = `max(1, ceil(total/pageSize))`. `page` is clamped into 1..Y.
+- Kit gap: no Pagination recipe; uses the outline small button.
+
+### RW-33 and RW-34 (S7): shared overlays, tables and one HTTP client
+
+**What.**
+1. **One HTTP client (RW-34).** `packages/http-client` (`@assessiq/http-client`) holds the only browser fetch layer. `createApiClient`, `createApiRequest` and `createApiRawRequest` keep the behaviour of the three old copies: `credentials: 'include'`, a `Content-Type` header only when a body exists, the `{ error }` envelope with the `HTTP_<status>` fallback, and 204 returns undefined. `apps/web/src/lib/api.ts`, `modules/10-admin-dashboard/src/api.ts` (`adminApi`, `getReadiness`) and `modules/11-candidate-ui/src/api.ts` (`call`) build on it. `AdminApiError` and `CandidateApiError` remain subclasses of `ApiCallError`.
+2. **`useApi` hook (RW-34).** `modules/17-ui-system/src/hooks/useApi.ts` (also re-exported in `apps/web/src/lib/useApi.ts`) loads on mount and when the path changes. It aborts the in-flight request on unmount, on path change and on refetch, and never surfaces an AbortError. Data is cleared when the path or base changes; a plain refetch keeps it. This came from a Codex review (revise, addressed).
+3. **Confirm dialogs (RW-33).** `window.confirm` is gone from modules 10 and 11. Destructive confirms use `ConfirmDialog` (danger, with a pending-action state). Hand-rolled fixed dialogs use `Modal`.
+4. **Tables (RW-33).** Raw `<table>` in modules 10 and 11 is now `Table`, except the main attempts table in `generation-attempts.tsx`, which has row expansion (see Not included).
+5. **Overlay lint (RW-33).** `tools/lint-no-fixed-overlay.ts` runs in WARN mode. It flags `position: 'fixed'` and raw `<table` in modules 10 and 11 unless the line or the line above has `lint-fixed-allow: <drawer|menu|toast|gate|panel|table>` with a reason.
+
+**Why.** Three near-identical fetch clients drifted apart. Dialogs and tables were hand-rolled per page. One client and one dialog and table primitive remove the drift. The lint keeps it from returning.
+
+**Considered and rejected.**
+- Put the base client in `apps/web/src/lib` and import it from modules 10 and 11. Rejected: modules cannot import from `apps/web` (Rule B).
+- Make `ConfirmDialog` hold MFA and reason inputs. Rejected: `ConfirmDialog` always renders its own buttons. The MFA steps in the archive and lifecycle dialogs use `Modal` with the same body.
+- Add row expansion to `Table` now. Deferred: it is a behaviour change for the attempts table.
+
+**Not included.**
+- Playwright e2e and axe runs. They run in CI on push, not locally.
+- A tooltip or popover conversion. Those are not in scope.
+- `Table` renders `div`s with ARIA roles, not a real `<table>`. Converted tables get CSS-grid semantics and truncated cells. An axe check on the changed pages is open.
+- The `generation-attempts.tsx` main table stays a raw `<table>` (allow comment `table`).
+
+**Downstream impact.**
+- Modules 10, 11, 17 and `apps/web` depend on `@assessiq/http-client` (workspace). `pnpm-lock.yaml` is updated.
+- Visible: confirm dialogs now use the kit style; Escape and backdrop close these dialogs; a close button with `aria-label="Close modal"`; converted tables use the grid style.
+- Lint: `lint:repo` does not run the new script yet (warn mode; run it with `npx tsx tools/lint-no-fixed-overlay.ts`).
+
+### Admin list-page kit alignment + Table grid fix (2026-05-21)
 
 A design review of `/admin/attempts` and `/admin/question-bank` against [`docs/10-branding-guideline.md`](./10-branding-guideline.md) uncovered a load-bearing render bug in the shared `Table` primitive plus several drift points from the kit. Shipped in commit `8558750`.
 
-### `Table` width contract — **numbers are pixels, strings pass through**
+#### `Table` width contract — **numbers are pixels, strings pass through**
 
 Source: [`modules/17-ui-system/src/components/Table.tsx`](../modules/17-ui-system/src/components/Table.tsx).
 
-**Root cause that motivated the fix:** the previous `String(c.width)` stringified a numeric column hint (e.g. `width: 80`) into a unitless CSS grid track length (`"80"`). Browsers reject that as invalid `grid-template-columns`, the declaration is discarded, and the body grid collapses to a single implicit column — every header + cell stacks vertically. The bug silently affected every page using the primitive (attempts, question-bank, assessments, dashboard, assessment-detail).
+**Root cause that motivated the fix:** the previous `String(c.width)` stringified a numeric column hint (for example, `width: 80`) into a unitless CSS grid track length (`"80"`). Browsers reject that as invalid `grid-template-columns`, the declaration is discarded, and the body grid collapses to a single implicit column — every header + cell stacks vertically. The bug silently affected every page using the primitive (attempts, question-bank, assessments, dashboard, assessment-detail).
 
 **Contract now:**
 
 | `ColumnDef.width` value | Output track |
 | --- | --- |
-| `number` (e.g. `80`) | `"80px"` — bare numbers are pixel lengths |
-| `string` (e.g. `"1fr"`, `"minmax(120px, 1fr)"`, `"auto"`) | passed through verbatim |
+| `number` (for example, `80`) | `"80px"` — bare numbers are pixel lengths |
+| `string` (for example, `"1fr"`, `"minmax(120px, 1fr)"`, `"auto"`) | passed through verbatim |
 | `undefined` / `null` / `""` / `0` | `"1fr"` (default; share remaining space equally) |
 
 Callers should keep using `width: 80` for pixel hints — no migration needed. The fix is in the primitive.
 
-### Click-to-sort columns (2026-05-21)
+#### Click-to-sort columns (2026-05-21)
 
 The shared `Table` already supports sorting via the `sortable` (per-column), `sortBy`, `sortDir`, and `onSort` props — but it only **emits** the sort event in `onSort`; it does not reorder `data` itself. Admin list pages full-fetch their rows (`pageSize 100`), so they sort **client-side** over the loaded page rather than re-fetching. The shipped pattern (commit `ef9d2d8`) is identical across pages:
 
 - A module-level `sortRows<T>(rows, key, dir)` helper: keys ending in `_at` compare as dates, numeric columns numerically, everything else case-insensitive string. Keep it page-local (a duplicated ~15-line helper) rather than a shared lib import — a prior shared-lib extraction on this module caused a parallel-agent file race.
 - `sortBy` defaults to `""` (no active column) so first paint matches the server's fetch order; `const sortedRows = useMemo(() => sortBy ? sortRows(items, sortBy, sortDir) : items, …)`.
 - Wire `data={sortedRows}` `sortDir={sortDir}` `onSort={(k,d)=>{setSortBy(k);setSortDir(d);}}`, and pass `sortBy` via the spread `{...(sortBy ? { sortBy } : {})}` — passing `sortBy={undefined}` is a type error under `exactOptionalPropertyTypes`.
-- Mark `sortable: true` on every data column **except** action/empty-label columns and columns whose value is a composite object the generic comparator can't order (e.g. assessments' "Invited" `{ total, … }`).
+- Mark `sortable: true` on every data column **except** action/empty-label columns and columns whose value is a composite object the generic comparator cannot order (for example, assessments' "Invited" `{ total, … }`).
 
 Live on: Question Bank, Attempts, Assessments, Dashboard grading queue, and Assessment-detail invitations.
 
-**Server-paginated tables sort server-side instead.** `certificates.tsx` and `generation-attempts.tsx` use native `<table>` markup with `limit`/`offset` + "Load more", so client-side sort would only reorder the loaded page. They send `sort`/`dir` query params to the API (which maps the key through a fixed `ORDER BY` allowlist — `ORDER BY` can't be parameterized) and **refetch from `offset 0`** on header click. Clickable `<th>`s carry the same `▲`/`▼` affordance. See `docs/03-api-contract.md` for the per-endpoint sort allowlists. Rule of thumb: full-fetch list → client-side `sortRows`; paginated list → server-side allowlisted sort.
+**Server-paginated tables sort server-side instead.** `certificates.tsx` and `generation-attempts.tsx` use native `<table>` markup with `limit`/`offset` + "Load more", so client-side sort would only reorder the loaded page. They send `sort`/`dir` query params to the API (which maps the key through a fixed `ORDER BY` allowlist — `ORDER BY` cannot be parameterized) and **refetch from `offset 0`** on header click. Clickable `<th>`s carry the same `▲`/`▼` affordance. See `docs/03-api-contract.md` for the per-endpoint sort allowlists. Rule of thumb: full-fetch list → client-side `sortRows`; paginated list → server-side allowlisted sort.
 
 > Update 2026-10-10 (RW-33): `generation-attempts.tsx` now uses the shared `Table` (see next section). Its `onSort` sets `sortBy`/`sortDir` and the existing fetch effect refetches from offset 0. `certificates.tsx` is unchanged.
 
-### `Table` row expansion and ARIA table semantics (RW-33, 2026-10-10)
+#### `Table` row expansion and ARIA table semantics (RW-33, 2026-10-10)
 
 **What changed.** `Table` gained four optional props. Every existing caller is unchanged; none needed an edit.
 
@@ -604,7 +742,7 @@ Live on: Question Bank, Attempts, Assessments, Dashboard grading queue, and Asse
 
 **Not included.** No `treegrid` keyboard navigation, no virtualization, no sticky header, no per-header style override. `certificates.tsx` keeps its own markup for now.
 
-### Shared admin formatters (`modules/10-admin-dashboard/src/lib/`)
+#### Shared admin formatters (`modules/10-admin-dashboard/src/lib/`)
 
 Two small helpers consolidate display logic that was previously duplicated inline on each list page. New pages MUST use these instead of re-inventing per-page status switches or `toLocaleString()` calls.
 
@@ -619,15 +757,15 @@ Status rendering composes with the `Chip` primitive: `const s = attemptStatusDis
 
 **Question Bank list — Status column (added 2026-05-25).** The `/admin/question-bank` pack list previously had **no status column**, so an admin couldn't tell draft / published / archived packs apart in the list (only the per-pack detail page showed a status pill). A sortable **Status** column now sits between Domain and Questions, rendered via the canonical `packStatusDisplay(row.status)` → `<Chip variant={s.variant}>` pattern above — not a hand-rolled colour map. This pairs with the same-session archive fix (`docs/RCA_LOG.md` 2026-05-24): archiving a draft pack now works *and* is visible in the list. The detail page still uses its own inline `packStatusColor` span (pre-existing drift) — harmless, but a future consolidation could route it through `packStatusDisplay` too.
 
-**Pack detail — "Activate all" → "Activate drafts", conditional (2026-05-25).** Publishing a pack now auto-activates its `draft` questions (see `docs/03-api-contract.md` publish row), so the per-level activate button is no longer the primary path. It's renamed **"Activate drafts"** and only renders when that level actually has `draft` questions (`levelQs.some(q => q.status === "draft")`) — previously it showed on every published pack regardless, which read as a dead button on a fully-active pack (the reported confusion: "Published" + "Activate all" looked contradictory). The two axes are still distinct — pack status (draft/published/archived) vs question status (ai_draft/draft/active/archived) — but the common case (publish → everything usable) no longer needs a second click.
+**Pack detail — "Activate all" → "Activate drafts", conditional (2026-05-25).** Publishing a pack now auto-activates its `draft` questions (see `docs/03-api-contract.md` publish row), so the per-level activate button is no longer the primary path. It is renamed **"Activate drafts"** and only renders when that level actually has `draft` questions (`levelQs.some(q => q.status === "draft")`) — previously it showed on every published pack regardless, which read as a dead button on a fully-active pack (the reported confusion: "Published" + "Activate all" looked contradictory). The two axes are still distinct — pack status (draft/published/archived) vs question status (ai_draft/draft/active/archived) — but the common case (publish → everything usable) no longer needs a second click.
 
-**Inline button help — Wave 1 (2026-05-25).** Action buttons now carry `<HelpTip helpId>` (hover tooltip from `short_text` + a (?) icon opening the help drawer with `long_md`). Wave 1 covers the two Question Bank pages: the **list** (`admin.question_bank.list.new_pack`, `…list.add_to_workspace`) and **pack detail** (`admin.question_bank.pack.{generate,publish,archive,activate_drafts}`). Content lives in `content/en/admin.yml` and ships to prod via forward migration `0093_seed_question_bank_button_help.sql` (the `0011` canonical seed was regenerated for source-sync; new rows reach prod via the forward migration, same pattern as 0089/0092). **Reminder (the `HelpProvider` prefix rule):** a button's `helpId` MUST sit under its page's `helpPage` prefix or `listHelpForPage` (`key LIKE '<page>.%'`) won't fetch it and `HelpTip` silently renders nothing — list page is `admin.question_bank.list`, pack detail is `admin.question_bank.pack`. Remaining admin pages (Assessments — note its create-form keys are under `admin.assessments.create.*` while the page prefix is `admin.assessments.list`, a mismatch to reconcile — Attempts, Grading, Reports, Certificates, Users, Platform, Billing, Dashboard) are follow-up waves.
+**Inline button help — Wave 1 (2026-05-25).** Action buttons now carry `<HelpTip helpId>` (hover tooltip from `short_text` + a (?) icon opening the help drawer with `long_md`). Wave 1 covers the two Question Bank pages: the **list** (`admin.question_bank.list.new_pack`, `…list.add_to_workspace`) and **pack detail** (`admin.question_bank.pack.{generate,publish,archive,activate_drafts}`). Content lives in `content/en/admin.yml` and ships to prod via forward migration `0093_seed_question_bank_button_help.sql` (the `0011` canonical seed was regenerated for source-sync; new rows reach prod via the forward migration, same pattern as 0089/0092). **Reminder (the `HelpProvider` prefix rule):** a button's `helpId` MUST sit under its page's `helpPage` prefix or `listHelpForPage` (`key LIKE '<page>.%'`) will not fetch it and `HelpTip` silently renders nothing — list page is `admin.question_bank.list`, pack detail is `admin.question_bank.pack`. Remaining admin pages (Assessments — note its create-form keys are under `admin.assessments.create.*` while the page prefix is `admin.assessments.list`, a mismatch to reconcile — Attempts, Grading, Reports, Certificates, Users, Platform, Billing, Dashboard) are follow-up waves.
 
 **Inline button help — Wave 2 (2026-05-25).** Covered the assessment-lifecycle + certificates action buttons: assessments → **Create assessment**; assessment-detail → **Publish**, **+ Invite candidates**; certificates → **Revoke**, **Reissue**. Key insight applied: `data-help-id` attributes are **inert markers** — only `<HelpTip>` renders visible help — and most of these buttons already had content keys (`admin.assessments.publish`, `.invite.bulk`, `admin.certificates.revoke`, `.reissue`) that simply weren't loading because the page's `helpPage` was a deeper prefix than the key. So Wave 2 **broadened the `helpPage` prefix** (`admin.assessments.detail`/`.list` → `admin.assessments`; `admin.certificates.list` → `admin.certificates`) so the existing content is fetched, then wrapped the buttons in `HelpTip`. Only ONE new key was authored (`admin.assessments.create.submit`, migration `0094`). **Lesson for future waves: prefer broadening `helpPage` to reuse existing content over authoring duplicate keys; remember `data-help-id` alone shows nothing.** Still-remaining pages (Attempts, Grading, Reports, Users, Platform, Billing, Dashboard, Activity) are later waves — several already have `data-help-id` content that just needs a `helpPage` broaden + `HelpTip` wrap.
 
 **Question Bank list — three follow-ups (2026-05-25).** (1) **Row `⋯` menu rendered via portal.** `RowOverflowMenu` previously used `position:absolute`, which the packs table's `overflow:hidden` (rounded corners) clipped — the Archive menu silently never appeared. It now mirrors `platform.tsx`'s `ManageMenu`: `createPortal` to `document.body`, anchored via `getBoundingClientRect` with `position:fixed`, `zIndex:1000`, closing on outside-click / Esc / scroll / resize. **Recurrence class:** any row-level popover inside a table with `overflow:hidden` MUST portal out — see the same note on ManageMenu (§ Super-admin Platform page). (2) **Levels column** between Status and Questions, sourced from a new `level_count` on `GET /admin/packs` (0 rendered muted — flags a pack with no levels yet). (3) **Default filter is now Published**, not All: a one-time, ref-guarded mount effect sets `?status=published` when no `status` param is present, so the list opens on live content; clicking **All** (which clears the param) is still respected and never bounced back.
 
-### Question & answer content renderers (never raw JSON)
+#### Question & answer content renderers (never raw JSON)
 
 Any admin surface that displays a frozen question or a candidate's submitted answer MUST render a typed, human-readable layout — **never** `JSON.stringify` the stored payload into a `<pre>`/text node. Two renderers own this:
 
@@ -638,13 +776,235 @@ Any admin surface that displays a frozen question or a candidate's submitted ans
 
 **History (2026-05-22):** until this date the attempt-detail page used a local `QuestionContent`/`AnswerContent` pair that did `typeof x === "string" ? x : JSON.stringify(x, null, 2)`. Question `content` and every answer shape are objects, so the JSON branch always fired — every question and answer rendered as a raw `{ "correct": 0, "options": [...] }` blob (the reported bug). The page now delegates the question to the shared `QuestionContentView` and the answer to `AttemptAnswerView`. The candidate take-flow was never affected (it renders field-by-field) and answer-key fields are stripped server-side before reaching candidates (`sanitizeContentForCandidate`, see `docs/RCA_LOG.md` 2026-05-16). The correct-option/rationale display in `QuestionContentView` is therefore **admin-only and intentional** — do not reuse it on a candidate-facing surface without re-gating those fields.
 
-### Attempt-detail — grading summary + Accept-all (2026-05-28, commit `defb9f9`)
+#### Row-overflow menu pattern (currently page-local)
+
+Question-Bank's destructive `Archive` action moved into a `⋯` row-level menu (`useRef` + click-outside listener + `Esc` to close) so destructive verbs do not crowd a list row. Implementation lives inline at [`modules/10-admin-dashboard/src/pages/question-bank.tsx`](../modules/10-admin-dashboard/src/pages/question-bank.tsx) as `RowOverflowMenu`. **Promote to `@assessiq/ui-system` when a second admin list needs it** (likely soon — assessments + users + certificates all have row-level destructive actions today).
+
+#### Admin list-page chrome contract
+
+For every admin list page going forward, the chrome composes like this (matches the kit's library pattern in [`screens/library.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/library.jsx)):
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│  [count chip]                                           │
+│  Page title.                            [primary CTA]   │
+│  Lede paragraph, sans 14px muted.                       │
+├─────────────────────────────────────────────────────────┤
+│ [tab] [tab] [tab]   [search…]              N RESULTS   │  ← .aiq-admin-filter-strip
+├─────────────────────────────────────────────────────────┤
+│  ┌─────────────────────────────────────────────────┐    │
+│  │  data-density="compact"                          │   │  ← .aiq-card
+│  │  ┌ .aiq-admin-table-scroll ──────────────────┐  │   │
+│  │  │ HEADER  HEADER  HEADER  HEADER  HEADER    │  │   │
+│  │  │ cell    cell    cell    cell    [⋯][View →]│  │   │
+│  │  └────────────────────────────────────────────┘  │   │
+│  └──────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
+
+Specifics:
+
+- **Filter tabs** are ghost buttons (`aiq-btn aiq-btn-ghost aiq-btn-sm`), inactive `transparent + fg-secondary`, active `accent-soft bg + accent fg + weight 500`. Never use `aiq-btn-primary` blue fills on tabs — that is reserved for the single primary action per surface.
+- **Filter strip** carries the `.aiq-admin-filter-strip` class so the parallel mobile-port (A2) reflow rules can target it. New list pages MUST include this class on the filter row.
+- **Results counter** is right-aligned, mono uppercase tracked, fg-muted: `{N} {result|results}`. Hidden during loading / error.
+- **Table card** wraps in `<div className="aiq-card" data-density="compact">` so row padding tightens per branding §4. The inner `<div className="aiq-admin-table-scroll">` is from the mobile-port A2 wave and must stay (mobile horizontal-scroll behavior).
+- **Empty state** is editorial — serif H3 + sans muted lede + max-width 360px, filter-aware copy ("No attempts in this state." vs "No attempts yet."). Replaces the Table primitive's inline "No data." fallback when items array is empty and not loading.
+- **Row action** is ghost `View →` (per kit §8.1 tertiary affordance). Outline `Open` is the previous pattern and should not be reintroduced.
+
+#### Migrating other admin list pages
+
+`assessments.tsx`, `dashboard.tsx`, `assessment-detail.tsx`, `users.tsx`, `certificates.tsx`, `generation-attempts.tsx` still use the older pre-2026-05-21 chrome (primary/outline filter tabs, inline `toLocaleString()` timestamps, inline status pill spans, `Open` outline buttons). They render correctly now that the Table width bug is fixed but do not yet match the chrome contract above. Treat the migration as ad-hoc polish — touch a page when you're already editing it for another reason; no big sweep PR planned.
+
+### Labels, dates and shared copy (S3, 2026-10-09)
+
+**What.** Commit `505031a` (hardening S3, rows RW-12 to RW-15). Four shared pieces now give pages their visible words.
+
+1. **Enum labels.** `modules/10-admin-dashboard/src/lib/labels.ts` holds every label map: attempt, evaluation, pack, assessment and organisation status; question type; plan tier; certificate tier; audience; role; job status; generation status; cognitive level; grant scope; difficulty. `lib/status.ts` is now a one-line re-export of `labels.ts` (Rule A: no deletes). `difficultyLabel` returns an unknown value unchanged, so authored level names such as "SOC Analyst L1" stay as written.
+2. **Dates.** `modules/17-ui-system/src/format.ts` exports `formatDate` ("Apr 29, 2026"), `formatDateTime` ("Apr 29, 2026 · 14:32"), `formatRelative` ("4s ago", "2 min ago", "3 h ago", "Yesterday", "5 days ago", then a date after 6 days), `formatMonthYear` and `formatDayLine`. They come from `@assessiq/ui-system`. The old en-GB helpers in `modules/10-admin-dashboard/src/lib/format.ts` re-export them; `formatTimestamp` is an alias of `formatDateTime`. About 45 page-level `toLocale*` and `Intl` date calls in modules 10, 11 and `apps/web` are replaced. Two number counters keep `toLocaleString` with the comment `// lint-ui-labels: number`.
+3. **After-submit sentence.** `AFTER_SUBMIT_TEXT` in `modules/11-candidate-ui/src/copy.ts`: "Your answers are saved. You will see your result on this page or by email once it is final." It is used in `take/PreTest.tsx` (consent, after "Written answers are graded with AI assistance and checked by your organisation."), `take/Submitted.tsx`, `CandidateHelp.tsx` and the help key `candidate.submit.confirm`. This extends R4.
+4. **Lint.** `tools/lint-ui-labels.ts` has four rules: `raw-enum`, `id-slice`, `http-status`, `date`. It runs in WARN mode (exit 0). Use `--strict` to fail on a hit and `--self-test` to test the rules. Root scripts: `lint:ui-labels`, `lint:ui-labels:self-test`, and `lint:repo`. `lint:repo` runs ui-labels, rls, mv-tenant-filter, doc-anchors, vitest-coverage, skill-mount, public-collisions, ui-api-contract, ambient-ai, edge-routing and deploy-procedure. It leaves out cross-module-deps (more than 4 minutes, and it fails on `.claude/worktrees`).
+
+**Rule.** Pages never render raw enums, ID slices, SHAs, model names or HTTP codes. Pages never call `toLocale*` or `Intl` for dates. Add a label to `labels.ts` and use a date helper instead. Visible words follow `docs/10-branding-guideline.md` section 2.5. The text "HTTP <n>" in errors is now "Something went wrong. Please try again." (`take/Attempt.tsx` twice, `TokenLanding.tsx`).
+
+**Why.** The review found 8 date formats, raw enum values and UUID slices in JSX, and three different after-submit texts. One source for each removes the drift.
+
+**Considered and rejected.**
+- Put the date helpers in `apps/web/src/lib` (the task row said so). Modules 10 and 11 cannot import from `apps/web` (Rule B), so the helpers live in `ui-system`.
+- Put `AFTER_SUBMIT_TEXT` in `apps/web`. Same import reason; it lives in candidate-ui.
+- Delete `status.ts` and the old `format.ts`. Rule A forbids it; both re-export.
+- Start the lint in strict mode. Six hits remain, so it starts in WARN mode.
+
+**Not included.**
+- Six lint warnings remain: `id-slice` at `certificates.tsx:725`, `BillingDrawer.tsx:396`, `tenant-settings.tsx:1215`, `users.tsx:1497`, `users.tsx:1594` (no name exists to show); `raw-enum` at `11-candidate-ui` `QuestionNavigator.tsx:121` (aria-label).
+- The lint is not strict in CI.
+- The PDF template in `modules/18-certification` keeps its date format.
+- Nav section headers "Work" and "Content" are placeholders until RW-16 regroups the nav.
+- API error messages from the backend still use the old words.
+
+**Downstream impact.** The date format changes from "21 May 2026" to "May 21, 2026" on all pages. Difficulty chips (FU-C13) show Beginner, Intermediate and Advanced. A new page must use `labels.ts` and the date helpers, or the lint warns. Help text follows the same glossary (`docs/07-help-system.md`).
+
+### Brand consumer copies, static file routing and theme fixture key (2026-10-02)
+
+- **Consumer copies.** The kit manifest and preview image carry the old name "AccessIQ" and a wrong domain. The kit stays untouched (project rule). The app uses its own copies under `apps/web/public/brand/`: `favicon/app.webmanifest`, `social/app-og.png` and `social/app-og.svg`. `apps/web/index.html` links them. The PNG is rendered from the SVG with the installed `@resvg/resvg-js`.
+- **Force-added files.** `apps/web/public/brand/` is gitignored because the prebuild script mirrors the kit there. The three files are added with `git add -f`, like `try-og.png`. Their names differ from the kit names, so the mirror script (`copy-brand-assets`) cannot overwrite them. The kit copies (`site.webmanifest`, `og-image.png`) are still served; nothing links them.
+- **Routing rule.** The shared Caddy `@app` matcher sends only `/admin*`, `/candidate*`, `/take*`, `/try*`, `/assets/*` and `/brand/*` to the app. Put a new static file of the app under `/brand/` or `/assets/`. A file in the `public/` root goes to the marketing site and returns 404.
+- **Theme fixture.** The key `wipro-soc` in `modules/17-ui-system/src/fixtures/tenants.ts` is now `default` (`apps/web/src/App.tsx` and two stories follow). The fixture is a static theme for all tenants until live tenant theming lands.
+- **Not included.** No lint yet compares `public/` names with the Caddy matcher (plan item RV71).
+
+### Completion modal on new certificates (FR13, 2026-10-03)
+
+**What.** `CompletionModal` (module 11) is rebuilt on the kit `Modal` (commit `6638494`). `NewCertificateModal` on `apps/web/src/pages/take/Submitted.tsx` shows when the released result has a certificate. It shows once for each browser and each `credential_id`. The seen list is in `localStorage` key `aiq:certs-seen` (try/catch; the page works without it). `MyCertificates` has a "View" button that opens the same modal. The prop `course_title` is now `assessment_title`.
+
+**Why.** The old component was unused (review FR13, row FU-C12) and used its own overlay instead of the kit Modal.
+
+**Considered and rejected.** A new certificate payload with `tier` and `pdf_url` (needs a server change). Showing the modal at each visit (annoying).
+
+**Not included.** Server changes: data comes from the existing `GET /api/certificates`.
+
+### 404 page main landmark (N25, 2026-10-03)
+
+The `NotFound` page root is now `<main>` (commit `00a951e`). This fixes the axe rules `landmark-one-main` and `region`. The e2e a11y spec covers it. No visual change.
+
+### Page splits for file size (RW-53, S10, 2026-10-16)
+
+*Type: reference.* These moves are mechanical: no behaviour changed. Barrels keep the old import paths. `tools/lint-file-size.ts` (script `lint:file-size`) warns about files over 800 lines. It does not fail the build. 27 files were over the limit on this date.
+
+| File | Lines now | Where code moved |
+| --- | --- | --- |
+| `modules/10-admin-dashboard/src/pages/pack-detail.tsx` | 1300 | `pack-detail/shared.tsx` holds types, `packStatusColor`, `questionPrompt` and `GenerationAttemptLine`. The page is still over 800 |
+| `modules/10-admin-dashboard/src/pages/assessment-detail.tsx` | 1111 | `assessment-detail/shared.tsx` (types and helpers) and `assessment-detail/invitation-columns.tsx` (invitation table columns). Still over 800 |
+| `modules/10-admin-dashboard/src/pages/assessments.tsx` | 826 | `assessments/BlueprintBuilder.tsx`, `FromSetPicker.tsx`, `PreviewAdequacy.tsx`, `shared.tsx`. Still over 800 |
+| `apps/web/src/pages/take/Attempt.tsx` | 941 | `take/attempt-parts/AnswerArea.tsx` (the answer dispatcher) and `attempt-parts/shared.tsx`. Still over 800 |
+
+- **Backend splits in the same change.** Module 05 `service.ts` went from 2423 to 43 lines and is now a barrel over `src/service/`. Module 04 `clone.ts` went from 1299 to 38 lines, a barrel over `src/clone/`. See the SKILL.md files of both modules.
+- **Rejected.** A rewrite of the pages: it needs a behaviour review. Raising the limit: the warning is the point.
+- **Not included.** The four pages above still exceed 800 lines (RW-99).
+
+## Admin pages
+
+### Super-admin Platform page (2026-05-17)
+
+#### `/admin/platform` — company provisioning
+
+Route: `apps/web/src/App.tsx` → `<Route path="/admin/platform" element={<RequireSession role="super_admin"><AdminPlatform /></RequireSession>} />`
+
+Component: `modules/10-admin-dashboard/src/pages/platform.tsx` → `export function AdminPlatform()`
+
+**`RequireSession role="super_admin"` exact-match semantics:** when `role="super_admin"` is passed, only a session with `session.user.role === "super_admin"` is admitted. A plain `admin` is redirected to `/admin/login`. This is asymmetric with all other role gates (`admin`, `reviewer`) where `super_admin` satisfies the gate — because `super_admin` is a platform-level role above the tenant hierarchy, not a peer of admin. The asymmetry is documented with a code comment in `apps/web/src/lib/RequireSession.tsx`. The backend enforces the real gate; this is FE defense-in-depth.
+
+**Nav entry:** `AdminShell` renders a "Platform" nav entry with `superAdminOnly: true`. Tenant admins (`role === "admin"`) do not see this entry.
+
+**Admin nav (S4, 2026-10-09):** Platform section now separate from Account. Super-admin items (Grading queue, Platform, Help content) render under Platform. Order: Work → Content → Admin → Account → Platform.
+
+**Page pattern:** mirrors `users.tsx` exactly — `AdminShell breadcrumbs={["Platform"]}`, serif h1 `Companies.`, count Chip, `listTenantsApi()` on mount, `Spinner` / error Chip / empty-state card / read-only zebra table (columns: slug mono, name, status Chip, created en-GB date).
+
+**Create-company modal:** fixed-position Card with backdrop, required fields (name, slug, admin email), collapsible Advanced section (domain, admin display name). Slug auto-derived from name; client-side `[a-z0-9-]+` validation. MFA step-up sub-state on `401 AUTHN_FAILED` + message `/fresh totp/i` — preserves all entered form values, calls `verifyTotpApi`, refreshes session via `fetchAdminWhoami(true)`, auto-retries `createCompanyApi`. No secrets stored beyond the transient 6-digit TOTP code (cleared on success/close).
+
+**Tenant lifecycle (Manage menu + confirmation modal):** each tenant row carries a `Manage ▾` dropdown (`ManageMenu`, rendered via `createPortal` to `document.body` so it escapes the table's `overflow:hidden`; closes on outside-click / scroll / resize). It offers Open billing, Manage users, and **status-aware** lifecycle actions: Suspend + Archive (when `active`), Resume + Archive (when `suspended`), Unarchive (when `archived`), and a non-actionable "Provisioning in progress" note (when `provisioning`). Selecting a lifecycle action opens `LifecycleConfirmModal` with action-specific copy, an optional **Reason** textarea (≤500 chars, recorded in the audit log) and a confirm button; success surfaces a toast with the idempotent-no-op state or the `sessionsRevoked` count. The four lifecycle endpoints are gated server-side by **fresh MFA** (TOTP within 15 min — `superAdminFreshMfa` on `apps/api/src/routes/admin-super.ts`), so as of **2026-05-24** the modal carries the same **MFA step-up sub-state** as Create-company: a stale-MFA `401` + `/fresh totp/i` flips it in-place to `MfaStepUp` (lifecycle-specific `prompt` + a `Verify & {action}` `confirmLabel`), then on `onVerified` auto-retries the original action with the typed reason preserved. The page-level `handleLifecycleConfirm` re-throws **only** that fresh-MFA 401 (narrow `status===401 && /fresh totp/i` match) so the modal owns recovery; every other error (incl. `INVALID_LIFECYCLE_TRANSITION`) surfaces as a page-level Chip and closes the modal. `MfaStepUp` is shared by Create-company, Edit-admin, and the lifecycle modal — its `confirmLabel` defaults to `"Verify & create"` so the first two are unchanged.
+
+**Help page key:** `admin.platform` (wired via `AdminShell helpPage="admin.platform"`). Field-level keys: `admin.platform.slug`, `admin.platform.admin_email`, `admin.platform.domain`, `admin.platform.admin_name`, `admin.platform.mfa_code`.
+
+#### Platform page: Curriculum frameworks (RW-57 part 2, S10, 2026-10-16)
+
+*Type: reference.*
+
+**What.** `modules/10-admin-dashboard/src/pages/platform/PlatformFrameworksSection.tsx` is a section of the Platform page. `platform.tsx` renders it only when the session role is `super_admin`. A header chip shows how many curricula are available.
+
+- **Table.** Columns: Curriculum, Board, Release, Entries, Loaded. "Loaded" shows "Not loaded" or the loaded version.
+- **Actions.** A "Load" button for a curriculum that is not loaded, a "Reload" button for one that is. Both open a confirm dialog first. After success a toast shows the counts: added, updated, unchanged.
+- **Helpers.** `modules/10-admin-dashboard/src/api/frameworks.ts` (`listFrameworkSeedsApi`, `loadFrameworkSeedApi`). Routes: [03-api-contract.md](03-api-contract.md) § "Framework seeds".
+- **Help.** Key `admin.platform.frameworks` (migration 0173).
+
+**Content shipped with it.** The files `cbse.json`, `icse.json` and `ib.json` in `modules/04-question-bank/src/frameworks/` hold 335, 340 and 89 nodes. CBSE covers grades 6 to 12 with the core NCERT subjects. ICSE and ISC are by stage. IB has PYP, MYP (criteria A to D for each group) and DP. Chapter titles were written from memory. Subjects that are not verified carry the description "partial: verify".
+
+**Owner step.** Check one board against the official syllabus before real use.
+
+**Why.** Part 1 added the load routes but a super admin had no screen and no board content.
+
+**Not included.** Edit of a node in the UI. Removal of a loaded curriculum. A diff view for a reload.
+
+### Admin dashboard UI changes (2026-05-24)
+
+Three admin-facing UI changes shipped as part of the domain-slug normalization + Question Bank import work.
+
+#### Question Bank — Domain field changed from free-text to dropdown
+
+**What:** The "Domain" field on the New Pack form (`modules/10-admin-dashboard/src/pages/question-bank.tsx`, New Pack modal) is now a `<Select>` populated from `GET /api/admin/domains` (the tenant's canonical domain list). Previously it was a free-text `<Input>`, which allowed mixed-case entries like `'SOC'` that silently failed entitlement resolution at publish time (the license resolver matches `question_packs.domain` by exact lowercase slug).
+
+**Why:** Free-text entry was the root cause of the casing-drift bug fixed by migration `0090_normalize_domain_slugs.sql` (see `docs/02-data-model.md`). Sourcing from the `domains` table guarantees the stored value is always a canonical lowercase slug. The dropdown renders the human-readable `label` but submits the lowercase `slug`.
+
+**Not included:** retroactive UI changes to the Pack Edit form (PATCH) — the domain field is not editable post-creation in the current admin surface; if it is added later, it must also use the dropdown.
+
+**Downstream:** `createPack`/`updatePack` service methods also lowercase `domain` at the write path as defense-in-depth; the UI change removes the primary entry point for drift, not the only guard.
+
+
+#### Question Bank — "Licensed sets" section (2026-05-24)
+
+**What:** A new read-only **Licensed sets** section in the Question Bank page (`modules/10-admin-dashboard/src/pages/question-bank.tsx`) lists the PLATFORM-library question sets the calling tenant is licensed for, sourced from `GET /api/billing/available-sets`.
+
+**Layout:** The section appears below the tenant's own pack list and is hidden entirely when `sets` is empty (no licensed sets). Each row shows:
+
+| Column | Content |
+|---|---|
+| Name | `source.name` |
+| Domain | lowercase slug chip |
+| Questions | `question_count` |
+| Status badge | "In your workspace" (`success` Chip, when `cloned: true` and not `update_available`) — "Update available" (`warning` Chip, when `cloned: true` and `update_available: true`) — no badge when not yet cloned |
+| Action | "Add to workspace" button (`ghost` variant, visible only when `cloned: false`) — calls `POST /api/admin/sets/:source_pack_id/import` and refreshes the section on success |
+
+**"In your workspace" / "Update available" logic:** driven by the `cloned` and `update_available` flags from the `GET /api/billing/available-sets` response. "Update available" means a newer `source_version` exists than what was cloned; the update path (re-clone) is deferred — the badge is informational only for now, no button.
+
+**"Add to workspace" button:** calls `POST /api/admin/sets/:source_pack_id/import` (see `docs/03-api-contract.md` § `POST /api/admin/sets/:sourcePackId/import`). On `201` success, the button switches to the "In your workspace" badge and the tenant's own pack list is refreshed so the new clone appears immediately. On `403 NOT_LICENSED`, an inline error Chip is shown ("Not licensed"); on other errors, a toast.
+
+**Not included:** a re-clone/update flow for `update_available: true` sets (deferred); pagination of the licensed sets list (platform library is expected to stay small for Phase 1); candidate-facing visibility of licensed sets.
+
+
+#### Assessments — Blueprint mode button hidden for non-super-admins (2026-05-24)
+
+**What:** On the New Assessment form (`modules/10-admin-dashboard/src/pages/assessments.tsx`), the "Blueprint" mode toggle button is rendered only when `session.user.role === 'super_admin'`. Tenant admins (`role === 'admin'`) do not see the button; the form defaults to the standard mode silently.
+
+**Why:** Blueprint mode sets `settings.blueprint` on the assessment, which is a `super_admin`-only capability enforced server-side by both `POST /admin/assessments` and `PATCH /admin/assessments/:id` (see `docs/03-api-contract.md` § Blueprint authoring restriction). The FE hide is defense-in-depth — the backend 403 is the authoritative gate.
+
+**Implementation:** The session role is already available via `useSession()` (or the equivalent `AdminWhoami` hook) used throughout the admin dashboard. The conditional is a single `{isSuperAdmin && <BlueprintModeButton … />}` guard, consistent with the existing `{isSuperAdmin && …}` pattern used on the Platform nav entry and the AI-generate-mode select.
+
+**Not included:** any change to the assessment edit form for existing draft assessments — if a super-admin created a blueprint assessment and a tenant admin views it in edit mode, `settings.blueprint` is simply not rendered in the form (read-only exclusion); the tenant admin cannot clear or modify it.
+
+#### Question import page (RW-58, S10, 2026-10-16)
+
+*Type: reference.*
+
+**What.** Page `/admin/question-import` (`modules/10-admin-dashboard/src/pages/question-import.tsx`). Only a super admin can open it (`RequireSession role="super_admin"` in `apps/web/src/App.tsx`). The question bank page has an "Import questions" button that links to it. Helpers: `src/api/question-imports.ts`. Routes: [03-api-contract.md](03-api-contract.md) § "Question import".
+
+**Flow, in three steps on one page.**
+1. "Get a template." The admin chooses a question type and a format (CSV or XLSX) and downloads the file.
+2. "Upload your file." The admin chooses a subject (domain), an optional question set name and the file (CSV or XLSX, up to 4 MB), then selects "Check file". Nothing is saved to a question set yet.
+3. "Check the report." Chips show the counts: rows, ready, need a fix, duplicate, skipped. A table lists each row with its result and errors. The admin can fix the values of a row or skip it. "Commit (skip errors)" and "Discard" each open a confirm dialog. After a commit, the page links to the new draft pack at `/admin/question-bank/<packId>`.
+
+**Help.** Keys `admin.question_import.page`, `.template`, `.upload`, `.report` and `.commit` (migration 0175).
+
+**Why.** The platform owner had no way to load many questions. A staged report lets the admin fix a row before any question exists.
+
+**Not included.** Drag and drop. Multipart upload. A rubric step for imported subjective questions (RW-97).
+
+### Add-candidate drawer + invite-picker filter (2026-05-26)
+
+**What:** The admin Users page (`modules/10-admin-dashboard/src/pages/users.tsx`) `InviteForm` drawer is now role-aware. The role picker gained a third option, **candidate**. When `candidate` is selected the drawer shows **Name** (required) + **Designation** (optional, for example, "SOC Analyst L1") fields, retitles to "Add candidate", swaps the subtitle to "Candidates are added directly — no email is sent now…", posts to `POST /admin/users` (not `/admin/invitations`), and confirms with a "Candidate added." chip. Admin/reviewer behaviour is byte-for-byte unchanged (still invite-email flow). On `assessment-detail.tsx` the invite picker now filters to `role==='candidate' && status==='active'` (was: all users), so only assignable candidates appear.
+
+**Why:** There was no UI to create a candidate (the invite form only offered admin/reviewer, and `inviteUser` hard-blocks candidates at `CANDIDATE_INVITATION_PHASE_1`). Candidates authenticate only via per-assessment magic links, so they need no invite/accept email — direct active creation is the simple, correct model. The picker previously listed admins/reviewers too, which the server silently rejected — confusing UX.
+
+**Implementation:** A form-local `type InviteRole = "admin" | "reviewer" | "candidate"` (the file-level `UserRole` is used by filter chips/manage menus and was left untouched). Error display switched from the email `Field`'s `error` prop to a shared `role="alert"` danger-coloured div below the fields (covers both email + name validation). Help: `data-help-id="admin.users.candidate.fields"` → content in `modules/16-help-system/content/en/admin.yml` + seed migration `0099_seed_candidate_fields_help.sql`.
+
+**Not included:** No bulk CSV add (still the `/admin/users/import` 501 stub). No reverse "assign assessment from the user row" flow — assignment stays on the assessment-detail page (single source of truth). No new component in the kit — composed from existing `Field`/`Button`/`Card`/`Chip` atoms. [Update 2026-10-03: bulk CSV import is live since 2026-10-01.]
+
+### Attempt detail pages
+
+#### Attempt-detail — grading summary + Accept-all (2026-05-28, commit `defb9f9`)
 
 The attempt-detail page now surfaces grading progress at the top, between the header and the per-question cards, whenever there is at least one fresh proposal OR at least one accepted gradings row. The panel is hard-tied to the backend completion-gate (see `docs/05-ai-pipeline.md` § Accept-all + completion-gate, and `docs/03-api-contract.md` `/admin/attempts/:id/accept`).
 
 | Element | Purpose |
 | --- | --- |
-| `Graded` line | `{acceptedDistinct} of {N} ({M} AI-gradeable)` — N = frozen question count; M = subset whose `type ∈ {subjective, scenario, log_analysis}`. acceptedDistinct counts non-overridden rows. Drives the admin's mental model of "why isn't this attempt finishing." |
+| `Graded` line | `{acceptedDistinct} of {N} ({M} AI-gradeable)` — N = frozen question count; M = subset whose `type ∈ {subjective, scenario, log_analysis}`. acceptedDistinct counts non-overridden rows. Drives the admin's mental model of "why is not this attempt finishing." |
 | `Score` line | Sum of `score_earned / score_max` across non-overridden gradings. Hidden when no gradings exist yet. |
 | Per-question status chips | One chip per frozen question, labelled `Q{idx} graded` / `Q{idx} needs review` / `Q{idx} ready` / `Q{idx} pending`. `needs review` is set when a fresh proposal has `isAiFailure()` true (model=`"none"` / `prompt_version_sha="error:no-sha"` / `band.error_class` starting `AIG_` — incl. new `AIG_STAGE1_DEGRADED`). Tokens use existing `aiq-color-{success,warning,danger,fg-muted}` pairs. |
 
@@ -654,24 +1014,24 @@ The attempt-detail page now surfaces grading progress at the top, between the he
 
 **History.** Pre-2026-05-28 the page had only a single per-question Accept button that posted `{question_id}` — the backend required `{proposals: […]}`, so every Accept silently 422'd and no attempt ever reached `graded` status. See `docs/RCA_LOG.md` 2026-05-28 entries (Bug A + Bug B) for the full incident.
 
-### Attempt-detail — navigate-away robustness (2026-05-29, commit `96b71a6`)
+#### Attempt-detail — navigate-away robustness (2026-05-29, commit `96b71a6`)
 
 Operator-observed after the Bug-A fix deployed: even when the admin stayed on the attempt page after Grade-all, the proposals never appeared. Root cause was a Cloudflare ~100s edge timeout killing the 4-minute synchronous POST `/grade` response mid-flight (`docs/RCA_LOG.md` 2026-05-29). The fix persists proposals server-side as a review cache and adds two new UI affordances so the admin can navigate away during a batch and pick up proposals on return.
 
 | Element | Purpose |
 | --- | --- |
 | **"Grading in progress" banner** (`admin.attempts.grading_in_progress`) | Blue info banner, rendered between the header and the grading-summary panel when `detail.grading_started_at != null`. Shows a Spinner + "Started Ns ago · polling every 15s · safe to navigate away" + a **Check now** button (manual `load()` trigger). Disappears the moment the marker is nulled by the backend's batch-completion write. |
-| **"Previous grading stalled" banner** (`admin.attempts.grading_stalled`) | Yellow warning banner, replaces the in-progress banner once the elapsed time exceeds `STALE_MARKER_SEC = 600` (10 min). Indicates likely API container SIGKILL mid-batch — the `handleAdminGrade` catch-block marker-clear didn't run. Coaches the admin to click **Re-grade**, which is enabled in this state because the server's in-process single-flight is fresh after a restart. |
+| **"Previous grading stalled" banner** (`admin.attempts.grading_stalled`) | Yellow warning banner, replaces the in-progress banner once the elapsed time exceeds `STALE_MARKER_SEC = 600` (10 min). Indicates likely API container SIGKILL mid-batch — the `handleAdminGrade` catch-block marker-clear did not run. Coaches the admin to click **Re-grade**, which is enabled in this state because the server's in-process single-flight is fresh after a restart. |
 | **Grade-all button — three states** | (a) Disabled "Grading…" while a local `handleGrade()` call is in flight OR while `gradingActive` is server-reported. (b) Enabled "Re-grade (previous stalled)" when `gradingStalled`. (c) Enabled "Grade all" otherwise. Title attribute carries hover-hint per state. |
 | **Auto-poll** | A `useEffect` polls `load()` every 15s while `detail.grading_started_at != null`. Hard cap at `POLL_CAP_SEC = 720` (12 min) — beyond that the FE stops polling and shows the stalled banner. Adjusts to `gradingElapsedSec` so even a stalled marker that was set, say, 11 minutes before page load still polls for ~60s before giving up. |
 
-**Hydration on mount.** `load()` reads `detail.ai_proposals` (a `GradingProposal[] \| null` from the new GET endpoint contract) and seeds the local `proposals` state. Explicit reset to `{}` when null so a stale proposal from a previous attempt doesn't bleed into a freshly-navigated-to one. The same `load()` call powers the auto-poll, so when proposals land in the cache the FE picks them up within at most 15 seconds.
+**Hydration on mount.** `load()` reads `detail.ai_proposals` (a `GradingProposal[] \| null` from the new GET endpoint contract) and seeds the local `proposals` state. Explicit reset to `{}` when null so a stale proposal from a previous attempt does not bleed into a freshly-navigated-to one. The same `load()` call powers the auto-poll, so when proposals land in the cache the FE picks them up within at most 15 seconds.
 
-**Timeout-resilient `handleGrade()`.** The synchronous POST `/grade` still fires on click, but a thrown 504/524/408 (proxy timeout) is now non-fatal — the FE shows "Grading is taking longer than the connection timeout — it continues on the server. This page will refresh automatically when proposals arrive." and calls `load()` to start the poll. Real errors (e.g. 422 contract violation, 503 mode mismatch) still bubble through the existing error banner.
+**Timeout-resilient `handleGrade()`.** The synchronous POST `/grade` still fires on click, but a thrown 504/524/408 (proxy timeout) is now non-fatal — the FE shows "Grading is taking longer than the connection timeout — it continues on the server. This page will refresh automatically when proposals arrive." and calls `load()` to start the poll. Real errors (for example, 422 contract violation, 503 mode mismatch) still bubble through the existing error banner.
 
 **Compliance frame UNCHANGED.** The cache is review-state only. `Accept all` still runs the Phase-1 completion gate. Billing still fires same-tx with the gate flip. The admin still clicks Accept on visible proposals before any `gradings` row is written. See `docs/05-ai-pipeline.md` § "Proposals cache + navigate-away robustness" for the full compliance argument.
 
-### Attempt-detail — pre-Release review UX bundle (2026-05-29, commit `d5ad835`)
+#### Attempt-detail — pre-Release review UX bundle (2026-05-29, commit `d5ad835`)
 
 Replaces the prior `window.confirm()` Release flow with a richer evaluation-review surface so the admin can verify **what was evaluated and why this score** before publishing results to the candidate (Release is the publish step — best-effort result-released email + cert if eligible, candidate sees results immediately on next reload).
 
@@ -702,118 +1062,29 @@ Replaces the prior `window.confirm()` Release flow with a richer evaluation-revi
 
 **Compliance frame UNCHANGED.** ReleaseConfirmModal does NOT bypass any backend check — the POST `/release` route still validates `attempts.status === 'graded'`. No new `gradings` write path. No `dangerouslySetInnerHTML` anywhere (rubric content is admin-authored, but still rendered through React text nodes).
 
-### Row-overflow menu pattern (currently page-local)
+#### Attempt-audit four-zone demarcation (2026-05-29)
 
-Question-Bank's destructive `Archive` action moved into a `⋯` row-level menu (`useRef` + click-outside listener + `Esc` to close) so destructive verbs don't crowd a list row. Implementation lives inline at [`modules/10-admin-dashboard/src/pages/question-bank.tsx`](../modules/10-admin-dashboard/src/pages/question-bank.tsx) as `RowOverflowMenu`. **Promote to `@assessiq/ui-system` when a second admin list needs it** (likely soon — assessments + users + certificates all have row-level destructive actions today).
+**What:** The per-question card on the admin attempt-detail page (`/admin/attempts/:id`, `modules/10-admin-dashboard/src/pages/attempt-detail.tsx`) was restructured from a 2-column *question+answer | grading-panel* split into a single full-width card with **four clearly-labelled, colour-accented audit zones**, stacked top-to-bottom:
 
-### Admin list-page chrome contract
+1. **❓ Question** (neutral/muted accent) — the candidate-facing stimulus *only*. Rendered by the new `QuestionPromptView`, which strips every answer-key field (mcq `correct`/`rationale`, kql `expected_keywords`, scenario per-step `expected`, log_analysis `expected_findings`/`sample_solution`). This is exactly what the candidate saw.
+2. **✦ Expected answer / rubric** (info-blue accent) — the answer key + grading ground-truth. Rendered by the new `ExpectedAnswerView`: mcq → correct option + rationale; kql → expected keywords; scenario → per-step expected; log_analysis → expected findings + sample solution; **subjective → the rubric anchors (concept + weight), since subjective has no authored model answer — the rubric IS the expected answer**. Rubric-graded types also show a "Rubric (grading basis)" anchor list. When neither answer-key nor rubric exists, shows a "graded holistically on the reasoning band" note.
+3. **✎ Candidate answer** (secondary-grey accent) — the submitted answer via the existing `AttemptAnswerView` (typed per-shape renderers, never raw JSON) + the existing `ConceptCoverageView` highlight (hit concepts highlighted inline, missed listed below). Shows "No answer submitted." when absent.
+4. **🤖 AI evaluation** (accent) — band/%/score + grader chip + the existing anchor chips, **now with an always-visible per-anchor evidence list** (`✓/✗ concept — "the quote the model cited"`) via the new `ScoreDetail` opt-in `showAnchorEvidence` prop, plus the AI justification, the Override form/button, fresh-proposal card, and Stage-2-vs-3 escalation diff. A "Not yet graded" placeholder shows when no grading/proposal exists. The card header gained a `Q{n} · {type} · {pts}` label + a per-question status pill (graded / ready to accept / needs review / not graded).
 
-For every admin list page going forward, the chrome composes like this (matches the kit's library pattern in [`screens/library.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/library.jsx)):
+**Why:** An admin asked "for a graded attempt, how do I see what the candidate submitted, what was expected, and how the AI evaluated it — with clear demarcation to audit?" The prior layout failed this on three counts: (a) `QuestionContentView` rendered the prompt *and* answer key together, so the correct option / rationale / expected findings bled into the question; (b) the "expected answer" was scattered, unlabelled, and **completely absent for subjective questions** (their rubric only surfaced implicitly as hit/miss chips); (c) the AI's *cited evidence* was hidden in chip hover tooltips, invisible in a print/audit context. The four-zone split makes each audit question answerable at a glance and survives the existing `@media print` review export.
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│  [count chip]                                           │
-│  Page title.                            [primary CTA]   │
-│  Lede paragraph, sans 14px muted.                       │
-├─────────────────────────────────────────────────────────┤
-│ [tab] [tab] [tab]   [search…]              N RESULTS   │  ← .aiq-admin-filter-strip
-├─────────────────────────────────────────────────────────┤
-│  ┌─────────────────────────────────────────────────┐    │
-│  │  data-density="compact"                          │   │  ← .aiq-card
-│  │  ┌ .aiq-admin-table-scroll ──────────────────┐  │   │
-│  │  │ HEADER  HEADER  HEADER  HEADER  HEADER    │  │   │
-│  │  │ cell    cell    cell    cell    [⋯][View →]│  │   │
-│  │  └────────────────────────────────────────────┘  │   │
-│  └──────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────┘
-```
+**Considered & rejected:** Three-column (Expected | Candidate | AI) side-by-side layout — rejected for being too tight on narrow screens and worse for print; stacked sections read top-to-bottom cleanly at any width (the user picked stacked over three-column and over a minimal "add an Expected card to the current 2-col" option). Adding a new authored `model_answer` column for subjective — deferred (rubric concepts + weights answer the need now with **no schema change**; an authored model answer would require a migration + question-editor field + a later session).
 
-Specifics:
+**Implementation notes:** New shared `question-format.tsx` util holds the text-normalisation helpers (`cleanText`/`unescapeJsonString`/`stripMarkdown`) + small primitives (`JsonFallback`/`Chip`/`SUBLABEL_STYLE`). **`QuestionContentView` was intentionally left untouched** — it is still used by the question-editor preview (`question-editor.tsx`) and keeps its own private helper copies; the new audit zones use the shared util instead. All four components reuse the production `--aiq-*` tokens (cards, borders, mono uppercase sublabels) consistent with the established admin surface, so no new kit screen/recipe was needed (this is a re-composition of existing idioms, not an invented layout).
 
-- **Filter tabs** are ghost buttons (`aiq-btn aiq-btn-ghost aiq-btn-sm`), inactive `transparent + fg-secondary`, active `accent-soft bg + accent fg + weight 500`. Never use `aiq-btn-primary` blue fills on tabs — that's reserved for the single primary action per surface.
-- **Filter strip** carries the `.aiq-admin-filter-strip` class so the parallel mobile-port (A2) reflow rules can target it. New list pages MUST include this class on the filter row.
-- **Results counter** is right-aligned, mono uppercase tracked, fg-muted: `{N} {result|results}`. Hidden during loading / error.
-- **Table card** wraps in `<div className="aiq-card" data-density="compact">` so row padding tightens per branding §4. The inner `<div className="aiq-admin-table-scroll">` is from the mobile-port A2 wave and must stay (mobile horizontal-scroll behavior).
-- **Empty state** is editorial — serif H3 + sans muted lede + max-width 360px, filter-aware copy ("No attempts in this state." vs "No attempts yet."). Replaces the Table primitive's inline "No data." fallback when items array is empty and not loading.
-- **Row action** is ghost `View →` (per kit §8.1 tertiary affordance). Outline `Open` is the previous pattern and should not be reintroduced.
+**Not included / downstream:** No backend, schema, API, auth, tenancy, RLS, or grading-logic change — `modules/10-admin-dashboard` is non-load-bearing and the rubric was *already* returned to this `adminOnly` route (added by the 2026-05-29 review-UX bundle), so there is no new data exposure and no candidate-facing path. No `help_id` added for the zone labels (they are presentational, not interactive controls). The `aiq-admin-detail-two-col` print class became `aiq-admin-detail-question` (the card is now single-column; the grid override was dropped, page-break-avoid kept). `ScoreDetail`'s other usages are unaffected (`showAnchorEvidence` defaults off). Pre-existing `attempt-detail-error.test.tsx` failures (3, mock-exhaustion in the test's Grade-error path) are unchanged by this work — verified identical on HEAD with the diff stashed.
 
-### Migrating other admin list pages
-
-`assessments.tsx`, `dashboard.tsx`, `assessment-detail.tsx`, `users.tsx`, `certificates.tsx`, `generation-attempts.tsx` still use the older pre-2026-05-21 chrome (primary/outline filter tabs, inline `toLocaleString()` timestamps, inline status pill spans, `Open` outline buttons). They render correctly now that the Table width bug is fixed but do not yet match the chrome contract above. Treat the migration as ad-hoc polish — touch a page when you're already editing it for another reason; no big sweep PR planned.
-
----
-
-## Mobile (Mobile Kit Port M0–M6 SHIPPED — 2026-05-20)
-
-See [docs/10-branding-guideline.md § 15. Mobile](./10-branding-guideline.md#15-mobile) for the canonical visual contract + the full per-pattern reflow catalog (M1 magic-link landing, M2a AttemptPage chrome, M2b per-question-type sizing, M3 Submitted, M4 CandidateShell nav + Activity, M5 admin graceful-degrade). This section catalogs the API surface that lives in `@assessiq/ui-system` and `apps/web/src/lib/`.
-
-### Viewport hooks (`@assessiq/ui-system`)
-
-- `useViewport(): 'mobile' | 'desktop'` — SSR-safe (returns `'desktop'` when `window` is undefined). Subscribes to `matchMedia` change events so live resize / orientation changes update the value. Source: [`modules/17-ui-system/src/hooks/useViewport.ts`](../modules/17-ui-system/src/hooks/useViewport.ts).
-- `useViewportSync(): void` — side-effect hook that writes `data-viewport` on `<html>` and keeps it in sync. Called once inside `ThemeProvider`; consumers never call it directly. Source: [`modules/17-ui-system/src/hooks/useViewportSync.ts`](../modules/17-ui-system/src/hooks/useViewportSync.ts).
-- Predicate constant: `VIEWPORT_QUERY` = `(max-width: 719px), ((pointer: coarse) and (max-width: 1024px))`. The combined OR covers small phones AND iPads in portrait. Single source-of-truth — never duplicate this predicate elsewhere.
-
-### First-paint hint
-
-[`apps/web/index.html`](../apps/web/index.html) carries a tiny inline IIFE in `<head>` that sets `data-viewport` on `<html>` BEFORE the React bundle loads. Without this, the page paints in desktop layout for one frame then re-flows to mobile. The IIFE has a try/catch with `'desktop'` fallback so any `matchMedia` weirdness can't blank the page.
-
-### Mobile token block
-
-Lives in [`modules/17-ui-system/src/styles/tokens.css`](../modules/17-ui-system/src/styles/tokens.css) as the `[data-viewport="mobile"]` block + per-page class-scoped overrides. Final set of M0-introduced viewport-aware tokens:
-
-| Token | Desktop | Mobile |
-| --- | --- | --- |
-| `--aiq-page-padding-x` | `40px` | `22px` |
-| `--aiq-page-padding-y` | `32px` | `20px` |
-| `--aiq-card-padding` | `24px` | `18px` |
-| `--aiq-h1-size` | `var(--aiq-text-3xl)` = 36px | `30px` |
-
-Later phases added scoped CSS vars on container classes (not in the global token registry):
-
-| Scope | Var | Desktop | Mobile | Phase |
-| --- | --- | --- | --- | --- |
-| `.aiq-take-twopane` | `--aiq-take-h1-size` / `--aiq-take-h1-lh` | `44px` / `1.05` | `30px` / `1.1` | M1 |
-| `.aiq-attempt-shell` | `--aiq-attempt-q-size` | `var(--aiq-text-2xl)` = 30px | `22px` | M2a |
-| `.aiq-attempt-shell` | `--aiq-answer-input-size` | `15px` | `16px` | M2b (defeats iOS auto-zoom on form inputs < 16px) |
-| `.aiq-attempt-shell` | `--aiq-answer-mono-size` | `13px` | `16px` | M2b (same defeat, mono-font preserved) |
-
-Never remove or rename existing keys.
-
-### ViewportLock (M5 — removed 2026-05-21)
-
-> **Removed.** Commit `c8349df` (Admin Mobile Port A6) deleted `apps/web/src/lib/ViewportLock.tsx` and unwrapped it from `App.tsx`. Admin pages are now mobile-responsive, so no interstitial shows. See `docs/plans/archive/ADMIN_MOBILE_PORT.md`. The text below is history.
-
-[`apps/web/src/lib/ViewportLock.tsx`](../apps/web/src/lib/ViewportLock.tsx) wraps `<Routes>` in [`apps/web/src/App.tsx`](../apps/web/src/App.tsx) and renders the "Admin tools work best on desktop" interstitial when ALL hold: viewport is `mobile`, path starts with `/admin/`, path is not one of `{login, login/email, select-identity, mfa}`, no `sessionStorage.aiq_admin_mobile_override='1'` is set, not in embed mode (`?embed=true`). Pass-through otherwise — candidate, take-flow, embed, 404 routes are not affected because their pathnames don't match `/admin/`. Override storage is `sessionStorage` (per-tab, clears on tab close) — the plan's "per-session" + `localStorage` wording was contradictory; M5 honors the per-session intent. Security gates (rate-limit errors, locked-account, MFA prompts) render exactly as on desktop when the override is on — the override only relaxes layout.
-
-### ESLint guard
-
-[`eslint.config.js`](../eslint.config.js) blocks runtime imports from `**/AssessIQ-Mobile-Kit/**` (in addition to the existing `**/AssessIQ_UI_Template/**` block). Hand-port idioms into `modules/17-ui-system/src/components/` per the desktop-kit pattern. The Mobile Kit is REFERENCE-ONLY — never imported from production code.
-
-### Where mobile-mode components live
-
-- Foundation: `modules/17-ui-system/src/hooks/{useViewport,useViewportSync}.ts`, `modules/17-ui-system/src/styles/tokens.css` (`[data-viewport="mobile"]` block + per-page scoped overrides).
-- Magic-link auth (M1): `apps/web/src/pages/candidate/CandidateLogin.tsx`, `apps/web/src/pages/take/{TokenLanding,Expired,ErrorPage}.tsx` (CSS-only reflow on the M1 shared `.aiq-take-twopane` class).
-- Take-flow chrome (M2a): `apps/web/src/pages/take/Attempt.tsx` (header padding shrink, navigator-aside hidden + lazy `<Drawer>` mount via the new `aiq-attempt-nav-toggle` button, footer flex-wrap restack).
-- Take-flow answer areas (M2b): same file — textareas + the log-analysis finding `<input>` read `--aiq-answer-input-size`; the KQL textarea reads `--aiq-answer-mono-size` and renders a mobile-only `.aiq-attempt-kql-mobile-tip` caveat above the editor.
-- Submitted page (M3): `apps/web/src/pages/take/Submitted.tsx` (class-managed header/main padding + hero h1 size).
-- Candidate portal (M4): `modules/11-candidate-ui/src/components/CandidateShell.tsx` (new shell-level nav + mobile overflow menu via controlled state + outside-click + Escape), `CandidateActivity.tsx` (stats grid 3→1 col, heatmap horizontal-scroll wrapper, leaderboard `columns={viewport === 'mobile' ? 1 : 2}` via `useViewport()`), `MyCertificates.tsx` (1-line h1 size swap to `var(--aiq-h1-size)`).
-- Admin graceful-degrade (M5): `ViewportLock.tsx` — removed in A6 (see above); admin pages are responsive instead.
-
-### Help-system entries added by the port
-
-- `candidate.attempt.navigator.toggle` (M2a — bottom-sheet navigator toggle).
-- `candidate.attempt.kql.mobile_tip` (M2b — KQL caveat tip).
-- `candidate.shell.nav.mobile_menu` (M4 — candidate-shell overflow menu).
-- `admin.shell.mobile_continue_anyway` (M5 — admin interstitial override).
-
-All four wired via `data-help-id` on the actual control and seeded into 0011 by `pnpm help:seed:regen`.
-
-## Generation admin UI — wizard resume + scorecard help (2026-05-24)
+### Generation admin UI — wizard resume + scorecard help (2026-05-24)
 
 Two super-admin-only generation surfaces in `modules/10-admin-dashboard`. Both
 are presentational/help only — no auth, tenancy, or grading-pipeline logic.
 
-### Generation gating is already complete (no code this round)
+#### Generation gating is already complete (no code this round)
 
 Question generation is **super_admin-only** on every surface; this was confirmed,
 not changed, this session. The four gates (FE defence-in-depth; the backend
@@ -827,7 +1098,7 @@ not changed, this session. The four gates (FE defence-in-depth; the backend
   `{isSuperAdmin && …}`.
 - **Pack-detail link** — the "✦ Generate questions →" button is `{isSuperAdmin && …}`.
 
-### Resume a running generation (`generate-wizard.tsx`)
+#### Resume a running generation (`generate-wizard.tsx`)
 
 **What:** the wizard's per-category progress lives only in React state
 (`genResults`), so navigating away during a run and returning dropped the user on
@@ -846,7 +1117,7 @@ in-flight category's React progress is gone once you navigate away — by design
 same as before). The poll reuses the existing `GET /api/admin/generation-attempts`
 endpoint (new typed helper `listGenerationAttempts` in `api.ts`); no backend change.
 
-### Scorecard inline help (`generation-attempts.tsx`)
+#### Scorecard inline help (`generation-attempts.tsx`)
 
 Four `HelpTip`s on the per-attempt scorecard, keyed `admin.gen_score.*`:
 
@@ -874,197 +1145,31 @@ rows to prod (0011 is already-applied, so it never re-runs). Numbered 0089 to
 avoid the analytics `0088_attempt_summary_mv_owner.sql` added in parallel. `short_text` ≤120
 chars and non-empty `long_md` per the help-key test.
 
----
+#### Generate wizard: Topic focus (RW-46, S10, 2026-10-15)
 
-## Admin dashboard UI changes (2026-05-24)
+*Type: reference.*
 
-Three admin-facing UI changes shipped as part of the domain-slug normalization + Question Bank import work.
+**What.** The config step has an optional text field, `TopicFocusField` (`modules/10-admin-dashboard/src/components/TopicFocusField.tsx`). The maximum is 200 characters, the same limit as the API's `topic_focus`. Over the limit, the field shows an error and the Generate button is disabled. A non-empty trimmed value is sent as `topic_focus` in every per-category `POST /admin/generate` call of the run. An empty value sends no key. A resumed batch uses the focus typed in the current session, because the saved batch plan does not store it.
 
-### Question Bank — Domain field changed from free-text to dropdown
+**Help.** Key `admin.generate_wizard.topic_focus` (migration 0172).
 
-**What:** The "Domain" field on the New Pack form (`modules/10-admin-dashboard/src/pages/question-bank.tsx`, New Pack modal) is now a `<Select>` populated from `GET /api/admin/domains` (the tenant's canonical domain list). Previously it was a free-text `<Input>`, which allowed mixed-case entries like `'SOC'` that silently failed entitlement resolution at publish time (the license resolver matches `question_packs.domain` by exact lowercase slug).
+**Why.** The API accepted `topic_focus` (RW-46 backend) but the wizard had no input for it.
 
-**Why:** Free-text entry was the root cause of the casing-drift bug fixed by migration `0090_normalize_domain_slugs.sql` (see `docs/02-data-model.md`). Sourcing from the `domains` table guarantees the stored value is always a canonical lowercase slug. The dropdown renders the human-readable `label` but submits the lowercase `slug`.
+**Not included.** A prompt change. The generation skills live on the VPS; if they must read `topic_focus` explicitly, the owner copies the skill and re-baselines the eval harness (docs/05-ai-pipeline.md).
 
-**Not included:** retroactive UI changes to the Pack Edit form (PATCH) — the domain field is not editable post-creation in the current admin surface; if it is added later, it must also use the dropdown.
+#### Generate wizard: polling (RW-93, S10, 2026-10-15)
 
-**Downstream:** `createPack`/`updatePack` service methods also lowercase `domain` at the write path as defense-in-depth; the UI change removes the primary entry point for drift, not the only guard.
+*Type: reference.*
 
----
+**What.** `runBatch` in `modules/10-admin-dashboard/src/pages/generate-wizard.tsx` calls `startGenerateForDomainApi` (`POST /api/admin/generate/start`). Then it reads `getGenerationAttemptApi` every 3 s, for at most 10 min. The category row shows the elapsed time as `m:ss`. A `failed` attempt shows its error and the wizard continues with the next category. A `success` or `partial` attempt goes on with `count_inserted`. After 10 min the wizard shows a time-out error. The run continues on the server if the admin leaves the page.
 
-### Question Bank — "Licensed sets" section (2026-05-24)
+**Why.** The edge cut a single long request at about 100 to 125 s, and the wizard then started the next category into a held lock (RCA 2026-10-15).
 
-**What:** A new read-only **Licensed sets** section in the Question Bank page (`modules/10-admin-dashboard/src/pages/question-bank.tsx`) lists the PLATFORM-library question sets the calling tenant is licensed for, sourced from `GET /api/billing/available-sets`.
+**Considered and rejected.** SSE or websockets (edge buffering). Keeping the single long request.
 
-**Layout:** The section appears below the tenant's own pack list and is hidden entirely when `sets` is empty (no licensed sets). Each row shows:
+**Not included.** Cancel; resume after an API restart (the row can stay `running`, ROADMAP RW-94).
 
-| Column | Content |
-|---|---|
-| Name | `source.name` |
-| Domain | lowercase slug chip |
-| Questions | `question_count` |
-| Status badge | "In your workspace" (`success` Chip, when `cloned: true` and not `update_available`) — "Update available" (`warning` Chip, when `cloned: true` and `update_available: true`) — no badge when not yet cloned |
-| Action | "Add to workspace" button (`ghost` variant, visible only when `cloned: false`) — calls `POST /api/admin/sets/:source_pack_id/import` and refreshes the section on success |
-
-**"In your workspace" / "Update available" logic:** driven by the `cloned` and `update_available` flags from the `GET /api/billing/available-sets` response. "Update available" means a newer `source_version` exists than what was cloned; the update path (re-clone) is deferred — the badge is informational only for now, no button.
-
-**"Add to workspace" button:** calls `POST /api/admin/sets/:source_pack_id/import` (see `docs/03-api-contract.md` § `POST /api/admin/sets/:sourcePackId/import`). On `201` success, the button switches to the "In your workspace" badge and the tenant's own pack list is refreshed so the new clone appears immediately. On `403 NOT_LICENSED`, an inline error Chip is shown ("Not licensed"); on other errors, a toast.
-
-**Not included:** a re-clone/update flow for `update_available: true` sets (deferred); pagination of the licensed sets list (platform library is expected to stay small for Phase 1); candidate-facing visibility of licensed sets.
-
----
-
-### Assessments — Blueprint mode button hidden for non-super-admins (2026-05-24)
-
-**What:** On the New Assessment form (`modules/10-admin-dashboard/src/pages/assessments.tsx`), the "Blueprint" mode toggle button is rendered only when `session.user.role === 'super_admin'`. Tenant admins (`role === 'admin'`) do not see the button; the form defaults to the standard mode silently.
-
-**Why:** Blueprint mode sets `settings.blueprint` on the assessment, which is a `super_admin`-only capability enforced server-side by both `POST /admin/assessments` and `PATCH /admin/assessments/:id` (see `docs/03-api-contract.md` § Blueprint authoring restriction). The FE hide is defense-in-depth — the backend 403 is the authoritative gate.
-
-**Implementation:** The session role is already available via `useSession()` (or the equivalent `AdminWhoami` hook) used throughout the admin dashboard. The conditional is a single `{isSuperAdmin && <BlueprintModeButton … />}` guard, consistent with the existing `{isSuperAdmin && …}` pattern used on the Platform nav entry and the AI-generate-mode select.
-
-**Not included:** any change to the assessment edit form for existing draft assessments — if a super-admin created a blueprint assessment and a tenant admin views it in edit mode, `settings.blueprint` is simply not rendered in the form (read-only exclusion); the tenant admin cannot clear or modify it.
-
----
-
-## Add-candidate drawer + invite-picker filter (2026-05-26)
-
-**What:** The admin Users page (`modules/10-admin-dashboard/src/pages/users.tsx`) `InviteForm` drawer is now role-aware. The role picker gained a third option, **candidate**. When `candidate` is selected the drawer shows **Name** (required) + **Designation** (optional, e.g. "SOC Analyst L1") fields, retitles to "Add candidate", swaps the subtitle to "Candidates are added directly — no email is sent now…", posts to `POST /admin/users` (not `/admin/invitations`), and confirms with a "Candidate added." chip. Admin/reviewer behaviour is byte-for-byte unchanged (still invite-email flow). On `assessment-detail.tsx` the invite picker now filters to `role==='candidate' && status==='active'` (was: all users), so only assignable candidates appear.
-
-**Why:** There was no UI to create a candidate (the invite form only offered admin/reviewer, and `inviteUser` hard-blocks candidates at `CANDIDATE_INVITATION_PHASE_1`). Candidates authenticate only via per-assessment magic links, so they need no invite/accept email — direct active creation is the simple, correct model. The picker previously listed admins/reviewers too, which the server silently rejected — confusing UX.
-
-**Implementation:** A form-local `type InviteRole = "admin" | "reviewer" | "candidate"` (the file-level `UserRole` is used by filter chips/manage menus and was left untouched). Error display switched from the email `Field`'s `error` prop to a shared `role="alert"` danger-coloured div below the fields (covers both email + name validation). Help: `data-help-id="admin.users.candidate.fields"` → content in `modules/16-help-system/content/en/admin.yml` + seed migration `0099_seed_candidate_fields_help.sql`.
-
-**Not included:** No bulk CSV add (still the `/admin/users/import` 501 stub). No reverse "assign assessment from the user row" flow — assignment stays on the assessment-detail page (single source of truth). No new component in the kit — composed from existing `Field`/`Button`/`Card`/`Chip` atoms. [Update 2026-10-03: bulk CSV import is live since 2026-10-01.]
-
-## Attempt-audit four-zone demarcation (2026-05-29)
-
-**What:** The per-question card on the admin attempt-detail page (`/admin/attempts/:id`, `modules/10-admin-dashboard/src/pages/attempt-detail.tsx`) was restructured from a 2-column *question+answer | grading-panel* split into a single full-width card with **four clearly-labelled, colour-accented audit zones**, stacked top-to-bottom:
-
-1. **❓ Question** (neutral/muted accent) — the candidate-facing stimulus *only*. Rendered by the new `QuestionPromptView`, which strips every answer-key field (mcq `correct`/`rationale`, kql `expected_keywords`, scenario per-step `expected`, log_analysis `expected_findings`/`sample_solution`). This is exactly what the candidate saw.
-2. **✦ Expected answer / rubric** (info-blue accent) — the answer key + grading ground-truth. Rendered by the new `ExpectedAnswerView`: mcq → correct option + rationale; kql → expected keywords; scenario → per-step expected; log_analysis → expected findings + sample solution; **subjective → the rubric anchors (concept + weight), since subjective has no authored model answer — the rubric IS the expected answer**. Rubric-graded types also show a "Rubric (grading basis)" anchor list. When neither answer-key nor rubric exists, shows a "graded holistically on the reasoning band" note.
-3. **✎ Candidate answer** (secondary-grey accent) — the submitted answer via the existing `AttemptAnswerView` (typed per-shape renderers, never raw JSON) + the existing `ConceptCoverageView` highlight (hit concepts highlighted inline, missed listed below). Shows "No answer submitted." when absent.
-4. **🤖 AI evaluation** (accent) — band/%/score + grader chip + the existing anchor chips, **now with an always-visible per-anchor evidence list** (`✓/✗ concept — "the quote the model cited"`) via the new `ScoreDetail` opt-in `showAnchorEvidence` prop, plus the AI justification, the Override form/button, fresh-proposal card, and Stage-2-vs-3 escalation diff. A "Not yet graded" placeholder shows when no grading/proposal exists. The card header gained a `Q{n} · {type} · {pts}` label + a per-question status pill (graded / ready to accept / needs review / not graded).
-
-**Why:** An admin asked "for a graded attempt, how do I see what the candidate submitted, what was expected, and how the AI evaluated it — with clear demarcation to audit?" The prior layout failed this on three counts: (a) `QuestionContentView` rendered the prompt *and* answer key together, so the correct option / rationale / expected findings bled into the question; (b) the "expected answer" was scattered, unlabelled, and **completely absent for subjective questions** (their rubric only surfaced implicitly as hit/miss chips); (c) the AI's *cited evidence* was hidden in chip hover tooltips, invisible in a print/audit context. The four-zone split makes each audit question answerable at a glance and survives the existing `@media print` review export.
-
-**Considered & rejected:** Three-column (Expected | Candidate | AI) side-by-side layout — rejected for being too tight on narrow screens and worse for print; stacked sections read top-to-bottom cleanly at any width (the user picked stacked over three-column and over a minimal "add an Expected card to the current 2-col" option). Adding a new authored `model_answer` column for subjective — deferred (rubric concepts + weights answer the need now with **no schema change**; an authored model answer would require a migration + question-editor field + a later session).
-
-**Implementation notes:** New shared `question-format.tsx` util holds the text-normalisation helpers (`cleanText`/`unescapeJsonString`/`stripMarkdown`) + small primitives (`JsonFallback`/`Chip`/`SUBLABEL_STYLE`). **`QuestionContentView` was intentionally left untouched** — it is still used by the question-editor preview (`question-editor.tsx`) and keeps its own private helper copies; the new audit zones use the shared util instead. All four components reuse the production `--aiq-*` tokens (cards, borders, mono uppercase sublabels) consistent with the established admin surface, so no new kit screen/recipe was needed (this is a re-composition of existing idioms, not an invented layout).
-
-**Not included / downstream:** No backend, schema, API, auth, tenancy, RLS, or grading-logic change — `modules/10-admin-dashboard` is non-load-bearing and the rubric was *already* returned to this `adminOnly` route (added by the 2026-05-29 review-UX bundle), so there is no new data exposure and no candidate-facing path. No `help_id` added for the zone labels (they are presentational, not interactive controls). The `aiq-admin-detail-two-col` print class became `aiq-admin-detail-question` (the card is now single-column; the grid override was dropped, page-break-avoid kept). `ScoreDetail`'s other usages are unaffected (`showAnchorEvidence` defaults off). Pre-existing `attempt-detail-error.test.tsx` failures (3, mock-exhaustion in the test's Grade-error path) are unchanged by this work — verified identical on HEAD with the diff stashed.
-
-## Brand consumer copies, static file routing and theme fixture key (2026-10-02)
-
-- **Consumer copies.** The kit manifest and preview image carry the old name "AccessIQ" and a wrong domain. The kit stays untouched (project rule). The app uses its own copies under `apps/web/public/brand/`: `favicon/app.webmanifest`, `social/app-og.png` and `social/app-og.svg`. `apps/web/index.html` links them. The PNG is rendered from the SVG with the installed `@resvg/resvg-js`.
-- **Force-added files.** `apps/web/public/brand/` is gitignored because the prebuild script mirrors the kit there. The three files are added with `git add -f`, like `try-og.png`. Their names differ from the kit names, so the mirror script (`copy-brand-assets`) cannot overwrite them. The kit copies (`site.webmanifest`, `og-image.png`) are still served; nothing links them.
-- **Routing rule.** The shared Caddy `@app` matcher sends only `/admin*`, `/candidate*`, `/take*`, `/try*`, `/assets/*` and `/brand/*` to the app. Put a new static file of the app under `/brand/` or `/assets/`. A file in the `public/` root goes to the marketing site and returns 404.
-- **Theme fixture.** The key `wipro-soc` in `modules/17-ui-system/src/fixtures/tenants.ts` is now `default` (`apps/web/src/App.tsx` and two stories follow). The fixture is a static theme for all tenants until live tenant theming lands.
-- **Not included.** No lint yet compares `public/` names with the Caddy matcher (plan item RV71).
-
-## Completion modal on new certificates (FR13, 2026-10-03)
-
-**What.** `CompletionModal` (module 11) is rebuilt on the kit `Modal` (commit `6638494`). `NewCertificateModal` on `apps/web/src/pages/take/Submitted.tsx` shows when the released result has a certificate. It shows once for each browser and each `credential_id`. The seen list is in `localStorage` key `aiq:certs-seen` (try/catch; the page works without it). `MyCertificates` has a "View" button that opens the same modal. The prop `course_title` is now `assessment_title`.
-
-**Why.** The old component was unused (review FR13, row FU-C12) and used its own overlay instead of the kit Modal.
-
-**Considered and rejected.** A new certificate payload with `tier` and `pdf_url` (needs a server change). Showing the modal at each visit (annoying).
-
-**Not included.** Server changes: data comes from the existing `GET /api/certificates`.
-
-## 404 page main landmark (N25, 2026-10-03)
-
-The `NotFound` page root is now `<main>` (commit `00a951e`). This fixes the axe rules `landmark-one-main` and `region`. The e2e a11y spec covers it. No visual change.
-
-## Labels, dates and shared copy (S3, 2026-10-09)
-
-**What.** Commit `505031a` (hardening S3, rows RW-12 to RW-15). Four shared pieces now give pages their visible words.
-
-1. **Enum labels.** `modules/10-admin-dashboard/src/lib/labels.ts` holds every label map: attempt, evaluation, pack, assessment and organisation status; question type; plan tier; certificate tier; audience; role; job status; generation status; cognitive level; grant scope; difficulty. `lib/status.ts` is now a one-line re-export of `labels.ts` (Rule A: no deletes). `difficultyLabel` returns an unknown value unchanged, so authored level names such as "SOC Analyst L1" stay as written.
-2. **Dates.** `modules/17-ui-system/src/format.ts` exports `formatDate` ("Apr 29, 2026"), `formatDateTime` ("Apr 29, 2026 · 14:32"), `formatRelative` ("4s ago", "2 min ago", "3 h ago", "Yesterday", "5 days ago", then a date after 6 days), `formatMonthYear` and `formatDayLine`. They come from `@assessiq/ui-system`. The old en-GB helpers in `modules/10-admin-dashboard/src/lib/format.ts` re-export them; `formatTimestamp` is an alias of `formatDateTime`. About 45 page-level `toLocale*` and `Intl` date calls in modules 10, 11 and `apps/web` are replaced. Two number counters keep `toLocaleString` with the comment `// lint-ui-labels: number`.
-3. **After-submit sentence.** `AFTER_SUBMIT_TEXT` in `modules/11-candidate-ui/src/copy.ts`: "Your answers are saved. You will see your result on this page or by email once it is final." It is used in `take/PreTest.tsx` (consent, after "Written answers are graded with AI assistance and checked by your organisation."), `take/Submitted.tsx`, `CandidateHelp.tsx` and the help key `candidate.submit.confirm`. This extends R4.
-4. **Lint.** `tools/lint-ui-labels.ts` has four rules: `raw-enum`, `id-slice`, `http-status`, `date`. It runs in WARN mode (exit 0). Use `--strict` to fail on a hit and `--self-test` to test the rules. Root scripts: `lint:ui-labels`, `lint:ui-labels:self-test`, and `lint:repo`. `lint:repo` runs ui-labels, rls, mv-tenant-filter, doc-anchors, vitest-coverage, skill-mount, public-collisions, ui-api-contract, ambient-ai, edge-routing and deploy-procedure. It leaves out cross-module-deps (more than 4 minutes, and it fails on `.claude/worktrees`).
-
-**Rule.** Pages never render raw enums, ID slices, SHAs, model names or HTTP codes. Pages never call `toLocale*` or `Intl` for dates. Add a label to `labels.ts` and use a date helper instead. Visible words follow `docs/10-branding-guideline.md` section 2.5. The text "HTTP <n>" in errors is now "Something went wrong. Please try again." (`take/Attempt.tsx` twice, `TokenLanding.tsx`).
-
-**Why.** The review found 8 date formats, raw enum values and UUID slices in JSX, and three different after-submit texts. One source for each removes the drift.
-
-**Considered and rejected.**
-- Put the date helpers in `apps/web/src/lib` (the task row said so). Modules 10 and 11 cannot import from `apps/web` (Rule B), so the helpers live in `ui-system`.
-- Put `AFTER_SUBMIT_TEXT` in `apps/web`. Same import reason; it lives in candidate-ui.
-- Delete `status.ts` and the old `format.ts`. Rule A forbids it; both re-export.
-- Start the lint in strict mode. Six hits remain, so it starts in WARN mode.
-
-**Not included.**
-- Six lint warnings remain: `id-slice` at `certificates.tsx:725`, `BillingDrawer.tsx:396`, `tenant-settings.tsx:1215`, `users.tsx:1497`, `users.tsx:1594` (no name exists to show); `raw-enum` at `11-candidate-ui` `QuestionNavigator.tsx:121` (aria-label).
-- The lint is not strict in CI.
-- The PDF template in `modules/18-certification` keeps its date format.
-- Nav section headers "Work" and "Content" are placeholders until RW-16 regroups the nav.
-- API error messages from the backend still use the old words.
-
-**Downstream impact.** The date format changes from "21 May 2026" to "May 21, 2026" on all pages. Difficulty chips (FU-C13) show Beginner, Intermediate and Advanced. A new page must use `labels.ts` and the date helpers, or the lint warns. Help text follows the same glossary (`docs/07-help-system.md`).
-
-## Shared admin primitives (RW-32, 2026-10-10)
-
-Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-system/src/components/`, with a story and tests in `src/__tests__/rw32-primitives.test.tsx`.
-
-**Why.** Admin pages each built their own status chips, headers, empty states, confirm modals and pager. One shared set keeps the look the same.
-
-**Not included.** No data-table recipe exists in the kit (kit gap). The existing `Table` is unchanged. The admin `PageHeader` in `modules/10-admin-dashboard` is unchanged and has an eyebrow prop that the new one lacks. Migrating pages to the new components is a later task.
-
-### StatusPill
-- Props: `status: string`, `labels?: Record<string,string>`, `tone?: ChipVariant` (default `default`), `label?: string`.
-- Text is `label ?? labels?.[status] ?? status`. It renders a `Chip`.
-- Use for any status or enum value. Pass the glossary label map from `lib/labels.ts`.
-- Kit gap: no StatusPill recipe; built on Chip (`design-system/components.md` "Chips").
-
-### PageHeader
-- Props: `title`, `count?: number`, `lede?: ReactNode`, `actions?: ReactNode`.
-- Renders `<header>` with `h1.aiq-serif`, a `Chip` only when `count` is given (0 is shown), a muted lede, and actions on the right.
-- Follows the kit "Page header recipe (universal)" without the mono eyebrow.
-
-### EmptyState
-- Props: `title`, `body?`, `action?`, `icon?`.
-- Centered, 64px vertical padding, serif `h2`, muted body (max 360px), action below. No illustrations. Follows kit "Empty state".
-
-### ConfirmDialog
-- Props: `open`, `title`, `body`, `confirmLabel`, `cancelLabel='Cancel'`, `danger?`, `busy?`, `onConfirm`, `onCancel`, `mfaGuard?`.
-- Built on `Modal`. Escape and backdrop call `onCancel`. `busy` disables both buttons.
-- `danger` sets the confirm button to `--aiq-color-danger` (the kit has no danger button class). `mfaGuard` is a slot above the buttons and has no logic.
-- Use for destructive or irreversible actions.
-
-### Pagination
-- Props: `page` (1-based), `pageSize`, `total`, `onPageChange`.
-- `<nav aria-label="Pagination">` with Previous, "Page X of Y", Next. Y = `max(1, ceil(total/pageSize))`. `page` is clamped into 1..Y.
-- Kit gap: no Pagination recipe; uses the outline small button.
-
-## RW-33 and RW-34 (S7): shared overlays, tables and one HTTP client
-
-**What.**
-1. **One HTTP client (RW-34).** `packages/http-client` (`@assessiq/http-client`) holds the only browser fetch layer. `createApiClient`, `createApiRequest` and `createApiRawRequest` keep the behaviour of the three old copies: `credentials: 'include'`, a `Content-Type` header only when a body exists, the `{ error }` envelope with the `HTTP_<status>` fallback, and 204 returns undefined. `apps/web/src/lib/api.ts`, `modules/10-admin-dashboard/src/api.ts` (`adminApi`, `getReadiness`) and `modules/11-candidate-ui/src/api.ts` (`call`) build on it. `AdminApiError` and `CandidateApiError` remain subclasses of `ApiCallError`.
-2. **`useApi` hook (RW-34).** `modules/17-ui-system/src/hooks/useApi.ts` (also re-exported in `apps/web/src/lib/useApi.ts`) loads on mount and when the path changes. It aborts the in-flight request on unmount, on path change and on refetch, and never surfaces an AbortError. Data is cleared when the path or base changes; a plain refetch keeps it. This came from a Codex review (revise, addressed).
-3. **Confirm dialogs (RW-33).** `window.confirm` is gone from modules 10 and 11. Destructive confirms use `ConfirmDialog` (danger, with a pending-action state). Hand-rolled fixed dialogs use `Modal`.
-4. **Tables (RW-33).** Raw `<table>` in modules 10 and 11 is now `Table`, except the main attempts table in `generation-attempts.tsx`, which has row expansion (see Not included).
-5. **Overlay lint (RW-33).** `tools/lint-no-fixed-overlay.ts` runs in WARN mode. It flags `position: 'fixed'` and raw `<table` in modules 10 and 11 unless the line or the line above has `lint-fixed-allow: <drawer|menu|toast|gate|panel|table>` with a reason.
-
-**Why.** Three near-identical fetch clients drifted apart. Dialogs and tables were hand-rolled per page. One client and one dialog and table primitive remove the drift. The lint keeps it from returning.
-
-**Considered and rejected.**
-- Put the base client in `apps/web/src/lib` and import it from modules 10 and 11. Rejected: modules cannot import from `apps/web` (Rule B).
-- Make `ConfirmDialog` hold MFA and reason inputs. Rejected: `ConfirmDialog` always renders its own buttons. The MFA steps in the archive and lifecycle dialogs use `Modal` with the same body.
-- Add row expansion to `Table` now. Deferred: it is a behaviour change for the attempts table.
-
-**Not included.**
-- Playwright e2e and axe runs. They run in CI on push, not locally.
-- A tooltip or popover conversion. Those are not in scope.
-- `Table` renders `div`s with ARIA roles, not a real `<table>`. Converted tables get CSS-grid semantics and truncated cells. An axe check on the changed pages is open.
-- The `generation-attempts.tsx` main table stays a raw `<table>` (allow comment `table`).
-
-**Downstream impact.**
-- Modules 10, 11, 17 and `apps/web` depend on `@assessiq/http-client` (workspace). `pnpm-lock.yaml` is updated.
-- Visible: confirm dialogs now use the kit style; Escape and backdrop close these dialogs; a close button with `aria-label="Close modal"`; converted tables use the grid style.
-- Lint: `lint:repo` does not run the new script yet (warn mode; run it with `npx tsx tools/lint-no-fixed-overlay.ts`).
-
-## Account security page and Reset two-factor (RW-45, S10, 2026-10-15)
+### Account security page and Reset two-factor (RW-45, S10, 2026-10-15)
 
 **Account security page.** `modules/10-admin-dashboard/src/pages/account-security.tsx`, route `/admin/account-security`, reached from the Account menu in the admin shell.
 - It shows the TOTP status of the signed-in admin.
@@ -1079,7 +1184,7 @@ Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-sys
 
 **Not included.** A notice to the target user after reset, and a tenant-admin reset. (Both shipped in RW-91, see "Users page: Reset two-factor" below.) Backend contract: [03-api-contract.md](03-api-contract.md). Flow and audit: [04-auth-flows.md](04-auth-flows.md).
 
-## Users page: Reset two-factor (RW-91, S10, 2026-10-16)
+### Users page: Reset two-factor (RW-91, S10, 2026-10-16)
 
 *Type: reference.*
 
@@ -1092,78 +1197,3 @@ Five components in `@assessiq/ui-system`. Each is one file in `modules/17-ui-sys
 **Why.** The route existed only for a super admin. A tenant admin whose user lost an authenticator had to ask the platform owner.
 
 **Not included.** A reset for candidates (they have no TOTP). A bulk reset. Backend: [03-api-contract.md](03-api-contract.md). Flow: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
-
-## Platform page: Curriculum frameworks (RW-57 part 2, S10, 2026-10-16)
-
-*Type: reference.*
-
-**What.** `modules/10-admin-dashboard/src/pages/platform/PlatformFrameworksSection.tsx` is a section of the Platform page. `platform.tsx` renders it only when the session role is `super_admin`. A header chip shows how many curricula are available.
-
-- **Table.** Columns: Curriculum, Board, Release, Entries, Loaded. "Loaded" shows "Not loaded" or the loaded version.
-- **Actions.** A "Load" button for a curriculum that is not loaded, a "Reload" button for one that is. Both open a confirm dialog first. After success a toast shows the counts: added, updated, unchanged.
-- **Helpers.** `modules/10-admin-dashboard/src/api/frameworks.ts` (`listFrameworkSeedsApi`, `loadFrameworkSeedApi`). Routes: [03-api-contract.md](03-api-contract.md) § "Framework seeds".
-- **Help.** Key `admin.platform.frameworks` (migration 0173).
-
-**Content shipped with it.** The files `cbse.json`, `icse.json` and `ib.json` in `modules/04-question-bank/src/frameworks/` hold 335, 340 and 89 nodes. CBSE covers grades 6 to 12 with the core NCERT subjects. ICSE and ISC are by stage. IB has PYP, MYP (criteria A to D for each group) and DP. Chapter titles were written from memory. Subjects that are not verified carry the description "partial: verify".
-
-**Owner step.** Check one board against the official syllabus before real use.
-
-**Why.** Part 1 added the load routes but a super admin had no screen and no board content.
-
-**Not included.** Edit of a node in the UI. Removal of a loaded curriculum. A diff view for a reload.
-
-## Question import page (RW-58, S10, 2026-10-16)
-
-*Type: reference.*
-
-**What.** Page `/admin/question-import` (`modules/10-admin-dashboard/src/pages/question-import.tsx`). Only a super admin can open it (`RequireSession role="super_admin"` in `apps/web/src/App.tsx`). The question bank page has an "Import questions" button that links to it. Helpers: `src/api/question-imports.ts`. Routes: [03-api-contract.md](03-api-contract.md) § "Question import".
-
-**Flow, in three steps on one page.**
-1. "Get a template." The admin chooses a question type and a format (CSV or XLSX) and downloads the file.
-2. "Upload your file." The admin chooses a subject (domain), an optional question set name and the file (CSV or XLSX, up to 4 MB), then selects "Check file". Nothing is saved to a question set yet.
-3. "Check the report." Chips show the counts: rows, ready, need a fix, duplicate, skipped. A table lists each row with its result and errors. The admin can fix the values of a row or skip it. "Commit (skip errors)" and "Discard" each open a confirm dialog. After a commit, the page links to the new draft pack at `/admin/question-bank/<packId>`.
-
-**Help.** Keys `admin.question_import.page`, `.template`, `.upload`, `.report` and `.commit` (migration 0175).
-
-**Why.** The platform owner had no way to load many questions. A staged report lets the admin fix a row before any question exists.
-
-**Not included.** Drag and drop. Multipart upload. A rubric step for imported subjective questions (RW-97).
-
-## Page splits for file size (RW-53, S10, 2026-10-16)
-
-*Type: reference.* These moves are mechanical: no behaviour changed. Barrels keep the old import paths. `tools/lint-file-size.ts` (script `lint:file-size`) warns about files over 800 lines. It does not fail the build. 27 files were over the limit on this date.
-
-| File | Lines now | Where code moved |
-| --- | --- | --- |
-| `modules/10-admin-dashboard/src/pages/pack-detail.tsx` | 1300 | `pack-detail/shared.tsx` holds types, `packStatusColor`, `questionPrompt` and `GenerationAttemptLine`. The page is still over 800 |
-| `modules/10-admin-dashboard/src/pages/assessment-detail.tsx` | 1111 | `assessment-detail/shared.tsx` (types and helpers) and `assessment-detail/invitation-columns.tsx` (invitation table columns). Still over 800 |
-| `modules/10-admin-dashboard/src/pages/assessments.tsx` | 826 | `assessments/BlueprintBuilder.tsx`, `FromSetPicker.tsx`, `PreviewAdequacy.tsx`, `shared.tsx`. Still over 800 |
-| `apps/web/src/pages/take/Attempt.tsx` | 941 | `take/attempt-parts/AnswerArea.tsx` (the answer dispatcher) and `attempt-parts/shared.tsx`. Still over 800 |
-
-- **Backend splits in the same change.** Module 05 `service.ts` went from 2423 to 43 lines and is now a barrel over `src/service/`. Module 04 `clone.ts` went from 1299 to 38 lines, a barrel over `src/clone/`. See the SKILL.md files of both modules.
-- **Rejected.** A rewrite of the pages: it needs a behaviour review. Raising the limit: the warning is the point.
-- **Not included.** The four pages above still exceed 800 lines (RW-99).
-
-## Generate wizard: Topic focus (RW-46, S10, 2026-10-15)
-
-*Type: reference.*
-
-**What.** The config step has an optional text field, `TopicFocusField` (`modules/10-admin-dashboard/src/components/TopicFocusField.tsx`). The maximum is 200 characters, the same limit as the API's `topic_focus`. Over the limit, the field shows an error and the Generate button is disabled. A non-empty trimmed value is sent as `topic_focus` in every per-category `POST /admin/generate` call of the run. An empty value sends no key. A resumed batch uses the focus typed in the current session, because the saved batch plan does not store it.
-
-**Help.** Key `admin.generate_wizard.topic_focus` (migration 0172).
-
-**Why.** The API accepted `topic_focus` (RW-46 backend) but the wizard had no input for it.
-
-**Not included.** A prompt change. The generation skills live on the VPS; if they must read `topic_focus` explicitly, the owner copies the skill and re-baselines the eval harness (docs/05-ai-pipeline.md).
-
-## Generate wizard: polling (RW-93, S10, 2026-10-15)
-
-*Type: reference.*
-
-**What.** `runBatch` in `modules/10-admin-dashboard/src/pages/generate-wizard.tsx` calls `startGenerateForDomainApi` (`POST /api/admin/generate/start`). Then it reads `getGenerationAttemptApi` every 3 s, for at most 10 min. The category row shows the elapsed time as `m:ss`. A `failed` attempt shows its error and the wizard continues with the next category. A `success` or `partial` attempt goes on with `count_inserted`. After 10 min the wizard shows a time-out error. The run continues on the server if the admin leaves the page.
-
-**Why.** The edge cut a single long request at about 100 to 125 s, and the wizard then started the next category into a held lock (RCA 2026-10-15).
-
-**Considered and rejected.** SSE or websockets (edge buffering). Keeping the single long request.
-
-**Not included.** Cancel; resume after an API restart (the row can stay `running`, ROADMAP RW-94).

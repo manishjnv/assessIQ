@@ -2,6 +2,46 @@
 
 *Type: reference* — This page describes the email design tokens, atoms and templates.
 
+This page is the reference for how an AssessIQ email looks and how it is sent. It lists the resolved design tokens, the email-safe atoms, the composition rules and the template notes.
+The delivery section lists the retry classes and the sender-domain check.
+The design history (divergences, decisions, contract, acceptance) is at the end.
+
+## Contents
+- [Status and scope](#status-and-scope)
+- [§0 North-star rule (read first — non-negotiable)](#0-north-star-rule-read-first--non-negotiable)
+- [Source-of-truth chain](#source-of-truth-chain)
+- [§1 Resolved token table](#1-resolved-token-table)
+  - [1.1 Color](#11-color)
+  - [1.2 Layout](#12-layout)
+  - [1.3 Type](#13-type)
+  - [1.4 Buttons](#14-buttons)
+  - [1.5 Misc](#15-misc)
+- [§2 Atom catalog — email-safe HTML designs](#2-atom-catalog--email-safe-html-designs)
+  - [A1 — `{{> email-shell }}`](#a1---email-shell-)
+  - [A2 — `{{> email-preheader }}`](#a2---email-preheader-)
+  - [A3 — `{{> email-header }}`](#a3---email-header-)
+  - [A4 — `{{> email-body }}` (container)](#a4---email-body--container)
+  - [A5 — `{{> email-lede }}` (two partials — editorial / short)](#a5---email-lede--two-partials--editorial--short)
+  - [A6 — `{{> email-cta }}` (pill button + MSO/VML wrap)](#a6---email-cta--pill-button--msovml-wrap)
+  - [A7 — `{{> email-meta-card }}`](#a7---email-meta-card-)
+  - [A8 — `{{> email-rule }}` (divider)](#a8---email-rule--divider)
+  - [A9 — `{{> email-footer }}` (TWO variants)](#a9---email-footer--two-variants)
+  - [A-TXT — Plain-text variants (decision: NO atom set)](#a-txt--plain-text-variants-decision-no-atom-set)
+  - [A10 — `{{> email-ghost-link }}`](#a10---email-ghost-link-)
+- [§3 Composition example](#3-composition-example)
+- [Template `totp_reset_notice` (RW-91, S10, 2026-10-16)](#template-totp_reset_notice-rw-91-s10-2026-10-16)
+- [Delivery](#delivery)
+  - [Delivery: classes, retries, timeouts (2026-10-01)](#delivery-classes-retries-timeouts-2026-10-01)
+  - [Sender-domain startup assertion (RW-37)](#sender-domain-startup-assertion-rw-37)
+- [Design history and decisions](#design-history-and-decisions)
+  - [§4 Kit-vs-production divergence catalog](#4-kit-vs-production-divergence-catalog)
+  - [§5 Open decisions (resolved before E1; only #11 stays open)](#5-open-decisions-resolved-before-e1-only-11-stays-open)
+  - [§6 What E1 implements (the contract)](#6-what-e1-implements-the-contract)
+  - [§7 Cross-references](#7-cross-references)
+  - [§8 Acceptance — E0 is DONE when](#8-acceptance--e0-is-done-when)
+
+## Status and scope
+
 > **Status (2026-10-02): the port is shipped.** Phases E0, E1 (`db7d931`), E2a and E2b (`ed8252f`) are complete: all 9 templates use the partials in `modules/13-notifications/src/email/partials/`. Open decisions 1-7 were resolved on 2026-05-21; only #11 (Litmus budget, E3 only) stays open. The text below keeps the E0 design record. Read "before E1" as history.
 >
 > **Phase E0 output** (foundation: tokens reconciliation + email-safe atom designs).
@@ -13,8 +53,6 @@
 >
 > **FU-A16 (2026-10-06): `tenants.smtp_config` shape conflict, facts only.** The sender (this doc's templates use whichever transport is live) is always the platform Brevo account today — `tenants.smtp_config` has no writer and is NULL on every tenant. Two shapes disagree about what it would look like once built: the migration (`docs/02-data-model.md` § `tenants`) says `{host, port, secure, user, password_enc, from_address, from_name}`; the code type (`modules/13-notifications/src/types.ts:195-203`) says `{provider, smtp_url, from_address, from_name, reply_to, template_overrides}` with a plaintext password in the URL. FU-A15 designs the single shape to use when a tenant sender ships (Enterprise tier, parked).
 
----
-
 ## §0 North-star rule (read first — non-negotiable)
 
 **The Email Kit is a design-philosophy reference, NOT a per-email mockup catalog.**
@@ -24,15 +62,11 @@ The scope of this port is: **make every existing AssessIQ email follow the kit's
 Concrete implications, in case anyone is tempted to interpret the kit as a catalog:
 
 1. **Pulse newsletter is NOT a product addition.** The kit ships a "Pulse" mockup; production sends `weekly_digest_admin` and only that. The port applies the Pulse *philosophy* (editorial eyebrow, serif headline, stacked meta cards, footer breadth) to the existing weekly digest. It does NOT introduce a candidate-facing monthly newsletter.
-2. **Don't skip a template because the kit didn't draw a screen for it.** `admin_email_otp`, `candidate_login_link`, `totp_enrolled`, `attempt_submitted_candidate` all get the same atom set + token contract + voice treatment as the kit-mapped ones. The plan's E2a / E2b split is sequencing, not a permission gate.
-3. **Don't add a new template because the kit hints at it.** If something feels missing (password reset, attempt-abandoned nudge, account-deletion confirmation, …) that is a separate product decision, surfaced and approved outside this port. The kit's atoms remain available for it when/if it ships.
-4. **Don't lose existing content.** Every var, every i18n string, every condition in the 9 production templates today is load-bearing. E1 ports the wrapper; E2 reapplies the kit's *visual* contract to the *same* content surface. If a candidate or admin gets a noticeably different *message* after the port, that's a bounce.
+2. **Do not skip a template because the kit did not draw a screen for it.** `admin_email_otp`, `candidate_login_link`, `totp_enrolled`, `attempt_submitted_candidate` all get the same atom set + token contract + voice treatment as the kit-mapped ones. The plan's E2a / E2b split is sequencing, not a permission gate.
+3. **Do not add a new template because the kit hints at it.** If something feels missing (password reset, attempt-abandoned nudge, account-deletion confirmation, …) that is a separate product decision, surfaced and approved outside this port. The kit's atoms remain available for it when/if it ships.
+4. **Do not lose existing content.** Every var, every i18n string, every condition in the 9 production templates today is load-bearing. E1 ports the wrapper; E2 reapplies the kit's *visual* contract to the *same* content surface. If a candidate or admin gets a noticeably different *message* after the port, that is a bounce.
 
 This rule mirrors `feedback-functionality-drives-ui.md` ("UI kits are palettes of idioms, not product specs") applied to the email surface. It is the same rule the Mobile Kit Port and the AccessIQ UI Template port followed.
-
----
-
----
 
 ## Source-of-truth chain
 
@@ -51,9 +85,7 @@ modules/13-notifications/src/email/templates/*.{html,txt}        ← per-trigger
 modules/13-notifications/src/email/render.ts                     ← compile + Zod var validation
 ```
 
-Email "tokens" are NOT CSS custom properties — email clients can't resolve `var(--accent)`. They are Handlebars-resolved constants, baked in as literal hex / px values at compile time. The table below is the canonical list.
-
----
+Email "tokens" are NOT CSS custom properties — email clients cannot resolve `var(--accent)`. They are Handlebars-resolved constants, baked in as literal hex / px values at compile time. The table below is the canonical list.
 
 ## §1 Resolved token table
 
@@ -122,8 +154,6 @@ Reconciles the kit's [`tokens.md`](../modules/17-ui-system/AssessIQ_UI_Template/
 | Preheader char budget | ≤ 90 chars | Per kit convention. |
 | Footer brand-dot | 8 × 8 px, `border-radius: 50%`, fill `#1a73e8` | |
 
----
-
 ## §2 Atom catalog — email-safe HTML designs
 
 Each atom below specifies (a) the kit React shape it ports, (b) the inputs Handlebars passes, (c) the table-based HTML E1 materializes as a partial. **All atoms are inline-styled. No `<style>` blocks. No CSS classes. No flex / grid.** Outlook on Windows ignores both, and Gmail strips `<style>`.
@@ -169,7 +199,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 </html>
 ```
 
-**Why.** Outer 100 % table = client width; inner fixed-640 table = card. `role="presentation"` tells screen-readers it's layout. `meta` tags suppress Outlook-Mobile reformatting and lock the email to light mode (we have not designed dark variants yet — see §4 open question).
+**Why.** Outer 100 % table = client width; inner fixed-640 table = card. `role="presentation"` tells screen-readers it is layout. `meta` tags suppress Outlook-Mobile reformatting and lock the email to light mode (we have not designed dark variants yet — see §4 open question).
 
 **Composition mechanism — block partials, not subexpressions.** `email-shell` is invoked as a Handlebars **block partial** (`{{#> email-shell preheader=...}}...{{/email-shell}}`). The block content is exposed inside the partial as `{{> @partial-block}}` — this is built-in Handlebars syntax requiring no custom helper. See §3 for the canonical composition shape. Do NOT attempt to pass body content via a `{{{body}}}` slot var or a `(partial 'name')` subexpression — both require either pre-rendering or a custom helper, both more fragile than the built-in block-partial pattern.
 
@@ -187,7 +217,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 </div>
 ```
 
-**Why.** The `&#8199;&#65279;` (figure-space + zero-width no-break-space) pairs pad the preview line past the body's first chars so the client doesn't display "Set up your account · You're receiving this because…" mash-up. `mso-hide:all` hides from Outlook explicitly. `display:none` is respected by every modern client.
+**Why.** The `&#8199;&#65279;` (figure-space + zero-width no-break-space) pairs pad the preview line past the body's first chars so the client does not display "Set up your account · You're receiving this because…" mash-up. `mso-hide:all` hides from Outlook explicitly. `display:none` is respected by every modern client.
 
 ### A3 — `{{> email-header }}`
 
@@ -197,7 +227,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `eyebrow` | string (mono uppercase) | no | E.g. `INVITATION`, `RESULT`, `READY FOR REVIEW`. |
+| `eyebrow` | string (mono uppercase) | no | For example, `INVITATION`, `RESULT`, `READY FOR REVIEW`. |
 
 **HTML:**
 
@@ -231,7 +261,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 | Name | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `pad` | CSS shorthand (e.g. `36px 40px`) | no | Pre-resolved by the per-template Zod schema with `.default('36px 40px')` — partial reads `{{pad}}` unconditionally. |
+| `pad` | CSS shorthand (for example, `36px 40px`) | no | Pre-resolved by the per-template Zod schema with `.default('36px 40px')` — partial reads `{{pad}}` unconditionally. |
 | *block content* | template HTML (`{{> @partial-block}}`) | yes | Inner body content. Invoke as a block partial: `{{#> email-body}}…{{/email-body}}`. |
 
 **HTML:**
@@ -245,7 +275,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 </tr>
 ```
 
-**Note.** `pad` defaults via Zod (`.default('36px 40px')`) so the partial doesn't carry an `{{#if}}` branch. Templates that need custom padding pass `pad="28px 32px"` etc. on the block-partial invocation.
+**Note.** `pad` defaults via Zod (`.default('36px 40px')`) so the partial does not carry an `{{#if}}` branch. Templates that need custom padding pass `pad="28px 32px"` etc. on the block-partial invocation.
 
 ### A5 — `{{> email-lede }}` (two partials — editorial / short)
 
@@ -287,7 +317,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 {{/if}}
 ```
 
-**Note.** Two partial files instead of one + an `ifEquals` helper. Net: +1 file, -1 runtime helper, zero template-engine surface area added. If a third H1 size emerges later (it shouldn't), revisit then.
+**Note.** Two partial files instead of one + an `ifEquals` helper. Net: +1 file, -1 runtime helper, zero template-engine surface area added. If a third H1 size emerges later (it should not), revisit then.
 
 ### A6 — `{{> email-cta }}` (pill button + MSO/VML wrap)
 
@@ -354,7 +384,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 **Why.** `border-collapse:separate` is required for the outer `border-radius` to render in WebKit clients (otherwise the inner `<td>` borders punch through). `@first` / `@last` are Handlebars built-ins; no helper needed.
 
-**Why `{{{v}}}` (triple-stash exception).** The value cell may contain inline emphasis (`<strong>`) or a short link. Triple-stash is otherwise forbidden — this is the **sole allowed exception**, reconciled with [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) anti-pattern guard #9 (amended to document this exception). `v` is authored at the *template* level (e.g. `{ k: "Score", v: '<strong>Distinguished</strong>' }`), never substituted from candidate-supplied data.
+**Why `{{{v}}}` (triple-stash exception).** The value cell may contain inline emphasis (`<strong>`) or a short link. Triple-stash is otherwise forbidden — this is the **sole allowed exception**, reconciled with [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) anti-pattern guard #9 (amended to document this exception). `v` is authored at the *template* level (for example, `{ k: "Score", v: '<strong>Distinguished</strong>' }`), never substituted from candidate-supplied data.
 
 **Enforcement (mandatory in E1):**
 
@@ -512,7 +542,7 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 </tr>
 ```
 
-**Collapse logic.** The outer `{{#if has_any_link}}` removes the entire link row + its 20 px bottom padding when no hrefs are provided — otherwise the footer ships a 20 px gap of empty space above the legal line. Each inner `{{#if <name>_href}}` removes the individual link + its `margin-right`. The render-time context must compute `has_any_link = !!(unsubscribe_href || preferences_href || help_href || privacy_href)` and pass it on the partial invocation — this avoids a `{{#or}}` helper that Handlebars doesn't ship.
+**Collapse logic.** The outer `{{#if has_any_link}}` removes the entire link row + its 20 px bottom padding when no hrefs are provided — otherwise the footer ships a 20 px gap of empty space above the legal line. Each inner `{{#if <name>_href}}` removes the individual link + its `margin-right`. The render-time context must compute `has_any_link = !!(unsubscribe_href || preferences_href || help_href || privacy_href)` and pass it on the partial invocation — this avoids a `{{#or}}` helper that Handlebars does not ship.
 
 **Day-zero shape (2026-05-21).** Every commercial template calls A9b with all 4 hrefs `null`. The footer renders as: brand mark → reason copy → legal line. No dead links, no empty link row.
 
@@ -530,7 +560,7 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 
 1. **Maintain HTML+TXT semantic parity** — anti-pattern guard #10 in [`EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md). When E2 adds a preheader to the HTML variant, the TXT variant gets a one-line summary in the same place (after the subject line). When E2 adds a meta-card row in HTML, the TXT variant gets the same data as `KEY: value` lines.
 2. **Preserve the `Subject: <…>\n\n<body>` convention** — [render.ts:131-139](modules/13-notifications/src/email/render.ts#L131-L139) parses it.
-3. **Preserve i18n `{{_t_*}}` vars** — TXT compiles with `noEscape: true` but i18n substitution still happens. Don't inline literal English strings.
+3. **Preserve i18n `{{_t_*}}` vars** — TXT compiles with `noEscape: true` but i18n substitution still happens. Do not inline literal English strings.
 4. **No HTML tags in TXT.** Even when the HTML uses `<strong>` inside `meta_rows.v`, the TXT variant uses uppercase or asterisks (`*Distinguished*`) instead. The render pipeline does NOT auto-strip — the template author writes the parallel text.
 
 **Lint addition for E1:** `modules/13-notifications/test/lint-txt-parity.test.ts` — for each template name in the EmailTemplateNameSchema, assert both `.html` and `.txt` files exist and that the `.txt` file's first line matches `/^Subject: \S/`. Fails loudly if either invariant breaks.
@@ -551,8 +581,6 @@ For: `invitation_admin`, `invitation_candidate`, `attempt_graded_candidate`, `we
 ```
 
 **Why no MSO wrap.** Ghost links are text-styled (no fill, no pill). Outlook renders the text+arrow correctly without VML.
-
----
 
 ## §3 Composition example
 
@@ -591,7 +619,7 @@ A full template (`invitation_candidate` after E2a) reads:
 
 **Why block partials, not slot vars or subexpression partials.** Two patterns were considered and rejected:
 
-- `{{> email-shell body=(partial 'foo')}}` (subexpression): `(partial 'name')` is **not built-in Handlebars** — it requires a custom helper to look up `Handlebars.partials[name]`, compile-if-string, render with context, and mark the output as safe. Surface area + failure modes E1 doesn't need.
+- `{{> email-shell body=(partial 'foo')}}` (subexpression): `(partial 'name')` is **not built-in Handlebars** — it requires a custom helper to look up `Handlebars.partials[name]`, compile-if-string, render with context, and mark the output as safe. Surface area + failure modes E1 does not need.
 - `{{> email-shell body=preRenderedHtml}}` (pre-rendered string in context): forces every template to pre-render its body string in `render.ts` before calling the shell — pushes composition logic out of templates into TS code and breaks the "partials compose; render.ts is content-agnostic" boundary.
 
 Block partials (`{{#> name}}…{{/name}}` + `{{> @partial-block}}`) ship with Handlebars 4.x. Zero helper code, composition stays in templates.
@@ -625,31 +653,73 @@ Where `meta_rows` is built in the Zod-validated context (E2a):
 
 E2a authors one such composition per kit-mapped template; E2b for the four derived templates.
 
----
+## Template `totp_reset_notice` (RW-91, S10, 2026-10-16)
 
-## §4 Kit-vs-production divergence catalog
+Closed-enum template `totp_reset_notice`. It tells a user that an administrator reset their two-factor sign-in.
 
-Per anti-pattern guard #12 in the plan, every deliberate divergence from the kit is documented here so future readers know it's intentional.
+- **Trigger.** `sendTotpResetNoticeEmail` (`modules/13-notifications/src/email/totp-reset-notice.ts`) runs after a reset returns. Both reset routes call it: `POST /api/admin/users/:userId/totp/reset` (tenant admin) and the super-admin route. The route helper `notifyTotpReset` in `apps/api/src/routes/admin-users-totp-reset.ts` logs a send failure and never fails the reset.
+- **Subject.** "Your two-factor sign-in was reset".
+- **Vars** (`TotpResetNoticeVarsSchema` in `src/types.ts`). `recipientName` (the user name, or the email if the name is empty). `resetAt` (UTC string, `Date.toUTCString()`). `resetBy` (a role label: "an administrator" or "a platform administrator").
+- **Content rule.** The notice has no secret, no code, no actor name and no link. The meta card shows "Reset on" and "Reset by". The body tells the user to sign in as usual and to set up two-factor again.
+- **Delivery class.** `bulk` (`email/delivery-policy.ts`). The mail is a notice, not a code, so a delay is acceptable and long retries help.
+- **Files.** `templates/totp_reset_notice.html` and `.txt`. The meta rows are in `render.ts` (`case 'totp_reset_notice'`).
+- **Rejected.** A link to the account page: the notice must not give a click target. The actor name: the role label is enough for the user.
+- **Not included.** A notice to the actor. A retry outside the normal bulk retries. A tenant-specific wording.
+- **Downstream impact.** The earlier count of 9 templates in this page is history. Flow and rationale: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
+
+## Delivery
+
+### Delivery: classes, retries, timeouts (2026-10-01)
+
+Templates are rendered as described above. Delivery is a BullMQ `email.send` job on the worker queue (`modules/13-notifications/src/email/index.ts`), and the policy lives in `email/delivery-policy.ts`.
+
+- **Auth mail** (`admin_email_otp`, `candidate_login_link`, `invitation_admin`):
+  - no job priority, so it runs before bulk mail;
+  - 5 attempts, exponential from 5 s. Codes expire, so there are no long retries.
+- **Bulk mail** (every other template: candidate invitations, result released, evaluation queue alert, …):
+  - priority 100;
+  - 11 attempts over about 45 h (1m, 5m, 15m, 1h, 2h, 4h, 6h, 8h, 12h, 12h), so hitting the provider's daily limit delays mail instead of losing it.
+- **Permanent recipient errors** (SMTP 5.1.x) fail at once.
+- **`email_log.status`:** `queued` between retries, `sent` on delivery, `failed` only when final. These writes persist since migration 0121.
+- **Timeouts:** SMTP connection 10 s, greeting 10 s, socket 30 s. They are appended to `SMTP_URL` unless set there, so a hung connection cannot hold the single worker slot.
+- **A new template must be classified:** `EMAIL_CLASS` is a `Record<EmailTemplateName, …>`, so a new template does not compile until it is marked auth or bulk.
+- **More:** log events and triage are in `docs/11-observability.md` § 35. Plan capacity (300/day on the shared free plan) is an owner decision; see `docs/ROADMAP.md` A5 (local).
+
+### Sender-domain startup assertion (RW-37)
+
+- **What:** `EMAIL_VERIFIED_DOMAINS` is a comma-separated list of sender domains verified with the SMTP provider (SPF/DKIM). It is parsed in `modules/00-core/src/config.ts` into a lowercase array.
+- **Why:** an `EMAIL_FROM` on an unverified domain fails DMARC, and receivers drop the mail without notice (RCA 2026-05-24).
+- **Behavior:** A `superRefine` rule in `modules/00-core/src/config.ts` runs when any process loads config. This covers the API and the worker. When `NODE_ENV=production`, `EMAIL_FROM` must be exactly one mailbox (`addr@domain` or `Name <addr@domain>`; no comma, semicolon or second `@`), and its domain must appear in the list. If not, config load fails with an error that names both values. Other `NODE_ENV` values skip the check.
+- **Default:** empty. In production this means boot fails until you set it.
+- **Set on the VPS:** add `EMAIL_VERIFIED_DOMAINS=assessiq.in` to `/srv/assessiq/.env`. Then recreate `assessiq-api` and `assessiq-worker` with `up -d --no-deps --force-recreate`.
+- **Rollback:** add the domain to `EMAIL_VERIFIED_DOMAINS` and recreate `assessiq-api` and `assessiq-worker`. Do not unset `NODE_ENV`: it has no default and boot fails without it.
+- **Not included:** the check does not query the provider. It trusts the operator list. Per-tenant `from_address` is not checked.
+
+## Design history and decisions
+
+This part keeps the E0 design record. Read "before E1" as history.
+
+### §4 Kit-vs-production divergence catalog
+
+Per anti-pattern guard #12 in the plan, every deliberate divergence from the kit is documented here so future readers know it is intentional.
 
 | # | Where | Kit | Production | Rationale |
 | --- | --- | --- | --- | --- |
-| 1 | Outer wrapper backdrop | `#f1efea` canvas color *outside* the white card | Client-default (transparent / off-white per the client's mail-list backdrop) | Per kit README "Shipping to production" — the outer canvas is a kit-mock-only treatment. Email clients impose their own list backdrop and we don't get to colour it consistently. The wrapper `<table>` in A1 carries `#f1efea` only inside the rendered area between the card and the email viewport edges; clients that fully background-fill (Gmail web) will render it, clients that don't (most webviews) fall back to their own backdrop. Acceptable per plan open-decision #1 default. |
-| 2 | Web fonts (Newsreader, Geist) | Loaded via `@font-face` | Stack fallback only (Georgia / Helvetica Neue / SF Mono) | Mandatory — email clients don't load web fonts. Kit's font choice is documentation-only. |
+| 1 | Outer wrapper backdrop | `#f1efea` canvas color *outside* the white card | Client-default (transparent / off-white per the client's mail-list backdrop) | Per kit README "Shipping to production" — the outer canvas is a kit-mock-only treatment. Email clients impose their own list backdrop and we do not get to colour it consistently. The wrapper `<table>` in A1 carries `#f1efea` only inside the rendered area between the card and the email viewport edges; clients that fully background-fill (Gmail web) will render it, clients that do not (most webviews) fall back to their own backdrop. Acceptable per plan open-decision #1 default. |
+| 2 | Web fonts (Newsreader, Geist) | Loaded via `@font-face` | Stack fallback only (Georgia / Helvetica Neue / SF Mono) | Mandatory — email clients do not load web fonts. Kit's font choice is documentation-only. |
 | 3 | Flex / grid layouts | `display: flex`, `display: grid` | Nested `<table>` cells, `align="…"`, `width="…"` | Outlook on Windows ignores both. |
-| 4 | CSS custom properties (`var(--accent)`) | Used everywhere in kit CSS | Literal hex/px values inlined per element | Email clients (Gmail in particular) strip or modify `<style>` blocks and most don't support custom-property inheritance through them. |
+| 4 | CSS custom properties (`var(--accent)`) | Used everywhere in kit CSS | Literal hex/px values inlined per element | Email clients (Gmail in particular) strip or modify `<style>` blocks and most do not support custom-property inheritance through them. |
 | 5 | Pill CTA button | Single `<a>` with `border-radius: 999px` | `<a>` PLUS `<v:roundrect>` MSO/VML twin | Outlook 2007–2019 renders the `<a>` as a sharp rectangle. The VML twin is the equivalent rendering only Outlook sees. |
 | 6 | Preheader treatment | On-canvas mono microcopy ("Preview · …") | Hidden white-on-white `<div>` with figure-space padding | Kit shows the preheader for design review; production hides it so it only appears in the inbox preview line. |
 | 7 | Footer breadth | Single editorial footer (unsubscribe + preferences + help + privacy + address + ©) | TWO variants — transactional drops the link row | CAN-SPAM exempts transactional emails from unsubscribe; commercial / lifecycle must include it. Per open decision #4. |
 | 8 | Footer linkable surface | All footer links present on every template | Conditional collapse on `unsubscribe_href=null` | The `/unsubscribe?token=<jwt>` endpoint does not exist yet (open decision #6). Until it ships, the link collapses to avoid a 404. |
 | 9 | Dark-mode rendering | Not designed | Locked to light via `<meta name="color-scheme" content="light only">` and `supported-color-schemes` | Apple Mail / Gmail iOS auto-invert dark mode breaks pill buttons + accent links. Designing a dark variant is out of scope for the port; light-only is the safe default. |
 
----
-
-## §5 Open decisions (resolved before E1; only #11 stays open)
+### §5 Open decisions (resolved before E1; only #11 stays open)
 
 E0 applied the plan's default recommendations where the call was low-risk. **Decisions 1–7 are now resolved (operator call, 2026-05-21); only #11 (validation budget) remains, and it affects E3 only. E1 is unblocked.**
 
-### Resolved 2026-05-21 (operator)
+#### Resolved 2026-05-21 (operator)
 
 | # | Decision | Resolution |
 | --- | --- | --- |
@@ -659,24 +729,22 @@ E0 applied the plan's default recommendations where the call was low-risk. **Dec
 | 4 | Footer breadth | **All 9 templates use the transactional footer (A9a).** Operator chose transactional across the board — NO commercial unsubscribe/preferences row on any production template. A9b (commercial variant) stays in the catalog for reference but is **NOT wired to any template** in this port. |
 | 5 | Physical mailing address (`{{_t_legal_address}}`) | **"AssessIQ, Bangalore 560068, India"** — use verbatim in every template footer. |
 | 6 | Unsubscribe / preferences endpoint | **No page exists → omit the link entirely.** Pass `unsubscribe_href = null` so the A9 `{{#if}}` collapses the row. Never ship a link that 404s. The endpoint is a separate future proposal. (Consistent with #4 = transactional-only.) |
-| 7 | OTP code in preheader (`admin_email_otp`) | **Do NOT put the code in the preheader** — operator override of the plan's "leak it" default. The 6-digit code stays in the body only; the E2b preheader must be generic (e.g. "Your AssessIQ sign-in code is inside."). |
+| 7 | OTP code in preheader (`admin_email_otp`) | **Do NOT put the code in the preheader** — operator override of the plan's "leak it" default. The 6-digit code stays in the body only; the E2b preheader must be generic (for example, "Your AssessIQ sign-in code is inside."). |
 | 8 | Pulse newsletter as new product | **OUT OF SCOPE** (port covers existing `weekly_digest_admin` only). |
 | 9 | `attempt_ready_for_review_admin` anonymization | **Keep candidate name** (existing prod behaviour); tenant-level flag tracked as a separate proposal. |
 | 10 | Locale matrix beyond `en` | **OUT OF SCOPE** (i18n machinery preserved; no new locales authored). |
 
-### Still open
+#### Still open
 
 | # | Decision | Why still open |
 | --- | --- | --- |
 | 11 | **Litmus / Email on Acid budget** for E3. | $80-$150/month paid SaaS for one-month flat-fee validation, or manual matrix testing from real accounts. Affects E3 only — does NOT block E1/E2. Confirm with user before E3. |
 
-### Pre-port copy cleanup (shipped 2026-05-21, commit `c8efed3`)
+#### Pre-port copy cleanup (shipped 2026-05-21, commit `c8efed3`)
 
 Independent of E1–E4, the 9 production subject lines + several body strings were rewritten into plain English (operator copy review): removed `"quotes"` around assessment names, `(parens)` around tenant names, the `(TOTP)`/"enrolled" jargon, the `Attempt:`→`Reference:` microcopy, and em-dash subject separators. Auth templates (sign-in link, sign-in code) and all `{{placeholders}}` were left intact; content-layer only (no pipeline/schema/trigger change). **E2a/E2b MUST preserve this plain-English copy when restyling — do not regress to the old subjects.** 107 notifications tests + the updated `invitation_candidate` subject snapshot are green. Final subjects: see `modules/13-notifications/src/email/templates/*.txt` line 1.
 
----
-
-## §6 What E1 implements (the contract)
+### §6 What E1 implements (the contract)
 
 > **Implementation status (2026-05-21, `db7d931`):** E1 SHIPPED. The 11 atoms below are live as `modules/13-notifications/src/email/partials/*.html` (A9b/commercial footer omitted — operator chose all-transactional, decision #4). `render.ts` registers them + the `concat` helper at init and derives `meta_rows` / `copyright_year` via `augmentContext()` (Zod schemas unchanged → no `sendEmail()` call-site changes); `assertSafeMetaRows()` enforces the §2 A7 allow-list. `i18n.ts` `buildVars()` merges the `_shared` namespace (`en.json._shared.legal_address = "Bangalore 560068, India"`). **E2a + E2b COMPLETE (`db7d931` + `ed8252f`, 2026-05-21):** all 9 templates compose the kit partials, are deployed (api+worker), and the full sample set was sent for review. `weekly_digest_admin` uses a bespoke kit-styled stats table (not the meta-card) so the pending-review count keeps `#e64242`; `totp_enrolled` keeps the security warning in `#e64242`; `admin_email_otp` renders the code in a large mono block and never leaks it to the preheader (decision #7). E3 = operator manual inbox review (free path; Litmus deferred).
 
@@ -704,7 +772,7 @@ The 9 existing templates in `modules/13-notifications/src/email/templates/` are 
 
 Helpers E1 must register: `concat` (~5 lines, string join for serif H1 composition in templates). **No `partial` helper** — block partials are built-in Handlebars and need no helper. **No `ifEquals` helper** either — A5's `size` variant is implemented by splitting `email-lede` into two partials (see §6.1) instead of a runtime conditional.
 
-### §6.1 i18n keys — what exists today vs what E1 must add
+#### §6.1 i18n keys — what exists today vs what E1 must add
 
 **Verified against** [`modules/13-notifications/src/email/strings/en.json`](../modules/13-notifications/src/email/strings/en.json) **on 2026-05-21.** The file is **per-template namespaced** (not flat) — keys nest under `<template_name>.<key>`, and the `buildVars()` resolver in [`i18n.ts`](../modules/13-notifications/src/email/i18n.ts) flattens them to `_t_<key>` at render time.
 
@@ -736,9 +804,7 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 
 **`cta` is already per-template** — every template's existing `<template>.cta` key is reused as-is. The partials reference `{{_t_cta}}` which resolves per-template via the existing buildVars flow.
 
----
-
-## §7 Cross-references
+### §7 Cross-references
 
 - Plan: [`docs/plans/archive/EMAIL_KIT_PORT.md`](plans/archive/EMAIL_KIT_PORT.md) — phases E0–E4, anti-pattern guards, open decisions.
 - Kit source: [`modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/`](../modules/17-ui-system/AssessIQ_UI_Template/AssessIQ-Email-Kit/) — atoms, tokens, kit-readme.
@@ -747,9 +813,7 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 - Module reference: [`modules/13-notifications/SKILL.md`](../modules/13-notifications/SKILL.md) — send pipeline contract, BullMQ + email_log invariants.
 - Token base (SPA, NOT email): [`modules/17-ui-system/src/styles/tokens.css`](../modules/17-ui-system/src/styles/tokens.css) — separate visual layer; not loadable by email clients.
 
----
-
-## §8 Acceptance — E0 is DONE when
+### §8 Acceptance — E0 is DONE when
 
 - [x] Resolved token table covers every property kit-or-production touched (§1).
 - [x] 11 atoms designed as inline-styled table HTML with documented inputs (§2 A1–A10, A5 split into editorial + short).
@@ -768,45 +832,3 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 E1 cannot start until decision #5 is resolved (the footer partial needs the literal address baked in). Decisions #7 (OTP preheader) and #11 (Litmus budget) can be deferred — they affect E2b and E3 respectively, both downstream of E1.
 
 — *AssessIQ · E0 foundation · 2026-05-21*
-
----
-
-## §7 Delivery: classes, retries, timeouts (2026-10-01)
-
-Templates are rendered as described above. Delivery is a BullMQ `email.send` job on the worker queue (`modules/13-notifications/src/email/index.ts`), and the policy lives in `email/delivery-policy.ts`.
-
-- **Auth mail** (`admin_email_otp`, `candidate_login_link`, `invitation_admin`):
-  - no job priority, so it runs before bulk mail;
-  - 5 attempts, exponential from 5 s. Codes expire, so there are no long retries.
-- **Bulk mail** (every other template: candidate invitations, result released, evaluation queue alert, …):
-  - priority 100;
-  - 11 attempts over about 45 h (1m, 5m, 15m, 1h, 2h, 4h, 6h, 8h, 12h, 12h), so hitting the provider's daily limit delays mail instead of losing it.
-- **Permanent recipient errors** (SMTP 5.1.x) fail at once.
-- **`email_log.status`:** `queued` between retries, `sent` on delivery, `failed` only when final. These writes persist since migration 0121.
-- **Timeouts:** SMTP connection 10 s, greeting 10 s, socket 30 s. They are appended to `SMTP_URL` unless set there, so a hung connection cannot hold the single worker slot.
-- **A new template must be classified:** `EMAIL_CLASS` is a `Record<EmailTemplateName, …>`, so a new template does not compile until it is marked auth or bulk.
-- **More:** log events and triage are in `docs/11-observability.md` § 35. Plan capacity (300/day on the shared free plan) is an owner decision; see `docs/ROADMAP.md` A5 (local).
-
-## §8 Sender-domain startup assertion (RW-37)
-
-- **What:** `EMAIL_VERIFIED_DOMAINS` is a comma-separated list of sender domains verified with the SMTP provider (SPF/DKIM). It is parsed in `modules/00-core/src/config.ts` into a lowercase array.
-- **Why:** an `EMAIL_FROM` on an unverified domain fails DMARC, and receivers drop the mail without notice (RCA 2026-05-24).
-- **Behavior:** A `superRefine` rule in `modules/00-core/src/config.ts` runs when any process loads config. This covers the API and the worker. When `NODE_ENV=production`, `EMAIL_FROM` must be exactly one mailbox (`addr@domain` or `Name <addr@domain>`; no comma, semicolon or second `@`), and its domain must appear in the list. If not, config load fails with an error that names both values. Other `NODE_ENV` values skip the check.
-- **Default:** empty. In production this means boot fails until you set it.
-- **Set on the VPS:** add `EMAIL_VERIFIED_DOMAINS=assessiq.in` to `/srv/assessiq/.env`. Then recreate `assessiq-api` and `assessiq-worker` with `up -d --no-deps --force-recreate`.
-- **Rollback:** add the domain to `EMAIL_VERIFIED_DOMAINS` and recreate `assessiq-api` and `assessiq-worker`. Do not unset `NODE_ENV`: it has no default and boot fails without it.
-- **Not included:** the check does not query the provider. It trusts the operator list. Per-tenant `from_address` is not checked.
-
-## §9 Template `totp_reset_notice` (RW-91, S10, 2026-10-16)
-
-Closed-enum template `totp_reset_notice`. It tells a user that an administrator reset their two-factor sign-in.
-
-- **Trigger.** `sendTotpResetNoticeEmail` (`modules/13-notifications/src/email/totp-reset-notice.ts`) runs after a reset returns. Both reset routes call it: `POST /api/admin/users/:userId/totp/reset` (tenant admin) and the super-admin route. The route helper `notifyTotpReset` in `apps/api/src/routes/admin-users-totp-reset.ts` logs a send failure and never fails the reset.
-- **Subject.** "Your two-factor sign-in was reset".
-- **Vars** (`TotpResetNoticeVarsSchema` in `src/types.ts`). `recipientName` (the user name, or the email if the name is empty). `resetAt` (UTC string, `Date.toUTCString()`). `resetBy` (a role label: "an administrator" or "a platform administrator").
-- **Content rule.** The notice has no secret, no code, no actor name and no link. The meta card shows "Reset on" and "Reset by". The body tells the user to sign in as usual and to set up two-factor again.
-- **Delivery class.** `bulk` (`email/delivery-policy.ts`). The mail is a notice, not a code, so a delay is acceptable and long retries help.
-- **Files.** `templates/totp_reset_notice.html` and `.txt`. The meta rows are in `render.ts` (`case 'totp_reset_notice'`).
-- **Rejected.** A link to the account page: the notice must not give a click target. The actor name: the role label is enough for the user.
-- **Not included.** A notice to the actor. A retry outside the normal bulk retries. A tenant-specific wording.
-- **Downstream impact.** The earlier count of 9 templates in this page is history. Flow and rationale: [04-auth-flows.md](04-auth-flows.md) § "Self-service MFA".
