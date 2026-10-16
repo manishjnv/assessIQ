@@ -7,6 +7,7 @@ import {
   rotateWebhookSecret,
 } from '@assessiq/embed-sdk';
 import { authChain } from '../middleware/auth-chain.js';
+import { requireTier } from '../middleware/require-tier.js';
 
 // Embed admin routes — origins CRUD + webhook secret rotation.
 //
@@ -20,6 +21,9 @@ import { authChain } from '../middleware/auth-chain.js';
 //   POST   /api/admin/webhook-secrets/rotate   — rotate webhook HMAC-256 secret
 
 const ADMIN_ONLY = authChain({ roles: ['admin'] });
+// PT1: embed is an Enterprise feature (no-op until PLAN_TIERS_ENFORCED). Only list/add are gated;
+// removing an origin and rotating the webhook secret stay open so a downgraded tenant can clean up.
+const ADMIN_EMBED = [...ADMIN_ONLY, requireTier('embed')];
 
 const addOriginBodySchema = {
   type: 'object',
@@ -45,7 +49,7 @@ export async function registerEmbedAdminRoutes(
     '/api/admin/embed-origins',
     {
       config: { skipAuth: true },
-      preHandler: ADMIN_ONLY,
+      preHandler: ADMIN_EMBED,
     },
     async (req) => {
       const sess = req.session!;
@@ -62,7 +66,7 @@ export async function registerEmbedAdminRoutes(
     {
       config: { skipAuth: true },
       schema: { body: addOriginBodySchema },
-      preHandler: ADMIN_ONLY,
+      preHandler: ADMIN_EMBED,
     },
     async (req, reply) => {
       const sess = req.session!;

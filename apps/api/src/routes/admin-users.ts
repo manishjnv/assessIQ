@@ -16,6 +16,7 @@ import { logLifecycleEvent, sessions } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
 import { eraseCandidatePii, exportCandidateData } from '@assessiq/data-rights';
 import { authChain } from '../middleware/auth-chain.js';
+import { assertInviteWithinTier } from '../middleware/require-tier.js';
 import {
   parseBody,
   parseParams,
@@ -176,6 +177,8 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
             { details: { code: 'INVALID_STATE_TRANSITION', current: a.status } },
           );
         }
+        // PT-4: Starter credit hard cap + candidates-per-drive cap (no-op until PLAN_TIERS_ENFORCED).
+        await assertInviteWithinTier(tenantId, assessmentId, validRows);
       }
 
       const imp = await importCandidates(tenantId, body.csv, userId);

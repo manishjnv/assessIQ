@@ -154,6 +154,11 @@ const ConfigSchema = z
     ENABLE_E2E_TEST_MINTER: z
       .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
       .transform((s) => s === "true"),
+    // PT1: plan-tier gates and limits (modules/19-billing). false = every gate
+    // is a no-op and the API behaves as before tiers existed.
+    PLAN_TIERS_ENFORCED: z
+      .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
+      .transform((s) => s === "true"),
     // Sibling dev-only flag read directly by apps/api/src/routes/auth/embed.ts
     // (=== '1'). Declared here so the production refine below covers it too.
     ENABLE_EMBED_TEST_MINTER: z

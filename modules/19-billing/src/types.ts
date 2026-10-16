@@ -10,6 +10,8 @@ export interface TenantPlanRow {
   tier: PlanTier;
   included_credits: number | null;
   status: 'active' | 'suspended';
+  /** PT-4: per-tenant override of AI answers included; null = tier default. */
+  ai_answers_included_override?: number | null;
 }
 
 /**
@@ -22,8 +24,18 @@ export interface TenantPlanRow {
  */
 export type UsageStatus = 'ok' | 'warn' | 'over' | 'unlimited';
 
+/** PT-4: per-tier limits as shown to the tenant (null = unlimited / not capped). */
+export interface TierLimitsView {
+  licensed_packs: number | null;
+  per_drive_candidates: number | null;
+  overage_hard_cap_ratio: number | null;
+}
+
 export interface BillingUsage {
   tier: PlanTier;
+  /** PT-4: the limits for this tier, and whether they are enforced now. */
+  tier_limits: TierLimitsView;
+  tiers_enforced: boolean;
   included_credits: number | null;
   used: number;
   remaining: number | null;  // null => unlimited
@@ -87,6 +99,8 @@ export interface TenantBillingDetail {
 export interface UpdateTenantPlanPatch {
   tier?: PlanTier;
   includedCredits?: number | null;
+  /** PT-4: null clears the override (tier default applies). */
+  aiAnswersIncludedOverride?: number | null;
 }
 
 /** Return shape of updateTenantPlan. */

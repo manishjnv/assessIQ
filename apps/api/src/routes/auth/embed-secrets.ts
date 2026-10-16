@@ -9,6 +9,7 @@ import { audit } from '@assessiq/audit-log';
 import { isPrivacyDisclosed } from '@assessiq/tenancy';
 import { AppError } from '@assessiq/core';
 import { authChain } from '../../middleware/auth-chain.js';
+import { requireTier } from '../../middleware/require-tier.js';
 import { parseParams, idParams } from '../_validate.js';
 
 // Embed-secret admin endpoints. Library handles AES-256-GCM envelope under
@@ -36,7 +37,7 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
     '/api/admin/embed-secrets',
     {
       config: { skipAuth: true },
-      preHandler: authChain({ roles: ['admin'] }),
+      preHandler: [...authChain({ roles: ['admin'] }), requireTier('embed')],
     },
     async (req) => {
       const sess = req.session!;
@@ -52,7 +53,7 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
     {
       config: { skipAuth: true },
       schema: { body: createBodySchema },
-      preHandler: authChain({ roles: ['admin'], freshMfaWithinMinutes: FRESH_MFA_MINUTES }),
+      preHandler: [...authChain({ roles: ['admin'], freshMfaWithinMinutes: FRESH_MFA_MINUTES }), requireTier('embed')],
     },
     async (req, reply) => {
       const sess = req.session!;
@@ -94,6 +95,7 @@ export async function registerEmbedSecretsRoutes(app: FastifyInstance): Promise<
     '/api/admin/embed-secrets/:id/rotate',
     {
       config: { skipAuth: true },
+      // PT1: rotate/delete stay ungated so a downgraded tenant can retire a leaked secret.
       preHandler: authChain({ roles: ['admin'], freshMfaWithinMinutes: FRESH_MFA_MINUTES }),
     },
     async (req) => {

@@ -5,10 +5,12 @@ import type { FastifyInstance } from 'fastify';
 import { parseBody, parseParams, tenantIdParams } from '../_validate.js';
 import { updatePlanBody, entitlementScopeBody } from '../_schemas.js';
 import { assertTenantActive } from '@assessiq/tenancy';
+import { config } from '@assessiq/core';
 import {
   getTenantBillingDetail,
   getTenantBillingEventsCsv,
   updateTenantPlan,
+  assertTierLimit,
   listTenantEntitlements,
   listTenantContentScopes,
   grantEntitlement,
@@ -101,13 +103,14 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
       // Guard against a missing/null PATCH body (empty PATCH → no-op revalidate,
       // never a TypeError 500). Mirrors the ai-generate-mode `body?.` idiom.
       const body = parseBody(updatePlanBody, req.body, {
-        code: { tier: 'INVALID_TIER', includedCredits: 'INVALID_CREDITS' },
+        code: { tier: 'INVALID_TIER', includedCredits: 'INVALID_CREDITS', aiAnswersIncludedOverride: 'INVALID_AI_ANSWERS_OVERRIDE' },
       });
 
       // Domain validation is fully delegated to updateTenantPlan.
       const patch: UpdateTenantPlanPatch = {};
       if (body.tier !== undefined) patch.tier = body.tier as PlanTier;
       if (body.includedCredits !== undefined) patch.includedCredits = body.includedCredits;
+      if (body.aiAnswersIncludedOverride !== undefined) patch.aiAnswersIncludedOverride = body.aiAnswersIncludedOverride;
 
       const result = await updateTenantPlan(req.session!.userId, tenantId, patch);
       return reply.code(200).send(result);
@@ -190,6 +193,14 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
       await assertTenantActive(tenantId);
       // Domain validation of the scope itself is delegated to grantEntitlement.
       const body = parseBody(entitlementScopeBody, req.body, { code: 'INVALID_SCOPE' });
+
+      // PT-4: Starter licensed-pack cap. A re-grant of an already-active scope adds nothing.
+      if (config.PLAN_TIERS_ENFORCED) {
+        const active = (await listTenantEntitlements(tenantId)).filter((e) => e.status === 'active');
+        if (!active.some((e) => e.scope_type === body.scopeType && e.scope_id === body.scopeId)) {
+          await assertTierLimit(tenantId, 'licensed_packs', active.length);
+        }
+      }
 
       const result = await grantEntitlement(req.session!.userId, tenantId, {
         scopeType: body.scopeType as EntitlementScopeType,

@@ -366,6 +366,49 @@ export function AdminBilling(): React.ReactElement {
                 {msg !== null && (
                   <p style={{ ...BODY_SM, color: statusColor, margin: 0 }}>{msg.text}</p>
                 )}
+
+                {/* PT-4: plan limits (shown even while not enforced) */}
+                {companyUsage.tier_limits !== undefined && (() => {
+                  const lim = companyUsage.tier_limits;
+                  const cap =
+                    lim.overage_hard_cap_ratio !== null
+                      ? `${Math.round(lim.overage_hard_cap_ratio * 100)} % of included`
+                      : companyUsage.tier === "enterprise"
+                        ? "Contract"
+                        : companyUsage.tier === "internal"
+                          ? "No cap"
+                          : "Billed per credit";
+                  return (
+                    <div data-help-id="admin.settings.billing.limits" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+                      <p style={{ ...BODY_SM, fontWeight: 600 }}>Plan limits</p>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "var(--aiq-space-md)" }}>
+                        <div>
+                          <p style={MUTED_SM}>Licensed packs</p>
+                          <p style={{ ...BODY_SM, fontWeight: 600 }}>{lim.licensed_packs ?? "Unlimited"}</p>
+                        </div>
+                        <div>
+                          <p style={MUTED_SM}>Candidates per drive</p>
+                          <p style={{ ...BODY_SM, fontWeight: 600 }}>{lim.per_drive_candidates ?? "Unlimited"}</p>
+                        </div>
+                        <div>
+                          <p style={MUTED_SM}>Overage cap</p>
+                          <p style={{ ...BODY_SM, fontWeight: 600 }}>{cap}</p>
+                        </div>
+                        <div>
+                          <p style={MUTED_SM}>AI answers used / included</p>
+                          <p style={{ ...BODY_SM, fontWeight: 600 }}>
+                            {companyUsage.ai_answers_used ?? 0} / {companyUsage.ai_answers_included ?? "no cap"}
+                          </p>
+                        </div>
+                      </div>
+                      {companyUsage.tiers_enforced === false && (
+                        <p data-help-id="admin.settings.billing.limits.enforced" style={MUTED_SM}>
+                          Plan limits are shown for information and are not enforced yet.
+                        </p>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </Card>
           );
