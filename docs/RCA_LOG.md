@@ -4,6 +4,20 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-16 — Three RW-25 admin pages used hyphenated help ids, so their help text could never load
+
+**Symptom:** on `/admin/audit-log`, `/admin/embed-config` and the webhooks delivery log, the tooltip and the help drawer were empty for every element. 23 element ids on these pages had no YAML key at all (found by a script in S13).
+**Cause:** the RW-25 pages (2026-10-09) shipped ids such as `admin.audit-log.filters`, `admin.embed-config.origins` and `admin.webhooks.delivery-log`. `isValidHelpKey` (`modules/16-help-system/src/service.ts:207`) rejects a hyphenated segment, so no row with that key can exist (same class as RCA 2026-10-03 "Two help page ids with a hyphen"). The guard test `help-id-page-prefix.test.ts` skips a page that sets no `helpPage`, and none of the three pages set one.
+**Fix:** ids renamed to `admin.audit.*`, `admin.embed.*` and `admin.webhooks.deliveries` (reuses the existing key); `helpPage` set on the three pages (`modules/10-admin-dashboard/src/pages/audit-log.tsx`, `embed-config.tsx`, `webhooks.tsx`); 27 keys added to `content/en/admin.yml` and `candidate.yml`; migration `modules/16-help-system/migrations/0182_s13_audit_embed_webhooks_framework_help.sql`; the stale "available soon" texts of `admin.audit`, `admin.audit.archives` and `admin.audit.export.format` bumped.
+**Prevention:** `help-id-page-prefix.test.ts` now also fails on any `data-help-id` that `isValidHelpKey` rejects, for every page in `modules/10-admin-dashboard/src/pages` and `apps/web/src/pages`, with or without `helpPage`.
+
+## 2026-10-16 — Embed config page rotated the webhook key under the label "API Secret"
+
+**Symptom:** "Regenerate" on `/admin/embed-config` returned a new webhook signing key. The embed token signing secrets (`embed_secrets`, `modules/01-auth/src/embed-jwt.ts`) had no admin screen, so an integrator could not create or rotate the secret that `mintEmbedToken` needs.
+**Cause:** the RW-25 brief named a route `/admin/integrations/embed` that did not exist; the page (`modules/10-admin-dashboard/src/pages/embed-config.tsx`) was wired to `POST /api/admin/webhook-secrets/rotate` instead, and the label hid the difference. `lint:ui-api-contract` checks that a route exists, not that it is the right one.
+**Fix:** the page now lists, creates, rotates and deletes embed secrets through `GET/POST /api/admin/embed-secrets`, `POST /:id/rotate`, `DELETE /:id`, shows a new secret once, and keeps the old card as "Webhook secret" (Rule A). Test `modules/10-admin-dashboard/src/__tests__/embed-config.test.tsx`.
+**Prevention:** manual discipline: a brief that names a route must be checked against `docs/03-api-contract.md` before the page is wired; the Rule B compare in S13 found it.
+
 ## 2026-10-15 — Generation ignored subject, category and topic focus
 
 **Symptom:** a production run on 2026-10-15 for subject "Phishing" and category "Email Header Analysis" produced CVSS questions.

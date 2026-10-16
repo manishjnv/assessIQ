@@ -311,3 +311,19 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
   - `resync-types.ts`: `CloneQuestionRow`, `ResyncResult`.
   - `taxonomy.ts`: `provisionPlatformTaxonomyForQuestions`, `buildTaxonomyResolver`, `stableJson`.
 - **Not included.** Any behaviour change. Tests and callers are unchanged.
+
+## Taxonomy writes and pack filter (RW-61, S13, 2026-10-16)
+
+**What changed.** `src/taxonomy-routes.ts` has three new routes (facts in `docs/03-api-contract.md` § "Question and pack taxonomy routes (RW-61)").
+- `GET /api/admin/questions/:id/taxonomy` returns `{ node_ids, nodes }`. Any admin.
+- `PUT /api/admin/questions/:id/taxonomy` takes `{ node_ids }` (at most 50, deduplicated). Super admin only. It checks that the question exists (404) and that every node is visible to the tenant (400). Foreign-key checks skip row-level security, so this check is the guard. Then it runs `DELETE` and `INSERT` on `question_taxonomy`, and `auditInTx` writes one `question.updated` row with `before` and `after` = `{ kind: 'taxonomy', node_ids }`.
+- `GET /api/admin/packs/:id/taxonomy?node_id=` returns `{ items: [{ question_id, node_id }] }`. A recursive query adds all descendants of `node_id`.
+- `handleAdminListDomains` now selects `node_id` (`handlers/admin-domains.ts`; type `DomainRow.node_id`).
+
+**Why.** The picker (`docs/08-ui-system.md` § "Framework tree picker (RW-61, S13)") needs to read and write links. Question authoring is platform-only, so only a super admin writes.
+
+**Considered and rejected.** A new audit action `question.taxonomy.updated`: the catalog has none, so the code reuses `question.updated` with `kind: 'taxonomy'` (the `save_rubric` pattern). Add the action when the catalog next changes. A merge-style write (the picker always sends the full set). Tenant writes (owner decision: tenants never author taxonomy).
+
+**Not included.** Tenant node authoring. Links per level. Bulk edits. New generation parameters. Any change to clone and resync behaviour: they keep their own taxonomy code.
+
+**Downstream impact.** The `PUT` route does not change question versions or pack snapshots. Clients of the domain list get an extra `node_id` field. Audit readers see `question.updated` rows with `kind: 'taxonomy'`.

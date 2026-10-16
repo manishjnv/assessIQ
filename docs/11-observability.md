@@ -1787,6 +1787,35 @@ Both jobs run on the `assessiq-cron` queue in the `assessiq-worker` container. T
 - **Quiet ticks.** `tenant-purge-cron` writes the line `tenant-purge-cron tick` (`dryRun`, `candidates`, `purged`, `failed`) only when it finds at least one candidate tenant.
 - **Not included.** An alert on `generation.stale_sweep`. The count is a signal for a manual look, not a page.
 
+## 38. Audit export, embed SDK and candidate notice events (S13, 2026-10-16)
+
+### 38.1 Key log events
+
+| Event (`msg`) | Level | Stream | When |
+|---|---|---|---|
+| `audit.exportCsv: starting streaming export` | info | app | An admin started a CSV export (`tenantId`). One line for each call. |
+| `audit.exportJsonl: starting streaming export` | info | app | Same for JSONL. The archive route does not stream, so it does not write this line. The follow-up download does. |
+| `embed.sdk.fallback_stub` | warn | app | At API start. The built file `apps/api/public/embed/sdk.js` could not be read (`file`). `GET /embed/sdk.js` serves the old inline stub. Fix: rebuild the SDK and redeploy. |
+| `in-app.result_released.failed` | error | app | The post-commit candidate notice insert threw. The release stands. The candidate sees no banner. |
+| `in-app.result_released.skipped_no_user` | info | app | The attempt has no `user_id`. No notice is written. |
+| `in-app.notification.created` | info | app | Unchanged. `notifyInApp()` inserted a row. The candidate notice also writes this line. |
+
+Related warning: `business-event: not inside withTenant, candidate notice not sent` (warn). It means the producer ran outside a tenant transaction. This is a code bug.
+
+### 38.2 Audit actions
+
+| Action | Written by | `after` | Note |
+|---|---|---|---|
+| `audit.exported` | `GET /api/admin/audit/export.csv` and `.jsonl` (`modules/14-audit-log/src/routes.ts`) | `{ format, filters, limit, truncated }` | One row for each call. Written before the stream starts, in its own short transaction. Holds no audit row contents. |
+| `audit.archived` | `POST /api/admin/audit/archive` | `{ from, to, row_count, format, export_path }` | One row for each call. Deletes and changes nothing. |
+| `question.updated` | `PUT /api/admin/questions/:id/taxonomy` | `{ kind: 'taxonomy', node_ids }` | `before` has the same shape. Written in the same transaction as the link change. |
+
+### 38.3 Triage
+
+- **A header shows `X-Export-Truncated: true`.** The range holds more than `limit` rows. Narrow the range. This is not an error.
+- **The admin sees two audit rows for one archive click.** This is correct: `audit.archived`, then `audit.exported` for the download.
+- **A candidate has no "new result" banner.** 1) Search the app log for `in-app.result_released.failed` or `.skipped_no_user` at the release time. 2) Check `in_app_notifications` for a row with `kind = 'result.released'` and the user id. 3) Check that `read_at` is empty.
+
 ## Change history
 
 This table indexes every dated change on this page. The sections above hold the detail.
@@ -1806,3 +1835,4 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-11 | `system-role.tx` log event. One cross-tenant query for each tick (RW-39) | `67ad882` | §§ 8, 13.2 |
 | unknown | `GET /api/ready` readiness probe (RW-9) | n/a | § 36 |
 | 2026-10-16 | Generation log events (`generation.stale_sweep`, `generation.difficulty.warn.failed`, `generation.detached.*`). Worker jobs `generation-stale-sweep` and `tenant-purge-cron` | (S10, 2026-10-16) | § 37 |
+| 2026-10-16 | Audit export and archive events and audit actions. Embed SDK fallback log. Candidate result notice log lines | (S13, 2026-10-16) | § 38 |

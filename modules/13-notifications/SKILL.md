@@ -248,3 +248,23 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 - **Why.** The copy pass (RW-87) found contractions and mixed spelling in mail the candidate reads.
 - **Erasure.** The data-rights module now overwrites `email_log.subject`, `body_text` and `body_html` with `'[erased]'` and clears `last_error` for the mails of an erased address (RW-98). Do not rely on old bodies for support lookups after an erasure. Detail: `modules/20-data-rights/SKILL.md`.
 - **Not included.** A lint for contractions in templates. A scrub of mails sent to other addresses.
+
+## Candidate result notice (Z-3, S13, 2026-10-16)
+
+**What changed.**
+- Producer: `notifyCandidateResultReleasedAfterCommit(client, tenantId, attemptId)` in `src/webhooks/business-events.ts`, exported from `src/index.ts`. `releaseAttemptInTx` (`modules/09-scoring/src/release.ts`) calls it after `emitAttemptEventAfterCommit`.
+- It reads `attempts.user_id` in the open transaction. After commit it calls `notifyInApp` with audience `user`, kind `result.released`, message "A new result is published." and link `/candidate/results`.
+- It never throws. It logs `in-app.result_released.failed` or `in-app.result_released.skipped_no_user`.
+- Routes in `src/routes.ts`, registered only when `registerNotificationsRoutes` gets the option `candidateOnly` (`apps/api/src/server.ts` passes the candidate chain):
+  - `GET /api/me/notifications?unread=&since=&limit=` returns `{ items, cursor, unread_count }`.
+  - `POST /api/me/notifications/mark-read` takes a strict body `{ ids?, kind? }` and returns `{ updated }`.
+- Repository: `listInAppNotificationsForUser` gained `unreadOnly`. New `countUnreadInAppNotifications` and `markInAppNotificationsRead`. The bulk update touches only `audience = 'user'` rows of the caller.
+- Candidate UI: banner in `CandidateShell`, mark-read in `MyResults` (`docs/08-ui-system.md` § "Candidate new-result banner (Z-3, S13)").
+
+**Why.** A candidate learned of a published result only by email.
+
+**Considered and rejected.** Polling (one fetch after sign-in is enough). Reuse of the admin `mark-read` route (it can clear role and all-user rows). A producer inside the release code (a failure there could roll back the release).
+
+**Not included.** A candidate bell. Notices for other events. Email changes. Webhook changes. The S13 webhooks page change is page-only.
+
+**Downstream impact.** `unread_count` counts only unread `result.released` rows of the caller. `items` can also hold role and all-user rows for the candidate role. Log lines: `docs/11-observability.md` § 38. Route facts: `docs/03-api-contract.md` § "Candidate notifications (Z-3)". Help key: `candidate.shell.new_results_notice` (migration `0182`).

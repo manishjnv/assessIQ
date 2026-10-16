@@ -507,3 +507,30 @@ The Phase 0 pre-flight read found three spec drifts between existing docs and wh
 ## Security review note
 
 This addendum was authored in a **Sonnet-only pre-flight session** (2026-05-03, user instruction). Per CLAUDE.md load-bearing-paths rule, Phase 4 will touch `modules/01-auth/` (sessionLoader changes in D6, `SameSite=None` option in D7) and MUST gate those specific changes with Opus diff review + `codex:rescue` adversarial sign-off before push. This pre-flight session makes **zero changes** to `modules/01-auth/`.
+
+## RV44: the built SDK is the served file (S13, 2026-10-16)
+
+**What changed.**
+- `packages/embed-sdk/build.mjs` bundles `src/browser.ts` with esbuild (found through `apps/web`'s vite install). The output is an IIFE, minified, with the banner `/* @assessiq/embed <version> */`. It is committed at `apps/api/public/embed/sdk.js`.
+- `src/browser.ts` sets `window.AssessIQ = { version, mount, buildUrl }`.
+- `GET /embed/sdk.js` (`apps/api/src/routes/auth/embed.ts`) reads that file once at load. It sends `X-AssessIQ-SDK-Version`, a SHA-1 `ETag`, `Cache-Control: public, max-age=3600`, and `304` on a matching `If-None-Match`.
+- The old inline stub stays as a fallback only (Rule A). The server logs `embed.sdk.fallback_stub` once when the file is missing.
+- `mount` has two new options: `onBlocked()` and `readyTimeoutMs` (default 15000). A browser does not report a frame that `X-Frame-Options` or `frame-ancestors` blocks. A missing `aiq.ready` is the practical signal.
+- Tests: `packages/embed-sdk/src/__tests__/build.test.ts` (the committed file must equal a fresh build), the mount tests, and `apps/api/src/__tests__/routes/embed-headers.test.ts`.
+
+**Why.** D10 promised a compiled SDK at `/embed/sdk.js`. The route served a stub, and the package was dead code. Rule B result: keep the package as the served artifact; the stub is superseded.
+
+**Considered and rejected.** Build in the API image (the image never runs a build). Delete the stub (Rule A). Publish to a CDN (D10 keeps the AssessIQ origin).
+
+**Not included.**
+- No caller for `verifyEmbedOrigin` (`src/origin-verifier.ts`). The SPA filters inbound messages with `window.__AIQ_EMBED_CONFIG__` (`apps/web/src/lib/embedBus.ts`). Nothing injects that value today, so the filter is open. **Open item.**
+- No production route that mints a test token. `/embed/sdk-mint` stays dev-only.
+- No change to the D12 version check (`EMBED_SDK_MIN_VERSION`).
+
+**Open items.**
+1. FU-B13, Caddy edge: owner-gated, not done. The API side is confirmed (per-tenant `frame-ancestors`, no `X-Frame-Options`, fail closed).
+2. The CSP is set on the `/embed` 302 response. It is not on the final `/take/a/:id?embed=true` document that the frontend container serves. The iframe flow needs that page to carry the tenant CSP. Design not decided.
+3. Inject `window.__AIQ_EMBED_CONFIG__` (see above).
+4. A test token for the admin page.
+
+**Downstream impact.** Rebuild the bundle after every SDK source change, and commit it. The admin Embed page (`docs/08-ui-system.md` § "Embed page tails (S13)") now manages embed secrets and shows a snippet that loads `/embed/sdk.js`. Route facts: `docs/03-api-contract.md` § "S13 additions (2026-10-16)".

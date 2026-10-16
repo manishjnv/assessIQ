@@ -106,3 +106,22 @@ The audit export now prefixes a cell that starts with `= + - @` with `'` (one un
 ## `auditInTx` fan-out after commit (FR2 FU-B5, 2026-10-03)
 
 `auditInTx` registers `fanoutAuditEvent` through `onCommit` (module 02). The webhook event is sent after the transaction commits, never on rollback. All `auditInTx` actions now reach webhook endpoints, including `audit.grading.released`. The payload carries ids only. The audit row itself is unchanged. Not included: business events (FU-B6).
+
+## Export cap, self-audit and archive (FR1, FU-B2, S13, 2026-10-16)
+
+**What changed.**
+- `exportCsv` and `exportJsonl` take `limit` (default and ceiling `EXPORT_ROW_LIMIT` = 100000). The stream query adds `LIMIT`.
+- `countForExport(tenantId, filters, limit)` counts at most `limit + 1` rows and returns `{ rowCount, truncated }`. It is the pre-flight for both exports and the archive.
+- `exportJsonl` takes `truncated`. When true it ends the stream with `{"_note":"truncated","limit":N,"hint":"..."}`. CSV has no note. The route sets `X-Export-Truncated`.
+- Each export writes one `audit.exported` row before the stream starts, in its own short `withTenant` transaction. An export is read-only, so no mutation transaction exists to join. The row holds `{ format, filters, limit, truncated }`, never row contents.
+- `POST /api/admin/audit/archive` writes one `audit.archived` row (`{ from, to, row_count, format, export_path }`) and returns `{ archive_id, row_count, truncated, export_url }`. Archive means export plus mark. It deletes and changes no row.
+- `ACTION_CATALOG` gained `audit.exported` and `audit.archived`.
+- Admin page: `modules/10-admin-dashboard/src/pages/audit-log.tsx`.
+
+**Why.** Owner decision FR1 (2026-10-03): cap exports, audit them, and delete nothing yet. An unbounded export could hold a cursor for millions of rows.
+
+**Considered and rejected.** An error above the cap (the admin gets nothing). A full `COUNT(*)` (scans the whole range). Joining an outer transaction for the export row (none exists). Deleting rows on archive (the app role cannot delete `audit_log` rows).
+
+**Not included.** Deletion of archived rows. The S3 archive job (`archive-job.ts`, parked). A CSV note line. A restore flow. A cap on the list route.
+
+**Downstream impact.** An archive click that follows `export_url` writes `audit.archived` and then `audit.exported`. Anyone who counts audit rows by action sees both. Log lines and triage: `docs/11-observability.md` § 38. Route facts: `docs/03-api-contract.md` § "S13 additions (2026-10-16)".
