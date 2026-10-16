@@ -132,7 +132,7 @@ export function AdminQuestionImport(): React.ReactElement {
       if (r) {
         setPackId(r.packId);
         try {
-          const list = await listQuestionsApi({ pack_id: r.packId, pageSize: 200 });
+          const list = await listQuestionsApi({ pack_id: r.packId, pageSize: 500 });
           setNeedRubric(list.items.filter((q) => (q.type === "subjective" || q.type === "scenario")
             && (q.rubric === null || q.rubric === undefined || Object.keys(q.rubric).length === 0)));
         } catch { /* non-critical: the rubric step is hidden */ }

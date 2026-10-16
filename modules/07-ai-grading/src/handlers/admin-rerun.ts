@@ -319,6 +319,10 @@ export async function handleAdminRerun(
     await withTenant(tenantId, async (client) => {
       // RW-7: re-check pause inside the write tx (pause may land during the AI call).
       await assertTenantAiEnabled(client, tenantId);
+      // RW-95: last check before the write; a lease lost during the pause re-check must not write.
+      if (slot.signal.aborted) {
+        throw new AppError("AI grading aborted: single-flight lease lost", AI_GRADING_ERROR_CODES.LEASE_LOST, 503);
+      }
       if (reevaluation) {
         // Review cache + marker clear, atomically with the audit row (same as Grade all).
         // NOT a committed grade — the evaluator's accept is still required (D8).

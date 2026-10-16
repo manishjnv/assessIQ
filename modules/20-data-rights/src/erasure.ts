@@ -195,7 +195,7 @@ export async function eraseCandidatePii(
     const invitationsPseudonymised: number = invitesRes.rowCount ?? 0;
     const emailLogRes = await client.query(
       `UPDATE email_log
-          SET to_address = ${pseudo}, subject = '[erased]', body_text = '[erased]', body_html = '[erased]'
+          SET to_address = ${pseudo}, subject = '[erased]', body_text = '[erased]', body_html = '[erased]', last_error = NULL
         WHERE lower(to_address) = lower($2)`,
       [userId, user.email],
     );
