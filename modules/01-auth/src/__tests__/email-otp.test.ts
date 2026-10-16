@@ -65,7 +65,6 @@ let redisUrl: string;
 const PLATFORM_TENANT_ID = "00000000-0000-7000-0000-000000000001";
 let regularTenantId: string;
 let adminUserId: string;
-let reviewerUserId: string;
 let superAdminUserId: string;
 let mixedAdminUserId: string; // admin identity for the "mixed" (super_admin + admin) email
 
@@ -141,7 +140,6 @@ beforeAll(async () => {
   // Seed: regular tenant + users.
   regularTenantId = randomUUID();
   adminUserId     = randomUUID();
-  reviewerUserId  = randomUUID();
   superAdminUserId = "00000000-0000-7000-0000-000000000002"; // already seeded above
   mixedAdminUserId = randomUUID();
 
@@ -157,10 +155,9 @@ beforeAll(async () => {
     await client.query(
       `INSERT INTO users (id, tenant_id, email, name, role, status) VALUES
          ($1, $2, 'admin@example.com',    'Admin',    'admin',    'active'),
-         ($3, $2, 'reviewer@example.com', 'Reviewer', 'reviewer', 'active'),
          -- mixed@example.com also has a super_admin row in the platform tenant (seeded below)
-         ($4, $2, 'mixed@example.com',    'Mixed',    'admin',    'active')`,
-      [adminUserId, regularTenantId, reviewerUserId, mixedAdminUserId],
+         ($3, $2, 'mixed@example.com',    'Mixed',    'admin',    'active')`,
+      [adminUserId, regularTenantId, mixedAdminUserId],
     );
 
     // Seed the super_admin identity for mixed@example.com in the platform tenant.
@@ -246,10 +243,10 @@ describe("requestEmailOtp — anti-enumeration", () => {
     expect(exists, "OTP key stored for eligible admin").toBe(true);
   });
 
-  it("does not store an OTP key for a reviewer email (role removed 2026-10-02)", async () => {
+  it("does not store an OTP key for an email with no admin row (reviewer role removed 2026-10-02; the role value cannot exist since 0179/0180)", async () => {
     await requestEmailOtp({ email: "reviewer@example.com", ip: "10.1.0.2", ua: "vitest" });
     const exists = await otpKeyExists("reviewer@example.com");
-    expect(exists, "no OTP key stored for a legacy reviewer row").toBe(false);
+    expect(exists, "no OTP key stored for an unknown email").toBe(false);
   });
 });
 

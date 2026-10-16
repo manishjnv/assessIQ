@@ -32,7 +32,7 @@ Four roles exist in the `Role` union. The `requireAuth` gate uses **exact set me
 | Role | Scope | Auth method | TOTP enforced | Typical access |
 |---|---|---|---|---|
 | `candidate` | Per-tenant | Magic link or Google SSO | Optional (tenant-configurable) | `/take/*`, `/api/me/*` |
-| `reviewer` | Per-tenant | none (removed 2026-10-03) | n/a | No access. The value is also removed from the DB CHECKs (migration 0179, 2026-10-16). See the note at the end of this page. |
+| `reviewer` | Per-tenant | none (removed 2026-10-03) | n/a | No access. The value is also removed from the DB CHECKs (migrations 0179, 0180, 0181; 2026-10-16). See the note at the end of this page. |
 | `admin` | Per-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Full `/api/admin/*` for their tenant |
 | `super_admin` | Cross-tenant | Google SSO | Yes (when `MFA_REQUIRED=true`) | Routes explicitly gated to `['super_admin']` only |
 
@@ -1325,8 +1325,8 @@ This section holds the decisions that shaped the flows above. Each row names the
 
 **Impact.** 03-users, 13-notifications, 15-analytics, 10-admin-dashboard, 01-auth (see each SKILL.md). Help: 7 keys rewritten (migration 0154). Adversarial review (Sonnet takeover): accept, 5 LOW. The open LOW items are in roadmap row N26.
 
-**State after 0179 (2026-10-16, row Y-1).**
-- Migration `0179_drop_reviewer_from_checks.sql` removes `reviewer` from `users_role_check`, `sessions_role_check` and `in_app_notifications_role_check`.
+**State after 0179-0181 (2026-10-16, row Y-1).**
+- Migrations `0179_drop_reviewer_from_checks.sql` (03-users, `users_role_check`), `0180_sessions_role_check_no_reviewer.sql` (01-auth, `sessions_role_check`) and `0181_in_app_notifications_role_check_no_reviewer.sql` (13-notifications, `in_app_notifications_role_check`) remove `reviewer` from `users_role_check`, `sessions_role_check` and `in_app_notifications_role_check`.
 - Production had 0 rows with `role='reviewer'` in those three tables on 2026-10-16. The migration counts the rows first and refuses to run if any exist.
 - The TypeScript unions were already cleaned in commit `23c77e2`.
 - `help_content.audience` keeps the value `reviewer` on purpose (owner decision RW-2).

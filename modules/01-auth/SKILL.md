@@ -2,7 +2,7 @@
 
 > See `docs/04-auth-flows.md` for full sequence diagrams. This skill is the implementation orientation for that doc.
 
-> `reviewer` was removed on 2026-10-03 (RV60) and dropped from the DB CHECKs by 0179 on 2026-10-16 (Y-1). Older sections below that mention it are history.
+> `reviewer` was removed on 2026-10-03 (RV60) and dropped from the DB CHECKs by 0179-0181 on 2026-10-16 (Y-1; sessions: 0180 in this module). Older sections below that mention it are history.
 
 ## Purpose
 Authenticate every request: humans via Google SSO + TOTP, host applications via embed JWT, server-to-server via API keys.
