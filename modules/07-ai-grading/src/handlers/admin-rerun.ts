@@ -235,6 +235,7 @@ export async function handleAdminRerun(
     let questionCount = 0;
 
     for (const q of questions) {
+      if (slot.signal.aborted) break;
       if (!AI_GRADEABLE_TYPES.has(q.type)) continue;
       questionCount++;
 
@@ -254,6 +255,7 @@ export async function handleAdminRerun(
           answer,
           ...(input.forceEscalate === true ? { force_escalate: true } : {}),
           ...(highStakes ? { high_stakes: true } : {}),
+          signal: slot.signal,
         };
         // FU-A11: re-read the pause flag right before EACH AI call (see admin-grade).
         await withTenant(tenantId, (client) => assertTenantAiEnabled(client, tenantId));
@@ -293,6 +295,16 @@ export async function handleAdminRerun(
     }
 
     const durationMs = Date.now() - startMs;
+    // RW-95: lease lost mid-run -> the runtime killed the CLI; another holder may own this
+    // attempt now. Never write proposals from a run that no longer holds the lock.
+    if (slot.signal.aborted) {
+      throw new AppError(
+        "AI grading aborted: single-flight lease lost",
+        AI_GRADING_ERROR_CODES.LEASE_LOST,
+        503,
+      );
+    }
+
     log.info(
       {
         attemptId,
@@ -341,7 +353,11 @@ export async function handleAdminRerun(
     // Any failure while the marker is held must clear it, or the page's "grading in
     // progress" banner sticks on a run that is over. Best-effort — never mask the
     // original error.
-    if (markerHeld) {
+    // RW-95: a lost lease means the marker may belong to another run
+    if (
+      markerHeld &&
+      !(err instanceof AppError && err.code === AI_GRADING_ERROR_CODES.LEASE_LOST)
+    ) {
       try {
         await withTenant(tenantId, async (client) => {
           await client.query(
