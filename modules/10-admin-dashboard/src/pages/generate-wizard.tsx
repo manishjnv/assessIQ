@@ -24,6 +24,7 @@
 
 import { difficultyLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
+import { FrameworkTreePicker } from "../components/FrameworkTreePicker.js";
 import { useNavigate } from "react-router-dom";
 import { Spinner, Chip } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
@@ -421,6 +422,7 @@ export function AdminGenerateWizard(): React.ReactElement {
   // Config state
   const [selectedLevel, setSelectedLevel] = useState<SelectedLevel>("L1");
   const [topicFocus, setTopicFocus] = useState("");
+  const [fwPick, setFwPick] = useState<string[]>([]);
   const [domains, setDomains] = useState<DomainItem[]>([]);
   const [selectedDomainId, setSelectedDomainId] = useState<string>("");
   const [categoryConfigs, setCategoryConfigs] = useState<CategoryConfig[]>([]);
@@ -1111,6 +1113,25 @@ export function AdminGenerateWizard(): React.ReactElement {
             )}
           </section>
         )}
+
+        {/* RW-61: optional framework pick; only fills the topic focus text, sends nothing new. */}
+        <section style={{ marginBottom: "var(--aiq-space-md)" }}>
+          <h3 style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", marginBottom: "var(--aiq-space-sm)" }}>
+            Pick from a framework (optional)
+          </h3>
+          <FrameworkTreePicker
+            value={fwPick}
+            helpId="admin.generate_wizard.framework_pick"
+            onChange={(ids, nodes, lookup) => {
+              setFwPick(ids);
+              const n = nodes[0];
+              if (!n) return;
+              const parent = n.parent_id ? lookup.get(n.parent_id) : undefined;
+              const text = (n.kind === "unit" || n.kind === "outcome") && parent ? `${parent.label}: ${n.label}` : n.label;
+              setTopicFocus(text.slice(0, TOPIC_FOCUS_MAX));
+            }}
+          />
+        </section>
 
         <TopicFocusField value={topicFocus} onChange={setTopicFocus} helpId="admin.generate_wizard.topic_focus" />
 
