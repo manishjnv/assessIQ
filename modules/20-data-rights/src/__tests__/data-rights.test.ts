@@ -183,7 +183,8 @@ async function seedCandidate(t: Tenant, opts: { createdDaysAgo?: number } = {}):
       [t.id, c0.email, randomUUID().replace(/-/g, ""), t.admin],
     );
     await c.query(
-      `INSERT INTO email_log (tenant_id, to_address, subject, template_id, status) VALUES ($1,$2,'Invite','invite','sent')`,
+      `INSERT INTO email_log (tenant_id, to_address, subject, template_id, status, body_text, body_html)
+       VALUES ($1,$2,'Invite for Riya','invite','sent','Hi Riya, sent to ' || $2::text, '<p>Hi Riya, sent to ' || $2::text || '</p>')`,
       [t.id, c0.email],
     );
     await c.query(
@@ -271,6 +272,14 @@ describe("eraseCandidatePii", () => {
     const el = await one<{ to_address: string; status: string }>(
       `SELECT to_address, status FROM email_log WHERE tenant_id = $1 AND to_address = $2`, [t.id, receipt.tombstone.email]);
     expect(el?.status).toBe("sent");
+    const elScrub = await one<{ subject: string; body_text: string; body_html: string; status: string }>(
+      `SELECT subject, body_text, body_html, status FROM email_log WHERE tenant_id = $1 AND to_address = $2`, [t.id, receipt.tombstone.email]);
+    expect([elScrub?.subject, elScrub?.body_text, elScrub?.body_html, elScrub?.status]).toEqual(["[erased]", "[erased]", "[erased]", "sent"]);
+    const elOther = await one<{ subject: string; body_text: string; body_html: string }>(
+      `SELECT subject, body_text, body_html FROM email_log WHERE to_address = $1`, [other.email]);
+    expect(elOther?.subject).toBe("Invite for Riya");
+    expect(elOther?.body_text).toBe(`Hi Riya, sent to ${other.email}`);
+    expect(elOther?.body_html).toBe(`<p>Hi Riya, sent to ${other.email}</p>`);
     expect((await one<{ n: number }>(`SELECT count(*)::int n FROM email_log WHERE to_address = $1`, [other.email]))?.n).toBe(1);
     expect((await one<{ n: number }>(`SELECT count(*)::int n FROM email_log WHERE to_address = $1`, [cand.email]))?.n).toBe(0);
     expect((await one<{ e: string | null }>(`SELECT evaluation_note e FROM attempts WHERE id = $1`, [cand.attemptId]))?.e).toBeNull();

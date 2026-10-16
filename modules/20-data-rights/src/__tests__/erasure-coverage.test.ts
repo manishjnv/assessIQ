@@ -23,6 +23,9 @@ const REGISTRY = [
   'candidate_login_tokens.requested_ua',
   'user_invitations.email',
   'email_log.to_address',
+  'email_log.subject',
+  'email_log.body_text',
+  'email_log.body_html',
   'attempts.evaluation_note',
 ];
 

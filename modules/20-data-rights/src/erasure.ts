@@ -47,8 +47,8 @@ interface TombstoneRow {
  *   3. UPDATE users: replace name + email with sha256-derived pseudonyms,
  *      drop metadata roll_number / branch, set erased_at = now().
  *   4. UPDATE attempt_answers: set answer = '"[erased]"' for non-mcq rows.
- *   4c. RW-89: login-token ip/ua NULL, invitation + email_log address
- *      pseudonymised, attempts.evaluation_note NULL.
+ *   4c. RW-89: login-token ip/ua NULL, invitation address + email_log address,
+ *      subject and bodies (RW-98) pseudonymised/scrubbed, attempts.evaluation_note NULL.
  *   5. UPDATE sessions: NULL out ip + user_agent.
  *   6. SELECT count(*) from certificates (preserved, never mutated).
  *   7. auditInTx: action = 'user.pii.erased', after = counts only.
@@ -194,7 +194,8 @@ export async function eraseCandidatePii(
     );
     const invitationsPseudonymised: number = invitesRes.rowCount ?? 0;
     const emailLogRes = await client.query(
-      `UPDATE email_log SET to_address = ${pseudo}
+      `UPDATE email_log
+          SET to_address = ${pseudo}, subject = '[erased]', body_text = '[erased]', body_html = '[erased]'
         WHERE lower(to_address) = lower($2)`,
       [userId, user.email],
     );
