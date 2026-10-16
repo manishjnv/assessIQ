@@ -137,3 +137,23 @@ Migration `0114` adds `tenant_settings.result_release_mode` (`manual` default | 
 **Behaviour changes.** Candidate-login token consume (`01-auth`) now runs in a transaction. Before, it used a session-level `SET ROLE`. The `13-notifications` email retry count now reads `email_log` under `withTenant`. Before, the read was RLS-blind and always fell back to attempt 1.
 
 **Downstream impact.** New system-role code must use `withSystemRole` with a reason. A new raw connect needs an allowlist line. Log event: `system-role.tx` (`docs/11-observability.md`). Test: `src/__tests__/with-system-role.test.ts`.
+
+## S14 (2026-10-16)
+
+### Tenant logo storage (Logo L1, migration 0183)
+
+- **What.** The module owns the table `tenant_logos` ([docs/02-data-model.md](../../docs/02-data-model.md) § "S14 additions (2026-10-16)"). Public API from `src/index.ts`: `setTenantLogo`, `removeTenantLogo`, `getTenantLogoMeta`, `getTenantLogoBytes` and `tenantLogoUrl` (`src/service.ts`). `src/logo.ts` holds `validateLogo`. It reads the image header itself (PNG `IHDR`, JPEG `SOF0` to `SOF2`) and does not trust the declared MIME type.
+- **Who may write.** A tenant admin for their own organisation, with a fresh MFA step-up of 15 minutes. A super admin for any organisation. Both paths call the same service functions. Routes: [docs/03-api-contract.md](../../docs/03-api-contract.md) § "Tenant logo (Logo L1 to L4)".
+- **Rules.** PNG or JPEG only. At most 512 KB. 32 to 2048 pixels on each side. A bad file throws before any write. A write, or a remove of an existing logo, writes one audit row (`tenant.logo.updated` or `tenant.logo.removed`) in the same transaction. The row holds metadata only.
+- **No foreign key on `updated_by`.** This is on purpose. Module-local test harnesses apply module 02 before `020_users`, so a foreign key to `users` would break them. The audit row holds the actor.
+- **Cache key.** `tenantLogoUrl` returns `/api/public/tenant-logo/<id>?v=<sha12>`. `getTenantLogoBytes(tenantId)` is the read path for modules 13 and 18. Module 18 calls it after it loads the certificate row, because the public verify page has no tenant context.
+- **Considered and rejected.** An object store. SVG. A data URI in emails.
+- **Not included.** Logo history. Resize on the server.
+
+### `ai_grading_scope` setter (P4, migration 0188)
+
+- **What.** `getAiGradingScope(tenantId)` and `updateAiGradingScope(targetTenantId, scope, actorUserId)` in `src/service.ts`. The scope is `written` (default) or `none`. `getTenantSettings` returns the field.
+- **Super admin only.** The route enforces the role. The function is not part of the generic settings patch. This is the same pattern as `updateAiGenerateMode`. A tenant admin cannot change it.
+- **One transaction.** The `UPDATE` and the `tenant_settings.ai_grading_scope.updated` audit row (`before` and `after` hold the scope) share one `withTenant` transaction. A missing settings row throws `NotFoundError`.
+- **Reader.** Module 07 `handleAdminGrade` reads the scope once for each run. See [docs/05-ai-pipeline.md](../../docs/05-ai-pipeline.md) § "Least-AI tier order (P4)".
+- **Not included.** A tenant-admin switch. A per-question scope. Rollback: set the value back to `written`.

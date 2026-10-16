@@ -1189,6 +1189,12 @@ AI_PIPELINE_MODE=claude-code-vps
 # Tenant purge (RW-48b) — worker only. Unset or any value but "true" = dry run.
 # TENANT_PURGE_ENABLED=true
 
+# User purge (LC-2) — worker only. Unset or any value but "true" = dry run.
+# USER_PURGE_ENABLED=false
+
+# Plan tier gates and limits (PT1, PT-4) — API. Default false = every gate is a no-op.
+# PLAN_TIERS_ENFORCED=false
+
 # Rate limiting — optional; Zod defaults are 100/30/30/600 req/min/IP per tier.
 # Set only to tune for your traffic; zero-config deploy works without any of these.
 # RATE_LIMIT_IP_ADMIN=100     # admin/reviewer session: 100 req/min/IP
@@ -1210,6 +1216,23 @@ AI_PIPELINE_MODE=claude-code-vps
   3. Take a database backup.
   4. Set `TENANT_PURGE_ENABLED=true` and recreate the worker.
 - **Not included.** The job does not purge S3 or Redis data. It has no cap on tenants per run.
+
+### `USER_PURGE_ENABLED` (LC-2, S14, 2026-10-16)
+
+- **What it does.** The worker job `user-purge-cron` runs daily at 03:45 UTC. It purges users that were soft-deleted for 180 days or more. The users row stays as a tombstone. Design: `docs/plans/TENANT_USER_LIFECYCLE.md`.
+- **Default.** `false` (unset means the same). The job runs as a dry run and changes no row.
+- **Where it is read.** Only the worker reads it. Set it in the worker environment only.
+- **Before you enable it.**
+  1. Read the worker log line `user_purge.tick`. It shows `dryRun`, `tenants`, `purged`, `skipped` and `failed`.
+  2. Take a database backup. No restore is possible after a purge.
+  3. Set `USER_PURGE_ENABLED=true` and recreate the worker.
+
+### `PLAN_TIERS_ENFORCED` (PT1, PT-4, S14, 2026-10-16)
+
+- **What it does.** The flag turns on the plan tier gates and limits of module 19-billing (see `modules/19-billing/SKILL.md`). A denied call returns 403 with `TIER_NOT_INCLUDED`, `TIER_LIMIT_REACHED` or `CREDITS_HARD_CAP`.
+- **Default.** `false` (declared in `.env.example`). While it is false, every gate and limit is a no-op. The billing page shows the limits for information only.
+- **Where it is read.** The `00-core` config (`config.PLAN_TIERS_ENFORCED`).
+- **Before you enable it.** Check that no current organisation on the free tier loses a feature it uses. The check is in `modules/19-billing/SKILL.md` § "Owner gate". Unset on the VPS means off.
 
 **Migrations for this change.** This deploy applies two migrations by hand with the existing procedure (`psql -1 -v ON_ERROR_STOP=1`, then record them in `schema_migrations` with the sha256):
 - `0170` (`modules/02-tenancy/migrations/0170_tenant_purge.sql`) adds `purged` to `tenants_status_check`.
@@ -2402,6 +2425,24 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Smoke:** all 6 `assessiq-*` containers are healthy after 28 s. No startup errors in the api or worker logs. `/api/health` 200, `/api/ready` 200, `https://assessiq.in/` 200, `/admin/login` 200.
 **Not done / follow-ups:** the team did not exercise the `totp_enrolled` email live (it needs a real enrolment). The owner test step is "enrol TOTP on a test admin, expect one email with the new copy". `TENANT_PURGE_ENABLED` is still unset.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate. 0179-0181 only narrow three CHECKs. Older builds never write `reviewer`, so the migrations need no rollback. To restore the old CHECKs by hand, add the constraints again with the `reviewer` value from 016_super_admin.sql and 0056_in_app_notifications.sql.
+
+### S14 deploy (2026-10-17 03:44 IST): batch 3 of P0-Z (EX-1, EX-3, RW-59, Logo L1-L4, PT1, PT-4, P4, LC-2, S2/N2, S7/N5, RV31, Z-1, audit-export limit)
+
+**Commits:** `48368b4..092c745` (11 commits: rate limits, LC-2 user purge, RW-59 adapters, Logo L1-L4, EX-1 + EX-3, PT1/PT-4, P4, 0187 help rows, RV31 marketing, two test-mock fixes). GitHub main = VPS `/srv/assessiq` = `092c745` (docs commits follow).
+**Pre-checks:** the local branch is `main`. `.agent/STOP` is present. `ap status` DEAD. Push output: `606d15a..092c745  main -> main`. Another session committed three roadmap commits (`0b798c6`, `41c082e`, `606d15a`) on the shared clone during the session; `git pull --ff-only` on the VPS then `git log -1` = `092c745`. All 6 `assessiq-*` containers were healthy before the deploy. The shared containers were listed and not touched. The new env flags `USER_PURGE_ENABLED` and `PLAN_TIERS_ENFORCED` are declared in `.env.example` only and left unset on the VPS (= off).
+**Drift gate (Y-7 reading rule):** DB-only = the four known names. Repo-only = `0183_tenant_logos.sql`, `0184_questions_negative_marks.sql`, `0185_attempt_questions_negative_marks.sql`, `0186_tenant_plans_ai_answers_override.sql`, `0187_s14_batch3_help.sql`, `0188_tenant_settings_ai_grading_scope.sql`. 160 repo files, 158 DB rows before the apply; 164 after.
+**Migrations (each in one transaction, `psql -1 -v ON_ERROR_STOP=1`, recorded with sha256, in this order):**
+- `0183_tenant_logos.sql` 5625366b2eab5f8f675391df38eeda9539920cba49b6ee22d240075e13c779e3 (new table + RLS; `updated_by` has no FK to `users` on purpose)
+- `0184_questions_negative_marks.sql` a250398883ac58cd5137998e64e1b87c271579103cf4e18746e4a605e947f4a3 (nullable column)
+- `0185_attempt_questions_negative_marks.sql` a477f951bc80e508818d2fb63895f9c8db780dd71dd21308da7acbee3a0478fa (NOT NULL DEFAULT 0; 0 rows with a non-zero value after the apply)
+- `0186_tenant_plans_ai_answers_override.sql` 1ed207ee221bc9c75306cceafb5febdd8230fae8f4ae78e5aff193a40d88a843 (nullable column)
+- `0187_s14_batch3_help.sql` dd4f189b91c6b18735c30c35c4a45f294c217f35a9d375924bf2db04e2c9c3ed (global active help rows 464 → 483: 19 new keys; the `admin.tenant_settings.page` v2 row was a no-op on prod)
+- `0188_tenant_settings_ai_grading_scope.sql` f4cfbf82eabff59cc945b55f043090e2e7107f2ac1fe6b9cd91fa0e0b9c0be2f (NOT NULL DEFAULT 'written')
+Order matters: 0186 must apply before the api restart because `getUsage` now selects the new column even with `PLAN_TIERS_ENFORCED=false`.
+**Images:** the team built `assessiq-api`, `assessiq-frontend` and `assessiq-marketing` (RV31 About page), then recreated `assessiq-api`, `assessiq-worker`, `assessiq-frontend` and `assessiq-marketing` with `up -d --no-deps --force-recreate`.
+**Smoke (2026-10-17 03:44 IST):** all 6 `assessiq-*` containers healthy after 26 s. No error lines in the api log; the worker ran its cron jobs normally in the first 2 minutes. `/api/health` 200 `{"status":"ok"}`, `/api/ready` 200, `https://assessiq.in/` 200, `/admin/login` 200, `/try` 200, `/about` 200 with `href="/try"`; `/api/me/notifications` 401 without a session; `/api/public/tenant-logo/<unknown uuid>` 404 and `/api/public/tenant-logo/not-a-uuid` 404; `/verify/<fake id>` 404.
+**Not done / follow-ups:** no tenant has a logo yet (the owner uploads one in Settings; fresh MFA); no attempt with negative marks exists (0 rows); `user-purge-cron` runs its first dry-run tick at 03:45 UTC (read `user_purge.tick` in the worker log before flipping the flag); plan-tier gates stay off. The root `pnpm test` was run once in full (9 files failed on container start-up under load, 14 tests) and every failing or skipped DB suite was re-run green one package at a time after a local Docker clean-up; the last two test-only commits were not followed by another full run.
+**Rollback:** `git revert` the commits, rebuild and recreate the four containers. Schema: 0183 (new table), 0184/0185/0186/0188 (additive columns with defaults) are safe to leave in place; 0187 adds help rows only.
 
 ### S13 deploy (2026-10-16 17:05 IST): batch 2 of P0-Z (RW-100, RW-44, RW-61, RV44/FU-B14/FU-B15, FR1/FU-B2, FR2/FU-B7, Z-3)
 

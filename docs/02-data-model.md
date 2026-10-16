@@ -2409,6 +2409,107 @@ A record of how the migration files are numbered. Nothing is renumbered. Count: 
 | Not included | Purge of S3 or Redis data. Un-purge. A DB-level guard on the 180-day rule (the job enforces it) |
 | Migration 0171 | `modules/16-help-system/migrations/0171_seed_rw45_account_security_help.sql` carries 9 `help_content` rows for the Account security page and the Reset two-factor menu item (`admin.account.security.*` and `admin.users.super.reset_totp`). It adds no table or column. Production help rows come from forward migrations, not from the seed file. Apply 0170 and 0171 by hand per [06-deployment.md](06-deployment.md) |
 
+## S14 additions (2026-10-16)
+
+*Type: reference.* Session S14 added migrations `0183` to `0188` and one JSON shape. Every migration is forward-only. Each block says what changed, why, what we rejected, what is not included, and the impact.
+
+### Table `tenant_logos` (migration 0183, owner 02-tenancy)
+
+| Item | Detail |
+| --- | --- |
+| What | New table. One row for each organisation. Columns: `tenant_id UUID PRIMARY KEY REFERENCES tenants ON DELETE CASCADE`, `mime TEXT` (CHECK `png` or `jpeg`), `bytes BYTEA`, `sha256 TEXT`, `width INT` and `height INT` (CHECK 32 to 2048), `byte_size INT` (CHECK 1 to 524288), `updated_by UUID NULL`, `updated_at TIMESTAMPTZ` |
+| Size rule | `bytes` is at most 512 KB. The first 12 characters of `sha256` are the cache key in the public logo URL |
+| RLS | Policies `tenant_isolation` and `tenant_isolation_insert` |
+| Audit | `tenant.logo.updated` and `tenant.logo.removed`. The rows hold metadata only, never the image bytes |
+| Why | The organisation logo shows on candidate pages, emails, the verify page, the OG image and the certificate PDF. A database row keeps the logo inside the tenant boundary and inside the tenant purge |
+| `updated_by` has no foreign key | This is on purpose. Module-local test harnesses apply module 02 before `020_users`. A foreign key would break them. The audit row holds the actor |
+| Rejected | An object store (new infrastructure for a file of 512 KB or less). SVG, GIF and WebP (SVG can carry script; the other two add decoder risk). A data URI in emails (Gmail clips messages over 102 KB and blocks `data:` images) |
+| Not included | Logo history. Several logos for each organisation. Image resize on the server. Dark-mode variant |
+| Impact | The catalog-driven tenant purge deletes the row, because the table has `tenant_id`. API: [03-api-contract.md](03-api-contract.md) § "S14 additions (2026-10-16)". Module notes: `modules/02-tenancy/SKILL.md` |
+| Rollback | Drop the table after you remove the logo routes. Nothing else reads it |
+
+### Column `questions.negative_marks` (migration 0184, owner 04-question-bank)
+
+| Item | Detail |
+| --- | --- |
+| What | `negative_marks NUMERIC(6,2) NULL CHECK (negative_marks >= 0)` |
+| Meaning | `NULL` means "use the assessment default". A number is the penalty for a wrong answer that the candidate did attempt |
+| Scope | Deterministic types only. AI-graded types ignore the value. Rule detail: [05-ai-pipeline.md](05-ai-pipeline.md) § "Negative marking (EX-1)" |
+| Version rule | The column is metadata. Changing it does not create a `question_versions` row |
+| Rollback | Drop the column. Frozen copies on `attempt_questions` stay valid |
+
+### Column `attempt_questions.negative_marks` (migration 0185, owner 06-attempt-engine)
+
+| Item | Detail |
+| --- | --- |
+| What | `negative_marks NUMERIC(6,2) NOT NULL DEFAULT 0 CHECK (negative_marks >= 0)` |
+| Freeze rule | The attempt start copies `COALESCE(questions.negative_marks, assessment default, 0)`. This is the same pattern as `attempt_questions.points` (migration `0128`) |
+| No trigger | `DEFAULT 0` means "no penalty". An old attempt row therefore needs no backfill and no guard |
+| Why | A later edit of a question or of the assessment default must not change a score that a candidate already earned |
+| Rollback | Drop the column. The scoring code then reads no penalty |
+
+### `assessments.settings.scoring.negative_marks_default` (JSONB, no migration)
+
+- The key is an optional number from 0 to 1000. It lives in the `settings` JSON, under `scoring`.
+- Absent means 0. The attempt start reads it only when the question has no value of its own.
+- Known gap: the write route does not validate `settings.scoring`. Module 06 sanitises the value when it reads it, and the UI limits the input to 0 to 1000.
+
+### `structured_case` step marks (no migration)
+
+- This extends the content shape in § "Question type `structured_case`". Each item of `steps[]` may carry `points` (number above 0, at most 1000, default 1) and `negative_marks` (0 to 1000).
+- `points` is a relative weight. It is not an absolute mark.
+- When a step has no `negative_marks`, the penalty is the question `negative_marks` multiplied by the step `points`, divided by the question points.
+- `scoring` (`all_or_nothing` or `partial`) and the 0/25/50/75/100 bands do not change.
+- Rule detail: [05-ai-pipeline.md](05-ai-pipeline.md) § "Passage sets (EX-3)".
+
+### Totals can be negative
+
+- `attempt_scores.total_earned` and `attempt_scores.auto_pct` may be below 0 when an attempt has penalties.
+- `gradings.score_earned` may be below 0. The column has no CHECK, so no migration was needed.
+- The band, certificate and pass or fail code already handle negative values. The band clamps at read time, not at write time. See `modules/09-scoring/SKILL.md`.
+
+### Column `tenant_plans.ai_answers_included_override` (migration 0186, owner 19-billing)
+
+| Item | Detail |
+| --- | --- |
+| What | `ai_answers_included_override INT NULL CHECK (ai_answers_included_override >= 0)` |
+| Meaning | The number of AI answers a tenant gets. The value is `ai_answers_included_override` when set, else the tier default `TIER_AI_ANSWERS_INCLUDED[tier]` |
+| Write path | `PATCH /api/admin/super/tenants/:id/plan`, field `aiAnswersIncludedOverride` |
+| Not included | The super list `getAllTenantUsage` still shows the tier default |
+
+### Column `tenant_settings.ai_grading_scope` (migration 0188, owner 02-tenancy)
+
+| Item | Detail |
+| --- | --- |
+| What | `ai_grading_scope TEXT NOT NULL DEFAULT 'written' CHECK (ai_grading_scope IN ('written','none'))` |
+| Meaning | `written` allows AI grading of written answers. `none` blocks every AI call for the organisation |
+| Write path | Super admin only. Audit action `tenant_settings.ai_grading_scope.updated` |
+| Rollback | Set the value back to `written` |
+| Impact | Tier order and the cap: [05-ai-pipeline.md](05-ai-pipeline.md) § "Least-AI tier order (P4)" |
+
+### Purged user tombstone shape (LC-2)
+
+The worker job `user-purge-cron` purges a user who was soft-deleted for 180 days or more. The `users` row stays as a tombstone, because `audit_log.actor_user_id` and `attempts.user_id` reference it.
+
+| Column | Value after the purge |
+| --- | --- |
+| `name` | `deleted_user_<sha12>` |
+| `email` | `deleted+<sha12>@erased.assessiq.local` |
+| `metadata` | The old value without `roll_number` and `branch` |
+| `status` | `disabled` |
+| `erased_at` | Set |
+| `deleted_at` | Kept |
+
+- The job deletes rows in every table with an `ON DELETE CASCADE` foreign key to `users(id)`. The code finds them from `pg_constraint`. At the time of writing they are `sessions`, `oauth_identities`, TOTP data, recovery codes and `candidate_login_tokens`.
+- The job also deletes the user's `in_app_notifications` and any `user_invitations` for the same email in the same tenant.
+- The job keeps `attempts`, `gradings`, `assessments`, `certificates`, consent events and audit rows.
+- This is the same pseudonym pattern as the tenant purge (migration `0170`) and `modules/20-data-rights/src/erasure.ts`. The person cannot be restored after the purge.
+- Behaviour and skips: `modules/03-users/SKILL.md` § "User purge (LC-2, S14, 2026-10-16)".
+
+### Other migrations in S14
+
+- `0187` (module 16): 20 help rows, including `admin.tenant_settings.page` version 2 (logo bullet). No table change.
+
 ## Change history
 
 This table indexes every dated change on this page. The sections above hold the detail. Order: by date, then by migration.
@@ -2441,3 +2542,4 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-15 | Help row for the Curriculum frameworks section (RW-57 part 2) | `0173` | Question import |
 | 2026-10-16 | Question import: `question_imports`, `question_import_rows`, `question_packs.source`, `question_packs.import_file_sha256` (RW-58). Help rows for the import page | `0174`; `0175` | Question import |
 | 2026-10-16 | Role CHECKs on `users`, `sessions`, `in_app_notifications` drop `reviewer` (Y-1), one file per owning module. `help_content.audience` keeps it (RW-2) | `0179` (03-users), `0180` (01-auth), `0181` (13-notifications) | Users; Auth sessions; Notifications |
+| 2026-10-16 | S14: tenant logos, negative marking columns, plan AI override, AI grading scope, help rows, user purge tombstone | `0183`; `0184`; `0185`; `0186`; `0187`; `0188` | S14 additions |

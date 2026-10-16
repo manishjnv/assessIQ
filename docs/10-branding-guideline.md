@@ -519,6 +519,23 @@ Rules:
 - Embed mode receives the same tokens through `postMessage`.
 - The iframe applies only `--aiq-*` keys (origin-verified). This prevents host-page CSS bleed.
 
+### 11.1 Organisation logo (S14, 2026-10-16)
+
+An organisation can upload a logo. The logo is a co-brand. It never replaces the AssessIQ mark. Component facts: [08-ui-system.md](08-ui-system.md) § "TenantLogo component".
+
+- **Co-brand rule.** The organisation logo always shows with the caption "via AssessIQ".
+- **No logo.** The surface shows the organisation name alone.
+- **Formats.** PNG or JPEG only, 512 KB at most. The API refuses SVG, GIF and WebP.
+
+| Surface | Size |
+| --- | --- |
+| Admin top bar | 28 px high |
+| Settings preview | 120 px high |
+| Emails | 120 × 48 px |
+| Verify page | 80 × 32 px |
+| OG image | 240 × 96 px |
+| Certificate PDF | 18 mm high |
+
 ## 12. Recipe — building a new page in this style
 
 Follow this checklist for every new screen request in coming sessions.

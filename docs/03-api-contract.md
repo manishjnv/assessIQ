@@ -3381,6 +3381,130 @@ Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the rout
 
 Page-only change. No API change. The Replay button calls `POST /api/admin/webhooks/deliveries/:id/replay`, which already existed. See `docs/08-ui-system.md` § "Webhooks page tails (S13)".
 
+## S14 additions (2026-10-16)
+
+*Type: reference.* Session S14 changed the routes below. Each block says what changed, why, what we rejected, what is not included, and the impact.
+
+### Per-organisation limits on heavy admin routes (S7/N5, FU gate tail)
+
+**What changed.** A new helper `tenantRateLimit({ name, max, windowSeconds })` in `apps/api/src/middleware/tenant-rate-limit.ts` limits calls for each organisation (tenant) in a fixed window.
+
+| Route | Limit name | Limit |
+| --- | --- | --- |
+| `GET /api/admin/audit/export.csv`, `GET /api/admin/audit/export.jsonl`, `POST /api/admin/audit/archive` | `audit-export` | 5 requests per 10 minutes, shared by the three routes |
+| `POST /api/admin/assessments/:id/invitations/resend` | `invitations-bulk-resend` | 3 requests per 10 minutes |
+
+- Over the limit, the response is 429 with error code `RATE_LIMITED`, `details.scope = "tenant-op"`, `details.retryAfterSeconds` and the header `Retry-After`.
+- The Redis key is `aiq:rl:tenant-op:<name>:<tenantId>`. For the audit routes it is `aiq:rl:tenant-op:audit-export:<tenantId>`.
+- `registerAuditRoutes(app, { adminOnly, heavyOpGuard })` receives the guard as an option. Module `14-audit-log` must not import `@assessiq/auth` (import cycle).
+
+**Why.** One audit export streams up to 100000 rows. A script could hold many database cursors at once. A bulk resend sends one email for each invitation.
+
+**Not included.** A limit for each user. A limit on the single-invitation Resend button. A change to the per-IP buckets: [04-auth-flows.md](04-auth-flows.md) § "Campus-scale rate limits and DB pool (task R2)".
+
+**Downstream impact.** A client that loops over exports must read `Retry-After`. Log and metric names: `docs/11-observability.md`.
+
+### Invitations bulk resend (S7/N5)
+
+- `POST /api/admin/assessments/:id/invitations/resend` skips a candidate who got a bulk resend in the last 24 hours. The constant is `BULK_RESEND_RECENT_MINUTES = 1440` (it was 10). The single-invitation Resend button is not affected.
+- Each call writes one audit row `assessment.invitations.bulk_resent`. Its `after` is `{ resent, skipped, remaining }`. The row is written also when `resent` is 0.
+- The response shape is unchanged.
+- Why: a 10-minute window let an admin send the same reminder several times in one day. The audit row lets support count what the button did.
+
+### Candidate request-link bucket (S2/N2)
+
+`POST /api/auth/candidate/request-link` now uses the candidate-entry per-IP bucket, and the service adds a per-IP send cap of 200 per hour. The response is always 204. Details and numbers: [04-auth-flows.md](04-auth-flows.md) § "Campus-scale rate limits and DB pool (task R2)".
+
+### Question import formats and QTI export (RW-59)
+
+| Method and path | Auth | Behaviour |
+| --- | --- | --- |
+| `POST /api/admin/super/question-imports` | super admin | `format` accepts `csv`, `xlsx`, `gift`, `aiken` and `qti`. `gift` and `aiken` are text files in UTF-8 and hold MCQ questions only. `qti` is a QTI 2.1, 2.2 or 3.0 content package (`.zip`) or one `assessmentItem` `.xml` file. An item that the importer cannot map becomes a row error. Limits: 4 MB, 2000 rows. The row limit also applies to each unzipped entry. The unzipped total is at most 16 MB |
+| `GET /api/admin/super/question-imports/templates/:type` | super admin | `type` is `csv` or `xlsx` only |
+| `GET /api/admin/super/packs/:id/export?format=qti3` | super admin | Returns a QTI 3.0 zip (`imsmanifest.xml` and `items/<id>.xml`) of the non-archived questions of the question set. The answer key is included. Another `format` returns 400. A set that the caller cannot see returns 404. Headers: `Content-Type: application/zip` and `Content-Disposition: attachment; filename="<slug>.qti3.zip"`. Audit action `pack.exported` with `{ format, question_count }` |
+
+- The CSV and XLSX templates gain an optional common column `negative_marks` (0 to 1000, blank means "use the default"). See "Negative marking" below.
+- Adapter code and the interaction mapping: `modules/04-question-bank/SKILL.md` § "Import adapters and QTI export (RW-59, S14, 2026-10-16)".
+- Not included: QTI tests and sections, numeric tolerance or unit in QTI, HTML or media in prompts, feedback blocks.
+
+### Tenant logo (Logo L1 to L4)
+
+Table and rules: [02-data-model.md](02-data-model.md) § "Table `tenant_logos` (migration 0183, owner 02-tenancy)".
+
+| Method and path | Auth | Behaviour |
+| --- | --- | --- |
+| `PUT /api/admin/tenant-settings/logo` | admin, MFA step-up within 15 minutes | Body: multipart field `file`, or JSON `{ content_base64 }`. `200 { logo: { mime, width, height, byte_size, sha256, updated_at, url } }`. Errors: 400 `LOGO_BAD_FORMAT`, 400 `LOGO_BAD_DIMENSIONS`, 400 `LOGO_FILE_REQUIRED`, 413 `LOGO_TOO_LARGE` |
+| `DELETE /api/admin/tenant-settings/logo` | admin, MFA step-up | `204`. The answer is also 204 when no logo exists |
+| `PUT /api/admin/super/tenants/:tenantId/logo`, `DELETE /api/admin/super/tenants/:tenantId/logo` | super admin | Same behaviour for the named organisation |
+| `GET /api/public/tenant-logo/:tenantId?v=` | none | Returns the image bytes. Headers: `X-Content-Type-Options: nosniff`, CSP `default-src 'none'; sandbox`, `ETag: "<sha256>"`. `Cache-Control` is `immutable` for one year when `v` matches the stored hash, else one hour. A matching `If-None-Match` returns 304. No logo or a `tenantId` that is not a UUID returns 404 |
+
+- Only PNG and JPEG are accepted (at most 512 KB, 32 to 2048 pixels on each side). SVG, GIF and WebP return `LOGO_BAD_FORMAT`.
+- `GET /api/admin/tenant-settings` gains `logo` (`{ meta, url }` or `null`).
+- `GET /api/auth/whoami` gains `tenant.logo_url` (`null` for API keys).
+- `POST /api/take/start` (preview and start): `assessment.company_logo_url` (`string | null`).
+- `GET /api/me/attempts/:id`: top-level `company_name` and `company_logo_url`.
+- `GET /api/me/attempts/:id/result` (200 and 202): `company_logo_url`. The released payload also carries `tenant_name`.
+- `url` is `<ASSESSIQ_BASE_URL>/api/public/tenant-logo/<id>?v=<sha12>`. The public route needs no cookie, so the mail proxy of an email client can fetch it.
+- Audit actions: `tenant.logo.updated` and `tenant.logo.removed` (metadata only).
+- Not included: SVG, logo history, server-side resize. Code: `modules/02-tenancy/src/logo.ts`, `apps/api/src/routes/_logo-upload.ts`, `apps/api/src/routes/public-tenant-logo.ts`.
+
+### Negative marking (EX-1)
+
+Rule and scoring: [05-ai-pipeline.md](05-ai-pipeline.md) § "Negative marking (EX-1)". Columns: [02-data-model.md](02-data-model.md) § "S14 additions (2026-10-16)".
+
+- `POST /api/admin/questions`: optional `negative_marks` (number of 0 or more, or `null`).
+- `PATCH /api/admin/questions/:id`: `negative_marks` (`null` clears it). This is a metadata change and it does not create a new version. An invalid value returns 422 `NEGATIVE_MARKS_INVALID`.
+- The question list and the question detail include `negative_marks`.
+- `PATCH /api/admin/assessments/:id` accepts `settings.scoring.negative_marks_default` (0 to 1000) while the assessment is a draft.
+- `GET /api/me/attempts/:id/result` and each item of `GET /api/me/results` gain `negative_marking: { enabled, penalty_total }`. `enabled` is true when any frozen `negative_marks` is above 0. `penalty_total` is the sum of the negative effective gradings, as a positive number.
+- `total_earned` in those payloads is signed. `percent` may be negative.
+- The admin attempt review `frozen_questions[]` gains `negative_marks`.
+- Why: a wrong guess should cost marks in exams that use this rule. The value is frozen per attempt so that a later edit cannot change a result.
+- Not included: a penalty for AI-graded types, and a validation of `settings.scoring` on write (module 06 sanitises it on read).
+
+### `structured_case` candidate view (EX-3)
+
+`GET /api/me/attempts/:id` returns each step with `points` and `negative_marks` when the author set them. These values are not secret. `correct`, `scoring` and `explanation` stay on the server. Scoring rule: [05-ai-pipeline.md](05-ai-pipeline.md) § "Passage sets (EX-3)".
+
+### Plan tier gates (PT1 and PT-4)
+
+**What changed.** The env flag `PLAN_TIERS_ENFORCED` (`modules/00-core`, default `false`) turns the gates on. While it is `false`, every gate and limit below is a no-op.
+
+- Error responses are 403. The `details.code` is `TIER_NOT_INCLUDED`, `TIER_LIMIT_REACHED` or `CREDITS_HARD_CAP`. `details` also holds `tier` and, when it applies, `feature`, `limit` and `current`.
+- Gated routes:
+  - Certificate admin routes (module 18, composed in `apps/api/src/server.ts`).
+  - `/api/admin/webhook*` (module 13, option `webhooksGuard`).
+  - Audit routes (module 14, the `adminOnly` array).
+  - The cohort breakdown (module 15, option `fullReportGuard`, feature `cohort_analytics_full`, `pro` and above).
+  - `GET` and `POST` of `/api/admin/api-keys`. `DELETE` stays open so a downgraded organisation can revoke a key.
+  - The embed admin routes and `/api/admin/embed-secrets`.
+  - Entitlement grant (cap on licensed packs; a new grant of an active scope is not counted).
+  - Bulk invitation import, and a single invite with `assessment_id` (credit hard cap first, then the per-drive candidate cap; the count includes revoked invitations).
+- The free tier limits are in `TIER_LIMITS` (module 19): 2 licensed packs, 200 candidates for each drive, and a hard cap at 120 percent of the credits. Other tiers have `null`.
+- `GET /api/billing/usage` (`getUsage`) gains `tier_limits` and `tiers_enforced`. The AI answers included are `tenant_plans.ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier]`.
+- `PATCH /api/admin/super/tenants/:id/plan` accepts `aiAnswersIncludedOverride` (integer of 0 or more, or `null`). A bad value returns 400 `INVALID_AI_ANSWERS_OVERRIDE`.
+
+**Not included.** `getAllTenantUsage` (the super list) still shows the tier default. A UI notice shows "Plan limits are shown for information and are not enforced yet." while the flag is off.
+
+**Owner gate.** Turn the flag on only after you confirm that no current organisation is blocked. Check free-tier organisations for packs, webhooks, API keys and embed secrets first. The handoff in `docs/SESSION_STATE.md` has the SQL.
+
+### AI grading scope and grading tiers (P4)
+
+Rules and the tier table: [05-ai-pipeline.md](05-ai-pipeline.md) § "Least-AI tier order (P4)".
+
+| Method and path | Auth | Behaviour |
+| --- | --- | --- |
+| `GET /api/admin/super/tenants/:tenantId/ai-grading-scope` | super admin | Returns the current scope |
+| `PATCH /api/admin/super/tenants/:tenantId/ai-grading-scope` | super admin | Body `{ scope }`, where `scope` is `written` or `none`. `200 { tenantId, ai_grading_scope, previous, updatedAt, auditId }`. 400 `INVALID_SCOPE` for any other value. Audit action `tenant_settings.ai_grading_scope.updated` |
+
+- `POST /api/admin/super/evaluations/:attemptId/grade` gains `tiers: Record<'answer_key' | 'reuse' | 'rule' | 'ai' | 'human', number>` in the response.
+- The tenant attempt `GET` and the super evaluation `GET` also return `tiers`.
+- A tenant admin cannot change the scope. The setting is a platform decision.
+
+### New audit actions in S14
+
+`tenant.logo.updated`, `tenant.logo.removed`, `user.purged`, `pack.exported`, `assessment.invitations.bulk_resent`, `tenant_settings.ai_grading_scope.updated`.
+
 ## OpenAPI spec
 
 A formal OpenAPI 3.1 spec lives at `infra/openapi.yaml`, kept in sync with this doc. Generated from Fastify route schemas via `fastify-swagger`. Tenants can pull it from `/api/openapi.yaml` (auth required).

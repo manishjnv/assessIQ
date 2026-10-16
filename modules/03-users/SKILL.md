@@ -653,3 +653,22 @@ Tests:
 - **Why.** The tenant-admin Users page shows "Reset two-factor" only for enrolled users. The super-admin list already had the field (RW-45).
 - **Contract.** `GET /api/admin/users` items carry the field. See `docs/03-api-contract.md` and `docs/04-auth-flows.md` § "Self-service MFA".
 - **Not included.** A filter on `totp_enrolled`.
+
+## User purge (LC-2, S14, 2026-10-16)
+
+- **What.** `purgeSoftDeletedUsers(opts)` in `src/purge.ts` purges users who were soft-deleted long ago. The worker job `user-purge-cron` runs it at 03:45 UTC. The code calls no AI.
+- **Selection.** `users.deleted_at` is at least `minDays` old and `erased_at` is null. `minDays` is clamped to 180 or more (`MIN_USER_PURGE_DAYS`). The job works for each tenant in its own `withTenant` transaction. A failing tenant rolls back only itself.
+- **Skips.** The report lists these with a reason:
+  - The last active admin of the tenant (`LAST_ADMIN`, from `assertNotLastAdmin`).
+  - A user with role `super_admin`.
+  - A user in the platform tenant.
+  - A user restored between the selection and the purge. The job re-reads the row with `FOR UPDATE`.
+- **Tombstone.** The `users` row stays, because `audit_log.actor_user_id` and `attempts.user_id` reference it. The job sets `name` to `deleted_user_<sha12>`, `email` to `deleted+<sha12>@erased.assessiq.local`, removes `roll_number` and `branch` from `metadata`, sets `status` to `disabled` and sets `erased_at`. `deleted_at` stays. This is the same pseudonym rule as the tenant purge and `modules/20-data-rights/src/erasure.ts` step 3. Shape: [docs/02-data-model.md](../../docs/02-data-model.md) § "S14 additions (2026-10-16)".
+- **Deleted.** Rows in every table with an `ON DELETE CASCADE` foreign key to `users(id)` (found from `pg_constraint`, so a new table is covered without a code change). The user's `in_app_notifications`. The `user_invitations` for the same email in the same tenant.
+- **Kept.** `attempts`, `gradings`, `assessments`, `certificates`, consent events and audit rows.
+- **Flag.** `USER_PURGE_ENABLED` (default `false`, read by the worker only). While it is `false`, the job is a dry run: it selects and checks, changes no row, and lists the users that it would purge.
+- **Audit and log.** One `user.purged` row for each user (`actorKind` system, `after` is `{ tables: { <table>: <count> }, minDays }`, no PII). One log line `user_purge.tick` with `dryRun`, `tenants`, `purged`, `skipped` and `failed`.
+- **No restore after the purge.** The purge deletes the sign-in rows, so a purged user cannot return.
+- **Considered and rejected.** Delete of the `users` row (it breaks the audit foreign key). A hand-written table list (it goes stale).
+- **Not included.** Purge of attempts or certificates. A UI. Purge of a user who was only disabled.
+- **Downstream impact.** Module 20 is separate: [modules/20-data-rights/SKILL.md](../20-data-rights/SKILL.md). Plan status: [docs/plans/TENANT_USER_LIFECYCLE.md](../../docs/plans/TENANT_USER_LIFECYCLE.md). Next step: read the dry-run tick on the VPS, then set the flag.

@@ -357,3 +357,21 @@ Read-only review. No code changed or deleted. Earlier reviews: `docs/plans/archi
 - **Stage 3 watch only sees sharded runs.** Production default is omnibus. The alert is quiet by design. Park the timer only after the flip is final.
 - **No ambient-AI exposure found.** All AI entry points sit behind admin handlers. The lint blocks cron, BullMQ, webhook and candidate paths from the selector.
 - **Test gap.** The two stub modes and the selector switch have no direct test. Docker-based tests (items 4, 6) run only where Docker exists.
+
+## Least-AI tiers and the AI grading scope (P4, S14, 2026-10-16)
+
+**What.** `src/grading-tiers.ts` names the order of the grading tiers: `GRADING_TIERS` (answer key, reuse, rule, ai, human), `tierOfGrading`, `tierOfProposal` and `countTiers`. `handleAdminGrade` enforces the order. The file adds no AI call path. It only names and counts.
+
+**AI grading scope.** `handleAdminGrade` reads `tenant_settings.ai_grading_scope` once for each run (migration `0188`, owner 02-tenancy). The default is `written`. With `none`:
+- The handler skips the runtime. No AI call runs.
+- Each written answer gets a manual placeholder proposal: model `none`, stage `manual`, justification "AI grading is off for this organisation; score manually."
+- The rule tier (blank answer, band 0) and the reuse tier still run.
+- The handler writes one `grading.scope.none` log line for each attempt.
+
+**Metrics.** The grade response and the attempt GET carry `tiers`, a count for each tier. The admin UI shows it as the "Graded by" line.
+
+**Why.** The owner rule is to grade with the least AI that keeps accuracy. An organisation can switch AI off and still use the answer key, reuse and rule tiers.
+
+**Not included.** SP6 calibration examples and the random audit.
+
+**Downstream impact.** Only a super admin sets the scope (`PATCH /api/admin/super/tenants/:tenantId/ai-grading-scope`, audit `tenant_settings.ai_grading_scope.updated`). API facts: `docs/03-api-contract.md`. Load-bearing path: a `codex:rescue` sign-off is required before push.

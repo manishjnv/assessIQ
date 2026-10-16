@@ -1816,6 +1816,41 @@ Related warning: `business-event: not inside withTenant, candidate notice not se
 - **The admin sees two audit rows for one archive click.** This is correct: `audit.archived`, then `audit.exported` for the download.
 - **A candidate has no "new result" banner.** 1) Search the app log for `in-app.result_released.failed` or `.skipped_no_user` at the release time. 2) Check `in_app_notifications` for a row with `kind = 'result.released'` and the user id. 3) Check that `read_at` is empty.
 
+## 39. Logo, purge, export and tier events (S14, 2026-10-16)
+
+### 39.1 Key log events
+
+| Event (`msg`) | Stream | When |
+|---|---|---|
+| `user_purge.tick` | app (worker) | The worker job `user-purge-cron` ran at 03:45 UTC. Fields: `dryRun`, `tenants`, `purged`, `skipped`, `failed`. `dryRun` is true unless the worker env `USER_PURGE_ENABLED=true`. |
+| `grading.scope.none` | app | An admin grade ran for an organisation with `ai_grading_scope = 'none'`. One line for each attempt. No AI call ran. Written answers got a manual placeholder proposal. |
+
+### 39.2 Audit actions
+
+| Action | Written by | `after` | Note |
+|---|---|---|---|
+| `tenant.logo.updated` | `PUT /api/admin/tenant-settings/logo` and the super admin twin | metadata only | The row never holds the image bytes. |
+| `tenant.logo.removed` | `DELETE` on the same routes | metadata only | |
+| `user.purged` | worker job `user-purge-cron` (`purgeSoftDeletedUsers`) | `{ tables: { table: count }, minDays }` | `actorKind` is `system`. The row holds no personal data. |
+| `pack.exported` | `GET /api/admin/super/packs/:id/export?format=qti3` | `{ format, question_count }` | The export audit. One row for each download. |
+| `assessment.invitations.bulk_resent` | `POST /api/admin/assessments/:id/invitations/resend` | `{ resent, skipped, remaining }` | One row for each call, also when `resent` is 0. |
+| `tenant_settings.ai_grading_scope.updated` | `PATCH /api/admin/super/tenants/:tenantId/ai-grading-scope` | scope change | Super admin only. |
+
+### 39.3 The `tenant-op` rate-limit scope
+
+The helper `tenantRateLimit({ name, max, windowSeconds })` (`apps/api/src/middleware/tenant-rate-limit.ts`) limits a heavy admin route for each organisation. A limited call returns 429 with error code `RATE_LIMITED`, `details.scope = "tenant-op"`, `details.retryAfterSeconds` and the header `Retry-After`.
+
+| Name | Routes | Limit | Redis key |
+|---|---|---|---|
+| `audit-export` | `GET /api/admin/audit/export.csv`, `export.jsonl` and `POST /api/admin/audit/archive` | 5 per 10 minutes, fixed window | `aiq:rl:tenant-op:audit-export:<tenantId>` |
+| `invitations-bulk-resend` | `POST /api/admin/assessments/:id/invitations/resend` | 3 per 10 minutes | `aiq:rl:tenant-op:invitations-bulk-resend:<tenantId>` |
+
+### 39.4 Triage
+
+- **An admin reports "429 RATE_LIMITED" on an export.** Check `details.scope`. When it is `tenant-op`, the limit belongs to the organisation, not to the IP. Wait for `retryAfterSeconds`.
+- **`user_purge.tick` shows `dryRun: true`.** This is the default. The job changed no row. Read `purged` and `skipped` as a preview. Set `USER_PURGE_ENABLED=true` in the worker environment only after you read a tick.
+- **A grade for an organisation made no AI proposal.** Search the app log for `grading.scope.none`. The organisation has the AI grading scope set to `none`.
+
 ## Change history
 
 This table indexes every dated change on this page. The sections above hold the detail.
@@ -1836,3 +1871,4 @@ This table indexes every dated change on this page. The sections above hold the 
 | unknown | `GET /api/ready` readiness probe (RW-9) | n/a | § 36 |
 | 2026-10-16 | Generation log events (`generation.stale_sweep`, `generation.difficulty.warn.failed`, `generation.detached.*`). Worker jobs `generation-stale-sweep` and `tenant-purge-cron` | (S10, 2026-10-16) | § 37 |
 | 2026-10-16 | Audit export and archive events and audit actions. Embed SDK fallback log. Candidate result notice log lines | (S13, 2026-10-16) | § 38 |
+| 2026-10-16 | Logo, user purge, pack export, bulk resend and AI grading scope audit actions. `user_purge.tick` and `grading.scope.none` log lines. `tenant-op` 429 scope | (S14, 2026-10-16) | § 39 |

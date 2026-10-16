@@ -1321,3 +1321,92 @@ chars and non-empty `long_md` per the help-key test.
 **Not included.** A notice bell. Notices for other events. A count on the menu item.
 
 **Downstream impact.** Help key `candidate.shell.new_results_notice` (migration `0182`). Tests: `CandidateShell.test.tsx` and `MyResults.test.tsx`.
+
+## Session S14 UI changes (2026-10-16)
+
+*Type: reference.* These blocks cover the screens that S14 changed. API facts are in [03-api-contract.md](03-api-contract.md). Help rows for the new ids are in migration `0187`.
+
+### TenantLogo component (Logo-L2, S14)
+
+**What.** `modules/17-ui-system/src/components/TenantLogo.tsx`. The component shows the logo of an organisation. It never replaces the AssessIQ mark (see [10-branding-guideline.md](10-branding-guideline.md) section 11).
+
+| Prop | Meaning |
+| --- | --- |
+| `src` | The logo URL. When it is absent, the component shows the organisation name. |
+| `name` | The organisation name. It is the `alt` text and the fallback text. |
+| `height` | The logo height in pixels. The width is automatic, with a maximum of four times the height. The image uses `contain`. |
+| `viaAssessIQ` | When true, a muted "via AssessIQ" caption shows next to the logo. The caption uses tokens. |
+
+**Placements.**
+
+| Screen | Height | Help id |
+| --- | --- | --- |
+| Admin top bar | 28 px | `admin.shell.tenant_logo` |
+| Candidate shell (`CandidateShell.tsx`) | 28 px | `candidate.shell.logo` |
+| Candidate token landing (`TokenLanding.tsx`) | 40 px | `candidate.take.landing.logo` |
+| Attempt top bar (`AttemptTopBar.tsx`) | 28 px | `candidate.take.attempt.logo` |
+| Submitted page (`Submitted.tsx`) | 40 px | `candidate.take.submitted.logo` |
+| Tenant settings preview | 120 px | `admin.tenant_settings.logo` |
+
+**Tenant settings: "Organisation logo" section.** The section has a preview (120 px at most), a PNG or JPEG file input, client checks, and an Upload button. Upload sends JSON with `content_base64`. A Remove button asks for confirmation. Both actions need a fresh MFA step-up, like release mode. Help ids: `admin.tenant_settings.logo` and `admin.tenant_settings.logo.remove`. The page help `admin.tenant_settings.page` is now version 2 (a logo bullet).
+
+**Why.** Organisations asked to see their own brand on the pages that their candidates see. One component keeps the sizes, the fallback and the co-brand caption the same on every screen.
+
+**Not included.** SVG, GIF and WebP logos (the API refuses them). A logo crop tool.
+
+### Question editor: negative marks and passage sets (EX-1, EX-3, S14)
+
+- **Negative marks input.** The question editor has a "Negative marks" input in the create form and in the edit card. Blank means "use the assessment default". AI-graded types ignore the value. Help id: `admin.question_editor.negative_marks`.
+- **`NegativeMarksCard`.** The assessment page shows this card under Advanced settings. It sets `settings.scoring.negative_marks_default` (0 to 1000). It is editable in draft only. Help id: `admin.assessments.settings.negative_marks_default`.
+- **Structured case editor.** Each step has "Marks" and "Negative marks" inputs (help id `admin.question.editor.structured_case.step_marks`). A "Passage set" preset adds five single-choice steps (help id `admin.question.editor.structured_case.passage_preset`).
+- **Grading panel.** The panel adds `· −N` to the score line when the question has a penalty.
+
+### Candidate screens: passage sets and negative marking (EX-1, EX-3, S14)
+
+- **`StructuredCaseAnswerArea`.** The component shows the shared stem block, the label "Question k of N", and a chip "+w · −n" for each step that has marks. Help id: `candidate.take.structured_case.child_marks`.
+- **`ResultSummary`.** The total can be negative and shows its sign. The score ring never goes below 0. When the penalty is more than 0, a line reads "Negative marking: −N deducted for wrong answers". Help id: `candidate.result.negative_marking`.
+
+**Why.** The result must explain a lower total. A candidate must see the weight of each step before the answer.
+
+### Billing page: Plan limits (PT1, PT-4, S14)
+
+- The billing page has a "Plan limits" block. It shows four values: licensed packs, candidates per drive, overage cap, and AI answers used against included ("Unlimited" or "no cap" when a limit is null).
+- When `PLAN_TIERS_ENFORCED` is false, the block adds the note "Plan limits are shown for information and are not enforced yet."
+- Help ids: `admin.settings.billing.limits` and `admin.settings.billing.limits.enforced`.
+
+### Grading panel and Platform drawer (P4, S14)
+
+- **`AttemptGradingPanel`.** A "Graded by" line reads "answer key N · reuse N · rule N · AI N · human N". The line omits tiers with a count of zero. Help id: `admin.attempts.grading.tiers`.
+- **`AiGradingScopeCard`.** The Platform billing drawer has this card for super admins. It sets the AI grading scope of an organisation: "written" or "none". Help id: `admin.platform.tenant.ai_grading_scope`.
+
+### Question import page (RW-59, S14)
+
+- The page lists the accepted formats: CSV, XLSX, GIFT, Aiken and QTI (zip or one `.xml` item). Help id: `admin.question_import.formats`.
+- A `.txt` file makes the page ask you to choose GIFT or Aiken. Help id: `admin.question_import.text_format`.
+- Templates stay CSV and XLSX only.
+
+### Help ids added in S14
+
+| Help id | Page or component |
+| --- | --- |
+| `admin.tenant_settings.logo` | Tenant settings, logo section |
+| `admin.tenant_settings.logo.remove` | Tenant settings, Remove button |
+| `admin.shell.tenant_logo` | Admin top bar |
+| `candidate.take.landing.logo` | Token landing |
+| `candidate.take.attempt.logo` | Attempt top bar |
+| `candidate.take.submitted.logo` | Submitted page |
+| `candidate.shell.logo` | Candidate shell |
+| `admin.question_editor.negative_marks` | Question editor |
+| `admin.assessments.settings.negative_marks_default` | Assessment page, `NegativeMarksCard` |
+| `candidate.result.negative_marking` | Candidate result summary |
+| `admin.question.editor.structured_case.step_marks` | Structured case editor |
+| `admin.question.editor.structured_case.passage_preset` | Structured case editor |
+| `candidate.take.structured_case.child_marks` | Candidate structured case answer area |
+| `admin.settings.billing.limits` | Billing page |
+| `admin.settings.billing.limits.enforced` | Billing page |
+| `admin.platform.tenant.ai_grading_scope` | Platform billing drawer |
+| `admin.attempts.grading.tiers` | Attempt grading panel |
+| `admin.question_import.formats` | Question import page |
+| `admin.question_import.text_format` | Question import page |
+
+`admin.tenant_settings.page` is bumped to version 2. The migration `0187` holds all rows (20 rows with the page bump).

@@ -446,3 +446,19 @@ Fonts: `Newsreader, Georgia, 'Times New Roman', serif` (headlines) /
 ## Erased candidates (E3, 2026-10-02)
 
 `reissue` throws 409 `CANDIDATE_ERASED` (never re-write the name on an erased candidate's certificate); `issueCertificateOnRelease` returns null for an erased candidate. Revoke stays allowed. Public verify routes now take the client IP from `extractClientIp` (adds the `@assessiq/auth` dependency).
+
+## Organisation logo on verify page, OG image and PDF (Logo-L3c, Logo-L4, S14, 2026-10-16)
+
+**What.** The logo bytes come from `getTenantLogoBytes(cert.tenant_id)` (module 02). The code reads them after the certificate row is loaded, because `withPublicVerifyContext` has no tenant GUC.
+
+| Surface | Placement |
+| --- | --- |
+| Verify page | 80 × 32 px. Line "Issued by [logo] Org · via AssessIQ". |
+| OG SVG and PNG | 240 × 96 px, white plate, top right. `resvg` embeds data URIs. |
+| Certificate PDF | 18 mm high, top left. |
+
+A missing logo or a read failure shows the organisation name alone. The guard `SAFE_LOGO_DATA_URI` is in `logo-pattern.ts`. Logo-L4 (the PDF) shipped inside L3c.
+
+**Why.** The verify page, the share image and the PDF are the public face of a certificate. They carry the issuer brand, co-branded with AssessIQ.
+
+**Downstream impact.** Sizes and the co-brand rule: `docs/10-branding-guideline.md` § 11.1. API facts: `docs/03-api-contract.md`.

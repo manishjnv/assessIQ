@@ -459,6 +459,29 @@ In Phase 1, the admin always sees both verdicts when escalation runs, and the ad
 - **Not included.** No fuzzy or semantic similarity; no cheaper-model tier; no eval re-baseline needed (prompts unchanged).
 - **Impact.** After a prompt skill deploy, reuse stops matching for a question until new grades exist under the new shas. This is intended. Sign-off: codex revise-addressed (trailer on `dea16b4`).
 
+### Least-AI tier order (P4)
+
+*History: 2026-10-16, S14.*
+
+The platform tries the cheapest grading tier first. This section names the full order. The earlier section "Least-AI grading tiers 1 and 2 (SP5)" describes the rule and reuse tiers in detail. Read it with this section.
+
+| Position | Name | What it does | Where it runs |
+| --- | --- | --- | --- |
+| 1 | `answer_key` | Scores the deterministic types from the key | Module 09, before the grade loop |
+| 2 | `reuse` | Copies an identical accepted grade | `least-ai.ts`, before the runtime |
+| 3 | `rule` | Gives a blank answer band 0 | `least-ai.ts` |
+| 4 | `ai` | `gradeSubjective` for `AI_GRADEABLE_TYPES` only (`subjective`, `scenario`, `log_analysis`) | Phase 1 runtime |
+| 5 | `human` | Accept, override or manual score, and flagged cases | Admin |
+
+- **Code.** `modules/07-ai-grading/src/grading-tiers.ts` names the order: `GRADING_TIERS`, `tierOfGrading`, `tierOfProposal` and `countTiers`. `handleAdminGrade` applies it. The file adds no AI call path.
+- **Tenant cap.** `tenant_settings.ai_grading_scope` is `written` (default) or `none`. With `none`, no AI call runs for that organisation. Written answers get a manual placeholder proposal: model `none`, stage `manual`, justification "AI grading is off for this organisation; score manually." The rule and reuse tiers still run. The handler writes one `grading.scope.none` log line for each attempt.
+- **Who sets it.** Only a super admin. The change is audited as `tenant_settings.ai_grading_scope.updated`. `handleAdminGrade` reads the value once for each run and skips the runtime when it is `none`.
+- **Visible result.** The grade response and the attempt `GET` return `tiers`, a count for each tier. The grading panel shows "Graded by: answer key N, reuse N, rule N, AI N, human N". It omits tiers with a zero count.
+- **No new AI path.** The cap only removes AI calls. `lint:ambient-ai` is unchanged. D8 is preserved: the tiers produce proposals, and only accept or override writes `gradings` rows.
+- **Considered and rejected.** A tenant-admin switch (the owner keeps this a platform decision). A per-question scope.
+- **Not included.** A scope value for a cheaper model. A re-baseline of the eval harness (the prompts did not change).
+- **Impact.** Column and rollback: [02-data-model.md](02-data-model.md) § "S14 additions (2026-10-16)". Routes: [03-api-contract.md](03-api-contract.md) § "S14 additions (2026-10-16)".
+
 ## Scoring
 
 Scores come from bands and weights. Some question types never use AI. This section explains the math and the deterministic paths.
@@ -526,6 +549,46 @@ The code is wired in three places:
 - **Tier 0 type list.** The deterministic types are now `mcq`, `numeric`, `multi_select`, `ordering`, `structured_case`. The "needs evaluation" predicate is `q.type NOT IN ('mcq','numeric','multi_select','ordering','structured_case')` in `07 repository.ts`, `07 handlers/super-evaluations.ts`, `06 result.ts` and `apps/api/src/jobs/evaluation-queue-alert.ts` (commit `860bfc3`). A new deterministic type must widen all four.
 - **Rule: one question never mixes deterministic and AI points.** Every step is a choice with a fixed key, so the whole question is deterministic. Free-text steps would break this rule. That is why we rejected `scenario` with mcq steps as the base: its AI or deterministic path would depend on content. The code chooses the key from the question TYPE, never from the answer shape.
 - **Not included.** AI generation of this type, any prompt or skill change, and band scoring (0/25/50/75/100). For the shape and scoring detail, see 02.
+
+**Passage sets (EX-3).**
+
+- **What.** A passage set is a `structured_case` question. Its `context` is the shared stem. Its `steps` are the child questions. Scoring is deterministic and uses no AI.
+- **Symbols.** `w_i` is the weight of step i (`step.points`, default 1). `W` is the sum of all `w_i`. `P` is the question points. `n_i` is the penalty of step i: `step.negative_marks`, or `negativeMarks x w_i / P` when the step has none.
+- **Step sum.** A right step adds `w_i`. A partly right step adds `f_i x w_i`. An attempted wrong step subtracts `n_i`. A blank step adds 0.
+- **Result.** Marks earned = `round2(P x sum / W)`. The status is `correct` when the sum is `W` or more, `partial` when the sum is above 0, and `incorrect` otherwise.
+- **Check values.** All steps right gives `P`. All steps wrong with the default penalties gives `-negativeMarks`.
+- **`all_or_nothing`.** The candidate gets `P` only when every child is right. If a child was attempted and none is partial, the result is `-negativeMarks`. Else it is 0.
+- **Storage.** One `gradings` row for each question. There are no rows for each child.
+- **Code.** The registry hook `deterministicMarks` on the type holds the rule. `structuredCaseFraction` (0 to 1) is unchanged.
+- **No new AI path.** `lint:ambient-ai` is unchanged and D8 is preserved. No migration was needed. Content shape: [02-data-model.md](02-data-model.md) § "S14 additions (2026-10-16)".
+- **Not included.** Per-child gradings rows. AI generation of passage sets. Step-level shuffle.
+
+### Negative marking (EX-1)
+
+*History: 2026-10-16, S14.*
+
+- **What.** A wrong answer that the candidate attempted can cost marks. The rule applies to deterministic types only: `mcq`, `numeric`, `multi_select`, `ordering` and `structured_case`. The AI paths do not change. AI-graded types ignore `negative_marks`.
+- **Rule.** `deterministicMarks()` in `@assessiq/question-types` returns the marks and the status for one answer.
+
+| Result of the answer | Marks | Status |
+| --- | --- | --- |
+| Fraction is 1 or more | Full points | `correct` |
+| Fraction above 0 and below 1 | `round2(points x fraction)`, no penalty | `partial` |
+| Fraction is 0 and the answer was attempted | `-negative_marks` | `incorrect` |
+| Not attempted | 0 | `incorrect` |
+
+- **What "attempted" means.** The registry hook `isAttempted(answer)` decides. The default is `answer != null`. The hook for each type:
+  - `mcq`: an integer `selected`.
+  - `multi_select`: a non-empty selection.
+  - `numeric`: a number or a string that is not blank.
+  - `ordering`: a non-empty `order`.
+  - `structured_case`: at least one step that has picks.
+- **Where the value comes from.** `attempt_questions.negative_marks` is frozen at attempt start: `COALESCE(questions.negative_marks, assessment default, 0)`. Columns: [02-data-model.md](02-data-model.md) § "S14 additions (2026-10-16)".
+- **Totals.** The rollup in module 09 does not clamp. The total and `auto_pct` may be negative. The band clamps at read time with `Math.max(0, ...)`. The certificate rule (percent of 70 or more) and pass or fail already handle negative values. There is no new status value.
+- **No new AI path.** This change adds no AI call and no new runtime. `lint:ambient-ai` is unchanged. D8 is preserved: no AI result becomes final without an admin.
+- **Considered and rejected.** A penalty rule for each type. A penalty for AI-graded types (the band scoring 0/25/50/75/100 stays the only AI scale).
+- **Not included.** Per-type penalty rules. Penalties for AI types. Validation of `settings.scoring` on write.
+- **Impact.** The candidate result shows a signed total and a note "Negative marking: -N deducted for wrong answers". API fields: [03-api-contract.md](03-api-contract.md) § "Negative marking (EX-1)". Module notes: `modules/09-scoring/SKILL.md`.
 
 ### Module 07 reads the frozen question type (N21)
 

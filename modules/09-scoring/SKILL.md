@@ -156,3 +156,14 @@ Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `at
 ## RW-68: deterministic scoring from the registry (2026-10-11)
 
 Commit `b68523c`. The per-type scoring code left `src/mcq.ts`. Call `deterministicScoreFor(type, content, answer)` (was `deterministicFraction`). It returns 0..1 and returns 0 for an unknown type, which is unreachable behind the DB CHECK. The scoring primitives are re-exported from the registry. SQL type lists use `DETERMINISTIC_IDS`. The 119 tests are unchanged.
+
+## Negative marking in scoring (EX-1 and EX-3, S14, 2026-10-16)
+
+- **What.** `scoreMcqForAttempt` (`src/mcq.ts`) now reads `attempt_questions.negative_marks` with the answer and calls `deterministicMarks(type, content, answer, { points, negativeMarks })` from `@assessiq/question-types`. The function returns `earned`, `max` and the status. The module writes one `gradings` row (`grader = 'deterministic'`) for each question, as before.
+- **The rule.** Fraction 1 or more: full points, `correct`. Fraction between 0 and 1: `round2(points x fraction)`, `partial`, no penalty. Fraction 0 and the answer was attempted: `-negative_marks`, `incorrect`. Not attempted: 0, `incorrect`. The registry hook `isAttempted` decides what "attempted" means. Detail and the passage-set formula: [docs/05-ai-pipeline.md](../../docs/05-ai-pipeline.md) § "Negative marking (EX-1)".
+- **Signed totals.** `attempt_scores.total_earned` and `auto_pct` may be negative. `gradings.score_earned` may be negative (no CHECK). The rollup in `finalize.ts` does not clamp, because the true signed total is the audit value.
+- **Read-time clamps.** The band uses `Math.max(0, ...)` (`src/repository.ts`, the band from `auto_pct`). The certificate rule (percent of 70 or more) and pass or fail already treat a negative percent as a fail. The candidate ring is clamped at 0 in the UI.
+- **Why not clamp the rollup.** A clamp would hide how many marks the penalties took. The admin review and the result summary show that number.
+- **Considered and rejected.** A new status value. A floor at 0 on `gradings.score_earned`. A penalty for partial credit.
+- **Not included.** Penalties for AI-graded types (the band scoring 0/25/50/75/100 is unchanged). Per-type penalty rules.
+- **Downstream impact.** Any new reader of `total_earned` must accept a negative number. Module 06 returns `negative_marking` in the result payload. Columns: [docs/02-data-model.md](../../docs/02-data-model.md) § "S14 additions (2026-10-16)".

@@ -253,6 +253,15 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 
 **Why.** Flex → inner 2-cell table. `align="right"` keeps the eyebrow trailing. Serif wordmark is the editorial signature.
 
+**Organisation logo (Logo-L3b, S14, 2026-10-16).** The `email-header` partial shows the logo of the organisation when the input `logo_url` is set.
+
+- **Public URL.** `logo_url` is the public URL of the app: `<ASSESSIQ_BASE_URL>/api/public/tenant-logo/<id>?v=<sha12>`. The Gmail image proxy fetches the image without cookies. This works because the route is public.
+- **Origin-locked guard.** `render.ts` drops any `logo_url` value that does not match this URL form for the app origin.
+- **Six templates.** `sendEmail` builds the URL from the logo metadata for `invitation_candidate`, `invitation_reminder`, `candidate_login_link`, `attempt_submitted_candidate`, `attempt_graded_candidate` and `result_released`. A caller can override it with `logoUrl`. Admin and alert emails stay unbranded.
+- **60 s cache.** The metadata lookup is cached for 60 seconds.
+- **No data URIs.** The partial never embeds the image. Gmail clips a message over 102 KB and blocks `data:` images.
+- **Size.** The logo box is 120 × 48 px. See [10-branding-guideline.md](10-branding-guideline.md) § 11.1.
+
 ### A4 — `{{> email-body }}` (container)
 
 **Kit equivalent:** `EmailBody` (kit:69-73).

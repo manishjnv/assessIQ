@@ -1207,6 +1207,19 @@ Old keys expire naturally within 60 seconds, so no migration script is required.
 
 **Not included.** Per-route-group candidate caps, Redis-cluster sharding of the buckets and pgbouncer. Load script: `tests/load/scenarios/candidate-drive.js` (staging and local only).
 
+### Candidate request-link limits and the tenant-op throttle (S2/N2 and S7/N5, S14, 2026-10-16)
+
+*History: 2026-10-16.*
+
+- **What changed.** `POST /api/auth/candidate/request-link` now uses the candidate-entry per-IP bucket (`RATE_LIMIT_IP_CANDIDATE_ENTRY`, 2000 per minute for each route). Before, it used the 120 per minute anonymous bucket. The service keeps its per-(IP, email) limit of 5 per hour. It adds a per-IP send cap of 200 per hour (Redis key `aiq:rl:cand-login:ip:<ip>`). Both limits fail closed. The response is always 204, so a caller cannot tell a limit from a missing account.
+- **Why.** A college lab sits behind one public IP. Many students ask for a sign-in link at the same time. The 120 per minute bucket blocked the lab. The 200 per hour cap still limits an attacker who wants to send mail to many addresses from one IP.
+- **Tests.** `01-auth` `rate-limit-campus` case (f): 50 requests from one IP return no 429. A `candidate-login` test covers the per-IP cap.
+- **Already in place (Rule B check).** `POST /api/take/start` has a per-token limit of 30 per minute and the candidate-entry bucket. `verify-link` uses the candidate-entry bucket. Candidate sessions have 3000 per minute for each IP.
+- **Per-organisation throttle.** The helper `tenantRateLimit({ name, max, windowSeconds })` (`apps/api/src/middleware/tenant-rate-limit.ts`) limits one heavy admin action for each organisation in a fixed window. Key: `aiq:rl:tenant-op:<name>:<tenantId>`. An excess call returns 429 `RATE_LIMITED` with `details.scope = "tenant-op"` and the header `Retry-After`. It guards the audit export and archive routes and the bulk invitation resend. Routes and limits: [03-api-contract.md](03-api-contract.md) § "S14 additions (2026-10-16)".
+- **Considered and rejected.** A higher anonymous bucket (it weakens every public route). A per-email cap only (an attacker uses many addresses).
+- **Not included.** A change to the admin credential limits. A per-user cap for admin export.
+- **Downstream impact.** The per-IP cap is a send cap. A lab of more than 200 students who all ask for a new link in one hour needs a second wave or the invitation link route.
+
 ### Client IP trust and production boot rule
 
 *History: 2026-10-02, batch 4.*
