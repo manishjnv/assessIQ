@@ -12,6 +12,8 @@ export default tseslint.config(
       "**/AssessIQ_UI_Template/**",
       // Storybook build output — bundled vendor JS, never linted as source.
       "**/storybook-static/**",
+      // Built embed SDK (packages/embed-sdk/build.mjs -> apps/api/public/embed/sdk.js, RV44): minified output, not source.
+      "apps/api/public/**",
       // Past-session agent worktrees live under .claude/worktrees/ and shadow
       // the real source paths; without this, ESLint lints every agent's
       // sibling copy too and the error count explodes (~9K stale errors from
