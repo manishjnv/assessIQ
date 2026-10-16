@@ -485,6 +485,8 @@ FU-D11 (2026-10-06): there is no root `pnpm storybook` script today. Run `pnpm -
 - Dark mode
 - Keyboard focus
 
+FU-D14 (2026-10-16, S12): the last seven components without a story got one (Drawer, Modal, ScoreRing, Sidebar, Sparkline, StatCard, Table). Every file in `modules/17-ui-system/src/components/` now has a `.stories.tsx` (27 of 27). Stateful demos (open/close, sortable table) live in small named components inside the story file because eslint rejects hooks inside `render`. The E13 visual-baseline merge is not included. Gate: `pnpm --filter @assessiq/storybook build`.
+
 Storybook ships as part of the dev environment, not deployed. We may host a public version later for component documentation if AssessIQ becomes a multi-tenant product with partner devs.
 
 ## Accessibility
