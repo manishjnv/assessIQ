@@ -30,6 +30,12 @@
  *   <script src="https://assessiq.in/embed/sdk.js"></script>
  *   window.AssessIQ.mount('#container', opts);
  *
+ * Blocked-frame signal (onBlocked):
+ *   If the iframe never posts aiq.ready within readyTimeoutMs (default 15000),
+ *   onBlocked() runs. The usual cause is that your site is not in the tenant
+ *   allowed origins, so the browser refused the frame. Fix: add the origin in
+ *   Admin > Integrations > Embed configuration.
+ *
  * Security:
  *   - All cross-origin postMessages are validated against the configured
  *     allowedOrigins from your tenant settings.
@@ -54,6 +60,17 @@ export interface AssessIQEmbedOpts {
 
   /** Called on embed errors (expired token, invalid token, etc.). */
   onError?: (event: { type: 'aiq.error'; code: string; message: string }) => void;
+
+  /**
+   * Called when the iframe does not post `aiq.ready` within `readyTimeoutMs`.
+   * Browsers do not report a frame blocked by X-Frame-Options or CSP
+   * frame-ancestors, so a missing `aiq.ready` is the practical signal. Show
+   * "This page cannot be embedded here; check the allowed origins".
+   */
+  onBlocked?: () => void;
+
+  /** Wait time for `aiq.ready` before `onBlocked` fires. Default 15000 ms. */
+  readyTimeoutMs?: number;
 
   /** SDK version string forwarded to the server for analytics. */
   sdkVersion?: string;
@@ -128,10 +145,16 @@ export const AssessIQEmbed = {
       targetOrigin = base;
     }
 
+    const readyTimer = opts.onBlocked
+      ? setTimeout(() => opts.onBlocked?.(), opts.readyTimeoutMs ?? 15000)
+      : undefined;
+
     function handleMessage(event: MessageEvent): void {
       if (event.origin !== targetOrigin) return;
       const data = event.data as { type?: string; [key: string]: unknown } | null;
       if (!data || typeof data.type !== 'string') return;
+
+      if (data.type === 'aiq.ready') clearTimeout(readyTimer);
 
       if (data.type === 'aiq.ready' && opts.onReady) {
         opts.onReady({ type: 'aiq.ready', version: String(data['version'] ?? '') });
@@ -154,6 +177,7 @@ export const AssessIQEmbed = {
     return {
       iframe,
       destroy() {
+        clearTimeout(readyTimer);
         el.removeChild(iframe);
         window.removeEventListener('message', handleMessage);
       },

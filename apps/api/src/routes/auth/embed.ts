@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { AppError, AuthnError, ValidationError } from '@assessiq/core';
+import { AppError, AuthnError, ValidationError, sha256Hex } from '@assessiq/core';
 import { config } from '@assessiq/core';
 import { verifyEmbedToken, mintEmbedToken, extractClientIp } from '@assessiq/auth';
 import {
@@ -30,6 +32,24 @@ import { sdkMintBody } from '../_schemas.js';
 // The aiq_embed_sess bridge in apps/api/src/server.ts promotes the embed cookie
 // value into the standard session-loader slot for subsequent API calls from the iframe.
 
+
+// Built SDK (packages/embed-sdk/build.mjs -> apps/api/public/embed/sdk.js, RV44).
+// Committed to git because the API image never runs a build. Read once at load.
+const SDK_FILE = fileURLToPath(new URL('../../../public/embed/sdk.js', import.meta.url));
+
+interface BuiltSdk { body: string; version: string; etag: string }
+
+function loadBuiltSdk(): BuiltSdk | null {
+  try {
+    const body = readFileSync(SDK_FILE, 'utf8');
+    // First line is the build banner: "/* @assessiq/embed <version> */".
+    const version = body.split('\n', 1)[0]?.split(' ')[2] ?? 'unknown';
+    const etag = `"${sha256Hex(body)}"`;
+    return { body, version, etag };
+  } catch {
+    return null;
+  }
+}
 
 export async function registerEmbedRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
@@ -123,16 +143,23 @@ export async function registerEmbedRoutes(app: FastifyInstance): Promise<void> {
   // -------------------------------------------------------------------------
   // GET /embed/sdk.js  — self-contained host SDK (≤3 KB)
   // -------------------------------------------------------------------------
+  const builtSdk = loadBuiltSdk();
+  if (!builtSdk) app.log.warn({ file: SDK_FILE }, 'embed.sdk.fallback_stub');
+
   app.get(
     '/embed/sdk.js',
     { config: { skipAuth: true } },
-    async (_req, reply) => {
-      // Served from packages/embed-sdk/dist/sdk.min.js at build time.
-      // In dev, the raw SDK source is inlined here as a UMD bundle stub.
-      // The production build (Vite) replaces this handler with a static-file
-      // serve from apps/api/public/embed/sdk.js.
+    async (req, reply) => {
       reply.header('Content-Type', 'application/javascript; charset=utf-8');
       reply.header('Cache-Control', 'public, max-age=3600');
+      if (builtSdk) {
+        reply.header('X-AssessIQ-SDK-Version', builtSdk.version);
+        reply.header('X-Content-Type-Options', 'nosniff');
+        reply.header('ETag', builtSdk.etag);
+        if (req.headers['if-none-match'] === builtSdk.etag) return reply.code(304).send();
+        return reply.send(builtSdk.body);
+      }
+      // FALLBACK ONLY: superseded by packages/embed-sdk build (RV44, 2026-10-16); kept per Rule A.
       // Minimal UMD stub — the real compiled SDK is injected by the build pipeline.
       // window.AssessIQ.mount(selector, opts) is the public API.
       return reply.send(`(function(w,d){"use strict";
