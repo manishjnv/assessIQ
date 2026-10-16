@@ -282,6 +282,8 @@ proceeding to `docker compose build` / `up -d`.
   against the affected DB to re-record the new checksum. Otherwise revert
   the edit so the on-disk content matches what was applied.
 
+**Production note:** the deploy gate does not run `--check`. It uses a `diff` that tolerates four known DB-only names. See "How to read the drift diff" under [Deploy procedure](#deploy-procedure-steady-state-post-2026-05-03).
+
 #### CHECK C — Env var declaration coverage
 
 **What it catches:** `process.env.VAR_NAME` reads in `modules/*/src/` and `apps/*/src/` where `VAR_NAME` does not appear anywhere in `.env.example` (including comment mentions). This catches vars that are used in code but never documented for operators provisioning a new environment.
@@ -331,8 +333,13 @@ ssh assessiq-vps 'docker compose -f /srv/assessiq/infra/docker-compose.yml exec 
   | sort > /tmp/db-migrations.txt
 ssh assessiq-vps 'ls /srv/assessiq/modules/*/migrations/*.sql | xargs -n1 basename' \
   | sort > /tmp/repo-migrations.txt
-diff /tmp/repo-migrations.txt /tmp/db-migrations.txt || {
-  echo "MIGRATION DRIFT — apply pending or reconcile before deploying"; exit 1; }
+# Tolerates only the four known DB-only names (see "How to read the drift diff").
+if diff /tmp/repo-migrations.txt /tmp/db-migrations.txt \
+  | grep -v -E '^[0-9]+(,[0-9]+)?[acd][0-9]+(,[0-9]+)?$' \
+  | grep -v -E '^> (0011_seed_help_content\.sql|0100_attempts_ai_proposals_cache|0106_generation_attempts_batch_id|0109_seed_platform_aptitude_pack\.sql)$' \
+  | grep .; then
+  echo "MIGRATION DRIFT — apply pending or reconcile before deploying"; exit 1
+fi
 
 # 2b. If --check (or the diff above) shows pending migrations, apply them
 #     BEFORE rebuilding any container image. Run from a host with a
@@ -351,6 +358,21 @@ ssh assessiq-vps 'cd /srv/assessiq && docker compose -f infra/docker-compose.yml
 # 4. Recreate the container
 ssh assessiq-vps 'cd /srv/assessiq && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <service>'
 ```
+
+#### How to read the drift diff
+
+The gate in step 2 compares the repo file list with `schema_migrations`. Production is expected to show exactly four extra DB-only names (checked 2026-10-16, HEAD `b3bcfb4`: 150 repo files, 154 DB rows).
+
+| Name in DB only | Why it has no repo file | Since |
+| --- | --- | --- |
+| `0011_seed_help_content.sql` | Moved to `modules/16-help-system/seeds/help_content.sql` | 2026-10-11 |
+| `0100_attempts_ai_proposals_cache` | Recorded by hand without `.sql`; repo file renamed later | May 2026 |
+| `0106_generation_attempts_batch_id` | Recorded by hand without `.sql`; repo file renumbered later | May 2026 |
+| `0109_seed_platform_aptitude_pack.sql` | One-off seed with no repo file | 2026 |
+
+- A `<` line is a repo file that is not applied yet. Apply it by hand before the rebuild. See [Apply new migrations by hand](#apply-new-migrations-by-hand-pattern-used-2026-10-01).
+- A `>` line is recorded in the DB but has no repo file. Only the four names above are allowed. Any other `>` line is an incident.
+- `tools/migrate.ts --check` has no allowlist and is not used against production. See the paragraph in [Apply new migrations by hand](#apply-new-migrations-by-hand-pattern-used-2026-10-01).
 
 > **Why step 2 is mandatory:** RCA `2026-05-13 — Verify path silently 404/500 in prod`. Migrations `0046_certification_init.sql` and `0074_public_verify_policy.sql` were committed and the dependent code was deployed across multiple sessions, but neither migration was ever applied. The verify feature was silently 500ing in prod for two sessions before a Session 7 smoke surfaced the gap. A pre-deploy diff between `ls modules/*/migrations/*.sql` and `SELECT version FROM schema_migrations` would have caught it immediately. Treat step 2 as a hard gate, not a courtesy check.
 
@@ -462,7 +484,7 @@ The rejection logger writes JSONL to `/var/log/assessiq/mcp-rejections.log` (bin
 
 **Goal:** apply a migration to production when you do not use `tools/migrate.ts`.
 
-`tools/migrate.ts` is not run against production today: older migrations were applied by hand, and `schema_migrations` is incomplete (some rows are missing; 0100 and 0106 are recorded without `.sql`), so `migrate.ts --check` would flag drift. New migrations are applied one by one, in number order, **before** the image rebuild, because new code may read the new columns (for example 0119 `attempt_questions.option_order` is read by `saveAnswer`).
+`tools/migrate.ts` is not run against production today, because `--check` has no allowlist for the four known DB-only names (0011, 0100, 0106, 0109) and would always report drift. The tracker is otherwise complete: every repo migration is recorded in `schema_migrations`. The deploy gate (step 2 of the deploy procedure) uses a `diff` that tolerates only those four names. Apply new migrations one by one, in number order, **before** the image rebuild, because new code may read the new columns (for example 0119 `attempt_questions.option_order` is read by `saveAnswer`).
 
 1. **Pull:** `ssh assessiq-vps 'cd /srv/assessiq && git pull --ff-only'`.
 2. **Script:** write a small LF-only bash script on the laptop, `scp` it to `/tmp`, and run it with `ssh assessiq-vps 'bash /tmp/<script>.sh < /dev/null'`.
