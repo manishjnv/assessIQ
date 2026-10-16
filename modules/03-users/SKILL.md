@@ -8,7 +8,7 @@ Manage the `users` table: who exists in a tenant, what role they hold, lifecycle
 - **Out:** authentication, password/TOTP credentials (01), tenant settings (02), permission checks beyond role (handled by `req.requireAuth(roles)`).
 
 ## Roles
-> `reviewer` was removed on 2026-10-03 (RV60) and dropped from the DB CHECKs by 0179 on 2026-10-16 (Y-1). Older sections below that mention it are history.
+> `reviewer` was removed on 2026-10-03 (RV60) and dropped from the DB CHECKs by 0179-0181 on 2026-10-16 (Y-1; users: 0179 in this module). Older sections below that mention it are history.
 - `admin` — full tenant control
 - `candidate` — can take assigned assessments only
 
