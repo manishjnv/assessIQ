@@ -161,6 +161,9 @@ vi.mock('@assessiq/tenancy', () => ({
   setPoolForTesting: vi.fn(),
   updateTenantSettings: vi.fn(),
   suspendTenant: vi.fn(),
+  // Logo L1: whoami reads the logo meta (S12 trap: partial factories must carry new exports).
+  getTenantLogoMeta: vi.fn().mockResolvedValue(null),
+  tenantLogoUrl: vi.fn((id: string, sha: string) => `/api/public/tenant-logo/${id}?v=${sha.slice(0, 12)}`),
 }));
 
 // /embed now runs the full JIT flow (CSP origins, JIT user, embed session,
