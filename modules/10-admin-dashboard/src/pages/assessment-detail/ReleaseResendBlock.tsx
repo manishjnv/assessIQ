@@ -137,7 +137,8 @@ export function ReleaseResendBlock(props: ReleaseResendBlockProps): React.ReactE
       <strong>{Math.min(resendable, RESEND_ALL_CAP)}</strong> email
       {Math.min(resendable, RESEND_ALL_CAP) === 1 ? " will" : "s will"} be sent, one to each
       candidate who hasn't started. Each gets a new link that is valid for 7 days, and their
-      old links stop working straight away.
+      old links stop working straight away. Candidates who received a resend in the last 24
+      hours are skipped.
       {resendable > RESEND_ALL_CAP
         ? ` We send ${RESEND_ALL_CAP} at a time; press the button again for the other ${
             resendable - RESEND_ALL_CAP

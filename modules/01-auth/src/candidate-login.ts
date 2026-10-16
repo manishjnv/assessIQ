@@ -74,6 +74,34 @@ function sleep(ms: number): Promise<void> {
 // ---------------------------------------------------------------------------
 const CANDIDATE_LINK_RL_WINDOW_SEC = 60 * 60; // 1 hour
 const CANDIDATE_LINK_RL_MAX = 5;
+// S2/N2 (2026-10-16): the route moved to the candidate-entry IP bucket (2000/min) so a
+// shared college IP is not blocked. Two SEND caps bound the outbound email volume; they are
+// counted only when an email matched (adversarial review 2026-10-17: counting attempts let
+// one junk client behind the lab IP lock the whole lab out for an hour).
+//   per IP: 200 sends/h (a lab of 50 students, 2 clicks each, fits with headroom)
+//   per (tenant, email): 20 sends/h (a botnet cannot flood one inbox through IP rotation)
+const CANDIDATE_LINK_IP_SENDS_MAX = 200;
+const CANDIDATE_LINK_EMAIL_SENDS_MAX = 20;
+
+/** Send caps, consumed only after a candidate matched. Fail closed (false) on a Redis error. */
+async function checkCandidateSendCaps(
+  ip: string,
+  tenantId: string,
+  normalizedEmail: string,
+  log?: { warn: (obj: Record<string, unknown>, msg: string) => void },
+): Promise<boolean> {
+  const redis = getRedis();
+  const ipKey = `aiq:rl:cand-login:ip:${ip}`;
+  const emailKey = `aiq:rl:cand-login:email:${tenantId}:${sha256Hex(normalizedEmail)}`;
+  try {
+    const { count: ipCount } = await incrFixedWindow(redis, ipKey, CANDIDATE_LINK_RL_WINDOW_SEC);
+    const { count: emailCount } = await incrFixedWindow(redis, emailKey, CANDIDATE_LINK_RL_WINDOW_SEC);
+    return ipCount <= CANDIDATE_LINK_IP_SENDS_MAX && emailCount <= CANDIDATE_LINK_EMAIL_SENDS_MAX;
+  } catch (err: unknown) {
+    log?.warn({ err }, 'candidate-login.send-cap: Redis unavailable, failing closed');
+    return false;
+  }
+}
 
 async function checkCandidateLinkRateLimit(
   ip: string,
@@ -199,6 +227,10 @@ export async function requestCandidateLoginLink(
   }
 
   const user = userResult.rows[0]!;
+
+  // S2/N2 send caps (per IP, per tenant+email), counted only on a match. Over the cap:
+  // null, so the route still answers 204 and no token or email is produced.
+  if (!(await checkCandidateSendCaps(input.ip, user.tenant_id, normalizedEmail))) return null;
 
   // Generate CSPRNG token (32 bytes = 64 hex chars). 256 bits of entropy.
   // Never logged; stored only as sha256 hash.
@@ -449,4 +481,4 @@ export async function verifyCandidateLoginTokenSystem(
 }
 
 // Export the rate-limit helper for testing.
-export { checkCandidateLinkRateLimit };
+export { checkCandidateLinkRateLimit, checkCandidateSendCaps };

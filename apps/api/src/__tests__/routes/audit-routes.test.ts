@@ -12,8 +12,10 @@
  * whose query() answers COUNT(*) with 0 and everything else with no rows, so
  * the list and the cursor-based exports complete without Postgres.
  */
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
+
+const consumeMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@assessiq/auth', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@assessiq/auth');
@@ -34,6 +36,7 @@ vi.mock('@assessiq/auth', async () => {
   };
   return {
     ...actual,
+    consumeRateLimit: consumeMock,
     rateLimitMiddleware: (_o?: unknown) => passthrough(),
     sessionLoaderMiddleware,
     apiKeyAuthMiddleware: passthrough(),
@@ -92,7 +95,8 @@ vi.mock('@assessiq/help-system', () => ({
 vi.mock('@assessiq/scoring', () => ({ registerScoringRoutes: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/analytics', () => ({ registerAnalyticsRoutes: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/notifications', () => ({ registerNotificationsRoutes: vi.fn().mockResolvedValue(undefined) }));
-vi.mock('@assessiq/billing', () => ({ registerBillingRoutes: vi.fn().mockResolvedValue(undefined) }));
+// PT1: the audit chain carries requireTier('audit_viewer'); the mock must export it (S12 trap: partial factories).
+vi.mock('@assessiq/billing', () => ({ registerBillingRoutes: vi.fn().mockResolvedValue(undefined), assertTierAllows: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/certification', () => ({ registerCertificationRoutes: vi.fn().mockResolvedValue(undefined), registerVerifyRoutes: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/embed-sdk', () => ({ EMBED_COOKIE_NAME: 'aiq_embed_sess', verifyEmbedToken: vi.fn() }));
 vi.mock('../../routes/embed-admin.js', () => ({ registerEmbedAdminRoutes: vi.fn().mockResolvedValue(undefined) }));
@@ -122,6 +126,7 @@ describe('FU-B1 — audit routes are mounted behind the admin chain', () => {
     delete process.env['S3_BUCKET'];
     app = await buildServer();
   });
+  beforeEach(() => consumeMock.mockResolvedValue({ allowed: true, retryAfterSeconds: 600 }));
   afterAll(async () => {
     if (savedBucket !== undefined) process.env['S3_BUCKET'] = savedBucket;
     await app.close();
@@ -174,5 +179,24 @@ describe('FU-B1 — audit routes are mounted behind the admin chain', () => {
     const res = await app.inject({ method: 'POST', url: '/api/admin/audit/archives/2026-10-01/restore', headers: hdr('admin'), payload: '{}' });
     expect(res.statusCode).toBe(503);
     expect(res.json()).toMatchObject({ error: 'S3_NOT_CONFIGURED' });
+  });
+
+  it('the 6th export in the window answers 429 RATE_LIMITED with Retry-After; archive shares the bucket', async () => {
+    let n = 0;
+    consumeMock.mockImplementation(async () => ({ allowed: ++n <= 5, retryAfterSeconds: 540 }));
+    for (let i = 0; i < 5; i++) {
+      const ok = await app.inject({ method: 'GET', url: '/api/admin/audit/export.csv', headers: hdr('admin') });
+      expect(ok.statusCode).toBe(200);
+    }
+    const res = await app.inject({ method: 'GET', url: '/api/admin/audit/export.csv', headers: hdr('admin') });
+    expect(res.statusCode).toBe(429);
+    expect(res.json().error.code).toBe('RATE_LIMITED');
+    expect(res.headers['retry-after']).toBe('540');
+
+    const arch = await app.inject({ method: 'POST', url: '/api/admin/audit/archive', headers: hdr('admin'), payload: '{}' });
+    expect(arch.statusCode).toBe(429);
+    const keys = consumeMock.mock.calls.map((c) => c[0] as string).filter((k) => typeof k === 'string' && k.includes('tenant-op'));
+    expect(new Set(keys).size).toBe(1);
+    expect(keys[0]).toBe('aiq:rl:tenant-op:audit-export:00000000-0000-4000-8000-00000000000a');
   });
 });

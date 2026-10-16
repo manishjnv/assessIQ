@@ -120,6 +120,18 @@ describe("campus drive rate limits (real Redis)", () => {
     expect(scopeOf(err)).toBe("ip");
   });
 
+  it("(f) S2/N2: 50 candidate portal login requests from ONE lab IP -> no 429 on the entry bucket", async () => {
+    // POST /api/auth/candidate/request-link uses authChain({ candidateEntry: true }) since
+    // 2026-10-16; before, the 120/min anon bucket covered a whole lab.
+    const entry = rateLimitMiddleware({ candidateEntry: true });
+    const ip = "50.0.0.6";
+    const results = await Promise.all(
+      Array.from({ length: 50 }, () => Promise.resolve(entry(anonReq(ip, "/api/auth/candidate/request-link"), reply())).catch((e: unknown) => e)),
+    );
+    expect(results.filter((r) => r instanceof RateLimitError)).toHaveLength(0);
+    expect(config.RATE_LIMIT_IP_CANDIDATE_ENTRY).toBeGreaterThanOrEqual(300);
+  });
+
   it("(e) tenant cap is config-driven (RATE_LIMIT_TENANT), scope=tenant when exceeded", async () => {
     const handler = rateLimitMiddleware();
     const tenantMax = config.RATE_LIMIT_TENANT;

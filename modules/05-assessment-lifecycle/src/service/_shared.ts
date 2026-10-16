@@ -18,7 +18,8 @@ export const BULK_RESEND_MAX = 200;
  * this window — it is what lets repeated clicks walk through a cohort larger
  * than BULK_RESEND_MAX instead of looping on the first batch (migration 0117).
  */
-export const BULK_RESEND_RECENT_MINUTES = 10;
+// S7/N5: one bulk resend per candidate per 24 h; the single-invitation Resend button is not affected.
+export const BULK_RESEND_RECENT_MINUTES = 24 * 60;
 
 
 /**

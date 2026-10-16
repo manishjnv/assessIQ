@@ -477,6 +477,46 @@ describe("resendInvitations (bulk)", () => {
     }
   });
 
+  it("S7/N5: skips a row resent 23 h ago, resends one resent 25 h ago, and writes ONE bulk audit row", async () => {
+    const a = await newAssessment("Bulk 24h window");
+    const recent = await inviteOne(a);
+    const old = await inviteOne(a);
+    await sql(`UPDATE assessment_invitations SET last_resent_at = now() - interval '23 hours' WHERE id = $1`, [recent.invitationId]);
+    await sql(`UPDATE assessment_invitations SET last_resent_at = now() - interval '25 hours' WHERE id = $1`, [old.invitationId]);
+
+    const result = await resendInvitations(tenantA, a, adminA);
+    expect(result).toEqual({ resent: 1, skipped: [], remaining: 0 });
+    const rows = await auditRows(a, "assessment.invitations.bulk_resent");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.after).toEqual({ resent: 1, skipped: 0, remaining: 0 });
+    expect(rows[0]!.actor_user_id).toBe(adminA);
+
+    // Nothing left to send: still one more bulk audit row, with resent 0.
+    await resendInvitations(tenantA, a, adminA);
+    const again = await auditRows(a, "assessment.invitations.bulk_resent");
+    expect(again).toHaveLength(2);
+    expect(again[1]!.after).toMatchObject({ resent: 0 });
+  });
+
+  it("S7/N5: the injected bulkResendGuard runs before the handler and its 429 passes through", async () => {
+    const a = await newAssessment("Bulk guard");
+    await inviteOne(a);
+    sendInvitationEmail.mockClear();
+    const guarded = Fastify();
+    await registerAssessmentLifecycleRoutes(guarded, {
+      adminOnly: async (req) => {
+        (req as { session?: unknown }).session = { tenantId: tenantA, userId: adminA };
+      },
+      bulkResendGuard: async (_req, reply) => {
+        await reply.code(429).send({ error: { code: "RATE_LIMITED" } });
+      },
+    });
+    const res = await guarded.inject({ method: "POST", url: `/api/admin/assessments/${a}/invitations/resend` });
+    expect(res.statusCode).toBe(429);
+    expect(sendInvitationEmail).not.toHaveBeenCalled();
+    await guarded.close();
+  });
+
   it("409 ASSESSMENT_NOT_ACTIVE for a closed assessment, 404 for an unknown one, and the route returns the contract shape", async () => {
     const a = await newAssessment("Bulk route");
     await inviteOne(a);

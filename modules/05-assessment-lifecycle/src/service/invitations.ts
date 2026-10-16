@@ -360,7 +360,21 @@ export async function resendInvitations(
     }
   }
 
-  return { resent, skipped, remaining: Math.max(0, total - ids.length) };
+  const remaining = Math.max(0, total - ids.length);
+  // S7/N5: one bulk-level audit row (per-row sends already committed above).
+  await withTenant(tenantId, (client) =>
+    auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "assessment.invitations.bulk_resent",
+      entityType: "assessment",
+      entityId: assessmentId,
+      after: { resent, skipped: skipped.length, remaining },
+    }),
+  );
+
+  return { resent, skipped, remaining };
 }
 
 // ---------------------------------------------------------------------------

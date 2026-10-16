@@ -31,6 +31,8 @@ import { auditInTx } from './audit.js';
 export interface RegisterAuditRoutesOptions {
   /** Admin-gated preHandler — `authChain({ roles: ['admin'] })` from apps/api. */
   adminOnly: preHandlerHookHandler[] | preHandlerHookHandler;
+  /** Optional throttle appended after adminOnly on the export + archive routes (injected: this module must not import @assessiq/auth). */
+  heavyOpGuard?: preHandlerHookHandler;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +90,7 @@ export async function registerAuditRoutes(
 ): Promise<void> {
   const { adminOnly } = opts;
   const preHandler = Array.isArray(adminOnly) ? adminOnly : [adminOnly];
+  const heavyPreHandler = opts.heavyOpGuard ? [...preHandler, opts.heavyOpGuard] : preHandler;
 
   // GET /api/admin/audit — paginated list
   app.get('/api/admin/audit', { preHandler }, async (req, reply) => {
@@ -119,7 +122,7 @@ export async function registerAuditRoutes(
 
   // GET /api/admin/audit/export.csv and export.jsonl — streaming, capped, self-audited.
   for (const format of ['csv', 'jsonl'] as const) {
-    app.get(`/api/admin/audit/export.${format}`, { preHandler }, async (req, reply) => {
+    app.get(`/api/admin/audit/export.${format}`, { preHandler: heavyPreHandler }, async (req, reply) => {
       const { tenantId, userId } = (req as unknown as { session: { tenantId: string; userId: string } }).session;
       const parsed = EXPORT_QUERY_SCHEMA.safeParse(req.query);
       if (!parsed.success) {
@@ -155,7 +158,7 @@ export async function registerAuditRoutes(
   // POST /api/admin/audit/archive
   // Archive = export + mark. Deleting archived rows is the parked S3 job (archive-job.ts,
   // owner decision FR1 2026-10-03); the app role cannot delete audit_log rows.
-  app.post('/api/admin/audit/archive', { preHandler }, async (req, reply) => {
+  app.post('/api/admin/audit/archive', { preHandler: heavyPreHandler }, async (req, reply) => {
     const { tenantId, userId } = (req as unknown as { session: { tenantId: string; userId: string } }).session;
     const parsed = ARCHIVE_BODY_SCHEMA.safeParse(req.body);
     if (!parsed.success) {

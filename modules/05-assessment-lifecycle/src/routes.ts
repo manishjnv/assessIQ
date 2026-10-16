@@ -105,6 +105,8 @@ export interface RegisterAssessmentLifecycleRoutesOptions {
   // Fastify-shaped preHandlers without a hard dep on the apps/api package —
   // same pattern as 02-tenancy / 04-question-bank.
   adminOnly: import("fastify").preHandlerHookHandler[] | import("fastify").preHandlerHookHandler;
+  /** Optional per-tenant throttle appended after adminOnly on the bulk resend route (injected from apps/api). */
+  bulkResendGuard?: import("fastify").preHandlerHookHandler;
 }
 
 export async function registerAssessmentLifecycleRoutes(
@@ -112,6 +114,8 @@ export async function registerAssessmentLifecycleRoutes(
   opts: RegisterAssessmentLifecycleRoutesOptions,
 ): Promise<void> {
   const { adminOnly } = opts;
+  const adminList = Array.isArray(adminOnly) ? adminOnly : [adminOnly];
+  const bulkResendPreHandler = opts.bulkResendGuard ? [...adminList, opts.bulkResendGuard] : adminList;
 
   // -------------------------------------------------------------------------
   // Assessment collection routes (static segments first)
@@ -545,7 +549,7 @@ export async function registerAssessmentLifecycleRoutes(
   // No body.
   app.post(
     "/api/admin/assessments/:id/invitations/resend",
-    { preHandler: adminOnly },
+    { preHandler: bulkResendPreHandler },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
