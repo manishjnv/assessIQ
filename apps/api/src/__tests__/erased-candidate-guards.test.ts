@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined),
+vi.mock("@assessiq/notifications", () => ({ emitAttemptEventAfterCommit: vi.fn(async () => undefined), notifyCandidateResultReleasedAfterCommit: vi.fn(async () => undefined),
   notifyEvaluationReadyAfterCommit: vi.fn(async () => undefined),
   sendResultReleasedEmail: vi.fn(),
   sendAssessmentInvitationEmail: vi.fn(),
