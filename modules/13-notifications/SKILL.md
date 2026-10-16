@@ -268,3 +268,16 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 **Not included.** A candidate bell. Notices for other events. Email changes. Webhook changes. The S13 webhooks page change is page-only.
 
 **Downstream impact.** `unread_count` counts only unread `result.released` rows of the caller. `items` can also hold role and all-user rows for the candidate role. Log lines: `docs/11-observability.md` § 38. Route facts: `docs/03-api-contract.md` § "Candidate notifications (Z-3)". Help key: `candidate.shell.new_results_notice` (migration `0182`).
+
+## Organisation logo in the email header; bulk resend audit (S14, 2026-10-16)
+
+**What.**
+- The `email-header` partial shows the organisation logo when `logo_url` is set. `render.ts` keeps only the public app URL form (`<ASSESSIQ_BASE_URL>/api/public/tenant-logo/<id>?v=<sha12>`) and drops any other value.
+- `sendEmail` builds the URL from the logo metadata for six candidate templates: `invitation_candidate`, `invitation_reminder`, `candidate_login_link`, `attempt_submitted_candidate`, `attempt_graded_candidate`, `result_released`. A caller can pass `logoUrl` to override it. The lookup is cached for 60 seconds. Admin and alert emails stay unbranded.
+- Bulk resend (`POST /api/admin/assessments/:id/invitations/resend`, module 05 route) now writes the audit action `assessment.invitations.bulk_resent` with `after { resent, skipped, remaining }`.
+
+**Why.** Candidates should see the name of the organisation that invited them. A data URI is not an option: Gmail clips messages over 102 KB and blocks `data:` images.
+
+**Not included.** Logos in admin or alert emails. A separate email queue (open in the roadmap).
+
+**Downstream impact.** Template facts: `docs/13-email-system.md` (header logo). Audit and rate-limit facts: `docs/11-observability.md` § 39.

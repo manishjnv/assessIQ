@@ -456,3 +456,12 @@ write SKILL.md at first build session start, not in a planning sprint):
 ## Tests (2026-10-02)
 
 The module now has 11 DB integration tests (commit `e5090b1`): erasure, export, retention and the erased list. It had 0 tests before. They run with the module suite in CI.
+
+## User purge is separate from this module (S14, 2026-10-16)
+
+- **What.** The purge of long-deleted users lives in module 03 (`modules/03-users/src/purge.ts`, worker job `user-purge-cron`, flag `USER_PURGE_ENABLED`). It is not part of this module. See [modules/03-users/SKILL.md](../03-users/SKILL.md) § "User purge (LC-2, S14, 2026-10-16)".
+- **What each one does.**
+  - The user purge deletes the sign-in rows of a user who was soft-deleted for 180 days or more. It pseudonymises the `users` row with the same pattern as erasure step 3 and keeps attempts, gradings, certificates and consent events.
+  - The retention cron and the erasure flow in this module handle candidate data under the DPDP rules: the retention window, the export bundle and the full erasure steps.
+- **Rule.** The two jobs do not call each other. A user that module 20 already erased has `erased_at` set, so the user purge skips that user.
+- **Not included.** A merge of the two jobs.

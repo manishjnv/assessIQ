@@ -204,3 +204,31 @@ Commits `b68523c`, `8353109`. The candidate content allowlist, the answer save c
 - The shuffle reads `shuffleField` (`options`, `items` or `null`) from the definition.
 - The save path loads frozen content whenever the type has a `checkAnswer` hook (not by function arity).
 - SQL type lists use `= ANY` / `<> ALL` with the registry arrays. Exported names and the 304 tests are unchanged.
+
+## S14 (2026-10-16): frozen negative marks, logo fields, result summary
+
+### Frozen `negative_marks` (EX-1, migration 0185)
+
+- **What.** The attempt start copies a penalty into `attempt_questions.negative_marks` for every question: `COALESCE(questions.negative_marks, assessment default, 0)`. The code is in `src/repository.ts` (the insert) and `src/service.ts` (the assessment default is `settings.scoring.negative_marks_default`; anything that is not a finite number of 0 or more counts as 0). This is the same freeze pattern as `points` (migration `0128`).
+- **Why.** A later edit of a question or of the assessment default must not change a score that a candidate already earned.
+- **No trigger.** `DEFAULT 0` means "no penalty", so an old row needs no backfill.
+- **Not included.** Validation of `settings.scoring` on write (route in module 05). This module sanitises the value on read.
+
+### Result payload: `negative_marking` (EX-1)
+
+- `GET /api/me/attempts/:id/result` and each item of `GET /api/me/results` carry `negative_marking: { enabled, penalty_total }` (`src/result.ts`, `loadNegativeMarking`). `enabled` is true when any frozen `negative_marks` of the attempt is above 0. `penalty_total` is the sum of the negative `score_earned` values of the effective gradings, as a positive number.
+- `total_earned` is already net of the penalty and may be negative. `percent` may be negative. The client clamps the ring at 0.
+- An attempt with no penalty returns `{ enabled: false, penalty_total: 0 }`.
+- Field detail: [docs/03-api-contract.md](../../docs/03-api-contract.md) § "Negative marking (EX-1)".
+
+### Logo fields in candidate payloads (Logo L3)
+
+- `POST /api/take/start` (preview and start) returns `assessment.company_logo_url` (`string | null`).
+- `GET /api/me/attempts/:id` returns top-level `company_name` and `company_logo_url`.
+- `GET /api/me/attempts/:id/result` (200 and 202) returns `company_logo_url`. The released payload also returns `tenant_name`.
+- The URL comes from `tenantLogoUrl` in module 02 (`/api/public/tenant-logo/<id>?v=<sha12>`). A missing logo gives `null`, and the page shows the organisation name.
+- Not included: the logo bytes in any payload.
+
+### `structured_case` candidate view
+
+Each step also carries `points` and `negative_marks` when the author set them. They are not secret. `correct`, `scoring` and `explanation` stay on the server.

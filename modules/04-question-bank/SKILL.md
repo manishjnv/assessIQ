@@ -327,3 +327,29 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 **Not included.** Tenant node authoring. Links per level. Bulk edits. New generation parameters. Any change to clone and resync behaviour: they keep their own taxonomy code.
 
 **Downstream impact.** The `PUT` route does not change question versions or pack snapshots. Clients of the domain list get an extra `node_id` field. Audit readers see `question.updated` rows with `kind: 'taxonomy'`.
+
+## Import adapters, QTI export and negative marks (RW-59 and EX-1, S14, 2026-10-16)
+
+### Import adapters (RW-59)
+
+- **What.** The import pipeline accepts three more formats: `gift`, `aiken` and `qti`. The adapters are `src/import/adapters/{gift,aiken,qti,common}.ts`. Limits are in `src/import/limits.ts`: 4 MB (it was 2 MB) and 2000 rows. The row limit also applies to each unzipped QTI entry. The unzipped total is at most 16 MB.
+- **Formats.** `gift` and `aiken` are UTF-8 text with MCQ questions only. `qti` is a QTI 2.1, 2.2 or 3.0 content package (`.zip`) or one `assessmentItem` `.xml` file. An item that the importer cannot map becomes a row error.
+- **Mapping.** The QTI adapter maps through the registry field `qtiInteraction`: `choice` becomes `mcq` or `multi_select` (by `maxChoices`), `textEntry` becomes `numeric`, `order` becomes `ordering` and `extendedText` becomes `subjective`. There is no type switch in the adapter.
+- **Parsers.** XML through `saxes` (no entity expansion). Zip through `jszip`. Both were already dependencies of `exceljs`. They are direct dependencies of this module now (`package.json`).
+- **Templates.** The template route still serves `csv` and `xlsx` only.
+- **UI and help.** The import page lists the accepted formats. A `.txt` file asks the user to choose GIFT or Aiken. Help ids: `admin.question_import.formats` and `admin.question_import.text_format`.
+
+### QTI export (RW-59)
+
+- **What.** `src/import/export.ts` builds a QTI 3.0 zip (`imsmanifest.xml` and `items/<id>.xml`) of the non-archived questions of one question set. The answer key is included. Route: `GET /api/admin/super/packs/:id/export?format=qti3` (super admin). Audit action `pack.exported` with `{ format, question_count }`. Route detail: [docs/03-api-contract.md](../../docs/03-api-contract.md) § "Question import formats and QTI export (RW-59)".
+- **Why.** Owners move questions between tools. The export closes the loop with the import.
+- **Not included.** QTI tests and sections. Numeric tolerance or unit in QTI. HTML or media in prompts. Feedback blocks. Any export format other than `qti3`.
+
+### `negative_marks` (EX-1, migration 0184)
+
+- **Column.** `questions.negative_marks NUMERIC(6,2) NULL CHECK (>= 0)`. `NULL` means "use the assessment default". It is metadata: a change does not create a `question_versions` row. Table detail: [docs/02-data-model.md](../../docs/02-data-model.md) § "S14 additions (2026-10-16)".
+- **API field.** `POST /api/admin/questions` and `PATCH /api/admin/questions/:id` accept `negative_marks` (a number of 0 or more; `null` clears it on the patch). An invalid value returns 422 `NEGATIVE_MARKS_INVALID`. The list and detail return the field.
+- **Import column.** An optional common column `negative_marks` (0 to 1000, blank means the default) in the CSV and XLSX templates.
+- **Passage steps.** A `structured_case` step may carry its own `points` and `negative_marks` (no migration). See [docs/05-ai-pipeline.md](../../docs/05-ai-pipeline.md) § "Passage sets (EX-3)".
+- **UI.** The question editor has an input for the value (create form and edit card). Help id `admin.question_editor.negative_marks`.
+- **Not included.** A penalty for AI-graded types. Per-type penalty rules.
