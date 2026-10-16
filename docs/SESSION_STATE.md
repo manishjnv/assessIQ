@@ -1,3 +1,34 @@
+# Session — 2026-10-16 (morning) — S11: RW-86 (pages 03-13), RW-87 pass 2, RW-95, RW-96, RW-97, RW-98, RW-99 shipped and deployed
+
+**Headline:** Seven roadmap rows built by 10 Sonnet runs (two waves of max six) with Opus review of every diff and one Sonnet adversarial gate (ACCEPT, three should-fix items applied), 12 commits, one deploy with migrations 0177 and 0178. GitHub main = VPS /srv/assessiq = `959a2b8` + this handoff commit. Pre-flight found the owner's Autopilot process (PID 31764) still alive with `ap status` ON although `.agent/STOP` was set; the session stopped and reported; the process exited at 07:43, before the owner's "kill autopilot" message, and `ap status` then said DEAD; `.agent/` is now fully gitignored (owner request).
+**Commits (main, oldest first):** `62c351a` .agent gitignored · `059ec8e` RW-98 · `48fbf2d` RW-95 · `703384f` RW-97 · `90f3ef9` RW-99 · `5c7a867` RW-86 inc 4 · `b5cf493` review follow-ups (07/10/20) · `6025eed` RW-87 pass 2 (0177) · `6bcdaf7` RW-96 (0178) · `fcbe7a4` docs · `959a2b8` lint fix + Adversarial-Review trailer · handoff commit follows.
+**Tests:** full `pnpm test` on the S11 tree: 257 of 260 files passed, 1 failed (`rate-limit-campus` case (d), a 60 s timeout under full-suite load; green alone, module 01 untouched), 2 skipped; 3144 tests passed. Re-run after the last edits: modules 10 + 16 + the import route test, 36 files green. `pnpm -r typecheck` 0 errors; `pnpm lint` 0 errors (22 pre-existing unused-directive warnings); `pnpm lint:repo` green (`help-seed version check OK`, `lint-migrations ok (150 files)`).
+**Deploy (2026-10-16 09:55 IST):** see docs/06 § Deploy history "S11 deploy". 0177 (37 help rows) and 0178 (2 help rows) applied and recorded with checksums; api + frontend images built; api, worker, frontend recreated; 6 containers healthy in 15 s; health, ready, site, import page, wizard all 200.
+**Next:** (1) owner: `ap change` to re-plan Autopilot before any `ap start` (its plan still lists S10/S11 tasks done by hand); never run it beside an interactive session on this clone. (2) RW-100: sentence-level ASD-STE100 pass on docs 03/04/05/06/08/13 (RW-86 restructured them; the sentences are mostly original). (3) owner decisions: purge scope + `TENANT_PURGE_ENABLED`; RW-98 residual (email_log rows sent to other addresses can hold the candidate's name) and consent_events retention. (4) owner: verify the CBSE seed against NCERT; load seeds from the Platform page. (5) Dependabot reports 109 alerts on the default branch (4 critical): triage.
+**Open questions:**
+- RW-95: when the lease is lost without another holder, `grading_started_at` stays set until the page's 10-minute stall rule; accepted by the review as the safer trade-off.
+- RW-97: `@fastify/multipart` is global, so a multipart request to a JSON-only route now reaches the handler with an undefined body (Zod routes answer 400). Documented in docs/03; no route reads a raw body without validation today.
+- RW-86: pages 03-13 are restructured (Diátaxis), not re-sentenced; RW-100 tracks the STE pass.
+
+---
+
+## What happened
+
+1. **Pre-flight.** Branch `main`, `.agent/STOP` present, but `ap status` printed ON and PID 31764 (`python -m autopilot run --clear-stop`, started 2026-10-15 20:01) was alive with a live heartbeat, state Test, no child, about 7.7 h CPU: hung inside its test gate, never at a step boundary where STOP is read. The session stopped and reported per the S11 hard check. The owner replied "kill autopilot"; the process had already exited (07:43); `ap status` DEAD; work continued. The owner also asked to gitignore `.agent/`: done (`62c351a`), the seven tracked files untracked and kept on disk.
+2. **Wave A (6 Sonnet, parallel).** RW-86 docs 03+08+13 and 04+05+06 (structure only; a scratch fact-inventory script checked api paths, migrations, shas, env vars and file paths before and after), RW-95, RW-98, RW-99 (four pages: 751/697/657/785 lines), RW-97 backend. Opus reviewed every diff.
+3. **Wave B.** RW-87 pass 2 (37 keys, 0177) and RW-97 UI in parallel; RW-96 (0178) after RW-87 so admin.yml and the migration number did not collide; the docs pass ran beside RW-96.
+4. **Orchestrator fixes.** `@fastify/multipart` broke the api typecheck on 37 routes (`skipAuth` not in `FastifyContextConfig`; declared in apps/api/src/types.d.ts; RCA entry); the `git add a b docs/x` trap hit once (docs staged, commit skipped; committed in its own step); a stale `pageSize: 200` expectation after the review follow-up; lint-question-type-registry R3 on the import page (uses `RUBRIC_REQUIRED_IDS` now).
+5. **Adversarial gate.** Sonnet takeover for RW-95 (07), RW-98 (20), RW-97 backend (04/api): ACCEPT, 0 must-fix, 3 should-fix applied in `b5cf493` (lease re-check inside the write callback, page size 500, `email_log.last_error` cleared). Codex companion pre-flight: the newest job log (2026-10-11) still shows a dead sandbox, so the ladder went to Sonnet.
+
+## Agent utilization
+- Opus (Fable 5.1 main session): Phase 0 and Autopilot diagnosis, 12 briefs, diff review of every agent output, 5 small fixes, gates, 12 commits, push, deploy, handoff.
+- Sonnet: 10 implementation/docs runs (RW-86 ×2, RW-95, RW-98, RW-99, RW-97 backend, RW-87, RW-97 UI, RW-96, docs pass) + 1 adversarial review.
+- Haiku: n/a — no bulk read-only sweep was needed; the VPS smoke was seven curls and one SQL loop, done inline.
+- codex:rescue: Sonnet takeover (companion sandbox dead since 2026-10-11): ACCEPT, 0 MUST-FIX, 3 SHOULD-FIX applied.
+- Routing telemetry: Sonnet · RW-97 backend · reworked: Y (api typecheck break; skipAuth typing by Opus) · Sonnet · RW-97 UI · reworked: Y (registry lint R3, page size) · Sonnet · RW-86 ×2 · reworked: N (contract deviation accepted: structure only, STE sentences deferred to RW-100) · Sonnet · RW-95, RW-98, RW-99, RW-87, RW-96, docs, review · reworked: N.
+
+---
+
 # Session — 2026-10-16 (night) — S10 batch 3: RW-53/57p2/58/63/64/65/67/86/87/88/89/90/91/92/93/94 shipped and deployed
 
 **Headline:** Sixteen roadmap rows built by 19 Sonnet runs with Opus review and three Sonnet adversarial gates (two REVISE rounds, all addressed), 24 commits, one deploy with migrations 0173-0176. GitHub main = VPS /srv/assessiq = `b9a240b` + handoff commit. Incident: an Autopilot run (started 20:01 by the owner, v0.9.1) switched the shared working tree to `autopilot/P01-T01` at 20:22 and again at 22:12; every commit of this session landed on that branch, the pushes after 23:19 did not reach main, and "deploy #3" re-deployed `7a8ecf8` unchanged. Found at 02:00, fixed by `ap stop --now`, `git merge --ff-only` of the branch into main, push, deploy #4. RCA entry added.

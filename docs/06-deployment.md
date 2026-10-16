@@ -1694,6 +1694,7 @@ This section records every dated deploy in order. Read the table first. Each ent
 | 2026-10-15 | `ab729bb` | Hardening S10 | `0170`, `0171` | Tenant purge in dry-run mode |
 | 2026-10-15 | `45e1ddc` | Hardening S10, second run | `0172` | Seed routes, topic focus help |
 | 2026-10-16 | `b9a240b` | S10 batch 3 | `0173` to `0176` | Corrects the "third run" of 2026-10-15 |
+| 2026-10-16 | `959a2b8` | S11 (RW-86/87/95/96/97/98/99) | `0177`, `0178` | New dependency `@fastify/multipart`; 39 help rows |
 
 ### Phase 1 G1.D split-route and frontend deploy (2026-05-03)
 
@@ -2281,3 +2282,14 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Steps:** `ap stop --now`; `git merge --ff-only autopilot/P01-T01` into main; push; on the VPS `git pull --ff-only`; 0 grading runs in flight; drift gate: repo-only 0173, 0174, 0175, 0176 (known DB-only 0011/0100/0106/0109); applied in order with `psql -v ON_ERROR_STOP=1 -1` and recorded: `0173_seed_rw57_frameworks_help.sql` b01c641079b50d8edef67f8ba9a40dc78c23ae1550df26ba62e3cb3590ca0f98 · `0174_question_imports.sql` 8d53a4c1858f5e4cda8eae501e422ae42079b87c7b85d32b03b4f2c1718d53fc · `0175_seed_rw58_question_import_help.sql` c826d0f49f8d51f667c370fde444ba411eb1d8f7a7dd879954e01eb2be1e294c · `0176_rw87_help_copy_pass.sql` d7654663518ab5c03def6d16942ac4c6ee730300be7180c4611551e5c8593269. Post-checks: both import tables exist; 166 help rows at version 2. Images assessiq-api and assessiq-frontend built (new dependency exceljs); assessiq-api, assessiq-worker, assessiq-frontend recreated with `up -d --no-deps --force-recreate`.
 **Smoke:** all 6 assessiq-* containers healthy within 56 s; /api/health 200, /api/ready 200, https://assessiq.in/ 200, /admin/question-import 200; no startup errors in api or worker logs. The worker now also runs `generation-stale-sweep` every 15 min.
 **Rollback:** `git revert` the commit, rebuild and recreate. 0174 adds two tables and two nullable/defaulted columns (older builds ignore them); 0173/0175/0176 are idempotent help rows (older builds read the older version).
+
+### S11 deploy (2026-10-16 09:55 IST): RW-86 pages 03-13, RW-87 pass 2, RW-95, RW-96, RW-97, RW-98, RW-99
+
+**Commits:** `3fe2746..959a2b8` (12 commits: `.agent/` gitignored, RW-98, RW-95, RW-97, RW-99, RW-86, review follow-ups, RW-87, RW-96, docs, lint fix). GitHub main = VPS `/srv/assessiq` = `959a2b8`.
+**Pre-checks:** local branch `main`; Autopilot process gone (`ap status` DEAD, `.agent/STOP` kept); push output `3fe2746..959a2b8  main -> main`; VPS `git pull --ff-only` then `git log -1` = `959a2b8` on `main`; 0 claude processes in `assessiq-api`.
+**Drift gate:** repo-only `0177`, `0178`; DB-only the known `0011`, `0100`, `0106`, `0109`. Nothing else.
+**Migrations (script `/tmp/apply-0177-0178.sh`, one transaction each, `psql -1 -v ON_ERROR_STOP=1`, recorded with sha256):** `0177_rw87_help_copy_pass_2.sql` f93880385c37c9980caf3a4a73417e4ad37f2118ee8445025bfc8bcc983e7ab5 · `0178_rw96_wizard_warnings_and_import_rubric_help.sql` e761e43fdd8016ff3449e43f5cb4b3cabfa6bdd93b466c43325efc9adf2497fe. Post-checks: all 37 `(key, version)` pairs of 0177 present (`missing=0`); the two 0178 keys present at version 1; platform help rows now 247 at v1, 173 at v2, 14 at v3; both rows in `schema_migrations`.
+**Images:** `assessiq-api` and `assessiq-frontend` built (api gains `@fastify/multipart` 9.4.0). `assessiq-api`, `assessiq-worker`, `assessiq-frontend` recreated with `up -d --no-deps --force-recreate`.
+**Smoke:** all 6 `assessiq-*` containers healthy after 15 s; no startup errors in api or worker logs; `/api/health` 200, `/api/ready` 200, `https://assessiq.in/` 200, `/admin/question-import` 200, `/admin/generate` 200; an unauthenticated multipart POST to `/api/admin/super/question-imports` returns 401 (the plugin is registered, the auth chain runs first).
+**Not done / follow-ups:** no seed run (production help rows come from migrations); `TENANT_PURGE_ENABLED` still unset (dry run); RW-100 (sentence-level STE pass on the six restructured pages) is open.
+**Rollback:** `git revert` the commits, rebuild and recreate. 0177/0178 are idempotent help rows (older builds read the older version). The multipart plugin only affects the import route and the body of multipart requests to other routes (400 from Zod).
