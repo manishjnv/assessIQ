@@ -1197,7 +1197,7 @@ Edits a tenant user's profile from the Platform page "Manage ▸ Edit admin" inl
 - **Active/disabled** admin: requires `confirmEmailIdentityChange:true`. Transfers the login identity — the user's sessions are swept (forced re-login) and the stale Google `oauth_identities` link is removed (`sessionsSwept:true`).
 - A role change on a live user also sweeps sessions to drop stale role claims.
 
-**Guards:** the old `409 LAST_ADMIN` guard (demote the only admin to reviewer) is gone with the demotion path (2026-10-03). New email colliding with an existing user in the same tenant → `409 USER_EMAIL_EXISTS`. Editing a `super_admin` user → `400 CANNOT_EDIT_SUPER_ADMIN`. Editing a soft-deleted user → `409 USER_DELETED`. Every change writes one `audit_log` row (`user.updated`, `kind:'super_profile_edit'`) in the same transaction.
+**Guards:** the old `409 LAST_ADMIN` guard (demote the only admin to reviewer) is gone with the demotion path (2026-10-03). New email colliding with an existing user in the same tenant → `409 USER_EMAIL_EXISTS`. Editing a `super_admin` user → `400 CANNOT_EDIT_SUPER_ADMIN`. Editing a soft-deleted user → `409 USER_DELETED`. Editing a target whose role is not `admin` (a `candidate`, or a legacy `reviewer` row) → `400 INVALID_ROLE` with `details.role` = the actual role (Y-4, 2026-10-16; before that the row passed a false `admin` type through to the audit event and the response). Every change writes one `audit_log` row (`user.updated`, `kind:'super_profile_edit'`) in the same transaction.
 
 **Response 200:** `{ userId, email, name, role, previousEmail, emailChanged, status, sessionsSwept, reinvited, auditId }`
 
