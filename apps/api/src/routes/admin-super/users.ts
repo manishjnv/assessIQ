@@ -223,7 +223,7 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
   //
   // 200: { userId, email, name, role, previousEmail, emailChanged, status,
   //        sessionsSwept, reinvited, auditId }
-  // 400: INVALID_ROLE / INVALID_EMAIL / MISSING_NAME / NAME_TOO_LONG / NO_CHANGES
+  // 400: INVALID_ROLE (bad body role, or target is not an admin) / INVALID_EMAIL / MISSING_NAME / NAME_TOO_LONG / NO_CHANGES
   //      / CANNOT_EDIT_SUPER_ADMIN
   // 404: user not found
   // 409: USER_DELETED / EMAIL_IDENTITY_CONFIRM_REQUIRED / USER_EMAIL_EXISTS
@@ -250,6 +250,11 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
       if (target.deleted_at !== null) {
         throw new ConflictError('This user has been deleted. Restore it before editing.', {
           details: { code: 'USER_DELETED' },
+        });
+      }
+      if (target.role !== 'admin') {
+        throw new ValidationError('Only admin accounts can be edited here.', {
+          details: { code: 'INVALID_ROLE', role: target.role },
         });
       }
       const targetTenantId = target.tenantId;
@@ -294,7 +299,7 @@ export async function registerAdminSuperUserRoutes(app: FastifyInstance): Promis
         );
       }
 
-      const effectiveRole = newRole ?? (target.role as 'admin');
+      const effectiveRole = newRole ?? target.role;
       const wasPending = target.status === 'pending';
 
       // ---- Transaction: apply name/role/email + audit; clean up oauth link ----
