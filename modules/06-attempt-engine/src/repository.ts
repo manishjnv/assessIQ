@@ -388,6 +388,8 @@ export async function insertAttemptQuestions(
     /** Test sections: index into settings.sections; null/omitted = assessment has no sections. */
     sectionIndex?: number | null;
   }>,
+  /** EX-1: assessment-level default penalty (settings.scoring.negative_marks_default), used when the question has none. */
+  negativeMarksDefault = 0,
 ): Promise<void> {
   if (rows.length === 0) return;
 
@@ -395,16 +397,20 @@ export async function insertAttemptQuestions(
   const placeholders: string[] = [];
   const values: unknown[] = [];
   let i = 1;
+  // One shared parameter after the 6-per-row grid carries the assessment default.
+  const defaultIdx = rows.length * 6 + 1;
   for (const r of rows) {
     // points = the question's points AT START (E12): scoring reads this frozen copy, never live questions.points.
+    // negative_marks (EX-1, 0185) = the question's own penalty, else the assessment default, frozen the same way.
     placeholders.push(
-      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], (SELECT points FROM questions WHERE id = $${i - 4}::uuid), $${i++}::smallint)`,
+      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], (SELECT points FROM questions WHERE id = $${i - 4}::uuid), COALESCE((SELECT negative_marks FROM questions WHERE id = $${i - 4}::uuid), $${defaultIdx}::numeric), $${i++}::smallint)`,
     );
     values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null, r.sectionIndex ?? null);
   }
+  values.push(negativeMarksDefault);
 
   await client.query(
-    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order, points, section_index)
+    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order, points, negative_marks, section_index)
      VALUES ${placeholders.join(", ")}`,
     values,
   );

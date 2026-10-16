@@ -73,6 +73,8 @@ interface QuestionDetail {
   type: string;
   status: string;
   points: number;
+  /** EX-1: null = use the assessment default. */
+  negative_marks?: number | null;
   content: unknown;
   rubric: unknown;
   /** Candidate-facing answer-format hint; null → a per-type default is shown to candidates. */
@@ -270,6 +272,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
   const [type, setType] = useState<QuestionType>("mcq");
   const [topic, setTopic] = useState("");
   const [points, setPoints] = useState("5");
+  const [negativeMarks, setNegativeMarks] = useState("");
   const [answerGuidance, setAnswerGuidance] = useState("");
   const [contentJson, setContentJson] = useState(() => JSON.stringify(DEFAULT_CONTENT["mcq"], null, 2));
   const [jsonError, setJsonError] = useState<string | null>(null);
@@ -328,6 +331,11 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
       setSubmitError("Points must be a positive integer.");
       return;
     }
+    const negNum = negativeMarks.trim() === "" ? null : Number(negativeMarks);
+    if (negNum !== null && (!Number.isFinite(negNum) || negNum < 0)) {
+      setSubmitError("Negative marks must be 0 or more, or blank.");
+      return;
+    }
     if (!topic.trim()) {
       setSubmitError("Topic is required.");
       return;
@@ -343,6 +351,8 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
           type,
           topic: topic.trim(),
           points: pointsNum,
+          // EX-1: blank = use the assessment default (omit the key).
+          ...(negNum !== null ? { negative_marks: negNum } : {}),
           content,
           // Optional candidate hint; omit when blank so the per-type default applies.
           ...(answerGuidance.trim() ? { answer_guidance: answerGuidance.trim() } : {}),
@@ -406,6 +416,23 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
             onChange={(e) => setPoints(e.target.value)}
             required
           />
+        </div>
+
+        <div className="aiq-form-group" data-help-id="admin.question_editor.negative_marks">
+          <label className="aiq-label" htmlFor="q-negative-marks">Negative marks</label>
+          <input
+            id="q-negative-marks"
+            className="aiq-input"
+            type="number"
+            min={0}
+            step={0.25}
+            value={negativeMarks}
+            onChange={(e) => setNegativeMarks(e.target.value)}
+            placeholder="Assessment default"
+          />
+          <div style={{ fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", marginTop: "var(--aiq-space-xs)" }}>
+            Deducted for a wrong answer on auto-scored questions. Blank uses the assessment default.
+          </div>
         </div>
 
         <div className="aiq-form-group">
@@ -567,6 +594,11 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
+  // EX-1 negative marks edit state - metadata-only PATCH, no version bump. "" = assessment default.
+  const [negativeMarks, setNegativeMarks] = useState("");
+  const [savingNegative, setSavingNegative] = useState(false);
+  const [negativeSaved, setNegativeSaved] = useState(false);
+  const [negativeError, setNegativeError] = useState<string | null>(null);
   // Answer-guidance (candidate hint) edit state — metadata-only, no version bump.
   const [answerGuidance, setAnswerGuidance] = useState("");
   const [savingGuidance, setSavingGuidance] = useState(false);
@@ -633,6 +665,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
       const data = await adminApi<QuestionDetail>(`/admin/questions/${id}`);
       setQuestion(data);
       setAnswerGuidance(typeof data.answer_guidance === "string" ? data.answer_guidance : "");
+      setNegativeMarks(typeof data.negative_marks === "number" ? String(data.negative_marks) : "");
       if (data.rubric) {
         setRubricDraft(rubricToRubricDraft(data.rubric));
         const r = data.rubric as Record<string, unknown>;
@@ -731,6 +764,33 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
       setGuidanceError(err instanceof AdminApiError ? err.apiError.message : "Generation failed.");
     } finally {
       setGeneratingGuidance(false);
+    }
+  }
+
+  async function handleSaveNegativeMarks() {
+    if (!id) return;
+    const trimmed = negativeMarks.trim();
+    const num = trimmed === "" ? null : Number(trimmed);
+    if (num !== null && (!Number.isFinite(num) || num < 0)) {
+      setNegativeError("Negative marks must be 0 or more, or blank.");
+      return;
+    }
+    setSavingNegative(true);
+    setNegativeSaved(false);
+    setNegativeError(null);
+    try {
+      // Blank -> null: the question follows the assessment default again.
+      await adminApi(`/admin/questions/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ negative_marks: num }),
+      });
+      setNegativeSaved(true);
+      setTimeout(() => setNegativeSaved(false), 3000);
+      void load();
+    } catch (err) {
+      setNegativeError(err instanceof AdminApiError ? err.apiError.message : "Save failed.");
+    } finally {
+      setSavingNegative(false);
     }
   }
 
@@ -860,6 +920,53 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
             Question content (read-only)
           </div>
           <QuestionContentView type={question.type} content={question.content} />
+        </div>
+
+        {/* Negative marks (EX-1) - penalty for a wrong attempted answer on auto-scored types.
+            Metadata-only (no version bump); frozen per attempt at start. Editable for super_admin. */}
+        <div className="aiq-card" data-help-id="admin.question_editor.negative_marks" style={{ padding: "var(--aiq-space-lg)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+          <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
+            Negative marks
+          </div>
+          <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)" }}>
+            Deducted for a wrong answer on auto-scored questions. Blank uses the assessment default.
+          </p>
+          {isSuperAdmin ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
+              <input
+                id="q-negative-marks-edit"
+                aria-label="Negative marks"
+                className="aiq-input"
+                style={{ maxWidth: 160 }}
+                type="number"
+                min={0}
+                step={0.25}
+                value={negativeMarks}
+                onChange={(e) => setNegativeMarks(e.target.value)}
+                placeholder="Assessment default"
+              />
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-primary aiq-btn-sm"
+                disabled={savingNegative}
+                onClick={() => void handleSaveNegativeMarks()}
+              >
+                {savingNegative ? "Saving…" : "Save negative marks"}
+              </button>
+              {negativeSaved && (
+                <span style={{ color: "var(--aiq-color-success)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>Saved.</span>
+              )}
+              {negativeError && (
+                <span style={{ color: "var(--aiq-color-danger)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>{negativeError}</span>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+              {negativeMarks.trim() !== ""
+                ? negativeMarks
+                : <span style={{ color: "var(--aiq-color-fg-muted)" }}>Using the assessment default.</span>}
+            </div>
+          )}
         </div>
 
         {/* Answer guidance — candidate-facing answer-format hint. Metadata-only

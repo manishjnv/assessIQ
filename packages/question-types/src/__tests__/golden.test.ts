@@ -1,7 +1,7 @@
 // Golden guard: hook outputs are compared with literal data in golden.fixtures.ts,
 // never with another implementation. Input order matches parity.test.ts.
 import { describe, expect, it } from "vitest";
-import { QUESTION_TYPES, QUESTION_TYPE_REGISTRY, DETERMINISTIC_IDS } from "../index.js";
+import { QUESTION_TYPES, QUESTION_TYPE_REGISTRY, DETERMINISTIC_IDS, deterministicMarks } from "../index.js";
 import { ANSWERS, CONTENTS } from "./fixtures.js";
 import { GOLDEN } from "./golden.fixtures.js";
 
@@ -9,6 +9,8 @@ describe("golden hook outputs", () => {
   it("covers exactly the registered types", () => {
     expect(Object.keys(GOLDEN).sort()).toEqual([...QUESTION_TYPES].sort());
     expect(Object.keys(GOLDEN).filter((t) => GOLDEN[t]!.deterministicScore).sort()).toEqual([...DETERMINISTIC_IDS].sort());
+    expect(Object.keys(GOLDEN).filter((t) => GOLDEN[t]!.isAttempted).sort()).toEqual([...DETERMINISTIC_IDS].sort());
+    expect(Object.keys(GOLDEN).filter((t) => GOLDEN[t]!.deterministicMarks).sort()).toEqual([...DETERMINISTIC_IDS].sort());
   });
 
   it.each(QUESTION_TYPES)("%s candidateView", (t) => {
@@ -24,5 +26,14 @@ describe("golden hook outputs", () => {
   it.each(DETERMINISTIC_IDS)("%s deterministicScore", (t) => {
     const actual = [...CONTENTS[t], null].map((c) => ANSWERS[t]!.map((a) => QUESTION_TYPE_REGISTRY[t].deterministicScore!(c, a)));
     expect(actual).toStrictEqual(GOLDEN[t]!.deterministicScore);
+  });
+
+  it.each(DETERMINISTIC_IDS)("%s isAttempted", (t) => {
+    expect(ANSWERS[t]!.map((a) => QUESTION_TYPE_REGISTRY[t].isAttempted!(a))).toStrictEqual(GOLDEN[t]!.isAttempted);
+  });
+
+  it.each(DETERMINISTIC_IDS)("%s deterministicMarks (points 4, negative 1)", (t) => {
+    const actual = [...CONTENTS[t], null].map((c) => ANSWERS[t]!.map((a) => deterministicMarks(t, c, a, { points: 4, negativeMarks: 1 })));
+    expect(actual).toStrictEqual(GOLDEN[t]!.deterministicMarks);
   });
 });

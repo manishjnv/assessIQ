@@ -738,6 +738,7 @@ export async function registerQuestionBankRoutes(
             type: { type: "string", enum: [...QUESTION_TYPES] },
             topic: { type: "string", minLength: 1, maxLength: 200 },
             points: { type: "integer", minimum: 1 },
+            negative_marks: { type: ["number", "null"], minimum: 0 },
             content: {},
             rubric: {},
             answer_guidance: { type: ["string", "null"], maxLength: 280 },

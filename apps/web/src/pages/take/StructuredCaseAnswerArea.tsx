@@ -7,6 +7,8 @@ interface CaseStep {
   prompt: string;
   select: 'one' | 'many';
   options: string[];
+  points?: number;
+  negative_marks?: number;
 }
 
 /** Picks per step id; anything malformed reads as no picks. */
@@ -45,6 +47,8 @@ function parseSteps(content: unknown): CaseStep[] {
       prompt: typeof s['prompt'] === 'string' ? s['prompt'] : '',
       select: s['select'] === 'many' ? ('many' as const) : ('one' as const),
       options: Array.isArray(s['options']) ? (s['options'] as unknown[]).filter((o): o is string => typeof o === 'string') : [],
+      ...(typeof s['points'] === 'number' ? { points: s['points'] } : {}),
+      ...(typeof s['negative_marks'] === 'number' ? { negative_marks: s['negative_marks'] } : {}),
     }));
 }
 
@@ -67,6 +71,8 @@ export function StructuredCaseAnswerArea({
 
   return (
     <div data-help-id="candidate.attempt.structured_case" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-xl)' }}>
+      {(context || log) && (
+      <div data-testid="sc-stem" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-md)', padding: 'var(--aiq-space-lg)', background: 'var(--aiq-color-bg-raised)', border: '1px solid var(--aiq-color-border)', borderRadius: 'var(--aiq-radius-md)' }}>
       {context && (
         <p style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 16, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)', margin: 0, whiteSpace: 'pre-wrap' }}>
           {context}
@@ -94,13 +100,24 @@ export function StructuredCaseAnswerArea({
           {log}
         </pre>
       )}
+      </div>
+      )}
       {steps.map((step, n) => {
         const chosen = picks[step.id] ?? [];
         const name = `sc-${question.question_id}-${step.id}`;
         return (
           <fieldset key={step.id} style={{ border: 0, padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
             <legend style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 15, fontWeight: 600, color: 'var(--aiq-color-fg-primary)', marginBottom: 'var(--aiq-space-xs)' }}>
-              Step {n + 1}. {step.prompt}
+              Question {n + 1} of {steps.length}. {step.prompt}
+              {(step.points !== undefined || step.negative_marks !== undefined) && (
+                <span
+                  data-help-id="candidate.take.structured_case.child_marks"
+                  data-testid="sc-chip"
+                  style={{ marginLeft: 'var(--aiq-space-sm)', padding: '2px var(--aiq-space-sm)', fontSize: 12, fontWeight: 500, color: 'var(--aiq-color-fg-muted)', border: '1px solid var(--aiq-color-border)', borderRadius: 'var(--aiq-radius-md)' }}
+                >
+                  {[step.points !== undefined ? `+${step.points}` : null, step.negative_marks !== undefined ? `−${step.negative_marks}` : null].filter(Boolean).join(' · ')}
+                </span>
+              )}
               <span style={{ display: 'block', fontSize: 13, fontWeight: 400, color: 'var(--aiq-color-fg-muted)' }}>
                 {step.select === 'many' ? 'Select all that apply' : 'Select one'}
               </span>

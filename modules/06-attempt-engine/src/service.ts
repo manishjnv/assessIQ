@@ -46,6 +46,7 @@ import * as alRepo from "../../05-assessment-lifecycle/src/repository.js";
 import * as qbRepo from "../../04-question-bank/src/repository.js";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import * as repo from "./repository.js";
+import { getCompanyBranding } from "./result.js";
 import {
   AE_ERROR_CODES,
   EVENT_PAYLOAD_SCHEMAS,
@@ -91,6 +92,12 @@ const log = streamLogger("app");
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** EX-1: assessment.settings.scoring.negative_marks_default; anything not a finite number >= 0 is 0 (no penalty). */
+function readNegativeMarksDefault(settings: unknown): number {
+  const v = (settings as { scoring?: { negative_marks_default?: unknown } } | null | undefined)?.scoring?.negative_marks_default;
+  return typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0;
+}
 
 /**
  * Fisher-Yates shuffle (in-place). Uses `Math.random()` per decision #20:
@@ -486,7 +493,7 @@ export async function startAttempt(
         : buildOptionOrder(mcqOptions.get(q.id), Math.random, MAX_SHUFFLE_OPTIONS),
       sectionIndex: sectionOf !== null ? (sectionOf[i] as number) : null,
     }));
-    await repo.insertAttemptQuestions(client, attempt.id, aqRows);
+    await repo.insertAttemptQuestions(client, attempt.id, aqRows, readNegativeMarksDefault(assessment.settings));
     await repo.insertEmptyAttemptAnswers(client, attempt.id, chosen.map((q) => q.id));
 
     // j. Mark invitation 'started' — skipped for embed-origin attempts (no invitation row).
@@ -521,12 +528,23 @@ export interface TakePreview {
   existing: Attempt | null;
   questionCount: number;
   companyName: string;
+  /** Logo L3a: tenant logo URL for the landing header; null when none or on any failure. */
+  companyLogoUrl: string | null;
 }
 
 export async function getTakePreview(
   tenantId: string,
   input: StartAttemptInput,
 ): Promise<TakePreview> {
+  const base = await loadTakePreview(tenantId, input);
+  const branding = await getCompanyBranding(tenantId);
+  return { ...base, companyLogoUrl: branding.logoUrl };
+}
+
+async function loadTakePreview(
+  tenantId: string,
+  input: StartAttemptInput,
+): Promise<Omit<TakePreview, "companyLogoUrl">> {
   return withTenant(tenantId, async (client) => {
     const assessment = await alRepo.findAssessmentById(client, input.assessmentId);
     if (assessment === null) {
@@ -602,6 +620,17 @@ export async function recordTakeConsent(
 // ===========================================================================
 
 export async function getAttemptForCandidate(
+  tenantId: string,
+  attemptId: string,
+  userId: string,
+): Promise<CandidateAttemptView & { company_name: string; company_logo_url: string | null }> {
+  const view = await loadAttemptForCandidate(tenantId, attemptId, userId);
+  // Logo L3a: co-branding for the attempt top bar. Never throws (null on failure).
+  const branding = await getCompanyBranding(tenantId);
+  return { ...view, company_name: branding.name, company_logo_url: branding.logoUrl };
+}
+
+async function loadAttemptForCandidate(
   tenantId: string,
   attemptId: string,
   userId: string,

@@ -55,7 +55,7 @@ const PACK_COLUMNS = `id, tenant_id, slug, name, domain, description, status, ve
 
 const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minutes, default_question_count, passing_score_pct, rubric_defaults`;
 
-const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, status, version, content, rubric, answer_guidance, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id, cognitive_level, nice_task_id, difficulty_params, attack_technique`;
+const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, negative_marks, status, version, content, rubric, answer_guidance, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id, cognitive_level, nice_task_id, difficulty_params, attack_technique`;
 
 const QUESTION_VERSION_COLUMNS = `id, question_id, version, content, rubric, saved_by, saved_at`; // N21: `type` is frozen per version but not surfaced here
 
@@ -119,6 +119,8 @@ interface QuestionRow {
   type: string;
   topic: string;
   points: number;
+  /** NUMERIC(6,2): pg returns a string. */
+  negative_marks?: string | number | null;
   status: string;
   version: number;
   content: unknown;
@@ -198,6 +200,7 @@ function mapQuestionRow(row: QuestionRow): Question {
     type: row.type as QuestionType,
     topic: row.topic,
     points: row.points,
+    negative_marks: row.negative_marks === null || row.negative_marks === undefined ? null : Number(row.negative_marks),
     status: row.status as QuestionStatus,
     version: row.version,
     content: row.content,
@@ -704,7 +707,7 @@ export async function listQuestionRows(
 
   // Qualify all columns to avoid ambiguity when the tag JOIN is present.
   const dataResult = await client.query<QuestionRow>(
-    `SELECT q.id, q.pack_id, q.level_id, q.type, q.topic, q.points, q.status,
+    `SELECT q.id, q.pack_id, q.level_id, q.type, q.topic, q.points, q.negative_marks, q.status,
             q.version, q.content, q.rubric, q.answer_guidance, q.knowledge_base_sources,
             q.created_by, q.created_at, q.updated_at,
             q.domain_id, q.category_id,
@@ -730,6 +733,7 @@ export async function insertQuestion(
     type: QuestionType;
     topic: string;
     points: number;
+    negativeMarks?: number | null;
     content: unknown;
     rubric?: unknown;
     answerGuidance?: string | null;
@@ -741,8 +745,8 @@ export async function insertQuestion(
   // to 'draft' per DB schema; content and rubric are stored as JSONB.
   // answer_guidance is plain text (candidate hint); NULL when not authored.
   const result = await client.query<QuestionRow>(
-    `INSERT INTO questions (id, pack_id, level_id, type, topic, points, content, rubric, answer_guidance, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10)
+    `INSERT INTO questions (id, pack_id, level_id, type, topic, points, content, rubric, answer_guidance, created_by, negative_marks)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11)
      RETURNING ${QUESTION_COLUMNS}`,
     [
       input.id,
@@ -755,6 +759,7 @@ export async function insertQuestion(
       input.rubric !== undefined ? JSON.stringify(input.rubric) : null,
       input.answerGuidance ?? null,
       input.createdBy,
+      input.negativeMarks ?? null,
     ],
   );
   const row = result.rows[0];
@@ -815,6 +820,7 @@ export async function updateQuestionRow(
   patch: {
     topic?: string;
     points?: number;
+    negative_marks?: number | null;
     status?: QuestionStatus;
     content?: unknown;
     rubric?: unknown | null;
@@ -835,6 +841,15 @@ export async function updateQuestionRow(
     sets.push(`points = $${i}`);
     values.push(patch.points);
     i++;
+  }
+  if (patch.negative_marks !== undefined) {
+    if (patch.negative_marks === null) {
+      sets.push(`negative_marks = NULL`);
+    } else {
+      sets.push(`negative_marks = $${i}`);
+      values.push(patch.negative_marks);
+      i++;
+    }
   }
   if (patch.status !== undefined) {
     sets.push(`status = $${i}`);

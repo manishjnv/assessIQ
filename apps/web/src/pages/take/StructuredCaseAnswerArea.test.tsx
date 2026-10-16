@@ -71,3 +71,28 @@ describe('StructuredCaseAnswerArea', () => {
     expect((screen.getByRole('radio', { name: 'Block' }) as HTMLInputElement).checked).toBe(false);
   });
 });
+
+describe('StructuredCaseAnswerArea passage set (EX-3)', () => {
+  const passage = {
+    question_id: 'q2',
+    content: {
+      title: 'P', context: 'Read the passage.',
+      steps: [
+        { id: 'a', prompt: 'One?', select: 'one', options: ['x', 'y'], points: 2, negative_marks: 0.5 },
+        { id: 'b', prompt: 'Two?', select: 'one', options: ['x', 'y'], points: 1 },
+        { id: 'c', prompt: 'Three?', select: 'many', options: ['x', 'y'], negative_marks: 0.25 },
+      ],
+    },
+  };
+  it('labels children and shows chips', () => {
+    render(<StructuredCaseAnswerArea question={passage} answer={null} disabled={false} onAnswerChange={() => {}} />);
+    expect(screen.getByText(/Question 1 of 3/)).toBeTruthy();
+    expect(screen.getByText(/Question 3 of 3/)).toBeTruthy();
+    expect(screen.getAllByTestId('sc-chip').map((e) => e.textContent)).toEqual(['+2 · −0.5', '+1', '−0.25']);
+    expect(screen.getByTestId('sc-stem').textContent).toContain('Read the passage.');
+  });
+  it('no chip without points or negative_marks', () => {
+    render(<StructuredCaseAnswerArea question={q} answer={null} disabled={false} onAnswerChange={() => {}} />);
+    expect(screen.queryAllByTestId('sc-chip')).toHaveLength(0);
+  });
+});

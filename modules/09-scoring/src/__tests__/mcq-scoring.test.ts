@@ -11,6 +11,7 @@ import { applyAllMigrations } from "../../../../tools/test-support/apply-all-mig
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
+import { getIndividualScores } from "../repository.js";
 import { scoreMcqForAttempt, scoreMcqAndFinalizeIfComplete, MCQ_SENTINEL_SHA } from "../mcq.js";
 
 
@@ -64,15 +65,17 @@ afterAll(async () => {
 }, 30_000);
 
 interface Q {
-  type?: "mcq" | "subjective";
+  type?: "mcq" | "subjective" | "multi_select";
   points: number;
+  /** EX-1: frozen attempt_questions.negative_marks (default 0 = no penalty). */
+  negativeMarks?: number;
   correct?: number;
   answer?: unknown;
   /** If set, a v2 (live) version with this key exists; the attempt stays pinned to v1. */
   liveCorrect?: number;
 }
 
-async function seed(status: string, qs: Q[]): Promise<{ attemptId: string; qids: string[] }> {
+async function seed(status: string, qs: Q[]): Promise<{ attemptId: string; qids: string[]; userId: string }> {
   const pack = randomUUID();
   const level = randomUUID();
   const assessment = randomUUID();
@@ -109,7 +112,9 @@ async function seed(status: string, qs: Q[]): Promise<{ attemptId: string; qids:
         JSON.stringify(
           type === "mcq"
             ? { question: "q", options: ["a", "b", "c", "d"], correct, rationale: "r" }
-            : { question: "q" },
+            : type === "multi_select"
+              ? { question: "q", options: ["a", "b", "c", "d"], correct: [0, 1], scoring: "partial" }
+              : { question: "q" },
         );
       const version = q.liveCorrect !== undefined ? 2 : 1;
       await c.query(
@@ -127,8 +132,8 @@ async function seed(status: string, qs: Q[]): Promise<{ attemptId: string; qids:
         );
       }
       await c.query(
-        `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version) VALUES ($1,$2,$3,1)`,
-        [attemptId, qid, pos++],
+        `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, negative_marks) VALUES ($1,$2,$3,1,$4)`,
+        [attemptId, qid, pos++, q.negativeMarks ?? 0],
       );
       if (q.answer !== undefined) {
         await c.query(`INSERT INTO attempt_answers (attempt_id, question_id, answer) VALUES ($1,$2,$3::jsonb)`, [
@@ -139,7 +144,7 @@ async function seed(status: string, qs: Q[]): Promise<{ attemptId: string; qids:
       }
     }
   });
-  return { attemptId, qids };
+  return { attemptId, qids, userId: cand };
 }
 
 const gradings = (attemptId: string) =>
@@ -171,6 +176,43 @@ describe("scoreMcqForAttempt", () => {
     expect(by[qids[1]!]).toMatchObject({ status: "incorrect", e: 0, m: 10 });
     expect(by[qids[2]!]).toMatchObject({ status: "incorrect", e: 0, m: 10 });
     expect(by[qids[3]!]).toMatchObject({ status: "incorrect", e: 0 });
+  });
+
+  it("EX-1 negative marking: wrong attempted = -negative_marks, unanswered = 0, partial multi_select = no penalty", async () => {
+    const { attemptId, qids } = await seed("submitted", [
+      { points: 4, correct: 1, answer: { selected: 3 }, negativeMarks: 1 }, // wrong, attempted
+      { points: 4, correct: 1, negativeMarks: 1 }, // unanswered
+      { points: 4, correct: 1, answer: { selected: 1 }, negativeMarks: 1 }, // right
+      { type: "multi_select", points: 4, answer: [0], negativeMarks: 1 }, // half right: partial, no penalty
+      { type: "multi_select", points: 4, answer: [2], negativeMarks: 1 }, // fully wrong pick: penalised
+    ]);
+    await withTenant(tenant, (c) => scoreMcqForAttempt(c, attemptId));
+    const by = Object.fromEntries((await gradings(attemptId)).map((r) => [r.question_id, r]));
+    expect(by[qids[0]!]).toMatchObject({ status: "incorrect", e: -1, m: 4 });
+    expect(by[qids[1]!]).toMatchObject({ status: "incorrect", e: 0, m: 4 });
+    expect(by[qids[2]!]).toMatchObject({ status: "correct", e: 4, m: 4 });
+    expect(by[qids[3]!]).toMatchObject({ status: "partial", e: 2, m: 4 });
+    expect(by[qids[4]!]).toMatchObject({ status: "incorrect", e: -1, m: 4 });
+  });
+
+  it("EX-1 net-negative attempt finalises with negative total and auto_pct; band reads 0", async () => {
+    const { attemptId, userId } = await seed("submitted", [
+      { points: 4, correct: 1, answer: { selected: 0 }, negativeMarks: 1 },
+      { points: 4, correct: 1, answer: { selected: 2 }, negativeMarks: 1 },
+      { points: 4, correct: 1, answer: { selected: 3 }, negativeMarks: 1 },
+    ]);
+    const r = await withTenant(tenant, (c) => scoreMcqAndFinalizeIfComplete(c, tenant, attemptId));
+    expect(r.finalized).toBe(true);
+    const s = await sup((c) =>
+      c
+        .query(`SELECT total_earned::float e, total_max::float m, auto_pct::float p FROM attempt_scores WHERE attempt_id=$1`, [attemptId])
+        .then((x) => x.rows[0]),
+    );
+    expect(s.e).toBe(-3);
+    expect(s.m).toBe(12);
+    expect(s.p).toBeLessThan(0);
+    const report = await withTenant(tenant, (c) => getIndividualScores(c, userId));
+    expect(report?.attempts[0]?.band).toBe(0);
   });
 
   it("uses the FROZEN version, not the live (revised) question", async () => {

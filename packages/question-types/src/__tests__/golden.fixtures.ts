@@ -1,5 +1,5 @@
 // Literal expected hook outputs, one entry per input in fixtures.ts order. Regenerate only on an intentional hook change (see README).
-export const GOLDEN: Record<string, { candidateView: unknown[]; guidanceText: unknown[]; deterministicScore?: unknown[][] }> = {
+export const GOLDEN: Record<string, { candidateView: unknown[]; guidanceText: unknown[]; deterministicScore?: unknown[][]; isAttempted?: boolean[]; deterministicMarks?: unknown[][] }> = {
  "mcq": {
   "candidateView": [
    {
@@ -79,6 +79,186 @@ export const GOLDEN: Record<string, { candidateView: unknown[]; guidanceText: un
     0,
     0,
     0
+   ]
+  ],
+  "isAttempted": [
+   true,
+   true,
+   true,
+   false,
+   false,
+   false,
+   false,
+   true
+  ],
+  "deterministicMarks": [
+   [
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
    ]
   ]
  },
@@ -292,6 +472,228 @@ export const GOLDEN: Record<string, { candidateView: unknown[]; guidanceText: un
     0,
     0
    ]
+  ],
+  "isAttempted": [
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   false,
+   true,
+   true,
+   true
+  ],
+  "deterministicMarks": [
+   [
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ]
   ]
  },
  "multi_select": {
@@ -382,6 +784,228 @@ export const GOLDEN: Record<string, { candidateView: unknown[]; guidanceText: un
     0,
     0
    ]
+  ],
+  "isAttempted": [
+   true,
+   true,
+   true,
+   true,
+   false,
+   true,
+   false,
+   false,
+   true,
+   true
+  ],
+  "deterministicMarks": [
+   [
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 2,
+     "max": 4,
+     "status": "partial"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ]
   ]
  },
  "ordering": {
@@ -457,6 +1081,165 @@ export const GOLDEN: Record<string, { candidateView: unknown[]; guidanceText: un
     0,
     0,
     0
+   ]
+  ],
+  "isAttempted": [
+   true,
+   true,
+   true,
+   true,
+   false,
+   false,
+   true
+  ],
+  "deterministicMarks": [
+   [
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 2,
+     "max": 4,
+     "status": "partial"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    }
    ]
   ]
  },
@@ -574,6 +1357,186 @@ export const GOLDEN: Record<string, { candidateView: unknown[]; guidanceText: un
     0,
     0,
     0
+   ]
+  ],
+  "isAttempted": [
+   true,
+   true,
+   true,
+   true,
+   true,
+   true,
+   false,
+   false
+  ],
+  "deterministicMarks": [
+   [
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 3,
+     "max": 4,
+     "status": "partial"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -0.5,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -0.5,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 4,
+     "max": 4,
+     "status": "correct"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": -1,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    }
+   ],
+   [
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    },
+    {
+     "earned": 0,
+     "max": 4,
+     "status": "incorrect"
+    }
    ]
   ]
  }

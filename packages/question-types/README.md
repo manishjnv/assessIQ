@@ -7,7 +7,7 @@ Leaf package. It holds the one registry of question types. It has no React and n
 `QuestionTypeDef` (see `src/registry.ts`):
 - Data: `id`, `label`, `contentSchema`, `answerSchema`, `importColumns`, `qtiInteraction`, `generatorSkill`, `scoring`, `helpKey`.
 - Flags: `aiGradeable`, `rubricRequired`, `rubricSynthesis`, `shuffleField`.
-- Hooks (pure): `candidateView`, `coerceContent`, `guidanceText`, `rubricText`, `evalStructuralCheck`. Optional: `synthConcepts`, `deterministicScore`, `checkAnswer`.
+- Hooks (pure): `candidateView`, `coerceContent`, `guidanceText`, `rubricText`, `evalStructuralCheck`. Optional: `synthConcepts`, `deterministicScore`, `isAttempted`, `deterministicMarks` (signed marks override; only `structured_case` passage sets, EX-3), `checkAnswer`.
 
 Derived arrays: `DETERMINISTIC_IDS`, `AI_GRADEABLE_IDS`, `RUBRIC_REQUIRED_IDS`, `RUBRIC_SYNTHESIS_IDS`. String wrappers: `candidateViewFor`, `coerceContentFor`, `deterministicScoreFor`, `checkAnswerFor`.
 
@@ -31,4 +31,4 @@ Derived arrays: `DETERMINISTIC_IDS`, `AI_GRADEABLE_IDS`, `RUBRIC_REQUIRED_IDS`, 
 
 ## Golden test
 
-`src/__tests__/golden.test.ts` compares `candidateView`, `guidanceText` and `deterministicScore` of every type with literal outputs in `src/__tests__/golden.fixtures.ts`. The module parity test cannot catch a hook change, because the modules delegate to the registry. After an intentional hook change, review the failing diff. Then regenerate the literals: run the hooks over the inputs in `fixtures.ts` (same order as the test), paste the new output into `golden.fixtures.ts`, and commit both with the hook change.
+`src/__tests__/golden.test.ts` compares `candidateView`, `guidanceText`, `deterministicScore`, `isAttempted` and `deterministicMarks` (points 4, negative marks 1) of every type with literal outputs in `src/__tests__/golden.fixtures.ts`. The module parity test cannot catch a hook change, because the modules delegate to the registry. After an intentional hook change, review the failing diff. Then regenerate the literals: run the hooks over the inputs in `fixtures.ts` (same order as the test), paste the new output into `golden.fixtures.ts`, and commit both with the hook change.

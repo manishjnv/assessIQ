@@ -54,6 +54,16 @@ export interface QuestionTypeDef {
   synthConcepts?(content: unknown): string[];
   /** 0..1 fraction of the points earned. Present ONLY when scoring === "deterministic". */
   deterministicScore?(content: unknown, answer: unknown): number;
+  /**
+   * True when the candidate gave a real answer (EX-1 negative marking: only an attempted wrong answer
+   * is penalised). Present only for deterministic types; default for others is `answer != null`.
+   */
+  isAttempted?(answer: unknown): boolean;
+  /**
+   * Optional signed marks override (EX-3 passage sets: per-child weights and penalties). When absent,
+   * `deterministicMarks()` applies the generic EX-1 rule on `deterministicScore`.
+   */
+  deterministicMarks?(content: unknown, answer: unknown, ctx: { points: number; negativeMarks: number }): { earned: number; max: number; status: "correct" | "partial" | "incorrect" };
   /** Structural completeness of a content object for the eval harness (also reports schema failure). */
   evalStructuralCheck(content: unknown): { ok: boolean; reason?: string };
   /**
@@ -140,6 +150,12 @@ export function coerceContentFor(type: unknown, content: Record<string, unknown>
 /** 0..1 fraction for a deterministic type; 0 for any other type. */
 export function deterministicScoreFor(type: string, content: unknown, answer: unknown): number {
   return isQuestionType(type) ? (QUESTION_TYPE_REGISTRY[type].deterministicScore?.(content, answer) ?? 0) : 0;
+}
+
+/** Whether an answer counts as attempted (negative marking). Types without the hook: `answer != null`. */
+export function isAnswerAttemptedFor(type: string, answer: unknown): boolean {
+  const hook = isQuestionType(type) ? QUESTION_TYPE_REGISTRY[type].isAttempted : undefined;
+  return hook ? hook(answer) : answer !== null && answer !== undefined;
 }
 
 /** Answer save check; types without checkAnswer, and unknown types, pass. */

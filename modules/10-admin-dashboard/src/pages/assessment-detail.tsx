@@ -44,6 +44,7 @@ import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
 import { IntegrityCard } from "../components/IntegrityCard.js";
 import { SectionsCard } from "../components/SectionsCard.js";
 import { HighStakesCard } from "../components/HighStakesCard.js";
+import { NegativeMarksCard } from "../components/NegativeMarksCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
@@ -623,6 +624,12 @@ export function AdminAssessmentDetail(): React.ReactElement {
           </summary>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", marginTop: "var(--aiq-space-sm)" }}>
             <HighStakesCard key={`hs-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.high_stakes === true} />
+            <NegativeMarksCard
+              key={`neg-${assessment.id}`}
+              assessmentId={assessment.id}
+              initial={assessment.settings?.scoring}
+              isDraft={assessment.status === "draft"}
+            />
             <RemindersCard key={`rem-${assessment.id}`} assessmentId={assessment.id} initial={assessment.settings?.reminders} />
           </div>
         </details>

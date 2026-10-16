@@ -145,6 +145,7 @@ export function MyResults(): React.ReactElement {
                   percent={r.percent}
                   passed={r.passed}
                   certificate={r.certificate}
+                  negativeMarking={r.negative_marking}
                 />
               </Card>
             </li>

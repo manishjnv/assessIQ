@@ -51,6 +51,30 @@ describe('ResultSummary', () => {
     expect(link.getAttribute('rel')).toContain('noopener');
   });
 
+  it('EX-1: a net-negative total shows the signed score, the negative-marking line and an empty ring', () => {
+    const { container } = render(
+      <ResultSummary
+        totalEarned={-2.5}
+        totalMax={40}
+        percent={-6.3}
+        passed={false}
+        negativeMarking={{ enabled: true, penalty_total: 6 }}
+      />,
+    );
+    expect(container.textContent).toContain('−2.5 / 40 (−6.3%)');
+    expect(container.textContent).toContain('Negative marking: −6 deducted for wrong answers');
+    expect(container.querySelector('[data-help-id="candidate.result.negative_marking"]')).not.toBeNull();
+    expect(container.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('0');
+    expect(screen.getByText('Not passed')).toBeDefined();
+  });
+
+  it('EX-1: no negative-marking line when it is off', () => {
+    const { container } = render(
+      <ResultSummary totalEarned={20} totalMax={40} percent={50} passed negativeMarking={{ enabled: false, penalty_total: 0 }} />,
+    );
+    expect(container.textContent ?? '').not.toContain('Negative marking');
+  });
+
   it('P1 guard: never renders bands, a breakdown, insights or a percentile', () => {
     const { container } = render(
       <ResultSummary totalEarned={42} totalMax={60} percent={70} passed compact />,

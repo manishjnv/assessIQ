@@ -170,6 +170,8 @@ export interface Question {
   type: QuestionType;
   topic: string;
   points: number;
+  /** EX-1: penalty for a wrong attempted answer (deterministic types). null = use the assessment default. */
+  negative_marks: number | null;
   status: QuestionStatus;
   version: number;
   content: unknown;       // validated via validateQuestionContent
@@ -284,6 +286,8 @@ export interface CreateQuestionInput {
   type: QuestionType;
   topic: string;
   points: number;
+  /** EX-1: >= 0, or null/omitted = use the assessment default. */
+  negative_marks?: number | null;
   content: unknown;       // validated against per-type schema in service
   rubric?: unknown;       // required for subjective/scenario
   /** Optional candidate-facing answer-format hint. Empty/whitespace → stored as NULL (per-type default applies). */
@@ -294,6 +298,8 @@ export interface CreateQuestionInput {
 export interface UpdateQuestionPatch {
   topic?: string;
   points?: number;
+  /** EX-1: >= 0, or null to clear back to the assessment default. */
+  negative_marks?: number | null;
   status?: QuestionStatus;
   content?: unknown;
   rubric?: unknown | null;
@@ -408,6 +414,7 @@ export const QB_ERROR_CODES = {
   NO_DRAFT_QUESTIONS_TO_ACTIVATE: "NO_DRAFT_QUESTIONS_TO_ACTIVATE",
   INVALID_NAME_FOR_SLUG: "INVALID_NAME_FOR_SLUG",
   INVALID_TOPIC: "INVALID_TOPIC",
+  NEGATIVE_MARKS_INVALID: "NEGATIVE_MARKS_INVALID",
   INVALID_BULK_SIZE: "INVALID_BULK_SIZE",
   INVALID_STATUS_TRANSITION: "INVALID_STATUS_TRANSITION",
   UNSUPPORTED_TYPE_FOR_RUBRIC: "UNSUPPORTED_TYPE_FOR_RUBRIC",

@@ -44,6 +44,12 @@ export function isMcqAnswerCorrect(content: unknown, answer: unknown): boolean {
   return selected === correct;
 }
 
+/** Attempted iff a selected option index is present: {selected: int} or a bare integer. Never throws. */
+export function isMcqAttempted(answer: unknown): boolean {
+  const s = answer !== null && typeof answer === "object" && !Array.isArray(answer) ? (answer as { selected?: unknown }).selected : answer;
+  return typeof s === "number" && Number.isInteger(s);
+}
+
 // ---- generator-output coercion (moved verbatim from 07 coerce-question-content.ts) ----
 
 /** Coerce an MCQ option entry (string or object) to a plain string. */
@@ -137,5 +143,6 @@ export const definition: QuestionTypeDef = {
   guidanceText: questionStem,
   rubricText: questionOrJson,
   deterministicScore: (content, answer) => (isMcqAnswerCorrect(content, answer) ? 1 : 0),
+  isAttempted: isMcqAttempted,
   evalStructuralCheck: structuralOf(McqContentSchema, (d) => (d.options.length === 4 ? null : "mcq: options.length !== 4")),
 };
