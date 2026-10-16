@@ -818,6 +818,7 @@ export interface QuestionListItem {
   level_label: string | null;
   domain_id: string | null;
   category_id: string | null;
+  difficulty_params?: Record<string, unknown> | null;
 }
 
 /**

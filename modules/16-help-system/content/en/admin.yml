@@ -3576,6 +3576,19 @@ admin.generate_wizard.topic_focus:
     - **Length.** Use 200 characters or fewer. The Generate button stays off while the text is too long.
     - **Scope.** The focus applies to every category in this run.
 
+admin.generate_wizard.review_warnings:
+  audience: admin
+  short_text: "A structural check found a possible problem in a draft. The draft is still usable."
+  long_md: |
+    ## Draft warnings
+
+    A warning comes from an automatic structural check on the draft. Hover over the chip to read each one.
+
+    - **Advisory only.** A warning does not block the draft. You can still edit it, approve it or leave it.
+    - **Common codes.** MCQ_DISTRACTOR_LENGTH_SPREAD and MCQ_STEM_OVERLAP are for multiple-choice questions. LOG_LINES_OUT_OF_RANGE, LOG_FINDINGS_OUT_OF_RANGE and SCENARIO_LENGTH_OUT_OF_RANGE are for size limits.
+    - **What to do.** Read the message, then edit the question if the problem is real.
+    - **Header count.** The count above the list shows how many drafts have at least one warning.
+
 admin.attempts.detail.page:
   audience: admin
   short_text: "One candidate attempt: review the final scores and release them to the candidate."
@@ -3843,3 +3856,16 @@ admin.question_import.commit:
     Commit adds every ready row to a new **draft** question set. You can add
     questions only once for each import. Open the draft to review it, then
     publish it when it is ready.
+
+admin.question_import.draft_rubrics:
+  audience: admin
+  short_text: "Drafts and saves a rubric for each imported written or scenario question."
+  long_md: |
+    ## Draft rubrics
+
+    This button writes a rubric for every imported question that needs one.
+
+    - **One at a time.** AssessIQ drafts and saves the rubrics one question after another.
+    - **Busy message.** The AI runs one job at a time. If you see a busy message, try again in a short while.
+    - **Review.** Open each question in the question editor to read and change its rubric.
+    - **Scope.** Only written and scenario questions get a rubric.
