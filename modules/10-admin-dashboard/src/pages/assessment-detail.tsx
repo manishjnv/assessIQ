@@ -35,21 +35,22 @@
 
 import { assessmentStatusDisplay } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
-import { Chip, Modal, Table, formatDate } from "@assessiq/ui-system";
+import { useParams, useNavigate } from "react-router-dom";
+import { Chip, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
-import { CandidateCsvImport } from "../components/CandidateCsvImport.js";
 import { IntegrityCard } from "../components/IntegrityCard.js";
 import { SectionsCard } from "../components/SectionsCard.js";
 import { HighStakesCard } from "../components/HighStakesCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
+import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
+import { InvitationsSection } from "./assessment-detail/InvitationsSection.js";
 import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
-import { type Assessment, type Invitation, INV_PAGE_SIZE, type InvitationsResponse, type ResendAllResponse, RESEND_ALL_CAP, RESEND_SKIP_REASON, type UserItem, type UsersResponse, type ReleaseAllResponse, SKIP_REASON, type SortDir, sortRows, assessmentStatusVariant } from "./assessment-detail/shared.js";
+import { type Assessment, type Invitation, INV_PAGE_SIZE, type InvitationsResponse, type ResendAllResponse, type UserItem, type UsersResponse, type ReleaseAllResponse, type SortDir, sortRows, assessmentStatusVariant } from "./assessment-detail/shared.js";
 
 export function AdminAssessmentDetail(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
@@ -575,144 +576,22 @@ export function AdminAssessmentDetail(): React.ReactElement {
         )}
 
         {/* Link to attempts + bulk publish */}
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
-          <div
-            style={{
-              padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-              background: "var(--aiq-color-bg-raised)",
-              border: "1px solid var(--aiq-color-border)",
-              borderRadius: "var(--aiq-radius-md)",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "var(--aiq-space-xs)",
-            }}
-          >
-            <Link
-              to={`/admin/attempts?assessmentId=${assessment.id}`}
-              style={{
-                fontFamily: "var(--aiq-font-sans)",
-                fontSize: "var(--aiq-text-sm)",
-                color: "var(--aiq-color-accent)",
-                textDecoration: "none",
-              }}
-            >
-              View attempts for this assessment →
-            </Link>
-          </div>
-          {hasAttempts && (
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-outline"
-              data-help-id="admin.assessments.release_all"
-              disabled={publishingAll}
-              onClick={() => { setPublishAllError(null); setShowPublishAll(true); }}
-            >
-              {publishingAll ? "Releasing…" : "Release all ready"}
-            </button>
-          )}
-        </div>
-
-        {publishAllResult && (
-          <div role="status" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
-            <Chip variant="success">
-              Released {publishAllResult.released.length} result{publishAllResult.released.length === 1 ? "" : "s"}
-            </Chip>
-            {publishAllResult.skipped.length > 0 && (
-              <Chip variant="warn">
-                Skipped {publishAllResult.skipped.length}:{" "}
-                {[...new Set(publishAllResult.skipped.map((s) => SKIP_REASON[s.code] ?? s.code))].join(", ")}
-              </Chip>
-            )}
-          </div>
-        )}
-
-        {publishAllError && (
-          <div
-            role="alert"
-            style={{
-              color: "var(--aiq-color-danger)",
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-            }}
-          >
-            {publishAllError}
-          </div>
-        )}
-
-        <Modal open={showPublishAll} onClose={() => setShowPublishAll(false)} title="Release all ready results?" width={480}>
-          <p
-            style={{
-              margin: 0,
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-              color: "var(--aiq-color-fg-secondary)",
-              lineHeight: 1.6,
-            }}
-          >
-            Every attempt of this assessment that AssessIQ has finished grading will be released to its
-            candidate, who is emailed the result. Attempts that are not ready yet are skipped. Released
-            results can't be changed.
-          </p>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--aiq-space-sm)" }}>
-            <button type="button" className="aiq-btn aiq-btn-ghost" onClick={() => setShowPublishAll(false)} disabled={publishingAll}>
-              Cancel
-            </button>
-            <button type="button" className="aiq-btn aiq-btn-primary" onClick={() => void handlePublishAll()} disabled={publishingAll}>
-              {publishingAll ? "Releasing…" : "Release all ready"}
-            </button>
-          </div>
-        </Modal>
-
-        <Modal
-          open={showResendAll}
-          onClose={() => {
-            if (!resendingAll) setShowResendAll(false);
-          }}
-          title="Resend to everyone who hasn't started?"
-          width={480}
-        >
-          <p
-            style={{
-              margin: 0,
-              fontFamily: "var(--aiq-font-sans)",
-              fontSize: "var(--aiq-text-sm)",
-              color: "var(--aiq-color-fg-secondary)",
-              lineHeight: 1.6,
-            }}
-          >
-            <strong>{Math.min(resendable, RESEND_ALL_CAP)}</strong> email
-            {Math.min(resendable, RESEND_ALL_CAP) === 1 ? " will" : "s will"} be sent, one to each
-            candidate who hasn't started. Each gets a new link that is valid for 7 days, and their
-            old links stop working straight away.
-            {resendable > RESEND_ALL_CAP
-              ? ` We send ${RESEND_ALL_CAP} at a time; press the button again for the other ${
-                  resendable - RESEND_ALL_CAP
-                }.`
-              : ""}
-          </p>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--aiq-space-sm)" }}>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-ghost"
-              onClick={() => setShowResendAll(false)}
-              disabled={resendingAll}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-primary"
-              onClick={() => void handleResendAll()}
-              disabled={resendingAll}
-            >
-              {resendingAll
-                ? "Sending…"
-                : `Send ${Math.min(resendable, RESEND_ALL_CAP)} email${
-                    Math.min(resendable, RESEND_ALL_CAP) === 1 ? "" : "s"
-                  }`}
-            </button>
-          </div>
-        </Modal>
+        <ReleaseResendBlock
+          assessment={assessment}
+          hasAttempts={hasAttempts}
+          publishingAll={publishingAll}
+          setPublishAllError={setPublishAllError}
+          setShowPublishAll={setShowPublishAll}
+          publishAllResult={publishAllResult}
+          publishAllError={publishAllError}
+          showPublishAll={showPublishAll}
+          handlePublishAll={handlePublishAll}
+          showResendAll={showResendAll}
+          setShowResendAll={setShowResendAll}
+          resendingAll={resendingAll}
+          resendable={resendable}
+          handleResendAll={handleResendAll}
+        />
 
         <IntegrityCard key={assessment.id} assessmentId={assessment.id} initial={assessment.settings?.integrity} />
         <SectionsCard
@@ -749,333 +628,40 @@ export function AdminAssessmentDetail(): React.ReactElement {
         </details>
 
         {/* Invitations section */}
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              marginBottom: "var(--aiq-space-md)",
-            }}
-          >
-            <h2
-              data-help-id="admin.assessments.invite.bulk"
-              style={{
-                fontFamily: "var(--aiq-font-serif)",
-                fontSize: "var(--aiq-text-xl)",
-                fontWeight: 400,
-                margin: 0,
-                letterSpacing: "-0.015em",
-              }}
-            >
-              Invitations.
-            </h2>
-            <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
-              <HelpTip helpId="admin.assessments.results_csv.sort">
-                <label
-                  data-help-id="admin.assessments.results_csv.sort"
-                  style={{ fontSize: "var(--aiq-text-sm)", display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}
-                >
-                  Sort by:
-                  <select
-                    value={resultsSort}
-                    onChange={(e) => setResultsSort(e.target.value as "name" | "rank" | "branch")}
-                    data-testid="results-sort"
-                  >
-                    <option value="name">Name</option>
-                    <option value="rank">Rank</option>
-                    <option value="branch">Branch then rank</option>
-                  </select>
-                </label>
-              </HelpTip>
-              <HelpTip helpId="admin.assessments.results.download_csv">
-                <a
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  href={`/api/admin/assessments/${id}/results.csv?sort=${resultsSort}`}
-                  download
-                  data-help-id="admin.assessments.results.download_csv"
-                >
-                  Download results (CSV)
-                </a>
-              </HelpTip>
-              <HelpTip helpId="admin.assessments.invite.bulk">
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  onClick={() => {
-                    setShowInviteForm((v) => !v);
-                    setInviteError(null);
-                    setSelectedUserIds(new Set());
-                  }}
-                >
-                  {showInviteForm ? "Cancel" : "+ Invite candidates"}
-                </button>
-              </HelpTip>
-            </div>
-          </div>
-
-          {id && <CandidateCsvImport assessmentId={id} onImported={fetchData} />}
-
-          {/* Invite inline form */}
-          {showInviteForm && (
-            <div
-              style={{
-                border: "1px solid var(--aiq-color-border)",
-                borderRadius: "var(--aiq-radius-md)",
-                padding: "var(--aiq-space-md)",
-                marginBottom: "var(--aiq-space-md)",
-                background: "var(--aiq-color-bg-raised)",
-              }}
-            >
-              <form onSubmit={(e) => void handleInvite(e)}>
-                {uninvitedUsers.length === 0 ? (
-                  <p
-                    style={{
-                      fontFamily: "var(--aiq-font-sans)",
-                      fontSize: "var(--aiq-text-sm)",
-                      color: "var(--aiq-color-fg-muted)",
-                      margin: "0 0 var(--aiq-space-md)",
-                    }}
-                  >
-                    All users in this organisation have already been invited.{" "}
-                    <Link
-                      to="/admin/users"
-                      style={{
-                        color: "var(--aiq-color-accent)",
-                        textDecoration: "none",
-                      }}
-                    >
-                      Add more users →
-                    </Link>
-                  </p>
-                ) : (
-                  <>
-                    <p
-                      style={{
-                        fontFamily: "var(--aiq-font-sans)",
-                        fontSize: "var(--aiq-text-sm)",
-                        color: "var(--aiq-color-fg-secondary)",
-                        margin: "0 0 var(--aiq-space-sm)",
-                      }}
-                    >
-                      Select candidates to invite. Users already invited are not shown.
-                    </p>
-                    <div
-                      style={{
-                        maxHeight: 240,
-                        overflowY: "auto",
-                        border: "1px solid var(--aiq-color-border)",
-                        borderRadius: "var(--aiq-radius-sm)",
-                        marginBottom: "var(--aiq-space-md)",
-                      }}
-                    >
-                      {uninvitedUsers.map((u) => (
-                        <label
-                          key={u.id}
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "var(--aiq-space-sm)",
-                            padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                            cursor: "pointer",
-                            borderBottom: "1px solid var(--aiq-color-border)",
-                            background: selectedUserIds.has(u.id)
-                              ? "var(--aiq-color-accent-soft)"
-                              : "transparent",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedUserIds.has(u.id)}
-                            onChange={() => toggleUser(u.id)}
-                          />
-                          <span
-                            style={{
-                              fontFamily: "var(--aiq-font-sans)",
-                              fontSize: "var(--aiq-text-sm)",
-                            }}
-                          >
-                            {u.email}
-                          </span>
-                          {u.name && (
-                            <span
-                              style={{
-                                fontFamily: "var(--aiq-font-sans)",
-                                fontSize: "var(--aiq-text-xs)",
-                                color: "var(--aiq-color-fg-muted)",
-                              }}
-                            >
-                              ({u.name})
-                            </span>
-                          )}
-                        </label>
-                      ))}
-                    </div>
-                    {inviteError && (
-                      <div
-                        style={{
-                          color: "var(--aiq-color-danger)",
-                          fontFamily: "var(--aiq-font-sans)",
-                          fontSize: "var(--aiq-text-sm)",
-                          marginBottom: "var(--aiq-space-sm)",
-                        }}
-                      >
-                        {inviteError}
-                      </div>
-                    )}
-                    <button
-                      type="submit"
-                      className="aiq-btn aiq-btn-primary"
-                      disabled={inviting || selectedUserIds.size === 0}
-                    >
-                      {inviting
-                        ? "Sending…"
-                        : `Invite ${selectedUserIds.size > 0 ? selectedUserIds.size + " " : ""}candidate${
-                            selectedUserIds.size !== 1 ? "s" : ""
-                          }`}
-                    </button>
-                  </>
-                )}
-              </form>
-            </div>
-          )}
-
-          {/* Resend to everyone who hasn't started + the outcome chips (same style
-              as the CSV-import result). The button count is the server's total
-              across ALL pages; it is 0 (button hidden) once the assessment is
-              closed or when every not-started link was just re-sent. */}
-          {(resendable > 0 || resendResult !== null) && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--aiq-space-sm)",
-                flexWrap: "wrap",
-                marginBottom: "var(--aiq-space-md)",
-              }}
-            >
-              {resendable > 0 && (
-                <HelpTip helpId="admin.assessments.invitations.resend_all">
-                  <button
-                    type="button"
-                    className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                    data-help-id="admin.assessments.invitations.resend_all"
-                    disabled={resendingAll || resendingId !== null}
-                    onClick={() => {
-                      setResendError(null);
-                      setShowResendAll(true);
-                    }}
-                  >
-                    {resendingAll
-                      ? "Resending…"
-                      : `Resend to everyone who hasn't started (${resendable})`}
-                  </button>
-                </HelpTip>
-              )}
-              {resendResult !== null && (
-                <div
-                  role="status"
-                  data-help-id="admin.assessments.invitations.resend_result"
-                  style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}
-                >
-                  <Chip variant="success">{resendResult.resent} resent</Chip>
-                  {resendResult.skipped.length > 0 && (
-                    <Chip variant="warn">
-                      {resendResult.skipped.length} skipped:{" "}
-                      {[
-                        ...new Set(
-                          resendResult.skipped.map((s) => RESEND_SKIP_REASON[s.code] ?? s.code),
-                        ),
-                      ].join(", ")}
-                    </Chip>
-                  )}
-                  {resendResult.remaining > 0 && (
-                    <Chip variant="accent">
-                      {resendResult.remaining} more still to send — press the button again
-                    </Chip>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-          {resendError && (
-            <div
-              role="alert"
-              style={{
-                color: "var(--aiq-color-danger)",
-                fontFamily: "var(--aiq-font-sans)",
-                fontSize: "var(--aiq-text-sm)",
-                marginBottom: "var(--aiq-space-md)",
-              }}
-            >
-              {resendError}
-            </div>
-          )}
-
-          {invitations.length === 0 ? (
-            <div
-              style={{
-                textAlign: "center",
-                padding: "var(--aiq-space-2xl) 0",
-                color: "var(--aiq-color-fg-muted)",
-                border: "1px dashed var(--aiq-color-border)",
-                borderRadius: "var(--aiq-radius-md)",
-              }}
-            >
-              <p
-                style={{
-                  fontFamily: "var(--aiq-font-sans)",
-                  fontSize: "var(--aiq-text-sm)",
-                  margin: 0,
-                }}
-              >
-                No candidates invited yet.
-              </p>
-            </div>
-          ) : (
-            <Table columns={invitationColumns} data={sortedInvitations} {...(sortBy ? { sortBy } : {})} sortDir={sortDir} onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }} />
-          )}
-
-          {invTotal > INV_PAGE_SIZE && (
-            <div
-              data-help-id="admin.assessments.invitations.paging"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "var(--aiq-space-sm)",
-                flexWrap: "wrap",
-                marginTop: "var(--aiq-space-md)",
-                fontFamily: "var(--aiq-font-sans)",
-                fontSize: "var(--aiq-text-sm)",
-                color: "var(--aiq-color-fg-muted)",
-              }}
-            >
-              <span>
-                Showing {(invPage - 1) * INV_PAGE_SIZE + 1}&ndash;
-                {Math.min(invPage * INV_PAGE_SIZE, invTotal)} of {invTotal}
-              </span>
-              <span style={{ display: "flex", gap: "var(--aiq-space-sm)" }}>
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  disabled={invPage <= 1 || invPaging}
-                  onClick={() => void goToInvPage(invPage - 1)}
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  disabled={invPage * INV_PAGE_SIZE >= invTotal || invPaging}
-                  onClick={() => void goToInvPage(invPage + 1)}
-                >
-                  Next
-                </button>
-              </span>
-            </div>
-          )}
-        </div>
+        <InvitationsSection
+          id={id}
+          resultsSort={resultsSort}
+          setResultsSort={setResultsSort}
+          showInviteForm={showInviteForm}
+          setShowInviteForm={setShowInviteForm}
+          setInviteError={setInviteError}
+          setSelectedUserIds={setSelectedUserIds}
+          fetchData={fetchData}
+          handleInvite={handleInvite}
+          uninvitedUsers={uninvitedUsers}
+          selectedUserIds={selectedUserIds}
+          toggleUser={toggleUser}
+          inviteError={inviteError}
+          inviting={inviting}
+          resendable={resendable}
+          resendResult={resendResult}
+          resendError={resendError}
+          setResendError={setResendError}
+          setShowResendAll={setShowResendAll}
+          resendingAll={resendingAll}
+          resendingId={resendingId}
+          invitations={invitations}
+          invitationColumns={invitationColumns}
+          sortedInvitations={sortedInvitations}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortDir={sortDir}
+          setSortDir={setSortDir}
+          invPage={invPage}
+          invPaging={invPaging}
+          invTotal={invTotal}
+          goToInvPage={goToInvPage}
+        />
       </div>
 
       <DangerConfirmModal
