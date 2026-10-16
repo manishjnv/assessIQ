@@ -25,7 +25,8 @@
 import { difficultyLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Spinner } from "@assessiq/ui-system";
+import { Spinner, Chip } from "@assessiq/ui-system";
+import { HelpTip } from "@assessiq/help-system/components";
 import { isQuestionType, RUBRIC_REQUIRED_IDS, getQuestionType, type QuestionType } from "@assessiq/question-types";
 import { AdminShell } from "../components/AdminShell.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
@@ -1213,7 +1214,13 @@ export function AdminGenerateWizard(): React.ReactElement {
   // Render -- review step (D5 — durable)
   // ---------------------------------------------------------------------------
 
+  function draftWarnings(d: QuestionListItem): { code: string; message: string }[] {
+    const w = d.difficulty_params?.["warnings"];
+    return Array.isArray(w) ? (w as { code: string; message: string }[]) : [];
+  }
+
   function renderReview(): React.ReactElement {
+    const warnedCount = drafts.filter((d) => draftWarnings(d).length > 0).length;
     const allSelected = drafts.length > 0 && drafts.every((d) => selectedDraftIds.has(d.id));
 
     // Group drafts by category_id, then within each group by type
@@ -1243,6 +1250,13 @@ export function AdminGenerateWizard(): React.ReactElement {
           <h3 style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-base)", fontWeight: 600, color: "var(--aiq-color-fg-primary)", margin: 0 }}>
             Review AI Drafts {draftsLoading ? "" : `(${drafts.length})`}
           </h3>
+          {warnedCount > 0 && (
+            <HelpTip helpId="admin.generate_wizard.review_warnings">
+              <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                {warnedCount} {warnedCount === 1 ? "draft" : "drafts"} with warnings
+              </span>
+            </HelpTip>
+          )}
           <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => void loadDrafts()} disabled={draftsLoading}>
             {draftsLoading ? "Loading…" : "Refresh"}
           </button>
@@ -1333,6 +1347,14 @@ export function AdminGenerateWizard(): React.ReactElement {
                                   ) : null;
                                 })()}
                                 <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{draft.points} pt{draft.points === 1 ? "" : "s"}</span>
+                                {(() => {
+                                  const ws = draftWarnings(draft);
+                                  return ws.length > 0 ? (
+                                    <Chip variant="warn" data-help-id="admin.generate_wizard.review_warnings" title={ws.map((x) => `${x.code}: ${x.message}`).join("\n")}>
+                                      {ws.length} {ws.length === 1 ? "warning" : "warnings"}
+                                    </Chip>
+                                  ) : null;
+                                })()}
                               </div>
 
                               {/* Topic (inline edit) */}

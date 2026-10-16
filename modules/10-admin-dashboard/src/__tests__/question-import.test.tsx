@@ -104,7 +104,7 @@ describe("Question import page", () => {
     saveRubric.mockResolvedValue({});
     await commitWithRubricless();
     expect(await screen.findByText("2 imported questions have no rubric.")).toBeTruthy();
-    expect(listQ).toHaveBeenCalledWith({ pack_id: "pack-9", pageSize: 200 });
+    expect(listQ).toHaveBeenCalledWith({ pack_id: "pack-9", pageSize: 500 });
     fireEvent.click(screen.getByRole("button", { name: "Draft rubrics" }));
     await waitFor(() => expect(saveRubric).toHaveBeenCalledTimes(2));
     expect(genRubric.mock.calls.map((c) => c[0])).toEqual(["q1", "q2"]);
