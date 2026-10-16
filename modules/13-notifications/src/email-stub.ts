@@ -73,11 +73,11 @@ export interface SendInvitationEmailInput {
  * Per addendum § 8, the token appears inside `body`, not in a structured field.
  */
 export async function sendInvitationEmail(input: SendInvitationEmailInput): Promise<void> {
-  const subject = `You've been invited to AssessIQ as ${input.role}`;
+  const subject = `You are invited to AssessIQ as ${input.role}`;
   const body = [
     `Hello,`,
     ``,
-    `You've been invited to join AssessIQ${input.tenantName !== undefined ? ` (${input.tenantName})` : ''} as ${input.role}.`,
+    `You are invited to join AssessIQ${input.tenantName !== undefined ? ` (${input.tenantName})` : ''} as ${input.role}.`,
     ``,
     `Accept your invitation by clicking the link below:`,
     input.invitationLink,
@@ -127,11 +127,11 @@ export interface SendAssessmentInvitationEmailInput {
 export async function sendAssessmentInvitationEmail(
   input: SendAssessmentInvitationEmailInput,
 ): Promise<void> {
-  const subject = `You've been invited to take "${input.assessmentName}" on AssessIQ`;
+  const subject = `You are invited to take "${input.assessmentName}" on AssessIQ`;
   const body = [
     `Hi ${input.candidateName},`,
     ``,
-    `You've been invited to take the assessment "${input.assessmentName}" on AssessIQ (${input.tenantName}).`,
+    `You are invited to take the assessment "${input.assessmentName}" on AssessIQ (${input.tenantName}).`,
     ``,
     `Start the assessment by clicking the link below:`,
     input.invitationLink,

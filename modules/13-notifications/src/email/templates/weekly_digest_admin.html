@@ -1,4 +1,4 @@
-<!-- Composes kit partials (Email Kit Port E2a). Bespoke stats table (not email-meta-card) so the pending-review count keeps the brand danger color. Diverges from kit/emails/templates-1.jsx <Newsletter> per docs/13-email-system.md §4. -->
+<!-- Composes kit partials (Email Kit Port E2a). Bespoke stats table (not email-meta-card) so the pending-review count keeps the brand danger colour. Diverges from kit/emails/templates-1.jsx <Newsletter> per docs/13-email-system.md §4. -->
 {{#> email-shell preheader=(concat "Your weekly AssessIQ summary for " tenantName ".")}}
 
   {{> email-header}}
@@ -8,7 +8,7 @@
     {{> email-lede-editorial
       eyebrow="WEEKLY DIGEST"
       title="Your weekly summary."
-      body=(concat "Here's the activity for " tenantName " for the week ending " weekEnding ".")}}
+      body=(concat "This is the activity for " tenantName " for the week ending " weekEnding ".")}}
 
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border:1px solid #e4e4e7;border-radius:12px;border-collapse:separate">
       <tr style="background:#fafafa">
@@ -39,6 +39,6 @@
 
   {{/email-body}}
 
-  {{> email-footer-transactional reason="You're receiving this weekly summary as an AssessIQ admin."}}
+  {{> email-footer-transactional reason="You receive this weekly summary as an AssessIQ admin."}}
 
 {{/email-shell}}
