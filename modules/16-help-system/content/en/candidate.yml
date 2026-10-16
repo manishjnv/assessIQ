@@ -566,3 +566,55 @@ candidate.shell.new_results_notice:
     ## New results
 
     This banner shows when your organisation publishes a new result for you. It shows the count of results that you have not seen yet. Select **View results** to open the list. The banner goes away after you open the Results page.
+
+# ---- S14 (2026-10-16): P0-Z batch 3 ----
+
+candidate.result.negative_marking:
+  audience: candidate
+  short_text: "This assessment takes marks away for wrong answers. The line shows the total that was deducted."
+  long_md: |
+    ## Negative marking
+
+    - A wrong answer on an auto-scored question takes marks away. A question you left blank takes nothing away.
+    - The score shown is your total after the deduction. It can be below zero.
+    - Your band and any certificate use zero as the lowest score.
+
+candidate.take.landing.logo:
+  audience: candidate
+  short_text: "The organisation that invited you. AssessIQ runs the assessment on its behalf."
+  long_md: |
+    ## Organisation
+
+    This logo belongs to the organisation that invited you. AssessIQ provides the assessment platform. Your answers go to that organisation.
+
+candidate.take.attempt.logo:
+  audience: candidate
+  short_text: "The organisation that set this assessment."
+  long_md: |
+    ## Organisation
+
+    The logo in the top bar shows which organisation set this assessment. AssessIQ runs it on their behalf.
+
+candidate.take.submitted.logo:
+  audience: candidate
+  short_text: "The organisation that will see your result."
+  long_md: |
+    ## Organisation
+
+    Your submission went to this organisation. It decides when and how results are released.
+
+candidate.shell.logo:
+  audience: candidate
+  short_text: "The organisation your results belong to."
+  long_md: |
+    ## Organisation
+
+    This logo shows the organisation that invited you to the assessments listed here. AssessIQ runs the platform on their behalf.
+
+candidate.take.structured_case.child_marks:
+  audience: candidate
+  short_text: "Marks for a right answer and marks taken away for a wrong one on this question."
+  long_md: |
+    ## Marks for this question
+
+    The first number is what a right answer earns. The second number, with a minus sign, is what a wrong answer loses. A question you leave blank loses nothing.

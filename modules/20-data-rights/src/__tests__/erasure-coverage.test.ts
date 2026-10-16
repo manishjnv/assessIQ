@@ -33,6 +33,7 @@ const REGISTRY = [
 const EXEMPT: Record<string, string> = {
   // Organisation / content data, not candidate personal data
   'oauth_identities.email_verified': 'boolean flag, not an address',
+  'tenant_plans.ai_answers_included_override': 'plan quota number set by the super admin (PT-4), not personal data',
   'embed_secrets.name': 'admin-chosen label for a secret',
   'api_keys.name': 'admin-chosen label for a key',
   'tenants.name': 'organisation name',

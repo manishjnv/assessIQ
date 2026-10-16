@@ -3506,9 +3506,12 @@ admin.tenant_settings.page:
     - **Data retention.** Set the number of days that the organisation keeps personal data of candidates.
     - **Erased candidates.** See the candidates whose personal data was removed. Their names and emails cannot be read.
     - You may be asked for a fresh authenticator code when you change the release mode.
+    - **Organisation logo.** Upload a PNG or JPEG logo. It shows next to your organisation name for your team and your candidates, with "via AssessIQ".
+  version: 2
   related_keys:
     - admin.tenant_settings.company_name
     - admin.tenant_settings.result_release_mode
+    - admin.tenant_settings.logo
 
 admin.generate_wizard.page:
   audience: admin
@@ -4043,3 +4046,142 @@ admin.assessments.blueprint.framework_pick:
     ## Subject from a framework
 
     Pick a subject node to select its matching subject above. The blueprint still uses the subject for its question draw. If no question set uses the node, a note tells you. You can always choose the subject from the list instead.
+
+# ---- S14 (2026-10-16): P0-Z batch 3 ----
+
+admin.question_import.formats:
+  audience: admin
+  short_text: "Files you can upload: CSV, XLSX, GIFT, Aiken, or a QTI package."
+  long_md: |
+    ## Accepted formats
+
+    - **CSV or XLSX.** Use a template from this page. All question types.
+    - **GIFT.** A Moodle text format. Multiple-choice questions only. One answer must start with `=`.
+    - **Aiken.** A plain text format. Multiple-choice questions only. Each question ends with an `ANSWER:` line.
+    - **QTI.** A QTI 2.1, 2.2 or 3.0 package (`.zip`) or one item file (`.xml`). Choice, order, numeric entry and extended text items are read. Other item kinds show as row errors.
+    - The limit is 4 MB and 2000 questions for each file.
+
+admin.question_import.text_format:
+  audience: admin
+  short_text: "A .txt file can hold GIFT or Aiken questions. Pick the one that matches your file."
+  long_md: |
+    ## Text format
+
+    AssessIQ cannot tell GIFT and Aiken apart from the file name. Choose the format that your file uses. A wrong choice gives row errors, not a broken import. Fix the choice and upload again.
+
+admin.settings.billing.limits:
+  audience: admin
+  short_text: "The limits of your plan: question sets, candidates for each drive, the credit cap and AI-evaluated answers."
+  long_md: |
+    ## Plan limits
+
+    - **Question sets.** How many question sets your plan includes.
+    - **Candidates per drive.** The most candidates one assessment can invite.
+    - **Overage cap.** What happens when you use more credits than your plan includes.
+    - **AI-evaluated answers.** Written answers that AssessIQ evaluates for you, used and included this month.
+    - "Unlimited" means your plan has no cap for that row. Contact AssessIQ to change your plan.
+
+admin.settings.billing.limits.enforced:
+  audience: admin
+  short_text: "Plan limits are shown for information. AssessIQ does not block actions on them yet."
+  long_md: |
+    ## Limits are not enforced yet
+
+    Your plan limits are visible so that you can plan. Nothing is blocked today. AssessIQ will tell you before limits start to apply.
+
+admin.tenant_settings.logo:
+  audience: admin
+  short_text: "Upload your organisation logo (PNG or JPEG, up to 512 KB). It shows next to your name with \"via AssessIQ\"."
+  long_md: |
+    ## Organisation logo
+
+    - **Format.** PNG or JPEG. SVG, GIF and WebP are refused.
+    - **Size.** Up to 512 KB. Each side between 32 and 2048 pixels.
+    - **Where it shows.** The admin top bar, the candidate assessment pages, candidate emails, the public certificate page, the social preview image and the certificate PDF.
+    - **Co-branding.** The logo always appears with "via AssessIQ". It never replaces the AssessIQ mark.
+    - **Replace.** Upload a new file. The new logo replaces the old one everywhere, also on certificates that were issued before.
+    - You may be asked for a fresh authenticator code.
+
+admin.tenant_settings.logo.remove:
+  audience: admin
+  short_text: "Remove the logo. Your organisation name shows alone until you upload a new one."
+  long_md: |
+    ## Remove the logo
+
+    Removing the logo takes effect at once on every page, email and certificate. You can upload a new logo at any time. You may be asked for a fresh authenticator code.
+
+admin.shell.tenant_logo:
+  audience: admin
+  short_text: "Your organisation logo, as uploaded in Settings. Candidates see the same logo."
+  long_md: |
+    ## Organisation logo
+
+    This is the logo that an organisation admin uploaded in Settings. Change or remove it on the Settings page.
+
+admin.question_editor.negative_marks:
+  audience: admin
+  short_text: "Marks taken away for a wrong answer on an auto-scored question. Blank uses the assessment default."
+  long_md: |
+    ## Negative marks
+
+    - **Applies to** auto-scored questions: multiple choice, multi-select, numeric, ordering and structured case.
+    - **A wrong, attempted answer** loses this many marks. A question with no answer loses nothing. A partly correct answer loses nothing.
+    - **Blank** means the default of the assessment applies. Enter `0` to switch negative marking off for this question only.
+    - The value is frozen for each attempt when the candidate starts. A later edit does not change attempts that already exist.
+    - A candidate total can go below zero. The score band and the certificate rule treat a total below zero as zero.
+
+admin.assessments.settings.negative_marks_default:
+  audience: admin
+  short_text: "Default marks taken away for a wrong answer, for every question that has no value of its own."
+  long_md: |
+    ## Default negative marks
+
+    - This value applies to every auto-scored question in the assessment that has no negative marks of its own.
+    - `0` means no negative marking (the default).
+    - Typical exam patterns use a quarter or a third of the question marks, for example `0.25` for a 1-mark question.
+    - You can change it only while the assessment is a draft. Attempts freeze the value when they start.
+
+admin.question.editor.structured_case.step_marks:
+  audience: admin
+  short_text: "Marks and negative marks for one step. Blank marks count as 1. Blank negative marks follow the question value."
+  long_md: |
+    ## Step marks
+
+    - **Marks** is the weight of this step inside the question. The question total is still the question points: a step with marks 2 counts twice a step with marks 1.
+    - **Negative marks** is the penalty for a wrong, attempted answer on this step. Leave it blank to take the question's negative marks, split by the step weight.
+    - A blank step loses nothing. A partly right multi-select step loses nothing.
+    - With "all or nothing" scoring, the question gives full points only when every step is right.
+
+admin.question.editor.structured_case.passage_preset:
+  audience: admin
+  short_text: "Fills the editor with a passage and five single-choice questions, ready to edit."
+  long_md: |
+    ## Passage set preset
+
+    A passage set is a structured case whose context is the shared passage and whose steps are the questions that follow it. The preset gives you a title, a passage placeholder and five single-choice steps with four options each. Replace the placeholder text, set the correct options and adjust marks for each step.
+
+admin.platform.tenant.ai_grading_scope:
+  audience: admin
+  short_text: "AI for written answers in this organisation: Written (default) or None (a person scores every written answer)."
+  long_md: |
+    ## AI grading scope
+
+    - **Written.** AssessIQ may evaluate written answers (subjective, scenario and log analysis) with AI. Auto-scored types never use AI. This is the default.
+    - **None.** No AI call runs for this organisation. Written answers wait for a manual score. Blank answers and answers identical to an accepted grade are still scored by rule and reuse, which use no AI.
+    - Only the platform admin can change this. Each change is recorded in the audit log.
+
+admin.attempts.grading.tiers:
+  audience: admin
+  short_text: "How each question of this attempt was graded: answer key, reuse, rule, AI, or a person."
+  long_md: |
+    ## Graded by
+
+    AssessIQ grades with the least AI that keeps accuracy, in this order:
+
+    1. **Answer key.** Multiple choice, multi-select, numeric, ordering and structured case questions are scored from the key.
+    2. **Reuse.** An answer identical to one that already has an accepted grade for the same question gets that grade.
+    3. **Rule.** A blank answer gets band 0.
+    4. **AI.** Written answers are evaluated with AI and reviewed by the platform admin.
+    5. **Human.** Flagged cases, overrides and manual scores.
+
+    The line counts the questions in each tier. Zero tiers are left out.
