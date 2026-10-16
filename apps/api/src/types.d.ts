@@ -14,6 +14,12 @@ import type { Session, ApiKeyRecord } from '@assessiq/auth';
 // of the request-decoration surface.
 
 declare module 'fastify' {
+  // RW-97: `config: { skipAuth: true }` on auth-bypass routes (see middleware/auth-chain.ts).
+  // Typed here because @fastify/multipart augments FastifyContextConfig, which turns on
+  // excess-property checks for every route config literal.
+  interface FastifyContextConfig {
+    skipAuth?: boolean;
+  }
   interface FastifyRequest {
     assessiqCtx: {
       requestId: string;

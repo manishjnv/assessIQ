@@ -1,5 +1,6 @@
 // RW-58: super-admin question import helpers (CSV/XLSX -> staged report -> commit | discard). Kept out of src/api.ts.
-import { adminApi } from "../api.js";
+import { AdminApiError, adminApi } from "../api.js";
+import type { ApiError } from "../api.js";
 
 export type ImportFormat = "csv" | "xlsx";
 export type ImportDecision = "ok" | "error" | "duplicate" | "skip";
@@ -34,15 +35,28 @@ export interface ImportCommitResult {
 export interface ImportUploadInput {
   file_name: string;
   format: ImportFormat;
-  content_base64: string;
+  file: File | Blob;
   domain: string;
   pack_name?: string;
 }
 
 export const IMPORT_MAX_BYTES = 4 * 1024 * 1024;
 
+/** Multipart upload. No content-type header here: the browser adds the boundary. The file goes LAST (the server reads the fields before it). */
 export async function uploadImportApi(input: ImportUploadInput): Promise<ImportReport> {
-  return adminApi<ImportReport>("/admin/super/question-imports", { method: "POST", body: JSON.stringify(input) });
+  const form = new FormData();
+  form.append("format", input.format);
+  form.append("domain", input.domain);
+  if (input.pack_name) form.append("pack_name", input.pack_name);
+  form.append("file_name", input.file_name);
+  form.append("file", input.file, input.file_name);
+  const res = await fetch("/api/admin/super/question-imports", { method: "POST", body: form, credentials: "include" });
+  if (!res.ok) {
+    let body: { error?: ApiError };
+    try { body = (await res.json()) as { error?: ApiError }; } catch { body = {}; }
+    throw new AdminApiError(res.status, body.error ?? { code: `HTTP_${res.status}`, message: res.statusText });
+  }
+  return (await res.json()) as ImportReport;
 }
 
 export async function getImportApi(id: string): Promise<ImportReport> {

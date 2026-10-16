@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import {
   AppError,
   enterWithRequestContext,
@@ -51,6 +52,8 @@ export async function buildServer() {
   });
 
   await app.register(cookie);
+  // RW-97: same cap as IMPORT_MAX_BYTES (question-import upload).
+  await app.register(multipart, { limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 10 } });
 
   // aiq_embed_sess bridge — promotes the embed-session cookie value into the
   // standard session-loader slot when no standard session cookie is present.
