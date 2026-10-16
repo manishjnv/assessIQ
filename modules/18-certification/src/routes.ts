@@ -25,6 +25,7 @@ import { ValidationError } from '@assessiq/core';
 import { withTenant, getTenantById } from '@assessiq/tenancy';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
+import { loadLogoDataUri } from './logo.js';
 import { renderCertificatePdf } from './pdf/render.js';
 import { findByCredentialId, incrementCounter } from './repository.js';
 import {
@@ -176,7 +177,7 @@ export async function registerCertificationRoutes(
         orgName = undefined; // template falls back to "AssessIQ"
       }
 
-      const pdfBuf = await renderCertificatePdf(cert, orgName);
+      const pdfBuf = await renderCertificatePdf(cert, orgName, await loadLogoDataUri(cert.tenant_id));
 
       // Increment pdf_downloads. Non-critical analytics; errors are caught and
       // swallowed so a counter failure never breaks a successful download.

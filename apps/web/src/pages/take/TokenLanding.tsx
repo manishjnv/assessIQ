@@ -23,7 +23,7 @@
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Button, Chip, Logo, Spinner } from '@assessiq/ui-system';
+import { Button, Chip, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import { takePreview, takeStart, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
 import { TakeRightPane } from './TakeRightPane.js';
 import { ConsentBlock, PracticeQuestion, SystemCheck, useSystemCheck } from './PreTest.js';
@@ -64,6 +64,7 @@ type PageState =
       resumed: boolean;
       name: string;
       company: string;
+      companyLogoUrl: string | null;
       candidateName: string;
       durationSeconds: number;
       questionCount: number;
@@ -81,6 +82,7 @@ type PageState =
 export function SuccessContent({
   name,
   company,
+  companyLogoUrl = null,
   candidateName,
   durationSeconds,
   questionCount,
@@ -91,6 +93,7 @@ export function SuccessContent({
 }: {
   name: string;
   company: string;
+  companyLogoUrl?: string | null;
   candidateName: string;
   durationSeconds: number;
   questionCount: number;
@@ -108,6 +111,11 @@ export function SuccessContent({
 
   return (
     <>
+      {(companyLogoUrl !== null || company !== '') && (
+        <div data-help-id="candidate.take.landing.logo" style={{ marginBottom: 20 }}>
+          <TenantLogo src={companyLogoUrl} name={company} height={40} viaAssessIQ />
+        </div>
+      )}
       <span style={{ display: 'inline-block', marginBottom: 20 }}>
         <Chip variant="success">{resumed ? 'Welcome back' : 'Welcome'}</Chip>
       </span>
@@ -330,6 +338,7 @@ export function TokenLanding(): React.JSX.Element {
         resumed: res.resumed,
         name: res.assessment.name,
         company: res.assessment.company_name,
+        companyLogoUrl: res.assessment.company_logo_url ?? null,
         candidateName: res.candidate.name,
         durationSeconds: res.assessment.duration_seconds,
         questionCount: res.assessment.question_count,
@@ -391,6 +400,7 @@ export function TokenLanding(): React.JSX.Element {
       <SuccessContent
         name={state.name}
         company={state.company}
+        companyLogoUrl={state.companyLogoUrl}
         candidateName={state.candidateName}
         durationSeconds={state.durationSeconds}
         questionCount={state.questionCount}

@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { Chip, Icon, Logo } from "@assessiq/ui-system";
+import { Chip, Icon, Logo, TenantLogo } from "@assessiq/ui-system";
 import { AttemptTimer, Calculator, AutosaveIndicator, useAutosave } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire } from "@assessiq/candidate-ui";
 import { TOP_BAR, COUNTER_LABEL } from "./shared.js";
@@ -14,16 +14,24 @@ export interface AttemptTopBarProps {
   refreshAfterSectionChange: (fromSection: number, retriesLeft: number) => Promise<void>;
   autosave: ReturnType<typeof useAutosave>;
   setNavOpen: Dispatch<SetStateAction<boolean>>;
+  /** Logo L3a: organisation co-branding; empty name + null url renders nothing. */
+  companyName?: string;
+  companyLogoUrl?: string | null;
 }
 
 export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const {
     sec, attempt, safeIdx, questionCount, isLastSection, handleExpire,
-    refreshAfterSectionChange, autosave, setNavOpen,
+    refreshAfterSectionChange, autosave, setNavOpen, companyName = "", companyLogoUrl = null,
   } = props;
   return (
   <header className="aiq-attempt-top" style={TOP_BAR}>
     <Logo />
+    {(companyLogoUrl !== null || companyName !== "") && (
+      <span data-help-id="candidate.take.attempt.logo" style={{ flexShrink: 1, minWidth: 0 }}>
+        <TenantLogo src={companyLogoUrl} name={companyName} height={28} />
+      </span>
+    )}
 
     {sec !== undefined && (
       <Chip variant="default" style={{ flexShrink: 0 }} data-help-id="candidate.attempt.section">

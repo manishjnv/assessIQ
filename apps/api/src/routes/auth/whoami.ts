@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { config } from '@assessiq/core';
 import { getUser } from '@assessiq/users';
-import { getTenantById } from '@assessiq/tenancy';
+import { getTenantById, getTenantLogoMeta, tenantLogoUrl } from '@assessiq/tenancy';
 import { totp } from '@assessiq/auth';
 import { authChain } from '../../middleware/auth-chain.js';
 
@@ -67,6 +67,7 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
           sess.totpVerified,
           config.MFA_REQUIRED,
         );
+        const logo = tenant === null ? null : await getTenantLogoMeta(sess.tenantId);
         return {
           user: {
             id: user.id,
@@ -75,8 +76,13 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
             role: sess.role,
           },
           tenant: tenant === null
-            ? { id: sess.tenantId, slug: null, name: null }
-            : { id: tenant.id, slug: tenant.slug, name: tenant.name },
+            ? { id: sess.tenantId, slug: null, name: null, logo_url: null }
+            : {
+                id: tenant.id,
+                slug: tenant.slug,
+                name: tenant.name,
+                logo_url: logo === null ? null : tenantLogoUrl(tenant.id, logo.sha256),
+              },
           mfaStatus,
           totpEnrolled: enrollStatus.enrolled,
           // Expose session expiry so candidate-facing UI can show the
@@ -97,8 +103,8 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
           role: 'api-key',
         },
         tenant: tenant === null
-          ? { id: ak.tenantId, slug: null, name: null }
-          : { id: tenant.id, slug: tenant.slug, name: tenant.name },
+          ? { id: ak.tenantId, slug: null, name: null, logo_url: null }
+          : { id: tenant.id, slug: tenant.slug, name: tenant.name, logo_url: null },
         mfaStatus: 'n/a',
         scopes: ak.scopes,
       };

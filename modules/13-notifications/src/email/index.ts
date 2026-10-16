@@ -32,6 +32,7 @@ import { Redis } from 'ioredis';
 import { config, streamLogger, uuidv7 } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { renderTemplate } from './render.js';
+import { isCandidateBrandedTemplate, loadTenantLogoUrl } from './tenant-logo.js';
 import { resolveTransport } from './transport.js';
 import {
   describeSmtpFailure,
@@ -103,7 +104,19 @@ export async function sendEmail<T extends EmailTemplateName>(
   const { to, template, vars, tenantId } = input;
 
   // 1. Render template first (fail fast on bad vars before hitting DB).
-  const rendered = renderTemplate(template, vars as Parameters<typeof renderTemplate<T>>[1]);
+  //    Candidate-facing templates carry the tenant logo (Logo phase L3b): the
+  //    caller may pass logoUrl (batch senders load it once); otherwise it
+  //    is loaded here from the tenant row. No logo = rendered as before.
+  const logoUrl =
+    input.logoUrl !== undefined
+      ? input.logoUrl
+      : tenantId !== undefined && tenantId.length > 0 && isCandidateBrandedTemplate(template)
+        ? await loadTenantLogoUrl(tenantId)
+        : null;
+  const rendered = renderTemplate(template, vars as Parameters<typeof renderTemplate<T>>[1], {
+    logoUrl,
+    ...(input.orgName !== undefined ? { orgName: input.orgName } : {}),
+  });
 
   // 2. Check if SMTP is configured (stub-fallback path).
   const transport = resolveTransport(); // Phase 3: platform-level only

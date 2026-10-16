@@ -48,10 +48,10 @@ async function launchBrowser() {
  *
  * The caller (HTTP route) maps any error to a 500 response.
  */
-export async function renderCertificatePdf(cert: Certificate, orgName?: string): Promise<Buffer> {
+export async function renderCertificatePdf(cert: Certificate, orgName?: string, logoDataUri?: string | null): Promise<Buffer> {
   const verifyUrl = `${getPublicBaseUrl()}/verify/${cert.credential_id}`;
   const qrDataUrl = await credentialQrDataUrl(verifyUrl);
-  const html = renderCertificateHtml(cert, qrDataUrl, verifyUrl, orgName);
+  const html = renderCertificateHtml(cert, qrDataUrl, verifyUrl, orgName, logoDataUri);
 
   const browser = await launchBrowser();
   try {

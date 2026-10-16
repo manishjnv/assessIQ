@@ -253,6 +253,7 @@ export async function registerAttemptTakeRoutes(
         duration_seconds: durationSeconds,
         question_count: pv.questionCount,
         company_name: pv.companyName,
+        company_logo_url: pv.companyLogoUrl,
       };
       if (body.preview === true) {
         return reply.code(200).send({
