@@ -539,6 +539,10 @@ export async function handleAdminGrade(
     await withTenant(tenantId, async (client) => {
       // RW-7: re-check pause inside the write tx (pause may land during the AI call).
       await assertTenantAiEnabled(client, tenantId);
+      // RW-95: last check before the write; a lease lost during the pause re-check must not write.
+      if (slot.signal.aborted) {
+        throw new AppError("AI grading aborted: single-flight lease lost", AI_GRADING_ERROR_CODES.LEASE_LOST, 503);
+      }
       await client.query(
         `UPDATE attempts
             SET ai_proposals = $1::jsonb,
