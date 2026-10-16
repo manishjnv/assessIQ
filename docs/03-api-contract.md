@@ -89,6 +89,7 @@ Dated notes sit in the History line of the endpoint they change.
 - **Pagination:** `?page=1&pageSize=50` (max 200) for list endpoints; response includes `{ items, page, pageSize, total }`.
 - **Idempotency:** state-changing endpoints accept `Idempotency-Key` header; repeated keys within 24h return the cached response.
 - **Timestamps:** all returned in ISO 8601 UTC.
+- **Multipart (RW-97, S11, 2026-10-16):** `@fastify/multipart` 9.4.0 is registered for the whole API in `apps/api/src/server.ts` (limits: `fileSize` 4 MB, `files` 1, `fields` 10). Only the routes that call `req.file()` read a file. A multipart request to any other JSON-only route now reaches the handler with an undefined body, not a `415`. Routes with a Zod body schema answer `400`. Route `config` keys such as `skipAuth` are declared in `apps/api/src/types.d.ts` (see RCA 2026-10-16).
 
 ## Request validation (RW-36b, Zod)
 
@@ -602,7 +603,7 @@ Right to erasure. Tombstones the candidate's PII in a single transaction: `users
 | `POST` | `/admin/packs/:id/activate-questions` | Bulk-flip every `status='draft'` question in this pack to `active`. Returns `{ activated, alreadyActive, archived }`. Throws `NO_DRAFT_QUESTIONS_TO_ACTIVATE` if no draft rows exist. Pack must be `status='published'`. **Now an edge-case affordance (2026-05-25):** publish auto-activates, so this only matters for drafts ADDED to an already-published pack; the pack-detail UI surfaces the "Activate drafts" button only when a level has draft questions. **live 2026-05-02** |
 | `POST` | `/admin/packs/:id/levels`            | Add level (returns 201) |
 | `PATCH`| `/admin/levels/:id`                  | Update level fields (label, description, duration, default_question_count, passing_score_pct) |
-| `GET`  | `/admin/questions`                   | List questions (filter by `pack_id`, `level_id`, `type`, `status`, `tag`, `search`) |
+| `GET`  | `/admin/questions`                   | List questions (filter by `pack_id`, `level_id`, `type`, `status`, `tag`, `search`). `pack_id` is supported on the server (RW-97 uses it to list the questions of a pack that have no rubric). Each list item carries `difficulty_params` (an object or `null`); its `warnings` array is `[{ code, message }]` and the wizard Review step shows it (RW-96, S11) |
 | `POST` | `/admin/questions`                   | Create question (returns 201). Optional `answer_guidance` (string ≤280; candidate-facing hint; omit/blank → per-type default) (0098) **`type` enum (2026-10-03):** `mcq`, `subjective`, `kql`, `scenario`, `log_analysis`, `numeric`, `multi_select`, `ordering`, `structured_case`. `structured_case` content is checked by `StructuredCaseContentSchema` (shape: see 02). |
 | `GET`  | `/admin/questions/:id`               | Get question (latest version). Response includes `answer_guidance` (string or null) (0098) |
 | `PATCH`| `/admin/questions/:id`               | Update — `content`/`rubric` create a new version (snapshot-before-update); `topic`/`points`/`answer_guidance` are metadata-only (NO version bump). `answer_guidance: null` clears it to the per-type default (0098) |
@@ -635,12 +636,20 @@ A super admin imports questions from a CSV or XLSX file. The file is staged and 
 
 | Route | Body or query | Success |
 | --- | --- | --- |
-| `POST /api/admin/super/question-imports` | JSON `{ file_name, format, content_base64, domain, pack_name? }`. `format` is `csv` or `xlsx`. The body limit is 4 MB. `pack_name` defaults to the file name without its extension | 201 report |
+| `POST /api/admin/super/question-imports` | Either `multipart/form-data` (RW-97) or the JSON body `{ file_name, format, content_base64, domain, pack_name? }`. `format` is `csv` or `xlsx`. The limit is 4 MB. `pack_name` defaults to the file name without its extension. See "Multipart request" below | 201 report |
 | `GET /api/admin/super/question-imports/templates/:type` | `:type` is a question type from the registry. Query `format=csv\|xlsx` (default `csv`) | The file, as an attachment named `question-import-<type>.<format>` |
 | `GET /api/admin/super/question-imports/:id` | none | 200 report |
 | `PATCH /api/admin/super/question-imports/:id/rows/:row` | `{ values?, skip? }`. One of the two is required. `values` is a map of column to string (each up to 20 000 characters) | 200 report |
 | `POST /api/admin/super/question-imports/:id/commit` | none | 200 `{ importId, packId, committed }` |
 | `POST /api/admin/super/question-imports/:id/discard` | none | 200 report |
+
+**Multipart request (RW-97, S11, 2026-10-16).**
+- Send `Content-Type: multipart/form-data`. The text fields are `format` (`csv` or `xlsx`), `domain` and `pack_name` (optional). A `file_name` field is optional. The file part is named `file`.
+- **Field order rule.** Put every text field BEFORE the `file` part. The handler reads the stream in order. A field after the file part is not seen.
+- The file name defaults to the file part name. The Zod limits are the same as for the JSON body. The report is the same.
+- `413` `FILE_TOO_LARGE` when the file is over 4 MB. The server checks both the plugin error and the truncated flag.
+- A missing `file` part answers `400` `INVALID_PARAM`.
+- The JSON body still works. Callers that already use it need no change.
 
 **Report shape.** The upload, `GET`, `PATCH` and discard routes return it:
 
@@ -670,13 +679,14 @@ A super admin imports questions from a CSV or XLSX file. The file is staged and 
 - `400` `INVALID_PARAM` for a bad body, params or query.
 - `400` for a file that cannot be used. Codes: `IMPORT_CSV_MALFORMED`, `IMPORT_XLSX_UNREADABLE`, `IMPORT_XLSX_EMPTY`, `IMPORT_TOO_LARGE`, `IMPORT_TOO_MANY_ROWS`, `IMPORT_MISSING_TYPE_COLUMN`, `IMPORT_DOMAIN_NOT_FOUND`.
 - `400` `IMPORT_NO_OK_ROWS` on a commit with no `ok` row.
+- `413` `FILE_TOO_LARGE` on a multipart upload over 4 MB.
 - `403` caller is not a super admin.
 - `404` `IMPORT_NOT_FOUND` or `IMPORT_ROW_NOT_FOUND`. The import is not in the tenant of the session.
 - `409` `IMPORT_NOT_STAGED` on a commit, fix or discard of an import that is not `staged`.
 
 **Not included.**
-- Multipart upload. `@fastify/multipart` is not an api dependency, so the file travels as base64 in JSON.
-- Rubrics for imported subjective questions. The admin adds them in the pack editor.
+- Rubric drafting on the server. The UI drafts rubrics after a commit with the existing `generate-rubric` and `save-rubric` routes (RW-97). The import routes call no AI.
+- Removal of the JSON base64 body. It stays for existing callers.
 - Category linking.
 - A stored hash column on `questions`. The hash lives on `question_import_rows` only.
 
@@ -1128,7 +1138,7 @@ Commit `45e95e0`. The accept body (`POST /api/admin/attempts/:id/accept` and `PO
 | `PATCH` | `/api/admin/super/domains/:id` | Archive/reactivate a platform domain + propagate (catalog-only; fresh MFA) | **live 2026-05-25** |
 | `GET` | `/api/admin/super/frameworks/seeds` | List the bundled framework seeds with the loaded version | **live (RW-57 part 1, S10, 2026-10-15)** |
 | `POST` | `/api/admin/super/frameworks/seeds/:code/load` | Load one bundled framework seed (idempotent) | **live (RW-57 part 1, S10, 2026-10-15)** |
-| `POST` | `/api/admin/super/question-imports` | Upload a CSV or XLSX file (JSON, base64). Stages and validates it | **live (RW-58, S10, 2026-10-16)** |
+| `POST` | `/api/admin/super/question-imports` | Upload a CSV or XLSX file (multipart, or JSON base64). Stages and validates it | **live (RW-58, S10, 2026-10-16; multipart RW-97, S11)** |
 | `GET` | `/api/admin/super/question-imports/templates/:type` | Download the CSV or XLSX template of one question type | **live (RW-58, S10, 2026-10-16)** |
 | `GET` | `/api/admin/super/question-imports/:id` | Read the report of one import | **live (RW-58, S10, 2026-10-16)** |
 | `PATCH` | `/api/admin/super/question-imports/:id/rows/:row` | Fix or skip one row | **live (RW-58, S10, 2026-10-16)** |

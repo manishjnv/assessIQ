@@ -42,6 +42,7 @@ It then lists the shared admin patterns and the behaviour of each admin page. Da
   - [Add-candidate drawer + invite-picker filter (2026-05-26)](#add-candidate-drawer--invite-picker-filter-2026-05-26)
   - [Attempt detail pages](#attempt-detail-pages)
   - [Generation admin UI — wizard resume + scorecard help (2026-05-24)](#generation-admin-ui--wizard-resume--scorecard-help-2026-05-24)
+  - [Generate wizard: difficulty warnings (RW-96, S11)](#generate-wizard-difficulty-warnings-rw-96-s11)
   - [Account security page and Reset two-factor (RW-45, S10, 2026-10-15)](#account-security-page-and-reset-two-factor-rw-45-s10-2026-10-15)
   - [Users page: Reset two-factor (RW-91, S10, 2026-10-16)](#users-page-reset-two-factor-rw-91-s10-2026-10-16)
 
@@ -867,18 +868,20 @@ The `NotFound` page root is now `<main>` (commit `00a951e`). This fixes the axe 
 
 ### Page splits for file size (RW-53, S10, 2026-10-16)
 
-*Type: reference.* These moves are mechanical: no behaviour changed. Barrels keep the old import paths. `tools/lint-file-size.ts` (script `lint:file-size`) warns about files over 800 lines. It does not fail the build. 27 files were over the limit on this date.
+*Type: reference.* These moves are mechanical: no behaviour changed. Barrels keep the old import paths. `tools/lint-file-size.ts` (script `lint:file-size`) warns about files over 800 lines. It does not fail the build. 27 files were over the limit on this date. RW-99 (S11, 2026-10-16) then brought the four pages below under 800 lines.
 
 | File | Lines now | Where code moved |
 | --- | --- | --- |
-| `modules/10-admin-dashboard/src/pages/pack-detail.tsx` | 1300 | `pack-detail/shared.tsx` holds types, `packStatusColor`, `questionPrompt` and `GenerationAttemptLine`. The page is still over 800 |
-| `modules/10-admin-dashboard/src/pages/assessment-detail.tsx` | 1111 | `assessment-detail/shared.tsx` (types and helpers) and `assessment-detail/invitation-columns.tsx` (invitation table columns). Still over 800 |
-| `modules/10-admin-dashboard/src/pages/assessments.tsx` | 826 | `assessments/BlueprintBuilder.tsx`, `FromSetPicker.tsx`, `PreviewAdequacy.tsx`, `shared.tsx`. Still over 800 |
-| `apps/web/src/pages/take/Attempt.tsx` | 941 | `take/attempt-parts/AnswerArea.tsx` (the answer dispatcher) and `attempt-parts/shared.tsx`. Still over 800 |
+| `modules/10-admin-dashboard/src/pages/pack-detail.tsx` | 751 (was 1300) | `pack-detail/shared.tsx` holds types, `packStatusColor`, `questionPrompt` and `GenerationAttemptLine`. RW-99 added `pack-detail/LevelPanel.tsx` |
+| `modules/10-admin-dashboard/src/pages/assessment-detail.tsx` | 697 (was 1111) | `assessment-detail/shared.tsx` (types and helpers) and `assessment-detail/invitation-columns.tsx` (invitation table columns). RW-99 added `assessment-detail/InvitationsSection.tsx` and `ReleaseResendBlock.tsx` |
+| `modules/10-admin-dashboard/src/pages/assessments.tsx` | 657 (was 826) | `assessments/BlueprintBuilder.tsx`, `FromSetPicker.tsx`, `PreviewAdequacy.tsx`, `shared.tsx`. RW-99 added `assessments/columns.tsx` (`buildAssessmentColumns`) |
+| `apps/web/src/pages/take/Attempt.tsx` | 785 (was 941) | `take/attempt-parts/AnswerArea.tsx` (the answer dispatcher) and `attempt-parts/shared.tsx`. RW-99 added `attempt-parts/AttemptTopBar.tsx`, `FinishSectionModal.tsx`, `SubmitConfirmModal.tsx` and `NavigatorBody.tsx` |
 
 - **Backend splits in the same change.** Module 05 `service.ts` went from 2423 to 43 lines and is now a barrel over `src/service/`. Module 04 `clone.ts` went from 1299 to 38 lines, a barrel over `src/clone/`. See the SKILL.md files of both modules.
 - **Rejected.** A rewrite of the pages: it needs a behaviour review. Raising the limit: the warning is the point.
-- **Not included.** The four pages above still exceed 800 lines (RW-99).
+- **RW-99 (S11, 2026-10-16).** The same method finished the four pages: pure moves of JSX blocks and helpers into sibling files, props passed explicitly. No behaviour change. Help ids (`data-help-id`) and test ids are unchanged, so the help system and the tests need no edit.
+- **Why RW-99 stopped at these sizes.** Each page is now under 800 lines. A further split would cut state that the blocks share and would need a behaviour review.
+- **Not included.** Any other file over 800 lines. The warning stays for them.
 
 ## Admin pages
 
@@ -984,7 +987,13 @@ Three admin-facing UI changes shipped as part of the domain-slug normalization +
 
 **Why.** The platform owner had no way to load many questions. A staged report lets the admin fix a row before any question exists.
 
-**Not included.** Drag and drop. Multipart upload. A rubric step for imported subjective questions (RW-97).
+**Upload as FormData (RW-97, S11, 2026-10-16).** Step 2 now sends `FormData` to the same route. The text fields (`format`, `domain`, `pack_name`, optional `file_name`) go first and the file goes last, under the name `file`. The server reads the fields in order, so the order is a rule. A file over 4 MB shows the `413 FILE_TOO_LARGE` message. The old JSON base64 body still works but the page no longer uses it. Contract: [03-api-contract.md](03-api-contract.md) § "Question import".
+
+**Draft rubrics step (RW-97, S11).** After a commit, the page lists the imported `subjective` and `scenario` questions that have no rubric. It reads them with `GET /api/admin/questions?pack_id=<packId>&pageSize=500` (500 is the server maximum). The button "Draft rubrics" then calls `generate-rubric` and `save-rubric` for each question, one at a time. Each call is one admin click and one AI call under the single-flight lease. If the AI is busy, the server answers `409 AIG_GRADING_IN_PROGRESS` and the page shows "The AI is busy. Try again in a moment." Help key: `admin.question_import.draft_rubrics` (migration 0178). Rubric text is a draft: the admin can edit it in the pack editor.
+
+**Rejected (RW-97).** Drafting rubrics inside the commit route: it would put AI calls in a request that no admin clicked for that purpose and break the no-ambient-AI rule. A parallel run of the drafts: it breaks single-flight.
+
+**Not included.** Drag and drop. A rubric step for question types other than `subjective` and `scenario` (the other types are scored by rule). More than 500 imported questions in one pack on this step (the list stops at 500).
 
 ### Add-candidate drawer + invite-picker filter (2026-05-26)
 
@@ -1168,6 +1177,17 @@ chars and non-empty `long_md` per the help-key test.
 **Considered and rejected.** SSE or websockets (edge buffering). Keeping the single long request.
 
 **Not included.** Cancel; resume after an API restart (the row can stay `running`, ROADMAP RW-94).
+
+### Generate wizard: difficulty warnings (RW-96, S11)
+
+*Type: reference.*
+
+- **What.** The Review step of the Generate wizard (`modules/10-admin-dashboard/src/pages/generate-wizard.tsx`) shows a warning chip, "N warnings", on each draft that has warnings. A native `title` tooltip lists each warning as `code: message`. The chip has `data-help-id="admin.generate_wizard.review_warnings"`. The step header shows a count, "W drafts with warnings".
+- **Data.** The chip reads `difficulty_params.warnings`, a list of `{ code, message }`. RW-88 stores the list when the draft is inserted (`modules/07-ai-grading/src/handlers/admin-generate.ts`). `GET /api/admin/questions` already returned `difficulty_params` (`modules/04-question-bank/src/repository.ts`, `QUESTION_COLUMNS`). The UI type `QuestionListItem` in `src/api.ts` gains `difficulty_params`. Module 04 was not changed.
+- **Help.** Keys `admin.generate_wizard.review_warnings` and `admin.question_import.draft_rubrics` in migration `0178_rw96_wizard_warnings_and_import_rubric_help.sql`. The seeded help count goes from 387 to 389.
+- **Why.** RW-88 stored the warnings but no screen showed them. The admin approved drafts without seeing a weak difficulty tag.
+- **Rejected.** Blocking Approve on a warning: the heuristics are advisory (RW-50). A custom tooltip component: the native `title` is enough for this step.
+- **Not included.** A filter by warning. A warning count on the pack page. Any change to the heuristics or to the stored shape.
 
 ### Account security page and Reset two-factor (RW-45, S10, 2026-10-15)
 

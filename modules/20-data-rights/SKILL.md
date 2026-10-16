@@ -114,7 +114,7 @@ Out of scope (defer):
 | `06-attempt-engine` | `attempt_answers.answer` free-text JSONB (erasure target; question-type filter excludes `mcq`) |
 | `07-ai-grading` | `gradings.stage_inputs` / `anchor_hits` / `ai_justification` and `attempts.ai_proposals` echo the verbatim answer (erasure target, RW-69): set to NULL / `'[]'` / NULL / NULL. Band, score, error class, model, prompt sha and override rows are kept. Audit `after` gains `gradingsScrubbed` + `aiProposalsCleared` (receipt shape unchanged) |
 | `01-auth` | `sessions.ip` / `sessions.user_agent` — candidate IP/UA (erasure target; candidates get a session row via `mintCandidateSession`) |
-| `01-auth` / `03-users` / `13-notifications` / `06-attempt-engine` | RW-89: `candidate_login_tokens.requested_ip` / `requested_ua` set NULL (by user id); `user_invitations.email` and `email_log.to_address` replaced by the users.email pseudonym (match: pre-erasure email, case-insensitive, tenant pinned by RLS; status and timestamps kept); `attempts.evaluation_note` set NULL. Audit `after` gains `loginTokensRedacted`, `invitationsPseudonymised`, `emailLogPseudonymised`, `evaluationNotesCleared` (receipt shape unchanged). `consent_events.ip` / `user_agent` are KEPT (legal retention, owner decision pending). Not handled: `email_log.body_text` / `body_html` / `subject` may still contain the address or name |
+| `01-auth` / `03-users` / `13-notifications` / `06-attempt-engine` | RW-89: `candidate_login_tokens.requested_ip` / `requested_ua` set NULL (by user id); `user_invitations.email` and `email_log.to_address` replaced by the users.email pseudonym (match: pre-erasure email, case-insensitive, tenant pinned by RLS; status and timestamps kept); `attempts.evaluation_note` set NULL. Audit `after` gains `loginTokensRedacted`, `invitationsPseudonymised`, `emailLogPseudonymised`, `evaluationNotesCleared` (receipt shape unchanged). `consent_events.ip` / `user_agent` are KEPT (legal retention, owner decision pending). RW-98 (S11, 2026-10-16): the same step now sets `email_log.subject`, `body_text` and `body_html` to `'[erased]'` and `last_error` to NULL for the rows of the erased address (see "Erasure step 4c" below). Residual: rows sent to OTHER addresses can still hold the name |
 | `14-audit-log` | `auditInTx()` for every DSR action; **immutability is a hard constraint** (D1, D7); S1 extends `redact.ts` |
 | `13-notifications` | Email export-ready, erasure-confirmation, consent receipts (S2+) |
 | `18-certification` | Snapshot HMAC payload includes `name` — erasure must not touch it (D1, see [18-certification SKILL.md D4](../18-certification/SKILL.md#d4--signed_hash-payload-spans-11-identity-fields)) |
@@ -443,6 +443,15 @@ write SKILL.md at first build session start, not in a planning sprint):
 ## Erased candidates (E3, 2026-10-02)
 
 `exportCandidateData` throws 409 `CANDIDATE_ERASED` for an erased user (only tombstone values remain; nothing to export).
+
+## Erasure step 4c: email_log scrub (RW-98, S11, 2026-10-16)
+
+- **What.** `src/erasure.ts` step 4c sets `email_log.subject`, `body_text` and `body_html` to `'[erased]'` and `last_error` to NULL. It does this in the same `UPDATE` that pseudonymises `to_address`. The match is the pre-erasure address (case-insensitive, tenant pinned by RLS). The `b5cf493` follow-up added `last_error`, which can hold an SMTP reply with the address.
+- **Why.** RW-89 pseudonymised only the address. The subject and bodies of invitation and result mails hold the name and links of the user.
+- **Kept.** `status`, `template` and timestamps stay, so delivery history still counts.
+- **Residual (owner decision pending, like `consent_events`).** `email_log` rows sent to OTHER addresses (for example an admin notification that names the candidate) can still hold the name. A text match on names was rejected: it gives false matches and misses. Options for the owner: scrub by a stored subject-user id, or accept the residual under a retention rule.
+- **Not included.** A column that links an email to its subject user. Scrubbing `webhook_deliveries` payloads.
+- **Downstream impact.** Module 13 (`email_log` rows). The audit `after` count `emailLogPseudonymised` is unchanged.
 
 ## Tests (2026-10-02)
 

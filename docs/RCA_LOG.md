@@ -2595,3 +2595,17 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the owner started an Autopilot run (`.agent/run.json` run_id 20261015-200103, v0.9.1) at 20:01 while this interactive session was mid-batch on the same clone. Autopilot `git checkout`-ed `autopilot/P01-T01` at 20:22 (and after a usage-limit wip commit, reset it to main and re-checked it out at 22:12). Every later `git commit` from the session went to whatever branch the shared working tree was on. `git push` from a branch with no upstream printed only a hint that `| tail -1` hid, and the deploy step only checked container health, not the pulled SHA.
 **Fix:** `ap stop --now`; `git checkout main && git merge --ff-only autopilot/P01-T01` (no Autopilot commits were on the branch); push; deploy #4 (docs/06). Nothing was lost.
 **Prevention:** (1) never run Autopilot and an interactive session on the same clone at the same time; Autopilot should get its own clone or worktree (owner decision, noted in SESSION_STATE). (2) The session's push and deploy steps now must print and compare `git branch --show-current` and the pulled SHA (`git log -1` on the VPS) against the intended commit; a push whose output does not contain `main -> main` is a failure. (3) `.agent/STOP` is left in place until the owner re-plans with `ap change`.
+
+## 2026-10-16 — Autopilot process stayed alive after `ap stop`; `ap status` said ON while STOP was set
+
+**Symptom:** At 07:30 on 2026-10-16 the process PID 31764 (`python -m autopilot run --clear-stop`, started 2026-10-15 20:01) was still alive. It had a live heartbeat, state Test, no child process and about 7.7 h of CPU time. `ap status` printed ON although `.agent/STOP` was set.
+**Cause:** The process hung inside its test gate. It never reached a step boundary, which is the only place it reads `.agent/STOP`. `ap status` reads the heartbeat, not the stop file, so it said ON.
+**Fix:** The owner ended the process at 07:43. `ap status` then said DEAD. No repository change.
+**Prevention:** (1) S11 hard check before any git or deploy step: `ap status` must say STOPPED or DEAD, and no autopilot process may exist. (2) Never run Autopilot and an interactive session on one clone (see the 2026-10-16 entry on the branch switch). (3) `.agent/` is now gitignored (`62c351a`), so its state files cannot enter a commit.
+
+## 2026-10-16 — Adding @fastify/multipart broke the apps/api typecheck on 37 routes (`skipAuth` not in FastifyContextConfig)
+
+**Symptom:** After `@fastify/multipart` 9.4.0 was added (RW-97), `tsc` for `apps/api` failed on the 37 routes that use `config: { skipAuth: true }`. The error was an excess-property error on the route `config` object.
+**Cause:** The plugin augments the `FastifyContextConfig` interface. The interface was empty before, so TypeScript did not check the properties. After the augmentation it was not empty, and the excess-property check started. `skipAuth` was never declared.
+**Fix:** `apps/api/src/types.d.ts` declares `FastifyContextConfig.skipAuth?: boolean`. The typecheck passes at HEAD and with the plugin.
+**Prevention:** Declare every route `config` key in `apps/api/src/types.d.ts`. Run the api typecheck after any plugin that augments Fastify types.

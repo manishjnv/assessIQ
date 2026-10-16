@@ -241,3 +241,10 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 - **Rejected.** A link to the account page: the notice must not give a click target. The actor name: the role label is enough for the user.
 - **Not included.** A notice to the actor. A retry outside the normal bulk retries. A tenant-specific wording.
 - **Downstream impact.** The earlier count of 9 templates in this page is history. Flow and rationale: `docs/04-auth-flows.md` § "Self-service MFA".
+
+## Copy rules and erasure of bodies (RW-87 pass 2, RW-98, S11, 2026-10-16)
+
+- **Copy rules now in force.** All 10 email templates, the footer partial and `src/email-stub.ts` follow `docs/STYLE.md`: no contractions, British colour spelling, short sentences (STE), and "organisation" in place of "workspace". Commit `6025eed`. Write new templates the same way.
+- **Why.** The copy pass (RW-87) found contractions and mixed spelling in mail the candidate reads.
+- **Erasure.** The data-rights module now overwrites `email_log.subject`, `body_text` and `body_html` with `'[erased]'` and clears `last_error` for the mails of an erased address (RW-98). Do not rely on old bodies for support lookups after an erasure. Detail: `modules/20-data-rights/SKILL.md`.
+- **Not included.** A lint for contractions in templates. A scrub of mails sent to other addresses.
