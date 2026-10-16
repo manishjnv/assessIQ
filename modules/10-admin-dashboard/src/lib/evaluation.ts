@@ -55,6 +55,8 @@ export interface FrozenQuestion {
   position?: number;
   content: unknown;
   points: number;
+  /** EX-1: penalty frozen at attempt start for a wrong attempted answer (absent/0 = none). */
+  negative_marks?: number;
   rubric?: RubricForReview | null;
 }
 
@@ -76,6 +78,8 @@ export interface AttemptDetailResponse extends EvaluationMeta {
   answers: AttemptAnswer[];
   frozen_questions: FrozenQuestion[];
   gradings: GradingsRow[];
+  /** P4: how the effective gradings were produced, per tier (absent on older payloads). */
+  tiers?: Partial<Record<"answer_key" | "reuse" | "rule" | "ai" | "human", number>>;
   /** Server-side cache of the last Grade-all batch (survives CF timeouts). */
   ai_proposals: GradingProposal[] | null;
   /** Set while a Grade-all batch is running on the server. */

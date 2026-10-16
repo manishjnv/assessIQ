@@ -3,6 +3,8 @@ import { withTenant, withSystemRole } from "./with-tenant.js";
 import * as repo from "./repository.js";
 import type { Tenant, TenantSettings } from "./types.js";
 import { auditInTx } from "@assessiq/audit-log";
+import { validateLogo } from "./logo.js";
+import type { TenantLogoMeta } from "./repository.js";
 
 const log = streamLogger('app');
 
@@ -403,6 +405,77 @@ export async function unarchiveTenant(
     log.info({ tenantId }, "unarchiveTenant: no-op (already active)");
   }
   return result;
+}
+
+// ---------------------------------------------------------------------------
+// Super-admin-only: per-tenant AI grading scope (P4 least-AI cap).
+// ---------------------------------------------------------------------------
+
+export type AiGradingScope = "written" | "none";
+
+export interface UpdateAiGradingScopeResult {
+  tenantId: string;
+  ai_grading_scope: AiGradingScope;
+  previous: AiGradingScope;
+  updatedAt: Date;
+  auditId: string;
+}
+
+/** Read `tenant_settings.ai_grading_scope` (default 'written' when no row). */
+export async function getAiGradingScope(tenantId: string): Promise<AiGradingScope> {
+  return await withTenant(tenantId, async (client) => {
+    const s = await repo.findTenantSettings(client);
+    return s?.ai_grading_scope ?? "written";
+  });
+}
+
+/**
+ * Set `tenant_settings.ai_grading_scope`. Super-admin only (the route enforces the
+ * role; like updateAiGenerateMode, not part of the generic settings patch). UPDATE
+ * and audit row share one transaction.
+ */
+export async function updateAiGradingScope(
+  targetTenantId: string,
+  scope: AiGradingScope,
+  actorUserId: string,
+): Promise<UpdateAiGradingScopeResult> {
+  log.info({ targetTenantId, scope }, "updateAiGradingScope");
+
+  return await withTenant(targetTenantId, async (client) => {
+    const current = await repo.findTenantSettings(client);
+    if (current === null) {
+      throw new NotFoundError(`tenant_settings not found for tenant ${targetTenantId}`);
+    }
+    const previous = current.ai_grading_scope;
+    const upd = await client.query<{ ai_grading_scope: string; updated_at: Date }>(
+      `UPDATE tenant_settings
+       SET ai_grading_scope = $1, updated_at = now()
+       WHERE tenant_id = $2
+       RETURNING ai_grading_scope, updated_at`,
+      [scope, targetTenantId],
+    );
+    const row = upd.rows[0];
+    if (row === undefined) {
+      throw new NotFoundError(`tenant_settings row missing after UPDATE for tenant ${targetTenantId}`);
+    }
+    const auditRow = await auditInTx(client, {
+      tenantId: targetTenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "tenant_settings.ai_grading_scope.updated",
+      entityType: "tenant_settings",
+      entityId: targetTenantId,
+      before: { ai_grading_scope: previous },
+      after: { ai_grading_scope: scope },
+    });
+    return {
+      tenantId: targetTenantId,
+      ai_grading_scope: row.ai_grading_scope === "none" ? "none" : "written",
+      previous,
+      updatedAt: row.updated_at,
+      auditId: auditRow.id,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -861,4 +934,73 @@ export async function listTenantsForSuperAdmin(
 export async function isPrivacyDisclosed(tenantId: string): Promise<boolean> {
   const row = await withTenant(tenantId, (client) => repo.findPrivacyDisclosed(client, tenantId));
   return row?.privacy_disclosed === true;
+}
+
+// ---------------------------------------------------------------------------
+// Tenant logo (Logo phase L1). Tenant always comes from the caller's session
+// (or the super-admin URL), never from a request body. Audit rows hold metadata
+// only, never bytes.
+// ---------------------------------------------------------------------------
+
+export type { TenantLogoMeta };
+
+const logoAudit = (m: TenantLogoMeta | null): Record<string, unknown> | undefined =>
+  m === null
+    ? undefined
+    : { mime: m.mime, width: m.width, height: m.height, byte_size: m.byte_size, sha256: m.sha256 };
+
+export function tenantLogoUrl(tenantId: string, sha256: string): string {
+  return `/api/public/tenant-logo/${tenantId}?v=${sha256.slice(0, 12)}`;
+}
+
+export async function setTenantLogo(
+  tenantId: string,
+  buf: Buffer,
+  actorUserId: string,
+): Promise<TenantLogoMeta> {
+  const v = validateLogo(buf);
+  if (!v.ok) throw new ValidationError(v.message, { details: { code: v.code } });
+  return withTenant(tenantId, async (client) => {
+    const before = logoAudit(await repo.findLogoMeta(client));
+    const meta = await repo.upsertLogo(client, tenantId, { ...v, bytes: buf }, actorUserId);
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "tenant.logo.updated",
+      entityType: "tenant_logo",
+      entityId: tenantId,
+      ...(before !== undefined ? { before } : {}),
+      after: logoAudit(meta)!,
+    });
+    return meta;
+  });
+}
+
+export async function removeTenantLogo(tenantId: string, actorUserId: string): Promise<boolean> {
+  return withTenant(tenantId, async (client) => {
+    const before = logoAudit(await repo.findLogoMeta(client));
+    if (before === undefined) return false;
+    await repo.deleteLogo(client);
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "tenant.logo.removed",
+      entityType: "tenant_logo",
+      entityId: tenantId,
+      before,
+    });
+    return true;
+  });
+}
+
+export async function getTenantLogoMeta(tenantId: string): Promise<TenantLogoMeta | null> {
+  return withTenant(tenantId, (client) => repo.findLogoMeta(client));
+}
+
+export async function getTenantLogoBytes(
+  tenantId: string,
+): Promise<{ mime: TenantLogoMeta["mime"]; bytes: Buffer; sha256: string } | null> {
+  return withTenant(tenantId, (client) => repo.findLogoBytes(client));
 }

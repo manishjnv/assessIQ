@@ -5,6 +5,8 @@ import type { FastifyInstance } from 'fastify';
 import { NotFoundError, ConflictError, config } from '@assessiq/core';
 import {
   updateAiGenerateMode,
+  updateAiGradingScope,
+  getAiGradingScope,
   createTenant,
   activateTenant,
   assertTenantActive,
@@ -14,7 +16,11 @@ import {
   unarchiveTenant,
   renameTenantAsSuperAdmin,
   listTenantsForSuperAdmin,
+  setTenantLogo,
+  removeTenantLogo,
+  tenantLogoUrl,
 } from '@assessiq/tenancy';
+import { readLogoUpload } from '../_logo-upload.js';
 import { sessions, logLifecycleEvent } from '@assessiq/auth';
 import { inviteUser, findTenantFirstAdmin } from '@assessiq/users';
 import { audit } from '@assessiq/audit-log';
@@ -22,10 +28,27 @@ import { provisionDefaultPlan, getAllTenantUsage } from '@assessiq/billing';
 import { seedTenantTaxonomy } from '@assessiq/question-bank';
 import { parseLifecycleBody, log, superAdminOnly, superAdminFreshMfa } from './_shared.js';
 import { parseBody, parseParams, parseQuery, tenantIdParams } from '../_validate.js';
-import { createCompanyBody, listTenantsQuery, renameTenantBody, setAiModeBody } from '../_schemas.js';
+import { createCompanyBody, listTenantsQuery, renameTenantBody, setAiModeBody, setAiGradingScopeBody } from '../_schemas.js';
 
 
 export async function registerAdminSuperTenantRoutes(app: FastifyInstance): Promise<void> {
+  // PUT/DELETE /api/admin/super/tenants/:tenantId/logo (Logo L1) - same semantics as the
+  // tenant-admin route, target tenant taken from the URL. 413 LOGO_TOO_LARGE, 400 LOGO_BAD_*.
+  app.put('/api/admin/super/tenants/:tenantId/logo', { preHandler: superAdminOnly }, async (req, reply) => {
+    const { tenantId } = parseParams(tenantIdParams, req.params);
+    const data = await readLogoUpload(req);
+    await assertTenantActive(tenantId);
+    const meta = await setTenantLogo(tenantId, data, req.session!.userId);
+    return reply.code(200).send({ logo: { ...meta, url: tenantLogoUrl(tenantId, meta.sha256) } });
+  });
+
+  app.delete('/api/admin/super/tenants/:tenantId/logo', { preHandler: superAdminOnly }, async (req, reply) => {
+    const { tenantId } = parseParams(tenantIdParams, req.params);
+    await assertTenantActive(tenantId);
+    await removeTenantLogo(tenantId, req.session!.userId);
+    return reply.code(204).send();
+  });
+
   // ──────────────────────────────────────────────────────────────────────────
   // GET /api/admin/super/ai-generate-mode
   //
@@ -78,6 +101,36 @@ export async function registerAdminSuperTenantRoutes(app: FastifyInstance): Prom
       return reply.code(200).send({
         tenantId: result.tenantId,
         ai_generate_mode: result.ai_generate_mode,
+        previous: result.previous,
+        updatedAt: result.updatedAt,
+        auditId: result.auditId,
+      });
+    },
+  );
+
+  // P4 least-AI cap. GET reads, PATCH sets tenant_settings.ai_grading_scope
+  // ('written' | 'none'); super-admin only, audited in the same transaction.
+  // 200: { tenantId, ai_grading_scope[, previous, updatedAt, auditId] }; 400 on a bad scope.
+  app.get(
+    '/api/admin/super/tenants/:tenantId/ai-grading-scope',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = parseParams(tenantIdParams, req.params);
+      return reply.code(200).send({ tenantId, ai_grading_scope: await getAiGradingScope(tenantId) });
+    },
+  );
+
+  app.patch(
+    '/api/admin/super/tenants/:tenantId/ai-grading-scope',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = parseParams(tenantIdParams, req.params);
+      await assertTenantActive(tenantId);
+      const { scope } = parseBody(setAiGradingScopeBody, req.body, { code: 'INVALID_SCOPE' });
+      const result = await updateAiGradingScope(tenantId, scope, req.session!.userId);
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        ai_grading_scope: result.ai_grading_scope,
         previous: result.previous,
         updatedAt: result.updatedAt,
         auditId: result.auditId,

@@ -326,7 +326,10 @@ async function acceptProposals(
     // grading (tenant, attempt, question), in the SAME tx as the gradings
     // insert. Idempotent on re-accept; any db error rolls the accept back
     // (same revenue-leak rule as recordGradedAttempt in 09 finalize).
-    await recordAiAnswerEvaluated(client, tenantId, proposal.attempt_id, proposal.question_id);
+    // P4: a manual placeholder (model "none") never ran an AI; do not meter it.
+    if (proposal.model !== "none") {
+      await recordAiAnswerEvaluated(client, tenantId, proposal.attempt_id, proposal.question_id);
+    }
 
     gradings.push(grading);
   }

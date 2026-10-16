@@ -274,6 +274,32 @@ export async function updateTenantAiGenerateMode(
   );
 }
 
+export type AiGradingScope = "written" | "none";
+
+export interface AiGradingScopeResponse {
+  tenantId: string;
+  ai_grading_scope: AiGradingScope;
+  previous?: AiGradingScope;
+  updatedAt?: string;
+  auditId?: string;
+}
+
+/** GET /api/admin/super/tenants/:tenantId/ai-grading-scope (super admin only). */
+export async function getTenantAiGradingScope(tenantId: string): Promise<AiGradingScopeResponse> {
+  return adminApi<AiGradingScopeResponse>(`/admin/super/tenants/${encodeURIComponent(tenantId)}/ai-grading-scope`);
+}
+
+/** PATCH /api/admin/super/tenants/:tenantId/ai-grading-scope (super admin only, audited). */
+export async function updateTenantAiGradingScope(
+  tenantId: string,
+  scope: AiGradingScope,
+): Promise<AiGradingScopeResponse> {
+  return adminApi<AiGradingScopeResponse>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/ai-grading-scope`,
+    { method: "PATCH", body: JSON.stringify({ scope }) },
+  );
+}
+
 export interface GlobalAiGenerateModeResponse {
   global_default: "omnibus" | "sharded";
 }
@@ -811,6 +837,8 @@ export interface QuestionListItem {
   topic: string | null;
   status: string;
   points: number;
+  /** EX-1: null = use the assessment default. */
+  negative_marks?: number | null;
   content: Record<string, unknown>;
   rubric: Record<string, unknown> | null;
   level_id: string;
@@ -959,6 +987,13 @@ export interface CompanyUsage {
   ai_answers_used?: number;
   ai_answers_included?: number | null;
   ai_answers_remaining?: number | null;
+  /** PT-4: tier limits and whether they are enforced; absent on an older API. */
+  tier_limits?: {
+    licensed_packs: number | null;
+    per_drive_candidates: number | null;
+    overage_hard_cap_ratio: number | null;
+  };
+  tiers_enforced?: boolean;
 }
 
 /**

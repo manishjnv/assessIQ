@@ -4,7 +4,7 @@ import type { Tenant, TenantSettings } from "./types.js";
 
 const TENANT_COLUMNS = `id, slug, name, domain, branding, status, created_at, updated_at`;
 
-const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, retention_days, result_release_mode, result_release_auto_since, updated_at`;
+const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, ai_grading_scope, retention_days, result_release_mode, result_release_auto_since, updated_at`;
 
 interface TenantRow {
   id: string;
@@ -26,6 +26,7 @@ interface SettingsRow {
   webhook_secret: string | null;
   data_region: string;
   ai_generate_mode: string | null;
+  ai_grading_scope: string;
   retention_days: number | string;   // pg may return INT as number or string depending on version
   result_release_mode: string;
   result_release_auto_since: Date | null;
@@ -55,6 +56,7 @@ function mapSettingsRow(row: SettingsRow): TenantSettings {
     webhook_secret: row.webhook_secret,
     data_region: row.data_region,
     ai_generate_mode: (row.ai_generate_mode as TenantSettings["ai_generate_mode"]) ?? null,
+    ai_grading_scope: row.ai_grading_scope === "none" ? "none" : "written",
     retention_days: typeof row.retention_days === "number"
       ? row.retention_days
       : Number.parseInt(String(row.retention_days), 10),
@@ -285,4 +287,57 @@ export async function listTenantsWithAdminSummary(
            ORDER BY t.created_at ASC`,
   );
   return result.rows;
+}
+
+// ---------------------------------------------------------------------------
+// Tenant logo (migration 0183). RLS confines every query to the current tenant.
+// ---------------------------------------------------------------------------
+
+export interface TenantLogoMeta {
+  mime: "image/png" | "image/jpeg";
+  width: number;
+  height: number;
+  byte_size: number;
+  sha256: string;
+  updated_at: Date;
+}
+
+const LOGO_META_COLUMNS = `mime, width, height, byte_size, sha256, updated_at`;
+
+export async function findLogoMeta(client: PoolClient): Promise<TenantLogoMeta | null> {
+  const r = await client.query<TenantLogoMeta>(`SELECT ${LOGO_META_COLUMNS} FROM tenant_logos LIMIT 1`);
+  return r.rows[0] ?? null;
+}
+
+export async function findLogoBytes(
+  client: PoolClient,
+): Promise<{ mime: TenantLogoMeta["mime"]; bytes: Buffer; sha256: string } | null> {
+  const r = await client.query<{ mime: TenantLogoMeta["mime"]; bytes: Buffer; sha256: string }>(
+    `SELECT mime, bytes, sha256 FROM tenant_logos LIMIT 1`,
+  );
+  return r.rows[0] ?? null;
+}
+
+export async function upsertLogo(
+  client: PoolClient,
+  tenantId: string,
+  v: { mime: string; bytes: Buffer; sha256: string; width: number; height: number },
+  actorUserId: string,
+): Promise<TenantLogoMeta> {
+  const r = await client.query<TenantLogoMeta>(
+    `INSERT INTO tenant_logos (tenant_id, mime, bytes, sha256, width, height, byte_size, updated_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (tenant_id) DO UPDATE SET
+       mime = EXCLUDED.mime, bytes = EXCLUDED.bytes, sha256 = EXCLUDED.sha256,
+       width = EXCLUDED.width, height = EXCLUDED.height, byte_size = EXCLUDED.byte_size,
+       updated_by = EXCLUDED.updated_by, updated_at = now()
+     RETURNING ${LOGO_META_COLUMNS}`,
+    [tenantId, v.mime, v.bytes, v.sha256, v.width, v.height, v.bytes.length, actorUserId],
+  );
+  return r.rows[0]!;
+}
+
+export async function deleteLogo(client: PoolClient): Promise<boolean> {
+  const r = await client.query(`DELETE FROM tenant_logos`);
+  return (r.rowCount ?? 0) > 0;
 }

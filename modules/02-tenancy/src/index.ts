@@ -12,6 +12,8 @@ export {
   archiveTenant,
   unarchiveTenant,
   updateAiGenerateMode,
+  updateAiGradingScope,
+  getAiGradingScope,
   updateRetentionDays,
   updateResultReleaseMode,
   renameTenant,
@@ -21,9 +23,16 @@ export {
   renameTenantAsSuperAdmin,
   listTenantsForSuperAdmin,
   isPrivacyDisclosed,
+  setTenantLogo,
+  removeTenantLogo,
+  getTenantLogoMeta,
+  getTenantLogoBytes,
+  tenantLogoUrl,
 } from "./service.js";
 export type {
   UpdateAiGenerateModeResult,
+  UpdateAiGradingScopeResult,
+  AiGradingScope,
   UpdateRetentionDaysResult,
   UpdateResultReleaseModeResult,
   ResultReleaseMode,
@@ -31,7 +40,9 @@ export type {
   CreateTenantInput,
   CreateTenantResult,
   TenantLifecycleResult,
+  TenantLogoMeta,
 } from "./service.js";
+export { sniffImage, validateLogo, LOGO_MAX_BYTES, LOGO_MIN_PX, LOGO_MAX_PX } from "./logo.js";
 export { purgeArchivedTenants, MIN_PURGE_DAYS } from "./purge.js";
 export type { PurgeOptions, PurgeReport, TenantPurgeReport } from "./purge.js";
 export { findTenantSettings } from "./repository.js";

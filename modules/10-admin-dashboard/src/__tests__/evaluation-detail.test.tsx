@@ -158,6 +158,7 @@ function makeServer(opts: { mfaOnManualScore?: boolean; initial?: Initial } = {}
       { question_id: Q2, type: "kql", content: { question: "Find failed logons." }, points: 10, rubric: null },
     ],
     gradings: [...state.gradings], // a fresh array per response, like the real API
+    tiers: { answer_key: 0, reuse: 0, rule: 0, ai: 1, human: 1 },
     ai_proposals: state.proposals,
     grading_started_at: null,
   });
@@ -280,6 +281,12 @@ describe("AdminEvaluationDetail", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back to the queue" }));
     await screen.findByTestId("queue-page");
   }, 15_000); // ponytail: ~1.7 s alone, >5 s under parallel load (batch 8); raise, do not split
+
+  it("E7 the grading summary shows the P4 'Graded by' line and omits zero tiers", async () => {
+    makeServer({ initial: "kqlScored" });
+    await renderPage();
+    expect(await screen.findByText("Graded by: AI 1 · human 1")).toBeTruthy();
+  });
 
   it("E2 Send to organisation is disabled until the attempt is complete", async () => {
     makeServer();

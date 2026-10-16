@@ -40,6 +40,7 @@ import { gradeSubjective } from "../runtime-selector.js";
 import { assertEvalGate } from "../eval-gate.js";
 import { singleFlight } from "../single-flight.js";
 import { resolveGradingRubric } from "./admin-grade.js";
+import { manualPlaceholder, readAiGradingScope } from "./_ai-scope.js";
 import type { GradingProposal } from "../types.js";
 import type { PoolClient } from "pg";
 
@@ -229,7 +230,11 @@ export async function handleAdminRerun(
 
     // FU-A11: the AI-start boundary re-checks the tenant pause flag (the route
     // guard read it earlier; a flip in between must still stop the run).
-    await withTenant(tenantId, (client) => assertTenantAiEnabled(client, tenantId));
+    // P4: read the tenant AI cap in the same boundary check; 'none' means no AI call below.
+    const aiScope = await withTenant(tenantId, async (client) => {
+      await assertTenantAiEnabled(client, tenantId);
+      return readAiGradingScope(client, tenantId);
+    });
 
     const proposals: GradingProposal[] = [];
     let questionCount = 0;
@@ -240,6 +245,11 @@ export async function handleAdminRerun(
       questionCount++;
 
       const answer = answers.get(q.question_id) ?? null;
+
+      if (aiScope === "none") {
+        proposals.push(manualPlaceholder(attemptId, q.question_id, q.points));
+        continue;
+      }
 
       try {
         // exactOptionalPropertyTypes: build the input with conditional
