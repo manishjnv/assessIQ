@@ -2609,3 +2609,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** The plugin augments the `FastifyContextConfig` interface. The interface was empty before, so TypeScript did not check the properties. After the augmentation it was not empty, and the excess-property check started. `skipAuth` was never declared.
 **Fix:** `apps/api/src/types.d.ts` declares `FastifyContextConfig.skipAuth?: boolean`. The typecheck passes at HEAD and with the plugin.
 **Prevention:** Declare every route `config` key in `apps/api/src/types.d.ts`. Run the api typecheck after any plugin that augments Fastify types.
+
+## 2026-10-16 — Question import: files between 2 MB and 4 MB were rejected by the parser although the page and the route allow 4 MB
+
+**Symptom:** found while writing the S11 owner test script (no user report). The import page says `File (CSV or XLSX, up to 4 MB) *` and its client check allows 4 MB; the route has `bodyLimit` 4 MB and the multipart `fileSize` limit is 4 MB; a file of 2 to 4 MB would still fail with `File exceeds 2048 KB` (`IMPORT_TOO_LARGE`).
+**Cause:** `modules/04-question-bank/src/import/parse.ts` line 7 set `IMPORT_MAX_BYTES = 2 * 1024 * 1024` (RW-58), while the UI copy of the constant in `modules/10-admin-dashboard/src/api/question-imports.ts` and the route used 4 MB. Two constants with one name and two values.
+**Fix:** `parse.ts` now exports 4 MB with a comment that names the three other places that share the cap (`734c7ad`). Deployed the same hour.
+**Prevention:** manual discipline: the test script step T1 (negative: file too large) exercises the boundary on production. A shared constant exported from `@assessiq/question-bank` and imported by the UI would remove the duplicate; not done because the UI package does not import server modules today.
