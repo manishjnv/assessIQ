@@ -419,6 +419,7 @@ export async function handleAdminGrade(
     let questionCount = 0;
 
     for (const q of questions) {
+      if (slot.signal.aborted) break;
       if (!AI_GRADEABLE_TYPES.has(q.type)) {
         // MCQ is scored deterministically by scoreMcqForAttempt (module 09, see
         // above); KQL has no grader yet (known gap). Neither goes to the AI.
@@ -464,6 +465,7 @@ export async function handleAdminGrade(
           rubric: effectiveRubric,
           answer,
           ...(highStakes ? { high_stakes: true } : {}),
+          signal: slot.signal,
         });
         proposals.push(proposal);
       } catch (err) {
@@ -508,6 +510,16 @@ export async function handleAdminGrade(
       }
     }
 
+    // RW-95: lease lost mid-run -> the runtime killed the CLI; another holder may own this
+    // attempt now. Never write proposals from a run that no longer holds the lock.
+    if (slot.signal.aborted) {
+      throw new AppError(
+        "AI grading aborted: single-flight lease lost",
+        AI_GRADING_ERROR_CODES.LEASE_LOST,
+        503,
+      );
+    }
+
     const durationMs = Date.now() - startMs;
     // NEVER log answer text or evidence-quote excerpts at INFO (D8 / observability rule)
     log.info(
@@ -543,18 +555,21 @@ export async function handleAdminGrade(
     // clear the in-flight marker so the FE banner doesn't stick on a
     // permanently failed grading run. Best-effort — never mask the
     // original error.
-    try {
-      await withTenant(tenantId, async (client) => {
-        await client.query(
-          `UPDATE attempts SET grading_started_at = NULL WHERE id = $1`,
-          [attemptId],
+    // RW-95: a lost lease means the marker may belong to another run
+    if (!(err instanceof AppError && err.code === AI_GRADING_ERROR_CODES.LEASE_LOST)) {
+      try {
+        await withTenant(tenantId, async (client) => {
+          await client.query(
+            `UPDATE attempts SET grading_started_at = NULL WHERE id = $1`,
+            [attemptId],
+          );
+        });
+      } catch (clearErr) {
+        log.warn(
+          { attemptId, err: (clearErr as Error).message },
+          "grading.marker_clear_failed",
         );
-      });
-    } catch (clearErr) {
-      log.warn(
-        { attemptId, err: (clearErr as Error).message },
-        "grading.marker_clear_failed",
-      );
+      }
     }
     throw err;
   } finally {
