@@ -238,6 +238,12 @@ export const ACTION_CATALOG = [
   //   cron-triggered, 'user' for admin-triggered) so the forensic chain joins.
   'tenant_settings.retention_days.updated',
   'system.dsr.retention.run',
+  // FR1 (2026-10-16) — the audit export and the archive mark are themselves audited.
+  // audit.exported: one row per export.csv / export.jsonl call; after = { format, filters, limit, truncated }.
+  // audit.archived: one row per archive call; after = { from, to, row_count, format, export_path }.
+  // Neither row holds audit row contents. No audit_log row is deleted or changed.
+  'audit.exported',
+  'audit.archived',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];
@@ -305,4 +311,8 @@ export interface AuditListInput {
 export interface AuditExportInput {
   tenantId: string;
   filters?: AuditListFilters;
+  /** Max rows to stream (FR1). Default and ceiling: EXPORT_ROW_LIMIT. */
+  limit?: number;
+  /** True when the match count is above limit; JSONL then ends with a note line. */
+  truncated?: boolean;
 }
