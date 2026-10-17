@@ -258,3 +258,16 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 ## Completion modal (FR13, 2026-10-03)
 
 `CompletionModal` is rebuilt on the kit `Modal`. `NewCertificateModal` (exported from the module index) shows on the Submitted page for a released result, once for each browser and `credential_id` (`localStorage` `aiq:certs-seen`, in try/catch). `MyCertificates` has a "View" button. The prop is `assessment_title` (was `course_title`). Data comes from `GET /api/certificates`; no server change.
+
+## S15 note (2026-10-17) — progress page (RW-84)
+
+- New `src/components/MyProgress.tsx`, route `/candidate/progress` (in `apps/web/src/App.tsx`). It reads `GET /api/me/progress`.
+- `CandidateShell` has a "Progress" nav link after "Results" (desktop and mobile).
+- Help ids: `candidate.progress`, `.history`, `.trend`, `.subjects`. Tests: `src/__tests__/MyProgress.test.tsx`.
+- Take pages are lazy chunks (RW-79): import them from their own files, not from the barrel. See `docs/08-ui-system.md` § "Take pages as lazy chunks (RW-79, S15)".
+
+## S15 note (2026-10-17) - Review your answers (RW-80)
+
+- New `src/components/AttemptFeedback.tsx` (exported from `components/index.ts`). `MyResults.tsx` renders it per released result only when `feedback_level !== 'none'`. It fetches on expand through `getAttemptFeedback` (`src/api.ts`). Types are in `src/types.ts`.
+- Help ids: `candidate.results.feedback`, `.expected`, `.explanation`, `.study`. Test: `src/__tests__/AttemptFeedback.test.tsx`.
+- Not on the post-submit page (rule P1). Details: `docs/08-ui-system.md` § "Review your answers on the candidate results page (RW-80, S15)".

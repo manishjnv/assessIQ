@@ -156,3 +156,7 @@ The activity test file spins up its own postgres container (`aiq_activity_test`)
 ## FU-C4 (2026-10-06) - cohort breakdown route
 
 `GET /api/admin/reports/cohort/:assessmentId/breakdown` (admin) exposes `cohortReport` level and topic breakdowns for the cohort page; `topicHeatmap` now has a UI caller (pack selector on the same page). Tenant-visible rule unchanged (MV 0122, FU-C3 topic filter). See `docs/03-api-contract.md`.
+
+## S15 (2026-10-17) - per-question statistics (RW-60 / FU-C14)
+
+Migration `0189` adds the materialized view `question_stats_mv` (one row for each tenant and question). `refresh-mv-job.ts` refreshes it after `attempt_summary_mv` (`views: 2` in the log). `src/question-stats.ts` `getQuestionStats(questionId)` serves `GET /api/admin/super/questions/:id/stats` (super admin): scope `tenant` via `withTenant`, scope `rollup` via read-only `withSystemRole` over clones. The `miscalibrated` rule is a default (30+ attempts, 0.90 / 0.25 / 0.15), not a spec value. `tools/lint-mv-tenant-filter.ts` covers both views and accepts the marker `-- mv-tenant-filter: allow cross-tenant (super_admin roll-up, RW-60)` for super-admin roll-ups only. **Not included:** roll-up by distinct organisation, review queue, tenant-admin view, incremental refresh. See `docs/02-data-model.md` and `docs/03-api-contract.md`.

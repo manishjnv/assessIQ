@@ -151,3 +151,17 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 ## Hardening S4 (RW-16/17/19, 2026-10-09)
 
 **S4 (2026-10-09):** Platform nav section, high-stakes checkbox removed from create form, status renders as Chip, users page Status filter (merged two toggles).
+
+## S15 (2026-10-17) - Start a test and item statistics (RW-83, RW-60)
+
+- `pages/start-test.tsx` (`AdminStartTest`) at `/admin/start-test`: pick a licensed set, difficulty, count and name; tick or paste candidates; one button runs the existing routes in order (from-set, publish, invite, users/import). Nav item "Start a test" in `AdminShell.tsx`. No new API route. Owner confirms the flow (default window, pasted unknown emails, "Not yet imported" warning, retry).
+- `components/QuestionStatsCard.tsx` on the super-admin question editor shows Phase C statistics from `getSuperQuestionStats(id)`.
+- `AdminShell.tsx`: `<main tabIndex={0}>` (axe `scrollable-region-focusable`, RW-82).
+- Editor help ids now use the page prefix `admin.question.editor.*` (the S14 `negative_marks` ids did not match).
+- Details: `docs/08-ui-system.md` § Session S15.
+
+## S15 (2026-10-17) - per-question feedback setting (RW-80)
+
+- `pages/tenant-settings.tsx` has a second radio-card group "Per-question feedback" with the same `MfaStepUp` flow as the release mode. It calls `PATCH /api/admin/tenant-settings/result-feedback-level` and reads `result_feedback_level` from `GET /api/admin/tenant-settings`.
+- Help ids: `admin.tenant_settings.result_feedback_level` and one id for each option.
+- Details: `docs/08-ui-system.md` § "Tenant settings: per-question feedback (RW-80, S15)".
