@@ -46,7 +46,7 @@ import type {
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
+const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
 
 const INVITATION_COLUMNS = `id, assessment_id, user_id, token_hash, expires_at, status, invited_by, created_at`;
 
@@ -64,6 +64,7 @@ interface AssessmentRow {
   description: string | null;
   status: string;
   question_count: number;
+  passing_score_pct: number;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -126,6 +127,7 @@ function mapAssessmentRow(row: AssessmentRow): Assessment {
     description: row.description,
     status: row.status as AssessmentStatus,
     question_count: row.question_count,
+    passing_score_pct: row.passing_score_pct,
     randomize: row.randomize,
     opens_at: row.opens_at,
     closes_at: row.closes_at,
@@ -412,6 +414,7 @@ export async function insertAssessment(
     name: string;
     description?: string;
     questionCount: number;
+    passingScorePct: number;
     randomize: boolean;
     opensAt?: Date | null;
     closesAt?: Date | null;
@@ -425,8 +428,8 @@ export async function insertAssessment(
   const result = await client.query<AssessmentRow>(
     `INSERT INTO assessments
        (id, tenant_id, pack_id, level_id, pack_version, name, description,
-        question_count, randomize, opens_at, closes_at, settings, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
+        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14)
      RETURNING ${ASSESSMENT_COLUMNS}`,
     [
       input.id,
@@ -442,6 +445,7 @@ export async function insertAssessment(
       input.closesAt ?? null,
       JSON.stringify(input.settings),
       input.createdBy,
+      input.passingScorePct,
     ],
   );
   const row = result.rows[0];
@@ -458,6 +462,7 @@ export async function updateAssessmentRow(
     name?: string;
     description?: string | null;
     questionCount?: number;
+    passingScorePct?: number;
     randomize?: boolean;
     opensAt?: Date | null;
     closesAt?: Date | null;
@@ -490,6 +495,11 @@ export async function updateAssessmentRow(
   if (patch.questionCount !== undefined) {
     sets.push(`question_count = $${i}`);
     values.push(patch.questionCount);
+    i++;
+  }
+  if (patch.passingScorePct !== undefined) {
+    sets.push(`passing_score_pct = $${i}`);
+    values.push(patch.passingScorePct);
     i++;
   }
   if (patch.randomize !== undefined) {

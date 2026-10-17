@@ -29,6 +29,7 @@ import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 // Module-05 service surface
 import {
   createAssessment,
+  updateAssessment,
   getAssessment,
   listAssessments,
   publishAssessment,
@@ -603,6 +604,74 @@ describe("publishAssessment pool-size pre-flight", () => {
 
     const published = await publishAssessment(tenantA, assessment.id, adminA);
     expect(published.status).toBe("published");
+  });
+});
+
+// ===========================================================================
+// Z-16. Per-assessment pass mark (assessments.passing_score_pct)
+// ===========================================================================
+
+describe("Z-16: assessment pass mark", () => {
+  const mk = async (extra: Record<string, unknown> = {}, qc = 3) => {
+    const { packId, levelId } = await buildPublishedPack(tenantA, adminA, qc);
+    return createAssessment(
+      tenantA,
+      { pack_id: packId, level_id: levelId, name: "Pass mark", question_count: qc, opens_at: new Date(Date.now() + 60_000), ...extra } as never,
+      adminA,
+    );
+  };
+  const patch = (id: string, passing_score_pct: unknown) =>
+    updateAssessment(tenantA, id, { passing_score_pct } as never, adminA);
+
+  it("defaults to the level's passing_score_pct (60 here) and accepts an explicit mark", async () => {
+    expect((await mk()).passing_score_pct).toBe(60);
+    expect((await mk({ passing_score_pct: 75 })).passing_score_pct).toBe(75);
+    expect((await mk({ passing_score_pct: 1 })).passing_score_pct).toBe(1);
+    expect((await mk({ passing_score_pct: 100 })).passing_score_pct).toBe(100);
+  });
+
+  it("pre-fills from a non-default level value", async () => {
+    const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
+    await withSuperClient((c) => c.query(`UPDATE levels SET passing_score_pct = 72 WHERE id = $1`, [levelId]));
+    const a = await createAssessment(
+      tenantA,
+      { pack_id: packId, level_id: levelId, name: "Level default", question_count: 3, opens_at: new Date(Date.now() + 60_000) },
+      adminA,
+    );
+    expect(a.passing_score_pct).toBe(72);
+  });
+
+  it.each([0, -1, 101, 60.5, "60", null, Number.NaN])("rejects pass mark %s on create and on update", async (bad) => {
+    const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
+    await expect(
+      createAssessment(
+        tenantA,
+        { pack_id: packId, level_id: levelId, name: "Bad", question_count: 3, opens_at: new Date(Date.now() + 60_000), passing_score_pct: bad } as never,
+        adminA,
+      ),
+    ).rejects.toMatchObject({ status: 400, details: { code: "INVALID_PARAM", param: "passing_score_pct" } });
+    const ok = await mk();
+    await expect(patch(ok.id, bad)).rejects.toMatchObject({ status: 400, details: { param: "passing_score_pct" } });
+    expect((await getAssessment(tenantA, ok.id)).passing_score_pct).toBe(60);
+  });
+
+  it("can be edited while draft", async () => {
+    const a = await mk();
+    expect((await patch(a.id, 80)).passing_score_pct).toBe(80);
+  });
+
+  it("is rejected after publish (409 ASSESSMENT_NOT_DRAFT) and the stored mark does not change", async () => {
+    const a = await mk({ passing_score_pct: 65 }, 3);
+    await publishAssessment(tenantA, a.id, adminA);
+    await expect(patch(a.id, 90)).rejects.toMatchObject({ status: 409, details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_DRAFT } });
+    expect((await getAssessment(tenantA, a.id)).passing_score_pct).toBe(65);
+  });
+
+  it("RLS: another tenant cannot read or edit the mark", async () => {
+    const a = await mk({ passing_score_pct: 55 });
+    await expect(getAssessment(tenantB, a.id)).rejects.toMatchObject({ status: 404 });
+    await expect(updateAssessment(tenantB, a.id, { passing_score_pct: 99 }, adminA)).rejects.toMatchObject({ status: 404 });
+    expect((await getAssessment(tenantA, a.id)).passing_score_pct).toBe(55);
   });
 });
 

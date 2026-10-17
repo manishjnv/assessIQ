@@ -287,7 +287,7 @@ The endpoint validates the token from the sign-in email and consumes it atomical
 | Method | Path | Purpose |
 |---|---|---|
 | `GET`  | `/take/:token`         | Renders landing; marks invitation viewed |
-| `POST` | `/take/start`          | Two modes (R4, 2026-10-01): `{ token, preview: true }` returns the landing summary and creates NOTHING; `{ token, consent: true }` (the Begin click) mints the session, records consent, creates the `attempt` and starts the clock |
+| `POST` | `/take/start`          | Two modes (R4, 2026-10-01): `{ token, preview: true }` returns the landing summary (now with `assessment.pass_mark_pct`, Z-16) and creates NOTHING; `{ token, consent: true }` (the Begin click) mints the session, records consent, creates the `attempt` and starts the clock |
 
 #### `POST /take/start` modes (R4)
 
@@ -973,6 +973,14 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 - **Why.** Same pattern as `/integrity` and `/reminders`: one setting key, any status, no sections-lock side effects.
 - **Not included.** Per-question flag; tenant default.
 - **Impact.** Takes effect for AI grading runs started afterwards (07 reads it live). `settings.high_stakes` is also accepted at create/update.
+
+#### `POST /api/admin/assessments`, `POST .../from-set`, `PATCH /api/admin/assessments/:id`: `passing_score_pct` (Z-16)
+
+**History:** added 2026-10-17.
+- **What.** Optional integer `passing_score_pct`, 1 to 100. On create it defaults to the level's value (clamped to 1..100). On `PATCH` it works only while the assessment is `draft`. After publish any `PATCH` returns `409 ASSESSMENT_NOT_DRAFT` (existing rule, server side). `0`, negatives, values above 100, decimals and non-numbers return `400 INVALID_PARAM` with `details.param = "passing_score_pct"`. Assessment payloads now include `passing_score_pct`.
+- **Why.** The pass mark is per assessment, and the certificate follows it (see `docs/14-credentialing.md`).
+- **Not included.** A separate Distinction threshold (fixed at 90). Honors.
+- **Impact.** Candidate result payloads carry `pass_mark_pct` (below). The welcome preview carries `assessment.pass_mark_pct`.
 
 #### `PATCH /api/admin/assessments/:id` and create: `SECTIONS_LOCKED` (409)
 
@@ -3238,7 +3246,7 @@ A 403 rolls back the publish attempt — there is no partial published state and
 | Method + path | Behaviour |
 |---|---|
 | `POST /api/me/attempts/:id/submit` | `202 { attempt_id, status: 'submitted', estimated_grading_seconds: 60 \| null, result_expectation: 'soon' \| 'email', release_mode: 'manual' \| 'auto', email_masked, turnaround_text }`. `'soon'` only when the tenant is in `auto` (switched on) AND every question is MCQ AND the attempt is not an embed attempt; everything else is `'email'`. `email_masked` looks like `r***@example.com`. `turnaround_text` is config `EVALUATION_TURNAROUND_TEXT` (default "within 72 hours"). The lookup can never fail a submit (it falls back to `'email'`). Never a score. |
-| `GET /api/me/attempts/:id/result` | Published: `200 { status: 'released', total_earned, total_max, percent (0-100, 1 dp), passed (percent >= the level's passing_score_pct), assessment_name, released_at, certificate: { credential_id, verify_url } \| null }`. Otherwise `202 { status: 'pending', result_expectation, release_mode, email_masked, turnaround_text, tenant_name }`. 404 for an unknown attempt or someone else's. Never per-question data, bands, justifications or a partial score. |
+| `GET /api/me/attempts/:id/result` | Published: `200 { status: 'released', total_earned, total_max, percent (0-100, 1 dp), passed (score reaches the assessment pass mark, integer math, no rounding up), pass_mark_pct (1-100, snapshot from `attempt_scores.pass_mark_pct`, Z-16), assessment_name, released_at, certificate: { credential_id, verify_url } \| null }`. Otherwise `202 { status: 'pending', result_expectation, release_mode, email_masked, turnaround_text, tenant_name }`. 404 for an unknown attempt or someone else's. Never per-question data, bands, justifications or a partial score. |
 | `GET /api/me/results` | `200 { items: [{ attempt_id, assessment_name, released_at, total_earned, total_max, percent, passed, certificate \| null, is_new }] }`: published results only, newest first (the portal "My results" page). |
 | `POST /api/me/attempts/:id/seen` | Z-12. Candidate session; no body. Sets `attempts.seen_at` for the caller's own released attempt, once (idempotent). `200 { seen: true }`. 404 `AE_ATTEMPT_NOT_FOUND` for an unknown, non-uuid, unreleased or someone else's attempt, and across tenants. `is_new` in `GET /api/me/results` is true until this call. The shell banner counts `is_new` results; notification mark-read no longer clears it. |
 

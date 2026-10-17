@@ -199,8 +199,8 @@ async function seed(o: Opts = {}): Promise<Seeded> {
     }
     if (o.earned !== null && o.earned !== undefined) {
       await c.query(
-        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review) VALUES ($1,$2,$3,$4,$5,false)`,
-        [attemptId, tid, o.earned, o.max ?? 60, (o.earned / (o.max ?? 60)) * 100],
+        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, pass_mark_pct) VALUES ($1,$2,$3,$4,$5,false,$6)`,
+        [attemptId, tid, o.earned, o.max ?? 60, (o.earned / (o.max ?? 60)) * 100, o.passing ?? 60],
       );
     }
     if (o.releasedAt !== undefined) {
@@ -326,6 +326,7 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
       total_max: 60,
       percent: 70,
       passed: true,
+      pass_mark_pct: 60,
       assessment_name: "SOC Analyst L1",
       released_at: "2026-10-01T10:00:00.000Z",
       certificate: null,
@@ -350,6 +351,23 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
     expect(await getCandidateResult(tenant, at.userId, at.attemptId)).toMatchObject({ percent: 60, passed: true });
     const below = await seed({ status: "released", earned: 35, max: 60, passing: 60, releasedAt: "2026-10-01T10:00:00.000Z" });
     expect(await getCandidateResult(tenant, below.userId, below.attemptId)).toMatchObject({ percent: 58.3, passed: false });
+  });
+
+  it.each([
+    [59, 60, false], [60, 60, true], [69, 70, false], [70, 70, true], [89, 90, false], [90, 90, true],
+    [59.99, 60, false], // displays as 60 (one decimal) but is below the mark: integer math, no rounding up
+  ] as Array<[number, number, boolean]>)("Z-16: score %s vs the snapshot pass mark %s -> passed %s, pass_mark_pct exposed", async (earned, mark, passed) => {
+    const s = await seed({ status: "released", earned, max: 100, passing: mark, releasedAt: "2026-10-01T10:00:00.000Z" });
+    expect(await getCandidateResult(tenant, s.userId, s.attemptId)).toMatchObject({ passed, pass_mark_pct: mark });
+    const row = (await listCandidateResults(tenant, s.userId)).items[0]!;
+    expect(row).toMatchObject({ passed, pass_mark_pct: mark });
+  });
+
+  it("Z-16: a later edit of the level or assessment pass mark never changes a released result", async () => {
+    const s = await seed({ status: "released", earned: 36, max: 60, passing: 60, releasedAt: "2026-10-01T10:00:00.000Z" });
+    await sup((c) => c.query(`UPDATE levels SET passing_score_pct = 90 WHERE pack_id IN (SELECT pack_id FROM assessments a JOIN attempts t ON t.assessment_id = a.id WHERE t.id = $1)`, [s.attemptId]));
+    await sup((c) => c.query(`UPDATE assessments SET passing_score_pct = 90 WHERE id = (SELECT assessment_id FROM attempts WHERE id = $1)`, [s.attemptId]));
+    expect(await getCandidateResult(tenant, s.userId, s.attemptId)).toMatchObject({ passed: true, pass_mark_pct: 60 });
   });
 
   it("released_at falls back to the score computation time when no release audit row exists", async () => {
@@ -396,7 +414,7 @@ describe("listCandidateResults", () => {
     expect(items.map((i) => i.attempt_id)).not.toContain(other.attemptId);
     expect(items.map((i) => i.total_earned)).not.toContain(59); // the provisional 'graded' score never appears
     expect(Object.keys(items[0]!).sort()).toEqual( // nothing per-question, no bands / justifications
-      ["assessment_name", "attempt_id", "certificate", "is_new", "negative_marking", "passed", "percent", "released_at", "total_earned", "total_max"],
+      ["assessment_name", "attempt_id", "certificate", "is_new", "negative_marking", "pass_mark_pct", "passed", "percent", "released_at", "total_earned", "total_max"],
     );
   });
 

@@ -20,8 +20,9 @@
 //      convention (users.role = 'candidate').
 //
 //   4. Tier enum matches AssessIQ's banded scoring philosophy. Auto-issue
-//      thresholds (2026-05-25): completion (70–<90%), distinction (≥90%);
-//      below 70% no certificate. Honors is deferred (AI-eval pipeline).
+//      rule (Z-16): every pass (score at or above the assessment pass mark)
+//      gets a certificate; completion below 90%, distinction at 90% or more;
+//      a fail gets none. Honors is deferred (AI-eval pipeline).
 //      TIER_ORDER enforces "only upgrade" invariant (plan §1.3).
 //
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.

@@ -23,7 +23,7 @@
  */
 
 import type { PoolClient } from "pg";
-import { NotFoundError, config, isUuid, streamLogger } from "@assessiq/core";
+import { NotFoundError, config, isPass, isUuid, streamLogger } from "@assessiq/core";
 import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from "@assessiq/tenancy";
 import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import * as repo from "./repository.js";
@@ -88,8 +88,10 @@ export interface ReleasedResult {
   total_max: number;
   /** 0-100, one decimal. */
   percent: number;
-  /** percent >= the level's passing_score_pct. */
+  /** Shared integer-math rule (core isPass) against the pass mark snapshot on the score row. */
   passed: boolean;
+  /** Z-16: the pass mark (1-100) used for this result, snapshot from attempt_scores.pass_mark_pct. */
+  pass_mark_pct: number;
   assessment_name: string;
   released_at: string;
   certificate: CandidateCertificateRef | null;
@@ -117,6 +119,8 @@ export interface ResultListItem {
   total_max: number;
   percent: number;
   passed: boolean;
+  /** Z-16: pass mark (1-100) used for this result. */
+  pass_mark_pct: number;
   certificate: CandidateCertificateRef | null;
   negative_marking: NegativeMarkingSummary;
   /** Z-12: false once the candidate opened the result (attempts.seen_at set). */
@@ -137,7 +141,10 @@ export function maskEmail(email: string): string {
   return `${first}***@${domain}`;
 }
 
-/** 0-100 with one decimal; 0 when there is no maximum. */
+/**
+ * 0-100 with one decimal; 0 when there is no maximum. Display only: pass/fail uses the exact
+ * isPass rule, so a score within 0.05 points under the pass mark can read "60.0%" beside a fail.
+ */
 export function resultPercent(totalEarned: number, totalMax: number): number {
   return totalMax > 0 ? Math.round((totalEarned / totalMax) * 1000) / 10 : 0;
 }
@@ -325,12 +332,11 @@ async function loadCandidateResult(
         `SELECT asm.name AS assessment_name,
                 s.total_earned::text AS total_earned,
                 s.total_max::text    AS total_max,
-                l.passing_score_pct,
+                s.pass_mark_pct AS passing_score_pct,
                 ${RELEASED_AT_SQL} AS released_at,
                 c.credential_id
            FROM attempts a
            JOIN assessments asm ON asm.id = a.assessment_id
-           JOIN levels l        ON l.id   = asm.level_id
            JOIN attempt_scores s ON s.attempt_id = a.id
            LEFT JOIN certificates c ON c.attempt_id = a.id AND c.revoked_at IS NULL
           WHERE a.id = $1`,
@@ -349,7 +355,8 @@ async function loadCandidateResult(
           total_earned: earned,
           total_max: max,
           percent,
-          passed: percent >= r.passing_score_pct,
+          passed: isPass(earned, max, r.passing_score_pct),
+          pass_mark_pct: r.passing_score_pct,
           assessment_name: r.assessment_name,
           released_at: new Date(r.released_at).toISOString(),
           certificate: certificateRef(r.credential_id),
@@ -390,13 +397,12 @@ export async function listCandidateResults(
               asm.name AS assessment_name,
               s.total_earned::text AS total_earned,
               s.total_max::text    AS total_max,
-              l.passing_score_pct,
+              s.pass_mark_pct AS passing_score_pct,
               ${RELEASED_AT_SQL} AS released_at,
               (a.seen_at IS NULL) AS is_new,
               c.credential_id
          FROM attempts a
          JOIN assessments asm ON asm.id = a.assessment_id
-         JOIN levels l        ON l.id   = asm.level_id
          JOIN attempt_scores s ON s.attempt_id = a.id
          LEFT JOIN certificates c ON c.attempt_id = a.id AND c.revoked_at IS NULL
         WHERE a.user_id = $1
@@ -418,7 +424,8 @@ export async function listCandidateResults(
           total_earned: earned,
           total_max: max,
           percent,
-          passed: percent >= r.passing_score_pct,
+          passed: isPass(earned, max, r.passing_score_pct),
+          pass_mark_pct: r.passing_score_pct,
           certificate: certificateRef(r.credential_id),
           negative_marking: negMarking.get(r.attempt_id) ?? NO_NEGATIVE_MARKING,
           is_new: r.is_new,

@@ -929,6 +929,7 @@ CREATE TABLE assessments (
   description     TEXT,
   status          assessment_status NOT NULL DEFAULT 'draft',
   question_count  INT NOT NULL CHECK (question_count >= 1),
+  passing_score_pct SMALLINT NOT NULL DEFAULT 60 CHECK (passing_score_pct BETWEEN 1 AND 100), -- Z-16, 0198; editable only while draft
   randomize       BOOLEAN NOT NULL DEFAULT true,
   opens_at        TIMESTAMPTZ,
   closes_at       TIMESTAMPTZ,
@@ -2660,5 +2661,6 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-16 | Role CHECKs on `users`, `sessions`, `in_app_notifications` drop `reviewer` (Y-1), one file per owning module. `help_content.audience` keeps it (RW-2) | `0179` (03-users), `0180` (01-auth), `0181` (13-notifications) | Users; Auth sessions; Notifications |
 | 2026-10-16 | S14: tenant logos, negative marking columns, plan AI override, AI grading scope, help rows, user purge tombstone | `0183`; `0184`; `0185`; `0186`; `0187`; `0188` | S14 additions |
 | 2026-10-17 | EXP-4 import v2: help rows for the import page (no schema change) | `0195` | Import v2 writes |
+| 2026-10-17 | Z-16: per-assessment pass mark. `assessments.passing_score_pct` (SMALLINT, 1 to 100, default 60, backfilled once from `levels.passing_score_pct`) and `attempt_scores.pass_mark_pct` (snapshot of the mark at first score write, never updated by a re-score, backfilled from the assessment). Help row in `0200` (module 16). Why: one pass rule per assessment, and old results must not change when an assessment is edited. Rejected: reading `levels.passing_score_pct` at read time (a level edit would rewrite history). No new table, no FK, RLS unchanged | `0198` (05), `0199` (09), `0200` (16) | Tables `assessments`, `attempt_scores` |
 | 2026-10-17 | S15: materialized view `question_stats_mv` for per-question statistics (RW-60 / FU-C14) | `0189` | Materialized view — `question_stats_mv` |
 | 2026-10-17 | S15: column `tenant_settings.result_feedback_level` for per-question candidate feedback (RW-80). Help rows come in `0191` (module 16) | `0190` | Table `tenant_settings`, column `result_feedback_level` |

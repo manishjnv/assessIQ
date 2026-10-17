@@ -252,6 +252,8 @@ export async function registerAttemptTakeRoutes(
         name: resolved.assessment.name,
         duration_seconds: durationSeconds,
         question_count: pv.questionCount,
+        // Z-16: pass mark (1-100) shown on the welcome page. Same value the result is judged against.
+        pass_mark_pct: resolved.assessment.passing_score_pct,
         company_name: pv.companyName,
         company_logo_url: pv.companyLogoUrl,
       };

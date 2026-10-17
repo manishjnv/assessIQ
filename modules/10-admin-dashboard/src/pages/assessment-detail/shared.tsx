@@ -20,6 +20,7 @@ export interface Assessment {
   pack_name?: string | null;
   settings?: { integrity?: IntegrityValue; reminders?: RemindersValue; high_stakes?: boolean; sections?: unknown; scoring?: { negative_marks_default?: number } } | null;
   question_count?: number;
+  passing_score_pct?: number;
 }
 
 export interface Invitation {

@@ -135,6 +135,7 @@ export async function createAssessment(
   assertIntegritySettings(input.settings);
   assertRemindersSettings(input.settings);
   assertSectionsSettings(input.settings);
+  if (input.passing_score_pct !== undefined) assertPassMark(input.passing_score_pct);
   let resolvedInput = input;
   let mergedSettings: AssessmentSettings = input.settings ?? {};
 
@@ -232,6 +233,8 @@ export async function createAssessment(
       name: resolvedInput.name,
       ...(resolvedInput.description !== undefined ? { description: resolvedInput.description } : {}),
       questionCount: resolvedInput.question_count,
+      // Z-16: explicit mark wins; else the level's value (clamped: levels allow 0).
+      passingScorePct: input.passing_score_pct ?? Math.min(100, Math.max(1, level.passing_score_pct)),
       randomize: resolvedInput.randomize ?? true,
       opensAt: resolvedInput.opens_at ?? null,
       closesAt: resolvedInput.closes_at ?? null,
@@ -252,6 +255,7 @@ export async function createAssessment(
         pack_version: assessment.pack_version,
         name: assessment.name,
         question_count: assessment.question_count,
+        passing_score_pct: assessment.passing_score_pct,
         randomize: assessment.randomize,
         status: assessment.status,
         has_blueprint: rawBlueprint !== undefined,
@@ -277,6 +281,15 @@ export async function createAssessment(
 // clone tx, create tx). A clone with no assessment (if step 3 fails) is benign
 // and reused on retry. The authoritative entitlement control is the publish
 // gate, so even a TOCTOU license-revoke between clone and publish is safe.
+/** Z-16: pass mark must be an integer 1..100 (rejects 0, negatives, >100, decimals, non-numbers). */
+export function assertPassMark(v: unknown): asserts v is number {
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 100) {
+    throw new ValidationError("passing_score_pct must be a whole number from 1 to 100", {
+      details: { code: "INVALID_PARAM", param: "passing_score_pct" },
+    });
+  }
+}
+
 /** Integrity v1: reject a malformed settings.integrity (typed sub-key, like blueprint). */
 export function assertIntegritySettings(settings: AssessmentSettings | undefined): void {
   const raw = (settings as Record<string, unknown> | undefined)?.["integrity"];
@@ -338,6 +351,7 @@ export async function createAssessmentFromSet(
   };
   if (input.description !== undefined) createInput.description = input.description;
   if (input.randomize !== undefined) createInput.randomize = input.randomize;
+  if (input.passing_score_pct !== undefined) createInput.passing_score_pct = input.passing_score_pct;
   if (input.settings !== undefined) {
     // from-set resolves pack/level from the CLONED set. A blueprint would
     // override that and is a super_admin-only authoring capability (enforced at
@@ -519,6 +533,7 @@ export async function updateAssessment(
   assertIntegritySettings(patch.settings);
   assertRemindersSettings(patch.settings);
   assertSectionsSettings(patch.settings);
+  if (patch.passing_score_pct !== undefined) assertPassMark(patch.passing_score_pct);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
   let validatedBlueprint: ResolvedBlueprint | null = null;
   const rawPatchBlueprint = (patch.settings as Record<string, unknown> | undefined)?.["blueprint"];
@@ -596,6 +611,7 @@ export async function updateAssessment(
     const repoPatch: Parameters<typeof repo.updateAssessmentRow>[2] = {};
     if (patch.name !== undefined) repoPatch.name = patch.name;
     if (patch.description !== undefined) repoPatch.description = patch.description;
+    if (patch.passing_score_pct !== undefined) repoPatch.passingScorePct = patch.passing_score_pct;
     if (patch.randomize !== undefined) repoPatch.randomize = patch.randomize;
     if (patch.opens_at !== undefined) repoPatch.opensAt = patch.opens_at;
     if (patch.closes_at !== undefined) repoPatch.closesAt = patch.closes_at;
@@ -626,6 +642,7 @@ export async function updateAssessment(
       before: {
         name: current.name,
         question_count: current.question_count,
+        passing_score_pct: current.passing_score_pct,
         randomize: current.randomize,
         opens_at: current.opens_at?.toISOString() ?? null,
         closes_at: current.closes_at?.toISOString() ?? null,
@@ -633,6 +650,7 @@ export async function updateAssessment(
       after: {
         name: updated.name,
         question_count: updated.question_count,
+        passing_score_pct: updated.passing_score_pct,
         randomize: updated.randomize,
         opens_at: updated.opens_at?.toISOString() ?? null,
         closes_at: updated.closes_at?.toISOString() ?? null,

@@ -101,17 +101,24 @@ The verify page puts Open Graph and Twitter Card meta tags in its `<head>`. A li
 | Rollback | If the cert INSERT throws despite the outer `.catch()`, `withTenant()` rolls back the `graded→released` UPDATE and the audit row. Retry the release |
 | Manual fallback | Re-issue from the admin certificates page |
 
-### Tier thresholds
+### Pass rule and tier (Z-16, 2026-10-17)
 
-| `auto_pct` from `attempt_scores` | Tier issued |
+**What changed.** The fixed 70 percent floor is gone. A certificate exists for every pass. A pass is a score at or above the assessment pass mark.
+
+| Result | Certificate |
 | --- | --- |
-| Below 90 | No cert. `null` is returned |
-| 90 or more and below 100 | `completion` |
-| Equal to 100 | `distinction` |
-| `NaN` or `Infinity` | No cert. The `isFinite()` check guards this |
-| `NULL` (scores not yet computed) | No cert. `null` is returned |
+| Fail (below the pass mark) | None. `issueCertificateOnRelease` returns `null` |
+| Pass, score below 90 percent | `completion` |
+| Pass, score 90 percent or more | `distinction` |
+| Scores not yet computed, or the candidate is erased | None |
 
-`auto_pct` is stored as `NUMERIC(5,2)`. node-postgres returns it as a string. The code calls `parseFloat()` and then the `isFinite()` guard.
+- **Pass mark.** `attempt_scores.pass_mark_pct`, a snapshot of `assessments.passing_score_pct` taken when the score row is first written. A later edit never changes an old result.
+- **One rule.** `isPass` and `meetsPct` in `@assessiq/core` (`modules/00-core/src/pass-mark.ts`). Integer math in hundredths: `earned * 100 >= mark * max`. A score of 59.99 percent fails a mark of 60. The result pages use the same function.
+- **Why.** The owner wants one clear rule per assessment. A fixed floor made a pass mark of 60 produce a pass without a certificate.
+- **Considered and rejected.** A pass mark per level only (cannot differ per assessment). A float compare of `auto_pct` (rounds up at the boundary).
+- **Not included.** Honors (later). Retake (Z-39). Result page and email wording (another step). The tier enum stays at three values (`completion`, `distinction`, `honors`) and upgrade-only.
+- **Edge case.** A pass mark above 90 makes every pass a Distinction. The help text for the field says so.
+- **Downstream.** The `modules/13-notifications` result email still reads `levels.passing_score_pct`. The `modules/15-analytics` results export still reads it. Both are follow-ups.
 
 ### Never-raise invariant
 

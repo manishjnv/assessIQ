@@ -3,7 +3,7 @@
  * Integration (testcontainers Postgres, real audit_log + certificates, RLS on).
  *
  * Covers: erased gate (422), not-ready gate (409), exactly one grading.released audit
- * row with the right actor/trigger, certificate issued only here (>=70%), system actor
+ * row with the right actor/trigger, certificate issued only here (every pass), system actor
  * (audit actor_kind 'system', actor_user_id NULL), the SAVEPOINT guarantee (a
  * certificate failure, JS error OR SQL error, never rolls the release back), and the
  * auto-release gate: an 'auto' release re-checks the tenant mode / auto_since under a
@@ -20,9 +20,10 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
-import { CERT_SIGNING_SECRET_ENV } from "@assessiq/certification";
+import { CERT_SIGNING_SECRET_ENV, issueCertificateOnRelease } from "@assessiq/certification";
 import { ACTION_CATALOG } from "@assessiq/audit-log";
 import { releaseAttemptInTx, type ReleaseActor } from "../release.js";
+import { upsertAttemptScore } from "../repository.js";
 
 const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const MODULES_ROOT = join(THIS_DIR, "..", "..", "..");
@@ -139,6 +140,8 @@ interface Opts {
   status?: string;
   evalReleased?: boolean;
   pct?: number;
+  /** Z-16: pass mark snapshot on the score row (and on the assessment). Default 60. */
+  mark?: number;
   erased?: boolean;
   /** one question with these gradings, oldest first (graded_at = now() - ago) */
   grades?: Array<{ status: "correct" | "review_needed"; ago: string; grader?: "ai" | "admin_override" }>;
@@ -163,8 +166,8 @@ async function seed(o: Opts = {}): Promise<{ attemptId: string; candidateId: str
       [level, pack],
     );
     await c.query(
-      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',1,$5)`,
-      [assessment, tenant, pack, level, admin],
+      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by, passing_score_pct) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',1,$5,$6)`,
+      [assessment, tenant, pack, level, admin, o.mark ?? 60],
     );
     await c.query(
       `INSERT INTO users (id, tenant_id, email, name, role, status, erased_at) VALUES ($1,$2,$3,'Priya Sharma','candidate','active',$4)`,
@@ -176,8 +179,8 @@ async function seed(o: Opts = {}): Promise<{ attemptId: string; candidateId: str
       [attemptId, tenant, assessment, cand, o.status ?? "graded", o.evalReleased === false ? null : new Date()],
     );
     await c.query(
-      `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review) VALUES ($1,$2,$3,100,$3,false)`,
-      [attemptId, tenant, pct],
+      `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, pass_mark_pct) VALUES ($1,$2,$3,100,$3,false,$4)`,
+      [attemptId, tenant, pct, o.mark ?? 60],
     );
     if (o.grades !== undefined) {
       qid = randomUUID();
@@ -227,7 +230,7 @@ const certAudits = (attemptId: string) =>
   );
 
 describe("releaseAttemptInTx — happy path", () => {
-  it("publishes: status released, ONE grading.released audit row (user actor, trigger manual), certificate issued at >=70%", async () => {
+  it("publishes: status released, ONE grading.released audit row (user actor, trigger manual), certificate issued for a pass", async () => {
     const { attemptId, candidateId } = await seed({ pct: 80 });
     expect(await release(attemptId, userActor())).toEqual({ released: true });
     expect(await status(attemptId)).toBe("released");
@@ -249,7 +252,7 @@ describe("releaseAttemptInTx — happy path", () => {
     expect(await certAudits(attemptId)).toEqual([{ action: "certification.cert.issue", actor_kind: "user", actor_user_id: admin }]);
   });
 
-  it(">=90% issues a 'distinction' certificate; <70% releases without any certificate", async () => {
+  it(">=90% issues a 'distinction' certificate; a fail (below the pass mark) releases without any certificate", async () => {
     const hi = await seed({ pct: 95 });
     await release(hi.attemptId, userActor());
     expect((await certs(hi.attemptId))[0]!.tier).toBe("distinction");
@@ -258,6 +261,83 @@ describe("releaseAttemptInTx — happy path", () => {
     await release(low.attemptId, userActor());
     expect(await status(low.attemptId)).toBe("released");
     expect(await certs(low.attemptId)).toHaveLength(0);
+  });
+});
+
+describe("Z-16: per-assessment pass mark drives the certificate (boundaries, tier, snapshot)", () => {
+  // [score %, pass mark %, expected tier or null for a fail]
+  it.each([
+    [59, 60, null],
+    [59.99, 60, null],
+    [60, 60, "completion"],
+    [65, 60, "completion"], // between the old fixed 60 and 70 floors: now a certificate
+    [69, 70, null],
+    [70, 70, "completion"],
+    [89, 50, "completion"],
+    [89.99, 50, "completion"],
+    [90, 50, "distinction"],
+    [94, 95, null],
+    [95, 95, "distinction"], // a pass mark above 90: every pass is Distinction
+    [100, 100, "distinction"],
+  ] as Array<[number, number, string | null]>)("score %s with pass mark %s -> %s", async (pct, mark, tier) => {
+    const { attemptId } = await seed({ pct, mark });
+    await release(attemptId, userActor());
+    expect(await status(attemptId)).toBe("released");
+    const cs = await certs(attemptId);
+    if (tier === null) expect(cs).toHaveLength(0);
+    else expect(cs.map((c) => c.tier)).toEqual([tier]);
+  });
+
+  it("tier never downgrades: a re-issue at a lower score keeps the Distinction certificate", async () => {
+    const { attemptId } = await seed({ pct: 95, mark: 60 });
+    await release(attemptId, userActor());
+    expect((await certs(attemptId)).map((c) => c.tier)).toEqual(["distinction"]);
+    await sup((c) => c.query(`UPDATE attempt_scores SET total_earned = 75, auto_pct = 75 WHERE attempt_id = $1`, [attemptId]));
+    const cert = await withTenant(tenant, async (c) => {
+      await c.query("SELECT pg_current_xact_id()"); // assign an xid, as a release transaction has by now
+      return issueCertificateOnRelease(c, { tenantId: tenant, attemptId, actorUserId: admin });
+    });
+    expect(cert?.tier).toBe("distinction");
+    expect((await certs(attemptId)).map((c) => c.tier)).toEqual(["distinction"]);
+  });
+
+  it("the score row snapshots the assessment pass mark and a re-score or later edit never changes it", async () => {
+    const { attemptId } = await seed({ pct: 70, mark: 75 });
+    await sup((c) => c.query(`DELETE FROM attempt_scores WHERE attempt_id = $1`, [attemptId]));
+    const upsert = () =>
+      withTenant(tenant, (c) =>
+        upsertAttemptScore(c, {
+          attempt_id: attemptId, tenant_id: tenant, total_earned: 70, total_max: 100, auto_pct: 70,
+          pending_review: false, archetype: null, archetype_signals: null,
+        }),
+      );
+    const mark = () => sup((c) => c.query(`SELECT pass_mark_pct FROM attempt_scores WHERE attempt_id=$1`, [attemptId]).then((r) => r.rows[0].pass_mark_pct as number));
+    await upsert();
+    expect(await mark()).toBe(75);
+    await sup((c) => c.query(`UPDATE assessments SET passing_score_pct = 40 WHERE id = (SELECT assessment_id FROM attempts WHERE id = $1)`, [attemptId]));
+    await upsert(); // re-score after the assessment mark changed
+    expect(await mark()).toBe(75);
+  });
+
+  it("the CHECK rejects a pass mark of 0 or 101 on both tables", async () => {
+    const { attemptId } = await seed();
+    for (const bad of [0, 101]) {
+      await expect(sup((c) => c.query(`UPDATE attempt_scores SET pass_mark_pct = $1 WHERE attempt_id = $2`, [bad, attemptId]))).rejects.toThrow(/check/i);
+      await expect(sup((c) => c.query(`UPDATE assessments SET passing_score_pct = $1 WHERE id = (SELECT assessment_id FROM attempts WHERE id = $2)`, [bad, attemptId]))).rejects.toThrow(/check/i);
+    }
+  });
+
+  it("RLS: another tenant cannot read pass_mark_pct or passing_score_pct", async () => {
+    const other = randomUUID();
+    await sup(async (c) => {
+      await c.query(`INSERT INTO tenants (id, slug, name) VALUES ($1,$2,'O2')`, [other, `o2-${other.slice(0, 8)}`]);
+    });
+    const { attemptId } = await seed({ mark: 80 });
+    const seen = await withTenant(other, async (c) => ({
+      scores: (await c.query(`SELECT pass_mark_pct FROM attempt_scores WHERE attempt_id = $1`, [attemptId])).rowCount,
+      assessments: (await c.query(`SELECT passing_score_pct FROM assessments WHERE id = (SELECT assessment_id FROM attempts WHERE id = $1)`, [attemptId])).rowCount,
+    }));
+    expect(seen).toEqual({ scores: 0, assessments: 0 });
   });
 });
 
