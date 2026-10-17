@@ -319,6 +319,17 @@ export async function publishPack(
       );
     }
 
+    // 2.6. Rights gate (EXP-2): a missing question_source row or rights 'scraped_raw' blocks
+    //      publish. Create paths and the 0194 backfill always write a row, so "missing" is a defect.
+    const rightsBlocked = await repo.listRightsBlockedQuestionIds(client, id);
+    if (rightsBlocked.length > 0) {
+      throw new ValidationError(
+        `Cannot publish: ${rightsBlocked.length} question(s) have no cleared rights status ` +
+          `(missing, or scraped_raw). Review the source and set the rights status first.`,
+        { details: { code: QB_ERROR_CODES.RIGHTS_NOT_CLEARED, question_ids: rightsBlocked } },
+      );
+    }
+
     // 3. Snapshot every question into question_versions, then bump the
     //    question's version. Bumping is necessary so a subsequent
     //    updateQuestion's snapshot-before-update rule lands on a NEW

@@ -112,6 +112,9 @@ beforeAll(async () => {
     // N21: the 0109 seed predates question_versions.type (0156); app code (clone) now writes it,
     // so add the column to the template AFTER the pre-0109 chain (0109 itself is applied per scenario).
     await c.query(await readFile(join(MODULES, "04-question-bank", "migrations", "0156_question_versions_type_n21.sql"), "utf8"));
+    // EXP-2: clone code now copies question_source (0194); same after-the-chain rule as 0156 (0194 reads question_packs.source from 0174).
+    await c.query(await readFile(join(MODULES, "04-question-bank", "migrations", "0174_question_imports.sql"), "utf8"));
+    await c.query(await readFile(join(MODULES, "04-question-bank", "migrations", "0194_question_source_and_exam_columns.sql"), "utf8"));
     // 016_super_admin.sql already bootstraps the platform tenant + super_admin user.
     platformId = "00000000-0000-7000-0000-000000000001";
     platformUser = "00000000-0000-7000-0000-000000000002";

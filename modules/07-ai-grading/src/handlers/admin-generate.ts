@@ -335,6 +335,12 @@ async function insertDrafts(
           difficultyParams,
         ],
       );
+      // EXP-2: provenance row (tenant_id from the pack). Same tx as the question INSERT.
+      await client.query(
+        `INSERT INTO question_source (tenant_id, question_id, origin, rights_status)
+         SELECT tenant_id, $1, 'ai_original', 'original' FROM question_packs WHERE id = $2`,
+        [id, input.packId],
+      );
       ids.push(id);
       if (warnings.length > 0) warningsOut[id] = warnings;
     } catch (err) {

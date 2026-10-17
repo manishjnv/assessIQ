@@ -288,8 +288,10 @@ function itemXml(q: QtiExportQuestion): string {
     + `<qti-item-body>${inner}</qti-item-body></qti-assessment-item>\n`;
 }
 
-export async function buildQtiPackage(input: { packName: string; questions: QtiExportQuestion[] }): Promise<Buffer> {
+export async function buildQtiPackage(input: { packName: string; questions: QtiExportQuestion[]; provenance?: unknown }): Promise<Buffer> {
   const zip = new JSZip();
+  // EXP-2: QTI has no slot for rights/provenance, so it travels as a sidecar the manifest does not list.
+  if (input.provenance !== undefined) zip.file("provenance.json", JSON.stringify(input.provenance, null, 2));
   const res: string[] = [];
   for (const q of input.questions) {
     const href = `items/${safeId(q.id)}.xml`;

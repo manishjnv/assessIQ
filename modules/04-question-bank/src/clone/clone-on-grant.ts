@@ -2,7 +2,7 @@ import { type PoolClient } from "pg";
 import { uuidv7, NotFoundError, ValidationError } from "@assessiq/core";
 import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
-import { type ClonePackResult, type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, uniqueNonNull, getPlatformTenantId, deriveCloneSlug } from "./helpers.js";
+import { type ClonePackResult, type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, uniqueNonNull, getPlatformTenantId, deriveCloneSlug, copyQuestionSource, NOT_WITHDRAWN_SQL } from "./helpers.js";
 import { provisionPlatformTaxonomyForQuestions } from "./taxonomy.js";
 
 export async function clonePackToTenant(
@@ -81,7 +81,7 @@ export async function clonePackToTenant(
     await client.query<SourceQuestionRow>(
       `SELECT id, level_id, type, topic, points, status, content, rubric,
               answer_guidance, knowledge_base_sources, domain_id, category_id
-         FROM questions WHERE pack_id = $1 ORDER BY created_at ASC, id ASC`,
+         FROM questions WHERE pack_id = $1 AND ${NOT_WITHDRAWN_SQL} ORDER BY created_at ASC, id ASC`,
       [sourcePackId],
     )
   ).rows;
@@ -258,6 +258,7 @@ export async function clonePackToTenant(
         q.id,
       ],
     );
+    await copyQuestionSource(client, q.id, newQuestionId, targetTenantId);
     // The v1 content snapshot the attempt engine resolves via MAX(qv.version).
     await client.query(
       `INSERT INTO question_versions (id, question_id, version, content, rubric, saved_by, type)

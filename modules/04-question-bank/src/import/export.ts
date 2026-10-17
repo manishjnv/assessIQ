@@ -25,8 +25,13 @@ export async function exportPackQti(
       if (all.length >= total || items.length === 0) break;
     }
     const questions = all.filter((q) => q.status !== "archived");
+    const sources = new Map((await repo.listQuestionSourcesForPack(client, packId)).map((r) => [r.question_id, r]));
     const file = await buildQtiPackage({
       packName: pack.name,
+      provenance: questions.map((q) => ({
+        id: q.id, difficulty_est: q.difficulty_est, review_state: q.review_state,
+        language_primary: q.language_primary, content_i18n: q.content_i18n, source: sources.get(q.id) ?? null,
+      })),
       questions: questions.map((q) => ({ id: q.id, type: q.type, topic: q.topic, points: q.points, content: q.content })),
     });
     await auditInTx(client, {

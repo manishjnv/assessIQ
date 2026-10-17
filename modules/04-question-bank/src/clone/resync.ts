@@ -2,7 +2,7 @@ import { type PoolClient } from "pg";
 import { uuidv7, NotFoundError, ValidationError } from "@assessiq/core";
 import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
-import { type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, getPlatformTenantId } from "./helpers.js";
+import { type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, getPlatformTenantId, copyQuestionSource, NOT_WITHDRAWN_SQL } from "./helpers.js";
 import { type CloneQuestionRow, type ResyncResult } from "./resync-types.js";
 import { buildTaxonomyResolver, stableJson } from "./taxonomy.js";
 
@@ -89,7 +89,7 @@ export async function resyncClonedPack(
     await client.query<SourceQuestionRow>(
       `SELECT id, level_id, type, topic, points, status, content, rubric,
               answer_guidance, knowledge_base_sources, domain_id, category_id
-         FROM questions WHERE pack_id = $1 AND status = 'active'
+         FROM questions WHERE pack_id = $1 AND status = 'active' AND ${NOT_WITHDRAWN_SQL}
         ORDER BY created_at ASC, id ASC`,
       [sourcePackId],
     )
@@ -222,6 +222,7 @@ export async function resyncClonedPack(
          VALUES ($1, $2, 1, $3::jsonb, $4::jsonb, $5, $6)`,
         [uuidv7(), nqid, contentJson, rubricJson, actorUserId, M.type],
       );
+      await copyQuestionSource(client, M.id, nqid, targetTenantId);
       // Tags (mirror clonePackToTenant): upsert source tags into target, link.
       const srcTags = (
         await client.query<{ name: string; category: string | null }>(
@@ -336,6 +337,16 @@ export async function resyncClonedPack(
       archived++;
     }
   }
+
+  // EXP-2: a master withdrawn after the clone was made is already archived above (it left the
+  // active set); mark the clone's own source row withdrawn too so the takedown is visible there.
+  await client.query(
+    `UPDATE question_source cs SET rights_status = 'withdrawn'
+       FROM questions cq JOIN question_source ms ON ms.question_id = cq.source_question_id
+      WHERE cs.question_id = cq.id AND cq.pack_id = $1
+        AND ms.rights_status = 'withdrawn' AND cs.rights_status <> 'withdrawn'`,
+    [clone.id],
+  );
 
   // ── Bump the clone pack version + record the new source_version ─────────────
   const newPackVersion = clone.version + 1;
