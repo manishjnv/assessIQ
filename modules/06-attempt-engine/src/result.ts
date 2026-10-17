@@ -26,6 +26,7 @@ import type { PoolClient } from "pg";
 import { NotFoundError, config, isPass, isUuid, streamLogger } from "@assessiq/core";
 import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from "@assessiq/tenancy";
 import { DETERMINISTIC_IDS } from "@assessiq/question-types";
+import { getSectionScoresForAttempt, type SectionScore } from "@assessiq/scoring";
 import * as repo from "./repository.js";
 import { AE_ERROR_CODES } from "./types.js";
 
@@ -96,6 +97,8 @@ export interface ReleasedResult {
   released_at: string;
   certificate: CandidateCertificateRef | null;
   negative_marking: NegativeMarkingSummary;
+  /** EXP-6: marks per section (earned/max, plus passed_cutoff for a qualifying section with a cutoff). Absent when the assessment has no sections. */
+  sections?: SectionScore[];
   /** Organisation name (text fallback when there is no logo). Added by getCandidateResult. */
   tenant_name?: string;
   /** Tenant logo URL for the co-branded Submitted page; null when none. Added by getCandidateResult. */
@@ -350,6 +353,7 @@ async function loadCandidateResult(
         const max = parseFloat(r.total_max);
         const percent = resultPercent(earned, max);
         const negativeMarking = (await loadNegativeMarking(client, [attemptId])).get(attemptId) ?? NO_NEGATIVE_MARKING;
+        const sections = await getSectionScoresForAttempt(client, attemptId); // [] without sections
         return {
           status: "released",
           total_earned: earned,
@@ -361,6 +365,7 @@ async function loadCandidateResult(
           released_at: new Date(r.released_at).toISOString(),
           certificate: certificateRef(r.credential_id),
           negative_marking: negativeMarking,
+          ...(sections.length > 0 ? { sections } : {}),
         };
       }
       log.warn({ tenantId, attemptId }, "result.released_without_score_row");

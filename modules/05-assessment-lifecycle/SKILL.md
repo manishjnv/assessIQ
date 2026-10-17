@@ -252,3 +252,11 @@ Tests:
 - **Considered and rejected.** Letting an admin change the mark after publish (history would shift, or the snapshot would hide the change). A cross-module FK for the snapshot.
 - **Not included.** Honors. Retake (Z-39). The result email wording.
 - **Downstream.** Admin UI: a field on the New assessment form (blank means the level default) and `PassMarkCard` on the detail page. Help id `admin.assessments.pass_mark`. The welcome page shows the mark through `assessment.pass_mark_pct` of the `/take/start` preview.
+
+## Full mock from an exam blueprint (EXP-6, 2026-10-17)
+
+- **What.** `createMockFromBlueprint` (`src/service/mock.ts`) and `POST /api/admin/blueprints/:id/mock`. Reads the blueprint through module 04 (05 depends on 04, never the reverse) and calls `createAssessment`, so a `draft` is created with all existing guards. Fills `settings.sections`, `settings.scoring.negative_marks_default` and `settings.exam_blueprint`. Section schema gains optional `qualifying` and `cutoff_marks`.
+- **Why.** One click gives the right sections and negative marking. The cutoff keys feed section results (module 09).
+- **Gaps, stated plainly.** (1) Sections are always timed one by one (module 06). A blueprint with one overall timer gets an even split of the minutes and a `warnings` entry. (2) The draw ignores `subject_node_id`: a section draws `question_count` questions from the pack and level pool. Draw by node needs the frozen-pool work. (3) Marks per question come from `questions.points`; the blueprint's value is not applied. (4) One negative value for the whole assessment: a blueprint with different values is rejected (400).
+- **Not included.** UI, draw by node, a single whole-test timer, publishing the draft.
+- **Tests.** `src/__tests__/mock-from-blueprint.test.ts`.

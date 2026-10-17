@@ -142,6 +142,9 @@ export const AssessmentSectionSchema = z
     question_count: z.number().int().min(1).max(500).optional(),
     minutes: z.number().int().min(1, "minutes must be at least 1").max(300, "minutes must be at most 300"),
     calculator: z.boolean().optional(),
+    /** EXP-6: a qualifying section with a cutoff reports `passed_cutoff` in the result (marks, not percent). */
+    qualifying: z.boolean().optional(),
+    cutoff_marks: z.number().min(0).max(1_000_000).optional(),
   })
   .strict()
   .refine((s) => s.category_ids !== undefined || s.question_count !== undefined, {

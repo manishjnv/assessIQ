@@ -46,6 +46,8 @@ export {
   bulkGenerateMissingRubrics,
 } from "./service.js";
 export { sweepStaleGenerationAttempts } from "./service/generation-async.js";
+// EXP-6: exam blueprints (module 05 builds a mock from one).
+export { listExamBlueprints, getExamBlueprint, type ExamBlueprint, type ExamBlueprintSection } from "./exam-blueprints.js";
 
 // ---------------------------------------------------------------------------
 // 2. Types and schemas

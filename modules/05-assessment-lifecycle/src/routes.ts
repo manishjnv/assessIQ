@@ -40,6 +40,7 @@ import {
   listAssessments,
   createAssessment,
   createAssessmentFromSet,
+  createMockFromBlueprint,
   importLicensedSet,
   resyncLicensedSet,
   getAssessmentDetail,
@@ -201,6 +202,46 @@ export async function registerAssessmentLifecycleRoutes(
 
       const assessment = await createAssessment(tenantId, input, userId);
       return reply.code(201).send(assessment);
+    },
+  );
+
+  // POST /api/admin/blueprints/:id/mock  (EXP-6)
+  // "Start a full mock": a DRAFT assessment from an exam blueprint, through createAssessment.
+  const MockBody = z
+    .object({
+      pack_id: z.string().uuid(),
+      level_id: z.string().uuid(),
+      opens_at: z.string().min(1),
+      closes_at: z.string().min(1).nullable().optional(),
+      name: z.string().trim().min(1).max(200).optional(),
+    })
+    .strict();
+  app.post(
+    "/api/admin/blueprints/:id/mock",
+    { preHandler: adminOnly },
+    async (req, reply) => {
+      const { id } = req.params as { id: string };
+      if (!UUID_RE.test(id)) {
+        throw new ValidationError("id must be a valid UUID", { details: { code: "INVALID_PARAM", param: "id" } });
+      }
+      const body = MockBody.safeParse(req.body);
+      if (!body.success) {
+        throw new ValidationError("invalid body", { details: { code: "INVALID_PARAM", issues: body.error.issues } });
+      }
+      const b = body.data;
+      const result = await createMockFromBlueprint(
+        req.session!.tenantId,
+        id,
+        {
+          pack_id: b.pack_id,
+          level_id: b.level_id,
+          opens_at: parseDate(b.opens_at, "opens_at"),
+          ...(b.closes_at != null ? { closes_at: parseDate(b.closes_at, "closes_at") } : {}),
+          ...(b.name !== undefined ? { name: b.name } : {}),
+        },
+        req.session!.userId,
+      );
+      return reply.code(201).send(result);
     },
   );
 

@@ -3743,3 +3743,20 @@ Response shape:
 ## OpenAPI spec
 
 A formal OpenAPI 3.1 spec lives at `infra/openapi.yaml`, kept in sync with this doc. Generated from Fastify route schemas via `fastify-swagger`. Tenants can pull it from `/api/openapi.yaml` (auth required).
+
+### Exam blueprints and "Start a full mock" (EXP-6, 2026-10-17)
+
+| Method and path | Who | Result |
+| --- | --- | --- |
+| `GET /api/admin/blueprints` | any admin | `{ items: ExamBlueprint[] }` (platform data, the same for every tenant) |
+| `GET /api/admin/blueprints/:id` | any admin | `ExamBlueprint`; 404 when unknown |
+| `POST /api/admin/blueprints` | super admin | 201 `ExamBlueprint` |
+| `PUT /api/admin/blueprints/:id` | super admin | full replace of the head and the sections; 200 |
+| `DELETE /api/admin/blueprints/:id` | super admin | `{ deleted: true }`; 404 when unknown |
+| `POST /api/admin/blueprints/:id/mock` | any admin | 201 `{ assessment, warnings }`. Body: `pack_id`, `level_id`, `opens_at` (required), `closes_at?`, `name?` |
+
+- **ExamBlueprint.** `id, stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note, total_questions, total_marks` (both derived) and `sections[]` (`position, name, subject_node_id, question_count, marks_per_question, negative_marks_per_question, minutes, sectional_timing, qualifying, cutoff_marks, calculator_allowed, allowed_types`).
+- **Validation (400).** 1 to 10 sections; `question_count >= 1`; marks `>= 0`; `0 <= negative <= marks`; optional `total_questions` must equal the section sum; `cutoff_marks` needs `qualifying` and must not exceed the section marks; `sectional_timing` is all or none, needs `minutes`, and the minutes must add up to `total_minutes`; stage and subject ids must be platform nodes of kind `stage` and `subject`; one blueprint per (stage, edition). Unknown body keys are rejected.
+- **Audit.** `exam_blueprint.created`, `.updated`, `.deleted` (module 14), written in the same transaction under the super admin's tenant.
+- **Mock.** Goes through `createAssessment`, so every existing guard applies (pack published, level in pack, `opens_at`, tenant scope). It writes a `draft` with `question_count` = the section sum, `settings.sections[]` (`name, question_count, minutes, calculator?, qualifying?, cutoff_marks?`), `settings.scoring.negative_marks_default` and `settings.exam_blueprint` (`id, edition, verification_status`). 400 when the sections have different negative marks. `warnings` tells the admin that sections are timed one by one: a blueprint without sectional timing gets an even split of `total_minutes`. **The draw does not use `subject_node_id` today**: a section takes `question_count` questions from the pack and level pool in order, so the pool must hold the exam's questions. Marks per question come from each question's `points`, not from the blueprint.
+- **Result payload.** `GET /api/me/attempts/:id/result` (released) adds `sections[]` (`index, name, earned, max` and, for a qualifying section with `cutoff_marks`, `cutoff_marks` and `passed_cutoff`) only when the assessment has sections. `passed` and `pass_mark_pct` are unchanged. Admin attempt detail (module 07) carries the same optional keys in `section_scores`.
