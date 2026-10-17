@@ -226,7 +226,7 @@ export function AdminDashboard(): React.ReactElement {
             <button
               type="button"
               className="aiq-btn aiq-btn-primary"
-              onClick={() => navigate("/admin/assessments")}
+              onClick={() => navigate("/admin/assessments?new=1")}
             >
               New assessment
             </button>

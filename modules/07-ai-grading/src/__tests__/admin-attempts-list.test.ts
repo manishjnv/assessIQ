@@ -270,6 +270,32 @@ afterAll(async () => {
 // ===========================================================================
 
 describe("handleAdminListAttempts", () => {
+  it("Z-22. assessmentId filter — only that assessment; cross-tenant id yields nothing", async () => {
+    const cand = randomUUID();
+    const asm2 = randomUUID();
+    let a1!: string;
+    let a2!: string;
+    await withSuperClient(async (client) => {
+      await insertCandidateUser(client, cand, TENANT_ID, `z22-${randomUUID().slice(0, 8)}@test.local`);
+      await client.query(
+        `INSERT INTO assessments
+           (id, tenant_id, pack_id, level_id, pack_version, name, question_count, status, created_by)
+         VALUES ($1, $2, $3, $4, 2, 'Z22 Second', 1, 'active', $5)`,
+        [asm2, TENANT_ID, PACK_ID, LEVEL_ID, ADMIN_ID],
+      );
+      a1 = await insertAttempt(client, { tenantId: TENANT_ID, assessmentId: ASSESSMENT_ID, candidateId: cand, status: "submitted", submittedAt: "2026-03-01T08:00:00Z" });
+      a2 = await insertAttempt(client, { tenantId: TENANT_ID, assessmentId: asm2, candidateId: cand, status: "submitted", submittedAt: "2026-03-01T09:00:00Z" });
+    });
+    const base = { userId: ADMIN_ID, limit: 100, offset: 0 };
+    const r = await handleAdminListAttempts({ ...base, tenantId: TENANT_ID, assessmentId: asm2 });
+    expect(r.items.map((i) => i.id)).toEqual([a2]);
+    expect(r.total).toBe(1);
+    expect(r.items.map((i) => i.id)).not.toContain(a1);
+    const x = await handleAdminListAttempts({ ...base, tenantId: OTHER_TENANT_ID, assessmentId: asm2 });
+    expect(x.items).toEqual([]);
+    expect(x.total).toBe(0);
+  });
+
   // -------------------------------------------------------------------------
   // 1. Happy path — 3 attempts with varied statuses → returns all 3, ordered
   //    by submitted_at DESC NULLS LAST.

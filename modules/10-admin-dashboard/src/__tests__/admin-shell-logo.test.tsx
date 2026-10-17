@@ -44,6 +44,8 @@ vi.mock("../session.js", () => ({
 
 vi.mock("@assessiq/help-system/components", () => ({
   HelpProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  HelpDrawerTrigger: () => null,
+  useHelpContext: () => ({ page: 'admin.x', entries: new Map(), loading: false, drawerOpenKey: null, openDrawer: () => {}, closeDrawer: () => {} }),
 }));
 
 import { AdminShell } from "../components/AdminShell.js";
@@ -79,5 +81,19 @@ describe("AdminShell — tenant logo", () => {
     renderShell();
     expect(screen.queryByAltText("Acme College logo")).toBeNull();
     expect(screen.getAllByText("Acme College").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the top bar, breadcrumbs and content inside landmarks (axe region)", () => {
+    sessionRef.logo_url = null;
+    render(
+      <MemoryRouter>
+        <ThemeProvider>
+          <AdminShell breadcrumbs={["Home", "Page"]}><h1>Title</h1></AdminShell>
+        </ThemeProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getAllByRole("banner")).toHaveLength(1);
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeTruthy();
   });
 });

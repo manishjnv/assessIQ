@@ -24,6 +24,7 @@
 //  - Error state: per-section inline error text.
 
 import React, { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { StatCard,
   ActivityHeatmap,
   StackedBarChart,
@@ -752,7 +753,7 @@ export function AdminActivity(): React.ReactElement {
         </div>
 
         <div role="tablist" aria-label="Activity views" style={{ display: "flex", gap: "var(--aiq-space-xs)" }}>
-          {([["overview", "Overview"], ["audit", "Audit log"]] as const).map(([value, label]) => (
+          {([["overview", "Overview"], ["audit", "Recent activity"]] as const).map(([value, label]) => (
             <button
               key={value}
               type="button"
@@ -764,6 +765,12 @@ export function AdminActivity(): React.ReactElement {
               {label}
             </button>
           ))}
+          <Link
+            to="/admin/audit-log"
+            style={{ alignSelf: "center", marginLeft: "var(--aiq-space-sm)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}
+          >
+            Open the full audit log
+          </Link>
         </div>
 
         {tab === "audit" && <ActivityFeedSection onError={setFeedError} />}

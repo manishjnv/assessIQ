@@ -3,12 +3,11 @@
 // /admin/guide — end-to-end assessment workflow guide for tenant admins (L1→L3).
 // Audience: tenant admins learning the full workflow.
 //
-// Option A (v1): static JSX content baked in.  Fast to ship; full styling
-// control via @assessiq/ui-system primitives.  No runtime fetch.
-//
-// Phase 4+ TODO(phase-4): migrate content to modules/16-help-system as structured YAML
-// (Option B from the 2026-05-04 session brief) so the guide can be edited
-// without a code-change + redeploy.
+// S16 (2026-10-17): the 12 steps, 6 tips and 6 FAQ now live in
+// modules/16-help-system/content/en/admin.yml (admin.guide.step_NN / tip_* /
+// faq_*) and load through the help API (HelpProvider page="admin.guide").
+// short_text is the title; long_md is the body (paragraphs, "- " lists, **bold**).
+// Overview and Prerequisites stay static here.
 //
 // Wrapped externally by <AdminShell> in apps/web/src/App.tsx — same pattern
 // as /admin/users (commit 473fef1).  No AdminShell import here; pure content.
@@ -22,13 +21,12 @@
 //  - Step number circles show plain integers (1–12), no zero-padding.
 //  - All 12 steps reference live pages as of commit 35f78e6 (Question bank,
 //    Assessments, Reports, Users, Attempts, Grading all in sidebar).
-//  - The only "coming soon" note is the Audit log tip (Settings → Audit log
-//    UI not yet shipped; raw log access via Settings → Audit is pending).
 
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Icon } from "@assessiq/ui-system";
 import type { IconName } from "@assessiq/ui-system";
+import { HelpProvider, useHelpContext } from "@assessiq/help-system/components";
 
 // ── Section IDs ───────────────────────────────────────────────────────────────
 
@@ -41,22 +39,38 @@ const S = {
   step: (n: number) => `guide-step-${n}`,
 } as const;
 
-// ── Short TOC labels (one per step) ──────────────────────────────────────────
+// ── Help keys (order = page order) ───────────────────────────────────────────
 
-const STEP_LABELS: readonly string[] = [
-  "Find your sets",      // 01
-  "Copy a set",          // 02
-  "Question types",      // 03
-  "Build an assessment", // 04
-  "Sections & timers",   // 05
-  "Integrity settings",  // 06
-  "Publish assessment",  // 07
-  "Invite candidates",   // 08
-  "Candidates take",     // 09
-  "Grading",             // 10
-  "Review & release",    // 11
-  "Reports & results",   // 12
+const STEP_KEYS = Array.from({ length: 12 }, (_, i) => `admin.guide.step_${String(i + 1).padStart(2, "0")}`);
+
+const TIPS: ReadonlyArray<{ key: string; icon: IconName }> = [
+  { key: "admin.guide.tip_score_bands", icon: "chart" },
+  { key: "admin.guide.tip_audit_log", icon: "eye" },
+  { key: "admin.guide.tip_regrading", icon: "sparkle" },
+  { key: "admin.guide.tip_organisations", icon: "grid" },
+  { key: "admin.guide.tip_questions", icon: "sparkle" },
+  { key: "admin.guide.tip_plan", icon: "chart" },
 ];
+
+const FAQ_KEYS = [
+  "admin.guide.faq_retake",
+  "admin.guide.faq_grading_fails",
+  "admin.guide.faq_set_change",
+  "admin.guide.faq_close_window",
+  "admin.guide.faq_write_questions",
+  "admin.guide.faq_usage_banner",
+];
+
+// Navigation buttons under a step (page names stay in code; text is in the help content).
+const STEP_ACTIONS: Readonly<Record<number, ReadonlyArray<{ label: string; to: string }>>> = {
+  8: [{ label: "Open Users →", to: "/admin/users" }],
+  9: [{ label: "View Attempts →", to: "/admin/attempts" }],
+  10: [{ label: "View Attempts →", to: "/admin/attempts" }],
+  12: [
+    { label: "View Attempts →", to: "/admin/attempts" },
+    { label: "How grading works →", to: "/admin/grading-jobs" },
+  ],
+};
 
 // ── Shared style objects ──────────────────────────────────────────────────────
 
@@ -111,21 +125,24 @@ function UL({ items }: { items: React.ReactNode[] }): React.ReactElement {
   );
 }
 
-function _Callout({ children }: { children: React.ReactNode }): React.ReactElement {
+// Minimal markdown: blank-line paragraphs, "- " lists, **bold**. Help content is trusted admin copy.
+function inline(t: string): React.ReactNode[] {
+  return t.split(/\*\*(.+?)\*\*/g).map((x, i) => (i % 2 ? <strong key={i}>{x}</strong> : x));
+}
+
+function Md({ text }: { text: string }): React.ReactElement {
+  const blocks = text.split(/\n\s*\n/).map((b) => b.trim()).filter(Boolean);
   return (
-    <div
-      style={{
-        marginTop: "var(--aiq-space-sm)",
-        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-        borderRadius: "var(--aiq-radius-sm)",
-        background: "var(--aiq-color-bg-sunken)",
-        borderLeft: "3px solid var(--aiq-color-accent)",
-      }}
-    >
-      <p style={{ ...BODY, fontSize: "var(--aiq-text-xs)", margin: 0 }}>
-        {children}
-      </p>
-    </div>
+    <>
+      {blocks.map((b, i) => {
+        const lines = b.split("\n");
+        return lines.every((l) => l.startsWith("- ")) ? (
+          <UL key={i} items={lines.map((l) => inline(l.slice(2)))} />
+        ) : (
+          <P key={i}>{inline(lines.join(" "))}</P>
+        );
+      })}
+    </>
   );
 }
 
@@ -278,27 +295,25 @@ function TipCard({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function AdminGuide(): React.ReactElement {
+  return (
+    <HelpProvider page="admin.guide" audience="admin">
+      <AdminGuideBody />
+    </HelpProvider>
+  );
+}
+
+function AdminGuideBody(): React.ReactElement {
   const navigate = useNavigate();
+  const { entries, loading, error } = useHelpContext();
+  const title = (k: string): string => entries.get(k)?.shortText ?? "";
+  const body = (k: string): string => entries.get(k)?.longMd ?? "";
+  const h2 = { ...SERIF_HEADING, fontSize: "var(--aiq-text-xl)", marginBottom: "var(--aiq-space-md)" } as const;
+  const stack = { display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" } as const;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        gap: "var(--aiq-space-2xl)",
-        alignItems: "flex-start",
-      }}
-    >
+    <div style={{ display: "flex", gap: "var(--aiq-space-2xl)", alignItems: "flex-start" }}>
       {/* ── Main content ─────────────────────────────────────────────── */}
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: "var(--aiq-space-xl)",
-        }}
-      >
-        {/* Page title */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         <div>
           <span style={MONO_LABEL}>Admin guide</span>
           <h1
@@ -311,31 +326,14 @@ export function AdminGuide(): React.ReactElement {
           >
             Conducting an assessment.
           </h1>
-          <p
-            style={{
-              ...BODY,
-              fontSize: "var(--aiq-text-md)",
-              color: "var(--aiq-color-fg-secondary)",
-            }}
-          >
+          <p style={{ ...BODY, fontSize: "var(--aiq-text-md)" }}>
             From a licensed question set to candidate results.
           </p>
         </div>
 
         {/* ── Overview ─────────────────────────────────────────────── */}
-        <section
-          id={S.OVERVIEW}
-          style={{ scrollMarginTop: "var(--aiq-space-xl)" }}
-        >
-          <h2
-            style={{
-              ...SERIF_HEADING,
-              fontSize: "var(--aiq-text-xl)",
-              marginBottom: "var(--aiq-space-md)",
-            }}
-          >
-            Overview — the three-layer model.
-          </h2>
+        <section id={S.OVERVIEW} style={{ scrollMarginTop: "var(--aiq-space-xl)" }}>
+          <h2 style={h2}>Overview — the three-layer model.</h2>
           <Card padding="md">
             <P>An assessment in AssessIQ uses three things:</P>
             <UL
@@ -357,327 +355,64 @@ export function AdminGuide(): React.ReactElement {
         </section>
 
         {/* ── Prerequisites ────────────────────────────────────────── */}
-        <section
-          id={S.PREREQUISITES}
-          style={{ scrollMarginTop: "var(--aiq-space-xl)" }}
-        >
-          <h2
-            style={{
-              ...SERIF_HEADING,
-              fontSize: "var(--aiq-text-xl)",
-              marginBottom: "var(--aiq-space-md)",
-            }}
-          >
-            Prerequisites.
-          </h2>
+        <section id={S.PREREQUISITES} style={{ scrollMarginTop: "var(--aiq-space-xl)" }}>
+          <h2 style={h2}>Prerequisites.</h2>
           <Card padding="md">
             <UL
               items={[
                 <><strong>Admin role</strong> in your organisation account.</>,
-                <>Two-step sign-in is<strong>optional and recommended</strong>.</>,
+                <>Two-step sign-in is <strong>optional and recommended</strong>.</>,
                 <>List of <strong>candidate email addresses</strong> ready.</>,
               ]}
             />
           </Card>
         </section>
 
+        {loading && <p style={BODY}>Loading the guide…</p>}
+        {!loading && error && <p style={BODY}>The guide could not load. Refresh the page to try again.</p>}
+
         {/* ── Steps ────────────────────────────────────────────────── */}
         <section id={S.STEPS}>
-          <h2
-            style={{
-              ...SERIF_HEADING,
-              fontSize: "var(--aiq-text-xl)",
-              marginBottom: "var(--aiq-space-md)",
-            }}
-          >
-            The 12-step workflow.
-          </h2>
-
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--aiq-space-md)",
-            }}
-          >
-            {/* ── Step 1 ── */}
-            <StepCard number={1} title="Find your licensed sets">
-              <P>
-                Click <strong>Question bank</strong> in the sidebar. The
-                licensed sets section lists the sets your organisation can use.
-                AssessIQ writes all question sets. Your organisation does not write
-                them. To get more sets, contact your AssessIQ administrator.
-              </P>
-            </StepCard>
-
-            {/* ── Step 2 ── */}
-            <StepCard number={2} title="Copy a set">
-              <P>
-                Import a licensed set to make your own copy (a clone). The copy
-                appears in your question bank. When AssessIQ updates the
-                original, an update option shows on the set.
-              </P>
-            </StepCard>
-
-            {/* ── Step 3 ── */}
-            <StepCard number={3} title="Know the question types">
-              <P>A set can contain these question types:</P>
-              <UL
-                items={[
-                  <><strong>MCQ</strong>, <strong>Multi-select</strong>, <strong>Numeric</strong> and <strong>Ordering</strong> — scored automatically when the candidate submits.</>,
-                  <><strong>Subjective</strong>, <strong>KQL</strong>, <strong>Log analysis</strong> and <strong>Scenario</strong> — graded by AssessIQ. You review and release the result.</>,
-                ]}
-              />
-            </StepCard>
-
-            {/* ── Step 4 ── */}
-            <StepCard number={4} title="Build an assessment">
-              <P>
-                Click <strong>Assessments</strong> → <strong>+ New Assessment</strong>.
-                Pick a set, then set the name and the open and close window.
-                Save the assessment as a draft.
-              </P>
-            </StepCard>
-
-            {/* ── Step 5 ── */}
-            <StepCard number={5} title="Add sections and timers">
-              <P>
-                When you build from a set, you can split the assessment into
-                sections. Each section has its own time limit. You can allow
-                an on-screen calculator in a section.
-              </P>
-            </StepCard>
-
-            {/* ── Step 6 ── */}
-            <StepCard number={6} title="Set integrity options">
-              <P>
-                Turn on the options you need: a fullscreen requirement for the
-                candidate, and a block on copy and paste. You can change these
-                on the assessment page. AssessIQ does not use webcam proctoring.
-              </P>
-            </StepCard>
-
-            {/* ── Step 7 ── */}
-            <StepCard number={7} title="Publish the assessment">
-              <P>
-                Review the settings → <strong>Publish</strong>. The assessment
-                is live and you can send invitations.
-              </P>
-            </StepCard>
-
-            {/* ── Step 8 ── */}
-            <StepCard number={8} title="Invite candidates">
-              <P>
-                Open the assessment page. Invite candidates one by one, or use{" "}
-                <strong>Import from CSV</strong> to add many at once (up to 1,000 rows in one file).
-              </P>
-              <P>
-                Each candidate receives an email with a link that is valid for
-                7 days. Track invitation status on the assessment page. If a candidate misses the window, press{" "}
-                <strong>Resend</strong> on their row (or{" "}
-                <strong>Resend to everyone who hasn&apos;t started</strong>) —
-                they get a fresh 7-day link and the old one stops working.
-              </P>
-              <div style={{ marginTop: "var(--aiq-space-sm)" }}>
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  onClick={() => navigate("/admin/users")}
-                >
-                  Open Users →
-                </button>
-              </div>
-            </StepCard>
-
-            {/* ── Step 9 ── */}
-            <StepCard number={9} title="Candidates take the assessment">
-              <P>
-                Candidates open the link and start the assessment. The timer starts when
-                they begin. When a candidate submits, the attempt appears under{" "}
-                <strong>Attempts</strong> in your sidebar.
-              </P>
-              <div style={{ marginTop: "var(--aiq-space-sm)" }}>
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  onClick={() => navigate("/admin/attempts")}
-                >
-                  View Attempts →
-                </button>
-              </div>
-            </StepCard>
-
-            {/* ── Step 10 ── */}
-            <StepCard number={10} title="AssessIQ grades written answers">
-              <P>
-                <strong>You don't grade anything.</strong>{" "}
-                Multiple-choice answers are scored the moment a candidate
-                submits. Written answers are graded by AssessIQ graders
-                with AI assistance. When an attempt is graded it shows as{" "}
-                <strong>Ready to release</strong> on the Attempts page; until
-                then it shows <strong>Awaiting grading</strong> and no score
-                is visible.
-              </P>
-              <div style={{ marginTop: "var(--aiq-space-sm)" }}>
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  onClick={() => navigate("/admin/attempts")}
-                >
-                  View Attempts →
-                </button>
-              </div>
-            </StepCard>
-
-            {/* ── Step 11 ── */}
-            <StepCard number={11} title="Review and release">
-              <P>
-                Open an attempt marked <strong>Ready to release</strong> and
-                scroll through each question: the final score, the evidence and
-                the reasoning behind it. Then:
-              </P>
-              <UL
-                items={[
-                  <><strong>Release to candidate</strong> — the candidate sees the result. On the assessment page, <strong>Release all ready</strong> does this for every ready attempt at once. In Settings you choose the result release mode: <strong>Manual</strong> (the default) or <strong>Automatic</strong>. With Automatic, results are released when they are ready. Candidates see only complete scores.</>,
-                  <><strong>Override</strong> — record your own score with a reason; the grader's score is kept beside it (audit trail, never replaced).</>,
-                  <><strong>Send back for re-grading</strong> — return the attempt to AssessIQ with a note.</>,
-                ]}
-              />
-            </StepCard>
-
-            {/* ── Step 12 ── */}
-            <StepCard number={12} title="Generate reports">
-              <P>
-                <strong>Reports</strong> has a cohort report for each assessment
-                and an individual report for each candidate. On the assessment
-                page, <strong>Download results (CSV)</strong> exports the
-                results. <strong>Certificates</strong> in the sidebar lists the
-                certificates you have issued.
-              </P>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "var(--aiq-space-sm)",
-                  marginTop: "var(--aiq-space-sm)",
-                }}
-              >
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  onClick={() => navigate("/admin/attempts")}
-                >
-                  View Attempts →
-                </button>
-                <button
-                  type="button"
-                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
-                  onClick={() => navigate("/admin/grading-jobs")}
-                >
-                  How grading works →
-                </button>
-              </div>
-            </StepCard>
+          <h2 style={h2}>The 12-step workflow.</h2>
+          <div style={stack}>
+            {STEP_KEYS.map((k, i) => (
+              <StepCard key={k} number={i + 1} title={title(k)}>
+                <Md text={body(k)} />
+                {STEP_ACTIONS[i + 1] && (
+                  <div style={{ display: "flex", gap: "var(--aiq-space-sm)", marginTop: "var(--aiq-space-sm)" }}>
+                    {STEP_ACTIONS[i + 1]!.map((a) => (
+                      <button
+                        key={a.label}
+                        type="button"
+                        className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                        onClick={() => navigate(a.to)}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </StepCard>
+            ))}
           </div>
         </section>
 
         {/* ── Tips ─────────────────────────────────────────────────── */}
         <section id={S.TIPS} style={{ scrollMarginTop: "var(--aiq-space-xl)" }}>
-          <h2
-            style={{
-              ...SERIF_HEADING,
-              fontSize: "var(--aiq-text-xl)",
-              marginBottom: "var(--aiq-space-md)",
-            }}
-          >
-            Tips.
-          </h2>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--aiq-space-md)",
-            }}
-          >
-            <TipCard
-              icon="chart"
-              title="Score bands, not percentages"
-              body="Written answers are scored in score bands: 0, 25, 50, 75 or 100. Each score band comes with evidence and reasoning."
-            />
-            <TipCard
-              icon="eye"
-              title="Audit log"
-              body="Admin actions are recorded."
-            />
-            <TipCard
-              icon="sparkle"
-              title="Re-grading"
-              body="Not happy with a score? Override it with a reason, or send the attempt back to AssessIQ for re-grading with a note. AssessIQ does the grading, not your organisation."
-            />
-            <TipCard
-              icon="grid"
-              title="Separate organisations"
-              body="Every action is scoped to your organisation. You only see your organisation's data — question sets, users, grades, and reports are strictly isolated at the database row level."
-            />
-            <TipCard
-              icon="sparkle"
-              title="Where your questions come from"
-              body="AssessIQ writes all question sets. Your organisation works from the sets it is licensed to use. If you publish an assessment with a set you are not licensed for, publishing is refused and the assessment stays in draft. Contact your AssessIQ administrator to get more sets."
-            />
-            <TipCard
-              icon="chart"
-              title="Your plan & usage"
-              body="One credit is used when a candidate attempt is graded. Re-grading the same attempt never charges again. The banner at the top of your dashboard turns amber when you reach 80% of your included credits and red when you go over — but grading never stops. Contact your AssessIQ administrator to discuss your plan."
-            />
+          <h2 style={h2}>Tips.</h2>
+          <div style={stack}>
+            {TIPS.map((t) => (
+              <TipCard key={t.key} icon={t.icon} title={title(t.key)} body={body(t.key).trim()} />
+            ))}
           </div>
         </section>
 
         {/* ── FAQ ──────────────────────────────────────────────────── */}
         <section id={S.FAQ} style={{ scrollMarginTop: "var(--aiq-space-xl)" }}>
-          <h2
-            style={{
-              ...SERIF_HEADING,
-              fontSize: "var(--aiq-text-xl)",
-              marginBottom: "var(--aiq-space-md)",
-            }}
-          >
-            FAQ.
-          </h2>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--aiq-space-md)",
-            }}
-          >
-            {(
-              [
-                {
-                  q: "Can a candidate retake?",
-                  a: "Not by default. Admin manually creates a new invitation if needed.",
-                },
-                {
-                  q: "What if the grading of an attempt fails?",
-                  a: "AssessIQ handles it. An attempt stays in the AssessIQ queue until every question has a final score, and nothing is shown to the candidate before that.",
-                },
-                {
-                  q: "Does a change to a licensed set change my assessments?",
-                  a: "No. Existing assessments keep the questions they were published with.",
-                },
-                {
-                  q: "What happens at the close window?",
-                  a: "The cycle closes automatically. In-progress attempts auto-submit at their per-attempt timer expiry, regardless of cycle status.",
-                },
-                {
-                  q: "Why can't I write questions?",
-                  a: "AssessIQ writes all question sets. Organisation admins do not write them. You copy the sets your organisation is licensed for and build assessments from them. Contact your AssessIQ administrator to request more sets.",
-                },
-                {
-                  q: "What does the usage banner mean — will grading stop if I go over?",
-                  a: "No — grading never stops. The banner is informational only. Green means you have used less than 80% of your included credits. Amber means 80–100% used. Red means you are over your included credits, but assigning, submitting, and grading all continue to work. Contact your AssessIQ administrator if you need to discuss your plan.",
-                },
-              ] as Array<{ q: string; a: string }>
-            ).map(({ q, a }) => (
-              <Card key={q} padding="md">
+          <h2 style={h2}>FAQ.</h2>
+          <div style={stack}>
+            {FAQ_KEYS.map((k) => (
+              <Card key={k} padding="md">
                 <h3
                   style={{
                     fontFamily: "var(--aiq-font-sans)",
@@ -688,9 +423,9 @@ export function AdminGuide(): React.ReactElement {
                     color: "var(--aiq-color-fg-primary)",
                   }}
                 >
-                  {q}
+                  {title(k)}
                 </h3>
-                <p style={{ ...BODY, margin: 0 }}>{a}</p>
+                <p style={{ ...BODY, margin: 0 }}>{body(k).trim()}</p>
               </Card>
             ))}
           </div>
@@ -708,21 +443,12 @@ export function AdminGuide(): React.ReactElement {
           flexDirection: "column",
         }}
       >
-        <span
-          style={{ ...MONO_LABEL, marginBottom: "var(--aiq-space-sm)", display: "block" }}
-        >
-          On this page
-        </span>
+        <span style={{ ...MONO_LABEL, marginBottom: "var(--aiq-space-sm)", display: "block" }}>On this page</span>
         <TocLink href={S.OVERVIEW} label="Overview" />
         <TocLink href={S.PREREQUISITES} label="Prerequisites" />
         <TocLink href={S.STEPS} label="Steps" />
-        {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => (
-          <TocLink
-            key={n}
-            href={S.step(n)}
-            label={`${n} — ${STEP_LABELS[n - 1]}`}
-            sub
-          />
+        {STEP_KEYS.map((k, i) => (
+          <TocLink key={k} href={S.step(i + 1)} label={`${i + 1} — ${title(k)}`} sub />
         ))}
         <TocLink href={S.TIPS} label="Tips" />
         <TocLink href={S.FAQ} label="FAQ" />
