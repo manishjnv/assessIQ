@@ -2499,3 +2499,11 @@ Order matters: 0186 must apply before the api restart because `getUsage` now sel
 **Smoke:** all 6 `assessiq-*` containers are healthy after 18 s. No errors in the api or worker logs in the first 3 minutes. `/api/health` 200, `/api/ready` 200, `https://assessiq.in/` 200, `/admin/login` 200. `/embed/sdk.js` 200 with the body `/* @assessiq/embed 1.0.0 */...`, `x-assessiq-sdk-version: 1.0.0`, `x-content-type-options: nosniff` (Cloudflare rewrites the `ETag` to a weak `-gzip` form and `cache-control` to 14400, so the API 304 path does not fire through the edge). `/api/me/notifications`, `/api/admin/audit/export.jsonl` and `/api/admin/frameworks` answer 401 without a session. `/embed?token=x` answers 401 with `frame-ancestors 'none'` AND `x-frame-options: DENY`: the shared Caddy snippet still overrides the API headers (FU-B13 owner gate, diff in `docs/SESSION_STATE.md` S13).
 **Not done / follow-ups:** the Caddy change for FU-B13 (owner). No live test of the embed secrets flow (needs fresh MFA), the webhook replay or the candidate banner; the owner test list is in the S13 handoff. The root `pnpm test` was not re-run in full after the test-only commit `11d7b94`.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate `assessiq-api`, `assessiq-worker`, `assessiq-frontend`. 0182 adds help rows only (older builds read the older versions); no schema change to revert.
+
+### S17 follow-up deploy (2026-10-17, HEAD `67e5db5`): Z-37 part (email label, template-sender test)
+
+*Type: reference.*
+
+- **Deployed:** `/srv/assessiq` pulled to `67e5db5`; `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-worker`, then `up -d --no-deps --force-recreate assessiq-api assessiq-worker`. Both healthy after 25 s, 0 error lines, `/api/ready` 200. No migrations, no new env variables.
+- **What changed:** the meta label "Company" is now "Organisation" in 5 emails (one function, `modules/13-notifications/src/email/render.ts`). A new test fails when an email template has no sender; four unsent templates are on a named allowlist and nothing was deleted.
+- **Rollback:** `git revert 67e5db5`, rebuild and recreate the same two services.
