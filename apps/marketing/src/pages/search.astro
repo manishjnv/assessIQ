@@ -2,7 +2,7 @@
 // search.astro — On-site search page powered by Pagefind (/search)
 // NOINDEX: search results pages should not be indexed by search engines.
 // NOT added to sitemap. NOT in nav (footer or header).
-// Reads ?q= URL param and pre-populates the Pagefind UI search input.
+// Reads ?q= URL param and pre-populates the Pagefind component UI search input.
 import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
@@ -13,7 +13,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   noindex={true}
 >
   <!-- Pagefind UI stylesheet — generated into dist/pagefind/ after build -->
-  <link rel="stylesheet" href="/pagefind/pagefind-ui.css" />
+  <link rel="stylesheet" href="/pagefind/pagefind-component-ui.css" />
 
   <!-- Search hero -->
   <section class="bg-aiq-bg-base border-b border-aiq-border">
@@ -30,34 +30,33 @@ import BaseLayout from '../layouts/BaseLayout.astro';
   <!-- Pagefind search UI -->
   <section class="bg-aiq-bg-base min-h-[40vh]">
     <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
-      <div id="search"></div>
+      <div id="search">
+        <pagefind-input autofocus></pagefind-input>
+        <pagefind-summary></pagefind-summary>
+        <pagefind-results></pagefind-results>
+      </div>
     </div>
   </section>
 
 </BaseLayout>
 
-<!-- Pagefind UI init — reads ?q= param and triggers search -->
+<!-- Pagefind component UI (generated at build time) + ?q= prefill -->
+<script is:inline src="/pagefind/pagefind-component-ui.js" type="module"></script>
 <script is:inline>
   window.addEventListener('DOMContentLoaded', function () {
-    // Dynamically load pagefind-ui.js (generated at build time)
-    var script = document.createElement('script');
-    script.src = '/pagefind/pagefind-ui.js';
-    script.onload = function () {
-      var ui = new PagefindUI({ element: '#search', showSubResults: true });
-
-      // Pre-populate + trigger search from ?q= URL param
-      var params = new URLSearchParams(window.location.search);
-      var q = params.get('q');
-      if (q) {
-        // Pagefind UI exposes no direct API to pre-trigger; we set the input
-        // value and dispatch an input event, which triggers the internal search.
-        var input = document.querySelector('#search input[type="text"]');
-        if (input) {
-          input.value = q;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
-        }
+    var q = new URLSearchParams(window.location.search).get('q');
+    if (!q) return;
+    // Component UI has no prefill attribute; set the input value and dispatch
+    // an input event. The input renders asynchronously, so retry briefly.
+    var tries = 0;
+    (function fill() {
+      var input = document.querySelector('#search pagefind-input input');
+      if (input) {
+        input.value = q;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      } else if (tries++ < 50) {
+        setTimeout(fill, 100);
       }
-    };
-    document.body.appendChild(script);
+    })();
   });
 </script>
