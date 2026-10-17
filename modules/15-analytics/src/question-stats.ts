@@ -139,6 +139,7 @@ function assemble(
 const QUESTION_SQL = `SELECT q.id, q.type, q.pack_id, q.cognitive_level, q.difficulty_params, l.position, l.label
          FROM questions q JOIN levels l ON l.id = q.level_id WHERE q.id = $1`;
 
+// SECURITY: the roll-up branch reads across tenants under withSystemRole. Only the super_admin route may call this function; never expose it to a tenant route.
 export async function getQuestionStats(questionId: string): Promise<QuestionStatsResult> {
   const found = await withSystemRole('super-admin question stats tenant lookup (read-only)', async (client) => {
     await client.query('SET TRANSACTION READ ONLY');

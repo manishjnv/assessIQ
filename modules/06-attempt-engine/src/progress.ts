@@ -10,6 +10,7 @@
  * parent or its grandparent, whichever has kind 'subject'). A question with no
  * subject is grouped under "Other". review_needed rows are skipped (not final).
  * "correct" matches modules/15-analytics: status 'correct' or full marks.
+ * A question mapped to subject nodes in two frameworks counts once in each subject (intended).
  */
 
 import { withTenant } from "@assessiq/tenancy";
@@ -66,7 +67,8 @@ const SUBJECTS_SQL = `WITH latest AS (
     FROM gradings g
     JOIN attempts a ON a.id = g.attempt_id
    WHERE a.user_id = $1 AND a.status = 'released'
-   ORDER BY g.attempt_id, g.question_id, g.graded_at DESC, g.id DESC
+   -- same effective-grading rule as 09-scoring: newest graded_at, admin_override wins a tie
+   ORDER BY g.attempt_id, g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC, g.id DESC
 ), rows AS (
   SELECT l.attempt_id, l.question_id,
          (l.status = 'correct' OR (l.score_earned = l.score_max AND l.score_max > 0)) AS is_correct,

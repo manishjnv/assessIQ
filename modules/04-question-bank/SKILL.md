@@ -351,5 +351,5 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 - **API field.** `POST /api/admin/questions` and `PATCH /api/admin/questions/:id` accept `negative_marks` (a number of 0 or more; `null` clears it on the patch). An invalid value returns 422 `NEGATIVE_MARKS_INVALID`. The list and detail return the field.
 - **Import column.** An optional common column `negative_marks` (0 to 1000, blank means the default) in the CSV and XLSX templates.
 - **Passage steps.** A `structured_case` step may carry its own `points` and `negative_marks` (no migration). See [docs/05-ai-pipeline.md](../../docs/05-ai-pipeline.md) § "Passage sets (EX-3)".
-- **UI.** The question editor has an input for the value (create form and edit card). Help id `admin.question_editor.negative_marks`.
+- **UI.** The question editor has an input for the value (create form and edit card). Help id `admin.question.editor.negative_marks` (renamed S15; the S14 id did not match the page prefix, see RCA 2026-10-17).
 - **Not included.** A penalty for AI-graded types. Per-type penalty rules.
