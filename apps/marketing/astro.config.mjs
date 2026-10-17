@@ -4,7 +4,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildGuards } from './build-guards.mjs';
+import { buildGuards } from './src/build-guards.mjs';
 
 // Inline sitemap integration — generates sitemap-index.xml + sitemap-0.xml
 // into dist/ at build time. Replaces @astrojs/sitemap to avoid a known bug in

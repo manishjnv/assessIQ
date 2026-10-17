@@ -2693,3 +2693,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `modules/17-ui-system/src/components/Drawer.tsx` set `aria-modal` but had no Tab trap and no focus restore.
 **Fix:** `Drawer.tsx`: Tab and Shift+Tab now wrap inside the drawer, and focus returns to the opener on close. This is a shared component, so every drawer gets the fix.
 **Prevention:** e2e test in `apps/web/e2e/admin-help-print.spec.ts` (4 of 4 pass locally). Z-21 was marked done earlier on a code check only; a modal needs a focus test, not only an `aria-modal` attribute.
+
+## 2026-10-17 — Marketing image build failed on the VPS; containers restarted on the old image
+
+**Symptom:** after the S18 deploy the live sweep showed old meta descriptions (243 characters on /pricing) and the new withdraw route answering 404. `docker images` showed the api image 2 hours old and the marketing image 6 hours old.
+**Cause:** `apps/marketing/astro.config.mjs` imported `./build-guards.mjs` (new file at the package root). `infra/docker/assessiq-marketing/Dockerfile` line 43 copies only named root files, so the file was missing in the image build and `pnpm build` failed. My deploy command piped `docker compose build` through `tail`, so the failure exit code was hidden and `up -d --force-recreate` ran on the old images.
+**Fix:** moved the file to `apps/marketing/src/build-guards.mjs` (the Dockerfile copies `src/`) and changed the import in `astro.config.mjs`. Then rebuilt and recreated.
+**Prevention:** deploy builds must check the exit code (`set -o pipefail`; read `BUILD_EXIT`, do not recreate on non-zero). Any new file that the Astro config imports must live under `src/` or the Dockerfile COPY line must change. The post-deploy sweep (description length, new route status) caught it; keep those two checks in the sweep list.

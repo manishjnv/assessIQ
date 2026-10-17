@@ -2426,6 +2426,21 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Not done / follow-ups:** the team did not exercise the `totp_enrolled` email live (it needs a real enrolment). The owner test step is "enrol TOTP on a test admin, expect one email with the new copy". `TENANT_PURGE_ENABLED` is still unset.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate. 0179-0181 only narrow three CHECKs. Older builds never write `reviewer`, so the migrations need no rollback. To restore the old CHECKs by hand, add the constraints again with the `reviewer` value from 016_super_admin.sql and 0056_in_app_notifications.sql.
 
+### S18 deploy (2026-10-17, HEAD `7e1a15f`): Z-32..Z-36, EXP-1, EXP-2, EXP-4
+
+*Type: reference.*
+
+- **Pre-flight:** `/srv/assessiq` was a clean git clone at `802c124` (untracked `tools/assessiq-mcp/package-lock.json` is not ours). All 6 `assessiq-*` containers healthy. No Claude grading process in flight. `git pull --ff-only` to `7e1a15f` (8 commits: `daa57f6` Z-32, `59a5962` Z-33/34/35, `af0b122` Z-36, `704b47d` EXP-1, `1363645` + `b0d6363` EXP-2, `2ebfd90` EXP-4, `7e1a15f` docs).
+- **Migrations by hand** (script `/tmp/s18-migrate.sh`; one transaction per file; recorded in `schema_migrations` with the SHA256):
+  - 0194 `fed724560e2edccb22da78940bb3cf294d987451b73877c9589068bdfb54e65b` — table `question_source` (RLS, policies `tenant_isolation` and `tenant_isolation_insert`), four columns on `questions`, backfill. Before: 579 questions (505 active). After: 579 `question_source` rows, all `original_human` / `original`; 505 questions `review_state = 'verified'` (grandfathered, not reviewed) and 74 null.
+  - 0195 `6aa42ed22e10d02bb2544defadffc6c051562977797e4670dbb6c7858d1c24eb` — 4 help rows (`admin.question_import.columns`, `.rights_status`, `.difficulty`, `.duplicates`); global active help rows 533 → 537.
+  - `schema_migrations` count 169 → 171.
+- **Images and containers:** `docker compose build assessiq-api assessiq-frontend assessiq-marketing`; `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend assessiq-marketing`; all healthy after 25 s. Postgres and Redis were not touched.
+- **Env:** no new variables. `pg_trgm` was not installed by any migration; the import trigram check runs only if the extension already exists (it does not, so the report lists `exact` and `normalised`).
+- **Smoke:** see the S18 handoff in `docs/SESSION_STATE.md`.
+- **Roll back (code):** `git checkout 802c124` and rebuild/recreate the same four services. The older code does not read the new columns or table, so the migrations may stay.
+- **Roll back (data, only if needed):** 0194 is forward-only. To remove it by hand: `DROP TABLE question_source;` then drop the four columns on `questions`. Do this only with the owner's approval; the old code works without it.
+
 ### S17 deploy (2026-10-17, HEAD `92d2b2e`): Z-15 (b), (d), Z-11 (c), Z-25 guard, Z-29, Z-30, safe Dependabot bumps
 
 *Type: reference.*
