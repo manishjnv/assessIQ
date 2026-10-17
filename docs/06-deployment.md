@@ -2426,6 +2426,15 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Not done / follow-ups:** the team did not exercise the `totp_enrolled` email live (it needs a real enrolment). The owner test step is "enrol TOTP on a test admin, expect one email with the new copy". `TENANT_PURGE_ENABLED` is still unset.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate. 0179-0181 only narrow three CHECKs. Older builds never write `reviewer`, so the migrations need no rollback. To restore the old CHECKs by hand, add the constraints again with the `reviewer` value from 016_super_admin.sql and 0056_in_app_notifications.sql.
 
+### S18 follow-up deploy (2026-10-17, HEAD `f6f9232`, repo `be1d1ea`): Z-35 privacy page facts, marketing only
+
+**What changed:** `apps/marketing/src/pages/privacy.astro` (Clarity paragraph, effective date October 2026) and `src/data/page-dates.json`. Only `assessiq-marketing` was rebuilt and recreated; api, worker, frontend, postgres and redis were not touched.
+**Why:** the S18 page said aggregated data lives 13 months (no Microsoft source) and named only two Clarity cookies. Facts were checked against Microsoft Learn on 2026-10-17: playback data 30 days; click data, heatmaps and favourited sessions 9 months; sampled recordings up to 9 months; the cookie list names `_clck`, `_clsk` (first party) and CLID, ANONCHK, MR, MUID, SM (Microsoft); MUID is used for advertising, site analytics and other operational purposes; since 2025-10-31 Clarity needs a consent signal for visits from the EEA, UK and Switzerland. Cookie lifetimes are not stated by Microsoft, so the page says "about 1 year" and "about 1 day" from third-party cookie policies.
+**Considered and rejected:** a consent banner now (needs a design pass and a Clarity Consent Mode call in `BaseLayout.astro`; filed as ROADMAP Z-40, owner decision).
+**Verification:** live `/privacy` shows the 9-month, MUID, EEA and October 2026 text and no "13 months" or "May 2026"; `/`, `/pricing`, `/robots.txt`, `/sitemap-0.xml` return 200; sitemap `lastmod` for `/privacy` is 2026-10-17; IndexNow returned HTTP 200 for 42 URLs; marketing container healthy.
+**Sharp edge:** commit `d447ef7` carried CRLF line endings for `privacy.astro` by mistake (a `-c core.autocrlf=false` commit of a CRLF working copy); `be1d1ea` restored LF with content unchanged. The image built at `f6f9232` has the same text.
+**Rollback:** `git revert be1d1ea f6f9232 d447ef7` then rebuild `assessiq-marketing`.
+
 ### S18 deploy (2026-10-17, HEAD `7e1a15f`): Z-32..Z-36, EXP-1, EXP-2, EXP-4
 
 *Type: reference.*

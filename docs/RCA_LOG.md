@@ -2700,3 +2700,11 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `apps/marketing/astro.config.mjs` imported `./build-guards.mjs` (new file at the package root). `infra/docker/assessiq-marketing/Dockerfile` line 43 copies only named root files, so the file was missing in the image build and `pnpm build` failed. My deploy command piped `docker compose build` through `tail`, so the failure exit code was hidden and `up -d --force-recreate` ran on the old images.
 **Fix:** moved the file to `apps/marketing/src/build-guards.mjs` (the Dockerfile copies `src/`) and changed the import in `astro.config.mjs`. Then rebuilt and recreated.
 **Prevention:** deploy builds must check the exit code (`set -o pipefail`; read `BUILD_EXIT`, do not recreate on non-zero). Any new file that the Astro config imports must live under `src/` or the Dockerfile COPY line must change. The post-deploy sweep (description length, new route status) caught it; keep those two checks in the sweep list.
+
+## 2026-10-17 — Privacy page committed with CRLF line endings (whole-file diff)
+
+**Symptom:** after commit `d447ef7` the privacy page diff showed 1,145 changed lines for a 9-line text edit; the VPS pull reported 618 insertions and 613 deletions.
+**Cause:** the edit script detected `
+` in the working copy (Windows `core.autocrlf=true` checkout) and wrote it back as CRLF, and the commit used `-c core.autocrlf=false`, so Git stored CRLF instead of LF.
+**Fix:** `be1d1ea` rewrote the file with LF and kept the content; net diff against the earlier text is 9 added and 4 removed lines.
+**Prevention:** edit scripts write LF for repo files and never override `core.autocrlf` on a commit; check `git diff --stat` for a line count far above the edit size, and `git ls-files --eol <file>` should show `i/lf`, before every commit.
