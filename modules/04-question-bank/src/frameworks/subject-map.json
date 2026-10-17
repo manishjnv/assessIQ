@@ -1,0 +1,178 @@
+{
+  "code": "subject-map",
+  "name": "Subject map",
+  "board": "EXAMS",
+  "version": "draft-unverified",
+  "nodes": [
+    {
+      "code": "quant",
+      "title": "Quant",
+      "kind": "subject",
+      "children": [
+        {
+          "code": "arithmetic",
+          "title": "Arithmetic",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "percentage",
+              "title": "Percentage",
+              "kind": "outcome"
+            },
+            {
+              "code": "profit-and-loss",
+              "title": "Profit and loss",
+              "kind": "outcome"
+            },
+            {
+              "code": "ratio",
+              "title": "Ratio",
+              "kind": "outcome"
+            },
+            {
+              "code": "time-and-work",
+              "title": "Time and work",
+              "kind": "outcome"
+            },
+            {
+              "code": "time-speed-distance",
+              "title": "Time speed distance",
+              "kind": "outcome"
+            },
+            {
+              "code": "simple-and-compound-interest",
+              "title": "Simple and compound interest",
+              "kind": "outcome"
+            },
+            {
+              "code": "average",
+              "title": "Average",
+              "kind": "outcome"
+            },
+            {
+              "code": "mixture",
+              "title": "Mixture",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "algebra",
+          "title": "Algebra",
+          "kind": "unit"
+        },
+        {
+          "code": "geometry",
+          "title": "Geometry",
+          "kind": "unit"
+        },
+        {
+          "code": "trigonometry",
+          "title": "Trigonometry",
+          "kind": "unit"
+        },
+        {
+          "code": "mensuration",
+          "title": "Mensuration",
+          "kind": "unit"
+        },
+        {
+          "code": "data-interpretation",
+          "title": "Data interpretation",
+          "kind": "unit"
+        },
+        {
+          "code": "number-system",
+          "title": "Number system",
+          "kind": "unit"
+        }
+      ]
+    },
+    {
+      "code": "reasoning",
+      "title": "Reasoning",
+      "kind": "subject",
+      "children": [
+        {
+          "code": "verbal",
+          "title": "Verbal",
+          "kind": "unit"
+        },
+        {
+          "code": "non-verbal",
+          "title": "Non-verbal",
+          "kind": "unit"
+        },
+        {
+          "code": "puzzles-and-series",
+          "title": "Puzzles and series",
+          "kind": "unit"
+        }
+      ]
+    },
+    {
+      "code": "english",
+      "title": "English",
+      "kind": "subject",
+      "children": [
+        {
+          "code": "comprehension",
+          "title": "Comprehension",
+          "kind": "unit"
+        },
+        {
+          "code": "cloze",
+          "title": "Cloze",
+          "kind": "unit"
+        },
+        {
+          "code": "error-spotting",
+          "title": "Error spotting",
+          "kind": "unit"
+        },
+        {
+          "code": "vocabulary",
+          "title": "Vocabulary",
+          "kind": "unit"
+        }
+      ]
+    },
+    {
+      "code": "general-awareness",
+      "title": "General Awareness",
+      "kind": "subject",
+      "children": [
+        {
+          "code": "history",
+          "title": "History",
+          "kind": "unit"
+        },
+        {
+          "code": "polity",
+          "title": "Polity",
+          "kind": "unit"
+        },
+        {
+          "code": "geography",
+          "title": "Geography",
+          "kind": "unit"
+        },
+        {
+          "code": "economy",
+          "title": "Economy",
+          "kind": "unit"
+        },
+        {
+          "code": "science",
+          "title": "Science",
+          "kind": "unit"
+        },
+        {
+          "code": "current-affairs-static",
+          "title": "Current affairs static",
+          "kind": "unit"
+        }
+      ]
+    }
+  ]
+}

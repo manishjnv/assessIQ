@@ -4,6 +4,8 @@ import { validateFrameworkSeed, type SeedNode } from "../framework-seeds.js";
 import cbse from "../frameworks/cbse.json" with { type: "json" };
 import icse from "../frameworks/icse.json" with { type: "json" };
 import ib from "../frameworks/ib.json" with { type: "json" };
+import examStructure from "../frameworks/exam-structure.json" with { type: "json" };
+import subjectMap from "../frameworks/subject-map.json" with { type: "json" };
 
 const count = (n: SeedNode): number => 1 + (n.children ?? []).reduce((a, c) => a + count(c), 0);
 const dupes = (n: SeedNode): boolean =>
@@ -56,5 +58,26 @@ describe("icse and ib content", () => {
         ["a", "b", "c", "d"].map((l) => [`criterion-${l}`, "criterion"]),
       );
     }
+  });
+});
+
+// EXP-1: exam-structure and subject-map platform frameworks. Syllabus is unverified (official sites not opened).
+describe("exam-structure and subject-map seeds", () => {
+  const exam = validateFrameworkSeed(examStructure);
+  const subj = validateFrameworkSeed(subjectMap);
+  it("validate, are marked draft-unverified, and have unique codes", () => {
+    expect([exam.code, subj.code]).toEqual(["exam-structure", "subject-map"]);
+    expect([exam.version, subj.version]).toEqual(["draft-unverified", "draft-unverified"]);
+    expect(exam.nodes.some(dupes) || subj.nodes.some(dupes)).toBe(false);
+  });
+  it("exam-structure has 5 boards and 10 stages", () => {
+    expect(exam.nodes.map((n) => n.code)).toEqual(["ssc", "ibps", "rrb", "upsc", "nta"]);
+    expect(exam.nodes.reduce((a, b) => a + (b.children ?? []).length, 0)).toBe(10);
+  });
+  it("subject-map has 4 subjects; only Quant > Arithmetic has outcomes", () => {
+    expect(subj.nodes.map((n) => n.code)).toEqual(["quant", "reasoning", "english", "general-awareness"]);
+    const withOutcomes = subj.nodes.flatMap((s) => s.children ?? []).filter((u) => (u.children ?? []).length > 0);
+    expect(withOutcomes.map((u) => u.code)).toEqual(["arithmetic"]);
+    expect(withOutcomes[0]!.children).toHaveLength(8);
   });
 });
