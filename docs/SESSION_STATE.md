@@ -1,3 +1,44 @@
+# Session — 2026-10-17/18 (all day, parallel to S15-S18) — S19: planning and review session (admin navigation, exam packs, SEO, privacy and Cloudflare)
+
+**Headline:** No product code shipped. This session produced three reviews and their plans (admin navigation, SEO, exam packs), recorded the owner's decisions, and fixed the live privacy and analytics setup. ROADMAP grew from 188 to 225 rows (Z-21..Z-28, Z-39, Z-40, EXP-0..EXP-18) and now holds the full context for each. Live: Clarity removed, Cloudflare Web Analytics runs on the marketing site only, and a Cloudflare Configuration Rule keeps the beacon off the app. GitHub main = `93c295d`; the VPS code is `c45a2eb` (later commits are docs only).
+**Commits (main, oldest first, all docs unless marked):** `1834674` admin navigation review rows Z-21..Z-24 and the plan `docs/plans/ADMIN_NAV_REVIEW_2026-10-17.md` · `d0df8d2` Z-23/Z-24 aligned with RW-83 · `fe73f85` "Read first" clauses on Z-21..Z-24 · `a70886b` SEO rows Z-25..Z-28 · `e367a11` exam-pack plan v1 · `d7bdce1` exam-pack plan v2 and rows EXP-0..EXP-15 · `814455e` owner decisions D1-D7 recorded, rows EXP-16..EXP-18 · `6142144` owner answers on Z-7, Z-9, Z-10, Z-16, Z-31, EXP-0, new row Z-39 · `c76c7f4` Z-35 sameAs deferred · `d447ef7` code: privacy page facts (CRLF by mistake) · `be1d1ea` code: LF restored · `f6f9232` page dates · `ff00323` deploy record and RCA · `a28e15f` code: Clarity removed · `9b5b23b` page dates · `0bfcb23` docs · `d133a63` code: privacy page for Cloudflare Web Analytics · `c45a2eb` page dates · `56eeda4` deploy record · `93c295d` token narrowing note.
+**Tests:** no product test run was needed. Marketing `pnpm build` exit 0 twice (the Z-25, Z-33 and Z-34 build guards passed); module 04 typecheck clean and 20 framework seed tests pass after restoring `framework-seeds.ts`. Live checks after each deploy: `/`, `/pricing`, `/privacy`, `/about` return 200; the beacon is present on marketing pages and absent on `/admin/login`, `/admin/select-identity`, `/candidate/login`, `/take`, `/embed`; IndexNow HTTP 200 for 42 URLs.
+**Deploys:** only `assessiq-marketing`, three times (`f6f9232`, `9b5b23b`, `c45a2eb`). Cloudflare: one Configuration Rule created on the zone `assessiq.in` (ruleset `f1fab0134a5b418db09f1a8fc2b861d7`, rule `78e9610112b14b06b4c4ac8963d6faa0`, `disable_rum` for /admin, /candidate, /take, /embed, /api); the account token was narrowed to Config Settings Read and Write on that zone, VPS IP only. Ids and rollback: docs/06 "Z-40 step 2 deploy".
+**Next:** (1) Build the approved rows: Z-7 (Submit left plus confirm popup), Z-9 and Z-37 (result copy, amber fail, one result email with certificate link and share links, sign-off, organisation name in the invitation subject), Z-16 (per-assessment pass mark, certificate for every pass, Distinction 90%, Honors later). (2) EXP-19 takedown propagation, then EXP-5 facets and search and EXP-6 blueprints (SSC CGL Tier 1 is verified). (3) Z-39 retake policy after Z-9 and Z-16.
+**Open questions (owner):**
+- EXP-20: purge a withdrawn question from frozen assessment pools, or sign off that the frozen copy stays.
+- Z-23 nav regroup: confirm the seven names and their order.
+- Z-32: how to fix the `/try` HTML head (edge rewrite, prerender or a marketing-side page).
+- Z-35: the sameAs profile URLs (LinkedIn, X, GitHub) when ready; Z-26 Google Search Console verification.
+- Z-13: the audit-export limit is 5 per 10 minutes; the owner asked for 5 per minute (looser).
+- Cloudflare: the R2 keys on `.env` lines 32-34 are separate full-access credentials; delete them if R2 is unused. The folder `.claude/worktrees/agent-afc5de41` (311 MB, no `.git`) and the worktree `E:\code\aiq-qdiff-ui` were left untouched.
+- Add a roadmap row for the admin shell layout shift (CLS 0.215-0.233 on the main area, seen in Cloudflare Web Analytics)? Not added yet.
+**Old task or feature checked:** Rules A and B for every row added: RW-16 `fee09fd` and the 2026-05-20 reorg `032ef84` (Z-23 supersedes them on an owner yes), RW-83 `283dd23` (Start a test folded into Home), OD-X1 and OD-X2 of 2026-10-09 (reversed by the owner's D1 and D2 on 2026-10-17, logged in EXP-0), the Z-25 sitemap guard, the Z-33 and Z-34 build guards, the four unsent email templates (kept, not deleted), the S18 leftover `framework-seeds.ts` duplicate imports (restored from HEAD).
+
+## What changed and why (detail for a future session)
+
+- **Admin navigation review (rows Z-21..Z-24, plan ADMIN_NAV_REVIEW_2026-10-17).** What: 15 tenant-admin items (16 after RW-83) regroup into 7 with tab strips, a help drawer, and a My account footer. Why: one nav item is documentation, the help drawer was never mounted in the admin shell, and six flow gaps break create, invite, grade and release. Rejected: collapsible groups, merging page components, removing pages. Not included: any build. Impact: the help-id prefix guard, role gates in two places, docs 07, 08 and 10.
+- **SEO review (Z-25..Z-28).** Sitemap gap, Search Console and analytics loop, measured audit, image alt text. S17 and S18 closed most of it; the findings became Z-31..Z-38.
+- **Exam packs (plan `docs/design/2026-10-17-exam-pack-source-and-taxonomy-plan.md`, rows EXP-0..EXP-18).** What: sourcing lanes (scraping, upload by super admin and organisation admin, AI-written and light-edit, licensed), a rights status on every item, exam and subject through the existing taxonomy tables, a separate review state, Hindi as an overlay on the same question, trigram search, SSC CGL Tier 1 first. Why: the owner chose all sources and light edits (reverses OD-X1 and OD-X2) and a review gate before invites. Safeguards kept: rights status, source reference, one-click withdraw, an organisation upload warranty. Not included: scraping tools, the generator skill, permission letters (the owner chose none). Open: lawyer review is optional; the other exam blueprints are unverified.
+- **Privacy page and analytics.** Facts were checked against Microsoft's pages, then Clarity was removed on the owner's choice (option B). Cloudflare automatic Web Analytics was found injecting its beacon on every page including `/admin` and `/take`; Web Analytics rules were capped (`maxRulesError`), so a zone Configuration Rule with `disable_rum` excludes the app paths. The page now describes Cloudflare Web Analytics (no cookies, raw data 7 days, six months of history, the EU and UK caveat).
+- **Cloudflare access.** The token in `.env` lines 30-34 is IP-locked: call only from the VPS over IPv4 and pass the token over ssh stdin. It was narrowed to Config Settings Read and Write on one zone. Memory note `reference_cloudflare-access.md`.
+- **Mistakes and fixes.** `d447ef7` committed CRLF line endings for `privacy.astro`; `be1d1ea` restored LF and an RCA entry was written. A first VPS script wrote `/tmp` paths that Windows python could not see; JSON now goes through stdin pipes.
+
+---
+
+## Agent utilization
+- Opus: n/a — the main session was Fable 5.1, then Sonnet 5.5; it did the reviews, plans, row writing, owner Q&A, commits, deploys, Cloudflare calls and the token narrowing.
+- Sonnet: 7 read-only runs (4 admin page and docs inventories, 1 question-bank architecture audit, 1 exam-structure research, 1 legal and tagging research), about 1.0M tokens.
+- Haiku: n/a — no Haiku run; the digests were done inline.
+- codex:rescue: n/a — companion sandbox dead since 2026-10-11; no security-adjacent product code in this session (the Cloudflare token narrowing was tested with allow and deny calls).
+- Gemini (agy): n/a — not used.
+- Codex (exec): n/a — not used.
+
+## Routing telemetry
+Sonnet · admin pages inventory ×3 · reworked: N · Sonnet · docs digest · reworked: N · Sonnet · architecture audit · reworked: N (two claims re-checked in code) · Sonnet · exam research · reworked: N (official sites blocked, figures unverified) · Sonnet · legal research · reworked: N.
+
+---
+
 # Session — 2026-10-17 (evening) — S18: marketing hygiene, drawer test, exam-pack foundation (EXP-1, EXP-2, EXP-4)
 
 **Headline:** Z-33, Z-34, Z-36, EXP-1, EXP-2, EXP-4 closed; Z-32 and Z-35 partly done (stay open). Pushed and deployed: GitHub main = VPS = `af1c70a`. Migrations 0194 and 0195 applied (next number 0196). Live sweep passes after one deploy fix (see RCA 2026-10-17 "Marketing image build failed").
