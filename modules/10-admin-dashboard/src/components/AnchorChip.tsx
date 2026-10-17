@@ -58,7 +58,7 @@ export function AnchorChip({ finding, label, anchorDef, "data-test-id": testId }
 
           {/* Block 2: weight + optional confidence */}
           {anchorDef && (
-            <span style={{ fontSize: 10, opacity: 0.8 }}>
+            <span style={{ fontSize: "var(--aiq-text-xs)", opacity: 0.8 }}>
               {`Weight: ${anchorDef.weight}pts`}
               {finding.confidence != null ? ` · Confidence: ${Math.round(finding.confidence * 100)}%` : ""}
             </span>

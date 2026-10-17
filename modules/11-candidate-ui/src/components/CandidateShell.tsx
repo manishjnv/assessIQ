@@ -162,7 +162,7 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
           className="aiq-mark"
           role="img"
           aria-label="AssessIQ"
-          style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.01em', flex: 0 }}
+          style={{ fontSize: 'var(--aiq-text-lg)', fontWeight: 600, letterSpacing: '-0.01em', flex: 0 }}
         >
           <span className="aiq-mark-dot" aria-hidden="true" />
           <span>AssessIQ</span>

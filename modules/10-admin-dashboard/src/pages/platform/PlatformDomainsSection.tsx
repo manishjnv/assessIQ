@@ -241,7 +241,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                         ...META_LABEL,
                         display: "block",
                         marginTop: 4,
-                        fontSize: 10,
+                        fontSize: "var(--aiq-text-xs)",
                       }}
                     >
                       The URL slug is generated automatically and shared across all organisations.
@@ -353,7 +353,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                 Platform subjects.
               </h2>
               <HelpTip helpId="admin.platform.domains">
-                <span style={{ ...META_LABEL, fontSize: 10 }}>Subjects</span>
+                <span style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>Subjects</span>
               </HelpTip>
             </div>
             <p
@@ -443,7 +443,7 @@ export function PlatformDomainsSection(): React.ReactElement {
                 background: "var(--aiq-color-bg-raised)",
                 borderBottom: "1px solid var(--aiq-color-border)",
                 ...META_LABEL,
-                fontSize: 10,
+                fontSize: "var(--aiq-text-xs)",
               }}
             >
               <span>Subject</span>

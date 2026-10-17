@@ -416,6 +416,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             display: "flex",
             alignItems: "flex-start",
             justifyContent: "space-between",
+            flexWrap: "wrap",
             gap: "var(--aiq-space-md)",
           }}
         >
@@ -431,7 +432,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
               <h1
                 style={{
                   fontFamily: "var(--aiq-font-serif)",
-                  fontSize: "var(--aiq-text-3xl)",
+                  fontSize: "var(--aiq-h1-size)",
                   fontWeight: 400,
                   margin: 0,
                   letterSpacing: "-0.02em",

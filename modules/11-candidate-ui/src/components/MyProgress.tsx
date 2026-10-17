@@ -32,7 +32,7 @@ import type { CandidateProgress, ProgressAttempt, ProgressSubject } from '../api
 
 const SECTION_H: React.CSSProperties = {
   fontFamily: 'var(--aiq-font-serif)',
-  fontSize: 22,
+  fontSize: "var(--aiq-text-xl)",
   fontWeight: 400,
   margin: '0 0 var(--aiq-space-md)',
 };

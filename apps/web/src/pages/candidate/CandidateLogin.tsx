@@ -78,7 +78,7 @@ function RightPane(): React.JSX.Element {
           <p
             className="aiq-serif"
             style={{
-              fontSize: 28,
+              fontSize: 'var(--aiq-text-2xl)',
               lineHeight: 1.3,
               margin: '24px 0 0',
               color: 'var(--aiq-color-fg-primary)',

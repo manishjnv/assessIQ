@@ -187,7 +187,7 @@
 .aiq-attempt-nav-toggle { display: none; }
 
 [data-viewport="mobile"] .aiq-attempt-shell { --aiq-attempt-q-size: 22px; }
-[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-top    { padding: 0 var(--aiq-space-md); gap: var(--aiq-space-sm); }
+[data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-top    { padding: var(--aiq-space-xs) var(--aiq-space-md); gap: var(--aiq-space-xs) var(--aiq-space-sm); height: auto; min-height: 64px; flex-wrap: wrap; }
 [data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-middle { grid-template-columns: 1fr; padding: var(--aiq-space-md); gap: 0; }
 [data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-aside  { display: none; }
 [data-viewport="mobile"] .aiq-attempt-shell .aiq-attempt-nav-toggle { display: inline-flex; }

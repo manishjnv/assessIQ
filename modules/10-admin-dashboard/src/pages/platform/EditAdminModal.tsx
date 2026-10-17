@@ -154,7 +154,7 @@ export function EditAdminModal({
             <p style={{ fontSize: 13, color: "var(--aiq-color-fg-secondary)", margin: "0 0 8px", lineHeight: 1.5 }}>
               Rename the organisation and update its primary admin. Editing the admin email changes their login identity.
             </p>
-            <div style={{ ...META_LABEL, fontSize: 10, marginBottom: 16 }}>
+            <div style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)", marginBottom: 16 }}>
               {tenant.slug} · {tenant.admin_status ?? "pending"}
             </div>
 
@@ -177,13 +177,13 @@ export function EditAdminModal({
                   }}
                   {...(fieldErrors.orgName ? { error: fieldErrors.orgName } : {})}
                 />
-                <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: 10, textTransform: "none", letterSpacing: 0 }}>
+                <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: "var(--aiq-text-xs)", textTransform: "none", letterSpacing: 0 }}>
                   Slug &ldquo;{tenant.slug}&rdquo; is permanent and can&rsquo;t be changed.
                 </span>
               </div>
 
               {/* ── Primary admin ── */}
-              <div style={{ ...META_LABEL, fontSize: 10, marginTop: 4 }}>Primary admin</div>
+              <div style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)", marginTop: 4 }}>Primary admin</div>
 
               {/* Name */}
               <div data-help-id="admin.platform.admin_name">
@@ -244,7 +244,7 @@ export function EditAdminModal({
                 )}
                 {/* Pending admin + email change → mild re-address note */}
                 {!hasAccount && emailChanged && (
-                  <span style={{ ...META_LABEL, display: "block", marginTop: 6, fontSize: 10, textTransform: "none", letterSpacing: 0 }}>
+                  <span style={{ ...META_LABEL, display: "block", marginTop: 6, fontSize: "var(--aiq-text-xs)", textTransform: "none", letterSpacing: 0 }}>
                     A fresh invite goes to the new address; the old link stops working.
                   </span>
                 )}

@@ -307,7 +307,7 @@ export function BlueprintBuilder({ onBlueprintChange, entitledDomains, skipFilte
                           alignItems: "center",
                           gap: 3,
                           fontFamily: "var(--aiq-font-mono)",
-                          fontSize: 10,
+                          fontSize: "var(--aiq-text-xs)",
                           color: controlsDisabled ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)",
                           cursor: controlsDisabled ? "not-allowed" : "pointer",
                           opacity: controlsDisabled ? 0.5 : 1,

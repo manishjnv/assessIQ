@@ -110,7 +110,7 @@ export function MfaStepUp({
           onChange={(e) => handleInput(e.target.value)}
           disabled={isLocked || isExpired || loading}
         />
-        <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: 10 }}>
+        <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: "var(--aiq-text-xs)" }}>
           6 digits · rotates every 30 s
         </span>
       </div>

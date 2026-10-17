@@ -142,7 +142,7 @@ export function GenerationAttemptLine({
               background: "var(--aiq-color-bg-sunken)",
               borderRadius: "var(--aiq-radius-sm)",
               fontFamily: "var(--aiq-font-mono)",
-              fontSize: "10px",
+              fontSize: "var(--aiq-text-xs)",
               color: "var(--aiq-color-fg-secondary)",
               whiteSpace: "pre-wrap",
               wordBreak: "break-all",

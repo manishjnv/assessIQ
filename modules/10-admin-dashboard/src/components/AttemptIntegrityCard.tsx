@@ -78,7 +78,7 @@ export function AttemptIntegrityCard({ attemptId }: { attemptId: string }): Reac
       <span style={MONO_LABEL}>Behaviour and integrity</span>
       <div style={{ display: "grid", gridTemplateColumns: signals ? "1fr auto" : "1fr", gap: "var(--aiq-space-lg)", alignItems: "start" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-          <span style={{ ...MONO_LABEL, fontSize: 10 }}>Recorded events</span>
+          <span style={{ ...MONO_LABEL, fontSize: "var(--aiq-text-xs)" }}>Recorded events</span>
           {none ? (
             <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>No events recorded</p>
           ) : (
@@ -94,7 +94,7 @@ export function AttemptIntegrityCard({ attemptId }: { attemptId: string }): Reac
         </div>
         {signals && (
           <div data-help-id="admin.attempts.detail.behaviour" data-test-id="attempt-behaviour-radar" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)", alignItems: "center" }}>
-            <span style={{ ...MONO_LABEL, fontSize: 10 }}>Behaviour at finalize</span>
+            <span style={{ ...MONO_LABEL, fontSize: "var(--aiq-text-xs)" }}>Behaviour at finalize</span>
             <ArchetypeRadar signals={signals as unknown as Parameters<typeof ArchetypeRadar>[0]["signals"]} size={160} />
           </div>
         )}

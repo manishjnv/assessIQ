@@ -123,3 +123,5 @@ Common failure causes:
 
 - `a11y-authed.spec.ts` opens the admin pages (`/admin`, `/admin/assessments`, `/admin/attempts/:id`) and the candidate pages (`/candidate/results`, `/take/attempt/:id`) with minted session cookies. It runs axe and fails on any serious or critical violation. Minor and moderate ones print as warnings. It runs in the required `e2e` job in `ci.yml`.
 - `pnpm --filter @assessiq/web lhci:authed` provisions an attempt, sends the cookies as a Lighthouse extra header, prints a score table and asserts a minimum of 0.85 per category (`lighthouserc.authed.json`). Set `PLAYWRIGHT_BASE_URL` (a preview build with `E2E_API_PROXY`, host must be `localhost` for the cookie) and `E2E_API_BASE_URL`. `LHCI_RUNS=1` speeds up a local run. The workflow step is advisory until 2026-10-31.
+
+> S15 (RW-81): the token and spacing changes (Table cells, page headers, h1 size token, mobile attempt header) require regenerating the visual baselines inside the Playwright image before the visual job can pass.

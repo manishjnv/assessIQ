@@ -258,7 +258,7 @@ function InviteForm({
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
           <h2
             className="aiq-serif"
-            style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
+            style={{ fontSize: "var(--aiq-text-xl)", margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
           >
             {label.title}
           </h2>
@@ -525,7 +525,7 @@ export function UserLifecycleConfirmModal({
         <div style={{ display: "flex", alignItems: "center", marginBottom: 16 }}>
           <h2
             className="aiq-serif"
-            style={{ fontSize: 22, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
+            style={{ fontSize: "var(--aiq-text-xl)", margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
           >
             {copy.title}
           </h2>
@@ -596,7 +596,7 @@ export function UserLifecycleConfirmModal({
               boxSizing: "border-box",
             }}
           />
-          <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: 10 }}>
+          <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: "var(--aiq-text-xs)" }}>
             {reason.length} / 500
           </span>
         </div>
@@ -1272,7 +1272,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
             <h1
               style={{
                 fontFamily: "var(--aiq-font-serif)",
-                fontSize: "var(--aiq-text-3xl)",
+                fontSize: "var(--aiq-h1-size)",
                 fontWeight: 400,
                 margin: 0,
                 letterSpacing: "-0.02em",
@@ -1426,7 +1426,7 @@ export function AdminUsers({ superContext }: AdminUsersProps = {}): React.ReactE
                 background: "var(--aiq-color-bg-raised)",
                 borderBottom: "1px solid var(--aiq-color-border)",
                 ...META_LABEL,
-                fontSize: 10,
+                fontSize: "var(--aiq-text-xs)",
               }}
             >
               <span>User</span>

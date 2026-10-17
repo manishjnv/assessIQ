@@ -169,7 +169,7 @@ export function AdminEvaluationDetail(): React.ReactElement {
                 </span>
               )}
             </div>
-            <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+            <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-h1-size)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
               {attempt.assessment_name || `Attempt ${handle}`}
             </h1>
             <div style={{ ...MONO_LABEL, marginTop: "var(--aiq-space-xs)" }}>

@@ -170,7 +170,7 @@ export function AdminAttemptDetail(): React.ReactElement {
             <div style={{ marginBottom: 12 }}>
               <Chip variant={display.variant}>{display.label}</Chip>
             </div>
-            <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+            <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-h1-size)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
               {attempt.assessment_name || "Attempt"}
             </h1>
             <div style={{ ...MONO_LABEL, marginTop: "var(--aiq-space-xs)", display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
@@ -287,7 +287,7 @@ export function AdminAttemptDetail(): React.ReactElement {
         {/* Send back for re-grading — note is required and goes to AssessIQ. */}
         {showSendBack && evalStatus === "ready_to_publish" && (
           <div className="aiq-card aiq-no-print" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
-            <h3 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "22px", fontWeight: 400, margin: 0, letterSpacing: "-0.015em", color: "var(--aiq-color-fg-primary)" }}>Send back for re-grading</h3>
+            <h3 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.015em", color: "var(--aiq-color-fg-primary)" }}>Send back for re-grading</h3>
             <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
               The attempt returns to the AssessIQ queue. Tell AssessIQ what to look at again.
             </p>
@@ -320,7 +320,7 @@ export function AdminAttemptDetail(): React.ReactElement {
 
         {(detail.section_scores ?? []).length > 0 && (
           <div className="aiq-card" data-help-id="admin.attempts.detail.section_scores" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", padding: "var(--aiq-space-lg)" }}>
-            <h3 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "22px", fontWeight: 400, margin: 0, letterSpacing: "-0.015em", color: "var(--aiq-color-fg-primary)" }}>Section scores</h3>
+            <h3 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.015em", color: "var(--aiq-color-fg-primary)" }}>Section scores</h3>
             <Table<NonNullable<typeof detail.section_scores>[number]>
               data={detail.section_scores ?? []}
               columns={[

@@ -355,7 +355,7 @@ export function CandidateActivity(): React.ReactElement {
               data-help-id="candidate.activity"
               style={{
                 fontFamily: "var(--aiq-font-serif)",
-                fontSize: "var(--aiq-text-3xl)",
+                fontSize: "var(--aiq-h1-size)",
                 fontWeight: 400,
                 margin: 0,
                 color: "var(--aiq-color-fg-primary)",
@@ -468,7 +468,7 @@ export function CandidateActivity(): React.ReactElement {
                     <div
                       style={{
                         fontFamily: "var(--aiq-font-mono)",
-                        fontSize: 10,
+                        fontSize: "var(--aiq-text-xs)",
                         color: "var(--aiq-color-fg-muted)",
                         textTransform: "uppercase",
                         letterSpacing: "0.08em",

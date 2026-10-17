@@ -62,6 +62,22 @@ export interface TableProps<T> {
 // Component
 // ---------------------------------------------------------------------------
 
+/**
+ * A flex cell never draws text-overflow on a bare text node, so long text was clipped
+ * with no ellipsis. Wrap plain text in a shrinkable span (title = the full text).
+ */
+function cellContent(node: React.ReactNode): React.ReactNode {
+  if (typeof node !== "string" && typeof node !== "number") return node;
+  return (
+    <span
+      title={String(node)}
+      style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+    >
+      {node}
+    </span>
+  );
+}
+
 export function Table<T>({
   data,
   columns,
@@ -221,18 +237,22 @@ export function Table<T>({
                     role="cell"
                     style={{
                       padding: "var(--aiq-space-sm) var(--aiq-space-xs)",
-                      fontSize: "var(--aiq-text-md)",
+                      fontSize: "var(--aiq-text-sm)",
                       color: "var(--aiq-color-fg-primary)",
+                      fontVariantNumeric: "tabular-nums",
+                      // minWidth 0 lets a 1fr grid track shrink below the content width.
+                      minWidth: 0,
                       overflow: "hidden",
-                      textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
                       display: "flex",
                       alignItems: "center",
                     }}
                   >
-                    {col.render
-                      ? col.render(row)
-                      : String((row as Record<string, unknown>)[col.key] ?? "")}
+                    {cellContent(
+                      col.render
+                        ? col.render(row)
+                        : String((row as Record<string, unknown>)[col.key] ?? ""),
+                    )}
                   </div>
                 ))}
               </div>

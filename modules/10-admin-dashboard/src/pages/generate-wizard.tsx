@@ -1076,7 +1076,7 @@ export function AdminGenerateWizard(): React.ReactElement {
                           {(Array.isArray(cfg.category.supported_types) ? cfg.category.supported_types as string[] : [...RUBRIC_REQUIRED_IDS]).map((t) => (
                             <label
                               key={t}
-                              style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "var(--aiq-font-mono)", fontSize: 10, color: controlsDisabled ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)", cursor: controlsDisabled ? "not-allowed" : "pointer", opacity: controlsDisabled ? 0.5 : 1 }}
+                              style={{ display: "flex", alignItems: "center", gap: 3, fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: controlsDisabled ? "var(--aiq-color-fg-muted)" : "var(--aiq-color-fg-secondary)", cursor: controlsDisabled ? "not-allowed" : "pointer", opacity: controlsDisabled ? 0.5 : 1 }}
                             >
                               <input
                                 type="checkbox"
@@ -1214,7 +1214,7 @@ export function AdminGenerateWizard(): React.ReactElement {
               <div key={r.categoryId} style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-sm) var(--aiq-space-md)", background: "var(--aiq-color-bg-raised)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" }}>
                 <span style={{ width: 20, flexShrink: 0, fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-muted)", textAlign: "right" }}>{idx + 1}</span>
                 <span style={{ flex: 1, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>{cfg?.category.name ?? r.categoryId}</span>
-                <span style={{ padding: "2px 8px", borderRadius: "var(--aiq-radius-pill)", background: sc.bg, color: sc.color, fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", flexShrink: 0 }}>
+                <span style={{ padding: "2px 8px", borderRadius: "var(--aiq-radius-pill)", background: sc.bg, color: sc.color, fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", flexShrink: 0 }}>
                   {r.status === "done" ? "✓ saved" : r.status === "failed" ? "✗ failed" : r.status}
                 </span>
                 {r.status === "done" && (
@@ -1357,17 +1357,17 @@ export function AdminGenerateWizard(): React.ReactElement {
                             />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginBottom: 4, flexWrap: "wrap" }}>
-                                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{questionTypeLabel(draft.type)}</span>
+                                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{questionTypeLabel(draft.type)}</span>
                                 {draft.level_label && (
-                                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-accent-soft)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-accent)", flexShrink: 0 }}>{/^L[123]$/.test(draft.level_label) ? difficultyLabel(draft.level_label) : draft.level_label}</span>
+                                  <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", padding: "1px 6px", background: "var(--aiq-color-accent-soft)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-accent)", flexShrink: 0 }}>{/^L[123]$/.test(draft.level_label) ? difficultyLabel(draft.level_label) : draft.level_label}</span>
                                 )}
                                 {(() => {
                                   const domainName = domains.find((d) => d.id === draft.domain_id)?.name;
                                   return domainName ? (
-                                    <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-secondary)", flexShrink: 0 }}>{domainName}</span>
+                                    <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-secondary)", flexShrink: 0 }}>{domainName}</span>
                                   ) : null;
                                 })()}
-                                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{draft.points} pt{draft.points === 1 ? "" : "s"}</span>
+                                <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", padding: "1px 6px", background: "var(--aiq-color-bg-sunken)", borderRadius: "var(--aiq-radius-sm)", color: "var(--aiq-color-fg-muted)", flexShrink: 0 }}>{draft.points} pt{draft.points === 1 ? "" : "s"}</span>
                                 {(() => {
                                   const ws = draftWarnings(draft);
                                   return ws.length > 0 ? (

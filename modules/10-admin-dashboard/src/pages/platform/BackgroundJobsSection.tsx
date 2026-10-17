@@ -91,13 +91,13 @@ export function BackgroundJobsSection(): React.ReactElement {
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }} data-help-id="admin.platform.jobs">
       <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
         <HelpTip helpId="admin.platform.jobs">
-          <h2 className="aiq-serif" style={{ margin: 0, fontSize: 22, fontWeight: 400, letterSpacing: "-0.015em" }}>
+          <h2 className="aiq-serif" style={{ margin: 0, fontSize: "var(--aiq-text-xl)", fontWeight: 400, letterSpacing: "-0.015em" }}>
             Background jobs
           </h2>
         </HelpTip>
         <span style={{ flex: 1 }} />
         {stats && (
-          <span style={{ ...META_LABEL, fontSize: 10 }}>
+          <span style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>
             {stats.queue} · {stats.cached ? "cached" : "live"} · {formatDateTime(stats.fetched_at)}
           </span>
         )}
@@ -135,7 +135,7 @@ export function BackgroundJobsSection(): React.ReactElement {
           data-help-id="admin.platform.jobs.failed"
           style={{ border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", overflow: "hidden", background: "var(--aiq-color-bg-base)" }}
         >
-          <div style={{ display: "grid", gridTemplateColumns: ROW_GRID, gap: 12, padding: "12px 20px", background: "var(--aiq-color-bg-raised)", borderBottom: "1px solid var(--aiq-color-border)", ...META_LABEL, fontSize: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: ROW_GRID, gap: 12, padding: "12px 20px", background: "var(--aiq-color-bg-raised)", borderBottom: "1px solid var(--aiq-color-border)", ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>
             <span>Job</span>
             <span>Type</span>
             <span>Last error</span>
@@ -174,13 +174,13 @@ export function BackgroundJobsSection(): React.ReactElement {
                 </div>
                 {open && (
                   <div style={{ padding: "0 20px 16px", borderTop: "1px dashed var(--aiq-color-border)", background: "var(--aiq-color-bg-sunken)" }}>
-                    <div style={{ ...META_LABEL, fontSize: 10, margin: "12px 0 4px" }}>Payload (sensitive fields redacted by the server)</div>
+                    <div style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)", margin: "12px 0 4px" }}>Payload (sensitive fields redacted by the server)</div>
                     <pre style={{ margin: 0, fontFamily: "var(--aiq-font-mono)", fontSize: 11, whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" }}>
                       {JSON.stringify(j.data, null, 2)}
                     </pre>
                     {j.stacktrace_tail && (
                       <>
-                        <div style={{ ...META_LABEL, fontSize: 10, margin: "12px 0 4px" }}>Error stack (tail)</div>
+                        <div style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)", margin: "12px 0 4px" }}>Error stack (tail)</div>
                         <pre style={{ margin: 0, fontFamily: "var(--aiq-font-mono)", fontSize: 11, whiteSpace: "pre-wrap", maxHeight: 200, overflow: "auto" }}>
                           {j.stacktrace_tail}
                         </pre>

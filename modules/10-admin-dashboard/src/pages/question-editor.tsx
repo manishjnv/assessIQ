@@ -370,7 +370,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
   return (
     <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "New question"]} helpPage="admin.question.editor">
       <form onSubmit={(e) => void handleSubmit(e)} style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)", maxWidth: 640 }}>
-        <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+        <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-h1-size)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
           New question.</h1>
 
         {submitError && (
@@ -858,10 +858,10 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
     <AdminShell breadcrumbs={[{ label: "Question bank", href: "/admin/question-bank" }, "Question"]} helpPage="admin.question.editor">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Header row: title + status badge + back button */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--aiq-space-md)" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--aiq-space-md)" }}>
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", marginBottom: "var(--aiq-space-xs)" }}>
-              <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+              <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-h1-size)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
                 {isSuperAdmin ? "Edit rubric." : "View rubric."}</h1>
               <span
                 style={{

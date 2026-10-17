@@ -27,7 +27,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Chip, Table } from "@assessiq/ui-system";
+import { Chip, EmptyState, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, getCompanyEntitlements, getCompanyUsage, createAssessmentFromSet } from "../api.js";
@@ -284,6 +284,7 @@ export function AdminAssessments(): React.ReactElement {
               display: "flex",
               alignItems: "flex-start",
               justifyContent: "space-between",
+              flexWrap: "wrap",
               gap: "var(--aiq-space-md)",
             }}
           >
@@ -291,7 +292,7 @@ export function AdminAssessments(): React.ReactElement {
               <h1
                 style={{
                   fontFamily: "var(--aiq-font-serif)",
-                  fontSize: "var(--aiq-text-3xl)",
+                  fontSize: "var(--aiq-h1-size)",
                   fontWeight: 400,
                   margin: 0,
                   letterSpacing: "-0.02em",
@@ -303,7 +304,7 @@ export function AdminAssessments(): React.ReactElement {
                 Assessment cycles — set dates, invite candidates, track completion.
               </p>
             </div>
-            <Link to="/admin/start-test" style={{ fontSize: 14, alignSelf: "center" }}>Start a test</Link>
+            <Link to="/admin/start-test" className="aiq-btn aiq-btn-outline" style={{ alignSelf: "center" }}>Start a test</Link>
             <button
               type="button"
               className="aiq-btn aiq-btn-primary"
@@ -613,33 +614,10 @@ export function AdminAssessments(): React.ReactElement {
             Loading…
           </div>
         ) : items.length === 0 ? (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "var(--aiq-space-3xl) 0",
-              color: "var(--aiq-color-fg-muted)",
-            }}
-          >
-            <p
-              style={{
-                fontFamily: "var(--aiq-font-serif)",
-                fontSize: "var(--aiq-text-xl)",
-                fontWeight: 400,
-                margin: "0 0 var(--aiq-space-sm)",
-              }}
-            >
-              No assessments yet.
-            </p>
-            <p
-              style={{
-                fontFamily: "var(--aiq-font-sans)",
-                fontSize: "var(--aiq-text-sm)",
-                margin: 0,
-              }}
-            >
-              Create an assessment to invite candidates and open a cycle.
-            </p>
-          </div>
+          <EmptyState
+            title="No assessments yet."
+            body="Create an assessment to invite candidates and open a cycle."
+          />
         ) : (
           <div className="aiq-admin-table-scroll">
             <Table

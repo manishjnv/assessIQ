@@ -124,7 +124,7 @@ export function AdminLogin(): React.JSX.Element {
         <p
           style={{
             color: 'var(--aiq-color-fg-secondary)',
-            fontSize: 15,
+            fontSize: 'var(--aiq-text-lg)',
             margin: '0 0 32px',
             lineHeight: 1.5,
             fontFamily: 'var(--aiq-font-sans)',

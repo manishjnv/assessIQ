@@ -61,7 +61,7 @@ export function NumericAnswerArea({
           }}
         />
         {typeof unit === 'string' && unit !== '' && (
-          <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 15, color: 'var(--aiq-color-fg-muted)' }}>
+          <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-lg)', color: 'var(--aiq-color-fg-muted)' }}>
             {unit}
           </span>
         )}

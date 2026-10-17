@@ -472,7 +472,7 @@ export function ScenarioAnswerArea({
         <p
           style={{
             fontFamily: 'var(--aiq-font-sans)',
-            fontSize: 15,
+            fontSize: 'var(--aiq-text-lg)',
             color: 'var(--aiq-color-fg-secondary)',
             margin: 0,
           }}
@@ -518,7 +518,7 @@ export function ScenarioAnswerArea({
           <p
             style={{
               fontFamily: 'var(--aiq-font-serif)',
-              fontSize: 17,
+              fontSize: 'var(--aiq-text-lg)',
               lineHeight: 1.55,
               color: 'var(--aiq-color-fg-primary)',
               margin: 0,

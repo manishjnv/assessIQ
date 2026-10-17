@@ -359,7 +359,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
         <div
           style={{
             fontFamily: "var(--aiq-font-mono)",
-            fontSize: 10,
+            fontSize: "var(--aiq-text-xs)",
             color: "var(--aiq-color-fg-secondary)",
             textTransform: "capitalize",
           }}

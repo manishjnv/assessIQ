@@ -19,7 +19,7 @@ const LABEL: CSSProperties = {
   fontSize: '.75rem',
   textTransform: 'uppercase',
   letterSpacing: '.05em',
-  color: '#6b7280',
+  color: 'var(--aiq-color-fg-muted)',
   margin: 0,
 };
 
@@ -40,8 +40,8 @@ export function TryCertificatePage(): React.JSX.Element {
   return (
     <main
       style={{
-        fontFamily: 'system-ui, sans-serif',
-        background: '#f5f5f5',
+        fontFamily: 'var(--aiq-font-sans)',
+        background: 'var(--aiq-color-bg-sunken)',
         minHeight: '100vh',
         display: 'flex',
         alignItems: 'center',
@@ -54,7 +54,7 @@ export function TryCertificatePage(): React.JSX.Element {
         style={{
           position: 'relative',
           overflow: 'hidden',
-          background: '#fff',
+          background: 'var(--aiq-color-bg-base)',
           borderRadius: 12,
           boxShadow: '0 2px 12px rgba(0,0,0,.1)',
           padding: '2rem 1.5rem',
@@ -90,8 +90,8 @@ export function TryCertificatePage(): React.JSX.Element {
           style={{
             margin: '0 0 1rem',
             padding: '.5rem .75rem',
-            background: '#fef3c7',
-            color: '#92400e',
+            background: 'var(--aiq-color-warning-soft)',
+            color: 'color-mix(in oklch, var(--aiq-color-warning) 40%, black)',
             borderRadius: 6,
             fontSize: '.875rem',
             fontWeight: 600,
@@ -105,8 +105,8 @@ export function TryCertificatePage(): React.JSX.Element {
             padding: '.5rem 1.25rem',
             borderRadius: 9999,
             fontWeight: 600,
-            background: '#dcfce7',
-            color: '#166534',
+            background: 'var(--aiq-color-success-soft)',
+            color: 'var(--aiq-color-success)',
             marginBottom: '1.5rem',
           }}
         >
@@ -118,10 +118,10 @@ export function TryCertificatePage(): React.JSX.Element {
             <p
               style={{
                 margin: 0,
-                color: '#111827',
+                color: 'var(--aiq-color-fg-primary)',
                 fontWeight: 500,
                 ...(label === 'Credential ID'
-                  ? { fontFamily: 'monospace', fontSize: '.9rem', background: '#f3f4f6', padding: '.25rem .5rem', borderRadius: 4, display: 'inline-block' }
+                  ? { fontFamily: 'var(--aiq-font-mono)', fontSize: '.9rem', background: 'var(--aiq-color-bg-sunken)', padding: '.25rem .5rem', borderRadius: 4, display: 'inline-block' }
                   : {}),
               }}
             >
@@ -130,7 +130,7 @@ export function TryCertificatePage(): React.JSX.Element {
           </div>
         ))}
         <p style={{ margin: '1.5rem 0 0', fontSize: '.9rem' }}>
-          <Link to="/try" style={{ color: '#2f5fc4', fontWeight: 600 }}>
+          <Link to="/try" style={{ color: 'var(--aiq-color-accent)', fontWeight: 600 }}>
             Back to the sample assessment
           </Link>
         </p>
