@@ -151,3 +151,18 @@ export function shortId(id: string): string {
 
 /** Row decision in a question import report (RW-58). */
 export const importDecisionLabel = labeler({ ok: "Ready", error: "Needs a fix", duplicate: "Duplicate", skip: "Skipped" });
+
+/** Why a candidate was not invited (invite + bulk import skip reasons). */
+export const inviteSkipReasonLabel = labeler({
+  USER_NOT_FOUND: "User not found",
+  USER_NOT_CANDIDATE: "Not a candidate",
+  USER_INACTIVE: "Account is not active",
+  CANDIDATE_ERASED: "Account was erased",
+  INVITATION_EXISTS: "Already invited",
+  INVALID_EMAIL: "Email address is not valid",
+  MISSING_NAME: "Name is missing",
+  NAME_TOO_LONG: "Name is too long",
+  DUPLICATE_IN_FILE: "Listed twice",
+  EXISTING_USER_NOT_CANDIDATE: "Email belongs to a user who is not a candidate",
+  INSERT_FAILED: "Could not be saved",
+});

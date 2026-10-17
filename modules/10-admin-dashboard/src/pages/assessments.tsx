@@ -26,7 +26,7 @@
 //  - No new invite backend. No manual authoring. No swap endpoint.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
@@ -303,6 +303,7 @@ export function AdminAssessments(): React.ReactElement {
                 Assessment cycles — set dates, invite candidates, track completion.
               </p>
             </div>
+            <Link to="/admin/start-test" style={{ fontSize: 14, alignSelf: "center" }}>Start a test</Link>
             <button
               type="button"
               className="aiq-btn aiq-btn-primary"
