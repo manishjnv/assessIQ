@@ -36,6 +36,9 @@ import type {
   LevelRubricDefaults,
   ListPacksInput,
   ListQuestionsInput,
+  QuestionFacets,
+  FacetCount,
+  FacetNodeCount,
   PackListItem,
   PackStatus,
   Question,
@@ -648,97 +651,218 @@ export async function findQuestionById(
   return row !== undefined ? mapQuestionRow(row) : null;
 }
 
+// ---------------------------------------------------------------------------
+// EXP-5 list filters + facets
+// ---------------------------------------------------------------------------
+
+/** Facet keys a filter belongs to; a facet's own filter is left out of its own counts. */
+type FilterKey =
+  | "type" | "status" | "origin" | "rights_status" | "review_state" | "language"
+  | "difficulty" | "has_solution" | "stage" | "subject" | "unit" | "outcome";
+
+const HAS_SOLUTION_SQL = `(btrim(coalesce(q.content->>'rationale', '')) <> '')`;
+const NODE_KINDS = ["stage", "subject", "unit", "outcome"] as const;
+
+interface BuiltWhere {
+  joins: string;
+  where: string;
+  values: unknown[];
+  next: number;
+  /** 1-based parameter index of the search text, or 0 when there is no search. */
+  qParam: number;
+}
+
+/**
+ * Build the JOIN and WHERE clauses for a ListQuestionsInput. Every user value is a bound
+ * parameter; the only inlined SQL is fixed literals. `exclude` drops one facet's own filter
+ * (disjunctive facet counts). RLS scopes every table touched; no tenant_id predicate here.
+ */
+function buildQuestionWhere(filters: ListQuestionsInput, exclude?: FilterKey, forceSource = false, fuzzy = true): BuiltWhere {
+  const conditions: string[] = [];
+  const values: unknown[] = [];
+  let i = 1;
+  let qParam = 0;
+  const bind = (v: unknown): string => { values.push(v); return `$${i++}`; };
+
+  if (filters.pack_id !== undefined) conditions.push(`q.pack_id = ${bind(filters.pack_id)}`);
+  if (filters.level_id !== undefined) conditions.push(`q.level_id = ${bind(filters.level_id)}`);
+  if (filters.type !== undefined && exclude !== "type") conditions.push(`q.type = ${bind(filters.type)}`);
+  if (filters.status !== undefined && exclude !== "status") conditions.push(`q.status = ${bind(filters.status)}`);
+  // The JOIN to question_tags + tags is added below; here we bind the name.
+  if (filters.tag !== undefined) conditions.push(`t.name = ${bind(filters.tag)}`);
+  if (filters.search !== undefined && filters.search.length > 0) {
+    conditions.push(`lower(q.topic) LIKE lower(${bind(filters.search)}) || '%'`);
+  }
+  // Slice 2.2/D5: read-only domain/category filters — RLS-scoped via withTenant.
+  if (filters.domain_id !== undefined) conditions.push(`q.domain_id = ${bind(filters.domain_id)}`);
+  if (filters.category_id !== undefined) conditions.push(`q.category_id = ${bind(filters.category_id)}`);
+
+  // Full-text (simple config, stored tsvector) and, in fuzzy mode, OR trigram word similarity
+  // (default pg_trgm.word_similarity_threshold 0.6) for typos. See needsFuzzySearch().
+  if (filters.q !== undefined && filters.q.length > 0) {
+    const p = bind(filters.q);
+    qParam = i - 1;
+    conditions.push(
+      fuzzy
+        ? `(q.search_tsv @@ plainto_tsquery('simple', ${p}) OR ${p} <% q.search_text)`
+        : `q.search_tsv @@ plainto_tsquery('simple', ${p})`,
+    );
+  }
+  const multi = (key: FilterKey, col: string, vals: readonly string[] | undefined): void => {
+    if (vals === undefined || vals.length === 0 || exclude === key) return;
+    conditions.push(`${col} = ANY(${bind([...vals])}::text[])`);
+  };
+  multi("origin", "s.origin", filters.origin);
+  multi("rights_status", "s.rights_status", filters.rights_status);
+  multi("language", "q.language_primary", filters.language);
+  multi("review_state", "coalesce(q.review_state, 'none')", filters.review_state);
+  if (exclude !== "difficulty") {
+    if (filters.difficulty_min !== undefined) conditions.push(`q.difficulty_est >= ${bind(filters.difficulty_min)}`);
+    if (filters.difficulty_max !== undefined) conditions.push(`q.difficulty_est <= ${bind(filters.difficulty_max)}`);
+  }
+  if (filters.has_solution !== undefined && exclude !== "has_solution") {
+    conditions.push(filters.has_solution ? HAS_SOLUTION_SQL : `NOT ${HAS_SOLUTION_SQL}`);
+  }
+  // Taxonomy node filters: the node must have the named kind; matches the node and all descendants.
+  for (const kind of NODE_KINDS) {
+    const id = filters[`${kind}_id` as const];
+    if (id === undefined || exclude === kind) continue;
+    conditions.push(
+      `EXISTS (SELECT 1 FROM question_taxonomy qx WHERE qx.question_id = q.id AND qx.node_id IN (
+         WITH RECURSIVE sub AS (
+           SELECT id FROM taxonomy_nodes WHERE id = ${bind(id)} AND kind = '${kind}'
+           UNION
+           SELECT c.id FROM taxonomy_nodes c JOIN sub ON c.parent_id = sub.id)
+         SELECT id FROM sub))`,
+    );
+  }
+
+  const needSource = forceSource || filters.origin !== undefined || filters.rights_status !== undefined;
+  const joins =
+    (filters.tag !== undefined
+      ? `JOIN question_tags qt ON qt.question_id = q.id JOIN tags t ON t.id = qt.tag_id `
+      : "") +
+    (needSource ? `LEFT JOIN question_source s ON s.question_id = q.id` : "");
+  return { joins, where: conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "", values, next: i, qParam };
+}
+
+/**
+ * The trigram scan is the slow part of a search (RLS stops Postgres using the GIN index), so it
+ * runs only when the exact full-text match finds nothing for the current filters.
+ */
+async function needsFuzzySearch(client: PoolClient, filters: ListQuestionsInput): Promise<boolean> {
+  if (filters.q === undefined || filters.q.length === 0) return false;
+  const b = buildQuestionWhere(filters, undefined, false, false);
+  const r = await client.query(`SELECT 1 FROM questions q ${b.joins} ${b.where} LIMIT 1`, b.values);
+  return r.rowCount === 0;
+}
+
 export async function listQuestionRows(
   client: PoolClient,
   filters: ListQuestionsInput,
 ): Promise<{ items: Question[]; total: number }> {
-  const conditions: string[] = [];
-  const values: unknown[] = [];
-  let i = 1;
-
-  // When filtering by tag name we need the JOIN; build that join clause only
-  // when required so untagged queries avoid the extra join overhead.
-  const useTagJoin = filters.tag !== undefined;
-
-  if (filters.pack_id !== undefined) {
-    conditions.push(`q.pack_id = $${i}`);
-    values.push(filters.pack_id);
-    i++;
-  }
-  if (filters.level_id !== undefined) {
-    conditions.push(`q.level_id = $${i}`);
-    values.push(filters.level_id);
-    i++;
-  }
-  if (filters.type !== undefined) {
-    conditions.push(`q.type = $${i}`);
-    values.push(filters.type);
-    i++;
-  }
-  if (filters.status !== undefined) {
-    conditions.push(`q.status = $${i}`);
-    values.push(filters.status);
-    i++;
-  }
-  if (filters.tag !== undefined) {
-    // The JOIN to question_tags + tags is added below; here we bind the name.
-    conditions.push(`t.name = $${i}`);
-    values.push(filters.tag);
-    i++;
-  }
-  if (filters.search !== undefined && filters.search.length > 0) {
-    conditions.push(`lower(q.topic) LIKE lower($${i}) || '%'`);
-    values.push(filters.search);
-    i++;
-  }
-  // Slice 2.2/D5: read-only domain/category filters — RLS-scoped via withTenant.
-  if (filters.domain_id !== undefined) {
-    conditions.push(`q.domain_id = $${i}`);
-    values.push(filters.domain_id);
-    i++;
-  }
-  if (filters.category_id !== undefined) {
-    conditions.push(`q.category_id = $${i}`);
-    values.push(filters.category_id);
-    i++;
-  }
-
-  const joinClause = useTagJoin
-    ? `JOIN question_tags qt ON qt.question_id = q.id
-       JOIN tags t ON t.id = qt.tag_id`
-    : "";
-
-  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-
-  // Separate count query.
-  const countResult = await client.query<{ count: string }>(
-    `SELECT count(*) FROM questions q ${joinClause} ${where}`,
-    values,
-  );
-  const total = parseInt(countResult.rows[0]?.count ?? "0", 10);
+  const fuzzy = await needsFuzzySearch(client, filters);
+  const { joins, where, values, next: i, qParam } = buildQuestionWhere(filters, undefined, false, fuzzy);
 
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
   const offset = (page - 1) * pageSize;
 
+  // A search ranks by trigram word similarity; otherwise newest first.
+  const orderBy = qParam > 0
+    ? `word_similarity($${qParam}, q.search_text) DESC, q.created_at DESC, q.id DESC`
+    : `q.created_at DESC, q.id DESC`;
+
+  // One scan: count(*) OVER () gives the total with the page (a search filter is the costly part,
+  // and RLS stops Postgres using its GIN indexes, so a second count scan would double the time).
   // Qualify all columns to avoid ambiguity when the tag JOIN is present.
-  const dataResult = await client.query<QuestionRow>(
+  const dataResult = await client.query<QuestionRow & { total_count: string }>(
     `SELECT q.id, q.pack_id, q.level_id, q.type, q.topic, q.points, q.negative_marks, q.status,
             q.version, q.content, q.rubric, q.answer_guidance, q.knowledge_base_sources,
             q.created_by, q.created_at, q.updated_at,
             q.domain_id, q.category_id,
             q.cognitive_level, q.nice_task_id, q.difficulty_params, q.attack_technique,
             q.difficulty_est, q.review_state, q.language_primary, q.content_i18n,
-            (SELECT label FROM levels WHERE levels.id = q.level_id) AS level_label
+            (SELECT label FROM levels WHERE levels.id = q.level_id) AS level_label,
+            count(*) OVER () AS total_count
      FROM questions q
-     ${joinClause}
+     ${joins}
      ${where}
-     ORDER BY q.created_at DESC, q.id DESC
+     ORDER BY ${orderBy}
      LIMIT $${i} OFFSET $${i + 1}`,
     [...values, pageSize, offset],
   );
 
+  let total: number;
+  if (dataResult.rows.length > 0) {
+    total = parseInt(dataResult.rows[0]!.total_count, 10);
+  } else if (offset === 0) {
+    total = 0;
+  } else {
+    // Page past the end: the window count is not available, count separately.
+    const c = await client.query<{ count: string }>(`SELECT count(*) FROM questions q ${joins} ${where}`, values);
+    total = parseInt(c.rows[0]?.count ?? "0", 10);
+  }
+
   return { items: dataResult.rows.map(mapQuestionRow), total };
+}
+
+/** Counts per facet value for the current filter set (a facet ignores its own filter). */
+export async function questionFacetCounts(
+  client: PoolClient,
+  filters: ListQuestionsInput,
+): Promise<QuestionFacets> {
+  const fuzzy = await needsFuzzySearch(client, filters);
+
+  const bucket = async (key: FilterKey, expr: string): Promise<FacetCount[]> => {
+    const b = buildQuestionWhere(filters, key, true, fuzzy);
+    const r = await client.query<FacetCount>(
+      `SELECT ${expr} AS value, count(*)::int AS count FROM questions q ${b.joins} ${b.where}
+        GROUP BY 1 ORDER BY 2 DESC, 1`,
+      b.values,
+    );
+    return r.rows;
+  };
+  const nodes = async (kind: (typeof NODE_KINDS)[number]): Promise<FacetNodeCount[]> => {
+    const b = buildQuestionWhere(filters, kind, true, fuzzy);
+    const r = await client.query<FacetNodeCount>(
+      `WITH RECURSIVE base AS (SELECT q.id FROM questions q ${b.joins} ${b.where}),
+       up AS (
+         SELECT qt.question_id, n.id, n.parent_id
+           FROM question_taxonomy qt JOIN taxonomy_nodes n ON n.id = qt.node_id
+          WHERE qt.question_id IN (SELECT id FROM base)
+         UNION
+         SELECT up.question_id, p.id, p.parent_id FROM up JOIN taxonomy_nodes p ON p.id = up.parent_id)
+       SELECT n.id AS node_id, n.code, n.label, count(DISTINCT up.question_id)::int AS count
+         FROM up JOIN taxonomy_nodes n ON n.id = up.id
+        WHERE n.kind = '${kind}'
+        GROUP BY n.id, n.code, n.label ORDER BY 4 DESC, n.label`,
+      b.values,
+    );
+    return r.rows;
+  };
+
+  const all = buildQuestionWhere(filters, undefined, true, fuzzy);
+  const totalRes = await client.query<{ count: string }>(
+    `SELECT count(*) FROM questions q ${all.joins} ${all.where}`,
+    all.values,
+  );
+  // Sequential on purpose: one PoolClient runs one query at a time.
+  return {
+    total: parseInt(totalRes.rows[0]?.count ?? "0", 10),
+    type: await bucket("type", `q.type`),
+    status: await bucket("status", `q.status`),
+    origin: await bucket("origin", `coalesce(s.origin, 'none')`),
+    rights_status: await bucket("rights_status", `coalesce(s.rights_status, 'none')`),
+    review_state: await bucket("review_state", `coalesce(q.review_state, 'none')`),
+    language: await bucket("language", `q.language_primary`),
+    difficulty: await bucket("difficulty", `coalesce(q.difficulty_est::text, 'none')`),
+    has_solution: await bucket("has_solution", `(${HAS_SOLUTION_SQL})::text`),
+    stage: await nodes("stage"),
+    subject: await nodes("subject"),
+    unit: await nodes("unit"),
+    outcome: await nodes("outcome"),
+  };
 }
 
 export async function insertQuestion(

@@ -30,6 +30,7 @@ export {
   updateLevel,
   // question ops
   listQuestions,
+  questionFacets,
   getQuestion,
   createQuestion,
   updateQuestion,
@@ -108,6 +109,9 @@ export type {
   AddLevelInput,
   UpdateLevelPatch,
   ListQuestionsInput,
+  QuestionFacets,
+  FacetCount,
+  FacetNodeCount,
   CreateQuestionInput,
   UpdateQuestionPatch,
   PaginatedPacks,

@@ -48,6 +48,9 @@ beforeAll(async () => {
     .start();
   url = `postgres://test:test@${container.getHost()}:${container.getMappedPort(5432)}/aiq_test`;
   await sup((c) => applyAllMigrations(c));
+  // Migration 0196 (EXP-5) installs pg_trgm. These tests start from the extension-absent state, so drop it
+  // (CASCADE removes only the 0196 trigram index); the last test installs it again.
+  await sup((c) => c.query(`DROP EXTENSION IF EXISTS pg_trgm CASCADE`));
   await setPoolForTesting(url);
   await sup(async (c) => {
     await c.query(`INSERT INTO tenants (id, slug, name) VALUES ($1,'ta','ta')`, [tA]);

@@ -4584,3 +4584,91 @@ admin.guide.faq_usage_banner:
   short_text: "What does the usage banner mean — will grading stop if I go over?"
   long_md: |
     No — grading never stops. The banner is informational only. Green means you have used less than 80% of your included credits. Amber means 80–100% used. Red means you are over your included credits, but assigning, submitting, and grading all continue to work. Contact your AssessIQ administrator if you need to discuss your plan.
+
+admin.question_bank.pack.filter_search:
+  audience: admin
+  short_text: "Search the text of the questions. A small typing mistake still finds the question."
+  long_md: |
+    ## Search questions
+
+    Type words from a question or its answer options. The list updates after a short pause. The search ignores letter case and the solution text. If no question has all your words, AssessIQ also looks for words that are close, so a small typing mistake still finds the question. Clear the box to show all questions again.
+
+admin.question_bank.pack.filter_stage:
+  audience: admin
+  short_text: "Show only questions linked to one exam stage."
+  long_md: |
+    ## Exam stage
+
+    Pick an exam stage, for example a tier of an exam. The list shows questions linked to that stage. The number in brackets is how many questions match with your other filters.
+
+admin.question_bank.pack.filter_subject:
+  audience: admin
+  short_text: "Show only questions in one subject."
+  long_md: |
+    ## Subject
+
+    Pick a subject from the subject map. The list shows questions linked to that subject or to any topic or subtopic below it. The number in brackets is how many questions match with your other filters.
+
+admin.question_bank.pack.filter_unit:
+  audience: admin
+  short_text: "Show only questions in one topic."
+  long_md: |
+    ## Topic
+
+    Pick a topic, for example Arithmetic. The list shows questions linked to that topic or to any subtopic below it. The number in brackets is how many questions match with your other filters.
+
+admin.question_bank.pack.filter_outcome:
+  audience: admin
+  short_text: "Show only questions in one subtopic."
+  long_md: |
+    ## Subtopic
+
+    Pick the most specific level, for example Percentage. The list shows questions linked to that subtopic. The number in brackets is how many questions match with your other filters.
+
+admin.question_bank.pack.filter_difficulty:
+  audience: admin
+  short_text: "Show only questions in a difficulty range from 1 (easy) to 5 (hard)."
+  long_md: |
+    ## Difficulty
+
+    Choose the lowest and the highest difficulty. Both ends are included. Questions with no difficulty set are hidden while you use this filter. The number in brackets is how many questions have that difficulty with your other filters.
+
+admin.question_bank.pack.filter_origin:
+  audience: admin
+  short_text: "Show only questions from one source type, for example written by hand or by AI."
+  long_md: |
+    ## Origin
+
+    Origin tells you where a question came from: written by hand, written by AI, rewritten from a source, copied from a web page, uploaded by an organisation, or licensed. Pick one value to filter the list.
+
+admin.question_bank.pack.filter_rights:
+  audience: admin
+  short_text: "Show only questions with one rights status."
+  long_md: |
+    ## Rights
+
+    Rights status tells you who may use a question. A question set that holds a question with an unsafe status cannot be published. Pick one value to filter the list.
+
+admin.question_bank.pack.filter_review:
+  audience: admin
+  short_text: "Show only questions in one review state."
+  long_md: |
+    ## Review
+
+    Review state shows how far a question is in the check by the super admin: in review, verified, disputed, or needs a fix. Not set means the question has not entered review. Pick one value to filter the list.
+
+admin.question_bank.pack.filter_language:
+  audience: admin
+  short_text: "Show only questions written in one language."
+  long_md: |
+    ## Language
+
+    Pick the main language of the question, for example en for English or hi for Hindi.
+
+admin.question_bank.pack.filter_solution:
+  audience: admin
+  short_text: "Show only questions with, or without, a written solution."
+  long_md: |
+    ## Solution
+
+    A question has a solution when its explanation text is not empty. Pick With solution or Without solution to filter the list.
