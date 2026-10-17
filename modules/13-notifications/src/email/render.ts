@@ -191,25 +191,25 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
     case 'invitation_reminder':
       return [
         { k: 'Assessment', v: `<strong>${escapeHtml(p.assessmentName)}</strong>` },
-        { k: 'Company', v: escapeHtml(p.tenantName) },
+        { k: 'Organisation', v: escapeHtml(p.tenantName) },
         { k: 'Expires', v: escapeHtml(p.expiresAt) },
       ];
     case 'invitation_admin': {
       const rows: MetaRow[] = [{ k: 'Role', v: `<strong>${escapeHtml(p.role)}</strong>` }];
       if (typeof p.tenantName === 'string' && p.tenantName.length > 0) {
-        rows.push({ k: 'Company', v: escapeHtml(p.tenantName) });
+        rows.push({ k: 'Organisation', v: escapeHtml(p.tenantName) });
       }
       return rows;
     }
     case 'attempt_graded_candidate':
       return [
         { k: 'Assessment', v: `<strong>${escapeHtml(p.assessmentName)}</strong>` },
-        { k: 'Company', v: escapeHtml(p.tenantName) },
+        { k: 'Organisation', v: escapeHtml(p.tenantName) },
       ];
     case 'result_released':
       return [
         { k: 'Assessment', v: `<strong>${escapeHtml(p.assessmentName)}</strong>` },
-        { k: 'Company', v: escapeHtml(p.tenantName) },
+        { k: 'Organisation', v: escapeHtml(p.tenantName) },
         { k: 'Score', v: `<strong>${escapeHtml(p.scoreText)}</strong>` },
         { k: 'Result', v: `<strong>${escapeHtml(p.resultText)}</strong>` },
       ];
