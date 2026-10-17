@@ -14,12 +14,18 @@
     "test": "node --import tsx/esm --test src/__tests__/submit-questions.test.ts"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@hono/node-server": "^1.19.15",
+      "ip-address": "^10.7.1"
+    }
   }
 }
