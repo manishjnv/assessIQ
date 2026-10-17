@@ -1,12 +1,12 @@
 # Admin navigation review — fewer, flow-shaped pages for the organisation admin
 
-**Status:** REVIEW DONE 2026-10-17, no code yet. Feeds ROADMAP rows Z-21 (help drawer + My account), Z-22 (flow gaps), Z-23 (7-item regroup, owner-gated), Z-24 (flow-first Home, hosts RW-83).
+**Status:** REVIEW DONE 2026-10-17, no code yet. Feeds ROADMAP rows Z-21 (help drawer + My account), Z-22 (flow gaps), Z-23 (7-item regroup, owner-gated), Z-24 (flow-first Home checklist). **Same-day update:** S15 shipped RW-83 "Start a test" (`283dd23`, `/admin/start-test`, `pages/start-test.tsx`) as a new nav item in the Work section, so the tenant admin now sees 16 items; the target layout folds it into Home as the primary button.
 **Owner question (2026-10-17, screenshot of assessiq.in/admin):** how many left-nav items are documentation, can they be one user guide, and how can the org admin run one assessment end to end with fewer, more effective pages. Constraint: do not delete or discard any feature (PROJECT_BRAIN Rule A).
 **Method:** four read-only sweeps (Sonnet) over all 36 `/admin/*` routes in `apps/web/src/App.tsx:85-139`, every page under `modules/10-admin-dashboard/src/pages/`, `AdminShell.tsx`, module 16 help components and seeds, docs 07, 08, 09, 10, 14, STYLE, ROADMAP, SESSION_STATE. Two surprising claims re-verified by grep (no admin help trigger; Attempts ignores `assessmentId`).
 
 ## 1. What the admin sees today (tenant `admin` role)
 
-Sidebar `AdminShell.tsx:259-311`, sections rendered at `:445-450`: **Work** (Dashboard, Assessments, Attempts, Grading status, Reports, Certificates) · **Content** (Question bank; super admin also Generate questions, Generation history) · **Admin** (Users, Activity, Audit log) · **Integrations** (Webhooks, Embed) · **Account** (Help guide, Account security, Settings) · **Platform** (super admin only: Grading queue, Platform, Help content). Tenant admin count: **15 items in 5 sections**.
+Sidebar `AdminShell.tsx:259-311`, sections rendered at `:445-450`: **Work** (Dashboard, Assessments, Attempts, Grading status, Reports, Certificates) · **Content** (Question bank; super admin also Generate questions, Generation history) · **Admin** (Users, Activity, Audit log) · **Integrations** (Webhooks, Embed) · **Account** (Help guide, Account security, Settings) · **Platform** (super admin only: Grading queue, Platform, Help content). Tenant admin count: **15 items in 5 sections** at review time, **16** after S15 added "Start a test" (`AdminShell.tsx:261`).
 
 Top bar (`AdminShell.tsx:459-572`): hamburger (mobile), AssessIQ link, tenant logo, NotificationBell, email text, Sign out. **No help button.** Sidebar footer (`:324-370`): avatar, name, role. **Not clickable.**
 
@@ -15,6 +15,7 @@ Top bar (`AdminShell.tsx:459-572`): hamburger (mobile), AssessIQ link, tenant lo
 | Route | Page file | In nav | Gate |
 | --- | --- | --- | --- |
 | /admin | dashboard.tsx | Y Dashboard | admin |
+| /admin/start-test | start-test.tsx (S15, RW-83: pick set, difficulty, count, name; tick candidates or paste emails; create → publish → invite) | Y (since 283dd23) | admin |
 | /admin/assessments, /:id | assessments.tsx (+assessments/), assessment-detail.tsx (+assessment-detail/) | Y / N | admin |
 | /admin/attempts, /:id | attempts.tsx, attempt-detail.tsx | Y / N | admin |
 | /admin/grading-jobs | grading-jobs.tsx ("Grading status") | Y | admin |
@@ -67,7 +68,7 @@ Each tab = the existing page component at its existing route with its own `helpP
 
 | Nav item | Tabs (existing pages) | Notes |
 | --- | --- | --- |
-| **Home** | Dashboard | Z-24 adds the 6-step "Run an assessment" checklist and later hosts RW-83 "Start a test". |
+| **Home** | Dashboard | Primary button "Start a test" (the S15 page at `/admin/start-test`; its nav item goes away, the route stays). Z-24 adds the 6-step "Run an assessment" checklist. |
 | **Assessments** | Assessments · Attempts · Grading status · Certificates | Whole lifecycle. Grading status stays read-only (FU-C1). Fix 2.3 #1 so the tab opens filtered. |
 | **Question bank** | unchanged | Import stays a super-admin button. |
 | **Reports** | Reports · Activity | Rename Activity's inner "Audit log" tab to "Recent activity". |
@@ -92,7 +93,7 @@ Labels follow the glossary (docs/10 § glossary, STYLE.md): organisation, questi
 1. **Z-21 light (1 session, S):** help drawer in admin + guide into YAML + My account footer + remove the two nav items. 15 → 13.
 2. **Z-22 flow gaps (any session, S):** the six fixes in 2.3. Independent of the layout.
 3. **Z-23 regroup (2 sessions, M, owner confirms names and order first):** 7 items + tab strips + redirects + docs 08 and 10 + help ids for the webhook-secret move + e2e nav smoke.
-4. **Z-24 flow-first (after 100%, M):** Home checklist (create → invite → take → grade → release → certificate, each step links to the tab and ticks from live data) and RW-83 one-screen "Start a test".
+4. **Z-24 flow-first (after Z-23, S):** Home checklist (start a test or create → invite → take → grade → release → certificate, each step links to the tab and ticks from live data). RW-83 "Start a test" already exists (S15) and is step 1.
 
 ## 5. Constraints every implementer must keep
 - Help-id prefix guard: `modules/16-help-system/src/__tests__/help-id-page-prefix.test.ts` (empty allowlist). Element ids must start with the page's `helpPage`; segments `[a-z0-9_]` only. Help text edits go through `content/en/admin.yml` → `pnpm tsx tools/generate-help-seed.ts`; a text change on an existing key needs a new-version migration (docs/07:403-426).
@@ -100,11 +101,12 @@ Labels follow the glossary (docs/10 § glossary, STYLE.md): organisation, questi
 - Kit rules: consult `modules/17-ui-system/AssessIQ_UI_Template/`, never import from it; list-page header pattern (count Chip + serif h1 + lede + filter strip); sidebar 240 px, 10 px mono section labels; `cozy` density, `compact` tables (docs/08:788, docs/10:38, 287, 406-448).
 - Mobile: off-canvas drawer with focus trap (`AdminShell.tsx:150-200`); tab strips must scroll horizontally on phones.
 - Prior decisions this supersedes on an explicit owner yes: 2026-05-20 four-section layout (`032ef84`), RW-16 five-section order (`fee09fd`, "owner confirms the order").
-- Rows to align: RW-83 (Start a test), RW-81 (design pass, no new features), E11 (list quick actions), FU-B11 (API keys tab), X7/FU-A5 (route tier gates; keep gating per tab route), X2 (self-serve onboarding, owner-gated), RO4 (admin MFA optional wording in the guide).
+- Rows to align: RW-83 (shipped S15 `283dd23`; nav item folds into Home), RW-81 (design pass, no new features), E11 (list quick actions), FU-B11 (API keys tab), X7/FU-A5 (route tier gates; keep gating per tab route), X2 (self-serve onboarding, owner-gated), RO4 (admin MFA optional wording in the guide).
 - Same-PR docs: docs/08-ui-system.md § AdminShell, docs/10-branding-guideline.md § shell, modules/10-admin-dashboard SKILL.md, docs/07 for the `admin.guide.*` family; help text for every new element.
 
 ## 6. Features that must survive (checklist for the Z-23 verification sweep)
 
+**Start a test (S15):** licensed set, difficulty, count, name · tick candidates or paste emails · window defaults · create → publish → invite → users/import sequence · result card with assessment link and skip reasons · link on the assessments list.
 **Dashboard:** queue counts (in queue, awaiting grading, ready to release; 30 s poll) · UsageBanner · Results queue table with sort and Review · Refresh · New assessment.
 **Assessments list:** status tabs in URL · sortable table with invited counts · UsageBanner · create form: From a set (FromSetPicker: set, difficulty, question count), Blueprint (super admin, BlueprintBuilder, PreviewAdequacy), name, opens/closes, SectionsEditor, integrity switches, entitlement-filtered domains.
 **Assessment detail:** header chips · Back · Cancel (soft retire) · Delete (no attempts only) · Publish with entitlement hint · ReleaseResendBlock (view attempts link, Release all ready with released/skipped report, Resend to all not started, cap 200) · IntegrityCard · SectionsCard · Advanced settings (HighStakesCard, NegativeMarksCard, RemindersCard) · Invitations table (paging, status, score, per-row Resend) · Invite candidates multi-select + link to Users · CandidateCsvImport · results sort (name/rank/branch) · Download results CSV.
