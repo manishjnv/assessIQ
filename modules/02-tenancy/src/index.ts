@@ -16,6 +16,8 @@ export {
   getAiGradingScope,
   updateRetentionDays,
   updateResultReleaseMode,
+  updateResultFeedbackLevel,
+  getResultFeedbackLevel,
   renameTenant,
   normalizeTenantName,
   createTenant,
@@ -36,6 +38,7 @@ export type {
   UpdateRetentionDaysResult,
   UpdateResultReleaseModeResult,
   ResultReleaseMode,
+  UpdateResultFeedbackLevelResult,
   RenameTenantResult,
   CreateTenantInput,
   CreateTenantResult,
@@ -52,4 +55,6 @@ export type {
   TenantBranding,
   TenantAuthMethods,
   TenantStatus,
+  ResultFeedbackLevel,
 } from "./types.js";
+export { RESULT_FEEDBACK_LEVELS } from "./types.js";

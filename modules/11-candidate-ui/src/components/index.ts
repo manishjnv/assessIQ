@@ -22,6 +22,7 @@ export { MyResults } from './MyResults.js';
 export { MyProgress } from './MyProgress.js';
 
 export { ResultSummary } from './ResultSummary.js';
+export { AttemptFeedback } from './AttemptFeedback.js';
 export type { ResultSummaryProps } from './ResultSummary.js';
 
 export { CompletionModal, NewCertificateModal } from './CompletionModal.js';

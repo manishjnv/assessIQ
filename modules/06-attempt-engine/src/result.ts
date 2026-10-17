@@ -376,8 +376,13 @@ async function loadCandidateResult(
 export async function listCandidateResults(
   tenantId: string,
   userId: string,
-): Promise<{ items: ResultListItem[] }> {
+): Promise<{ items: ResultListItem[]; feedback_level: string }> {
   return withTenant(tenantId, async (client) => {
+    // RW-80: lets the portal hide the per-question review section without an extra call.
+    const lvl = await client.query<{ result_feedback_level: string }>(
+      `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
+    );
+    const feedbackLevel = lvl.rows[0]?.result_feedback_level ?? "none";
     const res = await client.query<ReleasedRow & { attempt_id: string }>(
       `SELECT a.id AS attempt_id,
               asm.name AS assessment_name,
@@ -398,6 +403,7 @@ export async function listCandidateResults(
     );
     const negMarking = await loadNegativeMarking(client, res.rows.map((r) => r.attempt_id));
     return {
+      feedback_level: feedbackLevel,
       items: res.rows.map((r) => {
         const earned = parseFloat(r.total_earned);
         const max = parseFloat(r.total_max);

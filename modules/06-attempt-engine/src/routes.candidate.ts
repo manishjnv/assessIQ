@@ -12,6 +12,7 @@
 //   POST   /api/me/attempts/:id/submit
 //   GET    /api/me/attempts/:id/result
 //   GET    /api/me/results
+//   GET    /api/me/attempts/:id/feedback   (RW-80, per-question feedback, tenant-gated)
 //
 // Auth chain: candidate-only — `roles: ['candidate']`. Phase 1 admin
 // preview/result is OUT of scope here; admin-side attempt routes will land
@@ -41,6 +42,7 @@ import {
   listCandidateResults,
 } from "./result.js";
 import { getCandidateProgress } from "./progress.js";
+import { getCandidateFeedback } from "./feedback.js";
 import { AE_ERROR_CODES } from "./types.js";
 import type { RecordEventInput, SaveAnswerInput, ToggleFlagInput } from "./types.js";
 
@@ -358,6 +360,23 @@ export async function registerAttemptCandidateRoutes(
 
       const view = await getCandidateResult(tenantId, userId, id);
       return reply.code(view.status === "released" ? 200 : 202).send(view);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /api/me/attempts/:id/feedback (RW-80)
+  //   200 { level, items }  - items [] when the tenant level is 'none'
+  //   404 ATTEMPT_NOT_FOUND - not the caller's attempt
+  //   409 RESULT_NOT_READY  - not released yet (a client error, not a polling state:
+  //                           the portal only asks for attempts already in /results)
+  // -------------------------------------------------------------------------
+
+  app.get(
+    "/api/me/attempts/:id/feedback",
+    { preHandler: candidateOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      return getCandidateFeedback(req.session!.tenantId, req.session!.userId, id);
     },
   );
 

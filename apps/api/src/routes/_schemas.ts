@@ -133,6 +133,11 @@ export const renameOwnTenantBody = z.object({
 export const resultReleaseModeBody = z.object({
   mode: z.enum(['manual', 'auto'], { errorMap: () => ({ message: "mode must be 'manual' or 'auto'" }) }),
 });
+export const resultFeedbackLevelBody = z.object({
+  level: z.enum(['none', 'right_wrong', 'with_expected_answer', 'with_ai_justification'], {
+    errorMap: () => ({ message: 'level must be none, right_wrong, with_expected_answer or with_ai_justification' }),
+  }),
+});
 export const retentionDaysBody = z.object({
   retention_days: z.number({
     required_error: 'retention_days is required',
