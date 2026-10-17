@@ -301,6 +301,16 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 - **Not included.** Category linking, a stored hash column.
 - **Multipart upload (RW-97, S11, 2026-10-16).** The upload route accepts `multipart/form-data` as well as the JSON base64 body. The plugin `@fastify/multipart` is registered once in `apps/api` (this module only imports its types). Text fields come BEFORE the `file` part. A file over 4 MB gives `413 FILE_TOO_LARGE`. Why: base64 grows the file by one third and the UI had to encode it. Rejected: removing the JSON body (existing callers). The UI then offers "Draft rubrics" after a commit (module 10 page; it uses `generate-rubric` and `save-rubric`, no new route here). Contract: `docs/03-api-contract.md` § "Question import".
 
+## Import v2 for exam files (EXP-4, 2026-10-17)
+
+- **What.** The import (RW-58) now carries exam tags, rights and provenance. New files: `src/import/v2.ts` (column parsing, normalised-text hash, taxonomy lookup), `src/import/difficulty.ts` (scales `words`, `1-3`, `1-5`). Changed: `templates.ts` (12 new columns after `negative_marks`), `staging.ts` (`validateRowV2`, three duplicate classes), `commit.ts` (writes `question_source`, difficulty, language, taxonomy links), `repository.ts` (`insertQuestion` takes `sourceExtra`, `difficultyEst`, `languagePrimary`).
+- **Why.** Plan `docs/design/2026-10-17-exam-pack-source-and-taxonomy-plan.md` section 0 (D1, D4): thousands of tagged items must go through the existing staging flow, with rights known at the first insert.
+- **Rules.** `rights_status` is required for CSV and XLSX (v1 files give a row error per row; GIFT, Aiken and QTI default to `original`). `withdrawn` is never importable. An unknown stage, subject, difficulty label or scale is a row error. `scraped_raw` rows import; the EXP-2 publish gate blocks them from a published pack and must not be weakened here. Super admin only; caps stay 4 MB and 2000 rows.
+- **Duplicates.** `exact` (content hash) and `normalised` (text hash) make a row `duplicate`. `similar` (pg_trgm, 0.8) only flags a row that stays `ok`. The report lists `checksRun`; `similar` is skipped when the extension is absent. Do not add `CREATE EXTENSION` to a migration.
+- **Considered and rejected.** A wider hash column set on `questions`; a database table for difficulty scales; trigram inside one file; making `similar` a hard duplicate.
+- **Not included.** PDF or Word extraction, embeddings, image upload, organisation-admin upload (EXP-17), hash backfill of old rows.
+- **Downstream.** `docs/03-api-contract.md` section "Question import" (import v2), `docs/02-data-model.md` (Import v2 writes), help ids `admin.question_import.{columns,rights_status,difficulty,duplicates}` (migration `0195`), UI page `/admin/question-import` (duplicate chips, rights note).
+
 ## `clone.ts` is a barrel over `src/clone/` (RW-53, S10, 2026-10-16)
 
 - **What.** `src/clone.ts` went from 1299 to 38 lines. It re-exports from `src/clone/`, so import paths do not change.

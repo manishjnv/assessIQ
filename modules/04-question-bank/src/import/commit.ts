@@ -21,9 +21,10 @@ export async function commitImport(
     if (imp.status !== "staged") {
       throw new ConflictError(`import is already ${imp.status}`, { details: { code: "IMPORT_NOT_STAGED" } });
     }
-    const ok = (await client.query<{ normalized: NormalizedRow }>(
-      `SELECT normalized FROM question_import_rows WHERE import_id = $1 AND decision = 'ok' ORDER BY row_number`, [importId],
-    )).rows.map((r) => r.normalized);
+    const okRows = (await client.query<{ normalized: NormalizedRow; content_hash: string | null }>(
+      `SELECT normalized, content_hash FROM question_import_rows WHERE import_id = $1 AND decision = 'ok' ORDER BY row_number`, [importId],
+    )).rows;
+    const ok = okRows.map((r) => r.normalized);
     if (ok.length === 0) {
       throw new ValidationError("import has no valid rows to commit", { details: { code: "IMPORT_NO_OK_ROWS" } });
     }
@@ -47,11 +48,29 @@ export async function commitImport(
       });
       levelIds.set(position, id);
     }
-    for (const q of ok) {
+    for (const [i, q] of ok.entries()) {
+      const id = uuidv7();
+      // Rows staged before v2 have no meta: they commit as human originals, as every import did before.
+      const m = q.meta;
       await repo.insertQuestion(client, {
-        id: uuidv7(), packId, levelId: levelIds.get(q.level)!, type: q.type as QuestionType,
+        id, packId, levelId: levelIds.get(q.level)!, type: q.type as QuestionType,
         topic: q.topic, points: q.points, negativeMarks: q.negative_marks, content: q.content, createdBy: actorUserId,
+        ...(m ? {
+          origin: m.origin, rightsStatus: m.rightsStatus, difficultyEst: m.difficultyEst, languagePrimary: m.language,
+          sourceExtra: {
+            sourceRef: m.sourceRef, sourceUrl: m.sourceUrl, seedRef: m.seedRef, importId, uploadedBy: actorUserId,
+            sourceDifficultyRaw: m.sourceDifficultyRaw, contentHash: okRows[i]!.content_hash,
+            normalisedTextHash: m.normalisedHash, pyqYear: m.pyqYear, pyqShift: m.pyqShift,
+          },
+        } : {}),
       });
+      const nodeIds = [m?.stageNodeId, m?.subjectNodeId].filter((n): n is string => typeof n === "string");
+      if (nodeIds.length > 0) {
+        await client.query(
+          `INSERT INTO question_taxonomy (question_id, node_id) SELECT $1, UNNEST($2::uuid[]) ON CONFLICT DO NOTHING`,
+          [id, nodeIds],
+        );
+      }
     }
 
     await client.query(

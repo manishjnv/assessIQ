@@ -23,6 +23,7 @@ const msg = (err: unknown, fallback: string): string => (err instanceof AdminApi
 
 const errorStyle: React.CSSProperties = { color: "var(--aiq-color-danger)", fontSize: "var(--aiq-text-sm)" };
 const fieldStyle: React.CSSProperties = { display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" };
+const DUP_LABEL = { exact: "same question", normalised: "same text", similar: "looks similar" } as const;
 const labelStyle: React.CSSProperties = { fontSize: "var(--aiq-text-sm)", fontWeight: 500 };
 const h2Style: React.CSSProperties = { margin: "0 0 var(--aiq-space-md)", fontSize: "var(--aiq-text-xl)", fontWeight: 400 };
 
@@ -158,7 +159,10 @@ export function AdminQuestionImport(): React.ReactElement {
 
   const columns: ColumnDef<ImportRow>[] = [
     { key: "row", label: "Row", render: (r) => <span className="num">{r.row}</span> },
-    { key: "decision", label: "Result", render: (r) => <Chip>{importDecisionLabel(r.decision)}</Chip> },
+    {
+      key: "decision", label: "Result",
+      render: (r) => <Chip>{importDecisionLabel(r.decision)}{r.dupClass ? ` (${DUP_LABEL[r.dupClass]})` : ""}</Chip>,
+    },
     {
       key: "errors", label: "Details",
       render: (r) => r.errors.length === 0 ? null : (
@@ -252,6 +256,9 @@ export function AdminQuestionImport(): React.ReactElement {
                   </button>
                 </div>
               </HelpTip>
+              <p data-help-id="admin.question_import.rights_status" style={{ margin: "var(--aiq-space-md) 0 0" }}>
+                Every row needs a <code>rights_status</code> (original, derived_from_source, scraped_raw, licensed or metadata_only).
+              </p>
               <div data-help-id="admin.question_import.formats" style={{ marginTop: "var(--aiq-space-md)" }}>
                 <div style={labelStyle}>Accepted formats</div>
                 <ul style={{ margin: 0, paddingLeft: "var(--aiq-space-lg)" }}>
@@ -309,6 +316,15 @@ export function AdminQuestionImport(): React.ReactElement {
               <Chip>{report.counts.duplicate} duplicate</Chip>
               <Chip>{report.counts.skip} skipped</Chip>
             </div>
+            {report.duplicateClasses !== undefined && (
+              <div data-help-id="admin.question_import.duplicates" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+                <Chip>{report.duplicateClasses.exact} same question</Chip>
+                <Chip>{report.duplicateClasses.normalised} same text</Chip>
+                {report.checksRun?.includes("similar")
+                  ? <Chip>{report.duplicateClasses.similar} look similar</Chip>
+                  : <Chip>Similar-text check not available</Chip>}
+              </div>
+            )}
             <div className="aiq-card" data-density="compact" style={{ padding: 0, overflow: "hidden" }}>
               <Table columns={columns} data={report.rows} emptyMessage="This file has no rows." />
             </div>

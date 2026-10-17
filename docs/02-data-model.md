@@ -866,6 +866,21 @@ Migration `modules/04-question-bank/migrations/0194_question_source_and_exam_col
 | Rights rule (review fix) | The rights gate is an allowlist. A question can go live only when its `question_source` row exists with `original`, `derived_from_source` or `licensed`. `metadata_only`, `scraped_raw`, `withdrawn` and a missing row all block. The same SQL (`RIGHTS_CLEARED_SQL`) guards `publishPack`, `bulkActivateDraftQuestionsForPack` and `bulkUpdateQuestionStatus` (to `active`). Withdraw is idempotent: a second call changes nothing (no version bump, no audit row) |
 | Rollback | Stop calling the withdraw route, then drop `question_source` and the four `questions` columns. The code reads the columns in `QUESTION_COLUMNS`, so revert the code first |
 
+### Import v2 writes (EXP-4, 2026-10-17)
+
+No schema change. Import commit and staging now use the EXP-2 columns.
+
+| Item | Detail |
+| --- | --- |
+| What | Commit writes `question_source` (origin, rights, `source_ref`, `source_url`, `seed_ref`, `source_difficulty_raw`, `content_hash`, `normalised_text_hash`, `import_id`, `uploaded_by`, `pyq_year`, `pyq_shift`) in the same insert as the question. It sets `questions.difficulty_est` and `language_primary`, and inserts `question_taxonomy` rows for the stage node (framework `exam-structure`) and the deepest subject node (framework `subject-map`). Staging stores the resolved node ids, the mapped difficulty and `normalisedHash` in `question_import_rows.normalized.meta` (jsonb), and the duplicate class in `meta.dupClass`. No new column |
+| Why | The import is the way thousands of tagged exam items enter the bank (plan 2026-10-17, D4). Rights must be known at the first insert, not patched later |
+| Normalised text | NFKC, lower case, a leading option label (`A)`, `(a)`, `1.`) removed from each string, spaces collapsed, every string of `content` except `rationale`, hashed with the shared `sha256Hex`. The JS hash is the only one; SQL never computes it |
+| Duplicate sources | Exact and normalised hashes are compared with (a) the non-archived questions of the same domain, hashed from their content on the fly, so rows without stored hashes are caught, and (b) every stored `question_source` hash of the tenant, so other domains are caught only for rows that have stored hashes. Old rows (migration 0194 left both hashes `NULL`) in other domains are caught once their hashes are filled |
+| Trigram | `similarity(lower(content->>'question'), text) >= 0.8` against the domain, only when `pg_extension` lists `pg_trgm`. No migration creates the extension. The check is not indexed (one scan per row) |
+| Rejected | (a) `CREATE EXTENSION pg_trgm` in a migration (shared Postgres, owner rule). (b) A new `dup_class` column on `question_import_rows` (jsonb meta is enough; no schema change). (c) Treating `similar` as `duplicate` (false positives would hide real questions). (d) Trigram between rows of the same file (O(n squared)) |
+| Not included | Backfill of the hash columns of old rows. A per-source difficulty table in the database (the three scales are code in `import/difficulty.ts`). Organisation-admin upload (EXP-17) |
+| Downstream impact | Rows staged before this change have no `meta`; commit saves them as `original_human` / `original`. `insertQuestion` and `insertQuestionSource` take optional extra fields. Clone and re-sync already copy `question_source`; `import_id` and `uploaded_by` are cleared there (EXP-2) |
+
 ## Assessment lifecycle
 
 **Status:** live since 2026-05-02 (Phase 1 G1.B Session 3). Migrations `0020_assessment_status_enum.sql`, `0021_assessments.sql` and `0022_assessment_invitations.sql` are in `modules/05-assessment-lifecycle/migrations/`.
@@ -2626,5 +2641,6 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-16 | Question import: `question_imports`, `question_import_rows`, `question_packs.source`, `question_packs.import_file_sha256` (RW-58). Help rows for the import page | `0174`; `0175` | Question import |
 | 2026-10-16 | Role CHECKs on `users`, `sessions`, `in_app_notifications` drop `reviewer` (Y-1), one file per owning module. `help_content.audience` keeps it (RW-2) | `0179` (03-users), `0180` (01-auth), `0181` (13-notifications) | Users; Auth sessions; Notifications |
 | 2026-10-16 | S14: tenant logos, negative marking columns, plan AI override, AI grading scope, help rows, user purge tombstone | `0183`; `0184`; `0185`; `0186`; `0187`; `0188` | S14 additions |
+| 2026-10-17 | EXP-4 import v2: help rows for the import page (no schema change) | `0195` | Import v2 writes |
 | 2026-10-17 | S15: materialized view `question_stats_mv` for per-question statistics (RW-60 / FU-C14) | `0189` | Materialized view — `question_stats_mv` |
 | 2026-10-17 | S15: column `tenant_settings.result_feedback_level` for per-question candidate feedback (RW-80). Help rows come in `0191` (module 16) | `0190` | Table `tenant_settings`, column `result_feedback_level` |

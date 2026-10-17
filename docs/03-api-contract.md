@@ -690,6 +690,17 @@ A super admin imports questions from a CSV or XLSX file. The file is staged and 
 - Category linking.
 - A stored hash column on `questions`. The hash lives on `question_import_rows` only.
 
+**Import v2 (EXP-4, 2026-10-17).** The routes, bodies and limits (4 MB, 2000 rows, super admin only) do not change. The templates, the report and the commit change.
+- **New template columns,** after `negative_marks`: `exam_stage`, `subject_path`, `difficulty`, `difficulty_scale`, `rights_status`, `origin`, `source_ref`, `source_url`, `seed_ref`, `language`, `pyq_year`, `pyq_shift`. The type columns follow.
+- **`rights_status` is required** for CSV and XLSX rows: `original`, `derived_from_source`, `scraped_raw`, `licensed` or `metadata_only`. `withdrawn` is not importable. **Breaking change:** a v1 file without the column still parses, but every row is a row error (`rights_status`) until the value is added. Fix a row through the `PATCH` route, or re-upload. GIFT, Aiken and QTI cannot carry the column, so their rows are saved as `original`.
+- **`origin`** is one of `original_human`, `ai_original`, `ai_seeded`, `derived_from_source`, `scraped_raw`, `licensed` (`tenant_upload` is closed until EXP-17). If empty it follows `rights_status`: `scraped_raw` gives `scraped_raw`, `derived_from_source` gives `derived_from_source`, `licensed` gives `licensed`, the others give `original_human`. `scraped_raw` rights need `scraped_raw` origin.
+- **`difficulty` and `difficulty_scale`.** Scales: `words` (easy 2, medium 3, hard 4), `1-3` (1, 3, 5) and `1-5` (identity). With no scale, a number 1 to 5 uses `1-5` and any other label uses `words`. The raw label goes to `question_source.source_difficulty_raw`; the mapped value goes to `questions.difficulty_est`. An unknown label or scale is a row error.
+- **`exam_stage`** is the name or code of a stage node of the framework `exam-structure`. **`subject_path`** is `Subject/Unit/Outcome` (one to three parts) in `subject-map`. Names match the node label or code, ignoring case. An unknown name is a row error, never skipped.
+- **`language`** is a code such as `en` (default) or `hi`. `pyq_year` is 1950 to 2100. `source_url` must start with `http://` or `https://`.
+- **Report additions.** Each row has `dupClass` (`exact`, `normalised`, `similar` or `null`). The report has `duplicateClasses` (`{ exact, normalised, similar }` counts) and `checksRun` (the classes that ran). `exact` and `normalised` rows have `decision = "duplicate"` and are left out of the commit. A `similar` row stays `ok`: it is a warning for the admin. `similar` runs only when `pg_trgm` is installed in the database; otherwise `checksRun` has no `similar`.
+- **Commit additions.** Every committed question gets a `question_source` row (origin, rights, references, raw difficulty, `content_hash`, `normalised_text_hash`, `import_id` = the import id, `uploaded_by` = the actor, `pyq_year`, `pyq_shift`), `questions.difficulty_est` and `language_primary`, and `question_taxonomy` links to the stage node and the deepest subject node. `scraped_raw` rows import; the publish gate (`RIGHTS_NOT_CLEARED`) still blocks a pack that holds one.
+- **Help ids.** `admin.question_import.columns`, `.rights_status`, `.difficulty`, `.duplicates` (migration `0195`).
+
 **UI calls.** The page `/admin/question-import` calls these routes through `modules/10-admin-dashboard/src/api/question-imports.ts`. See [08-ui-system.md](08-ui-system.md) § "Question import page".
 
 #### `POST /api/admin/super/questions/:id/withdraw` (04): question takedown (EXP-2)

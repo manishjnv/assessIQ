@@ -30,7 +30,9 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
 }
 
 const HEAD = "type,topic,points,level,question,options,correct,rationale";
-const csv = (...lines: string[]): Buffer => Buffer.from([HEAD, ...lines].join("\r\n"), "utf8");
+// EXP-4: rights_status is required in v2, so every v1-shaped fixture line gets ",original" appended.
+const csv = (...lines: string[]): Buffer =>
+  Buffer.from([`${HEAD},rights_status`, ...lines.map((l) => `${l},original`)].join("\r\n"), "utf8");
 const GOOD = 'mcq,Net,1,1,Which port is HTTPS?,"[""80"",""443""]",1,HTTPS uses 443';
 const BAD = 'mcq,Net,1,1,Broken question?,"[""a"",""b""]",7,out of range';
 const meta = (data: Buffer, domain = "soc") => ({

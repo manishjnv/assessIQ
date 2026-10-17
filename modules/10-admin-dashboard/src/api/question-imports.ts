@@ -6,6 +6,8 @@ export type ImportFormat = "csv" | "xlsx" | "gift" | "aiken" | "qti";
 /** Formats that have a downloadable template. */
 export type TemplateFormat = "csv" | "xlsx";
 export type ImportDecision = "ok" | "error" | "duplicate" | "skip";
+/** EXP-4: which duplicate check hit a row. 'similar' is a warning; the row stays ready. */
+export type DupClass = "exact" | "normalised" | "similar";
 
 export interface ImportRowError {
   row: number;
@@ -16,6 +18,7 @@ export interface ImportRowError {
 export interface ImportRow {
   row: number;
   decision: ImportDecision;
+  dupClass?: DupClass | null;
   errors: ImportRowError[];
   raw: Record<string, string>;
   normalized?: unknown;
@@ -25,6 +28,9 @@ export interface ImportReport {
   importId: string;
   status: string;
   counts: { total: number; ok: number; error: number; duplicate: number; skip: number };
+  duplicateClasses?: Record<DupClass, number>;
+  /** Duplicate checks that ran; 'similar' is missing when the database has no pg_trgm. */
+  checksRun?: DupClass[];
   rows: ImportRow[];
 }
 
