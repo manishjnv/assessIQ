@@ -4118,7 +4118,7 @@ admin.shell.tenant_logo:
 
     This is the logo that an organisation admin uploaded in Settings. Change or remove it on the Settings page.
 
-admin.question_editor.negative_marks:
+admin.question.editor.negative_marks:
   audience: admin
   short_text: "Marks taken away for a wrong answer on an auto-scored question. Blank uses the assessment default."
   long_md: |
@@ -4185,3 +4185,160 @@ admin.attempts.grading.tiers:
     5. **Human.** Flagged cases, overrides and manual scores.
 
     The line counts the questions in each tier. Zero tiers are left out.
+
+admin.question.editor.stats:
+  audience: admin
+  version: 1
+  short_text: "Item statistics for this question: success rate, discrimination and level fit."
+  long_md: |
+    ## Item statistics (Phase C)
+
+    This card shows how candidates did on this one question. The data comes from released results only. It refreshes each night.
+
+    - **Attempts:** graded, released answers to this question.
+    - **Exposure:** how many times the question was shown in a submitted attempt.
+    - **Phase C needs 30 or more attempts.** Below that, treat the numbers as a hint.
+
+admin.question.editor.stats.discrimination:
+  audience: admin
+  version: 1
+  short_text: "Discrimination shows if strong candidates answer this question better than weak ones."
+  long_md: |
+    ## Discrimination
+
+    The value is the correlation between a correct answer here and the score on all other questions. A value of 0.2 or more is good. A lower value gets the **Noise** label. The question may be unclear, or its key may be wrong. The value is empty when every candidate scored the same.
+
+admin.question.editor.stats.gradient:
+  audience: admin
+  version: 1
+  short_text: "Mean success per level. L1 should be higher than L2, and L2 higher than L3."
+  long_md: |
+    ## Level gradient
+
+    Each row is the mean success of all questions in that level of this pack. Multiple choice uses the share of correct answers. Written answers use the mean band divided by 4. The gap between neighbouring levels should be at least 15 points. The row of this question is marked.
+
+admin.question.editor.stats.miscalibrated:
+  audience: admin
+  version: 1
+  short_text: "Miscalibrated means the real difficulty does not match the level label."
+  long_md: |
+    ## Miscalibrated
+
+    The flag appears only with 30 or more attempts. It shows when a top-level question is passed by 90% or more of candidates, or a lowest-level question by 25% or fewer. It also shows when the level order is inverted by more than 15 points. Review the question, or move it to another level.
+
+# ─── Start a test (RW-83) ───
+
+admin.start_test:
+  audience: admin
+  version: 1
+  short_text: "Start a test in one screen: pick a set, pick candidates, and send."
+  long_md: |
+    ## Start a test
+
+    This screen does four steps for you. It creates the assessment, publishes it, and sends the invitations. For more control, use the **Assessments** page.
+
+admin.start_test.set:
+  audience: admin
+  version: 1
+  short_text: "Pick a question set your organisation is licensed for."
+  long_md: |
+    ## Question set
+
+    Choose one set. Then choose the difficulty and the number of questions. The time limit comes from the difficulty. A set that is not yet imported is copied into your organisation when you send.
+
+admin.start_test.candidates:
+  audience: admin
+  version: 1
+  short_text: "Choose candidates from your list. Only active candidates show."
+  long_md: |
+    ## Candidates
+
+    Search, then tick the candidates to invite. You can also paste email addresses in the box below the list.
+
+admin.start_test.emails:
+  audience: admin
+  version: 1
+  short_text: "Paste one email address per line. Add a name after a comma if you wish."
+  long_md: |
+    ## Paste email addresses
+
+    Use one address per line, or separate addresses with commas. An address that is not yet in your organisation becomes a new candidate. You can send to 200 addresses at one time.
+
+admin.start_test.window:
+  audience: admin
+  version: 1
+  short_text: "Candidates can start the test between these two times."
+  long_md: |
+    ## Window
+
+    The test opens now and closes in 7 days. Change the times if you need to. Candidates cannot start the test after it closes.
+
+admin.start_test.send:
+  audience: admin
+  version: 1
+  short_text: "Create the assessment, publish it, and send the invitations."
+  long_md: |
+    ## Send invitations
+
+    Each step shows on the screen. If a step fails, the screen shows which step and links to the assessment so you can finish there.
+
+admin.start_test.result:
+  audience: admin
+  version: 1
+  short_text: "The assessment is live. See how many candidates got an invitation."
+  long_md: |
+    ## Result
+
+    Skipped candidates show with the reason, for example already invited. Open the assessment to see the status of each candidate.
+
+
+admin.tenant_settings.result_feedback_level:
+  audience: admin
+  version: 1
+  short_text: "Choose what a candidate sees for each question after you release a result."
+  long_md: |
+    ## Per-question feedback
+
+    This setting decides what a candidate sees for each question. It applies only to results that you have released.
+
+    - **No question details (default).** The candidate sees only the score.
+    - **Right or wrong.** The candidate sees if each answer was right, wrong or partly right. A "What to study" line shows the topic.
+    - **With the expected answer.** Adds the correct answer. It shows only for questions that the system marks by rule, such as multiple choice.
+    - **With a short reason.** Adds a plain-words note for written answers that were graded with AI.
+    - You may be asked for a fresh authenticator code when you change this setting.
+
+admin.tenant_settings.result_feedback_level.none:
+  audience: admin
+  version: 1
+  short_text: "The candidate sees only the score. No question details."
+  long_md: |
+    ## No question details
+
+    The candidate sees the total score and the result. The candidate does not see any question.
+
+admin.tenant_settings.result_feedback_level.right_wrong:
+  audience: admin
+  version: 1
+  short_text: "The candidate sees if each answer was right, wrong or partly right, and what to study."
+  long_md: |
+    ## Right or wrong
+
+    For each question the candidate sees the answer they gave and the outcome. A "What to study" line shows the topic of the question.
+
+admin.tenant_settings.result_feedback_level.with_expected_answer:
+  audience: admin
+  version: 1
+  short_text: "Adds the correct answer for questions that the system marks by rule."
+  long_md: |
+    ## With the expected answer
+
+    This level adds the correct answer. It shows for multiple choice, multiple select, number, ordering and structured case questions. Written answers show no expected answer.
+
+admin.tenant_settings.result_feedback_level.with_ai_justification:
+  audience: admin
+  version: 1
+  short_text: "Adds a short plain-words note for written answers that were graded with AI."
+  long_md: |
+    ## With a short reason
+
+    This level adds a short note for written answers. The note is a clean version of the grader reason. It keeps the first two sentences and removes internal markers. The candidate never sees the raw AI text.

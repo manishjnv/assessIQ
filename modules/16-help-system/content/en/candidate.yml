@@ -669,3 +669,40 @@ candidate.progress.subjects:
     - **Focus**: less than 50% right. Practise this subject first.
 
     Questions that have no subject are grouped under **Other**.
+
+
+candidate.results.feedback:
+  audience: candidate
+  version: 1
+  short_text: "Open this to see each question, your answer and whether it was right."
+  long_md: |
+    ## Review your answers
+
+    Your organisation chooses what this section shows. It lists each question with your answer and the outcome. A "What to study" line shows the topic to practise.
+
+candidate.results.feedback.expected:
+  audience: candidate
+  version: 1
+  short_text: "The correct answer. It shows only for questions that are marked by rule."
+  long_md: |
+    ## Expected answer
+
+    This is the correct answer. It shows for questions with one fixed answer, such as multiple choice. Written answers have no fixed answer.
+
+candidate.results.feedback.explanation:
+  audience: candidate
+  version: 1
+  short_text: "A short note about how your written answer was marked."
+  long_md: |
+    ## Why this mark
+
+    This note says how strong your written answer was and gives a short reason. It is a summary, not the full marking.
+
+candidate.results.feedback.study:
+  audience: candidate
+  version: 1
+  short_text: "The topic to practise for this question."
+  long_md: |
+    ## What to study
+
+    This line names the unit and subject of the question. If the question has no unit, it shows the topic.
