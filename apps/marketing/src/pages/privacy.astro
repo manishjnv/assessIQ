@@ -287,9 +287,10 @@ const breadcrumbSchema = {
             </p>
             <!-- RV28 draft: owner approval pending -->
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 mt-aiq-md">
-              On the public marketing website we currently run no analytics or session-recording tool. The
-              website fonts are served by Google (Google Fonts), so your browser sends a request, including
-              your IP address, to Google when a page loads.
+              On the public marketing website we use Cloudflare Web Analytics (see the website analytics
+              section below). The website fonts are served by Google (Google Fonts), so your browser sends a
+              request, including your IP address, to Google when a page loads. Cloudflare Web Analytics is not
+              loaded on the assessment or administration application.
             </p>
           </div>
           <div>
@@ -327,10 +328,17 @@ const breadcrumbSchema = {
           only cookies there are the essential session cookies described above.
         </p>
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-          This public marketing website currently runs no analytics, advertising, or session-recording tool.
-          If we add a page-view counter, we will name it here, say what it records and whether it sets
-          cookies, and change the effective date. The assessment and administration application never loads
-          any such tool.
+          This public marketing website uses <strong class="font-medium text-aiq-fg-primary">Cloudflare Web Analytics</strong>,
+          a page-view counter from our network provider. It records the page you view, where you came from,
+          your country, your browser and device type, and how fast the page loaded. Cloudflare says Web
+          Analytics uses no cookies and no other browser storage, and does not follow you across sites or
+          over time. Cloudflare keeps the full data for 7 days, then keeps aggregated data, and shows us up
+          to six months of history. Cloudflare says its no-personal-data statement does not cover visits from
+          the European Union and the United Kingdom. We run no advertising tool and no session-recording
+          tool. The assessment and administration application never loads Web Analytics: we switched it off
+          for the paths /admin, /candidate, /take, /embed and /api. See the
+          <a href="https://www.cloudflare.com/privacypolicy/" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover transition-colors">Cloudflare Privacy Policy</a>
+          for Cloudflare's practices.
         </p>
       </div>
     </div>
