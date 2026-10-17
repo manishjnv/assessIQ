@@ -15,6 +15,7 @@
 
 import React from 'react';
 import { Chip, Icon, Num, ScoreRing } from '@assessiq/ui-system';
+import { CERTIFICATE_RULE_TEXT } from '../copy.js';
 import type { ResultCertificateWire, ResultNegativeMarkingWire } from '../types.js';
 
 export interface ResultSummaryProps {
@@ -116,6 +117,10 @@ export function ResultSummary({
           )}
         </div>
       </div>
+
+      {certificate === null && percent < 70 && (
+        <div style={{ ...MUTED_14, marginTop: compact ? 12 : 16 }}>{CERTIFICATE_RULE_TEXT}</div>
+      )}
 
       {certificate !== null && (
         <div

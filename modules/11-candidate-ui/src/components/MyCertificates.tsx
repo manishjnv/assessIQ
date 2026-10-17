@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Chip, Spinner, formatDate } from '@assessiq/ui-system';
 import { listMyCertificates, shareCertificateLinkedIn } from '../api.js';
 import type { MyCertificate } from '../api.js';
+import { CERTIFICATE_RULE_TEXT } from '../copy.js';
 import { CompletionModal } from './CompletionModal.js';
 
 // ---------------------------------------------------------------------------
@@ -142,7 +143,7 @@ export function MyCertificates(): React.ReactElement {
 
       {certs.length === 0 ? (
         <p style={{ color: 'var(--aiq-color-fg-muted)', margin: 0 }}>
-          Complete an assessment to earn your first certificate.
+          {CERTIFICATE_RULE_TEXT}
         </p>
       ) : (
         <div>
