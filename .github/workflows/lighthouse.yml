@@ -5,8 +5,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Advisory only — do not add to required status checks until baseline scores
-# are confirmed ≥ 90. Promote via repo Settings → Branches after first green run.
+# Advisory only: both Lighthouse steps use continue-on-error, so this job never blocks a merge.
+# Why: scores on a shared CI runner vary by a few points, and the authenticated pages are new
+# (RW-82). Flip proposal: after two weeks of green runs (2026-10-31), drop continue-on-error on
+# the authenticated step, keep minScore 0.85, and add this check to branch protection.
 
 permissions:
   contents: read
@@ -14,48 +16,115 @@ permissions:
 jobs:
   lighthouse:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: assessiq
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d assessiq"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      # Dummy secrets for the throwaway database (never real values).
+      NODE_ENV: test
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/assessiq
+      REDIS_URL: redis://localhost:6379
+      ASSESSIQ_MASTER_KEY: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+      SESSION_SECRET: BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=
+      CERT_SIGNING_SECRET: e2e-dummy-cert-secret
+      ORIGIN_TRUST_MODE: "off"
+      LOG_LEVEL: warn
+      PORT: "3000"
+      RATE_LIMIT_IP_ADMIN: "100000"
+      RATE_LIMIT_IP_USER: "100000"
+      RATE_LIMIT_IP_ANON: "100000"
+      RATE_LIMIT_IP_APIKEY: "100000"
+      RATE_LIMIT_IP_VERIFIED_ADMIN: "100000"
+      RATE_LIMIT_USER_VERIFIED_ADMIN: "100000"
+      RATE_LIMIT_CREDENTIAL: "100000"
+      RATE_LIMIT_IP_CANDIDATE_SESSION: "100000"
+      RATE_LIMIT_USER_CANDIDATE: "100000"
+      RATE_LIMIT_IP_CANDIDATE_ENTRY: "100000"
+      RATE_LIMIT_TENANT: "100000"
 
     steps:
-      # 1. Checkout
       - name: Checkout
         uses: actions/checkout@v7
 
-      # 2. pnpm setup
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
         with:
           version: "9.15"
 
-      # 3. Node setup with pnpm cache
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
           node-version: "22"
           cache: pnpm
 
-      # 4. Install dependencies
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 5. Build apps/web (tsc + vite build → dist/)
-      - name: Build apps/web
+      # Same throwaway stack as the e2e job in ci.yml (the login pages and the logged-in pages need it).
+      - name: Apply migrations and seed
+        run: PSQL="psql postgres://postgres:postgres@localhost:5432/assessiq" bash apps/web/e2e/seed-db.sh
+
+      - name: Start API and worker
+        env:
+          ENABLE_E2E_TEST_MINTER: "true" # runner-local only, never production
+        run: |
+          nohup pnpm --filter @assessiq/api start > "$RUNNER_TEMP/api.log" 2>&1 &
+          nohup pnpm --filter @assessiq/api worker > "$RUNNER_TEMP/worker.log" 2>&1 &
+          for i in $(seq 1 90); do curl -fs http://localhost:3000/api/health && break; sleep 1; done
+          curl -fs http://localhost:3000/api/health
+
+      - name: Build the web app
         run: pnpm --filter @assessiq/web build
 
-      # 6. Run Lighthouse CI against the 5 unauthenticated routes.
-      #    lhci autorun reads lighthouserc.json at the repo root.
-      #    The preview server is started/stopped by lhci collect internally.
-      #    Auth-seeded routes (admin/candidate dashboards) are deferred —
-      #    they need Playwright session fixtures (separate P14 sub-item).
-      - name: Run Lighthouse CI
+      # (a) The 5 pages that need no sign-in. lhci starts its own preview server on 4173
+      #     (lighthouserc.json), so this step runs before the proxy preview below.
+      - name: Lighthouse, pages without sign-in (advisory)
+        continue-on-error: true
         run: pnpm --filter @assessiq/web lhci:run
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
 
-      # 7. Upload Lighthouse reports on failure for inspection
-      - name: Upload Lighthouse report on failure
-        if: failure()
+      - name: Serve the web app with the API proxy
+        env:
+          E2E_API_PROXY: http://127.0.0.1:3000
+        run: |
+          nohup pnpm --filter @assessiq/web exec vite preview --port 4173 --host 127.0.0.1 > "$RUNNER_TEMP/web.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://localhost:4173/ >/dev/null && break; sleep 1; done
+
+      # (b) Admin and candidate pages with e2e session cookies. Prints a score table.
+      # advisory until 2026-10-31 (RW-82); then drop continue-on-error and make this a required check at 0.85
+      - name: Lighthouse, logged-in pages (advisory)
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+          E2E_API_BASE_URL: http://localhost:3000
+        run: pnpm --filter @assessiq/web lhci:authed
+
+      - name: Upload Lighthouse reports
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: lighthouse-report-${{ github.run_id }}
-          path: .lighthouseci/
+          path: |
+            .lighthouseci/
+            apps/web/.lighthouseci/
+            ${{ runner.temp }}/*.log
           retention-days: 14
