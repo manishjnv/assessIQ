@@ -26,11 +26,12 @@ import { Button, Drawer, Icon, Spinner } from "@assessiq/ui-system";
 import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
-import { STEM_FIELD, type PageState, hasForbiddenSynonym, BOTTOM_BAR, QUESTION_TEXT, SR_ONLY, isAnsweredValue } from "./attempt-parts/shared.js";
+import { STEM_FIELD, type PageState, hasForbiddenSynonym, BOTTOM_BAR, QUESTION_TEXT, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
 import { AnswerArea } from "./attempt-parts/AnswerArea.js";
 import { NavigatorBody } from "./attempt-parts/NavigatorBody.js";
 import { AttemptTopBar } from "./attempt-parts/AttemptTopBar.js";
 import { FinishSectionModal } from "./attempt-parts/FinishSectionModal.js";
+import { KeyNav } from "./attempt-parts/KeyNav.js";
 import { SubmitConfirmModal } from "./attempt-parts/SubmitConfirmModal.js";
 export { isAnsweredValue } from "./attempt-parts/shared.js";
 
@@ -443,6 +444,15 @@ export function AttemptPage(): React.JSX.Element {
       : unansweredCount;
   const flaggedCount = sorted.filter((q) => flags.get(q.question_id) ?? false).length;
 
+  const goPrev = (): void => {
+    const prev = sorted[safeIdx - 1];
+    if (prev !== undefined) setCurrentQuestionId(prev.question_id);
+  };
+  const goNext = (): void => {
+    const next = sorted[safeIdx + 1];
+    if (next !== undefined) setCurrentQuestionId(next.question_id);
+  };
+
   // ── Navigator body (shared between desktop aside and mobile <Drawer>) ─────
   // Same JSX rendered in both surfaces — same items, same onSelect, same per-
   // cell states. The aside is hidden under [data-viewport="mobile"] (M2a CSS
@@ -647,7 +657,44 @@ export function AttemptPage(): React.JSX.Element {
       </div>
 
       {/* ── BOTTOM BAR ──────────────────────────────────────────────────── */}
+      {/* Key hints are desktop-only (hidden under the mobile viewport). */}
+      <style>{'[data-viewport="mobile"] .aiq-attempt-kbd{display:none}'}</style>
+      <KeyNav onPrev={goPrev} onNext={goNext} disabled={locked || confirmOpen || finishOpen || navOpen} />
       <footer className="aiq-attempt-bottom" style={BOTTOM_BAR}>
+        {/* Z-7: Submit / Finish section sits at the far LEFT, away from Prev and Next.
+            Test sections: before the last section the primary action is "Finish section"
+            (no way back); the last section keeps the normal Submit, which opens the
+            confirmation modal. On mobile the CSS order puts it on its own row. */}
+        {!isLastSection && (
+          <Button
+            variant="primary"
+            size="lg"
+            className="aiq-attempt-submit-btn"
+            disabled={locked || finishing}
+            onClick={() => {
+              setFinishError(null);
+              setFinishOpen(true);
+            }}
+          >
+            Finish section
+          </Button>
+        )}
+        {isLastSection && (
+          <Button
+            variant="primary"
+            size="lg"
+            className="aiq-attempt-submit-btn"
+            disabled={locked || submitting}
+            data-help-id="candidate.attempt.submit.confirm"
+            onClick={() => {
+              setSubmitError(null);
+              setConfirmOpen(true);
+            }}
+          >
+            {submitting ? 'Submitting…' : 'Submit'}
+          </Button>
+        )}
+
         {/* Flag toggle */}
         <Button
           variant="ghost"
@@ -675,72 +722,31 @@ export function AttemptPage(): React.JSX.Element {
         {/* Prev */}
         <Button
           variant="outline"
-          size="sm"
+          size="lg"
           className="aiq-attempt-prev-btn"
           disabled={isFirst || locked}
-          onClick={() => {
-            const prev = sorted[safeIdx - 1];
-            if (prev !== undefined) {
-              setCurrentQuestionId(prev.question_id);
-            }
-          }}
+          aria-keyshortcuts="P"
+          onClick={goPrev}
         >
           <Icon name="arrowLeft" size={14} style={{ marginRight: 'var(--aiq-space-2xs)' }} />
           Prev
+          <kbd className="aiq-attempt-kbd" aria-hidden="true" style={KBD_HINT}>P</kbd>
         </Button>
 
-        {/* Next (hidden on last question, but Next + Submit are BOTH always shown) */}
+        {/* Next (hidden on the last question) */}
         {!isLast && (
           <Button
             variant="outline"
-            size="sm"
+            size="lg"
             className="aiq-attempt-next-btn"
             disabled={locked}
-            onClick={() => {
-              const next = sorted[safeIdx + 1];
-              if (next !== undefined) {
-                setCurrentQuestionId(next.question_id);
-              }
-            }}
+            aria-keyshortcuts="N"
+            onClick={goNext}
           >
             Next
             <Icon name="arrow" size={14} style={{ marginLeft: 'var(--aiq-space-2xs)' }} />
+            <kbd className="aiq-attempt-kbd" aria-hidden="true" style={KBD_HINT}>N</kbd>
           </Button>
-        )}
-
-        {/* Test sections: before the last section the primary action is "Finish section"
-            (no way back); the last section keeps the normal Submit. */}
-        {!isLastSection && (
-          <Button
-            variant="primary"
-            size="sm"
-            className="aiq-attempt-submit-btn"
-            disabled={locked || finishing}
-            onClick={() => {
-              setFinishError(null);
-              setFinishOpen(true);
-            }}
-          >
-            Finish section
-          </Button>
-        )}
-
-        {/* Submit — always visible; enabled even if not all questions answered.
-            Opens the confirmation modal (counts of answered / unanswered / flagged). */}
-        {isLastSection && (
-        <Button
-          variant="primary"
-          size="sm"
-          className="aiq-attempt-submit-btn"
-          disabled={locked || submitting}
-          data-help-id="candidate.attempt.submit.confirm"
-          onClick={() => {
-            setSubmitError(null);
-            setConfirmOpen(true);
-          }}
-        >
-          {submitting ? 'Submitting…' : 'Submit'}
-        </Button>
         )}
       </footer>
 
@@ -756,7 +762,6 @@ export function AttemptPage(): React.JSX.Element {
         handleFinishSection={handleFinishSection}
       />
 
-      {/* ── SUBMIT CONFIRMATION ──────────────────────────────────────────
       {/* ── SUBMIT CONFIRMATION ── */}
       <SubmitConfirmModal
         confirmOpen={confirmOpen}

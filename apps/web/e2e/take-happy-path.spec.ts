@@ -30,7 +30,7 @@ test.describe('candidate happy path: open attempt → answer → submit', () => 
     // each save the way a real candidate's pause would.
     const saved = () => page.waitForResponse((r) => r.url().includes('/answer') && r.request().method() === 'POST', { timeout: 15_000 });
     await Promise.all([saved(), page.getByText('Option B (correct answer)').click()]);
-    await page.getByRole('button', { name: /Next/ }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByText('Question 2 of 2')).toBeVisible();
     await Promise.all([saved(), page.getByText('Option B (correct answer)').click()]);
 
