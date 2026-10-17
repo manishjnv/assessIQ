@@ -195,7 +195,7 @@ exports[`template snapshots — invitation_candidate > HTML renders to a stable 
                 </tr>
                 <tr>
                   <td style="padding:14px 20px;border-top:1px solid #e4e4e7;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
-                    Company
+                    Organisation
                   </td>
                   <td style="padding:14px 20px 14px 0;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
                     Wipro
@@ -349,7 +349,7 @@ exports[`template snapshots — result_released (SP4) > HTML renders to a stable
                 </tr>
                 <tr>
                   <td style="padding:14px 20px;border-top:1px solid #e4e4e7;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:10px;color:#71717a;text-transform:uppercase;letter-spacing:0.08em;width:110px;vertical-align:middle;white-space:nowrap">
-                    Company
+                    Organisation
                   </td>
                   <td style="padding:14px 20px 14px 0;border-top:1px solid #e4e4e7;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#0a0a0b;vertical-align:middle">
                     Wipro
