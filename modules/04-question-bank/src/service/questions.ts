@@ -18,6 +18,7 @@ import type {
   ImportReport,
   ListQuestionsInput,
   PaginatedQuestions,
+  QuestionFacets,
   Question,
   QuestionPack,
   QuestionVersion,
@@ -57,6 +58,14 @@ export async function listQuestions(
     });
     return { items, page, pageSize, total };
   });
+}
+
+/** EXP-5: facet counts for the same filter set as listQuestions (tenant-scoped by RLS). */
+export async function questionFacets(
+  tenantId: string,
+  filters: ListQuestionsInput = {},
+): Promise<QuestionFacets> {
+  return withTenant(tenantId, (client) => repo.questionFacetCounts(client, filters));
 }
 
 // ---------------------------------------------------------------------------

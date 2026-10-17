@@ -603,8 +603,9 @@ Right to erasure. Tombstones the candidate's PII in a single transaction: `users
 | `POST` | `/admin/packs/:id/activate-questions` | Bulk-flip every `status='draft'` question in this pack to `active`. Returns `{ activated, alreadyActive, archived }`. Throws `NO_DRAFT_QUESTIONS_TO_ACTIVATE` if no draft rows exist. Pack must be `status='published'`. **Now an edge-case affordance (2026-05-25):** publish auto-activates, so this only matters for drafts ADDED to an already-published pack; the pack-detail UI surfaces the "Activate drafts" button only when a level has draft questions. **live 2026-05-02** |
 | `POST` | `/admin/packs/:id/levels`            | Add level (returns 201) |
 | `PATCH`| `/admin/levels/:id`                  | Update level fields (label, description, duration, default_question_count, passing_score_pct) |
-| `GET`  | `/admin/questions`                   | List questions (filter by `pack_id`, `level_id`, `type`, `status`, `tag`, `search`). `pack_id` is supported on the server (RW-97 uses it to list the questions of a pack that have no rubric). Each list item carries `difficulty_params` (an object or `null`); its `warnings` array is `[{ code, message }]` and the wizard Review step shows it (RW-96, S11) |
+| `GET`  | `/admin/questions`                   | List questions (filter by `pack_id`, `level_id`, `type`, `status`, `tag`, `search`, and the EXP-5 filters `q`, `stage_id`, `subject_id`, `unit_id`, `outcome_id`, `difficulty_min`, `difficulty_max`, `origin`, `rights_status`, `review_state`, `language`, `has_solution`; see "Question list filters and facets"). `pack_id` is supported on the server (RW-97 uses it to list the questions of a pack that have no rubric). Each list item carries `difficulty_params` (an object or `null`); its `warnings` array is `[{ code, message }]` and the wizard Review step shows it (RW-96, S11) |
 | `POST` | `/admin/questions`                   | Create question (returns 201). Optional `answer_guidance` (string ≤280; candidate-facing hint; omit/blank → per-type default) (0098) **`type` enum (2026-10-03):** `mcq`, `subjective`, `kql`, `scenario`, `log_analysis`, `numeric`, `multi_select`, `ordering`, `structured_case`. `structured_case` content is checked by `StructuredCaseContentSchema` (shape: see 02). |
+| `GET`  | `/admin/questions/facets`            | EXP-5. Counts per facet value for the same filters as the list. See "Question list filters and facets" |
 | `GET`  | `/admin/questions/:id`               | Get question (latest version). Response includes `answer_guidance` (string or null) (0098) |
 | `PATCH`| `/admin/questions/:id`               | Update — `content`/`rubric` create a new version (snapshot-before-update); `topic`/`points`/`answer_guidance` are metadata-only (NO version bump). `answer_guidance: null` clears it to the per-type default (0098) |
 | `GET`  | `/admin/questions/:id/versions`      | List version snapshots (most-recent first) |
@@ -717,6 +718,29 @@ A super admin imports questions from a CSV or XLSX file. The file is staged and 
 - **Question payload.** Every question object now carries `difficulty_est` (1 to 5 or null), `review_state` (or null), `language_primary` and `content_i18n` (or null). The rights fields are not in the payload yet (they are in the QTI export file `provenance.json`).
 - **Considered and rejected.** A `DELETE` route (the row must stay for audit and clone sync). A body with a reason (no place to store it yet).
 - **Not included.** An undo route, a bulk withdraw, a UI.
+
+#### Question list filters and facets (EXP-5, 2026-10-17)
+
+`GET /api/admin/questions` and `GET /api/admin/questions/facets` (any admin; RLS scopes both to the session tenant). Both read the same query parameters. Every parameter is optional and all are combined with AND.
+
+| Parameter | Meaning |
+| --- | --- |
+| `q` | Words to search for in the normalised question text (stem, options, other strings; the rationale is not searched). Up to 200 characters, no control characters. Case-insensitive. Exact word match first; when nothing matches, near matches (typing mistakes). Sorted by closeness when set |
+| `stage_id`, `subject_id`, `unit_id`, `outcome_id` | A taxonomy node id (UUID). The node must have that kind (a wrong kind matches nothing). Matches questions linked to the node or any descendant, through `question_taxonomy` |
+| `difficulty_min`, `difficulty_max` | Integers 1 to 5, inclusive. Questions with no `difficulty_est` never match a range. `min` greater than `max` is a 400 |
+| `origin`, `rights_status`, `review_state`, `language` | Comma list, up to 20 values, OR inside one parameter. Origin and rights values are the `question_source` values; `review_state` accepts `none` for questions never reviewed; `language` is `language_primary` |
+| `has_solution` | `true` = the `rationale` text is not blank; `false` = absent or blank |
+
+Existing parameters (`pack_id`, `level_id`, `type`, `status`, `tag`, `search`, `domain_id`, `category_id`, `page`, `pageSize`) are unchanged.
+
+- **List response.** Same shape as before: `{ items, page, pageSize, total }`. `total` now comes from one query (`count(*) OVER ()`).
+- **Facets response.** `{ total, type, status, origin, rights_status, review_state, language, difficulty, has_solution, stage, subject, unit, outcome }`. The first eight are `[{ value, count }]`, most common first. A missing value shows as `none` (for example no rights row, no review state, no difficulty). `has_solution` values are `true` and `false`. The four node facets are `[{ node_id, code, label, count }]`; a question counts once for every ancestor of its linked nodes, so a subject count includes its topics and subtopics.
+- **A facet ignores its own filter.** With `origin=ai_original` the origin counts still show every origin, while the other facets and `total` obey it. This keeps every option visible.
+- **Errors.** `400 INVALID_PARAM` (`details.param` names the parameter) for a bad UUID, a number outside 1 to 5, an unknown origin, rights or review value, a `has_solution` that is not `true` or `false`, or a `q` that is too long.
+- **Why.** Review and assembly of thousands of exam items need to find an item by its words and by exam, subject, difficulty, source and review state (plan 2026-10-17, section 6).
+- **Considered and rejected.** One endpoint that returns items and facets together (a facet call is wanted without a page of rows, and the list stays backward compatible). Cursor paging (the pack page loads up to 500 rows). A `has_passage` filter (no passage table yet).
+- **Not included.** Draws by outcome node (see below), saved filters, candidate-facing search.
+- **Draws by `outcome` nodes.** Not done in module 04. The assessment draw reads `questions.domain_id` and `questions.category_id`, not `question_taxonomy`: `modules/05-assessment-lifecycle/src/service/blueprint.ts` (`resolveBlueprintNodes` accepts only `unit` nodes and maps them to a `categories` row), the frozen pool in `05/src/repository.ts` and `service/lifecycle.ts`, and the per-attempt draw in `modules/06-attempt-engine/src/repository.ts` (lines 929, 1001, 1026) and `service.ts` (line 336). An outcome node has no category row, so the draw needs a taxonomy-based pool query in modules 05 and 06. It stays a separate task.
 
 #### `POST /api/admin/domains` and `POST /api/admin/categories` (04): super_admin only (RW-56)
 

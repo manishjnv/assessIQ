@@ -1663,3 +1663,23 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 **Not included.** LinkedIn share (Z-11 a), admin row shortcut (Z-11 b), result-email link target (Z-15 a), result copy (Z-9). Tests: candidate-ui 137, web 88.
 
 **Downstream impact.** The sentence hard-codes 70. If Z-16 changes the certificate rule, change the string in the same commit. See also `docs/10-branding-guideline.md` section 15.5.
+
+## Question set page: search and facet filters (EXP-5, 2026-10-17)
+
+**What changed.**
+- `modules/10-admin-dashboard/src/pages/pack-detail/QuestionFilterBar.tsx` adds a filter bar above the levels on the question set page (`helpPage` `admin.question_bank.pack`). It has a search box (300 ms pause) and these controls: exam stage, subject, topic, subtopic, difficulty range, origin, rights, review, language, solution.
+- Each option shows its count from `GET /api/admin/questions/facets`. A control ignores its own filter, so options do not disappear. A "Clear filters" button and a live total sit at the end of the bar.
+- `pack-detail.tsx` re-loads the questions with the filters as query parameters (`GET /admin/questions?pack_id=...&q=...`). While no filter is used, only the first load runs.
+- Help ids (all under `admin.question_bank.pack.`): `filter_search`, `filter_stage`, `filter_subject`, `filter_unit`, `filter_outcome`, `filter_difficulty`, `filter_origin`, `filter_rights`, `filter_review`, `filter_language`, `filter_solution`. Content in `modules/16-help-system/content/en/admin.yml`; production rows in migration `0197_exp5_facets_help.sql` (apply by hand, per docs/06).
+
+**Why.** The super admin must review thousands of exam items by subtopic, difficulty, origin and review state, and find a question by its words (plan 2026-10-17, section 6). The server does the filtering so a page of 500 rows is not filtered in the browser.
+
+**Considered and rejected.**
+- Client-side filtering of the 500 loaded rows (it would hide the real totals and could not search the normalised text).
+- A side panel with check boxes and a count for every node (a tree of hundreds of nodes does not fit; selects are enough for the first slice).
+- Filter controls on the pack list page `question-bank.tsx` (it lists question sets, not questions; its search stays on name and slug).
+- The existing framework tree filter stays as it is (RW-61); the new node selects list only nodes that have questions in this set.
+
+**Not included.** Saved filters, a URL for the filter state, filters on the candidate side, multi-select values (the API accepts comma lists; the UI picks one value).
+
+**Downstream impact.** Admin API clients that call `/admin/questions` keep working. No change to `LevelPanel`. Help ids are new, so the help seed has 11 more rows.

@@ -33,6 +33,9 @@ updateLevel(id, patch): Promise<Level>
 
 // questions
 listQuestions({ packId?, levelId?, type?, tag?, search? }): Promise<PaginatedQuestions>
+// EXP-5: also q (full-text + typo search), stage_id/subject_id/unit_id/outcome_id, difficulty_min/max,
+// origin[], rights_status[], review_state[], language[], has_solution. questionFacets(tenantId, filters) returns counts.
+// Migration 0196 keeps questions.search_text/search_tsv in sync by trigger; see docs/02-data-model.md (EXP-5).
 createQuestion(input): Promise<Question>
 updateQuestion(id, patch): Promise<Question>     // implicit new version
 listVersions(questionId): Promise<QuestionVersion[]>

@@ -311,6 +311,43 @@ export interface ListQuestionsInput {
   domain_id?: string;
   /** Filter by category UUID — read-only, RLS-scoped. Added Slice 2.2/D5. */
   category_id?: string;
+  // ---- EXP-5 facets + search (all optional, all AND-combined) ----
+  /** Full-text + typo-tolerant search over the normalised question text. Max 200 chars. */
+  q?: string;
+  /** Taxonomy node ids; each matches questions linked to that node or any descendant. The node must be of the named kind. */
+  stage_id?: string;
+  subject_id?: string;
+  unit_id?: string;
+  outcome_id?: string;
+  /** difficulty_est range, inclusive, 1..5. */
+  difficulty_min?: number;
+  difficulty_max?: number;
+  /** Multi-value (OR within one facet). review_state accepts "none" for NULL. */
+  origin?: QuestionOrigin[];
+  rights_status?: RightsStatus[];
+  review_state?: Array<ReviewState | "none">;
+  language?: string[];
+  /** true = rationale text present; false = absent or blank. */
+  has_solution?: boolean;
+}
+
+/** EXP-5: one facet bucket. */
+export interface FacetCount { value: string; count: number }
+export interface FacetNodeCount { node_id: string; code: string; label: string; count: number }
+export interface QuestionFacets {
+  total: number;
+  type: FacetCount[];
+  status: FacetCount[];
+  origin: FacetCount[];
+  rights_status: FacetCount[];
+  review_state: FacetCount[];   // NULL shown as "none"
+  language: FacetCount[];
+  difficulty: FacetCount[];     // "1".."5" and "none"
+  has_solution: FacetCount[];   // "true" / "false"
+  stage: FacetNodeCount[];
+  subject: FacetNodeCount[];
+  unit: FacetNodeCount[];
+  outcome: FacetNodeCount[];
 }
 
 export interface CreateQuestionInput {

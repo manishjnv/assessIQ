@@ -54,6 +54,7 @@ import {
   addLevel,
   updateLevel,
   listQuestions,
+  questionFacets,
   getQuestion,
   createQuestion,
   updateQuestion,
@@ -95,6 +96,81 @@ import { registerImportRoutes } from "./import-routes.js";
 // Pagination helper — shared by list endpoints
 // ---------------------------------------------------------------------------
 
+
+// ---------------------------------------------------------------------------
+// List filters (GET /api/admin/questions and /facets) — exported for unit testing
+// ---------------------------------------------------------------------------
+
+const ORIGINS = ["original_human", "ai_original", "ai_seeded", "derived_from_source", "scraped_raw", "tenant_upload", "licensed"] as const;
+const RIGHTS = ["original", "derived_from_source", "scraped_raw", "licensed", "metadata_only", "withdrawn"] as const;
+const REVIEW_STATES = ["in_review", "verified", "disputed", "needs_fix", "none"] as const;
+
+function badParam(param: string, msg: string): never {
+  throw new ValidationError(`${param}: ${msg}`, { details: { code: "INVALID_PARAM", param } });
+}
+
+/** Comma list from a query value, each item checked against `allowed` (or any non-empty token when null). */
+function parseList<T extends string>(q: Record<string, string | undefined>, param: string, allowed: readonly T[] | null): T[] | undefined {
+  const raw = q[param];
+  if (raw === undefined || raw === "") return undefined;
+  const items = raw.split(",").map((x) => x.trim()).filter((x) => x !== "");
+  if (items.length > 20) badParam(param, "at most 20 values");
+  for (const it of items) {
+    if (allowed === null ? !/^[a-zA-Z_-]{1,16}$/.test(it) : !(allowed as readonly string[]).includes(it)) {
+      badParam(param, `unsupported value '${it.slice(0, 40)}'`);
+    }
+  }
+  return items as T[];
+}
+
+export function parseQuestionFilters(q: Record<string, string | undefined>): Omit<ListQuestionsInput, "page" | "pageSize"> {
+  const f: Omit<ListQuestionsInput, "page" | "pageSize"> = {};
+  if (q["pack_id"] !== undefined) f.pack_id = q["pack_id"];
+  if (q["level_id"] !== undefined) f.level_id = q["level_id"];
+  if (q["type"] !== undefined) f.type = q["type"] as QuestionType;
+  if (q["status"] !== undefined) f.status = q["status"] as QuestionStatus;
+  if (q["tag"] !== undefined) f.tag = q["tag"];
+  if (q["search"] !== undefined) f.search = q["search"];
+  // Slice 2.2/D5: read-only domain/category filters for durable Review screen.
+  if (q["domain_id"] !== undefined) f.domain_id = q["domain_id"];
+  if (q["category_id"] !== undefined) f.category_id = q["category_id"];
+  // EXP-5
+  const text = q["q"]?.trim();
+  if (text !== undefined && text !== "") {
+    if (text.length > 200 || /[\u0000-\u001f\u007f]/.test(text)) badParam("q", "at most 200 characters, no control characters");
+    f.q = text;
+  }
+  for (const key of ["stage_id", "subject_id", "unit_id", "outcome_id"] as const) {
+    const v = q[key];
+    if (v === undefined || v === "") continue;
+    if (!UUID_RE.test(v)) badParam(key, "must be a UUID");
+    f[key] = v;
+  }
+  for (const key of ["difficulty_min", "difficulty_max"] as const) {
+    const v = q[key];
+    if (v === undefined || v === "") continue;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 5) badParam(key, "must be an integer from 1 to 5");
+    f[key] = n;
+  }
+  if (f.difficulty_min !== undefined && f.difficulty_max !== undefined && f.difficulty_min > f.difficulty_max) {
+    badParam("difficulty_min", "must not be greater than difficulty_max");
+  }
+  const origin = parseList(q, "origin", ORIGINS);
+  if (origin) f.origin = origin;
+  const rights = parseList(q, "rights_status", RIGHTS);
+  if (rights) f.rights_status = rights;
+  const review = parseList(q, "review_state", REVIEW_STATES);
+  if (review) f.review_state = review;
+  const language = parseList(q, "language", null);
+  if (language) f.language = language;
+  const sol = q["has_solution"];
+  if (sol !== undefined && sol !== "") {
+    if (sol !== "true" && sol !== "false") badParam("has_solution", "must be true or false");
+    f.has_solution = sol === "true";
+  }
+  return f;
+}
 
 // ---------------------------------------------------------------------------
 // Generate-body parser — exported for unit testing
@@ -707,17 +783,18 @@ export async function registerQuestionBankRoutes(
       const q = req.query as Record<string, string | undefined>;
       const { page, pageSize } = parsePagination(q, { max: MAX_PAGE_SIZE });
 
-      const filters: ListQuestionsInput = { page, pageSize };
-      if (q["pack_id"] !== undefined) filters.pack_id = q["pack_id"];
-      if (q["level_id"] !== undefined) filters.level_id = q["level_id"];
-      if (q["type"] !== undefined) filters.type = q["type"] as QuestionType;
-      if (q["status"] !== undefined) filters.status = q["status"] as QuestionStatus;
-      if (q["tag"] !== undefined) filters.tag = q["tag"];
-      if (q["search"] !== undefined) filters.search = q["search"];
-      // Slice 2.2/D5: read-only domain/category filters for durable Review screen.
-      if (q["domain_id"] !== undefined) filters.domain_id = q["domain_id"];
-      if (q["category_id"] !== undefined) filters.category_id = q["category_id"];
+      const filters: ListQuestionsInput = { page, pageSize, ...parseQuestionFilters(q) };
       return listQuestions(tenantId, filters);
+    },
+  );
+
+  // GET /api/admin/questions/facets — EXP-5: counts per facet value for the same filters.
+  app.get(
+    "/api/admin/questions/facets",
+    { preHandler: adminOnly },
+    async (req) => {
+      const q = req.query as Record<string, string | undefined>;
+      return questionFacets(req.session!.tenantId, parseQuestionFilters(q));
     },
   );
 

@@ -27,6 +27,7 @@ import { adminApi, AdminApiError, bulkUpdateQuestionStatus } from "../api.js";
 import { useAdminSession } from "../session.js";
 import { type GenerationAttempt, type Level, type Pack, type QuestionItem, type PackDetailResponse, type QuestionsResponse, packStatusColor } from "./pack-detail/shared.js";
 import { LevelPanel } from "./pack-detail/LevelPanel.js";
+import { QuestionFilterBar, filtersToQuery, type QuestionFilters } from "./pack-detail/QuestionFilterBar.js";
 import { FrameworkTreePicker } from "../components/FrameworkTreePicker.js";
 import { getPackTaxonomyApi } from "../api/frameworks.js";
 
@@ -108,6 +109,23 @@ export function AdminPackDetail(): React.ReactElement {
       .catch(() => { if (live) setFwQuestionIds(new Set()); });
     return () => { live = false; };
   }, [id, fwNode]);
+
+  // EXP-5: server-side search and facet filters. Empty = the plain list loaded by fetchPack.
+  const [qFilters, setQFilters] = useState<QuestionFilters>({});
+  const filtersUsed = useRef(false);
+  const filterQs = filtersToQuery(qFilters);
+  useEffect(() => {
+    if (!id) return;
+    if (filterQs !== "") filtersUsed.current = true;
+    else if (!filtersUsed.current) return; // never filtered: fetchPack already loaded everything
+    let live = true;
+    adminApi<QuestionsResponse>(`/admin/questions?pack_id=${id}&pageSize=500${filterQs}`)
+      .then((r) => { if (live) { setQuestions(r.items); setQuestionsError(null); } })
+      .catch((err) => {
+        if (live) setQuestionsError(err instanceof AdminApiError ? err.apiError.message : "Failed to load questions.");
+      });
+    return () => { live = false; };
+  }, [id, filterQs]);
 
   const fetchPack = useCallback(async () => {
     if (!id) return;
@@ -617,6 +635,8 @@ export function AdminPackDetail(): React.ReactElement {
               Levels.
             </h2>
           </div>
+
+          <QuestionFilterBar packId={pack.id} value={qFilters} onChange={setQFilters} />
 
           <div style={{ marginBottom: "var(--aiq-space-md)" }}>
             <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-muted)", marginBottom: "var(--aiq-space-xs)" }}>
