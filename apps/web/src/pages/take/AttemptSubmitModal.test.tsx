@@ -14,15 +14,16 @@ const mkQ = (i: number) => ({
   points: 5,
   content: { question: `Question ${i}?`, options: ['A', 'B', 'C', 'D'], correct: 0 },
 });
-const VIEW = {
+const BASE_ANSWERS = [
+  { question_id: 'q1', answer: { selected: 1 }, flagged: false, client_revision: 1 },
+  { question_id: 'q2', answer: { selected: null }, flagged: true, client_revision: 0 },
+  { question_id: 'q3', answer: null, flagged: false, client_revision: 0 },
+  { question_id: 'q4', answer: null, flagged: false, client_revision: 0 },
+];
+let VIEW = {
   attempt: { id: 'att1', status: 'in_progress', ends_at: new Date(Date.now() + 600000).toISOString() },
   questions: [mkQ(1), mkQ(2), mkQ(3), mkQ(4)],
-  answers: [
-    { question_id: 'q1', answer: { selected: 1 }, flagged: false, client_revision: 1 },
-    { question_id: 'q2', answer: { selected: null }, flagged: true, client_revision: 0 },
-    { question_id: 'q3', answer: null, flagged: false, client_revision: 0 },
-    { question_id: 'q4', answer: null, flagged: false, client_revision: 0 },
-  ],
+  answers: BASE_ANSWERS,
   remaining_seconds: 600,
 };
 
@@ -48,6 +49,7 @@ import { AttemptPage } from './Attempt';
 
 afterEach(() => {
   cleanup();
+  VIEW = { ...VIEW, answers: BASE_ANSWERS };
   vi.resetAllMocks();
 });
 
@@ -63,22 +65,23 @@ function renderAttempt(): void {
 }
 
 describe('Attempt submit modal', () => {
-  it('shows answered / unanswered / flagged counts and Go back closes it', async () => {
+  it('shows answered / unanswered / flagged counts and Review answers closes it', async () => {
     renderAttempt();
     const submit = await screen.findByRole('button', { name: 'Submit' });
     fireEvent.click(submit);
-    const dialog = await screen.findByRole('dialog', { name: 'Submit your assessment?' });
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your test?' });
     // q2 has {selected:null} - must count as unanswered, like the navigator.
     expect(dialog.textContent).toContain('You answered 1 of 4 questions.');
-    expect(dialog.textContent).toContain('3 questions are unanswered');
-    expect(dialog.textContent).toContain('will score 0');
+    expect(dialog.textContent).toContain(
+      'This sends your answers to your organisation and ends your test. You cannot change them after this. You have 3 unanswered questions.',
+    );
     expect(dialog.textContent).toContain('1 question is flagged');
     expect(submitAttempt).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: 'Go back' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review answers' }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('Escape = Go back; failure shows inline error; success navigates', async () => {
+  it('Escape = Review answers; failure shows inline error; success navigates', async () => {
     renderAttempt();
     fireEvent.click(await screen.findByRole('button', { name: 'Submit' }));
     await screen.findByRole('dialog');
@@ -87,11 +90,48 @@ describe('Attempt submit modal', () => {
 
     submitAttempt.mockRejectedValueOnce(new Error('boom'));
     fireEvent.click(screen.getByRole('button', { name: 'Submit' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Submit assessment' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit test' }));
     await screen.findByText('Submit failed: boom');
 
     submitAttempt.mockResolvedValueOnce({});
-    fireEvent.click(screen.getByRole('button', { name: 'Submit assessment' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Submit test' }));
     await waitFor(() => screen.getByText('SUBMITTED PAGE'));
+  });
+
+  it.each([
+    [0, 'You cannot change them after this.'],
+    [1, 'You cannot change them after this. You have 1 unanswered question.'],
+    [2, 'You cannot change them after this. You have 2 unanswered questions.'],
+  ])('body text for %i unanswered', async (n, tail) => {
+    VIEW = {
+      ...VIEW,
+      answers: BASE_ANSWERS.map((a, i) => ({ ...a, answer: i < 4 - n ? { selected: 1 } : null })),
+    };
+    renderAttempt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Submit' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Submit your test?' });
+    expect(dialog.textContent).toContain(
+      'This sends your answers to your organisation and ends your test. ' + tail,
+    );
+    if (n === 0) expect(dialog.textContent).not.toContain('unanswered');
+    expect(screen.getByRole('button', { name: 'Submit test' })).toBeTruthy();
+  });
+
+  it('Submit sits first in the action bar, before Prev and Next', async () => {
+    renderAttempt();
+    const submit = await screen.findByRole('button', { name: 'Submit' });
+    const prev = screen.getByRole('button', { name: /^Prev/ });
+    const next = screen.getByRole('button', { name: /^Next/ });
+    expect(submit.compareDocumentPosition(prev) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(prev.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('N and P keys move between questions', async () => {
+    renderAttempt();
+    await screen.findByText('Question 1 of 4');
+    fireEvent.keyDown(document.body, { key: 'n' });
+    await screen.findByText('Question 2 of 4');
+    fireEvent.keyDown(document.body, { key: 'p' });
+    await screen.findByText('Question 1 of 4');
   });
 });

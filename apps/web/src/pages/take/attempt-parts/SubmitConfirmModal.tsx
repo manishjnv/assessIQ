@@ -14,6 +14,12 @@ export interface SubmitConfirmModalProps {
   handleSubmit: () => Promise<void>;
 }
 
+/** Z-7 owner wording. n = unanswered questions; the last sentence is left out when n is 0. */
+export function submitBody(n: number): string {
+  const base = 'This sends your answers to your organisation and ends your test. You cannot change them after this.';
+  return n > 0 ? `${base} You have ${n} unanswered question${n === 1 ? '' : 's'}.` : base;
+}
+
 export function SubmitConfirmModal(props: SubmitConfirmModalProps): React.JSX.Element {
   const {
     confirmOpen, submitting, submitError, setConfirmOpen, sectionLines, answeredCount,
@@ -25,7 +31,7 @@ export function SubmitConfirmModal(props: SubmitConfirmModalProps): React.JSX.El
     onClose={() => {
       if (!submitting) setConfirmOpen(false);
     }}
-    title="Submit your assessment?"
+    title="Submit your test?"
   >
     <div style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
       {sectionLines.length === 0 ? (
@@ -45,19 +51,12 @@ export function SubmitConfirmModal(props: SubmitConfirmModalProps): React.JSX.El
           ))}
         </ul>
       )}
-      {overallUnanswered > 0 && (
-        <p style={{ margin: '0 0 8px' }}>
-          {overallUnanswered} question{overallUnanswered !== 1 ? 's are' : ' is'} unanswered
-          {sectionLines.length > 0 ? ' across all sections' : ''}
-          {' '}— {overallUnanswered !== 1 ? 'they' : 'it'} will score 0.
-        </p>
-      )}
       {flaggedCount > 0 && (
         <p style={{ margin: '0 0 8px' }}>
           {flaggedCount} question{flaggedCount !== 1 ? 's are' : ' is'} flagged for review.
         </p>
       )}
-      <p style={{ margin: 0 }}>You cannot change your answers after you submit.</p>
+      <p style={{ margin: 0 }}>{submitBody(overallUnanswered)}</p>
       {submitError !== null && (
         <p role="alert" style={{ margin: '12px 0 0', color: 'var(--aiq-color-fg-primary)' }}>
           {submitError}
@@ -66,10 +65,10 @@ export function SubmitConfirmModal(props: SubmitConfirmModalProps): React.JSX.El
     </div>
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--aiq-space-sm)' }}>
       <Button variant="outline" disabled={submitting} onClick={() => setConfirmOpen(false)}>
-        Go back
+        Review answers
       </Button>
       <Button variant="primary" disabled={submitting} onClick={() => void handleSubmit()}>
-        {submitting ? 'Submitting…' : 'Submit assessment'}
+        {submitting ? 'Submitting…' : 'Submit test'}
       </Button>
     </div>
   </Modal>

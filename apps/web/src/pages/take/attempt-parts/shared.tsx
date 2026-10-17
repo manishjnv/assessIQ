@@ -149,3 +149,13 @@ export const SR_ONLY: React.CSSProperties = {
   position: 'absolute', width: 1, height: 1, margin: -1, padding: 0,
   overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0,
 };
+
+export const KBD_HINT: React.CSSProperties = {
+  marginLeft: 'var(--aiq-space-xs)',
+  padding: '1px 5px',
+  border: '1px solid var(--aiq-color-border)',
+  borderRadius: 4,
+  fontFamily: 'var(--aiq-font-mono)',
+  fontSize: 11,
+  color: 'var(--aiq-color-fg-muted)',
+};
