@@ -2679,3 +2679,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** both figures read `attempt_summary_mv`, which is released-only and nightly (`modules/15-analytics/src/activity-candidate/stats.ts`). The exact mismatch in the owner screenshot was not reproduced from code.
 **Fix:** `stats.ts` counts submitted attempts from the live `attempts` table. `avgScore` stays released-only. A caption in `CandidateActivity.tsx` defines the terms.
 **Prevention:** manual discipline; no lint covers MV-versus-live definitions.
+
+## 2026-10-17 — Print e2e test failed with a 1-page blank PDF (Z-30)
+
+**Symptom:** the first run of the print test in `apps/web/e2e/admin-help-print.spec.ts` reported 1 page. The PDF was blank. The Z-6 print fix looked broken.
+**Cause:** test defect, not a product defect. The helper `openAdminAttempt` did not wait for the SPA to render before the test called print. The page was still empty.
+**Fix:** one line in `apps/web/e2e/admin-help-print.spec.ts` after the navigation: `await expect(page.locator('main h1, main h2').first()).toBeVisible()` (commit `9a5d552`). The test then passed with more than one page.
+**Prevention:** every e2e helper that opens an SPA route must wait for a visible landmark before it reads or prints the page. Manual discipline; no lint covers it. Also: run a new e2e spec once on the local stack (`apps/web/e2e/local-stack.sh`) before you mark the row done. Z-6 and Z-21 were marked done on a code check only.

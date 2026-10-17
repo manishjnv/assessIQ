@@ -1,3 +1,41 @@
+# Session — 2026-10-17 (afternoon) — S17: P0-Z batch 6 (Z-30, Z-29, Z-25, Z-27, Z-28 closed; Z-15 b/d and Z-11 c built; Z-9/Z-10 draft ready; Dependabot pending)
+
+**Headline:** Five rows closed (Z-25, Z-27, Z-28, Z-29, Z-30), three row items built (Z-15 b, Z-15 d, Z-11 c), Z-9 and Z-10 wording drafted for owner review, eight rows added (Z-31..Z-38). Nothing is pushed or deployed yet.
+**Dependabot (commit "Z-38 (part)"):** safe patch/minor bumps applied by overrides + lockfiles (root, apps/marketing, tools/assessiq-mcp): proxy-addr (critical), compression, body-parser, qs, hono, @hono/node-server (kept 1.x), ip-address, fast-uri, MCP sdk 1.32.1, react-router/-dom 6.30.6, @remix-run/router, source-map-js, nanoid, postcss (root; marketing stays 8.5.28), postcss-selector-parser, @babel/core, sharp 0.35.5, esbuild (marketing). Not bumped: astro, vite, basic-ftp, uuid, react-router 7, tmp, and the no-fix packages (Z-38). Checks: typecheck, lint:repo, web + marketing builds green; root test 3448 pass, 1 known flake (structured-case-editor); api 303 pass; MCP 40/41 (typecheck error in submit-questions.test.ts lines 285/291 also on clean HEAD). `pnpm audit --prod` still shows the same 6 moderate findings; open alert count is re-read from GitHub after the push.
+**Commits (main, local, not pushed):** `9a5d552` print e2e wait line (Z-30) · `133f85c` axe region/heading-one blocking + 5 Linux visual baselines (Z-29) · `258e801` sitemap build guard (Z-25) · `dd3b779` phone sign-in alignment (Z-15 b) · `f9c569f` certificate rule text (Z-15 d, Z-11 c).
+**Tests:** candidate-ui 137, web 88 pass. e2e admin-help-print: drawer pass; print failed once (test defect, fixed in `9a5d552`) then pass. a11y-authed 5 pages: 0 serious or critical. Marketing real build: 42 sitemap URLs, guard proved with a throwaway page.
+**Findings:**
+- Z-27 live audit of `https://assessiq.in`: about 88/100. Rows Z-31 (http does not redirect, owner/edge), Z-32 (`/try`), Z-33 (meta descriptions over 160), Z-34 (schema recount), Z-35 (`sameAs` empty, Clarity consent).
+- Clarity is LIVE (`apps/marketing/src/layouts/BaseLayout.astro:156`). The old note "no analytics" was wrong (Z-26 updated).
+- Z-28: no images in marketing source or on live pages. Nothing to fix.
+- Z-9/Z-10 draft: `docs/design/2026-10-18-result-and-email-copy.md`. "Company" label in 5 emails (`render.ts:194-212`); 4 templates without a sender; `attempt_graded_candidate` duplicates `result_released` and may leak a result before release (delete); certificate floor 70% vs default pass mark 60%; no certificate email. Code fixes are row Z-37.
+- Z-11 (c) hard-codes 70 in `CERTIFICATE_RULE_TEXT`. If Z-16 changes the rule, change the string.
+**Roadmap counts (recounted from the status column):** total 218; pending 104; closed 114; done share 52%. See `docs/ROADMAP.md` Z.7.
+**Next:** (1) orchestrator: fill `DEPENDABOT-RESULT`, push, deploy (frontend + marketing; see `docs/06-deployment.md` "S17 (pending deploy)"), then fill the deploy facts. (2) owner: approve the Z-9/Z-10 wording; answer Z-13 (5 per 10 min), Z-7 mock, Z-16 rule, Z-31 edge fix, Z-26 analytics choice. (3) Claude: Z-18 is the next gated row; Z-32..Z-36 are small.
+**Open questions:**
+- Z-31: use Cloudflare "Always Use HTTPS" or a Caddy port 80 redirect? Caddy is the shared edge, so the owner agrees first.
+- Z-26: is Plausible, Umami or Cloudflare Web Analytics still wanted next to Clarity? Which Search Console method?
+- Z-29: baselines came from the local Vite dev server and Google Fonts; a CI run without font access may differ (`maxDiffPixels` 200). Lighthouse stays advisory until 2026-10-31.
+- Z-30: the e2e spec does not test Tab trapping in the help drawer (Z-36).
+- Z-13: unchanged, 5 per 10 min; owner has not answered. Z-7: mock awaits owner. Z-16: awaits owner.
+- Note for the orchestrator: `apps/web/e2e/README.md` is outside the docs scope of this run. Add there: the local stack command (`apps/web/e2e/local-stack.sh`); the Linux baselines are made in `mcr.microsoft.com/playwright:v1.59.1-jammy` with `host.docker.internal` plus a small TCP proxy (Vite returned 403 for that Host); every helper that opens an SPA route must wait for a visible landmark before print.
+**Old task or feature checked:** Z-30/Z-29 vs S15 RW-82 specs (the axe and visual specs they extend); Z-25 vs the astro inline sitemap integration and page-dates; Z-15d/Z-11c vs Z-16 and the 70% floor in `modules/18-certification/src/service.ts:668`. (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Agent utilization
+- Opus: Phase 0 brief, row selection, re-verification of two Z-27 findings (F1, F2), diff review of every agent output, orchestration of the docs run.
+- Sonnet: Z-30 run, Z-25 guard, Z-29 baselines, Z-27 audit, Z-15/Z-11 build, Z-9/Z-10 draft, this docs run; Dependabot patch run pending.
+- Haiku: 3 digests (phase0, sitemap, dependabot).
+- codex:rescue: n/a — no security-adjacent diff in S17; Sonnet takeover gate not needed.
+- Gemini (agy): n/a — binary not found at the configured path; Haiku digest used.
+- Codex (exec): n/a — not used.
+
+## Routing telemetry
+Haiku · phase0 digest · reworked: N · Haiku · sitemap digest · reworked: N · Haiku · dependabot digest · reworked: N · Sonnet · Z-30 e2e run · reworked: N (it also fixed the print test) · Sonnet · Z-25 sitemap guard · reworked: N · Sonnet · Z-29 axe + baselines · reworked: N · Sonnet · Z-27 audit · reworked: N (two findings re-verified by Opus) · Sonnet · Z-15/Z-11 build · reworked: N · Sonnet · Z-9/Z-10 draft · reworked: N · Sonnet · Dependabot patch · pending.
+
+---
+
 # Session — 2026-10-17 (midday) — S16: P0-Z batch 5 (Z-6, Z-8, Z-12, Z-13 check, Z-15(e), Z-17, Z-21, Z-22, RW-79 tail, RW-82 tails) shipped and deployed
 
 **Headline:** Ten rows closed by nine Sonnet implementation runs (max five at once), two Sonnet adversarial gates (both ACCEPT), one Sonnet docs run, one Sonnet ROADMAP run and three Haiku/other digests; Opus reviewed every diff and fixed four things inline. Z-13 turned out to be shipped already in S14 (5 per 600 s, `apps/api/src/server.ts:237`). One deploy, migrations 0192 and 0193. GitHub main = VPS `/srv/assessiq` = `3ed96c1` (code) before the docs commit. Z-7 is a mock only (no code) and waits for you.

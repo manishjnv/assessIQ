@@ -2426,6 +2426,18 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Not done / follow-ups:** the team did not exercise the `totp_enrolled` email live (it needs a real enrolment). The owner test step is "enrol TOTP on a test admin, expect one email with the new copy". `TENANT_PURGE_ENABLED` is still unset.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate. 0179-0181 only narrow three CHECKs. Older builds never write `reviewer`, so the migrations need no rollback. To restore the old CHECKs by hand, add the constraints again with the `reviewer` value from 016_super_admin.sql and 0056_in_app_notifications.sql.
 
+### S17 (pending deploy, 2026-10-17): Z-15 (b), (d), Z-11 (c), Z-25 guard, Z-29, Z-30
+
+*Type: reference. The orchestrator fills the deploy facts after the deploy.*
+
+- **Code commits on main, not pushed or deployed yet:** `9a5d552`, `133f85c`, `258e801`, `dd3b779`, `f9c569f`.
+- **Frontend (needs `assessiq-frontend` rebuild):** `dd3b779` (`CandidateLogin.tsx`, mobile sign-in alignment) and `f9c569f` (`CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui`, empty Certificates page and result summary).
+- **Marketing (needs `assessiq-marketing` rebuild):** `258e801` adds a build guard in `apps/marketing/astro.config.mjs`. The sitemap output is unchanged (42 URLs), so no IndexNow submission.
+- **Tests only (no deploy):** `9a5d552` (print e2e wait line) and `133f85c` (blocking axe rules and 5 Linux visual baselines in `apps/web/e2e`).
+- **No migrations, no new environment variables, no API change.**
+- **Dependabot:** see `DEPENDABOT-RESULT` in `docs/SESSION_STATE.md`.
+- **Filled by the orchestrator:** push SHA, VPS pull, rebuilds, smoke results, rollback SHA.
+
 ### S16 deploy (2026-10-17, HEAD `3ed96c1`): batch 5 of P0-Z (Z-6, Z-8, Z-12, Z-13 check, Z-15(e), Z-17, Z-21, Z-22, RW-79 tail, RW-82 tails)
 
 *Type: reference.*

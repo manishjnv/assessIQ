@@ -1649,3 +1649,17 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 **Not included.** Visual baselines (none committed; needs the Playwright image). Counting a current flagged question as flagged.
 
 **Downstream impact.** API and data: `docs/03-api-contract.md` (rows already present), `docs/02-data-model.md` (`attempts.seen_at`, migration 0193 with backfill of already released rows).
+
+## Candidate: certificate rule line and phone sign-in alignment (Z-11 (c), Z-15 (b), (d); S17, 2026-10-17)
+
+**What changed.**
+- `CERTIFICATE_RULE_TEXT` (`modules/11-candidate-ui/src/copy.ts`) shows on the empty Certificates page. It also shows on `ResultSummary` when `certificate === null` and the percent is below 70. Commit `f9c569f`.
+- `CandidateLogin.tsx` has a mobile-only rule, class `aiq-candidate-login-body`, so the sign-in form starts near the top on a phone. Commit `dd3b779`. Authentication is untouched.
+
+**Why.** A candidate who scored 60% saw an empty page with no reason. On a phone the sign-in form sat low and needed a scroll before the keyboard opened.
+
+**Considered and rejected.** Hide the Certificates page for candidates below 70% (the page is where they look). Put the rule only in an email (not seen on the page). Read the 70 from the server (the service floor may change in Z-16; a constant is simpler for now).
+
+**Not included.** LinkedIn share (Z-11 a), admin row shortcut (Z-11 b), result-email link target (Z-15 a), result copy (Z-9). Tests: candidate-ui 137, web 88.
+
+**Downstream impact.** The sentence hard-codes 70. If Z-16 changes the certificate rule, change the string in the same commit. See also `docs/10-branding-guideline.md` section 15.5.

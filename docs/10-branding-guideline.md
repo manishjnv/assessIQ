@@ -830,3 +830,15 @@ Otherwise pass-through children (desktop, candidate routes, take-flow, embed mod
 ### 15.4 Email-webview testing
 
 Magic-link candidates click email links from Gmail / Outlook / Apple Mail in-app browsers, not Safari/Chrome. Any page touched by the mobile port (especially M1 candidate-auth pages) must be smoke-tested in at least one in-app webview before claiming the phase done. Common gotchas: minimum 16px font-size on inputs (otherwise iOS auto-zooms), missing `gap` polyfills in older WebViews, and aggressive paragraph-truncation.
+
+### 15.5 Certificate rule line and mobile sign-in alignment (Z-11 (c), Z-15 (b), (d); S17, 2026-10-17)
+
+*Type: reference.*
+
+- **Certificate rule line.** Candidate pages state the rule in one fixed sentence: "You earn a certificate when your score is 70% or more. Your organisation releases the result first." The text is the constant `CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui/src/copy.ts`. Show it on the empty Certificates page. Show it on the result summary when there is no certificate and the score is below 70%. Use the constant; never retype the sentence.
+- **Why.** A candidate with 60% saw an empty Certificates page and did not know why (owner live test, 2026-10-16).
+- **Caveat.** The 70 is written in the sentence. The service floor is in `modules/18-certification/src/service.ts:668`. If Z-16 changes the rule, change the sentence in the same commit.
+- **Mobile sign-in alignment.** On a phone, the candidate sign-in page starts near the top of the screen, not centred. The rule is mobile-only and uses the class `aiq-candidate-login-body` in `apps/web/src/pages/candidate/CandidateLogin.tsx`. The desktop layout is unchanged. Authentication code is unchanged.
+- **Rejected.** A page-local `@media` rule in other pages. Keep this rule on the one class.
+- **Not included.** Z-15 (a) email link target and (c) result copy; Z-11 (a) LinkedIn and (b) admin row shortcut.
+- **Downstream.** `docs/08-ui-system.md` (same section); `modules/11-candidate-ui/SKILL.md`.

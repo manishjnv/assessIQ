@@ -279,3 +279,11 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - **Rejected.** Hiding the current square under a filter.
 - **Not included.** A flagged current question is not counted as flagged (limit). No visual baselines.
 - **Downstream.** `docs/08-ui-system.md` section "Candidate: question navigator filters, New chip, take landmarks"; `docs/03-api-contract.md` (`seen`, `is_new`).
+
+## S17 note (2026-10-17) - certificate rule text (Z-11 c, Z-15 d)
+
+- **What.** `src/copy.ts` exports `CERTIFICATE_RULE_TEXT`: "You earn a certificate when your score is 70% or more. Your organisation releases the result first." The empty Certificates page shows it. `ResultSummary` shows it when `certificate === null` and `percent < 70`.
+- **Why.** A candidate below 70% saw no reason for an empty Certificates page.
+- **Rejected.** A server-provided rule value (over-built until Z-16 decides the rule).
+- **Not included.** LinkedIn share and admin row shortcut (Z-11 a, b).
+- **Downstream.** The string hard-codes 70, the floor in `modules/18-certification/src/service.ts:668`. Change both together. UI notes: `docs/08-ui-system.md`, `docs/10-branding-guideline.md` section 15.5. Sign-in: `CandidateLogin.tsx` has a mobile-only top-alignment class `aiq-candidate-login-body` (Z-15 b).
