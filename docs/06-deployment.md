@@ -2426,6 +2426,15 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Not done / follow-ups:** the team did not exercise the `totp_enrolled` email live (it needs a real enrolment). The owner test step is "enrol TOTP on a test admin, expect one email with the new copy". `TENANT_PURGE_ENABLED` is still unset.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate. 0179-0181 only narrow three CHECKs. Older builds never write `reviewer`, so the migrations need no rollback. To restore the old CHECKs by hand, add the constraints again with the `reviewer` value from 016_super_admin.sql and 0056_in_app_notifications.sql.
 
+### Z-40 step 1 deploy (2026-10-17, HEAD `9b5b23b`): Microsoft Clarity removed, marketing only
+
+**What changed:** `apps/marketing/src/layouts/BaseLayout.astro` (Clarity snippet removed), `apps/marketing/src/pages/privacy.astro` (analytics text now says no analytics or session-recording tool runs), `src/data/page-dates.json`. Only `assessiq-marketing` was rebuilt (build exit code checked before the recreate) and recreated; api, worker, frontend, postgres and redis were not touched.
+**Why:** owner chose option B on 2026-10-17: no consent banner, cookie-free analytics instead of Clarity. Clarity needs a consent signal for EEA, UK and Swiss visits and sets Microsoft cookies; the site had no banner.
+**Considered and rejected:** (A) banner plus Clarity after Accept (a day of design and code, fewer recorded visits); (C) keep as is. Cloudflare automatic setup was rejected for the beacon: it injects on every page of the zone, including `/admin`, `/candidate` and `/take`, which would break the statement that no analytics runs on the app.
+**Not included (step 2, waits for the owner):** the Cloudflare Web Analytics beacon. Owner steps: Cloudflare dashboard, Analytics and Logs, Web Analytics, Add a site `assessiq.in`, choose the manual JavaScript snippet (not automatic), and send the token. Claude then adds `<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"..."}'>` to `BaseLayout.astro` only, rewrites the privacy sentence (Cloudflare: no cookies and no browser storage; raw data 7 days then aggregated; six months of history; its no-personal-data claim does not cover EU and UK traffic), rebuilds, refreshes page-dates and pings IndexNow. If automatic setup is already on for the zone, switch it off first.
+**Verification:** `/`, `/pricing`, `/privacy`, `/about` return 200 with no `clarity.ms` or Clarity project id in the HTML; privacy text shows the new sentence and October 2026; local `pnpm build` exit 0 (build guards passed); IndexNow HTTP 200 for 42 URLs; marketing container healthy.
+**Rollback:** `git revert a28e15f 9b5b23b`, rebuild `assessiq-marketing`.
+
 ### S18 follow-up deploy (2026-10-17, HEAD `f6f9232`, repo `be1d1ea`): Z-35 privacy page facts, marketing only
 
 **What changed:** `apps/marketing/src/pages/privacy.astro` (Clarity paragraph, effective date October 2026) and `src/data/page-dates.json`. Only `assessiq-marketing` was rebuilt and recreated; api, worker, frontend, postgres and redis were not touched.
