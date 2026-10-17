@@ -258,6 +258,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   const workspaceEntries: NavEntry[] = [
     { label: "Dashboard", href: "/admin", icon: "home" },
     { label: "Assessments", href: "/admin/assessments", icon: "clock", adminOnly: true },
+    { label: "Start a test", href: "/admin/start-test", icon: "sparkle", adminOnly: true },
     { label: "Attempts", href: "/admin/attempts", icon: "eye" },
     // FU-C1 (2026-10-06): the page is now the read-only evaluation status (route path unchanged).
     { label: "Grading status", href: "/admin/grading-jobs", icon: "chart" },
@@ -633,6 +634,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
 
         {/* Page content */}
         <main
+          tabIndex={0}
           style={{
             flex: 1,
             overflowY: "auto",

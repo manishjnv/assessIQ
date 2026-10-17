@@ -55,6 +55,7 @@ export { AdminGuide } from "./pages/admin-guide.js";
 export { AdminQuestionBank } from "./pages/question-bank.js";
 export { AdminPackDetail } from "./pages/pack-detail.js";
 export { AdminAssessments } from "./pages/assessments.js";
+export { AdminStartTest } from "./pages/start-test.js";
 export { AdminAssessmentDetail } from "./pages/assessment-detail.js";
 export { AdminReports } from "./pages/reports.js";
 export { AdminGenerationAttempts } from "./pages/generation-attempts.js";
