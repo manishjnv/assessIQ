@@ -47,8 +47,16 @@ export default defineConfig({
     // Default project — runs all specs EXCEPT visual.spec.ts.
     {
       name: "chromium",
-      testIgnore: /visual\.spec\.ts/,
+      testIgnore: /visual\.spec\.ts|phone-first-question\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
+    },
+
+    // RW-79: phone timing (Pixel 5, throttled 4G). Run against a production build:
+    //   playwright test --project=mobile phone-first-question
+    {
+      name: "mobile",
+      testMatch: /phone-first-question\.spec\.ts/,
+      use: { ...devices["Pixel 5"] },
     },
 
     // Visual-regression project — ONLY runs visual.spec.ts.

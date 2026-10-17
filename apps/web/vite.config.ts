@@ -2,7 +2,9 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 // E2E only (apps/web/e2e/local-stack.sh): proxy /api to a local API so the SPA is same-origin.
-const apiProxy = process.env["E2E_API_PROXY"] ? { proxy: { "/api": process.env["E2E_API_PROXY"] } } : {};
+// The magic-link POST /take/start is mounted at the bare root (Caddy forwards it too), so proxy it as well.
+const apiTarget = process.env["E2E_API_PROXY"];
+const apiProxy = apiTarget ? { proxy: { "/api": apiTarget, "^/take/start$": apiTarget } } : {};
 
 export default defineConfig({
   plugins: [react()],

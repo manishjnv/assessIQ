@@ -333,6 +333,8 @@ export function TokenLanding(): React.JSX.Element {
     setState({ tag: 'loading' });
     try {
       const res = await takePreview(token);
+      // RW-79: the next screen is the attempt runner; warm its chunk while the candidate reads and consents.
+      void import('./Attempt').catch(() => undefined);
       setState({
         tag: 'success',
         resumed: res.resumed,
