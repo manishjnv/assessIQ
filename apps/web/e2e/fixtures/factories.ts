@@ -12,6 +12,10 @@
 //   - Every helper throws on non-2xx so the test fails fast with a clear message.
 //   - Never hardcodes production credentials or tokens.
 
+import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -658,6 +662,77 @@ export async function provisionAttempt(opts: {
   const view = await getAttemptView(candidate.cookie, attempt.id);
   return {
     superAdmin, admin, candidate, packId: pack.id, assessment: created, attemptId: attempt.id, view,
+    cleanup: () => cleanupTestData({ adminCookie: admin.cookie, superCookie: superAdmin.cookie, packId: pack.id, assessmentId: created.id }),
+  };
+}
+
+export interface ProvisionedInvitations {
+  /** One `/take/<token>` path per invited candidate (the link in the invitation email). */
+  paths: string[];
+  cleanup: () => Promise<void>;
+}
+
+/**
+ * RW-79: like provisionAttempt but stops BEFORE the candidate starts. Invites `count` fresh
+ * candidates to one active assessment and returns their `/take/<token>` paths. The API never
+ * returns the plaintext token; it only goes out in the email, so this reads the dev email sink
+ * (ASSESSIQ_DEV_EMAILS_LOG or ~/.assessiq/dev-emails.log; the API must run on this machine).
+ */
+export async function provisionInvitations(opts: {
+  label: string;
+  count: number;
+  makeQuestions: (superCookie: string, packId: string, levelId: string) => Promise<unknown>;
+  questionCount: number;
+}): Promise<ProvisionedInvitations> {
+  const ts = Date.now();
+  const superAdmin = await mintSuperAdminSession();
+  const admin = await mintAdminSession(SEEDED_TENANT_ADMIN);
+  const pack = await createPack(superAdmin.cookie, `E2E Test ${opts.label} ${ts}`);
+  const level = await addLevel(superAdmin.cookie, pack.id, 'L1', 1, 30);
+  await opts.makeQuestions(superAdmin.cookie, pack.id, level.id);
+  await publishPack(superAdmin.cookie, pack.id);
+  const created = await createAssessmentFromSet(admin.cookie, {
+    name: `E2E Test ${opts.label} ${ts}`,
+    sourcePackId: pack.id,
+    questionCount: opts.questionCount,
+  });
+  await publishAssessment(admin.cookie, created.id);
+  const emails: string[] = [];
+  for (let i = 0; i < opts.count; i++) {
+    const email = `e2e-candidate-${opts.label}-${ts}-${i}@test.assessiq`;
+    const candidate = await mintCandidateSession(email);
+    await inviteCandidate(admin.cookie, created.id, candidate.userId);
+    emails.push(email);
+  }
+  // The invitation is only usable once the worker's boundary cron makes the assessment 'active' (<= ~90 s).
+  const deadline = Date.now() + 90_000;
+  for (;;) {
+    const a = await apiFetchJson<{ status: string }>(`/api/admin/assessments/${created.id}`, {
+      cookie: admin.cookie,
+      label: 'getAssessment',
+    });
+    if (a.status === 'active') break;
+    if (Date.now() > deadline) throw new Error(`[factories] assessment still ${a.status} after 90 s`);
+    await new Promise((r) => setTimeout(r, 3_000));
+  }
+  const logPath = process.env['ASSESSIQ_DEV_EMAILS_LOG'] ?? join(homedir(), '.assessiq', 'dev-emails.log');
+  const paths: string[] = [];
+  for (const email of emails) {
+    let found: string | undefined;
+    for (let tries = 0; tries < 20 && !found; tries++) {
+      const lines = existsSync(logPath) ? readFileSync(logPath, 'utf-8').split(/\r?\n/) : [];
+      for (let i = lines.length - 1; i >= 0 && !found; i--) {
+        const line = lines[i];
+        if (!line || !line.includes(email)) continue;
+        found = /\/take\/([A-Za-z0-9_-]+)/.exec((JSON.parse(line) as { body: string }).body)?.[0];
+      }
+      if (!found) await new Promise((r) => setTimeout(r, 500));
+    }
+    if (!found) throw new Error(`[factories] no invitation email for ${email} in ${logPath}`);
+    paths.push(found);
+  }
+  return {
+    paths,
     cleanup: () => cleanupTestData({ adminCookie: admin.cookie, superCookie: superAdmin.cookie, packId: pack.id, assessmentId: created.id }),
   };
 }

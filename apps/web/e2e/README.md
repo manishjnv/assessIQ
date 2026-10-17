@@ -114,3 +114,12 @@ Common failure causes:
 3. If the test needs a session, use `factories.mintAdminSession()` or `factories.mintCandidateSession()`.
 4. Do not use `test.only`, hardcoded production tokens, or `headless: false`.
 
+
+## Phone first-question timing (RW-79)
+
+`phone-first-question.spec.ts` runs only in the `mobile` project (Pixel 5, 4G throttle, 4x CPU slowdown). It walks invitation link, `/take/<token>`, Begin, "Question 1 of" five times with a cold cache. It fails when the median is 20 s or more. Run it against a production build: `PLAYWRIGHT_BASE_URL=http://localhost:4173 E2E_API_BASE_URL=http://localhost:3000 pnpm exec playwright test --project=mobile phone-first-question`. The API must run on the same machine: the spec reads the invitation link from the dev email log (`ASSESSIQ_DEV_EMAILS_LOG`, default `~/.assessiq/dev-emails.log`). Set `PHONE_FLOW_ADVISORY=1` to log a miss instead of failing.
+
+## Logged-in accessibility and Lighthouse (RW-82)
+
+- `a11y-authed.spec.ts` opens the admin pages (`/admin`, `/admin/assessments`, `/admin/attempts/:id`) and the candidate pages (`/candidate/results`, `/take/attempt/:id`) with minted session cookies. It runs axe and fails on any serious or critical violation. Minor and moderate ones print as warnings. It runs in the required `e2e` job in `ci.yml`.
+- `pnpm --filter @assessiq/web lhci:authed` provisions an attempt, sends the cookies as a Lighthouse extra header, prints a score table and asserts a minimum of 0.85 per category (`lighthouserc.authed.json`). Set `PLAYWRIGHT_BASE_URL` (a preview build with `E2E_API_PROXY`, host must be `localhost` for the cookie) and `E2E_API_BASE_URL`. `LHCI_RUNS=1` speeds up a local run. The workflow step is advisory until 2026-10-31.
