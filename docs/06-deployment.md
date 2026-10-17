@@ -2551,3 +2551,31 @@ Order matters: 0186 must apply before the api restart because `getUsage` now sel
 - **Deployed:** `/srv/assessiq` pulled to `67e5db5`; `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-worker`, then `up -d --no-deps --force-recreate assessiq-api assessiq-worker`. Both healthy after 25 s, 0 error lines, `/api/ready` 200. No migrations, no new env variables.
 - **What changed:** the meta label "Company" is now "Organisation" in 5 emails (one function, `modules/13-notifications/src/email/render.ts`). A new test fails when an email template has no sender; four unsent templates are on a named allowlist and nothing was deleted.
 - **Rollback:** `git revert 67e5db5`, rebuild and recreate the same two services.
+
+
+
+### S20 deploy record (2026-10-18, HEAD `bc7b335`): batch 8 (Z-7, Z-9, Z-10, Z-16, EXP-19, Z-37, EXP-5, EXP-6)
+
+*Type: reference.*
+
+**What changed:** `/srv/assessiq` moved from `c45a2eb` to `bc7b335` (code commits `f253297`, `e320c7f`, `e940d3b`, `c34a597`, `e92ef4b`, `75a42ca`, `8445eba`, then docs `bc7b335`). Six migrations applied by hand: 0196-0201. Rebuilt `assessiq-api` and `assessiq-frontend`; recreated `assessiq-api`, `assessiq-worker` and `assessiq-frontend`. Marketing, postgres and redis were not touched.
+**Why:** the batch holds the take-page submit change, the result copy and email, the per-assessment pass mark, the takedown propagation, question search and the first exam blueprint. The new code reads the new columns, so the migrations had to land before the api restart.
+**Steps and evidence:**
+1. Pre-flight: clean git clone, all `assessiq-*` containers healthy, no `claude` grading process in flight.
+2. `git pull --ff-only` to `bc7b335`.
+3. Drift gate: exactly the 6 expected repo-only files (0196-0201); DB-only = the four known names.
+4. Migrations in numeric order, one transaction each, `schema_migrations` row with the sha256 of the file:
+   - 0196 `pg_trgm`, `questions.search_text`, `search_tsv`, trigger, indexes (module 04).
+   - 0197 help rows for facets and search (module 16).
+   - 0198 `assessments.passing_score_pct` (module 05).
+   - 0199 `attempt_scores.pass_mark_pct` (module 09).
+   - 0200 help rows for the pass mark (module 16).
+   - 0201 `exam_blueprints` and `exam_blueprint_sections` with a seed (module 04).
+5. Post-checks: `pg_trgm` installed; new columns present; blueprint seed = 1 blueprint and 4 sections; the blueprint tables have read-only policies and are owned by role `assessiq`, not `assessiq_app`; 0 questions without `search_tsv`; 0 bad pass marks; 0 scores without `pass_mark_pct`.
+6. Build api and frontend: `BUILD_EXIT=0`. Then `up -d --no-deps --force-recreate` for the api, worker and frontend.
+**Sweep (Haiku):** all 7 public pages 200; the 4 new or changed API routes answer 401 without a session; the bundle holds "Submit your test", "Review answers" and "Pass mark"; logs clean, restart count 0; HSTS present. The CSP header has only `frame-ancestors` (no `script-src`); filed as ROADMAP Z-46. Beacon check by hand: present on `/`, `/pricing`, `/about`, `/privacy`; absent on `/admin/login`.
+**Sharp edges:**
+- The first run was piped through `head` and died after the pull (SIGPIPE) with nothing else changed. Re-run with output to a file. Never pipe a deploy script through `head` or `tail`.
+- The Cloudflare beacon check needs a browser User-Agent and `Accept: text/html`. Plain curl shows no beacon, which is a false FAIL.
+- Never recreate `assessiq-api` or the worker while an AI grading run is in flight. Check for a `claude` process first.
+**Rollback:** `git checkout c45a2eb`, rebuild `assessiq-api` and `assessiq-frontend`, recreate the same three services. The migrations are additive (new columns, tables, extension, help rows) and the old code ignores them, so leave them in place. Backout SQL is not needed. If the owner asks for it, derive it from the files: `DROP TABLE exam_blueprint_sections, exam_blueprints;` (0201); `ALTER TABLE attempt_scores DROP COLUMN pass_mark_pct;` (0199); `ALTER TABLE assessments DROP COLUMN passing_score_pct;` (0198, also drops its CHECK); for 0196 drop trigger `questions_search_text_trg`, the three indexes and the two columns on `questions`. Do not drop `pg_trgm`: the import check uses it.

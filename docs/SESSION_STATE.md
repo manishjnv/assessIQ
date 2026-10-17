@@ -1,3 +1,63 @@
+# Session — 2026-10-17/18 — S20: batch 8 built, deployed and swept (Z-7, Z-9, Z-10, Z-16, EXP-19; Z-37, EXP-5, EXP-6 in part)
+
+**Headline:** Batch 8 shipped and deployed. Done: Z-7, Z-9, Z-10, Z-16 (and its follow-up), EXP-19. Partly done: Z-37, EXP-5, EXP-6. GitHub main = VPS = `bc7b335` (the VPS was at `c45a2eb`). Migrations 0196-0201 were applied by hand with checksums. The next number is 0202.
+**Commits (main, oldest first):** `f253297` Z-9/Z-37 result copy and email · `e320c7f` EXP-19 takedown · `e940d3b` Z-7 submit · `c34a597` EXP-5 search and facets (0196 module 04, 0197 module 16 help) · `e92ef4b` Z-16 pass mark (0198 module 05 `assessments.passing_score_pct`, 0199 module 09 `attempt_scores.pass_mark_pct`, 0200 module 16 help) · `75a42ca` Z-16 follow-up (page, email, export, share links) · `8445eba` EXP-6 blueprints (0201 module 04) · `bc7b335` docs and test typing (carries the Adversarial-Review trailer).
+**Tests (merged tree, run one module at a time):** api 303 pass, 7 todo · web 93 · core 169 · module 04 433 · 05 170 (3 skipped) · 06 325 · 09 137 · 10 191 · 11 143 · 13 290 · 14 40 · 15 159 · 16 116 · 18 145. All 20 `lint:*` scripts pass. Typecheck is clean after two EXP-6 test typings were fixed. The full root `pnpm test` was stopped after about 55 minutes because the owner needed the laptop; the per-module runs replaced it.
+**Known test noise:** lint error `z22-flow-links.test.tsx:124` `no-explicit-any` (Z-22, commit `776bfa2`, before this session). Two load flakes pass alone: `structured-case-editor.test.tsx` and the AttemptSubmitModal "N and P keys" test.
+**Deploy:** docs/06 "S20 deploy record". Six migrations, one transaction each, with sha256. Rebuilt api and frontend; recreated api, worker and frontend only. No AI run was in flight.
+**Live sweep (Haiku):** 7 public pages 200; the 4 new or changed API routes answer 401 without a session; bundle holds "Submit your test", "Review answers" and "Pass mark"; logs clean, restart count 0; HSTS present. The CSP header has only `frame-ancestors` (new row Z-46). Beacon check (by hand): present on `/`, `/pricing`, `/about`, `/privacy`; absent on `/admin/login`.
+**Owner decisions 2026-10-18 (all six recommendations approved):**
+- EXP-20: leave frozen copies as they are. Remove one only for a legal reason, in a separate logged step.
+- Z-23: the 7 navigation names and their order are approved as drafted. The nav change waits for the build row.
+- Z-32: use a prerender for the `/try` head.
+- Z-35 and Z-26: `sameAs` lists only profiles that exist and that you control. Verify Google Search Console by DNS this week.
+- Z-13: keep the audit export limit at 5 per 10 minutes. Change it only if a real user hits it.
+- Z-41: add an off switch for the P and N shortcuts (the only new-code item). Z-45: do NOT issue certificates for old 60-69 percent results (no real data yet).
+**Next:** (1) Build Z-41. (2) Z-39 retake policy (ready: Z-9 and Z-16 are done). (3) Z-42 whole-test timer and scale marks per question. (4) Z-43 draw by taxonomy node. (5) Z-44 feedback level in the single-result payload. (6) EXP-7 generator skill, EXP-16..18. (7) Z-23/Z-24 nav build, Z-32 prerender. (8) Owner: Search Console verification and the `sameAs` list.
+**Open questions (owner):**
+- Search Console DNS record for `assessiq.in` (Z-26).
+- Which profile URLs exist for `sameAs` (Z-35).
+**Old task or feature checked:** Z-16 against the 70 percent floor and `levels.passing_score_pct` (replaced; email and export moved to the snapshot) · EXP-5 against the EXP-4 import duplicate check (the "similar" class turns on now that `pg_trgm` exists) · EXP-6 against `settings.sections` and scoring (reused, no new timer) · Z-9 against MyResults and ResultSummary (extended).
+
+---
+
+## What changed and why (detail for a future session)
+
+- **Z-7 take submit (`e940d3b`).** What: the Submit button moved away from Previous and Next; a confirm popup shows answered and unanswered counts and a "Review answers" action; P and N are single-key shortcuts. Why: students pressed Submit instead of Next (owner live test). Rejected: a confirm on every Submit with no counts (hides the cost of leaving blanks). Not included: the shortcut off switch (Z-41). Downstream: module 11 only; help ids unchanged.
+- **Z-9 and Z-37 (`f253297`).** What: the result page and the result email use the approved copy ("Pass mark", amber for a fail, one email with the certificate link, sign-off, organisation name in the subject). Why: owner copy decision of 2026-10-17. Rejected: separate pass and fail emails. Not included: share links and pass-mark lines, which moved to the Z-16 follow-up on purpose; the feedback sentence on the Submitted page (Z-44). Downstream: modules 11 and 13 templates; MyResults and ResultSummary were extended, not replaced.
+- **EXP-19 takedown (`e320c7f`).** What: a withdrawn source item now reaches the tenant clones, not only at the next re-sync. Gate findings fixed: backfill of already-withdrawn items, ip and user agent leaking into audit rows, error masking. Why: a takedown that stops at the platform tenant is not a takedown. Rejected: wait for the clone re-sync. Not included: frozen assessment pools (EXP-20, owner chose to keep them). Downstream: modules 04, 14 (audit rows now carry null ip and user agent for system actions).
+- **EXP-5 search and facets (`c34a597`, 0196, 0197).** What: `pg_trgm` is installed; `questions.search_text` and `search_tsv` with a trigger, GIN indexes, facets and counts, full-text plus typo-tolerant search; the EXP-4 import "similar" duplicate class now runs. Why: the question bank needs to find items by text and by facet. Rejected: an external search service (one more thing to run on a shared VPS). Limits: search runs on the stored text only (no Hindi stemming); trigram search is a ranked guess; facets by taxonomy node wait for Z-43. Downstream: module 16 got 0197 help rows; the help count test was updated.
+- **Z-16 pass mark (`e92ef4b`, `75a42ca`, 0198-0200).** What: each assessment has its own pass mark (`passing_score_pct`, default 60); the score row stores the mark that applied (`pass_mark_pct`); a certificate is issued for every pass; Distinction at 90 percent. The follow-up moved the result page, the email, the export and the share links onto the stored snapshot, so one rule decides pass everywhere. Why: the fixed 70 percent floor and the level mark disagreed with what the owner sets. Rejected: change the level mark only (applies to all assessments). Not included: Honors (later); certificates for old results (Z-45, owner said no). Downstream: modules 05, 09, 11, 13, 15, 18, 16. Gate fix: threshold validation.
+- **EXP-6 blueprints (`8445eba`, 0201).** What: tables `exam_blueprints` and `exam_blueprint_sections` (read-only for the app, owned by the migration role), one seed blueprint with 4 sections, "start a full mock", section marks and a qualifying cutoff. Why: exam packs need the official shape of a test. Rejected: a new timer (reuses `settings.sections` and scoring). Limits: only 1 blueprint; verification status shows it as unverified; marks per question use a mock warning; a whole-test timer and scale marks wait for Z-42. Downstream: module 04 routes, module 06 and 09 reading sections.
+- **Docs and typing (`bc7b335`).** ROADMAP status, Z-41..Z-45, the Z.7 recount, two RCA entries, two EXP-6 test typings.
+
+### Traps for the next session
+
+- Never pipe a deploy script through `head` or `tail`: SIGPIPE killed the first run after the pull. Write output to a file.
+- The Cloudflare beacon check needs a browser User-Agent and `Accept: text/html`. Plain curl shows no beacon, which is a false FAIL.
+- Assign migration numbers per agent before parallel work (EXP-5 and Z-16 both took 0197 first).
+- A new help id needs the full help test suite, not only module 16.
+- `codex exec` text-only works only with stdin closed (`</dev/null`).
+- Worktree agents start from an old base; merge their patches by hand.
+- A verification run stalled without a report; ask for it, and remove stale containers (12 removed).
+
+---
+
+## Agent utilization
+- Opus: plan; diff critique of all rows; merge of worktree patches; line-by-line review of EXP-19, Z-16 and EXP-6; fixes (takedown error masking, backfill and ip null; pass-mark threshold; mock warning; test typings); the deploy script; owner Q&A.
+- Sonnet: 13 runs (Z-7, Z-9/Z-37, EXP-19, EXP-5, Z-16, B2 follow-up, EXP-6, three adversarial gates, EXP-19 fix tests, verification run, two docs agents).
+- Haiku: 3 runs (digest, file map, post-deploy sweep).
+- codex:rescue: n/a — companion down; Sonnet takeover accepted as the gate by the owner (memory review-gate).
+- Gemini (agy): n/a — binary missing; Haiku used.
+- Codex (exec): 2 text-only second opinions (EXP-19 revise, Z-16 revise); both fixes applied; works only with stdin closed.
+
+## Routing telemetry
+Sonnet · Z-7 take submit · reworked: N · Sonnet · Z-9/Z-37 copy and email · reworked: N (share links and pass-mark lines moved to the B2 follow-up by design) · Sonnet · EXP-19 takedown · reworked: Y (gates: backfill on already-withdrawn, audit ip/ua leak, error masking) · Sonnet · EXP-5 search · reworked: Y (help count test not updated, migration number clash 0197) · Sonnet · Z-16 pass mark · reworked: Y (threshold validation; email and export still read the level mark, so B2) · Sonnet · B2 follow-up · reworked: N · Sonnet · EXP-6 blueprints · reworked: Y (mock warning for marks per question, test typings) · Sonnet · verification run · reworked: Y (stalled without a report until asked; removed 12 stale containers) · Haiku · digests and sweep · reworked: N (sweep beacon check false fail: needs browser UA and Accept header).
+
+Tokens: ~3.3M total — Opus ~0.8M 24% (estimate) · Sonnet ~2.2M 67% (13 runs and docs) · Haiku ~0.3M 9% (3 runs).
+
+---
+
 # Session — 2026-10-17/18 (all day, parallel to S15-S18) — S19: planning and review session (admin navigation, exam packs, SEO, privacy and Cloudflare)
 
 **Headline:** No product code shipped. This session produced three reviews and their plans (admin navigation, SEO, exam packs), recorded the owner's decisions, and fixed the live privacy and analytics setup. ROADMAP grew from 188 to 225 rows (Z-21..Z-28, Z-39, Z-40, EXP-0..EXP-18) and now holds the full context for each. Live: Clarity removed, Cloudflare Web Analytics runs on the marketing site only, and a Cloudflare Configuration Rule keeps the beacon off the app. GitHub main = `93c295d`; the VPS code is `c45a2eb` (later commits are docs only).
