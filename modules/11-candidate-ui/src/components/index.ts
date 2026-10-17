@@ -19,6 +19,7 @@ export type { CandidateHelpProps } from "./CandidateHelp";
 export { MyCertificates } from './MyCertificates.js';
 
 export { MyResults } from './MyResults.js';
+export { MyProgress } from './MyProgress.js';
 
 export { ResultSummary } from './ResultSummary.js';
 export type { ResultSummaryProps } from './ResultSummary.js';

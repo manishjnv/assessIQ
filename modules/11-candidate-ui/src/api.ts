@@ -185,6 +185,38 @@ export async function listMyResults(): Promise<MyResultsResponseWire> {
   return call<MyResultsResponseWire>("/me/results");
 }
 
+// ─── Progress (RW-84) ────────────────────────────────────────────────────────
+
+export interface ProgressAttempt {
+  attempt_id: string;
+  assessment_id: string;
+  assessment_name: string;
+  released_at: string;
+  total_earned: number;
+  total_max: number;
+  score_pct: number | null;
+  passing_score_pct: number | null;
+  passed: boolean | null;
+  certificate: { credential_id: string; verify_url: string } | null;
+}
+export interface ProgressSubject {
+  node_id: string;
+  label: string;
+  questions: number;
+  correct: number;
+  rate_pct: number;
+}
+export interface CandidateProgress {
+  attempts: ProgressAttempt[];
+  trend: number[];
+  subjects: ProgressSubject[];
+}
+
+/** GET /api/me/progress — released attempts only: history, trend, subject strengths. */
+export async function getMyProgress(): Promise<CandidateProgress> {
+  return call<CandidateProgress>("/me/progress");
+}
+
 /** Z-3: GET /api/me/notifications — the candidate's own notices (result.released). */
 export async function listMyNotifications(opts: { unread?: boolean } = {}): Promise<{ unread_count: number }> {
   return call<{ unread_count: number }>(`/me/notifications?${opts.unread === true ? "unread=1&" : ""}limit=50`);

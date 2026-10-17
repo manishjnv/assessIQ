@@ -38,6 +38,8 @@ export {
   maskEmail,
   resultPercent,
 } from "./result.js";
+export { getCandidateProgress } from "./progress.js";
+export type { CandidateProgress, ProgressAttempt, ProgressSubject } from "./progress.js";
 export type {
   SubmitExpectation,
   ReleasedResult,

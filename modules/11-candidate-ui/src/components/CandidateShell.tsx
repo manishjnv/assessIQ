@@ -186,6 +186,9 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
           <NavLink to="/candidate/results" style={navLinkStyle}>
             Results
           </NavLink>
+          <NavLink to="/candidate/progress" style={navLinkStyle}>
+            Progress
+          </NavLink>
           <NavLink to="/candidate/certificates" style={navLinkStyle}>
             Certificates
           </NavLink>
@@ -293,6 +296,16 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
                   style={menuItemStyle}
                 >
                   Results
+                </NavLink>
+              </li>
+              <li role="none">
+                <NavLink
+                  role="menuitem"
+                  to="/candidate/progress"
+                  onClick={() => setMenuOpen(false)}
+                  style={menuItemStyle}
+                >
+                  Progress
                 </NavLink>
               </li>
               <li role="none">

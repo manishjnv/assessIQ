@@ -52,6 +52,7 @@ export {
   submitAttempt,
   getResult,
   listMyResults,
+  getMyProgress,
 } from "./api";
 export type { SaveAnswerArgs } from "./api";
 
@@ -68,6 +69,7 @@ export {
   NewCertificateModal,
   MyCertificates,
   MyResults,
+  MyProgress,
   ResultSummary,
   CandidateShell,
   CandidateSessionBanner,
@@ -87,7 +89,7 @@ export type {
   CandidateShellProps,
   CandidateSessionBannerProps,
 } from "./components";
-export type { MyCertificate, MyCertificatesResponse } from "./api";
+export type { MyCertificate, MyCertificatesResponse, CandidateProgress, ProgressAttempt, ProgressSubject } from "./api";
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
 export {
