@@ -1851,6 +1851,35 @@ The helper `tenantRateLimit({ name, max, windowSeconds })` (`apps/api/src/middle
 - **`user_purge.tick` shows `dryRun: true`.** This is the default. The job changed no row. Read `purged` and `skipped` as a preview. Set `USER_PURGE_ENABLED=true` in the worker environment only after you read a tick.
 - **A grade for an organisation made no AI proposal.** Search the app log for `grading.scope.none`. The organisation has the AI grading scope set to `none`.
 
+## 40. Refresh log event and Lighthouse and axe artifacts (S15, 2026-10-17)
+
+### 40.1 Key log events
+
+| Event (`msg`) | Stream | When |
+|---|---|---|
+| `analytics.refresh_mv: materialized views refreshed` | app (worker, API) | The nightly job `analytics:refresh_mv` (02:00 UTC) or `POST /api/admin/analytics/refresh` finished. Fields: `duration_ms`, `views` (now `2`: `attempt_summary_mv`, then `question_stats_mv`). |
+
+- Before S15 the line had one view. A `views` value of `2` is correct now.
+- Both views refresh `CONCURRENTLY`. If `question_stats_mv` fails, `attempt_summary_mv` is already refreshed. Check the job log for the Postgres error.
+- Data meaning: [02-data-model.md](02-data-model.md) § "Materialized view — `question_stats_mv`".
+
+### 40.2 CI artifacts
+
+| Workflow | Artifact | Content |
+|---|---|---|
+| `.github/workflows/lighthouse.yml` | `lighthouse-report-<run_id>` | `.lighthouseci/` reports of the public pages and of the logged-in pages (`lhci:authed`). Upload runs always, also after a failure. |
+| `.github/workflows/ci.yml` (e2e job) | Playwright output | The spec `a11y-authed.spec.ts` logs moderate and minor axe findings in the test output. |
+
+### 40.3 Triage
+
+- **The authed Lighthouse step fails.** It is advisory until 2026-10-31 (`continue-on-error`). Open the artifact. Compare the score of the page with `apps/web/lighthouserc.authed.json` (0.85).
+- **`a11y-authed` fails in CI.** The spec is required. It needs zero serious or critical axe findings. Read the rule id in the test output.
+
+### 40.4 Audit action and error code for per-question feedback (RW-80)
+
+- Audit action `tenant.settings.updated`, entity `tenant_settings`: a level change writes `before` and `after` = `{ result_feedback_level }`. A same-value request writes no row.
+- Error code `409 RESULT_NOT_READY` from `GET /api/me/attempts/:id/feedback`: the attempt is not released or has no `attempt_scores` row. It is a client error, not a polling state. A rise in this code means the portal asks for unreleased attempts.
+
 ## Change history
 
 This table indexes every dated change on this page. The sections above hold the detail.
@@ -1872,3 +1901,4 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-16 | Generation log events (`generation.stale_sweep`, `generation.difficulty.warn.failed`, `generation.detached.*`). Worker jobs `generation-stale-sweep` and `tenant-purge-cron` | (S10, 2026-10-16) | § 37 |
 | 2026-10-16 | Audit export and archive events and audit actions. Embed SDK fallback log. Candidate result notice log lines | (S13, 2026-10-16) | § 38 |
 | 2026-10-16 | Logo, user purge, pack export, bulk resend and AI grading scope audit actions. `user_purge.tick` and `grading.scope.none` log lines. `tenant-op` 429 scope | (S14, 2026-10-16) | § 39 |
+| 2026-10-17 | `analytics.refresh_mv` log line carries `views: 2`. Lighthouse and axe CI artifacts. Per-question feedback audit action and `RESULT_NOT_READY` (RW-80) | (S15, 2026-10-17) | § 40 |

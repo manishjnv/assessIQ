@@ -232,3 +232,16 @@ Commits `b68523c`, `8353109`. The candidate content allowlist, the answer save c
 ### `structured_case` candidate view
 
 Each step also carries `points` and `negative_marks` when the author set them. They are not secret. `correct`, `scoring` and `explanation` stay on the server.
+
+## S15 note (2026-10-17) — candidate progress (RW-84)
+
+- `GET /api/me/progress` (`routes.candidate.ts`, `candidateOnly`) calls `getCandidateProgress(tenantId, userId)` in `src/progress.ts`, under `withTenant`.
+- Released attempts only. `score_pct` uses `resultPercent` (same as `/api/me/results`). Subject strengths use the newest `gradings` row for each attempt and question, skip `review_needed`, and resolve the taxonomy node to its `subject` ancestor ("Other" when none).
+- Tests: `src/__tests__/candidate-progress.test.ts`. Contract: `docs/03-api-contract.md` § "GET /api/me/progress (RW-84)".
+
+## S15 note (2026-10-17) - per-question feedback (RW-80)
+
+- `GET /api/me/attempts/:id/feedback` (`routes.candidate.ts`, `candidateOnly`) calls `getCandidateFeedback` in `src/feedback.ts`, under `withTenant`. 404 `ATTEMPT_NOT_FOUND` for another user's attempt. 409 `RESULT_NOT_READY` unless the attempt is `released` and has an `attempt_scores` row. Level `none` returns `items: []` before any question read.
+- Newest `gradings` row per question (`graded_at DESC`). `review_needed` and `AIG_*` rows are dropped. `expected_answer` only for registry `scoring: 'deterministic'` types at level 2 or higher. `explanation` (`plainWords`) only for `scoring: 'ai'` types at level 3. Never send `stage_inputs`, `anchor_hits`, rubric text or raw AI text.
+- `GET /api/me/results` now returns `feedback_level` (same transaction, `src/result.ts`).
+- Tests: `src/__tests__/candidate-feedback.test.ts`. Contract: `docs/03-api-contract.md` § S15 additions. Rules: `docs/05-ai-pipeline.md` § "Candidate feedback levels (RW-80, S15)".

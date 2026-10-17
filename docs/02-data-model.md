@@ -1539,6 +1539,39 @@ A BullMQ job `analytics:refresh_mv` (registered in `apps/api/src/worker.ts`) ref
 psql -U assessiq_system -c "REFRESH MATERIALIZED VIEW attempt_summary_mv"
 ```
 
+## Materialized view — `question_stats_mv`
+
+*Type: reference.* **Status:** live since S15 (2026-10-17). Migration `0189_question_stats_mv.sql`, module 15-analytics. Task RW-60 / FU-C14.
+
+**What changed.**
+
+| Item | Detail |
+| --- | --- |
+| Grain | One row for each `(tenant_id, question_id)` |
+| Columns | `tenant_id`, `question_id`, `pack_id`, `level_id`, `source_question_id`, `exposure_count`, `attempts`, `correct_count`, `correct_rate` NUMERIC(5,4), `mean_band` NUMERIC(5,4), `point_biserial` NUMERIC(6,4), `last_used_at`, `computed_at` |
+| `exposure_count` | Count of `attempt_questions` rows whose attempt status is `submitted`, `auto_submitted`, `pending_admin_grading`, `graded` or `released` |
+| `attempts` | Attempts that the tenant can see (same rule as migration `0122`: `released`, or `graded` with `evaluation_released_at` set). Each has an effective grading that is not `review_needed`. The effective grading is the newest `gradings` row for the attempt and question |
+| `correct_count`, `correct_rate` | Correct means status `correct` or full marks. `correct_rate` is `correct_count / attempts`. It is `NULL` when `attempts` is 0 |
+| `mean_band` | Average `reasoning_band` divided by 4. Scale 0 to 1. Only rows with a band count |
+| `point_biserial` | `corr(is_correct::int, rest_score)`. `rest_score` is the attempt total earned minus the score of this question (item-rest). `NULL` under 2 attempts or with zero variance |
+| `source_question_id` | Copy of `questions.source_question_id` (migration `0084`). A tenant answers a clone of a platform question. This column links the clone to its source |
+| Indexes | UNIQUE `question_stats_mv_pk (tenant_id, question_id)` (needed for `REFRESH ... CONCURRENTLY`). `question_stats_mv_pack_idx (tenant_id, pack_id)` |
+| Owner and grants | Owner `assessiq_system`. `GRANT SELECT` to `assessiq_app` and `assessiq_system` |
+
+**Visibility rule.** Postgres does not enforce RLS on a materialized view. Every read must filter `tenant_id = current_setting('app.current_tenant', true)::uuid`. The only exception is the super-admin roll-up in `modules/15-analytics/src/question-stats.ts`. It carries the exact marker `-- mv-tenant-filter: allow cross-tenant (super_admin roll-up, RW-60)`. `tools/lint-mv-tenant-filter.ts` now checks both view names and accepts only this marker (self-tested).
+
+**Refresh.** `processRefreshMvJob` (`modules/15-analytics/src/refresh-mv-job.ts`) refreshes `attempt_summary_mv`, then `question_stats_mv`, both `CONCURRENTLY`. It runs in the nightly job `analytics:refresh_mv` (02:00 UTC) and in `POST /api/admin/analytics/refresh`. A result released today shows in the statistics after the next refresh. First populate after deploy: `psql -U assessiq_system -c "REFRESH MATERIALIZED VIEW question_stats_mv"` (the migration creates the view with data).
+
+**Why.** `attempt_summary_mv` has one row for each attempt. A per-question report needs a different grain. The Phase C report of the difficulty spec (`docs/design/2026-05-23-question-difficulty-spec.md` § 6) needs per-item success, discrimination and exposure.
+
+**Considered and rejected.**
+- Add question columns to `attempt_summary_mv`. The grain does not match.
+- Compute the statistics at request time. The item-rest correlation needs a join over all attempts of the tenant.
+
+**Not included.** Incremental refresh (full recompute each night; the comment `ponytail:` in the migration names the upgrade path). A count of distinct organisations (`clone_count` counts copies). A column for the miscalibrated flag (the service computes it).
+
+**Impact.** API: [03-api-contract.md](03-api-contract.md) § S15 additions, `GET /api/admin/super/questions/:id/stats`. Log: [11-observability.md](11-observability.md) § 40. Tenant purge and question delete code must keep working: the view holds no foreign keys.
+
 ---
 
 ## 18-certification — `certificates`
@@ -2039,6 +2072,7 @@ PII field-name patterns added 2026-05-29. Every future `audit()` or `auditInTx()
 | --- | --- |
 | `result_release_mode text NOT NULL DEFAULT 'manual' CHECK (IN ('manual','auto'))` | **manual:** a finished result waits until a tenant admin publishes it. **auto:** the worker sweep `result.auto_release` publishes it within about 15 s of the release of the evaluation to the tenant. Default `manual` (safer for hiring tenants) |
 | `result_release_auto_since timestamptz NULL` | `now()` on manual → auto. `NULL` on auto → manual. A same-mode request leaves it unchanged |
+| `result_feedback_level text NOT NULL DEFAULT 'none' CHECK (IN ('none','right_wrong','with_expected_answer','with_ai_justification'))` | Added by `modules/02-tenancy/migrations/0190_tenant_settings_result_feedback_level.sql` (RW-80, S15). How much per-question detail a candidate sees on a released result. **none:** nothing. **right_wrong:** outcome, the candidate's own answer and a "what to study" line. **with_expected_answer:** adds the expected answer for deterministic types. **with_ai_justification:** adds a plain-words line for AI-graded questions. Default `none`. OWNER GATE: the owner picks the production default later. Only writer: `updateResultFeedbackLevel` (`modules/02-tenancy/src/service.ts`): one `UPDATE` plus one `tenant.settings.updated` audit row (`before` and `after` = `{ result_feedback_level }`) in one transaction. A same-value request is a no-op with no audit row. Rollback: `UPDATE tenant_settings SET result_feedback_level = 'none'`; the column stays. Contract: [03-api-contract.md](03-api-contract.md) § S15 additions. |
 
 - Automatic publishing needs mode `auto`, this value NOT NULL, and `evaluation_released_at >= result_release_auto_since`. Switching to auto therefore never publishes results that already wait. The admin uses the bulk "publish all ready" for those.
 - Only writer: `updateResultReleaseMode` (`modules/02-tenancy/src/service.ts`). It does an UPDATE and writes one `tenant.settings.updated` audit row (`before` and `after` = `{ result_release_mode }`) in one transaction. It is not part of the generic settings patch.
@@ -2543,3 +2577,5 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-16 | Question import: `question_imports`, `question_import_rows`, `question_packs.source`, `question_packs.import_file_sha256` (RW-58). Help rows for the import page | `0174`; `0175` | Question import |
 | 2026-10-16 | Role CHECKs on `users`, `sessions`, `in_app_notifications` drop `reviewer` (Y-1), one file per owning module. `help_content.audience` keeps it (RW-2) | `0179` (03-users), `0180` (01-auth), `0181` (13-notifications) | Users; Auth sessions; Notifications |
 | 2026-10-16 | S14: tenant logos, negative marking columns, plan AI override, AI grading scope, help rows, user purge tombstone | `0183`; `0184`; `0185`; `0186`; `0187`; `0188` | S14 additions |
+| 2026-10-17 | S15: materialized view `question_stats_mv` for per-question statistics (RW-60 / FU-C14) | `0189` | Materialized view — `question_stats_mv` |
+| 2026-10-17 | S15: column `tenant_settings.result_feedback_level` for per-question candidate feedback (RW-80). Help rows come in `0191` (module 16) | `0190` | Table `tenant_settings`, column `result_feedback_level` |

@@ -3505,6 +3505,179 @@ Rules and the tier table: [05-ai-pipeline.md](05-ai-pipeline.md) § "Least-AI ti
 
 `tenant.logo.updated`, `tenant.logo.removed`, `user.purged`, `pack.exported`, `assessment.invitations.bulk_resent`, `tenant_settings.ai_grading_scope.updated`.
 
+## S15 additions
+
+*Type: reference.* Session S15 (2026-10-17) added the route below.
+
+### GET /api/me/progress (RW-84)
+
+**What changed.** A new candidate route returns the history, score trend and per-subject strengths of the signed-in candidate. Code: `modules/06-attempt-engine/src/routes.candidate.ts` calls `getCandidateProgress(tenantId, userId)` in `modules/06-attempt-engine/src/progress.ts`, inside `withTenant`.
+
+**Why.** The candidate portal had results and certificates but no view across tests. RW-84 asks for a history list, a trend and strengths.
+
+- Auth: candidate session (`candidateOnly`). The route reads tenant and user from the session.
+- Path: `GET /api/me/progress`. No query parameters. No body.
+- Errors: 401 without a candidate session. There are no other error codes.
+- Release rule: only released attempts count (`a.status = 'released'`, the `RELEASED_AT_SQL` rule of `/api/me/results`, certificates not revoked). An unreleased attempt shows nowhere: not in the list, not in the trend, not in the subjects.
+- `score_pct` comes from `resultPercent(total_earned, total_max)`. This is the same rule as `/api/me/results`. `passed` is `score_pct >= passing_score_pct` (the level setting).
+- `trend` lists `score_pct` from the oldest to the newest attempt.
+- `subjects` use the newest `gradings` row for each attempt and question. Rows with `review_needed` do not count. A question counts as correct when its status is `correct` or it has full marks (same rule as module 15). The subject is the taxonomy node itself, its parent or its grandparent, whichever has kind `subject`. A question with no subject goes to the group "Other". The list is sorted by `rate_pct` (lowest first), then by label.
+
+Response shape:
+
+```json
+{
+  "attempts": [{
+    "attempt_id": "uuid", "assessment_id": "uuid", "assessment_name": "string",
+    "released_at": "ISO date", "total_earned": 7, "total_max": 10,
+    "score_pct": 70, "passing_score_pct": 60, "passed": true,
+    "certificate": { "credential_id": "string", "verify_url": "string" }
+  }],
+  "trend": [70],
+  "subjects": [{ "node_id": "uuid", "label": "Networking", "questions": 4, "correct": 3, "rate_pct": 75 }]
+}
+```
+
+`certificate` is `null` when none exists. `score_pct`, `passing_score_pct` and `passed` can be `null`.
+
+**Considered and rejected.**
+- A `/me/*` web route family. The portal uses `/candidate/*`.
+- `auto_pct` as the percent. It differs from the results page.
+
+**Not included.** No per-framework split (a question that maps to subjects in two frameworks counts once in each). No unit-level strengths. No filters or paging.
+
+**Impact.** No schema change. Help ids `candidate.progress*` are in `modules/16-help-system/content/en/candidate.yml`. UI: [08-ui-system.md](08-ui-system.md) § "Candidate progress page (RW-84, S15)". Tests: `modules/06-attempt-engine/src/__tests__/candidate-progress.test.ts`, `apps/api/src/__tests__/routes/me-progress.test.ts`.
+
+### GET /api/admin/super/questions/:id/stats (RW-60)
+
+**What changed.** A new super-admin route returns the Phase C statistics of one question. Code: `modules/15-analytics/src/routes.ts` calls `getQuestionStats(questionId)` in `modules/15-analytics/src/question-stats.ts`. Data comes from the view `question_stats_mv` (see [02-data-model.md](02-data-model.md)).
+
+**Why.** The difficulty spec (§ 6) asks for per-item success rate, level gradient, discrimination and a `miscalibrated` flag. FU-C14 and RW-60 asked for a super-admin view.
+
+- Auth: super admin only (`superAdminOnly`). The session carries the platform tenant. The route does not use it.
+- Path: `GET /api/admin/super/questions/:id/stats`. `:id` is a UUID. No query parameters. No body.
+- Errors: 400 `VALIDATION_FAILED` for a bad id. 401 without a session. 403 for a user who is not a super admin. 404 `QUESTION_NOT_FOUND` when the question does not exist.
+- Scope `tenant`: the question has no clones. The service reads one tenant (the tenant of the question pack) with `withTenant`.
+- Scope `rollup`: the question has clones (`questions.source_question_id`, migration `0084`). The service reads rows with `question_id = :id OR source_question_id = :id` across all tenants with `withSystemRole` (read-only). It sums attempts, correct counts and `exposure_count`. `mean_band` and `point_biserial` are attempts-weighted means (an approximation of the pooled item-rest correlation). `last_used_at` is the maximum. The gradient covers the source pack and the packs with `source_pack_id` equal to the source pack, grouped by `levels.position`.
+- `clone_count` is the number of clone questions (copies), not the number of organisations.
+- `stats` is `null` when the question has no row in the view or no graded attempt.
+
+Response shape:
+
+```json
+{
+  "question": { "id": "uuid", "type": "mcq", "level_position": 2, "level_label": "Intermediate",
+                "cognitive_level": "apply", "difficulty_params": {} },
+  "stats": { "attempts": 36, "exposure_count": 40, "correct_rate": 0.5556,
+             "mean_band": null, "point_biserial": 0.31, "discrimination_ok": true,
+             "last_used_at": "ISO date", "computed_at": "ISO date" },
+  "gradient": [{ "level_position": 1, "label": "Beginner", "mean_success": 0.8, "attempts": 120 }],
+  "miscalibrated": { "flag": false, "reason": null, "min_attempts": 30 },
+  "scope": "tenant",
+  "clone_count": 0
+}
+```
+
+`stats.discrimination_ok` is `null` when `point_biserial` is `null`. The exact type is `QuestionStatsResult` in `question-stats.ts`.
+
+**The `miscalibrated` rule is a default.** The spec § 6 gives no threshold. The code uses these values (constants in `question-stats.ts`):
+- Needs 30 or more attempts (`MIN_PHASE_C_ATTEMPTS`). Under 30, `flag` is false.
+- Success is `mean_band`, or `correct_rate` when there is no band.
+- Flag when the item is on the top level with success 0.90 or more.
+- Flag when the item is on the lowest level with success 0.25 or less.
+- Flag when the gradient at the level of the item is inverted against an adjacent level by more than 0.15.
+- `discrimination_ok` is true when `point_biserial` is 0.2 or more.
+
+**Considered and rejected.** A tenant-admin route (the roll-up crosses tenants, and the statistics are a platform tool). A numeric threshold written as a spec claim (the values above are marked as defaults).
+
+**Not included.** A roll-up by distinct organisation. A review queue of miscalibrated items. Tenant-admin visibility. Incremental refresh. Paging (one question for each call).
+
+**Impact.** No change to existing routes. UI: [08-ui-system.md](08-ui-system.md) § "Item statistics card on the question editor (RW-60, S15)". Help ids `admin.question.editor.stats*`. Tests: `modules/15-analytics/src/__tests__/question-stats.test.ts`.
+
+### Start a test (RW-83): no new routes
+
+**What changed.** The admin page `/admin/start-test` adds no API route. It calls these existing routes in this order. A step runs only if the one before it worked.
+
+1. `GET /api/billing/available-sets` (load the question sets).
+2. `GET /api/admin/users?role=candidate&pageSize=100&search=` (load active candidates).
+3. `POST /api/admin/assessments/from-set` with `{ source_pack_id, level_position, name, question_count, opens_at, closes_at }`.
+4. `POST /api/admin/assessments/:id/publish`.
+5. `POST /api/admin/assessments/:id/invite` with `{ user_ids }`. This step runs only if the admin ticked candidates.
+6. `POST /api/admin/users/import` with `{ csv: "name,email
+...", assessment_id }`. This step runs only if the admin pasted emails. It creates unknown emails as candidates and invites them.
+
+**Why.** RW-83 asks for one screen for the common case. The six-screen path stays for advanced use.
+
+**Considered and rejected.** A new "start test" endpoint that does all steps in one transaction. The existing routes already hold the rules (licence checks, plan limits, invitation emails). A new endpoint would copy them.
+
+**Not included.** Duration edits (the duration comes from the set level). A retry after a partial failure: the page names the failed step and links to the assessment.
+
+**Impact.** A failure after step 3 leaves a draft or published assessment. The admin sees it in the assessments list. UI: [08-ui-system.md](08-ui-system.md) § "Start a test screen (RW-83, S15)".
+
+### PATCH /api/admin/tenant-settings/result-feedback-level (RW-80)
+
+**What changed.** A new admin route sets how much per-question detail candidates see on a released result. Code: `apps/api/src/routes/admin-tenant-settings.ts` calls `updateResultFeedbackLevel` in `modules/02-tenancy/src/service.ts`. The Zod schema `resultFeedbackLevelBody` is in `apps/api/src/routes/_schemas.ts`.
+
+**Why.** The owner decides what students may see. The setting lets each organisation choose, and the default stays closed.
+
+- Auth: tenant admin with fresh MFA (`adminFreshMfa`). Tenant and actor come from the session. The tenant must be active (`assertTenantActive`).
+- Body: `{ "level": "none" | "right_wrong" | "with_expected_answer" | "with_ai_justification" }`.
+- 200: `{ tenantId, result_feedback_level, previous, updatedAt, auditId }`. `auditId` is `null` when the level did not change.
+- Errors: 400 `INVALID_RESULT_FEEDBACK_LEVEL` (bad or missing level). 401 for a stale TOTP or no session. 403 for a role that is not admin. 409 `TENANT_NOT_ACTIVE`.
+- Same value as today: no write and no audit row. A change writes one `tenant.settings.updated` row (`before` and `after` = `{ result_feedback_level }`).
+- `GET /api/admin/tenant-settings` now also returns `result_feedback_level`.
+
+### GET /api/me/attempts/:id/feedback (RW-80)
+
+**What changed.** A new candidate route returns per-question feedback for one released attempt. Code: `modules/06-attempt-engine/src/routes.candidate.ts` (`candidateOnly`) calls `getCandidateFeedback(tenantId, userId, attemptId)` in `modules/06-attempt-engine/src/feedback.ts`, inside `withTenant`.
+
+**Why.** Candidates asked to see which answers were wrong and what to study. The route follows the result-release rules: no feedback before the result is published.
+
+- Errors: 404 `ATTEMPT_NOT_FOUND` when the attempt is not the caller's. 409 `RESULT_NOT_READY` unless `attempts.status = 'released'` and an `attempt_scores` row exists. We chose 409, not 202, because the portal asks only for attempts that `/api/me/results` already lists as released.
+- Level `none`: returns `{ level: "none", items: [] }` before any question is read. The 404 and 409 checks still run first.
+- Items come from `attempt_questions` joined to the frozen `question_versions` content. Each question uses its newest `gradings` row (`graded_at DESC`). Rows with `status = 'review_needed'` or an `error_class` that starts with `AIG_` are dropped, so a pending question is omitted, not shown as pending.
+
+Response shape:
+
+```json
+{
+  "level": "with_ai_justification",
+  "items": [{
+    "question_id": "uuid", "position": 1, "type": "mcq",
+    "prompt": "text", "your_answer": "text or null",
+    "outcome": "correct | incorrect | partial",
+    "score_earned": 1, "score_max": 1,
+    "expected_answer": "text or null", "explanation": "text or null",
+    "study": { "unit": "text or null", "subject": "text or null", "topic": "text" }
+  }]
+}
+```
+
+| Field | none | right_wrong | with_expected_answer | with_ai_justification |
+| --- | --- | --- | --- | --- |
+| `items` | empty | yes | yes | yes |
+| `your_answer`, `outcome`, scores, `study` | no | yes | yes | yes |
+| `expected_answer` | no | no | deterministic types only | deterministic types only |
+| `explanation` | no | no | no | AI-graded types only |
+
+- `prompt`: the registry `candidateView` text (`question`, else `title`, else `intro`), capped at 500 characters.
+- `your_answer`: a text form of the answer for each of the 9 question types. It is `null` for an unknown shape and is never raw JSON.
+- `outcome`: from the grading status. For an overridden row, the marks decide: full marks is `correct`, more than 0 is `partial`, else `incorrect`.
+- `expected_answer`: only when the level is `with_expected_answer` or higher AND the registry says `scoring: 'deterministic'` (mcq, multi_select, numeric, ordering, structured_case).
+- `explanation`: only at `with_ai_justification` AND registry `scoring: 'ai'`. It is `plainWords(ai_justification, reasoning_band, error_class)`. Rules: [05-ai-pipeline.md](05-ai-pipeline.md) § "Candidate feedback levels (RW-80, S15)".
+- `study`: the unit node from `question_taxonomy` and `taxonomy_nodes`, with its subject parent. `topic` is `questions.topic` and is the fallback.
+- Never sent: `stage_inputs`, `anchor_hits`, rubric text and raw AI text. Tests assert this.
+
+### GET /api/me/results: new field `feedback_level` (RW-80)
+
+`GET /api/me/results` now returns `{ items, feedback_level }`. `feedback_level` is the tenant setting, read in the same tenant transaction. The portal needs no extra call to know whether to show "Review your answers".
+
+**Considered and rejected.** Per-question data on the post-submit page `apps/web/src/pages/take/Submitted.tsx` (its rule P1 allows none). A per-assessment override. An AI rewrite of the justification.
+
+**NOT included.** Feedback for pending questions. Rubric anchors. A per-assessment override. A candidate-facing explanation for deterministic types beyond the expected answer.
+
+**Downstream impact.** The migration `0190` adds the column ([02-data-model.md](02-data-model.md)). The candidate UI reads both routes ([08-ui-system.md](08-ui-system.md)). Client types: `modules/11-candidate-ui/src/types.ts`. Owner gate: the production default stays `none` until the owner chooses.
+
 ## OpenAPI spec
 
 A formal OpenAPI 3.1 spec lives at `infra/openapi.yaml`, kept in sync with this doc. Generated from Fastify route schemas via `fastify-swagger`. Tenants can pull it from `/api/openapi.yaml` (auth required).

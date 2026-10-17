@@ -181,3 +181,116 @@ The `candidate-login` floor test flaked once under Docker load. A Redis error ma
 | `apps/api` | 138 pass, 7 todo |
 
 **Flaky under Docker load.** `totp.test.ts` and the candidate-login timing floor test.
+
+## Session S15 tests (2026-10-17)
+
+### Phone first-question timing (RW-79, S15)
+
+| Item | Detail |
+| --- | --- |
+| Playwright project | `mobile` in `apps/web/playwright.config.ts` (`devices['Pixel 5']`, `testMatch` `phone-first-question.spec.ts`). The `chromium` project ignores the spec |
+| Spec | `apps/web/e2e/phone-first-question.spec.ts` |
+| Throttle | CDP `Network.emulateNetworkConditions`: 150 ms RTT, 1.6 Mbit/s down, 750 kbit/s up. CPU 4x slower |
+| Flow | Invitation link `/take/<token>`, then Begin is visible, then consent and click, then "Question 1 of" |
+| Runs | 5 runs, a fresh browser context for each. The test asserts median below 20 000 ms |
+| Advisory mode | `PHONE_FLOW_ADVISORY=1` logs the median and does not fail |
+| Run command | `playwright test --project=mobile phone-first-question`, against a production build (`vite preview` on 4173 with `E2E_API_PROXY`) |
+| Fixture | `provisionInvitations({label, count, makeQuestions, questionCount})` in `apps/web/e2e/fixtures/factories.ts`. It creates pack, level and questions, publishes, creates and publishes the assessment, invites N minted candidates and waits for the worker to set the assessment to active |
+| Dev-email-sink dependency | The API never returns the plaintext token. The fixture reads each `/take/<token>` link from the dev email sink (`ASSESSIQ_DEV_EMAILS_LOG`, else `~/.assessiq/dev-emails.log`). The API must run on the same machine |
+| CI | Step "Phone first-question timing (RW-79)" in the `e2e` job of `.github/workflows/ci.yml`. It has `continue-on-error: true` and `PHONE_FLOW_ADVISORY=1`. Comment in file: advisory until 2026-10-31. On that date, remove both and make it required |
+
+| Measurement (median) | Landing | Begin | Total |
+| --- | --- | --- | --- |
+| Baseline | 4729 ms | 3084 ms | 7813 ms |
+| After lazy chunks | - | - | 7186 ms |
+| Final, agent run | - | - | 5108 ms |
+| Final, orchestrator rerun | 2827 ms | 1299 ms | 4209 ms (runs 4209, 4557, 4410, 3987, 3830) |
+
+**Not measured.** The path from the result-released email (`/candidate/login?tenant=<slug>`). Real devices and real networks.
+
+### Candidate progress tests (RW-84, S15)
+
+| Test file | Cases |
+| --- | --- |
+| `modules/06-attempt-engine/src/__tests__/candidate-progress.test.ts` | Testcontainers. Two released and one unreleased attempt, the "Other" bucket, `review_needed` exclusion, a second candidate sees nothing |
+| `apps/api/src/__tests__/routes/me-progress.test.ts` | 401 without a session, response shape |
+| `modules/11-candidate-ui/src/__tests__/MyProgress.test.tsx` | 5 UI cases (spinner, empty, rows, single point, error and Retry) |
+
+`apps/api` tests are outside the root `pnpm test`. Run them from `apps/api`.
+
+### Logged-in Lighthouse and axe (RW-82, S15)
+
+| Item | Detail |
+| --- | --- |
+| Workflow | `.github/workflows/lighthouse.yml` boots postgres and redis, seeds with `apps/web/e2e/seed-db.sh`, starts the API and the worker with `ENABLE_E2E_TEST_MINTER`, builds the web app, and runs the public `lhci:run` (advisory, `continue-on-error`). Then it serves a preview on 4173 (with `E2E_API_PROXY`) and runs `lhci:authed`. Reports upload always |
+| Authed Lighthouse | `apps/web/e2e/lighthouse-authed.mjs`. It provisions an attempt with the factories, mints admin and candidate sessions, writes a temporary lhci config for each role with `settings.extraHeaders.Cookie`, and audits `/admin`, `/admin/assessments`, `/admin/attempts/:id`, `/candidate/results` and `/take/attempt/:id` |
+| Threshold | `apps/web/lighthouserc.authed.json`: `minScore` 0.85 on performance, accessibility, best-practices and seo |
+| Axe spec | `apps/web/e2e/a11y-authed.spec.ts` (project `chromium`). `AxeBuilder` tags `wcag2a`, `wcag2aa`, `best-practice`. Serious and critical findings fail the test. Moderate and minor findings are logged |
+| Required or advisory | The axe spec is REQUIRED: it is in the e2e spec list of `ci.yml`. The authed Lighthouse step is ADVISORY (`continue-on-error`) |
+| Flip date | 2026-10-31. The workflow header proposes it: after two weeks of green runs, drop `continue-on-error` and make the check required at 0.85 |
+
+Local scores (desktop, production build) after the contrast fixes:
+
+| Page | Performance | Accessibility | Best practices | SEO |
+| --- | --- | --- | --- | --- |
+| `/admin` | 0.89 | 1.00 | 0.99-1.00 | 0.91 |
+| `/admin/assessments` | 0.84 | 1.00 | 1.00 | 0.91 |
+| `/admin/attempts/:id` | 0.81-0.82 | 0.96 | 1.00 | 0.91 |
+| `/candidate/results` | 0.97-0.98 | 1.00 | 1.00 | 0.91 |
+| `/take/attempt/:id` | 0.96-0.97 | 1.00 | 1.00 | 0.91 |
+
+**Why the gate stays advisory.** The admin pages miss 0.85 on performance because of the bundle size. Fix the bundle before the flip date.
+
+**Not included.** Fixes for the moderate findings `region` (AdminShell) and `page-has-heading-one` (`/take/attempt/:id`). Visual-regression baselines (Linux or Docker only, none committed). Contrast token changes: [08-ui-system.md](08-ui-system.md) § "Contrast tokens darkened for WCAG AA (RW-82, S15)".
+
+### Per-question statistics tests (RW-60, S15)
+
+| Test file | Cases |
+| --- | --- |
+| `modules/15-analytics/src/__tests__/question-stats.test.ts` | 12 cases. Nine use the database and the route: exposure and attempts counts, newest grading wins, `point_biserial` NULL on zero variance, ordered gradient with no flag under 30 attempts, flag for a top-level item that 30+ candidates pass, roll-up over clones in all tenants, scope `tenant` without clones, `stats` null with no attempts, and the errors (404 `QUESTION_NOT_FOUND`, 400 bad id, 403 for a non super admin). Three pure cases test `computeMiscalibrated`: lowest-level item nobody passes, inverted gradient beyond the 0.15 margin only, never under 30 attempts |
+| `modules/10-admin-dashboard/src/__tests__/question-stats-card.test.tsx` | 2 cases. No volume shows a note and no table. The "Noise" and "Miscalibrated" chips and the sample-size note |
+| `tools/lint-mv-tenant-filter.ts` | Self-test covers both view names and the exact allow marker for super-admin roll-ups |
+
+### Start a test test (RW-83, S15)
+
+| Test file | Cases |
+| --- | --- |
+| `modules/10-admin-dashboard/src/__tests__/start-test.test.tsx` | 5 cases. Paste parsing (emails, names, invalid entries). Sets and candidates list, and the button waits for a set and a candidate. The create, publish, invite and import calls run in order with the right bodies. A failed publish shows the failed step and the assessment link. Invalid pasted entries are listed |
+
+### Per-question feedback tests (RW-80, S15)
+
+| Test file | Cases |
+| --- | --- |
+| `modules/02-tenancy/src/__tests__/result-feedback-level.test.ts` | 8 cases. Default `none` and the settings mapping. One update writes one audit row, and the same level is a no-op. Five invalid values are rejected without a write. The database CHECK rejects other values |
+| `apps/api/src/__tests__/routes/admin-tenant-settings-feedback-level.test.ts` | 9 cases. Admin with fresh MFA sets the level. Stale TOTP gives 401. `reviewer` and `candidate` give 403. No session gives 401. Three invalid bodies give 400 `INVALID_RESULT_FEEDBACK_LEVEL`. Inactive tenant gives 409 |
+| `modules/06-attempt-engine/src/__tests__/candidate-feedback.test.ts` | 8 cases. Presence and absence of each field at every level. Unreleased attempt gives not ready. Another user's attempt gives 404. Unit tests of `plainWords`. Secret fields never appear |
+| `modules/11-candidate-ui/src/__tests__/AttemptFeedback.test.tsx` | 4 cases. Fetch on expand, error with Retry, empty state, and the explanation and expected-answer rows |
+| `modules/06-attempt-engine/src/__tests__/candidate-result.test.ts` | Changed: the list result now expects `feedback_level: "none"` |
+
+**Not included.** A browser test of the settings radio cards. A test with real AI-justification text from production gradings.
+
+### Design-pass screenshot script (RW-81, S15)
+
+**What.** `apps/web/e2e/design-pass-screenshots.mjs` is a Playwright script, not a test. Run it with `tsx` from `apps/web`: `tsx e2e/design-pass-screenshots.mjs seed`, then `shoot before` or `shoot after`, then `cleanup`.
+
+| Mode | Action |
+| --- | --- |
+| `seed` | Creates real data with the e2e factories (`e2e/fixtures/factories.ts`): packs with long names, MCQ and written questions, assessments, attempts. Saves ids in `state.json` |
+| `shoot before` / `shoot after` | Logs in as admin, super admin and candidate. Screenshots every routed page at 1440x900 and 390x844 and records horizontal overflow |
+| `cleanup` | Removes the seeded data |
+
+**Needs.** The local API on port 3000 with `ENABLE_E2E_TEST_MINTER`, and `vite preview --port 4175` (`E2E_API_PROXY=http://127.0.0.1:3000`) serving a production build.
+
+**Outputs** (in `docs/testing/screenshots/S15/`): `before/` (102 PNGs), `after/` (103), `CRITIQUE.md` (numbered measurable gaps and a before/after list), `overflow.json`, `state.json`. The folder is local only because `docs/` is gitignored.
+
+**Overflow check.** Before: one page overflowed, the take page header `.aiq-attempt-top` at 390 px (564 px wide). After: none.
+
+**Gates run.** Typecheck clean (modules 10, 11, 17 and web). Lint 0 errors. `lint:ui-labels` 0 hits. Help-id guard 5/5. Vitest: 17 (70 tests), 10 (175), 11 (130), web (87). The `MyCertificates` snapshot changed (colour only).
+
+**Why.** The page tests use small fixtures. Only real data at a phone width shows clipping and overflow.
+
+**Considered and rejected.** Adding the screenshots to `visual.spec.ts` (baselines must be made in the Playwright image and the pages change often). A CI job (the stack needs a seeded database).
+
+**NOT included.** Pixel comparison. Automatic failure on overflow (the script only reports it). The `visual.spec.ts` baseline regeneration (owner item 8 in [08-ui-system.md](08-ui-system.md) § "Design pass on live-data pages (RW-81, S15)").
+
+**Impact.** The API can drop connections while it runs, so the script retries factory calls. Run it again after any layout change.

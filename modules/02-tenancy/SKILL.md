@@ -157,3 +157,10 @@ Migration `0114` adds `tenant_settings.result_release_mode` (`manual` default | 
 - **One transaction.** The `UPDATE` and the `tenant_settings.ai_grading_scope.updated` audit row (`before` and `after` hold the scope) share one `withTenant` transaction. A missing settings row throws `NotFoundError`.
 - **Reader.** Module 07 `handleAdminGrade` reads the scope once for each run. See [docs/05-ai-pipeline.md](../../docs/05-ai-pipeline.md) § "Least-AI tier order (P4)".
 - **Not included.** A tenant-admin switch. A per-question scope. Rollback: set the value back to `written`.
+
+## S15 (2026-10-17) - result feedback level (RW-80, migration 0190)
+
+- **What.** `getResultFeedbackLevel(tenantId)` (returns `'none'` without a row) and `updateResultFeedbackLevel(adminUserId, tenantId, level)` in `src/service.ts`. Types `ResultFeedbackLevel` and `RESULT_FEEDBACK_LEVELS` are exported from `src/index.ts`.
+- **One transaction.** Enum check (`ValidationError`, code `INVALID_RESULT_FEEDBACK_LEVEL`), then `SELECT ... FOR UPDATE`, then `UPDATE ... WHERE tenant_id`, then `auditInTx` (`tenant.settings.updated`, `before` and `after` = `{ result_feedback_level }`). The same value is a no-op with no audit row.
+- **Owner gate.** Default `none`. The owner picks the production default later. Not part of the generic settings patch.
+- **Not included.** A per-assessment override. Rollback: set the value to `none`. Details: `docs/02-data-model.md` (`tenant_settings`), `docs/03-api-contract.md` § S15 additions.

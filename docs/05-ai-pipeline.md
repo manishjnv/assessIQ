@@ -1306,6 +1306,37 @@ Commit: `05ea435` (cron + design doc). The units are installed on the VPS, but t
 - **Not included.** UI. The wizard Review step does not show the warnings yet (follow-up RW-96). Warnings do not change grading or scoring.
 - **Downstream impact.** Readers of `difficulty_params` must ignore the `warnings` key if they want only the intended difficulty vector. The log fields are in [11-observability.md](11-observability.md).
 
+### Phase C report — per-question statistics (RW-60 / FU-C14, S15)
+
+*History: S15, 2026-10-17.*
+
+*Type: explanation.*
+
+- **What.** The materialized view `question_stats_mv` (migration `0189`, module 15-analytics) holds per-question numbers: exposure, attempts, correct rate, mean band, item-rest point-biserial and last use. The super-admin route `GET /api/admin/super/questions/:id/stats` and a card on the question editor show them with a level gradient and a `miscalibrated` flag. Detail: [02-data-model.md](02-data-model.md) and [03-api-contract.md](03-api-contract.md).
+- **No AI involved.** This is read-only SQL on grading results that already exist. It adds no `claude` call, no worker and no prompt. The no-ambient-AI rule is not touched. The nightly refresh is a database refresh in the `analytics:refresh_mv` job.
+- **The `miscalibrated` rule is a default.** The difficulty spec § 6 gives no threshold. The code needs 30 or more attempts. It flags a top-level item with 0.90 or more success, a lowest-level item with 0.25 or less, and a level gradient that inverts by more than 0.15. Discrimination is fine at a point-biserial of 0.2 or more. The constants are in `modules/15-analytics/src/question-stats.ts`. Change them when real data exists.
+- **Roll-up.** A platform question has clones in customer organisations. For such a question the numbers add up across all clones (`source_question_id`). `mean_band` and `point_biserial` are attempts-weighted means. This approximates the pooled correlation.
+- **Why.** The spec asks for a Phase C check of measured difficulty against authored difficulty. Authors need to see items that do not separate strong and weak candidates.
+- **Rejected.** Question columns in `attempt_summary_mv` (the grain does not match). A numeric threshold written as a spec claim.
+- **Not included.** A roll-up by distinct organisation. An admin review queue of flagged items. Tenant-admin visibility. Incremental refresh. Any automatic change to `difficulty_params` or to scoring.
+- **Downstream impact.** Grading and scoring do not read the view. Eval-harness baselines do not change.
+
+### Candidate feedback levels (RW-80, S15)
+
+*History: S15, 2026-10-17.*
+
+*Type: explanation.*
+
+- **What.** `tenant_settings.result_feedback_level` sets what a candidate sees for each question of a released result. Route: `GET /api/me/attempts/:id/feedback` (`modules/06-attempt-engine/src/feedback.ts`). Levels: `none` (no items), `right_wrong` (outcome, own answer, "what to study"), `with_expected_answer` (adds the expected answer for deterministic types), `with_ai_justification` (adds `explanation` for AI-graded types).
+- **The `plainWords` rule.** `plainWords(ai_justification, reasoning_band, error_class)` is a text transform with no model call. It starts with the band label: 4 "Strong answer", 3 "Good answer", 2 "Partial answer", 1 "Weak answer", 0 "No credit". Then it drops lines that start with Stage, Anchor or Band, and lines that start with `{`, `}` or a backtick. It removes `[...]` and `{...}` text and collapses spaces. It keeps the first two sentences, capped at 280 characters with an ellipsis. When nothing is left, or when `error_class` is set, only the label shows.
+- **Never sent to the candidate.** `stage_inputs`, `anchor_hits`, rubric text and raw AI text. Rows with `status = 'review_needed'` or `error_class` `AIG_*` are not shown at all.
+- **No AI involved.** The route reads grading rows that already exist. It adds no `claude` call, no worker, no prompt and no skill change. The no-ambient-AI rule is not touched, and `lint-no-ambient-claude.ts` is unchanged.
+- **Owner gate.** The column default is `none`. The owner picks the production default later. Until then a tenant admin must change the level on purpose (fresh MFA, audited).
+- **Why.** Candidates need to know what to study. The deterministic rewrite makes AI text safe to show without a second model call.
+- **Rejected.** An AI rewrite of the justification (ambient AI, and a new prompt is a deploy event). Showing stage text. A per-assessment override.
+- **Not included.** Feedback for pending questions. Rubric anchors. A per-assessment override.
+- **Downstream impact.** Grading, scoring and eval baselines do not change. Contract: [03-api-contract.md](03-api-contract.md) § S15 additions.
+
 ### One shared plan, topic focus and counters (RV64 and RV62)
 
 *History: 2026-10-03.*

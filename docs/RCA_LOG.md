@@ -4,6 +4,13 @@
 > Read at Phase 0; recurring patterns become Phase 3 critique guardrails.
 > Format reference: see `CLAUDE.md` § RCA / incident log.
 
+## 2026-10-17 — The question editor's negative-marks help ids did not match the page prefix, so their help text could never load
+
+**Symptom:** on `/admin/question-bank/questions/:id` the tooltip and the help drawer for the two negative-marks controls (the form group and the card) were empty. The guard test `help-id-page-prefix.test.ts` failed on `main` with two rows for `admin.question_editor.negative_marks (page admin.question.editor)`; nobody ran it after the S14 push.
+**Cause:** EX-1 (S14, `ae7bdc8`) added `data-help-id="admin.question_editor.negative_marks"` to `modules/10-admin-dashboard/src/pages/question-editor.tsx` (two places), but the page sets `helpPage="admin.question.editor"`. The help lookup filters by page prefix, so a key outside the prefix never reaches the page (same class as RCA 2026-10-16 "Three RW-25 admin pages used hyphenated help ids" and 2026-10-03). The YAML key and the seeded row in `0187_s14_batch3_help.sql` carried the same wrong name.
+**Fix:** `06989e6` renames both ids to `admin.question.editor.negative_marks` and the key in `modules/16-help-system/content/en/admin.yml`; the S15 help migration renames the seeded row (`UPDATE help_content SET key = ... WHERE key = 'admin.question_editor.negative_marks' AND tenant_id IS NULL`) so no second row is needed.
+**Prevention:** the guard test already catches it; the gap was that S14 did not run `pnpm --filter @assessiq/help-system test` after the EX-1 UI commit. Rule: every commit that adds a `data-help-id` or `helpId` runs that test before the push (manual discipline; a CI step runs the full help-system suite on every PR already, so the next PR would have caught it).
+
 ## 2026-10-16 — Three RW-25 admin pages used hyphenated help ids, so their help text could never load
 
 **Symptom:** on `/admin/audit-log`, `/admin/embed-config` and the webhooks delivery log, the tooltip and the help drawer were empty for every element. 23 element ids on these pages had no YAML key at all (found by a script in S13).

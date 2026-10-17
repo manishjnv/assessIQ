@@ -134,6 +134,8 @@ The `.num` class is load-bearing: every score, count, time, percent on a results
 | Microcopy (chips, meta) | 10–11px | mono | 400 | 0.04em–0.10em (uppercase) |
 | Big number | 36–88px | serif | 400 | -0.03em to -0.04em |
 
+> **2026-10-17 (S15, RW-81/RW-82).** In pages, the only allowed font sizes are the tokens `--aiq-h1-size` (page title), `--aiq-text-xs`, `--aiq-text-sm`, `--aiq-text-md`, `--aiq-text-lg`, `--aiq-text-xl`, `--aiq-text-2xl` and `--aiq-text-3xl` (defined in `modules/17-ui-system/src/styles/tokens.css`). Ad-hoc px values (10, 15, 17, 20, 22, 28, 32) were moved to these tokens. The accent, info and success tokens were darkened on 2026-10-17 for WCAG AA. The values are in `docs/08-ui-system.md` § "Contrast tokens darkened for WCAG AA (RW-82, S15)".
+
 ### 2.4 Tone of language
 
 The template's voice is understated and editorial. Adopt it.

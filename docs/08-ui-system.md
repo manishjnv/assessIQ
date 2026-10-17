@@ -1410,3 +1410,208 @@ chars and non-empty `long_md` per the help-key test.
 | `admin.question_import.text_format` | Question import page |
 
 `admin.tenant_settings.page` is bumped to version 2. The migration `0187` holds all rows (20 rows with the page bump).
+
+## Session S15 UI changes (2026-10-17)
+
+### Candidate progress page (RW-84, S15)
+
+**What changed.** A new page `MyProgress` (`modules/11-candidate-ui/src/components/MyProgress.tsx`) shows the history and strengths of a candidate.
+
+- Route: `/candidate/progress` in `apps/web/src/App.tsx`, inside `RequireSession` and `CandidateShell`.
+- Nav: a "Progress" link after "Results" in `CandidateShell`, on desktop and on mobile.
+- Data: `GET /api/me/progress`. See [03-api-contract.md](03-api-contract.md) § "GET /api/me/progress (RW-84)".
+- Sections: `PageHeader` with a count chip; a `StatCard` row (tests taken, average score, best score); a `Sparkline` when there are 2 or more points, else a one-line note; a "Your tests" `Table` (assessment, date, score, `StatusPill` passed or failed, certificate link); "Strengths by subject" rows with `ProgressBar` and a `Chip`.
+- Chip rule: Strong at 75 % or more, Developing at 50 to 74 %, Focus below 50 %.
+- States: loading (`Spinner`), error (message and a Retry `Button`), empty ("No released results yet").
+- Help ids: `candidate.progress`, `candidate.progress.history`, `candidate.progress.trend`, `candidate.progress.subjects` in `modules/16-help-system/content/en/candidate.yml`.
+- Kit pattern: `patterns.md` "Results / report layout" (the competency breakdown in `screens/results.jsx`).
+- Tests: `modules/11-candidate-ui/src/__tests__/MyProgress.test.tsx` (spinner, empty, rows with certificate link and chips and sparkline, single-point note, error and Retry).
+
+**Why.** Candidates had results and certificates but no view across tests.
+
+**Rejected.** A `/me/*` web route family (the portal is `/candidate/*`).
+
+**Not included.** Per-framework split, unit-level strengths, filters.
+
+**Impact.** New nav item in `CandidateShell`. No change to existing pages.
+
+### Take pages as lazy chunks (RW-79, S15)
+
+**What changed.**
+- `apps/web/src/App.tsx` imports `Expired`, `ErrorPage` and `TakeRoot` from their own files. The three lazy wrappers import `./pages/take/Attempt`, `Submitted` and `TokenLanding` directly.
+- Before, the barrel file made these pages part of the main chunk, and the build printed `INEFFECTIVE_DYNAMIC_IMPORT`. The warning is gone.
+- `apps/web/src/pages/take/TokenLanding.tsx` prefetches `import('./Attempt')` after `takePreview` resolves, so the attempt chunk loads while the candidate reads the landing.
+- `apps/web/vite.config.ts` also proxies `^/take/start$` when `E2E_API_PROXY` is set. The bare `POST /take/start` did not reach the API through `vite preview`.
+
+| Chunk | Before | After |
+| --- | --- | --- |
+| Main | 290.14 kB (gzip 77.29 kB) | 156.13 kB (gzip 45.87 kB) |
+| `Attempt` | in main | 33.55 kB |
+| `TokenLanding` | in main | 13.50 kB |
+| `Submitted` | in main | 4.85 kB |
+
+**Rule.** For lazy routes, import take pages from their own files, not from the barrel. A barrel import pulls the page into the main chunk.
+
+**Why.** RW-79 asks for under 20 s from the invitation link to the first question on a phone. See [12-test-coverage.md](12-test-coverage.md) § "Phone first-question timing (RW-79, S15)" for the numbers.
+
+**Not included.** The result-released email links to `/candidate/login?tenant=<slug>` (magic-link sign-in with an email round trip). The magic-link decision stays as it is (owner decision Z-15 a).
+
+**Known tail (not fixed).** An anonymous `GET /api/help?page=candidate.attempt` returns 401 on the token landing. `HelpProvider` at `/take` is not fetched again after Begin. Help tips can stay empty on the attempt page after the token path. This existed before RW-79.
+
+### Start a test screen (RW-83, S15)
+
+*Type: reference.*
+
+**What changed.** A new page `AdminStartTest` (`modules/10-admin-dashboard/src/pages/start-test.tsx`) at `/admin/start-test`.
+
+- Route: `apps/web/src/App.tsx`, inside `RequireSession role="admin"`.
+- Entry points: nav item "Start a test" after "Assessments" in `AdminShell.tsx` (`adminOnly`), and a link beside "+ New Assessment" on `pages/assessments.tsx`.
+- Card "Question set": radio list from `GET /api/billing/available-sets`, each with a chip "Licensed" or "Not yet imported". A difficulty select (Beginner, Intermediate, Advanced by `level_position`, limited to the levels of the set). A question count (default: the smaller of 10 and the set size; maximum 200). A name (default "<set> — <today>").
+- Card "Candidates": a search box and the active candidates from `GET /api/admin/users?role=candidate&pageSize=100&search=`, a selected-count chip, and a paste box (one email for each line or separated by commas, optional ", Name"). Invalid lines are listed.
+- Card "Window": opens now (rounded up to 5 minutes), closes now plus 7 days.
+- One primary button "Send invitations". The call sequence is in [03-api-contract.md](03-api-contract.md) § "Start a test (RW-83): no new routes".
+- Result card "Assessment created": link to `/admin/assessments/:id`, chips for invited, new candidates and skipped (with reasons from `lib/labels.ts`). If a step fails, the card names the step and links to the assessment.
+- Helpers in `modules/10-admin-dashboard/src/api.ts`: `publishAssessmentApi`, `inviteAssessmentUsers`, `importCandidates`, `listCandidates`. The pasted CSV cells use `csvCell` from `@assessiq/core`.
+- Help ids: `admin.start_test`, `.set`, `.candidates`, `.emails`, `.window`, `.send`, `.result` in `modules/16-help-system/content/en/admin.yml` (the database rows follow in this session's help migration).
+- Test: `modules/10-admin-dashboard/src/__tests__/start-test.test.tsx` (5 cases).
+
+**Why.** RW-83 asks for one screen for the common case: pick a set, pick people, send.
+
+**Rejected.** A new combined API route (see the API page). A wizard with steps (the goal is one screen).
+
+**Not included.** Duration edits (the set level sets the duration). A retry button after a partial failure. The six-screen path is unchanged.
+
+**Impact.** New nav item for admins. Owner gate (flow confirmation): the default window, whether pasted unknown emails create candidates, a warning for "Not yet imported" sets, and a retry after a partial failure.
+
+### Item statistics card on the question editor (RW-60, S15)
+
+*Type: reference.*
+
+**What changed.** A new component `QuestionStatsCard` (`modules/10-admin-dashboard/src/components/QuestionStatsCard.tsx`) shows on the super-admin question editor (`pages/question-editor.tsx`), after the framework nodes card. Data: `getSuperQuestionStats(id)` in `api.ts`, which calls `GET /api/admin/super/questions/:id/stats`.
+
+- No volume: the text "No graded attempts on this question yet. Statistics appear after the nightly refresh." and no chart.
+- With volume: `StatCard`s for attempts, correct rate, discrimination (a "Noise" chip under 0.2), exposure and last used. A gradient table by level with the level of the question marked. A chip "Miscalibrated" or "Calibrated" with the reason.
+- Under 30 attempts: the line "Phase C needs 30+ attempts".
+- Roll-up scope: the line "Across N copies of this platform question in customer organisations."
+- Help ids: `admin.question.editor.stats`, `.stats.discrimination`, `.stats.gradient`, `.stats.miscalibrated`.
+- Test: `modules/10-admin-dashboard/src/__tests__/question-stats-card.test.tsx` (2 cases).
+
+**Also fixed.** The editor help ids `admin.question_editor.negative_marks` (two elements, shipped in S14 with EX-1) did not match the page prefix `admin.question.editor`, so the help text could never load. They are now `admin.question.editor.negative_marks`. The YAML key is renamed. This session's help migration renames the seeded row.
+
+**Why.** Authors need measured difficulty next to authored difficulty. See [05-ai-pipeline.md](05-ai-pipeline.md) § "Phase C report".
+
+**Rejected.** A separate statistics page (the editor is where the author acts).
+
+**Not included.** Tenant-admin view. A review queue of flagged items.
+
+**Impact.** Only the super admin sees the card. No change to the editor save flow.
+
+### Contrast tokens darkened for WCAG AA (RW-82, S15)
+
+*Type: reference.*
+
+**What changed.** The axe scan of logged-in pages (RW-82) found serious colour-contrast failures. The light-mode tokens in `modules/17-ui-system/src/styles/tokens.css` changed:
+
+| Token | Before | After |
+| --- | --- | --- |
+| `--aiq-color-accent` | `oklch(0.58 0.17 258)` | `oklch(0.52 0.18 258)` |
+| `--aiq-color-accent-hover` | `oklch(0.52 0.19 258)` | `oklch(0.46 0.19 258)` |
+| `--aiq-color-info` | `oklch(0.62 0.18 230)` | `oklch(0.42 0.13 235)` |
+| `--aiq-color-success` | `oklch(0.65 0.15 150)` | `oklch(0.50 0.14 150)` (dark mode keeps the old value) |
+| `.aiq-chip-warn` text | `var(--aiq-color-warning)` | `color-mix(in oklch, var(--aiq-color-warning) 40%, black)` |
+
+- `modules/17-ui-system/src/fixtures/tenants.ts`: the default tenant `branding.primary` now matches the new accent. The `ThemeProvider` branding overrode the token before this change.
+- `modules/10-admin-dashboard/src/components/AdminShell.tsx`: `<main tabIndex={0}>`. This fixes the axe rule `scrollable-region-focusable`.
+
+**Why.** The CI gate needs zero serious or critical axe findings (see [12-test-coverage.md](12-test-coverage.md) § "Logged-in Lighthouse and axe (RW-82, S15)").
+
+**Rejected.** Per-component colour overrides (the token is the single source).
+
+**Not included.** Two moderate findings stay open: `region` (the `AdminShell` topbar and breadcrumbs are outside landmarks) and `page-has-heading-one` on `/take/attempt/:id`. The dark-mode value of `--aiq-color-info` was not set in this change. Check it when dark mode is audited.
+
+**Impact.** The brand accent is darker (the hue is the same). This is visible to the owner. The visual-regression baselines run only on Linux or Docker and none are committed. Regenerate them inside the Playwright image before the next visual run.
+
+### Review your answers on the candidate results page (RW-80, S15)
+
+*Type: reference.*
+
+**What changed.** `modules/11-candidate-ui/src/components/AttemptFeedback.tsx` is new. `MyResults.tsx` renders it under each released result, and only when `feedback_level` from `GET /api/me/results` is not `none`.
+
+- A collapsed button "Review your answers" (it reads "Hide your answers" when open; `aria-expanded` and `aria-controls` are set). The fetch of `GET /api/me/attempts/:id/feedback` runs on the first expand, never on list load.
+- States: loading (spinner), error ("We could not load your answers. Try again." with a Retry button) and empty ("No questions to show.").
+- Each row: `Q<position>` and an outcome chip (Correct, Partly correct, Not correct); the prompt cut at 120 characters with the full text in `title`; "Your answer" ("No answer" when null); an "Expected answer" line only when the API sent one; an explanation block; a "What to study" line (unit and subject, else topic).
+- The explanation block is serif italic 15 px on `--aiq-color-bg-raised`. This is `docs/10-branding-guideline.md` § 8.5 "AI justification block".
+- Help ids: `candidate.results.feedback`, `.expected`, `.explanation`, `.study`.
+
+**Why.** Candidates asked which answers were wrong. The section follows the release rules, because the route answers only for released results.
+
+**Considered and rejected.** Feedback on the post-submit page `apps/web/src/pages/take/Submitted.tsx` (its rule P1: no per-question data there). Loading feedback with the list (extra load for every visit).
+
+**NOT included.** A print view. Per-question links to practice. Pending questions (the API omits them).
+
+**Downstream impact.** `MyResults` needs the new `feedback_level` field. Types: `modules/11-candidate-ui/src/types.ts`. API call: `getAttemptFeedback` in `modules/11-candidate-ui/src/api.ts`. Contract: [03-api-contract.md](03-api-contract.md) § S15 additions.
+
+### Tenant settings: per-question feedback (RW-80, S15)
+
+*Type: reference.*
+
+**What changed.** `modules/10-admin-dashboard/src/pages/tenant-settings.tsx` has a second radio-card group, "Per-question feedback", after the release-mode group. The options are none, right_wrong, with_expected_answer and with_ai_justification. A save sends `PATCH /api/admin/tenant-settings/result-feedback-level` with the same `MfaStepUp` flow as the release mode. The page reads `result_feedback_level` from `GET /api/admin/tenant-settings`. An older server without the field leaves the group unselected.
+
+- Help ids: `admin.tenant_settings.result_feedback_level` on the section, and one id for each option (`.none`, `.right_wrong`, `.with_expected_answer`, `.with_ai_justification`).
+- Help rows: YAML in `modules/16-help-system/content/en/` and migration `0191_s15_batch4_help.sql`.
+
+**Why.** The tenant admin decides what candidates see. The default stays `none`, and the owner picks the production default later (owner gate).
+
+**Considered and rejected.** A per-assessment control. A plain select (the release-mode group already uses radio cards, so the page stays consistent).
+
+**NOT included.** A preview of what the candidate sees. Any change to the release-mode group.
+
+**Downstream impact.** The group has its own MFA and save state, separate from the release mode. Contract: [03-api-contract.md](03-api-contract.md) § S15 additions.
+
+### Design pass on live-data pages (RW-81, S15)
+
+**What changed.** Every routed page was reviewed with real data at 1440x900 and 390x844. The fixes below went in commit `80eab3e`. The rule: fix the primitive, not the page.
+
+**Procedure.**
+
+1. Seed real data with the e2e factories (packs, questions, assessments, attempts, certificates).
+2. Run `apps/web/e2e/design-pass-screenshots.mjs` against a production preview. It logs in as admin, super admin and candidate.
+3. Write numbered, measurable gaps in `docs/testing/screenshots/S15/CRITIQUE.md`.
+4. Fix, shoot again, compare. See [12-test-coverage.md](12-test-coverage.md) § "Design-pass screenshot script (RW-81, S15)".
+
+**Primitive fixes (one fix, many pages).**
+
+- `modules/17-ui-system/src/components/Table.tsx`: cells get `min-width: 0` and plain text sits in an ellipsis span with a `title` attribute. Cell text is 13 px. This closed hard-clipped text on about 10 list pages.
+- `modules/17-ui-system/src/styles/tokens.css`: on mobile, `.aiq-attempt-top` wraps and has `min-height: 64px`. The take page header was 564 px wide at 390 px (the only horizontal overflow). After the fix there is none.
+- Both `PageHeader` components (module 10 and module 17) and about 20 admin pages use the existing `--aiq-h1-size` token (36 px desktop, 30 px mobile). Assessment detail was 7 lines at 390 px with its buttons off-screen.
+- `flexWrap` on the header row of assessment-detail, assessments, pack-detail, question-bank and question-editor.
+- About 70 ad-hoc 10 px labels use `--aiq-text-xs`. Values of 15, 17, 20, 22, 28 and 32 px use `--aiq-text-lg`, `--aiq-text-xl` or `--aiq-text-2xl` (about 50 files, about 17 under `apps/web/src/pages`).
+
+**Page fixes.**
+
+- `pages/assessments.tsx`: "Start a test" is an outline button. The hand-rolled empty state is the kit `EmptyState`.
+- `attempts.tsx` and `question-bank.tsx` use `EmptyState`.
+- `certificates.tsx` uses `EmptyState`, a doubled gutter is gone, and raw `#fee2e2` and the Distinction pill colours are tokens.
+- `modules/11-candidate-ui` `MyCertificates.tsx`: Distinction colours are tokens (its snapshot changed, colour only).
+- `apps/web/src/pages/try/TryCertificate.tsx`: raw colours and fonts are tokens.
+- `apps/web/src/App.tsx:285`: `#3177dc` is now `var(--aiq-color-accent)`.
+
+**Why.** The first full look with real data (long pack names, many rows, a phone width) showed clipping and overflow that the empty-state tests never showed. A token or primitive fix keeps the pages consistent and stops the same bug from returning.
+
+**Considered and rejected.** Per-page fixes of each clipped cell (about 10 copies of one patch). A new shared PageHeader (see owner item 3). Changing button and input sizes in this pass (owner decision, item 1).
+
+**NOT included (for the owner, numbered).**
+
+1. Button height is 41 px and input height is 47 px against the 36 px target. The kit sets 10x18 and 12x16 padding. This is an owner decision.
+2. The MyResults empty state is hand-rolled and left-aligned. The file was excluded because RW-80 edited it.
+3. Admin pages still use inline h1 blocks instead of `PageHeader`. Modules 10 and 17 each have their own `PageHeader`.
+4. Composite `Table` cells (candidate name plus erased chip) still clip without an ellipsis.
+5. `/admin/mfa` redirects to login for a minted session.
+6. Several files keep `--aiq-radius-full` and `var(--x, #hex)` fallbacks.
+7. Empty rows on webhooks, audit log and reports are still one muted line.
+8. `visual.spec.ts` baselines must be regenerated inside the Playwright image (a line is in `apps/web/e2e/README.md`).
+9. The shared API dropped connections a few times during the run. The script retries.
+
+Note: the pass agent saw an error on `/candidate/progress` for the seeded candidate. The cause was a local API process that started before the route existed. A restart returns 200. This is not a defect.
+
+**Downstream impact.** Screenshots are local only: `docs/` is gitignored, so `docs/testing/screenshots/S15/` (`before/` 102 PNGs, `after/` 103, `CRITIQUE.md`, `overflow.json`, `state.json`) is not in the repository. The owner reviews them. `visual.spec.ts` baselines are stale until item 8 is done. Font-size rule: see [10-branding-guideline.md](10-branding-guideline.md) § 2.3.
