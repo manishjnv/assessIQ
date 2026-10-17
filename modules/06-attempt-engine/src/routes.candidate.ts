@@ -40,6 +40,7 @@ import {
   getSubmitExpectation,
   listCandidateResults,
 } from "./result.js";
+import { getCandidateProgress } from "./progress.js";
 import { AE_ERROR_CODES } from "./types.js";
 import type { RecordEventInput, SaveAnswerInput, ToggleFlagInput } from "./types.js";
 
@@ -373,5 +374,16 @@ export async function registerAttemptCandidateRoutes(
       const userId = req.session!.userId;
       return listCandidateResults(tenantId, userId);
     },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /api/me/progress — history, score trend and per-subject strengths over
+  // the candidate's RELEASED attempts only (RW-84).
+  // -------------------------------------------------------------------------
+
+  app.get(
+    "/api/me/progress",
+    { preHandler: candidateOnly },
+    async (req) => getCandidateProgress(req.session!.tenantId, req.session!.userId),
   );
 }

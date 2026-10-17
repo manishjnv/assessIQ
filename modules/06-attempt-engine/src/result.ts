@@ -180,7 +180,7 @@ function verifyUrl(credentialId: string): string {
   return new URL(`/verify/${encodeURIComponent(credentialId)}`, config.ASSESSIQ_BASE_URL).toString();
 }
 
-function certificateRef(credentialId: string | null): CandidateCertificateRef | null {
+export function certificateRef(credentialId: string | null): CandidateCertificateRef | null {
   return credentialId === null
     ? null
     : { credential_id: credentialId, verify_url: verifyUrl(credentialId) };
@@ -288,7 +288,7 @@ interface ReleasedRow {
 }
 
 /** released_at = the grading.released audit row; falls back to the score computation time. */
-const RELEASED_AT_SQL = `COALESCE(
+export const RELEASED_AT_SQL = `COALESCE(
   (SELECT al.at FROM audit_log al
     WHERE al.entity_type = 'attempt' AND al.entity_id = a.id AND al.action = 'grading.released'
     ORDER BY al.at DESC LIMIT 1),

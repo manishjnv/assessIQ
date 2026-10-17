@@ -133,9 +133,10 @@ describe('CandidateShell', () => {
     renderShell(<CandidateShell><div /></CandidateShell>);
     const nav = screen.getByRole('navigation', { name: 'Candidate sections' });
     const links = within(nav).getAllByRole('link');
-    expect(links.map((a) => a.textContent)).toEqual(['Results', 'Certificates', 'Activity']);
+    expect(links.map((a) => a.textContent)).toEqual(['Results', 'Progress', 'Certificates', 'Activity']);
     expect(links.map((a) => a.getAttribute('href'))).toEqual([
       '/candidate/results',
+      '/candidate/progress',
       '/candidate/certificates',
       '/candidate/activity',
     ]);

@@ -5,7 +5,9 @@ import { AdminLogin } from './pages/admin/login';
 import { AdminSelectIdentity } from './pages/admin/select-identity';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
 import { RequireSession } from './lib/RequireSession';
-import { Expired, ErrorPage as TakeError, TakeRoot } from './pages/take';
+import { Expired } from './pages/take/Expired';
+import { ErrorPage as TakeError } from './pages/take/ErrorPage';
+import { TakeRoot } from './pages/take/TakeRoot';
 
 // Lazy-loaded so the admin-dashboard chunk is not downloaded on unauthenticated
 // pages (/admin/login, /candidate/login, error pages). Cuts initial bundle by
@@ -45,6 +47,7 @@ const AdminEmbedConfig = lazy(() => import('@assessiq/admin-dashboard').then(m =
 
 const MyCertificates = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyCertificates })));
 const MyResults = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyResults })));
+const MyProgress = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.MyProgress })));
 const CandidateShell = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateShell })));
 const CandidateActivity = lazy(() => import('@assessiq/candidate-ui').then(m => ({ default: m.CandidateActivity })));
 
@@ -52,9 +55,9 @@ const AdminMfa = lazy(() => import('./pages/admin/mfa').then(m => ({ default: m.
 const AdminEmailOtp = lazy(() => import('./pages/admin/email-otp').then(m => ({ default: m.AdminEmailOtp })));
 const CandidateLoginVerify = lazy(() => import('./pages/candidate/CandidateLoginVerify').then(m => ({ default: m.CandidateLoginVerify })));
 const InviteAccept = lazy(() => import('./pages/invite-accept').then(m => ({ default: m.InviteAccept })));
-const AttemptPage = lazy(() => import('./pages/take').then(m => ({ default: m.AttemptPage })));
-const Submitted = lazy(() => import('./pages/take').then(m => ({ default: m.Submitted })));
-const TokenLanding = lazy(() => import('./pages/take').then(m => ({ default: m.TokenLanding })));
+const AttemptPage = lazy(() => import('./pages/take/Attempt').then(m => ({ default: m.AttemptPage })));
+const Submitted = lazy(() => import('./pages/take/Submitted').then(m => ({ default: m.Submitted })));
+const TokenLanding = lazy(() => import('./pages/take/TokenLanding').then(m => ({ default: m.TokenLanding })));
 
 const TryPage = lazy(() => import('./pages/try/Try').then(m => ({ default: m.TryPage })));
 const TryCertificatePage = lazy(() => import('./pages/try/TryCertificate').then(m => ({ default: m.TryCertificatePage })));
@@ -151,6 +154,18 @@ export function App(): React.JSX.Element {
               <RequireSession unauthRedirect="/candidate/login">
                 <CandidateShell>
                   <MyResults />
+                </CandidateShell>
+              </RequireSession>
+            }
+          />
+
+          {/* Candidate progress — released attempts only (RW-84). */}
+          <Route
+            path="/candidate/progress"
+            element={
+              <RequireSession unauthRedirect="/candidate/login">
+                <CandidateShell>
+                  <MyProgress />
                 </CandidateShell>
               </RequireSession>
             }

@@ -618,3 +618,54 @@ candidate.take.structured_case.child_marks:
     ## Marks for this question
 
     The first number is what a right answer earns. The second number, with a minus sign, is what a wrong answer loses. A question you leave blank loses nothing.
+
+candidate.progress:
+  audience: candidate
+  version: 1
+  short_text: "Your released results over time: score trend, test history and strengths by subject."
+  long_md: |
+    ## Progress
+
+    This page shows how you do across tests. It uses only results that your
+    organisation has **released** to you.
+
+    - Your score trend shows each test from the oldest to the newest.
+    - Your test list shows the date, score and result of each test.
+    - Your strengths show how well you answer questions in each subject.
+
+    A result that is not released does not appear here.
+
+candidate.progress.history:
+  audience: candidate
+  version: 1
+  short_text: "Each released test with its date, score, result and a certificate link."
+  long_md: |
+    ## Your tests
+
+    Each row is one released test. It shows the date, your score, and whether
+    you passed. If you earned a certificate, select **View** to open it.
+
+candidate.progress.trend:
+  audience: candidate
+  version: 1
+  short_text: "Your average and best score, and a line of your scores over time."
+  long_md: |
+    ## Score trend
+
+    The line shows your score for each released test, from the oldest to the
+    newest. You need at least two released tests to see the line.
+
+candidate.progress.subjects:
+  audience: candidate
+  version: 1
+  short_text: "How many questions you answered right in each subject."
+  long_md: |
+    ## Strengths by subject
+
+    Each row shows one subject and the number of questions you answered right.
+
+    - **Strong**: 75% or more right.
+    - **Developing**: 50% to 74% right.
+    - **Focus**: less than 50% right. Practise this subject first.
+
+    Questions that have no subject are grouped under **Other**.
