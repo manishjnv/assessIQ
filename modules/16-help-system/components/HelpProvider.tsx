@@ -118,6 +118,13 @@ export function HelpProvider({
       credentials: 'include',
       signal: controller.signal,
     })
+      .then((res) =>
+        // Anonymous token landing: retry on the globals-only public endpoint
+        // (server allowlists exactly candidate.take and candidate.attempt; others get 400).
+        res.status === 401 && (page === 'candidate.take' || page === 'candidate.attempt')
+          ? fetch(`/api/help/public?${params.toString()}`, { signal: controller.signal })
+          : res,
+      )
       .then(async (res) => {
         if (controller.signal.aborted) return;
 
