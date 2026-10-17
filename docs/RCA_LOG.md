@@ -2708,3 +2708,17 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 ` in the working copy (Windows `core.autocrlf=true` checkout) and wrote it back as CRLF, and the commit used `-c core.autocrlf=false`, so Git stored CRLF instead of LF.
 **Fix:** `be1d1ea` rewrote the file with LF and kept the content; net diff against the earlier text is 9 added and 4 removed lines.
 **Prevention:** edit scripts write LF for repo files and never override `core.autocrlf` on a commit; check `git diff --stat` for a line count far above the edit size, and `git ls-files --eol <file>` should show `i/lf`, before every commit.
+
+## 2026-10-17 — Help-system fresh-DB key count test not updated when EXP-5 added 11 help keys
+
+**Symptom:** `modules/16-help-system/src/__tests__/help-system.test.ts` expected 492 keys on a fresh database, but migration 0197 plus the seed made 503. The test would fail on CI. The EXP-5 agent ran the help-id lints but not the DB count test.
+**Cause:** the count assertion in `modules/16-help-system/src/__tests__/help-system.test.ts` (lines about 285 and 296) is a hard-coded number, and the lints do not read it.
+**Fix:** count set to 504 after Z-16 added one more key (migration 0200, +1), in commit `e92ef4b`.
+**Prevention:** any change that adds help ids must run the full `modules/16-help-system` suite (it needs the DB), not only the help-id lints. Update the count in the same commit.
+
+## 2026-10-17 — Two parallel agents picked the same migration number (0197)
+
+**Symptom:** EXP-5 (module 16 help ids) and Z-16 (module 05) both created a migration numbered 0197.
+**Cause:** both agents chose the next free number from the same base commit, and neither could see the other agent's work.
+**Fix:** Z-16 was renumbered to 0198-0200 at merge, in commit `e92ef4b`. The next free number is 0202.
+**Prevention:** the orchestrator assigns migration numbers in each agent prompt (a reserved range per agent) and checks `ls modules/*/migrations | sort` at merge.

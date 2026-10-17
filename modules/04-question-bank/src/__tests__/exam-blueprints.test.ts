@@ -39,7 +39,7 @@ async function buildApp(tenantId: string, userId: string, role: "admin" | "super
   app.addHook("preHandler", async (req) => {
     (req as unknown as { session: unknown }).session = { tenantId, userId, role };
   });
-  app.setErrorHandler((e, _req, reply) => reply.code((e as { status?: number }).status ?? 500).send({ message: e.message }));
+  app.setErrorHandler((e, _req, reply) => reply.code((e as { status?: number }).status ?? 500).send({ message: (e as Error).message }));
   // The stub chains let everything through: the in-handler super_admin check is what is under test.
   await registerQuestionBankRoutes(app, { adminOnly: [], superAdminOnly: [] });
   await app.ready();
