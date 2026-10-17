@@ -39,8 +39,12 @@ import type {
   PackListItem,
   PackStatus,
   Question,
+  QuestionOrigin,
   QuestionPack,
+  QuestionSource,
   QuestionStatus,
+  ReviewState,
+  RightsStatus,
   QuestionType,
   QuestionVersion,
   Tag,
@@ -55,7 +59,7 @@ const PACK_COLUMNS = `id, tenant_id, slug, name, domain, description, status, ve
 
 const LEVEL_COLUMNS = `id, pack_id, position, label, description, duration_minutes, default_question_count, passing_score_pct, rubric_defaults`;
 
-const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, negative_marks, status, version, content, rubric, answer_guidance, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id, cognitive_level, nice_task_id, difficulty_params, attack_technique`;
+const QUESTION_COLUMNS = `id, pack_id, level_id, type, topic, points, negative_marks, status, version, content, rubric, answer_guidance, knowledge_base_sources, created_by, created_at, updated_at, domain_id, category_id, cognitive_level, nice_task_id, difficulty_params, attack_technique, difficulty_est, review_state, language_primary, content_i18n`;
 
 const QUESTION_VERSION_COLUMNS = `id, question_id, version, content, rubric, saved_by, saved_at`; // N21: `type` is frozen per version but not surfaced here
 
@@ -137,6 +141,11 @@ interface QuestionRow {
   nice_task_id?: string | null;
   difficulty_params?: unknown;
   attack_technique?: string[] | null;
+  /** EXP-2 (migration 0194). */
+  difficulty_est?: number | null;
+  review_state?: string | null;
+  language_primary?: string;
+  content_i18n?: unknown;
   /** Resolved from the parent level row by list projections; absent on single reads. */
   level_label?: string | null;
 }
@@ -222,6 +231,13 @@ function mapQuestionRow(row: QuestionRow): Question {
         ? (row.difficulty_params as Record<string, unknown>)
         : null,
     attack_technique: Array.isArray(row.attack_technique) ? row.attack_technique : null,
+    difficulty_est: row.difficulty_est ?? null,
+    review_state: (row.review_state as Question["review_state"]) ?? null,
+    language_primary: row.language_primary ?? "en",
+    content_i18n:
+      row.content_i18n !== null && typeof row.content_i18n === "object"
+        ? (row.content_i18n as Record<string, unknown>)
+        : null,
   };
 }
 
@@ -712,6 +728,7 @@ export async function listQuestionRows(
             q.created_by, q.created_at, q.updated_at,
             q.domain_id, q.category_id,
             q.cognitive_level, q.nice_task_id, q.difficulty_params, q.attack_technique,
+            q.difficulty_est, q.review_state, q.language_primary, q.content_i18n,
             (SELECT label FROM levels WHERE levels.id = q.level_id) AS level_label
      FROM questions q
      ${joinClause}
@@ -738,6 +755,9 @@ export async function insertQuestion(
     rubric?: unknown;
     answerGuidance?: string | null;
     createdBy: string;
+    /** EXP-2: provenance; defaults to a human-authored original. */
+    origin?: QuestionOrigin;
+    rightsStatus?: RightsStatus;
   },
 ): Promise<Question> {
   // questions has no tenant_id column — the WITH CHECK RLS policy derives
@@ -766,6 +786,7 @@ export async function insertQuestion(
   if (row === undefined) {
     throw new Error("insertQuestion: INSERT returned no row");
   }
+  await insertQuestionSource(client, input.id, input.packId, input.origin ?? "original_human", input.rightsStatus ?? "original");
   return mapQuestionRow(row);
 }
 
@@ -811,7 +832,73 @@ export async function insertAiDraftQuestion(
   if (row === undefined) {
     throw new Error("insertAiDraftQuestion: INSERT returned no row");
   }
+  await insertQuestionSource(client, input.id, input.packId, "ai_original", "original");
   return mapQuestionRow(row);
+}
+
+/**
+ * EXP-2: write the one question_source row for a new question. tenant_id comes from the
+ * pack row (questions has no tenant_id), so the row always matches the pack's tenant.
+ * Every create path calls this; publishPack treats a missing row as "rights not cleared".
+ */
+export async function insertQuestionSource(
+  client: PoolClient,
+  questionId: string,
+  packId: string,
+  origin: QuestionOrigin,
+  rightsStatus: RightsStatus,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO question_source (tenant_id, question_id, origin, rights_status)
+     SELECT tenant_id, $1, $3, $4 FROM question_packs WHERE id = $2
+     ON CONFLICT (question_id) DO NOTHING`,
+    [questionId, packId, origin, rightsStatus],
+  );
+}
+
+const SOURCE_COLUMNS = `question_id, origin, rights_status, source_ref, source_url, seed_ref, licence_id,
+  source_difficulty_raw, content_hash, normalised_text_hash, pyq_year, pyq_date::text AS pyq_date,
+  pyq_shift, pyq_paper_code, pyq_qno`;
+
+/** EXP-2: provenance rows for every question of a pack (RLS-scoped to the current tenant). */
+export async function listQuestionSourcesForPack(client: PoolClient, packId: string): Promise<QuestionSource[]> {
+  const r = await client.query<QuestionSource>(
+    `SELECT ${SOURCE_COLUMNS} FROM question_source
+      WHERE question_id IN (SELECT id FROM questions WHERE pack_id = $1)`,
+    [packId],
+  );
+  return r.rows;
+}
+
+/**
+ * EXP-2: takedown. Marks the source row withdrawn and archives the question in the same
+ * statement pair. Returns false when no such question is visible to the tenant.
+ * Also bumps the pack version so clones see a newer master at the next re-sync.
+ */
+export async function withdrawQuestionRow(client: PoolClient, questionId: string): Promise<boolean> {
+  const q = await client.query<{ pack_id: string }>(
+    `UPDATE questions SET status = 'archived', updated_at = now() WHERE id = $1 RETURNING pack_id`,
+    [questionId],
+  );
+  const packId = q.rows[0]?.pack_id;
+  if (packId === undefined) return false;
+  await insertQuestionSource(client, questionId, packId, "original_human", "withdrawn");
+  await client.query(`UPDATE question_source SET rights_status = 'withdrawn' WHERE question_id = $1`, [questionId]);
+  await client.query(`UPDATE question_packs SET version = version + 1, updated_at = now() WHERE id = $1`, [packId]);
+  return true;
+}
+
+/** EXP-2: ids of a pack's non-archived questions whose rights status is missing or scraped_raw. */
+export async function listRightsBlockedQuestionIds(client: PoolClient, packId: string): Promise<string[]> {
+  const r = await client.query<{ id: string }>(
+    `SELECT q.id FROM questions q
+       LEFT JOIN question_source s ON s.question_id = q.id
+      WHERE q.pack_id = $1 AND q.status <> 'archived'
+        AND (s.question_id IS NULL OR s.rights_status = 'scraped_raw')
+      LIMIT 50`,
+    [packId],
+  );
+  return r.rows.map((x) => x.id);
 }
 
 export async function updateQuestionRow(
@@ -826,6 +913,11 @@ export async function updateQuestionRow(
     rubric?: unknown | null;
     answer_guidance?: string | null;
     version?: number;
+    /** EXP-2 (metadata-only, no version bump). */
+    difficulty_est?: number | null;
+    review_state?: ReviewState | null;
+    language_primary?: string;
+    content_i18n?: unknown | null;
   },
 ): Promise<Question> {
   const sets: string[] = [];
@@ -880,6 +972,26 @@ export async function updateQuestionRow(
       values.push(patch.answer_guidance);
       i++;
     }
+  }
+  if (patch.difficulty_est !== undefined) {
+    sets.push(`difficulty_est = $${i}`);
+    values.push(patch.difficulty_est);
+    i++;
+  }
+  if (patch.review_state !== undefined) {
+    sets.push(`review_state = $${i}`);
+    values.push(patch.review_state);
+    i++;
+  }
+  if (patch.language_primary !== undefined) {
+    sets.push(`language_primary = $${i}`);
+    values.push(patch.language_primary);
+    i++;
+  }
+  if (patch.content_i18n !== undefined) {
+    sets.push(`content_i18n = $${i}::jsonb`);
+    values.push(patch.content_i18n === null ? null : JSON.stringify(patch.content_i18n));
+    i++;
   }
   // version is set explicitly by the service when bumping after a snapshot.
   if (patch.version !== undefined) {

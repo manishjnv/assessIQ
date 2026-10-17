@@ -353,3 +353,14 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 - **Passage steps.** A `structured_case` step may carry its own `points` and `negative_marks` (no migration). See [docs/05-ai-pipeline.md](../../docs/05-ai-pipeline.md) § "Passage sets (EX-3)".
 - **UI.** The question editor has an input for the value (create form and edit card). Help id `admin.question.editor.negative_marks` (renamed S15; the S14 id did not match the page prefix, see RCA 2026-10-17).
 - **Not included.** A penalty for AI-graded types. Per-type penalty rules.
+
+## Question source and exam columns (EXP-2, migration 0194, 2026-10-17)
+
+- **What.** Table `question_source` (one row for each question: origin, rights status, source reference, licence, hashes, optional previous-year fields) and four `questions` columns: `difficulty_est`, `review_state`, `language_primary`, `content_i18n`. Full column list and backfill rules: `docs/02-data-model.md` section "Question source and exam columns".
+- **Write paths.** `repo.insertQuestion` and `repo.insertAiDraftQuestion` write the source row through `repo.insertQuestionSource` (tenant from the pack). `07-ai-grading/src/handlers/admin-generate.ts` writes its own row (`ai_original`). Clone and re-sync call `copyQuestionSource` in `src/clone/helpers.ts`. Any new path that inserts into `questions` must write a row, or the pack cannot publish.
+- **Rules.** `publishPack` throws `RIGHTS_NOT_CLEARED` for a missing row or `scraped_raw`. `withdrawQuestion` (route `POST /api/admin/super/questions/:id/withdraw`) archives the item, marks it withdrawn, bumps the pack version and audits. `updateQuestion` refuses to re-activate a withdrawn item. Clone and re-sync skip withdrawn masters.
+- **Why.** Rights and provenance must be queryable and enforceable. The table is separate so provenance changes without a question version bump. `review_state` is separate from `status` because many readers depend on `status`.
+- **Considered and rejected.** Exam columns on `questions`. A wider `status` CHECK. FKs to `users` and `question_imports` (cross-module FK trap). A SQL content hash.
+- **Not included.** The review gate (EXP-18), editing of `difficulty_est` or `review_state` through a route, import columns (EXP-4), filters (EXP-5), Hindi (EXP-9), UI.
+- **Grandfather.** Existing active questions were set to `review_state = 'verified'` by the migration without a review. Do not read this as "checked".
+- **Downstream.** Module 05 pickers need no change (they filter `status = 'active'`). Module 14 has the new audit action `question.withdrawn`. QTI export adds `provenance.json`. Test harnesses that apply a hand-picked migration list must apply 0174 and 0194 (see `aptitude-seed-migration.test.ts`).

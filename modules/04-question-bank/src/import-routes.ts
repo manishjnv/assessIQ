@@ -10,6 +10,7 @@ import { stageImport, getImportReport, fixImportRow, discardImport } from "./imp
 import { commitImport } from "./import/commit.js";
 import { buildTemplate } from "./import/templates.js";
 import { exportPackQti } from "./import/export.js";
+import { withdrawQuestion } from "./service/questions.js";
 
 const uuid = z.string().uuid();
 const Format = z.enum(["csv", "xlsx", "gift", "aiken", "qti"]);
@@ -131,5 +132,11 @@ export function registerImportRoutes(
   app.post(`/api/admin/super/question-imports/:id/discard`, { preHandler }, async (req) => {
     const { id } = parse(IdParams, req.params, "id");
     return discardImport(req.session!.tenantId, req.session!.userId, id);
+  });
+
+  // EXP-2: takedown of one question (rights_status = 'withdrawn', status = 'archived'). Super admin only.
+  app.post(`/api/admin/super/questions/:id/withdraw`, { preHandler }, async (req) => {
+    const { id } = parse(IdParams, req.params, "id");
+    return withdrawQuestion(req.session!.tenantId, req.session!.userId, id);
   });
 }

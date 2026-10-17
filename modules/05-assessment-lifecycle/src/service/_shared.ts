@@ -97,7 +97,8 @@ export async function listActiveQuestionsForPreview(
 ): Promise<unknown[]> {
   const QUESTION_COLUMNS =
     `id, pack_id, level_id, type, topic, points, status, version,
-     content, rubric, created_by, created_at, updated_at`;
+     content, rubric, created_by, created_at, updated_at,
+     difficulty_est, review_state, language_primary, content_i18n`;
   const result = await client.query(
     `SELECT ${QUESTION_COLUMNS} FROM questions
      WHERE pack_id = $1 AND level_id = $2 AND status = 'active'

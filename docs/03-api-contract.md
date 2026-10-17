@@ -692,6 +692,20 @@ A super admin imports questions from a CSV or XLSX file. The file is staged and 
 
 **UI calls.** The page `/admin/question-import` calls these routes through `modules/10-admin-dashboard/src/api/question-imports.ts`. See [08-ui-system.md](08-ui-system.md) § "Question import page".
 
+#### `POST /api/admin/super/questions/:id/withdraw` (04): question takedown (EXP-2)
+
+**History:** added 2026-10-17 with migration 0194.
+
+- **What.** Super admin only. Sets `question_source.rights_status = 'withdrawn'` and `questions.status = 'archived'` in one transaction. It bumps the pack `version` and writes one `question.withdrawn` audit row. `:id` must be a UUID.
+- **Response.** `200 { id, status: "archived", rights_status: "withdrawn" }`.
+- **Errors.** `400 INVALID_PARAM` for a bad id. `403` for a caller who is not a super admin. `404 QUESTION_NOT_FOUND` when the question is not in the tenant of the session.
+- **Why.** A rights holder can ask for a takedown. The item must leave circulation now, and leave every clone at the next re-sync. Attempts and assessments frozen before the takedown keep the frozen version.
+- **Related rules.** A withdrawn question cannot be set back to `active` or `draft` (`PATCH /api/admin/questions/:id` returns `409 QUESTION_WITHDRAWN`). Clone-on-use and re-sync skip withdrawn masters, and re-sync marks existing clones withdrawn.
+- **Publish gate.** `POST /api/admin/packs/:id/publish` returns `422 RIGHTS_NOT_CLEARED` (with `details.question_ids`, up to 50) when a non-archived question has no `question_source` row or has `rights_status = 'scraped_raw'`.
+- **Question payload.** Every question object now carries `difficulty_est` (1 to 5 or null), `review_state` (or null), `language_primary` and `content_i18n` (or null). The rights fields are not in the payload yet (they are in the QTI export file `provenance.json`).
+- **Considered and rejected.** A `DELETE` route (the row must stay for audit and clone sync). A body with a reason (no place to store it yet).
+- **Not included.** An undo route, a bulk withdraw, a UI.
+
 #### `POST /api/admin/domains` and `POST /api/admin/categories` (04): super_admin only (RW-56)
 
 **History:** added in the S9 notes of 2026-10-11.
@@ -1144,6 +1158,7 @@ Commit `45e95e0`. The accept body (`POST /api/admin/attempts/:id/accept` and `PO
 | `PATCH` | `/api/admin/super/question-imports/:id/rows/:row` | Fix or skip one row | **live (RW-58, S10, 2026-10-16)** |
 | `POST` | `/api/admin/super/question-imports/:id/commit` | Create one draft pack from the ok rows | **live (RW-58, S10, 2026-10-16)** |
 | `POST` | `/api/admin/super/question-imports/:id/discard` | Discard a staged import | **live (RW-58, S10, 2026-10-16)** |
+| `POST` | `/api/admin/super/questions/:id/withdraw` | Take a question down: rights withdrawn, status archived | **live (EXP-2, 2026-10-17)** |
 | `GET` | `/api/admin/super/tenants/:tenantId/users` | List users + pending invitations for a tenant (Phase C) | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/disable` | Super-admin user disable; LAST_ADMIN override path | **live 2026-05-20** |
 | `POST` | `/api/admin/super/users/:userId/reenable` | Super-admin user reenable | **live 2026-05-20** |

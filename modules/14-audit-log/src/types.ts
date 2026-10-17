@@ -51,6 +51,7 @@ export const ACTION_CATALOG = [
   'pack.exported',
   'question.created',
   'question.updated',
+  'question.withdrawn',
   'question.imported',
   'question_import.staged',
   'question_import.committed',

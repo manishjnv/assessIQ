@@ -61,6 +61,47 @@ export function uniqueNonNull(ids: Array<string | null>): string[] {
   return [...new Set(ids.filter((x): x is string => x !== null))];
 }
 
+/** SQL fragment: skip master questions whose rights were withdrawn (EXP-2). */
+export const NOT_WITHDRAWN_SQL = `NOT EXISTS (SELECT 1 FROM question_source ws
+  WHERE ws.question_id = questions.id AND ws.rights_status = 'withdrawn')`;
+
+/**
+ * EXP-2: copy the master question's provenance row and exam columns onto a fresh clone.
+ * New row id and target tenant_id; origin, rights, source and licence fields are kept;
+ * import_id and uploaded_by point at the master tenant, so they are not carried over.
+ * A master with no source row (should not exist after 0194) clones as original_human/original.
+ * review_state is copied as-is (same content); EXP-18 decides whether clones must re-verify.
+ * MUST run in the same system-role tx as the INSERT of the clone question.
+ */
+export async function copyQuestionSource(
+  client: PoolClient,
+  masterQuestionId: string,
+  cloneQuestionId: string,
+  targetTenantId: string,
+): Promise<void> {
+  await client.query(
+    `INSERT INTO question_source
+       (tenant_id, question_id, origin, rights_status, source_ref, source_url, seed_ref, licence_id,
+        source_difficulty_raw, content_hash, normalised_text_hash,
+        pyq_year, pyq_date, pyq_shift, pyq_paper_code, pyq_qno)
+     SELECT $3, $2, COALESCE(s.origin, 'original_human'), COALESCE(s.rights_status, 'original'),
+            s.source_ref, s.source_url, s.seed_ref, s.licence_id, s.source_difficulty_raw,
+            s.content_hash, s.normalised_text_hash,
+            s.pyq_year, s.pyq_date, s.pyq_shift, s.pyq_paper_code, s.pyq_qno
+       FROM questions m LEFT JOIN question_source s ON s.question_id = m.id
+      WHERE m.id = $1
+     ON CONFLICT (question_id) DO NOTHING`,
+    [masterQuestionId, cloneQuestionId, targetTenantId],
+  );
+  await client.query(
+    `UPDATE questions c
+        SET difficulty_est = m.difficulty_est, review_state = m.review_state,
+            language_primary = m.language_primary, content_i18n = m.content_i18n
+       FROM questions m WHERE c.id = $2 AND m.id = $1`,
+    [masterQuestionId, cloneQuestionId],
+  );
+}
+
 /** Resolve the platform tenant (master library) by its well-known slug. */
 export async function getPlatformTenantId(client: PoolClient): Promise<string> {
   const r = await client.query<{ id: string }>(

@@ -208,6 +208,39 @@ export interface Question {
   nice_task_id: string | null;
   difficulty_params: Record<string, unknown> | null;
   attack_technique: string[] | null;
+  /** EXP-2 (migration 0194): estimated difficulty 1 (easy) to 5 (hard); null = not set. */
+  difficulty_est: number | null;
+  /** EXP-2: review gate state; null = never entered review. Existing active rows were GRANDFATHERED to 'verified'. */
+  review_state: ReviewState | null;
+  language_primary: string;
+  /** EXP-2: other-language content, e.g. {"hi": {...}} (used by EXP-9). */
+  content_i18n: Record<string, unknown> | null;
+}
+
+export type ReviewState = "in_review" | "verified" | "disputed" | "needs_fix";
+export type QuestionOrigin =
+  | "original_human" | "ai_original" | "ai_seeded" | "derived_from_source"
+  | "scraped_raw" | "tenant_upload" | "licensed";
+export type RightsStatus =
+  | "original" | "derived_from_source" | "scraped_raw" | "licensed" | "metadata_only" | "withdrawn";
+
+/** EXP-2: one provenance + rights row per question (table question_source). */
+export interface QuestionSource {
+  question_id: string;
+  origin: QuestionOrigin;
+  rights_status: RightsStatus;
+  source_ref: string | null;
+  source_url: string | null;
+  seed_ref: string | null;
+  licence_id: string | null;
+  source_difficulty_raw: string | null;
+  content_hash: string | null;
+  normalised_text_hash: string | null;
+  pyq_year: number | null;
+  pyq_date: string | null;
+  pyq_shift: string | null;
+  pyq_paper_code: string | null;
+  pyq_qno: number | null;
 }
 
 export interface QuestionVersion {
@@ -415,6 +448,10 @@ export const QB_ERROR_CODES = {
   INVALID_NAME_FOR_SLUG: "INVALID_NAME_FOR_SLUG",
   INVALID_TOPIC: "INVALID_TOPIC",
   NEGATIVE_MARKS_INVALID: "NEGATIVE_MARKS_INVALID",
+  /** EXP-2: publish blocked, a question has no rights status or is scraped_raw. */
+  RIGHTS_NOT_CLEARED: "RIGHTS_NOT_CLEARED",
+  /** EXP-2: a withdrawn question cannot be re-activated. */
+  QUESTION_WITHDRAWN: "QUESTION_WITHDRAWN",
   INVALID_BULK_SIZE: "INVALID_BULK_SIZE",
   INVALID_STATUS_TRANSITION: "INVALID_STATUS_TRANSITION",
   UNSUPPORTED_TYPE_FOR_RUBRIC: "UNSUPPORTED_TYPE_FOR_RUBRIC",

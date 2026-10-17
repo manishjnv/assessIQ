@@ -841,6 +841,30 @@ A golden test (`blueprint-node-golden.test.ts`) proves that a `category_id` blue
 | Migration 0175 | `modules/16-help-system/migrations/0175_seed_rw58_question_import_help.sql` carries five `help_content` rows: `admin.question_import.page`, `.template`, `.upload`, `.report` and `.commit`. It adds no table or column |
 | Applying 0173 to 0175 | Production help rows come from forward migrations, not from the seed file. Apply them by hand per [06-deployment.md](06-deployment.md). The two help migrations are idempotent (`ON CONFLICT DO NOTHING`). Migration 0174 is not (plain `CREATE TABLE`), so apply it once |
 
+## Question source and exam columns (EXP-2, migration 0194, 2026-10-17)
+
+Migration `modules/04-question-bank/migrations/0194_question_source_and_exam_columns.sql` adds one table and four columns.
+
+| Item | Detail |
+| --- | --- |
+| What: `question_source` | One row for each question (`question_id` is `UNIQUE`, `ON DELETE CASCADE`). Columns: `id`, `tenant_id`, `question_id`, `origin`, `rights_status`, `source_ref`, `source_url`, `seed_ref`, `import_id`, `uploaded_by`, `licence_id`, `source_difficulty_raw`, `content_hash`, `normalised_text_hash`, `pyq_year`, `pyq_date`, `pyq_shift`, `pyq_paper_code`, `pyq_qno`, `created_at`. Indexes: `(tenant_id, content_hash)`, `(tenant_id, normalised_text_hash)`, `(tenant_id, rights_status)` |
+| `origin` values | `original_human`, `ai_original`, `ai_seeded`, `derived_from_source`, `scraped_raw`, `tenant_upload`, `licensed` |
+| `rights_status` values | `original`, `derived_from_source`, `scraped_raw`, `licensed`, `metadata_only`, `withdrawn`. `scraped_raw` blocks pack publish. `withdrawn` is the takedown state: the question is archived and leaves clones at the next re-sync |
+| What: new `questions` columns | `difficulty_est` (smallint, 1 to 5, null), `review_state` (`in_review`, `verified`, `disputed`, `needs_fix`, null), `language_primary` (text, default `en`), `content_i18n` (JSONB, null; used by EXP-9) |
+| RLS | Standard `tenant_id` variant: `tenant_isolation` (USING) and `tenant_isolation_insert` (WITH CHECK). `question_source.tenant_id` is always the pack tenant. A clone row has the clone tenant |
+| No foreign keys | `import_id` and `uploaded_by` have no FK. A cross-module FK in a module-local table breaks per-module test harnesses (RCA 2026-10-17, migration 0183). `tenant_id` keeps its FK to `tenants`, like `question_imports` |
+| Backfill, `origin` | From `question_packs.source`: `authored` gives `original_human`, `generated` gives `ai_original`, `import` gives `tenant_upload` when the pack tenant is not the platform tenant (slug `platform`), else `original_human`. Today every import is a platform import, so existing imports are `original_human` |
+| Backfill, `rights_status` | `original` for every existing row |
+| Backfill, hashes | `content_hash` and `normalised_text_hash` stay NULL. The JS stable-JSON hash used by import staging cannot be computed in SQL. The application fills them later. Nothing reads them yet |
+| Grandfather | Every question with `status = 'active'` when 0194 first runs gets `review_state = 'verified'`. This is GRANDFATHERED, not reviewed: nobody checked these keys under the EXP-18 gate. The UPDATE runs only when 0194 creates the column, so a second run never marks later questions |
+| Idempotent | `IF NOT EXISTS`, `DROP POLICY IF EXISTS` before `CREATE POLICY`, `ON CONFLICT DO NOTHING`. A test runs the file twice |
+| Why | Rights and provenance must be queryable and enforceable (publish gate, takedown). A separate table lets provenance change without a question version bump. `review_state` sits beside `status` because `status` is read by import, clone, the picker and scoring, and a wider CHECK would touch every reader |
+| Rejected | (a) Exam columns on `questions`: one question can serve several exams, taxonomy handles that. (b) A measured-difficulty column: a view over `question_stats_mv` is enough. (c) Widening `questions.status`. (d) FKs to `users` and `question_imports`. (e) A SQL hash that differs from the JS hash |
+| Not included | The review gate itself (EXP-18), Hindi content (EXP-9), images (EXP-10), import columns (EXP-4), facets and search (EXP-5), a UI. No route edits `difficulty_est`, `review_state` or the rights fields except withdraw |
+| Write paths | `insertQuestion` and `insertAiDraftQuestion` (04), the generation insert in `modules/07-ai-grading/src/handlers/admin-generate.ts` (`ai_original`), clone and re-sync (copy the row: new id, target `tenant_id`, `import_id` and `uploaded_by` cleared). `review_state`, `difficulty_est`, `language_primary` and `content_i18n` are copied to the clone too |
+| Downstream impact | Audit action `question.withdrawn` (module 14 catalog). Route `POST /api/admin/super/questions/:id/withdraw` ([03-api-contract.md](03-api-contract.md)). Publish error `RIGHTS_NOT_CLEARED`. Withdraw bumps the pack `version` so clones can re-sync. QTI export adds a `provenance.json` file. `question_stats_mv` is unaffected. The assessment picker and blueprint draw need no change: they filter `status = 'active'` and withdraw sets `archived`. Assessments frozen before a withdrawal keep the item in their frozen pool |
+| Rollback | Stop calling the withdraw route, then drop `question_source` and the four `questions` columns. The code reads the columns in `QUESTION_COLUMNS`, so revert the code first |
+
 ## Assessment lifecycle
 
 **Status:** live since 2026-05-02 (Phase 1 G1.B Session 3). Migrations `0020_assessment_status_enum.sql`, `0021_assessments.sql` and `0022_assessment_invitations.sql` are in `modules/05-assessment-lifecycle/migrations/`.

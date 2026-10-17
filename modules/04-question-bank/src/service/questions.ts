@@ -219,6 +219,18 @@ export async function updateQuestion(
       );
     }
 
+    // EXP-2: a withdrawn (taken down) question must never go back into circulation.
+    if (patch.status === "active" || patch.status === "draft") {
+      const src = await client.query<{ rights_status: string }>(
+        `SELECT rights_status FROM question_source WHERE question_id = $1`, [id],
+      );
+      if (src.rows[0]?.rights_status === "withdrawn") {
+        throw new ConflictError("This question was withdrawn and cannot be re-activated", {
+          details: { code: QB_ERROR_CODES.QUESTION_WITHDRAWN },
+        });
+      }
+    }
+
     // 3. Validate and snapshot if content/rubric is changing
     let versionBump = false;
 
@@ -313,6 +325,34 @@ export async function updateQuestion(
     });
 
     return updated;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// withdrawQuestion (EXP-2 takedown)
+// ---------------------------------------------------------------------------
+
+/**
+ * Super-admin takedown: rights_status -> 'withdrawn', status -> 'archived', one audit row, one tx.
+ * Existing attempts keep their frozen question version; clones drop the item at the next re-sync.
+ */
+export async function withdrawQuestion(
+  tenantId: string,
+  actorUserId: string,
+  id: string,
+): Promise<{ id: string; status: "archived"; rights_status: "withdrawn" }> {
+  return withTenant(tenantId, async (client) => {
+    const current = await repo.findQuestionById(client, id);
+    if (current === null || !(await repo.withdrawQuestionRow(client, id))) {
+      throw new NotFoundError(`Question not found: ${id}`, { details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND } });
+    }
+    await auditInTx(client, {
+      tenantId, actorKind: "user", actorUserId, action: "question.withdrawn",
+      entityType: "question", entityId: id,
+      before: { status: current.status },
+      after: { status: "archived", rights_status: "withdrawn" },
+    });
+    return { id, status: "archived", rights_status: "withdrawn" };
   });
 }
 
