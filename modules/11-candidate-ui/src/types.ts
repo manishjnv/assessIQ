@@ -235,6 +235,8 @@ export interface MyResultItemWire {
 
 export interface MyResultsResponseWire {
   items: MyResultItemWire[];
+  /** Tenant per-question feedback level (RW-80). Absent or "none": no review section. */
+  feedback_level?: FeedbackLevelWire;
 }
 
 // Event types the candidate UI emits. Matches the closed catalog in
@@ -267,4 +269,26 @@ export interface ApiErrorEnvelope {
   code: string;
   message: string;
   details?: Record<string, unknown>;
+}
+
+// GET /api/me/attempts/:id/feedback (RW-80) - per-question review of a released result.
+export type FeedbackLevelWire = "none" | "right_wrong" | "with_expected_answer" | "with_ai_justification";
+
+export interface FeedbackItemWire {
+  question_id: string;
+  position: number;
+  type: string;
+  prompt: string;
+  your_answer: string | null;
+  outcome: "correct" | "incorrect" | "partial";
+  score_earned: number;
+  score_max: number;
+  expected_answer: string | null;
+  explanation: string | null;
+  study: { unit: string | null; subject: string | null; topic: string };
+}
+
+export interface AttemptFeedbackWire {
+  level: FeedbackLevelWire;
+  items: FeedbackItemWire[];
 }

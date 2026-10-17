@@ -15,6 +15,7 @@ import type {
   CandidateEventInput,
   InvitedAssessmentWire,
   MyResultsResponseWire,
+  AttemptFeedbackWire,
   SubmitAttemptResponseWire,
   TakePreviewResponseWire,
   TakeStartResponseWire,
@@ -183,6 +184,11 @@ export async function getResult(
 /** GET /api/me/results — the candidate's released results, newest first. */
 export async function listMyResults(): Promise<MyResultsResponseWire> {
   return call<MyResultsResponseWire>("/me/results");
+}
+
+/** GET /api/me/attempts/:id/feedback - per-question review (RW-80); items [] when the level is none. */
+export async function getAttemptFeedback(attemptId: string): Promise<AttemptFeedbackWire> {
+  return call<AttemptFeedbackWire>(`/me/attempts/${encodeURIComponent(attemptId)}/feedback`);
 }
 
 // ─── Progress (RW-84) ────────────────────────────────────────────────────────

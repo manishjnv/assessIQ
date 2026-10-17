@@ -100,5 +100,23 @@ export interface TenantSettings {
    * were already waiting. Set / cleared by updateResultReleaseMode only.
    */
   result_release_auto_since: Date | null;
+  /**
+   * Per-question feedback shown to a candidate on a released result (migration
+   * 0190, RW-80). Default 'none'. Changed only by updateResultFeedbackLevel.
+   */
+  result_feedback_level: ResultFeedbackLevel;
   updated_at: Date;
 }
+
+export type ResultFeedbackLevel =
+  | "none"
+  | "right_wrong"
+  | "with_expected_answer"
+  | "with_ai_justification";
+
+export const RESULT_FEEDBACK_LEVELS: readonly ResultFeedbackLevel[] = [
+  "none",
+  "right_wrong",
+  "with_expected_answer",
+  "with_ai_justification",
+];

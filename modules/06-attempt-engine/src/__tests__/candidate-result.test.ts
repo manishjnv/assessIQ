@@ -401,7 +401,7 @@ describe("listCandidateResults", () => {
 
   it("a candidate with nothing released gets an empty list", async () => {
     const s = await seed({ status: "graded", earned: 50 });
-    expect(await listCandidateResults(tenant, s.userId)).toEqual({ items: [] });
+    expect(await listCandidateResults(tenant, s.userId)).toEqual({ items: [], feedback_level: "none" });
   });
 });
 

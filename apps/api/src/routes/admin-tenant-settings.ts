@@ -9,6 +9,7 @@
 //   GET   /api/admin/tenant-settings                  — { result_release_mode, result_release_auto_since,
 //                                                         retention_days, company_name }
 //   PATCH /api/admin/tenant-settings/result-release-mode — body { mode: 'manual'|'auto' }  (SP2)
+//   PATCH /api/admin/tenant-settings/result-feedback-level — body { level }  (RW-80)
 //   PATCH /api/admin/tenant-settings/retention-days   — body { retention_days }
 //   PATCH /api/admin/tenant                           — body { name }  (rename own company)
 //   PUT   /api/admin/tenant-settings/logo             — multipart `file` or JSON { content_base64 }  (Logo L1)
@@ -32,6 +33,7 @@ import { NotFoundError, ValidationError } from '@assessiq/core';
 import {
   updateRetentionDays,
   updateResultReleaseMode,
+  updateResultFeedbackLevel,
   renameTenant,
   assertTenantActive,
   findTenantSettings,
@@ -46,7 +48,7 @@ import { readLogoUpload } from './_logo-upload.js';
 import { runRetentionPurgeForTenant, listErasedCandidates } from '@assessiq/data-rights';
 import { parseBody, parseQuery } from './_validate.js';
 import { authChain } from '../middleware/auth-chain.js';
-import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, retentionDaysBody, runNowQuery } from './_schemas.js';
+import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, resultFeedbackLevelBody, retentionDaysBody, runNowQuery } from './_schemas.js';
 
 // ---------------------------------------------------------------------------
 // Auth chain — tenant admin only, fresh MFA within 15 minutes.
@@ -123,6 +125,7 @@ export async function registerAdminTenantSettingsRoutes(
     return reply.code(200).send({
       result_release_mode: settings.result_release_mode,
       result_release_auto_since: settings.result_release_auto_since,
+      result_feedback_level: settings.result_feedback_level,
       retention_days: settings.retention_days,
       company_name: tenant.name,
       logo: logo === null ? null : { ...logo, url: tenantLogoUrl(session.tenantId, logo.sha256) },
@@ -180,6 +183,29 @@ export async function registerAdminTenantSettingsRoutes(
         result_release_mode: result.result_release_mode,
         previous: result.previous,
         result_release_auto_since: result.result_release_auto_since,
+        updatedAt: result.updatedAt,
+        auditId: result.auditId,
+      });
+    },
+  );
+
+  // PATCH /api/admin/tenant-settings/result-feedback-level   (RW-80)
+  // How much per-question detail a candidate sees on a released result.
+  // Body { level: 'none'|'right_wrong'|'with_expected_answer'|'with_ai_justification' }.
+  // 200: { tenantId, result_feedback_level, previous, updatedAt, auditId | null }
+  // 400: INVALID_RESULT_FEEDBACK_LEVEL   409: TENANT_NOT_ACTIVE   403: not admin / stale MFA
+  app.patch(
+    '/api/admin/tenant-settings/result-feedback-level',
+    { preHandler: adminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const body = parseBody(resultFeedbackLevelBody, req.body, { code: 'INVALID_RESULT_FEEDBACK_LEVEL' });
+      await assertTenantActive(session.tenantId);
+      const result = await updateResultFeedbackLevel(session.userId, session.tenantId, body.level);
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        result_feedback_level: result.result_feedback_level,
+        previous: result.previous,
         updatedAt: result.updatedAt,
         auditId: result.auditId,
       });

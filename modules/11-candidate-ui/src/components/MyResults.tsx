@@ -15,6 +15,7 @@ import { Card, Chip, Spinner, formatDate } from '@assessiq/ui-system';
 import { listMyResults, markMyNotificationsRead } from '../api.js';
 import type { MyResultItemWire } from '../types.js';
 import { ResultSummary } from './ResultSummary.js';
+import { AttemptFeedback } from './AttemptFeedback.js';
 
 const HEADING: React.CSSProperties = {
   fontFamily: 'var(--aiq-font-serif)',
@@ -36,12 +37,16 @@ const META: React.CSSProperties = {
 export function MyResults(): React.ReactElement {
   const [items, setItems] = useState<MyResultItemWire[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [feedbackLevel, setFeedbackLevel] = useState<string>('none');
 
   useEffect(() => {
     let cancelled = false;
     listMyResults()
       .then((res) => {
-        if (!cancelled) setItems(res.items);
+        if (!cancelled) {
+          setItems(res.items);
+          setFeedbackLevel(res.feedback_level ?? 'none');
+        }
         // Z-3: seeing the list clears the "new result" notice. Best-effort.
         void markMyNotificationsRead({ kind: 'result.released' })
           .then(() => window.dispatchEvent(new CustomEvent('aiq:notifications-read')))
@@ -147,6 +152,7 @@ export function MyResults(): React.ReactElement {
                   certificate={r.certificate}
                   negativeMarking={r.negative_marking}
                 />
+                {feedbackLevel !== 'none' && <AttemptFeedback attemptId={r.attempt_id} />}
               </Card>
             </li>
           ))}
