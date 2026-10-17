@@ -199,4 +199,16 @@ describe('FU-B1 — audit routes are mounted behind the admin chain', () => {
     expect(new Set(keys).size).toBe(1);
     expect(keys[0]).toBe('aiq:rl:tenant-op:audit-export:00000000-0000-4000-8000-00000000000a');
   });
+
+  it('keys by the session tenant only: query string and format do not change the bucket; another tenant has its own', async () => {
+    consumeMock.mockClear();
+    const other = { ...hdr('admin'), 'x-test-session-tenant': '00000000-0000-4000-8000-00000000000b' };
+    await app.inject({ method: 'GET', url: '/api/admin/audit/export.csv?limit=1&tenant=evil', headers: hdr('admin') });
+    await app.inject({ method: 'GET', url: '/api/admin/audit/export.jsonl?limit=2', headers: hdr('admin') });
+    await app.inject({ method: 'POST', url: '/api/admin/audit/archive', headers: hdr('admin'), payload: '{}' });
+    await app.inject({ method: 'GET', url: '/api/admin/audit/export.csv', headers: other });
+    const keys = consumeMock.mock.calls.map((c) => c[0] as string).filter((k) => typeof k === 'string' && k.includes('tenant-op'));
+    expect(keys.slice(0, 3).every((k) => k === 'aiq:rl:tenant-op:audit-export:00000000-0000-4000-8000-00000000000a')).toBe(true);
+    expect(keys[3]).toBe('aiq:rl:tenant-op:audit-export:00000000-0000-4000-8000-00000000000b');
+  });
 });
