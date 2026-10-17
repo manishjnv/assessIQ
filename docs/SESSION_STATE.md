@@ -1,3 +1,35 @@
+# Session — 2026-10-17 (evening) — S18: marketing hygiene, drawer test, exam-pack foundation (EXP-1, EXP-2, EXP-4)
+
+**Headline:** Z-33, Z-34, Z-36, EXP-1, EXP-2, EXP-4 closed; Z-32 and Z-35 partly done (stay open). Pushed and deployed: GitHub main = VPS = `af1c70a`. Migrations 0194 and 0195 applied (next number 0196). Live sweep passes after one deploy fix (see RCA 2026-10-17 "Marketing image build failed").
+**Commits (main):** `daa57f6` Z-32 · `59a5962` Z-33/34/35 · `af0b122` Z-36 (+ Drawer focus trap) · `704b47d` EXP-1 · `1363645` EXP-2 · `b0d6363` EXP-2 gate fixes · `2ebfd90` EXP-4 · `7e1a15f` docs · `af1c70a` guard moved under `src/` + RCA + deploy record.
+**Tests:** typecheck 0 errors; `lint:repo` green; apps/api 303 pass; root `pnpm test` 3478 pass, 1 known load flake (`structured-case-editor`, passes alone 2/2). Module 04: new `question-source.test.ts` (5+), `question-imports-v2.test.ts` (50-row fixture), `import-v2-unit.test.ts`. e2e `admin-help-print.spec.ts` 4/4 on the local stack (two unexplained one-off flakes on earlier runs).
+**Deploy:** docs/06 "S18 deploy". 0194 `fed72456…4e65b`, 0195 `6aa42ed2…c24eb`. Backfill: 579 questions → 579 `question_source` rows (all `original_human`/`original`); 505 active questions grandfathered `review_state='verified'`. Live: `/api/ready` 200, descriptions ≤160 on 5 pages, 42 sitemap URLs, withdraw route 401 anonymous, 0 error lines in api/worker.
+**Next:** (1) owner: answer the questions below. (2) Claude: EXP-19 (takedown must reach tenant clones) before any `scraped_raw` content enters the platform tenant; then EXP-5 (facets/search) or the owner's pick. (3) Z-37 code fixes after the Z-9/Z-10 copy is approved.
+**Open questions (owner):**
+- Z-7 Submit placement mock; Z-9/Z-10 email and result copy; Z-16 "Honors" pass mark; Z-31 http→https (Cloudflare "Always Use HTTPS" or Caddy port 80); Z-26 analytics choice.
+- Z-35: URLs for `sameAs` (none given, left empty). The Clarity cookie names/lifetimes and retention (recordings 30 days, aggregated 13 months) on `/privacy` are from memory: please verify against Microsoft's documentation. Cookies are set, so decide whether a consent banner is needed.
+- Z-32: `/try` is a React route; the served HTML still has title "AssessIQ" and no canonical (JS adds both). Real fix needs a Caddy rewrite or a prerendered/marketing-side `/try` (edge or product decision).
+- EXP-0: SSC CGL Tier 1 blueprint unverified; both new frameworks are `draft-unverified`.
+- EXP-19 (HIGH when content exists): a withdrawal reaches existing tenant clones only at their next re-sync. EXP-20: assessments frozen before a takedown keep the item. Both documented; decide the policy.
+- EXP-4: `rights_status` is now required in CSV/XLSX (old v1 files give a row error per row; GIFT/Aiken/QTI default to `original`). `pg_trgm` is not installed on the VPS, so the trigram duplicate class is skipped; install it only with your approval.
+- Dependabot majors (Z-38, first risk from changelog, no code): astro 5.18→7 `compressHTML` default and stricter compiler on unclosed tags (apps/marketing); vite 5.4 (only apps/storybook; apps/web is already on 8.3) →6 `json.stringify`/Sass API defaults; react-router 6.30→7 enable v6 future flags first (modules/11 lists react-router-dom twice); uuid 8/9/10 transitive →11 low risk (CJS still ships); basic-ftp 5.3→6 unverified, no v6.0.0 notes found.
+**Old task or feature checked:** EXP-0 decisions D1-D7 (all sources allowed, light-edit, review gate before invites, no permission letters: EXP-2 keeps rights/origin per item and EXP-18 stays the gate); Z-25 sitemap guard (the new description/JSON-LD guards sit beside it and share its wiring, but live in `src/` because the Dockerfile copies only `src/` and named root files); RW-82 axe gate (untouched; Z-36 extends the same spec file); S17 Z-30 print wait rule (kept); Z.7 recount rule from the status column (used). (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads, 7 briefs, line-by-line review of the EXP-2 diff and the EXP-4 commit path, gate triage (3 fixes taken, 2 deferred as EXP-19/20), commits (noreply identity), push, VPS pre-flight, migrations, deploy, root-cause of the stale-image failure, handoff.
+- Sonnet: 9 runs (Z-32; Z-33 ×2; Z-34/35 + guards; Z-36; EXP-1; EXP-2 in worktree; EXP-2 adversarial gate; EXP-2 gate fixes; EXP-4 in worktree; docs run). About 1.4M tokens.
+- Haiku: 3 digests/sweeps (S17 handoff, question-copy points, live sweep) + Dependabot changelog notes.
+- codex:rescue: n/a — companion sandbox dead since 2026-10-11; Sonnet takeover gate on EXP-2: verdict REVISE, 3 fixes applied (`b0d6363`), 2 deferred (EXP-19/20). Push hook trailer: `Adversarial-Review: sonnet-takeover revise-addressed`.
+- Gemini (agy): n/a — not on the Bash PATH (binary is at `~/.gemini/bin/agy.exe`); Haiku did both digests.
+- Codex (exec): used once, text-only second opinion on the EXP-2 diff: REVISE with verify-items only (its sandbox cannot run commands, so it could not check guards); the Sonnet gate verified those items.
+
+## Routing telemetry
+Sonnet · Z-32 /try · reworked: N (partial by scope: served HTML needs an edge step) · Sonnet · Z-33 ×2 · reworked: N · Sonnet · Z-34/35 + guards · reworked: Y (guard file location broke the Docker build; Opus moved it) · Sonnet · Z-36 · reworked: N (found a real Drawer defect) · Sonnet · EXP-1 · reworked: N · Sonnet · EXP-2 · reworked: Y (gate: allowlist, activation paths, idempotent withdraw) · Sonnet · EXP-2 gate · reworked: N · Sonnet · EXP-4 · reworked: N · Sonnet · docs · reworked: N · Haiku · digests ×2 + sweep + Dependabot · reworked: N (sweep caught the stale-image deploy) · Codex exec · EXP-2 second opinion · reworked: N (no usable findings).
+
+---
+
 # Session — 2026-10-17 (afternoon) — S17: P0-Z batch 6 (Z-30, Z-29, Z-25, Z-27, Z-28 closed; Z-15 b/d and Z-11 c built; Z-9/Z-10 draft ready; Dependabot pending)
 
 **Headline:** Five rows closed (Z-25, Z-27, Z-28, Z-29, Z-30), three row items built (Z-15 b, Z-15 d, Z-11 c), Z-9 and Z-10 wording drafted for owner review, eight rows added (Z-31..Z-38). Pushed and deployed: GitHub main = VPS = `92d2b2e` (api, worker, frontend, marketing rebuilt; live sweep 12/12 pass; docs/06 "S17 deploy").
