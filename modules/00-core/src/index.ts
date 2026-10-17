@@ -38,3 +38,4 @@ export { nowIso, parseIso } from "./time.js";
 export { getRedis, closeRedis } from "./redis.js";
 export { acquireLock, refreshLock, releaseLock, peekLock } from "./lock.js";
 export { meetsPct, isPass, DISTINCTION_PCT } from "./pass-mark.js";
+export { buildShareLinks, type ShareLinks } from "./share-links.js";

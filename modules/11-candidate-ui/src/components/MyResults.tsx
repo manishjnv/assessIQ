@@ -170,6 +170,7 @@ export function MyResults(): React.ReactElement {
                   totalMax={r.total_max}
                   percent={r.percent}
                   passed={r.passed}
+                  passMark={r.pass_mark_pct}
                   certificate={r.certificate}
                   negativeMarking={r.negative_marking}
                   assessmentName={r.assessment_name}

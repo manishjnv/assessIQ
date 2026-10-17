@@ -307,6 +307,9 @@ export function Submitted(): React.JSX.Element {
                     totalMax={state.result.total_max}
                     percent={state.result.percent}
                     passed={state.result.passed}
+                    passMark={state.result.pass_mark_pct}
+                    assessmentName={state.result.assessment_name}
+                    tenantName={text(state.result.tenant_name) ?? undefined}
                     certificate={state.result.certificate}
                     negativeMarking={state.result.negative_marking}
                   />

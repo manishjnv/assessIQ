@@ -82,6 +82,8 @@ interface Opts {
   earned?: number | null;
   max?: number;
   passing?: number;
+  /** attempt_scores.pass_mark_pct (the assessment mark). Defaults to `passing`. */
+  mark?: number;
   erased?: boolean;
   embed?: boolean;
   name?: string;
@@ -119,9 +121,9 @@ async function seed(o: Opts = {}): Promise<{ attemptId: string; email: string }>
     );
     if (o.earned !== null) {
       await c.query(
-        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review)
-         VALUES ($1,$2,$3,$4,$5,false)`,
-        [attemptId, tenant, o.earned ?? 42, o.max ?? 60, ((o.earned ?? 42) / (o.max ?? 60)) * 100],
+        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, pass_mark_pct)
+         VALUES ($1,$2,$3,$4,$5,false,$6)`,
+        [attemptId, tenant, o.earned ?? 42, o.max ?? 60, ((o.earned ?? 42) / (o.max ?? 60)) * 100, o.mark ?? o.passing ?? 60],
       );
     }
     if (o.cert !== undefined) {
@@ -173,6 +175,34 @@ describe("sendResultReleasedEmail", () => {
     const { attemptId } = await seed({ earned: 36, max: 60, passing: 60 });
     await sendResultReleasedEmail({ tenantId: tenant, attemptId });
     expect(lastCall().vars).toMatchObject({ scoreText: "36 / 60 (60%)", resultText: "Passed" });
+  });
+
+  it("sends the pass mark snapshot as passMarkPct", async () => {
+    const { attemptId } = await seed({ earned: 42, max: 60, passing: 60 });
+    await sendResultReleasedEmail({ tenantId: tenant, attemptId });
+    expect(lastCall().vars["passMarkPct"]).toBe(60);
+  });
+
+  it("59.99 of 100 against a mark of 60 is Not passed, although the percent rounds to 60", async () => {
+    const { attemptId } = await seed({ earned: 59.99, max: 100, passing: 60 });
+    await sendResultReleasedEmail({ tenantId: tenant, attemptId });
+    expect(lastCall().vars).toMatchObject({ resultText: "Not passed", passMarkPct: 60 });
+  });
+
+  it("60 of 100 against a mark of 60 is Passed", async () => {
+    const { attemptId } = await seed({ earned: 60, max: 100, passing: 60 });
+    await sendResultReleasedEmail({ tenantId: tenant, attemptId });
+    expect(lastCall().vars).toMatchObject({ resultText: "Passed", passMarkPct: 60 });
+  });
+
+  it("the assessment mark wins over the level mark (level 90, assessment 50, score 60% -> Passed)", async () => {
+    const { attemptId } = await seed({ earned: 36, max: 60, passing: 90, mark: 50 });
+    await sendResultReleasedEmail({ tenantId: tenant, attemptId });
+    expect(lastCall().vars).toMatchObject({ resultText: "Passed", passMarkPct: 50 });
+    sendEmailMock.mockClear();
+    const hi = await seed({ earned: 36, max: 60, passing: 40, mark: 70 });
+    await sendResultReleasedEmail({ tenantId: tenant, attemptId: hi.attemptId });
+    expect(lastCall().vars).toMatchObject({ resultText: "Not passed", passMarkPct: 70 });
   });
 
   it("includes the certificate verify link only for an active (non-revoked) certificate", async () => {

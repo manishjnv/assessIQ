@@ -116,6 +116,8 @@ export const ResultReleasedVarsSchema = z.object({
   /** e.g. "42 / 60 (70%)" */
   scoreText: z.string().min(1),
   resultText: z.enum(['Passed', 'Not passed']),
+  /** Pass mark in percent, from attempt_scores.pass_mark_pct. Rows and lines that show it are hidden when absent. */
+  passMarkPct: z.number().int().min(1).max(100).optional(),
   /** Candidate portal sign-in link: `${ASSESSIQ_BASE_URL}/candidate/login?tenant=<slug>`. */
   portalLink: z.string().url(),
   /** Public verify page of the issued certificate, when one was issued. */

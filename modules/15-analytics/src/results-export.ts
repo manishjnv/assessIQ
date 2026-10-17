@@ -5,7 +5,7 @@
 // latest effective grading per question (graded_at DESC — same rule as
 // 09-scoring getGradingsForAttempt; an admin_override row is newer than the
 // row it overrides, and wins graded_at ties), per-category %, pass/fail
-// against levels.passing_score_pct.
+// against the attempt's own pass mark (attempt_scores.pass_mark_pct, Z-16) via core isPass.
 //
 // Phase II (2026-10-01): an attempt whose evaluation the platform has not released
 // to the tenant yet (still unevaluated, or graded but evaluation_released_at IS NULL —
@@ -15,7 +15,7 @@
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
 import { withTenant } from '@assessiq/tenancy';
-import { NotFoundError, csvCell } from '@assessiq/core';
+import { NotFoundError, csvCell, isPass } from '@assessiq/core';
 
 export const RESULTS_ROW_CAP = 10_000;
 const BOM = '﻿';
@@ -41,8 +41,8 @@ export async function buildAssessmentResultsCsv(
   return withTenant(tenantId, async (client) => {
     // RLS on assessments hides other tenants' rows → 404.
     const a = await client.query<{ passing: number | null; sections: unknown }>(
-      `SELECT l.passing_score_pct AS passing, a.settings->'sections' AS sections
-         FROM assessments a LEFT JOIN levels l ON l.id = a.level_id
+      `SELECT a.passing_score_pct AS passing, a.settings->'sections' AS sections
+         FROM assessments a
         WHERE a.id = $1`,
       [assessmentId],
     );
@@ -76,6 +76,15 @@ export async function buildAssessmentResultsCsv(
         LIMIT ${RESULTS_ROW_CAP}`,
       [assessmentId],
     );
+
+    // Z-16: the pass mark snapshot each attempt was scored against. The
+    // assessment mark above is only the fallback for an attempt without a score row.
+    const pm = await client.query<{ attempt_id: string; pass_mark_pct: number }>(
+      `SELECT s.attempt_id, s.pass_mark_pct
+         FROM attempt_scores s JOIN attempts at ON at.id = s.attempt_id AND at.assessment_id = $1`,
+      [assessmentId],
+    );
+    const passMarks = new Map(pm.rows.map((r) => [r.attempt_id, r.pass_mark_pct]));
 
     // Integrity signals (not scores — shown regardless of release state).
     // 'fullscreen_exit' is emitted by the attempt engine; 0 until it exists.
@@ -163,9 +172,10 @@ export async function buildAssessmentResultsCsv(
         (c.status === 'released' || (c.status === 'graded' && c.evaluation_released_at !== null));
       const t = graded ? byAttempt.get(c.attempt_id!) : undefined;
       const percent = t && t.m > 0 ? Math.round((t.e / t.m) * 1000) / 10 : null;
+      const mark = c.attempt_id !== null ? (passMarks.get(c.attempt_id) ?? passing) : passing;
       const result = awaiting
         ? 'Awaiting evaluation'
-        : percent !== null && passing !== null ? (percent >= passing ? 'Pass' : 'Fail') : '';
+        : t && percent !== null && mark !== null ? (isPass(t.e, t.m, mark) ? 'Pass' : 'Fail') : '';
       const ie = c.attempt_id !== null ? integrity.get(c.attempt_id) : undefined;
       return { c, status, t, percent, result, rank: null as number | null, ie };
     });

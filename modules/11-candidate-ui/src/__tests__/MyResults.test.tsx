@@ -41,6 +41,7 @@ const TWO_RESULTS: MyResultsResponseWire = {
       total_max: 60,
       percent: 33.3,
       passed: false,
+      pass_mark_pct: 65,
       certificate: null,
     },
   ],
@@ -68,6 +69,8 @@ describe('MyResults', () => {
     expect(text).toContain('Released Oct 1, 2026');
     expect(screen.getByText('Passed')).toBeDefined();
     expect(screen.getByText('Not passed')).toBeDefined();
+    expect(text).toContain('Below the pass mark of 65%.');
+    expect(text).toContain('You earn a certificate every time you pass. The pass mark for this assessment is 65%.');
 
     // Only the first result earned a certificate.
     const links = screen.getAllByRole('link', { name: /View certificate/ });

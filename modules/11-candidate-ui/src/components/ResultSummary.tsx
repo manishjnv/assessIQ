@@ -15,7 +15,7 @@
 
 import React from 'react';
 import { Chip, Icon, Num, ScoreRing } from '@assessiq/ui-system';
-import { CERTIFICATE_RULE_TEXT } from '../copy.js';
+import { certificateRuleText, resultSupportLine } from '../copy.js';
 import type { ResultCertificateWire, ResultNegativeMarkingWire } from '../types.js';
 
 export interface ResultSummaryProps {
@@ -24,6 +24,8 @@ export interface ResultSummaryProps {
   /** 0-100, as sent by the API (one decimal place). */
   percent: number;
   passed: boolean;
+  /** Z-16: pass mark in percent from the payload. Undefined hides the number (never guess one). */
+  passMark?: number | undefined;
   certificate?: ResultCertificateWire | null;
   /** EX-1: when enabled, a one-line note shows the marks deducted. totalEarned may be negative. */
   negativeMarking?: ResultNegativeMarkingWire | undefined;
@@ -62,6 +64,7 @@ export function ResultSummary({
   totalMax,
   percent,
   passed,
+  passMark,
   certificate = null,
   negativeMarking,
   compact = false,
@@ -85,7 +88,13 @@ export function ResultSummary({
       ? `Use the feedback on each question to prepare. ${askLine}`
       : askLine;
   // Never --aiq-color-danger: a fail is not an error (Z-9).
-  const oneLiner = passed ? (certificate !== null ? 'You passed. View your certificate.' : 'You passed.') : 'Not passed.';
+  const oneLiner = passed
+    ? certificate !== null
+      ? 'You passed. View your certificate.'
+      : 'You passed.'
+    : passMark !== undefined
+      ? `Below the pass mark of ${String(passMark)}%.`
+      : 'Not passed.';
 
   return (
     <div>
@@ -151,6 +160,11 @@ export function ResultSummary({
               </Chip>
             )}
           </div>
+          {!compact && (
+            <div data-testid="result-support" style={{ ...MUTED_14, marginTop: 8 }}>
+              {resultSupportLine(passed, trim(totalEarned, 2), trim(totalMax, 2), passMark)}
+            </div>
+          )}
           {compact && (
             <div data-testid="result-oneliner" style={{ ...MUTED_14, marginTop: 8 }}>
               {oneLiner}
@@ -167,8 +181,8 @@ export function ResultSummary({
         </div>
       </div>
 
-      {certificate === null && percent < 70 && (
-        <div style={{ ...MUTED_14, marginTop: compact ? 12 : 16 }}>{CERTIFICATE_RULE_TEXT}</div>
+      {certificate === null && passMark !== undefined && (
+        <div style={{ ...MUTED_14, marginTop: compact ? 12 : 16 }}>{certificateRuleText(passMark)}</div>
       )}
 
       {certificate !== null && (

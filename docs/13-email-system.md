@@ -688,6 +688,15 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 - **Not included.** A tenant name in the email (the var is optional and the route skips it, to avoid a tenants query). A resend. No email when the code is wrong or the account is locked.
 - **Downstream impact.** One more `email_log` row for each enrolment. Delivery class is `bulk` (`email/delivery-policy.ts`): 11 attempts over about 45 h.
 
+## Template `result_released`: pass mark and share links (Z-16, 2026-10-18)
+
+- **Pass or fail.** `sendResultReleasedEmail` reads `attempt_scores.pass_mark_pct` and decides with core `isPass(total_earned, total_max, pass_mark_pct)`. The result page uses the same rule, so the email and the page always agree. A score of 59.99 out of 100 against a mark of 60 is "Not passed". `levels.passing_score_pct` is no longer read here.
+- **New variable.** `passMarkPct` (integer, optional). The meta card and the text file show a "Pass mark" row after "Score". Both hide the row when the variable is absent.
+- **No certificate.** A pass without a certificate and a fail show: "You earn a certificate when you pass. The pass mark is {passMark}%."
+- **Certificate.** When a certificate link exists, the email adds LinkedIn, X and WhatsApp share links and a plain "Copy link" line under it. `buildShareLinks(verifyUrl, text)` in `@assessiq/core` builds them. It uses `encodeURIComponent` and returns null for a link that is not https. Module 13 cannot import module 18 (18 depends on 13), so the builder lives in core. Existing inline LinkedIn code in modules 11 and 18 is unchanged.
+- **Not changed.** All 13 templates stay. The template-send-coverage allowlist stays. The four unsent templates stay unsent.
+- **Rollback.** Revert the commit. The `passMarkPct` variable is optional, so queued jobs still render.
+
 ## Delivery
 
 ### Delivery: classes, retries, timeouts (2026-10-01)

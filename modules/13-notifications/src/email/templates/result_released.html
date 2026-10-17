@@ -22,6 +22,16 @@
 
     {{#if certificateLink}}
     <p style="margin:16px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:15px;line-height:1.55">{{> email-ghost-link href=certificateLink label=_t_certificate_cta}}</p>
+    {{#if share_linkedin}}
+    <p style="margin:12px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.55;color:#3f3f46">Share it:
+      <a href="{{share_linkedin}}" style="color:#1a73e8;text-decoration:none">LinkedIn</a> &middot;
+      <a href="{{share_x}}" style="color:#1a73e8;text-decoration:none">X</a> &middot;
+      <a href="{{share_whatsapp}}" style="color:#1a73e8;text-decoration:none">WhatsApp</a></p>
+    <p style="margin:8px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.55;color:#3f3f46">Copy link: {{share_copy}}</p>
+    {{/if}}
+    {{/if}}
+    {{#if cert_rule}}
+    <p style="margin:16px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;line-height:1.55;color:#3f3f46">{{cert_rule}}</p>
     {{/if}}
 
   {{/email-body}}

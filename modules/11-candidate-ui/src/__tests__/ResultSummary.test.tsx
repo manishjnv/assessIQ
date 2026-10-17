@@ -4,7 +4,7 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { ResultSummary } from '../components';
-import { CERTIFICATE_RULE_TEXT } from '../copy';
+import { certificateRuleText } from '../copy';
 
 afterEach(cleanup);
 
@@ -76,13 +76,45 @@ describe('ResultSummary', () => {
     expect(container.textContent ?? '').not.toContain('Negative marking');
   });
 
-  it('explains the certificate rule only when a result below 70% has no certificate', () => {
+  it('Z-16: explains the certificate rule when there is no certificate (fail and pass), with the real mark', () => {
+    const rule = 'You earn a certificate every time you pass. The pass mark for this assessment is 65%.';
+    expect(certificateRuleText(65)).toBe(rule);
     const { rerender } = render(
-      <ResultSummary totalEarned={36} totalMax={60} percent={60} passed={false} certificate={null} />,
+      <ResultSummary totalEarned={36} totalMax={60} percent={60} passed={false} passMark={65} certificate={null} />,
     );
-    expect(screen.getByText(CERTIFICATE_RULE_TEXT)).toBeDefined();
-    rerender(<ResultSummary totalEarned={42} totalMax={60} percent={70} passed certificate={null} />);
-    expect(screen.queryByText(CERTIFICATE_RULE_TEXT)).toBeNull();
+    expect(screen.getByText(rule)).toBeDefined();
+    rerender(<ResultSummary totalEarned={42} totalMax={60} percent={70} passed passMark={65} certificate={null} />);
+    expect(screen.getByText(rule)).toBeDefined();
+    rerender(
+      <ResultSummary
+        totalEarned={42}
+        totalMax={60}
+        percent={70}
+        passed
+        passMark={65}
+        certificate={{ credential_id: 'C1', verify_url: 'https://x.example/verify/C1' }}
+      />,
+    );
+    expect(screen.queryByText(rule)).toBeNull();
+  });
+
+  it('Z-16: hides every pass-mark number when the payload has none (never guesses 60 or 70)', () => {
+    const { container } = render(
+      <ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} certificate={null} />,
+    );
+    expect(container.textContent).toContain('Your score is 20 out of 60.');
+    expect(container.textContent).not.toMatch(/pass mark of|to pass|(60|70)%/);
+    expect(container.textContent).not.toContain('every time you pass');
+  });
+
+  it('Z-16: support line for pass and fail', () => {
+    const { container, rerender } = render(
+      <ResultSummary totalEarned={42} totalMax={60} percent={70} passed passMark={60} />,
+    );
+    const line = (): string | null => container.querySelector('[data-testid="result-support"]')?.textContent ?? null;
+    expect(line()).toBe('Your score is 42 out of 60. You met the pass mark of 60%.');
+    rerender(<ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} passMark={60} />);
+    expect(line()).toBe('Your score is 20 out of 60. You need 60% to pass.');
   });
 
   it('P1 guard: never renders bands, a breakdown, insights or a percentile', () => {
@@ -132,6 +164,8 @@ describe('ResultSummary', () => {
       expect(line()).toBe('You passed.');
       rerender(<ResultSummary compact totalEarned={20} totalMax={60} percent={33} passed={false} />);
       expect(line()).toBe('Not passed.');
+      rerender(<ResultSummary compact totalEarned={20} totalMax={60} percent={33} passed={false} passMark={65} />);
+      expect(line()).toBe('Below the pass mark of 65%.');
       expect(container.querySelector('[data-testid="result-outcome"]')).toBeNull();
     });
   });

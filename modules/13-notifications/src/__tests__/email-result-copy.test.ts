@@ -64,6 +64,40 @@ describe('result_released copy', () => {
   });
 });
 
+describe('result_released pass mark and share links', () => {
+  const cert = 'https://assessiq.test/verify/AIQ-1';
+  it('shows a Pass mark row after Score in html and text', () => {
+    const r = renderTemplate('result_released', { ...base, passMarkPct: 60 });
+    expect(r.text).toContain('Score: 42 / 60 (70%)\nPass mark: 60%\nAssessment:');
+    expect(r.html.indexOf('Pass mark')).toBeGreaterThan(r.html.indexOf('Score'));
+    expect(r.html.indexOf('Pass mark')).toBeLessThan(r.html.indexOf('Assessment'));
+    expect(renderTemplate('result_released', base).text).not.toContain('Pass mark');
+  });
+  it('no certificate: states the pass-mark rule (fail and pass), hides it without a mark', () => {
+    const line = 'You earn a certificate when you pass. The pass mark is 60%.';
+    expect(renderTemplate('result_released', { ...fail, passMarkPct: 60 }).text).toContain(line);
+    expect(renderTemplate('result_released', { ...base, passMarkPct: 60 }).html).toContain(line);
+    expect(renderTemplate('result_released', fail).text).not.toContain('You earn a certificate');
+    expect(renderTemplate('result_released', { ...base, passMarkPct: 60, certificateLink: cert }).text).not.toContain(line);
+  });
+  it('certificate: LinkedIn, X, WhatsApp and copy-link in html and text, encoded', () => {
+    const r = renderTemplate('result_released', { ...base, passMarkPct: 60, certificateLink: cert });
+    const enc = encodeURIComponent(cert);
+    const unesc = (h: string): string => h.replace(/&#x3D;/g, '=').replace(/&amp;/g, '&');
+    for (const out of [unesc(r.html), r.text]) {
+      expect(out).toContain(`https://www.linkedin.com/sharing/share-offsite/?url=${enc}`);
+      expect(out).toContain(`https://twitter.com/intent/tweet?url=${enc}`);
+      expect(out).toContain('https://wa.me/?text=');
+    }
+    expect(r.text).toContain(`Copy link: ${cert}`);
+    expect(r.html).toContain(`Copy link: ${cert}`);
+  });
+  it('a non-https certificate link gets no share links', () => {
+    const r = renderTemplate('result_released', { ...base, certificateLink: 'http://assessiq.test/verify/AIQ-1' });
+    expect(r.text).not.toContain('LinkedIn');
+  });
+});
+
 describe('invitation_candidate copy', () => {
   it('uses the organisation in the subject and active voice', () => {
     const r = renderTemplate('invitation_candidate', {
