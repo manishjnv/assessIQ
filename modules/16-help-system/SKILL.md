@@ -171,3 +171,15 @@ Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the
 **Not included.** Hindi rows. A seed lint change.
 
 **Downstream impact.** Use the new ids on the three pages (`docs/08-ui-system.md` § "Session S13 UI changes (2026-10-16)"). Production help rows come from forward migrations, not from the seed.
+
+## S16 (2026-10-17) - admin guide rows (Z-21)
+
+**What changed.** Migration `migrations/0192_s16_admin_guide_help.sql` adds 26 global rows: `admin.guide.*` and `admin.activity.page`. Seeded count 462 to 488. `/admin/guide` and the admin drawer "Guide" tab read them through the help API.
+
+**Why.** One source for guide text; no code deploy for a text fix.
+
+**Considered and rejected.** `HelpDrawer` for the admin drawer (one entry only).
+
+**Not included.** Hindi rows. Tenant guide editor.
+
+**Downstream impact.** `docs/07-help-system.md` section "Admin guide as help rows, S16"; `AdminHelp.tsx` in 10-admin-dashboard.

@@ -271,3 +271,11 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - New `src/components/AttemptFeedback.tsx` (exported from `components/index.ts`). `MyResults.tsx` renders it per released result only when `feedback_level !== 'none'`. It fetches on expand through `getAttemptFeedback` (`src/api.ts`). Types are in `src/types.ts`.
 - Help ids: `candidate.results.feedback`, `.expected`, `.explanation`, `.study`. Test: `src/__tests__/AttemptFeedback.test.tsx`.
 - Not on the post-submit page (rule P1). Details: `docs/08-ui-system.md` § "Review your answers on the candidate results page (RW-80, S15)".
+
+## S16 note (2026-10-17) - navigator filters, New chip, activity counts (Z-8, Z-12, Z-15e)
+
+- **What.** `QuestionNavigator.tsx`: filters All/Flagged/Unanswered with counts, Next/Previous flagged with wrap, current square always visible. `MyResults` shows a "New" chip until a card is 50% visible (IntersectionObserver), then calls `POST /api/me/attempts/:id/seen`; `is_new` comes from `GET /api/me/results`; the page no longer calls notification mark-read. `CandidateActivity.tsx` has a caption that defines "completed" (submitted attempts) and "attempted".
+- **Why.** Finding flagged questions in long tests; "New" vanished for all results at once; "completed 0" showed beside a non-zero "attempted".
+- **Rejected.** Hiding the current square under a filter.
+- **Not included.** A flagged current question is not counted as flagged (limit). No visual baselines.
+- **Downstream.** `docs/08-ui-system.md` section "Candidate: question navigator filters, New chip, take landmarks"; `docs/03-api-contract.md` (`seen`, `is_new`).

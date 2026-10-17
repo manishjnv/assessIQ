@@ -2651,3 +2651,31 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** a 02-owned table referenced a 03-owned table. `tools/lint-migrations.ts` flags a cross-module reference only when the referenced migration sorts HIGHER than the referencing one; `020_users` sorts lower than `0183`, so the lint passed, but the per-module harness order (02 before 03) does not follow the global number order. Same class as the S12 trap recorded in memory (`project-history`: "cross-module table refs break module-local test harnesses").
 **Fix:** `0183_tenant_logos.sql` keeps `updated_by UUID NULL` without the FK (the audit row carries the actor; the column is informational). The harness workaround in `handlers.test.ts` was reverted. Checked the other five S14 migrations (0184 04, 0185 06, 0186 19, 0187 16, 0188 02): no cross-module references.
 **Prevention:** manual discipline. A lint rule "a 02-tenancy migration may reference only `tenants` and `tenant_settings`" (or, in general, a module may reference only its own tables and tables of modules it depends on in package.json) would close the gap; not added in S14.
+
+## 2026-10-17 — Admin review printed one page (Z-6)
+
+**Symptom:** printing or saving an admin review page as PDF gave one page; the rest was cut off.
+**Cause:** `AdminShell.tsx` is a fixed-height scroll container (height 100vh) with `overflow: hidden` on the shell and the main column, and had no print rules.
+**Fix:** `@media print` in `AdminShell.tsx` (line 365) sets height auto and overflow visible, and hides the chrome.
+**Prevention:** e2e `apps/web/e2e/admin-help-print.spec.ts` asserts `page.pdf()` has more than one page. Written, not run yet.
+
+## 2026-10-17 — Link from the assessment page to attempts ignored the filter (Z-22 #1)
+
+**Symptom:** the assessment page linked to the attempts page, which showed all attempts.
+**Cause:** `GET /api/admin/attempts` had no `assessmentId` parameter (`modules/07-ai-grading/src/routes.ts`, `repository.ts`).
+**Fix:** optional `assessmentId` (uuid) added to the route schema (`routes.ts:202`) and the query (`repository.ts:433`). RLS stays the tenant boundary. The page reads it from the URL.
+**Prevention:** tests in `modules/07-ai-grading/src/__tests__/admin-attempts-list.test.ts`.
+
+## 2026-10-17 — Every result lost the "New" chip at once (Z-12)
+
+**Symptom:** after one visit to "My results", all results lost "New".
+**Cause:** the page called notification mark-read on load, which cleared the flag for every result.
+**Fix:** `attempts.seen_at` (migration 0193, backfill of released rows), `is_new` on `GET /api/me/results` (`modules/06-attempt-engine/src/result.ts:395`), `POST /api/me/attempts/:id/seen`, and a 50% visibility trigger. The page no longer calls mark-read.
+**Prevention:** `modules/06-attempt-engine/src/__tests__/candidate-result.test.ts` covers `is_new` and `seen`.
+
+## 2026-10-17 — Candidate Activity showed "completed 0" next to a non-zero "attempted" (Z-15e)
+
+**Symptom:** the Activity page showed no completions but some attempted question sets.
+**Cause:** both figures read `attempt_summary_mv`, which is released-only and nightly (`modules/15-analytics/src/activity-candidate/stats.ts`). The exact mismatch in the owner screenshot was not reproduced from code.
+**Fix:** `stats.ts` counts submitted attempts from the live `attempts` table. `avgScore` stays released-only. A caption in `CandidateActivity.tsx` defines the terms.
+**Prevention:** manual discipline; no lint covers MV-versus-live definitions.

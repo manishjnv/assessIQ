@@ -1,3 +1,34 @@
+# Session — 2026-10-17 (midday) — S16: P0-Z batch 5 (Z-6, Z-8, Z-12, Z-13 check, Z-15(e), Z-17, Z-21, Z-22, RW-79 tail, RW-82 tails) shipped and deployed
+
+**Headline:** Ten rows closed by nine Sonnet implementation runs (max five at once), two Sonnet adversarial gates (both ACCEPT), one Sonnet docs run, one Sonnet ROADMAP run and three Haiku/other digests; Opus reviewed every diff and fixed four things inline. Z-13 turned out to be shipped already in S14 (5 per 600 s, `apps/api/src/server.ts:237`). One deploy, migrations 0192 and 0193. GitHub main = VPS `/srv/assessiq` = `3ed96c1` (code) before the docs commit. Z-7 is a mock only (no code) and waits for you.
+**Commits (main):** `776bfa2` Z-21 + Z-22 + Z-6 (admin) · `334e880` Z-8 + Z-12 (0193) + Z-15(e) + RW-82 landmarks · `52c5247` RW-79 public help read · `3ed96c1` Z-13 test + Z-17 strict lint. `a70886b` (roadmap SEO rows) is from the other session on this clone.
+**Tests:** per package all green: 06 (316), 07 (433, 10 skipped), 10 (191), 11 (136), 14 (38), 15 (159), 16 (116), apps/api (303), apps/web (88). Full root `pnpm test`: 299 of 300 files, 3447 passed; the one failure (`structured-case-editor.test.tsx`) passes alone (known load flake, as in S15). `pnpm -r typecheck` 0 errors; `pnpm lint:repo` green; `lint:route-validation --strict` 0 warnings. NOT run: `apps/web/e2e/admin-help-print.spec.ts` and `a11y-authed.spec.ts` (no local e2e stack).
+**Deploy:** docs/06 § "S16 deploy". 0192 `f78040f1…df26` (help rows 507 → 533), 0193 `405d6427…9005d` (`attempts.seen_at`, 4 released rows backfilled). api, worker, frontend rebuilt and recreated; healthy in 20 s. Haiku smoke: 29/29 checks pass (public help 200 for both pages with only its own keys, admin pages 400, authenticated `/api/help` still 401 anonymous, new routes 401 without a session, drawer and flagged-nav strings in the bundle, 0 error lines in api and worker).
+**Next:** (1) owner: approve or change the Z-7 mock `docs/design/2026-10-17-z7-take-submit-placement.html`; decide the Z-13 window (5 per 10 min today vs the literal 5 per minute); Z-23 nav regroup names. (2) Claude: Z-29 (promote axe `region`/`h1` to blocking after a real-stack run, create first visual baselines in the Playwright image), Z-30 (run `admin-help-print.spec.ts`), then Z-23/Z-24 once the owner settles Z-23.
+**Open questions:**
+- Z-21: the help drawer closes on Escape but does not trap Tab; Sign out now shows twice (top bar and My account); drawer text renders a small markdown subset.
+- Z-8: a flagged question that is also the current one counts as current, not flagged.
+- Z-12: "opened" = the result card is at least 50% visible, not a click.
+- Z-15(e): the exact 0 vs non-zero mismatch in your screenshot was not reproduced from code; both counters now use one definition.
+- RW-79: campus users behind one NAT share the per-IP anonymous bucket (120/min); the help provider falls back to its cache.
+- Dependabot alerts (109) and the S15 owner gates (RW-80 default, RW-83 flow, RW-81 screenshots, RW-82 required check) are unchanged.
+**Old task or feature checked:** Z-3 and the S13 banner (Z-12 reuses the banner, moves the count to per-result `seen_at`); RV77 guard and S14 `tenantRateLimit` (Z-13: already covers export and archive; no new helper); RW-27 and M2a drawer (Z-8 controls render inside the same navigator body); Z-15(a)-(d) untouched; RW-79 phone timing untouched; TakeRoot help page `candidate.attempt` (RW-79 allowlist covers it).
+
+---
+
+## Agent utilization
+- Opus: Phase 0 reads, 13 briefs, diff review of every agent output, inline fixes (Z-8 current square, help drawer markdown, a11y spec kept advisory, server.ts limiter typing), RW-79 design correction, `--strict` lint, Z-7 mock, 4 commits, push, VPS migrations and deploy, handoff.
+- Sonnet: 9 implementation runs (+1 resume), 2 adversarial gates, 1 docs run, 1 ROADMAP run. ~1.4M tokens.
+- Haiku: 2 Phase 0 digests, 1 live smoke sweep. ~0.3M tokens.
+- codex:rescue: n/a — companion sandbox still dead (since 2026-10-11); Sonnet takeover gates: Z-22 #1 attempts filter ACCEPT, RW-79 public help read ACCEPT.
+- Gemini (agy): n/a — `agy` not on the Bash PATH in this session; Haiku did the digest.
+- Codex (exec): n/a — not used (no text-only second opinion requested for these diffs).
+
+## Routing telemetry
+Sonnet · Z-22 #1 attempts filter · reworked: N · Sonnet · Z-22 #2/#3/#6 · reworked: N · Sonnet · Z-21 shell + Z-6 · reworked: Y (Opus added markdown rendering in the drawer) · Sonnet · Z-21 guide + 0192 · reworked: N · Sonnet · Z-8 · reworked: Y (current square hidden by filters) · Sonnet · Z-15(e) · reworked: N · Sonnet · Z-12 · reworked: Y (banned inline UUID regex) · Sonnet · Z-13 (worktree) · reworked: N (found already shipped) · Sonnet · RW-79 · reworked: Y (allowlist missed `candidate.attempt`) · Sonnet · RW-82 tails · reworked: Y (axe rules made blocking without a real run; Opus kept them advisory) · Sonnet · docs ×1 · reworked: N · Sonnet · ROADMAP · reworked: N (new ids shifted to Z-29/Z-30 because Z-25..Z-28 exist) · Sonnet · gates ×2 · reworked: N · Haiku · digests ×2 + smoke · reworked: N.
+
+---
+
 # Session — 2026-10-17 (morning) — S15: P0-Z batch 4 (RW-79, RW-80, RW-81, RW-82, RW-83, RW-84, RW-60/FU-C14, Y-13) shipped and deployed
 
 **Headline:** Eight rows closed (the six Z.4 student-experience rows plus RW-60/FU-C14 and Y-13) by nine Sonnet implementation runs in two waves (max five concurrent) with three revision resumes, eight Haiku fact digests, four Sonnet docs runs, one Sonnet help-migration run, three Sonnet adversarial gates (two REVISE, all must-fix applied) and one Codex text-only second opinion; Opus reviewed every diff. 14 commits + 1 handoff commit, one deploy with migrations 0189, 0190, 0191. GitHub main = VPS /srv/assessiq = `7b56890` (code + docs) before this handoff commit. Four owner gates are built and NOT flipped (RW-80 default, RW-83 flow, RW-81 screenshots, RW-82 required check). A latent bug on main was found and fixed on the way (RCA 2026-10-17: the question editor's negative-marks help ids never matched the page prefix).

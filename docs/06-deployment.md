@@ -2426,6 +2426,20 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Not done / follow-ups:** the team did not exercise the `totp_enrolled` email live (it needs a real enrolment). The owner test step is "enrol TOTP on a test admin, expect one email with the new copy". `TENANT_PURGE_ENABLED` is still unset.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate. 0179-0181 only narrow three CHECKs. Older builds never write `reviewer`, so the migrations need no rollback. To restore the old CHECKs by hand, add the constraints again with the `reviewer` value from 016_super_admin.sql and 0056_in_app_notifications.sql.
 
+### S16 deploy (2026-10-17, HEAD `3ed96c1`): batch 5 of P0-Z (Z-6, Z-8, Z-12, Z-13 check, Z-15(e), Z-17, Z-21, Z-22, RW-79 tail, RW-82 tails)
+
+*Type: reference.*
+
+- **Pre-flight:** `/srv/assessiq` is a git clone, clean except an untracked `tools/assessiq-mcp/package-lock.json` (not ours). All 6 `assessiq-*` containers healthy. `git pull --ff-only` to `3ed96c1` (four S16 code commits `776bfa2`, `334e880`, `52c5247`, `3ed96c1` plus a roadmap commit `a70886b` from another session).
+- **Drift gate:** repo-only `0192_s16_admin_guide_help.sql` and `0193_attempts_seen_at.sql`; DB-only the four known names. 165 repo files, 167 DB rows before; 169 after.
+- **Migrations by hand** (script `/tmp/s16-migrate.sh`, one transaction per file, recorded with SHA256):
+  - 0192 `f78040f1d376182f9b4c3f65b8908a9eda8e96ce3676fb450c59d7507528df26` — 26 help rows (`admin.guide.*` 25 + `admin.activity.page`); global active help rows 507 → 533.
+  - 0193 `405d6427af2b1bd512938709e00bb0bfa4a2289bc99a67e47cecea3b16b9005d` — `attempts.seen_at timestamptz NULL`; the 4 already released attempts were backfilled as seen (0 unseen).
+- **Images and containers:** `docker compose build assessiq-api assessiq-frontend` (marketing unchanged); `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend`; all three healthy after 20 s.
+- **Env:** no new variables. The RW-79 route needs no flag; it registers only when `apps/api/src/server.ts` injects the per-IP limiter (fail-closed).
+- **Smoke:** see the S16 handoff in `docs/SESSION_STATE.md`.
+- **Roll back:** `git checkout 24bd32d` + rebuild/recreate the same three services. 0192 adds help rows and 0193 adds a nullable column; both are harmless for the old code, so leave them in place.
+
 ### S15 deploy (2026-10-17 10:40 IST, HEAD `7b56890`)
 
 *Type: reference.*

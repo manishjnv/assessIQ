@@ -426,3 +426,29 @@ Eight keys were renamed (text unchanged, migration `0149_rename_help_ids_page_pr
 | Why | A seed has no number and no checksum, so the generator can rewrite it |
 | Not included | No change to help text or keys |
 | Impact | Fresh databases have 325 global rows (was 255). Production is unchanged |
+
+## Anonymous help on the token landing (2026-10-17)
+
+**What changed.** `GET /api/help/public?page=<page>&locale=en` answers without a session. The route lives in `src/routes-public.ts`. `HelpProvider` retries on it when `GET /api/help` returns 401 and `page` is `candidate.take` or `candidate.attempt`.
+
+**Why.** `GET /api/help` needs a session. The `/take/<token>` landing has none before Begin, so the tips stayed empty (RW-79 tail).
+
+**Allowlist rule.** `page` must equal `candidate.take` or `candidate.attempt` exactly (no wildcards). Each page returns only keys that start with `<page>.`. Any other value gets 400 before the database is read. The server fixes the audience to `candidate` (the SQL adds `all`), so `admin` rows never match. Reads run in `withGlobalsOnly`, so only `tenant_id IS NULL` rows return. The caller cannot set `audience` or a key.
+
+**Hardening.** Parameterised SQL (existing `listHelpForPage`). A short public cache header. No cookies. The route registers only when `apps/api` injects a rate limiter (`registerHelpPublicRoutes(app, { rateLimit })`); without it the route does not exist.
+
+**Rejected.** Making `GET /api/help` itself anonymous: it would change the authenticated route and drop tenant overrides. Fastify also allows one handler per method and path.
+
+**Not included.** Single-key anonymous reads on the new path. Other candidate pages. `TakeRoot` requests `candidate.attempt`, which the allowlist now covers; `candidate.take` keys need a second provider or call.
+
+## Admin guide as help rows, S16 (Z-21, 2026-10-17)
+
+**What changed.** The admin guide text now lives in help rows, not in `admin-guide.tsx`. Migration `modules/16-help-system/migrations/0192_s16_admin_guide_help.sql` adds 26 global rows. They are the `admin.guide.*` family plus `admin.activity.page`. The seeded global count goes from 462 to 488. `/admin/guide` reads the rows through the help API and renders them in order. The admin help drawer (`AdminHelp.tsx`) shows the same rows on its "Guide" tab.
+
+**Why.** The guide was a second copy of help text inside a page file. A text fix needed a code deploy, and the drawer could not reuse it. One source means one place to edit, and tenant overrides apply.
+
+**Considered and rejected.** Use the help-system `HelpDrawer`: it shows one entry only, and the admin drawer needs two tabs. Keep the guide in code and link to it: it keeps two copies.
+
+**Not included.** Hindi rows. A tenant-level guide editor. New help ids for pages other than `admin.activity.page`.
+
+**Downstream impact.** Edit guide text with a forward migration (new version row). `AdminShell` always wraps its children in `HelpProvider` with the fallback page `admin.shell`, so the drawer works on every admin page. See `docs/08-ui-system.md` section "AdminShell help drawer and account card (Z-21, S16)". `users.tsx` now wires `admin.users.list.reset_totp` through `data-help-id` (line 788).

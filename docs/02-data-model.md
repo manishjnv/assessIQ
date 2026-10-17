@@ -2472,6 +2472,16 @@ A record of how the migration files are numbered. Nothing is renumbered. Count: 
 | Version rule | The column is metadata. Changing it does not create a `question_versions` row |
 | Rollback | Drop the column. Frozen copies on `attempt_questions` stay valid |
 
+### Column `attempts.seen_at` (migration 0193, owner 06-attempt-engine)
+
+**History:** added 2026-10-17 (Z-12).
+
+- **What.** `seen_at timestamptz NULL` on `attempts`. NULL means the candidate has not opened the released result yet (the Results page shows a "New" chip). `POST /api/me/attempts/:id/seen` sets it once (`COALESCE(seen_at, now())`). RLS is unchanged (existing `attempts` policy).
+- **Why.** The banner used notification read state, which the Results page cleared for all results at once. A per-attempt column gives a per-result marker.
+- **Backfill.** Rows already `released` get `seen_at = COALESCE(evaluation_released_at, now())`, so old results do not all show "New". Only results released after this migration start as NULL.
+- **Rejected.** A new table (not needed); per-notification read state (marks by kind, not by attempt).
+- **Not included.** No index (read only in the per-candidate list). No erasure change: it is a timestamp, not personal data.
+
 ### Column `attempt_questions.negative_marks` (migration 0185, owner 06-attempt-engine)
 
 | Item | Detail |

@@ -1615,3 +1615,37 @@ chars and non-empty `long_md` per the help-key test.
 Note: the pass agent saw an error on `/candidate/progress` for the seeded candidate. The cause was a local API process that started before the route existed. A restart returns 200. This is not a defect.
 
 **Downstream impact.** Screenshots are local only: `docs/` is gitignored, so `docs/testing/screenshots/S15/` (`before/` 102 PNGs, `after/` 103, `CRITIQUE.md`, `overflow.json`, `state.json`) is not in the repository. The owner reviews them. `visual.spec.ts` baselines are stale until item 8 is done. Font-size rule: see [10-branding-guideline.md](10-branding-guideline.md) § 2.3.
+
+## AdminShell help drawer and account card (Z-21, Z-6, Z-22, RW-82; S16, 2026-10-17)
+
+**What changed.**
+- **Help drawer.** `modules/10-admin-dashboard/src/components/AdminHelp.tsx` adds a top-bar trigger (`HelpDrawerTrigger`) and the shortcut Ctrl/Cmd+/. The drawer has two tabs: "This page" (entries under `<helpPage>.`) and "Guide". `openAdminGuide()` (line 19) opens it on the Guide tab through a window event, so pages need no props. It uses the ui-system `Drawer`. Known limit: `Drawer` closes on Escape but does not trap Tab.
+- **Provider.** `AdminShell.tsx` (line 667) always wraps in `HelpProvider`; the fallback page is `admin.shell`.
+- **Footer.** `MyAccountCard.tsx` replaces the plain user card. It shows a 2FA chip, "Regenerate recovery codes" (shared `RegenerateCodesModal.tsx`), enrol, and sign out. "Help guide" and "Account security" left `accountEntries`. Their routes stay.
+- **Landmarks.** `<header>` (line 449), the breadcrumb `<nav>` (line 577) and the MFA notice as `<section aria-label="Security notice">` (line 567).
+- **Print (Z-6).** `@media print` in `AdminShell.tsx` (line 365) releases height and overflow on html, body, shell, main column and main. It hides the sidebar, top bar, MFA nudge, breadcrumbs and drawer backdrop.
+- **Z-22 links.** Dashboard "New assessment" goes to `/admin/assessments?new=1`. The Activity tab "Recent activity" links to `/admin/audit-log`. The attempts page filters by `?assessmentId=` with a clearable chip. Reports has a candidate search over `GET /admin/users?search=`.
+
+**Why.** Admins had no in-page help and the guide hid under the account menu. The account area mixed navigation and account actions. Print review cut off after one page because the shell is a fixed-height scroll container.
+
+**Considered and rejected.** The help-system `HelpDrawer` (one entry). A focus trap in `Drawer` (shared component; separate change). Moving the print rules to a global stylesheet (they depend on shell class names).
+
+**Not included.** Tab trapping. A new endpoint for the reports search (reuses the Users param). Visual baselines: none are committed, so none were regenerated; this needs the Playwright image.
+
+**Downstream impact.** Every admin page can open help. Test `apps/web/e2e/admin-help-print.spec.ts` asserts `page.pdf()` has more than one page; it is written and not run yet. Content source: `docs/07-help-system.md` section "Admin guide as help rows, S16".
+
+## Candidate: question navigator filters, New chip, take landmarks (Z-8, Z-12, RW-82; S16, 2026-10-17)
+
+**What changed.**
+- **Navigator (Z-8).** `QuestionNavigator.tsx` has filters All, Flagged and Unanswered with counts, and Next/Previous flagged buttons that wrap around (line 123). The current square always stays visible (line 121). Limit: a flagged question that is also current shows as current, so the Flagged count leaves it out.
+- **New chip (Z-12).** A result card shows "New" until it is at least 50% visible (IntersectionObserver). Then the page calls `POST /api/me/attempts/:id/seen`. The shell banner counts `is_new` results. The page no longer calls notification mark-read.
+- **Landmarks (RW-82 tail).** Take pages have `<header>`, a breadcrumb `<nav>` and a notice `<section>`. Candidate notices sit inside `<main>`. Each take state has one visually hidden `<h1>` (`Attempt.tsx` lines 298, 322, 530).
+- **Test gate.** `apps/web/e2e/a11y-authed.spec.ts` keeps `region` and `page-has-heading-one` as advisory until a run on the real stack shows zero.
+
+**Why.** Long tests needed a way to find flagged and open questions. Mark-read on page load cleared "New" from every result at once.
+
+**Considered and rejected.** Hide the current square under a filter (the candidate loses their place). Clear "New" on page load (the bug).
+
+**Not included.** Visual baselines (none committed; needs the Playwright image). Counting a current flagged question as flagged.
+
+**Downstream impact.** API and data: `docs/03-api-contract.md` (rows already present), `docs/02-data-model.md` (`attempts.seen_at`, migration 0193 with backfill of already released rows).
