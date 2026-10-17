@@ -4,6 +4,7 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import { ResultSummary } from '../components';
+import { CERTIFICATE_RULE_TEXT } from '../copy';
 
 afterEach(cleanup);
 
@@ -73,6 +74,15 @@ describe('ResultSummary', () => {
       <ResultSummary totalEarned={20} totalMax={40} percent={50} passed negativeMarking={{ enabled: false, penalty_total: 0 }} />,
     );
     expect(container.textContent ?? '').not.toContain('Negative marking');
+  });
+
+  it('explains the certificate rule only when a result below 70% has no certificate', () => {
+    const { rerender } = render(
+      <ResultSummary totalEarned={36} totalMax={60} percent={60} passed={false} certificate={null} />,
+    );
+    expect(screen.getByText(CERTIFICATE_RULE_TEXT)).toBeDefined();
+    rerender(<ResultSummary totalEarned={42} totalMax={60} percent={70} passed certificate={null} />);
+    expect(screen.queryByText(CERTIFICATE_RULE_TEXT)).toBeNull();
   });
 
   it('P1 guard: never renders bands, a breakdown, insights or a percentile', () => {

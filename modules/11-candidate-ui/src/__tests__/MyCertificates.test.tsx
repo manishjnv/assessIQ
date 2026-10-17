@@ -5,6 +5,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, waitFor, fireEvent } from '@testing-library/react';
 import { MyCertificates } from '../components';
 import type { MyCertificatesResponse } from '../api';
+import { CERTIFICATE_RULE_TEXT } from '../copy';
 
 // ---------------------------------------------------------------------------
 // Mock setup — vi.hoisted so the factory can reference the mock fn
@@ -224,7 +225,7 @@ describe('MyCertificates', () => {
     render(<MyCertificates />);
     await waitFor(() => {
       expect(
-        screen.getByText('Complete an assessment to earn your first certificate.'),
+        screen.getByText(CERTIFICATE_RULE_TEXT),
       ).toBeDefined();
     });
   });
