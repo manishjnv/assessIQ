@@ -7,7 +7,7 @@ import {
   streamLogger,
   uuidv7,
 } from '@assessiq/core';
-import { extractClientIp } from '@assessiq/auth';
+import { extractClientIp, rateLimitMiddleware } from '@assessiq/auth';
 import { registerAdminUserRoutes } from './routes/admin-users.js';
 import { registerAdminUserTotpResetRoute } from './routes/admin-users-totp-reset.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
@@ -298,7 +298,11 @@ export async function buildServer() {
   // Soft enforcement only in A1 — see modules/19-billing/SKILL.md.
   await registerBillingRoutes(app, { companyAdmin: authChain({ roles: ['admin'] }) });
 
-  await registerHelpPublicRoutes(app);  await registerHelpTrackRoutes(app);
+  // RW-79: anonymous candidate.take / candidate.attempt help read, per-IP rate limited (fail-closed without it).
+  await registerHelpPublicRoutes(app, {
+    rateLimit: rateLimitMiddleware() as unknown as NonNullable<NonNullable<Parameters<typeof registerHelpPublicRoutes>[1]>['rateLimit']>,
+  });
+  await registerHelpTrackRoutes(app);
   // Cast through `unknown` to satisfy strictFunctionTypes parameter
   // contravariance: apps/api's authChain returns FastifyHook[] (req:
   // FastifyRequest), but the library's DI shape uses (req: unknown) to

@@ -11,6 +11,7 @@ export {
   shouldSampleHelpEvent,
 } from "./service.js";
 export { registerHelpPublicRoutes } from "./routes-public.js";
+export type { HelpPublicDeps } from "./routes-public.js";
 export { registerHelpAuthRoutes } from "./routes-auth.js";
 export type { HelpAuthDeps } from "./routes-auth.js";
 export { registerHelpAdminRoutes } from "./routes-admin.js";
