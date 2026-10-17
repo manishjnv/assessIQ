@@ -2426,6 +2426,22 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Not done / follow-ups:** the team did not exercise the `totp_enrolled` email live (it needs a real enrolment). The owner test step is "enrol TOTP on a test admin, expect one email with the new copy". `TENANT_PURGE_ENABLED` is still unset.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate. 0179-0181 only narrow three CHECKs. Older builds never write `reviewer`, so the migrations need no rollback. To restore the old CHECKs by hand, add the constraints again with the `reviewer` value from 016_super_admin.sql and 0056_in_app_notifications.sql.
 
+### S15 deploy (2026-10-17 10:40 IST, HEAD `7b56890`)
+
+*Type: reference.*
+
+- **Pre-flight:** `/srv/assessiq` is a git clone; `git pull --ff-only` to `7b56890`; no `claude` process in flight; drift gate showed repo-only `0189_question_stats_mv.sql`, `0190_tenant_settings_result_feedback_level.sql`, `0191_s15_batch4_help.sql` and the four known DB-only names (163 repo files / 164 DB rows).
+- **Migrations by hand** (script copied to `/tmp/s15-migrate.sh`, CRs stripped, run with `bash … < /dev/null`; one transaction per file; recorded in `schema_migrations` with the file SHA256):
+  - 0189 `daf48338e1b5c61bf9e45b9ea9508c3acc3abdbcc770575a81e82fb8b2198db0` — materialized view `question_stats_mv` (owner `assessiq_system`, SELECT to `assessiq_app`).
+  - 0190 `41b420e0341f14c6e2d2e5310653c6db77e4b488e597e3f0a719ffbca426c214` — `tenant_settings.result_feedback_level` default `none` (all 5 tenants stay `none`; owner gate).
+  - 0191 `6ff735fddaf45f0e443b883c27951afdb6d1c484c7067c9c905cabf30ff9b467` — 24 help rows + rename of `admin.question_editor.negative_marks` to `admin.question.editor.negative_marks`; global active help rows 483 → 507.
+  - `schema_migrations` count 164 → 167.
+- **Post-checks:** `pg_matviews` has `question_stats_mv` (23 rows, 17 graded attempts); `REFRESH MATERIALIZED VIEW CONCURRENTLY question_stats_mv` ok (the nightly `analytics:refresh_mv` job now refreshes both views); the four new help keys present at version 1.
+- **Images and containers:** `docker compose build assessiq-api assessiq-frontend assessiq-marketing` (marketing because Y-13 changed `search.astro`); `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend assessiq-marketing`; 6/6 healthy in 15 s.
+- **Smoke (laptop → assessiq.in):** `/api/health`, `/api/ready`, `/`, `/admin/login`, `/admin/start-test`, `/candidate/progress`, `/search` 200; `/api/me/progress`, `/api/me/attempts/:id/feedback`, `/api/admin/super/questions/:id/stats`, `/api/admin/tenant-settings` 401 without a session; `/search` serves the Pagefind component UI and no `pagefind-ui.js`; 0 error lines in api and worker logs in the first 5 minutes.
+- **Env:** no new environment variables. `result_feedback_level` is a DB setting per tenant (admin screen or SQL), not an env flag.
+- **Roll back:** `git checkout 51677de` + rebuild/recreate the same four services; the three migrations are forward-only and harmless for the old code (an extra MV, a defaulted column, help rows), so leave them in place.
+
 ### S14 deploy (2026-10-17 03:44 IST): batch 3 of P0-Z (EX-1, EX-3, RW-59, Logo L1-L4, PT1, PT-4, P4, LC-2, S2/N2, S7/N5, RV31, Z-1, audit-export limit)
 
 **Commits:** `48368b4..092c745` (11 commits: rate limits, LC-2 user purge, RW-59 adapters, Logo L1-L4, EX-1 + EX-3, PT1/PT-4, P4, 0187 help rows, RV31 marketing, two test-mock fixes). GitHub main = VPS `/srv/assessiq` = `092c745` (docs commits follow).
