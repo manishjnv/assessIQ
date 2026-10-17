@@ -8,7 +8,7 @@
 // Tabs: All | Submitted | Awaiting evaluation | Graded | Released.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Chip, EmptyState, Table, ErasedChip } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
@@ -72,6 +72,9 @@ function sortRows<T>(rows: T[], key: string, dir: SortDir): T[] {
 
 export function AdminAttempts(): React.ReactElement {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Z-22: ?assessmentId=<uuid> narrows the list to one assessment (link from the assessment page).
+  const assessmentId = searchParams.get("assessmentId") ?? "";
   const [items, setItems] = useState<AttemptListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,12 +84,14 @@ export function AdminAttempts(): React.ReactElement {
     try { return sessionStorage.getItem(SESSION_KEY) ?? ""; } catch { return ""; }
   });
 
-  const fetchAttempts = useCallback(async (status: string) => {
+  const fetchAttempts = useCallback(async (status: string, asmId: string) => {
     setLoading(true);
     setError(null);
     try {
-      const qs = status ? `?status=${encodeURIComponent(status)}&limit=100` : "?limit=100";
-      const data = await adminApi<AttemptsResponse>(`/admin/attempts${qs}`);
+      const q = new URLSearchParams({ limit: "100" });
+      if (status) q.set("status", status);
+      if (asmId) q.set("assessmentId", asmId);
+      const data = await adminApi<AttemptsResponse>(`/admin/attempts?${q.toString()}`);
       setItems(data.items);
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load attempts.");
@@ -96,8 +101,8 @@ export function AdminAttempts(): React.ReactElement {
   }, []);
 
   useEffect(() => {
-    void fetchAttempts(statusFilter);
-  }, [fetchAttempts, statusFilter]);
+    void fetchAttempts(statusFilter, assessmentId);
+  }, [fetchAttempts, statusFilter, assessmentId]);
 
   function handleTabChange(val: string) {
     setStatusFilter(val);
@@ -230,6 +235,22 @@ export function AdminAttempts(): React.ReactElement {
             </span>
           )}
         </div>
+
+        {assessmentId && (
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+            <Chip>
+              Assessment: {items[0]?.assessment_name ?? "selected"}
+            </Chip>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+              aria-label="Clear assessment filter"
+              onClick={() => setSearchParams({}, { replace: true })}
+            >
+              Clear ×
+            </button>
+          </div>
+        )}
 
         {error && (
           <div style={{ color: "var(--aiq-color-danger)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>

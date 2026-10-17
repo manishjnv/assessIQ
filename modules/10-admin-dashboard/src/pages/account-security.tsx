@@ -6,10 +6,10 @@
 
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { Button, Card, Chip, Field, Modal } from "@assessiq/ui-system";
+import { Button, Card, Chip } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
-import { AdminApiError, regenerateRecoveryCodesApi } from "../api.js";
+import { RegenerateCodesModal } from "../components/RegenerateCodesModal.js";
 import { useAdminSession } from "../session.js";
 
 export function AdminAccountSecurity(): React.ReactElement {
@@ -17,35 +17,8 @@ export function AdminAccountSecurity(): React.ReactElement {
   const enrolled = session?.totpEnrolled === true;
 
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [codes, setCodes] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
-
-  const closeDialog = (): void => {
-    setDialogOpen(false);
-    setCode("");
-    setError(null);
-  };
-
-  const regenerate = async (): Promise<void> => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await regenerateRecoveryCodesApi(code);
-      setCodes(res.codes);
-      closeDialog();
-    } catch (err) {
-      setError(
-        err instanceof AdminApiError && (err.status === 401 || err.status === 403)
-          ? "That code is not correct. Your old backup codes still work."
-          : "Could not make new backup codes. Try again.",
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const copyAll = async (): Promise<void> => {
     try {
@@ -122,27 +95,7 @@ export function AdminAccountSecurity(): React.ReactElement {
         </Card>
       </div>
 
-      <Modal open={dialogOpen} onClose={closeDialog} title="Regenerate recovery codes">
-        <p style={{ margin: "0 0 12px", fontSize: 14 }}>
-          Enter the 6-digit code from your authenticator app. The old backup codes stop working.
-        </p>
-        <div data-help-id="admin.account.security.code_field">
-          <Field
-            label="Authenticator code"
-            value={code}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setError(null); }}
-            {...(error !== null ? { error } : {})}
-          />
-        </div>
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-          <Button variant="outline" onClick={closeDialog} disabled={busy}>Cancel</Button>
-          <Button onClick={() => void regenerate()} disabled={busy || code.length !== 6} data-help-id="admin.account.security.confirm">
-            Make new codes
-          </Button>
-        </div>
-      </Modal>
+      <RegenerateCodesModal open={dialogOpen} onClose={() => setDialogOpen(false)} onCodes={setCodes} />
     </AdminShell>
   );
 }

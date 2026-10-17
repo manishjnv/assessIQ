@@ -15,10 +15,13 @@
 
 import React, { Fragment, useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Icon, Sidebar, NavItem, SidebarSection, TenantLogo, useViewport } from "@assessiq/ui-system";
+import { Button, Icon, Modal, Sidebar, NavItem, SidebarSection, TenantLogo, useViewport } from "@assessiq/ui-system";
 import { HelpProvider } from "@assessiq/help-system/components";
 import { useAdminSession, adminLogout } from "../session.js";
 import { NotificationBell } from "./NotificationBell.js";
+import { AdminHelp } from "./AdminHelp.js";
+import { MyAccountCard } from "./MyAccountCard.js";
+import { RegenerateCodesModal } from "./RegenerateCodesModal.js";
 
 /**
  * Breadcrumb segment — either a plain string (non-clickable label) or
@@ -132,6 +135,9 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
       return false;
     }
   });
+
+  const [regenOpen, setRegenOpen] = useState(false);
+  const [newCodes, setNewCodes] = useState<string[]>([]);
 
   const viewport = useViewport();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -293,8 +299,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   ];
 
   const accountEntries: NavEntry[] = [
-    { label: "Help guide", href: "/admin/guide", icon: "book" },
-    { label: "Account security", href: "/admin/account-security", icon: "settings" },
+    // Z-21: "Help guide" lives in the top-bar help drawer and "Account security" in
+    // the My account footer card; the /admin/guide and /admin/account-security routes stay.
     // Settings hosts billing + DPDP retention controls (tenant-settings is
     // embedded as a section at the bottom of the billing page).
     { label: "Settings", href: "/admin/settings", icon: "settings", adminOnly: true },
@@ -322,52 +328,18 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
         ? "Admin"
         : "User";
 
+  const enrolled = session?.totpEnrolled === true;
+  // My account card (Z-21): identity, two-factor status, recovery codes, sign out.
   const sidebarFooter = (
-    <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: "var(--aiq-radius-pill)",
-          background: "var(--aiq-color-accent)",
-          color: "white",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "var(--aiq-font-sans)",
-          fontSize: "var(--aiq-text-sm)",
-          fontWeight: 500,
-          flexShrink: 0,
-        }}
-      >
-        {userInitial}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontFamily: "var(--aiq-font-sans)",
-            fontSize: "var(--aiq-text-sm)",
-            fontWeight: 500,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: "var(--aiq-color-fg-primary)",
-          }}
-        >
-          {userDisplayName}
-        </div>
-        <div
-          style={{
-            fontFamily: "var(--aiq-font-mono)",
-            fontSize: "var(--aiq-text-xs)",
-            color: "var(--aiq-color-fg-secondary)",
-            textTransform: "capitalize",
-          }}
-        >
-          {userRoleLabel}
-        </div>
-      </div>
-    </div>
+    <MyAccountCard
+      initial={userInitial}
+      name={userDisplayName}
+      roleLabel={userRoleLabel}
+      enrolled={enrolled}
+      onRegenerate={() => setRegenOpen(true)}
+      onEnrol={() => navigate("/admin/mfa")}
+      onSignOut={() => void handleLogout()}
+    />
   );
 
   async function handleLogout() {
@@ -386,6 +358,22 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
         background: "var(--aiq-color-bg-base)",
       }}
     >
+      {/* Z-6: print every page of a review. The screen layout is a fixed-height
+          scroll container (height 100vh, overflow hidden); release it for print and
+          hide the chrome. !important beats the inline styles. */}
+      <style>{`
+        @media print {
+          html, body { height: auto !important; overflow: visible !important; }
+          .aiq-admin-shell, .aiq-admin-main-col, .aiq-admin-main {
+            display: block !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .aiq-admin-sidebar-wrap, .aiq-admin-topbar, .aiq-admin-mfa-nudge,
+          .aiq-admin-breadcrumbs, .aiq-admin-drawer-backdrop { display: none !important; }
+        }
+      `}</style>
+
       {/* Drawer backdrop — mobile only, only when open. Click closes. */}
       {drawerOpen && (
         <div
@@ -456,9 +444,10 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
       </div>
 
       {/* Main */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <div className="aiq-admin-main-col" style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         {/* Top bar */}
-        <div
+        <header
+          className="aiq-admin-topbar"
           style={{
             display: "flex",
             alignItems: "center",
@@ -551,6 +540,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             )}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
+            <AdminHelp />
             <NotificationBell />
             <span
               className="aiq-admin-shell-email"
@@ -570,13 +560,13 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
               Sign out
             </button>
           </div>
-        </div>
+        </header>
 
         {/* MFA enrollment nudge — shown once per session for unenrolled admins */}
         {session?.totpEnrolled === false && !nudgeDismissed && (
-          <div className="aiq-admin-mfa-nudge">
+          <section className="aiq-admin-mfa-nudge" aria-label="Security notice">
             <MfaNudgeBanner onDismiss={dismissNudge} onSetup={() => navigate("/admin/mfa")} />
-          </div>
+          </section>
         )}
 
         {/* Breadcrumbs — last segment is current page (never clickable). Earlier
@@ -584,7 +574,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             navigate up; plain string segments stay as non-clickable labels for
             backward compatibility with callers that pre-date the typed form. */}
         {breadcrumbs && breadcrumbs.length > 0 && (
-          <div
+          <nav
+            aria-label="Breadcrumb"
             className="aiq-admin-breadcrumbs"
             style={{
               padding: "var(--aiq-space-sm) var(--aiq-space-xl)",
@@ -629,11 +620,12 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                 </React.Fragment>
               );
             })}
-          </div>
+          </nav>
         )}
 
         {/* Page content */}
         <main
+          className="aiq-admin-main"
           tabIndex={0}
           style={{
             flex: 1,
@@ -644,17 +636,41 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
           {children}
         </main>
       </div>
+
+      <RegenerateCodesModal open={regenOpen} onClose={() => setRegenOpen(false)} onCodes={setNewCodes} />
+      <Modal open={newCodes.length > 0} onClose={() => setNewCodes([])} title="Your new recovery codes">
+        <p style={{ margin: "0 0 12px", fontSize: "var(--aiq-text-sm)" }}>
+          These backup codes show <strong>once only</strong>. Each code works one time if you lose your authenticator app. Your old codes no longer work.
+        </p>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "var(--aiq-space-sm)",
+            padding: "var(--aiq-space-md)",
+            border: "1px solid var(--aiq-color-border)",
+            borderRadius: "var(--aiq-radius-md)",
+            marginBottom: "var(--aiq-space-md)",
+          }}
+        >
+          {newCodes.map((c) => (
+            <code key={c} style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)" }}>{c}</code>
+          ))}
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <Button onClick={() => setNewCodes([])}>I saved them</Button>
+        </div>
+      </Modal>
     </div>
   );
 
-  if (helpPage) {
-    return (
-      <HelpProvider page={helpPage} audience="admin">
-        {content}
-      </HelpProvider>
-    );
-  }
-  return content;
+  // Always provide a HelpProvider: the top-bar help drawer needs one. Pages without
+  // a helpPage (e.g. /admin/guide) fall back to the shell's own key family.
+  return (
+    <HelpProvider page={helpPage ?? "admin.shell"} audience="admin">
+      {content}
+    </HelpProvider>
+  );
 }
 
 AdminShell.displayName = "AdminShell";

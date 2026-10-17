@@ -4,6 +4,7 @@ const config: StorybookConfig = {
   framework: { name: "@storybook/react-vite", options: {} },
   stories: [
     "../../../modules/17-ui-system/src/**/*.stories.@(ts|tsx)",
+    "../../../modules/10-admin-dashboard/src/**/*.stories.@(ts|tsx)",
   ],
   addons: [
     "@storybook/addon-essentials",

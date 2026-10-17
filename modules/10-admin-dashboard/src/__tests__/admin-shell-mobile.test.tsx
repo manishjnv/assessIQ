@@ -58,6 +58,8 @@ vi.mock('../session.js', () => ({
 // Mock the help-system HelpProvider — it makes network calls we don't need.
 vi.mock('@assessiq/help-system/components', () => ({
   HelpProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  HelpDrawerTrigger: () => null,
+  useHelpContext: () => ({ page: 'admin.x', entries: new Map(), loading: false, drawerOpenKey: null, openDrawer: () => {}, closeDrawer: () => {} }),
 }));
 
 import React from 'react';

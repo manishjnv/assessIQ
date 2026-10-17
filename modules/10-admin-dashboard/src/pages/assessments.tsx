@@ -64,6 +64,15 @@ export function AdminAssessments(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
 
   const [showNewForm, setShowNewForm] = useState(false);
+  // Z-22 #2: the dashboard "New assessment" button links here with ?new=1.
+  // Open the create form once, then drop the param so a refresh does not reopen it.
+  useEffect(() => {
+    if (searchParams.get("new") !== "1") return;
+    setShowNewForm(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("new");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
   const [newForm, setNewForm] = useState<NewAssessmentForm>({
     name: "",
     opens_at: "",

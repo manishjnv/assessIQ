@@ -27,9 +27,9 @@
 
 import { planTierLabel } from "../lib/labels.js";
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, Chip, Icon, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { openAdminGuide } from "../components/AdminHelp.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { useAdminSession } from "../session.js";
 import { updateTenantAiGenerateMode, getCompanyUsage, getGlobalAiGenerateMode, type AiGenerateMode, type CompanyUsage } from "../api.js";
@@ -81,7 +81,6 @@ const MUTED_SM: React.CSSProperties = {
 };
 
 export function AdminBilling(): React.ReactElement {
-  const navigate = useNavigate();
   const { session } = useAdminSession();
   const isSuperAdmin = session?.user.role === "super_admin";
 
@@ -453,7 +452,7 @@ export function AdminBilling(): React.ReactElement {
             type="button"
             className="aiq-btn aiq-btn-ghost aiq-btn-sm"
             style={{ display: "inline", padding: "0 2px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}
-            onClick={() => navigate("/admin/guide")}
+            onClick={openAdminGuide}
           >
             Help guide
           </button>

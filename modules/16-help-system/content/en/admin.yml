@@ -4342,3 +4342,182 @@ admin.tenant_settings.result_feedback_level.with_ai_justification:
     ## With a short reason
 
     This level adds a short note for written answers. The note is a clean version of the grader reason. It keeps the first two sentences and removes internal markers. The candidate never sees the raw AI text.
+
+# ─── S16 (2026-10-17): admin guide moved from code (admin-guide.tsx) to help content ───
+
+admin.guide.page:
+  audience: admin
+  short_text: "The admin guide: the 12 steps from a licensed question set to candidate results."
+  long_md: |
+    ## Admin guide
+
+    This guide shows the full flow of an assessment, from a licensed question set to the candidate result. It has 12 steps, tips and answers to common questions.
+
+admin.activity.page:
+  audience: admin
+  short_text: "A live view of what admins and candidates did in your organisation."
+  long_md: |
+    ## Activity
+
+    This page shows what people did in your organisation. It is a view for daily use. It is not the audit record.
+
+    - The **feed** lists recent actions, newest first. Filter it by role.
+    - The **heatmap** and the **streak** show how often people were active.
+    - The **leaderboard** compares people over a period.
+    - For the full record of admin actions, with export and archive, open **Audit log** in the sidebar.
+  related_keys:
+    - admin.activity.feed
+    - admin.activity.heatmap.legend
+
+admin.guide.step_01:
+  audience: admin
+  short_text: "Find your licensed sets"
+  long_md: |
+    Click **Question bank** in the sidebar. The licensed sets section lists the sets your organisation can use. AssessIQ writes all question sets. Your organisation does not write them. To get more sets, contact your AssessIQ administrator.
+
+admin.guide.step_02:
+  audience: admin
+  short_text: "Copy a set"
+  long_md: |
+    Import a licensed set to make your own copy (a clone). The copy appears in your question bank. When AssessIQ updates the original, an update option shows on the set.
+
+admin.guide.step_03:
+  audience: admin
+  short_text: "Know the question types"
+  long_md: |
+    A set can contain these question types:
+
+    - **MCQ**, **Multi-select**, **Numeric** and **Ordering** — scored automatically when the candidate submits.
+    - **Subjective**, **KQL**, **Log analysis** and **Scenario** — graded by AssessIQ. You review and release the result.
+
+admin.guide.step_04:
+  audience: admin
+  short_text: "Build an assessment"
+  long_md: |
+    Click **Assessments** → **+ New Assessment**. Pick a set, then set the name and the open and close window. Save the assessment as a draft.
+
+admin.guide.step_05:
+  audience: admin
+  short_text: "Add sections and timers"
+  long_md: |
+    When you build from a set, you can split the assessment into sections. Each section has its own time limit. You can allow an on-screen calculator in a section.
+
+admin.guide.step_06:
+  audience: admin
+  short_text: "Set integrity options"
+  long_md: |
+    Turn on the options you need: a fullscreen requirement for the candidate, and a block on copy and paste. You can change these on the assessment page. AssessIQ does not use webcam proctoring.
+
+admin.guide.step_07:
+  audience: admin
+  short_text: "Publish the assessment"
+  long_md: |
+    Review the settings → **Publish**. The assessment is live and you can send invitations.
+
+admin.guide.step_08:
+  audience: admin
+  short_text: "Invite candidates"
+  long_md: |
+    Open the assessment page. Invite candidates one by one, or use **Import from CSV** to add many at once (up to 1,000 rows in one file).
+
+    Each candidate receives an email with a link that is valid for 7 days. Track invitation status on the assessment page. If a candidate misses the window, press **Resend** on their row (or **Resend to everyone who hasn't started**) — they get a fresh 7-day link and the old one stops working.
+
+admin.guide.step_09:
+  audience: admin
+  short_text: "Candidates take the assessment"
+  long_md: |
+    Candidates open the link and start the assessment. The timer starts when they begin. When a candidate submits, the attempt appears under **Attempts** in your sidebar.
+
+admin.guide.step_10:
+  audience: admin
+  short_text: "AssessIQ grades written answers"
+  long_md: |
+    **You don't grade anything.** Multiple-choice answers are scored the moment a candidate submits. Written answers are graded by AssessIQ graders with AI assistance. When an attempt is graded it shows as **Ready to release** on the Attempts page; until then it shows **Awaiting grading** and no score is visible.
+
+admin.guide.step_11:
+  audience: admin
+  short_text: "Review and release"
+  long_md: |
+    Open an attempt marked **Ready to release** and scroll through each question: the final score, the evidence and the reasoning behind it. Then:
+
+    - **Release to candidate** — the candidate sees the result. On the assessment page, **Release all ready** does this for every ready attempt at once. In Settings you choose the result release mode: **Manual** (the default) or **Automatic**. With Automatic, results are released when they are ready. Candidates see only complete scores.
+    - **Override** — record your own score with a reason; the grader's score is kept beside it (audit trail, never replaced).
+    - **Send back for re-grading** — return the attempt to AssessIQ with a note.
+
+admin.guide.step_12:
+  audience: admin
+  short_text: "Generate reports"
+  long_md: |
+    **Reports** has a cohort report for each assessment and an individual report for each candidate. On the assessment page, **Download results (CSV)** exports the results. **Certificates** in the sidebar lists the certificates you have issued.
+
+admin.guide.tip_score_bands:
+  audience: admin
+  short_text: "Score bands, not percentages"
+  long_md: |
+    Written answers are scored in score bands: 0, 25, 50, 75 or 100. Each score band comes with evidence and reasoning.
+
+admin.guide.tip_audit_log:
+  audience: admin
+  short_text: "Audit log"
+  long_md: |
+    Admin actions are recorded. Open **Audit log** in the sidebar to filter the record by date and record type. You can export the filtered view as CSV or JSONL. You can also archive a date range: the system adds one entry to the trail and downloads the range. The system never deletes audit rows.
+
+admin.guide.tip_regrading:
+  audience: admin
+  short_text: "Re-grading"
+  long_md: |
+    Not happy with a score? Override it with a reason, or send the attempt back to AssessIQ for re-grading with a note. AssessIQ does the grading, not your organisation.
+
+admin.guide.tip_organisations:
+  audience: admin
+  short_text: "Separate organisations"
+  long_md: |
+    Every action is scoped to your organisation. You only see your organisation's data — question sets, users, grades, and reports are strictly isolated at the database row level.
+
+admin.guide.tip_questions:
+  audience: admin
+  short_text: "Where your questions come from"
+  long_md: |
+    AssessIQ writes all question sets. Your organisation works from the sets it is licensed to use. If you publish an assessment with a set you are not licensed for, publishing is refused and the assessment stays in draft. Contact your AssessIQ administrator to get more sets.
+
+admin.guide.tip_plan:
+  audience: admin
+  short_text: "Your plan & usage"
+  long_md: |
+    One credit is used when a candidate attempt is graded. Re-grading the same attempt never charges again. The banner at the top of your dashboard turns amber when you reach 80% of your included credits and red when you go over — but grading never stops. Contact your AssessIQ administrator to discuss your plan.
+
+admin.guide.faq_retake:
+  audience: admin
+  short_text: "Can a candidate retake?"
+  long_md: |
+    Not by default. Admin manually creates a new invitation if needed.
+
+admin.guide.faq_grading_fails:
+  audience: admin
+  short_text: "What if the grading of an attempt fails?"
+  long_md: |
+    AssessIQ handles it. An attempt stays in the AssessIQ queue until every question has a final score, and nothing is shown to the candidate before that.
+
+admin.guide.faq_set_change:
+  audience: admin
+  short_text: "Does a change to a licensed set change my assessments?"
+  long_md: |
+    No. Existing assessments keep the questions they were published with.
+
+admin.guide.faq_close_window:
+  audience: admin
+  short_text: "What happens at the close window?"
+  long_md: |
+    The cycle closes automatically. In-progress attempts auto-submit at their per-attempt timer expiry, regardless of cycle status.
+
+admin.guide.faq_write_questions:
+  audience: admin
+  short_text: "Why can't I write questions?"
+  long_md: |
+    AssessIQ writes all question sets. Organisation admins do not write them. You copy the sets your organisation is licensed for and build assessments from them. Contact your AssessIQ administrator to request more sets.
+
+admin.guide.faq_usage_banner:
+  audience: admin
+  short_text: "What does the usage banner mean — will grading stop if I go over?"
+  long_md: |
+    No — grading never stops. The banner is informational only. Green means you have used less than 80% of your included credits. Amber means 80–100% used. Red means you are over your included credits, but assigning, submitting, and grading all continue to work. Contact your AssessIQ administrator if you need to discuss your plan.

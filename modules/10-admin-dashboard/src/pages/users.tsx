@@ -705,10 +705,12 @@ function UserManageMenu({
     onClick: () => void,
     danger = false,
     disabled = false,
+    helpId?: string,
   ): React.ReactElement => (
     <button
       key={label}
       type="button"
+      {...(helpId ? { "data-help-id": helpId } : {})}
       onClick={(e) => {
         e.stopPropagation();
         if (disabled) return;
@@ -783,7 +785,7 @@ function UserManageMenu({
 
   // RW-45: super admin resets another admin's two-factor, only when TOTP is enrolled.
   if (onResetTotp !== undefined && user.totp_enrolled === true && !isSelf && user.role !== "candidate" && user.role !== "super_admin" && user.status === "active" && !user.deleted_at) {
-    items.push(menuItem("Reset two-factor", () => onResetTotp(user), true));
+    items.push(menuItem("Reset two-factor", () => onResetTotp(user), true, false, "admin.users.list.reset_totp"));
   }
 
   // Candidate-only DPDP data-rights actions (always shown for candidate rows,

@@ -28,6 +28,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, Chip, Icon, Spinner, StatCard, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { openAdminGuide } from "../components/AdminHelp.js";
 import { adminApi, AdminApiError } from "../api.js";
 
 // ── Shared style objects ──────────────────────────────────────────────────────
@@ -256,7 +257,7 @@ export function AdminGradingJobs(): React.ReactElement {
             type="button"
             className="aiq-btn aiq-btn-ghost aiq-btn-sm"
             style={{ display: "inline", padding: "0 2px", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}
-            onClick={() => navigate("/admin/guide")}
+            onClick={openAdminGuide}
           >
             Help guide
           </button>

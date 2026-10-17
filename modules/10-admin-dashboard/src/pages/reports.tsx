@@ -22,8 +22,8 @@
 
 import { assessmentStatusDisplay } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
-import { Spinner, formatDate } from "@assessiq/ui-system";
+import { Link, useNavigate } from "react-router-dom";
+import { EmptyState, Spinner, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
 
@@ -146,6 +146,98 @@ function ReportSection({
           </div>
         ) : (
           children
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface CandidateHit {
+  id: string;
+  email: string;
+  name: string | null;
+}
+
+// Z-22 #3: find a candidate by name or email, then open their individual report.
+// Reuses GET /admin/users?search= (same param as the Users page); no new endpoint.
+function CandidateSearch(): React.ReactElement {
+  const [query, setQuery] = useState("");
+  const [term, setTerm] = useState("");
+  const [hits, setHits] = useState<CandidateHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Debounce 300ms, same as the Users page.
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    if (!term) {
+      setHits([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams({ search: term, role: "candidate", pageSize: "10" });
+    adminApi<{ items: CandidateHit[] }>(`/admin/users?${params.toString()}`)
+      .then((d) => { if (!cancelled) setHits(d.items); })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(err instanceof AdminApiError ? err.apiError.message : "Failed to search candidates.");
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [term]);
+
+  return (
+    <div
+      style={{
+        border: "1px solid var(--aiq-color-border)",
+        borderRadius: "var(--aiq-radius-md)",
+        padding: "var(--aiq-space-md) var(--aiq-space-lg)",
+      }}
+    >
+      <label
+        htmlFor="reports-candidate-search"
+        style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500, display: "block" }}
+      >
+        Find a candidate
+      </label>
+      <input
+        id="reports-candidate-search"
+        type="search"
+        className="aiq-input"
+        placeholder="Name or email"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        style={{ width: "100%", marginTop: "var(--aiq-space-xs)" }}
+      />
+      <div aria-live="polite" style={{ marginTop: "var(--aiq-space-sm)" }}>
+        {loading ? (
+          <Spinner size="sm" aria-label="Searching candidates" />
+        ) : error ? (
+          <div style={{ color: "var(--aiq-color-danger)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+            {error}
+          </div>
+        ) : term && hits.length === 0 ? (
+          <EmptyState title="No candidates found." body="Check the spelling, or search by email." />
+        ) : (
+          hits.map((h) => (
+            <div key={h.id} style={{ padding: "var(--aiq-space-xs) 0" }}>
+              <Link
+                to={`/admin/reports/individual/${h.id}`}
+                style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)" }}
+              >
+                {h.name ? `${h.name} (${h.email})` : h.email}
+              </Link>
+            </div>
+          ))
         )}
       </div>
     </div>
@@ -313,6 +405,8 @@ export function AdminReports(): React.ReactElement {
         </ReportSection>
 
         {/* Individual reports */}
+        <CandidateSearch />
+
         <ReportSection
           title="Individual reports."
           description="Per-candidate score history and progression across assessments."

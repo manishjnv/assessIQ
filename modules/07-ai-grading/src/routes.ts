@@ -198,6 +198,8 @@ const LIST_ATTEMPTS_QUERY_SCHEMA = z.object({
   // max(10_000) caps offset to prevent DoS via a giant OFFSET forcing a full
   // index scan per request. FE never paginates past ~100 anyway.
   offset: z.coerce.number().int().min(0).max(10_000).default(0),
+  // Z-22: optional assessment filter (uuid; parameterised in the repo, RLS scopes the tenant).
+  assessmentId: z.string().uuid().optional(),
   // RV58: `status` may be a comma-separated list (e.g. "submitted,auto_submitted");
   // each value is validated against the enum, an unknown value fails → 400.
   status: z
@@ -363,6 +365,9 @@ export async function registerGradingRoutes(
         offset: parsed.data.offset,
         ...(parsed.data.status !== undefined
           ? { status: parsed.data.status }
+          : {}),
+        ...(parsed.data.assessmentId !== undefined
+          ? { assessmentId: parsed.data.assessmentId }
           : {}),
       });
     },

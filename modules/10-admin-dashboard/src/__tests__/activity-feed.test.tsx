@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
 import React from "react";
+import { MemoryRouter } from "react-router-dom";
 
 // ---------------------------------------------------------------------------
 // Module mocks — hoisted before any import that uses them.
@@ -108,9 +109,9 @@ describe("relativeTime (via rendered feed)", () => {
   });
 
   it("renders a relative timestamp for a recent event (Xm ago)", async () => {
-    render(<AdminActivity />);
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
     // Open the Audit log tab to show feed rows
-    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    const tab = await screen.findByRole("tab", { name: /Recent activity/ });
     fireEvent.click(tab);
     // Wait for the feed to load and Spinner to disappear in that section
     await waitFor(() => {
@@ -134,7 +135,7 @@ describe("ActivityFeedSection — loading", () => {
       if (url.includes("/leaderboard")) return new Promise(() => {});
       return new Promise(() => {});
     });
-    render(<AdminActivity />);
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
     // Multiple Spinners will appear (one per section), check at least one exists with role="status"
     const spinners = screen.getAllByRole("status");
     expect(spinners.length).toBeGreaterThan(0);
@@ -158,9 +159,9 @@ describe("ActivityFeedSection — with items", () => {
   });
 
   it("renders actor label and action label", async () => {
-    render(<AdminActivity />);
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
     // Open the Audit log tab to show feed rows
-    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    const tab = await screen.findByRole("tab", { name: /Recent activity/ });
     fireEvent.click(tab);
     await waitFor(() => {
       expect(screen.getByText("Alice Admin")).toBeDefined();
@@ -169,9 +170,9 @@ describe("ActivityFeedSection — with items", () => {
   });
 
   it("renders target label when present", async () => {
-    render(<AdminActivity />);
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
     // Open the Audit log tab to show feed rows
-    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    const tab = await screen.findByRole("tab", { name: /Recent activity/ });
     fireEvent.click(tab);
     await waitFor(() => {
       // targetLabel is split across sibling text nodes ("·" + label in a <span>)
@@ -182,9 +183,9 @@ describe("ActivityFeedSection — with items", () => {
   });
 
   it("renders the Admin role chip", async () => {
-    render(<AdminActivity />);
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
     // Open the Audit log tab to show feed rows
-    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    const tab = await screen.findByRole("tab", { name: /Recent activity/ });
     fireEvent.click(tab);
     await waitFor(() => {
       const chips = screen.getAllByTestId("chip");
@@ -194,9 +195,9 @@ describe("ActivityFeedSection — with items", () => {
   });
 
   it('renders "Showing N of M" count line', async () => {
-    render(<AdminActivity />);
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
     // Open the Audit log tab to show feed rows
-    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    const tab = await screen.findByRole("tab", { name: /Recent activity/ });
     fireEvent.click(tab);
     await waitFor(() => {
       expect(screen.getByText("Showing 1 of 1")).toBeDefined();
@@ -218,9 +219,9 @@ describe("ActivityFeedSection — empty", () => {
       if (url.includes("/leaderboard")) return Promise.resolve({ data: { period: "week", from: "", to: "", priorFrom: "", priorTo: "", page: 1, pageSize: 10, totalRanked: 0, items: [] } });
       return Promise.resolve({});
     });
-    render(<AdminActivity />);
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
     // Open the Audit log tab to show feed
-    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    const tab = await screen.findByRole("tab", { name: /Recent activity/ });
     fireEvent.click(tab);
     await waitFor(() => {
       expect(screen.getByText("No activity yet.")).toBeDefined();
@@ -242,12 +243,27 @@ describe("ActivityFeedSection — error", () => {
       if (url.includes("/leaderboard")) return new Promise(() => {});
       return new Promise(() => {});
     });
-    render(<AdminActivity />);
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
     // Open the Audit log tab to show feed
-    const tab = await screen.findByRole("tab", { name: /Audit log/ });
+    const tab = await screen.findByRole("tab", { name: /Recent activity/ });
     fireEvent.click(tab);
     await waitFor(() => {
       expect(screen.getByText("Failed to load activity feed.")).toBeDefined();
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Z-22 #6 — tab rename + link to the full audit log
+// ---------------------------------------------------------------------------
+
+describe("AdminActivity — Z-22 #6", () => {
+  it('names the inner tab "Recent activity" and links to /admin/audit-log', async () => {
+    mockAdminApi.mockImplementation(() => Promise.resolve({}));
+    render(<MemoryRouter><AdminActivity /></MemoryRouter>);
+    expect(await screen.findByRole("tab", { name: "Recent activity" })).toBeDefined();
+    expect(screen.queryByRole("tab", { name: "Audit log" })).toBeNull();
+    const link = screen.getByRole("link", { name: /audit log/i });
+    expect(link.getAttribute("href")).toBe("/admin/audit-log");
   });
 });
