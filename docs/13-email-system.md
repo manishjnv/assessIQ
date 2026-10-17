@@ -104,6 +104,10 @@ Reconciles the kit's [`tokens.md`](../modules/17-ui-system/AssessIQ_UI_Template/
 | `--text-muted` | `#3f3f46` | `#5f6368` | **`#3f3f46`** | Body / lede secondary. |
 | `--text-faint` | `#71717a` | `#9aa0a6` | **`#71717a`** | Mono metadata, footer microcopy. |
 | Preheader hidden-text fill | n/a | n/a | **`#fefefe`** | White-on-white with the parent canvas; invisible but indexable. |
+| Outcome pass bar (`--aiq-color-success`) | `oklch(0.50 0.14 150)` | n/a | **`#007834`** | 4 px left border on the Result row in `result_released`. Resolved once from the web token (Z-9). |
+| Outcome pass fill (`--aiq-color-success-soft`) | `oklch(0.97 0.03 150)` | n/a | **`#e8fbeb`** | Soft fill of the Result row. Dark text `#0a0a0b` on it is 18:1 (needs 4.5:1). Light mode only. |
+| Outcome fail bar (`--aiq-color-warning`) | `oklch(0.72 0.15 70)` | n/a | **`#df911a`** | Amber, never red: a fail is not an error. |
+| Outcome fail fill (`--aiq-color-warning-soft`) | `oklch(0.97 0.04 70)` | n/a | **`#fff1d9`** | Soft fill of the Result row. Dark text on it is 18:1. A test (`email-result-copy.test.ts`) computes both ratios. |
 
 ### 1.2 Layout
 

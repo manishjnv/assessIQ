@@ -1,14 +1,18 @@
-Subject: Your result for {{assessmentName}} is ready
+Subject: Your result for {{assessmentName}}{{#if is_passed}}: passed{{/if}}
 
-Hi {{candidateName}},
+{{#if candidateName}}Hi {{candidateName}},{{else}}Hello,{{/if}}
 
-{{tenantName}} has released your result for {{assessmentName}}.
+{{result_lede}}
 
-Score: {{scoreText}}
 Result: {{resultText}}
+Score: {{scoreText}}
+Assessment: {{assessmentName}}
+Organisation: {{tenantName}}
 
 View your result:
 {{portalLink}}
+
+{{result_next_step}}
 {{#if certificateLink}}
 
 View your certificate:

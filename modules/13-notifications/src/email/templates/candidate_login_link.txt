@@ -10,6 +10,5 @@ This link works for the next {{expires_minutes}} minutes. After that, it stops w
 
 If you did not ask for this link, you can ignore this email. Nobody can sign in to your account without clicking the link in this email.
 
-Thanks,
-The AssessIQ team
+— The AssessIQ team
 {{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

@@ -91,4 +91,48 @@ describe('ResultSummary', () => {
     );
     expect(container.textContent ?? '').not.toMatch(/band|breakdown|insight|percentile|strength|justification/i);
   });
+  describe('Z-9 plain result copy', () => {
+    it('pass headline names the assessment and uses success tokens', () => {
+      const { container } = render(
+        <ResultSummary totalEarned={42} totalMax={60} percent={70} passed assessmentName="SOC L1" />,
+      );
+      expect(screen.getByText('You passed SOC L1.')).toBeDefined();
+      const box = container.querySelector('[data-testid="result-outcome"]') as HTMLElement;
+      expect(box.style.background).toContain('--aiq-color-success-soft');
+      expect(box.style.borderLeft).toContain('--aiq-color-success');
+    });
+
+    it('fail uses warning tokens, never danger, with feedback + ask line', () => {
+      const { container } = render(
+        <ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} tenantName="Acme" feedbackOn />,
+      );
+      expect(screen.getByText('You did not reach the pass mark.')).toBeDefined();
+      expect(
+        screen.getByText('Use the feedback on each question to prepare. Ask Acme if you can try again.'),
+      ).toBeDefined();
+      const box = container.querySelector('[data-testid="result-outcome"]') as HTMLElement;
+      expect(box.style.background).toContain('--aiq-color-warning-soft');
+      expect(container.innerHTML).not.toContain('--aiq-color-danger');
+      expect(container.textContent).toContain('(33.3%)');
+    });
+
+    it('fail without feedback shows only the ask line', () => {
+      render(<ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} tenantName="Acme" />);
+      expect(screen.getByText('Ask Acme if you can try again.')).toBeDefined();
+    });
+
+    it('list-row one-liners', () => {
+      const cert = { credential_id: 'C1', verify_url: 'https://x.example/verify/C1' };
+      const { container, rerender } = render(
+        <ResultSummary compact totalEarned={42} totalMax={60} percent={70} passed certificate={cert} />,
+      );
+      const line = (): string | null => container.querySelector('[data-testid="result-oneliner"]')?.textContent ?? null;
+      expect(line()).toBe('You passed. View your certificate.');
+      rerender(<ResultSummary compact totalEarned={42} totalMax={60} percent={70} passed />);
+      expect(line()).toBe('You passed.');
+      rerender(<ResultSummary compact totalEarned={20} totalMax={60} percent={33} passed={false} />);
+      expect(line()).toBe('Not passed.');
+      expect(container.querySelector('[data-testid="result-outcome"]')).toBeNull();
+    });
+  });
 });
