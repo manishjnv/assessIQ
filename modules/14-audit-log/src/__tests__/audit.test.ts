@@ -26,11 +26,11 @@ import { Client } from 'pg';
 import { applyAllMigrations as applyAll } from '../../../../tools/test-support/apply-all-migrations.js';
 import { randomUUID } from 'node:crypto';
 
-import { setPoolForTesting, closePool } from '@assessiq/tenancy';
+import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
 import { withRequestContext } from '@assessiq/core';
 
 // Module under test
-import { audit, list } from '../index.js';
+import { audit, auditInTx, list } from '../index.js';
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -346,6 +346,35 @@ describe('audit() â€” RequestContext auto-fill', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]!.ip).toBeNull();
     expect(rows[0]!.user_agent).toBeNull();
+  });
+});
+
+describe('auditInTx() — explicit null ip / userAgent', () => {
+  const ctx = (tenantId: string) => ({
+    requestId: randomUUID(), tenantId, ip: '10.1.2.3', ua: 'CtxAgent/1.0',
+  });
+  const write = (tenantId: string, extra: { ip?: string | null; userAgent?: string | null }) =>
+    withRequestContext(ctx(tenantId), () =>
+      withTenant(tenantId, (client) =>
+        auditInTx(client, {
+          tenantId, actorKind: 'system', action: 'webhook.created', entityType: 'webhook_endpoint', ...extra,
+        })));
+
+  it('null stores NULL even when the request context has ip and ua', async () => {
+    const tenant = await createTenant();
+    await write(tenant.id, { ip: null, userAgent: null });
+    const rows = await queryAuditLog(tenant.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.ip).toBeNull();
+    expect(rows[0]!.user_agent).toBeNull();
+  });
+
+  it('undefined still auto-fills from the request context', async () => {
+    const tenant = await createTenant();
+    await write(tenant.id, {});
+    const rows = await queryAuditLog(tenant.id);
+    expect(rows[0]!.ip).toBe('10.1.2.3/32');
+    expect(rows[0]!.user_agent).toBe('CtxAgent/1.0');
   });
 });
 

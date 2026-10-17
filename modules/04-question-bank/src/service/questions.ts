@@ -10,6 +10,7 @@ import {
 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
+import { propagateTakedown } from "../clone/takedown.js";
 import { rubricRequiredFor, PackImportSchema, QB_ERROR_CODES } from "../types.js";
 import * as repo from "../repository.js";
 import type {
@@ -347,13 +348,19 @@ export async function withdrawQuestion(
     if (outcome === "missing" || current === null) {
       throw new NotFoundError(`Question not found: ${id}`, { details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND } });
     }
-    if (outcome === "already") return { id, status: "archived", rights_status: "withdrawn" };
+    if (outcome === "already") {
+      // Backfill: a master withdrawn before EXP-19 (or with a later clone) still reaches its clones.
+      await propagateTakedown(client, id, tenantId);
+      return { id, status: "archived", rights_status: "withdrawn" };
+    }
     await auditInTx(client, {
       tenantId, actorKind: "user", actorUserId, action: "question.withdrawn",
       entityType: "question", entityId: id,
       before: { status: current.status },
       after: { status: "archived", rights_status: "withdrawn" },
     });
+    // EXP-19: same tx, mark every tenant clone withdrawn (one audit row per affected tenant).
+    await propagateTakedown(client, id, tenantId);
     return { id, status: "archived", rights_status: "withdrawn" };
   });
 }
