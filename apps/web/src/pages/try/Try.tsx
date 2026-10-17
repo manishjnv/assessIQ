@@ -61,8 +61,14 @@ export function TryPage(): React.JSX.Element {
   useEffect(() => {
     const prev = document.title;
     document.title = 'Try a sample assessment | AssessIQ';
+    // Z-32: /try is a real public demo, so it gets a canonical (Googlebot renders JS).
+    const link = document.createElement('link');
+    link.rel = 'canonical';
+    link.href = SHARE_URL;
+    document.head.appendChild(link);
     return () => {
       document.title = prev;
+      link.remove();
     };
   }, []);
 
