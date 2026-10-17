@@ -2686,3 +2686,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** test defect, not a product defect. The helper `openAdminAttempt` did not wait for the SPA to render before the test called print. The page was still empty.
 **Fix:** one line in `apps/web/e2e/admin-help-print.spec.ts` after the navigation: `await expect(page.locator('main h1, main h2').first()).toBeVisible()` (commit `9a5d552`). The test then passed with more than one page.
 **Prevention:** every e2e helper that opens an SPA route must wait for a visible landmark before it reads or prints the page. Manual discipline; no lint covers it. Also: run a new e2e spec once on the local stack (`apps/web/e2e/local-stack.sh`) before you mark the row done. Z-6 and Z-21 were marked done on a code check only.
+
+## 2026-10-17 — Admin help drawer did not trap Tab or restore focus
+
+**Symptom:** the new e2e Tab-trap test failed: focus left the drawer at the third Tab press.
+**Cause:** `modules/17-ui-system/src/components/Drawer.tsx` set `aria-modal` but had no Tab trap and no focus restore.
+**Fix:** `Drawer.tsx`: Tab and Shift+Tab now wrap inside the drawer, and focus returns to the opener on close. This is a shared component, so every drawer gets the fix.
+**Prevention:** e2e test in `apps/web/e2e/admin-help-print.spec.ts` (4 of 4 pass locally). Z-21 was marked done earlier on a code check only; a modal needs a focus test, not only an `aria-modal` attribute.

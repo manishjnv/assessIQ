@@ -146,3 +146,32 @@ All new tables carry `tenant_id` and an RLS policy (platform content uses the pl
 1. D1 to D7 (§ 3).
 2. Is a candidate-facing previous-year catalog (lane B) wanted for marketing and SEO, or only for internal tagging?
 3. Which exam blueprint is verified first by hand against the official notice? Suggest SSC CGL Tier 1, because Wave 1 starts there.
+
+## 11. Built in S18: EXP-1, EXP-2, EXP-4
+
+Local commits 704b47d, 1363645, b0d6363, EXP-4 merge (not pushed or deployed at the time of writing).
+
+**What changed**
+- EXP-1: two bundled frameworks, `exam-structure.json` and `subject-map.json`, in `modules/04-question-bank/src/frameworks`, registered in `framework-seeds.ts`. The edition field (node `version`) is `draft-unverified`. Only Quant > Arithmetic has subtopics.
+- EXP-2: migration 0194. New table `question_source` (RLS). New `questions` columns: `difficulty_est`, `review_state`, `language_primary`, `content_i18n`. Existing active questions are grandfathered as `review_state='verified'`. Super-admin route `POST /api/admin/super/questions/:id/withdraw`. A rights allowlist (`original`, `derived_from_source`, `licensed`) blocks pack publish and bulk activation. Clone and resync copy `question_source`.
+- EXP-4: import v2. New template columns; difficulty scales (words, 1-3, 1-5) map to `difficulty_est` and keep the raw label; `rights_status` is required for CSV and XLSX; three duplicate classes (exact, normalised, trigram); commit writes `question_source` and the exam-stage and subject-map taxonomy links. Migration 0195 adds the help rows (module 16).
+
+**Why**
+- Provenance and rights must be recorded per item before any exam content enters the bank (see § 4, § 7). The allowlist makes "no rights record, no publish" a hard rule.
+- Grandfathering keeps today's content usable without a review round.
+
+**Considered and rejected**
+- Trigram match with `CREATE EXTENSION pg_trgm` inside a migration: rejected; trigram runs only if the extension already exists, so no shared-database change.
+- Silent default of `rights_status` for CSV and XLSX: rejected; old v1 CSV rows now error on purpose. GIFT, Aiken and QTI default to `original`.
+- Hard-block on trigram duplicates: rejected; threshold 0.8 within the same domain gives a warning only.
+
+**Not included**
+- Takedown propagation to tenant clones (row EXP-19) and purge from frozen pools (row EXP-20), both found by the EXP-2 gate review.
+- The review gate itself (EXP-18); the clone copies `review_state` as is, so EXP-18 may reset it.
+- Organisation upload (EXP-17); it must set origin `tenant_upload`.
+- Verification of the seeds against official notices (EXP-0).
+
+**Downstream impact**
+- Modules 04, 05 (publish path), 16 (help rows), 02 and 14 (EXP-19 later). `docs/02-data-model.md` and `docs/03-api-contract.md` need the schema and route entries.
+- Gate: Sonnet takeover REVISE (3 fixes applied: allowlist, activation paths, idempotent withdraw). `codex exec` gave a text-only second opinion (REVISE, verify items only; its sandbox cannot run commands).
+- EXP-4 doubts: report `checksRun` is computed at report time and not stored; the UI chips are untested.
