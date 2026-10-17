@@ -125,3 +125,10 @@ Common failure causes:
 - `pnpm --filter @assessiq/web lhci:authed` provisions an attempt, sends the cookies as a Lighthouse extra header, prints a score table and asserts a minimum of 0.85 per category (`lighthouserc.authed.json`). Set `PLAYWRIGHT_BASE_URL` (a preview build with `E2E_API_PROXY`, host must be `localhost` for the cookie) and `E2E_API_BASE_URL`. `LHCI_RUNS=1` speeds up a local run. The workflow step is advisory until 2026-10-31.
 
 > S15 (RW-81): the token and spacing changes (Table cells, page headers, h1 size token, mobile attempt header) require regenerating the visual baselines inside the Playwright image before the visual job can pass.
+
+## S17 notes (Z-29, Z-30)
+
+- Local run of the drawer, print and axe specs: `bash apps/web/e2e/local-stack.sh`, then `PLAYWRIGHT_BASE_URL=http://localhost:5173 E2E_API_BASE_URL=http://localhost:3000 pnpm --filter @assessiq/web exec playwright test admin-help-print a11y-authed --project=chromium`, then `bash apps/web/e2e/local-stack.sh --down`.
+- Print specs must wait for a landmark (`main h1`) before `page.pdf()`. Without the wait, the PDF is blank (1 page).
+- `a11y-authed.spec.ts` now blocks on `region` and `page-has-heading-one` besides serious and critical findings (measured zero on 5 pages, 2026-10-17).
+- Visual baselines (`visual.spec.ts-snapshots/*-linux.png`) come from `mcr.microsoft.com/playwright:v1.59.1-jammy` only. On Docker Desktop the Vite dev server answers 403 to the `host.docker.internal` Host header: run a small TCP proxy inside the container that listens on `localhost:5173` and forwards to `host.docker.internal:5173`. Pages load Google Fonts, so a run without network can differ slightly (`maxDiffPixels: 200`).
