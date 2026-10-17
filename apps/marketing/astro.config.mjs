@@ -1,7 +1,7 @@
 import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import { writeFile, mkdir } from 'node:fs/promises';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -58,6 +58,17 @@ function inlineSitemap() {
     '/tools',
     '/tools/cost-of-a-bad-hire',
   ];
+
+  // Guard: every indexable page file must be listed in `paths` (else it is silently left out of the sitemap).
+  const pagesDir = fileURLToPath(new URL('./src/pages/', import.meta.url));
+  const missing = readdirSync(pagesDir, { recursive: true })
+    .map((f) => f.replaceAll('\\', '/'))
+    .filter((f) => f.endsWith('.astro') && !f.includes('[') && !/^(404|search)\.astro$/.test(f))
+    .filter((f) => !/noindex/.test(readFileSync(join(pagesDir, f), 'utf8')))
+    .map((f) => '/' + f.replace(/\.astro$/, '').replace(/(^|\/)index$/, ''))
+    .map((u) => u || '/')
+    .filter((u) => !paths.includes(u));
+  if (missing.length) throw new Error(`sitemap: indexable pages missing from paths[] in astro.config.mjs (add them, or pass noindex): ${missing.join(', ')}`);
 
   const pages = paths.map((p) => {
     const d = pageDates[p];
