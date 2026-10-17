@@ -132,3 +132,10 @@ Common failure causes:
 - Print specs must wait for a landmark (`main h1`) before `page.pdf()`. Without the wait, the PDF is blank (1 page).
 - `a11y-authed.spec.ts` now blocks on `region` and `page-has-heading-one` besides serious and critical findings (measured zero on 5 pages, 2026-10-17).
 - Visual baselines (`visual.spec.ts-snapshots/*-linux.png`) come from `mcr.microsoft.com/playwright:v1.59.1-jammy` only. On Docker Desktop the Vite dev server answers 403 to the `host.docker.internal` Host header: run a small TCP proxy inside the container that listens on `localhost:5173` and forwards to `host.docker.internal:5173`. Pages load Google Fonts, so a run without network can differ slightly (`maxDiffPixels: 200`).
+
+## S17 notes (Z-36)
+
+- Start the local stack: `bash apps/web/e2e/local-stack.sh` (stop: `bash apps/web/e2e/local-stack.sh --down`).
+- Linux visual baselines come from `mcr.microsoft.com/playwright:v1.59.1-jammy`. Use `host.docker.internal` plus a small TCP proxy in the container, because Vite returned 403 for that Host header.
+- Every helper that opens an SPA route must wait for a visible landmark (for example `main h1`) before print or PDF output.
+- `admin-help-print.spec.ts` also checks the help drawer focus trap: 15 Tab and 15 Shift+Tab presses stay inside the drawer, and Escape returns focus to the trigger.
