@@ -68,6 +68,7 @@ type PageState =
       candidateName: string;
       durationSeconds: number;
       questionCount: number;
+      passMarkPct: number | null;
     }
   | { tag: 'error404' }
   | { tag: 'invalid' }
@@ -86,6 +87,7 @@ export function SuccessContent({
   candidateName,
   durationSeconds,
   questionCount,
+  passMarkPct = null,
   resumed,
   onBegin,
   beginning,
@@ -97,6 +99,8 @@ export function SuccessContent({
   candidateName: string;
   durationSeconds: number;
   questionCount: number;
+  /** Z-16: pass mark (1-100); null on older servers. */
+  passMarkPct?: number | null;
   resumed: boolean;
   onBegin: () => void;
   beginning: boolean;
@@ -148,6 +152,7 @@ export function SuccessContent({
         <p style={{ ...META_LABEL, margin: '0 0 10px' }}>
           {company ? `${company} · ` : ''}
           {totalMinutes} min · {questionCount} question{questionCount !== 1 ? 's' : ''}
+          {passMarkPct !== null && ` · Pass mark ${passMarkPct}%`}
         </p>
         <ul
           style={{
@@ -344,6 +349,8 @@ export function TokenLanding(): React.JSX.Element {
         candidateName: res.candidate.name,
         durationSeconds: res.assessment.duration_seconds,
         questionCount: res.assessment.question_count,
+        // pass_mark_pct is not in the shared wire type yet (module 11 is edited elsewhere).
+        passMarkPct: (res.assessment as { pass_mark_pct?: number }).pass_mark_pct ?? null,
       });
     } catch (err) {
       if (err instanceof CandidateApiError) {
@@ -406,6 +413,7 @@ export function TokenLanding(): React.JSX.Element {
         candidateName={state.candidateName}
         durationSeconds={state.durationSeconds}
         questionCount={state.questionCount}
+        passMarkPct={state.passMarkPct}
         resumed={state.resumed}
         onBegin={() => void handleBegin()}
         beginning={beginning}

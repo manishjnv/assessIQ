@@ -34,7 +34,7 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 
 import { auditInTx } from '@assessiq/audit-log';
-import { AppError } from '@assessiq/core';
+import { AppError, DISTINCTION_PCT, isPass, meetsPct } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 
 import {
@@ -615,7 +615,9 @@ export async function incrementShareCount(
  * Returns the Certificate if one was issued/upgraded, or null when:
  *   - attempt not found (RLS filtered)
  *   - attempt_scores row absent (scores not yet computed)
- *   - score below the 70% completion threshold
+ *   - the attempt did not pass: score below the assessment pass mark
+ *     (attempt_scores.pass_mark_pct, Z-16). Every pass gets a certificate;
+ *     tier = distinction at 90% or more, else completion.
  *
  * actorUserId: the releasing admin, or null when the SYSTEM releases (auto-
  * release sweep) — the audit rows then carry actor_kind 'system'.
@@ -639,7 +641,9 @@ export async function issueCertificateOnRelease(
     display_name: string;
     course_title: string;
     level: string;
-    auto_pct: string | null; // NUMERIC returns as string from node-postgres
+    total_earned: string | null; // NUMERIC returns as string from node-postgres
+    total_max: string | null;
+    pass_mark_pct: number | null;
     erased: boolean;
   }>(
     `SELECT
@@ -647,7 +651,9 @@ export async function issueCertificateOnRelease(
        u.name              AS display_name,
        ass.name            AS course_title,
        l.label             AS level,
-       ats.auto_pct,
+       ats.total_earned,
+       ats.total_max,
+       ats.pass_mark_pct,
        (u.erased_at IS NOT NULL) AS erased
      FROM attempts      a
      JOIN users         u   ON u.id   = a.user_id
@@ -661,16 +667,19 @@ export async function issueCertificateOnRelease(
   const row = result.rows[0];
   if (row === undefined) return null;
   if (row.erased) return null; // E3: no certificate for an erased candidate
-  if (row.auto_pct === null) return null; // scores not yet computed
+  if (row.total_earned === null || row.total_max === null || row.pass_mark_pct === null) {
+    return null; // scores not yet computed
+  }
 
-  const pct = parseFloat(row.auto_pct);
-  if (!isFinite(pct)) return null; // guard against PostgreSQL NaN literal
-  if (pct < 70) return null; // below completion threshold — no cert
+  // Z-16: one shared integer-math rule (no float rounding at the boundary).
+  // Every pass gets a certificate; a fail gets none. The pass mark is the
+  // snapshot on the score row, so a later assessment edit cannot change it.
+  if (!isPass(row.total_earned, row.total_max, row.pass_mark_pct)) return null;
 
-  // AssessIQ tier thresholds (2026-05-25): 70–<90% = completion, ≥90% = distinction.
-  // (Lowered from the original 90% floor / 100%-only distinction.) Honors is
-  // deferred pending an AI-evaluation pipeline for certs.
-  const tier: Tier = pct >= 90 ? 'distinction' : 'completion';
+  // Tier: distinction at 90% or more, else completion. Honors is deferred (owner, Z-16).
+  const tier: Tier = meetsPct(row.total_earned, row.total_max, DISTINCTION_PCT)
+    ? 'distinction'
+    : 'completion';
 
   return issueCertificate(client, {
     tenant_id: tenantId,

@@ -1143,6 +1143,8 @@ export interface CreateAssessmentFromSetRequest {
   level_position: number;
   name: string;
   question_count: number;
+  /** Z-16: integer 1..100; omit to use the level default. */
+  passing_score_pct?: number;
   opens_at: string;
   closes_at?: string | null;
   randomize?: boolean;

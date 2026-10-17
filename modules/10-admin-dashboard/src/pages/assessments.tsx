@@ -78,6 +78,8 @@ export function AdminAssessments(): React.ReactElement {
     opens_at: "",
     closes_at: "",
   });
+  // Z-16: blank = use the level default; otherwise a whole number 1..100.
+  const [passMark, setPassMark] = useState("");
   const [creating, setCreating] = useState(false);
   // Integrity v1: written to settings.integrity on create (both default off).
   const [integrityFullscreen, setIntegrityFullscreen] = useState(false);
@@ -187,6 +189,11 @@ export function AdminAssessments(): React.ReactElement {
       setCreateError("Opens is required — an assessment with no Opens date never becomes active and candidates can't start it. Set when it should open.");
       return;
     }
+    const passMarkNum = passMark.trim() === "" ? null : Number(passMark.trim());
+    if (passMarkNum !== null && (!Number.isInteger(passMarkNum) || passMarkNum < 1 || passMarkNum > 100)) {
+      setCreateError("Pass mark must be a whole number from 1 to 100.");
+      return;
+    }
     if (createMode === "from-set" && pendingFromSet === null) {
       setCreateError("Select a licensed set, a difficulty, and the number of questions to draw.");
       return;
@@ -226,6 +233,7 @@ export function AdminAssessments(): React.ReactElement {
           question_count: builtSections?.total ?? pendingFromSet.question_count,
           opens_at: opensAtIso,
           ...(closesAtIso ? { closes_at: closesAtIso } : {}),
+          ...(passMarkNum !== null ? { passing_score_pct: passMarkNum } : {}),
           settings: { ...integritySettings, ...(builtSections?.settings ?? {}) },
         });
         navigate(`/admin/assessments/${created.id}`);
@@ -236,6 +244,7 @@ export function AdminAssessments(): React.ReactElement {
       const body: Record<string, unknown> = { name: newForm.name.trim() };
       body.opens_at = opensAtIso;
       if (closesAtIso) body.closes_at = closesAtIso;
+      if (passMarkNum !== null) body.passing_score_pct = passMarkNum;
 
       if (pendingBlueprint !== null) {
         // Blueprint mode: send settings.blueprint; backend resolves pack/level/question_count
@@ -468,6 +477,39 @@ export function AdminAssessments(): React.ReactElement {
                     type="datetime-local"
                     value={newForm.closes_at}
                     onChange={(e) => setNewForm((f) => ({ ...f, closes_at: e.target.value }))}
+                  />
+                </div>
+
+                {/* Pass mark (Z-16) — blank uses the level default; editable until publish */}
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "var(--aiq-space-xs)",
+                  }}
+                >
+                  <HelpTip helpId="admin.assessments.pass_mark">
+                    <label
+                      htmlFor="new-assessment-pass-mark"
+                      style={{
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontSize: "var(--aiq-text-sm)",
+                        fontWeight: 500,
+                      }}
+                    >
+                      Pass mark (%)
+                    </label>
+                  </HelpTip>
+                  <input
+                    id="new-assessment-pass-mark"
+                    className="aiq-input"
+                    type="number"
+                    min={1}
+                    max={100}
+                    step={1}
+                    placeholder="Level default"
+                    value={passMark}
+                    onChange={(e) => setPassMark(e.target.value)}
                   />
                 </div>
               </div>

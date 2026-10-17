@@ -183,6 +183,8 @@ export interface Assessment {
   description: string | null;
   status: AssessmentStatus;
   question_count: number;
+  /** Z-16: pass mark, integer 1..100. Pre-filled from the level; editable only while draft. */
+  passing_score_pct: number;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -259,6 +261,8 @@ export interface CreateAssessmentInput {
   name: string;
   description?: string;
   question_count: number;
+  /** Z-16: integer 1..100; defaults to the level's passing_score_pct. */
+  passing_score_pct?: number;
   randomize?: boolean;     // defaults true
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -277,6 +281,8 @@ export interface CreateAssessmentFromSetInput {
   name: string;
   description?: string;
   question_count: number;
+  /** Z-16: integer 1..100; defaults to the chosen level's passing_score_pct. */
+  passing_score_pct?: number;
   randomize?: boolean;
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -289,6 +295,8 @@ export interface UpdateAssessmentPatch {
   name?: string;
   description?: string | null;
   question_count?: number;
+  /** Z-16: integer 1..100. Draft only; any patch on a published assessment is rejected. */
+  passing_score_pct?: number;
   randomize?: boolean;
   opens_at?: Date | null;
   closes_at?: Date | null;

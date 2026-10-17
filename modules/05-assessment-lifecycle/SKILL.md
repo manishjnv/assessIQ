@@ -244,3 +244,11 @@ Tests:
   - `preview.ts`: `previewAssessment`.
 - **Older text in this file.** Lines that say `src/service.ts` hold a function now mean the matching file in `src/service/`.
 - **Not included.** A change to the exports, the RLS-only rule or the tests.
+
+## Z-16 pass mark (2026-10-17)
+
+- **What.** `assessments.passing_score_pct` (migration `0198`, SMALLINT 1..100). `createAssessment` and `createAssessmentFromSet` take an optional `passing_score_pct`; the default is the level's value clamped to 1..100. `updateAssessment` accepts it only in `draft` (the existing `ASSESSMENT_NOT_DRAFT` rule). `assertPassMark` rejects 0, negatives, above 100, decimals and non-numbers (`INVALID_PARAM`).
+- **Why.** The owner wants a pass mark per assessment. Edits stop at publish, so every candidate is judged by one mark. The mark is snapshotted onto `attempt_scores` (module 09).
+- **Considered and rejected.** Letting an admin change the mark after publish (history would shift, or the snapshot would hide the change). A cross-module FK for the snapshot.
+- **Not included.** Honors. Retake (Z-39). The result email wording.
+- **Downstream.** Admin UI: a field on the New assessment form (blank means the level default) and `PassMarkCard` on the detail page. Help id `admin.assessments.pass_mark`. The welcome page shows the mark through `assessment.pass_mark_pct` of the `/take/start` preview.

@@ -45,6 +45,7 @@ import { IntegrityCard } from "../components/IntegrityCard.js";
 import { SectionsCard } from "../components/SectionsCard.js";
 import { HighStakesCard } from "../components/HighStakesCard.js";
 import { NegativeMarksCard } from "../components/NegativeMarksCard.js";
+import { PassMarkCard } from "../components/PassMarkCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
@@ -595,6 +596,12 @@ export function AdminAssessmentDetail(): React.ReactElement {
           handleResendAll={handleResendAll}
         />
 
+        <PassMarkCard
+          key={`pm-${assessment.id}`}
+          assessmentId={assessment.id}
+          initial={assessment.passing_score_pct}
+          isDraft={assessment.status === "draft"}
+        />
         <IntegrityCard key={assessment.id} assessmentId={assessment.id} initial={assessment.settings?.integrity} />
         <SectionsCard
           key={`sec-${assessment.id}`}

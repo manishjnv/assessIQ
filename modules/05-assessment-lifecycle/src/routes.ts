@@ -172,6 +172,7 @@ export async function registerAssessmentLifecycleRoutes(
       // Optional fields — build conditionally to honour exactOptionalPropertyTypes
       if (raw["description"] !== undefined) input.description = raw["description"] as string;
       if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
+      if (raw["passing_score_pct"] !== undefined) input.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -238,6 +239,7 @@ export async function registerAssessmentLifecycleRoutes(
       };
       if (raw["description"] !== undefined) input.description = raw["description"] as string;
       if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
+      if (raw["passing_score_pct"] !== undefined) input.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -336,6 +338,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["description"] !== undefined) patch.description = raw["description"] as string | null;
       if (raw["question_count"] !== undefined) patch.question_count = raw["question_count"] as number;
       if (raw["randomize"] !== undefined) patch.randomize = raw["randomize"] as boolean;
+      if (raw["passing_score_pct"] !== undefined) patch.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["settings"] !== undefined) patch.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {

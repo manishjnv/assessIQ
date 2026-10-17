@@ -174,6 +174,7 @@ describe('inviteUsers — tenantId pass-through to email', () => {
       pack_id: 'pack-1',
       level_id: 'level-1',
       question_count: 5,
+      passing_score_pct: 60,
       tenant_id: tenantId,
       pack_version: 1,
       description: null,

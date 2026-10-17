@@ -293,8 +293,13 @@ export async function upsertAttemptScore(
   const res = await client.query<AttemptScoreDbRow>(
     `INSERT INTO attempt_scores
        (attempt_id, tenant_id, total_earned, total_max, auto_pct,
-        pending_review, archetype, archetype_signals, computed_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, now())
+        pending_review, archetype, archetype_signals, computed_at, pass_mark_pct)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, now(),
+       -- Z-16: snapshot the assessment pass mark; the DO UPDATE below never touches it,
+       -- so a re-score or a later assessment edit cannot change an old result.
+       COALESCE((SELECT ass.passing_score_pct FROM attempts at
+                   JOIN assessments ass ON ass.id = at.assessment_id
+                  WHERE at.id = $1), 60))
      ON CONFLICT (attempt_id) DO UPDATE SET
        total_earned      = EXCLUDED.total_earned,
        total_max         = EXCLUDED.total_max,

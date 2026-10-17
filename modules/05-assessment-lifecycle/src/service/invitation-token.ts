@@ -76,6 +76,7 @@ export async function resolveInvitationToken(
       a_description: string | null;
       a_status: string;
       a_question_count: number;
+      a_passing_score_pct: number;
       a_randomize: boolean;
       a_opens_at: Date | null;
       a_closes_at: Date | null;
@@ -112,6 +113,7 @@ export async function resolveInvitationToken(
          a.description      AS a_description,
          a.status           AS a_status,
          a.question_count   AS a_question_count,
+         a.passing_score_pct AS a_passing_score_pct,
          a.randomize        AS a_randomize,
          a.opens_at         AS a_opens_at,
          a.closes_at        AS a_closes_at,
@@ -162,6 +164,7 @@ export async function resolveInvitationToken(
         description: row.a_description,
         status: row.a_status as AssessmentStatus,
         question_count: row.a_question_count,
+        passing_score_pct: row.a_passing_score_pct,
         randomize: row.a_randomize,
         opens_at: row.a_opens_at,
         closes_at: row.a_closes_at,

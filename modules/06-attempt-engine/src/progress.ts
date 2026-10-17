@@ -13,6 +13,7 @@
  * A question mapped to subject nodes in two frameworks counts once in each subject (intended).
  */
 
+import { isPass } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { RELEASED_AT_SQL, certificateRef, resultPercent, type CandidateCertificateRef } from "./result.js";
 
@@ -49,12 +50,11 @@ const ATTEMPTS_SQL = `SELECT a.id AS attempt_id,
         asm.name AS assessment_name,
         s.total_earned::text AS total_earned,
         s.total_max::text    AS total_max,
-        l.passing_score_pct,
+        s.pass_mark_pct AS passing_score_pct,
         ${RELEASED_AT_SQL} AS released_at,
         c.credential_id
    FROM attempts a
    JOIN assessments asm ON asm.id = a.assessment_id
-   JOIN levels l        ON l.id   = asm.level_id
    JOIN attempt_scores s ON s.attempt_id = a.id
    LEFT JOIN certificates c ON c.attempt_id = a.id AND c.revoked_at IS NULL
   WHERE a.user_id = $1
@@ -117,7 +117,7 @@ export async function getCandidateProgress(tenantId: string, userId: string): Pr
         total_max: max,
         score_pct: pct,
         passing_score_pct: r.passing_score_pct,
-        passed: r.passing_score_pct === null ? null : pct >= r.passing_score_pct,
+        passed: r.passing_score_pct === null ? null : isPass(earned, max, r.passing_score_pct),
         certificate: certificateRef(r.credential_id),
       };
     });

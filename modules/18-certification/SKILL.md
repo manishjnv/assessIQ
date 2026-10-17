@@ -8,9 +8,11 @@ share + admin list/revoke/reissue surfaces, automatic release trigger wiring.
 
 ## Purpose
 Issue, verify, and manage tamper-evident certificates when a candidate passes
-an assessment at or above the completion threshold. **Auto-issue tiers
-(`issueCertificateOnRelease`, 2026-05-25): below 70% → none, 70–<90% →
-completion, ≥90% → distinction** (honors deferred). Each certificate is:
+an assessment, at or above the assessment's own pass mark. **Auto-issue rule
+(`issueCertificateOnRelease`, Z-16): a fail → none, every pass → a certificate,
+pass below 90% → completion, ≥90% → distinction** (honors deferred). The pass
+test is the shared integer-math `isPass` in `@assessiq/core`, using the pass
+mark snapshot `attempt_scores.pass_mark_pct`. Each certificate is:
 
 - A **snapshotted** row (display_name, course_title, level frozen at issuance)
 - **Idempotent** (UNIQUE(tenant_id, candidate_id, attempt_id) — one cert per attempt)
@@ -462,3 +464,10 @@ A missing logo or a read failure shows the organisation name alone. The guard `S
 **Why.** The verify page, the share image and the PDF are the public face of a certificate. They carry the issuer brand, co-branded with AssessIQ.
 
 **Downstream impact.** Sizes and the co-brand rule: `docs/10-branding-guideline.md` § 11.1. API facts: `docs/03-api-contract.md`.
+
+## Z-16 every pass gets a certificate (2026-10-17)
+
+- **What.** The `pct < 70` floor in `issueCertificateOnRelease` is removed. The function reads `total_earned`, `total_max` and `pass_mark_pct` from `attempt_scores`, passes if `isPass(...)`, and picks `distinction` at 90 percent or more (`meetsPct`, `DISTINCTION_PCT`), else `completion`.
+- **Why.** Owner decision: a pass always earns a certificate. A fixed floor above the pass mark broke that.
+- **Not included.** Honors (later). Retake (Z-39). A change to `issueCertificate`, upgrade-only tiers or the release transaction. Issuance still runs inside `releaseAttemptInTx` in a SAVEPOINT.
+- **Race.** Two concurrent releases still produce one certificate: the release locks the attempt row and `UNIQUE(tenant_id, candidate_id, attempt_id)` backs it (test in `modules/09-scoring/src/__tests__/release.test.ts`).
