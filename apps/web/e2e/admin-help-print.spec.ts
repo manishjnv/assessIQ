@@ -16,6 +16,7 @@ async function signInAdmin(context: BrowserContext, cookie: string): Promise<voi
 async function openAdminAttempt(page: Page, p: factories.Provisioned): Promise<void> {
   await page.goto(`/admin/attempts/${p.attemptId}`);
   await expect(page.locator('body')).not.toContainText('Not found.');
+  await expect(page.locator('main h1, main h2').first()).toBeVisible({ timeout: 20_000 }); // SPA must render before print
 }
 
 test.describe('admin help drawer and print review', () => {
