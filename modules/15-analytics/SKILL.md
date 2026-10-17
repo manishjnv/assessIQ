@@ -160,3 +160,11 @@ The activity test file spins up its own postgres container (`aiq_activity_test`)
 ## S15 (2026-10-17) - per-question statistics (RW-60 / FU-C14)
 
 Migration `0189` adds the materialized view `question_stats_mv` (one row for each tenant and question). `refresh-mv-job.ts` refreshes it after `attempt_summary_mv` (`views: 2` in the log). `src/question-stats.ts` `getQuestionStats(questionId)` serves `GET /api/admin/super/questions/:id/stats` (super admin): scope `tenant` via `withTenant`, scope `rollup` via read-only `withSystemRole` over clones. The `miscalibrated` rule is a default (30+ attempts, 0.90 / 0.25 / 0.15), not a spec value. `tools/lint-mv-tenant-filter.ts` covers both views and accepts the marker `-- mv-tenant-filter: allow cross-tenant (super_admin roll-up, RW-60)` for super-admin roll-ups only. **Not included:** roll-up by distinct organisation, review queue, tenant-admin view, incremental refresh. See `docs/02-data-model.md` and `docs/03-api-contract.md`.
+
+## S16 (2026-10-17) - candidate Activity counts live attempts (Z-15e)
+
+- **What.** `src/activity-candidate/stats.ts` counts completions and "question sets attempted" from submitted rows in the live `attempts` table (lines 67-68, 96, 135). `avgScore` stays released-only from `attempt_summary_mv`.
+- **Why.** Both counts read `attempt_summary_mv`, which is released-only and refreshed nightly, so "completed" showed 0 next to a non-zero "attempted". The live count exposes no score, so rule P1 holds.
+- **Rejected.** Refresh the MV more often (still released-only).
+- **Not included.** The exact mismatch in the owner screenshot was not reproduced from code. No change to admin reports.
+- **Downstream.** `CandidateActivity.tsx` caption states the definition. RCA 2026-10-17 entry.

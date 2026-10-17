@@ -165,3 +165,11 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 - `pages/tenant-settings.tsx` has a second radio-card group "Per-question feedback" with the same `MfaStepUp` flow as the release mode. It calls `PATCH /api/admin/tenant-settings/result-feedback-level` and reads `result_feedback_level` from `GET /api/admin/tenant-settings`.
 - Help ids: `admin.tenant_settings.result_feedback_level` and one id for each option.
 - Details: `docs/08-ui-system.md` § "Tenant settings: per-question feedback (RW-80, S15)".
+
+## S16 (2026-10-17) - admin help drawer, account card, print, links (Z-21, Z-6, Z-22)
+
+- **What.** `components/AdminHelp.tsx` (trigger, Ctrl/Cmd+/, tabs "This page" and "Guide", `openAdminGuide()` window event). `AdminShell.tsx` always wraps in `HelpProvider` (fallback page `admin.shell`). Footer is `components/MyAccountCard.tsx` (2FA chip, recovery codes via `RegenerateCodesModal.tsx`, enrol, sign out). "Help guide" and "Account security" left `accountEntries`; routes stay. `/admin/guide` renders from help rows `admin.guide.*` (migration 0192). `@media print` releases height and overflow (Z-6). Dashboard "New assessment" goes to `/admin/assessments?new=1`; reports has a candidate search; Activity tab is "Recent activity" with a link to `/admin/audit-log`; `users.tsx` wires `admin.users.list.reset_totp`.
+- **Why.** In-page help, one source for guide text, and a print that shows every page.
+- **Rejected.** Help-system `HelpDrawer` (one entry only). Focus trap (shared `Drawer`).
+- **Not included.** Tab trapping in the drawer. Baselines. The print e2e `apps/web/e2e/admin-help-print.spec.ts` is written, not run.
+- **Downstream.** `docs/08-ui-system.md` section "AdminShell help drawer and account card"; `docs/07-help-system.md` section "Admin guide as help rows, S16".
