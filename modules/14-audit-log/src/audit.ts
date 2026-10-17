@@ -143,8 +143,9 @@ export async function auditInTx(client: PoolClient, input: AuditInput): Promise<
   }
 
   const ctx = getRequestContext();
-  const ip = input.ip ?? ctx?.ip ?? null;
-  const userAgent = input.userAgent ?? ctx?.ua ?? null;
+  // An explicit null means "record no IP / UA" (EXP-19 writes into customer tenants); undefined auto-fills.
+  const ip = input.ip === null ? null : (input.ip ?? ctx?.ip ?? null);
+  const userAgent = input.userAgent === null ? null : (input.userAgent ?? ctx?.ua ?? null);
 
   const redactedBefore = input.before !== undefined
     ? (redactPayload(input.before) as Record<string, unknown>)

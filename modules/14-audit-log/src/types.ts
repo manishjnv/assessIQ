@@ -52,6 +52,7 @@ export const ACTION_CATALOG = [
   'question.created',
   'question.updated',
   'question.withdrawn',
+  'question.takedown_propagated',
   'question.imported',
   'question_import.staged',
   'question_import.committed',
@@ -275,10 +276,10 @@ export interface AuditInput {
   before?: Record<string, unknown>;
   /** State AFTER the mutation (will be redacted before writing). */
   after?: Record<string, unknown>;
-  /** IPv4/IPv6 address. Auto-filled from RequestContext if omitted. */
-  ip?: string;
-  /** User-agent string. Auto-filled from RequestContext if omitted. */
-  userAgent?: string;
+  /** IPv4/IPv6 address. Auto-filled from RequestContext if omitted; null records none. */
+  ip?: string | null;
+  /** User-agent string. Auto-filled from RequestContext if omitted; null records none. */
+  userAgent?: string | null;
 }
 
 /** A row as returned from the database by the service layer. */
