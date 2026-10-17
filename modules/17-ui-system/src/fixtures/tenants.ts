@@ -12,7 +12,7 @@ export const TENANT_FIXTURES: Record<string, TenantFixture> = {
     id: "00000000-0000-0000-0000-000000000001",
     slug: "default",
     name: "Default",
-    branding: { primary: "oklch(0.58 0.17 258)" }, // default accent (hue 258)
+    branding: { primary: "oklch(0.52 0.18 258)" }, // default accent (hue 258)
   },
   "demo-blue": {
     id: "00000000-0000-0000-0000-000000000002",

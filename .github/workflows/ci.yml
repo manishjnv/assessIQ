@@ -502,7 +502,16 @@ jobs:
           E2E_API_BASE_URL: http://localhost:3000
         run: >-
           pnpm --filter @assessiq/web exec playwright test
-          admin-workflow take-happy-path take-timer-expiry ordering-admin
+          admin-workflow take-happy-path take-timer-expiry ordering-admin a11y-authed
+
+      # advisory until 2026-10-31, then remove PHONE_FLOW_ADVISORY and continue-on-error (RW-79)
+      - name: Phone first-question timing (RW-79)
+        continue-on-error: true
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+          E2E_API_BASE_URL: http://localhost:3000
+          PHONE_FLOW_ADVISORY: "1"
+        run: pnpm --filter @assessiq/web exec playwright test --project=mobile phone-first-question
 
       - name: Upload service logs on failure
         if: failure()
