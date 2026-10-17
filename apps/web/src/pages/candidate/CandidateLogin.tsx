@@ -197,6 +197,12 @@ export function CandidateLogin(): React.JSX.Element {
         [data-viewport="mobile"] .aiq-candidate-login-main {
           padding: 24px 22px;
         }
+        /* Phone: start the form near the top instead of centring it in the
+           full-height column (inline alignItems needs !important). */
+        [data-viewport="mobile"] .aiq-candidate-login-body {
+          align-items: flex-start !important;
+          padding-top: 32px;
+        }
       `}</style>
       {/* ── Left pane — form ──────────────────────────────────────────── */}
       <main
@@ -209,6 +215,7 @@ export function CandidateLogin(): React.JSX.Element {
         <Logo />
 
         <div
+          className="aiq-candidate-login-body"
           style={{
             flex: 1,
             display: 'flex',
