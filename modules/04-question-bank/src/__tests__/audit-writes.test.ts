@@ -556,6 +556,11 @@ describe("G3.D audit writes — 04-question-bank", () => {
            VALUES ($1, $2, $3, 'mcq', 'bus', 1, 'ai_draft', $4::jsonb, $5)`,
           [qid, pack.id, levelId, JSON.stringify(mcqContent()), adminA],
         );
+        // EXP-2: activation requires a cleared question_source row.
+        await client.query(
+          `INSERT INTO question_source (tenant_id, question_id, origin, rights_status) VALUES ($1, $2, 'ai_original', 'original')`,
+          [tenantA, qid],
+        );
       }
     });
 

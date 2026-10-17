@@ -18,8 +18,8 @@ import { applyAllMigrations } from "../../../../tools/test-support/apply-all-mig
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { countActiveQuestionsForLevel } from "../../../05-assessment-lifecycle/src/service/_shared.js";
 import { registerQuestionBankRoutes } from "../routes.js";
-import { createPack, addLevel, publishPack } from "../service/packs.js";
-import { createQuestion, updateQuestion } from "../service/questions.js";
+import { createPack, addLevel, publishPack, } from "../service/packs.js";
+import { createQuestion, updateQuestion, bulkUpdateQuestionStatus, withdrawQuestion } from "../service/questions.js";
 import * as repo from "../repository.js";
 import { materializeSetForTenant, resyncSetForTenant } from "../clone.js";
 
@@ -172,6 +172,28 @@ describe("publish rights gate", () => {
     await sup((c) => c.query(`INSERT INTO question_source (tenant_id, question_id, origin, rights_status) VALUES ($1,$2,'original_human','original')`, [tA, ids[1]]));
     expect((await publishPack(tA, pack.id, uA)).status).toBe("published");
   });
+
+  it("allowlist: scraped_raw, metadata_only, withdrawn and missing block publish and bulk activation; licensed passes", async () => {
+    const { pack, ids } = await seedPack(tA, uA, 5);
+    const setRights = (q: string, r: string) => sup((c) => c.query(`UPDATE question_source SET rights_status=$2 WHERE question_id=$1`, [q, r]));
+    const states = ["scraped_raw", "metadata_only", "withdrawn"];
+    for (const [i, r] of states.entries()) await setRights(ids[i]!, r);
+    await sup((c) => c.query(`DELETE FROM question_source WHERE question_id=$1`, [ids[3]]));
+    await setRights(ids[4]!, "licensed");
+    await sup((c) => c.query(`UPDATE questions SET status='ai_draft' WHERE id=ANY($1::uuid[])`, [ids]));
+    await expect(publishPack(tA, pack.id, uA)).rejects.toMatchObject({ details: { code: "RIGHTS_NOT_CLEARED" } });
+    // withdrawn row on an ai_draft question is still non-archived, so it blocks too
+    const blocked = await withTenant(tA, (c) => repo.listRightsBlockedQuestionIds(c, pack.id));
+    expect([...blocked].sort()).toEqual([ids[0]!, ids[1]!, ids[2]!, ids[3]!].sort());
+    const res = await bulkUpdateQuestionStatus(tA, ids, "active", uA);
+    expect(res.updated).toEqual([ids[4]]);
+    // bulk-activate-drafts path
+    await sup((c) => c.query(`UPDATE questions SET status='draft' WHERE pack_id=$1 AND id<>$2`, [pack.id, ids[4]]));
+    const act = await withTenant(tA, (c) => repo.bulkActivateDraftQuestionsForPack(c, pack.id));
+    expect(act.activated).toBe(0);
+    await sup((c) => c.query(`UPDATE question_source SET rights_status='licensed' WHERE question_id=$1`, [ids[0]]));
+    expect((await withTenant(tA, (c) => repo.bulkActivateDraftQuestionsForPack(c, pack.id))).activated).toBe(1);
+  });
 });
 
 describe("withdraw", () => {
@@ -200,6 +222,19 @@ describe("withdraw", () => {
 
     await expect(updateQuestion(tA, ids[0]!, { status: "active" }, uA)).rejects.toMatchObject({ details: { code: "QUESTION_WITHDRAWN" } });
     expect(await active()).toBe(1);
+  });
+
+  it("is idempotent: a second withdraw leaves pack version and audit rows unchanged", async () => {
+    const { pack, ids } = await seedPack(tA, uA, 1);
+    const ver = async () => (await sup((c) => c.query(`SELECT version FROM question_packs WHERE id=$1`, [pack.id]))).rows[0].version;
+    const audits = async () => (await sup((c) => c.query(`SELECT 1 FROM audit_log WHERE action='question.withdrawn' AND entity_id=$1`, [ids[0]]))).rowCount;
+    const first = await withdrawQuestion(tA, uA, ids[0]!);
+    const v1 = await ver();
+    const second = await withdrawQuestion(tA, uA, ids[0]!);
+    expect(second).toEqual(first);
+    expect(await ver()).toBe(v1);
+    expect(await audits()).toBe(1);
+    await expect(withdrawQuestion(tA, uA, randomUUID())).rejects.toMatchObject({ status: 404 });
   });
 });
 

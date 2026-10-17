@@ -871,30 +871,44 @@ export async function listQuestionSourcesForPack(client: PoolClient, packId: str
 }
 
 /**
- * EXP-2: takedown. Marks the source row withdrawn and archives the question in the same
- * statement pair. Returns false when no such question is visible to the tenant.
- * Also bumps the pack version so clones see a newer master at the next re-sync.
+ * EXP-2: takedown. Archives the question and upserts its source row to 'withdrawn', then bumps
+ * the pack version so clones see a newer master at the next re-sync. Idempotent: a question
+ * already withdrawn changes nothing. Returns 'missing' (not visible to the tenant), 'withdrawn'
+ * (done now) or 'already' (no-op).
  */
-export async function withdrawQuestionRow(client: PoolClient, questionId: string): Promise<boolean> {
-  const q = await client.query<{ pack_id: string }>(
-    `UPDATE questions SET status = 'archived', updated_at = now() WHERE id = $1 RETURNING pack_id`,
+export async function withdrawQuestionRow(client: PoolClient, questionId: string): Promise<"missing" | "withdrawn" | "already"> {
+  const found = await client.query<{ pack_id: string; withdrawn: boolean }>(
+    `SELECT q.pack_id, COALESCE(s.rights_status = 'withdrawn', false) AS withdrawn
+       FROM questions q LEFT JOIN question_source s ON s.question_id = q.id WHERE q.id = $1`,
     [questionId],
   );
-  const packId = q.rows[0]?.pack_id;
-  if (packId === undefined) return false;
-  await insertQuestionSource(client, questionId, packId, "original_human", "withdrawn");
-  await client.query(`UPDATE question_source SET rights_status = 'withdrawn' WHERE question_id = $1`, [questionId]);
-  await client.query(`UPDATE question_packs SET version = version + 1, updated_at = now() WHERE id = $1`, [packId]);
-  return true;
+  const row = found.rows[0];
+  if (row === undefined) return "missing";
+  if (row.withdrawn) return "already";
+  await client.query(`UPDATE questions SET status = 'archived', updated_at = now() WHERE id = $1`, [questionId]);
+  await client.query(
+    `INSERT INTO question_source (tenant_id, question_id, origin, rights_status)
+     SELECT tenant_id, $1, 'original_human', 'withdrawn' FROM question_packs WHERE id = $2
+     ON CONFLICT (question_id) DO UPDATE SET rights_status = 'withdrawn'`,
+    [questionId, row.pack_id],
+  );
+  await client.query(`UPDATE question_packs SET version = version + 1, updated_at = now() WHERE id = $1`, [row.pack_id]);
+  return "withdrawn";
 }
 
-/** EXP-2: ids of a pack's non-archived questions whose rights status is missing or scraped_raw. */
+/**
+ * EXP-2 allowlist: a question may go live only when its source row exists with one of these
+ * rights. metadata_only, scraped_raw, withdrawn and a missing row all block. Shared by the
+ * publish gate and every activation path; references the unaliased `questions` table.
+ */
+export const RIGHTS_CLEARED_SQL = `EXISTS (SELECT 1 FROM question_source s WHERE s.question_id = questions.id
+  AND s.rights_status IN ('original','derived_from_source','licensed'))`;
+
+/** EXP-2: ids of a pack's non-archived questions whose rights are not cleared. */
 export async function listRightsBlockedQuestionIds(client: PoolClient, packId: string): Promise<string[]> {
   const r = await client.query<{ id: string }>(
-    `SELECT q.id FROM questions q
-       LEFT JOIN question_source s ON s.question_id = q.id
-      WHERE q.pack_id = $1 AND q.status <> 'archived'
-        AND (s.question_id IS NULL OR s.rights_status = 'scraped_raw')
+    `SELECT id FROM questions
+      WHERE pack_id = $1 AND status <> 'archived' AND NOT ${RIGHTS_CLEARED_SQL}
       LIMIT 50`,
     [packId],
   );
@@ -1045,7 +1059,7 @@ export async function bulkActivateDraftQuestionsForPack(
 
   const result = await client.query(
     `UPDATE questions SET status = 'active', updated_at = now()
-     WHERE pack_id = $1 AND status = 'draft'`,
+     WHERE pack_id = $1 AND status = 'draft' AND ${RIGHTS_CLEARED_SQL}`,
     [packId],
   );
   return {

@@ -343,9 +343,11 @@ export async function withdrawQuestion(
 ): Promise<{ id: string; status: "archived"; rights_status: "withdrawn" }> {
   return withTenant(tenantId, async (client) => {
     const current = await repo.findQuestionById(client, id);
-    if (current === null || !(await repo.withdrawQuestionRow(client, id))) {
+    const outcome = current === null ? "missing" : await repo.withdrawQuestionRow(client, id);
+    if (outcome === "missing" || current === null) {
       throw new NotFoundError(`Question not found: ${id}`, { details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND } });
     }
+    if (outcome === "already") return { id, status: "archived", rights_status: "withdrawn" };
     await auditInTx(client, {
       tenantId, actorKind: "user", actorUserId, action: "question.withdrawn",
       entityType: "question", entityId: id,
@@ -702,6 +704,7 @@ export async function bulkUpdateQuestionStatus(
               updated_at = now()
         WHERE id = ANY($2::uuid[])
           AND status = ANY($3)
+          ${status === "active" ? `AND ${repo.RIGHTS_CLEARED_SQL}` : ""}
         RETURNING id`,
       [status, ids, allowedSources],
     );
