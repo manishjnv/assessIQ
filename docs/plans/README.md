@@ -14,6 +14,7 @@ Rules: a new plan goes in `docs/plans/`. When its status line turns DONE or LIVE
 
 | Plan | Status line | Feeds |
 | --- | --- | --- |
+| [ADMIN_NAV_REVIEW_2026-10-17](ADMIN_NAV_REVIEW_2026-10-17.md) | REVIEW DONE 2026-10-17, no code yet | ROADMAP Z-21..Z-24 (admin help drawer, flow gaps, 15 → 7 nav regroup, flow-first Home) |
 | [INVITATION_REMINDERS](INVITATION_REMINDERS.md) | no status line: verify before use | reminders feature (shipped in pilot batches 3-4) |
 | [PLAN_S10](PLAN_S10.md) | no status line: verify before use | S10 Autopilot plan (`.agent/plan.yaml`) |
 | [PRICING_TIERS_2026-10-06](PRICING_TIERS_2026-10-06.md) | no status line: verify before use | plan tiers (owner decisions) |
