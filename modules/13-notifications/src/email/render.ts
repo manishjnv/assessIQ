@@ -159,7 +159,13 @@ function assertSafeMetaRows(rows: ReadonlyArray<{ k: string; v: string }>): void
 // Per-template derived visual context (Email Kit Port E2)
 // ---------------------------------------------------------------------------
 
-type MetaRow = { k: string; v: string };
+/** Resolved once from the web tokens (oklch to sRGB). See docs/13-email-system.md section 1.1. */
+export const OUTCOME_COLORS = {
+  pass: { bar: '#007834', bg: '#e8fbeb' },
+  fail: { bar: '#df911a', bg: '#fff1d9' },
+} as const;
+
+type MetaRow = { k: string; v: string; bar?: string; bg?: string };
 
 /**
  * The ONLY value allowed into the unescaped logo attribute: the app's own
@@ -206,13 +212,16 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
         { k: 'Assessment', v: `<strong>${escapeHtml(p.assessmentName)}</strong>` },
         { k: 'Organisation', v: escapeHtml(p.tenantName) },
       ];
-    case 'result_released':
+    case 'result_released': {
+      const c = p.resultText === 'Passed' ? OUTCOME_COLORS.pass : OUTCOME_COLORS.fail;
+      const glyph = p.resultText === 'Passed' ? '✓' : '–';
       return [
-        { k: 'Assessment', v: `<strong>${escapeHtml(p.assessmentName)}</strong>` },
-        { k: 'Organisation', v: escapeHtml(p.tenantName) },
+        { k: 'Result', v: `<strong>${glyph} ${escapeHtml(p.resultText)}</strong>`, bar: c.bar, bg: c.bg },
         { k: 'Score', v: `<strong>${escapeHtml(p.scoreText)}</strong>` },
-        { k: 'Result', v: `<strong>${escapeHtml(p.resultText)}</strong>` },
+        { k: 'Assessment', v: escapeHtml(p.assessmentName) },
+        { k: 'Organisation', v: escapeHtml(p.tenantName) },
       ];
+    }
     case 'evaluation_queue_alert':
       return [
         { k: 'Waiting', v: `<strong>${escapeHtml(String(p.count))}</strong> over 24 hours` },
@@ -256,6 +265,24 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
   }
 }
 
+/** Plain-tone lede and next step for result_released (docs/design/2026-10-18 B.4). Fail copy stays neutral. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function resultCopy(p: any): Record<string, unknown> {
+  const passed = p.resultText === 'Passed';
+  const hasName = typeof p.candidateName === 'string' && p.candidateName.length > 0;
+  const hasCert = typeof p.certificateLink === 'string';
+  const greet = hasName ? `Hi ${String(p.candidateName)}.` : 'Hello.';
+  const lede = passed
+    ? `${hasName ? `Well done, ${String(p.candidateName)}.` : 'Well done.'} ${String(p.tenantName)} has released your result. You passed.`
+    : `${greet} Your result for ${String(p.assessmentName)} is ready. You did not reach the pass mark.`;
+  const next_step = passed
+    ? hasCert
+      ? 'Your certificate is ready. Select the second link to view it.'
+      : 'Your result and details are on your Results page.'
+    : 'Sign in to see where to improve.';
+  return { is_passed: passed, result_lede: lede, result_next_step: next_step };
+}
+
 /**
  * Derive the extra Handlebars context the kit partials need, from the validated
  * base vars. Kept entirely out of the per-template Zod schemas so call sites
@@ -263,6 +290,7 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function augmentContext(name: EmailTemplateName, p: any, opts: RenderOptions): Record<string, unknown> {
+  const result = name === 'result_released' ? resultCopy(p) : {};
   const meta_rows = buildMetaRows(name, p);
   assertSafeMetaRows(meta_rows);
   // Tenant logo (Logo phase L3b). Rendered with {{{logo_url}}} in the
@@ -272,6 +300,7 @@ function augmentContext(name: EmailTemplateName, p: any, opts: RenderOptions): R
   return {
     ...(logo !== null ? { logo_url: logo, logo_org_name: orgName } : {}),
     meta_rows,
+    ...result,
     copyright_year: String(new Date().getFullYear()),
     lang: 'en',
   };

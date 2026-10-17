@@ -186,10 +186,10 @@ describe("sendResultReleasedEmail", () => {
     expect(lastCall().vars["certificateLink"]).toBeUndefined();
   });
 
-  it("falls back to a neutral greeting when the candidate has no name", async () => {
+  it("falls back to a Hello greeting (no name var) when the candidate has no name", async () => {
     const { attemptId } = await seed({ name: "   " });
     await sendResultReleasedEmail({ tenantId: tenant, attemptId });
-    expect(lastCall().vars["candidateName"]).toBe("there");
+    expect(lastCall().vars["candidateName"]).toBeUndefined(); // template greets "Hello,"
   });
 
   it.each([

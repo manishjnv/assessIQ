@@ -116,7 +116,7 @@ export async function sendResultReleasedEmail(input: {
       to: row.email,
       template: 'result_released',
       vars: {
-        candidateName: row.name?.trim() || 'there',
+        ...(row.name?.trim() ? { candidateName: row.name.trim() } : {}),
         assessmentName: row.assessment_name,
         tenantName: row.tenant_name,
         scoreText: `${fmt(earned)} / ${fmt(max)} (${percent}%)`,

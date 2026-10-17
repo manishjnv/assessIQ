@@ -466,7 +466,7 @@ describe('email template rendering', () => {
 
     it('renders subject, score, result and the portal link in both variants', () => {
       const r = renderTemplate('result_released', base);
-      expect(r.subject).toBe('Your result for SOC Analyst L1 is ready');
+      expect(r.subject).toBe('Your result for SOC Analyst L1: passed');
       // Handlebars HTML-escapes "=" inside attribute values as &#x3D; (valid HTML).
       for (const body of [r.html.replace(/&#x3D;/g, '='), r.text]) {
         expect(body).toContain('42 / 60 (70%)');

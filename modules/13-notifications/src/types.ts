@@ -109,7 +109,8 @@ export const AdminEmailOtpVarsSchema = z.object({
 
 // SP4: result_released — the complete, final result only (owner rule P1).
 export const ResultReleasedVarsSchema = z.object({
-  candidateName: z.string().min(1),
+  /** Omitted when the candidate has no name: the greeting becomes "Hello,". */
+  candidateName: z.string().min(1).optional(),
   assessmentName: z.string().min(1),
   tenantName: z.string().min(1),
   /** e.g. "42 / 60 (70%)" */

@@ -29,6 +29,12 @@ export interface ResultSummaryProps {
   negativeMarking?: ResultNegativeMarkingWire | undefined;
   /** List-row size: smaller ring and score number. */
   compact?: boolean;
+  /** Z-9: names the assessment in the pass headline. */
+  assessmentName?: string | undefined;
+  /** Z-9: names the organisation in the fail next step. Falls back to "your organisation". */
+  tenantName?: string | undefined;
+  /** Z-9: true when per-question feedback is on (feedbackLevel !== 'none'). */
+  feedbackOn?: boolean;
 }
 
 const EYEBROW: React.CSSProperties = {
@@ -59,9 +65,47 @@ export function ResultSummary({
   certificate = null,
   negativeMarking,
   compact = false,
+  assessmentName,
+  tenantName,
+  feedbackOn = false,
 }: ResultSummaryProps): React.ReactElement {
+  const tone = passed ? 'success' : 'warning';
+  const org = tenantName !== undefined && tenantName !== '' ? tenantName : 'your organisation';
+  const headline = passed
+    ? assessmentName !== undefined && assessmentName !== ''
+      ? `You passed ${assessmentName}.`
+      : 'You passed.'
+    : 'You did not reach the pass mark.';
+  const askLine = `Ask ${org} if you can try again.`;
+  const nextStep = passed
+    ? certificate !== null
+      ? 'Your certificate is ready. Select View certificate to open, download or share it.'
+      : null
+    : feedbackOn
+      ? `Use the feedback on each question to prepare. ${askLine}`
+      : askLine;
+  // Never --aiq-color-danger: a fail is not an error (Z-9).
+  const oneLiner = passed ? (certificate !== null ? 'You passed. View your certificate.' : 'You passed.') : 'Not passed.';
+
   return (
     <div>
+      {!compact && (
+        <div
+          data-testid="result-outcome"
+          data-outcome={passed ? 'passed' : 'not-passed'}
+          style={{
+            marginBottom: 20,
+            padding: '14px 16px',
+            borderLeft: `4px solid var(--aiq-color-${tone})`,
+            background: `var(--aiq-color-${tone}-soft)`,
+            borderRadius: 'var(--aiq-radius-sm, 6px)',
+            color: 'var(--aiq-color-fg-primary)',
+          }}
+        >
+          <div style={{ fontSize: 18, fontWeight: 600, overflowWrap: 'anywhere' }}>{headline}</div>
+          {nextStep !== null && <div style={{ fontSize: 14, marginTop: 6 }}>{nextStep}</div>}
+        </div>
+      )}
       <div
         style={{
           display: 'flex',
@@ -107,6 +151,11 @@ export function ResultSummary({
               </Chip>
             )}
           </div>
+          {compact && (
+            <div data-testid="result-oneliner" style={{ ...MUTED_14, marginTop: 8 }}>
+              {oneLiner}
+            </div>
+          )}
           {negativeMarking?.enabled === true && (
             <div
               data-help-id="candidate.result.negative_marking"

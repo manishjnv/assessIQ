@@ -1,13 +1,13 @@
-Subject: You have been invited to take {{assessmentName}} on AssessIQ
+Subject: {{tenantName}} invites you to take {{assessmentName}}
 
 Hi {{candidateName}},
 
-You have been invited to take {{assessmentName}} on {{tenantName}}.
+{{tenantName}} invites you to take {{assessmentName}}.
 
 Start your assessment:
 {{invitationLink}}
 
-This invitation expires on {{expiresAt}}.
+Start before {{expiresAt}}. After that the invitation stops working.
 If you did not expect this email, you can ignore it.
 
 — The AssessIQ team
