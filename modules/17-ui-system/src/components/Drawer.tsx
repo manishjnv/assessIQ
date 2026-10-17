@@ -11,6 +11,9 @@
 
 import React, { useEffect, useRef } from "react";
 
+const FOCUSABLE =
+  'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
+
 export interface DrawerProps {
   open: boolean;
   onClose: () => void;
@@ -38,18 +41,33 @@ export function Drawer({
     if (!open) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
+      if (e.key !== "Tab" || !panelRef.current) return;
+      // Focus trap (aria-modal): Tab and Shift+Tab wrap inside the panel.
+      const items = panelRef.current.querySelectorAll<HTMLElement>(FOCUSABLE);
+      if (items.length === 0) return;
+      const first = items[0]!;
+      const last = items[items.length - 1]!;
+      const active = document.activeElement;
+      if (!panelRef.current.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
   useEffect(() => {
-    if (open && panelRef.current) {
-      const first = panelRef.current.querySelector<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      first?.focus();
-    }
+    if (!open) return;
+    const opener = document.activeElement as HTMLElement | null;
+    panelRef.current?.querySelector<HTMLElement>(FOCUSABLE)?.focus();
+    return () => opener?.focus(); // return focus to the trigger on close
   }, [open]);
 
   if (!open) return null;

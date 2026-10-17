@@ -58,6 +58,30 @@ test.describe('admin help drawer and print review', () => {
     await expect(drawer).toBeVisible();
   });
 
+  test('help drawer traps Tab and Shift+Tab, Escape returns focus to the trigger', async ({ page, context }) => {
+    await signInAdmin(context, p.admin.cookie);
+    await page.goto('/admin');
+    const trigger = page.getByRole('button', { name: 'Open help' });
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+    const drawer = page.getByRole('dialog', { name: 'Help' });
+    await expect(drawer).toBeVisible();
+    const inside = () => page.evaluate(() => !!document.activeElement?.closest('[role="dialog"][aria-label="Help"]'));
+
+    for (let i = 0; i < 15; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await inside(), `focus left the drawer after Tab ${i + 1}`).toBe(true);
+    }
+    for (let i = 0; i < 15; i += 1) {
+      await page.keyboard.press('Shift+Tab');
+      expect(await inside(), `focus left the drawer after Shift+Tab ${i + 1}`).toBe(true);
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(drawer).toBeHidden();
+    await expect(trigger).toBeFocused();
+  });
+
   test('my account card replaces the Help guide and Account security nav items', async ({ page, context }) => {
     await signInAdmin(context, p.admin.cookie);
     await page.goto('/admin');
