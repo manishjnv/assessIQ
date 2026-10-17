@@ -806,6 +806,20 @@ A golden test (`blueprint-node-golden.test.ts`) proves that a `category_id` blue
 | Impact: purge | `tenant_id` has `ON DELETE CASCADE`, so a tenant purge removes the nodes of the tenant |
 | Rollback | Stop calling the new helpers. Then drop `question_taxonomy`, `taxonomy_nodes`, `frameworks`, `domains.node_id` and `categories.node_id`. No other table depends on them. Stored blueprints keep working because they hold `category_id` |
 
+### Exam structure and Subject map frameworks (EXP-1, 2026-10-17)
+
+| Item | Detail |
+| --- | --- |
+| What | Two platform (NULL-tenant) frameworks ship as bundled seeds: `src/frameworks/exam-structure.json` and `src/frameworks/subject-map.json`, both in the `BUNDLED` map of `src/framework-seeds.ts`. No schema change, no migration |
+| Exam structure | Slug `exam-structure`. Level `board`: SSC, IBPS, RRB, UPSC, NTA. Level `stage` under each board: SSC CGL Tier 1, SSC CGL Tier 2, SSC CHSL, SSC MTS, IBPS PO Prelims, IBPS Clerk Prelims, RRB NTPC CBT 1, UPSC CSE Prelims GS Paper 1, NTA JEE Main, NTA NEET UG (15 nodes) |
+| Subject map | Slug `subject-map`. Level `subject`: Quant, Reasoning, English, General Awareness. Level `unit`: the SSC CGL Tier 1 topics (Quant 7, Reasoning 3, English 4, General Awareness 6). Level `outcome`: 8 subtopics under Quant > Arithmetic (Percentage, Profit and loss, Ratio, Time and work, Time speed distance, Simple and compound interest, Average, Mixture) |
+| Edition mark | The seed field `version` is `draft-unverified`. The loader stores it in `taxonomy_nodes.syllabus_edition` on every node (`frameworks` has no edition column). `board` is `EXAMS` and is not stored |
+| Idempotent | Same loader as CBSE: framework key `(tenant_id NULL, slug)`, node key `(framework, parent, code)`. A second load creates nothing. Load from Platform > Curriculum frameworks |
+| Why | The exam-pack plan (`docs/design/2026-10-17-exam-pack-source-and-taxonomy-plan.md`) needs a place for exam, stage and subject data. Domain stays in data, not in code |
+| Not included | Subtopics for any subject except Quant > Arithmetic. Subject maps for stages other than SSC CGL Tier 1. Marks, timing and negative-marking rules. Links from packs or questions to these nodes |
+| Unverified | The official exam sites could not be opened. The syllabus comes from general knowledge. The owner must check it against the notice of each exam before any use with candidates |
+| Impact | `modules/04-question-bank/src/__tests__/framework-seed-boards.test.ts` has structure checks for both seeds. The seeds list on the Platform page now shows 6 bundled frameworks. Rollback: remove the two JSON files and the two `BUNDLED` entries. Loaded rows stay in the database until a platform admin archives them |
+
 ## Question import (RW-58, migration 0174, S10, 2026-10-16)
 
 | Item | Detail |

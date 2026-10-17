@@ -1,0 +1,93 @@
+{
+  "code": "exam-structure",
+  "name": "Exam structure",
+  "board": "EXAMS",
+  "version": "draft-unverified",
+  "nodes": [
+    {
+      "code": "ssc",
+      "title": "SSC",
+      "kind": "board",
+      "children": [
+        {
+          "code": "ssc-cgl-tier-1",
+          "title": "SSC CGL Tier 1",
+          "kind": "stage"
+        },
+        {
+          "code": "ssc-cgl-tier-2",
+          "title": "SSC CGL Tier 2",
+          "kind": "stage"
+        },
+        {
+          "code": "ssc-chsl",
+          "title": "SSC CHSL",
+          "kind": "stage"
+        },
+        {
+          "code": "ssc-mts",
+          "title": "SSC MTS",
+          "kind": "stage"
+        }
+      ]
+    },
+    {
+      "code": "ibps",
+      "title": "IBPS",
+      "kind": "board",
+      "children": [
+        {
+          "code": "ibps-po-prelims",
+          "title": "IBPS PO Prelims",
+          "kind": "stage"
+        },
+        {
+          "code": "ibps-clerk-prelims",
+          "title": "IBPS Clerk Prelims",
+          "kind": "stage"
+        }
+      ]
+    },
+    {
+      "code": "rrb",
+      "title": "RRB",
+      "kind": "board",
+      "children": [
+        {
+          "code": "rrb-ntpc-cbt-1",
+          "title": "RRB NTPC CBT 1",
+          "kind": "stage"
+        }
+      ]
+    },
+    {
+      "code": "upsc",
+      "title": "UPSC",
+      "kind": "board",
+      "children": [
+        {
+          "code": "upsc-cse-prelims-gs-paper-1",
+          "title": "UPSC CSE Prelims GS Paper 1",
+          "kind": "stage"
+        }
+      ]
+    },
+    {
+      "code": "nta",
+      "title": "NTA",
+      "kind": "board",
+      "children": [
+        {
+          "code": "nta-jee-main",
+          "title": "NTA JEE Main",
+          "kind": "stage"
+        },
+        {
+          "code": "nta-neet-ug",
+          "title": "NTA NEET UG",
+          "kind": "stage"
+        }
+      ]
+    }
+  ]
+}
