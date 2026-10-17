@@ -19,7 +19,7 @@
     "@assessiq/question-types": "workspace:*",
     "@assessiq/scoring": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
-    "fastify": "^5.12.2",
+    "fastify": "^5.12.7",
     "zod": "^3.23.8"
   }
 }
