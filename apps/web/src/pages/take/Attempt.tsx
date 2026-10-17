@@ -26,7 +26,7 @@ import { Button, Drawer, Icon, Spinner } from "@assessiq/ui-system";
 import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
-import { STEM_FIELD, type PageState, hasForbiddenSynonym, BOTTOM_BAR, QUESTION_TEXT, isAnsweredValue } from "./attempt-parts/shared.js";
+import { STEM_FIELD, type PageState, hasForbiddenSynonym, BOTTOM_BAR, QUESTION_TEXT, SR_ONLY, isAnsweredValue } from "./attempt-parts/shared.js";
 import { AnswerArea } from "./attempt-parts/AnswerArea.js";
 import { NavigatorBody } from "./attempt-parts/NavigatorBody.js";
 import { AttemptTopBar } from "./attempt-parts/AttemptTopBar.js";
@@ -295,6 +295,7 @@ export function AttemptPage(): React.JSX.Element {
           placeItems: 'center',
         }}
       >
+        <h1 style={SR_ONLY}>Loading assessment</h1>
         <Spinner size="md" />
       </div>
     );
@@ -318,6 +319,7 @@ export function AttemptPage(): React.JSX.Element {
           padding: 'var(--aiq-space-2xl)',
         }}
       >
+        <h1 style={SR_ONLY}>Connection problem</h1>
         <div data-help-id="candidate.attempt.disconnect" style={{ maxWidth: 560, width: '100%' }}>
           <IntegrityBanner
             kind="stale_connection"
@@ -501,7 +503,7 @@ export function AttemptPage(): React.JSX.Element {
       />
 
       {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}
-      <div>
+      <section aria-label="Progress">
         <div style={{ height: 2, background: 'var(--aiq-color-bg-raised)' }}>
           <div
             style={{
@@ -513,7 +515,7 @@ export function AttemptPage(): React.JSX.Element {
           />
         </div>
         {lockedBanner}
-      </div>
+      </section>
 
       {/* ── MIDDLE ROW (main pane + side panel) ─────────────────────────── */}
       <div
@@ -525,6 +527,7 @@ export function AttemptPage(): React.JSX.Element {
       >
         {/* Main pane */}
         <main style={{ minWidth: 0 }}>
+          <h1 style={SR_ONLY}>Assessment</h1>
           {/* Multi-tab warning */}
           {multiTabActive && (
             <div style={{ marginBottom: 'var(--aiq-space-md)' }}>

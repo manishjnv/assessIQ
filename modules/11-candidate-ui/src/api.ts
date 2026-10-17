@@ -223,17 +223,9 @@ export async function getMyProgress(): Promise<CandidateProgress> {
   return call<CandidateProgress>("/me/progress");
 }
 
-/** Z-3: GET /api/me/notifications — the candidate's own notices (result.released). */
-export async function listMyNotifications(opts: { unread?: boolean } = {}): Promise<{ unread_count: number }> {
-  return call<{ unread_count: number }>(`/me/notifications?${opts.unread === true ? "unread=1&" : ""}limit=50`);
-}
-
-/** Z-3: POST /api/me/notifications/mark-read — marks the caller's notices of one kind read. */
-export async function markMyNotificationsRead(body: { kind: string }): Promise<{ updated: number }> {
-  return call<{ updated: number }>("/me/notifications/mark-read", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+/** Z-12: POST /api/me/attempts/:id/seen — the candidate opened this result (idempotent). */
+export async function markResultSeen(attemptId: string): Promise<{ seen: true }> {
+  return call<{ seen: true }>(`/me/attempts/${encodeURIComponent(attemptId)}/seen`, { method: "POST" });
 }
 
 // Re-exported for callers that need to switch on the wire types.

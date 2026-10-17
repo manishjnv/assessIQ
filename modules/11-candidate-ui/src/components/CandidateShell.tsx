@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { Icon, TenantLogo, useApi } from '@assessiq/ui-system';
 import { createApiClient } from '@assessiq/http-client';
 import { CandidateSessionBanner } from './CandidateSessionBanner.js';
-import { listMyNotifications } from '../api.js';
+import { listMyResults } from '../api.js';
 
 // ---------------------------------------------------------------------------
 // Local whoami hook — mirrors apps/web/src/lib/session.ts but lives here so
@@ -103,12 +103,13 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
   useEffect(() => {
     if (!signedIn) return;
     let cancelled = false;
-    listMyNotifications({ unread: true })
-      .then((r) => { if (!cancelled && typeof r.unread_count === 'number') setNewResults(r.unread_count); })
+    // Z-12: the count is the results the candidate has not opened (is_new), not notices.
+    listMyResults()
+      .then((r) => { if (!cancelled) setNewResults(r.items.filter((i) => i.is_new === true).length); })
       .catch(() => { /* best-effort notice */ });
-    const hide = (): void => setNewResults(0);
-    window.addEventListener('aiq:notifications-read', hide);
-    return () => { cancelled = true; window.removeEventListener('aiq:notifications-read', hide); };
+    const dec = (): void => setNewResults((n) => Math.max(0, n - 1));
+    window.addEventListener('aiq:result-seen', dec);
+    return () => { cancelled = true; window.removeEventListener('aiq:result-seen', dec); };
   }, [signedIn]);
 
   const handleSignOut = async (): Promise<void> => {
@@ -363,6 +364,8 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
         </div>
       </header>
 
+      {/* Page content */}
+      <main>
       {/* Session-expiry banner — only renders when ≤5 days left */}
       {!loading && data !== null && (
         <CandidateSessionBanner
@@ -388,9 +391,8 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
           </NavLink>
         </div>
       )}
-
-      {/* Page content */}
-      <main>{children}</main>
+        {children}
+      </main>
     </div>
   );
 }

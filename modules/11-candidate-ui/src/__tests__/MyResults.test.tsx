@@ -6,14 +6,14 @@ import { render, screen, cleanup, waitFor } from '@testing-library/react';
 import { MyResults } from '../components';
 import type { MyResultsResponseWire } from '../types';
 
-const { mockListMyResults, mockMarkRead } = vi.hoisted(() => ({
+const { mockListMyResults, mockSeen } = vi.hoisted(() => ({
   mockListMyResults: vi.fn<() => Promise<MyResultsResponseWire>>(),
-  mockMarkRead: vi.fn(async () => ({ updated: 1 })),
+  mockSeen: vi.fn(async (_id: string) => ({ seen: true as const })),
 }));
 
 vi.mock('../api.js', () => ({
   listMyResults: mockListMyResults,
-  markMyNotificationsRead: mockMarkRead,
+  markResultSeen: mockSeen,
 }));
 
 afterEach(() => {
@@ -75,15 +75,19 @@ describe('MyResults', () => {
     expect(links[0]?.getAttribute('href')).toBe('https://assessiq.example.com/verify/CERT-001');
   });
 
-  it('marks result notices read after the list loads and tells the shell', async () => {
-    mockListMyResults.mockResolvedValue(TWO_RESULTS);
+  it('Z-12: shows a New chip only on unopened results and marks that one seen', async () => {
+    mockListMyResults.mockResolvedValue({
+      items: [{ ...TWO_RESULTS.items[0]!, is_new: true }, { ...TWO_RESULTS.items[1]!, is_new: false }],
+    });
     const seen = vi.fn();
-    window.addEventListener('aiq:notifications-read', seen);
+    window.addEventListener('aiq:result-seen', seen);
     render(<MyResults />);
     await screen.findByText('Aptitude Test — Round 2');
-    expect(mockMarkRead).toHaveBeenCalledWith({ kind: 'result.released' });
-    await waitFor(() => expect(seen).toHaveBeenCalled());
-    window.removeEventListener('aiq:notifications-read', seen);
+    expect(screen.getAllByText('New')).toHaveLength(1);
+    await waitFor(() => expect(mockSeen).toHaveBeenCalledWith('att-2'));
+    expect(mockSeen).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(seen).toHaveBeenCalledTimes(1));
+    window.removeEventListener('aiq:result-seen', seen);
   });
 
   it('shows the empty state when nothing has been released', async () => {

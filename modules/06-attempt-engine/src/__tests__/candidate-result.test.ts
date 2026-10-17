@@ -24,6 +24,7 @@ import {
   getCandidateResult,
   getSubmitExpectation,
   listCandidateResults,
+  markResultSeen,
   maskEmail,
   resultPercent,
 } from "../result.js";
@@ -395,8 +396,26 @@ describe("listCandidateResults", () => {
     expect(items.map((i) => i.attempt_id)).not.toContain(other.attemptId);
     expect(items.map((i) => i.total_earned)).not.toContain(59); // the provisional 'graded' score never appears
     expect(Object.keys(items[0]!).sort()).toEqual( // nothing per-question, no bands / justifications
-      ["assessment_name", "attempt_id", "certificate", "negative_marking", "passed", "percent", "released_at", "total_earned", "total_max"],
+      ["assessment_name", "attempt_id", "certificate", "is_new", "negative_marking", "passed", "percent", "released_at", "total_earned", "total_max"],
     );
+  });
+
+  it("Z-12: is_new is true until the candidate marks the result seen; seen is idempotent, own attempt only, tenant scoped", async () => {
+    const mine = await seed({ status: "released", earned: 40, releasedAt: "2026-10-01T10:00:00.000Z" });
+    const theirs = await seed({ status: "released", earned: 41, releasedAt: "2026-10-01T10:00:00.000Z" });
+    expect((await listCandidateResults(tenant, mine.userId)).items[0]!.is_new).toBe(true);
+    expect(await markResultSeen(tenant, mine.userId, mine.attemptId)).toEqual({ seen: true });
+    const firstSeen = await sup((c) => c.query(`SELECT seen_at FROM attempts WHERE id=$1`, [mine.attemptId]));
+    await markResultSeen(tenant, mine.userId, mine.attemptId); // idempotent: keeps the first timestamp
+    const again = await sup((c) => c.query(`SELECT seen_at FROM attempts WHERE id=$1`, [mine.attemptId]));
+    expect(again.rows[0].seen_at).toEqual(firstSeen.rows[0].seen_at);
+    expect((await listCandidateResults(tenant, mine.userId)).items[0]!.is_new).toBe(false);
+    // another candidate's attempt, an unknown id, a bad id and another tenant all give 404
+    await expect(markResultSeen(tenant, mine.userId, theirs.attemptId)).rejects.toMatchObject({ status: 404 });
+    await expect(markResultSeen(tenant, mine.userId, randomUUID())).rejects.toMatchObject({ status: 404 });
+    await expect(markResultSeen(tenant, mine.userId, "not-a-uuid")).rejects.toMatchObject({ status: 404 });
+    await expect(markResultSeen(otherTenant, theirs.userId, theirs.attemptId)).rejects.toMatchObject({ status: 404 });
+    expect((await listCandidateResults(tenant, theirs.userId)).items[0]!.is_new).toBe(true);
   });
 
   it("a candidate with nothing released gets an empty list", async () => {

@@ -12,7 +12,7 @@ const { mockList, mockFeedback } = vi.hoisted(() => ({
 vi.mock('../api.js', () => ({
   listMyResults: mockList,
   getAttemptFeedback: mockFeedback,
-  markMyNotificationsRead: vi.fn(async () => ({ updated: 0 })),
+  markResultSeen: vi.fn(async () => ({ seen: true })),
 }));
 
 afterEach(() => {

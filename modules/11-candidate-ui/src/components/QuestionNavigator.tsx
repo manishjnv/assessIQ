@@ -1,5 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Icon } from "@assessiq/ui-system";
+
+type NavigatorFilter = "all" | "flagged" | "unanswered";
+const FILTERS: ReadonlyArray<readonly [NavigatorFilter, string]> = [
+  ["all", "All"],
+  ["flagged", "Flagged"],
+  ["unanswered", "Unanswered"],
+];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -104,7 +111,67 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
     injectStyles();
   }, []);
 
+  const [filter, setFilter] = useState<NavigatorFilter>("all");
+  const counts = {
+    all: items.length,
+    flagged: items.filter((i) => i.status === "flagged").length,
+    unanswered: items.filter((i) => i.status === "unanswered").length,
+  };
+  // The current square always stays visible so the candidate never loses their place.
+  const visible = filter === "all" ? items : items.filter((i) => i.status === filter || i.status === "current");
+
+  const jumpFlagged = (dir: 1 | -1) => {
+    const flagged = items.filter((i) => i.status === "flagged");
+    if (flagged.length === 0) return;
+    const cur = items.findIndex((i) => i.status === "current");
+    // Walk from the current square (or the list edge) in `dir`, wrapping around.
+    for (let step = 1; step <= items.length; step++) {
+      const idx = (((cur === -1 ? (dir === 1 ? -1 : items.length) : cur) + dir * step) % items.length + items.length) % items.length;
+      if (items[idx]!.status === "flagged") {
+        onSelect(items[idx]!.questionId);
+        return;
+      }
+    }
+  };
+
+  const ctrl: CSSProperties = {
+    padding: "var(--aiq-space-xs) var(--aiq-space-sm)",
+    border: "1px solid var(--aiq-color-border)",
+    borderRadius: "var(--aiq-radius-sm)",
+    background: "var(--aiq-color-bg-base)",
+    color: "var(--aiq-color-fg-primary)",
+    fontSize: "var(--aiq-text-sm)",
+    cursor: "pointer",
+  };
+
   return (
+    <div>
+      <div
+        role="group"
+        aria-label="Filter questions"
+        style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-xs)", padding: "var(--aiq-space-md) var(--aiq-space-md) 0" }}
+      >
+        {FILTERS.map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={filter === key}
+            onClick={() => setFilter(key)}
+            style={{ ...ctrl, fontWeight: filter === key ? 600 : "normal", borderColor: filter === key ? "var(--aiq-color-accent)" : "var(--aiq-color-border)" }}
+          >
+            {label} ({counts[key]})
+          </button>
+        ))}
+        <button type="button" disabled={counts.flagged === 0} onClick={() => jumpFlagged(-1)} style={{ ...ctrl, opacity: counts.flagged === 0 ? 0.5 : 1 }}>
+          Previous flagged
+        </button>
+        <button type="button" disabled={counts.flagged === 0} onClick={() => jumpFlagged(1)} style={{ ...ctrl, opacity: counts.flagged === 0 ? 0.5 : 1 }}>
+          Next flagged
+        </button>
+      </div>
+      <p role="status" aria-live="polite" style={{ margin: 0, padding: "var(--aiq-space-xs) var(--aiq-space-md) 0", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>
+        Showing {visible.length} of {counts.all} questions. {counts.flagged} flagged, {counts.unanswered} unanswered.
+      </p>
     <nav
       aria-label="Question navigator"
       data-test-id={testId}
@@ -115,7 +182,7 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
         padding:             "var(--aiq-space-md)",
       }}
     >
-      {items.map((item) => {
+      {visible.map((item) => {
         const isCurrent = item.status === "current";
         const styles = STATUS_STYLES[item.status];
 
@@ -180,6 +247,7 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
         );
       })}
     </nav>
+    </div>
   );
 }
 
