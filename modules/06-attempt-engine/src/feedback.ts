@@ -14,7 +14,7 @@
  */
 
 import { ConflictError, NotFoundError } from "@assessiq/core";
-import { withTenant, getResultFeedbackLevel } from "@assessiq/tenancy";
+import { withTenant } from "@assessiq/tenancy";
 import type { ResultFeedbackLevel } from "@assessiq/tenancy";
 import { isQuestionType, QUESTION_TYPE_REGISTRY } from "@assessiq/question-types";
 import * as repo from "./repository.js";
@@ -54,6 +54,8 @@ const LEVEL_RANK: Record<ResultFeedbackLevel, number> = {
 
 const BAND_LABELS = ["No credit", "Weak answer", "Partial answer", "Good answer", "Strong answer"] as const;
 
+const INTERNAL_RE = /\b(stage\s*\d|stages?|anchors?|band\s*\d|banding|rubric|stage_inputs)\b/i;
+
 export function plainWords(
   justification: string | null | undefined,
   band: number | null | undefined,
@@ -63,15 +65,22 @@ export function plainWords(
   let text = "";
   // A row that carries an error class is not a clean grade: show the band only.
   if (typeof justification === "string" && (errorClass === null || errorClass === undefined || errorClass === "")) {
-    const kept = justification
+    let kept = justification
       .split(/\r?\n/)
-      .filter((l) => !/^\s*(stage|anchor|band)\b/i.test(l) && !/^\s*[{}`]/.test(l))
-      .join(" ")
-      .replace(/\[[^\]]*\]|\{[^}]*\}/g, " ")
-      .replace(/`+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    const sentences = kept.split(/(?<=[.!?])\s+/).filter((s) => s !== "");
+      .filter((l) => !/^\s*(stage|anchor|band)/i.test(l) && !/^\s*[{}`]/.test(l))
+      .join(" ");
+    // Nested brackets/braces: repeat until nothing changes.
+    for (let prev = ""; prev !== kept; ) {
+      prev = kept;
+      kept = kept.replace(/\[[^[\]]*\]|\{[^{}]*\}/g, " ");
+    }
+    kept = kept.replace(/[`{}[\]]+/g, " ").replace(/\s+/g, " ").trim();
+    // Keep sentences up to the first one that mentions grader internals.
+    const sentences: string[] = [];
+    for (const s of kept.split(/(?<=[.!?])\s+/).filter((x) => x !== "")) {
+      if (INTERNAL_RE.test(s)) break;
+      sentences.push(s);
+    }
     text = sentences.slice(0, 2).join(" ");
     if (text.length > 280) text = `${text.slice(0, 279).trimEnd()}…`;
   }
@@ -201,21 +210,22 @@ interface Row {
   ai_justification: string | null;
   reasoning_band: number | null;
   error_class: string | null;
+  grader: string;
 }
 
 const ITEMS_SQL = `SELECT aq.question_id, aq.position, qv.type, q.topic, qv.content,
         aa.answer,
         g.status, g.score_earned::text AS score_earned, g.score_max::text AS score_max,
-        g.ai_justification, g.reasoning_band, g.error_class
+        g.ai_justification, g.reasoning_band, g.error_class, g.grader
    FROM attempt_questions aq
    JOIN question_versions qv ON qv.question_id = aq.question_id AND qv.version = aq.question_version
    JOIN questions q ON q.id = aq.question_id
    LEFT JOIN attempt_answers aa ON aa.attempt_id = aq.attempt_id AND aa.question_id = aq.question_id
    JOIN LATERAL (
-     SELECT status, score_earned, score_max, ai_justification, reasoning_band, error_class
+     SELECT status, score_earned, score_max, ai_justification, reasoning_band, error_class, grader
        FROM gradings
       WHERE attempt_id = aq.attempt_id AND question_id = aq.question_id
-      ORDER BY graded_at DESC, id DESC LIMIT 1
+      ORDER BY graded_at DESC, (grader = 'admin_override') DESC, id DESC LIMIT 1
    ) g ON true
   WHERE aq.attempt_id = $1
   ORDER BY aq.position`;
@@ -242,8 +252,6 @@ export async function getCandidateFeedback(
   userId: string,
   attemptId: string,
 ): Promise<CandidateFeedback> {
-  const level = await getResultFeedbackLevel(tenantId);
-  const rank = LEVEL_RANK[level];
   return withTenant(tenantId, async (client) => {
     const attempt = await repo.findAttemptById(client, attemptId);
     if (attempt === null || attempt.user_id !== userId) {
@@ -255,6 +263,11 @@ export async function getCandidateFeedback(
     if (attempt.status !== "released" || score.rows.length === 0) {
       throw new ConflictError("The result is not ready yet.", { details: { code: "RESULT_NOT_READY" } });
     }
+    const lvl = await client.query<{ result_feedback_level: ResultFeedbackLevel }>(
+      `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
+    );
+    const level = lvl.rows[0]?.result_feedback_level ?? "none";
+    const rank = LEVEL_RANK[level];
     if (rank === 0) return { level, items: [] };
 
     const rows = (await client.query<Row>(ITEMS_SQL, [attemptId])).rows
@@ -284,7 +297,7 @@ export async function getCandidateFeedback(
         score_max: max,
         expected_answer: rank >= 2 && def?.scoring === "deterministic" ? renderExpectedAnswer(r.type, r.content) : null,
         explanation:
-          rank >= 3 && def?.scoring === "ai" ? plainWords(r.ai_justification, r.reasoning_band, r.error_class) : null,
+          rank >= 3 && def?.scoring === "ai" ? plainWords(r.grader === "admin_override" ? null : r.ai_justification, r.reasoning_band, r.error_class) : null,
         study: { unit: st?.unit ?? null, subject: st?.subject ?? null, topic: r.topic },
       };
     });

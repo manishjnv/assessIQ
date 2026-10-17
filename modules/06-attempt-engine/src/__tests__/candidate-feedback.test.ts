@@ -180,6 +180,16 @@ describe("plainWords", () => {
   });
 });
 
+describe("plainWords hardening", () => {
+  it("drops sentences that mention grader internals, nested braces and marker lines", () => {
+    expect(plainWords("Overall fine. Stage 2: matched anchors a1,a2. Good.", null, null)).toBe("Overall fine.");
+    expect(plainWords("Fine {a {b} c} done.", null, null)).toBe("Fine done.");
+    expect(plainWords("anchors: a1, a2\nSolid work.", null, null)).toBe("Solid work.");
+    expect(plainWords("Banding applied here\nSolid work.", null, null)).toBe("Solid work.");
+    expect(plainWords("Used the rubric to decide.", 3, null)).toBe("Good answer");
+  });
+});
+
 describe("getCandidateFeedback", () => {
   type Item = Awaited<ReturnType<typeof getCandidateFeedback>>["items"][number];
   const byKey = (s: Seeded, items: Item[]) =>
@@ -235,6 +245,20 @@ describe("getCandidateFeedback", () => {
     for (const leak of ["Stage 2", "SECRETANCHOR", "SECRETSTAGEINPUT", "SECRETRATIONALE", "Third sentence", "Band 2 chosen", "stage_inputs", "anchor_hits"]) {
       expect(raw).not.toContain(leak);
     }
+  });
+
+  it("admin_override wins a graded_at tie and its note is never shown (band label only)", async () => {
+    await setLevel("with_ai_justification");
+    const s = await seed();
+    await sup((c) => c.query(
+      `INSERT INTO gradings (tenant_id, attempt_id, question_id, grader, score_earned, score_max, status, reasoning_band, ai_justification, prompt_version_sha, prompt_version_label, model, graded_at)
+       SELECT tenant_id, attempt_id, question_id, 'admin_override', 10, 10, 'overridden', 4, 'ADMINNOTE private', 'sha2', 'lbl', 'm', graded_at
+         FROM gradings WHERE question_id = $1 AND grader = 'ai'`, [s.qs.subjective]));
+    const r = await getCandidateFeedback(tenant, s.userId, s.attemptId);
+    const it = r.items.find((i) => i.question_id === s.qs.subjective)!;
+    expect(it.outcome).toBe("correct");
+    expect(it.explanation).toBe("Strong answer");
+    expect(JSON.stringify(r)).not.toContain("ADMINNOTE");
   });
 
   it("a row that is not final (review_needed / AIG_ error) is not shown", async () => {
