@@ -31,6 +31,7 @@ const REGISTRY = [
 
 // Personal-looking columns deliberately NOT erased. One-line reason each.
 const EXEMPT: Record<string, string> = {
+  'tenant_settings.result_feedback_level': 'tenant display setting (per-question feedback level); no personal data (S15 RW-80)',
   // Organisation / content data, not candidate personal data
   'oauth_identities.email_verified': 'boolean flag, not an address',
   'tenant_plans.ai_answers_included_override': 'plan quota number set by the super admin (PT-4), not personal data',

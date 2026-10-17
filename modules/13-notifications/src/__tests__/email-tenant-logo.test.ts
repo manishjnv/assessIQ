@@ -13,6 +13,7 @@ const { getTenantLogoMeta } = vi.hoisted(() => ({ getTenantLogoMeta: vi.fn() }))
 vi.mock('@assessiq/core', async () => ({
   ...(await import('@assessiq/core/hash')),
   ...(await import('@assessiq/core/escape')),
+  UUID_RE: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, // render.ts needs it (S12 trap: partial core mock)
   config: { NODE_ENV: 'test', ASSESSIQ_BASE_URL: 'https://assessiq.test' },
   streamLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
 }));
