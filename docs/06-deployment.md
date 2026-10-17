@@ -2426,17 +2426,20 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Not done / follow-ups:** the team did not exercise the `totp_enrolled` email live (it needs a real enrolment). The owner test step is "enrol TOTP on a test admin, expect one email with the new copy". `TENANT_PURGE_ENABLED` is still unset.
 **Rollback:** run `git revert` on the commits, then rebuild and recreate. 0179-0181 only narrow three CHECKs. Older builds never write `reviewer`, so the migrations need no rollback. To restore the old CHECKs by hand, add the constraints again with the `reviewer` value from 016_super_admin.sql and 0056_in_app_notifications.sql.
 
-### S17 (pending deploy, 2026-10-17): Z-15 (b), (d), Z-11 (c), Z-25 guard, Z-29, Z-30
+### S17 deploy (2026-10-17, HEAD `92d2b2e`): Z-15 (b), (d), Z-11 (c), Z-25 guard, Z-29, Z-30, safe Dependabot bumps
 
-*Type: reference. The orchestrator fills the deploy facts after the deploy.*
+*Type: reference.*
 
-- **Code commits on main, not pushed or deployed yet:** `9a5d552`, `133f85c`, `258e801`, `dd3b779`, `f9c569f`.
+- **Deployed:** `/srv/assessiq` pulled `14f689e` → `92d2b2e` (fast-forward; clean clone, 6 healthy containers before). Migration check: 0 migration files changed, so no drift step. `docker compose -f infra/docker-compose.yml build assessiq-api assessiq-worker assessiq-frontend assessiq-marketing`, then `up -d --no-deps --force-recreate` for the same four. All six `assessiq-*` containers healthy after 30 s; 0 error lines in api and worker logs. The compose service names carry the `assessiq-` prefix (`api` alone fails with "no such service"; the first attempt did nothing).
+- **Why api and worker were rebuilt:** the Dependabot commit changes root `pnpm.overrides` (proxy-addr, compression, body-parser, qs, ip-address and more), so the runtime dependency tree of the api and worker changed.
+- **Live sweep (Haiku, 12 checks, all pass):** health and ready 200; `/admin/login`, `/candidate/login`, `/admin/guide` 200; protected routes 401; `/api/dev/mint-session` 404; marketing pages 200; sitemap 42 URLs; robots, llms.txt, og:image 200; HSTS present. The certificate-rule string sits in a lazy chunk and was not checked in the entry chunks.
+- **Rollback:** `git revert` the commit range `9a5d552..8556ca8` (or only `8556ca8` for the dependency change), then rebuild and recreate the four services. Previous deployed SHA: `14f689e`.
+- **Code commits on main:** `9a5d552`, `133f85c`, `258e801`, `dd3b779`, `f9c569f`, `8556ca8` (deps).
 - **Frontend (needs `assessiq-frontend` rebuild):** `dd3b779` (`CandidateLogin.tsx`, mobile sign-in alignment) and `f9c569f` (`CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui`, empty Certificates page and result summary).
 - **Marketing (needs `assessiq-marketing` rebuild):** `258e801` adds a build guard in `apps/marketing/astro.config.mjs`. The sitemap output is unchanged (42 URLs), so no IndexNow submission.
 - **Tests only (no deploy):** `9a5d552` (print e2e wait line) and `133f85c` (blocking axe rules and 5 Linux visual baselines in `apps/web/e2e`).
 - **No migrations, no new environment variables, no API change.**
-- **Dependabot:** see `DEPENDABOT-RESULT` in `docs/SESSION_STATE.md`.
-- **Filled by the orchestrator:** push SHA, VPS pull, rebuilds, smoke results, rollback SHA.
+- **Dependabot:** see the Dependabot line in `docs/SESSION_STATE.md`.
 
 ### S16 deploy (2026-10-17, HEAD `3ed96c1`): batch 5 of P0-Z (Z-6, Z-8, Z-12, Z-13 check, Z-15(e), Z-17, Z-21, Z-22, RW-79 tail, RW-82 tails)
 
