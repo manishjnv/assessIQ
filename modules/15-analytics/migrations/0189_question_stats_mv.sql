@@ -43,7 +43,8 @@ eff AS (
   SELECT DISTINCT ON (g.attempt_id, g.question_id)
          g.attempt_id, g.question_id, g.status, g.score_earned, g.score_max, g.reasoning_band
   FROM   gradings g
-  ORDER  BY g.attempt_id, g.question_id, g.graded_at DESC, g.id
+  -- same rule as 09-scoring finalize/release: newest graded_at, admin_override wins a tie
+  ORDER  BY g.attempt_id, g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC, g.id DESC
 ),
 graded AS (
   SELECT a.tenant_id,
@@ -53,6 +54,7 @@ graded AS (
          (ats.total_earned - e.score_earned) AS rest_score
   FROM   eff e
   JOIN   attempts a        ON a.id = e.attempt_id
+  -- inner join: a released attempt without an attempt_scores row is still pending in 06 result.ts, so it is left out here too
   JOIN   attempt_scores ats ON ats.attempt_id = a.id
   WHERE  e.status <> 'review_needed'
     AND  (a.status = 'released'
