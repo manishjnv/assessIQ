@@ -11,6 +11,19 @@ Placeholders used below:
 
 ---
 
+## 0. Owner decisions recorded 2026-10-17 (they settle section A and D below)
+
+- **Tone:** option 2 (plain): 'You passed {assessmentName}.' and 'You did not reach the pass mark.' Support lines use option 2.
+- **Fail colour:** amber, plus the words 'Not passed', plus an icon. Never red.
+- **Percent:** keep it next to the score (for example 60%).
+- **Retake line:** 'Ask your organisation if you can take it again' is accepted. A real retake rule comes later: organisation admin sets a maximum number of attempts (ROADMAP Z-39).
+- **Certificate email:** one email that carries the result and, when a certificate exists, the certificate link and share-on-social links.
+- **Sign-off:** one line 'The AssessIQ team' for all mail, as recommended.
+- **Unsent templates:** none deleted (rule A). Allowlist stays.
+- **Z-16:** Honors later. Distinction at 90%. Lines marked [pending Z-16] stay pending until Z-16 is built.
+- **Not answered, so the draft's proposal stands:** organisation name in the invitation subject (yes), admin role labels, pass mark shown to students (yes).
+
+---
 ## A. What the owner must approve
 
 1. **Pass and fail wording** on three surfaces (section B). Pick option 1 or 2 where shown.
