@@ -758,6 +758,10 @@ export async function insertQuestion(
     /** EXP-2: provenance; defaults to a human-authored original. */
     origin?: QuestionOrigin;
     rightsStatus?: RightsStatus;
+    /** EXP-4: import v2 provenance, written into the same question_source row. */
+    sourceExtra?: QuestionSourceExtra;
+    difficultyEst?: number | null;
+    languagePrimary?: string;
   },
 ): Promise<Question> {
   // questions has no tenant_id column — the WITH CHECK RLS policy derives
@@ -765,8 +769,9 @@ export async function insertQuestion(
   // to 'draft' per DB schema; content and rubric are stored as JSONB.
   // answer_guidance is plain text (candidate hint); NULL when not authored.
   const result = await client.query<QuestionRow>(
-    `INSERT INTO questions (id, pack_id, level_id, type, topic, points, content, rubric, answer_guidance, created_by, negative_marks)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11)
+    `INSERT INTO questions (id, pack_id, level_id, type, topic, points, content, rubric, answer_guidance, created_by, negative_marks,
+                            difficulty_est, language_primary)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11, $12, COALESCE($13, 'en'))
      RETURNING ${QUESTION_COLUMNS}`,
     [
       input.id,
@@ -780,13 +785,15 @@ export async function insertQuestion(
       input.answerGuidance ?? null,
       input.createdBy,
       input.negativeMarks ?? null,
+      input.difficultyEst ?? null,
+      input.languagePrimary ?? null,
     ],
   );
   const row = result.rows[0];
   if (row === undefined) {
     throw new Error("insertQuestion: INSERT returned no row");
   }
-  await insertQuestionSource(client, input.id, input.packId, input.origin ?? "original_human", input.rightsStatus ?? "original");
+  await insertQuestionSource(client, input.id, input.packId, input.origin ?? "original_human", input.rightsStatus ?? "original", input.sourceExtra);
   return mapQuestionRow(row);
 }
 
@@ -836,6 +843,19 @@ export async function insertAiDraftQuestion(
   return mapQuestionRow(row);
 }
 
+export interface QuestionSourceExtra {
+  sourceRef?: string | null;
+  sourceUrl?: string | null;
+  seedRef?: string | null;
+  importId?: string | null;
+  uploadedBy?: string | null;
+  sourceDifficultyRaw?: string | null;
+  contentHash?: string | null;
+  normalisedTextHash?: string | null;
+  pyqYear?: number | null;
+  pyqShift?: string | null;
+}
+
 /**
  * EXP-2: write the one question_source row for a new question. tenant_id comes from the
  * pack row (questions has no tenant_id), so the row always matches the pack's tenant.
@@ -847,12 +867,18 @@ export async function insertQuestionSource(
   packId: string,
   origin: QuestionOrigin,
   rightsStatus: RightsStatus,
+  x: QuestionSourceExtra = {},
 ): Promise<void> {
   await client.query(
-    `INSERT INTO question_source (tenant_id, question_id, origin, rights_status)
-     SELECT tenant_id, $1, $3, $4 FROM question_packs WHERE id = $2
+    `INSERT INTO question_source (tenant_id, question_id, origin, rights_status, source_ref, source_url, seed_ref,
+                                  import_id, uploaded_by, source_difficulty_raw, content_hash, normalised_text_hash,
+                                  pyq_year, pyq_shift)
+     SELECT tenant_id, $1::uuid, $3::text, $4::text, $5::text, $6::text, $7::text, $8::uuid, $9::uuid, $10::text, $11::text,
+            $12::text, $13::int, $14::text FROM question_packs WHERE id = $2
      ON CONFLICT (question_id) DO NOTHING`,
-    [questionId, packId, origin, rightsStatus],
+    [questionId, packId, origin, rightsStatus, x.sourceRef ?? null, x.sourceUrl ?? null, x.seedRef ?? null,
+      x.importId ?? null, x.uploadedBy ?? null, x.sourceDifficultyRaw ?? null, x.contentHash ?? null,
+      x.normalisedTextHash ?? null, x.pyqYear ?? null, x.pyqShift ?? null],
   );
 }
 

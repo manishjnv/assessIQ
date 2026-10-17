@@ -39,11 +39,37 @@ export interface NormalizedRow {
   /** EX-1: optional penalty for a wrong attempted answer; null = the assessment default. */
   negative_marks: number | null;
   content: Record<string, unknown>;
+  /** EXP-4 (import v2). Absent on rows staged before v2; commit then falls back to original / original_human. */
+  meta?: RowMeta;
+}
+
+export type DupClass = "exact" | "normalised" | "similar";
+
+export interface RowMeta {
+  origin: "original_human" | "ai_original" | "ai_seeded" | "derived_from_source" | "scraped_raw" | "licensed";
+  rightsStatus: "original" | "derived_from_source" | "scraped_raw" | "licensed" | "metadata_only";
+  sourceRef: string | null;
+  sourceUrl: string | null;
+  seedRef: string | null;
+  /** The label as written in the file; difficultyEst is its 1..5 mapping. */
+  sourceDifficultyRaw: string | null;
+  difficultyEst: number | null;
+  language: string;
+  pyqYear: number | null;
+  pyqShift: string | null;
+  /** Resolved taxonomy_nodes ids (Exam structure stage, deepest Subject map node). */
+  stageNodeId: string | null;
+  subjectNodeId: string | null;
+  normalisedHash: string;
+  /** Set by the duplicate pass. 'similar' is a warning only (the row stays ok). */
+  dupClass?: DupClass | null;
 }
 
 export interface DryRunRow {
   row: number;
   decision: ImportDecision;
+  /** EXP-4: which duplicate check hit this row, if any. */
+  dupClass: DupClass | null;
   errors: RowError[];
   raw: Record<string, string>;
   normalized: NormalizedRow | null;
@@ -53,6 +79,9 @@ export interface DryRunReport {
   importId: string;
   status: ImportStatus;
   counts: { total: number; ok: number; error: number; duplicate: number; skip: number };
+  /** EXP-4: rows per duplicate class, and the classes that ran ('similar' only when pg_trgm exists). */
+  duplicateClasses: Record<DupClass, number>;
+  checksRun: DupClass[];
   rows: DryRunRow[];
 }
 
