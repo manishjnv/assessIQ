@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Chip, Spinner, formatDate } from '@assessiq/ui-system';
 import { listMyCertificates, shareCertificateLinkedIn } from '../api.js';
 import type { MyCertificate } from '../api.js';
-import { CERTIFICATE_RULE_TEXT } from '../copy.js';
+import { CERTIFICATES_EMPTY_TEXT } from '../copy.js';
 import { CompletionModal } from './CompletionModal.js';
 
 // ---------------------------------------------------------------------------
@@ -143,7 +143,7 @@ export function MyCertificates(): React.ReactElement {
 
       {certs.length === 0 ? (
         <p style={{ color: 'var(--aiq-color-fg-muted)', margin: 0 }}>
-          {CERTIFICATE_RULE_TEXT}
+          {CERTIFICATES_EMPTY_TEXT}
         </p>
       ) : (
         <div>

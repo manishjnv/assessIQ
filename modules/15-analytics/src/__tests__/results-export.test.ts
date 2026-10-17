@@ -120,6 +120,9 @@ beforeAll(async () => {
     // Tie: 30/40 = 75% (same as Aarav). Low: 20/40 = 50%.
     for (let i = 0; i < 4; i++) await grade(tieAttempt, qs[i]!, i === 3 ? 0 : 10);
     for (let i = 0; i < 4; i++) await grade(lowAttempt, qs[i]!, i < 2 ? 10 : 0);
+    // Z-16: Chirag's score row carries its own pass mark (40). 50% passes it, although the
+    // assessment mark (60) would fail it: the attempt's snapshot wins.
+    await c.query(`INSERT INTO attempt_scores (attempt_id,tenant_id,total_earned,total_max,auto_pct,pending_review,pass_mark_pct) VALUES ($1,$2,20,40,50,false,40)`, [lowAttempt, tenantA]);
     // Integrity events: Aarav 2 tab blurs + 1 paste + 1 fullscreen_exit; held attempt 3 blurs
     // (shown even though its score is hidden).
     const ev = (a: string, t: string, n: number) => c.query(`INSERT INTO attempt_events (attempt_id,event_type) SELECT $1,$2 FROM generate_series(1,$3)`, [a, t, n]);
@@ -196,6 +199,9 @@ describe('assessment results.csv', () => {
     const g = by['aarav@a.test']!;
     expect(g.slice(2, 5)).toEqual(['21CS001', 'CSE', 'graded']);
     expect(g.slice(7)).toEqual(['30', '40', '75', 'Pass', '1', '2', '1', '1', '100', '50']); // override precedence: Quant 20/20
+
+    // Z-16: 50% against the attempt's own pass mark of 40 -> Pass (assessment mark 60 would say Fail).
+    expect(by['chirag@a.test']![10]).toBe('Pass');
 
     // submitted-not-graded: attempt status, no score, result "Awaiting evaluation" (Phase II)
     const s = by['sub@a.test']!;

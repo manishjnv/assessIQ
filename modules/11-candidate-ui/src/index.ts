@@ -115,4 +115,4 @@ export {
 export type { BackupEnvelope } from "./resilience/localStorage-backup";
 
 // ─── Copy ─────────────────────────────────────────────────────────────────────
-export { AFTER_SUBMIT_TEXT, CERTIFICATE_RULE_TEXT } from "./copy.js";
+export { AFTER_SUBMIT_TEXT, CERTIFICATES_EMPTY_TEXT, certificateRuleText } from "./copy.js";

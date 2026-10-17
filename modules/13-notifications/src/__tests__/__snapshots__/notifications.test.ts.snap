@@ -404,6 +404,11 @@ exports[`template snapshots — result_released (SP4) > HTML renders to a stable
                 View your certificate &rarr;
               </a>
               </p>
+                  <p style="margin:12px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.55;color:#3f3f46">Share it:
+                    <a href="https://www.linkedin.com/sharing/share-offsite/?url&#x3D;https%3A%2F%2Fassessiq.test%2Fverify%2FAIQ-2026-10-SNAP01" style="color:#1a73e8;text-decoration:none">LinkedIn</a> &middot;
+                    <a href="https://twitter.com/intent/tweet?url&#x3D;https%3A%2F%2Fassessiq.test%2Fverify%2FAIQ-2026-10-SNAP01&amp;text&#x3D;I%20earned%20a%20certificate%20for%20SOC%20L1%20Skills%20Assessment." style="color:#1a73e8;text-decoration:none">X</a> &middot;
+                    <a href="https://wa.me/?text&#x3D;I%20earned%20a%20certificate%20for%20SOC%20L1%20Skills%20Assessment.%20https%3A%2F%2Fassessiq.test%2Fverify%2FAIQ-2026-10-SNAP01" style="color:#1a73e8;text-decoration:none">WhatsApp</a></p>
+                  <p style="margin:8px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.55;color:#3f3f46">Copy link: https://assessiq.test/verify/AIQ-2026-10-SNAP01</p>
               
             </td>
           </tr>
@@ -460,6 +465,12 @@ Your certificate is ready. Select the second link to view it.
 
 View your certificate:
 https://assessiq.test/verify/AIQ-2026-10-SNAP01
+
+Share it:
+LinkedIn: https://www.linkedin.com/sharing/share-offsite/?url=https%3A%2F%2Fassessiq.test%2Fverify%2FAIQ-2026-10-SNAP01
+X: https://twitter.com/intent/tweet?url=https%3A%2F%2Fassessiq.test%2Fverify%2FAIQ-2026-10-SNAP01&text=I%20earned%20a%20certificate%20for%20SOC%20L1%20Skills%20Assessment.
+WhatsApp: https://wa.me/?text=I%20earned%20a%20certificate%20for%20SOC%20L1%20Skills%20Assessment.%20https%3A%2F%2Fassessiq.test%2Fverify%2FAIQ-2026-10-SNAP01
+Copy link: https://assessiq.test/verify/AIQ-2026-10-SNAP01
 
 — The AssessIQ team
 AssessIQ · Bangalore 560068, India · © 2026

@@ -23,7 +23,7 @@
  * NEVER import claude / @anthropic-ai from this file (Rule #1).
  */
 
-import { config, streamLogger } from '@assessiq/core';
+import { config, isPass, streamLogger } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { sendEmail } from './index.js';
 
@@ -40,7 +40,7 @@ interface ReleasedAttemptRow {
   tenant_slug: string;
   total_earned: string | null;
   total_max: string | null;
-  passing_score_pct: number | null;
+  pass_mark_pct: number | null;
   credential_id: string | null;
 }
 
@@ -67,12 +67,11 @@ export async function sendResultReleasedEmail(input: {
                 t.slug   AS tenant_slug,
                 s.total_earned::text AS total_earned,
                 s.total_max::text    AS total_max,
-                l.passing_score_pct,
+                s.pass_mark_pct,
                 c.credential_id
            FROM attempts a
            JOIN users u        ON u.id   = a.user_id
            JOIN assessments asm ON asm.id = a.assessment_id
-           JOIN levels l       ON l.id   = asm.level_id
            JOIN tenants t      ON t.id   = a.tenant_id
            LEFT JOIN attempt_scores s ON s.attempt_id = a.id
            LEFT JOIN certificates c
@@ -107,7 +106,9 @@ export async function sendResultReleasedEmail(input: {
     const earned = parseFloat(row.total_earned);
     const max = parseFloat(row.total_max);
     const percent = max > 0 ? Math.round((earned / max) * 1000) / 10 : 0;
-    const passed = percent >= (row.passing_score_pct ?? 60);
+    // Z-16: one rule, one mark. attempt_scores.pass_mark_pct is the snapshot the page uses.
+    const passMark = row.pass_mark_pct;
+    const passed = passMark !== null && isPass(earned, max, passMark);
 
     const portal = new URL('/candidate/login', config.ASSESSIQ_BASE_URL);
     portal.searchParams.set('tenant', row.tenant_slug);
@@ -121,6 +122,7 @@ export async function sendResultReleasedEmail(input: {
         tenantName: row.tenant_name,
         scoreText: `${fmt(earned)} / ${fmt(max)} (${percent}%)`,
         resultText: passed ? 'Passed' : 'Not passed',
+        ...(passMark !== null ? { passMarkPct: passMark } : {}),
         portalLink: portal.toString(),
         ...(row.credential_id !== null
           ? { certificateLink: new URL(`/verify/${encodeURIComponent(row.credential_id)}`, config.ASSESSIQ_BASE_URL).toString() }

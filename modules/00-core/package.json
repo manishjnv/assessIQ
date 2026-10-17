@@ -10,7 +10,8 @@
     "./aes-gcm": "./src/aes-gcm.ts",
     "./redis": "./src/redis.ts",
     "./escape": "./src/escape.ts",
-    "./hash": "./src/hash.ts"
+    "./hash": "./src/hash.ts",
+    "./share-links": "./src/share-links.ts"
   },
   "dependencies": {
     "ioredis": "^5.4.1"

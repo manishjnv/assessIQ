@@ -28,7 +28,7 @@ import type { AddressInfo } from 'node:net';
 // ---------------------------------------------------------------------------
 
 vi.mock('@assessiq/core', async () => {
-  const shared = { ...(await import('@assessiq/core/hash')), ...(await import('@assessiq/core/escape')) };
+  const shared = { ...(await import('@assessiq/core/hash')), ...(await import('@assessiq/core/escape')), ...(await import('@assessiq/core/share-links')) };
   return {
     ...shared,
     config: {

@@ -209,6 +209,8 @@ export interface AttemptResultReleasedWire {
   passed: boolean;
   assessment_name: string;
   released_at: string;
+  /** Z-16: pass mark (1-100) snapshot for this result. Absent on older servers: hide the number. */
+  pass_mark_pct?: number;
   certificate: ResultCertificateWire | null;
   negative_marking?: ResultNegativeMarkingWire;
   /** Logo L3a: organisation name and logo URL for the Submitted page; absent on older servers. */
@@ -229,6 +231,8 @@ export interface MyResultItemWire {
   total_max: number;
   percent: number;
   passed: boolean;
+  /** Z-16: pass mark (1-100) snapshot for this result. Absent on older servers: hide the number. */
+  pass_mark_pct?: number;
   certificate: ResultCertificateWire | null;
   negative_marking?: ResultNegativeMarkingWire;
   /** Z-12: true until the candidate opens this result. */

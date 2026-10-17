@@ -30,7 +30,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
-import { config, escapeHtml, UUID_RE } from '@assessiq/core';
+import { buildShareLinks, config, escapeHtml, UUID_RE } from '@assessiq/core';
 import type { EmailTemplateName, TemplateVarsMap } from '../types.js';
 import { buildVars } from './i18n.js';
 import {
@@ -218,6 +218,7 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
       return [
         { k: 'Result', v: `<strong>${glyph} ${escapeHtml(p.resultText)}</strong>`, bar: c.bar, bg: c.bg },
         { k: 'Score', v: `<strong>${escapeHtml(p.scoreText)}</strong>` },
+        ...(typeof p.passMarkPct === 'number' ? [{ k: 'Pass mark', v: `${escapeHtml(String(p.passMarkPct))}%` }] : []),
         { k: 'Assessment', v: escapeHtml(p.assessmentName) },
         { k: 'Organisation', v: escapeHtml(p.tenantName) },
       ];
@@ -280,7 +281,20 @@ function resultCopy(p: any): Record<string, unknown> {
       ? 'Your certificate is ready. Select the second link to view it.'
       : 'Your result and details are on your Results page.'
     : 'Sign in to see where to improve.';
-  return { is_passed: passed, result_lede: lede, result_next_step: next_step };
+  const share = hasCert
+    ? buildShareLinks(String(p.certificateLink), `I earned a certificate for ${String(p.assessmentName)}.`)
+    : null;
+  return {
+    is_passed: passed,
+    result_lede: lede,
+    result_next_step: next_step,
+    ...(!hasCert && typeof p.passMarkPct === 'number'
+      ? { cert_rule: `You earn a certificate when you pass. The pass mark is ${String(p.passMarkPct)}%.` }
+      : {}),
+    ...(share !== null
+      ? { share_linkedin: share.linkedin, share_x: share.x, share_whatsapp: share.whatsapp, share_copy: share.copy }
+      : {}),
+  };
 }
 
 /**

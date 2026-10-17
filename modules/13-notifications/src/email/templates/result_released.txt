@@ -6,7 +6,8 @@ Subject: Your result for {{assessmentName}}{{#if is_passed}}: passed{{/if}}
 
 Result: {{resultText}}
 Score: {{scoreText}}
-Assessment: {{assessmentName}}
+{{#if passMarkPct}}Pass mark: {{passMarkPct}}%
+{{/if}}Assessment: {{assessmentName}}
 Organisation: {{tenantName}}
 
 View your result:
@@ -17,6 +18,18 @@ View your result:
 
 View your certificate:
 {{certificateLink}}
+{{#if share_linkedin}}
+
+Share it:
+LinkedIn: {{share_linkedin}}
+X: {{share_x}}
+WhatsApp: {{share_whatsapp}}
+Copy link: {{share_copy}}
+{{/if}}
+{{/if}}
+{{#if cert_rule}}
+
+{{cert_rule}}
 {{/if}}
 
 — The AssessIQ team

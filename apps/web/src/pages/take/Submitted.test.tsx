@@ -52,6 +52,7 @@ const RELEASED = {
   total_max: 60,
   percent: 70,
   passed: true,
+  pass_mark_pct: 60,
   assessment_name: 'Aptitude Test',
   released_at: '2026-10-01T10:00:00.000Z',
   certificate: { credential_id: 'CERT-1', verify_url: 'https://assessiq.example.com/verify/CERT-1' },
@@ -118,6 +119,8 @@ describe('Submitted — scoring + result release', () => {
     expect(screen.getByText('Aptitude Test')).toBeTruthy();
     const text = document.body.textContent ?? '';
     expect(text).toContain('42 / 60 (70%)');
+    expect(text).toContain('Your score is 42 out of 60. You met the pass mark of 60%.');
+    expect(text).toContain('You passed Aptitude Test.');
     expect(screen.getByText('Passed')).toBeTruthy();
     expect(screen.getByRole('link', { name: /View certificate/ }).getAttribute('href')).toBe(
       'https://assessiq.example.com/verify/CERT-1',
