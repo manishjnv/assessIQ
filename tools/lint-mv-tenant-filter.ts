@@ -20,6 +20,10 @@
  *      the substring "current_setting('app.current_tenant'" in the same
  *      top-level template literal or string literal.
  *
+ * Allow marker (cross-tenant super_admin roll-ups only): a SQL string containing the exact
+ *   comment "-- mv-tenant-filter: allow cross-tenant (super_admin roll-up, RW-60)" passes
+ *   without the current_setting filter.
+ *
  * Self-test mode:
  *   pnpm tsx tools/lint-mv-tenant-filter.ts --self-test
  *   Creates a temporary in-memory fixture, runs the lint against it, and
@@ -42,8 +46,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 const ANALYTICS_SRC = path.join(REPO_ROOT, 'modules', '15-analytics', 'src');
 
-const MV_NAME = 'attempt_summary_mv';
+const MV_NAMES = ['attempt_summary_mv', 'question_stats_mv'];
 const TENANT_FILTER = "current_setting('app.current_tenant'";
+/**
+ * Explicit allow marker: a SQL string containing this exact comment passes without the
+ * tenant filter. Only for super_admin cross-tenant roll-ups run under withSystemRole
+ * (read-only). Do not use it anywhere else.
+ */
+const ALLOW_MARKER = '-- mv-tenant-filter: allow cross-tenant (super_admin roll-up, RW-60)';
 
 // ---------------------------------------------------------------------------
 // Scanning
@@ -106,14 +116,14 @@ function checkFileContent(filePath: string, source: string): Violation[] {
   const templateBlocks = extractTemplateLiterals(source);
 
   for (const block of templateBlocks) {
-    if (block.content.includes(MV_NAME)) {
-      if (!block.content.includes(TENANT_FILTER)) {
+    if (MV_NAMES.some((n) => block.content.includes(n))) {
+      if (!block.content.includes(TENANT_FILTER) && !block.content.includes(ALLOW_MARKER)) {
         const lineNum = source.slice(0, block.start).split('\n').length;
         violations.push({
           file: filePath,
           line: lineNum,
           message:
-            `SQL references "${MV_NAME}" without explicit tenant filter.\n` +
+            `SQL references "${MV_NAMES.join('/')}" without explicit tenant filter.\n` +
             `  Expected: WHERE tenant_id = current_setting('app.current_tenant', true)::uuid\n` +
             `  File: ${path.relative(REPO_ROOT, filePath)}:${lineNum}\n` +
             `  RLS does NOT apply to materialized views — explicit filter is mandatory.`,
@@ -125,14 +135,14 @@ function checkFileContent(filePath: string, source: string): Violation[] {
   // Also check regular string literals (single/double quoted) for completeness
   const stringBlocks = extractStringLiterals(source);
   for (const block of stringBlocks) {
-    if (block.content.includes(MV_NAME)) {
-      if (!block.content.includes(TENANT_FILTER)) {
+    if (MV_NAMES.some((n) => block.content.includes(n))) {
+      if (!block.content.includes(TENANT_FILTER) && !block.content.includes(ALLOW_MARKER)) {
         const lineNum = source.slice(0, block.start).split('\n').length;
         violations.push({
           file: filePath,
           line: lineNum,
           message:
-            `SQL references "${MV_NAME}" without explicit tenant filter.\n` +
+            `SQL references "${MV_NAMES.join('/')}" without explicit tenant filter.\n` +
             `  Expected: WHERE tenant_id = current_setting('app.current_tenant', true)::uuid\n` +
             `  File: ${path.relative(REPO_ROOT, filePath)}:${lineNum}\n` +
             `  RLS does NOT apply to materialized views — explicit filter is mandatory.`,
@@ -320,6 +330,25 @@ async function runSelfTest(): Promise<void> {
   const invalidViolations = checkFileContent('virtual/invalid.ts', invalidSource);
   if (invalidViolations.length === 0) {
     console.error('SELF-TEST FAIL: expected ≥1 violation for invalid source, got 0');
+    process.exit(1);
+  }
+
+  // FIXTURE 2b: question_stats_mv (RW-60) follows the same rule
+  const qsBad = checkFileContent('virtual/qs-bad.ts', 'const q = `SELECT * FROM question_stats_mv WHERE question_id = $1`;');
+  const qsGood = checkFileContent(
+    'virtual/qs-good.ts',
+    "const q = `SELECT * FROM question_stats_mv WHERE tenant_id = current_setting('app.current_tenant', true)::uuid`;",
+  );
+  if (qsBad.length === 0 || qsGood.length !== 0) {
+    console.error('SELF-TEST FAIL: question_stats_mv fixtures', qsBad.length, qsGood.length);
+    process.exit(1);
+  }
+
+  // FIXTURE 2c: the allow marker passes without the filter; a near-miss marker does not
+  const markerOk = checkFileContent('virtual/m-ok.ts', 'const q = `' + ALLOW_MARKER + '\nSELECT * FROM question_stats_mv`;');
+  const markerBad = checkFileContent('virtual/m-bad.ts', 'const q = `-- mv-tenant-filter: allow\nSELECT * FROM question_stats_mv`;');
+  if (markerOk.length !== 0 || markerBad.length === 0) {
+    console.error('SELF-TEST FAIL: allow marker fixtures', markerOk.length, markerBad.length);
     process.exit(1);
   }
 

@@ -26,6 +26,8 @@ export {
 // ---------------------------------------------------------------------------
 export { exportAttemptsCsv, exportAttemptsJsonl, exportTopicHeatmapCsv } from './service.js';
 
+export { getQuestionStats, type QuestionStatsResult } from './question-stats.js';
+
 // ---------------------------------------------------------------------------
 // Route registrar
 // ---------------------------------------------------------------------------

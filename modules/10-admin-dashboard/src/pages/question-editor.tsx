@@ -25,6 +25,7 @@ import type { ScState } from "../components/StructuredCaseEditor.js";
 import { QUESTION_TYPES, isQuestionType, getQuestionType, type QuestionType } from "@assessiq/question-types";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
+import { QuestionStatsCard } from "../components/QuestionStatsCard.js";
 import { FrameworkTreePicker } from "../components/FrameworkTreePicker.js";
 import { getQuestionTaxonomyApi, putQuestionTaxonomyApi } from "../api/frameworks.js";
 
@@ -418,7 +419,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
           />
         </div>
 
-        <div className="aiq-form-group" data-help-id="admin.question_editor.negative_marks">
+        <div className="aiq-form-group" data-help-id="admin.question.editor.negative_marks">
           <label className="aiq-label" htmlFor="q-negative-marks">Negative marks</label>
           <input
             id="q-negative-marks"
@@ -924,7 +925,7 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
 
         {/* Negative marks (EX-1) - penalty for a wrong attempted answer on auto-scored types.
             Metadata-only (no version bump); frozen per attempt at start. Editable for super_admin. */}
-        <div className="aiq-card" data-help-id="admin.question_editor.negative_marks" style={{ padding: "var(--aiq-space-lg)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+        <div className="aiq-card" data-help-id="admin.question.editor.negative_marks" style={{ padding: "var(--aiq-space-lg)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
           <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--aiq-color-fg-muted)" }}>
             Negative marks
           </div>
@@ -1028,6 +1029,8 @@ function AdminQuestionEditorInner({ id, isSuperAdmin }: { id: string; isSuperAdm
         </div>
 
         <FrameworkNodesCard questionId={question.id} isSuperAdmin={isSuperAdmin} cognitiveLevel={question.cognitive_level} />
+
+        {isSuperAdmin && <QuestionStatsCard questionId={question.id} />}
 
         {/* Approve / archive — super_admin only (curation); visible only for ai_draft */}
         {isSuperAdmin && question.status === "ai_draft" && (

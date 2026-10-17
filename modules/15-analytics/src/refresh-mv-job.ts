@@ -20,7 +20,7 @@ const log = streamLogger('worker');
 export const ANALYTICS_REFRESH_MV_JOB_NAME = 'analytics:refresh_mv';
 
 /**
- * Runs REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv.
+ * Runs REFRESH MATERIALIZED VIEW CONCURRENTLY on attempt_summary_mv and question_stats_mv.
  * Returns { duration_ms } for the worker log.
  */
 export async function processRefreshMvJob(): Promise<{ duration_ms: number }> {
@@ -37,8 +37,10 @@ export async function processRefreshMvJob(): Promise<{ duration_ms: number }> {
     // filter by tenant_id (RLS does not cover MVs — tools/lint-mv-tenant-filter.ts).
     await client.query('SET ROLE assessiq_system');
     await client.query('REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv');
+    // RW-60: per-question Phase C stats (migration 0189), same role, same job.
+    await client.query('REFRESH MATERIALIZED VIEW CONCURRENTLY question_stats_mv');
     const duration_ms = Date.now() - start;
-    log.info({ duration_ms }, 'analytics.refresh_mv: materialized view refreshed');
+    log.info({ duration_ms, views: 2 }, 'analytics.refresh_mv: materialized views refreshed');
     return { duration_ms };
   } finally {
     // Restore the role before returning the connection to the pool. If RESET ever

@@ -45,6 +45,7 @@ import { ExportFilterSchema } from './types.js';
 import { EXPORT_ROW_CAP } from './repository.js';
 import { buildAssessmentResultsCsv, RESULTS_SORTS } from './results-export.js';
 import { processRefreshMvJob } from './refresh-mv-job.js';
+import { getQuestionStats } from './question-stats.js';
 import { registerActivityRoutes } from './activity/index.js';
 import { registerActivityCandidateRoutes } from './activity-candidate/index.js';
 
@@ -402,6 +403,21 @@ export async function registerAnalyticsRoutes(
     async (_req, reply) => {
       const result = await processRefreshMvJob();
       return reply.code(200).send({ ok: true, duration_ms: result.duration_ms });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /api/admin/super/questions/:id/stats — RW-60 Phase C item report.
+  // Super admin only. The question's tenant is resolved by a system read-only
+  // lookup (the session carries the PLATFORM tenant, never used here).
+  // -------------------------------------------------------------------------
+  app.get(
+    '/api/admin/super/questions/:id/stats',
+    { preHandler: superAdminHandler },
+    async (req, reply) => {
+      const id = z.string().uuid().safeParse((req.params as { id: string }).id);
+      if (!id.success) throw new ValidationError('invalid question id');
+      return reply.code(200).send(await getQuestionStats(id.data));
     },
   );
 
