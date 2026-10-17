@@ -1,8 +1,24 @@
 # Exam packs: question sources, normalised store, filters and platform changes (v2)
 
-**Status:** PLAN ONLY, 2026-10-17, revision 2 after a validation pass. No code, no migration. Feeds ROADMAP rows EXP-0..EXP-15 (§ P0-Z.3 and Z.4). Supersedes the sourcing and platform-gap parts of `docs/design/2026-10-09-exam-packs-roadmap.md`; that file stays for the exam list, the waves and owner decisions OD-X0..OD-X9.
+**Status:** PLAN ONLY, 2026-10-17, revision 3 (owner decisions D1 to D7 recorded in § 0). No code, no migration. Feeds ROADMAP rows EXP-0..EXP-15 (§ P0-Z.3 and Z.4). Supersedes the sourcing and platform-gap parts of `docs/design/2026-10-09-exam-packs-roadmap.md`; that file stays for the exam list, the waves and owner decisions OD-X0..OD-X9.
 **Owner request (2026-10-17):** plan how questions for competitive exams enter the system (online scraping or super-admin upload), how they are normalised into the database by difficulty, topic, year and other categories, and what the architecture needs in order to carry them. Then re-review for a better approach and validate the findings.
 **Method:** v1 used three read-only sweeps (architecture audit, exam-structure research, legal and tagging research). v2 re-checked the load-bearing claims in code and replaced three designs with simpler ones that reuse what exists (§ 2).
+
+## 0. Owner decisions recorded 2026-10-17 (they override the recommendations in §§ 3 and 4 where they differ)
+
+| # | Owner answer | How the plan handles it |
+| --- | --- | --- |
+| D1 | All sources are allowed: scraping, upload by the super admin **and by the organisation admin**, AI-written questions, and licensed content. Every source gets a licence or rights record. (Reading of "license all source": every item records its source and licence status; where a licence can be obtained it is attached.) | Lanes A, B, C, D stay; **scraping becomes lane E** (super admin only, run as a manual VPS script, polite crawling, raw items land in staging only); **organisation-admin upload becomes lane F** (tenant-private packs). This reverses OD-X1 (platform-authored only). See EXP-16 and EXP-17. |
+| D2 | Exact questions with minor word changes (synonym replacement) are acceptable. | New generation mode **A2 "light edit"** (EXP-7): same question, synonyms swapped, source reference kept on the row. `rights_status = derived_from_source`. This reverses OD-X2 (no verbatim papers). **Legal exposure is the owner's decision**: a lightly edited copy of a copyrighted question is still treated as a copy in law, so every such item keeps its source reference and can be withdrawn by one click (takedown). A lawyer review stays on the list (EXP-0). |
+| D3 | Follow the recommendation: keep clone-per-tenant for now; decide again when B2C starts (EXP-14). | unchanged |
+| D4 | Follow the recommendation. If the source gives a difficulty, use it: translate it to the 1 to 5 scale and store both the original label and the mapped value. | `question_source.source_difficulty_raw` (text) plus `questions.difficulty_est` (mapped). A mapping table per source scale (for example easy/medium/hard to 2/3/4) lives with the import template. If the source has none, use the rubric. |
+| D5 | Follow the recommendation: English plus Hindi in Wave 1. | unchanged (EXP-9) |
+| D6 | Every exam question and its answer is reviewed by the super admin and the admin before students are invited. | **Review gate (EXP-18):** an assessment cannot publish or invite while any question in its pool is not `verified`. Platform items are verified by the super admin; organisation-uploaded items by that organisation's admin. The gate replaces the manual re-score decision for the common case; a later key change still creates a new version and the owner clicks to re-score (EXP-12). |
+| D7 | No permission letters to the exam bodies; proceed as in D2 (decided 2026-10-17). | No letters are drafted. Items stay `derived_from_source` or `scraped_raw` (never `licensed`) unless the owner later supplies a signed licence. The lawyer review remains optional and unscheduled. |
+
+New rights values: `original`, `derived_from_source` (light edit), `scraped_raw` (staging only until reviewed), `licensed`, `metadata_only`, `withdrawn`. The publish gate of § 4 changes from "block unclear rights" to "rights status must be set, the item must be `verified`, and a `withdrawn` item leaves every pack at the next sync".
+
+Organisation-admin upload (lane F) rules: the pack is private to that tenant and is never shared or licensed to other tenants; the uploader accepts a content warranty at upload (they hold the rights); plan-tier quotas apply (PT1); the same dedupe and review gate apply.
 
 ## 1. Validation of the v1 observations
 
