@@ -378,3 +378,12 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 - **Grandfather.** Existing active questions were set to `review_state = 'verified'` by the migration without a review. Do not read this as "checked".
 - **Takedown propagation (EXP-19, 2026-10-17).** `withdrawQuestion` calls `propagateTakedown` (`src/clone/takedown.ts`) in the same tx. It marks every clone (`source_question_id` = the withdrawn id) in every tenant archived plus `withdrawn`, and writes one `question.takedown_propagated` audit row per tenant (clone tenant id, actor `system`). Uses the clone-on-grant role switch (`assessiq_system`, then `assessiq_app` per tenant for the audit), restores the caller context. Idempotent. Why: closes the gap until the next re-sync. Rejected: background job, `withSystemRole` (cannot nest in `withTenant`). Not included: frozen assessment pools (EXP-20, owner decision). Tests: `src/__tests__/takedown-propagation.test.ts`.
 - **Downstream.** Module 05 pickers need no change (they filter `status = 'active'`). Module 14 has the new audit action `question.withdrawn`. QTI export adds `provenance.json`. Test harnesses that apply a hand-picked migration list must apply 0174 and 0194 (see `aptitude-seed-migration.test.ts`).
+
+## Exam blueprints (EXP-6, migration 0201, 2026-10-17)
+
+- **What.** `src/exam-blueprints.ts`: tables `exam_blueprints` and `exam_blueprint_sections`, service (`listExamBlueprints`, `getExamBlueprint` exported to module 05; create, update, delete internal) and routes under `/api/admin/blueprints` (reads: any admin; writes: super admin, checked again in the handler). Seed: SSC CGL Tier 1, owner-verified.
+- **Why.** A full mock needs the exam's real sections, marks and negative marking without per-admin set-up.
+- **Rules.** No `tenant_id`: platform data, tenant sessions read only (no write policy). Writes use `withSystemRole`, then switch to `assessiq_app` to audit in the same transaction (same pattern as the framework seed load). Stage and subject ids must be platform nodes of the right kind. Update replaces the sections.
+- **Considered and rejected.** Tenant-owned blueprints; storing the cutoff in the seed; a `total_questions` column.
+- **Not included.** Other exams (add only after the owner verifies them), UI and help ids, normalisation across shifts, rank prediction.
+- **Downstream.** Module 05 builds a draft from a blueprint (`createMockFromBlueprint`). Module 14 has three new actions. Tests: `src/__tests__/exam-blueprints.test.ts`.

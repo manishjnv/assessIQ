@@ -255,6 +255,10 @@ export const ACTION_CATALOG = [
   // Neither row holds audit row contents. No audit_log row is deleted or changed.
   'audit.exported',
   'audit.archived',
+  // EXP-6: exam blueprints (platform data, super admin).
+  'exam_blueprint.created',
+  'exam_blueprint.updated',
+  'exam_blueprint.deleted',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

@@ -381,6 +381,36 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
     expect((await getCandidateResult(tenant, s.userId, s.attemptId)).status).toBe("pending");
   });
 
+  it("EXP-6: a sectioned assessment adds section marks (0.5 negative) and passed_cutoff; isPass is untouched", async () => {
+    const s = await seed({ status: "released", earned: 3, max: 8, passing: 60, releasedAt: "2026-10-01T10:00:00.000Z", types: ["mcq", "mcq", "mcq", "mcq"] });
+    await sup(async (c) => {
+      await c.query(
+        `UPDATE assessments SET settings = $2::jsonb WHERE id = $1`,
+        [s.assessmentId, JSON.stringify({ sections: [
+          { name: "Reasoning", question_count: 2, minutes: 10, qualifying: true, cutoff_marks: 1.5 },
+          { name: "English", question_count: 2, minutes: 10, qualifying: true, cutoff_marks: 3 },
+          { name: "Quant", question_count: 1, minutes: 10, cutoff_marks: 1 }, // cutoff without qualifying: ignored
+        ] })],
+      );
+      const qs = (await c.query<{ question_id: string }>(`SELECT question_id FROM attempt_questions WHERE attempt_id = $1 ORDER BY position`, [s.attemptId])).rows;
+      for (const [i, q] of qs.entries()) {
+        await c.query(`UPDATE attempt_questions SET section_index = $3 WHERE attempt_id = $1 AND question_id = $2`, [s.attemptId, q.question_id, i < 2 ? 0 : i < 3 ? 1 : 2]);
+        await c.query(
+          `INSERT INTO gradings (attempt_id, question_id, tenant_id, grader, score_earned, score_max, status, prompt_version_sha, prompt_version_label, model)
+           VALUES ($1,$2,$3,'deterministic',$4,2,'correct','sha','v1','m')`,
+          [s.attemptId, q.question_id, tenant, [2, -0.5, 2, -0.5][i]],
+        );
+      }
+    });
+    const v = await getCandidateResult(tenant, s.userId, s.attemptId);
+    expect(v).toMatchObject({ status: "released", passed: false, pass_mark_pct: 60, total_earned: 3, total_max: 8 });
+    expect((v as { sections?: unknown }).sections).toEqual([
+      { index: 0, name: "Reasoning", earned: 1.5, max: 4, cutoff_marks: 1.5, passed_cutoff: true }, // boundary is inclusive
+      { index: 1, name: "English", earned: 2, max: 2, cutoff_marks: 3, passed_cutoff: false },
+      { index: 2, name: "Quant", earned: -0.5, max: 2 }, // not qualifying: no flag
+    ]);
+  });
+
   it("only the owner can read it: another candidate / unknown id / another tenant -> 404", async () => {
     const s = await seed({ status: "released", earned: 42, releasedAt: "2026-10-01T10:00:00.000Z" });
     await expect(getCandidateResult(tenant, randomUUID(), s.attemptId)).rejects.toMatchObject({ status: 404 });

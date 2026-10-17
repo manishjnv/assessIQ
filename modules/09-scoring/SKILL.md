@@ -174,3 +174,10 @@ Commit `b68523c`. The per-type scoring code left `src/mcq.ts`. Call `determinist
 - **Why.** An assessment edit must never change an old result. Pass/fail and the certificate both read this column through the shared `isPass` in `@assessiq/core`.
 - **Not included.** A change to the band (0/25/50/75/100) or to `auto_pct`. A pass mark per attempt that an admin can edit.
 - **Downstream.** 06 `result.ts` and `progress.ts` read the column. 18 `issueCertificateOnRelease` reads it. The result email (13) and results export (15) still read `levels.passing_score_pct`.
+
+## Section cutoff in section scores (EXP-6, 2026-10-17)
+
+- **What.** `getSectionScoresForAttempt` also reads `qualifying` and `cutoff_marks` from `assessments.settings.sections[i]`. For a section with `qualifying: true` and a `cutoff_marks` number, each `SectionScore` gets `cutoff_marks` and `passed_cutoff = earned >= cutoff_marks` (inclusive). Other sections and assessments without sections return exactly what they returned before.
+- **Why.** Exams such as SSC CGL have a negative mark per wrong answer and section marks; the candidate result (module 06) shows them.
+- **Arithmetic.** `earned` is the sum of the effective `gradings.score_earned` of the section (negative marks already applied, so a section can be below zero); `max` is the sum of `score_max`. No rounding is added: numeric values come from Postgres as exact decimals.
+- **Not included.** Any change to `isPass`, `attempt_scores.pass_mark_pct`, `auto_pct` or the band scale. Normalisation across shifts. Rank prediction. A cutoff in percent.

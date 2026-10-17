@@ -600,13 +600,19 @@ export interface SectionScore {
   name: string;
   earned: number;
   max: number;
+  /** EXP-6: only when the section is qualifying AND has cutoff_marks (marks, not percent). */
+  cutoff_marks?: number;
+  /** EXP-6: earned >= cutoff_marks. Display only; isPass and attempt_scores.pass_mark_pct are untouched. */
+  passed_cutoff?: boolean;
 }
 
 export async function getSectionScoresForAttempt(
   client: PoolClient,
   attemptId: string,
 ): Promise<SectionScore[]> {
-  const res = await client.query<{ idx: number; name: string | null; earned: string; max: string }>(
+  const res = await client.query<{
+    idx: number; name: string | null; earned: string; max: string; qualifying: string | null; cutoff: string | null;
+  }>(
     `WITH eff AS (
        SELECT DISTINCT ON (g.question_id) g.question_id, g.score_earned, g.score_max
          FROM gradings g
@@ -614,6 +620,8 @@ export async function getSectionScoresForAttempt(
         ORDER BY g.question_id, g.graded_at DESC, (g.grader = 'admin_override') DESC)
      SELECT aq.section_index AS idx,
             (a2.settings->'sections'->aq.section_index->>'name') AS name,
+            (a2.settings->'sections'->aq.section_index->>'qualifying') AS qualifying,
+            (a2.settings->'sections'->aq.section_index->>'cutoff_marks') AS cutoff,
             COALESCE(SUM(eff.score_earned), 0)::text AS earned,
             COALESCE(SUM(eff.score_max), 0)::text AS max
        FROM attempt_questions aq
@@ -625,10 +633,15 @@ export async function getSectionScoresForAttempt(
       ORDER BY aq.section_index`,
     [attemptId],
   );
-  return res.rows.map((r) => ({
-    index: r.idx,
-    name: r.name ?? `Section ${r.idx + 1}`,
-    earned: parseFloat(r.earned),
-    max: parseFloat(r.max),
-  }));
+  return res.rows.map((r) => {
+    const earned = parseFloat(r.earned);
+    const cutoff = r.qualifying === "true" && r.cutoff !== null ? parseFloat(r.cutoff) : NaN;
+    return {
+      index: r.idx,
+      name: r.name ?? `Section ${r.idx + 1}`,
+      earned,
+      max: parseFloat(r.max),
+      ...(Number.isFinite(cutoff) ? { cutoff_marks: cutoff, passed_cutoff: earned >= cutoff } : {}),
+    };
+  });
 }
