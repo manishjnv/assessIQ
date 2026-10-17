@@ -107,7 +107,7 @@ describe("POST /api/admin/blueprints/:id/mock", () => {
     app.addHook("preHandler", async (req) => {
       (req as unknown as { session: unknown }).session = { tenantId: tenant, userId: admin, role: "admin" };
     });
-    app.setErrorHandler((e, _r, reply) => reply.code((e as { status?: number }).status ?? 500).send({ message: e.message }));
+    app.setErrorHandler((e, _r, reply) => reply.code((e as { status?: number }).status ?? 500).send({ message: (e as Error).message }));
     await registerAssessmentLifecycleRoutes(app, { adminOnly: [] });
     await app.ready();
     const ok = await app.inject({ method: "POST", url: `/api/admin/blueprints/${BP}/mock`, payload: { pack_id: pack, level_id: level, opens_at: opensAt.toISOString() } });
