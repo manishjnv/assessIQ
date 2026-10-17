@@ -625,11 +625,11 @@ describe('P1 leak guard — candidate activity counts only released results', ()
     await refreshMv();
   });
 
-  it('stats: a candidate with only unreleased attempts sees zero completions / avgScore / assessmentsTaken', async () => {
+  it('stats: unreleased submitted attempts count as completed / attempted, but never leak a score', async () => {
     const r = await getCandidateActivityStats(F.tenantA, candidate, {});
-    expect(r.completions.total).toBe(0);
-    expect(r.assessmentsTaken.total).toBe(0);
-    expect(r.avgScore.total).toBe(0);
+    expect(r.completions.total).toBe(4); // z-15 e: submitted, released or not
+    expect(r.assessmentsTaken.total).toBe(1); // same attempts, one distinct pack (never 0 while completed > 0)
+    expect(r.avgScore.total).toBe(0); // P1: score stays released-only
   });
 
   it('leaderboard: unreleased attempts are not listed for their owner', async () => {
@@ -653,7 +653,7 @@ describe('P1 leak guard — candidate activity counts only released results', ()
     await refreshMv();
 
     const stats = await getCandidateActivityStats(F.tenantA, candidate, {});
-    expect(stats.completions.total).toBe(1);
+    expect(stats.completions.total).toBe(4); // unchanged by release
     expect(stats.avgScore.total).toBe(99);
     expect(stats.assessmentsTaken.total).toBe(1);
 

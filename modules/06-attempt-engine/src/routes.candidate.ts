@@ -40,6 +40,7 @@ import {
   getCandidateResult,
   getSubmitExpectation,
   listCandidateResults,
+  markResultSeen,
 } from "./result.js";
 import { getCandidateProgress } from "./progress.js";
 import { getCandidateFeedback } from "./feedback.js";
@@ -392,6 +393,16 @@ export async function registerAttemptCandidateRoutes(
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       return listCandidateResults(tenantId, userId);
+    },
+  );
+
+  // Z-12: the candidate opened one released result (clears its "New" chip).
+  app.post(
+    "/api/me/attempts/:id/seen",
+    { preHandler: candidateOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      return markResultSeen(req.session!.tenantId, req.session!.userId, id);
     },
   );
 

@@ -156,6 +156,59 @@ describe("QuestionNavigator", () => {
   });
 });
 
+describe("QuestionNavigator filters and flagged jumps (Z-8)", () => {
+  const mk = (statuses: Array<"answered" | "current" | "flagged" | "unanswered">) =>
+    statuses.map((status, i) => ({ questionId: `q${i + 1}`, position: i + 1, status }));
+  const items = mk(["flagged", "answered", "current", "unanswered", "flagged", "unanswered"]);
+  const squares = () => screen.getByLabelText("Question navigator").querySelectorAll("button").length;
+
+  it("shows counts and filters the squares with aria-pressed", () => {
+    render(<QuestionNavigator items={items} onSelect={() => {}} />);
+    expect(screen.getByRole("button", { name: "All (6)" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "Flagged (2)" }));
+    expect(screen.getByRole("button", { name: "Flagged (2)" }).getAttribute("aria-pressed")).toBe("true");
+    expect(squares()).toBe(3); // 2 flagged + the current square, which always stays
+    fireEvent.click(screen.getByRole("button", { name: "Unanswered (2)" }));
+    expect(squares()).toBe(3);
+    expect(screen.getByRole("status").textContent).toContain("Showing 3 of 6");
+  });
+
+  it("next/previous flagged wrap around from the current question", () => {
+    const onSelect = vi.fn();
+    render(<QuestionNavigator items={items} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Next flagged" }));
+    expect(onSelect).toHaveBeenLastCalledWith("q5");
+    fireEvent.click(screen.getByRole("button", { name: "Previous flagged" }));
+    expect(onSelect).toHaveBeenLastCalledWith("q1");
+  });
+
+  it("wraps past the end and the start", () => {
+    const onSelect = vi.fn();
+    render(<QuestionNavigator items={mk(["flagged", "answered", "flagged", "current"])} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Next flagged" }));
+    expect(onSelect).toHaveBeenLastCalledWith("q1");
+    cleanup();
+    render(<QuestionNavigator items={mk(["current", "flagged", "answered", "flagged"])} onSelect={onSelect} />);
+    fireEvent.click(screen.getByRole("button", { name: "Previous flagged" }));
+    expect(onSelect).toHaveBeenLastCalledWith("q4");
+  });
+
+  it("disables the jump buttons when nothing is flagged", () => {
+    render(<QuestionNavigator items={mk(["current", "answered"])} onSelect={() => {}} />);
+    expect((screen.getByRole("button", { name: "Next flagged" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Previous flagged" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("renders inside a dialog container (mobile drawer)", () => {
+    render(
+      <div role="dialog" aria-label="Questions">
+        <QuestionNavigator items={items} onSelect={() => {}} />
+      </div>,
+    );
+    expect(screen.getByRole("dialog").querySelector('[aria-label="Filter questions"]')).not.toBeNull();
+  });
+});
+
 describe("localStorage-backup", () => {
   beforeEach(() => {
     window.localStorage.clear();

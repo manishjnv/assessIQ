@@ -155,4 +155,11 @@ describe('Attempt runner with sections', () => {
     await screen.findByText('Question 2 of 2');
     expect((screen.getByLabelText('Your answer (a number)') as HTMLInputElement).value).toBe('');
   });
+
+  it('has exactly one h1 inside main (axe page-has-heading-one)', async () => {
+    currentView = sectionView(0, false, [1, 2], '2099-01-01T00:20:00.000Z');
+    renderAttempt();
+    await screen.findByText('Section 1 of 3 · Quantitative');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  });
 });

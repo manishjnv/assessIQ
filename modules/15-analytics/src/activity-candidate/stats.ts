@@ -3,7 +3,8 @@
 // Phase 10 — GET /api/me/activity/stats
 //
 // Returns candidate-scoped activity stats: completions, avgScore (quartile
-// breakdown), and assessments-taken (distinct packs). Mirrors Phase 9 admin
+// breakdown), and assessments-taken (distinct packs). Completions / taken count
+// submitted attempts; avgScore counts released only. Mirrors Phase 9 admin
 // stats.ts with user_id scoping added.
 //
 // Data source: attempt_summary_mv (explicit tenant filter required).
@@ -62,6 +63,12 @@ function sess(req: unknown): SessionReq['session'] {
   return (req as unknown as SessionReq).session;
 }
 
+// Counters definition: "completed" = every submitted attempt (released or not).
+// Counted live from `attempts` (no score is exposed, so no P1 leak; no MV staleness).
+// "Question sets attempted" = distinct packs among those same attempts.
+// avgScore below stays released-only (P1: no provisional scores).
+const SUBMITTED = `('submitted','pending_admin_grading','graded','released','auto_submitted')`;
+
 // ---------------------------------------------------------------------------
 // Repository — runs inside a withTenant callback (GUC already set)
 // ---------------------------------------------------------------------------
@@ -84,16 +91,17 @@ export async function queryCandidateActivityStats(
   }>(
     `WITH base AS (
        SELECT
-         mv.attempt_id,
+         att.id AS attempt_id,
          ${groupCol} AS grp_key
-       FROM attempt_summary_mv mv
-       LEFT JOIN question_packs qp ON qp.id = mv.pack_id
-       LEFT JOIN levels        lv ON lv.id = mv.level_id
-       WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
-         AND mv.user_id = $3
-         AND mv.attempt_status = 'released'
-         AND mv.submitted_at >= $1::timestamptz
-         AND mv.submitted_at <  $2::timestamptz + interval '1 day'
+       FROM attempts att
+       JOIN assessments asm ON asm.id = att.assessment_id
+       LEFT JOIN question_packs qp ON qp.id = asm.pack_id
+       LEFT JOIN levels        lv ON lv.id = asm.level_id
+       WHERE att.tenant_id = current_setting('app.current_tenant', true)::uuid
+         AND att.user_id = $3
+         AND att.status IN ${SUBMITTED}
+         AND att.submitted_at >= $1::timestamptz
+         AND att.submitted_at <  $2::timestamptz + interval '1 day'
      )
      SELECT
        COUNT(*)::text     AS total,
@@ -123,13 +131,14 @@ export async function queryCandidateActivityStats(
   // 2. Assessments taken (distinct packs in period)
   // -------------------------------------------------------------------------
   const assessmentsResult = await client.query<{ total: string }>(
-    `SELECT COUNT(DISTINCT mv.pack_id)::text AS total
-     FROM attempt_summary_mv mv
-     WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
-       AND mv.user_id = $3
-       AND mv.attempt_status = 'released'
-       AND mv.submitted_at >= $1::timestamptz
-       AND mv.submitted_at <  $2::timestamptz + interval '1 day'`,
+    `SELECT COUNT(DISTINCT asm.pack_id)::text AS total
+     FROM attempts att
+     JOIN assessments asm ON asm.id = att.assessment_id
+     WHERE att.tenant_id = current_setting('app.current_tenant', true)::uuid
+       AND att.user_id = $3
+       AND att.status IN ${SUBMITTED}
+       AND att.submitted_at >= $1::timestamptz
+       AND att.submitted_at <  $2::timestamptz + interval '1 day'`,
     [from, to, userId],
   );
   const assessmentsTakenTotal = parseInt(

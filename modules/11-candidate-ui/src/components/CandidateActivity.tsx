@@ -421,6 +421,15 @@ export function CandidateActivity(): React.ReactElement {
             />
           </div>
         )}
+        {!statsLoading && !statsError && (
+          <p
+            data-test-id="stat-definitions"
+            style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-text-secondary)" }}
+          >
+            Completed = every attempt you submitted in this period, whether or not the result is released yet.
+            Question sets attempted = the different question sets among those attempts. Average score uses released results only.
+          </p>
+        )}
 
         {/* Activity heatmap card */}
         <div className="aiq-card" style={{ padding: "var(--aiq-space-xl)" }}>

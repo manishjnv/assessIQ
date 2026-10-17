@@ -10,9 +10,9 @@
 // ending in a period, lede). Empty state follows docs/design-system/patterns.md
 // § Empty state (serif headline + short muted body, no illustration).
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, Chip, Spinner, formatDate } from '@assessiq/ui-system';
-import { listMyResults, markMyNotificationsRead } from '../api.js';
+import { listMyResults, markResultSeen } from '../api.js';
 import type { MyResultItemWire } from '../types.js';
 import { ResultSummary } from './ResultSummary.js';
 import { AttemptFeedback } from './AttemptFeedback.js';
@@ -34,6 +34,28 @@ const META: React.CSSProperties = {
   marginTop: 4,
 };
 
+// Z-12: a result counts as opened once its card is on screen. Marks that one
+// attempt seen (best-effort) and tells the shell banner to drop its count by one.
+function ResultCard({ attemptId, isNew, children }: { attemptId: string; isNew: boolean; children: React.ReactNode }): React.ReactElement {
+  const ref = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!isNew || el === null) return;
+    const mark = (): void => {
+      void markResultSeen(attemptId)
+        .then(() => window.dispatchEvent(new CustomEvent('aiq:result-seen')))
+        .catch(() => {});
+    };
+    if (typeof IntersectionObserver === 'undefined') { mark(); return; }
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) { io.disconnect(); mark(); }
+    }, { threshold: 0.5 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [attemptId, isNew]);
+  return <li ref={ref}>{children}</li>;
+}
+
 export function MyResults(): React.ReactElement {
   const [items, setItems] = useState<MyResultItemWire[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,10 +69,6 @@ export function MyResults(): React.ReactElement {
           setItems(res.items);
           setFeedbackLevel(res.feedback_level ?? 'none');
         }
-        // Z-3: seeing the list clears the "new result" notice. Best-effort.
-        void markMyNotificationsRead({ kind: 'result.released' })
-          .then(() => window.dispatchEvent(new CustomEvent('aiq:notifications-read')))
-          .catch(() => {});
       })
       .catch(() => {
         if (!cancelled) {
@@ -124,7 +142,7 @@ export function MyResults(): React.ReactElement {
           }}
         >
           {items.map((r) => (
-            <li key={r.attempt_id}>
+            <ResultCard key={r.attempt_id} attemptId={r.attempt_id} isNew={r.is_new === true}>
               <Card as="article" padding="lg" aria-labelledby={`result-${r.attempt_id}`}>
                 <div style={{ marginBottom: 'var(--aiq-space-lg)' }}>
                   <h2
@@ -138,6 +156,9 @@ export function MyResults(): React.ReactElement {
                     }}
                   >
                     {r.assessment_name}
+                    {r.is_new === true && (
+                      <span style={{ marginLeft: 8, verticalAlign: 'middle' }}><Chip>New</Chip></span>
+                    )}
                   </h2>
                   <div style={META}>
                     Released {formatDate(r.released_at)}
@@ -154,7 +175,7 @@ export function MyResults(): React.ReactElement {
                 />
                 {feedbackLevel !== 'none' && <AttemptFeedback attemptId={r.attempt_id} />}
               </Card>
-            </li>
+            </ResultCard>
           ))}
         </ul>
       )}

@@ -231,6 +231,8 @@ export interface MyResultItemWire {
   passed: boolean;
   certificate: ResultCertificateWire | null;
   negative_marking?: ResultNegativeMarkingWire;
+  /** Z-12: true until the candidate opens this result. */
+  is_new?: boolean;
 }
 
 export interface MyResultsResponseWire {

@@ -1,5 +1,5 @@
 // RW-82 — axe on logged-in pages (admin shell + candidate shell). Real backend with the dev
-// minter (see local-stack.sh). Fails on serious/critical violations; minor/moderate only warn.
+// minter (see local-stack.sh). Fails on serious/critical violations; minor/moderate only warn (S16: the shells now have landmarks and one h1; `region` and `page-has-heading-one` stay advisory until a run against the real stack confirms zero).
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import * as factories from './fixtures/factories.js';

@@ -23,7 +23,7 @@
  */
 
 import type { PoolClient } from "pg";
-import { NotFoundError, config, streamLogger } from "@assessiq/core";
+import { NotFoundError, config, isUuid, streamLogger } from "@assessiq/core";
 import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from "@assessiq/tenancy";
 import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import * as repo from "./repository.js";
@@ -119,6 +119,8 @@ export interface ResultListItem {
   passed: boolean;
   certificate: CandidateCertificateRef | null;
   negative_marking: NegativeMarkingSummary;
+  /** Z-12: false once the candidate opened the result (attempts.seen_at set). */
+  is_new: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -383,13 +385,14 @@ export async function listCandidateResults(
       `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
     );
     const feedbackLevel = lvl.rows[0]?.result_feedback_level ?? "none";
-    const res = await client.query<ReleasedRow & { attempt_id: string }>(
+    const res = await client.query<ReleasedRow & { attempt_id: string; is_new: boolean }>(
       `SELECT a.id AS attempt_id,
               asm.name AS assessment_name,
               s.total_earned::text AS total_earned,
               s.total_max::text    AS total_max,
               l.passing_score_pct,
               ${RELEASED_AT_SQL} AS released_at,
+              (a.seen_at IS NULL) AS is_new,
               c.credential_id
          FROM attempts a
          JOIN assessments asm ON asm.id = a.assessment_id
@@ -418,8 +421,28 @@ export async function listCandidateResults(
           passed: percent >= r.passing_score_pct,
           certificate: certificateRef(r.credential_id),
           negative_marking: negMarking.get(r.attempt_id) ?? NO_NEGATIVE_MARKING,
+          is_new: r.is_new,
         };
       }),
     };
+  });
+}
+
+/** Z-12: POST /api/me/attempts/:id/seen — idempotent; own released attempt only (else 404). */
+export async function markResultSeen(tenantId: string, userId: string, attemptId: string): Promise<{ seen: true }> {
+  const notFound = (): never => {
+    throw new NotFoundError(`Attempt not found: ${attemptId}`, {
+      details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },
+    });
+  };
+  if (!isUuid(attemptId)) notFound();
+  return withTenant(tenantId, async (client) => {
+    const res = await client.query(
+      `UPDATE attempts SET seen_at = COALESCE(seen_at, now())
+        WHERE id = $1 AND user_id = $2 AND status = 'released'`,
+      [attemptId, userId],
+    );
+    if (res.rowCount === 0) notFound();
+    return { seen: true as const };
   });
 }

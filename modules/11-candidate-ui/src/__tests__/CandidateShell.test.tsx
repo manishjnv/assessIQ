@@ -68,6 +68,13 @@ describe('CandidateShell', () => {
     expect(screen.getByText('Hello world')).toBeDefined();
   });
 
+  it('has one banner and one main landmark', async () => {
+    vi.stubGlobal('fetch', mockFetch([{ url: /whoami/, body: WHOAMI_OK }]));
+    renderShell(<CandidateShell><div>x</div></CandidateShell>);
+    expect(screen.getAllByRole('banner')).toHaveLength(1);
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+  });
+
   it('shows "Signed in as <email>" in the top bar after whoami resolves', async () => {
     vi.stubGlobal('fetch', mockFetch([{ url: /whoami/, body: WHOAMI_OK }]));
     renderShell(<CandidateShell><div /></CandidateShell>);
@@ -155,7 +162,7 @@ describe('CandidateShell', () => {
     const withUnread = (n: number) =>
       mockFetch([
         { url: /whoami/, body: WHOAMI_OK },
-        { url: /me\/notifications/, body: { items: [], cursor: 'c', unread_count: n } },
+        { url: /me\/results/, body: { items: Array.from({ length: n + 1 }, (_, i) => ({ attempt_id: `a${i}`, is_new: i < n })) } },
       ]);
 
     it('shows the plural notice and a link when 2 are unread', async () => {
@@ -170,15 +177,15 @@ describe('CandidateShell', () => {
       const f = withUnread(0);
       vi.stubGlobal('fetch', f);
       renderShell(<CandidateShell><div /></CandidateShell>);
-      await waitFor(() => expect(f.mock.calls.some((c) => String(c[0]).includes('/me/notifications'))).toBe(true));
+      await waitFor(() => expect(f.mock.calls.some((c) => String(c[0]).includes('/me/results'))).toBe(true));
       expect(screen.queryByText(/new result/)).toBeNull();
     });
 
-    it('hides on the aiq:notifications-read event', async () => {
+    it('drops one on each aiq:result-seen event', async () => {
       vi.stubGlobal('fetch', withUnread(1));
       renderShell(<CandidateShell><div /></CandidateShell>);
       await screen.findByText('1 new result is published.');
-      window.dispatchEvent(new CustomEvent('aiq:notifications-read'));
+      window.dispatchEvent(new CustomEvent('aiq:result-seen'));
       await waitFor(() => expect(screen.queryByText(/new result/)).toBeNull());
     });
   });
