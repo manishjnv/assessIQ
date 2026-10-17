@@ -70,7 +70,7 @@ export function PlatformFrameworksSection(): React.ReactElement {
           Curriculum frameworks.
         </h2>
         <HelpTip helpId="admin.platform.frameworks">
-          <span style={{ ...META_LABEL, fontSize: 10 }}>Curricula</span>
+          <span style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>Curricula</span>
         </HelpTip>
         <Chip leftIcon="grid">{items.length} available</Chip>
       </div>
@@ -98,7 +98,7 @@ export function PlatformFrameworksSection(): React.ReactElement {
               background: "var(--aiq-color-bg-raised)",
               borderBottom: "1px solid var(--aiq-color-border)",
               ...META_LABEL,
-              fontSize: 10,
+              fontSize: "var(--aiq-text-xs)",
             }}
           >
             <span>Curriculum</span>

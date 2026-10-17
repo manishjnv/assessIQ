@@ -15,7 +15,7 @@ export function PageHeader({ title, count, lede, actions }: PageHeaderProps): Re
     <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: "var(--aiq-space-md)" }}>
       <div>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
-          <h1 className="aiq-serif" style={{ fontSize: "var(--aiq-text-3xl)", margin: 0, color: "var(--aiq-color-fg-primary)" }}>
+          <h1 className="aiq-serif" style={{ fontSize: "var(--aiq-h1-size)", margin: 0, color: "var(--aiq-color-fg-primary)" }}>
             {title}
           </h1>
           {count !== undefined && <Chip>{count}</Chip>}

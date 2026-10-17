@@ -304,7 +304,7 @@ export function AdminGuide(): React.ReactElement {
           <h1
             style={{
               ...SERIF_HEADING,
-              fontSize: "var(--aiq-text-3xl)",
+              fontSize: "var(--aiq-h1-size)",
               marginTop: "var(--aiq-space-xs)",
               marginBottom: "var(--aiq-space-xs)",
             }}

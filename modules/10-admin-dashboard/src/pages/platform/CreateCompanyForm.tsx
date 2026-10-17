@@ -209,7 +209,7 @@ export function CreateCompanyForm({
                     ...META_LABEL,
                     display: "block",
                     marginTop: 4,
-                    fontSize: 10,
+                    fontSize: "var(--aiq-text-xs)",
                   }}
                 >
                   Lowercase letters, digits, hyphens · auto-suggested from name

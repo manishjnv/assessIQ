@@ -107,7 +107,7 @@ export function McqAnswerArea({
               <span
                 style={{
                   fontFamily: 'var(--aiq-font-sans)',
-                  fontSize: 15,
+                  fontSize: 'var(--aiq-text-lg)',
                   color: 'var(--aiq-color-fg-primary)',
                   lineHeight: 1.5,
                   flex: 1,

@@ -98,7 +98,7 @@ export function OrderingAnswerArea({
             <span style={{ fontFamily: 'var(--aiq-font-mono)', fontSize: 12, color: 'var(--aiq-color-fg-muted)', width: 20 }}>
               {pos + 1}.
             </span>
-            <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 15, lineHeight: 1.5, color: 'var(--aiq-color-fg-primary)', flex: 1 }}>
+            <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-lg)', lineHeight: 1.5, color: 'var(--aiq-color-fg-primary)', flex: 1 }}>
               {items[itemIdx]}
             </span>
             <button

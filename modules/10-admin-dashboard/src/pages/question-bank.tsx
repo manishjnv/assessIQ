@@ -19,7 +19,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Chip, ConfirmDialog, Table } from "@assessiq/ui-system";
+import { Chip, ConfirmDialog, EmptyState, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
@@ -586,6 +586,7 @@ export function AdminQuestionBank(): React.ReactElement {
               display: "flex",
               alignItems: "flex-start",
               justifyContent: "space-between",
+              flexWrap: "wrap",
               gap: "var(--aiq-space-md)",
             }}
           >
@@ -593,7 +594,7 @@ export function AdminQuestionBank(): React.ReactElement {
               <h1
                 style={{
                   fontFamily: "var(--aiq-font-serif)",
-                  fontSize: "var(--aiq-text-3xl)",
+                  fontSize: "var(--aiq-h1-size)",
                   fontWeight: 400,
                   margin: 0,
                   letterSpacing: "-0.02em",
@@ -978,37 +979,14 @@ export function AdminQuestionBank(): React.ReactElement {
         >
           <div className="aiq-admin-table-scroll">
             {!loading && items.length === 0 ? (
-              <div
-                style={{
-                  textAlign: "center",
-                  padding: "var(--aiq-space-3xl) var(--aiq-space-lg)",
-                }}
-              >
-                <p
-                  style={{
-                    fontFamily: "var(--aiq-font-serif)",
-                    fontSize: "var(--aiq-text-xl)",
-                    fontWeight: 400,
-                    margin: "0 0 var(--aiq-space-sm)",
-                    letterSpacing: "-0.015em",
-                  }}
-                >
-                  {statusFilter || searchQuery ? "No question sets match this filter." : "No question sets yet."}
-                </p>
-                <p
-                  style={{
-                    fontFamily: "var(--aiq-font-sans)",
-                    fontSize: "var(--aiq-text-sm)",
-                    color: "var(--aiq-color-fg-muted)",
-                    margin: "0 auto",
-                    maxWidth: 360,
-                  }}
-                >
-                  {statusFilter || searchQuery
+              <EmptyState
+                title={statusFilter || searchQuery ? "No question sets match this filter." : "No question sets yet."}
+                body={
+                  statusFilter || searchQuery
                     ? "Try a different filter, or clear search to see all question sets."
-                    : "Create your first question set to get started."}
-                </p>
-              </div>
+                    : "Create your first question set to get started."
+                }
+              />
             ) : (
               <Table
                 columns={columns}

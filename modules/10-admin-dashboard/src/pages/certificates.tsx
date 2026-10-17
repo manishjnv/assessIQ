@@ -18,7 +18,7 @@
 //  - No new npm dependencies — mirrors generation-attempts.tsx in all patterns.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Chip, Drawer, Modal, Spinner, Table, ErasedChip, formatDate } from "@assessiq/ui-system";
+import { Chip, Drawer, EmptyState, Modal, Spinner, Table, ErasedChip, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
@@ -64,13 +64,13 @@ interface CertListResponse {
 
 const TIER_STYLES: Record<CertTier, { bg: string; fg: string; label: string }> = {
   completion: { bg: "var(--aiq-color-accent-soft)", fg: "var(--aiq-color-accent)",   label: "Completion" },
-  distinction: { bg: "#fef3c7",                      fg: "#d97706",                   label: "Distinction" },
+  distinction: { bg: "var(--aiq-color-warning-soft)",  fg: "color-mix(in oklch, var(--aiq-color-warning) 40%, black)",                   label: "Distinction" },
   honors:      { bg: "var(--aiq-color-success-soft)", fg: "var(--aiq-color-success)", label: "Honors"     },
 };
 
 const STATUS_STYLES: Record<CertStatus, { bg: string; fg: string; label: string }> = {
   active:  { bg: "var(--aiq-color-success-soft)", fg: "var(--aiq-color-success)", label: "Active"  },
-  revoked: { bg: "#fee2e2",                        fg: "var(--aiq-color-danger)",  label: "Revoked" },
+  revoked: { bg: "color-mix(in oklch, var(--aiq-color-danger) 12%, var(--aiq-color-bg-base))",                        fg: "var(--aiq-color-danger)",  label: "Revoked" },
 };
 
 function TierPill({ tier }: { tier: CertTier }): React.ReactElement {
@@ -335,7 +335,7 @@ export function AdminCertificates(): React.ReactElement {
   const errorBannerStyle: React.CSSProperties = {
     marginBottom: "var(--aiq-space-md)",
     padding: "var(--aiq-space-xs) var(--aiq-space-sm)",
-    background: "#fee2e2",
+    background: "color-mix(in oklch, var(--aiq-color-danger) 12%, var(--aiq-color-bg-base))",
     border: "1px solid var(--aiq-color-danger)",
     borderRadius: "var(--aiq-radius-sm)",
     fontFamily: "var(--aiq-font-sans)",
@@ -420,14 +420,14 @@ export function AdminCertificates(): React.ReactElement {
   return (
     <AdminShell breadcrumbs={["Certificates"]} helpPage="admin.certificates">
       {/* ── Page header ── */}
-      <div data-help-id="admin.certificates.list" style={{ padding: "var(--aiq-space-lg) var(--aiq-space-xl) var(--aiq-space-md)" }}>
+      <div data-help-id="admin.certificates.list" style={{ padding: "var(--aiq-space-lg) 0 var(--aiq-space-md)" }}>
         <div style={{ marginBottom: 12 }}>
           <Chip leftIcon="grid">{total} certificate{total !== 1 ? "s" : ""}</Chip>
         </div>
         <h1
           style={{
             fontFamily: "var(--aiq-font-serif)",
-            fontSize: "var(--aiq-text-3xl)",
+            fontSize: "var(--aiq-h1-size)",
             fontWeight: 400,
             letterSpacing: "-0.02em",
             margin: "0 0 var(--aiq-space-xs)",
@@ -441,7 +441,7 @@ export function AdminCertificates(): React.ReactElement {
       </div>
 
       {/* ── How-it-works help card ── */}
-      <div style={{ padding: "0 var(--aiq-space-xl) var(--aiq-space-md)" }}>
+      <div style={{ padding: "0 0 var(--aiq-space-md)" }}>
         <div
           className="aiq-card"
           style={{
@@ -489,7 +489,7 @@ export function AdminCertificates(): React.ReactElement {
       <div
         className="aiq-admin-filter-strip"
         style={{
-          padding: "0 var(--aiq-space-xl) var(--aiq-space-md)",
+          padding: "0 0 var(--aiq-space-md)",
           display: "flex",
           flexWrap: "wrap",
           gap: "var(--aiq-space-md)",
@@ -539,13 +539,13 @@ export function AdminCertificates(): React.ReactElement {
       </div>
 
       {/* ── Table ── */}
-      <div style={{ padding: "0 var(--aiq-space-xl)", overflowX: "auto" }}>
+      <div style={{ padding: 0, overflowX: "auto" }}>
         {error && (
           <div
             style={{
               margin: "var(--aiq-space-md) 0",
               padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-              background: "#fee2e2",
+              background: "color-mix(in oklch, var(--aiq-color-danger) 12%, var(--aiq-color-bg-base))",
               border: "1px solid var(--aiq-color-danger)",
               borderRadius: "var(--aiq-radius-sm)",
               fontFamily: "var(--aiq-font-sans)",
@@ -562,7 +562,13 @@ export function AdminCertificates(): React.ReactElement {
             <Spinner aria-label="Loading certificates" />
           </div>
         )}
-        {!error && !(loading && items.length === 0) && (
+        {!error && !loading && items.length === 0 && (
+          <EmptyState
+            title="No certificates found."
+            body="A certificate is created when you release a graded attempt that scores 70% or more."
+          />
+        )}
+        {!error && !(loading && items.length === 0) && items.length > 0 && (
           <div style={{ overflowX: "auto" }}>
             <div style={{ minWidth: 1100 }}>
               <Table<CertAdminRow>
@@ -662,7 +668,7 @@ export function AdminCertificates(): React.ReactElement {
               <div
                 style={{
                   fontFamily: "var(--aiq-font-mono)",
-                  fontSize: "10px",
+                  fontSize: "var(--aiq-text-xs)",
                   color: revokeReason.trim().length < 10
                     ? "var(--aiq-color-danger)"
                     : "var(--aiq-color-fg-muted)",

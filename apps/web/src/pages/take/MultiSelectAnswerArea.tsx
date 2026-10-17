@@ -58,7 +58,7 @@ export function MultiSelectAnswerArea({
             <span style={{ fontFamily: 'var(--aiq-font-mono)', fontSize: 11, color: 'var(--aiq-color-fg-muted)', width: 14 }}>
               {String.fromCharCode(65 + idx)}
             </span>
-            <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 15, lineHeight: 1.5, color: 'var(--aiq-color-fg-primary)', flex: 1 }}>
+            <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-lg)', lineHeight: 1.5, color: 'var(--aiq-color-fg-primary)', flex: 1 }}>
               {text}
             </span>
           </label>

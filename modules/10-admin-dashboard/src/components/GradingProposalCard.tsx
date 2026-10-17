@@ -52,12 +52,12 @@ export function GradingProposalCard({
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
           {proposal.escalation_chosen_stage === "3" && (
-            <span data-help-id="admin.grading.proposal.escalation" style={{ background: "var(--aiq-color-warning)", color: "#fff", borderRadius: "var(--aiq-radius-pill)", fontSize: 10, padding: "1px 6px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
+            <span data-help-id="admin.grading.proposal.escalation" style={{ background: "var(--aiq-color-warning)", color: "#fff", borderRadius: "var(--aiq-radius-pill)", fontSize: "var(--aiq-text-xs)", padding: "1px 6px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
               Stage 3
             </span>
           )}
           {(proposal.source === "rule" || proposal.source === "reuse") && (
-            <span data-test-id="proposal-source-chip" style={{ border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-pill)", fontSize: 10, padding: "1px 6px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
+            <span data-test-id="proposal-source-chip" style={{ border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-pill)", fontSize: "var(--aiq-text-xs)", padding: "1px 6px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
               {proposal.source === "rule" ? "Rule" : "Reused"}
             </span>
           )}

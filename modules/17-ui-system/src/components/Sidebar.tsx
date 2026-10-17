@@ -123,7 +123,7 @@ export function SidebarSection({ label, collapsed = false }: SidebarSectionProps
     <div
       style={{
         fontFamily: "var(--aiq-font-mono)",
-        fontSize: 10,
+        fontSize: "var(--aiq-text-xs)",
         textTransform: "uppercase",
         letterSpacing: "0.08em",
         color: "var(--aiq-color-fg-muted)",
@@ -195,7 +195,7 @@ export function NavItem({
             background: "var(--aiq-color-accent)",
             color: "#fff",
             borderRadius: "var(--aiq-radius-pill)",
-            fontSize: 10,
+            fontSize: "var(--aiq-text-xs)",
             fontFamily: "var(--aiq-font-mono)",
             padding: "0 5px",
             minWidth: 18,

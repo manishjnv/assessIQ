@@ -37,7 +37,7 @@ export function AiGradingScopeCard({ tenantId, readOnly }: { tenantId: string; r
     <Card>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", padding: "var(--aiq-space-lg)" }}>
         <HelpTip helpId="admin.platform.tenant.ai_grading_scope">
-          <span style={{ ...META_LABEL, fontSize: 10 }}>AI grading scope</span>
+          <span style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>AI grading scope</span>
         </HelpTip>
         <label htmlFor="ai-grading-scope-select" data-help-id="admin.platform.tenant.ai_grading_scope" style={{ fontSize: "var(--aiq-text-sm)" }}>
           Written answers

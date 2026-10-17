@@ -225,7 +225,7 @@ function ScoreResultBlock({ result }: { result: ScoreAttemptResponse }): React.R
           ]}
         />
       </div>
-      <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "10px", color: "var(--aiq-color-fg-muted)", margin: "4px 0 0" }}>
+      <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)", margin: "4px 0 0" }}>
         Total: {result.structural.passed}/{result.structural.total} passed.{" "}
         Baseline regressions: {result.structural.baseline_diff.regressions.length}.
       </p>
@@ -366,7 +366,7 @@ function AttemptDetails({ attempt, packName, levelLabel, scoreResult, scoreLoadi
               border: "1px solid var(--aiq-color-border)",
               borderRadius: "var(--aiq-radius-sm)",
               fontFamily: "var(--aiq-font-mono)",
-              fontSize: "10px",
+              fontSize: "var(--aiq-text-xs)",
               color: "var(--aiq-color-fg-secondary)",
               whiteSpace: "pre-wrap",
               wordBreak: "break-all",
@@ -392,7 +392,7 @@ function AttemptDetails({ attempt, packName, levelLabel, scoreResult, scoreLoadi
               border: "1px solid var(--aiq-color-border)",
               borderRadius: "var(--aiq-radius-sm)",
               fontFamily: "var(--aiq-font-mono)",
-              fontSize: "10px",
+              fontSize: "var(--aiq-text-xs)",
               color: "var(--aiq-color-fg-secondary)",
               whiteSpace: "pre-wrap",
               wordBreak: "break-all",
@@ -877,7 +877,7 @@ export function AdminGenerationAttempts(): React.ReactElement {
           data-help-id="admin.gen_score.history"
           style={{
             fontFamily: "var(--aiq-font-serif)",
-            fontSize: "var(--aiq-text-3xl)",
+            fontSize: "var(--aiq-h1-size)",
             fontWeight: 400,
             letterSpacing: "-0.02em",
             margin: "0 0 var(--aiq-space-xs)",

@@ -243,7 +243,7 @@ export function AdminMfa(): React.JSX.Element {
             </div>
             <h1
               className="aiq-serif"
-              style={{ fontSize: 28, lineHeight: 1.15, margin: '0 0 10px', fontWeight: 400, letterSpacing: '-0.015em' }}
+              style={{ fontSize: 'var(--aiq-text-2xl)', lineHeight: 1.15, margin: '0 0 10px', fontWeight: 400, letterSpacing: '-0.015em' }}
             >
               Save your backup codes.
             </h1>
@@ -398,7 +398,7 @@ export function AdminMfa(): React.JSX.Element {
           <h1
             className="aiq-serif"
             style={{
-              fontSize: 32,
+              fontSize: 'var(--aiq-text-2xl)',
               lineHeight: 1.1,
               margin: '0 0 10px',
               fontWeight: 400,

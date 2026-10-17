@@ -90,7 +90,7 @@ export function MalformedQuestion(): React.JSX.Element {
       <p
         style={{
           fontFamily: 'var(--aiq-font-sans)',
-          fontSize: 15,
+          fontSize: 'var(--aiq-text-lg)',
           color: 'var(--aiq-color-fg-secondary)',
           margin: 0,
           lineHeight: 1.5,
@@ -109,7 +109,7 @@ export function UnknownTypeArea({ type }: { type: string }): React.JSX.Element {
       <p
         style={{
           fontFamily: 'var(--aiq-font-sans)',
-          fontSize: 15,
+          fontSize: 'var(--aiq-text-lg)',
           color: 'var(--aiq-color-fg-secondary)',
           margin: 0,
           lineHeight: 1.5,

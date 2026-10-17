@@ -231,7 +231,7 @@ export function AdminPlatform(): React.ReactElement {
             <h1
               style={{
                 fontFamily: "var(--aiq-font-serif)",
-                fontSize: "var(--aiq-text-3xl)",
+                fontSize: "var(--aiq-h1-size)",
                 fontWeight: 400,
                 margin: 0,
                 letterSpacing: "-0.02em",
@@ -372,7 +372,7 @@ export function AdminPlatform(): React.ReactElement {
                 background: "var(--aiq-color-bg-raised)",
                 borderBottom: "1px solid var(--aiq-color-border)",
                 ...META_LABEL,
-                fontSize: 10,
+                fontSize: "var(--aiq-text-xs)",
               }}
             >
               <span>Slug</span>
@@ -454,7 +454,7 @@ export function AdminPlatform(): React.ReactElement {
                                 <span
                                   style={{
                                     fontFamily: "var(--aiq-font-mono)",
-                                    fontSize: 10,
+                                    fontSize: "var(--aiq-text-xs)",
                                     color: "var(--aiq-color-fg-muted)",
                                   }}
                                 >
@@ -505,7 +505,7 @@ export function AdminPlatform(): React.ReactElement {
                         {/* Phase B: admin count badge */}
                         {(t.admin_count ?? 0) > 0 && (
                           <div style={{ marginTop: 4 }}>
-                            <span style={{ ...META_LABEL, fontSize: 10 }}>
+                            <span style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>
                               {t.admin_count ?? 0} admin{(t.admin_count ?? 0) !== 1 ? "s" : ""}
                             </span>
                           </div>
@@ -525,10 +525,10 @@ export function AdminPlatform(): React.ReactElement {
                           {t.usage.used} / {t.usage.included_credits}
                         </span>
                         {t.usage.overage > 0 && (
-                          <Chip variant="warn" style={{ fontSize: 10 }}>+{t.usage.overage}</Chip>
+                          <Chip variant="warn" style={{ fontSize: "var(--aiq-text-xs)" }}>+{t.usage.overage}</Chip>
                         )}
                         {t.usage.overage === 0 && t.usage.status === "warn" && (
-                          <Chip style={{ fontSize: 10 }}>Near limit</Chip>
+                          <Chip style={{ fontSize: "var(--aiq-text-xs)" }}>Near limit</Chip>
                         )}
                       </span>
                     )}

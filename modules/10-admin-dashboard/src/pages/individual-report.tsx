@@ -85,7 +85,7 @@ export function AdminIndividualReport(): React.ReactElement {
           <div style={{ marginBottom: 12 }}>
             <Chip leftIcon="grid">{report.total_attempts} attempt{report.total_attempts !== 1 ? "s" : ""}</Chip>
           </div>
-          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-h1-size)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
             {report.name || report.email}
           </h1>
           {report.name && (

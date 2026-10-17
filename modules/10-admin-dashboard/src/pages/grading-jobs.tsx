@@ -34,7 +34,7 @@ import { adminApi, AdminApiError } from "../api.js";
 
 const SERIF_H1: React.CSSProperties = {
   fontFamily: "var(--aiq-font-serif)",
-  fontSize: "var(--aiq-text-3xl)",
+  fontSize: "var(--aiq-h1-size)",
   fontWeight: 400,
   margin: 0,
   letterSpacing: "-0.02em",

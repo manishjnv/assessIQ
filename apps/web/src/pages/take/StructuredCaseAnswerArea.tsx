@@ -107,7 +107,7 @@ export function StructuredCaseAnswerArea({
         const name = `sc-${question.question_id}-${step.id}`;
         return (
           <fieldset key={step.id} style={{ border: 0, padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
-            <legend style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 15, fontWeight: 600, color: 'var(--aiq-color-fg-primary)', marginBottom: 'var(--aiq-space-xs)' }}>
+            <legend style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-lg)', fontWeight: 600, color: 'var(--aiq-color-fg-primary)', marginBottom: 'var(--aiq-space-xs)' }}>
               Question {n + 1} of {steps.length}. {step.prompt}
               {(step.points !== undefined || step.negative_marks !== undefined) && (
                 <span

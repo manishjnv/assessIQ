@@ -427,7 +427,7 @@ export function AdminEvaluationsQueue(): React.ReactElement {
             <Chip leftIcon="grid">{pendingCount} in queue</Chip>{" "}
             <RuntimeStatusChip />
           </div>
-          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-h1-size)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
             Grading queue.
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>

@@ -160,7 +160,7 @@ exports[`MyCertificates > snapshot: renders all three cert rows after load 1`] =
         >
           <span
             role="status"
-            style="display: inline-block; padding: 2px 10px; border-radius: var(--aiq-radius-full, 9999px); background: rgb(254, 243, 199); color: rgb(217, 119, 6); font-family: var(--aiq-font-mono); font-size: var(--aiq-text-xs); font-weight: 600;"
+            style="display: inline-block; padding: 2px 10px; border-radius: var(--aiq-radius-full, 9999px); background: var(--aiq-color-warning-soft); color: color-mix(in oklch, var(--aiq-color-warning) 40%, black); font-family: var(--aiq-font-mono); font-size: var(--aiq-text-xs); font-weight: 600;"
           >
             Distinction
           </span>

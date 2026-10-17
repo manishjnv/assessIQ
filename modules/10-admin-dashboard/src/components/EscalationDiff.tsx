@@ -70,7 +70,7 @@ function VerdictCard({
         {justification}
       </p>
       {errorClass && (
-        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 10, color: "var(--aiq-color-danger)", textTransform: "uppercase" }}>
+        <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-danger)", textTransform: "uppercase" }}>
           {errorClass}
         </span>
       )}
@@ -91,7 +91,7 @@ export function EscalationDiff({
   return (
     <div data-test-id={testId} style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
-        <span style={{ background: "var(--aiq-color-warning)", color: "#fff", borderRadius: "var(--aiq-radius-pill)", fontSize: 10, padding: "2px 8px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
+        <span style={{ background: "var(--aiq-color-warning)", color: "#fff", borderRadius: "var(--aiq-radius-pill)", fontSize: "var(--aiq-text-xs)", padding: "2px 8px", fontFamily: "var(--aiq-font-mono)", textTransform: "uppercase" }}>
           Stage-2 vs Stage-3 comparison
         </span>
         <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>

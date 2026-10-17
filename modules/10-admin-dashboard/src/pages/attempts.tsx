@@ -9,7 +9,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Chip, Table, ErasedChip } from "@assessiq/ui-system";
+import { Chip, EmptyState, Table, ErasedChip } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -174,7 +174,7 @@ export function AdminAttempts(): React.ReactElement {
           <div style={{ marginBottom: 12 }}>
             <Chip leftIcon="grid">{items.length} attempt{items.length !== 1 ? "s" : ""}</Chip>
           </div>
-          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-text-3xl)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
+          <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-h1-size)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
             Attempts.
           </h1>
           <p style={{ fontSize: 14, color: "var(--aiq-color-fg-secondary)", margin: "8px 0 0", lineHeight: 1.5 }}>
@@ -244,32 +244,14 @@ export function AdminAttempts(): React.ReactElement {
         >
           <div className="aiq-admin-table-scroll">
             {!loading && items.length === 0 ? (
-              <div style={{ padding: "var(--aiq-space-3xl) var(--aiq-space-lg)", textAlign: "center" }}>
-                <p
-                  style={{
-                    fontFamily: "var(--aiq-font-serif)",
-                    fontSize: "var(--aiq-text-xl)",
-                    fontWeight: 400,
-                    margin: "0 0 var(--aiq-space-sm)",
-                    letterSpacing: "-0.015em",
-                  }}
-                >
-                  No attempts {statusFilter ? "in this state" : "yet"}.
-                </p>
-                <p
-                  style={{
-                    fontFamily: "var(--aiq-font-sans)",
-                    fontSize: "var(--aiq-text-sm)",
-                    color: "var(--aiq-color-fg-muted)",
-                    margin: "0 auto",
-                    maxWidth: 360,
-                  }}
-                >
-                  {statusFilter
+              <EmptyState
+                title={`No attempts ${statusFilter ? "in this state" : "yet"}.`}
+                body={
+                  statusFilter
                     ? "Try a different filter, or wait for new attempts."
-                    : "Candidate attempts will appear here as they come in."}
-                </p>
-              </div>
+                    : "Candidate attempts will appear here as they come in."
+                }
+              />
             ) : (
               <Table<AttemptListItem>
                 data={sortedRows}

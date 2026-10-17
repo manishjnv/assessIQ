@@ -111,13 +111,13 @@ function Intro({ onBegin }: { onBegin: () => void }): React.JSX.Element {
       >
         Try a sample assessment.
       </h1>
-      <p style={{ fontSize: 17, lineHeight: 1.55, color: 'var(--aiq-color-fg-secondary)', margin: '0 0 24px' }}>
+      <p style={{ fontSize: 'var(--aiq-text-lg)', lineHeight: 1.55, color: 'var(--aiq-color-fg-secondary)', margin: '0 0 24px' }}>
         {DEMO_QUESTIONS.length} questions, {DEMO_MINUTES} minutes, the same screens a candidate sees in a real
         AssessIQ assessment. No login and no account. Your answers are scored in your browser and are not sent or
         stored anywhere.
       </p>
       <Card padding="lg">
-        <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, fontSize: 15 }}>
+        <ul style={{ margin: 0, paddingLeft: 20, lineHeight: 1.8, fontSize: 'var(--aiq-text-lg)' }}>
           <li>Question types: multiple choice, numeric, select-all, log analysis and a written answer.</li>
           <li>A countdown timer runs. When it reaches zero your answers are submitted and scored.</li>
           <li>
@@ -211,7 +211,7 @@ function Runner({
         <h1
           ref={headingRef}
           tabIndex={-1}
-          style={{ fontSize: 20, fontWeight: 500, lineHeight: 1.4, margin: '0 0 16px', outline: 'none' }}
+          style={{ fontSize: 'var(--aiq-text-xl)', fontWeight: 500, lineHeight: 1.4, margin: '0 0 16px', outline: 'none' }}
         >
           {q.prompt}
         </h1>
@@ -257,7 +257,7 @@ function Runner({
       </nav>
 
       <Modal open={confirmOpen} onClose={() => setConfirmOpen(false)} title="Submit your assessment?" width={440}>
-        <p style={{ margin: '0 0 8px', fontSize: 15, lineHeight: 1.5 }}>
+        <p style={{ margin: '0 0 8px', fontSize: 'var(--aiq-text-lg)', lineHeight: 1.5 }}>
           {unanswered === 0
             ? 'You have answered every question.'
             : `${unanswered} of ${DEMO_QUESTIONS.length} questions are unanswered.`}{' '}
@@ -380,7 +380,7 @@ function Result({
     <main style={WRAP}>
       <Logo size={24} showWordmark />
       <p style={{ ...EYEBROW, marginTop: 32, marginBottom: 8 }}>Sample assessment &middot; result</p>
-      <h1 style={{ fontFamily: 'var(--aiq-font-serif)', fontWeight: 400, fontSize: 32, margin: '0 0 8px' }}>
+      <h1 style={{ fontFamily: 'var(--aiq-font-serif)', fontWeight: 400, fontSize: 'var(--aiq-text-2xl)', margin: '0 0 8px' }}>
         {timedOut ? 'Time is up. Here is your score.' : 'Your score'}
       </h1>
 
@@ -388,7 +388,7 @@ function Result({
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 24 }}>
           <ScoreRing value={Math.round(result.percent)} size="lg" label="Score" />
           <div>
-            <p data-test-id="try-score" style={{ fontSize: 28, fontWeight: 500, margin: 0 }}>
+            <p data-test-id="try-score" style={{ fontSize: 'var(--aiq-text-2xl)', fontWeight: 500, margin: 0 }}>
               {result.earned} / {result.max} points ({result.percent}%)
             </p>
             <p style={{ margin: '8px 0 0' }}>
@@ -420,7 +420,7 @@ function Result({
                   </Chip>
                 )}
               </div>
-              <p style={{ margin: '0 0 8px', fontSize: 15, lineHeight: 1.5 }}>{q.prompt}</p>
+              <p style={{ margin: '0 0 8px', fontSize: 'var(--aiq-text-lg)', lineHeight: 1.5 }}>{q.prompt}</p>
               <p style={{ margin: '0 0 4px', fontSize: 14, color: 'var(--aiq-color-fg-secondary)' }}>
                 <strong>Your answer:</strong>{' '}
                 <span style={{ whiteSpace: 'pre-wrap' }}>{answered ? describeAnswer(q, answers[q.id]) : 'Not answered'}</span>
@@ -440,7 +440,7 @@ function Result({
       </ol>
 
       <h2 style={{ fontSize: 18, fontWeight: 500, margin: '32px 0 12px' }}>Certificate</h2>
-      <p style={{ margin: '0 0 12px', fontSize: 15, color: 'var(--aiq-color-fg-secondary)' }}>
+      <p style={{ margin: '0 0 12px', fontSize: 'var(--aiq-text-lg)', color: 'var(--aiq-color-fg-secondary)' }}>
         Real assessments can issue a verifiable certificate. See what one looks like (a sample only, not a credential).
       </p>
       <Link to="/try/certificate" style={linkStyle}>

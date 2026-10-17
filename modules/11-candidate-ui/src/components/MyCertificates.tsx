@@ -17,7 +17,7 @@ const TIER_STYLES: Record<
     fg: 'var(--aiq-color-accent)',
     label: 'Completion',
   },
-  distinction: { bg: '#fef3c7', fg: '#d97706', label: 'Distinction' },
+  distinction: { bg: 'var(--aiq-color-warning-soft)', fg: 'color-mix(in oklch, var(--aiq-color-warning) 40%, black)', label: 'Distinction' },
   honors: {
     bg: 'var(--aiq-color-success-soft)',
     fg: 'var(--aiq-color-success)',

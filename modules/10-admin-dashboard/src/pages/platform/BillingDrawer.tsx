@@ -260,10 +260,10 @@ export function BillingDrawer({
           } : {}),
         }}>
           <div>
-            <div style={{ ...META_LABEL, fontSize: 10 }}>Billing — {tenant.slug}</div>
+            <div style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>Billing — {tenant.slug}</div>
             <h2
               className="aiq-serif"
-              style={{ fontSize: 20, margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
+              style={{ fontSize: "var(--aiq-text-xl)", margin: 0, fontWeight: 400, letterSpacing: "-0.015em" }}
             >
               {tenant.name}
             </h2>
@@ -309,44 +309,44 @@ export function BillingDrawer({
                 {/* Section heading with HelpTip — admin.platform.billing */}
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <HelpTip helpId="admin.platform.billing">
-                    <span style={{ ...META_LABEL, fontSize: 10 }}>Usage &amp; plan</span>
+                    <span style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>Usage &amp; plan</span>
                   </HelpTip>
                 </div>
                 <div className="aiq-admin-detail-two-col" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--aiq-space-md)" }}>
                 <div>
-                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Tier</p>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: "var(--aiq-text-xs)" }}>Tier</p>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", textTransform: "capitalize" }}>
                     {planTierLabel(detail.tier)}
                   </p>
                 </div>
                 <div>
-                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Included credits</p>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: "var(--aiq-text-xs)" }}>Included credits</p>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
                     {detail.included_credits !== null ? detail.included_credits : "Unlimited"}
                   </p>
                 </div>
                 <div>
-                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Used</p>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: "var(--aiq-text-xs)" }}>Used</p>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
                     {detail.used}
                   </p>
                 </div>
                 <div>
-                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Remaining</p>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: "var(--aiq-text-xs)" }}>Remaining</p>
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
                     {detail.remaining !== null ? detail.remaining : "Unlimited"}
                   </p>
                 </div>
                 {detail.overage > 0 && (
                   <div>
-                    <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Overage</p>
+                    <p style={{ ...META_LABEL, display: "block", fontSize: "var(--aiq-text-xs)" }}>Overage</p>
                     <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", color: "var(--aiq-color-danger, #dc2626)" }}>
                       +{detail.overage}
                     </p>
                   </div>
                 )}
                 <div>
-                  <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>Cycle start</p>
+                  <p style={{ ...META_LABEL, display: "block", fontSize: "var(--aiq-text-xs)" }}>Cycle start</p>
                   <p style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 12, margin: "4px 0 0", color: "var(--aiq-color-fg-muted)" }}>
                     {formatDate(detail.cycle_start)}
                     {detail.cycle_window_start ? ` · this month from ${formatDate(detail.cycle_window_start)}` : ""}
@@ -355,7 +355,7 @@ export function BillingDrawer({
                 {/* FU-A9: AI-evaluated answers meter (current month) */}
                 {detail.ai_answers_used !== undefined && (
                   <div>
-                    <p style={{ ...META_LABEL, display: "block", fontSize: 10 }}>AI-graded answers</p>
+                    <p style={{ ...META_LABEL, display: "block", fontSize: "var(--aiq-text-xs)" }}>AI-graded answers</p>
                     <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0" }}>
                       {detail.ai_answers_used} / {detail.ai_answers_included ?? "no cap"}
                     </p>
@@ -368,7 +368,7 @@ export function BillingDrawer({
             {/* Recent events */}
             {detail.recent_events.length > 0 && (
               <div>
-                <div style={{ ...META_LABEL, fontSize: 10, marginBottom: 8 }}>
+                <div style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)", marginBottom: 8 }}>
                   Recent events ({detail.recent_events.length})
                 </div>
                 <div
@@ -427,7 +427,7 @@ export function BillingDrawer({
             {/* Plan editor */}
             <Card>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
-                <div style={{ ...META_LABEL, fontSize: 10 }}>Edit plan</div>
+                <div style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>Edit plan</div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <label
@@ -558,7 +558,7 @@ export function BillingDrawer({
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
                 <div style={{ display: "flex", alignItems: "center" }}>
                   <HelpTip helpId="admin.platform.entitlements">
-                    <span style={{ ...META_LABEL, fontSize: 10 }}>Entitlements</span>
+                    <span style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>Entitlements</span>
                   </HelpTip>
                 </div>
 
@@ -605,7 +605,7 @@ export function BillingDrawer({
                               <span
                                 style={{
                                   fontFamily: "var(--aiq-font-mono)",
-                                  fontSize: 10,
+                                  fontSize: "var(--aiq-text-xs)",
                                   padding: "2px 6px",
                                   background: "var(--aiq-color-bg-sunken)",
                                   borderRadius: "var(--aiq-radius-sm)",
@@ -723,7 +723,7 @@ export function BillingDrawer({
                               }}
                             />
                             {contentScopesError !== null && (
-                              <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, color: "var(--aiq-color-fg-muted)" }}>
+                              <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
                                 {contentScopesError}
                               </span>
                             )}
@@ -773,7 +773,7 @@ export function BillingDrawer({
                               }}
                             />
                             {platformPacksError !== null && (
-                              <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 10, color: "var(--aiq-color-fg-muted)" }}>
+                              <span style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
                                 {platformPacksError}
                               </span>
                             )}

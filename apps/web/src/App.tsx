@@ -257,7 +257,7 @@ function NotFound(): React.JSX.Element {
       <h1
         style={{
           fontFamily: 'var(--aiq-font-serif)',
-          fontSize: 'var(--aiq-text-3xl)',
+          fontSize: 'var(--aiq-h1-size)',
           fontWeight: 400,
           letterSpacing: '-0.02em',
           margin: '0 0 12px',
@@ -282,7 +282,7 @@ function NotFound(): React.JSX.Element {
           fontFamily: 'var(--aiq-font-sans)',
           fontSize: 'var(--aiq-text-sm)',
           fontWeight: 500,
-          color: '#3177dc',
+          color: 'var(--aiq-color-accent)',
           textDecoration: 'none',
         }}
       >

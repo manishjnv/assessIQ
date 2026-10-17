@@ -137,7 +137,7 @@ export function LifecycleConfirmModal({
                   boxSizing: "border-box",
                 }}
               />
-              <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: 10 }}>
+              <span style={{ ...META_LABEL, display: "block", marginTop: 4, fontSize: "var(--aiq-text-xs)" }}>
                 {reason.length} / 500
               </span>
             </div>
