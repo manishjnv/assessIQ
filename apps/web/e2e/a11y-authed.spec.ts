@@ -1,5 +1,5 @@
 // RW-82 — axe on logged-in pages (admin shell + candidate shell). Real backend with the dev
-// minter (see local-stack.sh). Fails on serious/critical violations; minor/moderate only warn (S16: the shells now have landmarks and one h1; `region` and `page-has-heading-one` stay advisory until a run against the real stack confirms zero).
+// minter (see local-stack.sh). Fails on serious/critical violations and on `region` / `page-has-heading-one` (Z-29: measured zero on all 5 pages); other minor/moderate only warn.
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import * as factories from './fixtures/factories.js';
@@ -30,13 +30,15 @@ async function setCookie(page: Page, cookie: string) {
 async function scan(page: Page, label: string) {
   await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
   const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
+  const BLOCK_RULES = new Set(['region', 'page-has-heading-one']);
+  const isBlocking = (x: (typeof violations)[number]) => x.impact === 'serious' || x.impact === 'critical' || BLOCK_RULES.has(x.id);
   const fmt = (v: (typeof violations)[number]) =>
     `[${v.impact}] ${v.id}: ${v.help}\n  ${v.nodes.slice(0, 3).map((n) => `${n.target.join(' ')} :: ${n.html.slice(0, 120)}`).join('\n  ')}`;
-  for (const v of violations.filter((x) => x.impact !== 'serious' && x.impact !== 'critical')) {
+  for (const v of violations.filter((x) => !isBlocking(x))) {
     // eslint-disable-next-line no-console -- advisory output by design
     console.warn(`a11y-authed ${label} ${fmt(v)}`);
   }
-  const blocking = violations.filter((x) => x.impact === 'serious' || x.impact === 'critical');
+  const blocking = violations.filter(isBlocking);
   expect(blocking, blocking.map(fmt).join('\n')).toHaveLength(0);
 }
 
