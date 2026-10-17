@@ -1483,3 +1483,63 @@ export async function getReadiness(): Promise<{ checks?: Record<string, boolean>
   const res = await readyRaw("/ready");
   return (await res.json()) as { checks?: Record<string, boolean> };
 }
+
+// RW-60 / FU-C14 — Phase C per-question statistics (super admin only).
+export interface QuestionStatsResponse {
+  question: { id: string; type: string; level_position: number; level_label: string; cognitive_level: string | null; difficulty_params: unknown };
+  stats: null | {
+    attempts: number; exposure_count: number; correct_rate: number | null; mean_band: number | null;
+    point_biserial: number | null; discrimination_ok: boolean | null; last_used_at: string | null; computed_at: string;
+  };
+  gradient: Array<{ level_position: number; label: string; mean_success: number | null; attempts: number }>;
+  miscalibrated: { flag: boolean; reason: string | null; min_attempts: number };
+  scope: "tenant" | "rollup";
+  clone_count: number;
+}
+
+/** GET /api/admin/super/questions/:id/stats (super admin only). */
+export async function getSuperQuestionStats(id: string): Promise<QuestionStatsResponse> {
+  return adminApi<QuestionStatsResponse>(`/admin/super/questions/${encodeURIComponent(id)}/stats`);
+}
+
+// ---------------------------------------------------------------------------
+// Typed helpers — "Start a test" one-screen flow (RW-83). Existing routes only.
+// ---------------------------------------------------------------------------
+
+export interface InviteSkip { userId: string; reason: string }
+export interface ImportSkip { row: number; email: string; reason: string }
+export interface CandidateOption { id: string; email: string; name: string; status: string }
+
+/** POST /api/admin/assessments/:id/publish (draft -> published). */
+export async function publishAssessmentApi(id: string): Promise<unknown> {
+  return adminApi(`/admin/assessments/${id}/publish`, { method: "POST" });
+}
+
+/** POST /api/admin/assessments/:id/invite — invite existing users. */
+export async function inviteAssessmentUsers(
+  id: string,
+  userIds: string[],
+): Promise<{ invited: number; skipped: InviteSkip[] }> {
+  return adminApi(`/admin/assessments/${id}/invite`, {
+    method: "POST",
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+}
+
+/** POST /api/admin/users/import — create-or-find candidates by email and invite them. */
+export async function importCandidates(
+  csv: string,
+  assessmentId: string,
+): Promise<{ created: number; existing: number; invited: number; skipped: ImportSkip[]; warning?: string }> {
+  return adminApi("/admin/users/import", {
+    method: "POST",
+    body: JSON.stringify({ csv, assessment_id: assessmentId }),
+  });
+}
+
+/** GET /api/admin/users?role=candidate — first 100 matches (active filter applied by the caller). */
+export async function listCandidates(search: string): Promise<{ items: CandidateOption[] }> {
+  const q = new URLSearchParams({ role: "candidate", pageSize: "100" });
+  if (search.trim()) q.set("search", search.trim());
+  return adminApi(`/admin/users?${q.toString()}`);
+}

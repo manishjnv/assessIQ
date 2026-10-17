@@ -13,6 +13,7 @@ vi.mock("react-router-dom", () => ({
 }));
 vi.mock("../api.js", () => ({
   AdminApiError: class AdminApiError extends Error {},
+  getSuperQuestionStats: async () => ({ question: {}, stats: null, gradient: [], miscalibrated: { flag: false, reason: null, min_attempts: 30 } }),
   adminApi: vi.fn(async () => ({
     id: "q1", type: "subjective", status: "active", points: 5, content: { question: "Why?" }, rubric: null,
     cognitive_level: "apply", answer_guidance: null,
