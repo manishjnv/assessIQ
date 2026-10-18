@@ -205,7 +205,7 @@ export async function startAttempt(
     // a. If an attempt already exists, return it (idempotent) — unless the caller asked
     //    for the NEXT attempt (Z-39 retake) and the latest one is finished. Resume of an
     //    unfinished attempt is always idempotent, so a double click never opens attempt 2.
-    const existing = await repo.findAttemptByAssessmentAndUser(
+    let existing = await repo.findAttemptByAssessmentAndUser(
       client,
       input.assessmentId,
       input.userId,
@@ -214,7 +214,7 @@ export async function startAttempt(
       assertAttemptOwnedBy(existing, input.userId);
       if (isUnfinished(existing.status) || input.newAttempt !== true) return existing;
     }
-    const nextAttemptNumber = existing === null ? 1 : existing.attempt_number + 1;
+    let nextAttemptNumber = existing === null ? 1 : existing.attempt_number + 1;
 
     // b. Assessment must exist and be 'active'.
     const assessment = await alRepo.findAssessmentById(client, input.assessmentId);
@@ -260,6 +260,15 @@ export async function startAttempt(
           details: { code: AE_ERROR_CODES.INVITATION_EXPIRED, expires_at: invitation.expires_at },
         });
       }
+      // Z-39: the invitation row lock serialises concurrent starts. A start that waited on
+      // it must decide on FRESH state: the winner's new attempt is now the latest, so
+      // resume it instead of opening another.
+      existing = await repo.findAttemptByAssessmentAndUser(client, input.assessmentId, input.userId);
+      if (existing !== null) {
+        assertAttemptOwnedBy(existing, input.userId);
+        if (isUnfinished(existing.status) || input.newAttempt !== true) return existing;
+      }
+      nextAttemptNumber = existing === null ? 1 : existing.attempt_number + 1;
       invitationId = invitation.id;
       extraAttempts = invitation.extra_attempts;
 
