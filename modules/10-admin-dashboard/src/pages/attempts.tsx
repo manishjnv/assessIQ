@@ -31,6 +31,9 @@ interface AttemptListItem {
   evaluation_status?: EvaluationStatus;
   submitted_at: string | null;
   started_at: string;
+  /** Z-39: "Attempt n of m" chip shows when the candidate has more than one attempt. */
+  attempt_number?: number;
+  attempts_total?: number;
 }
 
 interface AttemptsResponse {
@@ -140,7 +143,13 @@ export function AdminAttempts(): React.ReactElement {
         const s = row.evaluation_status
           ? evaluationStatusDisplay(row.evaluation_status)
           : attemptStatusDisplay(row.status);
-        return <Chip variant={s.variant}>{s.label}</Chip>;
+        const multi = (row.attempts_total ?? 1) > 1;
+        return (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+            <Chip variant={s.variant}>{s.label}</Chip>
+            {multi && <Chip variant="default">{`Attempt ${row.attempt_number ?? 1} of ${row.attempts_total}`}</Chip>}
+          </span>
+        );
       },
     },
     {

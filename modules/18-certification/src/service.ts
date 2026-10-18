@@ -681,9 +681,26 @@ export async function issueCertificateOnRelease(
   // snapshot on the score row, so a later assessment edit cannot change it.
   if (!isPass(row.total_earned, row.total_max, row.pass_mark_pct)) return null;
 
+  // Tier: distinction at 90% or more, else completion. Honors is deferred (owner, Z-16).
+  // Computed from THIS attempt's own released score only. No setting (score_counts) is read:
+  // switching latest/best later can never mint a tier, because it never reaches this code.
+  const tier: Tier = meetsPct(row.total_earned, row.total_max, DISTINCTION_PCT)
+    ? 'distinction'
+    : 'completion';
+
+  // Z-39: serialise releases of the same candidate + assessment, so two attempts released at
+  // the same moment cannot both insert a certificate (the unique key is per attempt).
+  await client.query(
+    `SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || cur.user_id::text || ':' || cur.assessment_id::text, 0))
+       FROM attempts cur WHERE cur.id = $2`,
+    ['cert-release', attemptId],
+  );
+
   // Z-39: a retake can pass again. One certificate per assessment + candidate: when a
   // live (not revoked) certificate already exists from an EARLIER attempt, keep it and
-  // issue nothing new (no duplicate credential, tier is not upgraded from a later attempt).
+  // issue nothing new (no duplicate credential). Upgrade-only: a later PASSING attempt that
+  // reaches a higher tier raises the stored tier (same credential id and verify URL, new HMAC,
+  // one audit row). Never a downgrade, and the display switch (Z-50) is not read here.
   const earlier = await client.query<{ attempt_id: string }>(
     `SELECT c.attempt_id
        FROM certificates c
@@ -699,13 +716,21 @@ export async function issueCertificateOnRelease(
   );
   const earlierAttemptId = earlier.rows[0]?.attempt_id;
   if (earlierAttemptId !== undefined) {
-    return repo.findByAttempt(client, tenantId, row.candidate_id, earlierAttemptId);
+    const kept = await repo.findByAttempt(client, tenantId, row.candidate_id, earlierAttemptId);
+    if (kept === null || TIER_ORDER[tier] <= TIER_ORDER[kept.tier]) return kept;
+    // issueCertificate finds the row by the earlier attempt id and runs the CAS upgrade + audit.
+    return issueCertificate(client, {
+      tenant_id: tenantId,
+      attempt_id: earlierAttemptId,
+      candidate_id: row.candidate_id,
+      template_key: kept.template_key,
+      display_name: kept.display_name,
+      course_title: kept.course_title,
+      level: kept.level,
+      tier,
+      actor_user_id: actorUserId,
+    });
   }
-
-  // Tier: distinction at 90% or more, else completion. Honors is deferred (owner, Z-16).
-  const tier: Tier = meetsPct(row.total_earned, row.total_max, DISTINCTION_PCT)
-    ? 'distinction'
-    : 'completion';
 
   return issueCertificate(client, {
     tenant_id: tenantId,

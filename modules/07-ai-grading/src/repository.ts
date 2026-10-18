@@ -403,6 +403,9 @@ export interface AttemptListRow {
   isErased: boolean;
   assessment_name: string;
   level_label: string;
+  /** Z-39: this attempt's number for the candidate on this assessment, and how many they have. */
+  attempt_number: number;
+  attempts_total: number;
 }
 
 /**
@@ -461,6 +464,8 @@ export async function listAttemptsForAdmin(
     erased_at: string | null;
     assessment_name: string;
     level_label: string;
+    attempt_number: number;
+    attempts_total: number;
   }
 
   const result = await client.query<AttemptListDbRow>(
@@ -476,7 +481,10 @@ export async function listAttemptsForAdmin(
        u.name                                                                        AS candidate_name,
        u.erased_at,
        COALESCE(asm.name,  '(unknown)')                                              AS assessment_name,
-       COALESCE(lvl.label, '(unknown)')                                              AS level_label
+       COALESCE(lvl.label, '(unknown)')                                              AS level_label,
+       a.attempt_number,
+       (SELECT count(*)::int FROM attempts t
+         WHERE t.assessment_id = a.assessment_id AND t.user_id = a.user_id)          AS attempts_total
      FROM attempts a
      LEFT JOIN users       u   ON u.id   = a.user_id
      LEFT JOIN assessments asm ON asm.id = a.assessment_id
@@ -505,6 +513,8 @@ export async function listAttemptsForAdmin(
       isErased: display.isErased,
       assessment_name: r.assessment_name,
       level_label: r.level_label,
+      attempt_number: r.attempt_number,
+      attempts_total: r.attempts_total,
     };
   });
 

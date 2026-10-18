@@ -18,6 +18,13 @@
 import type { PoolClient } from 'pg';
 import { Readable } from 'node:stream';
 import { csvCell } from './results-export.js'; // formula-injection guard (RV77)
+import { countingAttemptSql } from '@assessiq/core';
+
+// Z-39: attempt_summary_mv has no attempt_number. Keep the MV rows whose attempt is the one that
+// counts for its candidate (settings.score_counts latest/best, see core countingAttemptSql).
+// The MV tenant filter stays on every query; this only narrows the rows.
+const mvCounting = (col: string, assessmentParam = '$1'): string =>
+  `${col} IN (SELECT a.id FROM attempts a WHERE a.assessment_id = ${assessmentParam}::uuid AND ${countingAttemptSql('a')})`;
 import type {
   HomeKpis,
   QueueSummary,
@@ -51,7 +58,8 @@ export async function queryHomeKpis(client: PoolClient, tenantId: string): Promi
 
   // Attempts this week
   const attemptsWeekResult = await client.query<{ count: string }>(
-    `SELECT COUNT(*)::text AS count
+    // Z-39: candidates who sat a test this week; three retakes count once per assessment.
+    `SELECT COUNT(DISTINCT (assessment_id, user_id))::text AS count
      FROM attempts
      WHERE created_at >= now() - interval '7 days'`,
   );
@@ -70,7 +78,8 @@ export async function queryHomeKpis(client: PoolClient, tenantId: string): Promi
      JOIN attempts a ON a.id = ats.attempt_id
      WHERE a.created_at >= now() - interval '7 days'
        -- only results released to the tenant (same rule as 09 TENANT_VISIBLE_ATTEMPT_SQL)
-       AND (a.status = 'released' OR (a.status = 'graded' AND a.evaluation_released_at IS NOT NULL))`,
+       AND (a.status = 'released' OR (a.status = 'graded' AND a.evaluation_released_at IS NOT NULL))
+       AND ${countingAttemptSql('a')}`,
   );
   const avgPctThisWeek = avgResult.rows[0]?.avg_pct != null
     ? parseFloat(avgResult.rows[0].avg_pct)
@@ -154,7 +163,8 @@ export async function queryCohortReport(
        PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY auto_pct)::text          AS p90
      FROM attempt_summary_mv
      WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
-       AND assessment_id = $1`,
+       AND assessment_id = $1
+       AND ${mvCounting('attempt_id')}`,
     [assessmentId],
   );
   const agg = aggResult.rows[0];
@@ -165,6 +175,7 @@ export async function queryCohortReport(
      FROM attempt_summary_mv
      WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
        AND assessment_id = $1
+       AND ${mvCounting('attempt_id')}
        AND archetype IS NOT NULL
      GROUP BY archetype
      ORDER BY count DESC`,
@@ -191,6 +202,7 @@ export async function queryCohortReport(
      LEFT JOIN levels l ON l.id = mv.level_id
      WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
        AND mv.assessment_id = $1
+       AND ${mvCounting('mv.attempt_id')}
      GROUP BY mv.level_id, l.label
      ORDER BY l.label`,
     [assessmentId],
@@ -229,6 +241,7 @@ export async function queryCohortReport(
        -- package's type-check program and surfaces an unrelated pre-existing gap there;
        -- see FU-C3 2026-10-06 note)
        AND (a.status = 'released' OR (a.status = 'graded' AND a.evaluation_released_at IS NOT NULL))
+       AND ${countingAttemptSql('a')}
      GROUP BY q.topic
      ORDER BY q.topic`,
     [assessmentId],
@@ -480,7 +493,8 @@ export async function queryAdminCohortReport(
        PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY auto_pct)::text            AS p90_total_score
      FROM attempt_summary_mv
      WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
-       AND assessment_id = $1`,
+       AND assessment_id = $1
+       AND ${mvCounting('attempt_id')}`,
     [assessmentId],
   );
   const agg = aggResult.rows[0];
@@ -493,6 +507,7 @@ export async function queryAdminCohortReport(
      FROM attempt_summary_mv
      WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
        AND assessment_id = $1
+       AND ${mvCounting('attempt_id')}
        AND archetype IS NOT NULL
      GROUP BY archetype
      ORDER BY count DESC`,
@@ -516,6 +531,7 @@ export async function queryAdminCohortReport(
      LEFT JOIN levels l ON l.id = mv.level_id
      WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
        AND mv.assessment_id = $1
+       AND ${mvCounting('mv.attempt_id')}
      GROUP BY mv.level_id, l.label`,
     [assessmentId],
   );
@@ -544,6 +560,7 @@ export async function queryAdminCohortReport(
      FROM attempt_summary_mv
      WHERE tenant_id = current_setting('app.current_tenant', true)::uuid
        AND assessment_id = $1
+       AND ${mvCounting('attempt_id')}
        AND auto_pct IS NOT NULL -- NULL = not released to the tenant yet (0122)
        ${archetypeClause}
      ORDER BY auto_pct DESC
