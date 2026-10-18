@@ -21,7 +21,7 @@ All items below are on `main` and in use. Measured on the owner's setup.
 6. Build the services on the VPS; checks `BUILD_EXIT=0` before going on.
 7. Recreate only the named services (`--no-deps --force-recreate`), wait for healthy, run the sweep.
 
-Known gap: migrations are not wrapped in one transaction. A failed file stops the deploy and leaves partial changes. Prefer idempotent `DO $$ ... IF NOT EXISTS` migrations (the project style).
+Fixed in S24: a migration file without its own BEGIN/COMMIT now runs in one transaction with its `schema_migrations` row (see `docs/06-deployment.md`). A file that needs CONCURRENTLY or VACUUM must be applied by hand.
 
 ## Pending time work
 

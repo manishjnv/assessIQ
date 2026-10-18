@@ -1,9 +1,10 @@
 # Session — 2026-10-18 — S24: CI and tooling time work
 
 **Headline:** S24 cut CI time and tooling waits. Docs-only commits skip heavy CI, deploys check the last code commit, migrations run in one transaction, and a flaky test is fixed. CI is 6m50, not the 5.5 min target; e2e sharding is next (Z-58).
-**Commits (main, oldest first):** `aa5dbf6e` parallel CI, docs-only skip, `ci-ok` (Z-55, Z-56) · `bd3a1218` e2e workers (Z-55) · `05193ac1` deploy transaction, worktree scripts, flaky test, agent rules (Z-57) · docs commit TBD (this block)
+**Commits (main, oldest first):** `aa5dbf6e` parallel CI, docs-only skip, `ci-ok` (Z-55, Z-56) · `bd3a1218` e2e workers (Z-55) · `05193ac1` deploy transaction, worktree scripts, flaky test, agent rules (Z-57) · `52e47fa8` S24 docs (CI green 34 s, docs-only)
 **Tests:** CI green on `39137810235` (6m50) and on docs-only `fb2cd882` (37 s). Dry-run deploy on `fb2cd88` passed. Web suite 5 of 5 under load. Migration transaction tested on a throw-away postgres:16.
-**Next:** Push the docs commit (`pnpm verify` in its own command first), then build Z-58 (e2e 2-way shard).
+**Next:** The next code push is the third green run for Z-55. Then build Z-58 (e2e 2-way shard).
+**Not included (decided):** scoped verify stamp (row 3): the owner deferred it (GATE-2, `fb2cd882`); the build was discarded. Quick fix for 3 unregistered worktree folders is left to the owner: `agent-afc5de41`, `agent-a8cde4939deff9c43`, `agent-a965a199312c67689`.
 **Open questions:**
 - Z-54: flip `fail_on_error` on or after 2026-10-29, after 3 green runs.
 - Migration one-transaction path: dry run on the VPS not run yet (needs ssh).
