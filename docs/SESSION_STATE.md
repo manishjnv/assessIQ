@@ -12,7 +12,9 @@
 **Not included:** the marketing deploy, any change to /terms or /privacy, the `.gitignore` line for the stray lockfile, Z-71.
 **Old task or feature checked:** X2, D1/RV28, D2/FU-A8, D3/FU-A7, OD4, OD8, PRICING_TIERS 2026-10-06, TOK-6 (Rule B, PROJECT_BRAIN.md)
 
-### Agent utilization
+---
+
+## Agent utilization
 - Opus (main session ran on Sonnet 5.5): Phase 0, ROADMAP rows, both design docs, register row, review of the Astro report.
 - Sonnet: 1 run (Astro upgrade, worktree). Opus slot reviewed the diff and re-ran frozen install and build.
 - Haiku: 1 run.

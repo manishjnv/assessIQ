@@ -2,9 +2,9 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-18T17:39:56.281Z (2026-10-18 23:09:56 IST)
-- HEAD: `694b91d2`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 8
+- Generated: 2026-10-18T17:45:42.090Z (2026-10-18 23:15:42 IST)
+- HEAD: `8633cd84`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 2
 
 ## 1. Last session (SESSION_STATE, first block)
 
@@ -21,41 +21,6 @@ GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 - Z-60 CI streak: 4 of 10.
 **Not included:** the marketing deploy, any change to /terms or /privacy, the `.gitignore` line for the stray lockfile, Z-71.
 **Old task or feature checked:** X2, D1/RV28, D2/FU-A8, D3/FU-A7, OD4, OD8, PRICING_TIERS 2026-10-06, TOK-6 (Rule B, PROJECT_BRAIN.md)
-
-#### Agent utilization
-- Opus (main session ran on Sonnet 5.5): Phase 0, ROADMAP rows, both design docs, register row, review of the Astro report.
-- Sonnet: 1 run (Astro upgrade, worktree). Opus slot reviewed the diff and re-ran frozen install and build.
-- Haiku: 1 run.
-  - Haiku · Astro 5 to 7 upgrade research · reworked: N · tokens: 105353
-  - Sonnet · Astro 5 to 7 staged upgrade · reworked: N · tokens: 117240
-- codex:rescue: n/a — no security path touched.
-- Gemini (agy): n/a — not needed.
-- Codex (exec): n/a — down since 2026-10-11.
-
-
-## Session — 2026-10-18 — S27: token, gate and proof items (Z-67 to Z-69, Z-59 proof, GATE-6)
-
-**Headline:** Agent brief, roadmap recount, next-migration, routing `--since`, Codex review script and CI streak script are built. A bad router copy turns CI red (proven). GATE-6 numbers are in the register.
-**Commits:** `b423d8ce` — Z-67/Z-68, routing `--since` (CI green, run 39145795259, 3m28); `f8584a91` — Z-69, ci-green-streak, Z-59 proof, GATE-6, recount fix, .gitignore (CI green, run 39147241641, 3m28). No deploy (tools and docs only).
-**Tests:** `pnpm verify` green twice; `tools/__tests__` 26 of 26. Live Codex call NOT tested (Codex down since 2026-10-11); only `--dry-run` and the secret scan ran.
-**Gate:** none. No security path touched.
-**Next:** (1) Owner: Haiku 5.5 trial reads STOP (29% non-gate rework, 7 runs); decide continue or stop. (2) Owner: TIME-13 yes/no. (3) Count green runs for Z-60: streak 4 of 10. (4) Owner: track or ignore `tools/assessiq-mcp/package-lock.json` on the VPS.
-**Open questions:**
-- Dependabot: 2 critical alerts, both `astro` < 7.2.8 in `apps/marketing` (installed 5.18.2). Advisory: RCE through AVIF image optimization. No `astro:assets`, `<Image>` or `sharp` use found in marketing code, so the path looks unused. Not upgraded.
-- Z-54 not before 2026-10-29. GATE-8 and GATE-2 stay as decided.
-**Not included:** TIME-13 enable, GATE-8, GATE-2, Z-54, any Astro upgrade, any VPS change.
-**Old task or feature checked:** TOK-3..TOK-7, TIME-7/15/16, GATE-6, Z-47, Z-53, Z-59, Z-60, Z-64..Z-66 (Rule B, PROJECT_BRAIN.md)
-
-### Agent utilization
-- Opus (main session ran on Sonnet 5.5): Phase 0, ROADMAP rows, review of all agent output, recount rule fix, GATE-6 measuring, docs, commits.
-- Sonnet: 2 runs (Z-59 proof, codex-review script).
-  - Sonnet · Z-59 CI failure proof · reworked: N · tokens: 97820
-  - Sonnet · codex-review.sh + test · reworked: N · tokens: 92570
-- Haiku: 1 run.
-  - Haiku · Z-67/Z-68/TOK-6 build · reworked: Y (closed-word rule and fixture changed by Opus) · tokens: 228598
-- codex:rescue: n/a — no security path touched.
-- Gemini (agy): n/a — not needed.
-- Codex (exec): n/a — down since 2026-10-11; script built, dry run only.
 
 
 ## 2. ROADMAP status board
