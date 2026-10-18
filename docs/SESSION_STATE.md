@@ -20,7 +20,7 @@
 ---
 
 ## Agent utilization
-- Opus: plan, diff review of Wave A and the Z-39 start guard, commits, CI triage, push.
+- Main session (Sonnet 5.5, not Opus): plan, diff review of Wave A and the Z-39 start guard, commits, CI triage, push.
 - Sonnet: about 22 runs (builds of Z-47, Z-41, Z-44, Z-39, Z-43, Z-42; 3 adversarial gates; revisions of Z-43, Z-39, Z-42; Z-39 merge; e2e run; e2e diagnosis; batch 2 and 3: Z-23 s1, Z-23 s2, take-page grouping, reason modal, section_names, Z-32, EXP-18 build and gate).
 - Haiku: 6 runs (S20 digest, code map, docs-lint check, sizing, two sweeps).
 - codex:rescue: n/a — companion and sandbox down; Sonnet takeover accepted all three gates (accept, revise-addressed).
