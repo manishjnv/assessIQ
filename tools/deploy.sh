@@ -86,32 +86,38 @@ NEWFULL="$(R "cd $DIR && git rev-parse $REF")" || fail "cannot read $REF"
 [ "$NEWFULL" = "$SHA" ] || fail "VPS $REF (${NEWFULL:0:7}) differs from local HEAD (${SHA:0:7})"
 ok "VPS $OLD -> ${SHA:0:7}"
 
-# (3b) build plan (Z-61). Only when no --services and no --force-all. Unknown or shared path => build both.
-# Frontend image inputs: apps/web, packages, modules, lockfile/manifests, tsconfig.base.json, infra/docker/assessiq-frontend.
-# API image inputs: apps/api, packages, modules, lockfile/manifests, tsconfig.base.json, infra/docker/assessiq-api.
-# Any path under infra/ or modules/ or packages/, and any unlisted path, builds both. Safe skips: docs, *.md, .github, tools, .vale, .githooks.
+# (3b) build plan (Z-61). Only when no --services and no --force-all.
+# Each image has a marker on the VPS ($DIR/.deployed/<api|frontend>) holding the SHA it was last deployed at.
+# The diff base is that marker, never the VPS git HEAD (a failed run moves HEAD but not the marker).
+# No marker, unknown commit, failed diff, or any shared/unknown path => build that image.
+# Shared = anything outside apps/<own>, the other app, docs/, .github/, tools/, .vale/, .githooks/, .agent/, root *.md.
+# Images: api (+worker) takes apps/api; frontend takes apps/web. modules/, packages/, lockfile, infra/ are shared.
+plan_one() { # $1 = marker name, $2 = own path prefix; prints the reason when the image must be built
+  local name="$1" own="$2" base diff f
+  base="$(R "cat $DIR/.deployed/$name 2>/dev/null")" || base=""
+  git cat-file -e "${base:-none}^{commit}" 2>/dev/null || { echo "no usable deployed marker for $name"; return; }
+  diff="$(git diff --no-renames --name-only "$base" "$SHA")" || { echo "git diff failed for $name"; return; }
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    case "$f" in
+      docs/*|.github/*|tools/*|.vale/*|.githooks/*|.agent/*) ;;
+      "$own"*) echo "$f"; return ;;
+      apps/web/*|apps/api/*) ;;
+      */*) echo "shared path $f"; return ;;
+      *.md) ;;
+      *) echo "shared path $f"; return ;;
+    esac
+  done <<< "$diff"
+}
 if [ "$FORCEALL" -eq 1 ] || [ "$SVCSET" -eq 1 ]; then
   echo "PLAN services as requested: $SVC (reason: $([ "$FORCEALL" -eq 1 ] && echo --force-all || echo --services))"
 else
-  NEED_FE=0; NEED_API=0; REASON=""
-  if ! git cat-file -e "$OLDFULL^{commit}" 2>/dev/null; then
-    NEED_FE=1; NEED_API=1; REASON="VPS commit ${OLD} unknown locally"
-  else
-    while IFS= read -r f; do
-      [ -n "$f" ] || continue
-      case "$f" in
-        docs/*|*.md|.github/*|tools/*|.vale/*|.githooks/*|.agent/*) ;;
-        apps/web/*) NEED_FE=1; REASON="${REASON:-$f}" ;;
-        apps/api/*) NEED_API=1; REASON="${REASON:-$f}" ;;
-        *) NEED_FE=1; NEED_API=1; REASON="${REASON:-shared or unknown path $f}" ;;
-      esac
-    done < <(git diff --name-only "$OLDFULL" "$SHA")
-  fi
+  RA="$(plan_one api apps/api/)"; RF="$(plan_one frontend apps/web/)"
   NEW=""
-  [ "$NEED_API" -eq 1 ] && NEW="assessiq-api assessiq-worker"
-  [ "$NEED_FE" -eq 1 ] && NEW="${NEW:+$NEW }assessiq-frontend"
-  echo "PLAN api=$NEED_API frontend=$NEED_FE (reason: ${REASON:-no deployable change})"
-  if [ -z "$NEW" ]; then echo "Nothing to build or recreate. VPS is on ${SHA:0:7}. Use --force-all to build anyway."; exit 0; fi
+  [ -n "$RA" ] && NEW="assessiq-api assessiq-worker"
+  [ -n "$RF" ] && NEW="${NEW:+$NEW }assessiq-frontend"
+  echo "PLAN api=${RA:-skip} | frontend=${RF:-skip}"
+  if [ -z "$NEW" ]; then echo "Nothing to build or recreate. Both images match ${SHA:0:7} by marker. Use --force-all to build anyway."; exit 0; fi
   SVC="$NEW"
 fi
 
@@ -201,6 +207,9 @@ else
     esac
   done
   ok
+  # markers: written only after the new containers are healthy
+  case " $SVC " in *" assessiq-api "*) R "mkdir -p $DIR/.deployed && echo $SHA > $DIR/.deployed/api" || echo "WARNING: could not write the api marker (next deploy will rebuild api)" ;; esac
+  case " $SVC " in *" assessiq-frontend "*) R "mkdir -p $DIR/.deployed && echo $SHA > $DIR/.deployed/frontend" || echo "WARNING: could not write the frontend marker (next deploy will rebuild frontend)" ;; esac
   if [ "$SWEEP" -eq 1 ]; then
     bash tools/post-deploy-sweep.sh; RC=$?
     SWEEPRES="$RC fail(s)"
