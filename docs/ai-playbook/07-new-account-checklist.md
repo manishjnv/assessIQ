@@ -2,6 +2,18 @@
 
 Why this page exists: a second Claude account (for example when the first account's tokens run out) shares nothing with the first except what is in the repo. Private memory (`~/.claude/projects/...`) and the private global `~/.claude/CLAUDE.md` do not travel. The repo does.
 
+## Same machine, second account (the owner's current setup)
+
+The owner signs in with another Claude account on the SAME computer. Then local files are shared: private memory under `~/.claude/projects/`, `.env`, the ssh alias, `gh` login, `agy`, `codex`, the Cloudflare token lines and the local clone. Nothing needs copying. The repo playbook is the backup for a different machine. The account email addresses are in private memory, not in this public repo.
+
+Risk: two sessions on one clone at the same time. This already happened (S19 to S22): one session staged files while another committed. Rules:
+1. Run `git status` first. Edits you did not make mean another session is active: do not touch those files.
+2. Commit with named paths (`git commit -- <paths>`), never `git add -A`. The other session's staged files stay out of your commit.
+3. For long parallel work use a separate worktree or a second clone, and merge through `main`.
+4. Do not both edit `CLAUDE.md`, `docs/ROADMAP.md` or `docs/SESSION_STATE.md` at once: one session owns them per hour; the other sends rows through the handoff.
+5. Record who is working in the top block of `docs/SESSION_STATE.md` ("S22 running, files: ...").
+6. The push hook needs a fresh `pnpm verify` stamp; any edit after verify invalidates it, so verify, commit, then push in separate commands.
+
 ## What travels (in the repo)
 
 - `CLAUDE.md` (rules, load-bearing paths, speed rules, routing table) loads by itself.
