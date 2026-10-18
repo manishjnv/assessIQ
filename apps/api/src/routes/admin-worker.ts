@@ -150,7 +150,11 @@ export async function registerAdminWorkerRoutes(
 ): Promise<void> {
   // Resolve queue once per registration — either the injected test instance
   // or the lazy module-level default built from config.REDIS_URL.
-  const q = injectedQueue ?? _getDefaultQueue();
+  // Lazy: the default queue (a real Redis connection) opens on the first request, not when
+  // the server is built. Tests that build the server without calling a worker route open no
+  // connection (S21: an eager client retried localhost after the test file ended and failed
+  // the apps/api CI step with an unhandled ECONNREFUSED).
+  const q = (): Queue => injectedQueue ?? _getDefaultQueue();
 
   // Per-registration stats cache. When a Queue is injected (tests), each
   // test app gets its own independent cache — no cross-test bleed.
@@ -168,7 +172,7 @@ export async function registerAdminWorkerRoutes(
       }
 
       // Single round-trip — getJobCounts batches all state buckets in one call.
-      const counts = await q.getJobCounts(
+      const counts = await q().getJobCounts(
         'waiting',
         'active',
         'delayed',
@@ -177,7 +181,7 @@ export async function registerAdminWorkerRoutes(
       );
 
       const payload: StatsPayload = {
-        queue: q.name,
+        queue: q().name,
         fetched_at: new Date(now).toISOString(),
         cached: false,
         counts: {
@@ -209,11 +213,11 @@ export async function registerAdminWorkerRoutes(
     '/api/admin/worker/failed',
     { preHandler: adminOnly },
     async () => {
-      const jobs = await q.getJobs(['failed'], 0, 49);
+      const jobs = await q().getJobs(['failed'], 0, 49);
       const now = new Date().toISOString();
 
       return {
-        queue: q.name,
+        queue: q().name,
         fetched_at: now,
         jobs: jobs.map((job) => {
           // Stack is an array of strings; take the last entry and truncate to
@@ -246,7 +250,7 @@ export async function registerAdminWorkerRoutes(
     async (req, reply) => {
       const { id } = parseParams(jobIdParams, req.params);
 
-      const job = await q.getJob(id);
+      const job = await q().getJob(id);
 
       if (job === undefined) {
         return reply.code(404).send({
