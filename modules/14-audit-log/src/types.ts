@@ -52,6 +52,8 @@ export const ACTION_CATALOG = [
   'question.created',
   'question.updated',
   'question.withdrawn',
+  // EXP-18: review gate. Verify / Needs fix (before.review_state = previous state; bulk flag in after).
+  'question.review_changed',
   'question.takedown_propagated',
   'question.imported',
   'question_import.staged',

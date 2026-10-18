@@ -34,6 +34,11 @@ vi.mock("@assessiq/core", async (importOriginal) => {
   };
 });
 
+// EXP-18 review gate (covered by retake.test.ts against a real DB)
+vi.mock("@assessiq/assessment-lifecycle", () => ({
+  assertPoolVerifiedForInvites: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock 05-assessment-lifecycle repository (alRepo)
 vi.mock("../../../05-assessment-lifecycle/src/repository.js", () => ({
   findAssessmentById: vi.fn(),

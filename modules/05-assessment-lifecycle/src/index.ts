@@ -45,6 +45,8 @@ export {
   markInvitationViewedByToken,
 } from "./service.js";
 export type { ResolvedInvitation } from "./service.js";
+// EXP-18: review gate helper for module 06 startAttempt (QUESTIONS_NOT_VERIFIED).
+export { assertPoolVerifiedForInvites } from "./service/_shared.js";
 
 // ---------------------------------------------------------------------------
 // 2. Boundary advancement (cron-callable; BullMQ scheduling deferred)

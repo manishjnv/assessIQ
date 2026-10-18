@@ -2,17 +2,22 @@
  * EXP-18: review gate on publish. publishAssessment refuses while an active question of the
  * (pack, level) pool has review_state in_review / disputed / needs_fix. NULL (no verification concept)
  * and 'verified' do not block. Covers whole-pool, section, blueprint category and Z-43 node draws,
- * and tenant isolation. Testcontainers (postgres:16-alpine), full RLS stack.
+ * and tenant isolation. Part 2 adds the invite / resend block and the publish-versus-review race.
+ * Testcontainers (postgres:16-alpine), full RLS stack.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { randomUUID } from "node:crypto";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { ValidationError } from "@assessiq/core";
-import { createAssessment, getAssessment, publishAssessment } from "../service.js";
+// The invitation email goes through the notifications queue; the gate tests only need to count sends.
+const { sendInvitationEmail } = vi.hoisted(() => ({ sendInvitationEmail: vi.fn() }));
+vi.mock("../email.js", () => ({ sendInvitationEmail }));
+
+import { createAssessment, getAssessment, publishAssessment, inviteUsers, resendInvitation } from "../service.js";
 import { AL_ERROR_CODES } from "../types.js";
 import { createPack, addLevel, createQuestion, publishPack } from "../../../04-question-bank/src/service.js";
 
@@ -240,5 +245,114 @@ describe("EXP-18 publish review gate", () => {
     const r = await blocked(tenantB, b.id, adminB);
     expect(r.ids).toEqual([pb.ids[0]!]);
     expect(r.count).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EXP-18 part 2: invitations are blocked too, and the race with a review write is closed
+// ---------------------------------------------------------------------------
+
+async function candidate(tenantId: string): Promise<string> {
+  const id = randomUUID();
+  await sup((c) =>
+    c.query(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,$3,'Cand','candidate','active')`, [
+      id, tenantId, `c-${id.slice(0, 8)}@example.com`,
+    ]).then(() => undefined),
+  );
+  return id;
+}
+
+async function expectNotVerified(p: Promise<unknown>): Promise<Record<string, unknown>> {
+  const e = await p.catch((x: unknown) => x);
+  expect(e).toBeInstanceOf(ValidationError);
+  const d = (e as ValidationError).details as Record<string, unknown>;
+  expect(d["code"]).toBe(AL_ERROR_CODES.QUESTIONS_NOT_VERIFIED);
+  return d;
+}
+
+describe("EXP-18 invite gate", () => {
+  it("blocks inviteUsers while the frozen pool holds an unverified question, and passes once verified", async () => {
+    const p = await buildPool(tenantA, adminA, ["verified", "verified"]);
+    const a = await mkLegacy(tenantA, adminA, p);
+    await publishAssessment(tenantA, a.id, adminA);
+    const cand = await candidate(tenantA);
+
+    await setState(p.ids[1]!, "needs_fix"); // flagged after publish
+    sendInvitationEmail.mockClear();
+    const d = await expectNotVerified(inviteUsers(tenantA, a.id, [cand], adminA));
+    expect(d["question_ids"]).toEqual([p.ids[1]!]);
+    expect(sendInvitationEmail).not.toHaveBeenCalled();
+    expect(await sup((c) => c.query(`SELECT 1 FROM assessment_invitations WHERE assessment_id=$1`, [a.id]))).toHaveProperty("rowCount", 0);
+
+    await setState(p.ids[1]!, "verified");
+    const res = await inviteUsers(tenantA, a.id, [cand], adminA);
+    expect(res.invited).toHaveLength(1);
+  });
+
+  it("a NULL review_state pool still invites (existing platform questions are not backfilled)", async () => {
+    const p = await buildPool(tenantA, adminA, [undefined]);
+    const a = await mkLegacy(tenantA, adminA, p);
+    await publishAssessment(tenantA, a.id, adminA);
+    const res = await inviteUsers(tenantA, a.id, [await candidate(tenantA)], adminA);
+    expect(res.invited).toHaveLength(1);
+  });
+
+  it("a question outside the frozen pool (activated later, unverified) does not block invites", async () => {
+    const p = await buildPool(tenantA, adminA, ["verified"]);
+    const a = await mkLegacy(tenantA, adminA, p);
+    await publishAssessment(tenantA, a.id, adminA);
+    const extra = await createQuestion(
+      tenantA,
+      { pack_id: p.packId, level_id: p.levelId, type: "mcq", topic: "late", points: 5, content: { question: "late?", options: ["A", "B", "C", "D"], correct: 0, rationale: "A" } },
+      adminA,
+    );
+    await sup((c) => c.query(`UPDATE questions SET status='active', review_state='in_review' WHERE id=$1`, [extra.id]).then(() => undefined));
+    const res = await inviteUsers(tenantA, a.id, [await candidate(tenantA)], adminA);
+    expect(res.invited).toHaveLength(1);
+  });
+
+  it("blocks resend of an existing invitation when the pool is flagged afterwards", async () => {
+    const p = await buildPool(tenantA, adminA, ["verified"]);
+    const a = await mkLegacy(tenantA, adminA, p);
+    await publishAssessment(tenantA, a.id, adminA);
+    const inv = (await inviteUsers(tenantA, a.id, [await candidate(tenantA)], adminA)).invited[0]!;
+    await setState(p.ids[0]!, "in_review");
+    await expectNotVerified(resendInvitation(tenantA, inv.id, adminA));
+  });
+});
+
+describe("EXP-18 race: publish versus a concurrent review write", () => {
+  it("publish waits for an uncommitted Needs fix, then sees it and refuses; the draft stays a draft", async () => {
+    const p = await buildPool(tenantA, adminA, ["verified", "verified"]);
+    const a = await mkLegacy(tenantA, adminA, p);
+
+    const reviewer = new Client({ connectionString: url });
+    await reviewer.connect();
+    try {
+      await reviewer.query("BEGIN");
+      await reviewer.query(`UPDATE questions SET review_state='needs_fix' WHERE id=$1`, [p.ids[0]!]);
+
+      let settled = false;
+      const publish = publishAssessment(tenantA, a.id, adminA).finally(() => { settled = true; });
+      publish.catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 700));
+      expect(settled).toBe(false); // blocked on the pool share-lock, not racing past it
+
+      await reviewer.query("COMMIT");
+      const d = await expectNotVerified(publish);
+      expect(d["question_ids"]).toEqual([p.ids[0]!]);
+    } finally {
+      await reviewer.end();
+    }
+    expect((await getAssessment(tenantA, a.id)).status).toBe("draft");
+    expect(await sup((c) => c.query(`SELECT 1 FROM assessment_frozen_pool WHERE assessment_id=$1`, [a.id]))).toHaveProperty("rowCount", 0);
+  });
+
+  it("a review write committed after publish is seen by the invite gate (no stale pass)", async () => {
+    const p = await buildPool(tenantA, adminA, ["verified"]);
+    const a = await mkLegacy(tenantA, adminA, p);
+    await publishAssessment(tenantA, a.id, adminA);
+    await setState(p.ids[0]!, "disputed");
+    await expectNotVerified(inviteUsers(tenantA, a.id, [await candidate(tenantA)], adminA));
   });
 });

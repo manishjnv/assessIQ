@@ -46,6 +46,8 @@ export {
   bulkGenerateMissingRubrics,
 } from "./service.js";
 export { sweepStaleGenerationAttempts } from "./service/generation-async.js";
+// EXP-18 part 2: review gate (Verify / Needs fix / Withdraw / bulk Verify all).
+export { reviewQuestion, bulkVerifyPack, getPackReview, assertReviewRole, type ReviewAction, type ReviewFilter, type PackReview, type ReviewItem, type ReviewResult, type ReviewActor } from "./service/review.js";
 // EXP-6: exam blueprints (module 05 builds a mock from one).
 export { listExamBlueprints, getExamBlueprint, type ExamBlueprint, type ExamBlueprintSection } from "./exam-blueprints.js";
 

@@ -10,6 +10,7 @@ import {
 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
+import type { PoolClient } from "pg";
 import { propagateTakedown } from "../clone/takedown.js";
 import { rubricRequiredFor, PackImportSchema, QB_ERROR_CODES } from "../types.js";
 import * as repo from "../repository.js";
@@ -313,8 +314,23 @@ export async function updateQuestion(
           : null;
     }
     if (versionBump) repoPatch.version = current.version + 1;
+    // EXP-18: a verified key that is edited is no longer verified. NULL stays NULL.
+    const resetReview = versionBump && current.review_state === "verified";
+    if (resetReview) repoPatch.review_state = "in_review";
 
     const updated = await repo.updateQuestionRow(client, id, repoPatch);
+    if (resetReview) {
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId: savedByUserId,
+        action: "question.review_changed",
+        entityType: "question",
+        entityId: id,
+        before: { review_state: "verified" },
+        after: { review_state: "in_review", action: "content_edited", bulk: false },
+      });
+    }
 
     // Audit the field-level change. Avoid logging full content/rubric JSON
     // (potentially KBs) — record only which fields changed plus version bump.
@@ -353,25 +369,43 @@ export async function withdrawQuestion(
 ): Promise<{ id: string; status: "archived"; rights_status: "withdrawn" }> {
   return withTenant(tenantId, async (client) => {
     const current = await repo.findQuestionById(client, id);
-    const outcome = current === null ? "missing" : await repo.withdrawQuestionRow(client, id);
-    if (outcome === "missing" || current === null) {
+    if (current === null) {
       throw new NotFoundError(`Question not found: ${id}`, { details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND } });
     }
-    if (outcome === "already") {
-      // Backfill: a master withdrawn before EXP-19 (or with a later clone) still reaches its clones.
-      await propagateTakedown(client, id, tenantId);
-      return { id, status: "archived", rights_status: "withdrawn" };
-    }
-    await auditInTx(client, {
-      tenantId, actorKind: "user", actorUserId, action: "question.withdrawn",
-      entityType: "question", entityId: id,
-      before: { status: current.status },
-      after: { status: "archived", rights_status: "withdrawn" },
-    });
-    // EXP-19: same tx, mark every tenant clone withdrawn (one audit row per affected tenant).
+    return withdrawInTx(client, tenantId, actorUserId, current);
+  });
+}
+
+/**
+ * The withdraw steps on the caller's tenant tx (shared with the EXP-18 review screen, which has
+ * already checked who may act). Audit row carries the previous review_state (EXP-18).
+ */
+export async function withdrawInTx(
+  client: PoolClient,
+  tenantId: string,
+  actorUserId: string,
+  current: Question,
+  note?: string,
+): Promise<{ id: string; status: "archived"; rights_status: "withdrawn" }> {
+  const id = current.id;
+  const outcome = await repo.withdrawQuestionRow(client, id);
+  if (outcome === "missing") {
+    throw new NotFoundError(`Question not found: ${id}`, { details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND } });
+  }
+  if (outcome === "already") {
+    // Backfill: a master withdrawn before EXP-19 (or with a later clone) still reaches its clones.
     await propagateTakedown(client, id, tenantId);
     return { id, status: "archived", rights_status: "withdrawn" };
+  }
+  await auditInTx(client, {
+    tenantId, actorKind: "user", actorUserId, action: "question.withdrawn",
+    entityType: "question", entityId: id,
+    before: { status: current.status, review_state: current.review_state },
+    after: { status: "archived", rights_status: "withdrawn", ...(note !== undefined ? { note } : {}) },
   });
+  // EXP-19: same tx, mark every tenant clone withdrawn (one audit row per affected tenant).
+  await propagateTakedown(client, id, tenantId);
+  return { id, status: "archived", rights_status: "withdrawn" };
 }
 
 // ---------------------------------------------------------------------------
@@ -608,6 +642,7 @@ export async function bulkImport(
         content: qInput.content,
         ...(qInput.rubric !== undefined && qInput.rubric !== null ? { rubric: qInput.rubric } : {}),
         createdBy: createdByUserId,
+        reviewState: "in_review", // EXP-18: imports start unverified
       });
 
       // Upsert tags — count created vs reused

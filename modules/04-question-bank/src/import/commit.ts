@@ -55,6 +55,7 @@ export async function commitImport(
       await repo.insertQuestion(client, {
         id, packId, levelId: levelIds.get(q.level)!, type: q.type as QuestionType,
         topic: q.topic, points: q.points, negativeMarks: q.negative_marks, content: q.content, createdBy: actorUserId,
+        reviewState: "in_review", // EXP-18: every import starts unverified
         ...(m ? {
           origin: m.origin, rightsStatus: m.rightsStatus, difficultyEst: m.difficultyEst, languagePrimary: m.language,
           sourceExtra: {

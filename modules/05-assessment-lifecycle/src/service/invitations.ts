@@ -9,7 +9,7 @@ import { sendInvitationEmail } from "../email.js";
 import type { SendAssessmentInvitationInput } from "../email.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { Assessment, AssessmentInvitation, AssessmentStatus, BulkResendResult, ListInvitationsInput, PaginatedInvitations, InviteUsersResult } from "../types.js";
-import { log, BULK_RESEND_MAX, BULK_RESEND_RECENT_MINUTES, PUBLIC_URL, assertPageSize } from "./_shared.js";
+import { log, BULK_RESEND_MAX, BULK_RESEND_RECENT_MINUTES, PUBLIC_URL, assertPageSize, assertPoolVerifiedForInvites } from "./_shared.js";
 
 // ===========================================================================
 // INVITATION OPERATIONS
@@ -217,6 +217,7 @@ async function reissueForResend(
     const assessment = await repo.findAssessmentById(client, invitation.assessment_id);
     if (assessment === null) throw assessmentNotFound(invitation.assessment_id);
     assertAssessmentAcceptsResend(assessment);
+    await assertPoolVerifiedForInvites(client, assessment, "resend the invitation"); // EXP-18
 
     if (await candidateHasStarted(client, invitation)) throw alreadyStartedError();
 
@@ -337,6 +338,7 @@ export async function resendInvitations(
     const assessment = await repo.findAssessmentById(client, assessmentId);
     if (assessment === null) throw assessmentNotFound(assessmentId);
     assertAssessmentAcceptsResend(assessment);
+    await assertPoolVerifiedForInvites(client, assessment, "resend invitations"); // EXP-18: fail once, not 200 skips
     return repo.listResendableInvitationIds(
       client,
       assessmentId,
@@ -408,6 +410,9 @@ export async function inviteUsers(
         { details: { code: AL_ERROR_CODES.INVALID_STATE_TRANSITION, current: assessment.status } },
       );
     }
+
+    // EXP-18: no invitation while the pool holds a question that is in_review, disputed or needs_fix.
+    await assertPoolVerifiedForInvites(client, assessment);
 
     const invited: AssessmentInvitation[] = [];
     const skipped: Array<{ userId: string; reason: string }> = [];
@@ -748,6 +753,7 @@ export async function reopenInvitationForRetake(
     const assessment = await repo.findAssessmentById(client, current.assessment_id);
     if (assessment === null) throw assessmentNotFound(current.assessment_id);
     assertAssessmentAcceptsResend(assessment);
+    await assertPoolVerifiedForInvites(client, assessment, "re-open the invitation"); // EXP-18
 
     const usage = await repo.getAttemptUsage(client, current.assessment_id, current.user_id);
     if (current.status !== "submitted" || usage.unfinished) {

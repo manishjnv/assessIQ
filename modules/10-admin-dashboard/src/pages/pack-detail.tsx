@@ -479,6 +479,15 @@ export function AdminPackDetail(): React.ReactElement {
             >
               ← Back
             </button>
+            <HelpTip helpId="admin.question_bank.pack.review">
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                onClick={() => navigate(`/admin/question-bank/${pack.id}/review`)}
+              >
+                Review questions
+              </button>
+            </HelpTip>
             {isSuperAdmin && (
               <HelpTip helpId="admin.question_bank.pack.generate">
                 <button

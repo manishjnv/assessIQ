@@ -91,6 +91,7 @@ import { startGenerateDetached } from "./service/generation-async.js";
 import { registerGenerationBatchRoutes } from "./generation-batches.js";
 import { registerTaxonomyRoutes } from "./taxonomy-routes.js";
 import { registerImportRoutes } from "./import-routes.js";
+import { registerReviewRoutes } from "./review-routes.js";
 import { registerExamBlueprintRoutes } from "./exam-blueprints.js";
 
 // ---------------------------------------------------------------------------
@@ -600,6 +601,7 @@ export async function registerQuestionBankRoutes(
   // RW-55: read-only curriculum frameworks (adminOnly; RLS shows NULL-tenant + own rows).
   registerTaxonomyRoutes(app, adminOnly, superAdminOnly);
   registerImportRoutes(app, superAdminOnly); // RW-58
+  registerReviewRoutes(app, adminOnly); // EXP-18 part 2 (admin and super_admin; the service splits platform vs organisation)
   registerExamBlueprintRoutes(app, adminOnly, superAdminOnly); // EXP-6
 
   // -------------------------------------------------------------------------

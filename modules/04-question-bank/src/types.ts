@@ -489,6 +489,12 @@ export const QB_ERROR_CODES = {
   RIGHTS_NOT_CLEARED: "RIGHTS_NOT_CLEARED",
   /** EXP-2: a withdrawn question cannot be re-activated. */
   QUESTION_WITHDRAWN: "QUESTION_WITHDRAWN",
+  /** EXP-18: verify / needs_fix on an archived question. */
+  QUESTION_ARCHIVED: "QUESTION_ARCHIVED",
+  /** EXP-18: Needs fix needs a note. */
+  REVIEW_NOTE_REQUIRED: "REVIEW_NOTE_REQUIRED",
+  /** EXP-18: bulk verify count differs from the count the admin confirmed. */
+  REVIEW_COUNT_CHANGED: "REVIEW_COUNT_CHANGED",
   INVALID_BULK_SIZE: "INVALID_BULK_SIZE",
   INVALID_STATUS_TRANSITION: "INVALID_STATUS_TRANSITION",
   UNSUPPORTED_TYPE_FOR_RUBRIC: "UNSUPPORTED_TYPE_FOR_RUBRIC",

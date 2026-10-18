@@ -1717,3 +1717,15 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 **Not included.** Z-24 Home checklist, Z-46, Home primary button.
 
 **Verify.** `admin-nav.test.tsx`; `signed-in-smoke.spec.ts` (all old URLs, strip marks the right tab, secret card only on Webhooks); `a11y-authed.spec.ts` axe on `/admin/reports` and `/admin/integrations/webhooks`. **Rollback:** revert the commit; migration 0204 only inserts rows and is harmless to leave.
+
+## Question review page (EXP-18 part 2, 2026-10-18)
+
+- **What.** New page `/admin/question-bank/:id/review` (`AdminQuestionReview`, `modules/10-admin-dashboard/src/pages/question-review.tsx`). A button "Review questions" on the question set page opens it. The page has the help page key `admin.question_bank.review`.
+- **Layout.** Heading "Review questions." in the serif style, a mono meta line with the counts, a row of filter buttons ("Needs review" is the default, then In review, Needs fix, Disputed, Verified, Not set, All; each shows its count), then one card for each question. A card shows: topic, type and points; the review state and the rights status as pills; the question; the answer key (options with the correct ones marked, or the stored key fields, the rubric and the full content in disclosure blocks); the rationale; the source reference with a link when the URL starts with `https://`. Actions: Verify (primary), Needs fix (outline), Withdraw (ghost, danger colour).
+- **Dialogs.** Needs fix opens a modal with a required note (max 1000 characters). Withdraw uses the confirm dialog (danger). "Verify all in this question set (N)" in the header uses the confirm dialog with the count; the request carries `expected_count`, so a changed count stops the action and the page shows the server message.
+- **Who sees it.** Any admin. The server decides: the super admin reviews platform questions, an organisation admin reviews that organisation's questions. A refused call shows the server message in an alert line.
+- **Words.** "Question set" for a pack (glossary, `docs/10-branding-guideline.md` § 2.5). No exclamation marks.
+- **Help ids (6).** `admin.question_bank.pack.review`, `admin.question_bank.review.filter`, `.verify`, `.needs_fix`, `.withdraw`, `.verify_all`. They come from `modules/16-help-system/content/en/admin.yml` and the regenerated seed (no migration).
+- **Considered and rejected.** Putting the actions into the existing pack page (the page is already long and the review task is its own flow). Inline editing of a question in the review card (the question editor exists). A diff view of a flagged question.
+- **Not included.** Showing the saved Needs fix note on the card or in the question editor, keyboard shortcuts, a review queue across all question sets.
+- **Downstream.** `apps/web/src/App.tsx` route (before `/admin/question-bank/:id`). API in `docs/03-api-contract.md` § "Question review routes".

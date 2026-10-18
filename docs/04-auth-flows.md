@@ -1357,6 +1357,15 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 
 > **TODO (operator, out of band):** Apply the Cloudflare Transform Rule to inject `x-origin-verify: <secret>` on every request to the zone. This is a Cloudflare dashboard action. No code in this repo applies it. Until you apply it, `ORIGIN_TRUST_MODE=off` is the correct setting.
 
+### Question review authorization (EXP-18 part 2, 2026-10-18)
+
+- **What.** Three new admin routes (`GET /api/admin/packs/:id/review`, `POST /api/admin/questions/:id/review`, `POST /api/admin/packs/:id/review/verify-all`) decide which questions candidates may receive. They use the `adminOnly` chain. The role gate is also in the handler (`assertReviewRole`) and in the service (`service/review.ts`).
+- **Rules.** Role `admin` or `super_admin`. The question set must belong to the session tenant (`question_packs.tenant_id`, checked in the service on top of RLS). A platform question set (tenant slug `platform`) needs `super_admin`. An organisation question set needs `admin`; a `super_admin` session on an organisation tenant gets `403`. A candidate role gets `403` before any lookup.
+- **Why twice.** Middleware alone fails open if a route is registered on the wrong chain. RLS alone hides a row but does not say why. The service check keeps the rule when the function is called from a job or a test.
+- **No new MFA rule.** These actions do not need fresh MFA: they change a review flag and are fully audited (`question.review_changed`). Withdraw by an organisation admin affects only that organisation.
+- **Considered and rejected.** A new `reviewer` role (decommissioned, RV60). Letting a `super_admin` review any organisation's questions (cross-tenant power stays in the platform routes).
+- **Not included.** Two-person review.
+
 ## Decisions and history
 
 This section holds the decisions that shaped the flows above. Each row names the date, the decision and the section that explains it.
