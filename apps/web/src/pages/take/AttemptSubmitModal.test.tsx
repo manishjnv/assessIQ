@@ -2,7 +2,7 @@
  * R4 - submit confirmation modal in AttemptPage (replaces window.confirm).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 const submitAttempt = vi.fn();
@@ -128,9 +128,14 @@ describe('Attempt submit modal', () => {
 
   it('N and P keys move between questions', async () => {
     renderAttempt();
+    // findBy resolves on the DOM change, which can come before React runs the
+    // passive effect that (re)binds the keydown listener. Flush effects first.
+    const settle = (): Promise<void> => act(async () => {});
     await screen.findByText('Question 1 of 4');
+    await settle();
     fireEvent.keyDown(document.body, { key: 'n' });
     await screen.findByText('Question 2 of 4');
+    await settle();
     fireEvent.keyDown(document.body, { key: 'p' });
     await screen.findByText('Question 1 of 4');
   });

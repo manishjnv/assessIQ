@@ -127,11 +127,16 @@ for b in $PENDING; do
 set -eu
 cd /srv/assessiq
 P="docker exec -i assessiq-postgres psql -U assessiq -d assessiq -v ON_ERROR_STOP=1"
-$P < "$1"
 sum="$(sha256sum "$1" | cut -d' ' -f1)"
-$P <<SQL
-INSERT INTO schema_migrations(version, checksum) VALUES ('$2', '$sum');
-SQL
+INS="INSERT INTO schema_migrations(version, checksum) VALUES ('$2', '$sum');"
+if grep -qiE '^[[:space:]]*(BEGIN|COMMIT|START[[:space:]]+TRANSACTION)\b' "$1"; then
+  # own transaction control: old two-step path
+  $P < "$1"
+  echo "$INS" | $P
+else
+  # no own transaction: file + schema_migrations insert in ONE transaction (all or nothing)
+  { cat "$1"; printf '\n;\n%s\n' "$INS"; } | $P -1
+fi
 REMOTE
 done
 HELPQ="$PSQL -tA -c 'SELECT count(*) FROM help_content'"
