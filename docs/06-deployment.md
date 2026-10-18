@@ -2554,6 +2554,14 @@ Order matters: 0186 must apply before the api restart because `getUsage` now sel
 
 
 
+### Hotfix deploy (2026-10-18, HEAD `36d3a74`): admin blank page after login, frontend only
+
+**What changed:** `modules/10-admin-dashboard/package.json` (`react-router-dom` `^6.27.0` to `^6.30.6`), `pnpm-lock.yaml` (one router version, 6.30.6), new guard test `tools/__tests__/single-router-copy.test.ts`. Only `assessiq-frontend` was rebuilt (build exit code checked before the recreate) and recreated; api, worker, marketing, postgres and redis were not touched. No migrations.
+**Why:** the S17 Dependabot pass left the admin module on the older router, so the bundle held two router copies and `/admin` rendered blank after sign-in (RCA 2026-10-18). The S20 sweep missed it because nothing signed in.
+**Considered and rejected:** rolling the frontend back to the S16 image (it still carried the same lockfile split); a pnpm `overrides` entry for the router (it hides the mismatch in package files and the next bump would split again, the guard test is the safer fix).
+**Verification:** live `/admin` entry assets all load and the vendor chunk holds one router copy (the broken build held two); `/`, `/admin/login`, `/candidate/login`, `/take`, `/api/ready` return 200; no browser error entries in the API log for 5 minutes after the deploy; containers healthy. NOT verified by Claude: a signed-in render of `/admin` (no browser session available); the owner retests, and Z-47 adds an automated signed-in check.
+**Rollback:** `git revert 36d3a74`, rebuild `assessiq-frontend`. This brings the blank page back, so use it only if the new build fails differently.
+
 ### S20 deploy record (2026-10-18, HEAD `bc7b335`): batch 8 (Z-7, Z-9, Z-10, Z-16, EXP-19, Z-37, EXP-5, EXP-6)
 
 *Type: reference.*
