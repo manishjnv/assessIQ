@@ -7,8 +7,9 @@
 //           Always shows "If that email can sign in, we've sent a 6-digit code"
 //           (anti-enumeration — same message regardless of eligibility).
 //   Step 2: 6-digit code input → POST /api/auth/login/email/verify
+//           A correct 6th digit signs in at once (no extra click).
 //           On ok:true  → window.location.href = redirectTo (hard nav, same as select-identity).
-//           On ok:false → show generic "Invalid or expired code. Try again."
+//           On ok:false → show "That code is not right. Check it and try again."
 //                         (server enforces ≤5 attempts + 10-min TTL lockout).
 //
 // No new ui-system primitives — reuses Button, Chip, Logo from @assessiq/ui-system,
@@ -28,6 +29,8 @@ const SERIF_H1: CSSProperties = {
 };
 
 type Step = 'email' | 'code';
+
+const WRONG_CODE_MSG = 'That code is not right. Check it and try again.';
 
 export function AdminEmailOtp(): React.JSX.Element {
   const [step, setStep] = useState<Step>('email');
@@ -59,8 +62,7 @@ export function AdminEmailOtp(): React.JSX.Element {
     setStep('code');
   }
 
-  async function handleCodeSubmit(e: FormEvent): Promise<void> {
-    e.preventDefault();
+  async function verifyCode(value: string): Promise<void> {
     if (submitting) return;
     setSubmitting(true);
     setCodeError(null);
@@ -68,7 +70,7 @@ export function AdminEmailOtp(): React.JSX.Element {
     try {
       const data = await api<{ ok: boolean; redirectTo?: string; error?: string }>(
         '/auth/login/email/verify',
-        { method: 'POST', cache: 'no-store', body: JSON.stringify({ email, code }) },
+        { method: 'POST', cache: 'no-store', body: JSON.stringify({ email, code: value }) },
       );
 
       if (data.ok && typeof data.redirectTo === 'string') {
@@ -78,14 +80,13 @@ export function AdminEmailOtp(): React.JSX.Element {
         return;
       }
 
-      // ok:false → generic error (server enforces lockout after ≤5 attempts).
-      setCodeError('That code is not valid or has expired. Try again.');
+      // ok:false → one generic message (server enforces lockout after ≤5 attempts;
+      // wrong, expired and locked are never told apart — anti-enumeration).
+      setCodeError(WRONG_CODE_MSG);
     } catch (err) {
       // A non-2xx reply (ok:false, lockout) is the same generic invalid-code message.
       setCodeError(
-        err instanceof ApiCallError
-          ? 'That code is not valid or has expired. Try again.'
-          : 'Something went wrong. Please try again.',
+        err instanceof ApiCallError ? WRONG_CODE_MSG : 'Something went wrong. Please try again.',
       );
     } finally {
       setSubmitting(false);
@@ -176,7 +177,7 @@ export function AdminEmailOtp(): React.JSX.Element {
               The sign-in code expires in 10 minutes. You have up to 5 attempts.
             </p>
 
-            <form onSubmit={(e) => { void handleCodeSubmit(e); }}>
+            <form onSubmit={(e) => { e.preventDefault(); void verifyCode(code); }}>
               <div style={{ marginBottom: 16 }}>
                 <Field
                   label="6-digit sign-in code"
@@ -190,6 +191,8 @@ export function AdminEmailOtp(): React.JSX.Element {
                     const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                     setCode(val);
                     if (codeError !== null) setCodeError(null);
+                    // Sign in as soon as the 6th digit is typed: no extra click.
+                    if (val.length === 6) void verifyCode(val);
                   }}
                   placeholder="000000"
                   required
@@ -215,6 +218,15 @@ export function AdminEmailOtp(): React.JSX.Element {
               >
                 {submitting ? 'Verifying…' : 'Verify'}
               </Button>
+              <p style={{ marginTop: 12, textAlign: 'center', fontSize: 14 }}>
+                <button
+                  type="button"
+                  onClick={() => { setStep('email'); setCode(''); setCodeError(null); }}
+                  style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', color: 'var(--aiq-color-accent)', fontSize: 14 }}
+                >
+                  Send a new code
+                </button>
+              </p>
             </form>
           </>
         )}

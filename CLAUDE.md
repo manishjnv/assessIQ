@@ -89,6 +89,8 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
    - **Bypass-permissions does NOT authorize destructive ops on this VPS.** Local bypass skips local prompts; it does not excuse touching shared infra. STOP and ask the user before any `rm`, `docker rm/stop` of non-`assessiq-*` containers, `systemctl stop` of non-`assessiq-*` units, or rewrites of shared nginx/cron/systemd configs.
    - Any deploy diff or shell sequence that fails the additive-only check gets bounced in Phase 3 (or routed through `codex:rescue` for shared-infra-touching changes).
 
+   _Rules A and B_ (PROJECT_BRAIN.md): never delete a dormant feature without review and owner approval (Rule A). Find the older similar task first and fill the `**Old task or feature checked:**` handoff line (Rule B).
+
 9. **Definition of Done — commit, deploy, document, handoff.** No implementation is complete until all four steps are done. Treat each as a Phase 5 verification gate; do not claim success to the user if any step is missing.
 
     1. **Commit** to `manishjnv/assessIQ`. Conventional message; references the relevant module/doc; uses the noreply env-var pattern from global CLAUDE.md.
@@ -109,7 +111,7 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
        | Bug fix | append to `docs/RCA_LOG.md` |
 
        "Detail" means the doc update lets a future session resume the change **without reading the diff.** Cover all five: (a) what changed, (b) **why** it changed, (c) what was considered and rejected, (d) what is explicitly NOT included, (e) downstream impact on other modules/docs. Bare "added endpoint X" lines fail the requirement.
-    4. **Handoff** via `docs/SESSION_STATE.md` per global Phase 6 — headline, commits, tests, next, open questions, plus the 4-line agent-utilization footer.
+    4. **Handoff** via `docs/SESSION_STATE.md` per global Phase 6 — headline, commits, tests, next, open questions, plus the agent-utilization footer (global rule; 4 model lines plus routing lines).
 
     Order matters: **commit → deploy → document → handoff.** Commit before deploy so the deploy is reproducible from a known SHA; deploy before final docs so docs reflect what's actually live; handoff last so it summarizes a completed loop. For multi-session features, each session produces its own commit / deploy / doc / handoff — never batch four sessions of work into one mega-handoff.
 
@@ -136,7 +138,7 @@ Top section ≤ 30 lines, detail sections below as long as needed.
 - codex:rescue: <accepted / revised / rejected, or `n/a — <reason>`>
 ```
 
-The 4-line agent-utilization footer is mandatory (global rule). Missing footer = incomplete session.
+The agent-utilization footer is mandatory (global rule). Missing footer = incomplete session.
 
 ## RCA / incident log — `docs/RCA_LOG.md`
 
@@ -176,7 +178,6 @@ Functionality first. Test enough to prove the feature works (happy path and main
 ## Caveats / sharp edges
 
 - **Agent worktrees pile up under `.claude/worktrees/` (31 GB, 91 folders on 2026-10-15).** Every session that used `isolation: "worktree"` or `superpowers:using-git-worktrees` must remove its worktrees at Phase 6. On Windows `git worktree remove --force` fails with "Directory not empty" (pnpm links, long paths): delete the folder with `cmd /c rmdir /s /q <path>` from PowerShell, then `git worktree prune`. Before deleting, check `git -C <wt> status --porcelain`; a file whose blob is not in `git log main --find-object=<hash>` is unmerged work. Never touch `docs/`, `.git`, `apps`, `modules`, `tools`, `.agent`.
-- A literal directory named `{docs,modules,infra}/` exists at the repo root — almost certainly a brace-expansion accident from a `mkdir` shell quoting bug. **Confirm with the user before removing it** in case it shadows real work.
 - The Phase 1 architecture is *intentional* — the temptation to "fix" sync-on-click grading by adding a worker means you're solving the wrong problem. Re-read `docs/05-ai-pipeline.md` § Compliance frame before suggesting any async grading.
 - Three plugins (Superpowers, claude-mem, your global playbook) all want to drive workflow. Skills are namespaced — `superpowers:*`, `claude-mem:*`, `codex:*`; the global playbook has none. The table above is the tiebreaker. If two skills auto-fire on the same trigger, the table wins; otherwise prefer the global playbook over Superpowers.
 

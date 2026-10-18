@@ -314,7 +314,14 @@ export async function queryActivityFeed(
         WHEN u.role = 'candidate' THEN 'candidate'
         ELSE 'system'
       END                                                            AS actor_role,
-      COALESCE(u.name, u.email, al.actor_kind)                      AS actor_label,
+      CASE
+        -- Q18: legacy reviewer actor (role removed, RV60) -> neutral label, not a name.
+        WHEN al.actor_kind = 'user' AND u.role = 'reviewer' THEN 'Former reviewer'
+        -- Q19: user actor the tenant RLS hides = platform staff acting in this company.
+        WHEN al.actor_kind = 'user' AND al.actor_user_id IS NOT NULL AND u.id IS NULL
+          THEN 'AssessIQ staff'
+        ELSE COALESCE(u.name, u.email, al.actor_kind)
+      END                                                            AS actor_label,
       al.action                                                      AS action,
       al.entity_type                                                 AS target_type,
       al.entity_id::text                                             AS target_id,
