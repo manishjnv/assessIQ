@@ -11,7 +11,8 @@
     "./redis": "./src/redis.ts",
     "./escape": "./src/escape.ts",
     "./hash": "./src/hash.ts",
-    "./share-links": "./src/share-links.ts"
+    "./share-links": "./src/share-links.ts",
+    "./feedback-copy": "./src/feedback-copy.ts"
   },
   "dependencies": {
     "ioredis": "^5.4.1"

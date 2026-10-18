@@ -16,6 +16,7 @@
  */
 
 import type { PoolClient } from "pg";
+import { nodeScopeArgs, taxonomyDrawPredicate, type NodeScope } from "../../04-question-bank/src/taxonomy-nodes.js";
 import type {
   Attempt,
   AttemptAnswer,
@@ -925,9 +926,24 @@ export async function listActiveQuestionPoolForCriterion(
   packId: string,
   levelId: string,
   domainId: string,
-  categoryId: string,
+  categoryId: string | undefined,
   type: string,
+  node?: NodeScope,
 ): Promise<Array<{ id: string; version: number }>> {
+  if (node !== undefined) {
+    // Z-43: taxonomy-node criterion. Pack and level still bound the pool.
+    const r = await client.query<{ id: string; version: number }>(
+      `SELECT q.id, MAX(qv.version)::int AS version
+       FROM questions q
+       JOIN question_versions qv ON qv.question_id = q.id
+       WHERE q.pack_id = $1 AND q.level_id = $2 AND q.type = $3 AND q.status = 'active'
+         AND ${taxonomyDrawPredicate("q", "$4", "$5", "$6")}
+       GROUP BY q.id
+       ORDER BY q.id ASC`,
+      [packId, levelId, type, ...nodeScopeArgs(node)],
+    );
+    return r.rows;
+  }
   const result = await client.query<{ id: string; version: number }>(
     `SELECT q.id, MAX(qv.version)::int AS version
      FROM questions q
@@ -998,9 +1014,23 @@ export async function listFrozenPoolForCriterion(
   client: PoolClient,
   assessmentId: string,
   domainId: string,
-  categoryId: string,
+  categoryId: string | undefined,
   type: string,
+  node?: NodeScope,
 ): Promise<Array<{ id: string; version: number }>> {
+  if (node !== undefined) {
+    // Z-43: frozen set, re-filtered by taxonomy link (read live) and difficulty.
+    const r = await client.query<{ id: string; version: number }>(
+      `SELECT fp.question_id AS id, fp.question_version AS version
+         FROM assessment_frozen_pool fp
+         JOIN questions q ON q.id = fp.question_id
+        WHERE fp.assessment_id = $1 AND fp.type = $2
+          AND ${taxonomyDrawPredicate("q", "$3", "$4", "$5")}
+        ORDER BY fp.question_id ASC`,
+      [assessmentId, type, ...nodeScopeArgs(node)],
+    );
+    return r.rows;
+  }
   const result = await client.query<{ id: string; version: number }>(
     `SELECT question_id AS id, question_version AS version
        FROM assessment_frozen_pool

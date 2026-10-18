@@ -745,6 +745,7 @@ ALTER TABLE categories ADD COLUMN IF NOT EXISTS node_id uuid REFERENCES taxonomy
   - INSERT, UPDATE and DELETE need `tenant_id IS NOT NULL AND tenant_id = app.current_tenant`.
   - The app role can never write a NULL-tenant row.
 - Writes to NULL-tenant rows go through `withSystemRole` from super-admin code. Those writes are audited.
+- **Z-43 draw rule.** An assessment blueprint criterion can select questions by taxonomy node. The shared predicate is `taxonomyDrawPredicate` in `modules/04-question-bank/src/taxonomy-nodes.ts`: a recursive CTE over `taxonomy_nodes.parent_id` (depth cap 10, so it stays inside one framework), joined to `question_taxonomy`, plus an optional `difficulty_est` range. No schema change and no migration. Modules 05 and 06 call it; no new table. Rejected: a closure table (extra table needing tenant_id and RLS for a tree of a few hundred nodes) and storing the resolved question ids in the blueprint (breaks the live pool).
 - `question_taxonomy` uses the JOIN variant of `question_tags` (`0014`): `EXISTS (questions JOIN question_packs ... p.tenant_id = app.current_tenant)`. It has one policy for reads and one for INSERT. `tools/lint-rls-policies.ts` lists it in `JOIN_RLS_TABLES`.
 - Review hardening (commit `9e6ded9`):
   - The UPDATE policies on `frameworks` and `taxonomy_nodes` carry an explicit `WITH CHECK` with the same own-tenant predicate.

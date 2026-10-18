@@ -5,6 +5,7 @@ import { describe, expect, it, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { ResultSummary } from '../components';
 import { certificateRuleText } from '../copy';
+import { feedbackSentence } from '@assessiq/core/feedback-copy';
 
 afterEach(cleanup);
 
@@ -123,6 +124,29 @@ describe('ResultSummary', () => {
     );
     expect(container.textContent ?? '').not.toMatch(/band|breakdown|insight|percentile|strength|justification/i);
   });
+  describe('Z-44 feedback sentence', () => {
+    it.each(['right_wrong', 'with_expected_answer', 'with_ai_justification'] as const)(
+      'shows the shared sentence for %s (full and compact)',
+      (level) => {
+        const want = feedbackSentence(level)!;
+        for (const compact of [false, true]) {
+          const { container } = render(
+            <ResultSummary compact={compact} totalEarned={20} totalMax={60} percent={33.3} passed={false} feedbackLevel={level} />,
+          );
+          expect(container.querySelector('[data-testid="result-feedback-sentence"]')?.textContent).toBe(want);
+          cleanup();
+        }
+      },
+    );
+    it('shows nothing for none or when the level is absent', () => {
+      const a = render(<ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} feedbackLevel="none" />);
+      expect(a.container.querySelector('[data-testid="result-feedback-sentence"]')).toBeNull();
+      cleanup();
+      const b = render(<ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} />);
+      expect(b.container.querySelector('[data-testid="result-feedback-sentence"]')).toBeNull();
+    });
+  });
+
   describe('Z-9 plain result copy', () => {
     it('pass headline names the assessment and uses success tokens', () => {
       const { container } = render(

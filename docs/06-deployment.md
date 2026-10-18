@@ -370,6 +370,8 @@ curl -sI https://assessiq.automateedge.cloud/api/health  # expect HTTP/2 200
 # Verify no restart-loop: docker logs --tail 20 assessiq-api 2>&1 | grep -i 'syntaxerror\|module.*does not provide'
 ```
 
+**Signed-in smoke (Z-47, after every frontend deploy):** run `apps/web/e2e/signed-in-smoke.spec.ts` against a local stack built from the deployed SHA (`bash apps/web/e2e/local-stack.sh`, then `pnpm --filter @assessiq/web exec playwright test signed-in-smoke --project=chromium`). It signs in as a test admin and a test candidate and opens `/admin`, `/admin/assessments`, `/admin/attempts`, `/admin/question-bank`, `/admin/settings` and the candidate home. Each page needs a heading, a nav and zero console errors. The dev minter is absent in production, so this check never runs against the live site.
+
 **NOTE:** The team preserved `/srv/assessiq.old` (the rsync copy from before the conversion) at `/srv/assessiq.old` until 2026-05-10 for rollback safety. After that date, you can safely run `rm -rf` on it.
 
 ## Deploy a source-only change

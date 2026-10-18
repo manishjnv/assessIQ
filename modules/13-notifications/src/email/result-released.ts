@@ -42,6 +42,7 @@ interface ReleasedAttemptRow {
   total_max: string | null;
   pass_mark_pct: number | null;
   credential_id: string | null;
+  result_feedback_level: 'none' | 'right_wrong' | 'with_expected_answer' | 'with_ai_justification' | null;
 }
 
 /** 42 -> "42", 42.5 -> "42.5", 42.456 -> "42.46" (NUMERIC(…,2) values). */
@@ -68,7 +69,8 @@ export async function sendResultReleasedEmail(input: {
                 s.total_earned::text AS total_earned,
                 s.total_max::text    AS total_max,
                 s.pass_mark_pct,
-                c.credential_id
+                c.credential_id,
+                (SELECT ts.result_feedback_level FROM tenant_settings ts WHERE ts.tenant_id = a.tenant_id) AS result_feedback_level
            FROM attempts a
            JOIN users u        ON u.id   = a.user_id
            JOIN assessments asm ON asm.id = a.assessment_id
@@ -123,6 +125,7 @@ export async function sendResultReleasedEmail(input: {
         scoreText: `${fmt(earned)} / ${fmt(max)} (${percent}%)`,
         resultText: passed ? 'Passed' : 'Not passed',
         ...(passMark !== null ? { passMarkPct: passMark } : {}),
+        ...(row.result_feedback_level !== null ? { feedbackLevel: row.result_feedback_level } : {}),
         portalLink: portal.toString(),
         ...(row.credential_id !== null
           ? { certificateLink: new URL(`/verify/${encodeURIComponent(row.credential_id)}`, config.ASSESSIQ_BASE_URL).toString() }

@@ -8,6 +8,7 @@ import { RequireSession } from './lib/RequireSession';
 import { Expired } from './pages/take/Expired';
 import { ErrorPage as TakeError } from './pages/take/ErrorPage';
 import { TakeRoot } from './pages/take/TakeRoot';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Lazy-loaded so the admin-dashboard chunk is not downloaded on unauthenticated
 // pages (/admin/login, /candidate/login, error pages). Cuts initial bundle by
@@ -81,6 +82,7 @@ export function App(): React.JSX.Element {
         density="cozy"
         {...(tenant?.branding ? { branding: tenant.branding } : {})}
       >
+        <ErrorBoundary>
         <Suspense fallback={null}>
           {/* Admin Mobile Port (A6, 2026-05-21) deleted the M5 ViewportLock
               wrapper that intercepted /admin/* on mobile. Admin pages are
@@ -222,6 +224,7 @@ export function App(): React.JSX.Element {
           <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
+        </ErrorBoundary>
       </ThemeProvider>
     </BrowserRouter>
   );

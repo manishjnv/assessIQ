@@ -325,7 +325,14 @@ export async function startAttempt(
       | {
           domain_id: string;
           level: string;
-          criteria: Array<{ category_id: string; type: string; count: number }>;
+          criteria: Array<{
+            category_id?: string;
+            node_id?: string;
+            difficulty_min?: number;
+            difficulty_max?: number;
+            type: string;
+            count: number;
+          }>;
         }
       | undefined;
 
@@ -387,6 +394,15 @@ export async function startAttempt(
       const allPicks: Array<{ id: string; version: number }> = [];
 
       for (const criterion of blueprint.criteria) {
+        // Z-43: a node_id criterion with no category_id draws by taxonomy node (+ descendants).
+        const scope =
+          criterion.category_id === undefined && criterion.node_id !== undefined
+            ? {
+                nodeId: criterion.node_id,
+                difficultyMin: criterion.difficulty_min,
+                difficultyMax: criterion.difficulty_max,
+              }
+            : undefined;
         const criterionPool = useFrozen
           ? await repo.listFrozenPoolForCriterion(
               client,
@@ -394,6 +410,7 @@ export async function startAttempt(
               blueprint.domain_id,
               criterion.category_id,
               criterion.type,
+              scope,
             )
           : await repo.listActiveQuestionPoolForCriterion(
               client,
@@ -402,6 +419,7 @@ export async function startAttempt(
               blueprint.domain_id,
               criterion.category_id,
               criterion.type,
+              scope,
             );
 
         const picks = [...criterionPool];

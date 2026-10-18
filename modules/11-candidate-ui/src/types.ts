@@ -218,6 +218,8 @@ export interface AttemptResultReleasedWire {
   negative_marking?: ResultNegativeMarkingWire;
   /** Z-39: attempt n of m and whether another try is open. Absent on older servers. */
   retake?: ResultRetakeWire;
+  /** Z-44: tenant feedback level for the plain feedback sentence. Absent on older servers: no sentence. */
+  feedback_level?: FeedbackLevelWire;
   /** Logo L3a: organisation name and logo URL for the Submitted page; absent on older servers. */
   tenant_name?: string;
   company_logo_url?: string | null;
