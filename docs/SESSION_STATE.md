@@ -1,3 +1,27 @@
+# Session — 2026-10-18 — S28: owner review sheet Q1 to Q6
+
+**Headline:** Owner answers Q1 to Q6 are recorded in ROADMAP. The free trial plan pack (Z-70) and the liability and DPA proposal (Z-72) are written as proposals. The Astro upgrade plan is researched, not applied.
+**Commits:** one docs commit (see git log). No deploy (docs only).
+**Tests:** `pnpm verify` and `node tools/roadmap-recount.mjs` run. No code changed.
+**Gate:** none. No security path touched. Z-71 (self-serve build) needs a design review and one adversarial gate after the owner approves Z-70.
+**Next:** (1) Owner: read `docs/design/2026-10-18-free-plan-pack.md` and answer its 3 questions. (2) Owner: send `docs/design/2026-10-18-liability-and-dpa-proposal.md` to the lawyer. (3) Owner: say go or no go for the staged Astro upgrade. (4) Owner: decide the Haiku trial (TOK-6) and Q23 (`tools/assessiq-mcp/package-lock.json`).
+**Open questions:**
+- Q7 to Q49 are unanswered on the owner sheet. Nothing was guessed.
+- Dependabot: 2 critical `astro` alerts in `apps/marketing` (installed 5.18.2, fix 7.2.8). The AVIF path is not used by code. Plan: stage A Astro 5 to 6, stage B 6 to 7 with `compressHTML` check. Not upgraded.
+- Z-60 CI streak: 4 of 10.
+**Not included:** any Astro bump, any change to /terms or /privacy, the `.gitignore` line for the stray lockfile, Z-71.
+**Old task or feature checked:** X2, D1/RV28, D2/FU-A8, D3/FU-A7, OD4, OD8, PRICING_TIERS 2026-10-06, TOK-6 (Rule B, PROJECT_BRAIN.md)
+
+### Agent utilization
+- Opus (main session ran on Sonnet 5.5): Phase 0, ROADMAP rows, both design docs, register row, review of the Astro report.
+- Sonnet: n/a — no build code.
+- Haiku: 1 run.
+  - Haiku · Astro 5 to 7 upgrade research · reworked: N · tokens: 105353
+- codex:rescue: n/a — no security path touched.
+- Gemini (agy): n/a — not needed.
+- Codex (exec): n/a — down since 2026-10-11.
+
+
 # Session — 2026-10-18 — S27: token, gate and proof items (Z-67 to Z-69, Z-59 proof, GATE-6)
 
 **Headline:** Agent brief, roadmap recount, next-migration, routing `--since`, Codex review script and CI streak script are built. A bad router copy turns CI red (proven). GATE-6 numbers are in the register.
