@@ -16,7 +16,11 @@
 | CI job `docs-check` | Runs the doc anchor, skill mount, docs lint, deploy procedure and coverage checks | Runs on every commit, docs-only included. About 30 seconds. |
 | CI job `ci-ok` | One aggregate check for branch status | Fails on failure or cancel. Passes when heavy jobs skip on a docs-only commit. |
 | `tools/deploy.sh` step 1 (two-commit preflight) | Checks CI success on `HEAD` and on the last code commit | Prints both SHAs. A docs-only `HEAD` deploys against the CI run of the last code change. |
-| `tools/next-brief.mjs`, `tools/roadmap-recount.mjs`, `tools/next-migration.mjs`, `tools/routing-report.mjs`, `tools/codex-review.sh` | Built (S26): next-brief, routing-report. Still planned: roadmap-recount, next-migration, codex-review. See `08-token-tooling-plan.md` | Check `ls tools` before using. |
+| `node tools/roadmap-recount.mjs [--json]` | Counts Z.2 to Z.6 rows by the status column (closed = starts with the check mark, `closed` or `done`; Z.5 all closed; pointer rows skipped). Compares with Z.7 | Exit 0 same as Z.7, exit 1 different or file missing. Does not edit Z.7. |
+| `node tools/next-migration.mjs [--count N]` | Prints the next N free migration numbers (highest `modules/*/migrations` prefix + 1, skipping numbers marked reserved in ROADMAP or SESSION_STATE) | Exit 0. Does not assign numbers to agents. Not wired into `next-brief.mjs`. |
+| `node tools/routing-report.mjs [--json] [--since YYYY-MM-DD]` | Rework rate per route; Haiku 5.5 trial counts only runs on or after 2026-10-18 (or `--since`). Prints run count and files | Exit 2 on a bad date. Date comes from the `## Session — date` header. |
+| `node tools/next-brief.mjs` | Writes `docs/NEXT.md` | See `08-token-tooling-plan.md`. |
+| `tools/codex-review.sh` | Planned (Z-69) | Check `ls tools` before using. |
 
 ## Session time helpers (S25)
 

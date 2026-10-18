@@ -44,10 +44,10 @@ Combined estimate for TIME-8 and TIME-9: daily CI waiting from about 100 min to 
 | --- | --- | --- | --- | --- |
 | TOK-1 | Batch rows per agent; no agent for 1 to 3 tool calls (a run costs about 70k tokens fixed) | About 10% of daily tokens | Rule live; habit | `03` |
 | TOK-2 | Generated start brief `docs/NEXT.md`; Phase 0 stops reading the 490k-token logs | About 5% of daily tokens | Done (S26): `tools/next-brief.mjs`; Phase 0 reading 512k to 129k tokens (est., -75%, RCA kept) | `08` |
-| TOK-3 | Cut avoidable rework: exact briefs, `git merge main` first, `pnpm verify` before reporting, plan by file ownership | About 4% | Partly done; brief template in S23 row 4 | `03`, `08` |
-| TOK-4 | Scripts instead of agents: sweep (done), roadmap recount, next free migration numbers | About 3%; sweep done | Partly done (S23 rows 2 and 3) | `08` |
+| TOK-3 | Cut avoidable rework: exact briefs, `git merge main` first, `pnpm verify` before reporting, plan by file ownership | About 4% | Done (S27, Z-67): `docs/agent-brief.md`, linked from `CLAUDE.md` and `01`; sample brief had all 15 field names | `03`, `08` |
+| TOK-4 | Scripts instead of agents: sweep (done), roadmap recount, next free migration numbers | About 3%; sweep done | Done (S27, Z-68): `tools/roadmap-recount.mjs` (matches Z.7: pending 116, closed 138, total 254) and `tools/next-migration.mjs` (prints 0206); sweep done earlier | `08` |
 | TOK-5 | Gemini for bulk reads (`tools/gemini.sh`); Codex review with the diff piped by script | About 2 to 3% of Claude tokens | Gemini done; Codex script planned (S23 row 5) | `04`, `08` |
-| TOK-6 | Haiku 5.5 trial on display, copy, help text, wiring, docs, tests; routing report; stop if non-gate rework is above 25% after 8 runs | Saves money, not tokens | Rule live; `tools/routing-report.mjs` built (S26); Haiku 19% rework over 43 runs, CONTINUE | `04`, `08` |
+| TOK-6 | Haiku 5.5 trial on display, copy, help text, wiring, docs, tests; routing report; stop if non-gate rework is above 25% after 8 runs | Saves money, not tokens | Rule live; `tools/routing-report.mjs` built (S26); all-time 75 Opus, 314 Sonnet and 47 Haiku runs; Haiku 5.5 trial from 2026-10-18: 8 runs, 7 non-gate, 2 reworked (29%), STOP by the rule (checked by `routing-report`, S27) | `04`, `08` |
 | TOK-7 | Measure: real `subagent_tokens` per agent in each footer; compare Phase 0 reading size before and after | Proof for the rest | Partly done (S26): footer template has `tokens:`; before/after Phase 0 size measured in Z-64; per-agent tokens fill in from now on | `08` |
 
 ## Gate optimization
@@ -74,4 +74,5 @@ Combined estimate for TIME-8 and TIME-9: daily CI waiting from about 100 min to 
 - 2026-10-18 (S25): TIME-7, 8, 15, 16, 17, 18 built. Measured: CI code push 6m50 to 3m45 (jobs: e2e shard-2 3m24 longest). Reviewer found a stale-base hole in the first TIME-17 draft (diff against VPS HEAD); fixed with per-image markers.
 
 - 2026-10-18 (Z-63): register synced with code; rows changed: TIME-1, TIME-2, TIME-3, TIME-4, TIME-5, TIME-8, TIME-9, TIME-10, TIME-11, TIME-12, TIME-13, TIME-14, TIME-16, GATE-1, GATE-3, GATE-7. One red-CI figure now (doc `12`).
+- 2026-10-18 (S27, batch 1): TOK-3, TOK-4 done; TOK-6 `--since` added and stale "43 runs" text fixed. Trial since 2026-10-18 reads STOP (29% non-gate rework over 7 runs: Z-64 and Z-42 part 3); owner decides.
 - 2026-10-18 (S26): Z-63 to Z-66 built. TOK-2, TOK-6, TOK-7 and GATE-4 rows updated. Phase 0 reading set estimate 512k to 129k tokens.

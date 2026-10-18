@@ -22,7 +22,7 @@ Commit, deploy, document, handoff. The handoff is the top block of `docs/SESSION
 
 ## Agent workflow rules (Z-57, 2026-10-18)
 
-`docs/agent-brief.md` is not in the repo, so these rules live here.
+`docs/agent-brief.md` is the template for every build agent (Z-67). These rules summarise it.
 
 1. The orchestrator owns shared generated files. Agents never edit the `help-system.test.ts` counts, `seeds/help_content.sql`, shared `SKILL.md` files or shared doc hunks.
 2. The orchestrator regenerates the help seed once, after it merges the agent work.
