@@ -19,3 +19,14 @@ Source of truth: the "Speed rules" section of `CLAUDE.md`. This page explains th
 ## Definition of done (project rule 9)
 
 Commit, deploy, document, handoff. The handoff is the top block of `docs/SESSION_STATE.md` with the agent footer.
+
+## Agent workflow rules (Z-57, 2026-10-18)
+
+`docs/agent-brief.md` is not in the repo, so these rules live here.
+
+1. The orchestrator owns shared generated files. Agents never edit the `help-system.test.ts` counts, `seeds/help_content.sql`, shared `SKILL.md` files or shared doc hunks.
+2. The orchestrator regenerates the help seed once, after it merges the agent work.
+3. Use no worktree for non-load-bearing UI rows. Use a worktree only for load-bearing writes.
+4. Give related rows to one agent. Use fewer, larger briefs.
+5. Give an ETA that includes the gate, the merge and the CI run.
+6. Agents run `pnpm verify` before they report.

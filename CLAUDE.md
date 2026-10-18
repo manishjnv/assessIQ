@@ -166,6 +166,9 @@ Functionality first. Test enough to prove the feature works (happy path and main
 - **Optimization register (owner, 2026-10-18):** time, token and gate ideas are kept in `docs/ai-playbook/09-optimization-register.md`. At Phase 6, update the rows you touched (status, date, measured evidence) and list the changed IDs in the handoff.
 - **Docs writes:** build the string first, then write the file (`python -X utf8`). `git add -f` named docs files only, never a directory.
 - **Push hook:** the trailer commit (`Adversarial-Review:`) must be its own command before the push.
+- **Two sessions at once = two worktrees.** Run `bash tools/wt-setup.sh <name>` for each extra code session. Remove it with `bash tools/wt-clean.sh <name>` when done.
+- **Worktree how-to:** `docs/ai-playbook/07-new-account-checklist.md` (memory link step included).
+- **Agent workflow rules (Z-57):** the orchestrator owns shared generated files; no worktree for non-load-bearing UI rows; fewer, larger briefs; ETAs include gate, merge and CI; agents run `pnpm verify`. Full text: `docs/ai-playbook/01-speed-rules.md`.
 
 ## Caveats / sharp edges
 
