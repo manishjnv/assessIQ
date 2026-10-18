@@ -2721,4 +2721,4 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 ## S22 (2026-10-18)
 
 - Commit range: `8cd6b9d` to `0ed17887` (Z-50 migration 0205, Z-47, Z-24, Z-48, Z-39 tails, EXP-18 part 2).
-- Deploy: pending
+- Deploy: done 2026-10-18 about 19:35 IST with tools/deploy.sh (CI check on, no bypass flag). VPS 74704fc0 -> 0c4b9ee; migration 0205 applied; help_content 558 -> 576; API, frontend and worker recreated and healthy; sweep 0 failures; extra checks: signed-in routes 401 without a session, beacon on / and absent on /admin/login and /take, 0 level-50 log lines in 5 minutes. Two earlier attempts stopped at step 1b (local e2e Postgres container stopped during seeding, a one-off Docker problem; pnpm verify:signed-in then passed 29 of 29); nothing had reached the VPS. Owner still to do: open /admin signed in and the take page once.
