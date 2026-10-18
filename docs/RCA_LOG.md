@@ -2729,3 +2729,24 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the Z-38 Dependabot pass (`8556ca8`, 2026-10-17) raised `react-router-dom` to `^6.30.6` in `apps/web` and `modules/11-candidate-ui` but not in `modules/10-admin-dashboard` (`^6.27.0`, which the lockfile resolved to 6.30.3). Vite then bundled two copies of the router (the live vendor chunk held the `POP/PUSH/REPLACE` enum twice). The app's `<BrowserRouter>` came from 6.30.6; the admin shell called `useNavigate()` from 6.30.3, found no router context, and React Router threw its invariant (`Ut(!1)`, the production build strips the message). No error boundary caught it, so the page stayed blank. The S20 live sweep passed because it fetched only public pages and unauthenticated app routes; nothing signed in.
 **Fix:** `modules/10-admin-dashboard/package.json` now `^6.30.6`; `pnpm-lock.yaml` resolves every router package to 6.30.6 only (the 6.30.3 and `@remix-run/router@1.23.2` entries are gone). New test `tools/__tests__/single-router-copy.test.ts` fails when the lockfile holds more than one version of `react-router-dom`, `react-router` or `@remix-run/router`. A local `pnpm --filter @assessiq/web build` shows one router copy; admin module tests (191) and web tests (93) pass.
 **Prevention:** the lockfile test above (runs in CI); a Dependabot bump must change every workspace that declares the package; the post-deploy sweep needs one signed-in check of `/admin` and an error boundary that shows a message instead of a blank page (ROADMAP Z-47).
+
+## 2026-10-18 — CI typecheck red after Z-41
+
+**Symptom:** the CI typecheck step failed after the Z-41 commit. Local vitest and eslint were green.
+**Cause:** `apps/web/src/pages/take/attempt-parts/KeyNav.tsx:27` used the global `JSX` namespace. React 19 types no longer declare it.
+**Fix:** use `React.JSX.Element` (commit `2ff24c9`).
+**Prevention:** run `pnpm typecheck` before push. The build agents ran only vitest and eslint.
+
+## 2026-10-18 — CI e2e red: "Question 1 of" locator matched two elements
+
+**Symptom:** the CI e2e step failed with a Playwright strict-mode error on the text "Question 1 of".
+**Cause:** the locator matched the top bar and the legend of the structured case (EX-3), which also says "Question 1 of 2". The e2e step had not run since 2026-10-16 because the lint step failed first.
+**Fix:** a precise anchored locator that matches only the top bar, in `apps/web/e2e/fixtures/take-ui.ts`, `apps/web/e2e/a11y-authed.spec.ts` and `apps/web/e2e/phone-first-question.spec.ts` (commit `051f48a`).
+**Prevention:** use anchored, role-based locators in e2e specs. Watch that CI steps after a red step are also run once green.
+
+## 2026-10-18 — Worktree agent patch conflicts (Z-39)
+
+**Symptom:** the Z-39 worktree patch conflicted with the Z-44 and Z-41 commits already on main.
+**Cause:** the worktree agent started from an old base commit and finished without merging main.
+**Fix:** a merge agent resolved the conflicts (merge commit `5816807`).
+**Prevention:** merge main into the worktree before the agent finishes, or start the agent from current main.

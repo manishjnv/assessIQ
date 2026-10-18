@@ -697,6 +697,14 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 - **Not changed.** All 13 templates stay. The template-send-coverage allowlist stays. The four unsent templates stay unsent.
 - **Rollback.** Revert the commit. The `passMarkPct` variable is optional, so queued jobs still render.
 
+## Template `result_released`: feedback sentence in the fail email (Z-44, 2026-10-18)
+
+- **What changed.** When the result is a fail and `result_feedback_level` is not `none`, the email now reads "Sign in to read your feedback." followed by the shared feedback sentence. For `none`, the old line "Sign in to see where to improve." stays.
+- **Why.** The Submitted page and the email must say the same thing about feedback. One function builds the sentence, so the two cannot drift apart.
+- **Source.** `modules/00-core/src/feedback-copy.ts` (`feedbackSentence`). Module 13 and module 11 both import it from `@assessiq/core`.
+- **Not included.** The pass email is unchanged. No new template and no new variable name for queued jobs. No change to the feedback levels.
+- **Rollback.** Revert the commit `01edead`.
+
 ## Delivery
 
 ### Delivery: classes, retries, timeouts (2026-10-01)

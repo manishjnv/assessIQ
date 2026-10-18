@@ -1,3 +1,39 @@
+# Session — 2026-10-18 — S21: Z-47, Z-41, Z-44, Z-43 built; Z-39 and Z-42 built in part
+
+**Headline:** Six rows built and pushed. Z-41, Z-43, Z-44 are closed. Z-39, Z-42 and Z-47 are partly done and stay open. Two CI failures (typecheck, e2e) were found and fixed.
+**Commits (main):** `051e0e1` Z-47 · `280422d` Z-41 (0202) · `01edead` Z-44 · `bdf5920` Z-43 · `2ff24c9` typecheck fix · `1b61f18` Z-39 (0203 in 05 and 06) · `5816807` Z-39 merge · `43fc9b9` Z-42 · `6985d3e` Z-39 gate fixes · `7ef8826` Z-42 gate fixes · `051f48a` e2e locator fix
+**Tests:** module suites green per agent reports. CI green on 051f48a (quality and e2e); batch 1 deployed and swept 2026-10-18
+**Next:** Z-23 admin nav session 1 (Z-47 now exists as the safety net). Z-46 CSP waits for the owner yes. Decide the tier-upgrade question for Z-39.
+**Open questions (owner):**
+- Z-46: may we add a CSP Report-Only header at the shared Caddy?
+- Z-26: Google Search Console DNS verification still open.
+- Z-35: the `sameAs` profile URLs.
+- Admin 2FA: still open.
+- Open /admin signed in after the deploy and confirm the page loads (last part of Z-47).
+- Should a later distinction pass upgrade an earlier completion certificate? (Z-39)
+- The Docs lint Vale step fails on push only because reviewdog `github-pr-annotations` needs a PR. It is advisory until 2026-10-29.
+**Old task or feature checked:** Z-41 vs Z-7 KeyNav (extended) · Z-44 vs result email sentence (shared `feedbackSentence` in 00-core) · Z-43 vs `resolveBlueprintNodes` (reused) · Z-39 vs unique-per-user attempt + reissue invitation (extended) · Z-42 vs S20 section marks view and `mock.ts` (extended) (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Agent utilization
+- Opus: plan, diff review of Wave A and the Z-39 start guard, commits, CI triage, push.
+- Sonnet: 12 runs (builds of Z-47, Z-41, Z-44, Z-39, Z-43, Z-42; 3 adversarial gates; revisions of Z-43, Z-39, Z-42; Z-39 merge; e2e run; e2e diagnosis).
+- Haiku: 3 runs (S20 digest, code map, docs-lint check).
+- codex:rescue: n/a — companion and sandbox down; Sonnet takeover accepted all three gates (accept, revise-addressed).
+- Gemini (agy): n/a — Haiku used.
+- Codex (exec): n/a — sandbox down.
+
+**Routing telemetry**
+- Sonnet · Z-39 build · reworked: Y (worktree base was old; conflicts with Z-44 and Z-41 needed a merge agent; 3 gate revisions)
+- Sonnet · Z-43 build · reworked: Y (3 gate revisions)
+- Sonnet · Z-42 build · reworked: Y (3 hardening items)
+- Sonnet · Z-41 build · reworked: N (but Opus fixed the typecheck JSX namespace error: Y)
+- Sonnet · Z-47 build · reworked: N
+- Sonnet · Z-44 build · reworked: N
+
+---
+
 # Session — 2026-10-17/18 — S20: batch 8 built, deployed and swept (Z-7, Z-9, Z-10, Z-16, EXP-19; Z-37, EXP-5, EXP-6 in part)
 
 **Headline:** Batch 8 shipped and deployed. Done: Z-7, Z-9, Z-10, Z-16 (and its follow-up), EXP-19. Partly done: Z-37, EXP-5, EXP-6. GitHub main = VPS = `bc7b335` (the VPS was at `c45a2eb`). Migrations 0196-0201 were applied by hand with checksums. The next number is 0202.

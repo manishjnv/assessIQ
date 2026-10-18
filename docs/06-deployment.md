@@ -2589,3 +2589,20 @@ Order matters: 0186 must apply before the api restart because `getUsage` now sel
 - The Cloudflare beacon check needs a browser User-Agent and `Accept: text/html`. Plain curl shows no beacon, which is a false FAIL.
 - Never recreate `assessiq-api` or the worker while an AI grading run is in flight. Check for a `claude` process first.
 **Rollback:** `git checkout c45a2eb`, rebuild `assessiq-api` and `assessiq-frontend`, recreate the same three services. The migrations are additive (new columns, tables, extension, help rows) and the old code ignores them, so leave them in place. Backout SQL is not needed. If the owner asks for it, derive it from the files: `DROP TABLE exam_blueprint_sections, exam_blueprints;` (0201); `ALTER TABLE attempt_scores DROP COLUMN pass_mark_pct;` (0199); `ALTER TABLE assessments DROP COLUMN passing_score_pct;` (0198, also drops its CHECK); for 0196 drop trigger `questions_search_text_trg`, the three indexes and the two columns on `questions`. Do not drop `pg_trgm`: the import check uses it.
+
+## S21 deploy record (2026-10-18, batch 1)
+
+- **Commit:** code `051f48a` (CI green: quality and e2e). Before it, `01edead` and `2ff24c9` failed CI (typecheck TS2503, then the e2e locator). Both were fixed. See RCA_LOG 2026-10-18.
+- **VPS state before:** clone at `051f48a` after `git pull`, tree clean (one old untracked file, `tools/assessiq-mcp/package-lock.json`). Drift gate showed the four known DB-only names and three repo-only files (0202, two 0203).
+- **Migrations applied by hand, with checksum rows (177 to 180 rows):**
+  - `0202_z41_key_shortcuts_help.sql` (module 16), sha256 `298530c2...`
+  - `0203_assessments_max_attempts.sql` (module 05), sha256 `36f63ff2...`
+  - `0203_attempts_attempt_number.sql` (module 06), sha256 `1a0da748...`
+  - Two files share the number 0203 on purpose. The lint and `tools/migrate.ts` key on the full file name.
+- **Help seed:** `seeds/help_content.sql` re-applied (`ON CONFLICT DO NOTHING`): 550 to 555 rows (the five Z-39 keys).
+- **Build:** `docker compose build assessiq-api assessiq-worker assessiq-frontend`, output to a file, `BUILD_EXIT=0` checked before the recreate. The worker uses the API image.
+- **Recreate:** `up -d --no-deps --force-recreate assessiq-api assessiq-worker assessiq-frontend`. Only `assessiq-*` containers changed. Nothing was pruned.
+- **Risk window:** the 0203 attempts migration swaps the unique key. The old API would fail new attempts between the migration and the recreate (about 1 minute). The site has no real candidates yet.
+- **Live sweep (Haiku):** `/api/ready` 200; public pages 200; beacon on `/` and absent on `/admin/login`, `/take`, `/candidate/login`; new routes answer 401 without a session; 0 `level":50` lines in api and worker logs; new columns and help rows exist.
+- **Not checked:** a signed-in `/admin` page on production. The dev session minter does not exist there, so the owner opens `/admin` and confirms. Local e2e (`signed-in-smoke.spec.ts`) passes.
+- **Rollback:** previous images are not tagged. Roll back by checking out `8d6abd6` on the VPS and rebuilding. Drop the new columns only if needed: `attempts.attempt_number` (restore `UNIQUE (assessment_id, user_id)` first), `assessments.max_attempts`, `assessment_invitations.extra_attempts`.
