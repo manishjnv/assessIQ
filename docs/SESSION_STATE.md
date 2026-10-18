@@ -1,14 +1,17 @@
 # Session — 2026-10-18 — S28: owner review sheet Q1 to Q6
 
 **Headline:** Owner answers Q1 to Q6 are recorded in ROADMAP. The Trial plan pack (Z-70, name "Trial" confirmed) and the liability and DPA proposal (Z-72) are written as proposals. Astro is upgraded to 7.4.0 in apps/marketing (not deployed).
-**Commits:** `694b91d2` docs (CI green); Astro upgrade commit (see git log). No deploy yet.
-**Tests:** `pnpm verify` and `node tools/roadmap-recount.mjs` run. No code changed.
+**Commits:** `694b91d2` — docs: Q1 to Q6, Z-70, Z-71, Z-72, TOK-6 (CI green, run 39149543355); `8633cd84` — chore(marketing): astro 5.18.2 to 7.4.0 (CI RED, run 39150638840: SESSION_STATE had no `---` before the footer, so the next-brief test failed; not an Astro fault); `0675dd30` — separator fix (CI green, docs-only run, code tests skipped); `4a28fc46` — RCA entry. No deploy.
+**Tests:** `pnpm verify` green. `tools/__tests__` 26 of 26 locally after the fix. Marketing: frozen install and `pnpm build` pass (56 pages, 54 OG images). No browser check and no Docker build of the marketing image.
 **Gate:** none. No security path touched. Z-71 (self-serve build) needs a design review and one adversarial gate after the owner approves Z-70.
 **Next:** (1) Owner: read `docs/design/2026-10-18-free-plan-pack.md` and answer its 3 questions. (2) Owner: send `docs/design/2026-10-18-liability-and-dpa-proposal.md` to the lawyer. (3) Owner: approve the marketing deploy of the Astro upgrade. (4) Owner: decide the Haiku trial (TOK-6) and Q23 (`tools/assessiq-mcp/package-lock.json`).
 **Open questions:**
 - Q7 to Q49 are unanswered on the owner sheet. Nothing was guessed.
 - Dependabot: 2 critical `astro` alerts in `apps/marketing`. UPGRADED in S28 (owner "go"): astro 5.18.2 to 7.4.0, in two stages (6.4.8, then 7.4.0). Build is the same as before: 56 pages, 54 OG images, sitemap files byte-identical, visible text identical on all 56 pages. Two small fixes: `compressHTML: true` (the Astro 7 default dropped spaces between inline elements) and the Home nav `aria-current` on the root page (`Header.astro`, Astro 6+ reports `/index.html`). NOT deployed: the marketing deploy needs owner approval. Not checked: a browser visual check, a Docker build. Dependabot re-scan after push.
-- Z-60 CI streak: 4 of 10.
+- Z-60 CI streak: reset to 0 by the red run on `8633cd84`.
+- Deploy block: `tools/deploy.sh` needs a green CI run on the last code commit (`8633cd84`, red). The fix commits are docs-only, so CI skipped the code tests on them. The next code commit, or a small code-touching commit, clears it. Decide before the marketing deploy.
+- Z-70 questions 2 and 3 are open (after-trial rule; show or hide locked features). Name "Trial" is decided; marketing text may say "free".
+- Z-72 goes to the lawyer; the file has questions in bold.
 **Not included:** the marketing deploy, any change to /terms or /privacy, the `.gitignore` line for the stray lockfile, Z-71.
 **Old task or feature checked:** X2, D1/RV28, D2/FU-A8, D3/FU-A7, OD4, OD8, PRICING_TIERS 2026-10-06, TOK-6 (Rule B, PROJECT_BRAIN.md)
 

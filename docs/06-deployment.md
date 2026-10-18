@@ -2735,3 +2735,30 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 
 - Commit range: `8cd6b9d` to `0ed17887` (Z-50 migration 0205, Z-47, Z-24, Z-48, Z-39 tails, EXP-18 part 2).
 - Deploy: done 2026-10-18 about 19:35 IST with tools/deploy.sh (CI check on, no bypass flag). VPS 74704fc0 -> 0c4b9ee; migration 0205 applied; help_content 558 -> 576; API, frontend and worker recreated and healthy; sweep 0 failures; extra checks: signed-in routes 401 without a session, beacon on / and absent on /admin/login and /take, 0 level-50 log lines in 5 minutes. Two earlier attempts stopped at step 1b (local e2e Postgres container stopped during seeding, a one-off Docker problem; pnpm verify:signed-in then passed 29 of 29); nothing had reached the VPS. Owner still to do: open /admin signed in and the take page once.
+
+## Marketing site: Astro 5.18.2 to 7.4.0 (S28, 2026-10-18; NOT yet deployed)
+
+**Goal:** close two critical Dependabot alerts (advisory GHSA-26w7-cxv4-gfx2: remote code execution when Astro's image service decodes an AVIF file) in `apps/marketing`.
+
+**What changed** (commit `8633cd84`):
+- `apps/marketing/package.json`: `astro` `^5.18.2` to `^7.4.0` (steps used: 6.4.8, then 7.4.0). The standalone lockfile `apps/marketing/pnpm-lock.yaml` changed (+787, -1655 lines).
+- `apps/marketing/astro.config.mjs`: `compressHTML: true`. The Astro 7 default (`'jsx'`) removed spaces between inline elements on all 56 pages (for example "AssessIQSolutionsIT").
+- `apps/marketing/src/components/Header.astro` line 6: the root page path `/index.html` maps to `/`. Astro 6+ reports `/index.html` for the root page when `build.format` is `file`, so the Home link lost `aria-current="page"`.
+
+**Why:** the advisory is critical (CVSS 9.8). The site's code does not use `astro:assets`, `<Image>` or AVIF files, so the real exposure was low, but the alert needs closing. `sharp` was already pinned to `^0.35.5` (fix minimum 0.35.4).
+
+**Considered and rejected:** a direct jump to 7 without the stage check (risk of a hidden break); leaving Astro 5 and dismissing the alert (leaves a critical alert open).
+
+**Result checks:** same page count (56 HTML, 54 OG PNGs), same sitemap files (byte-identical), pagefind index present, visible text identical on all 56 pages. Left differences, not visible to users: CSS file name and size (`_astro/BaseLayout.<hash>.css`, 18.6 KB instead of 20.0 KB), minified inline script in `contact.html`, `&#38;` now written `&amp;`.
+
+**Not included / not checked:**
+- No deploy. No browser visual check. No Docker build of `infra/docker/assessiq-marketing/Dockerfile` (it uses `pnpm install --frozen-lockfile --ignore-workspace`; the same command passes locally on pnpm 9.15.0).
+- Node: Astro 7.4.0 needs Node 22.22.0 or newer. The Dockerfile has `ARG NODE_VERSION=22` (latest 22.x), so it should pass; not tested.
+- `@astrojs/tailwind` 6.0.2 declares peer astro ^3 to ^5. It prints a peer warning with Astro 6 and 7; build and CSS work. A replacement (Tailwind 4 / Vite plugin) is a future item.
+- `pnpm audit` still shows 2 other findings (braces, postcss-selector-parser), unrelated to Astro or sharp.
+
+**Downstream:** only the marketing container `assessiq-marketing` is affected. Deploy it with `tools/deploy.sh` as in the section above (frontend and marketing are separate from the API). No Caddy change.
+
+**How to verify after deploy:** open `/`, `/pricing`, `/terms`, `/privacy`; check the Home link has `aria-current="page"` on `/`; check `/sitemap-0.xml` and one `/og/*.png`; run `bash tools/post-deploy-sweep.sh`.
+
+**Rollback:** revert commit `8633cd84` (restores the old `package.json`, lockfile, config and `Header.astro`), rebuild `assessiq-marketing`.
