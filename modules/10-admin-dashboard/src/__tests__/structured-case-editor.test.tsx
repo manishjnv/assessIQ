@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 vi.mock("@assessiq/help-system/components", () => ({ HelpTip: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
 import { EMPTY_SC, StructuredCaseEditor, buildStructuredCaseContent, passageSetPreset, structuredCaseError, type ScState } from "../components/StructuredCaseEditor.js";
 
@@ -12,6 +12,8 @@ function Host(): React.ReactElement {
 }
 
 describe("StructuredCaseEditor EX-3", () => {
+  // The first test leaves its render in the document; without this the second test finds two "Step 1 marks" inputs.
+  afterEach(() => cleanup());
   it("preset fills 5 select-one steps with 4 options", () => {
     render(<Host />);
     fireEvent.click(screen.getByText(/Passage set preset/));
