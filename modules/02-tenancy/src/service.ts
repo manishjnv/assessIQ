@@ -876,6 +876,83 @@ export async function updateResultFeedbackLevel(
 }
 
 // ---------------------------------------------------------------------------
+// certificate_show_distinction (Z-50) - show the word "Distinction" on certificates.
+// ---------------------------------------------------------------------------
+
+export interface UpdateCertificateShowDistinctionResult {
+  tenantId: string;
+  certificate_show_distinction: boolean;
+  previous: boolean;
+  updatedAt: Date;
+  /** null on an idempotent no-op (nothing changed, nothing audited). */
+  auditId: string | null;
+}
+
+/** Read `tenant_settings.certificate_show_distinction` (default false when no row). */
+export async function getCertificateShowDistinction(tenantId: string): Promise<boolean> {
+  return await withTenant(tenantId, async (client) => {
+    const r = await client.query<{ certificate_show_distinction: boolean }>(
+      `SELECT certificate_show_distinction FROM tenant_settings LIMIT 1`,
+    );
+    return r.rows[0]?.certificate_show_distinction ?? false;
+  });
+}
+
+export async function updateCertificateShowDistinction(
+  adminUserId: string,
+  targetTenantId: string,
+  enabled: unknown,
+): Promise<UpdateCertificateShowDistinctionResult> {
+  if (typeof enabled !== "boolean") {
+    throw new ValidationError("enabled must be true or false", {
+      details: { code: "INVALID_CERTIFICATE_SHOW_DISTINCTION", received: enabled },
+    });
+  }
+  log.info({ targetTenantId, enabled }, "updateCertificateShowDistinction");
+
+  return await withTenant(targetTenantId, async (client) => {
+    const currentRes = await client.query<{ certificate_show_distinction: boolean; updated_at: Date }>(
+      `SELECT certificate_show_distinction, updated_at FROM tenant_settings LIMIT 1 FOR UPDATE`,
+    );
+    const current = currentRes.rows[0];
+    if (current === undefined) {
+      throw new NotFoundError(`tenant_settings not found for tenant ${targetTenantId}`);
+    }
+    const previous = current.certificate_show_distinction;
+    if (previous === enabled) {
+      return { tenantId: targetTenantId, certificate_show_distinction: previous, previous, updatedAt: current.updated_at, auditId: null };
+    }
+    const upd = await client.query<{ certificate_show_distinction: boolean; updated_at: Date }>(
+      `UPDATE tenant_settings SET certificate_show_distinction = $1::boolean, updated_at = now()
+        WHERE tenant_id = $2
+        RETURNING certificate_show_distinction, updated_at`,
+      [enabled, targetTenantId],
+    );
+    const row = upd.rows[0];
+    if (row === undefined) {
+      throw new NotFoundError(`tenant_settings row missing after UPDATE for tenant ${targetTenantId}`);
+    }
+    const auditRow = await auditInTx(client, {
+      tenantId: targetTenantId,
+      actorKind: "user",
+      actorUserId: adminUserId,
+      action: "tenant.settings.updated",
+      entityType: "tenant_settings",
+      entityId: targetTenantId,
+      before: { certificate_show_distinction: previous },
+      after: { certificate_show_distinction: row.certificate_show_distinction },
+    });
+    return {
+      tenantId: targetTenantId,
+      certificate_show_distinction: row.certificate_show_distinction,
+      previous,
+      updatedAt: row.updated_at,
+      auditId: auditRow.id,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // renameTenant — tenant-admin edits their OWN company display name.
 // ---------------------------------------------------------------------------
 //

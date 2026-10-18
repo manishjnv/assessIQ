@@ -105,6 +105,12 @@ export interface TenantSettings {
    * 0190, RW-80). Default 'none'. Changed only by updateResultFeedbackLevel.
    */
   result_feedback_level: ResultFeedbackLevel;
+  /**
+   * Show the word "Distinction" on certificates whose stored tier is distinction
+   * (migration 0205, Z-50). Default false. Display only; changed by
+   * updateCertificateShowDistinction (audited).
+   */
+  certificate_show_distinction: boolean;
   updated_at: Date;
 }
 

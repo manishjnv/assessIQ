@@ -458,7 +458,7 @@ export function AdminCertificates(): React.ReactElement {
           {[
             {
               label: "When one appears",
-              body: "Auto-created when you release a graded attempt scoring 70%+ (70–89% = Completion, 90%+ = Distinction). No manual step.",
+              body: "Auto-created when you release the result of a candidate who passed. A score of 90% or more reads Distinction only if you switch that on in Settings, Results. No manual step.",
             },
             {
               label: "How the candidate gets it",
@@ -565,7 +565,7 @@ export function AdminCertificates(): React.ReactElement {
         {!error && !loading && items.length === 0 && (
           <EmptyState
             title="No certificates found."
-            body="A certificate is created when you release a graded attempt that scores 70% or more."
+            body="A certificate is created when you release the result of a candidate who passed."
           />
         )}
         {!error && !(loading && items.length === 0) && items.length > 0 && (

@@ -4397,6 +4397,21 @@ admin.tenant_settings.result_feedback_level:
     - **With a short reason.** Adds a plain-words note for written answers that were graded with AI.
     - You may be asked for a fresh authenticator code when you change this setting.
 
+admin.tenant_settings.certificate_show_distinction:
+  audience: admin
+  version: 1
+  short_text: "Choose if the word Distinction is written on certificates for scores of 90 percent or more."
+  long_md: |
+    ## Distinction on certificates
+
+    Every candidate who passes gets a certificate. This setting decides if the word "Distinction" is written on it.
+
+    - **Off (default).** Every certificate reads Completion.
+    - **On.** A certificate for a score of 90 percent or more reads Distinction.
+    - The setting changes only the words that people see. It does not change the stored result or the signature.
+    - It also applies to certificates that you issued before. Switch it off and the word is hidden again.
+    - You may be asked for a fresh authenticator code when you change this setting.
+
 admin.tenant_settings.result_feedback_level.none:
   audience: admin
   version: 1

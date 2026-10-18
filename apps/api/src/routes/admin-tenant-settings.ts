@@ -29,11 +29,12 @@
 //     chain joins on tenantId + at.
 
 import type { FastifyInstance } from 'fastify';
-import { NotFoundError, ValidationError } from '@assessiq/core';
+import { AuthzError, NotFoundError, ValidationError } from '@assessiq/core';
 import {
   updateRetentionDays,
   updateResultReleaseMode,
   updateResultFeedbackLevel,
+  updateCertificateShowDistinction,
   renameTenant,
   assertTenantActive,
   findTenantSettings,
@@ -48,7 +49,7 @@ import { readLogoUpload } from './_logo-upload.js';
 import { runRetentionPurgeForTenant, listErasedCandidates } from '@assessiq/data-rights';
 import { parseBody, parseQuery } from './_validate.js';
 import { authChain } from '../middleware/auth-chain.js';
-import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, resultFeedbackLevelBody, retentionDaysBody, runNowQuery } from './_schemas.js';
+import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, resultFeedbackLevelBody, certificateShowDistinctionBody, retentionDaysBody, runNowQuery } from './_schemas.js';
 
 // ---------------------------------------------------------------------------
 // Auth chain — tenant admin only, fresh MFA within 15 minutes.
@@ -126,6 +127,7 @@ export async function registerAdminTenantSettingsRoutes(
       result_release_mode: settings.result_release_mode,
       result_release_auto_since: settings.result_release_auto_since,
       result_feedback_level: settings.result_feedback_level,
+      certificate_show_distinction: settings.certificate_show_distinction,
       retention_days: settings.retention_days,
       company_name: tenant.name,
       logo: logo === null ? null : { ...logo, url: tenantLogoUrl(session.tenantId, logo.sha256) },
@@ -205,6 +207,34 @@ export async function registerAdminTenantSettingsRoutes(
       return reply.code(200).send({
         tenantId: result.tenantId,
         result_feedback_level: result.result_feedback_level,
+        previous: result.previous,
+        updatedAt: result.updatedAt,
+        auditId: result.auditId,
+      });
+    },
+  );
+
+  // PATCH /api/admin/tenant-settings/certificate-show-distinction   (Z-50)
+  // Show the word "Distinction" on certificates (stored tier is never changed).
+  // Body { enabled: boolean }. Tenant + actor come from the session only.
+  // 200: { tenantId, certificate_show_distinction, previous, updatedAt, auditId | null }
+  // 400: INVALID_CERTIFICATE_SHOW_DISTINCTION   409: TENANT_NOT_ACTIVE
+  // 403: not admin   401: fresh TOTP required
+  app.patch(
+    '/api/admin/tenant-settings/certificate-show-distinction',
+    { preHandler: adminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      // Second check inside the handler: the chain already limits this route to admin.
+      if (session.role !== 'admin') {
+        throw new AuthzError('admin role required', { details: { code: 'ADMIN_REQUIRED' } });
+      }
+      const body = parseBody(certificateShowDistinctionBody, req.body, { code: 'INVALID_CERTIFICATE_SHOW_DISTINCTION' });
+      await assertTenantActive(session.tenantId);
+      const result = await updateCertificateShowDistinction(session.userId, session.tenantId, body.enabled);
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        certificate_show_distinction: result.certificate_show_distinction,
         previous: result.previous,
         updatedAt: result.updatedAt,
         auditId: result.auditId,

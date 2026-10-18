@@ -71,6 +71,8 @@ interface TenantSettingsResponse {
   result_release_mode?: ReleaseMode;
   /** Absent on servers that predate the Per-question feedback setting. */
   result_feedback_level?: FeedbackLevel;
+  /** Absent on servers that predate the Distinction-on-certificates setting (Z-50). */
+  certificate_show_distinction?: boolean;
   /** Current organisation logo, or null/absent when none is set. */
   logo?: { url: string; width: number; height: number; byte_size: number } | null;
 }
@@ -213,6 +215,16 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
   const [feedbackMfa, setFeedbackMfa] = useState(false);
   const selectedFeedback = feedbackChoice ?? feedbackLevel;
   const feedbackDirty = selectedFeedback !== null && selectedFeedback !== feedbackLevel;
+
+  // ── Distinction on certificates (Z-50) ────────────────────────────────────
+  const [certShowDistinction, setCertShowDistinction] = useState(false);
+  const [certChoice, setCertChoice] = useState<boolean | null>(null);
+  const [certSaving, setCertSaving] = useState(false);
+  const [certSuccess, setCertSuccess] = useState<string | null>(null);
+  const [certError, setCertError] = useState<string | null>(null);
+  const [certMfa, setCertMfa] = useState(false);
+  const selectedDistinction = certChoice ?? certShowDistinction;
+  const certDirty = selectedDistinction !== certShowDistinction;
 
   // ── Purge state ───────────────────────────────────────────────────────────
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -413,6 +425,7 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
           ? data.result_release_mode
           : null,
       );
+      setCertShowDistinction(data.certificate_show_distinction === true);
       setFeedbackLevel(
         FEEDBACK_OPTIONS.some((o) => o.value === data.result_feedback_level)
           ? (data.result_feedback_level as FeedbackLevel)
@@ -550,6 +563,41 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
       }
     } finally {
       setFeedbackSaving(false);
+    }
+  };
+
+  // ── Save the Distinction-on-certificates switch (Z-50; same fresh-MFA flow) ──
+
+  const handleSaveCertDistinction = async (): Promise<void> => {
+    setCertSaving(true);
+    setCertError(null);
+    setCertSuccess(null);
+    try {
+      await adminApi("/admin/tenant-settings/certificate-show-distinction", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: selectedDistinction }),
+      });
+      setCertShowDistinction(selectedDistinction);
+      setCertChoice(null);
+      setCertMfa(false);
+      setCertSuccess("Certificate setting saved.");
+      setTimeout(() => setCertSuccess(null), 4000);
+    } catch (err) {
+      if (
+        err instanceof AdminApiError &&
+        (err.status === 401 ||
+          (err.status === 403 && err.apiError.details?.code === "MFA_REQUIRED"))
+      ) {
+        setCertMfa(true);
+      } else {
+        setCertError(
+          err instanceof AdminApiError
+            ? err.apiError.message
+            : "Unexpected error — please try again.",
+        );
+      }
+    } finally {
+      setCertSaving(false);
     }
   };
 
@@ -1310,6 +1358,126 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
                       disabled={!feedbackDirty}
                     >
                       Save question details
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        </section>
+
+        {/* ── Distinction on certificates (Z-50) ──────────────────────────── */}
+        <section
+          aria-labelledby="cert-distinction-heading"
+          data-help-id="admin.tenant_settings.certificate_show_distinction"
+          style={{ marginTop: "var(--aiq-space-xl)" }}
+        >
+          <div
+            style={{
+              paddingBottom: 16,
+              borderBottom: "1px solid var(--aiq-color-border)",
+              marginBottom: 24,
+            }}
+          >
+            <h2
+              id="cert-distinction-heading"
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: 22,
+                fontWeight: 400,
+                margin: 0,
+                letterSpacing: "-0.015em",
+              }}
+            >
+              Certificates.
+            </h2>
+          </div>
+          <Card padding="lg">
+            {loadingSettings ? (
+              <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-xl) 0" }}>
+                <Spinner aria-label="Loading certificate setting" />
+              </div>
+            ) : (
+              <>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 12, maxWidth: 520, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedDistinction}
+                    disabled={certSaving}
+                    onChange={(e) => {
+                      setCertChoice(e.target.checked);
+                      setCertError(null);
+                      setCertSuccess(null);
+                      setCertMfa(false);
+                    }}
+                    style={{ marginTop: 3, accentColor: "var(--aiq-color-accent)" }}
+                  />
+                  <span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: "var(--aiq-color-fg-primary)",
+                      }}
+                    >
+                      Write Distinction on certificates
+                    </span>
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: 2,
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        color: "var(--aiq-color-fg-secondary)",
+                      }}
+                    >
+                      Every candidate who passes gets a certificate. When this is on, a score of 90% or more reads
+                      Distinction. When it is off, all certificates read Completion.
+                    </span>
+                  </span>
+                </label>
+
+                {certSuccess && (
+                  <div style={{ marginTop: 16 }}>
+                    <Chip variant="success">{certSuccess}</Chip>
+                  </div>
+                )}
+                {certError && (
+                  <div
+                    role="alert"
+                    style={{
+                      marginTop: 16,
+                      fontSize: 13,
+                      color: "var(--aiq-color-danger, #dc2626)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {certError}
+                  </div>
+                )}
+
+                {certMfa ? (
+                  <div style={{ marginTop: 20, maxWidth: 520 }}>
+                    <MfaStepUp
+                      prompt="Changing certificate wording needs a fresh authenticator check. Enter your 6-digit code to continue."
+                      confirmLabel="Verify & save"
+                      onVerified={() => {
+                        setCertMfa(false);
+                        void handleSaveCertDistinction();
+                      }}
+                      onCancel={() => setCertMfa(false)}
+                    />
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 20 }}>
+                    <Button
+                      onClick={() => void handleSaveCertDistinction()}
+                      loading={certSaving}
+                      disabled={!certDirty}
+                    >
+                      Save certificate setting
                     </Button>
                   </div>
                 )}

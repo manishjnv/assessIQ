@@ -35,7 +35,7 @@ import type { PoolClient } from 'pg';
 
 import { auditInTx } from '@assessiq/audit-log';
 import { AppError, DISTINCTION_PCT, isPass, meetsPct } from '@assessiq/core';
-import { withTenant } from '@assessiq/tenancy';
+import { getCertificateShowDistinction, withTenant } from '@assessiq/tenancy';
 
 import {
   DEFAULT_CREDENTIAL_PREFIX,
@@ -47,6 +47,7 @@ import {
   signCertificate,
   verifyCertificateSignature,
 } from './crypto.js';
+import { applyDistinctionSetting } from './display.js';
 import * as repo from './repository.js';
 
 // Re-export TierUpgradeConflictError so callers can catch it by type.
@@ -403,7 +404,7 @@ export async function listForUser(
   tenantId: string,
   candidateId: string,
 ): Promise<{ certificates: MyCertificateView[] }> {
-  return withTenant(tenantId, async (client) => {
+  const result = await withTenant(tenantId, async (client) => {
     const { items } = await repo.listCertificates(client, tenantId, {
       candidate_id: candidateId,
       limit: 100,
@@ -438,6 +439,10 @@ export async function listForUser(
     });
     return { certificates: views };
   });
+  // Z-50: the candidate sees the wording the organisation allows (stored tier unchanged).
+  if (!result.certificates.some((c) => c.tier === 'distinction')) return result;
+  const showDistinction = await getCertificateShowDistinction(tenantId);
+  return { certificates: result.certificates.map((c) => applyDistinctionSetting(c, showDistinction)) };
 }
 
 /**
