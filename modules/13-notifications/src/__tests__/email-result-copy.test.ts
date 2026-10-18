@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { feedbackSentence } from '@assessiq/core/feedback-copy';
 import { renderTemplate, OUTCOME_COLORS } from '../email/render.js';
 
 const base = {
@@ -38,6 +39,15 @@ describe('result_released copy', () => {
     expect(r.html).toContain(`border-left:4px solid ${OUTCOME_COLORS.fail.bar}`);
     expect(r.html).toContain('Not passed');
     expect(r.html.toLowerCase()).not.toMatch(/#dc2626|#ef4444|danger/);
+  });
+
+  it('Z-44: a fail shows the shared feedback sentence for each level, none keeps the old line', () => {
+    for (const level of ['right_wrong', 'with_expected_answer', 'with_ai_justification'] as const) {
+      const r = renderTemplate('result_released', { ...fail, feedbackLevel: level });
+      expect(r.text).toContain(feedbackSentence(level)!);
+    }
+    const none = renderTemplate('result_released', { ...fail, feedbackLevel: 'none' });
+    expect(none.text).toContain('Sign in to see where to improve.');
   });
 
   it('no name: greeting is "Hello,"', () => {

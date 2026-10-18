@@ -3519,6 +3519,7 @@ Rule and scoring: [05-ai-pipeline.md](05-ai-pipeline.md) § "Negative marking (E
 - The question list and the question detail include `negative_marks`.
 - `PATCH /api/admin/assessments/:id` accepts `settings.scoring.negative_marks_default` (0 to 1000) while the assessment is a draft.
 - `GET /api/me/attempts/:id/result` and each item of `GET /api/me/results` gain `negative_marking: { enabled, penalty_total }`. `enabled` is true when any frozen `negative_marks` is above 0. `penalty_total` is the sum of the negative effective gradings, as a positive number.
+- Z-44: `GET /api/me/attempts/:id/result` (released, 200) gains `feedback_level`: `'none' | 'right_wrong' | 'with_expected_answer' | 'with_ai_justification'`. It is read from `tenant_settings.result_feedback_level` at request time (the only source; no copy is stored on the attempt). The Submitted page and the result list show the plain sentence from `feedbackSentence` (`@assessiq/core/feedback-copy`), the same function the result email uses for a fail. `none` shows no sentence. The pending (202) body is unchanged. Not included: new per-question data; the sentence never carries answers.
 - `total_earned` in those payloads is signed. `percent` may be negative.
 - The admin attempt review `frozen_questions[]` gains `negative_marks`.
 - Why: a wrong guess should cost marks in exams that use this rule. The value is frozen per attempt so that a later edit cannot change a result.

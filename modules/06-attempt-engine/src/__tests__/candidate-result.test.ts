@@ -333,7 +333,21 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
       tenant_name: "Acme University", // Logo L3a: name fallback for the Submitted page
       company_logo_url: null,
       negative_marking: { enabled: false, penalty_total: 0 }, // EX-1: no deterministic question carries a penalty
+      feedback_level: "none", // Z-44: tenant default
     });
+  });
+
+  it("Z-44: feedback_level in the single result follows tenant_settings.result_feedback_level", async () => {
+    const s = await seed({ status: "released", earned: 42, max: 60, passing: 60, releasedAt: "2026-10-01T10:00:00.000Z" });
+    try {
+      for (const level of ["right_wrong", "with_expected_answer", "with_ai_justification", "none"] as const) {
+        await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = $2 WHERE tenant_id = $1`, [tenant, level]));
+        const v = await getCandidateResult(tenant, s.userId, s.attemptId);
+        expect(v).toMatchObject({ status: "released", feedback_level: level });
+      }
+    } finally {
+      await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'none' WHERE tenant_id = $1`, [tenant]));
+    }
   });
 
   it("released with a certificate -> { credential_id, verify_url }; a revoked one is not shown", async () => {

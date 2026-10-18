@@ -175,6 +175,7 @@ export function MyResults(): React.ReactElement {
                   negativeMarking={r.negative_marking}
                   assessmentName={r.assessment_name}
                   feedbackOn={feedbackLevel !== 'none'}
+                  feedbackLevel={feedbackLevel}
                 />
                 {feedbackLevel !== 'none' && <AttemptFeedback attemptId={r.attempt_id} />}
               </Card>
