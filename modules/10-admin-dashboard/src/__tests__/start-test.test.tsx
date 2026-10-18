@@ -7,6 +7,7 @@ import { MemoryRouter } from "react-router-dom";
 const api = vi.hoisted(() => ({
   getAvailableSets: vi.fn(), listCandidates: vi.fn(), createAssessmentFromSet: vi.fn(),
   publishAssessmentApi: vi.fn(), inviteAssessmentUsers: vi.fn(), importCandidates: vi.fn(),
+  listExamBlueprintsApi: vi.fn(), createFullMockApi: vi.fn(), getPackLevelsApi: vi.fn(), importLicensedSet: vi.fn(),
 }));
 vi.mock("../api.js", () => ({
   ...api,
@@ -22,12 +23,13 @@ vi.mock("../components/AdminShell.js", () => ({
   AdminShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-import { AdminStartTest, parsePasted } from "../pages/start-test.js";
+import { AdminStartTest, START_TEST_HELP_PAGE, START_TEST_MOCK_HELP, parsePasted } from "../pages/start-test.js";
 import { AdminApiError } from "../api.js";
 
 const SET = { source_pack_id: "p1", name: "SOC Basics", domain: "soc", source_version: 1, question_count: 30, level_count: 2, cloned: true, cloned_pack_id: "c1", update_available: false };
 
-function setup() {
+function setup(blueprints: unknown[] = []) {
+  api.listExamBlueprintsApi.mockResolvedValue({ items: blueprints });
   api.getAvailableSets.mockResolvedValue({ sets: [SET] });
   api.listCandidates.mockResolvedValue({ items: [{ id: "u1", email: "a@x.com", name: "Asha", status: "active" }, { id: "u2", email: "z@x.com", name: "Zed", status: "suspended" }] });
   api.createAssessmentFromSet.mockResolvedValue({ id: "as1" });
@@ -98,5 +100,69 @@ describe("AdminStartTest", () => {
     await screen.findByText(/Asha/);
     fireEvent.change(screen.getByLabelText(/Or paste/), { target: { value: "ok@x.com\nnot-an-email" } });
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("not-an-email"));
+  });
+});
+
+const BLUEPRINTS = [
+  { id: "bp-ssc", name: "SSC CGL Tier 1", edition: "2026", total_questions: 100, total_minutes: 60, verification_status: "verified" },
+  { id: "bp-other", name: "IBPS PO Prelims", edition: "2026", total_questions: 100, total_minutes: 60, verification_status: "unverified" },
+];
+
+function setupMock() {
+  api.importLicensedSet.mockResolvedValue({ cloned_pack_id: "c-pack", slug: "soc", reused: true, question_count: 30 });
+  api.getPackLevelsApi.mockResolvedValue({ levels: [{ id: "lv1", order: 1 }, { id: "lv2", order: 2 }] });
+  api.createFullMockApi.mockResolvedValue({ assessment: { id: "mock1" }, warnings: [] });
+  setup(BLUEPRINTS);
+}
+
+async function chooseMockFlow(blueprintName: RegExp) {
+  await screen.findByText(/SOC Basics/);
+  fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Start a full mock" }));
+  fireEvent.click(await screen.findByRole("radio", { name: blueprintName }));
+  await screen.findByText(/Asha/);
+  fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+}
+
+describe("full mock on Start a test (EXP-6 / Z-42 tail)", () => {
+  it("offers the verified blueprint and marks the others unverified", async () => {
+    setupMock();
+    fireEvent.click(screen.getByRole("button", { name: "Start a full mock" }));
+    await screen.findByRole("radio", { name: /SSC CGL Tier 1/ });
+    expect(screen.getByText("Verified")).toBeTruthy();
+    expect(screen.getByText("Unverified")).toBeTruthy();
+  });
+
+  it("copies the set, finds the level, then creates, publishes and invites", async () => {
+    setupMock();
+    await chooseMockFlow(/SSC CGL Tier 1/);
+    fireEvent.click(send());
+    await screen.findByTestId("start-test-result");
+    expect(api.importLicensedSet).toHaveBeenCalledWith("p1");
+    expect(api.getPackLevelsApi).toHaveBeenCalledWith("c-pack");
+    expect(api.createFullMockApi).toHaveBeenCalledWith("bp-ssc", expect.objectContaining({ pack_id: "c-pack", level_id: "lv1" }));
+    expect(api.createAssessmentFromSet).not.toHaveBeenCalled();
+    expect(api.publishAssessmentApi).toHaveBeenCalledWith("mock1");
+    expect(api.inviteAssessmentUsers).toHaveBeenCalledWith("mock1", ["u1"]);
+  });
+
+  it("rejects a set that has no chosen difficulty and does not publish", async () => {
+    setupMock();
+    api.getPackLevelsApi.mockResolvedValue({ levels: [] });
+    await chooseMockFlow(/SSC CGL Tier 1/);
+    fireEvent.click(send());
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Find the difficulty level");
+    expect(alert.textContent).toContain("has no difficulty 1");
+    expect(api.createFullMockApi).not.toHaveBeenCalled();
+    expect(api.publishAssessmentApi).not.toHaveBeenCalled();
+  });
+
+  it("help ids start with the page prefix and contain no hyphen", () => {
+    expect(START_TEST_HELP_PAGE).toBe("admin.start_test");
+    for (const id of Object.values(START_TEST_MOCK_HELP)) {
+      expect(id.startsWith(`${START_TEST_HELP_PAGE}.`)).toBe(true);
+      expect(id.includes("-")).toBe(false);
+    }
   });
 });

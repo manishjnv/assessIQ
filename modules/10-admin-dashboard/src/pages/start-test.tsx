@@ -11,14 +11,24 @@ import { HelpTip } from "@assessiq/help-system/components";
 import { csvCell } from "@assessiq/core/escape";
 import { AdminShell } from "../components/AdminShell.js";
 import {
-  AdminApiError, createAssessmentFromSet, getAvailableSets, importCandidates, inviteAssessmentUsers,
-  listCandidates, publishAssessmentApi,
+  AdminApiError, createAssessmentFromSet, createFullMockApi, getAvailableSets, getPackLevelsApi, importCandidates,
+  importLicensedSet, inviteAssessmentUsers, listCandidates, listExamBlueprintsApi, publishAssessmentApi,
 } from "../api.js";
-import type { AvailableSet, CandidateOption } from "../api.js";
+import type { AvailableSet, CandidateOption, ExamBlueprintSummary } from "../api.js";
 import { formatDate } from "../lib/format.js";
 import { inviteSkipReasonLabel } from "../lib/labels.js";
 
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
+
+/** Help ids of this page start with its helpPage prefix and never contain a hyphen. */
+export const START_TEST_HELP_PAGE = "admin.start_test";
+export const START_TEST_MOCK_HELP = {
+  card: "admin.start_test.mock",
+  unverified: "admin.start_test.mock.unverified",
+} as const;
+
+/** A step that stops with a message for the admin (not an API error). */
+class StepError extends Error {}
 const MAX_QUESTIONS = 200;
 const EMAIL_RE = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 const sans: React.CSSProperties = { fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" };
@@ -80,12 +90,19 @@ export function AdminStartTest(): React.ReactElement {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ step: string; message: string; id: string | null } | null>(null);
   const [done, setDone] = useState<Done | null>(null);
+  const [blueprints, setBlueprints] = useState<ExamBlueprintSummary[] | null>(null);
+  const [mockOpen, setMockOpen] = useState(false);
+  const [blueprintId, setBlueprintId] = useState("");
 
   useEffect(() => {
     getAvailableSets().then((d) => setSets(d.sets)).catch((e: unknown) => {
       setSets([]);
       setLoadError(e instanceof AdminApiError ? e.apiError.message : "Could not load the question sets.");
     });
+  }, []);
+
+  useEffect(() => {
+    listExamBlueprintsApi().then((d) => setBlueprints(d.items)).catch(() => setBlueprints([]));
   }, []);
 
   useEffect(() => {
@@ -96,6 +113,7 @@ export function AdminStartTest(): React.ReactElement {
   }, [search]);
 
   const set = sets?.find((s) => s.source_pack_id === setId) ?? null;
+  const blueprint = blueprints?.find((b) => b.id === blueprintId) ?? null;
   const parsed = useMemo(() => parsePasted(pasted), [pasted]);
   const total = picked.size + parsed.entries.length;
   const canSend = set !== null && total > 0 && name.trim() !== "" && opensAt !== "" && !busy;
@@ -109,6 +127,7 @@ export function AdminStartTest(): React.ReactElement {
 
   function reset() {
     setDone(null); setFailure(null); setSteps([]); setPicked(new Set()); setPasted(""); setSetId("");
+    setBlueprintId(""); setMockOpen(false);
   }
 
   async function send() {
@@ -118,16 +137,37 @@ export function AdminStartTest(): React.ReactElement {
     let step = "Create the assessment";
     const mark = (s: string) => setSteps((p) => [...p, s]);
     try {
-      const body = {
-        source_pack_id: set.source_pack_id,
-        level_position: level,
-        name: name.trim(),
-        question_count: Math.max(1, Math.min(count, set.question_count, MAX_QUESTIONS)),
-        opens_at: new Date(opensAt).toISOString(),
-        ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
-      };
-      id = (await createAssessmentFromSet(body)).id;
-      mark("Assessment created");
+      let mockNote: string | undefined;
+      if (blueprint !== null) {
+        step = "Copy the question set into your organisation";
+        const imported = await importLicensedSet(set.source_pack_id);
+        step = "Find the difficulty level";
+        const levels = (await getPackLevelsApi(imported.cloned_pack_id)).levels;
+        const levelId = levels.find((l) => l.order === level)?.id;
+        if (levelId === undefined) throw new StepError(`This question set has no difficulty ${level}.`);
+        step = "Create the full mock";
+        const mock = await createFullMockApi(blueprint.id, {
+          pack_id: imported.cloned_pack_id,
+          level_id: levelId,
+          opens_at: new Date(opensAt).toISOString(),
+          ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
+          name: name.trim(),
+        });
+        id = mock.assessment.id;
+        if (mock.warnings.length > 0) mockNote = mock.warnings.join(" ");
+        mark("Full mock created");
+      } else {
+        const body = {
+          source_pack_id: set.source_pack_id,
+          level_position: level,
+          name: name.trim(),
+          question_count: Math.max(1, Math.min(count, set.question_count, MAX_QUESTIONS)),
+          opens_at: new Date(opensAt).toISOString(),
+          ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
+        };
+        id = (await createAssessmentFromSet(body)).id;
+        mark("Assessment created");
+      }
       step = "Publish the assessment";
       await publishAssessmentApi(id);
       mark("Assessment published");
@@ -151,9 +191,13 @@ export function AdminStartTest(): React.ReactElement {
         for (const k of r.skipped) skipped.push({ who: k.email, reason: inviteSkipReasonLabel(k.reason) });
         mark(`Invited ${r.invited} pasted address${r.invited === 1 ? "" : "es"}`);
       }
-      setDone({ id, invited, created, skipped, ...(warning ? { warning } : {}) });
+      const doneWarning = [mockNote, warning].filter((x): x is string => Boolean(x)).join(" ");
+      setDone({ id, invited, created, skipped, ...(doneWarning ? { warning: doneWarning } : {}) });
     } catch (e) {
-      setFailure({ step, id, message: e instanceof AdminApiError ? e.apiError.message : "Something went wrong." });
+      const message = e instanceof AdminApiError ? e.apiError.message
+        : e instanceof StepError ? e.message
+        : "Something went wrong.";
+      setFailure({ step, id, message });
     } finally {
       setBusy(false);
     }
@@ -221,16 +265,55 @@ export function AdminStartTest(): React.ReactElement {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <Label htmlFor="st-count">Number of questions</Label>
-                  <Input id="st-count" type="number" min={1} max={Math.min(set.question_count, MAX_QUESTIONS)} value={count}
-                    onChange={(e) => setCount(Number(e.target.value))} />
-                </div>
+                {blueprint === null && (
+                  <div>
+                    <Label htmlFor="st-count">Number of questions</Label>
+                    <Input id="st-count" type="number" min={1} max={Math.min(set.question_count, MAX_QUESTIONS)} value={count}
+                      onChange={(e) => setCount(Number(e.target.value))} />
+                  </div>
+                )}
                 <div>
                   <Label htmlFor="st-name">Test name</Label>
                   <Input id="st-name" value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
               </div>
+            )}
+          </div>
+        </Card>
+
+        <Card>
+          <div style={stack}>
+            <HelpTip helpId={START_TEST_MOCK_HELP.card}><h2 className="aiq-serif" style={{ margin: 0 }}>Full mock (optional)</h2></HelpTip>
+            {!mockOpen && (
+              <div>
+                <Button variant="outline" onClick={() => setMockOpen(true)}>Start a full mock</Button>
+              </div>
+            )}
+            {mockOpen && (
+              <>
+                <FieldHelp>A full mock uses an exam blueprint: its sections, timing and marks. Pick the question set and difficulty in step 1.</FieldHelp>
+                <label style={{ ...sans, display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", cursor: "pointer" }}>
+                  <input type="radio" name="blueprint" checked={blueprintId === ""} onChange={() => setBlueprintId("")} />
+                  <span>No full mock (a normal test)</span>
+                </label>
+                {blueprints === null && <Spinner />}
+                {(blueprints ?? []).map((b) => (
+                  <label key={b.id} style={{ ...sans, display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", cursor: "pointer" }}>
+                    <input type="radio" name="blueprint" checked={blueprintId === b.id}
+                      onChange={() => { setBlueprintId(b.id); setName(`${b.name} — ${formatDate(new Date())}`); }} />
+                    <span>{b.name} · {b.total_questions} questions · {b.total_minutes} minutes</span>
+                    {b.verification_status === "verified" ? <Chip variant="success">Verified</Chip> : <Chip>Unverified</Chip>}
+                  </label>
+                ))}
+                {blueprint !== null && blueprint.verification_status !== "verified" && (
+                  <HelpTip helpId={START_TEST_MOCK_HELP.unverified}>
+                    <FieldHelp>This blueprint is not verified. Check its sections and marks against the official notice before a real test.</FieldHelp>
+                  </HelpTip>
+                )}
+                <div>
+                  <Button variant="outline" onClick={() => { setMockOpen(false); setBlueprintId(""); }}>Cancel full mock</Button>
+                </div>
+              </>
             )}
           </div>
         </Card>

@@ -119,7 +119,7 @@ Page count: 7 shipped G2.C + 5 shipped this session = 12 live pages on 2026-05-0
 
 ## 2026-10-02 - paged invitations list (assessment-detail)
 
-The invitations table on `assessment-detail.tsx` shows 100 rows per page (API cap) with `Showing x-y of N` + `Previous` / `Next` (only when N > 100; help id `admin.assessments.invitations.paging`). Sorting is per page. The invite picker's "already invited" set and the Delete has-attempts guard are computed from ALL pages (ids/flags only) so they never assume the visible page is everything; "Resend to everyone who hasn't started" is server-side (`resendable`, all pages).
+The invitations table on `assessment-detail.tsx` shows 100 rows per page (API cap) with `Showing x-y of N` + `Previous` / `Next` (only when N > 100; help id `admin.assessments.invitations.paging`). Sorting is per page. The invite picker's "already invited" set and the Delete has-attempts guard are computed from ALL pages (ids/flags only) so they never assume the visible page is everything; "Resend to everyone who has not started" is server-side (`resendable`, all pages).
 
 ## numeric / multi_select in the admin UI (2026-10-02)
 
@@ -175,3 +175,20 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 - **Downstream.** `docs/08-ui-system.md` section "AdminShell help drawer and account card"; `docs/07-help-system.md` section "Admin guide as help rows, S16".
 
 **2026-10-18 — Z-23 session 1 (seven nav groups).** Sidebar is now Home / Assessments / Question bank / Reports / People / Integrations / Settings from `src/lib/admin-nav.ts` (`NAV_GROUPS`, `resolveActiveNav`). `components/TabStrip.tsx` (nav + links, `aria-current`, scrolls sideways) renders in `AdminShell` for groups with `strip: true` (Assessments, Settings). Settings tabs are `/admin/settings?tab=organisation|results|privacy|plan` (`billing.tsx` + `TenantSettings tab` prop); `/admin/settings/billing` redirects to `?tab=plan`. No route removed, gates unchanged, no new help ids. **Session 2 (same day):** `strip: true` on Reports, People, Integrations; Webhook secret card moved from `embed-config.tsx` to `webhooks.tsx` (help ids `admin.webhooks.secret*`, migration 0204); reports rows no longer `role="button"` (axe). Details: `docs/08-ui-system.md` section "AdminShell seven groups and tab strips".
+
+
+## S23 (2026-10-18) - Run an assessment checklist on Home (Z-24)
+
+- New card `src/components/RunAssessmentChecklist.tsx` on `/admin` (Home). Six steps: create or pick, add candidates, send invitations, watch attempts, grade and review, release results. Each step links to its tab and ticks from live counts.
+- Pure rules in `src/lib/checklist.ts`. Reads only existing endpoints: `GET /api/admin/assessments?pageSize=1` (invitation counts) and `GET /api/admin/attempts?assessmentId=` (totals, status filters). No new endpoint, no table.
+- The card hides when all six steps are done for the most recent assessment. A small button reopens it.
+- Help ids `admin.dashboard.home.checklist*` (9 keys, seed only). Module 16 count 514 to 523.
+- Test: `src/__tests__/home-checklist.test.tsx`. Details: `docs/08-ui-system.md` section "Run an assessment checklist on Home".
+
+## Z-42 tail: full mock on Start a test (2026-10-18, EXP-6)
+
+- `pages/start-test.tsx`: the "Start a full mock" card lists `GET /api/admin/blueprints`. A verified blueprint shows "Verified"; every other one shows "Unverified" (help `admin.start_test.mock.unverified`).
+- With a blueprint chosen, the page runs these steps: copy the set (`POST /api/admin/sets/:id/import`), read the pack levels (`GET /api/admin/packs/:id`, level matched by `order` to the difficulty), create the draft (`POST /api/admin/blueprints/:id/mock`), then publish and invite as before. The question count field is hidden; the blueprint sets the count.
+- Help ids: `admin.start_test.mock`, `admin.start_test.mock.unverified`. Module 16 seed count is now 516.
+- No new API route and no module 05 change.
+- NOT built (Z-42 stays open): `whole_test_minutes` and `marks_per_question` fields on the create or edit form. Module 05 rejects `settings.sections` combined with `settings.blueprint`, and `whole_test_minutes` needs sections. The admin UI also has no assessment edit form, so the lock state (after the first attempt) is not shown yet. Decision needed from the owner first.
