@@ -28,6 +28,7 @@ describe("pass mark (integer math)", () => {
 describe("attemptsAllowed (Z-39)", () => {
   it.each([
     [null, 0, 1], [undefined, 0, 1], [1, 0, 1], [0, 0, 1], [2, 0, 2], [3, 1, 4], [null, 1, 2], [2, -5, 2],
+    [3, NaN, 3], [3, Infinity, 3], [3, -Infinity, 3], [50, 0, 10], [50, 2, 12], [Infinity, 0, 1],
   ])("max %s + extra %i -> %i", (max, extra, expected) => {
     expect(attemptsAllowed(max, extra)).toBe(expected);
   });

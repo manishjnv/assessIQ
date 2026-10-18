@@ -32,6 +32,6 @@ export function attemptsAllowed(maxAttempts: number | null | undefined, extraAtt
   const base =
     maxAttempts === null || maxAttempts === undefined || !Number.isInteger(maxAttempts)
       ? 1
-      : Math.max(1, maxAttempts);
-  return base + Math.max(0, Math.trunc(extraAttempts));
+      : Math.min(MAX_ATTEMPTS_LIMIT, Math.max(1, maxAttempts));
+  return base + (Number.isFinite(extraAttempts) ? Math.max(0, Math.trunc(extraAttempts)) : 0);
 }
