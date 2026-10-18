@@ -15,6 +15,8 @@ fi
 mkdir -p .claude
 LOG=.claude/verify-bg.log
 LOCK=.claude/verify-bg.lock
+# a lock older than 30 min is stale (a recycled PID under MSYS must not block runs forever)
+[ -n "$(find "$LOCK" -mmin +30 2>/dev/null)" ] && rm -f "$LOCK"
 if [ -e "$LOCK" ] && kill -0 "$(cat "$LOCK" 2>/dev/null)" 2>/dev/null; then echo "$(date -u +%FT%TZ) skipped: a run is active" >> "$LOG"; exit 0; fi
 echo $$ > "$LOCK"; trap 'rm -f "$LOCK"' EXIT
 state() { { git rev-parse HEAD; git status --porcelain; git diff HEAD; } | sha256sum; }
