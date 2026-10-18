@@ -1,6 +1,6 @@
 # 09. Optimization register (time, token, gate): the one list to keep in sync
 
-Last updated: 2026-10-18 (S19 review). Owner rule: the idea lists for time, token and gate optimization live here. Detail pages: `02` (time), `03` (token), `10` (gate), `08` (S23 token tools plan), `11` (S24 time and gate tools plan).
+Last updated: 2026-10-18 (S19 review; gate decisions recorded). Owner rule: the idea lists for time, token and gate optimization live here. Detail pages: `02` (time), `03` (token), `10` (gate), `08` (S23 token tools plan), `11` (S24 time and gate tools plan).
 
 ## How to keep this register in sync
 
@@ -51,13 +51,15 @@ Combined estimate for TIME-8 and TIME-9: daily CI waiting from about 100 min to 
 | ID | Idea | Evidence or expected saving | Status | Where |
 | --- | --- | --- | --- | --- |
 | GATE-1 | One worktree per session (same item as TIME-11) | Removes shared-tree stamp and push-range collisions | Planned, owner approved the folder | `10` |
-| GATE-2 | Verify stamp covers only the files in the push range | Stops pushes blocked by another session's edits | Needs owner (safety hook); build behind an env flag | `10`, `11` |
+| GATE-2 | Verify stamp covers only the files in the push range | Stops pushes blocked by another session's edits | **Deferred (owner, 2026-10-18: no for now).** Worktrees (GATE-1) fix the same problem without touching the safety hook. Revisit after a week of worktree use if two sessions still share one folder | `10`, `11` |
 | GATE-3 | Fix flaky web tests (same item as TIME-12) | Removes false red CI | Planned | `10` |
-| GATE-4 | Gate checklist template, one gate per batch of security rows, log findings per gate | Less gate tokens, more findings | Needs owner (gate rules) | `10` |
+| GATE-4 | Gate checklist template, one gate per batch of security rows (cap 3 security rows per batch), log findings per gate | About 15 to 30 min and 0.2M tokens a day; same attack list for every review | **Approved (owner, 2026-10-18).** Planned, small (about 30 min) | `10` |
 | GATE-5 | Push right after each commit batch; whoever commits, pushes | No cross-session push ranges | Rule | `10` |
 | GATE-6 | Build the S23 tools, then re-measure | Closes the loop | Planned | `08` |
 | GATE-7 | Keep: AI gate on security paths only; `pnpm verify`; CI green before deploy; deploy checks; router test; diff review by the main model | Quality guards, unchanged | Done | `01`, `10` |
+| GATE-8 | Full security review before the pilot launch (all security paths, once), whatever the per-batch gates found | Catches what batch reviews miss; project has no real data yet, so this is the planned catch-all | Proposed; schedule before the pilot (owner 2026-10-18 chose per-batch gates now) | `10` |
 
 ## Change log
 
+- 2026-10-18 (later): owner decided GATE-2 deferred (no for now), GATE-4 approved (one gate per batch, checklist, cap 3 security rows); GATE-8 added.
 - 2026-10-18: register created from the owner's review (time, token and gate lists). Rows TIME-8 to TIME-10 are ROADMAP Z-55 to Z-57.

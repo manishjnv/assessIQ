@@ -17,12 +17,21 @@ Reviewed 2026-10-18 with evidence. Items and status: `09-optimization-register.m
 - The stamp is the HEAD tree hash plus a hash of `git diff HEAD` (all tracked uncommitted changes of anyone). Another session's edit invalidated it every time.
 - A verify run on a tree with many changed packages took over 5 minutes.
 
+## Owner decisions (2026-10-18)
+
+- GATE-1 worktree per session: approved.
+- GATE-2 scoped stamp: **no for now.** Worktrees remove the cause. Revisit after a week of worktree use.
+- GATE-4 checklist and one gate per batch: **yes.** Cap 3 security rows per batch. Log what each gate found.
+- GATE-8: a full security review before the pilot launch is proposed as the catch-all.
+
+Why not gate only at the end: findings were design faults (a double-attempt race, a cross-organisation takedown leak, a timer edit after start). They cost one revision before the push and rework across code after it, and every push goes live. The project has no real data yet, so the pilot is the natural point for the full pass (GATE-8).
+
 ## The steps
 
 1. **GATE-1 worktree per session** in `.claude/worktrees/<name>` (already ignored by git, eslint, vale, markdownlint, docker). `tools/wt-setup.sh` and `tools/wt-clean.sh`. Private memory is keyed by the folder path: link the new folder's `memory` to the main one with a Windows junction.
-2. **GATE-2 scoped stamp:** file set F = files in the push range; stamp = HEAD tree hash plus hash of `git diff HEAD -- F`. Unrelated edits keep it valid; edits to pushed files invalidate it. Keep the old behaviour unless `VERIFY_STAMP_SCOPED=1`. Needs the owner's yes.
+2. **GATE-2 scoped stamp:** file set F = files in the push range; stamp = HEAD tree hash plus hash of `git diff HEAD -- F`. Unrelated edits keep it valid; edits to pushed files invalidate it. Keep the old behaviour unless `VERIFY_STAMP_SCOPED=1`. **Deferred: owner said no for now (2026-10-18).**
 3. **GATE-3 flaky tests:** fix by waiting on conditions. Known: `AttemptSubmitModal` "N and P keys", structured-case editor, `result-flow.test.ts` mock lacks `handleAuditFanout` (165 noisy log lines). No blind retries (they hide real failures).
-4. **GATE-4 gate checklist template:** one file with the threat model and attack vectors per security area, so one gate per batch finds more at lower cost. Log what each gate found. Needs the owner's yes.
+4. **GATE-4 gate checklist template:** one file with the threat model and attack vectors per security area, so one gate per batch finds more at lower cost. Log what each gate found. **Approved (2026-10-18); cap 3 security rows per batch.**
 5. **GATE-5 push after each batch:** whoever commits, pushes, so no push drags another session's code.
 6. **GATE-6 token tools** from `08-token-tooling-plan.md`, then re-measure.
 

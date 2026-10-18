@@ -17,11 +17,13 @@ Wall time is the longer job. `main` has no branch protection, so renaming jobs d
 | --- | --- | --- | --- |
 | 1 | Z-55 faster CI | Separate typecheck job; unit tests in 3 vitest shards; e2e workers 1 to 2 (else 2 shards with their own Postgres and Redis); Playwright browser cache; `ci-ok` aggregator | 3 green runs; measured wall time before and after; target 5.5 to 6.5 min |
 | 2 | Z-56 docs-only commits | `changes` job; heavy jobs skipped when only `docs/`, `*.md`, `.vale/` changed; always-run `docs-check` job (doc anchors, skill mount, `lint:docs`, deploy-procedure lint, vitest-coverage lint); `deploy.sh` also requires CI success on the last code commit | A docs-only push finishes CI in under 2 min; a broken doc anchor still fails |
-| 3 | Scoped verify stamp (needs owner) | See `10` step 2; behind `VERIFY_STAMP_SCOPED=1` | Unit tests on a temp git repo |
+| 3 | ~~Scoped verify stamp~~ **Deferred by the owner (2026-10-18): skip this row.** Do not build it; revisit after a week of worktree use | See `10` step 2 | n/a |
 | 4 | Flaky tests | Find real flakes from the last 40 CI runs; fix causes | 5 clean local runs in a row |
 | 5 | `tools/wt-setup.sh`, `tools/wt-clean.sh` | See `10` step 1 | Create, verify and clean a test worktree; record setup time |
 | 6 | Migration in one transaction in `deploy.sh` | `psql -1` for files without their own BEGIN or COMMIT | A failing file rolls back (tested on a throw-away container) |
 | 7 | Z-57, Z-53, Z-54 | Workflow rules in docs; prove the second-router injection fails; flip Docs lint `fail_on_error` only on or after 2026-10-29 after 3 green runs | Docs updated; RCA entry |
+
+Add to row 7 (small, about 30 min): GATE-4, a gate checklist file `docs/ai-playbook/gate-checklist.md` with the threat model and attack vectors for auth, tenancy, grading, audit log and infra, and the rule "one gate per batch of at most 3 security rows, log what it found" in `CLAUDE.md`.
 
 ## Not changed
 

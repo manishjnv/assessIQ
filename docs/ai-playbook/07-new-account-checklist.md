@@ -44,6 +44,25 @@ Risk: two sessions on one clone at the same time. This already happened (S19 to 
 9. Write the handoff block at the top of `docs/SESSION_STATE.md`, update the roadmap rows, run `pnpm next` when the tool exists, commit with named files.
 10. If tokens run out mid-task: commit what is safe, write a "what is half done" note in the handoff (files, state, next command), push, and stop. Do not leave uncommitted edits.
 
+## Two sessions at once = two worktrees
+
+Use one git worktree for each session that writes code. Never share one folder between two sessions.
+
+- Folder: `.claude/worktrees/<name>`. Git, eslint, vale, markdownlint and docker already ignore this folder.
+- Create one: `bash tools/wt-setup.sh <name>`. It makes branch `<name>` from `origin/main`, copies `.env` and runs `pnpm install`. Setup takes about 90 to 100 seconds.
+- Start a session: open a terminal in the new folder and run `claude`.
+- Finish a unit of work: run `git fetch origin && git rebase origin/main`, then `pnpm verify`, then commit and push. Run each command on its own.
+- Remove one: `bash tools/wt-clean.sh <name>`. It refuses when work is not saved or pushed. Use `--force` only after you check the work. It writes a backup first.
+- Unknown folders: `wt-clean.sh` lists folders under `.claude/worktrees/` that git does not know. Ask the owner before you delete one.
+
+Memory link (manual, one time per worktree):
+
+1. Run one Claude session in the new folder first.
+2. Open `%USERPROFILE%\.claude\projects\` and find the new folder for that worktree. Do not guess its name.
+3. Run `cmd /c mklink /J "<new folder>\memory" "%USERPROFILE%\.claude\projects\e--code-AssessIQ\memory"`.
+
+Use a worktree only for load-bearing writes. Non-load-bearing UI rows run in the main folder.
+
 ## Making the first account's private knowledge portable
 
 The private memory holds owner decisions, review-gate rules and session history. The key facts are copied into this folder and into `CLAUDE.md`. When you learn a new durable rule in any account, write it in `docs/ai-playbook/` or `CLAUDE.md`, not only in private memory.
