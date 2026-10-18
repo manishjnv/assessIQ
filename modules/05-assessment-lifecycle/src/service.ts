@@ -30,7 +30,7 @@
 export { resolveBlueprintNodes } from "./service/blueprint.js";
 export { listAssessments, getInvitationCounts, getAssessment, getAssessmentDetail, createAssessment, assertIntegritySettings, assertSectionsSettings, createAssessmentFromSet, importLicensedSet, resyncLicensedSet, updateAssessmentIntegrity, updateAssessmentGrading, updateAssessment, type InvitationCounts } from "./service/assessments.js";
 export { createMockFromBlueprint, type CreateMockInput } from "./service/mock.js";
-export { publishAssessment, closeAssessment, cancelAssessment, deleteAssessment, reopenAssessment } from "./service/lifecycle.js";
+export { publishAssessment, closeAssessment, cancelAssessment, deleteAssessment, clearEmptyDrafts, reopenAssessment } from "./service/lifecycle.js";
 export { type ResolvedInvitation, resolveInvitationToken, markInvitationViewedByToken } from "./service/invitation-token.js";
 export { resendInvitation, resendInvitations, inviteUsers, listInvitations, revokeInvitation, grantExtraAttempt, reopenInvitationForRetake } from "./service/invitations.js";
 export { previewAssessment } from "./service/preview.js";

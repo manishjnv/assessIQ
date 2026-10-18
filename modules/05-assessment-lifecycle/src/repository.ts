@@ -432,6 +432,23 @@ export async function countAttemptsForAssessment(
  * audit_log rows are untouched (append-only, no FK cascade) — history survives.
  * Caller is responsible for the zero-attempts guard + audit write in the same tx.
  */
+/** Row lock: blocks a concurrent publish / invite insert until this tx ends (Q44 bulk clear). */
+export async function lockAssessmentRow(client: PoolClient, id: string): Promise<void> {
+  await client.query(`SELECT 1 FROM assessments WHERE id = $1 FOR UPDATE`, [id]);
+}
+
+/** Delete only if still an empty draft (no invitations, no attempts). Returns false when the guard fails. */
+export async function deleteEmptyDraftRow(client: PoolClient, id: string): Promise<boolean> {
+  const r = await client.query(
+    `DELETE FROM assessments
+      WHERE id = $1 AND status = 'draft'
+        AND NOT EXISTS (SELECT 1 FROM assessment_invitations WHERE assessment_id = $1)
+        AND NOT EXISTS (SELECT 1 FROM attempts WHERE assessment_id = $1)`,
+    [id],
+  );
+  return (r.rowCount ?? 0) > 0;
+}
+
 export async function deleteAssessmentRow(
   client: PoolClient,
   id: string,
