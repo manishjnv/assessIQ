@@ -39,6 +39,7 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
 | --- | --- | --- |
 | "Have we solved this before?" | `claude-mem:mem-search` | Run *before* Phase 0 reads if the goal sounds familiar |
 | "Where is X defined?" / structural exploration | `claude-mem:smart-explore` | AST-based; cheaper than multi-file Read sweeps |
+| Bulk reads and digests (5+ files for one fact, call-site lists, doc summaries, log triage) | `bash tools/gemini.sh "<prompt>"` (Gemini via `agy`) | Use it BEFORE a Haiku or Sonnet digest agent (global Tier 6). Read-only wrapper: closes stdin, prefixes a read-only instruction, fails with exit 3 if `git status` changed. A run takes 0.5 to 2 minutes: start it with `run_in_background` and keep working. No secrets or `.env` contents in the prompt. Opus reviews the answer; log it in the footer as `Gemini (agy)`. Fall back to Haiku only if it fails. |
 | Planning a non-trivial feature | `claude-mem:make-plan` | Pick this OR `/superpowers:write-plan` — never both. `make-plan` wins because it's project-aware via the memory DB |
 | Brainstorm a fuzzy idea (no contract yet) | `/superpowers:brainstorm` | Skip when the contract is already specified |
 | Implementation with contract | Global Phase 1 → Sonnet subagent | Do NOT use `claude-mem:do` here — it bypasses the Opus/Sonnet/Haiku routing matrix |
