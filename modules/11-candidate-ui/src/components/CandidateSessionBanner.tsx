@@ -72,7 +72,7 @@ export function CandidateSessionBanner({
   const daysLeft = (new Date(expiresAt).getTime() - Date.now()) / MS_PER_DAY;
 
   // Only render when 0 < daysLeft ≤ 5.
-  if (daysLeft > SHOW_THRESHOLD_DAYS || daysLeft < 0) return null;
+  if (daysLeft > SHOW_THRESHOLD_DAYS || daysLeft <= 0) return null;
   if (dismissed) return null;
 
   const daysDisplay = Math.ceil(daysLeft);

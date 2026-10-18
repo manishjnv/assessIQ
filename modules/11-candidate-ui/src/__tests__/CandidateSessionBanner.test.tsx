@@ -85,15 +85,21 @@ describe('CandidateSessionBanner', () => {
   });
 
   it('is hidden when daysLeft is 0 (exactly expired)', () => {
-    const { container } = render(
-      <CandidateSessionBanner
-        expiresAt={new Date(Date.now()).toISOString()}
-        email={EMAIL}
-        sessionId={SESSION_ID}
-      />,
-    );
-    // daysLeft = 0 exactly falls below threshold (< 0 check) — hidden.
-    expect(container.firstChild).toBeNull();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
+    try {
+      const { container } = render(
+        <CandidateSessionBanner
+          expiresAt={new Date(Date.now()).toISOString()}
+          email={EMAIL}
+          sessionId={SESSION_ID}
+        />,
+      );
+      // daysLeft = 0 exactly (frozen clock) — hidden.
+      expect(container.firstChild).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('is hidden when expiresAt is in the past (negative daysLeft)', () => {
