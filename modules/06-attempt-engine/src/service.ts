@@ -44,6 +44,7 @@ import type { PoolClient } from "pg";
 import { scoreMcqAndFinalizeSafely } from "@assessiq/scoring";
 import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
 import * as alRepo from "../../05-assessment-lifecycle/src/repository.js";
+import { assertPoolVerifiedForInvites } from "@assessiq/assessment-lifecycle";
 import * as qbRepo from "../../04-question-bank/src/repository.js";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import * as repo from "./repository.js";
@@ -229,6 +230,10 @@ export async function startAttempt(
         { details: { code: AE_ERROR_CODES.ASSESSMENT_NOT_ACTIVE, status: assessment.status } },
       );
     }
+
+    // b2. EXP-18 review gate: no NEW attempt while the pool holds an unverified question. Runs for the
+    //     embed path too (it skips the invitation check below). NULL review_state passes.
+    await assertPoolVerifiedForInvites(client, assessment, "start the assessment");
 
     // c. Invitation check — skipped for embed-origin attempts (embed JWT IS the authorization).
     //    For standard attempts, invitation must exist and be valid.

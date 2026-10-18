@@ -70,7 +70,7 @@ export const NOT_WITHDRAWN_SQL = `NOT EXISTS (SELECT 1 FROM question_source ws
  * New row id and target tenant_id; origin, rights, source and licence fields are kept;
  * import_id and uploaded_by point at the master tenant, so they are not carried over.
  * A master with no source row (should not exist after 0194) clones as original_human/original.
- * review_state is copied as-is (same content); EXP-18 decides whether clones must re-verify.
+ * review_state is copied as-is (same content): a clone keeps the state of its source (EXP-18 owner decision).
  * MUST run in the same system-role tx as the INSERT of the clone question.
  */
 export async function copyQuestionSource(

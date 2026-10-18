@@ -424,3 +424,29 @@ describe("Z-39 retake policy", () => {
     await expect(sup((c) => c.query(`UPDATE assessments SET max_attempts = 11 WHERE id = $1`, [ok.id]))).rejects.toThrow(/check/i);
   });
 });
+
+describe("EXP-18 review gate on start", () => {
+  it("an invited candidate cannot start after a pool question is set to Needs fix, and can once it is verified; NULL passes; embed is gated too", async () => {
+    const { candidate, assessmentId } = await setup();
+    const qid = (await sup((c) => c.query(
+      `SELECT q.id FROM questions q JOIN assessments a ON a.pack_id = q.pack_id AND a.level_id = q.level_id WHERE a.id = $1 LIMIT 1`, [assessmentId],
+    ))).rows[0].id as string;
+    const setState = (st: string | null) => sup((c) => c.query(`UPDATE questions SET review_state = $2 WHERE id = $1`, [qid, st]).then(() => undefined));
+
+    await setState("needs_fix");
+    await expect(start(tenantA, { userId: candidate, assessmentId })).rejects.toMatchObject({
+      details: { code: "QUESTIONS_NOT_VERIFIED" },
+    });
+    await expect(start(tenantA, { userId: randomUUID(), assessmentId, embedOrigin: true } as Parameters<typeof rawStartAttempt>[1])).rejects.toMatchObject({
+      details: { code: "QUESTIONS_NOT_VERIFIED" },
+    });
+    expect(await attemptCount(assessmentId, candidate)).toBe(0);
+
+    await setState("verified");
+    expect((await start(tenantA, { userId: candidate, assessmentId })).attempt_number).toBe(1);
+
+    const other = await setup();
+    await sup((c) => c.query(`UPDATE questions SET review_state = NULL WHERE pack_id = (SELECT pack_id FROM assessments WHERE id = $1)`, [other.assessmentId]));
+    expect((await start(tenantA, { userId: other.candidate, assessmentId: other.assessmentId })).attempt_number).toBe(1);
+  });
+});

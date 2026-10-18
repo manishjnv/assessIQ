@@ -4908,3 +4908,75 @@ admin.assessments.invitations.reopen:
     - **Only for assessments with more than one attempt.** The button appears when the candidate has an attempt left.
     - **The candidate gets a new link by email.** The old link stops working. The new link is valid for 7 days.
     - **No attempts left?** Use "Give extra attempt" first, then re-open.
+
+admin.question_bank.pack.review:
+  audience: admin
+  short_text: "Open the review screen for this question set. Check each answer before candidates are invited."
+  long_md: |
+    ## Review questions
+
+    Use this to check every question in the set, with its answer key, before you invite candidates.
+
+    - **You cannot invite candidates until the check is done.** An assessment cannot publish or send invitations while a question is In review, Needs fix or Disputed.
+    - **Who checks.** The super admin checks platform questions. An organisation admin checks the questions of that organisation.
+    - **Older questions.** Questions with the review state "Not set" still pass. They were made before the review step.
+
+admin.question_bank.review.filter:
+  audience: admin
+  short_text: "Show only the questions in one review state."
+  long_md: |
+    ## Review state
+
+    Pick a state to filter the list. The number in brackets is the count of questions in that state.
+
+    - **Needs review.** Questions that are In review, Needs fix or Disputed. Start here.
+    - **Verified.** Questions you already checked.
+    - **Not set.** Older questions that never entered review. They do not block an assessment.
+
+admin.question_bank.review.verify:
+  audience: admin
+  short_text: "Mark this question as correct. The question can then go to candidates."
+  long_md: |
+    ## Verify
+
+    Press Verify when the question, the answer key and the rationale are correct.
+
+    - **Check the key first.** A wrong key gives wrong scores to every candidate.
+    - **It is saved in the audit log.** The log records your name, the time and the earlier state.
+    - **You can change it later.** Press Needs fix if you find an error after you verify.
+
+admin.question_bank.review.needs_fix:
+  audience: admin
+  short_text: "Flag an error in this question. You must write a note that says what to change."
+  long_md: |
+    ## Needs fix
+
+    Use this when the question, the key or the rationale has an error.
+
+    - **A note is required.** Write what must change. The note is saved in the audit log.
+    - **It blocks invitations.** An assessment that holds this question cannot publish or send invitations until the question is verified.
+    - **Fix the question first.** Then press Verify.
+
+admin.question_bank.review.withdraw:
+  audience: admin
+  short_text: "Take this question out of use. You cannot undo this."
+  long_md: |
+    ## Withdraw
+
+    Use this when a question must not be used, for example because of a copyright claim.
+
+    - **The question leaves every question set** at the next sync.
+    - **Old attempts keep their copy.** Candidates who already took the question keep their result.
+    - **You cannot undo it.** A withdrawn question cannot be verified or activated again.
+
+admin.question_bank.review.verify_all:
+  audience: admin
+  short_text: "Verify every question that is In review in this set. You see the count first."
+  long_md: |
+    ## Verify all in this question set
+
+    Use this only after you checked the questions. The screen shows the count and asks you to confirm.
+
+    - **Only In review questions change.** Questions marked Needs fix or Disputed stay as they are.
+    - **The count is checked again.** If the count changed while you confirmed, nothing is saved. Review the list and try again.
+    - **Each question gets its own audit entry.** The log marks the entry as part of a bulk action.

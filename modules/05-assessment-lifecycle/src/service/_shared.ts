@@ -94,6 +94,13 @@ export async function listUnverifiedPoolQuestions(
   levelId: string,
   cap = 50,
 ): Promise<{ count: number; ids: string[] }> {
+  // Race guard: share-lock the pool rows (id order, same as the review writers) so a concurrent
+  // Needs fix / verify cannot change a row between this check and the freeze that follows. A review
+  // write waits for our commit; if it committed first, the check below reads its result.
+  await client.query(
+    `SELECT id FROM questions WHERE pack_id = $1 AND level_id = $2 AND status = 'active' ORDER BY id FOR SHARE`,
+    [packId, levelId],
+  );
   const r = await client.query<{ id: string; total: string }>(
     `SELECT id, count(*) OVER () AS total FROM questions
      WHERE pack_id = $1 AND level_id = $2 AND status = 'active'
@@ -102,6 +109,67 @@ export async function listUnverifiedPoolQuestions(
     [packId, levelId, cap],
   );
   return { count: parseInt(r.rows[0]?.total ?? "0", 10), ids: r.rows.map((x) => x.id) };
+}
+
+/**
+ * EXP-18 review gate on the FROZEN pool of one assessment (the questions candidates will really get).
+ * Share-locks the questions first (race guard, see listUnverifiedPoolQuestions), then lists the
+ * unverified ones. NULL review_state does not block.
+ */
+export async function listUnverifiedFrozenQuestions(
+  client: PoolClient,
+  assessmentId: string,
+  cap = 50,
+): Promise<{ count: number; ids: string[] }> {
+  await client.query(
+    `SELECT q.id FROM assessment_frozen_pool f JOIN questions q ON q.id = f.question_id
+      WHERE f.assessment_id = $1 ORDER BY q.id FOR SHARE OF q`,
+    [assessmentId],
+  );
+  const r = await client.query<{ id: string; total: string }>(
+    `SELECT q.id, count(*) OVER () AS total FROM assessment_frozen_pool f JOIN questions q ON q.id = f.question_id
+      WHERE f.assessment_id = $1 AND q.review_state IS NOT NULL AND q.review_state <> 'verified'
+      ORDER BY q.id LIMIT $2`,
+    [assessmentId, cap],
+  );
+  return { count: parseInt(r.rows[0]?.total ?? "0", 10), ids: r.rows.map((x) => x.id) };
+}
+
+/** One error shape for every EXP-18 block (publish, invite, resend): code QUESTIONS_NOT_VERIFIED. */
+export function questionsNotVerifiedError(
+  action: string,
+  unverified: { count: number; ids: string[] },
+): ValidationError {
+  return new ValidationError(
+    `Cannot ${action}: ${unverified.count} question(s) in the pool are not verified`,
+    {
+      details: {
+        code: AL_ERROR_CODES.QUESTIONS_NOT_VERIFIED,
+        count: unverified.count,
+        question_ids: unverified.ids,
+      },
+    },
+  );
+}
+
+/**
+ * Invite / resend gate. Checks the frozen pool when the assessment has one, else the live
+ * (pack, level) pool (legacy assessments published before migration 0096).
+ */
+export async function assertPoolVerifiedForInvites(
+  client: PoolClient,
+  assessment: { id: string; pack_id: string; level_id: string },
+  action = "send invitations",
+): Promise<void> {
+  const frozen = await client.query<{ n: string }>(
+    `SELECT count(*) AS n FROM assessment_frozen_pool WHERE assessment_id = $1`,
+    [assessment.id],
+  );
+  const hasFrozen = parseInt(frozen.rows[0]?.n ?? "0", 10) > 0;
+  const unverified = hasFrozen
+    ? await listUnverifiedFrozenQuestions(client, assessment.id)
+    : await listUnverifiedPoolQuestions(client, assessment.pack_id, assessment.level_id);
+  if (unverified.count > 0) throw questionsNotVerifiedError(action, unverified);
 }
 
 /**

@@ -390,4 +390,15 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 
 ### Review gate consumer (EXP-18, 2026-10-18)
 
-Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disputed` and `needs_fix` on an active pool question block publish (422 `QUESTIONS_NOT_VERIFIED`); NULL and `verified` pass. No module 04 code changed. The verify actions, review screen and per-verification audit row are still open in row EXP-18.
+Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disputed` and `needs_fix` on an active pool question block publish (422 `QUESTIONS_NOT_VERIFIED`); NULL and `verified` pass. Part 2 (below) adds the writers: review actions, bulk verify, `in_review` on import.
+
+### Review gate actions (EXP-18 part 2, 2026-10-18)
+
+- **What.** `service/review.ts` (new): `reviewQuestion` (Verify, Needs fix with a note, Withdraw), `bulkVerifyPack` (every `in_review` question of one set, with an `expected_count` guard) and `getPackReview` (the list for the review screen, answer key included). Routes in `review-routes.ts` (three, on the `adminOnly` chain; see `docs/03-api-contract.md` § "Question review routes"). `withdrawInTx` was split out of `withdrawQuestion` so Withdraw from the review screen shares one code path. Imports (`import/commit.ts`, `bulkImport`) insert `review_state = 'in_review'` through the new `reviewState` field of `insertQuestion`. Clones keep the source state (`copyQuestionSource`, unchanged).
+- **Authorization.** Role `admin` or `super_admin`; the pack tenant must equal the session tenant; a platform pack needs `super_admin`, an organisation pack needs `admin`. Checked in the handler (`assertReviewRole`) and in the service.
+- **Audit.** `question.review_changed` with `before.review_state`, `after.review_state`, `note`, `bulk`. One row per question, also for bulk verify.
+- **Locking.** `SELECT ... FOR UPDATE` in id order on the question rows. Module 05 share-locks the same rows in id order, so a review write and a publish or invite cannot interleave.
+- **Why.** Owner rule D6: review before invite. **Considered and rejected:** a `review_note` column (migration, harness changes); `in_review` in `createQuestion` (breaks every fixture; EXP-17 will set it for organisation uploads); resetting the state on edit (not in the contract).
+- **Not included.** EXP-17 organisation upload, state reset after an edit, `disputed` writer, Needs fix note outside the audit log.
+- **Downstream.** Module 05 gates (publish, invite, resend, re-open). Module 14 action `question.review_changed`. Module 10 page. Module 16 help ids.
+- **Tests.** `src/__tests__/question-review.test.ts` (each action, bulk, count guard, platform and tenant isolation, role refusal, imports, clone state).

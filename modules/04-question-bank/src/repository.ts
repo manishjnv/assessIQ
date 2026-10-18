@@ -886,6 +886,8 @@ export async function insertQuestion(
     sourceExtra?: QuestionSourceExtra;
     difficultyEst?: number | null;
     languagePrimary?: string;
+    /** EXP-18: imports and tenant uploads pass 'in_review'; omitted = NULL (no review concept). */
+    reviewState?: ReviewState | null;
   },
 ): Promise<Question> {
   // questions has no tenant_id column — the WITH CHECK RLS policy derives
@@ -894,8 +896,8 @@ export async function insertQuestion(
   // answer_guidance is plain text (candidate hint); NULL when not authored.
   const result = await client.query<QuestionRow>(
     `INSERT INTO questions (id, pack_id, level_id, type, topic, points, content, rubric, answer_guidance, created_by, negative_marks,
-                            difficulty_est, language_primary)
-     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11, $12, COALESCE($13, 'en'))
+                            difficulty_est, language_primary, review_state)
+     VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11, $12, COALESCE($13, 'en'), $14)
      RETURNING ${QUESTION_COLUMNS}`,
     [
       input.id,
@@ -911,6 +913,7 @@ export async function insertQuestion(
       input.negativeMarks ?? null,
       input.difficultyEst ?? null,
       input.languagePrimary ?? null,
+      input.reviewState ?? null,
     ],
   );
   const row = result.rows[0];
