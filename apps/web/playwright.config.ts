@@ -21,7 +21,7 @@ export default defineConfig({
 
   forbidOnly: !!process.env.CI,
 
-  retries: process.env.CI ? 2 : 0,
+  retries: 0, // Z-60: no blind retries; a flake must be fixed, not hidden
 
   workers: process.env.CI ? 2 : undefined,
 
