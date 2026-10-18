@@ -16,7 +16,7 @@
 | CI job `docs-check` | Runs the doc anchor, skill mount, docs lint, deploy procedure and coverage checks | Runs on every commit, docs-only included. About 30 seconds. |
 | CI job `ci-ok` | One aggregate check for branch status | Fails on failure or cancel. Passes when heavy jobs skip on a docs-only commit. |
 | `tools/deploy.sh` step 1 (two-commit preflight) | Checks CI success on `HEAD` and on the last code commit | Prints both SHAs. A docs-only `HEAD` deploys against the CI run of the last code change. |
-| `tools/next-brief.mjs`, `tools/roadmap-recount.mjs`, `tools/next-migration.mjs`, `tools/routing-report.mjs`, `tools/codex-review.sh` | Planned in `08-token-tooling-plan.md` | Check `ls tools` before using. |
+| `tools/next-brief.mjs`, `tools/roadmap-recount.mjs`, `tools/next-migration.mjs`, `tools/routing-report.mjs`, `tools/codex-review.sh` | Built (S26): next-brief, routing-report. Still planned: roadmap-recount, next-migration, codex-review. See `08-token-tooling-plan.md` | Check `ls tools` before using. |
 
 ## Session time helpers (S25)
 
