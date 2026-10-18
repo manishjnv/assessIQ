@@ -410,7 +410,9 @@ jobs:
     runs-on: ubuntu-latest
     # E13 (2026-10-06): required. The job ran in-runner and green since 09595fa
     # (runs 37400230396, 37415618512, 37417892862, 37419878620); continue-on-error removed.
-    needs: quality
+    # S21 (2026-10-18): runs in parallel with `quality` (no `needs:`). It uses nothing from
+    # that job, and the serial layout hid e2e failures for 2 days behind a lint error. A
+    # green workflow still needs BOTH jobs green. Measured: serial about 15 min, parallel about 8.
     timeout-minutes: 30
 
     services:
