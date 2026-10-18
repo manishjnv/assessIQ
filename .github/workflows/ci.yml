@@ -552,6 +552,19 @@ jobs:
     # green workflow still needs BOTH jobs green. Measured: serial about 15 min, parallel about 8.
     timeout-minutes: 30
 
+    # Z-58: each matrix leg is its own runner with its own Postgres and Redis service,
+    # so every leg has its own e2e database. Legs: 2 spec shards plus the advisory phone
+    # timing check (RW-79) in parallel, so it is off the critical path.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: shard-1
+            shard: 1
+          - leg: shard-2
+            shard: 2
+          - leg: phone
+
     services:
       postgres:
         image: postgres:16
@@ -648,16 +661,18 @@ jobs:
           nohup pnpm --filter @assessiq/web exec vite preview --port 4173 --host 127.0.0.1 > "$RUNNER_TEMP/web.log" 2>&1 &
           for i in $(seq 1 30); do curl -fs http://localhost:4173/ >/dev/null && break; sleep 1; done
 
-      - name: Run E2E specs
+      - name: Run E2E specs (shard ${{ matrix.shard }}/2)
+        if: matrix.leg != 'phone'
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
           E2E_API_BASE_URL: http://localhost:3000
         run: >-
-          pnpm --filter @assessiq/web exec playwright test
+          pnpm --filter @assessiq/web exec playwright test --shard=${{ matrix.shard }}/2
           admin-workflow take-happy-path take-timer-expiry ordering-admin a11y-authed
 
       # advisory until 2026-10-31, then remove PHONE_FLOW_ADVISORY and continue-on-error (RW-79)
       - name: Phone first-question timing (RW-79)
+        if: matrix.leg == 'phone'
         continue-on-error: true
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
@@ -669,7 +684,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-service-logs-${{ github.run_id }}
+          name: e2e-service-logs-${{ matrix.leg }}-${{ github.run_id }}
           path: ${{ runner.temp }}/*.log
           retention-days: 14
 
@@ -677,7 +692,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-${{ github.run_id }}
+          name: playwright-report-${{ matrix.leg }}-${{ github.run_id }}
           path: apps/web/playwright-report/
           retention-days: 14
 
@@ -685,7 +700,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-traces-${{ github.run_id }}
+          name: playwright-traces-${{ matrix.leg }}-${{ github.run_id }}
           path: apps/web/test-results/
           retention-days: 14
 
