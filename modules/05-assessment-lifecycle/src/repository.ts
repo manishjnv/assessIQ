@@ -32,6 +32,7 @@
  * transaction.
  */
 
+import { nodeScopeArgs, taxonomyDrawPredicate, type NodeScope } from "../../04-question-bank/src/taxonomy-nodes.js";
 import type { PoolClient } from "pg";
 import type {
   Assessment,
@@ -208,9 +209,21 @@ export async function countFrozenForCriterion(
   client: PoolClient,
   assessmentId: string,
   domainId: string,
-  categoryId: string,
+  categoryId: string | undefined,
   type: string,
+  node?: NodeScope,
 ): Promise<number> {
+  if (node !== undefined) {
+    // Z-43: taxonomy-node criterion over the frozen set.
+    const r = await client.query<{ count: string }>(
+      `SELECT count(*) FROM assessment_frozen_pool fp
+         JOIN questions q ON q.id = fp.question_id
+        WHERE fp.assessment_id = $1 AND fp.type = $2
+          AND ${taxonomyDrawPredicate("q", "$3", "$4", "$5")}`,
+      [assessmentId, type, ...nodeScopeArgs(node)],
+    );
+    return parseInt(r.rows[0]?.count ?? "0", 10);
+  }
   const result = await client.query<{ count: string }>(
     `SELECT count(*) FROM assessment_frozen_pool
       WHERE assessment_id = $1 AND domain_id = $2 AND category_id = $3 AND type = $4`,
@@ -224,10 +237,24 @@ export async function listFrozenForCriterionPreview(
   client: PoolClient,
   assessmentId: string,
   domainId: string,
-  categoryId: string,
+  categoryId: string | undefined,
   type: string,
   limit: number,
+  node?: NodeScope,
 ): Promise<unknown[]> {
+  if (node !== undefined) {
+    const r = await client.query(
+      `SELECT q.id, q.topic, fp.type, COALESCE(fp.points, q.points) AS points
+         FROM assessment_frozen_pool fp
+         JOIN questions q ON q.id = fp.question_id
+        WHERE fp.assessment_id = $1 AND fp.type = $2
+          AND ${taxonomyDrawPredicate("q", "$3", "$4", "$5")}
+        ORDER BY q.created_at ASC, q.id ASC
+        LIMIT $6`,
+      [assessmentId, type, ...nodeScopeArgs(node), limit],
+    );
+    return r.rows;
+  }
   const result = await client.query(
     `SELECT q.id, q.topic, fp.type, COALESCE(fp.points, q.points) AS points
        FROM assessment_frozen_pool fp
