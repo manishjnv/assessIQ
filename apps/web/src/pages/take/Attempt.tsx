@@ -399,6 +399,14 @@ export function AttemptPage(): React.JSX.Element {
   }
 
   // ── Navigator items ───────────────────────────────────────────────────────
+  // Whole-test timer: the API returns every question and no `sections`; group by the
+  // per-question section_index when the server also sent the names. Else flat list.
+  const sectionNames = sec === undefined ? view.section_names : undefined;
+  const sectionOfQuestion = (q: FrozenQuestionWire): { index: number; name: string } | undefined => {
+    const i = q.section_index;
+    const name = i === null || i === undefined ? undefined : sectionNames?.[i];
+    return i !== null && i !== undefined && name !== undefined ? { index: i, name } : undefined;
+  };
   const navigatorItems = sorted.map((q) => {
     const qid = q.question_id;
     const isCurrentQ = qid === currentQuestionId;
@@ -422,6 +430,8 @@ export function AttemptPage(): React.JSX.Element {
       // Sectioned tests number from 1 inside each section.
       position: sec !== undefined ? sorted.indexOf(q) + 1 : q.position,
       status,
+      answered: isAnswered,
+      ...(sectionOfQuestion(q) !== undefined ? { section: sectionOfQuestion(q)! } : {}),
     };
   });
 
@@ -501,6 +511,7 @@ export function AttemptPage(): React.JSX.Element {
       {/* ── TOP BAR ─────────────────────────────────────────────────────── */}
       <AttemptTopBar
         sec={sec}
+        wholeTestSectionName={currentQuestion !== null ? sectionOfQuestion(currentQuestion)?.name : undefined}
         attempt={attempt}
         safeIdx={safeIdx}
         questionCount={sorted.length}

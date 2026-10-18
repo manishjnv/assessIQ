@@ -6,6 +6,8 @@ import { TOP_BAR, COUNTER_LABEL } from "./shared.js";
 
 export interface AttemptTopBarProps {
   sec: CandidateAttemptViewWire["sections"];
+  /** Whole-test timer: name of the current question's section (no `sec`, one countdown). */
+  wholeTestSectionName?: string | undefined;
   attempt: CandidateAttemptViewWire["attempt"];
   safeIdx: number;
   questionCount: number;
@@ -21,7 +23,7 @@ export interface AttemptTopBarProps {
 
 export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const {
-    sec, attempt, safeIdx, questionCount, isLastSection, handleExpire,
+    sec, wholeTestSectionName, attempt, safeIdx, questionCount, isLastSection, handleExpire,
     refreshAfterSectionChange, autosave, setNavOpen, companyName = "", companyLogoUrl = null,
   } = props;
   return (
@@ -36,6 +38,12 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
     {sec !== undefined && (
       <Chip variant="default" style={{ flexShrink: 0 }} data-help-id="candidate.attempt.section">
         Section {sec.current + 1} of {sec.total} · {sec.name}
+      </Chip>
+    )}
+
+    {sec === undefined && wholeTestSectionName !== undefined && (
+      <Chip variant="default" style={{ flexShrink: 0 }} data-help-id="candidate.attempt.section">
+        {wholeTestSectionName}
       </Chip>
     )}
 
