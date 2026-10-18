@@ -46,6 +46,7 @@ import { SectionsCard } from "../components/SectionsCard.js";
 import { HighStakesCard } from "../components/HighStakesCard.js";
 import { NegativeMarksCard } from "../components/NegativeMarksCard.js";
 import { PassMarkCard } from "../components/PassMarkCard.js";
+import { RetakeCard } from "../components/RetakeCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
@@ -312,6 +313,47 @@ export function AdminAssessmentDetail(): React.ReactElement {
     }
   }
 
+  // Z-39: re-open a submitted invitation for the next attempt (fresh link by email).
+  async function handleReopenOne(inv: Invitation) {
+    setResendingId(inv.id);
+    setResendError(null);
+    setResendResult(null);
+    try {
+      await adminApi(`/admin/invitations/${inv.id}/reopen`, { method: "POST" });
+      setResendResult({ resent: 1, skipped: [], remaining: 0 });
+      await fetchData();
+    } catch (err) {
+      setResendError(err instanceof AdminApiError ? err.apiError.message : "Failed to re-open the invitation.");
+      if (err instanceof AdminApiError && (err.status === 409 || err.status === 502)) await fetchData();
+    } finally {
+      setResendingId(null);
+    }
+  }
+
+  // Z-39: give ONE candidate ONE extra attempt. The reason is required and goes to the audit log.
+  async function handleGrantExtra(inv: Invitation) {
+    const reason = window.prompt("Reason for the extra attempt (required, saved in the audit log):");
+    if (reason === null) return;
+    if (reason.trim() === "") {
+      setResendError("A reason is required to give an extra attempt.");
+      return;
+    }
+    setResendingId(inv.id);
+    setResendError(null);
+    setResendResult(null);
+    try {
+      await adminApi(`/admin/invitations/${inv.id}/extra-attempt`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() }),
+      });
+      await fetchData();
+    } catch (err) {
+      setResendError(err instanceof AdminApiError ? err.apiError.message : "Failed to give the extra attempt.");
+    } finally {
+      setResendingId(null);
+    }
+  }
+
   // Resend to everyone who hasn't started (server caps one call at 200; the
   // result says how many are still waiting so the admin can press it again).
   async function handleResendAll() {
@@ -357,7 +399,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
   // One clock reading per render so every row's "Expires … / Expired" agrees.
   const nowMs = Date.now();
 
-  const invitationColumns: ColumnDef<Invitation>[] = buildInvitationColumns({ nowMs, resendingId, resendingAll, onResend: handleResendOne });
+  const invitationColumns: ColumnDef<Invitation>[] = buildInvitationColumns({ nowMs, resendingId, resendingAll, onResend: handleResendOne, onReopen: handleReopenOne, onGrantExtra: handleGrantExtra });
 
   // MUST be computed before the early returns below — a hook after a conditional
   // return changes the hook order between the loading and loaded renders, which
@@ -600,6 +642,13 @@ export function AdminAssessmentDetail(): React.ReactElement {
           key={`pm-${assessment.id}`}
           assessmentId={assessment.id}
           initial={assessment.passing_score_pct}
+          isDraft={assessment.status === "draft"}
+        />
+        <RetakeCard
+          key={`rt-${assessment.id}`}
+          assessmentId={assessment.id}
+          initialMax={assessment.max_attempts ?? null}
+          initialScoreCounts={assessment.settings?.score_counts ?? "latest"}
           isDraft={assessment.status === "draft"}
         />
         <IntegrityCard key={assessment.id} assessmentId={assessment.id} initial={assessment.settings?.integrity} />

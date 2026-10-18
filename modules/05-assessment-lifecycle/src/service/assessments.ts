@@ -1,4 +1,4 @@
-import { NotFoundError, ValidationError, ConflictError, uuidv7 } from "@assessiq/core";
+import { NotFoundError, ValidationError, ConflictError, uuidv7, MAX_ATTEMPTS_LIMIT } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { assertLicensedForSourcePack } from "@assessiq/billing";
@@ -136,6 +136,8 @@ export async function createAssessment(
   assertRemindersSettings(input.settings);
   assertSectionsSettings(input.settings);
   if (input.passing_score_pct !== undefined) assertPassMark(input.passing_score_pct);
+  if (input.max_attempts !== undefined) assertMaxAttempts(input.max_attempts);
+  assertScoreCounts(input.settings);
   let resolvedInput = input;
   let mergedSettings: AssessmentSettings = input.settings ?? {};
 
@@ -235,6 +237,7 @@ export async function createAssessment(
       questionCount: resolvedInput.question_count,
       // Z-16: explicit mark wins; else the level's value (clamped: levels allow 0).
       passingScorePct: input.passing_score_pct ?? Math.min(100, Math.max(1, level.passing_score_pct)),
+      maxAttempts: input.max_attempts ?? null,
       randomize: resolvedInput.randomize ?? true,
       opensAt: resolvedInput.opens_at ?? null,
       closesAt: resolvedInput.closes_at ?? null,
@@ -256,6 +259,7 @@ export async function createAssessment(
         name: assessment.name,
         question_count: assessment.question_count,
         passing_score_pct: assessment.passing_score_pct,
+        max_attempts: assessment.max_attempts,
         randomize: assessment.randomize,
         status: assessment.status,
         has_blueprint: rawBlueprint !== undefined,
@@ -288,6 +292,25 @@ export function assertPassMark(v: unknown): asserts v is number {
       details: { code: "INVALID_PARAM", param: "passing_score_pct" },
     });
   }
+}
+
+/** Z-39: max_attempts is null (no retake) or a whole number from 1 to 10. */
+export function assertMaxAttempts(v: unknown): asserts v is number | null {
+  if (v === null) return;
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > MAX_ATTEMPTS_LIMIT) {
+    throw new ValidationError(`max_attempts must be empty or a whole number from 1 to ${String(MAX_ATTEMPTS_LIMIT)}`, {
+      details: { code: "INVALID_PARAM", param: "max_attempts" },
+    });
+  }
+}
+
+/** Z-39: settings.score_counts is 'latest' or 'best' when present. */
+export function assertScoreCounts(settings: AssessmentSettings | undefined): void {
+  const raw = (settings as Record<string, unknown> | undefined)?.["score_counts"];
+  if (raw === undefined || raw === "latest" || raw === "best") return;
+  throw new ValidationError("settings.score_counts must be 'latest' or 'best'", {
+    details: { code: "INVALID_PARAM", param: "settings.score_counts" },
+  });
 }
 
 /** Integrity v1: reject a malformed settings.integrity (typed sub-key, like blueprint). */
@@ -352,6 +375,7 @@ export async function createAssessmentFromSet(
   if (input.description !== undefined) createInput.description = input.description;
   if (input.randomize !== undefined) createInput.randomize = input.randomize;
   if (input.passing_score_pct !== undefined) createInput.passing_score_pct = input.passing_score_pct;
+  if (input.max_attempts !== undefined) createInput.max_attempts = input.max_attempts;
   if (input.settings !== undefined) {
     // from-set resolves pack/level from the CLONED set. A blueprint would
     // override that and is a super_admin-only authoring capability (enforced at
@@ -534,6 +558,8 @@ export async function updateAssessment(
   assertRemindersSettings(patch.settings);
   assertSectionsSettings(patch.settings);
   if (patch.passing_score_pct !== undefined) assertPassMark(patch.passing_score_pct);
+  if (patch.max_attempts !== undefined) assertMaxAttempts(patch.max_attempts);
+  assertScoreCounts(patch.settings);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
   let validatedBlueprint: ResolvedBlueprint | null = null;
   const rawPatchBlueprint = (patch.settings as Record<string, unknown> | undefined)?.["blueprint"];
@@ -612,6 +638,7 @@ export async function updateAssessment(
     if (patch.name !== undefined) repoPatch.name = patch.name;
     if (patch.description !== undefined) repoPatch.description = patch.description;
     if (patch.passing_score_pct !== undefined) repoPatch.passingScorePct = patch.passing_score_pct;
+    if (patch.max_attempts !== undefined) repoPatch.maxAttempts = patch.max_attempts;
     if (patch.randomize !== undefined) repoPatch.randomize = patch.randomize;
     if (patch.opens_at !== undefined) repoPatch.opensAt = patch.opens_at;
     if (patch.closes_at !== undefined) repoPatch.closesAt = patch.closes_at;
@@ -643,6 +670,7 @@ export async function updateAssessment(
         name: current.name,
         question_count: current.question_count,
         passing_score_pct: current.passing_score_pct,
+        max_attempts: current.max_attempts,
         randomize: current.randomize,
         opens_at: current.opens_at?.toISOString() ?? null,
         closes_at: current.closes_at?.toISOString() ?? null,
@@ -651,6 +679,7 @@ export async function updateAssessment(
         name: updated.name,
         question_count: updated.question_count,
         passing_score_pct: updated.passing_score_pct,
+        max_attempts: updated.max_attempts,
         randomize: updated.randomize,
         opens_at: updated.opens_at?.toISOString() ?? null,
         closes_at: updated.closes_at?.toISOString() ?? null,

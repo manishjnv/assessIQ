@@ -15,8 +15,8 @@
 
 import React from 'react';
 import { Chip, Icon, Num, ScoreRing } from '@assessiq/ui-system';
-import { certificateRuleText, resultSupportLine } from '../copy.js';
-import type { ResultCertificateWire, ResultNegativeMarkingWire } from '../types.js';
+import { certificateRuleText, resultSupportLine, retakeLine } from '../copy.js';
+import type { ResultCertificateWire, ResultNegativeMarkingWire, ResultRetakeWire } from '../types.js';
 
 export interface ResultSummaryProps {
   totalEarned: number;
@@ -37,6 +37,12 @@ export interface ResultSummaryProps {
   tenantName?: string | undefined;
   /** Z-9: true when per-question feedback is on (feedbackLevel !== 'none'). */
   feedbackOn?: boolean;
+  /** Z-39: attempt n of m. Absent on older servers: the old "ask your organisation" line shows. */
+  retake?: ResultRetakeWire | undefined;
+  /** Z-39: Try again button. Shown only when retake.can_retake and the result is not a pass. */
+  onRetake?: (() => void) | undefined;
+  retaking?: boolean;
+  retakeError?: string | null | undefined;
 }
 
 const EYEBROW: React.CSSProperties = {
@@ -71,6 +77,10 @@ export function ResultSummary({
   assessmentName,
   tenantName,
   feedbackOn = false,
+  retake,
+  onRetake,
+  retaking = false,
+  retakeError = null,
 }: ResultSummaryProps): React.ReactElement {
   const tone = passed ? 'success' : 'warning';
   const org = tenantName !== undefined && tenantName !== '' ? tenantName : 'your organisation';
@@ -79,7 +89,7 @@ export function ResultSummary({
       ? `You passed ${assessmentName}.`
       : 'You passed.'
     : 'You did not reach the pass mark.';
-  const askLine = `Ask ${org} if you can try again.`;
+  const askLine = retakeLine(retake, org);
   const nextStep = passed
     ? certificate !== null
       ? 'Your certificate is ready. Select View certificate to open, download or share it.'
@@ -113,6 +123,25 @@ export function ResultSummary({
         >
           <div style={{ fontSize: 18, fontWeight: 600, overflowWrap: 'anywhere' }}>{headline}</div>
           {nextStep !== null && <div style={{ fontSize: 14, marginTop: 6 }}>{nextStep}</div>}
+          {!passed && retake?.can_retake === true && onRetake !== undefined && (
+            <div style={{ marginTop: 10 }}>
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline"
+                data-testid="result-retake"
+                data-help-id="candidate.result.retake"
+                disabled={retaking}
+                onClick={onRetake}
+              >
+                {retaking ? 'Starting...' : 'Try again'}
+              </button>
+              {retakeError !== null && (
+                <div role="alert" style={{ fontSize: 14, marginTop: 6 }}>
+                  {retakeError}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
       <div

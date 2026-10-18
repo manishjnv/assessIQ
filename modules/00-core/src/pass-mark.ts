@@ -19,3 +19,19 @@ export function meetsPct(earned: number | string, max: number | string, pct: num
 
 /** Pass rule: score reaches the assessment's pass mark (1..100). */
 export const isPass = meetsPct;
+
+// Z-39: the ONE retake limit rule. max_attempts null or 1 means a single attempt
+// (no retake); extraAttempts is what an admin granted to one candidate on top.
+// Used by 05 (re-open invitation) and 06 (start attempt, preview, result).
+
+/** Owner limit (Z-39): an assessment allows at most 10 attempts. */
+export const MAX_ATTEMPTS_LIMIT = 10;
+
+/** Total attempts one candidate may make: max(1, maxAttempts) + extraAttempts. */
+export function attemptsAllowed(maxAttempts: number | null | undefined, extraAttempts = 0): number {
+  const base =
+    maxAttempts === null || maxAttempts === undefined || !Number.isInteger(maxAttempts)
+      ? 1
+      : Math.max(1, maxAttempts);
+  return base + Math.max(0, Math.trunc(extraAttempts));
+}

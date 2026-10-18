@@ -38,6 +38,8 @@ export {
   revokeInvitation,
   resendInvitation,
   resendInvitations,
+  grantExtraAttempt,
+  reopenInvitationForRetake,
   previewAssessment,
   resolveInvitationToken,
   markInvitationViewedByToken,

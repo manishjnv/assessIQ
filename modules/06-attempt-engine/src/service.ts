@@ -35,6 +35,7 @@ import {
   ConflictError,
   NotFoundError,
   ValidationError,
+  attemptsAllowed,
   streamLogger,
   uuidv7,
 } from "@assessiq/core";
@@ -59,6 +60,7 @@ import type {
   AttemptAnswer,
   AttemptEvent,
   AttemptIntegritySummary,
+  AttemptStatus,
   CandidateAttemptView,
   EventType,
   RecordEventInput,
@@ -181,8 +183,11 @@ async function assertSectionOpen(
 }
 
 // ===========================================================================
-// startAttempt — idempotent (assessment, user) → attempt
+// startAttempt — idempotent resume; a retake only when asked for (Z-39)
 // ===========================================================================
+
+/** Z-39: an attempt the candidate has not finished yet ('draft' / 'in_progress') — resume it, never start another. */
+const isUnfinished = (status: AttemptStatus): boolean => status === "draft" || status === "in_progress";
 
 export async function startAttempt(
   tenantId: string,
@@ -194,7 +199,9 @@ export async function startAttempt(
   );
 
   return withTenant(tenantId, async (client) => {
-    // a. If an attempt already exists, return it (idempotent).
+    // a. If an attempt already exists, return it (idempotent) — unless the caller asked
+    //    for the NEXT attempt (Z-39 retake) and the latest one is finished. Resume of an
+    //    unfinished attempt is always idempotent, so a double click never opens attempt 2.
     const existing = await repo.findAttemptByAssessmentAndUser(
       client,
       input.assessmentId,
@@ -202,8 +209,9 @@ export async function startAttempt(
     );
     if (existing !== null) {
       assertAttemptOwnedBy(existing, input.userId);
-      return existing;
+      if (isUnfinished(existing.status) || input.newAttempt !== true) return existing;
     }
+    const nextAttemptNumber = existing === null ? 1 : existing.attempt_number + 1;
 
     // b. Assessment must exist and be 'active'.
     const assessment = await alRepo.findAssessmentById(client, input.assessmentId);
@@ -222,6 +230,7 @@ export async function startAttempt(
     // c. Invitation check — skipped for embed-origin attempts (embed JWT IS the authorization).
     //    For standard attempts, invitation must exist and be valid.
     let invitationId: string | undefined;
+    let extraAttempts = 0;
     if (!input.embedOrigin) {
       const invitation = await repo.findInvitationForCandidate(
         client,
@@ -238,7 +247,7 @@ export async function startAttempt(
           details: { code: AE_ERROR_CODES.INVITATION_INVALID, status: invitation.status },
         });
       }
-      if (invitation.status === "submitted") {
+      if (invitation.status === "submitted" && existing === null) {
         throw new ValidationError("Attempt already submitted", {
           details: { code: AE_ERROR_CODES.ALREADY_SUBMITTED },
         });
@@ -249,6 +258,7 @@ export async function startAttempt(
         });
       }
       invitationId = invitation.id;
+      extraAttempts = invitation.extra_attempts;
 
       // c2. Consent invariant (R4) — enforced HERE so EVERY non-embed path that
       //     creates a new attempt (/take/start Begin, /api/me/assessments/:id/start)
@@ -266,6 +276,22 @@ export async function startAttempt(
           422,
           { details: { code: AE_ERROR_CODES.CONSENT_REQUIRED } },
         );
+      }
+    }
+
+    // c3. Retake limit (Z-39): attempt n+1 is allowed only while n < max_attempts + extras.
+    //     Checked under the invitation row lock (non-embed); the unique key on
+    //     (assessment, user, attempt_number) is the backstop for the embed path.
+    if (existing !== null) {
+      const allowed = attemptsAllowed(assessment.max_attempts, extraAttempts);
+      if (existing.attempt_number >= allowed) {
+        throw new ConflictError(`All ${String(allowed)} allowed attempts are used`, {
+          details: {
+            code: AE_ERROR_CODES.ATTEMPTS_EXHAUSTED,
+            attempts_used: existing.attempt_number,
+            attempts_allowed: allowed,
+          },
+        });
       }
     }
 
@@ -454,9 +480,10 @@ export async function startAttempt(
       endsAt,
       durationSeconds,
       embedOrigin: input.embedOrigin ?? false,
+      attemptNumber: nextAttemptNumber,
     });
     if (attempt === null) {
-      // Lost a concurrent-Begin race (UNIQUE(assessment_id,user_id)): return the
+      // Lost a concurrent-Begin race (UNIQUE(assessment_id,user_id,attempt_number)): return the
       // winner's attempt, clock untouched.
       const winner = await repo.findAttemptByAssessmentAndUser(
         client,
@@ -530,6 +557,9 @@ export interface TakePreview {
   companyName: string;
   /** Logo L3a: tenant logo URL for the landing header; null when none or on any failure. */
   companyLogoUrl: string | null;
+  /** Z-39: the attempt this page is about (the one in progress, or the next one) and how many are allowed. */
+  attemptNumber: number;
+  attemptsAllowed: number;
 }
 
 export async function getTakePreview(
@@ -552,12 +582,20 @@ async function loadTakePreview(
         details: { code: AE_ERROR_CODES.ASSESSMENT_NOT_FOUND },
       });
     }
-    const existing = await repo.findAttemptByAssessmentAndUser(
+    const latest = await repo.findAttemptByAssessmentAndUser(
       client,
       input.assessmentId,
       input.userId,
     );
-    if (existing !== null) assertAttemptOwnedBy(existing, input.userId);
+    if (latest !== null) assertAttemptOwnedBy(latest, input.userId);
+    // Z-39: a finished attempt with attempts left is NOT "existing" - the landing offers the next attempt.
+    const allowed = attemptsAllowed(
+      assessment.max_attempts,
+      await repo.getInvitationExtraAttempts(client, input.assessmentId, input.userId),
+    );
+    const retakeOffered = latest !== null && !isUnfinished(latest.status) && latest.attempt_number < allowed;
+    const existing = retakeOffered ? null : latest;
+    const attemptNumber = latest === null ? 1 : retakeOffered ? latest.attempt_number + 1 : latest.attempt_number;
     if (existing === null && assessment.status !== "active") {
       throw new ConflictError(
         `Assessment must be 'active' to start an attempt (current: '${assessment.status}')`,
@@ -575,7 +613,7 @@ async function loadTakePreview(
         ? secs.reduce((n, s) => n + (s.question_count as number), 0)
         : assessment.question_count;
     const tenant = await tenancyRepo.findTenantById(client, tenantId);
-    return { existing, questionCount, companyName: tenant?.name?.trim() ?? "" };
+    return { existing, questionCount, companyName: tenant?.name?.trim() ?? "", attemptNumber, attemptsAllowed: allowed };
   });
 }
 

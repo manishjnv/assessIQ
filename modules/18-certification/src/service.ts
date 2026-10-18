@@ -676,6 +676,27 @@ export async function issueCertificateOnRelease(
   // snapshot on the score row, so a later assessment edit cannot change it.
   if (!isPass(row.total_earned, row.total_max, row.pass_mark_pct)) return null;
 
+  // Z-39: a retake can pass again. One certificate per assessment + candidate: when a
+  // live (not revoked) certificate already exists from an EARLIER attempt, keep it and
+  // issue nothing new (no duplicate credential, tier is not upgraded from a later attempt).
+  const earlier = await client.query<{ attempt_id: string }>(
+    `SELECT c.attempt_id
+       FROM certificates c
+       JOIN attempts prev ON prev.id = c.attempt_id
+       JOIN attempts cur  ON cur.id = $2
+      WHERE c.tenant_id = $1
+        AND c.candidate_id = cur.user_id
+        AND prev.assessment_id = cur.assessment_id
+        AND c.attempt_id <> cur.id
+        AND c.revoked_at IS NULL
+      LIMIT 1`,
+    [tenantId, attemptId],
+  );
+  const earlierAttemptId = earlier.rows[0]?.attempt_id;
+  if (earlierAttemptId !== undefined) {
+    return repo.findByAttempt(client, tenantId, row.candidate_id, earlierAttemptId);
+  }
+
   // Tier: distinction at 90% or more, else completion. Honors is deferred (owner, Z-16).
   const tier: Tier = meetsPct(row.total_earned, row.total_max, DISTINCTION_PCT)
     ? 'distinction'

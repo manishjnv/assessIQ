@@ -64,6 +64,8 @@ export interface Attempt {
   created_at: Date;
   /** True when the attempt was started via the embed JWT flow (Phase 4). */
   embed_origin: boolean;
+  /** Z-39: 1 for the first attempt, 2 for the first retake, and so on. */
+  attempt_number: number;
 }
 
 export interface AttemptQuestion {
@@ -261,6 +263,12 @@ export interface StartAttemptInput {
    * and sets attempts.embed_origin = TRUE (Phase 4 migration 0073).
    */
   embedOrigin?: boolean;
+  /**
+   * Z-39: the caller asks for the NEXT attempt after a finished one (a retake). Without it,
+   * startAttempt keeps its old meaning: return the latest attempt (resume or finished).
+   * With it, a new attempt is created only while attempts used < max_attempts + extras.
+   */
+  newAttempt?: boolean;
 }
 
 export interface SaveAnswerInput {
@@ -373,6 +381,8 @@ export const AE_ERROR_CODES = {
   SECTION_LOCKED: "AE_SECTION_LOCKED",
   /** Finish-section on an assessment without sections, or on the last section. */
   SECTION_NOT_FINISHABLE: "AE_SECTION_NOT_FINISHABLE",
+  /** Z-39: every allowed attempt (max_attempts + extra attempts) is used. */
+  ATTEMPTS_EXHAUSTED: "AE_ATTEMPTS_EXHAUSTED",
 } as const;
 
 export type AeErrorCode = (typeof AE_ERROR_CODES)[keyof typeof AE_ERROR_CODES];

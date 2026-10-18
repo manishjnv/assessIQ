@@ -18,9 +18,11 @@ export interface Assessment {
   created_at: string;
   level_label?: string | null;
   pack_name?: string | null;
-  settings?: { integrity?: IntegrityValue; reminders?: RemindersValue; high_stakes?: boolean; sections?: unknown; scoring?: { negative_marks_default?: number } } | null;
+  settings?: { score_counts?: "latest" | "best"; integrity?: IntegrityValue; reminders?: RemindersValue; high_stakes?: boolean; sections?: unknown; scoring?: { negative_marks_default?: number } } | null;
   question_count?: number;
   passing_score_pct?: number;
+  /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. */
+  max_attempts?: number | null;
 }
 
 export interface Invitation {
@@ -42,6 +44,13 @@ export interface Invitation {
   pending_review?: boolean | null;
   /** Server-computed: Resend is allowed (assessment open + candidate not started). */
   can_resend?: boolean;
+  /** Z-39: attempts used and allowed (max_attempts + extras). */
+  attempts_used?: number;
+  attempts_allowed?: number;
+  /** Z-39: Re-open is allowed (submitted, attempts left, assessment open). */
+  can_reopen?: boolean;
+  /** Z-39: Give extra attempt is allowed. */
+  can_grant_extra?: boolean;
 }
 
 /** API cap for /admin/assessments/:id/invitations (routes.ts parsePagination). */

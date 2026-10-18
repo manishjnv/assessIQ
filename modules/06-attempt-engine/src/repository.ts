@@ -35,7 +35,7 @@ const OPTION_TYPES = QUESTION_TYPES.filter((t) => QUESTION_TYPE_REGISTRY[t].shuf
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin`;
+const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin, attempt_number`;
 
 const ATTEMPT_QUESTION_COLUMNS = `attempt_id, question_id, position, question_version, option_order, section_index`;
 
@@ -57,6 +57,7 @@ interface AttemptRow {
   duration_seconds: number | null;
   created_at: Date;
   embed_origin: boolean;
+  attempt_number: number;
 }
 
 interface AttemptQuestionRow {
@@ -120,6 +121,7 @@ function mapAttemptRow(row: AttemptRow): Attempt {
     duration_seconds: row.duration_seconds,
     created_at: row.created_at,
     embed_origin: row.embed_origin,
+    attempt_number: row.attempt_number,
   };
 }
 
@@ -191,6 +193,7 @@ export async function findAttemptByIdForUpdate(
   return row !== undefined ? mapAttemptRow(row) : null;
 }
 
+/** Z-39: the candidate's LATEST attempt on this assessment (highest attempt_number), or null. */
 export async function findAttemptByAssessmentAndUser(
   client: PoolClient,
   assessmentId: string,
@@ -199,6 +202,7 @@ export async function findAttemptByAssessmentAndUser(
   const result = await client.query<AttemptRow>(
     `SELECT ${ATTEMPT_COLUMNS} FROM attempts
      WHERE assessment_id = $1 AND user_id = $2
+     ORDER BY attempt_number DESC
      LIMIT 1`,
     [assessmentId, userId],
   );
@@ -218,9 +222,11 @@ export async function insertAttempt(
     endsAt: Date | null;
     durationSeconds: number;
     embedOrigin?: boolean;
+    /** Z-39: 1 for the first attempt, then 2, 3 ... UNIQUE (assessment_id, user_id, attempt_number). */
+    attemptNumber: number;
   },
 ): Promise<Attempt | null> {
-  // Returns null when UNIQUE(assessment_id, user_id) is violated (23505): a
+  // Returns null when UNIQUE(assessment_id, user_id, attempt_number) is violated (23505): a
   // concurrent Begin won the race. The INSERT runs under a SAVEPOINT so the
   // surrounding withTenant transaction is NOT left aborted and the caller can
   // re-read the winner's row.
@@ -230,8 +236,8 @@ export async function insertAttempt(
   try {
     result = await client.query<AttemptRow>(
     `INSERT INTO attempts
-       (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, embed_origin)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, embed_origin, attempt_number)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      RETURNING ${ATTEMPT_COLUMNS}`,
     [
       input.id,
@@ -243,6 +249,7 @@ export async function insertAttempt(
       input.endsAt,
       input.durationSeconds,
       input.embedOrigin ?? false,
+      input.attemptNumber,
     ],
   );
   } catch (err) {
@@ -1063,13 +1070,13 @@ export async function findInvitationForCandidate(
   client: PoolClient,
   assessmentId: string,
   userId: string,
-): Promise<{ id: string; status: string; expires_at: Date } | null> {
+): Promise<{ id: string; status: string; expires_at: Date; extra_attempts: number } | null> {
   // FOR UPDATE: attempt start and an admin "Resend" (05 resendInvitation, which locks
   // the same row) must take turns. Without it a resend could check "not started", then
   // this start commit, and the resend rotate + email a link for a started candidate.
   // startAttempt re-validates status / expiry on the row it gets under this lock.
-  const result = await client.query<{ id: string; status: string; expires_at: Date }>(
-    `SELECT id, status, expires_at FROM assessment_invitations
+  const result = await client.query<{ id: string; status: string; expires_at: Date; extra_attempts: number }>(
+    `SELECT id, status, expires_at, extra_attempts FROM assessment_invitations
      WHERE assessment_id = $1 AND user_id = $2 LIMIT 1
      FOR UPDATE`,
     [assessmentId, userId],
@@ -1078,13 +1085,28 @@ export async function findInvitationForCandidate(
   return row !== undefined ? row : null;
 }
 
+/** Z-39: extra attempts an admin granted this candidate (0 when there is no invitation). Plain read, no lock. */
+export async function getInvitationExtraAttempts(
+  client: PoolClient,
+  assessmentId: string,
+  userId: string,
+): Promise<number> {
+  const result = await client.query<{ extra_attempts: number }>(
+    `SELECT extra_attempts FROM assessment_invitations WHERE assessment_id = $1 AND user_id = $2 LIMIT 1`,
+    [assessmentId, userId],
+  );
+  return result.rows[0]?.extra_attempts ?? 0;
+}
+
 export async function markInvitationStarted(
   client: PoolClient,
   invitationId: string,
 ): Promise<void> {
+  // 'submitted' is included for a Z-39 retake: startAttempt only reaches this call
+  // when another attempt is allowed (it throws ALREADY_SUBMITTED / ATTEMPTS_EXHAUSTED first).
   await client.query(
     `UPDATE assessment_invitations SET status = 'started'
-     WHERE id = $1 AND status IN ('pending', 'viewed')`,
+     WHERE id = $1 AND status IN ('pending', 'viewed', 'submitted')`,
     [invitationId],
   );
 }

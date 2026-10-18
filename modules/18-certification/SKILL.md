@@ -471,3 +471,10 @@ A missing logo or a read failure shows the organisation name alone. The guard `S
 - **Why.** Owner decision: a pass always earns a certificate. A fixed floor above the pass mark broke that.
 - **Not included.** Honors (later). Retake (Z-39). A change to `issueCertificate`, upgrade-only tiers or the release transaction. Issuance still runs inside `releaseAttemptInTx` in a SAVEPOINT.
 - **Race.** Two concurrent releases still produce one certificate: the release locks the attempt row and `UNIQUE(tenant_id, candidate_id, attempt_id)` backs it (test in `modules/09-scoring/src/__tests__/release.test.ts`).
+
+## Z-39 one certificate per assessment and candidate (2026-10-18)
+
+- **What.** `issueCertificateOnRelease` returns the existing live certificate (and issues nothing) when the same candidate already holds a non-revoked certificate for an earlier attempt of the same assessment. The per-attempt unique key `(tenant_id, candidate_id, attempt_id)` is unchanged.
+- **Why.** A retake can pass again. The existing rule (every pass earns a certificate) applies to the first pass; later passes must not create a second credential.
+- **Not included.** A tier upgrade from a later attempt (a signed credential does not change after issue). A revoked certificate does not block a new one.
+- **Test.** `modules/09-scoring/src/__tests__/release.test.ts` ("Z-39: a second pass ...").

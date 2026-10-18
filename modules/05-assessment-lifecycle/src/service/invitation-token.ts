@@ -1,4 +1,5 @@
 import { withTenant, withSystemRole } from "@assessiq/tenancy";
+import { attemptsAllowed } from "@assessiq/core";
 import { hashInvitationToken } from "../tokens.js";
 import type { Assessment, AssessmentInvitation, AssessmentStatus, InvitationStatus } from "../types.js";
 
@@ -39,8 +40,11 @@ export interface ResolvedInvitation {
   candidate: { id: string; email: string; name: string };
   /** Distinct from invitation.status — true when start is allowed (pending/viewed/started). */
   can_start: boolean;
-  /** True when invitation.status is 'submitted' (the candidate already finished). */
+  /** True when invitation.status is 'submitted' AND no attempt is left (Z-39: a retake keeps it false). */
   already_submitted: boolean;
+  /** Z-39: attempts used so far, and the total allowed (max_attempts + this candidate's extras). */
+  attempts_used: number;
+  attempts_allowed: number;
 }
 
 export async function resolveInvitationToken(
@@ -77,6 +81,9 @@ export async function resolveInvitationToken(
       a_status: string;
       a_question_count: number;
       a_passing_score_pct: number;
+      a_max_attempts: number | null;
+      inv_extra_attempts: number;
+      attempts_used: number;
       a_randomize: boolean;
       a_opens_at: Date | null;
       a_closes_at: Date | null;
@@ -114,6 +121,10 @@ export async function resolveInvitationToken(
          a.status           AS a_status,
          a.question_count   AS a_question_count,
          a.passing_score_pct AS a_passing_score_pct,
+         a.max_attempts     AS a_max_attempts,
+         ai.extra_attempts  AS inv_extra_attempts,
+         (SELECT count(*)::int FROM attempts t
+           WHERE t.assessment_id = ai.assessment_id AND t.user_id = ai.user_id) AS attempts_used,
          a.randomize        AS a_randomize,
          a.opens_at         AS a_opens_at,
          a.closes_at        AS a_closes_at,
@@ -143,6 +154,9 @@ export async function resolveInvitationToken(
     if (row.inv_expires_at.getTime() < now) return null;
     if (row.inv_status === "expired") return null;
 
+    const allowed = attemptsAllowed(row.a_max_attempts, row.inv_extra_attempts);
+    const retakeLeft = row.inv_status === "submitted" && row.attempts_used < allowed;
+
     return {
       invitation: {
         id: row.inv_id,
@@ -165,6 +179,7 @@ export async function resolveInvitationToken(
         status: row.a_status as AssessmentStatus,
         question_count: row.a_question_count,
         passing_score_pct: row.a_passing_score_pct,
+        max_attempts: row.a_max_attempts,
         randomize: row.a_randomize,
         opens_at: row.a_opens_at,
         closes_at: row.a_closes_at,
@@ -183,8 +198,10 @@ export async function resolveInvitationToken(
         email: row.u_email,
         name: row.u_name,
       },
-      can_start: row.inv_status !== "submitted",
-      already_submitted: row.inv_status === "submitted",
+      can_start: row.inv_status !== "submitted" || retakeLeft,
+      already_submitted: row.inv_status === "submitted" && !retakeLeft,
+      attempts_used: row.attempts_used,
+      attempts_allowed: allowed,
     };
   });
 }

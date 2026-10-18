@@ -301,6 +301,34 @@ describe("Z-16: per-assessment pass mark drives the certificate (boundaries, tie
     expect((await certs(attemptId)).map((c) => c.tier)).toEqual(["distinction"]);
   });
 
+  it("Z-39: a second pass of the same assessment keeps the first certificate (no duplicate, no new credential)", async () => {
+    const { attemptId } = await seed({ pct: 80, mark: 60 });
+    await release(attemptId, userActor());
+    expect(await certs(attemptId)).toHaveLength(1);
+    // A retake: attempt 2 of the same candidate + assessment, released with a higher score.
+    const second = randomUUID();
+    await sup(async (c) => {
+      await c.query(
+        `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, attempt_number, started_at, ends_at, submitted_at, duration_seconds)
+         SELECT $2, tenant_id, assessment_id, user_id, 'released', 2, started_at, ends_at, submitted_at, duration_seconds FROM attempts WHERE id = $1`,
+        [attemptId, second],
+      );
+      await c.query(
+        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pass_mark_pct)
+         SELECT $2, tenant_id, 95, total_max, 95, pass_mark_pct FROM attempt_scores WHERE attempt_id = $1`,
+        [attemptId, second],
+      );
+    });
+    const cert = await withTenant(tenant, async (c) => {
+      await c.query("SELECT pg_current_xact_id()");
+      return issueCertificateOnRelease(c, { tenantId: tenant, attemptId: second, actorUserId: admin });
+    });
+    expect(cert?.attempt_id).toBe(attemptId); // the first certificate comes back, nothing new is issued
+    expect(await certs(second)).toHaveLength(0);
+    const n = await sup((c) => c.query(`SELECT count(*)::int AS n FROM certificates WHERE attempt_id IN ($1, $2)`, [attemptId, second]));
+    expect(n.rows[0].n).toBe(1);
+  });
+
   it("the score row snapshots the assessment pass mark and a re-score or later edit never changes it", async () => {
     const { attemptId } = await seed({ pct: 70, mark: 75 });
     await sup((c) => c.query(`DELETE FROM attempt_scores WHERE attempt_id = $1`, [attemptId]));

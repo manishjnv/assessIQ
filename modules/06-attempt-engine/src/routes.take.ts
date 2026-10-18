@@ -256,6 +256,9 @@ export async function registerAttemptTakeRoutes(
         pass_mark_pct: resolved.assessment.passing_score_pct,
         company_name: pv.companyName,
         company_logo_url: pv.companyLogoUrl,
+        // Z-39: 'Attempt n of m' on the welcome page. allowed = 1 when the assessment has no retake.
+        attempt_number: pv.attemptNumber,
+        attempts_allowed: pv.attemptsAllowed,
       };
       if (body.preview === true) {
         return reply.code(200).send({
@@ -302,6 +305,9 @@ export async function registerAttemptTakeRoutes(
         attempt = await startAttempt(resolved.assessment.tenant_id, {
           userId: resolved.candidate.id,
           assessmentId: resolved.assessment.id,
+          // Z-39: the preview showed no resumable attempt, so Begin means "start the next one".
+          // startAttempt still refuses unless attempts are left; an unfinished attempt is resumed.
+          newAttempt: pv.existing === null,
         });
       } catch (err) {
         // Translate domain failures (assessment not active, pool too small,
@@ -356,6 +362,7 @@ export async function registerAttemptTakeRoutes(
         assessment: {
           ...assessmentShape,
           duration_seconds: attempt.duration_seconds ?? durationSeconds,
+          attempt_number: attempt.attempt_number,
         },
       });
     },

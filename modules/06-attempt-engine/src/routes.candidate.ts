@@ -144,7 +144,9 @@ export async function registerAttemptCandidateRoutes(
       // Optional { consent: true } — the candidate ticked the consent statement.
       // Without a consent row on file startAttempt rejects a NEW attempt with
       // 422 CONSENT_REQUIRED (resume of an existing attempt never needs it).
-      const body = (req.body ?? {}) as { consent?: unknown };
+      // Z-39: { new_attempt: true } = the candidate pressed "Try again" on the result page.
+      // Honoured only when attempts are left (startAttempt throws 409 ATTEMPTS_EXHAUSTED otherwise).
+      const body = (req.body ?? {}) as { consent?: unknown; new_attempt?: unknown };
       if (body.consent === true) {
         const ip = extractClientIp(req);
         await recordTakeConsent(tenantId, {
@@ -156,6 +158,7 @@ export async function registerAttemptCandidateRoutes(
       const attempt = await startAttempt(tenantId, {
         userId,
         assessmentId: id,
+        ...(body.new_attempt === true ? { newAttempt: true } : {}),
       });
       return reply.code(201).send(attempt);
     },

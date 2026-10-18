@@ -58,6 +58,8 @@ import {
   revokeInvitation,
   resendInvitation,
   resendInvitations,
+  grantExtraAttempt,
+  reopenInvitationForRetake,
   getInvitationCounts,
 } from "./service.js";
 import type {
@@ -174,6 +176,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["description"] !== undefined) input.description = raw["description"] as string;
       if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) input.passing_score_pct = raw["passing_score_pct"] as number;
+      if (raw["max_attempts"] !== undefined) input.max_attempts = raw["max_attempts"] as number | null;
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -281,6 +284,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["description"] !== undefined) input.description = raw["description"] as string;
       if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) input.passing_score_pct = raw["passing_score_pct"] as number;
+      if (raw["max_attempts"] !== undefined) input.max_attempts = raw["max_attempts"] as number | null;
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -380,6 +384,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["question_count"] !== undefined) patch.question_count = raw["question_count"] as number;
       if (raw["randomize"] !== undefined) patch.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) patch.passing_score_pct = raw["passing_score_pct"] as number;
+      if (raw["max_attempts"] !== undefined) patch.max_attempts = raw["max_attempts"] as number | null;
       if (raw["settings"] !== undefined) patch.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -638,6 +643,40 @@ export async function registerAssessmentLifecycleRoutes(
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
       return resendInvitation(tenantId, id, userId);
+    },
+  );
+
+  // POST /api/admin/invitations/:id/extra-attempt  — Z-39
+  // Body { reason: string } (required, 1..500 chars). Gives this ONE candidate ONE
+  // more attempt than assessments.max_attempts allows; one audit row per grant
+  // (assessment.invitation.extra_attempt_granted) in the same transaction.
+  // 200 { invitation, attempts_used, attempts_allowed }. 404 not in this tenant;
+  // 409 ASSESSMENT_NOT_ACTIVE / EXTRA_ATTEMPT_LIMIT; 422 INVALID_PARAM (reason).
+  app.post(
+    "/api/admin/invitations/:id/extra-attempt",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id } = req.params as { id: string };
+      const body = (req.body ?? {}) as { reason?: unknown };
+      return grantExtraAttempt(tenantId, id, body.reason, userId);
+    },
+  );
+
+  // POST /api/admin/invitations/:id/reopen  — Z-39
+  // Re-open a SUBMITTED invitation for the next attempt: fresh link, 7 days, email.
+  // No body. 200 -> the updated invitation. 409 ATTEMPTS_EXHAUSTED (limit reached),
+  // RETAKE_NOT_AVAILABLE (not submitted / an attempt is unfinished),
+  // ASSESSMENT_NOT_ACTIVE, USER_INACTIVE; 502 INVITATION_EMAIL_FAILED.
+  app.post(
+    "/api/admin/invitations/:id/reopen",
+    { preHandler: adminOnly },
+    async (req) => {
+      const tenantId = req.session!.tenantId;
+      const userId = req.session!.userId;
+      const { id } = req.params as { id: string };
+      return reopenInvitationForRetake(tenantId, id, userId);
     },
   );
 }
