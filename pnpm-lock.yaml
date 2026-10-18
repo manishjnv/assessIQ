@@ -636,6 +636,9 @@ importers:
 
   modules/11-candidate-ui:
     dependencies:
+      '@assessiq/core':
+        specifier: workspace:*
+        version: link:../00-core
       '@assessiq/http-client':
         specifier: workspace:*
         version: link:../../packages/http-client

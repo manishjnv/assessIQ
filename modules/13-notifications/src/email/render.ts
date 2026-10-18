@@ -31,6 +31,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 import { buildShareLinks, config, escapeHtml, UUID_RE } from '@assessiq/core';
+import { feedbackSentence } from '@assessiq/core/feedback-copy';
 import type { EmailTemplateName, TemplateVarsMap } from '../types.js';
 import { buildVars } from './i18n.js';
 import {
@@ -280,7 +281,9 @@ function resultCopy(p: any): Record<string, unknown> {
     ? hasCert
       ? 'Your certificate is ready. Select the second link to view it.'
       : 'Your result and details are on your Results page.'
-    : 'Sign in to see where to improve.';
+    : p.feedbackLevel !== undefined && feedbackSentence(p.feedbackLevel) !== null
+      ? `Sign in to read your feedback. ${String(feedbackSentence(p.feedbackLevel))}`
+      : 'Sign in to see where to improve.';
   const share = hasCert
     ? buildShareLinks(String(p.certificateLink), `I earned a certificate for ${String(p.assessmentName)}.`)
     : null;

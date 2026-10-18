@@ -312,6 +312,7 @@ export function Submitted(): React.JSX.Element {
                     tenantName={text(state.result.tenant_name) ?? undefined}
                     certificate={state.result.certificate}
                     negativeMarking={state.result.negative_marking}
+                    feedbackLevel={state.result.feedback_level}
                   />
                   {state.result.certificate && (
                     <NewCertificateModal credential_id={state.result.certificate.credential_id} />

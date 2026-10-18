@@ -14,6 +14,7 @@
 // flex-wrap, so the ring stacks above the numbers on narrow screens.
 
 import React from 'react';
+import { feedbackSentence } from '@assessiq/core/feedback-copy';
 import { Chip, Icon, Num, ScoreRing } from '@assessiq/ui-system';
 import { certificateRuleText, resultSupportLine } from '../copy.js';
 import type { ResultCertificateWire, ResultNegativeMarkingWire } from '../types.js';
@@ -37,6 +38,8 @@ export interface ResultSummaryProps {
   tenantName?: string | undefined;
   /** Z-9: true when per-question feedback is on (feedbackLevel !== 'none'). */
   feedbackOn?: boolean;
+  /** Z-44: tenant feedback level; shows the same plain sentence as the result email. Undefined or "none": no sentence. */
+  feedbackLevel?: string | undefined;
 }
 
 const EYEBROW: React.CSSProperties = {
@@ -71,7 +74,10 @@ export function ResultSummary({
   assessmentName,
   tenantName,
   feedbackOn = false,
+  feedbackLevel,
 }: ResultSummaryProps): React.ReactElement {
+  const feedbackLine = feedbackSentence(feedbackLevel);
+  const hasFeedback = feedbackOn || feedbackLine !== null;
   const tone = passed ? 'success' : 'warning';
   const org = tenantName !== undefined && tenantName !== '' ? tenantName : 'your organisation';
   const headline = passed
@@ -84,7 +90,7 @@ export function ResultSummary({
     ? certificate !== null
       ? 'Your certificate is ready. Select View certificate to open, download or share it.'
       : null
-    : feedbackOn
+    : hasFeedback
       ? `Use the feedback on each question to prepare. ${askLine}`
       : askLine;
   // Never --aiq-color-danger: a fail is not an error (Z-9).
@@ -168,6 +174,11 @@ export function ResultSummary({
           {compact && (
             <div data-testid="result-oneliner" style={{ ...MUTED_14, marginTop: 8 }}>
               {oneLiner}
+            </div>
+          )}
+          {feedbackLine !== null && (
+            <div data-testid="result-feedback-sentence" style={{ ...MUTED_14, marginTop: 8 }}>
+              {feedbackLine}
             </div>
           )}
           {negativeMarking?.enabled === true && (

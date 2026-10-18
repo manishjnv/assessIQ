@@ -213,6 +213,8 @@ export interface AttemptResultReleasedWire {
   pass_mark_pct?: number;
   certificate: ResultCertificateWire | null;
   negative_marking?: ResultNegativeMarkingWire;
+  /** Z-44: tenant feedback level for the plain feedback sentence. Absent on older servers: no sentence. */
+  feedback_level?: FeedbackLevelWire;
   /** Logo L3a: organisation name and logo URL for the Submitted page; absent on older servers. */
   tenant_name?: string;
   company_logo_url?: string | null;

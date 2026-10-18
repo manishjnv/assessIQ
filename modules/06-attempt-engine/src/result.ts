@@ -25,6 +25,7 @@
 import type { PoolClient } from "pg";
 import { NotFoundError, config, isPass, isUuid, streamLogger } from "@assessiq/core";
 import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from "@assessiq/tenancy";
+import type { ResultFeedbackLevel } from "@assessiq/tenancy";
 import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import { getSectionScoresForAttempt, type SectionScore } from "@assessiq/scoring";
 import * as repo from "./repository.js";
@@ -97,6 +98,8 @@ export interface ReleasedResult {
   released_at: string;
   certificate: CandidateCertificateRef | null;
   negative_marking: NegativeMarkingSummary;
+  /** Z-44: tenant_settings.result_feedback_level (the only source). Drives the feedback sentence on the page. */
+  feedback_level: ResultFeedbackLevel;
   /** EXP-6: marks per section (earned/max, plus passed_cutoff for a qualifying section with a cutoff). Absent when the assessment has no sections. */
   sections?: SectionScore[];
   /** Organisation name (text fallback when there is no logo). Added by getCandidateResult. */
@@ -306,6 +309,14 @@ export const RELEASED_AT_SQL = `COALESCE(
     ORDER BY al.at DESC LIMIT 1),
   s.computed_at)`;
 
+/** The tenant's per-question feedback level (RW-80). One reader for the list and the single result. */
+async function loadFeedbackLevel(client: PoolClient): Promise<ResultFeedbackLevel> {
+  const lvl = await client.query<{ result_feedback_level: ResultFeedbackLevel }>(
+    `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
+  );
+  return lvl.rows[0]?.result_feedback_level ?? "none";
+}
+
 export async function getCandidateResult(
   tenantId: string,
   userId: string,
@@ -354,6 +365,7 @@ async function loadCandidateResult(
         const percent = resultPercent(earned, max);
         const negativeMarking = (await loadNegativeMarking(client, [attemptId])).get(attemptId) ?? NO_NEGATIVE_MARKING;
         const sections = await getSectionScoresForAttempt(client, attemptId); // [] without sections
+        const feedbackLevel = await loadFeedbackLevel(client);
         return {
           status: "released",
           total_earned: earned,
@@ -365,6 +377,7 @@ async function loadCandidateResult(
           released_at: new Date(r.released_at).toISOString(),
           certificate: certificateRef(r.credential_id),
           negative_marking: negativeMarking,
+          feedback_level: feedbackLevel,
           ...(sections.length > 0 ? { sections } : {}),
         };
       }
@@ -393,10 +406,7 @@ export async function listCandidateResults(
 ): Promise<{ items: ResultListItem[]; feedback_level: string }> {
   return withTenant(tenantId, async (client) => {
     // RW-80: lets the portal hide the per-question review section without an extra call.
-    const lvl = await client.query<{ result_feedback_level: string }>(
-      `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
-    );
-    const feedbackLevel = lvl.rows[0]?.result_feedback_level ?? "none";
+    const feedbackLevel = await loadFeedbackLevel(client);
     const res = await client.query<ReleasedRow & { attempt_id: string; is_new: boolean }>(
       `SELECT a.id AS attempt_id,
               asm.name AS assessment_name,
