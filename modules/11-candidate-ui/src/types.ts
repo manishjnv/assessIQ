@@ -56,6 +56,8 @@ export interface FrozenQuestionWire {
   // The rubric is intentionally NEVER serialized — the server strips it
   // before sending. Keeping `unknown` here so callers must narrow.
   content: unknown;
+  /** Test sections: index into the section list; null/absent = not sectioned. */
+  section_index?: number | null;
 }
 
 export interface CandidateAttemptViewWire {
@@ -69,6 +71,8 @@ export interface CandidateAttemptViewWire {
   sections?: SectionsViewWire;
   /** Test sections: per-section counts for the final-submit dialog (counts only). */
   sections_summary?: SectionSummaryWire[];
+  /** Whole-test timer (Z-42): section names by index; lets the page group the flat question list. */
+  section_names?: string[];
   /** Logo L3a: organisation name + logo URL for the attempt top bar; absent on older servers. */
   company_name?: string;
   company_logo_url?: string | null;

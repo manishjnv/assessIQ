@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { Icon } from "@assessiq/ui-system";
+import { groupNavigatorItems, countAnswered } from "./navigatorGroups.js";
 
 type NavigatorFilter = "all" | "flagged" | "unanswered";
 const FILTERS: ReadonlyArray<readonly [NavigatorFilter, string]> = [
@@ -17,6 +18,10 @@ export interface NavigatorItem {
   position: number; // 1-based for display
   /** "answered" if there's a non-null answer; "flagged" if flagged; "current" if active; else "unanswered". */
   status: "unanswered" | "answered" | "flagged" | "current";
+  /** Whole-test mode: the section this question belongs to (groups the navigator). Absent = flat list. */
+  section?: { index: number; name: string };
+  /** True when the question has an answer, even if status shows current/flagged. Falls back to status. */
+  answered?: boolean;
 }
 
 export interface QuestionNavigatorProps {
@@ -175,14 +180,30 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
     <nav
       aria-label="Question navigator"
       data-test-id={testId}
-      style={{
-        display:             "grid",
-        gridTemplateColumns: `repeat(auto-fill, minmax(${squareSize}px, 1fr))`,
-        gap:                 "var(--aiq-space-xs)",
-        padding:             "var(--aiq-space-md)",
-      }}
+      style={{ padding: "var(--aiq-space-md)" }}
     >
-      {visible.map((item) => {
+      {groupNavigatorItems(visible).map((group) => {
+        const sec = group.section;
+        const all = sec === null ? [] : items.filter((i) => i.section?.index === sec.index);
+        return (
+        <div key={sec?.index ?? "flat"}>
+          {sec !== null && (
+            <button
+              type="button"
+              onClick={() => onSelect((all[0] ?? group.items[0]!).questionId)}
+              style={{ ...ctrl, width: "100%", textAlign: "left", fontWeight: 600, margin: "var(--aiq-space-sm) 0 var(--aiq-space-xs)" }}
+            >
+              {sec.name} ({countAnswered(all)}/{all.length} answered)
+            </button>
+          )}
+          <div
+            style={{
+              display:             "grid",
+              gridTemplateColumns: `repeat(auto-fill, minmax(${squareSize}px, 1fr))`,
+              gap:                 "var(--aiq-space-xs)",
+            }}
+          >
+      {group.items.map((item) => {
         const isCurrent = item.status === "current";
         const styles = STATUS_STYLES[item.status];
 
@@ -244,6 +265,10 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
               </span>
             )}
           </button>
+        );
+      })}
+          </div>
+        </div>
         );
       })}
     </nav>
