@@ -706,3 +706,19 @@ candidate.results.feedback.study:
     ## What to study
 
     This line names the unit and subject of the question. If the question has no unit, it shows the topic.
+
+candidate.attempt.key_shortcuts:
+  audience: candidate
+  version: 1
+  short_text: "Turn the P (Previous) and N (Next) keys on or off. Tick the box to use them."
+  long_md: |
+    ## Keyboard shortcuts P and N
+
+    Two single keys move between questions. Press **P** for the previous question.
+    Press **N** for the next question.
+
+    - **The box is ticked by default.** The keys work when your cursor is not in a
+      text box, a list or an editor.
+    - **Clear the box to turn the keys off.** Then P and N do nothing. This stops
+      accidental moves if you use speech input or press keys by mistake.
+    - **Your choice stays on this browser.** It does not change your answers.

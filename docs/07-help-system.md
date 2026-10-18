@@ -47,6 +47,7 @@ A help id is hierarchical, dot-separated and audience-prefixed:
 | `admin.assessments.create.page` | Full drawer for that page |
 | `candidate.attempt.kql.editor` | Tooltip on the KQL editor when taking an assessment |
 | `candidate.attempt.flag` | Tooltip on the flag-for-review button |
+| `candidate.attempt.key_shortcuts` | Tooltip on the take-page checkbox that turns the P and N keys on or off (Z-41, WCAG 2.1.4; migration 0202) |
 | `admin.grading.override.button` | Tooltip on the "Override AI score" button (also documents the MFA step-up) |
 
 - Audience-agnostic content uses `all.*`.
