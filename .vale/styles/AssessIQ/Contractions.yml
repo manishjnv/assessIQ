@@ -4,6 +4,6 @@ message: "Do not use the contraction '%s'. Write the full words."
 level: error
 ignorecase: true
 tokens:
-  - "\b\w+n't\b"
-  - "\b\w+'(?:re|ve|ll|m)\b"
-  - "\b(?:it|that|there|here|what|let|who)'s\b"
+  - '\b\w+n''t\b'
+  - '\b\w+''(?:re|ve|ll|m)\b'
+  - '\b(?:it|that|there|here|what|let|who)''s\b'
