@@ -2695,3 +2695,11 @@ New optional keys in `assessments.settings` (JSONB). No column, no table, so mig
 | Considered and rejected | A new column on `attempts` for the mode (the setting is read from `settings`, like `sections`). Scaling by a factor of the bank points (two questions with different points would not total to the blueprint). Splitting the minutes evenly (it never matched the real exam). |
 | Not included | Grouped section tabs on the take page in whole-test mode (the page shows one list of all questions with one timer), sectional timing mixed with whole-test timing, normalisation across shifts, rank prediction. |
 | Rollback | Remove the keys from `settings` of draft assessments. Started attempts keep their frozen marks. |
+
+### Publish review gate on `questions.review_state` (EXP-18, 2026-10-18)
+
+| Item | Detail |
+| --- | --- |
+| What | No schema change. `publishAssessment` reads `questions.review_state` for active questions of the assessment's (pack, level). `in_review`, `disputed`, `needs_fix` block publish (`QUESTIONS_NOT_VERIFIED`). NULL and `verified` pass. |
+| Why | Owner rule D6: no student invited before review. NULL passes because 0194 grandfathered active questions as verified and no write path sets a state yet. |
+| Not included | Verify actions, review screen, per-verification audit row, import setting `in_review`, clone reset. |

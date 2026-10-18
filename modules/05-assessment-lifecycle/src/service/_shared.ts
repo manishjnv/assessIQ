@@ -82,6 +82,29 @@ export async function countActiveQuestionsForLevel(
 }
 
 /**
+ * EXP-18 review gate. Active questions of the (pack, level) pool whose review_state is set and is not
+ * 'verified' (in_review, disputed, needs_fix). NULL means "no verification concept" (legacy and
+ * ungated content) and does not block. Returns the total count and up to `cap` ids (ids only).
+ * The whole (pack, level) active set is what freezeAssessmentPool snapshots, so one check covers the
+ * whole-pool, section and blueprint (category and Z-43 node) draw paths. RLS scopes it to the tenant.
+ */
+export async function listUnverifiedPoolQuestions(
+  client: PoolClient,
+  packId: string,
+  levelId: string,
+  cap = 50,
+): Promise<{ count: number; ids: string[] }> {
+  const r = await client.query<{ id: string; total: string }>(
+    `SELECT id, count(*) OVER () AS total FROM questions
+     WHERE pack_id = $1 AND level_id = $2 AND status = 'active'
+       AND review_state IS NOT NULL AND review_state <> 'verified'
+     ORDER BY id LIMIT $3`,
+    [packId, levelId, cap],
+  );
+  return { count: parseInt(r.rows[0]?.total ?? "0", 10), ids: r.rows.map((x) => x.id) };
+}
+
+/**
  * Pull up to `limit` active questions for a (pack_id, level_id) pair.
  * Used by previewAssessment — no write to attempts, no snapshot.
  *
