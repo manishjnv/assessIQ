@@ -2,6 +2,8 @@
 
 This file overrides the global `~/.claude/CLAUDE.md` orchestration playbook where they conflict (per the global "project overlay wins" rule). Inherit everything from global *unless* this file says otherwise.
 
+**Portable playbook for any Claude account or model:** `docs/ai-playbook/README.md` (speed rules, time and token optimizations, model routing, tools, traps, new-account checklist). Private memory does not travel between accounts; this folder does. Update it when you learn a durable rule.
+
 ## Phase 0 — warm-start reading list
 
 In ONE parallel-tool-call message, read:
