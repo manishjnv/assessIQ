@@ -1989,6 +1989,22 @@ admin.certificates.list:
   related_keys:
     - admin.certificates.revoke
     - admin.certificates.reissue
+    - admin.certificates.row_pdf
+
+admin.certificates.row_pdf:
+  audience: admin
+  short_text: "Open the certificate as a PDF in a new tab, without opening the details."
+  long_md: |
+    ## PDF from the list
+
+    The **PDF** link in a row opens the certificate PDF in a new tab. The details panel does not open.
+
+    - **Same file.** It is the same PDF as **Download PDF** in the details panel.
+    - **Revoked certificates have no link.** The server does not render a PDF for them.
+
+  related_keys:
+    - admin.certificates.list
+    - admin.certificates.reissue
 
 admin.certificates.revoke:
   audience: admin
