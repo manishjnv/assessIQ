@@ -6,10 +6,13 @@
 // The signing secret is returned ONCE at create — there is no "copy existing secret";
 // the copy button appears on the just-created endpoint only.
 //
+// The tenant-wide webhook HMAC secret card (POST /admin/webhook-secrets/rotate, shown ONCE)
+// lives here since Z-23 session 2; it used to sit on the Embed page.
+//
 // INVARIANTS: no claude/anthropic imports; per-section loading + inline error.
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, ConfirmDialog, Chip, Input, Spinner, Table, formatDateTime } from "@assessiq/ui-system";
+import { Button, Card, ConfirmDialog, Chip, Icon, Input, Spinner, Table, formatDateTime } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
@@ -51,6 +54,10 @@ export default function WebhooksPage(): React.ReactElement {
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [secret, setSecret] = useState<{ id: string; value: string } | null>(null);
+  const [hmac, setHmac] = useState<string | null>(null);
+  const [reveal, setReveal] = useState(false);
+  const [confirmRegen, setConfirmRegen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
 
   const load = useCallback(() => {
     adminApi<{ items: Endpoint[] }>("/admin/webhooks").then((r) => setEndpoints(r.items)).catch((e) => setEpError(err(e)));
@@ -70,6 +77,15 @@ export default function WebhooksPage(): React.ReactElement {
       setForm({ name: "", url: "", events: ["attempt.graded"] });
       load();
     } catch (e) { setNotice(err(e)); }
+  }
+  async function regenerate() {
+    setRegenerating(true);
+    try {
+      const r = await adminApi<{ plaintextSecret: string }>("/admin/webhook-secrets/rotate", { method: "POST" });
+      setHmac(r.plaintextSecret);
+      setReveal(true);
+      setNotice("New secret created. Copy it now; it is not shown again.");
+    } catch (e) { setNotice(err(e)); } finally { setRegenerating(false); setConfirmRegen(false); }
   }
   async function test(id: string) {
     try { await adminApi(`/admin/webhooks/${id}/test`, { method: "POST" }); setNotice("Test event sent."); load(); }
@@ -156,6 +172,24 @@ export default function WebhooksPage(): React.ReactElement {
           ))}
         </section>
 
+        <Card padding="lg">
+          <div data-help-id="admin.webhooks.secret" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
+            <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: 18, fontWeight: 400, margin: 0 }}>Webhook secret</h2>
+            <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", flexWrap: "wrap" }}>
+              <code data-help-id="admin.webhooks.secret_value" style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", wordBreak: "break-all" }}>
+                {hmac ? (reveal ? hmac : "•".repeat(32)) : "Hidden. Regenerate to see a new secret once."}
+              </code>
+              {hmac && (
+                <>
+                  <button type="button" aria-label={reveal ? "Hide secret" : "Show secret"} onClick={() => setReveal(!reveal)} style={{ background: "none", border: "none", cursor: "pointer" }}><Icon name="eye" size={16} /></button>
+                  <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(hmac).then(() => setNotice("Secret copied."))}>Copy</Button>
+                </>
+              )}
+              <Button size="sm" variant="outline" data-help-id="admin.webhooks.secret_regenerate" onClick={() => setConfirmRegen(true)}>Regenerate</Button>
+            </div>
+          </div>
+        </Card>
+
         <section data-help-id="admin.webhooks.deliveries" aria-label="Delivery log" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <h2 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: 18, fontWeight: 400, margin: 0 }}>Delivery log</h2>
@@ -182,6 +216,16 @@ export default function WebhooksPage(): React.ReactElement {
           )}
         </section>
       </div>
+      <ConfirmDialog
+        open={confirmRegen}
+        title="Regenerate webhook secret"
+        body="Regenerate the webhook secret? The current secret stops working immediately."
+        confirmLabel="Regenerate secret"
+        danger
+        busy={regenerating}
+        onConfirm={() => void regenerate()}
+        onCancel={() => setConfirmRegen(false)}
+      />
       <ConfirmDialog
         open={pendingDelete !== null}
         title="Delete endpoint"

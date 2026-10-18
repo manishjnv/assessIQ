@@ -65,6 +65,13 @@ describe("resolveActiveNav", () => {
     expect(NAV_GROUPS.find((g) => g.id === "settings")?.tabs.map((t) => t.label)).toEqual([
       "Organisation", "Results", "Data privacy", "Plan and usage",
     ]);
+    expect(NAV_GROUPS.find((g) => g.id === "reports")?.tabs.map((t) => t.label)).toEqual(["Reports", "Activity"]);
+    expect(NAV_GROUPS.find((g) => g.id === "people")?.tabs.map((t) => t.label)).toEqual(["Users", "Audit log"]);
+    expect(NAV_GROUPS.find((g) => g.id === "integrations")?.tabs.map((t) => t.label)).toEqual(["Webhooks", "Embed"]);
+  });
+
+  it("every group with more than one tab has a strip; single-tab groups have none", () => {
+    for (const g of NAV_GROUPS) expect(Boolean(g.strip), g.id).toBe(g.tabs.length > 1);
   });
 });
 
