@@ -143,6 +143,8 @@ export interface CandidateAttemptView {
    * `questions`/`answers` are already limited to the current section.
    */
   sections?: CandidateSectionsView;
+  /** Z-42 whole-test mode only: section names indexed by each question's section_index. Key absent otherwise. */
+  section_names?: string[];
   /** Test sections: counts per section for the final-submit dialog. Counts only, no content/ids. */
   sections_summary?: Array<{
     index: number;

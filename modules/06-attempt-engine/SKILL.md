@@ -263,5 +263,6 @@ Each step also carries `points` and `negative_marks` when the author set them. T
 - **Why.** Real exams with one timer let the candidate go back to any section. The marks are frozen so the candidate cannot gain marks or time from a later settings or bank edit.
 - **Considered and rejected.** A per-attempt mode column; reading minutes live on each request (stored `ends_at` is the source). Recomputing marks at scoring time (module 09 reads frozen columns only).
 - **Not included.** Section tabs in the take page for whole-test mode; the page shows one list. A section's `calculator` flag has no effect in whole-test mode (no current-section view).
+- **Section names.** `getAttemptView` adds `section_names` (section names by `section_index`) only in whole-test mode; the key is absent otherwise. The take page navigator groups by it.
 - **Tests.** `src/__tests__/whole-test-timer.test.ts` (free movement, reload keeps `ends_at`, 1 ms past `ends_at` rejected for every section, frozen marks, section totals 4 and 1.5, regressions for per-section and no-section assessments), `src/__tests__/sections-timing.test.ts`.
 - **Z-42 hardening.** `toggleFlag` rejects past `ends_at` (`AE_TIMER_EXPIRED`) like `saveAnswer`; `startAttempt` fails closed with `AE_SECTIONS_INVALID` when `settings.sections` is non-empty but unreadable (no unsectioned fallback).

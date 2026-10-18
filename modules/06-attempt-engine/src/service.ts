@@ -802,6 +802,13 @@ async function loadAttemptForCandidate(
       }
     }
 
+    // Z-42: whole-test mode has no `sections` view; send the names so the take page can group the navigator.
+    const wholeSections = sectionsView === undefined ? readSections(assessment?.settings) : null;
+    const sectionNames =
+      wholeSections !== null && readWholeTestMinutes(assessment?.settings) !== null
+        ? wholeSections.map((s) => s.name)
+        : undefined;
+
     return {
       attempt: effectiveAttempt,
       questions: displayQuestions(visibleQuestions, orders),
@@ -817,6 +824,7 @@ async function loadAttemptForCandidate(
       },
       ...(sectionsView !== undefined ? { sections: sectionsView } : {}),
       ...(sectionsSummary !== undefined ? { sections_summary: sectionsSummary } : {}),
+      ...(sectionNames !== undefined ? { section_names: sectionNames } : {}),
     };
   });
 }
