@@ -1,3 +1,32 @@
+# Session — 2026-10-18 — S26: optimization rows Z-63 to Z-66
+
+**Headline:** The optimization register is synced with the code, Phase 0 reading fell from about 512k to 129k tokens (estimate), and the gate checklist and routing report exist.
+**Commits:** see `git log` (S26 batch 1, one commit); no deploy needed (tools and docs only).
+**Tests:** `pnpm verify` green; new vitest tests for next-brief (1) and routing-report (2) pass.
+**Gate:** none. No security path touched (owner brief: Batch 1 skips the gate).
+**Next:** (1) Count 10 green CI runs for Z-60. (2) First real deploy builds both images and writes VPS markers; then `bash tools/post-deploy-sweep.sh`. (3) Owner: yes/no on TIME-13 (a migration file with its own BEGIN/COMMIT still uses the two-step path; VPS dry run not run). (4) Consider dropping RCA_LOG.md (about 116k tokens) from Phase 0 and reading only NEXT.md's RCA section.
+**Open questions:**
+- Phase 0 still reads RCA_LOG.md in full (owner rule kept). Drop it?
+- `02-time-optimizations.md` CI row still says 9m38; update after the next measured run.
+**Not included:** Z-54 (not before 2026-10-29), GATE-2, GATE-8, TIME-13 enable, affected-only tests, image registry, auto-deploy. Batch 2 had nothing to build: Z-53, Z-58 to Z-62 were already done in S25 (Z-53 RCA entry added now).
+**Old task or feature checked:** Z-53, Z-55 to Z-62, TIME-1 to TIME-13 (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): Phase 0 checks, CLAUDE.md edits, review of agent output, small fixes (next-brief filter), ROADMAP, register, RCA, this block.
+- Sonnet: n/a — no load-bearing path.
+- Haiku: 4 runs, 558k subagent_tokens in total.
+  - Haiku · Z-63 register sync · reworked: N · tokens: 128271
+  - Haiku · Z-64 next-brief script · reworked: Y (Opus widened the open-row filter) · tokens: 131983
+  - Haiku · Z-65 gate checklist · reworked: N · tokens: 174101
+  - Haiku · Z-66 routing report · reworked: N · tokens: 123754
+- codex:rescue: n/a — no security path touched.
+- Gemini (agy): n/a — not needed.
+- Codex (exec): n/a — not needed.
+
+---
+
 # Session — 2026-10-18 — S25: CI and deploy time rows Z-53, Z-58 to Z-62
 
 **Headline:** CI on a code push fell from 6m50 to 3m45 to 3m58 (measured). Deploy no longer runs the 3 to 6 min signed-in step, builds only changed images, and CI has no blind retries.

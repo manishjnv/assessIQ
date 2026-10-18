@@ -24,6 +24,7 @@ Status: written 2026-10-18. This folder is the portable memory of the project. A
 | `09-optimization-register.md` | Reference | **The one list of time, token and gate ideas with status and evidence. Keep it in sync.** |
 | `10-gate-optimizations.md` | Explanation | Why pushes were blocked, the three gate groups, the gate steps |
 | `11-time-tooling-plan.md` | How-to | The plan (session S24) for faster CI, docs-only commits, scoped stamp, worktrees |
+| `gate-checklist.md` | Reference | The security gate: attack lists per area, prompt template, findings log, fallback ladder (GATE-4) |
 
 ## Keep in sync (owner rule, 2026-10-18)
 

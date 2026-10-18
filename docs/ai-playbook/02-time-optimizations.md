@@ -4,7 +4,7 @@ All items below are on `main` and in use. Measured on the owner's setup.
 
 | Item | Before | After | How to use |
 | --- | --- | --- | --- |
-| API image build on the VPS | about 25 minutes | 37 seconds | Automatic. The Dockerfile keys the install layer on package manifests only, uses a BuildKit pnpm cache, and `COPY --chown`. See `infra/docker/assessiq-api/Dockerfile`. |
+| API image rebuild after a code edit | 11 minutes | 4 minutes (measured locally, `74704fc`) | Automatic. The Dockerfile keys the install layer on package manifests only, uses a BuildKit pnpm cache, and `COPY --chown`. See `infra/docker/assessiq-api/Dockerfile`. |
 | CI duration | about 15 minutes | 9 minutes 38 seconds | The `e2e` job runs in parallel with `quality` (no `needs:`). A green workflow still needs both jobs green. |
 | Deploy | manual steps, error prone | frontend in 2 min 3 s; API and worker in 1 min 4 s | `bash tools/deploy.sh --dry-run`, then `--yes --services "assessiq-api assessiq-frontend"`. |
 | Post-deploy sweep | a Haiku agent (about 85k tokens) | a script (0 tokens) | Runs inside `deploy.sh`; or `bash tools/post-deploy-sweep.sh`. |
@@ -21,11 +21,11 @@ All items below are on `main` and in use. Measured on the owner's setup.
 6. Build the services on the VPS; checks `BUILD_EXIT=0` before going on.
 7. Recreate only the named services (`--no-deps --force-recreate`), wait for healthy, run the sweep.
 
-Fixed in S24: a migration file without its own BEGIN/COMMIT now runs in one transaction with its `schema_migrations` row (see `docs/06-deployment.md`). A file that needs CONCURRENTLY or VACUUM must be applied by hand.
+Built in `05193ac1`: a migration file without its own BEGIN/COMMIT runs in one `psql -1` transaction with its `schema_migrations` row (see `docs/06-deployment.md`). A file with its own BEGIN/COMMIT keeps the old two-step path. A file that needs CONCURRENTLY or VACUUM must be applied by hand. The VPS dry run is not run yet.
 
 ## Pending time work
 
-See `09-optimization-register.md` (TIME-8 to TIME-13) and `11-time-tooling-plan.md`. Summary: faster CI (Z-55), docs-only commits (Z-56), agent workflow rules (Z-57), worktree per session, flaky test fix, migrations in one transaction. The signed-in smoke gate (Z-47) is built; its injected-failure proof (Z-53) is open.
+See `09-optimization-register.md` (TIME-8 to TIME-13) and `11-time-tooling-plan.md`. Built: faster CI (Z-55, `aa5dbf6e`), docs-only commits (Z-56, `aa5dbf6e`), agent workflow rules and worktree scripts (Z-57, `05193ac1`), flaky test fix (`05193ac1`). Open: migrations in one transaction on the VPS (dry run, owner yes). The signed-in smoke gate (Z-47) is built; its injected-failure proof (Z-53) is open.
 
 ## S24 results (2026-10-18)
 

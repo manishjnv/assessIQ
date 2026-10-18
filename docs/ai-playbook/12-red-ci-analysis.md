@@ -1,6 +1,20 @@
 # Red CI runs: causes (Z-60 a)
 
-Measured 2026-10-18 with `gh run list --workflow ci.yml --limit 60`: 33 of 60 runs were red. The earlier "15 of 40" figure used another window. The count is high because a few causes repeated across many commits.
+## Red-CI rate (one figure)
+
+Red-CI rate (method: last 30 runs of ci.yml, `gh run list --workflow ci.yml --limit 30 --json conclusion,createdAt,headSha`, measured 2026-10-18): 2 of 30 red (7%).
+
+Older figures are superseded. They came from other samples and are not comparable:
+
+- 15 of 40 (S24 review sample).
+- 33 of 60 (`--limit 60`, 2026-10-18). This sample is used for the cause table below.
+- 2 of the last 20 (earlier check).
+
+Use only the 2 of 30 figure for the rate.
+
+## Cause table (sample: last 60 runs, 2026-10-18, 33 red)
+
+The count is high in that sample because a few causes repeated across many commits.
 
 | Cause group | Runs | Class | Root cause | Status |
 | --- | --- | --- | --- | --- |
@@ -13,4 +27,4 @@ Measured 2026-10-18 with `gh run list --workflow ci.yml --limit 60`: 33 of 60 ru
 Findings:
 - Most red runs are deterministic, not flaky. Blind retries would not have helped; they only slowed the red e2e runs.
 - The one proven flake (AttemptSubmitModal) is fixed. The `handleAuditFanout` WARN in notification tests is log output only, not a failure.
-- Plan: after 3 green CI runs on the Z-58 change, set Playwright `retries` to 0 in CI (Z-60 d). A failure then shows at once.
+- Done in `8eb0a949` (Z-60 d): Playwright `retries` is 0 in CI. A failure shows at once. The count of green runs on this setting is still open.

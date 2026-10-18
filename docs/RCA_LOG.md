@@ -2841,3 +2841,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** n/a. On a throw-away worktree one workspace was set to react-router-dom 6.27.0.
 **Fix:** n/a. Result: `tools/__tests__/single-router-copy.test.ts` failed 3 of 4 and `pnpm verify:signed-in` failed every spec. Since Z-59 the same spec runs in CI, so a regression turns CI red before a deploy.
 **Prevention:** CI e2e runs `signed-in-smoke`; deploy requires CI success.
+
+## 2026-10-18 - Injected second-router check (Z-53)
+
+**Symptom:** No proof that the router test and the signed-in smoke fail when a second react-router copy exists (cause of the 17-hour blank page).
+**Cause:** The check was built (Z-47) but never run against a bad lockfile.
+**Fix:** S24 run on a throw-away worktree: one workspace set to react-router-dom 6.27.0 and relocked. `tools/__tests__/single-router-copy.test.ts` failed 3 of 4; `pnpm verify:signed-in` exited 1 and the signed-in-smoke specs failed. Worktree deleted. CI now runs `signed-in-smoke` (Z-59), so the same injection turns CI red.
+**Prevention:** single-router test plus `signed-in-smoke` in CI.

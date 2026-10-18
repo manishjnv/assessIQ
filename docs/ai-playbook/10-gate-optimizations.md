@@ -2,6 +2,8 @@
 
 Reviewed 2026-10-18 with evidence. Items and status: `09-optimization-register.md` (GATE-1 to GATE-7). Rule: keep every check that stops a real failure; remove only friction.
 
+Gate runs: copy the prompt and the area tables in `gate-checklist.md` (GATE-4).
+
 ## The three kinds of gate
 
 | Group | Examples | Cost | Value | Verdict |
