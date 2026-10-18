@@ -40,6 +40,7 @@ import {
   emailJobOptions,
   isPermanentRecipientError,
 } from './delivery-policy.js';
+import { bulkCounterKey, istDate, readBulkDailyCap, reserveBulkSlot } from './bulk-cap.js';
 import * as repo from '../repository.js';
 import type { SendEmailInput, EmailTemplateName } from '../types.js';
 
@@ -60,6 +61,66 @@ function getEmailQueue(): Queue {
     _emailQueue = new Queue('assessiq-cron', { connection: redis });
   }
   return _emailQueue;
+}
+
+// Separate short-timeout connection for the bulk-cap counter, so a Redis outage
+// fails open fast instead of hanging sendEmail (the Queue connection retries forever).
+let _counterRedis: Redis | null = null;
+
+function getCounterRedis(): Redis {
+  if (_counterRedis === null) {
+    _counterRedis = new Redis(config.REDIS_URL, { maxRetriesPerRequest: 1 });
+    _counterRedis.on?.('error', () => undefined); // ponytail: errors surface per command (fail-open below)
+  }
+  return _counterRedis;
+}
+
+const CAP_REDIS_TIMEOUT_MS = 2000;
+
+function withTimeout<T>(p: Promise<T>): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, rej) => setTimeout(() => rej(new Error('redis timeout')), CAP_REDIS_TIMEOUT_MS).unref?.()),
+  ]);
+}
+
+/** Tenant view of the bulk queue for GET /api/admin/email-queue. */
+export interface EmailQueueStatus {
+  queuedCount: number;
+  nextSendAt: string | null;
+  dailyCap: number;
+  sentToday: number;
+}
+
+/**
+ * Bulk emails of this tenant that the daily cap pushed to a later day. BullMQ
+ * retry backoffs also sit in the delayed set, but only cap-deferred jobs carry
+ * `opts.delay` (set at enqueue), so that is the filter.
+ */
+export async function getEmailQueueStatus(tenantId: string): Promise<EmailQueueStatus> {
+  const dailyCap = readBulkDailyCap();
+  const delayed = await getEmailQueue().getDelayed(0, 9999);
+  let queuedCount = 0;
+  let next: number | null = null;
+  for (const job of delayed) {
+    const data = job.data as Partial<EmailSendJobData> | undefined;
+    if (job.name !== 'email.send' || data?.tenantId !== tenantId) continue;
+    const delay = job.opts?.delay ?? 0;
+    if (delay <= 0) continue;
+    // A retried job keeps its old opts.delay; its send time is in the past, so skip it.
+    if (job.timestamp + delay <= Date.now()) continue;
+    queuedCount++;
+    const at = job.timestamp + delay;
+    if (next === null || at < next) next = at;
+  }
+  let sentToday = 0;
+  try {
+    const raw = await withTimeout(getCounterRedis().get(bulkCounterKey(istDate(Date.now()))));
+    sentToday = Math.min(Number(raw ?? 0) || 0, dailyCap);
+  } catch (err) {
+    log.warn({ err }, 'email.bulk_cap: could not read today counter');
+  }
+  return { queuedCount, nextSendAt: next === null ? null : new Date(next).toISOString(), dailyCap, sentToday };
 }
 
 // ---------------------------------------------------------------------------
@@ -158,6 +219,16 @@ export async function sendEmail<T extends EmailTemplateName>(
 
   // 4. Enqueue 'email.send' BullMQ job.
   const queue = getEmailQueue();
+  const jobOpts = emailJobOptions(template);
+  if (emailClassOf(template) === 'bulk') {
+    // Q11: spread bulk mail over days. Fail-open: Redis trouble sends now.
+    try {
+      const delay = await withTimeout(reserveBulkSlot(getCounterRedis(), readBulkDailyCap()));
+      if (delay > 0) jobOpts.delay = delay;
+    } catch (err) {
+      log.warn({ err, template }, 'email.bulk_cap: Redis unavailable, sending without the daily cap');
+    }
+  }
   await queue.add(
     'email.send',
     {
@@ -169,7 +240,7 @@ export async function sendEmail<T extends EmailTemplateName>(
       bodyText: rendered.text,
       templateId: template,
     },
-    emailJobOptions(template),
+    jobOpts,
   );
 
   log.info({ emailLogId, to, template, tenantId, emailClass: emailClassOf(template) }, 'email.queued');

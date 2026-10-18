@@ -469,11 +469,27 @@ export async function restoreVersion(
     });
 
     // Restore: apply target content/rubric and bump version
+    // Z-52 gap 2: same rule as a normal content edit. Restored content is new content, so a
+    // verified key goes back to in_review. NULL and other states stay as they are.
+    const resetReview = current.review_state === "verified";
     const updated = await repo.updateQuestionRow(client, questionId, {
       content: target.content,
       rubric: target.rubric,
       version: current.version + 1,
+      ...(resetReview ? { review_state: "in_review" as const } : {}),
     });
+    if (resetReview) {
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId: savedByUserId,
+        action: "question.review_changed",
+        entityType: "question",
+        entityId: questionId,
+        before: { review_state: "verified" },
+        after: { review_state: "in_review", action: "content_restored", bulk: false },
+      });
+    }
 
     // restore is semantically a question.updated event with a marker so audit
     // consumers can distinguish "edit" from "restore from prior version".

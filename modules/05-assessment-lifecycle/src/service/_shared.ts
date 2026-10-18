@@ -88,6 +88,20 @@ export async function countActiveQuestionsForLevel(
  * The whole (pack, level) active set is what freezeAssessmentPool snapshots, so one check covers the
  * whole-pool, section and blueprint (category and Z-43 node) draw paths. RLS scopes it to the tenant.
  */
+/** Z-52: a Postgres deadlock (40P01) on a share-lock becomes a retryable 409. Locks are in id order, so this is a backstop. */
+async function lockOrRetry(client: PoolClient, sql: string, params: unknown[]): Promise<void> {
+  try {
+    await client.query(sql, params);
+  } catch (err) {
+    if ((err as { code?: unknown }).code === "40P01") {
+      throw new ConflictError("The questions changed at the same moment. Retry the request.", {
+        details: { code: AL_ERROR_CODES.DEADLOCK_RETRY, retry: true },
+      });
+    }
+    throw err;
+  }
+}
+
 export async function listUnverifiedPoolQuestions(
   client: PoolClient,
   packId: string,
@@ -97,7 +111,8 @@ export async function listUnverifiedPoolQuestions(
   // Race guard: share-lock the pool rows (id order, same as the review writers) so a concurrent
   // Needs fix / verify cannot change a row between this check and the freeze that follows. A review
   // write waits for our commit; if it committed first, the check below reads its result.
-  await client.query(
+  await lockOrRetry(
+    client,
     `SELECT id FROM questions WHERE pack_id = $1 AND level_id = $2 AND status = 'active' ORDER BY id FOR SHARE`,
     [packId, levelId],
   );
@@ -121,7 +136,8 @@ export async function listUnverifiedFrozenQuestions(
   assessmentId: string,
   cap = 50,
 ): Promise<{ count: number; ids: string[] }> {
-  await client.query(
+  await lockOrRetry(
+    client,
     `SELECT q.id FROM assessment_frozen_pool f JOIN questions q ON q.id = f.question_id
       WHERE f.assessment_id = $1 ORDER BY q.id FOR SHARE OF q`,
     [assessmentId],

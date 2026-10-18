@@ -474,6 +474,8 @@ export const AL_ERROR_CODES = {
   POOL_TOO_SMALL_CRITERION: "POOL_TOO_SMALL_CRITERION",
   // EXP-18 — publish blocked while a pool question has an explicit review_state other than verified
   QUESTIONS_NOT_VERIFIED: "QUESTIONS_NOT_VERIFIED",
+  /** Z-52: Postgres deadlock (40P01) on the pool share-lock; safe to retry. */
+  DEADLOCK_RETRY: "DEADLOCK_RETRY",
   // Slice A.2 — opens_at mandatory
   OPENS_AT_REQUIRED: "OPENS_AT_REQUIRED",
   // Invitation resend / re-invite (2026-10-01)

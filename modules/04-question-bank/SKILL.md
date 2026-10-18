@@ -399,6 +399,12 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 - **Audit.** `question.review_changed` with `before.review_state`, `after.review_state`, `note`, `bulk`. One row per question, also for bulk verify.
 - **Locking.** `SELECT ... FOR UPDATE` in id order on the question rows. Module 05 share-locks the same rows in id order, so a review write and a publish or invite cannot interleave.
 - **Why.** Owner rule D6: review before invite. **Considered and rejected:** a `review_note` column (migration, harness changes); `in_review` in `createQuestion` (breaks every fixture; EXP-17 will set it for organisation uploads); resetting the state on edit (not in the contract).
-- **Not included.** EXP-17 organisation upload, state reset after an edit, `disputed` writer, Needs fix note outside the audit log.
+- **Z-52 rules (2026-10-19).**
+  1. **Needs fix reaches clones.** Option chosen: propagate on mark (`propagateNeedsFix` in `service/review.ts`, same role-switch pattern as `propagateTakedown`). A read-time check was rejected: RLS hides the platform master from a tenant, so the module 05 gate cannot read it without a system-role query in the publish path. No schema change. Clones that are archived or already `needs_fix` are skipped. The clone is not restored when the master is verified again (content may differ; the tenant admin reviews it).
+  2. **`restoreVersion` resets review.** A `verified` question becomes `in_review` (same rule as a content edit); NULL and other states are kept. Audit `content_restored`.
+  3. **Locks and deadlocks.** Review writes (`FOR UPDATE`) and module 05 (`FOR SHARE`) lock rows in id order. Postgres `40P01` maps to `409 DEADLOCK_RETRY` (`asRetryableDeadlock`; module 05 `lockOrRetry`).
+  4. **`expected_ids`** on bulk verify pins the exact set; `expected_count` is still accepted alone.
+  Not included: Z-52 gaps 5 to 7, NULL backfill.
+- **Not included.** EXP-17 organisation upload, `disputed` writer, Needs fix note outside the audit log.
 - **Downstream.** Module 05 gates (publish, invite, resend, re-open). Module 14 action `question.review_changed`. Module 10 page. Module 16 help ids.
 - **Tests.** `src/__tests__/question-review.test.ts` (each action, bulk, count guard, platform and tenant isolation, role refusal, imports, clone state).
