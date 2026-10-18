@@ -1,4 +1,4 @@
-# 08. Token tooling plan (session S23, not built yet)
+# 08. Token tooling plan (session S23; all six rows built by S27)
 
 Goal: cut token use per day by about 20% without lowering quality. Only tooling, scripts and rules. No product code, migration or deploy. Evidence in `03-token-optimizations.md`.
 

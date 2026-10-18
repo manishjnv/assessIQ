@@ -31,3 +31,9 @@
 - Redis ECONNREFUSED lines in failed logs are noise from unmocked API tests. They are not the failing assertion.
 - A migration with `CREATE INDEX CONCURRENTLY` or `VACUUM` cannot run in the one-transaction path. Apply it by hand, then insert its `schema_migrations` row. Adding your own BEGIN and COMMIT does not help.
 - A docs-only commit that is force-pushed after a code change can look docs-only. The deploy check on the last code commit covers this case.
+
+## S27 traps (2026-10-18)
+
+- CI runs only on push to main and on pull requests to main. A CI proof from a throw-away branch needs a draft PR. Close it and delete the branch after.
+- A scripted edit can add a stray control character (for example `` in a Python replace string becomes a backspace). Print `regex.source` after the edit and check the count by a second method.
+- A test fixture can hold the bug it should catch. Check that fixtures describe the intended rule.
