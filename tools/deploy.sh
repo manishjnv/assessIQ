@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command production deploy. Encodes docs/06-deployment.md "Deploy procedure (steady-state)".
-# Usage: bash tools/deploy.sh [--dry-run] [--yes] [--services "assessiq-api assessiq-frontend"] [--no-sweep] [--skip-ci-check]
+# Usage: bash tools/deploy.sh [--dry-run] [--yes] [--services "assessiq-api assessiq-frontend"] [--no-sweep] [--skip-ci-check] [--skip-signed-in]
 # Shared VPS: additive only, assessiq-* services only, no prune/rm/stop/apt/systemctl/caddy. Fails closed before the recreate.
 set -u -o pipefail
 cd "$(dirname "$0")/.." || exit 1
@@ -10,15 +10,16 @@ DIR=/srv/assessiq
 COMPOSE="docker compose -f infra/docker-compose.yml"
 PSQL="docker exec -i assessiq-postgres psql -U assessiq -d assessiq"
 ALLOW='0011_seed_help_content.sql 0100_attempts_ai_proposals_cache 0106_generation_attempts_batch_id 0109_seed_platform_aptitude_pack.sql'
-DRY=0; YES=0; SWEEP=1; SKIPCI=0; SERVICES="assessiq-api assessiq-frontend"
+DRY=0; YES=0; SWEEP=1; SKIPCI=0; SKIPSI=0; SERVICES="assessiq-api assessiq-frontend"
 
-usage() { echo "usage: bash tools/deploy.sh [--dry-run] [--yes] [--services \"assessiq-api assessiq-frontend\"] [--no-sweep] [--skip-ci-check]" >&2; exit 64; }
+usage() { echo "usage: bash tools/deploy.sh [--dry-run] [--yes] [--services \"assessiq-api assessiq-frontend\"] [--no-sweep] [--skip-ci-check] [--skip-signed-in]" >&2; exit 64; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
     --yes) YES=1 ;;
     --no-sweep) SWEEP=0 ;;
     --skip-ci-check) SKIPCI=1 ;;
+    --skip-signed-in) SKIPSI=1 ;;
     --services) shift; [ $# -gt 0 ] || usage; SERVICES="$1" ;;
     *) usage ;;
   esac
@@ -55,6 +56,20 @@ else
   [ "$ci" = success ] || fail "CI for ${SHA:0:7} is '${ci:-no run found}' (needs success; wait for the run to finish)"
 fi
 ok "HEAD=${SHA:0:7} pushed$([ "$SKIPCI" -eq 1 ] || echo ", CI success")"
+
+# (1b) signed-in check before a frontend deploy (Z-47)
+case " $SVC " in
+  *" assessiq-frontend "*)
+    STEPN=1b; echo "STEP 1b/7 signed-in check (frontend)"
+    if [ "$SKIPSI" -eq 1 ]; then
+      echo "WARNING: --skip-signed-in set, the signed-in check did NOT run"
+    elif [ "$DRY" -eq 1 ]; then
+      echo "dry-run: would run 'pnpm verify:signed-in' (build + local stack + signed-in smoke spec)"
+    else
+      pnpm verify:signed-in || fail "signed-in check failed (pnpm verify:signed-in)"
+    fi
+    ok ;;
+esac
 
 # (2) VPS preflight
 step 2 "VPS preflight"

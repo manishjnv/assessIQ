@@ -29,7 +29,8 @@ if [ "${1:-}" = "--down" ]; then
   echo "e2e stack removed"; exit 0
 fi
 
-for port in 3000 5173; do
+APIPORT="${E2E_API_PORT:-3000}" # override when another project holds :3000
+for port in "$APIPORT" 5173; do
   [ -z "$(listen_pid $port)" ] || { echo "port $port is busy; stop the process on it (or run --down) first" >&2; exit 1; }
 done
 # (a) containers on free host ports (docker picks them)
@@ -49,7 +50,7 @@ PSQL="docker exec -i -e PGOPTIONS=-cclient_min_messages=warning $PG psql -U post
 # (c) API (tsx, no watch). Secrets are dummies for a throwaway database.
 B64=$(node -e "console.log(Buffer.alloc(32,7).toString('base64'))")
 (
-  export NODE_ENV=test PORT=3000 LOG_LEVEL=warn ENABLE_E2E_TEST_MINTER=true ORIGIN_TRUST_MODE=off
+  export NODE_ENV=test PORT=$APIPORT LOG_LEVEL=warn ENABLE_E2E_TEST_MINTER=true ORIGIN_TRUST_MODE=off
   export DATABASE_URL="postgres://postgres:e2e@127.0.0.1:$PGPORT/assessiq" REDIS_URL="redis://127.0.0.1:$RDPORT"
   export ASSESSIQ_MASTER_KEY="$B64" SESSION_SECRET="$B64" CERT_SIGNING_SECRET=e2e-dummy-cert-secret
   export ASSESSIQ_BASE_URL=http://localhost:5173 SUPER_ADMIN_EMAILS=manishjnvk@gmail.com
@@ -61,17 +62,17 @@ B64=$(node -e "console.log(Buffer.alloc(32,7).toString('base64'))")
   nohup pnpm --filter @assessiq/api worker > "$RUN/worker.log" 2>&1 &
   WP=$!; ps -p "$WP" 2>/dev/null | awk 'NR==2{print ($4 ~ /^[0-9]+$/) ? $4 : $1}' > "$RUN/worker.pid"
 )
-for i in $(seq 1 90); do curl -fs http://localhost:3000/api/health >/dev/null 2>&1 && break; sleep 1; done
-curl -fs http://localhost:3000/api/health >/dev/null || { echo "API did not start; see $RUN/api.log" >&2; exit 1; }
+for i in $(seq 1 90); do curl -fs http://localhost:$APIPORT/api/health >/dev/null 2>&1 && break; sleep 1; done
+curl -fs http://localhost:$APIPORT/api/health >/dev/null || { echo "API did not start; see $RUN/api.log" >&2; exit 1; }
 
-listen_pid 3000 > "$RUN/api.pid"
+listen_pid "$APIPORT" > "$RUN/api.pid"
 
 # (d) web dev server, /api proxied to the API (same origin, like production)
 (
-  export E2E_API_PROXY=http://127.0.0.1:3000
+  export E2E_API_PROXY=http://127.0.0.1:$APIPORT
   nohup pnpm --filter @assessiq/web dev > "$RUN/web.log" 2>&1 &
 )
 for i in $(seq 1 60); do curl -fs http://localhost:5173/ >/dev/null 2>&1 && break; sleep 1; done
 listen_pid 5173 > "$RUN/web.pid"
-echo "API  http://localhost:3000   web  http://localhost:5173   postgres 127.0.0.1:$PGPORT   redis 127.0.0.1:$RDPORT"
+echo "API  http://localhost:$APIPORT   web  http://localhost:5173   postgres 127.0.0.1:$PGPORT   redis 127.0.0.1:$RDPORT"
 echo "logs $RUN/{api,worker,web}.log   stop: bash apps/web/e2e/local-stack.sh --down"

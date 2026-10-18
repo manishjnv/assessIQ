@@ -100,4 +100,7 @@ else
   res SKIP vps "--no-ssh"
 fi
 
+# (8) the sweep cannot sign in: remind the human after a frontend deploy (Z-47)
+echo "ASK OWNER: open /admin signed in and the take page"
+
 exit "$FAILS"

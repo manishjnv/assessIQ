@@ -84,7 +84,7 @@ The path is the same as before: API replicas → managed Postgres → worker poo
 ### Out of scope for Phase 0 deployment
 
 - Anthropic API key wiring (Phase 2 only; Phase 1 uses the Claude Code CLI).
-- Self-managed Let's Encrypt for the public cert (Cloudflare handles the edge, and the CF Origin Cert handles the origin).
+- Self-managed Let us Encrypt for the public cert (Cloudflare handles the edge, and the CF Origin Cert handles the origin).
 - Per-tenant custom domains (Phase 3+).
 - HA Postgres / Redis (Phase 4+, if a client demands it).
 - Sentry integration (placeholder env var; wire it when someone creates an account).
@@ -361,10 +361,12 @@ bash tools/deploy.sh --yes --services "assessiq-frontend" --no-sweep
 | `--services "<list>"` | Names must match `^assessiq-[a-z-]+$`. If `assessiq-api` is in the list, the script adds `assessiq-worker` (same image). |
 | `--no-sweep` | Skip `tools/post-deploy-sweep.sh`. |
 | `--skip-ci-check` | Skip the CI check for the SHA. The script prints a warning. |
+| `--skip-signed-in` | Skip step 1b, the signed-in check before a frontend deploy. The script prints a warning. |
 
 The seven steps (each prints `STEP n/7` and `OK` or `FAIL`):
 
 1. Local preflight: no tracked changes, `HEAD` equals `origin/main`, CI is `success` for that SHA.
+   - Step 1b (only when `assessiq-frontend` is in the service list): run `pnpm verify:signed-in`. A failure aborts before anything changes on the VPS. A dry run only prints that it would run.
 2. VPS preflight: `/srv/assessiq/.git` exists and no tracked file changed.
 3. Pull: `git pull --ff-only` (dry run: `git fetch` only). The VPS SHA must equal the local `HEAD`.
 4. Drift gate: same rules as the table below. A DB-only name outside the allowlist aborts.
@@ -374,7 +376,7 @@ The seven steps (each prints `STEP n/7` and `OK` or `FAIL`):
 
 Safety rules: the script touches only `assessiq-*` services and `/srv/assessiq`. It never runs prune, `rm`, `stop`, `apt`, `systemctl` or a Caddy command, and never prints secrets. Any error before step 7 aborts before the recreate. A migration that fails stops the run, and later files are not applied.
 
-The signed-in `/admin` check stays with the owner. The sweep cannot sign in.
+The sweep cannot sign in. Step 1b runs the signed-in check on a local build before the deploy. After the sweep, the owner still opens `/admin` signed in and the take page on the live site. The sweep ends with the line `ASK OWNER: open /admin signed in and the take page` as a reminder.
 
 #### How to read the drift diff
 
@@ -404,7 +406,9 @@ curl -sI https://assessiq.automateedge.cloud/api/health  # expect HTTP/2 200
 
 **Post-deploy sweep:** run `bash tools/post-deploy-sweep.sh` after every deploy. It is read-only. It prints one `PASS|FAIL|SKIP` line for each check, and the exit code is the number of FAIL lines. Use `--no-ssh` to skip the VPS checks and `--base URL` to test a local stack. The owner still does the signed-in `/admin` check by hand.
 
-**Signed-in smoke (Z-47, after every frontend deploy):** run `apps/web/e2e/signed-in-smoke.spec.ts` against a local stack built from the deployed SHA (`bash apps/web/e2e/local-stack.sh`, then `pnpm --filter @assessiq/web exec playwright test signed-in-smoke --project=chromium`). It signs in as a test admin and a test candidate and opens `/admin`, `/admin/assessments`, `/admin/attempts`, `/admin/question-bank`, `/admin/settings` and the candidate home. Each page needs a heading, a nav and zero console errors. The dev minter is absent in production, so this check never runs against the live site.
+**Signed-in check (Z-47, before every frontend deploy):** run `pnpm verify:signed-in` (`tools/verify-signed-in.sh`). It builds `apps/web`, starts the local e2e stack (`apps/web/e2e/local-stack.sh`), serves that exact build with `vite preview` on port 5173, runs `apps/web/e2e/signed-in-smoke.spec.ts` and removes the stack. The exit code is non-zero when the spec fails. `tools/deploy.sh` runs it as step 1b for a frontend deploy. Ports 3000 and 5173 must be free on your machine. The check takes several minutes. The spec is the one described next.
+
+**Signed-in smoke spec (Z-47):** `apps/web/e2e/signed-in-smoke.spec.ts` signs in as a test admin and a test candidate and opens `/admin`, `/admin/assessments`, `/admin/attempts`, `/admin/question-bank`, `/admin/settings` and the candidate home. Each page needs a heading, a nav and zero console errors. The dev minter (`ENABLE_E2E_TEST_MINTER`) is set only on the local API process and stays absent in production, so this check never runs against the live site. Why: RCA 2026-10-18 (two router copies crashed `/admin` only after sign-in). Not included: a check of the live site after the deploy; that stays with the owner.
 
 **NOTE:** The team preserved `/srv/assessiq.old` (the rsync copy from before the conversion) at `/srv/assessiq.old` until 2026-05-10 for rollback safety. After that date, you can safely run `rm -rf` on it.
 

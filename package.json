@@ -24,6 +24,7 @@
     "lint": "eslint .",
     "verify": "node tools/verify.mjs",
     "verify:all": "node tools/verify.mjs --all",
+    "verify:signed-in": "bash tools/verify-signed-in.sh",
     "test": "vitest run",
     "test:e2e": "pnpm --filter @assessiq/web e2e",
     "test:watch": "vitest",
