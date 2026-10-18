@@ -487,3 +487,12 @@ A missing logo or a read failure shows the organisation name alone. The guard `S
 - **Not included.** Honors, a tier upgrade from a later attempt, a per-assessment switch, a cache purge for preview images (one hour).
 - **Test.** `src/__tests__/distinction-display.test.ts` (switch off and on for the verify page, previews, PDF route and list; tenant isolation; signature still valid).
 - **Dependency.** `@assessiq/tenancy` `getCertificateShowDistinction(tenantId)`. Test mocks of `@assessiq/tenancy` need that export only for tests that use a distinction certificate.
+
+## Z-39 tails: tier upgrade on a later passing attempt (2026-10-18)
+
+- **What.** `issueCertificateOnRelease` computes the tier from the released attempt's own score. If a live certificate from an earlier attempt exists and the new tier is higher, it calls `issueCertificate` with the earlier attempt id. The existing CAS upgrade re-signs, keeps `credential_id` and `issued_at`, and writes one `certification.cert.upgrade` audit row. A pg advisory transaction lock on (candidate, assessment) serialises concurrent releases.
+- **Why.** A retake that earns Distinction should raise the one credential. See `docs/14-credentialing.md` (Tier upgrade on a later passing attempt).
+- **Rules.** Upgrade-only. A fail never gets here. `score_counts` and the Z-50 switch are not read, so a setting change cannot mint a tier.
+- **Not included.** A re-issue email (no sender exists; a new template would fail `template-send-coverage`). Moving the certificate to the later attempt id. Honors.
+- **Downstream.** The older Z-39 and Z-50 notes above say a tier upgrade is not included. This section replaces them.
+- **Test.** `modules/09-scoring/src/__tests__/release.test.ts` ("Z-39 tails: tier upgrade ...").

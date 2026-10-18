@@ -52,6 +52,7 @@ import {
   getActivityHeatmap,
   getActivityTimeline,
   getActivityLeaderboard,
+  getAdminCohortReport,
   ActivityStatsQuerySchema,
   ActivityHeatmapQuerySchema,
   ActivityTimelineQuerySchema,
@@ -480,6 +481,71 @@ describe('cohortReport', () => {
     if (report.attemptCount > 0) {
       expect(typeof report.archetypeDistribution).toBe('object');
     }
+  });
+});
+
+describe('Z-39: which attempt counts (latest or best) in the admin cohort report and the dashboard', () => {
+  // One candidate with three released attempts (90, 50, 70) + one other candidate with one (80).
+  async function seedRetakes(settings: string): Promise<string> {
+    const asm = randomUUID();
+    await withSuperClient(async (client) => {
+      await client.query(
+        `INSERT INTO assessments (id, tenant_id, pack_id, level_id, name, status, pack_version, question_count, created_by, settings)
+         VALUES ($1,$2,$3,$4,'Retake Assessment','active',1,1,$5,$6::jsonb)`,
+        [asm, F.tenantA, F.packA, F.levelA, F.adminA, settings],
+      );
+      const u1 = randomUUID();
+      const u2 = randomUUID();
+      await client.query(
+        `INSERT INTO users (id, tenant_id, email, name, role, status)
+         VALUES ($1,$3,$4,'Retaker','candidate','active'),($2,$3,$5,'Single','candidate','active')`,
+        [u1, u2, F.tenantA, `rt-${u1.slice(0, 6)}@a.test`, `sg-${u2.slice(0, 6)}@a.test`],
+      );
+      const rows: Array<[string, number, number]> = [[u1, 1, 90], [u1, 2, 50], [u1, 3, 70], [u2, 1, 80]];
+      for (const [u, n, pct] of rows) {
+        const id = randomUUID();
+        await client.query(
+          `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, attempt_number, started_at, submitted_at, ends_at, duration_seconds)
+           VALUES ($1,$2,$3,$4,'released',$5, now() - interval '1 hour', now(), now() + interval '1 hour', 3600)`,
+          [id, F.tenantA, asm, u, n],
+        );
+        await client.query(
+          `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, computed_at)
+           VALUES ($1,$2,$3,100,$3,false,now())`,
+          [id, F.tenantA, pct],
+        );
+      }
+      await client.query('REFRESH MATERIALIZED VIEW attempt_summary_mv');
+    });
+    return asm;
+  }
+
+  it('latest (default): the cohort has 2 rows and the retaker counts at attempt 3 (70)', async () => {
+    const asm = await seedRetakes('{}');
+    const r = await getAdminCohortReport(F.tenantA, asm);
+    expect(r.total_attempts).toBe(2);
+    expect(r.attempts.map((a) => a.total_score).sort((a, b) => b - a)).toEqual([80, 70]);
+    expect(r.avg_total_score).toBeCloseTo(75, 1);
+  });
+
+  it('best: the cohort still has 2 rows and the retaker counts at attempt 1 (90)', async () => {
+    const asm = await seedRetakes('{"score_counts":"best"}');
+    const r = await getAdminCohortReport(F.tenantA, asm);
+    expect(r.total_attempts).toBe(2);
+    expect(r.attempts.map((a) => a.total_score).sort((a, b) => b - a)).toEqual([90, 80]);
+    expect(r.avg_total_score).toBeCloseTo(85, 1);
+  });
+
+  it('dashboard: three attempts by one candidate count once in "attempts this week"', async () => {
+    const before = (await homeKpis(F.tenantA)).attemptsThisWeek;
+    await seedRetakes('{}'); // 4 new attempts, 2 candidates
+    expect((await homeKpis(F.tenantA)).attemptsThisWeek).toBe(before + 2);
+  });
+
+  it('tenant isolation: tenant B sees no rows of the tenant A assessment', async () => {
+    const asm = await seedRetakes('{}');
+    const r = await getAdminCohortReport(F.tenantB, asm);
+    expect(r.total_attempts).toBe(0);
   });
 });
 

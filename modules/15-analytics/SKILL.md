@@ -168,3 +168,12 @@ Migration `0189` adds the materialized view `question_stats_mv` (one row for eac
 - **Rejected.** Refresh the MV more often (still released-only).
 - **Not included.** The exact mismatch in the owner screenshot was not reproduced from code. No change to admin reports.
 - **Downstream.** `CandidateActivity.tsx` caption states the definition. RCA 2026-10-17 entry.
+
+## Z-39 tails: which attempt counts (2026-10-18)
+
+- **What.** Cohort and dashboard numbers show a candidate once per assessment. `queryAdminCohortReport`, `queryCohortReport` and the dashboard average keep only the attempt chosen by `countingAttemptSql` (`@assessiq/core`): `assessments.settings.score_counts` = `best` takes the highest released score, anything else (default `latest`) takes the highest `attempt_number`. A released result is preferred over a pending one. `attempt_summary_mv` has no attempt number, so the MV queries add `attempt_id IN (SELECT a.id FROM attempts a WHERE ... countingAttemptSql)`; the MV tenant filter stays on every query. `queryHomeKpis.attemptsThisWeek` counts distinct (assessment, candidate).
+- **Why.** Three attempts by one candidate inflated counts, averages and percentiles. The same rule drives 09 `getCohortStats` and `getLeaderboard`.
+- **Considered and rejected.** A new MV column (needs a migration and a refresh; the live join is cheap at this size). Hiding older attempts from lists: the attempts list in 07 keeps every attempt and shows an "Attempt n of m" chip.
+- **Not included.** The results CSV/JSONL export and `getIndividualScores` keep every attempt on purpose (detail views). Queue summary counts are workload counts by status and stay per attempt. The candidate activity feeds count submissions.
+- **Downstream.** 09 `getCohortStats`, `getLeaderboard`; 07 `listAttemptsForAdmin` adds `attempt_number` and `attempts_total`; admin Attempts page shows the chip. No API path changes, so `docs/03-api-contract.md` is untouched except two response fields on the attempts list.
+- **Test.** `src/__tests__/analytics.test.ts` ("Z-39: which attempt counts ..."), `modules/09-scoring/src/__tests__/release.test.ts` ("Z-39 tails: which attempt counts ...").

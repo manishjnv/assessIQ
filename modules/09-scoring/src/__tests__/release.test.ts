@@ -20,10 +20,15 @@ import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
-import { CERT_SIGNING_SECRET_ENV, issueCertificateOnRelease } from "@assessiq/certification";
+import {
+  CERT_SIGNING_SECRET_ENV,
+  getCertSigningSecret,
+  issueCertificateOnRelease,
+  verifyCertificateSignature,
+} from "@assessiq/certification";
 import { ACTION_CATALOG } from "@assessiq/audit-log";
 import { releaseAttemptInTx, type ReleaseActor } from "../release.js";
-import { upsertAttemptScore } from "../repository.js";
+import { getCohortStats, getLeaderboard, upsertAttemptScore } from "../repository.js";
 
 const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const MODULES_ROOT = join(THIS_DIR, "..", "..", "..");
@@ -301,32 +306,18 @@ describe("Z-16: per-assessment pass mark drives the certificate (boundaries, tie
     expect((await certs(attemptId)).map((c) => c.tier)).toEqual(["distinction"]);
   });
 
-  it("Z-39: a second pass of the same assessment keeps the first certificate (no duplicate, no new credential)", async () => {
+  it("Z-39: a second pass of the same assessment keeps the one certificate (no duplicate, no new credential)", async () => {
     const { attemptId } = await seed({ pct: 80, mark: 60 });
     await release(attemptId, userActor());
     expect(await certs(attemptId)).toHaveLength(1);
-    // A retake: attempt 2 of the same candidate + assessment, released with a higher score.
-    const second = randomUUID();
-    await sup(async (c) => {
-      await c.query(
-        `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, attempt_number, started_at, ends_at, submitted_at, duration_seconds)
-         SELECT $2, tenant_id, assessment_id, user_id, 'released', 2, started_at, ends_at, submitted_at, duration_seconds FROM attempts WHERE id = $1`,
-        [attemptId, second],
-      );
-      await c.query(
-        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pass_mark_pct)
-         SELECT $2, tenant_id, 95, total_max, 95, pass_mark_pct FROM attempt_scores WHERE attempt_id = $1`,
-        [attemptId, second],
-      );
-    });
-    const cert = await withTenant(tenant, async (c) => {
-      await c.query("SELECT pg_current_xact_id()");
-      return issueCertificateOnRelease(c, { tenantId: tenant, attemptId: second, actorUserId: admin });
-    });
+    // A retake at the same tier (completion): attempt 2 of the same candidate + assessment.
+    const second = await retake(attemptId, 2, 85);
+    const cert = await issueFor(second);
     expect(cert?.attempt_id).toBe(attemptId); // the first certificate comes back, nothing new is issued
     expect(await certs(second)).toHaveLength(0);
     const n = await sup((c) => c.query(`SELECT count(*)::int AS n FROM certificates WHERE attempt_id IN ($1, $2)`, [attemptId, second]));
     expect(n.rows[0].n).toBe(1);
+    expect((await certAudits(attemptId)).map((a) => a.action)).toEqual(["certification.cert.issue"]);
   });
 
   it("the score row snapshots the assessment pass mark and a re-score or later edit never changes it", async () => {
@@ -366,6 +357,180 @@ describe("Z-16: per-assessment pass mark drives the certificate (boundaries, tie
       assessments: (await c.query(`SELECT passing_score_pct FROM assessments WHERE id = (SELECT assessment_id FROM attempts WHERE id = $1)`, [attemptId])).rowCount,
     }));
     expect(seen).toEqual({ scores: 0, assessments: 0 });
+  });
+});
+
+/** Z-39: another attempt (number n, released, score pct of 100) for the same candidate + assessment. */
+async function retake(firstAttemptId: string, n: number, pct: number): Promise<string> {
+  const id = randomUUID();
+  await sup(async (c) => {
+    await c.query(
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, attempt_number, started_at, ends_at, submitted_at, duration_seconds)
+       SELECT $2, tenant_id, assessment_id, user_id, 'released', $3, started_at, ends_at, submitted_at, duration_seconds FROM attempts WHERE id = $1`,
+      [firstAttemptId, id, n],
+    );
+    await c.query(
+      `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pass_mark_pct)
+       SELECT $2, tenant_id, $3, total_max, $3, pass_mark_pct FROM attempt_scores WHERE attempt_id = $1`,
+      [firstAttemptId, id, pct],
+    );
+  });
+  return id;
+}
+const issueFor = (attemptId: string) =>
+  withTenant(tenant, async (c) => {
+    await c.query("SELECT pg_current_xact_id()"); // a release transaction has an xid by now
+    return issueCertificateOnRelease(c, { tenantId: tenant, attemptId, actorUserId: admin });
+  });
+const certRow = (attemptId: string) =>
+  sup((c) =>
+    c
+      .query(`SELECT * FROM certificates WHERE attempt_id = $1`, [attemptId])
+      .then((r) => r.rows[0] as Record<string, unknown> & { tier: string; credential_id: string; signed_hash: string; issued_at: Date }),
+  );
+
+describe("Z-39 tails: tier upgrade on a later passing attempt (upgrade-only)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("89 stays completion, 90 upgrades to distinction: same credential id, new HMAC, issued_at frozen, ONE upgrade audit row", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-18T10:00:00Z"));
+    const first = await seed({ pct: 80, mark: 60 });
+    await release(first.attemptId, userActor());
+    const before = await certRow(first.attemptId);
+    expect(before.tier).toBe("completion");
+
+    vi.setSystemTime(new Date("2026-10-19T10:00:00Z"));
+    const second = await retake(first.attemptId, 2, 89);
+    expect((await issueFor(second))?.tier).toBe("completion"); // 89 percent: no upgrade
+    expect(await certAudits(first.attemptId)).toHaveLength(1);
+
+    const third = await retake(first.attemptId, 3, 90);
+    const upgraded = await issueFor(third);
+    expect(upgraded?.tier).toBe("distinction");
+    const after = await certRow(first.attemptId);
+    expect(after.tier).toBe("distinction");
+    expect(after.credential_id).toBe(before.credential_id); // verify URL stays stable
+    expect(after.issued_at).toEqual(before.issued_at);
+    expect(after.signed_hash).not.toBe(before.signed_hash);
+    expect(
+      verifyCertificateSignature(
+        {
+          id: after.id as string, tenant_id: after.tenant_id as string, candidate_id: after.candidate_id as string,
+          attempt_id: after.attempt_id as string, template_key: after.template_key as string, credential_id: after.credential_id,
+          tier: after.tier as "distinction", display_name: after.display_name as string, course_title: after.course_title as string,
+          level: after.level as string, issued_at: after.issued_at.toISOString().slice(0, 19) + "Z",
+        },
+        after.signed_hash,
+        getCertSigningSecret(),
+      ),
+    ).toBe(true);
+    const log = await certAudits(first.attemptId);
+    expect(log.map((a) => a.action)).toEqual(["certification.cert.issue", "certification.cert.upgrade"]);
+    expect(await certs(second)).toHaveLength(0);
+    expect(await certs(third)).toHaveLength(0);
+  });
+
+  it("no downgrade: a later completion pass keeps a Distinction certificate and writes no audit row", async () => {
+    const first = await seed({ pct: 95, mark: 60 });
+    await release(first.attemptId, userActor());
+    const second = await retake(first.attemptId, 2, 70);
+    expect((await issueFor(second))?.tier).toBe("distinction");
+    expect((await certs(first.attemptId)).map((c) => c.tier)).toEqual(["distinction"]);
+    expect(await certAudits(first.attemptId)).toHaveLength(1);
+  });
+
+  it("a Distinction-scoring attempt below a higher pass mark is not a pass: no upgrade", async () => {
+    const first = await seed({ pct: 96, mark: 95 }); // 96 passes a 95 mark -> distinction
+    await release(first.attemptId, userActor());
+    await sup((c) => c.query(`UPDATE certificates SET tier = 'completion' WHERE attempt_id = $1`, [first.attemptId]));
+    const second = await retake(first.attemptId, 2, 92);
+    await sup((c) => c.query(`UPDATE attempt_scores SET pass_mark_pct = 95 WHERE attempt_id = $1`, [second]));
+    expect(await issueFor(second)).toBeNull(); // 92 < 95: not a pass
+    expect((await certs(first.attemptId)).map((c) => c.tier)).toEqual(["completion"]);
+  });
+
+  it("switching score_counts latest -> best after release mints nothing; the setting is not read by issuance", async () => {
+    const first = await seed({ pct: 80, mark: 60 });
+    await release(first.attemptId, userActor());
+    await retake(first.attemptId, 2, 70);
+    await sup((c) =>
+      c.query(`UPDATE assessments SET settings = jsonb_set(settings, '{score_counts}', '"best"') WHERE id = (SELECT assessment_id FROM attempts WHERE id = $1)`, [first.attemptId]),
+    );
+    expect((await certs(first.attemptId)).map((c) => c.tier)).toEqual(["completion"]);
+    expect(await certAudits(first.attemptId)).toHaveLength(1);
+  });
+
+  it("concurrent releases of two attempts: one certificate, tier distinction, one upgrade at most", async () => {
+    const first = await seed({ pct: 80, mark: 60 });
+    await release(first.attemptId, userActor());
+    const b = await retake(first.attemptId, 2, 92);
+    const c3 = await retake(first.attemptId, 3, 95);
+    const res = await Promise.allSettled([issueFor(b), issueFor(c3)]);
+    expect(res.every((r) => r.status === "fulfilled")).toBe(true);
+    expect((await certs(first.attemptId)).map((c) => c.tier)).toEqual(["distinction"]);
+    const n = await sup((c) => c.query(`SELECT count(*)::int AS n FROM certificates WHERE attempt_id IN ($1,$2,$3)`, [first.attemptId, b, c3]));
+    expect(n.rows[0].n).toBe(1);
+    expect((await certAudits(first.attemptId)).filter((a) => a.action === "certification.cert.upgrade")).toHaveLength(1);
+  });
+});
+
+describe("Z-39 tails: which attempt counts (latest or best) in cohort stats and the leaderboard", () => {
+  async function cohort(settings: string | null) {
+    const first = await seed({ pct: 90, mark: 60 });
+    const asm = await sup((c) => c.query(`SELECT assessment_id::text FROM attempts WHERE id = $1`, [first.attemptId]).then((r) => r.rows[0].assessment_id as string));
+    if (settings !== null) await sup((c) => c.query(`UPDATE assessments SET settings = $2::jsonb WHERE id = $1`, [asm, settings]));
+    await retake(first.attemptId, 2, 50);
+    await retake(first.attemptId, 3, 70);
+    // a second candidate with one attempt at 80 (same assessment)
+    const other = randomUUID();
+    const oa = randomUUID();
+    await sup(async (c) => {
+      await c.query(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,$3,'Other','candidate','active')`, [other, tenant, `o-${other.slice(0, 6)}@rel.test`]);
+      await c.query(
+        `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, attempt_number, started_at, ends_at, submitted_at, duration_seconds)
+         SELECT $2, tenant_id, assessment_id, $3, 'released', 1, started_at, ends_at, submitted_at, duration_seconds FROM attempts WHERE id = $1`,
+        [first.attemptId, oa, other],
+      );
+      await c.query(
+        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pass_mark_pct)
+         SELECT $2, tenant_id, 80, total_max, 80, pass_mark_pct FROM attempt_scores WHERE attempt_id = $1`,
+        [first.attemptId, oa],
+      );
+    });
+    const read = () =>
+      withTenant(tenant, async (c) => ({
+        stats: await getCohortStats(c, asm),
+        board: await getLeaderboard(c, asm, { topN: 10, anonymize: false }),
+      }));
+    return { read, first };
+  }
+
+  it("latest (default): three attempts + one other candidate = 2 rows; the candidate counts at attempt 3 (70)", async () => {
+    const { read } = await cohort(null);
+    const { stats, board } = await read();
+    expect(stats.attempt_count).toBe(2);
+    expect(stats.average_pct).toBe(75); // (70 + 80) / 2
+    expect(board.map((r) => r.auto_pct)).toEqual([80, 70]);
+  });
+
+  it("best: the same candidate counts at attempt 1 (90); still 2 rows", async () => {
+    const { read } = await cohort('{"score_counts":"best"}');
+    const { stats, board } = await read();
+    expect(stats.attempt_count).toBe(2);
+    expect(stats.average_pct).toBe(85); // (90 + 80) / 2
+    expect(board.map((r) => r.auto_pct)).toEqual([90, 80]);
+  });
+
+  it("tenant isolation: another tenant sees no rows", async () => {
+    const { first } = await cohort(null);
+    const asm = await sup((c) => c.query(`SELECT assessment_id::text FROM attempts WHERE id = $1`, [first.attemptId]).then((r) => r.rows[0].assessment_id as string));
+    const otherTenant = randomUUID();
+    await sup((c) => c.query(`INSERT INTO tenants (id, slug, name) VALUES ($1,$2,'O2')`, [otherTenant, `o2-${otherTenant.slice(0, 8)}`]));
+    const stats = await withTenant(otherTenant, (c) => getCohortStats(c, asm));
+    expect(stats.attempt_count).toBe(0);
   });
 });
 

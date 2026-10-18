@@ -17,7 +17,7 @@
 // cohortStats / leaderboard are admin-on-demand; no latency SLA beyond reasonable.
 
 import type { PoolClient } from "pg";
-import { streamLogger } from "@assessiq/core";
+import { countingAttemptSql, streamLogger } from "@assessiq/core";
 import type {
   AttemptScore,
   CohortStats,
@@ -385,7 +385,8 @@ export async function getCohortStats(
      FROM attempt_scores atsc
      JOIN attempts a ON a.id = atsc.attempt_id
      WHERE a.assessment_id = $1
-       AND ${TENANT_VISIBLE_ATTEMPT_SQL}`,
+       AND ${TENANT_VISIBLE_ATTEMPT_SQL}
+       AND ${countingAttemptSql("a")}`,
     [assessmentId],
   );
 
@@ -396,6 +397,7 @@ export async function getCohortStats(
      WHERE a.assessment_id = $1
        AND atsc.archetype IS NOT NULL
        AND ${TENANT_VISIBLE_ATTEMPT_SQL}
+       AND ${countingAttemptSql("a")}
      GROUP BY atsc.archetype`,
     [assessmentId],
   );
@@ -446,6 +448,7 @@ export async function getLeaderboard(
      JOIN users    u  ON u.id  = a.user_id
      WHERE a.assessment_id = $1
        AND ${TENANT_VISIBLE_ATTEMPT_SQL}
+       AND ${countingAttemptSql("a")}
      ORDER BY atsc.auto_pct DESC
      LIMIT $2`,
     [assessmentId, opts.topN],
