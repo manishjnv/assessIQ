@@ -12,7 +12,7 @@ In ONE parallel-tool-call message, read:
 2. `docs/01-architecture-overview.md` — system context
 3. `docs/NEXT.md` — generated start brief (Z-64): last handoff, ROADMAP status board, open Z-rows, newest 5 RCA entries, next migration number. Run `node tools/next-brief.mjs` first if its HEAD sha differs from `git rev-parse --short HEAD` or the file is absent. Replaces the full reads of `docs/SESSION_STATE.md` and `docs/ROADMAP.md`; open those only for a specific row or section
 4. `docs/ROADMAP.md` — read only the row you work on (plans index in `docs/plans/README.md`)
-5. `docs/RCA_LOG.md` — incident patterns to honor (skip silently if absent)
+5. `docs/RCA_LOG.md` — do NOT read in full (about 116k tokens, 2850 lines). `docs/NEXT.md` holds the newest 5 entries. Before you plan or review a change in an area, run `grep -n -i "<module or keyword>" docs/RCA_LOG.md` and read only the matching entries (owner decision 2026-10-18, token saving). Skip silently if absent
 6. `claude-mem:mem-search "<goal phrase>"` — only if the goal sounds like something you may have worked on before
 
 Then state the goal in one sentence, the relevant prior decisions / RCA entries you will honor, the plan, and what will be delegated. **Wait for user approval before touching code.**
