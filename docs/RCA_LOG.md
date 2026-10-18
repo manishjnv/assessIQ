@@ -2750,3 +2750,24 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the worktree agent started from an old base commit and finished without merging main.
 **Fix:** a merge agent resolved the conflicts (merge commit `5816807`).
 **Prevention:** merge main into the worktree before the agent finishes, or start the agent from current main.
+
+## 2026-10-18 — axe: nested interactive control and low button contrast (Z-23 session 2)
+
+**Symptom:** the axe a11y run reported two violations: Reports list rows (nested-interactive) and the Regenerate button (red text contrast 4.0, fails AA 4.5).
+**Cause:** the Reports list rows had `role=button` and held a real button inside. The Regenerate button used a red text colour below 4.5:1.
+**Fix:** `reports.tsx` (row no longer nests a button inside a `role=button` element) and `webhooks.tsx` (Regenerate button colour raised to pass AA). Both landed in `1802678`.
+**Prevention:** the axe e2e now covers `/admin/reports` and `/admin/integrations/webhooks`.
+
+## 2026-10-18 — nginx redirects /try to /try/ (Z-32)
+
+**Symptom:** with a prerendered `dist/try/index.html`, a request for `/try` got a 301 to `/try/`.
+**Cause:** a real `try/` folder makes nginx redirect the bare path to the folder path. Same family as the 2026-10-02 entry.
+**Fix:** exact-match location in `infra/docker/assessiq-frontend/nginx.conf`: `location = /try { try_files /try/index.html =404; }` (commit `68e24d8`).
+**Prevention:** tested with a local nginx:alpine container before deploy. After deploy, check `curl -sI https://assessiq.in/try` (expect 200, no redirect).
+
+## 2026-10-18 — docs/06 truncated by a failed write
+
+**Symptom:** `docs/06-deployment.md` was cut short after a doc-update script ran.
+**Cause:** the script raised an encoding error while the file was open for writing, so the file was left truncated.
+**Fix:** the file was restored from git and the edit was applied again.
+**Prevention:** build the full string first, then open the file and write it; always use utf-8. Check `git diff --stat` matches the size of the edit.

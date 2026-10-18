@@ -1,9 +1,9 @@
-# Session — 2026-10-18 — S21: Z-47, Z-41, Z-44, Z-43 built; Z-39 and Z-42 built in part
+# Session — 2026-10-18 — S21: Z-47, Z-41, Z-44, Z-43, Z-23, Z-45 closed; Z-39, Z-42, Z-32, EXP-18 built in part
 
-**Headline:** Six rows built and pushed. Z-41, Z-43, Z-44 are closed. Z-39, Z-42 and Z-47 are partly done and stay open. Two CI failures (typecheck, e2e) were found and fixed.
-**Commits (main):** `051e0e1` Z-47 · `280422d` Z-41 (0202) · `01edead` Z-44 · `bdf5920` Z-43 · `2ff24c9` typecheck fix · `1b61f18` Z-39 (0203 in 05 and 06) · `5816807` Z-39 merge · `43fc9b9` Z-42 · `6985d3e` Z-39 gate fixes · `7ef8826` Z-42 gate fixes · `051f48a` e2e locator fix
-**Tests:** module suites green per agent reports. CI green on 051f48a (quality and e2e); batch 1 deployed and swept 2026-10-18
-**Next:** Z-23 admin nav session 1 (Z-47 now exists as the safety net). Z-46 CSP waits for the owner yes. Decide the tier-upgrade question for Z-39.
+**Headline:** Three batches. Batch 1 (deployed): Z-41, Z-43, Z-44 closed; Z-39, Z-42, Z-47 partly done. Batch 2 (deployed at `9be4fbd`): take-page section grouping (Z-42), admin reason modal (Z-39), `section_names` in the attempt view. Batch 3 (committed locally, deploy pending): Z-23 sessions 1 and 2 (closed), Z-32 `/try` prerender and nginx line, EXP-18 publish gate (part 1). Z-45 closed as a docs-only owner decision. Two CI failures (typecheck, e2e) were found and fixed.
+**Commits (main):** `051e0e1` Z-47 · `280422d` Z-41 (0202) · `01edead` Z-44 · `bdf5920` Z-43 · `2ff24c9` typecheck fix · `1b61f18` Z-39 (0203 in 05 and 06) · `5816807` Z-39 merge · `43fc9b9` Z-42 · `6985d3e` Z-39 gate fixes · `7ef8826` Z-42 gate fixes · `051f48a` e2e locator fix · batch 2: `7977a96` take-page grouping · `218b6ed` reason modal · `9be4fbd` section_names · batch 3 (local, not pushed): `723c322` Z-23 s1 · `524da5d` Z-23 s2 · `68e24d8` Z-32 · `e5f5e5c` EXP-18 part 1 · `524da5d` Z-23 s2 head (migration 0204)
+**Tests:** module suites green per agent reports. CI green on 051f48a (quality and e2e); batch 1 and batch 2 deployed 2026-10-18. Batch 3: module suites green per agent reports; local e2e last full pass not clean because of machine load, CI e2e is the judge. Batch 3 committed locally, deploy pending.
+**Next:** Push and deploy batch 3, then run `curl -sI https://assessiq.in/try` (Z-32). After that, build Z-24 (unblocked, Z-23 done). Z-46 CSP waits for the owner yes. Decide the tier-upgrade question for Z-39.
 **Open questions (owner):**
 - Z-46: may we add a CSP Report-Only header at the shared Caddy?
 - Z-26: Google Search Console DNS verification still open.
@@ -11,6 +11,9 @@
 - Admin 2FA: still open.
 - Open /admin signed in after the deploy and confirm the page loads (last part of Z-47).
 - Should a later distinction pass upgrade an earlier completion certificate? (Z-39)
+- Should a NULL `review_state` also block publish? Yes blocks every new tenant-authored question until a verify action exists (EXP-18 part 2).
+- Z-32: production check after deploy (`curl -sI https://assessiq.in/try`, expect 200 and no redirect). The row stays open until then.
+- Z-24 (flow-first Home) is next now that Z-23 is done. Confirm it is the next build.
 - The Docs lint Vale step fails on push only because reviewdog `github-pr-annotations` needs a PR. It is advisory until 2026-10-29.
 **Old task or feature checked:** Z-41 vs Z-7 KeyNav (extended) · Z-44 vs result email sentence (shared `feedbackSentence` in 00-core) · Z-43 vs `resolveBlueprintNodes` (reused) · Z-39 vs unique-per-user attempt + reissue invitation (extended) · Z-42 vs S20 section marks view and `mock.ts` (extended) (Rule B, PROJECT_BRAIN.md)
 
@@ -18,8 +21,8 @@
 
 ## Agent utilization
 - Opus: plan, diff review of Wave A and the Z-39 start guard, commits, CI triage, push.
-- Sonnet: 12 runs (builds of Z-47, Z-41, Z-44, Z-39, Z-43, Z-42; 3 adversarial gates; revisions of Z-43, Z-39, Z-42; Z-39 merge; e2e run; e2e diagnosis).
-- Haiku: 3 runs (S20 digest, code map, docs-lint check).
+- Sonnet: about 22 runs (builds of Z-47, Z-41, Z-44, Z-39, Z-43, Z-42; 3 adversarial gates; revisions of Z-43, Z-39, Z-42; Z-39 merge; e2e run; e2e diagnosis; batch 2 and 3: Z-23 s1, Z-23 s2, take-page grouping, reason modal, section_names, Z-32, EXP-18 build and gate).
+- Haiku: 6 runs (S20 digest, code map, docs-lint check, sizing, two sweeps).
 - codex:rescue: n/a — companion and sandbox down; Sonnet takeover accepted all three gates (accept, revise-addressed).
 - Gemini (agy): n/a — Haiku used.
 - Codex (exec): n/a — sandbox down.
@@ -31,6 +34,12 @@
 - Sonnet · Z-41 build · reworked: N (but Opus fixed the typecheck JSX namespace error: Y)
 - Sonnet · Z-47 build · reworked: N
 - Sonnet · Z-44 build · reworked: N
+- Sonnet · Z-23 session 1 · reworked: N
+- Sonnet · Z-23 session 2 · reworked: Y (e2e flaky under load; final full pass not clean)
+- Sonnet · take-page grouping · reworked: N (needed an API field, a separate agent built it)
+- Sonnet · admin reason modal · reworked: N
+- Sonnet · Z-32 prerender · reworked: Y (the infra nginx line needed Opus; tested locally)
+- Sonnet · EXP-18 build and gate · reworked: N
 
 ---
 
