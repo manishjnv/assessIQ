@@ -31,6 +31,10 @@ Status words: **Done**, **In progress**, **Planned** (has a ROADMAP row or a pro
 | TIME-12 | Fix the flaky web tests (no blind retry) | About 10 min per false red; 1 in 8 CI runs failed by chance | Planned (S24 row 4) | `10`, `11` |
 | TIME-13 | `tools/deploy.sh` applies each migration file in one transaction | Safer deploys, no half-applied files | Proposed, needs owner yes | `11` |
 | TIME-14 | Batches of 3 to 4 rows, push after each batch, never on red CI | Fewer red runs | Done (rule in `CLAUDE.md`) | `01` |
+| TIME-15 | Signed-in smoke into CI; drop deploy step 1b (Z-59) | Est. 3 to 6 min per frontend deploy | Proposed (needs owner yes; do Z-53 first) | `11` |
+| TIME-16 | Cut red CI rate (15 of 40 red, measured) and remove Playwright `retries: 2` (Z-60) | One red costs 7 to 10 min plus the fix loop; biggest item | Proposed | `10`, `11` |
+| TIME-17 | Deploy builds only changed services, both-services fallback (Z-61) | Est. 0.5 to 2 min per deploy | Proposed | `11` |
+| TIME-18 | 4th unit shard; background `pnpm verify` at commit (Z-62) | Est. 0.5 min CI; hides 1 to 8 min | Proposed | `11` |
 
 Combined estimate for TIME-8 and TIME-9: daily CI waiting from about 100 min to about 37 min if sessions wait idle. The two overlap; do not add them. Measure after S24.
 
@@ -61,5 +65,6 @@ Combined estimate for TIME-8 and TIME-9: daily CI waiting from about 100 min to 
 
 ## Change log
 
+- 2026-10-18 (S24 review): TIME-15 to TIME-18 added (ROADMAP Z-59 to Z-62) after an Opus 5.5 and Fable cross-check. Measured baseline: CI 6.8 min on a code push, 15 of 40 runs red. TIME-8 e2e shards are Z-58. Rejected: affected-only tests on main, migration dry run (already in `ci.yml`), image registry, auto-deploy.
 - 2026-10-18 (later): owner decided GATE-2 deferred (no for now), GATE-4 approved (one gate per batch, checklist, cap 3 security rows); GATE-8 added.
 - 2026-10-18: register created from the owner's review (time, token and gate lists). Rows TIME-8 to TIME-10 are ROADMAP Z-55 to Z-57.
