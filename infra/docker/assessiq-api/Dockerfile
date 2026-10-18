@@ -27,6 +27,16 @@
 # glibc binaries via a bind-mount. Image size delta: ~40MB vs Alpine.
 ARG NODE_VERSION=22-slim
 
+# ─── Stage 0: manifests — extract only package.json files (auto-picks up new members) ─
+# Rebuilds on any source edit, but is cheap; its OUTPUT (the manifests) is
+# content-hashed, so the deps stage below stays CACHED unless a manifest changes.
+FROM node:${NODE_VERSION} AS manifests
+WORKDIR /src
+COPY apps/api ./apps/api
+COPY modules ./modules
+COPY packages/question-types ./packages/question-types
+RUN mkdir /out && find apps modules packages -name package.json -not -path '*/node_modules/*' -exec cp --parents {} /out \;
+
 # ─── Stage 1: deps — install pnpm workspace closure for @assessiq/api ────────
 FROM node:${NODE_VERSION} AS deps
 
@@ -34,21 +44,19 @@ RUN corepack enable
 
 WORKDIR /app
 
-# Workspace metadata + every workspace member needed for the @assessiq/api
-# transitive closure. .dockerignore strips test files, dev fixtures, and
-# unrelated apps from the build context already.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY --from=manifests /out/ ./
+
+# Frozen install of the api transitive closure. Depends only on manifests +
+# lockfile, so source-only edits no longer re-run it.
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --filter '@assessiq/api...'
+
+# Source overlay (after install). Merges into the pnpm-created node_modules.
 COPY tsconfig.base.json ./
 COPY apps/api ./apps/api
 COPY modules ./modules
 COPY packages/question-types ./packages/question-types
-
-# Frozen install of the api transitive closure. pnpm creates per-member
-# node_modules selectively. The runtime stage copies the entire /app tree
-# so every produced node_modules + every workspace source directory is
-# carried forward without per-member enumeration.
-RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
-    pnpm install --frozen-lockfile --filter '@assessiq/api...'
 
 # ─── Stage 2: runtime — minimal layer with workspace symlink farm ────────────
 FROM node:${NODE_VERSION} AS runtime
@@ -77,9 +85,11 @@ WORKDIR /app
 # Copy the entire deps tree (workspace metadata + every node_modules pnpm
 # created + every workspace source directory). Trailing /. on the source
 # preserves directory contents.
-COPY --from=deps /app/. ./
+COPY --chown=node:node --from=deps /app/. ./
 
-RUN chown -R node:node /app
+# Was `chown -R node:node /app`: a full duplicate layer of the tree (~7 min).
+# COPY --chown gives the same ownership; only the /app directory itself needs it.
+RUN chown node:node /app
 
 # Runs as root: container needs to read /root/.claude/.credentials.json
 # (mode 600, root-owned) for claude CLI auth. Per 2026-05-09 RCA,
