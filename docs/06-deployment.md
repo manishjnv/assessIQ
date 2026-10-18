@@ -2608,3 +2608,12 @@ Order matters: 0186 must apply before the api restart because `getUsage` now sel
 - **Live sweep (Haiku):** `/api/ready` 200; public pages 200; beacon on `/` and absent on `/admin/login`, `/take`, `/candidate/login`; new routes answer 401 without a session; 0 `level":50` lines in api and worker logs; new columns and help rows exist.
 - **Not checked:** a signed-in `/admin` page on production. The dev session minter does not exist there, so the owner opens `/admin` and confirms. Local e2e (`signed-in-smoke.spec.ts`) passes.
 - **Rollback:** previous images are not tagged. Roll back by checking out `8d6abd6` on the VPS and rebuilding. Drop the new columns only if needed: `attempts.attempt_number` (restore `UNIQUE (assessment_id, user_id)` first), `assessments.max_attempts`, `assessment_invitations.extra_attempts`.
+
+## S21 deploy record (2026-10-18, batches 2 and 3)
+
+- **Batch 2:** code `9be4fbd` (CI green). No migrations. Rebuilt `assessiq-api` and `assessiq-frontend`; recreated api, worker, frontend. Adds Z-23 session 1 (seven-group sidebar), the extra-attempt reason modal, take-page section grouping, and `section_names` in the attempt view. Sweep: all pass.
+- **Batch 3:** code `524da5d` (CI green after one re-run of a flaky banner test, fixed in `9ae085d`). Migration `0204_z23_webhook_secret_help.sql` applied by hand (sha256 `3db9a55d...`, 181 rows in `schema_migrations`); help rows 555 to 558. Rebuilt api and frontend (`BUILD_EXIT=0` checked), recreated api, worker, frontend. Adds Z-23 session 2 (all tab strips, Webhook secret card on Webhooks), EXP-18 part 1 (publish gate), and Z-32 (`/try` prerendered head plus nginx exact-match location).
+- **Z-32 test before deploy:** a local `nginx:alpine` container with the new config and the built `dist`: `nginx -t` ok; `/try` and `/try/` returned 200 with no redirect.
+- **Sweep after batch 3:** `/api/ready` 200; `/`, `/try`, `/admin/login`, `/candidate/login`, `/take` all 200 with no redirect; `/try` has the title "Try a sample assessment | AssessIQ" and the canonical link `https://assessiq.in/try`; beacon on `/` and `/try`, absent on `/admin/login`, `/take`, `/candidate/login`; new routes answer 401; 0 `level":50` lines.
+- **Not checked:** a signed-in `/admin` page on production. The owner opens it and confirms.
+- **Rollback (batch 3):** check out `9be4fbd` on the VPS and rebuild api and frontend. Migration 0204 only inserts help rows (`ON CONFLICT DO NOTHING`); no rollback needed.
