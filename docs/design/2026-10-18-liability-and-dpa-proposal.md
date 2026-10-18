@@ -51,13 +51,13 @@
 
 ### 5. Liability cap
 - Keep: fees paid in the last 12 months, or INR 10,000.
-- For the free Trial plan (Z-70) the fees are zero, so the INR 10,000 floor applies. **Question:** is the floor right for a trial?
+- For the Free plan (Z-70) the fees are zero, so the INR 10,000 floor applies. **Question:** is the floor right for a plan that has no end date?
 - No cap on what the law does not allow to be capped (the live text already says this).
 
 ### 6. AI scores are advice
 - Every AI score is advice. The organisation must have a **person decide** on hiring, marks, or any outcome that affects a candidate.
 - The result page and the report carry this line. The terms repeat it.
-- The AI legal opinion (owner sheet Q7) has no answer yet. Z-70 keeps AI OFF for the Trial.
+- Owner decision 2026-10-19 (Q7): the business API is used only after a paid contract. The Free plan grades 5 attempts with AI, with a platform kill switch, and the owner sees no legal issue. The lawyer is asked to confirm.
 - **Question:** does DPDP or other law require a human review right for automated scoring?
 
 ### 7. Duties that stay with AssessIQ
@@ -140,3 +140,7 @@ Each change is a separate roadmap row. Any change in `01-auth`, `02-tenancy`, `0
 6. Is a tick-box acceptance enough for a DPA, or do we need a signature on paid plans?
 7. What breach notice time should the DPA promise?
 
+## Addendum B (added 2026-10-19): webcam checks (Q9)
+
+8. Is a photo retention period of 90 days right for webcam snapshots and ID photos, with earlier deletion on erasure and a longer hold only while an appeal about a flagged attempt is open?
+9. Is a self-declared age of 18 or more, plus an attestation by the organisation that its candidates are adults, enough for webcam checks? Are school tests excluded from the webcam checks?

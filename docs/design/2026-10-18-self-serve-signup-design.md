@@ -25,7 +25,7 @@
 
 ## Bot check
 
-- Use a managed bot check on the form (for example Cloudflare Turnstile). The server checks the token with the provider before it sends any code.
+- Cloudflare Turnstile sits on the form (owner decision 2026-10-19). The server checks the token with the provider before it sends any code. The page CSP must allow the Turnstile script and frame (see Z-46; the live CSP is report-only in the repo only).
 - If the provider is down, the request fails closed: no code is sent.
 - The IP rate limit uses `extractRateLimitClientIp`, as for other public routes (memory: IP trust behind Cloudflare).
 
@@ -59,7 +59,8 @@ See `docs/design/2026-10-18-free-plan-pack.md`. In short: 5 candidates in total,
 - Bot check, IP and email rate limits, block list for domains and emails, 5 invites in total.
 - AI kill switch: a platform setting that stops AI grading for Free organisations. Staff can turn it on at once.
 - No auto-delete (owner decision). Staff remove an abusive organisation by hand with the existing tenant lifecycle.
-- A global daily cap on new sign-ups (setting, for example 50 a day). Above the cap the form shows "sign-up is busy, try tomorrow". This is a proposal, not an owner decision.
+- A global daily cap on new sign-ups (platform setting, 50 a day proposed; the owner has not confirmed). Above the cap the form shows "sign-up is busy, try tomorrow".
+- Free plan content (decided 2026-10-19): 5 candidates in total, 5 fixed sample sets (aptitude first), 5 AI-graded attempts, no end date, no auto-delete.
 
 ## Audit events
 
@@ -99,9 +100,32 @@ The audit rows never hold the plain code or the plain email of a rejected reques
 - Auto-delete (the owner said no).
 - API-mode AI grading (Q8).
 
-## Owner questions
+## Owner decisions and open points (2026-10-19)
 
-1. Is a global daily cap on sign-ups wanted? Proposed: 50 a day.
-2. Which bot check? Proposed: Cloudflare Turnstile (free).
-3. May the sign-up page open before the lawyer approves the DPA text? Proposed: no.
-4. Subject count and AI attempts: see the free plan pack questions.
+1. Daily cap: 50 a day is still a proposal.
+2. Bot check: Cloudflare Turnstile (decided).
+3. The sign-up page stays off until the lawyer approves the DPA text (proposal, not yet confirmed).
+4. Subject count and AI attempts: decided in the free plan pack (5 fixed sets, 5 AI attempts).
+
+## Design review findings (S30, 2026-10-19)
+
+**Verdict: REVISE.** Reviewer: Sonnet takeover (Codex is down), read-only, against the real code. Method: `docs/ai-playbook/gate-checklist.md` (areas 01-auth, 02-tenancy, 14-audit-log). The design stays a design. Nothing is built. Fix items 1 to 7 before any build, then run the build gate.
+
+| # | Severity | Finding | Required change |
+|---|---|---|---|
+| 1 | High | Reusing the OTP helpers is unsafe. `modules/01-auth/src/email-otp.ts` keys Redis on the email hash alone (about lines 90-93 and 409-413). A sign-up code and an admin-login code for one email would share a key. Compare and delete are not atomic, so two parallel verifies can both pass and create two tenants. `users` is only `UNIQUE(tenant_id, email)`, so the database does not stop it. | Use a separate key prefix with a purpose field. Take the code with an atomic `GETDEL` or a Lua compare-and-delete. Add a one-use claim row as a unique guard. |
+| 2 | High | "An email that already has an organisation gets no new one" is checked at request time only. `normalizeEmail` is trim and lower-case only. Plus-addressing, Gmail dots and unicode variants pass as new emails, so one person can make many organisations. | Re-check inside the create transaction. Add a global daily send cap. Block a sign-up email that matches a `SUPER_ADMIN_EMAILS` entry. State plainly that plus-address abuse is bounded only by the daily cap. |
+| 3 | High | The IP is not a strong control. `extractClientIp` trusts `cf-connecting-ip` only after it checks `x-origin-verify`, and `docs/04-auth-flows.md` records IP spoofing as an accepted residual. Correction by the orchestrator: the helper `extractRateLimitClientIp` DOES exist (`modules/01-auth/src/middleware/rate-limit.ts`), so the design name is right. The weakness is real. | Do not use the IP as the only control. Turnstile and the global cap carry the load. |
+| 4 | High | The design does not say how Turnstile is checked. | Run siteverify server-side with a short timeout. Fail closed. Make the token single use (replay) and bind it to the sign-up route. Make `PLAN_TIERS_ENFORCED=true` a hard precondition. |
+| 5 | High | "Do not open sign-up while `PLAN_TIERS_ENFORCED` is false" is only a sentence. `modules/19-billing/src/service.ts` (about lines 803, 818, 831) returns early when the flag is off. | The sign-up routes refuse to start unless the flag is true. Add a test. |
+| 6 | High | The Free limits are not implemented. `TIER_LIMITS.free` is 2 packs, 200 per drive, ratio 1.2. There is no total-candidate cap, no AI-attempt cap and no admin cap. The credit cap is checked at invite time, not in the grade transaction. Parallel invites can pass the 5-candidate limit. The AI override of 5 only changes an "included" number. | Enforce each limit with a row lock or a counter in the same transaction. Prove with a test that the 6th candidate and the 6th AI attempt are blocked, including a parallel case. |
+| 7 | High | The AI kill switch has no stated authority. | Only `super_admin` may change it. Add the audit action. Check it inside the grading path, in the write transaction. |
+| 8 | Medium | `signup.requested` for anonymous callers adds one permanent row per request to an append-only table (storage-DoS). A plain SHA-256 of an email is reversible by dictionary. | Write the audit row only after the rate limit and the Turnstile check pass. Use an HMAC of the email, not a plain hash. |
+| 9 | Medium | `sendEmail` needs a `tenantId` (`email-otp.ts` about line 312). Sign-up has none. The "you already have an account" mail is a third mail-bomb path. | Name the sender and the tenant context. Cap that mail per email and per day. |
+| 10 | Medium | `tenant_legal_acceptances` is not specified tightly. | Grant INSERT and SELECT only. Revoke UPDATE and DELETE. One RLS policy per verb with `WITH CHECK`. Store the IP as a hash, not plain. |
+| 11 | Medium | Slug rules are loose. | Exact reserved list. A normalised unique key (case, unicode). The random suffix must not reveal that a slug exists. |
+| 12 | Low | The session mint needs care. | Create a new session id. Use the same cookie flags as `cookieOpts` (`google-sso.ts`). Never reuse a pre-login cookie. |
+
+**Not flagged (intentional):** sync-on-click AI, candidates without accounts, the move from super-admin-only tenant creation to a system-actor path.
+
+**Next step for Z-71:** update this design for items 1 to 12, ask the owner to approve the revised text, then build, then run one adversarial gate on the diff (areas 01-auth, 02-tenancy, 14-audit-log).

@@ -8,7 +8,7 @@
 
 - A new organisation signs up alone and gets the **Free** plan. The plan has no end date.
 - The organisation can test **5 candidates in total**.
-- The plan includes sample question sets for the subjects that the organisation picks. The number of subjects is an open question (question 1).
+- The plan includes **5 fixed sample question sets**, aptitude first. All 5 are usable (owner, 2026-10-19).
 - All features work. Each has a limit.
 - Result release works. Certificates work and carry **no** "Trial" mark.
 - Data export is off.
@@ -44,26 +44,27 @@
 | Candidates in total | 5 | Owner wish (Q3). Counts every invited candidate, for ever. |
 | Attempts for each candidate | 1 | 5 candidates use 5 credits. |
 | Credits | 25, hard stop | Same as the 2026-10-03 decision. |
-| Question sets | Sample sets for the chosen subjects. Count to confirm. | Owner wish (Q3). |
-| AI grading | A few attempts only. Proposed: 5 in total. Kill switch. | Owner wish. Q7: the business API is for paid contracts only. |
+| Question sets | 5 fixed sample sets, aptitude first. The organisation does not pick subjects. | Owner reply 2026-10-19. |
+| AI grading | 5 AI-graded attempts in total (decided 2026-10-19). Kill switch. | Owner wish. Q7: the business API is for paid contracts only. |
 | Result release | Yes, manual or auto | Full try of the flow. |
 | Certificates | Yes, no "Trial" mark | Owner decision. |
 | Cohort report | Basic report | Same as Starter. |
 | Data export (CSV, API) | No | Owner decision. |
-| Webhooks, API keys, embed, audit viewer, own email sender | Visible but locked, with a "Contact us" note (proposed) | Growth and Enterprise features. |
+| Webhooks, API keys, embed, audit viewer, own email sender | Visible but locked, with a "Contact us" note (decided 2026-10-19) | Growth and Enterprise features. |
 | Support | Email | Same as Starter. |
 | Upgrade | "Contact us" | Q1 and Q2: no public prices, manual invoices. |
 
 ## Abuse controls
 
 1. **Email check.** The first admin must confirm the email address with the sign-in code.
-2. **Bot check.** A bot check (for example Cloudflare Turnstile) sits on the sign-up form.
+2. **Bot check.** Cloudflare Turnstile sits on the sign-up form (decided 2026-10-19).
 3. **Rate limit.** Sign-up has an IP rate limit. It uses the same rule as other public routes.
 4. **Invite limit.** The Free plan can invite 5 candidates in total, so it cannot send a mail blast.
 5. **AI kill switch.** Platform staff can turn off AI grading for all Free organisations, or for one. This needs a platform setting and an audit row.
 6. **Block list.** Super admin can block a domain.
 7. **Terms tick-box.** The sign-up asks the admin to accept the terms and the data processing addendum (see Z-72).
-8. **Manual removal.** There is no auto-delete. Platform staff remove an abusive organisation by hand, through the existing tenant lifecycle. This needs no new code.
+8. **Daily sign-up cap.** A platform setting limits new sign-ups to 50 a day (proposed, owner to confirm). Above the cap the form says to try tomorrow.
+9. **Manual removal.** There is no auto-delete. Platform staff remove an abusive organisation by hand, through the existing tenant lifecycle. This needs no new code.
 
 Dropped by the owner: one trial for each email domain, and auto-delete after expiry.
 
@@ -87,7 +88,7 @@ These are names for the build (Z-71). The new keys do not exist yet. Credits, th
 | `max_candidates_total` | number | 5 |
 | `max_attempts_per_candidate` | number | 1 |
 | `included_credits` | number | 25 (exists) |
-| `ai_answers_included_override` | number | 5 proposed (column exists) |
+| `ai_answers_included_override` | number | 5 (decided; column exists) |
 | `ai_grading_allowed` | yes/no | yes, limited by the override |
 | `ai_grading_kill_switch` | platform yes/no | off by default; staff turn it on to stop AI grading |
 | `export_allowed` | yes/no | no |
@@ -108,11 +109,12 @@ There is no `trial_ends_at` and no `delete_after`. The database tier `free` alre
 | AI grading on a free plan while the legal opinion is open | Legal and cost risk | Few attempts, kill switch. Owner Q7: free use has no legal issue; confirm with the lawyer. |
 | Unused Free organisations pile up | Storage grows | Owner chose no auto-delete. Watch the count. Revisit if it grows. |
 
-## Owner questions
+## Owner decisions (2026-10-19, replaces the open questions)
 
-1. **Subjects.** What does "5 chosen subjects" mean? Option A: the organisation picks 5 subjects at sign-up. Option B: AssessIQ offers 5 fixed sample sets and the organisation uses them all. Proposed default: B, starting with aptitude (Q4).
-2. **AI attempts.** How many AI-graded attempts in total? Proposed: 5.
-3. **Locked features.** Should webhooks, API keys, embed and audit show as locked with "Contact us" (proposed), or be hidden?
+1. **Subjects.** 5 fixed sample sets, aptitude first. The organisation does not pick subjects.
+2. **AI attempts.** 5 in total, with a kill switch.
+3. **Locked features.** Webhooks, API keys, embed and audit viewer show as locked with "Contact us". They are not hidden.
+4. **Still open:** the daily sign-up cap of 50 is a proposal.
 
 ## Not decided here
 

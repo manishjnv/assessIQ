@@ -2,9 +2,9 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-18T21:09:41.109Z (2026-10-19 02:39:41 IST)
-- HEAD: `412fc842`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 2
+- Generated: 2026-10-18T21:29:21.353Z (2026-10-19 02:59:21 IST)
+- HEAD: `4daf94a4`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 14
 
 ## 1. Last session (SESSION_STATE, first block)
 
@@ -33,7 +33,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 **Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
 
-## 3. Open Z and EXP rows (37 total)
+## 3. Open Z and EXP rows (40 total)
 
 - `EXP-3` (EXP-3 (lane B catalog)) — Previous-year catalog without question text. — pending (after pilot; Claude; M)
 - `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S20, 2026-10-17, `c34a597`; migrations 0196 module 04, 0197 module 16): facets, counts, tsvector plus `pg_trgm`
@@ -68,6 +68,9 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-70` (Z-70 (FREEPLAN)) — Free trial plan pack for self-serve organisations. — pending (owner approval of the proposal; Claude; S). Draft written S28. Owner answer 2026-10-18: the public name is "Tri
 - `Z-71` (Z-71 (SELFSERVE-BUILD)) — Self-serve organisation sign-up (build). — pending (blocked on Z-70 approval; Claude; L; design-gated) Design written 2026-10-19 (S29): `docs/design/2026-10-18-sel
 - `Z-72` (Z-72 (LIABILITY-1)) — Liability and data-processing proposal for the lawyer. — pending (owner and lawyer approve; Claude; S). Draft written S28.
+- `Z-74` (Z-74 (PROCTOR-RET)) — Webcam photos: 90-day automatic deletion job, and the appeal question. — pending (design reviewed in S30 batch 2; design review S30: REVISE, 9 findings recorded in the design file; no build unt
+- `Z-75` (Z-75 (PUBLICDOCS-1)) — Plan to stop tracking public docs files in the public repo. — pending (plan only; Claude; S)
+- `Z-76` (Z-76 (PAGES-1)) — Website page proposals (5 to 8), owner approves each. — pending (S30: proposals written, 7 pages, in `docs/design/2026-10-19-page-proposals.md`; owner approves each; Claude; S)
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
 - `Z-11` (Z-11 (Phase 5, FR13, Z-9, Z-15)) — Certificate visibility after a release. — pending (small). Item (c) done (S17, 2026-10-17, `f9c569f`): `CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui/src/cop
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d)
@@ -97,7 +100,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 ## 5. Next free migration
 
-- Next free: `0206` (highest `modules/*/migrations` prefix + 1)
+- Next free: `0207` (highest `modules/*/migrations` prefix + 1)
 - SESSION_STATE block names no next number; computed from files.
 
 ## 6. Reading list reminder
