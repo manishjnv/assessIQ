@@ -2,6 +2,11 @@ import { ValidationError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
 import { findOrCreatePackForDomain } from "../../../04-question-bank/src/service.js";
+import {
+  nodeScopeArgs,
+  taxonomyDrawPredicate,
+  type NodeScope,
+} from "../../../04-question-bank/src/taxonomy-nodes.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { AssessmentBlueprint, ResolvedBlueprint } from "../types.js";
 
@@ -21,9 +26,19 @@ export async function countActiveQuestionsForCriterion(
   packId: string,
   levelId: string,
   domainId: string,
-  categoryId: string,
+  categoryId: string | undefined,
   type: string,
+  node?: NodeScope,
 ): Promise<number> {
+  if (node !== undefined) {
+    const r = await client.query<{ count: string }>(
+      `SELECT count(*) FROM questions q
+       WHERE q.pack_id = $1 AND q.level_id = $2 AND q.type = $3 AND q.status = 'active'
+         AND ${taxonomyDrawPredicate("q", "$4", "$5", "$6")}`,
+      [packId, levelId, type, ...nodeScopeArgs(node)],
+    );
+    return parseInt(r.rows[0]?.count ?? "0", 10);
+  }
   const result = await client.query<{ count: string }>(
     `SELECT count(*) FROM questions
      WHERE pack_id = $1 AND level_id = $2 AND domain_id = $3
@@ -42,10 +57,22 @@ export async function listActiveQuestionsForCriterion(
   packId: string,
   levelId: string,
   domainId: string,
-  categoryId: string,
+  categoryId: string | undefined,
   type: string,
   limit: number,
+  node?: NodeScope,
 ): Promise<unknown[]> {
+  if (node !== undefined) {
+    const r = await client.query(
+      `SELECT q.id, q.topic, q.type, q.points FROM questions q
+       WHERE q.pack_id = $1 AND q.level_id = $2 AND q.type = $3 AND q.status = 'active'
+         AND ${taxonomyDrawPredicate("q", "$4", "$5", "$6")}
+       ORDER BY q.created_at ASC, q.id ASC
+       LIMIT $7`,
+      [packId, levelId, type, ...nodeScopeArgs(node), limit],
+    );
+    return r.rows;
+  }
   const result = await client.query(
     `SELECT id, topic, type, points FROM questions
      WHERE pack_id = $1 AND level_id = $2 AND domain_id = $3
@@ -100,7 +127,9 @@ export async function assertBlueprintFKOwnership(
   }
 
   // 2. Per-distinct-category guard
-  const distinctCategoryIds = [...new Set(blueprint.criteria.map((c) => c.category_id))];
+  const distinctCategoryIds = [
+    ...new Set(blueprint.criteria.map((c) => c.category_id).filter((c): c is string => c !== undefined)),
+  ];
   for (const categoryId of distinctCategoryIds) {
     const catGuard = await client.query<{ id: string }>(
       `SELECT id FROM categories
@@ -130,6 +159,21 @@ export async function assertBlueprintFKOwnership(
  * Returns the stored (resolved) shape; node_id is kept for traceability only.
  * The draw / count / preview / frozen pool read domain_id + category_id and never change.
  */
+/** Z-43: a stored criterion with node_id and no category_id draws by taxonomy node. */
+export function criterionNodeScope(c: ResolvedBlueprint["criteria"][number]): NodeScope | undefined {
+  return c.category_id === undefined && c.node_id !== undefined
+    ? { nodeId: c.node_id, difficultyMin: c.difficulty_min, difficultyMax: c.difficulty_max }
+    : undefined;
+}
+
+const TAXONOMY_DRAW_KINDS: readonly string[] = ["subject", "unit", "outcome"];
+
+/** A difficulty range only applies to a taxonomy-node draw; a category draw would silently drop it. */
+const rangeNotSupported = (): ValidationError =>
+  new ValidationError("difficulty_min/difficulty_max apply only to a taxonomy node criterion (no category)", {
+    details: { code: AL_ERROR_CODES.BLUEPRINT_DIFFICULTY_INVALID },
+  });
+
 export async function resolveBlueprintNodes(
   client: PoolClient,
   blueprint: AssessmentBlueprint,
@@ -137,7 +181,22 @@ export async function resolveBlueprintNodes(
   let domainId = blueprint.domain_id;
   const criteria: ResolvedBlueprint["criteria"] = [];
   for (const crit of blueprint.criteria) {
+    if (
+      crit.difficulty_min !== undefined &&
+      crit.difficulty_max !== undefined &&
+      crit.difficulty_min > crit.difficulty_max
+    ) {
+      throw new ValidationError("blueprint difficulty_min must not be greater than difficulty_max", {
+        details: {
+          code: AL_ERROR_CODES.BLUEPRINT_DIFFICULTY_INVALID,
+          difficulty_min: crit.difficulty_min,
+          difficulty_max: crit.difficulty_max,
+        },
+      });
+    }
+    const hasRange = crit.difficulty_min !== undefined || crit.difficulty_max !== undefined;
     if (crit.node_id === undefined) {
+      if (hasRange) throw rangeNotSupported();
       criteria.push({ category_id: crit.category_id!, type: crit.type, count: crit.count });
       continue;
     }
@@ -156,15 +215,38 @@ export async function resolveBlueprintNodes(
         details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_UNRESOLVED, node_id: crit.node_id },
       });
     }
-    if (row.kind !== "unit") {
-      throw new ValidationError(`blueprint node_id must be a 'unit' node (got '${row.kind}')`, {
-        details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_KIND_UNSUPPORTED, node_id: crit.node_id, kind: row.kind },
-      });
+    if (!TAXONOMY_DRAW_KINDS.includes(row.kind)) {
+      throw new ValidationError(
+        `blueprint node_id must be a 'subject', 'unit' or 'outcome' node (got '${row.kind}')`,
+        { details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_KIND_UNSUPPORTED, node_id: crit.node_id, kind: row.kind } },
+      );
     }
-    if (row.category_id === null || row.domain_id === null) {
-      throw new ValidationError("blueprint node_id has no category in this organisation", {
-        details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_UNRESOLVED, node_id: crit.node_id },
+    if (row.kind !== "unit" || row.category_id === null || row.domain_id === null) {
+      // Z-43: no category row for this node, so the criterion draws by taxonomy node.
+      if (crit.category_id !== undefined) {
+        throw new ValidationError("blueprint criterion category_id does not match its node_id", {
+          details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_MISMATCH, node_id: crit.node_id, category_id: crit.category_id },
+        });
+      }
+      // The pool must not be empty: an unlinked node would draw nothing.
+      const scope = { nodeId: crit.node_id, difficultyMin: crit.difficulty_min, difficultyMax: crit.difficulty_max };
+      const linked = await client.query<{ n: string }>(
+        `SELECT count(*) AS n FROM questions q WHERE q.status = 'active' AND ${taxonomyDrawPredicate("q", "$1", "$2", "$3")}`,
+        nodeScopeArgs(scope),
+      );
+      if (parseInt(linked.rows[0]?.n ?? "0", 10) === 0) {
+        throw new ValidationError("blueprint node_id has no active questions linked to it or its children", {
+          details: { code: AL_ERROR_CODES.BLUEPRINT_NODE_EMPTY, node_id: crit.node_id, kind: row.kind },
+        });
+      }
+      criteria.push({
+        node_id: crit.node_id,
+        type: crit.type,
+        count: crit.count,
+        ...(crit.difficulty_min !== undefined ? { difficulty_min: crit.difficulty_min } : {}),
+        ...(crit.difficulty_max !== undefined ? { difficulty_max: crit.difficulty_max } : {}),
       });
+      continue;
     }
     if (crit.category_id !== undefined && crit.category_id !== row.category_id) {
       throw new ValidationError("blueprint criterion category_id does not match its node_id", {
@@ -182,9 +264,15 @@ export async function resolveBlueprintNodes(
         details: { code: AL_ERROR_CODES.BLUEPRINT_MIXED_DOMAINS, node_id: crit.node_id },
       });
     }
+    if (hasRange) throw rangeNotSupported();
     criteria.push({ category_id: row.category_id, node_id: crit.node_id, type: crit.type, count: crit.count });
   }
-  return { domain_id: domainId!, level: blueprint.level, criteria };
+  if (domainId === undefined) {
+    throw new ValidationError("blueprint domain_id is required when no criterion resolves to a subject category", {
+      details: { code: AL_ERROR_CODES.BLUEPRINT_DOMAIN_REQUIRED },
+    });
+  }
+  return { domain_id: domainId, level: blueprint.level, criteria };
 }
 
 /** Entry used by create/update: no node_id anywhere = no extra query (legacy path untouched). */
@@ -192,7 +280,7 @@ export async function resolveBlueprint(
   tenantId: string,
   blueprint: AssessmentBlueprint,
 ): Promise<ResolvedBlueprint> {
-  if (!blueprint.criteria.some((c) => c.node_id !== undefined)) {
+  if (!blueprint.criteria.some((c) => c.node_id !== undefined || c.difficulty_min !== undefined || c.difficulty_max !== undefined)) {
     return blueprint as ResolvedBlueprint; // refine guarantees domain_id + category_id here
   }
   return withTenant(tenantId, (client) => resolveBlueprintNodes(client, blueprint));

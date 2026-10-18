@@ -260,6 +260,7 @@ Tests:
 - **Gaps, stated plainly.** (1) Sections are always timed one by one (module 06). A blueprint with one overall timer gets an even split of the minutes and a `warnings` entry. (2) The draw ignores `subject_node_id`: a section draws `question_count` questions from the pack and level pool. Draw by node needs the frozen-pool work. (3) Marks per question come from `questions.points`; the blueprint's value is not applied. (4) One negative value for the whole assessment: a blueprint with different values is rejected (400).
 - **Not included.** UI, draw by node, a single whole-test timer, publishing the draft.
 - **Tests.** `src/__tests__/mock-from-blueprint.test.ts`.
+- **Z-43 node draw on a frozen assessment.** A node draw on a published (frozen) assessment reads live `question_taxonomy` links, live `parent_id` and live `difficulty_est`. A taxonomy edit after publish can change which frozen questions a candidate is drawn from. It can never add a question outside the frozen set. Descendants deeper than 10 levels are not included. Write time rejects `difficulty_min` > `difficulty_max`, and a difficulty range on a category criterion, with `BLUEPRINT_DIFFICULTY_INVALID`.
 
 ## Z-39 retake policy (2026-10-18)
 

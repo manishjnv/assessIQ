@@ -63,6 +63,9 @@ export const BlueprintCriterionSchema = z
     // RW-55: a curriculum 'unit' node, resolved to the tenant's (domain_id, category_id)
     // at write time. The draw never sees node_id.
     node_id: z.string().uuid("node_id must be a UUID").optional(),
+    // Z-43: optional difficulty_est range (1..5), used only by node_id criteria with no category.
+    difficulty_min: z.number().int().min(1).max(5).optional(),
+    difficulty_max: z.number().int().min(1).max(5).optional(),
     type: z.enum(BLUEPRINT_QUESTION_TYPES, {
       errorMap: () => ({
         message: `type must be one of: ${BLUEPRINT_QUESTION_TYPES.join(", ")}`,
@@ -97,8 +100,11 @@ export interface ResolvedBlueprint {
   domain_id: string;
   level: BlueprintLevel;
   criteria: Array<{
-    category_id: string;
+    /** Absent for a Z-43 taxonomy criterion: that one draws by node_id and its descendants. */
+    category_id?: string;
     node_id?: string;
+    difficulty_min?: number;
+    difficulty_max?: number;
     type: BlueprintQuestionType;
     count: number;
   }>;
@@ -383,7 +389,8 @@ export interface BulkResendResult {
  */
 export interface PreviewCriterionResult {
   criterion_index: number;
-  category_id: string;
+  category_id?: string | undefined;
+  node_id?: string | undefined;
   type: string;
   required: number;
   available: number;
@@ -439,6 +446,9 @@ export const AL_ERROR_CODES = {
   BLUEPRINT_NODE_KIND_UNSUPPORTED: "BLUEPRINT_NODE_KIND_UNSUPPORTED",
   BLUEPRINT_NODE_MISMATCH: "BLUEPRINT_NODE_MISMATCH",
   BLUEPRINT_MIXED_DOMAINS: "BLUEPRINT_MIXED_DOMAINS",
+  BLUEPRINT_DOMAIN_REQUIRED: "BLUEPRINT_DOMAIN_REQUIRED",
+  BLUEPRINT_NODE_EMPTY: "BLUEPRINT_NODE_EMPTY",
+  BLUEPRINT_DIFFICULTY_INVALID: "BLUEPRINT_DIFFICULTY_INVALID",
   POOL_TOO_SMALL_CRITERION: "POOL_TOO_SMALL_CRITERION",
   // Slice A.2 — opens_at mandatory
   OPENS_AT_REQUIRED: "OPENS_AT_REQUIRED",

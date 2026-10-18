@@ -13,6 +13,40 @@ export interface NodeSpec {
   status?: "active" | "archived";
 }
 
+/** Z-43: a draw scoped to a taxonomy node and all its descendants. */
+export interface NodeScope {
+  nodeId: string;
+  difficultyMin?: number | null | undefined;
+  difficultyMax?: number | null | undefined;
+}
+
+/** Descendant walk stops here; a loop or a very deep tree cannot run away. */
+export const TAXONOMY_DRAW_MAX_DEPTH = 10;
+
+/** Positional args for taxonomyDrawPredicate, in the order [node, min, max]. */
+export function nodeScopeArgs(s: NodeScope): [string, number | null, number | null] {
+  return [s.nodeId, s.difficultyMin ?? null, s.difficultyMax ?? null];
+}
+
+/**
+ * Z-43: SQL predicate "question `alias` is linked to node $n or a descendant, inside the
+ * difficulty_est range". `alias` must be the questions table. Descendants follow parent_id,
+ * which never crosses a framework. Tenant scope comes from RLS on questions, question_taxonomy
+ * and taxonomy_nodes, so the caller must run inside withTenant.
+ */
+export function taxonomyDrawPredicate(alias: string, nodeP: string, minP: string, maxP: string): string {
+  return `${alias}.id IN (
+      WITH RECURSIVE sub(id, d) AS (
+        SELECT id, 0 FROM taxonomy_nodes WHERE id = ${nodeP}::uuid
+        UNION ALL
+        SELECT c.id, sub.d + 1 FROM taxonomy_nodes c JOIN sub ON c.parent_id = sub.id
+         WHERE sub.d < ${TAXONOMY_DRAW_MAX_DEPTH}
+      )
+      SELECT qt.question_id FROM question_taxonomy qt WHERE qt.node_id IN (SELECT id FROM sub))
+    AND (${minP}::int IS NULL OR ${alias}.difficulty_est >= ${minP}::int)
+    AND (${maxP}::int IS NULL OR ${alias}.difficulty_est <= ${maxP}::int)`;
+}
+
 /** Framework 1 ('legacy-domains', NULL tenant). Visible under RLS; throws if 0169 data is absent. */
 export async function legacyFrameworkId(client: PoolClient): Promise<string> {
   const r = await client.query<{ id: string }>(

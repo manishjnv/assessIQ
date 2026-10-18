@@ -4,7 +4,7 @@ import * as repo from "../repository.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { ResolvedBlueprint, PreviewCriterionResult, PreviewQuestionSet } from "../types.js";
 import { countActiveQuestionsForLevel, listActiveQuestionsForPreview } from "./_shared.js";
-import { countActiveQuestionsForCriterion, listActiveQuestionsForCriterion } from "./blueprint.js";
+import { countActiveQuestionsForCriterion, criterionNodeScope, listActiveQuestionsForCriterion } from "./blueprint.js";
 
 // ---------------------------------------------------------------------------
 // previewAssessment — admin sample of question pool; no attempt created
@@ -40,6 +40,7 @@ export async function previewAssessment(
 
       for (let idx = 0; idx < blueprint.criteria.length; idx++) {
         const criterion = blueprint.criteria[idx]!;
+        const scope = criterionNodeScope(criterion);
         const criterionAvailable = useFrozen
           ? await repo.countFrozenForCriterion(
               client,
@@ -47,6 +48,7 @@ export async function previewAssessment(
               blueprint.domain_id,
               criterion.category_id,
               criterion.type,
+              scope,
             )
           : await countActiveQuestionsForCriterion(
               client,
@@ -55,6 +57,7 @@ export async function previewAssessment(
               blueprint.domain_id,
               criterion.category_id,
               criterion.type,
+              scope,
             );
         totalPoolSize += criterionAvailable;
 
@@ -67,6 +70,7 @@ export async function previewAssessment(
               criterion.category_id,
               criterion.type,
               sampleLimit,
+              scope,
             )
           : sampleLimit > 0
           ? await listActiveQuestionsForCriterion(
@@ -77,12 +81,14 @@ export async function previewAssessment(
               criterion.category_id,
               criterion.type,
               sampleLimit,
+              scope,
             )
           : [];
 
         blueprintCriteria.push({
           criterion_index: idx,
           category_id: criterion.category_id,
+          ...(criterion.category_id === undefined ? { node_id: criterion.node_id } : {}),
           type: criterion.type,
           required: criterion.count,
           available: criterionAvailable,

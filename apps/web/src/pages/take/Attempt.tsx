@@ -31,7 +31,7 @@ import { AnswerArea } from "./attempt-parts/AnswerArea.js";
 import { NavigatorBody } from "./attempt-parts/NavigatorBody.js";
 import { AttemptTopBar } from "./attempt-parts/AttemptTopBar.js";
 import { FinishSectionModal } from "./attempt-parts/FinishSectionModal.js";
-import { KeyNav } from "./attempt-parts/KeyNav.js";
+import { KeyNav, KeyShortcutsToggle, useKeyShortcuts } from "./attempt-parts/KeyNav.js";
 import { SubmitConfirmModal } from "./attempt-parts/SubmitConfirmModal.js";
 export { isAnsweredValue } from "./attempt-parts/shared.js";
 
@@ -48,6 +48,7 @@ export function AttemptPage(): React.JSX.Element {
   const [answers, setAnswers] = useState<Map<string, unknown>>(new Map());
   // flags: Map<questionId, boolean>
   const [flags, setFlags] = useState<Map<string, boolean>>(new Map());
+  const [keysOn, setKeysOn] = useKeyShortcuts();
   const [locked, setLocked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // Submit confirmation modal (replaces window.confirm / window.alert).
@@ -659,7 +660,7 @@ export function AttemptPage(): React.JSX.Element {
       {/* ── BOTTOM BAR ──────────────────────────────────────────────────── */}
       {/* Key hints are desktop-only (hidden under the mobile viewport). */}
       <style>{'[data-viewport="mobile"] .aiq-attempt-kbd{display:none}'}</style>
-      <KeyNav onPrev={goPrev} onNext={goNext} disabled={locked || confirmOpen || finishOpen || navOpen} />
+      <KeyNav onPrev={goPrev} onNext={goNext} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen} />
       <footer className="aiq-attempt-bottom" style={BOTTOM_BAR}>
         {/* Z-7: Submit / Finish section sits at the far LEFT, away from Prev and Next.
             Test sections: before the last section the primary action is "Finish section"
@@ -718,6 +719,11 @@ export function AttemptPage(): React.JSX.Element {
 
         {/* Spacer — hidden on mobile via .aiq-attempt-spacer CSS rule */}
         <span className="aiq-attempt-spacer" style={{ flex: 1 }} />
+
+        {/* Z-41: WCAG 2.1.4 off switch for the P and N keys (desktop only, like the hints) */}
+        <span className="aiq-attempt-kbd">
+          <KeyShortcutsToggle on={keysOn} onChange={setKeysOn} />
+        </span>
 
         {/* Prev */}
         <Button

@@ -344,6 +344,7 @@ export function Submitted(): React.JSX.Element {
                     }
                     retaking={retaking}
                     retakeError={retakeError}
+                    feedbackLevel={state.result.feedback_level}
                   />
                   {state.result.certificate && (
                     <NewCertificateModal credential_id={state.result.certificate.credential_id} />
