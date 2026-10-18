@@ -202,6 +202,16 @@ export interface AttemptResultPendingWire {
   release_mode?: ReleaseMode;
 }
 
+/** Z-42: marks of one test section in the released result. cutoff fields only for a qualifying section with a cutoff. */
+export interface ResultSectionWire {
+  index: number;
+  name: string;
+  earned: number;
+  max: number;
+  cutoff_marks?: number;
+  passed_cutoff?: boolean;
+}
+
 // GET /api/me/attempts/:id/result → 200 once the result is published.
 export interface AttemptResultReleasedWire {
   status: "released";
@@ -216,6 +226,8 @@ export interface AttemptResultReleasedWire {
   pass_mark_pct?: number;
   certificate: ResultCertificateWire | null;
   negative_marking?: ResultNegativeMarkingWire;
+  /** Z-42: marks per section; absent when the test has no sections or the server is older. */
+  sections?: ResultSectionWire[];
   /** Z-39: attempt n of m and whether another try is open. Absent on older servers. */
   retake?: ResultRetakeWire;
   /** Z-44: tenant feedback level for the plain feedback sentence. Absent on older servers: no sentence. */

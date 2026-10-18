@@ -2681,3 +2681,17 @@ Migration `modules/04-question-bank/migrations/0201_exp6_exam_blueprints.sql`.
 | Considered and rejected | `tenant_id` plus the taxonomy 4-policy shape (allows tenant-owned blueprints that nobody asked for). A `total_questions` column (derived, cannot drift). A cutoff value in the seed (cutoffs change every year) |
 | Not included | Any other exam, UI, normalisation across shifts, rank prediction |
 | Rollback | Drop `exam_blueprint_sections` then `exam_blueprints`. Assessments already made from a blueprint keep their `settings` (they hold copies, not references) |
+
+### Whole-test timer and marks per question (Z-42, no migration, 2026-10-18)
+
+New optional keys in `assessments.settings` (JSONB). No column, no table, so migration 0204 was not needed.
+
+| Item | Detail |
+| --- | --- |
+| What | `settings.whole_test_minutes` (integer 1 to 600): ONE timer for the whole test. With it, no section may carry `minutes` and the candidate moves freely between sections. Without it every section needs `minutes` (one section at a time, unchanged). `sections[].minutes` is now optional in the schema; the rule "all or none" lives in `sectionTimingProblem` (module 05 `types.ts`). `sections[].marks_per_question` and `sections[].negative_marks_per_question` (0 to 1000): at attempt start module 06 writes them into `attempt_questions.points` and `attempt_questions.negative_marks` for every question of that section. |
+| Why | A real exam such as SSC CGL Tier 1 has one 60-minute timer and 2 marks per question with 0.5 lost per wrong answer. Section totals must match the notice (25 x 2 = 50 per section, 200 total). |
+| Frozen once | The marks are copied into `attempt_questions` in the same INSERT that freezes the question version. Later edits to `settings` (only possible on a draft anyway) or to `questions.points` do not move a started attempt. Module 09 already reads only the frozen columns. `ends_at` is stored at start from the server clock and is the only deadline in whole-test mode. |
+| Rules | A section with `marks_per_question` ignores the question's own `points` and `negative_marks`; its penalty is `negative_marks_per_question`, or 0 when absent. A section without `marks_per_question` and every assessment without sections score exactly as before (bank points, own penalty, else `scoring.negative_marks_default`). `questions.points` in the bank is never changed. |
+| Considered and rejected | A new column on `attempts` for the mode (the setting is read from `settings`, like `sections`). Scaling by a factor of the bank points (two questions with different points would not total to the blueprint). Splitting the minutes evenly (it never matched the real exam). |
+| Not included | Grouped section tabs on the take page in whole-test mode (the page shows one list of all questions with one timer), sectional timing mixed with whole-test timing, normalisation across shifts, rank prediction. |
+| Rollback | Remove the keys from `settings` of draft assessments. Started attempts keep their frozen marks. |

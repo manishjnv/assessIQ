@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readSections, resolveSection, totalSectionSeconds } from "../sections.js";
+import { readSections, readWholeTestMinutes, resolveSection, totalSectionSeconds } from "../sections.js";
 
 const S = [
   { name: "A", question_count: 1, minutes: 20 },
@@ -35,5 +35,15 @@ describe("section timing (pure)", () => {
     expect(readSections({})).toBeNull();
     expect(readSections({ sections: [{ name: "", minutes: 0 }] })).toBeNull();
     expect(readSections({ sections: S })).toHaveLength(3);
+  });
+  it("Z-42: whole_test_minutes needs sections WITHOUT minutes; per-section timing needs minutes on all", () => {
+    const bare = [{ name: "A", question_count: 1 }, { name: "B", question_count: 1 }];
+    expect(readSections({ sections: bare })).toBeNull(); // no timer at all
+    expect(readSections({ sections: bare, whole_test_minutes: 60 })).toHaveLength(2);
+    expect(readSections({ sections: S, whole_test_minutes: 60 })).toBeNull(); // mixed
+    expect(readWholeTestMinutes({ whole_test_minutes: 60 })).toBe(60);
+    expect(readWholeTestMinutes({ whole_test_minutes: 0 })).toBeNull();
+    expect(readWholeTestMinutes({ whole_test_minutes: "60" })).toBeNull();
+    expect(readWholeTestMinutes({})).toBeNull();
   });
 });

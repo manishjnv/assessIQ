@@ -223,4 +223,31 @@ describe('ResultSummary', () => {
       expect(container.querySelector('[data-testid="result-outcome"]')).toBeNull();
     });
   });
+
+  describe('Z-42 section marks', () => {
+    const sections = [
+      { index: 0, name: 'Reasoning', earned: 44, max: 50 },
+      { index: 1, name: 'English', earned: 12.5, max: 50, cutoff_marks: 20, passed_cutoff: false },
+    ];
+
+    it('shows marks per section and the qualifying result', () => {
+      const { container } = render(
+        <ResultSummary totalEarned={56.5} totalMax={100} percent={56.5} passed sections={sections} />,
+      );
+      const table = container.querySelector('[data-testid="result-sections"]');
+      expect(table?.textContent).toContain('Reasoning');
+      expect(table?.textContent).toContain('44 / 50');
+      expect(table?.textContent).toContain('12.5 / 50');
+      expect(table?.textContent).toContain('did not qualify, cutoff 20');
+    });
+
+    it('shows no table without sections, or in the compact list row', () => {
+      const { container, rerender } = render(<ResultSummary totalEarned={1} totalMax={2} percent={50} passed />);
+      expect(container.querySelector('[data-testid="result-sections"]')).toBeNull();
+      rerender(<ResultSummary totalEarned={1} totalMax={2} percent={50} passed sections={[]} />);
+      expect(container.querySelector('[data-testid="result-sections"]')).toBeNull();
+      rerender(<ResultSummary totalEarned={1} totalMax={2} percent={50} passed sections={sections} compact />);
+      expect(container.querySelector('[data-testid="result-sections"]')).toBeNull();
+    });
+  });
 });

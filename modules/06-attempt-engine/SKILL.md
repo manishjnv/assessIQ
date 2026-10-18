@@ -256,3 +256,11 @@ Each step also carries `points` and `negative_marks` when the author set them. T
 - **Not included.** Different question draws per retake (each attempt uses the same frozen pool rules as the first), cooling-off timers.
 - **Reading rule for other modules.** Any query that joins `attempts` on `(assessment_id, user_id)` now sees several rows for a retaking candidate. Pick the attempt (latest, or best by `settings.score_counts`). The invitations list in module 05 does this; analytics queries in module 15 still list every attempt.
 - **Tests.** `src/__tests__/retake.test.ts`: first, second, third refused, extra-attempt grant, re-open, best vs latest, two parallel starts (invitation and embed), tenant isolation, validation.
+
+## Z-42 whole-test timer and section marks (2026-10-18)
+
+- **What.** `readWholeTestMinutes` (`src/sections.ts`). In `startAttempt`: `duration_seconds` and `ends_at` = `whole_test_minutes * 60` from the server clock when set; for sections with `marks_per_question`, `insertAttemptQuestions` takes `pointsOverride` and `negativeOverride` and writes them as the frozen `points` and `negative_marks`. In `sectionStateFor`: whole-test mode returns `null`, so `assertSectionOpen` never throws `AE_SECTION_LOCKED`, `getAttemptView` returns every question with no `sections` view, and `finishSection` answers `SECTION_NOT_FINISHABLE`. The existing `ends_at` check in `saveAnswer` / `toggleFlag` is the only deadline.
+- **Why.** Real exams with one timer let the candidate go back to any section. The marks are frozen so the candidate cannot gain marks or time from a later settings or bank edit.
+- **Considered and rejected.** A per-attempt mode column; reading minutes live on each request (stored `ends_at` is the source). Recomputing marks at scoring time (module 09 reads frozen columns only).
+- **Not included.** Section tabs in the take page for whole-test mode; the page shows one list. A section's `calculator` flag has no effect in whole-test mode (no current-section view).
+- **Tests.** `src/__tests__/whole-test-timer.test.ts` (free movement, reload keeps `ends_at`, 1 ms past `ends_at` rejected for every section, frozen marks, section totals 4 and 1.5, regressions for per-section and no-section assessments), `src/__tests__/sections-timing.test.ts`.
