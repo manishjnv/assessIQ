@@ -17,6 +17,8 @@ Counts include cached input. Check your usage page for the metric that matters (
 
 ## Ranked idea list
 
+The live status of each idea is in `09-optimization-register.md` (TOK-1 to TOK-7). This table is the original review.
+
 | # | Idea | Status | Estimated saving per day |
 | --- | --- | --- | --- |
 | 1 | Batch rows per agent; no agent for 1 to 3 tool calls (do it inline or with a script) | Rule in `CLAUDE.md`; to enforce by habit | 1.3 to 1.7M (about 10%) |

@@ -23,7 +23,6 @@ All items below are on `main` and in use. Measured on the owner's setup.
 
 Known gap: migrations are not wrapped in one transaction. A failed file stops the deploy and leaves partial changes. Prefer idempotent `DO $$ ... IF NOT EXISTS` migrations (the project style).
 
-## Still open (see ROADMAP)
+## Pending time work
 
-- Z-47: run the signed-in smoke spec before each deploy (`tools/verify-signed-in.sh`).
-- A worktree setup script for build agents (merge main, install, assigned numbers).
+See `09-optimization-register.md` (TIME-8 to TIME-13) and `11-time-tooling-plan.md`. Summary: faster CI (Z-55), docs-only commits (Z-56), agent workflow rules (Z-57), worktree per session, flaky test fix, migrations in one transaction. The signed-in smoke gate (Z-47) is built; its injected-failure proof (Z-53) is open.

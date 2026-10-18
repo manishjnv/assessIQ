@@ -6,7 +6,7 @@ Status: written 2026-10-18. This folder is the portable memory of the project. A
 
 1. Read `CLAUDE.md` in the repo root. Claude Code loads it by itself. It holds the hard rules, the load-bearing paths and the speed rules.
 2. Read `PROJECT_BRAIN.md`, then `docs/NEXT.md` if it exists (generated brief of open work). If it does not exist yet, read the top block of `docs/SESSION_STATE.md` (`sed -n '1,60p'`).
-3. Read this folder in order: `01` speed rules, `02` time savings, `03` token savings, `04` model routing, `05` tools, `06` traps, `07` new account checklist.
+3. Read this folder in order: `01` speed rules, `02` time savings, `03` token savings, `04` model routing, `05` tools, `06` traps, `07` new account checklist, `09` optimization register (open items), `10` gate notes.
 4. Never read `docs/SESSION_STATE.md`, `docs/ROADMAP.md` or `docs/RCA_LOG.md` in full. They hold about 490,000 tokens. Open one row with `grep -n "^| Z-39 " docs/ROADMAP.md`.
 
 ## Files
@@ -21,6 +21,13 @@ Status: written 2026-10-18. This folder is the portable memory of the project. A
 | `06-traps.md` | Reference | Mistakes that already happened, and how to avoid them |
 | `07-new-account-checklist.md` | How-to | Steps for a different Claude account or machine |
 | `08-token-tooling-plan.md` | How-to | The plan (session S23) to build the remaining token tools |
+| `09-optimization-register.md` | Reference | **The one list of time, token and gate ideas with status and evidence. Keep it in sync.** |
+| `10-gate-optimizations.md` | Explanation | Why pushes were blocked, the three gate groups, the gate steps |
+| `11-time-tooling-plan.md` | How-to | The plan (session S24) for faster CI, docs-only commits, scoped stamp, worktrees |
+
+## Keep in sync (owner rule, 2026-10-18)
+
+The time, token and gate ideas live in `09-optimization-register.md`. Every session that builds, changes or drops one updates its row (status, date, measured evidence) in the same commit, and lists the changed IDs in the handoff. Phase 6 includes this step.
 
 ## Rules for this folder
 
