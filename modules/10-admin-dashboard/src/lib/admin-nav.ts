@@ -29,7 +29,7 @@ export interface NavGroup {
   label: string;
   icon: NavIcon;
   tabs: readonly NavTab[];
-  /** Tab strip is built for this group (Z-23 session 1: Assessments, Settings). */
+  /** Tab strip is built for this group (Z-23: every group with more than one tab). */
   strip?: boolean;
 }
 
@@ -75,6 +75,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     id: "reports",
     label: "Reports",
     icon: "chart",
+    strip: true,
     tabs: [
       { id: "reports", label: "Reports", href: "/admin/reports", under: ["/admin/reports"] },
       { id: "activity", label: "Activity", href: "/admin/activity", under: ["/admin/activity"] },
@@ -84,6 +85,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     id: "people",
     label: "People",
     icon: "user",
+    strip: true,
     tabs: [
       { id: "users", label: "Users", href: "/admin/users", under: ["/admin/users"] },
       { id: "audit-log", label: "Audit log", href: "/admin/audit-log", under: ["/admin/audit-log"] },
@@ -93,6 +95,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     id: "integrations",
     label: "Integrations",
     icon: "sparkle",
+    strip: true,
     tabs: [
       { id: "webhooks", label: "Webhooks", href: "/admin/integrations/webhooks", under: ["/admin/integrations/webhooks"] },
       { id: "embed", label: "Embed", href: "/admin/integrations/embed", under: ["/admin/integrations/embed"] },

@@ -336,8 +336,6 @@ export function AdminReports(): React.ReactElement {
           {assessments.map((a, i) => (
             <div
               key={a.id}
-              role="button"
-              tabIndex={0}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -347,10 +345,8 @@ export function AdminReports(): React.ReactElement {
                   i < assessments.length - 1 ? "1px solid var(--aiq-color-border)" : "none",
                 cursor: "pointer",
               }}
+              // Mouse shortcut only: the real keyboard target is the "View report" button (axe nested-interactive).
               onClick={() => navigate(`/admin/reports/cohort/${a.id}`)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") navigate(`/admin/reports/cohort/${a.id}`);
-              }}
             >
               <div>
                 <span
@@ -422,8 +418,6 @@ export function AdminReports(): React.ReactElement {
             return (
               <div
                 key={a.user_id ?? a.candidate_email}
-                role="button"
-                tabIndex={0}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -434,10 +428,6 @@ export function AdminReports(): React.ReactElement {
                   cursor: "pointer",
                 }}
                 onClick={() => navigate(`/admin/reports/individual/${userId}`)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ")
-                    navigate(`/admin/reports/individual/${userId}`);
-                }}
               >
                 <div>
                   <span

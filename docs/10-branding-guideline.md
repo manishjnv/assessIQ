@@ -409,7 +409,7 @@ Use sparingly — login visual panel and library hero only. Two grid-bg panels o
 
 240px fixed width, 1px right border, `--aiq-color-bg-base`. Sections separated by 10px mono-uppercase labels (`WORKSPACE`, `ACCOUNT`). Each `NavItem` is a 9px 14px row with 16px icon and 13px label; active state uses `--aiq-color-bg-raised` background and weight-500 text. The user card sits at the bottom on `--aiq-color-bg-raised`.
 
-**Admin shell (Z-23, 2026-10-18).** The tenant-admin sidebar is seven flat entries (Home, Assessments, Question bank, Reports, People, Integrations, Settings), no collapsible groups. Pages that belong to a group show a tab strip above the page: underline on the active tab, 13px labels, links with `aria-current="page"`, sideways scroll on phones. Labels follow the glossary (organisation, assessment, attempt, grade, release).
+**Admin shell (Z-23, 2026-10-18).** The tenant-admin sidebar is seven flat entries (Home, Assessments, Question bank, Reports, People, Integrations, Settings), no collapsible groups. Pages that belong to a group show a tab strip above the page: underline on the active tab, 13px labels, links with `aria-current="page"`, sideways scroll on phones. Strips exist for Assessments, Reports, People, Integrations and Settings (every group with more than one tab). Labels follow the glossary (organisation, assessment, attempt, grade, release). Do not use the danger red as text on white (contrast 4.0); put the warning in the confirm dialog.
 
 ## 9. Screen layout templates
 

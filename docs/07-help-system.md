@@ -48,6 +48,7 @@ A help id is hierarchical, dot-separated and audience-prefixed:
 | `candidate.attempt.kql.editor` | Tooltip on the KQL editor when taking an assessment |
 | `candidate.attempt.flag` | Tooltip on the flag-for-review button |
 | `candidate.attempt.key_shortcuts` | Tooltip on the take-page checkbox that turns the P and N keys on or off (Z-41, WCAG 2.1.4; migration 0202) |
+| `admin.webhooks.secret`, `admin.webhooks.secret_value`, `admin.webhooks.secret_regenerate` | Webhook secret card on the Webhooks page, its value field and the Regenerate button (Z-23 session 2; migration 0204; moved from Embed, old `admin.embed.webhook_secret` row kept) |
 | `admin.grading.override.button` | Tooltip on the "Override AI score" button (also documents the MFA step-up) |
 
 - Audience-agnostic content uses `all.*`.

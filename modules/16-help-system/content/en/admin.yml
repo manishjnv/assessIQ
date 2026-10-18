@@ -4015,6 +4015,33 @@ admin.webhooks.secret_once:
 
     The system shows the signing secret one time, after you create the endpoint. Select **Copy secret** and store it in a safe place. You use it to check the signature on each event. If you lose it, delete the endpoint and create a new one.
 
+admin.webhooks.secret:
+  audience: admin
+  short_text: "The key that signs every webhook request from your organisation."
+  long_md: |
+    ## Webhook secret
+
+    AssessIQ signs each webhook request with one organisation key. Your server uses the key to check that a request is real. The key is different from the embed signing secrets on the Embed tab.
+
+    - **The key shows once.** The system cannot show an old key again.
+    - **One key covers all endpoints.** A new key replaces the old key for every endpoint.
+
+admin.webhooks.secret_value:
+  audience: admin
+  short_text: "The new key shows here one time. Copy it before you leave the page."
+  long_md: |
+    ## The key value
+
+    The field is hidden until you regenerate the key. Select the eye icon to show or hide the key. Select **Copy** and store the key in a safe place. If you lose it, regenerate it.
+
+admin.webhooks.secret_regenerate:
+  audience: admin
+  short_text: "Make a new webhook key. The old key stops working at once."
+  long_md: |
+    ## Regenerate the webhook secret
+
+    Select **Regenerate** and confirm. The old key stops working at once, so requests that your server checks with the old key fail. Update your server with the new key straight away.
+
 admin.question.editor.framework_nodes:
   audience: admin
   short_text: "Link this question to curriculum framework nodes."

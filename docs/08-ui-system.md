@@ -1686,7 +1686,7 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 
 ## AdminShell seven groups and tab strips (Z-23 session 1, 2026-10-18)
 
-**What changed.** The tenant-admin sidebar has seven entries: Home, Assessments, Question bank, Reports, People, Integrations, Settings. The model lives in `modules/10-admin-dashboard/src/lib/admin-nav.ts` (`NAV_GROUPS`, `resolveActiveNav(pathname, search)`). A group is active when the URL is under any of its tabs (segment-aware prefix match). Each entry links to the first tab of its group. `components/TabStrip.tsx` draws a `nav` landmark with links; the current tab has `aria-current="page"`; the strip scrolls sideways on phones. `AdminShell` renders the strip above the page for groups with `strip: true`: **Assessments** (Assessments, Start a test, Attempts, Grading status, Certificates) and **Settings** (Organisation, Results, Data privacy, Plan and usage). Strips for Reports, People and Integrations are session 2 (the groups are in the nav and active-state logic already).
+**What changed.** The tenant-admin sidebar has seven entries: Home, Assessments, Question bank, Reports, People, Integrations, Settings. The model lives in `modules/10-admin-dashboard/src/lib/admin-nav.ts` (`NAV_GROUPS`, `resolveActiveNav(pathname, search)`). A group is active when the URL is under any of its tabs (segment-aware prefix match). Each entry links to the first tab of its group. `components/TabStrip.tsx` draws a `nav` landmark with links; the current tab has `aria-current="page"`; the strip scrolls sideways on phones. `AdminShell` renders the strip above the page for groups with `strip: true`: **Assessments** (Assessments, Start a test, Attempts, Grading status, Certificates) and **Settings** (Organisation, Results, Data privacy, Plan and usage). Reports, People and Integrations got their strips in session 2 (below).
 
 **Why.** Owner approved the 7 names and order on 2026-10-18 (`docs/plans/ADMIN_NAV_REVIEW_2026-10-17.md` section 3). Tabs keep every page and help id; only the sidebar and a strip change.
 
@@ -1696,6 +1696,24 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 
 **Rejected.** Collapsible groups (2026-05-20 decision). Per-tab routes for Settings (would need new URLs and redirects). `role="tablist"` buttons: each tab is a real URL, so links are the correct semantics.
 
-**Not included.** Start a test as Home primary button (Z-24), Home checklist (Z-24), Z-46, Reports/People/Integrations tab strips, moving the Webhook secret card (session 2). Help ids unchanged: no new ids, no migration 0204.
+**Not included.** Start a test as Home primary button (Z-24), Home checklist (Z-24), Z-46, (session 2 added the other strips and moved the Webhook secret card). Help ids unchanged in session 1.
 
 **Verify.** `modules/10-admin-dashboard/src/__tests__/admin-nav.test.tsx`; `apps/web/e2e/signed-in-smoke.spec.ts` opens 21 old admin URLs; `a11y-authed.spec.ts` axe clean on `/admin` and `/admin/assessments`. **Rollback:** revert the commit; no data or route change.
+
+## Reports, People and Integrations tab strips; Webhook secret move (Z-23 session 2, 2026-10-18)
+
+**What changed.** `admin-nav.ts` sets `strip: true` on Reports (Reports, Activity), People (Users, Audit log) and Integrations (Webhooks, Embed). A test enforces "strip if and only if the group has more than one tab". The Webhook secret card (Regenerate, show or hide, copy, ConfirmDialog; `POST /admin/webhook-secrets/rotate`, secret shown once) moved from `embed-config.tsx` to `webhooks.tsx`, between the endpoint list and the delivery log. The Embed lede points to the Webhooks tab. The Activity inner tab was already renamed "Recent activity" with a link to the full audit log in Z-22; no further change.
+
+**Why.** The webhook HMAC secret signs webhook deliveries, so it belongs with the endpoints, not with the embed signing secrets. Both pages had a "secret" card and admins confused the two keys (plan section 3).
+
+**Help ids.** New keys in `modules/16-help-system/content/en/admin.yml`, all under the page's `helpPage` `admin.webhooks`: `admin.webhooks.secret` (card), `admin.webhooks.secret_value`, `admin.webhooks.secret_regenerate`. Migration `0204_z23_webhook_secret_help.sql` inserts them; the seed was regenerated; seeded count 510 to 513. The old row `admin.embed.webhook_secret` stays in the database (no page uses it now; rows are never deleted).
+
+**Routes and gates.** No route moved. Every group stays admin-or-higher, matching `RequireSession role="admin"` in `apps/web/src/App.tsx` (unchanged).
+
+**Two axe fixes found by the new a11y checks.** (1) `reports.tsx` list rows were `role="button"` containers that held a real "View report" button (nested-interactive). The rows are plain clickable divs now; the button is the keyboard target. (2) The Regenerate button no longer uses the red text colour (contrast 4.0 on white, needs 4.5); the red ConfirmDialog carries the warning.
+
+**Rejected.** Keeping a copy of the card on Embed (two cards with one meaning). A link redirect (no URL changed).
+
+**Not included.** Z-24 Home checklist, Z-46, Home primary button.
+
+**Verify.** `admin-nav.test.tsx`; `signed-in-smoke.spec.ts` (all old URLs, strip marks the right tab, secret card only on Webhooks); `a11y-authed.spec.ts` axe on `/admin/reports` and `/admin/integrations/webhooks`. **Rollback:** revert the commit; migration 0204 only inserts rows and is harmless to leave.

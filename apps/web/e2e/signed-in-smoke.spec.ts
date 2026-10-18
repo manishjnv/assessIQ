@@ -42,6 +42,30 @@ for (const path of ADMIN_PATHS) {
   });
 }
 
+// Z-23 session 2: Reports, People and Integrations show a tab strip; the current tab is marked.
+const STRIPS: Array<[string, string]> = [
+  ['/admin/reports', 'Reports'], ['/admin/activity', 'Activity'], ['/admin/users', 'Users'],
+  ['/admin/audit-log', 'Audit log'], ['/admin/integrations/webhooks', 'Webhooks'], ['/admin/integrations/embed', 'Embed'],
+];
+for (const [path, tab] of STRIPS) {
+  test(`signed-in admin ${path}: tab strip marks ${tab}`, async ({ page }) => {
+    const s = await factories.mintAdminSession(factories.SEEDED_TENANT_ADMIN);
+    await setCookie(page, s.cookie);
+    await openAndCheck(page, path, '[data-testid="admin-tabstrip"]');
+    await expect(page.locator('[data-testid="admin-tabstrip"] [aria-current="page"]')).toHaveText(tab);
+  });
+}
+
+test('signed-in admin webhooks: the webhook secret card is here, not on Embed', async ({ page }) => {
+  const s = await factories.mintAdminSession(factories.SEEDED_TENANT_ADMIN);
+  await setCookie(page, s.cookie);
+  await page.goto('/admin/integrations/webhooks');
+  await expect(page.getByRole('heading', { name: 'Webhook secret' })).toBeVisible({ timeout: 20_000 });
+  await page.goto('/admin/integrations/embed');
+  await expect(page.getByRole('heading', { name: 'Embed signing secrets' })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('heading', { name: 'Webhook secret' })).toHaveCount(0);
+});
+
 test('signed-in candidate home: heading, nav, no console errors', async ({ page }) => {
   const s = await factories.mintCandidateSession(`smoke-${Date.now()}@test.assessiq`);
   await setCookie(page, s.cookie);

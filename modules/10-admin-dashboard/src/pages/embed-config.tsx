@@ -1,21 +1,19 @@
 // AssessIQ — Admin embed configuration page (FU-B15).
 //
-// Live backend: GET/POST/DELETE /admin/embed-origins ({origin} per call) and
-// POST /admin/webhook-secrets/rotate (returns the new secret ONCE). The brief
+// Live backend: GET/POST/DELETE /admin/embed-origins ({origin} per call). The brief
 // named GET/POST /admin/integrations/embed with {origins:[...]}; that route does
-// not exist. Consequences: an existing secret cannot be read back, so the secret
-// field is empty until "Regenerate" returns a new one; "Save" diffs the local
-// origin list against the server and issues one POST/DELETE per change.
+// not exist. "Save" diffs the local origin list against the server and issues one
+// POST/DELETE per change.
 //
 // RV44 / FU-B14 (2026-10-16): the embed-token signing secret lives in embed_secrets
 // (GET/POST /admin/embed-secrets, POST /:id/rotate, DELETE /:id; modules/01-auth
-// embed-jwt.ts, 24 h rotation grace). /admin/webhook-secrets/rotate is the WEBHOOK
-// HMAC secret, a different key, so it keeps its own card and label below.
+// embed-jwt.ts, 24 h rotation grace). The WEBHOOK HMAC secret is a
+// different key; its card moved to the Webhooks page in Z-23 session 2.
 //
 // INVARIANTS: no claude/anthropic imports.
 
 import React, { useEffect, useState } from "react";
-import { Button, Card, ConfirmDialog, Icon, Input, Spinner, formatDate } from "@assessiq/ui-system";
+import { Button, Card, ConfirmDialog, Input, Spinner, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { adminApi } from "../api.js";
@@ -37,12 +35,8 @@ export default function EmbedConfigPage(): React.ReactElement {
   const [origins, setOrigins] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [secret, setSecret] = useState<string | null>(null);
-  const [reveal, setReveal] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [confirmRegen, setConfirmRegen] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
   const [secrets, setSecrets] = useState<EmbedSecretRow[] | null>(null);
   const [secretsError, setSecretsError] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
@@ -94,20 +88,10 @@ export default function EmbedConfigPage(): React.ReactElement {
     } catch (e) { setMsg(err(e)); } finally { setSaving(false); }
   }
 
-  async function regenerate() {
-    setRegenerating(true);
-    try {
-      const r = await adminApi<{ plaintextSecret: string }>("/admin/webhook-secrets/rotate", { method: "POST" });
-      setSecret(r.plaintextSecret);
-      setReveal(true);
-      setMsg("New secret created. Copy it now; it is not shown again.");
-    } catch (e) { setMsg(err(e)); } finally { setRegenerating(false); setConfirmRegen(false); }
-  }
-
   return (
     <AdminShell breadcrumbs={["Integrations", "Embed configuration"]} helpPage="admin.embed">
       <div data-help-id="admin.embed.page" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)", maxWidth: 720 }}>
-        <PageHeader eyebrow="Integrations" title="Embed configuration." lede="Control which sites can embed AssessIQ and the secret that signs their requests." />
+        <PageHeader eyebrow="Integrations" title="Embed configuration." lede="Control which sites can embed AssessIQ and the secrets that sign their requests. The webhook secret is on the Webhooks tab." />
         {msg && <div role="status" style={{ fontSize: "var(--aiq-text-sm)" }}>{msg}</div>}
 
         <Card padding="lg">
@@ -159,24 +143,6 @@ export default function EmbedConfigPage(): React.ReactElement {
 
         <Card padding="lg">
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
-            <h2 style={h2}>Webhook secret</h2>
-            <div data-help-id="admin.embed.webhook_secret" style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", flexWrap: "wrap" }}>
-              <code style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-sm)", wordBreak: "break-all" }}>
-                {secret ? (reveal ? secret : "•".repeat(32)) : "Hidden. Regenerate to see a new secret once."}
-              </code>
-              {secret && (
-                <>
-                  <button type="button" aria-label={reveal ? "Hide secret" : "Show secret"} onClick={() => setReveal(!reveal)} style={{ background: "none", border: "none", cursor: "pointer" }}><Icon name="eye" size={16} /></button>
-                  <Button size="sm" variant="outline" onClick={() => void navigator.clipboard.writeText(secret).then(() => setMsg("Secret copied."))}>Copy</Button>
-                </>
-              )}
-              <Button size="sm" variant="outline" style={{ color: "var(--aiq-color-danger)", borderColor: "var(--aiq-color-danger)" }} onClick={() => setConfirmRegen(true)}>Regenerate</Button>
-            </div>
-          </div>
-        </Card>
-
-        <Card padding="lg">
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
             <h2 style={h2}>Trusted origins</h2>
             <div data-help-id="admin.embed.origins">
             {!saved && !loadError && <Spinner />}
@@ -199,16 +165,6 @@ export default function EmbedConfigPage(): React.ReactElement {
           </div>
         </Card>
       </div>
-      <ConfirmDialog
-        open={confirmRegen}
-        title="Regenerate webhook secret"
-        body="Regenerate the webhook secret? The current secret stops working immediately."
-        confirmLabel="Regenerate secret"
-        danger
-        busy={regenerating}
-        onConfirm={() => void regenerate()}
-        onCancel={() => setConfirmRegen(false)}
-      />
       <ConfirmDialog
         open={revokeId !== null}
         title="Delete embed secret"
