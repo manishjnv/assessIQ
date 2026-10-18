@@ -711,6 +711,7 @@ export async function issueCertificateOnRelease(
         AND prev.assessment_id = cur.assessment_id
         AND c.attempt_id <> cur.id
         AND c.revoked_at IS NULL
+      ORDER BY c.issued_at
       LIMIT 1`,
     [tenantId, attemptId],
   );

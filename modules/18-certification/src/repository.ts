@@ -398,6 +398,7 @@ export async function upgradeCertificateTier(
       WHERE id = $3
         AND tenant_id = $4
         AND tier = $5
+        AND revoked_at IS NULL
       RETURNING ${CERTIFICATE_PROJECTION}`,
     [newTier, newSignedHash, certId, tenantId, currentTier],
   );
