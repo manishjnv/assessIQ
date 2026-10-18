@@ -46,7 +46,7 @@ vi.mock('@assessiq/tenancy', () => ({
   withTenant: async (
     _tenantId: string,
     fn: (client: unknown) => Promise<unknown>,
-  ) => fn({ query: vi.fn() }),
+  ) => fn({ query: vi.fn().mockResolvedValue({ rows: [] }) }), // rows: [] = no unverified pool questions (EXP-18 gate)
   getPool: () => ({ connect: vi.fn() }),
 }));
 
