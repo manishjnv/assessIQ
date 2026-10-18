@@ -121,7 +121,7 @@ describe("Z-22 #3 — reports candidate search", () => {
     const { AdminApiError } = await import("../api.js");
     mockApi.mockImplementation((url: string) =>
       url.startsWith("/admin/users")
-        ? Promise.reject(new (AdminApiError as any)(500, { code: "X", message: "Search is down." }))
+        ? Promise.reject(new AdminApiError(500, { code: "X", message: "Search is down." }))
         : Promise.resolve({ items: [], total: 0 }));
     render(<MemoryRouter><AdminReports /></MemoryRouter>);
     fireEvent.change(screen.getByRole("searchbox", { name: "Find a candidate" }), { target: { value: "ann" } });
