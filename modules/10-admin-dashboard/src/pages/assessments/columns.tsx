@@ -4,9 +4,16 @@ import { Chip, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { assessmentStatusDisplay } from "../../lib/labels.js";
 import { domainLabel } from "../../lib/domains.js";
-import { type AssessmentListItem, assessmentStatusVariant } from "./shared.js";
+import { HelpTip } from "@assessiq/help-system/components";
+import { type AssessmentListItem, assessmentStatusVariant, rowRemoveMode } from "./shared.js";
 
-export function buildAssessmentColumns({ navigate }: { navigate: NavigateFunction }): ColumnDef<AssessmentListItem>[] {
+export function buildAssessmentColumns({
+  navigate,
+  onRemove,
+}: {
+  navigate: NavigateFunction;
+  onRemove: (row: AssessmentListItem, mode: "delete" | "cancel") => void;
+}): ColumnDef<AssessmentListItem>[] {
   return [
     {
       key: "name",
@@ -161,19 +168,38 @@ export function buildAssessmentColumns({ navigate }: { navigate: NavigateFunctio
     {
       key: "action",
       label: "",
-      width: 80,
-      render: (row: AssessmentListItem) => (
-        <button
-          type="button"
-          className="aiq-btn aiq-btn-outline aiq-btn-sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate(`/admin/assessments/${row.id}`);
-          }}
-        >
-          Open
-        </button>
-      ),
+      width: 170,
+      render: (row: AssessmentListItem) => {
+        const mode = rowRemoveMode(row);
+        return (
+          <span style={{ display: "inline-flex", gap: "var(--aiq-space-xs)" }}>
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/admin/assessments/${row.id}`);
+              }}
+            >
+              Open
+            </button>
+            {mode !== null && (
+              <HelpTip helpId="admin.assessments.row_delete">
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(row, mode);
+                  }}
+                >
+                  {mode === "delete" ? "Delete" : "Cancel"}
+                </button>
+              </HelpTip>
+            )}
+          </span>
+        );
+      },
     },
   ];
 }

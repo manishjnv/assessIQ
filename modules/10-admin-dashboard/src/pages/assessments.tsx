@@ -33,11 +33,12 @@ import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError, getCompanyEntitlements, getCompanyUsage, createAssessmentFromSet } from "../api.js";
 import type { TenantEntitlement, CompanyUsage } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
+import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
 import { UsageBanner } from "../components/UsageBanner.js";
 import { SectionsEditor, buildSections } from "./SectionsEditor.js";
 import type { SectionRow } from "./SectionsEditor.js";
 import { useAdminSession } from "../session.js";
-import { type AssessmentListItem, type AssessmentsResponse, type BlueprintLevel, type BlueprintCriterion, type SortDir, sortRows, STATUS_TABS } from "./assessments/shared.js";
+import { type AssessmentListItem, type AssessmentsResponse, type BlueprintLevel, type BlueprintCriterion, type SortDir, sortRows, STATUS_TABS, normalizeStatusTab, statusesForTab, isEmptyDraftCandidate } from "./assessments/shared.js";
 import { buildAssessmentColumns } from "./assessments/columns.js";
 import { BlueprintBuilder } from "./assessments/BlueprintBuilder.js";
 import { PreviewAdequacy } from "./assessments/PreviewAdequacy.js";
@@ -52,7 +53,8 @@ interface NewAssessmentForm {
 export function AdminAssessments(): React.ReactElement {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const statusFilter = searchParams.get("status") ?? "";
+  // Old ?status=draft/published/active/closed links map to the new tabs.
+  const statusFilter = normalizeStatusTab(searchParams.get("status") ?? "");
 
   const { session } = useAdminSession();
   // Blueprint authoring is a super_admin-only capability; tenant admins only see
@@ -113,14 +115,29 @@ export function AdminAssessments(): React.ReactElement {
   const [sortBy, setSortBy] = useState<string>("");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  const fetchAssessments = useCallback(async (status: string) => {
+  // Row delete / cancel + bulk clear-empty-drafts (Q44).
+  const [removeTarget, setRemoveTarget] = useState<{ row: AssessmentListItem; mode: "delete" | "cancel" } | null>(null);
+  const [showClear, setShowClear] = useState(false);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [clearMsg, setClearMsg] = useState<string | null>(null);
+
+  // A tab can cover more than one server status (Live = published + active), so
+  // fetch each status and merge newest-first. All = one fetch, no status filter.
+  const fetchAssessments = useCallback(async (tab: string) => {
     setLoading(true);
     setError(null);
     try {
-      const qs = new URLSearchParams({ pageSize: "100" });
-      if (status) qs.set("status", status);
-      const data = await adminApi<AssessmentsResponse>(`/admin/assessments?${qs.toString()}`);
-      setItems(data.items);
+      const pages = await Promise.all(
+        statusesForTab(tab).map((status) => {
+          const qs = new URLSearchParams({ pageSize: "100" });
+          if (status) qs.set("status", status);
+          return adminApi<AssessmentsResponse>(`/admin/assessments?${qs.toString()}`);
+        }),
+      );
+      const merged = pages.flatMap((p) => p.items);
+      if (pages.length > 1) merged.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      setItems(merged);
     } catch (err) {
       setError(
         err instanceof AdminApiError
@@ -282,7 +299,60 @@ export function AdminAssessments(): React.ReactElement {
     }
   }
 
-  const columns: ColumnDef<AssessmentListItem>[] = buildAssessmentColumns({ navigate });
+  const emptyDrafts = items.filter(isEmptyDraftCandidate).slice(0, 100); // route cap is 100
+
+  const columns: ColumnDef<AssessmentListItem>[] = buildAssessmentColumns({
+    navigate,
+    onRemove: (row, mode) => {
+      setActionError(null);
+      setClearMsg(null);
+      setRemoveTarget({ row, mode });
+    },
+  });
+
+  async function handleConfirmRemove() {
+    if (removeTarget === null) return;
+    const { row, mode } = removeTarget;
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      if (mode === "delete") {
+        await adminApi(`/admin/assessments/${row.id}`, { method: "DELETE" });
+      } else {
+        await adminApi(`/admin/assessments/${row.id}/cancel`, { method: "POST" });
+      }
+      setRemoveTarget(null);
+      void fetchAssessments(statusFilter);
+    } catch (err) {
+      if (err instanceof AdminApiError && err.apiError.code === "ASSESSMENT_HAS_ATTEMPTS") {
+        // Our guess was wrong: candidates already started it. Offer Cancel instead.
+        setActionError("Candidates have already started this assessment, so it cannot be deleted. You can cancel it instead.");
+        setRemoveTarget({ row, mode: "cancel" });
+      } else {
+        setActionError(err instanceof AdminApiError ? err.apiError.message : "The action failed. Try again.");
+      }
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function handleConfirmClear() {
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      const res = await adminApi<{ deleted: string[]; skipped: { id: string; reason: string }[] }>(
+        "/admin/assessments/clear-empty-drafts",
+        { method: "POST", body: JSON.stringify({ ids: emptyDrafts.map((a) => a.id) }) },
+      );
+      setShowClear(false);
+      setClearMsg(`Deleted ${res.deleted.length}, skipped ${res.skipped.length}.`);
+      void fetchAssessments(statusFilter);
+    } catch (err) {
+      setActionError(err instanceof AdminApiError ? err.apiError.message : "The action failed. Try again.");
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   const sortedRows = React.useMemo(
     () => (sortBy ? sortRows(items, sortBy, sortDir) : items),
@@ -626,7 +696,9 @@ export function AdminAssessments(): React.ReactElement {
         )}
 
         {/* Filter chips */}
-        <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
+        <div className="aiq-admin-filter-strip" style={{ display: "flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap", alignItems: "center" }}>
+          <HelpTip helpId="admin.assessments.status_tabs">
+            <span style={{ display: "inline-flex", gap: "var(--aiq-space-xs)", flexWrap: "wrap" }}>
           {STATUS_TABS.map((tab) => (
             <button
               key={tab.value}
@@ -639,7 +711,28 @@ export function AdminAssessments(): React.ReactElement {
               {tab.label}
             </button>
           ))}
+            </span>
+          </HelpTip>
+          {emptyDrafts.length > 0 && (
+            <HelpTip helpId="admin.assessments.clear_empty_drafts">
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                onClick={() => {
+                  setActionError(null);
+                  setClearMsg(null);
+                  setShowClear(true);
+                }}
+              >
+                Clear empty drafts
+              </button>
+            </HelpTip>
+          )}
         </div>
+
+        {clearMsg && (
+          <div style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>{clearMsg}</div>
+        )}
 
         {error && (
           <div
@@ -682,6 +775,54 @@ export function AdminAssessments(): React.ReactElement {
           </div>
         )}
       </div>
+
+      <DangerConfirmModal
+        open={removeTarget !== null}
+        title={removeTarget?.mode === "delete" ? "Delete this assessment?" : "Cancel this assessment?"}
+        body={
+          removeTarget?.mode === "delete" ? (
+            <>
+              Delete <strong>{removeTarget.row.name}</strong> for good. Its invitations are removed with it.
+              No candidate has started it. This cannot be undone.
+            </>
+          ) : (
+            <>
+              Cancel <strong>{removeTarget?.row.name}</strong>. It leaves the list. Attempts and results are kept.
+              This cannot be undone.
+            </>
+          )
+        }
+        confirmLabel={removeTarget?.mode === "delete" ? "Delete permanently" : "Cancel assessment"}
+        busyLabel={removeTarget?.mode === "delete" ? "Deleting…" : "Cancelling…"}
+        busy={actionBusy}
+        error={actionError}
+        onConfirm={() => void handleConfirmRemove()}
+        onCancel={() => {
+          setRemoveTarget(null);
+          setActionError(null);
+        }}
+      />
+
+      <DangerConfirmModal
+        open={showClear}
+        title="Clear empty drafts?"
+        body={
+          <>
+            Delete <strong>{emptyDrafts.length}</strong> empty draft{emptyDrafts.length !== 1 ? "s" : ""} for good.
+            An empty draft is a draft with no attempts and no invitations. The server checks each one again
+            and skips any that is not empty. This cannot be undone.
+          </>
+        }
+        confirmLabel={`Delete ${emptyDrafts.length}`}
+        busyLabel="Deleting…"
+        busy={actionBusy}
+        error={actionError}
+        onConfirm={() => void handleConfirmClear()}
+        onCancel={() => {
+          setShowClear(false);
+          setActionError(null);
+        }}
+      />
     </AdminShell>
   );
 }

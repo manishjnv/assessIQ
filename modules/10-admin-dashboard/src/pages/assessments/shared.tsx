@@ -1,6 +1,6 @@
 import type { CategoryItem } from "../../api.js";
 
-type AssessmentStatus = "draft" | "published" | "active" | "closed";
+type AssessmentStatus = "draft" | "published" | "active" | "closed" | "cancelled";
 
 interface InvitationCounts {
   total: number;
@@ -100,11 +100,49 @@ export function sortRows<T>(rows: T[], key: string, dir: SortDir): T[] {
 
 export const STATUS_TABS: { label: string; value: string }[] = [
   { label: "All", value: "" },
-  { label: "Draft", value: "draft" },
-  { label: "Published", value: "published" },
-  { label: "Active", value: "active" },
-  { label: "Closed", value: "closed" },
+  { label: "Drafts", value: "drafts" },
+  { label: "Live", value: "live" },
+  { label: "Finished", value: "finished" },
 ];
+
+/** Server statuses behind each tab. "" (All) = one fetch with no status filter
+ *  (the server hides cancelled by default). */
+const TAB_STATUSES: Record<string, string[]> = {
+  drafts: ["draft"],
+  live: ["published", "active"],
+  finished: ["closed", "cancelled"],
+};
+
+/** Old ?status= links (draft / published / active / closed) map to the new tabs. */
+const LEGACY_TAB: Record<string, string> = {
+  draft: "drafts",
+  published: "live",
+  active: "live",
+  closed: "finished",
+  cancelled: "finished",
+};
+
+export function normalizeStatusTab(param: string): string {
+  return LEGACY_TAB[param] ?? (param in TAB_STATUSES ? param : "");
+}
+
+export function statusesForTab(tab: string): string[] {
+  return TAB_STATUSES[tab] ?? [""];
+}
+
+/** Draft with nothing invited: the "empty draft" candidates for bulk clear
+ *  (the server re-checks attempts and invitations before deleting). */
+export function isEmptyDraftCandidate(row: AssessmentListItem): boolean {
+  return row.status === "draft" && (row.invitations?.total ?? 0) === 0;
+}
+
+/** Row quick action: attempts started -> Cancel (history kept); none -> Delete.
+ *  Cancelled rows have no action. Server still answers 422 if a guess is wrong. */
+export function rowRemoveMode(row: AssessmentListItem): "delete" | "cancel" | null {
+  if (row.status === "cancelled") return null;
+  const inv = row.invitations;
+  return (inv?.started ?? 0) + (inv?.submitted ?? 0) > 0 ? "cancel" : "delete";
+}
 
 export function assessmentStatusVariant(s: string): "default" | "accent" | "success" {
   return s === "active" ? "success" : s === "published" ? "accent" : "default";

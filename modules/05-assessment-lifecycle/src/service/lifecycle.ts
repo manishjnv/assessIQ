@@ -381,6 +381,76 @@ export async function deleteAssessment(
 }
 
 // ---------------------------------------------------------------------------
+// clearEmptyDrafts — bulk hard delete of EMPTY drafts (Q44)
+// ---------------------------------------------------------------------------
+//
+// "Empty" = status 'draft' AND zero attempts AND zero invitations. One withTenant
+// tx for the whole batch. Unknown / other-tenant ids are invisible under RLS and
+// reported as not_found. Each delete is audited exactly like deleteAssessment
+// (audit BEFORE delete, same tx) plus after: { bulk: true }. Never deletes a
+// non-draft. tenantId / userId come from the session, never the request body.
+// The batch is all-or-nothing: any thrown error rolls back every delete in it.
+
+export type ClearSkipReason = "not_draft" | "has_attempts" | "has_invitations" | "not_found";
+
+export async function clearEmptyDrafts(
+  tenantId: string,
+  ids: string[],
+  deletedByUserId: string,
+): Promise<{ deleted: string[]; skipped: { id: string; reason: ClearSkipReason }[] }> {
+  log.info({ tenantId, count: ids.length }, "clearEmptyDrafts");
+
+  return withTenant(tenantId, async (client) => {
+    const deleted: string[] = [];
+    const skipped: { id: string; reason: ClearSkipReason }[] = [];
+    for (const id of new Set(ids)) {
+      // Lock first (blocks a concurrent publish or invite insert), then check. The
+      // conditional DELETE below is the backstop: invitations cascade away silently.
+      await repo.lockAssessmentRow(client, id);
+      const assessment = await repo.findAssessmentById(client, id);
+      if (assessment === null) {
+        skipped.push({ id, reason: "not_found" });
+        continue;
+      }
+      if (assessment.status !== "draft") {
+        skipped.push({ id, reason: "not_draft" });
+        continue;
+      }
+      if ((await repo.countAttemptsForAssessment(client, id)) > 0) {
+        skipped.push({ id, reason: "has_attempts" });
+        continue;
+      }
+      if ((await repo.countInvitationsForAssessment(client, id)) > 0) {
+        skipped.push({ id, reason: "has_invitations" });
+        continue;
+      }
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId: deletedByUserId,
+        action: "assessment.deleted",
+        entityType: "assessment",
+        entityId: id,
+        before: {
+          status: assessment.status,
+          pack_id: assessment.pack_id,
+          level_id: assessment.level_id,
+        },
+        after: { bulk: true },
+      });
+      if (!(await repo.deleteEmptyDraftRow(client, id))) {
+        // Guard failed after the audit write: roll the whole batch back rather than leave a false audit row.
+        throw new ValidationError(`Assessment '${id}' changed during the clear; nothing was deleted. Try again.`, {
+          details: { code: AL_ERROR_CODES.ASSESSMENT_HAS_ATTEMPTS },
+        });
+      }
+      deleted.push(id);
+    }
+    return { deleted, skipped };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // reopenAssessment — closed → published (requires now < closes_at)
 // ---------------------------------------------------------------------------
 

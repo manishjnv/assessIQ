@@ -51,6 +51,7 @@ import {
   closeAssessment,
   cancelAssessment,
   deleteAssessment,
+  clearEmptyDrafts,
   reopenAssessment,
   previewAssessment,
   listInvitations,
@@ -153,6 +154,27 @@ export async function registerAssessmentLifecycleRoutes(
           },
         })),
       };
+    },
+  );
+
+  // POST /api/admin/assessments/clear-empty-drafts  - extension (Q44); bulk hard
+  // delete of EMPTY drafts (draft, no attempts, no invitations). Static segment,
+  // registered before the /:id routes. tenant/user from the session only.
+  const ClearEmptyDraftsBodySchema = z
+    .object({ ids: z.array(z.string().uuid()).min(1).max(100) })
+    .strict();
+  app.post(
+    "/api/admin/assessments/clear-empty-drafts",
+    { preHandler: adminOnly },
+    async (req) => {
+      const parsed = ClearEmptyDraftsBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError(
+          `Invalid clear-empty-drafts body: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+          { details: { code: "INVALID_PARAM", param: "body" } },
+        );
+      }
+      return clearEmptyDrafts(req.session!.tenantId, parsed.data.ids, req.session!.userId);
     },
   );
 

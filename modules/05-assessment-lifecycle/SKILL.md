@@ -299,3 +299,7 @@ Tests:
 - **Downstream.** Admin invite and resend screens show the server message. Module 04 review writes use `FOR UPDATE` in id order, which pairs with these locks.
 - **Tests.** `src/__tests__/publish-review-gate.test.ts`: invite blocked and then allowed, NULL passes, a late unverified question does not block, resend blocked, publish waits for an uncommitted Needs fix and then refuses (the race), a review committed after publish blocks invites.
 - **Rollback.** Remove the `assertPoolVerifiedForInvites` calls and the post-freeze re-check; the share-lock in `listUnverifiedPoolQuestions` can stay.
+
+## Clear empty drafts (Q44, 2026-10-19)
+
+`clearEmptyDrafts(tenantId, ids, userId)` in `service/lifecycle.ts` backs `POST /api/admin/assessments/clear-empty-drafts`. Empty means draft, zero attempts and zero invitations. It runs in one `withTenant` transaction. Each eligible row is audited as `assessment.deleted` (with `after: {bulk: true}`) and then deleted, like `deleteAssessment`. Other rows are skipped with a reason (`not_draft`, `has_attempts`, `has_invitations`, `not_found`). Other-tenant ids are invisible under RLS, so they are `not_found`. Not included: no soft delete and no undo. The admin list status tabs (All, Drafts, Live, Finished) are client-side groups of the single-status list API; the API is unchanged.

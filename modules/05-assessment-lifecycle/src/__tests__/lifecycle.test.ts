@@ -39,6 +39,7 @@ import {
   listInvitations,
   revokeInvitation,
   previewAssessment,
+  clearEmptyDrafts,
 } from "../service.js";
 
 // State machine — pure-function surface
@@ -1155,6 +1156,76 @@ describe("Cross-tenant RLS isolation", () => {
       }
     });
     expect(rows).toHaveLength(0);
+  });
+});
+
+describe("clearEmptyDrafts (Q44)", () => {
+  async function newDraft(tenant: string, admin: string, name: string): Promise<string> {
+    const { packId, levelId } = await buildPublishedPack(tenant, admin, 3);
+    const a = await createAssessment(
+      tenant,
+      { pack_id: packId, level_id: levelId, name, question_count: 3, opens_at: new Date(Date.now() + 60_000) },
+      admin,
+    );
+    return a.id;
+  }
+  async function exists(id: string): Promise<boolean> {
+    return withSuperClient(async (c) => (await c.query(`SELECT 1 FROM assessments WHERE id = $1`, [id])).rowCount === 1);
+  }
+
+  it("deletes empty drafts, skips attempts / invitations / non-drafts, audits each delete", async () => {
+    const empty = await newDraft(tenantA, adminA, "Empty draft");
+    const withAttempt = await newDraft(tenantA, adminA, "Draft with attempt");
+    const withInvite = await newDraft(tenantA, adminA, "Draft with invite");
+    const published = await newDraft(tenantA, adminA, "Published");
+    await publishAssessment(tenantA, published, adminA);
+
+    const cand = randomUUID();
+    await withSuperClient(async (client) => {
+      await insertCandidateUser(client, cand, tenantA, `q44-${randomUUID().slice(0, 8)}@example.com`, "Q44 Cand");
+      await client.query(
+        `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at)
+         VALUES ($1, $2, $3, $4, 'in_progress', now(), now() + interval '30 minutes')`,
+        [randomUUID(), tenantA, withAttempt, cand],
+      );
+      await client.query(
+        `INSERT INTO assessment_invitations (id, assessment_id, user_id, token_hash, expires_at, status, invited_by)
+         VALUES ($1, $2, $3, $4, now() + interval '7 days', 'pending', $5)`,
+        [randomUUID(), withInvite, cand, randomUUID().replace(/-/g, "") + randomUUID().replace(/-/g, ""), adminA],
+      );
+    });
+
+    const res = await clearEmptyDrafts(tenantA, [empty, withAttempt, withInvite, published], adminA);
+    expect(res.deleted).toEqual([empty]);
+    expect(res.skipped).toEqual(
+      expect.arrayContaining([
+        { id: withAttempt, reason: "has_attempts" },
+        { id: withInvite, reason: "has_invitations" },
+        { id: published, reason: "not_draft" },
+      ]),
+    );
+    expect(await exists(empty)).toBe(false);
+    expect(await exists(withAttempt)).toBe(true);
+    expect(await exists(withInvite)).toBe(true);
+    expect(await exists(published)).toBe(true);
+
+    const audit = await withSuperClient(async (c) =>
+      (await c.query(
+        `SELECT entity_id, after FROM audit_log WHERE action = 'assessment.deleted' AND entity_id = ANY($1)`,
+        [[empty, withAttempt, withInvite, published]],
+      )).rows,
+    );
+    expect(audit).toHaveLength(1);
+    expect(audit[0].entity_id).toBe(empty);
+    expect(audit[0].after).toEqual({ bulk: true });
+  });
+
+  it("tenant B cannot delete tenant A's draft (not_found, row survives)", async () => {
+    const draftA = await newDraft(tenantA, adminA, "Tenant A draft");
+    const res = await clearEmptyDrafts(tenantB, [draftA], adminB);
+    expect(res.deleted).toEqual([]);
+    expect(res.skipped).toEqual([{ id: draftA, reason: "not_found" }]);
+    expect(await exists(draftA)).toBe(true);
   });
 });
 

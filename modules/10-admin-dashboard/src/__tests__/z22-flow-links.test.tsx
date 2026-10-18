@@ -33,6 +33,7 @@ vi.mock("@assessiq/ui-system", () => ({
   Table: () => null,
   Spinner: () => React.createElement("div", { role: "status" }, "Loading"),
   EmptyState: ({ title }: { title: string }) => React.createElement("div", null, title),
+  ConfirmDialog: () => null,
   formatDate: (d: string) => d,
   formatDateTime: (d: string) => d,
   formatDayLine: () => "",

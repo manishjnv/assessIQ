@@ -32,6 +32,7 @@ export {
   closeAssessment,
   cancelAssessment,
   deleteAssessment,
+  clearEmptyDrafts,
   reopenAssessment,
   inviteUsers,
   listInvitations,
