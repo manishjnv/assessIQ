@@ -150,6 +150,18 @@ Append on every bug fix. Entry shape:
 
 Phase 0 reads this. Phase 3 critique uses recurring patterns as guardrails.
 
+## Speed rules (owner, 2026-10-18; memory `feedback-session-speed-rules`)
+
+Functionality first. Test enough to prove the feature works (happy path and main failure case). No broad audits unless the row is security-related. Never cut code quality.
+
+- **Verify before push:** run `pnpm verify` (lint and typecheck) before every push. Agents run it for the packages they touch before they report. Module tests: only touched modules, one at a time.
+- **Gate only security paths:** the adversarial gate (`codex:rescue`, or Sonnet takeover while Codex is down) is for `01-auth`, `02-tenancy`, `07-ai-grading`, `14-audit-log`, `infra/**`, and anything that decides who may sit a test or gets marks or time. UI, docs and display-only rows skip the gate.
+- **Smoke, not full e2e:** for a changed screen run one local smoke spec. CI runs the rest.
+- **Batches:** 3 to 4 rows, then push, watch CI, deploy, sweep (`bash tools/post-deploy-sweep.sh`). Never stack new work on a red CI. Give an ETA for the next push only.
+- **Agent brief (every build agent):** `git merge main` first in a worktree; own migration number and own help-id and seed-count range from the orchestrator; run `pnpm verify` before reporting; do not commit; report the worktree path. Take patches with `git add -N` and `git diff --binary`, apply with `git apply --3way` only when the worktree base equals `main`.
+- **Docs writes:** build the string first, then write the file (`python -X utf8`). `git add -f` named docs files only, never a directory.
+- **Push hook:** the trailer commit (`Adversarial-Review:`) must be its own command before the push.
+
 ## Caveats / sharp edges
 
 - **Agent worktrees pile up under `.claude/worktrees/` (31 GB, 91 folders on 2026-10-15).** Every session that used `isolation: "worktree"` or `superpowers:using-git-worktrees` must remove its worktrees at Phase 6. On Windows `git worktree remove --force` fails with "Directory not empty" (pnpm links, long paths): delete the folder with `cmd /c rmdir /s /q <path>` from PowerShell, then `git worktree prune`. Before deleting, check `git -C <wt> status --porcelain`; a file whose blob is not in `git log main --find-object=<hash>` is unmerged work. Never touch `docs/`, `.git`, `apps`, `modules`, `tools`, `.agent`.
