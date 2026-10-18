@@ -40,6 +40,7 @@ import { Chip, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
+import { ExtraAttemptDialog } from "../components/ExtraAttemptDialog.js";
 import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
 import { IntegrityCard } from "../components/IntegrityCard.js";
 import { SectionsCard } from "../components/SectionsCard.js";
@@ -331,24 +332,26 @@ export function AdminAssessmentDetail(): React.ReactElement {
   }
 
   // Z-39: give ONE candidate ONE extra attempt. The reason is required and goes to the audit log.
-  async function handleGrantExtra(inv: Invitation) {
-    const reason = window.prompt("Reason for the extra attempt (required, saved in the audit log):");
-    if (reason === null) return;
-    if (reason.trim() === "") {
-      setResendError("A reason is required to give an extra attempt.");
-      return;
-    }
-    setResendingId(inv.id);
-    setResendError(null);
+  const [extraTarget, setExtraTarget] = useState<Invitation | null>(null);
+  const [extraError, setExtraError] = useState<string | null>(null);
+  function handleGrantExtra(inv: Invitation) {
+    setExtraError(null);
+    setExtraTarget(inv);
+  }
+  async function submitGrantExtra(reason: string) {
+    if (!extraTarget) return;
+    setResendingId(extraTarget.id);
+    setExtraError(null);
     setResendResult(null);
     try {
-      await adminApi(`/admin/invitations/${inv.id}/extra-attempt`, {
+      await adminApi(`/admin/invitations/${extraTarget.id}/extra-attempt`, {
         method: "POST",
-        body: JSON.stringify({ reason: reason.trim() }),
+        body: JSON.stringify({ reason }),
       });
+      setExtraTarget(null);
       await fetchData();
     } catch (err) {
-      setResendError(err instanceof AdminApiError ? err.apiError.message : "Failed to give the extra attempt.");
+      setExtraError(err instanceof AdminApiError ? err.apiError.message : "Failed to give the extra attempt.");
     } finally {
       setResendingId(null);
     }
@@ -727,6 +730,15 @@ export function AdminAssessmentDetail(): React.ReactElement {
           goToInvPage={goToInvPage}
         />
       </div>
+
+      {extraTarget !== null && (
+        <ExtraAttemptDialog
+          busy={resendingId === extraTarget.id}
+          error={extraError}
+          onSubmit={(r) => void submitGrantExtra(r)}
+          onCancel={() => setExtraTarget(null)}
+        />
+      )}
 
       <DangerConfirmModal
         open={confirmMode !== null}
