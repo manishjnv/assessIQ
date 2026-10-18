@@ -336,6 +336,14 @@ async function seedFixtures(): Promise<FeedFixture> {
       [tenantA],
     );
 
+    // Staff audit row — Tenant A log, actor is a user of Tenant B (stands in for the
+    // platform tenant; RLS hides that user row from Tenant A).
+    await client.query(
+      `INSERT INTO audit_log (tenant_id, actor_user_id, actor_kind, action, entity_type, entity_id, at)
+       VALUES ($1,$2,'user','pack.archived','question_pack',$3::uuid,now())`,
+      [tenantA, adminB, packA],
+    );
+
     // System audit row — Tenant A, actor_kind='system', actor_user_id=NULL
     await client.query(
       `INSERT INTO audit_log (tenant_id, actor_user_id, actor_kind, action, entity_type, at)
@@ -811,6 +819,29 @@ describe('getActivityFeed', () => {
       expect(attemptItems[0]!.actorRole).toBe('candidate');
       expect(attemptItems[0]!.action).toBe('question_view');
       expect(attemptItems[0]!.id).toBe(`attempt:${F.eventB}`);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Actor labels (owner Q18 / Q19): display only, stored rows unchanged
+  // -------------------------------------------------------------------------
+  describe('actor labels', () => {
+    it('Q18 legacy reviewer actor shows "Former reviewer" (not the name)', async () => {
+      const result = await getActivityFeed(F.tenantA, { role: 'all', page: 1, pageSize: 100 });
+      const row = result.items.find((i) => i.action === 'grading.released' && i.source === 'audit');
+      expect(row?.actorLabel).toBe('Former reviewer');
+    });
+
+    it('Q19 platform staff actor shows "AssessIQ staff" (not an id)', async () => {
+      const result = await getActivityFeed(F.tenantA, { role: 'all', page: 1, pageSize: 100 });
+      const row = result.items.find((i) => i.action === 'pack.archived' && i.source === 'audit');
+      expect(row?.actorLabel).toBe('AssessIQ staff');
+    });
+
+    it('a normal admin still shows the name', async () => {
+      const result = await getActivityFeed(F.tenantA, { role: 'all', page: 1, pageSize: 100 });
+      const row = result.items.find((i) => i.action === 'pack.published' && i.source === 'audit');
+      expect(row?.actorLabel).not.toMatch(/Former reviewer|AssessIQ staff/);
     });
   });
 });
