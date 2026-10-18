@@ -2,7 +2,8 @@
 //
 // Routes (apps/web/src/App.tsx, role="admin"; super_admin also passes):
 //   /admin/settings                 — renders this page
-//   /admin/settings/billing         — back-compat redirect to /admin/settings
+//   /admin/settings/billing         — back-compat redirect to /admin/settings?tab=plan
+//   /admin/settings?tab=organisation|results|privacy|plan — Z-23 tabs (strip in AdminShell)
 //
 // What the page shows, top to bottom:
 //   1. Super-admin-only "AI Generation Mode" card (omnibus / sharded, per
@@ -27,6 +28,7 @@
 
 import { planTierLabel } from "../lib/labels.js";
 import React, { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, Chip, Icon, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { openAdminGuide } from "../components/AdminHelp.js";
@@ -83,6 +85,10 @@ const MUTED_SM: React.CSSProperties = {
 export function AdminBilling(): React.ReactElement {
   const { session } = useAdminSession();
   const isSuperAdmin = session?.user.role === "super_admin";
+  const [params] = useSearchParams();
+  const rawTab = params.get("tab");
+  const tab: "organisation" | "results" | "privacy" | "plan" =
+    rawTab === "results" || rawTab === "privacy" || rawTab === "plan" ? rawTab : "organisation";
 
   // Super-admin AI mode state. Only populated / rendered when isSuperAdmin.
   // tenantId of the CURRENT session's tenant is used as the target when the
@@ -126,6 +132,16 @@ export function AdminBilling(): React.ReactElement {
     <AdminShell breadcrumbs={["Settings"]} helpPage="admin.settings.billing">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
 
+        {/* Z-23: the tab strip in AdminShell picks the tab (?tab=). Both panels stay
+            mounted so unsaved form state survives a tab switch. Default: Organisation. */}
+        {tab !== "plan" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+            <h1 style={SERIF_H1}>Settings.</h1>
+            <p style={MUTED_SM}>Organisation name and logo, result release, and data privacy.</p>
+          </div>
+        )}
+
+        <div hidden={tab !== "plan"} style={{ display: tab === "plan" ? "flex" : "none", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
         {/* Page header */}
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
           <h1 style={SERIF_H1}>Plan &amp; usage.</h1>
@@ -464,7 +480,10 @@ export function AdminBilling(): React.ReactElement {
             tenant-level controls live under one Settings entry. The
             standalone /admin/tenant-settings route is retained as an
             alias for direct URL access. */}
-        <TenantSettings embedded />
+        </div>
+        <div hidden={tab === "plan"} style={{ display: tab === "plan" ? "none" : undefined }}>
+          <TenantSettings embedded tab={tab === "plan" ? "organisation" : tab} />
+        </div>
 
       </div>
     </AdminShell>
