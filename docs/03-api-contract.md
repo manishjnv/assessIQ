@@ -3711,6 +3711,21 @@ Response shape:
 - Same value as today: no write and no audit row. A change writes one `tenant.settings.updated` row (`before` and `after` = `{ result_feedback_level }`).
 - `GET /api/admin/tenant-settings` now also returns `result_feedback_level`.
 
+### PATCH /api/admin/tenant-settings/certificate-show-distinction (Z-50)
+
+**What changed.** A new admin route switches the word "Distinction" on or off for the certificates of the caller's organisation. Code: `apps/api/src/routes/admin-tenant-settings.ts` calls `updateCertificateShowDistinction` in `modules/02-tenancy/src/service.ts`. The Zod schema `certificateShowDistinctionBody` is in `apps/api/src/routes/_schemas.ts`.
+
+**Why.** The owner decided that every candidate who passes gets a certificate, and that the organisation decides if a score of 90 percent or more is written as Distinction. Default is off.
+
+- Auth: tenant admin with fresh MFA (`adminFreshMfa`). The handler checks `session.role === 'admin'` again and throws `AuthzError` (403) otherwise. Tenant and actor come from the session. The tenant must be active (`assertTenantActive`).
+- Body: `{ "enabled": true | false }`. Other types are rejected.
+- 200: `{ tenantId, certificate_show_distinction, previous, updatedAt, auditId }`. `auditId` is `null` when the value did not change.
+- Errors: 400 `INVALID_CERTIFICATE_SHOW_DISTINCTION`. 401 for a stale TOTP or no session. 403 for a role that is not admin. 409 `TENANT_NOT_ACTIVE`.
+- Same value as today: no write and no audit row. A change writes one `tenant.settings.updated` row (`before` and `after` = `{ certificate_show_distinction }`).
+- `GET /api/admin/tenant-settings` now also returns `certificate_show_distinction`.
+- Effect on other responses: `GET /api/certificates` (candidate list) returns `tier: "completion"` for a stored distinction while the switch is off. `GET /api/admin/certificates` always returns the stored tier. The PDF, the public verify page (`/verify/:id`, its JSON-LD and Open Graph text) and the preview images (`og.svg`, `og.png`) follow the switch. Public preview images are cached for one hour, so a change can take up to an hour to show there.
+- Not included: a per-assessment switch, an honors tier, a tier upgrade, a rewrite of issued certificates.
+
 ### GET /api/me/attempts/:id/feedback (RW-80)
 
 **What changed.** A new candidate route returns per-question feedback for one released attempt. Code: `modules/06-attempt-engine/src/routes.candidate.ts` (`candidateOnly`) calls `getCandidateFeedback(tenantId, userId, attemptId)` in `modules/06-attempt-engine/src/feedback.ts`, inside `withTenant`.

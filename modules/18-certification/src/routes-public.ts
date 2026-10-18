@@ -42,6 +42,7 @@ import { ERASED_CANDIDATE_LABEL } from '@assessiq/core';
 import { extractClientIp } from '@assessiq/auth';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
+import { certForDisplay } from './display.js';
 import { loadLogoDataUri } from './logo.js';
 import { SAFE_LOGO_DATA_URI } from './logo-pattern.js';
 import {
@@ -589,7 +590,8 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         .code(200)
         .header('content-type', 'text/html; charset=utf-8')
         .header('cache-control', 'no-cache')
-        .send(renderVerifyPage({ status, cert, orgName, isErased, logoDataUri }));
+        // Z-50: wording follows the organisation switch; the stored tier is untouched.
+        .send(renderVerifyPage({ status, cert: await certForDisplay(cert), orgName, isErased, logoDataUri }));
     },
   );
 
@@ -625,7 +627,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         // so keep it out of image search (the HTML verify page is noindex too).
         // Social unfurlers ignore this header, so LinkedIn/OG previews still work.
         .header('x-robots-tag', 'noindex')
-        .send(renderOgSvg(cert, status, await loadLogoDataUri(cert.tenant_id)));
+        .send(renderOgSvg(await certForDisplay(cert), status, await loadLogoDataUri(cert.tenant_id)));
     },
   );
 
@@ -656,7 +658,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
       }
 
       const status = determineStatus(cert);
-      const png = renderOgPng(cert, status, await loadLogoDataUri(cert.tenant_id));
+      const png = renderOgPng(await certForDisplay(cert), status, await loadLogoDataUri(cert.tenant_id));
 
       return reply
         .code(200)

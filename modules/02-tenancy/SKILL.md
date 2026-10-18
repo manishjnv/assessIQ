@@ -5,7 +5,7 @@ Tenant CRUD, settings, branding, and the runtime mechanism that pins every reque
 
 ## Scope
 - **In:** `tenants` and `tenant_settings` CRUD; tenant resolver from session/JWT/API key; `set_config('app.current_tenant', ...)` per request; RLS policy management; tenant lifecycle (suspend, archive); branding upload + serving; embed-origin allow-list management.
-- **Out:** users (03), assessments (05), the visual theming pipeline (17 reads `tenants.branding` but doesn't write).
+- **Out:** users (03), assessments (05), the visual theming pipeline (17 reads `tenants.branding` but does not write).
 
 ## Dependencies
 - `00-core` (config, logger, errors)
@@ -80,7 +80,7 @@ Every new domain table MUST get this two-policy template in the **same migration
 
 ## Connection / role posture
 - Production `DATABASE_URL` should connect as `assessiq_app` (created by `0002_rls_helpers.sql`, no password — set via `ALTER ROLE` from a Docker secret post-migration). Migrations run as the postgres superuser (`POSTGRES_USER` from compose).
-- `withTenant` and the middleware both run `SET LOCAL ROLE assessiq_app` defensively inside the per-call transaction. If `DATABASE_URL` accidentally connects as the superuser (dev mistake), this re-engages RLS within the transaction. In production where the URL already targets `assessiq_app`, it's a cheap no-op.
+- `withTenant` and the middleware both run `SET LOCAL ROLE assessiq_app` defensively inside the per-call transaction. If `DATABASE_URL` accidentally connects as the superuser (dev mistake), this re-engages RLS within the transaction. In production where the URL already targets `assessiq_app`, it is a cheap no-op.
 
 ## Anti-patterns refused (CLAUDE.md hard rule #4)
 - `WHERE tenant_id = $1` in `tenant_settings` queries — RLS is the enforcement layer; double-filtering masks RLS bugs (a misconfigured BYPASSRLS role would still return the right row via WHERE — silent regression).
@@ -164,3 +164,9 @@ Migration `0114` adds `tenant_settings.result_release_mode` (`manual` default | 
 - **One transaction.** Enum check (`ValidationError`, code `INVALID_RESULT_FEEDBACK_LEVEL`), then `SELECT ... FOR UPDATE`, then `UPDATE ... WHERE tenant_id`, then `auditInTx` (`tenant.settings.updated`, `before` and `after` = `{ result_feedback_level }`). The same value is a no-op with no audit row.
 - **Owner gate.** Default `none`. The owner picks the production default later. Not part of the generic settings patch.
 - **Not included.** A per-assessment override. Rollback: set the value to `none`. Details: `docs/02-data-model.md` (`tenant_settings`), `docs/03-api-contract.md` § S15 additions.
+
+## Z-50 (2026-10-18) - certificate_show_distinction (migration 0205)
+
+- **What.** `getCertificateShowDistinction(tenantId)` (false without a row) and `updateCertificateShowDistinction(adminUserId, tenantId, enabled)` in `src/service.ts`. Same shape as the feedback level: boolean check (`ValidationError`, code `INVALID_CERTIFICATE_SHOW_DISTINCTION`), `SELECT ... FOR UPDATE`, `UPDATE ... WHERE tenant_id`, `auditInTx` (`tenant.settings.updated`). Same value is a no-op with no audit row.
+- **Why.** Module 18 shows the word Distinction only when the organisation turns it on. Details: `docs/14-credentialing.md`.
+- **Not included.** A per-assessment switch. Rollback: set the value to `false`. Not part of the generic settings patch.

@@ -128,6 +128,19 @@ The verify page puts Open Graph and Twitter Card meta tags in its `<head>`. A li
 - **Not included.** A tier upgrade from a later attempt. If the first certificate is revoked, the next passed attempt can earn a new one.
 - **Downstream.** `modules/18-certification/src/service.ts`; test in `modules/09-scoring/src/__tests__/release.test.ts`.
 
+### Distinction wording is an organisation switch (Z-50, 2026-10-18)
+
+- **What.** `tenant_settings.certificate_show_distinction` (migration `0205`, module 02, default `false`). The tier stored on the credential stays `completion` or `distinction` exactly as Z-16 sets it, and `signed_hash` still covers it. Only the displayed word changes. When the switch is off, a stored `distinction` is shown as `completion`.
+- **Where it applies.** The PDF (`GET /api/certificates/:id/pdf`), the public verify page with its JSON-LD and Open Graph description, the `og.svg` and `og.png` previews, and the candidate list (`GET /api/certificates`). Code: `modules/18-certification/src/display.ts` (`certForDisplay`, `applyDistinctionSetting`). The display copy is made AFTER the signature check and is never signed, verified or saved.
+- **Share text and result email.** Both say only "certificate" today and never name the tier, so nothing changes there. If a future text names the tier, it must use `certForDisplay`.
+- **Read at render time.** Switching it on shows Distinction on certificates issued earlier. Switching it off hides the word again. No row and no signature changes, so nothing needs a re-issue.
+- **Admin view.** `GET /api/admin/certificates` and the admin list show the stored tier. The admin sees the true value and the filter by tier still works.
+- **Why.** The owner decided on 2026-10-18: every pass gets a certificate, and the organisation decides if the Distinction line is written. This replaces the open Z-39 question about a tier upgrade on a later attempt: a later attempt never changes an issued certificate.
+- **Considered and rejected.** Not issuing a distinction tier when off (the stored tier would change by setting date and need a re-sign). A column on `certificates` (same re-sign problem). A per-assessment switch (the owner chose per organisation).
+- **Not included.** Honors tier. A tier upgrade. A per-assessment switch. Cache purge of the public preview images (up to one hour old).
+- **Failure mode.** If the setting read fails, the verify, PDF and list routes return an error. They never fall back to showing Distinction.
+- **Downstream.** `docs/02-data-model.md` (`tenant_settings`), `docs/03-api-contract.md`, Settings page (Results tab, help id `admin.tenant_settings.certificate_show_distinction`), admin certificates help copy.
+
 ### Never-raise invariant
 
 - A cert failure must not block the release.
@@ -202,7 +215,7 @@ The public verify page shows a "Share on LinkedIn" call to action for active (no
 | Certificate status | Button |
 | --- | --- |
 | `valid` (active) | Active `<a>` that opens the LinkedIn share dialog in a new tab |
-| `revoked` | Disabled `<button>` with the tooltip "Revoked certificates can't be shared" |
+| `revoked` | Disabled `<button>` with the tooltip "Revoked certificates cannot be shared" |
 | `tampered` | No button |
 | `PUBLIC_BASE_URL` unset | No button (degrades the same way as OG meta) |
 

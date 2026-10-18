@@ -138,6 +138,12 @@ export const resultFeedbackLevelBody = z.object({
     errorMap: () => ({ message: 'level must be none, right_wrong, with_expected_answer or with_ai_justification' }),
   }),
 });
+export const certificateShowDistinctionBody = z.object({
+  enabled: z.boolean({
+    required_error: 'enabled is required',
+    invalid_type_error: 'enabled must be true or false',
+  }),
+});
 export const retentionDaysBody = z.object({
   retention_days: z.number({
     required_error: 'retention_days is required',

@@ -61,7 +61,7 @@ trigger. The rule: **cert failure must never block the calling operation.**
 - Only genuine database/signing errors bubble to the outer `.catch()`.
 
 This design means: if `CERT_SIGNING_SECRET` is unset, or the `certificates`
-table migration hasn't run, or any other cert-side failure occurs, the release
+table migration has not run, or any other cert-side failure occurs, the release
 still succeeds and the candidate sees their results. A re-issue can be triggered
 manually from the admin certificates page.
 
@@ -429,7 +429,7 @@ Fonts: `Newsreader, Georgia, 'Times New Roman', serif` (headlines) /
 
 - **Revoked certs: 410 Gone** (never 200). A revoked cert has no valid PDF to serve.
 - **Tampered HMAC: 500 Internal Server Error** (never a silent render). Serving a PDF
-  for a tampered row would print data that doesn't match what was cryptographically signed.
+  for a tampered row would print data that does not match what was cryptographically signed.
 - **Owner check:** `cert.candidate_id === session.userId` OR `role ∈ {admin, super_admin}`.
   Reviewer role cannot download another user's cert.
 - **Counter increment:** `pdf_downloads` is incremented via `withTenant` after the PDF
@@ -478,3 +478,12 @@ A missing logo or a read failure shows the organisation name alone. The guard `S
 - **Why.** A retake can pass again. The existing rule (every pass earns a certificate) applies to the first pass; later passes must not create a second credential.
 - **Not included.** A tier upgrade from a later attempt (a signed credential does not change after issue). A revoked certificate does not block a new one.
 - **Test.** `modules/09-scoring/src/__tests__/release.test.ts` ("Z-39: a second pass ...").
+
+## Z-50 distinction wording is an organisation switch (2026-10-18)
+
+- **What.** `src/display.ts` exports `certForDisplay(cert)` and the pure `applyDistinctionSetting(cert, show)`. They return a copy of the certificate with `tier` set to `completion` when the stored tier is `distinction` and `tenant_settings.certificate_show_distinction` is false. `routes.ts` (PDF), `routes-public.ts` (verify page, `og.svg`, `og.png`) and `listForUser` in `service.ts` use it.
+- **Rules.** Call it only after `verifyCertificateSignature` / `determineStatus`, and only for wording. Never sign, verify or save the copy. The stored tier and `signed_hash` do not change. The admin list returns the stored tier.
+- **Why.** Owner decision 2026-10-18: every pass earns a certificate, and the organisation decides if Distinction is written. Read at render time so old certificates follow the switch with no re-issue.
+- **Not included.** Honors, a tier upgrade from a later attempt, a per-assessment switch, a cache purge for preview images (one hour).
+- **Test.** `src/__tests__/distinction-display.test.ts` (switch off and on for the verify page, previews, PDF route and list; tenant isolation; signature still valid).
+- **Dependency.** `@assessiq/tenancy` `getCertificateShowDistinction(tenantId)`. Test mocks of `@assessiq/tenancy` need that export only for tests that use a distinction certificate.
