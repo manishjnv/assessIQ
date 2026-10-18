@@ -3459,6 +3459,110 @@ admin.dashboard.home.page:
   related_keys:
     - admin.settings.billing.usage
 
+admin.dashboard.home.checklist:
+  audience: admin
+  version: 1
+  short_text: "Six steps from a new assessment to released results. Each step ticks when your data shows it is done."
+  long_md: |
+    ## Run an assessment
+
+    The checklist follows the most recent assessment. Work through the six steps in order.
+
+    1. **Create or pick an assessment.** Start a test or open an assessment.
+    2. **Add candidates.** Add candidates to the assessment.
+    3. **Send invitations.** Candidates receive an email. The step ticks when a candidate opens an invitation.
+    4. **Watch attempts.** The step ticks when a candidate starts the test.
+    5. **Grade and review.** The step ticks when no attempt waits for grading.
+    6. **Release results and certificates.** The step ticks when at least one result is released.
+
+    When all six steps are done, the checklist hides. Use **Show the assessment checklist** to open it again.
+  related_keys:
+    - admin.dashboard.home.page
+
+admin.dashboard.home.checklist.step_assessment:
+  audience: admin
+  version: 1
+  short_text: "Open the assessments list, or start a new test. Ticks when at least one assessment exists."
+  long_md: |
+    ## Create or pick an assessment
+
+    Select this step to open the assessments list. To create a new test, use **Start a test**.
+
+    The step ticks after the first assessment exists.
+
+admin.dashboard.home.checklist.step_candidates:
+  audience: admin
+  version: 1
+  short_text: "Open the assessment to add candidates. Ticks when the assessment has at least one invitation."
+  long_md: |
+    ## Add candidates
+
+    Select this step to open the most recent assessment. Add candidates in the invitations section.
+
+    The step ticks when at least one candidate is on the assessment.
+
+admin.dashboard.home.checklist.step_invitations:
+  audience: admin
+  version: 1
+  short_text: "Open the assessment to send invitations. Ticks when a candidate opens an invitation."
+  long_md: |
+    ## Send invitations
+
+    Adding candidates sends their invitation emails. Use the assessment page to resend an invitation.
+
+    The step ticks when a candidate opens an invitation for the test.
+
+admin.dashboard.home.checklist.step_attempts:
+  audience: admin
+  version: 1
+  short_text: "Open the attempts for this assessment. Ticks when a candidate starts the test."
+  long_md: |
+    ## Watch attempts
+
+    Select this step to see the attempts for the most recent assessment. The status column shows the progress of each candidate.
+
+    The step ticks when at least one candidate starts an attempt.
+
+admin.dashboard.home.checklist.step_grading:
+  audience: admin
+  version: 1
+  short_text: "Open the attempts to grade and review. Ticks when no attempt waits for grading."
+  long_md: |
+    ## Grade and review
+
+    AssessIQ grades written answers. You review the results before you release them.
+
+    The step ticks when at least one attempt is graded and no attempt waits for grading.
+
+admin.dashboard.home.checklist.step_release:
+  audience: admin
+  version: 1
+  short_text: "Open the assessment to release results and certificates. Ticks when a result is released."
+  long_md: |
+    ## Release results and certificates
+
+    Release a result to the candidate after you review it. A certificate is issued when the result is released.
+
+    The step ticks when at least one result is released to a candidate.
+
+admin.dashboard.home.checklist.start_test:
+  audience: admin
+  version: 1
+  short_text: "Open the Start a test screen. It creates an assessment, adds candidates and sends invitations."
+  long_md: |
+    ## Start a test
+
+    Use this screen to set up a test in one place. It is step 1 of the checklist.
+
+admin.dashboard.home.checklist.reopen:
+  audience: admin
+  version: 1
+  short_text: "Show the Run an assessment checklist again. It hides again when all six steps are done."
+  long_md: |
+    ## Show the checklist
+
+    The checklist hides when all six steps are done for the most recent assessment. Select this button to show it again.
+
 admin.users.list.page:
   audience: admin
   short_text: "Everyone in your organisation: invite people, filter by role and manage access."
@@ -4381,6 +4485,24 @@ admin.start_test.result:
 
     Skipped candidates show with the reason, for example already invited. Open the assessment to see the status of each candidate.
 
+
+admin.start_test.mock:
+  audience: admin
+  version: 1
+  short_text: "Start a full mock from an exam blueprint. It sets the sections, timing and marks."
+  long_md: |
+    ## Full mock
+
+    Choose a blueprint to build a full mock test. The blueprint sets the sections, the time, the questions and the marks. Pick the question set and difficulty in step 1 first. The mock is created as a draft, then published and sent in the same steps.
+
+admin.start_test.mock.unverified:
+  audience: admin
+  version: 1
+  short_text: "This blueprint is not verified. Check it against the official notice first."
+  long_md: |
+    ## Unverified blueprint
+
+    The sections, timing and marks of an unverified blueprint are not checked against the official notice. Check them before you use the mock for a real test.
 
 admin.tenant_settings.result_feedback_level:
   audience: admin

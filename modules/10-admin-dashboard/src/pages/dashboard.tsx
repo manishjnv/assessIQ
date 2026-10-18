@@ -27,6 +27,7 @@ import { AdminShell } from "../components/AdminShell.js";
 import { useAdminSession } from "../session.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { UsageBanner } from "../components/UsageBanner.js";
+import { RunAssessmentChecklist } from "../components/RunAssessmentChecklist.js";
 import { evaluationStatusOf } from "../lib/evaluation.js";
 import type { EvaluationStatus } from "../lib/evaluation.js";
 import { evaluationStatusDisplay } from "../lib/status.js";
@@ -235,6 +236,9 @@ export function AdminDashboard(): React.ReactElement {
 
         {/* A2 — usage banner (fail-silent; renders nothing when status=unlimited or loading) */}
         <UsageBanner />
+
+        {/* Z-24 — "Run an assessment" checklist; hides itself when all six steps are done. */}
+        <RunAssessmentChecklist />
 
         {/* KPI row — 3 cards derived from queue status counts */}
         <div

@@ -286,7 +286,7 @@ Dark mode toggle:
 
 The UI template arrived on 2026-04-30 and has been adopted as the brand base. It lives at `modules/17-ui-system/AccessIQ_UI_Template/` (the folder name is a typo; the product is *AssessIQ*). `docs/10-branding-guideline.md` holds the canonical visual contract: typography, palette, component idioms, screen-layout templates, motion and voice. **Read that guideline before designing or coding any new page.**
 
-What's live (Phase 0 G0.B Session 3 — 2026-05-01):
+What is live (Phase 0 G0.B Session 3 — 2026-05-01):
 
 1. **Token namespace ported.** `styles.css` → `modules/17-ui-system/src/styles/tokens.css` with all `--*` custom properties renamed to `--aiq-*`. All utility classes have the prefix `aiq-` (`.aiq-screen`, `.aiq-serif`, `.aiq-mono`, `.aiq-num`, `.aiq-btn{,-primary,-outline,-ghost,-sm,-lg}`, `.aiq-input`, `.aiq-card`, `.aiq-chip{,-accent,-success}`, `.aiq-mark` + `.aiq-mark-dot`, `.aiq-grid-bg`, `.aiq-divider`). Light + dark mode + density variants (`compact` / `cozy` / `comfortable`). `prefers-reduced-motion` override included.
 2. **Phase-0 component library** at `modules/17-ui-system/src/components/`: `Button` (pill; `primary`/`outline`/`ghost` × `sm`/`md`/`lg` + `leftIcon`/`rightIcon`/`loading`), `Card` (no shadow at rest; `interactive` and `floating` flags), `Field` plus `Input`/`Label`/`FieldHelp` (label-above, focus halo, `aria-invalid`/`aria-describedby` wiring), `Chip` (`default`/`accent`/`success` with `success` defaulting to a `check` icon), `Icon` (22-name typed SVG sprite with aria-label/aria-hidden conditional), `Logo` (mark + halo + serif "AssessIQ" wordmark — case-sensitive; the template's "AccessIQ" typo is intentionally not propagated), `Num` + `useCountUp` (cubic-out RAF loop, reduced-motion respected). All exported from the package barrel `@assessiq/ui-system`.
@@ -294,7 +294,7 @@ What's live (Phase 0 G0.B Session 3 — 2026-05-01):
 4. **Vite 8 + React 19 + TypeScript SPA** at `apps/web/`. Token css imported via `@assessiq/ui-system/styles/tokens.css`. Tailwind installed for layout utilities only — editorial styling stays on the `aiq-*` classes; Tailwind theme reads `--aiq-font-*` and `--aiq-radius-*` from the same vars. `tsc -b && vite build` green.
 5. **Storybook 8** at `apps/storybook/` with `@storybook/react-vite`. One story per component covering the main variants. `withThemeByDataAttribute` decorators for `data-theme` and `data-density` toolbars. Stories live next to components (`<Component>.stories.tsx`).
 
-What's live (UI v1.1 port — 2026-05-13):
+What is live (UI v1.1 port — 2026-05-13):
 
 1. **Phase 1 — Token migration** (`b95df19`). 7 light-mode token values now match kit v1.1 (`--aiq-color-fg-primary` `#1a1a1a` → `#0a0a0b`, and others). Also `.aiq-serif` font-weight 400 → 500, and the dark-mode hierarchy stays intact.
 2. **Phase 2 — Atom refresh** (`57ddf12`). 5 component updates, all additive: `Chip` `warn` variant; `Sparkline` `<polyline vector-effect="non-scaling-stroke">` at 1.2px; `ScoreRing` 1600ms stroke-dashoffset transition; `StatCard.breakdown` prop renders stacked-bar + colored legend (uses `--aiq-color-chart-{1..8}` palette); `Sidebar` 240px width + `footer?` slot + `SidebarSection` sub-component.
@@ -310,7 +310,7 @@ What's live (UI v1.1 port — 2026-05-13):
 
    **Test infra:** `vitest` + `vitest-axe` + `@testing-library/react` + `jsdom` added as devDeps. `vitest.config.ts` (jsdom env), `vitest.setup.ts` (axe matchers + cleanup), `src/test-setup.d.ts` (vitest-axe@0.1.0 `Vi` namespace → vitest v2 `declare module "vitest"` patch). One axe assertion per primitive — precedent for the rest of the v1.1 port (17/17 tests green).
 
-What's live (UI v1.1 Phase 3b — 2026-05-13):
+What is live (UI v1.1 Phase 3b — 2026-05-13):
 
 Activity-screen primitives. All three sourced from [`AssessIQ_UI_Template/screens/activity.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/activity.jsx); none import from the kit (translated manually, ESLint blocks kit imports). All use the production `--aiq-color-chart-{1..8}` palette (NOT the kit's hardcoded `ACT_COLORS` hex array — the two palettes intentionally differ; production is Google-brand-anchored, kit is Tailwind). Each ships with one `axe(container)` assertion in its `.test.tsx` per the Phase 3a precedent.
 
@@ -325,7 +325,7 @@ ARIA: `ActivityHeatmap` and `StackedBarChart` are `role="img"` with `aria-label`
 The new components are exported from `@assessiq/ui-system` and ready for Phases 11 (admin `/activity`) + 12 (candidate `/activity`) page consumers.
 
 
-What's live (UI v1.1 Phase 5 — 2026-05-14):
+What is live (UI v1.1 Phase 5 — 2026-05-14):
 
 Admin dashboard + AdminShell sidebar refresh. Commit `3b7e2d9`. Source: [`AssessIQ_UI_Template/screens/dashboard.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/dashboard.jsx).
 
@@ -358,7 +358,7 @@ What still needs to happen, on demand as later v1.1 phases land:
 
 The reference template files (`design-canvas.jsx`, `tweaks-panel.jsx`, `AccessIQ.html`, `.design-canvas.state.json`) are the omelette/Claude design-canvas wrapper that produced the template. They are useful for visual reference (open the HTML to see all screens). **Production code must not import them.** Enforcement: ESLint flat config has `no-restricted-imports` blocking `**/AccessIQ_UI_Template/**` globally; CI's no-template grep verifies.
 
-What's live (UI v1.1 Phase 6a — 2026-05-14):
+What is live (UI v1.1 Phase 6a — 2026-05-14):
 
 Candidate take-flow page refresh. Commit `7e89875`. Source: [`AssessIQ_UI_Template/screens/login.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/login.jsx) (two-column layout idiom) + Phase 3a Spinner primitive.
 
@@ -379,7 +379,7 @@ Candidate take-flow page refresh. Commit `7e89875`. Source: [`AssessIQ_UI_Templa
 **Verification:** `pnpm -C apps/web typecheck` ✓. Zero inline hex. Zero residual `animation:` styles. `/take/expired` → HTTP 200, `/take/error` → HTTP 200.
 
 
-What's live (UI v1.1 Phase 7a — 2026-05-14):
+What is live (UI v1.1 Phase 7a — 2026-05-14):
 
 Admin list-page template established + Users + Attempts refreshed. Commit `f528fc6`. Source: [`AssessIQ_UI_Template/screens/library.jsx`](../modules/17-ui-system/AssessIQ_UI_Template/screens/library.jsx) (count chip + serif h1 + lede + filter strip pattern).
 
@@ -413,7 +413,7 @@ pager: ghost prev/next + mono "X / Y" label
 **Verification:** `modules/10-admin-dashboard` typecheck ✓, `apps/web` typecheck ✓. Zero `--aiq-color-bg-elevated`. `/admin/users` → 200, `/admin/attempts` → 200.
 
 
-What's live (UI v1.1 Phase 7b — 2026-05-14):
+What is live (UI v1.1 Phase 7b — 2026-05-14):
 
 Applied the list-page recipe (count Chip + serif h1 + lede) from Phase 7a to all 5 remaining Phase 7 targets. Commit `01b351b`.
 
@@ -432,7 +432,7 @@ Applied the list-page recipe (count Chip + serif h1 + lede) from Phase 7a to all
 **Verification:** `modules/10-admin-dashboard` typecheck ✓, `modules/11-candidate-ui` typecheck ✓. Zero inline hex introduced. Zero `--aiq-color-bg-elevated`. `/admin/assessments` → 200, `/admin/question-bank` → 200.
 
 
-What's live (UI v1.1 Phase 8a — 2026-05-14):
+What is live (UI v1.1 Phase 8a — 2026-05-14):
 
 Applied Spinner loading state + count Chip + serif h1 + lede to the two results/reports detail pages. Commit `86f7de3`.
 
@@ -442,7 +442,7 @@ Applied Spinner loading state + count Chip + serif h1 + lede to the two results/
 | `modules/10-admin-dashboard/src/pages/attempt-detail.tsx` | Added `Chip, Spinner` imports. Spinner loading state. Status Chip (attempt.status) above h1 displaying `{attempt.assessment_name}.` Mono meta row below: `candidate_email · level_label · submitted_at`. |
 
 
-What's live (UI v1.1 Phase 8b — 2026-05-14):
+What is live (UI v1.1 Phase 8b — 2026-05-14):
 
 Applied Spinner + count Chip + serif h1 + lede to individual report and reports landing. Commit `378c93d`.
 
@@ -452,7 +452,7 @@ Applied Spinner + count Chip + serif h1 + lede to individual report and reports 
 | `modules/10-admin-dashboard/src/pages/reports.tsx` | Added `Spinner` import. Replaced "Loading…" in `ReportSection` with `<Spinner size="sm">`. Added lede below existing h1: "Cohort summaries and per-candidate progression across all assessments." |
 
 
-What's live (UI v1.1 Phase 12 — 2026-05-14):
+What is live (UI v1.1 Phase 12 — 2026-05-14):
 
 Spinner loading states for all 4 async sections in CandidateActivity. Commit `b0a512d`.
 
@@ -461,7 +461,7 @@ Spinner loading states for all 4 async sections in CandidateActivity. Commit `b0
 | `modules/11-candidate-ui/src/components/CandidateActivity.tsx` | Added `Spinner` to existing ui-system import (StatCard, ActivityHeatmap, StackedBarChart, LeaderboardList). Replaced 4 "Loading…" inline divs — statsLoading, heatmapLoading, timelineLoading, leaderboardLoading — with `<Spinner size="sm" aria-label="Loading [section]" />`. |
 
 
-What's live (UI v1.1 Phase 13 — 2026-05-14):
+What is live (UI v1.1 Phase 13 — 2026-05-14):
 
 Kit treatment for settings + low-traffic admin pages. Commit `e624184`.
 

@@ -1169,6 +1169,37 @@ export async function createAssessmentFromSet(
   );
 }
 
+/** One exam blueprint as an admin sees it (GET /api/admin/blueprints). */
+export interface ExamBlueprintSummary {
+  id: string;
+  name: string;
+  edition: string;
+  total_questions: number;
+  total_minutes: number;
+  verification_status: "verified" | "unverified";
+}
+
+/** GET /api/admin/blueprints — every exam blueprint visible to this organisation. */
+export async function listExamBlueprintsApi(): Promise<{ items: ExamBlueprintSummary[] }> {
+  return adminApi<{ items: ExamBlueprintSummary[] }>('/admin/blueprints');
+}
+
+/** GET /api/admin/packs/:id — the pack with its ordered levels (`order` is 1-based). */
+export async function getPackLevelsApi(packId: string): Promise<{ levels: { id: string; order: number }[] }> {
+  return adminApi<{ levels: { id: string; order: number }[] }>(`/admin/packs/${packId}`);
+}
+
+/** POST /api/admin/blueprints/:id/mock — a DRAFT full mock from an exam blueprint (module 05). */
+export async function createFullMockApi(
+  blueprintId: string,
+  body: { pack_id: string; level_id: string; opens_at: string; closes_at?: string | null; name?: string },
+): Promise<{ assessment: { id: string }; warnings: string[] }> {
+  return adminApi<{ assessment: { id: string }; warnings: string[] }>(
+    `/admin/blueprints/${blueprintId}/mock`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
 /** Minimal platform-pack option for the SA pack-scope grant dropdown (Step 2 5a). */
 export interface PlatformPackOption {
   id: string;
