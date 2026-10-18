@@ -120,6 +120,7 @@ function inlineSitemap() {
 
 export default defineConfig({
   site: 'https://assessiq.in',
+  compressHTML: true, // Astro 7 default is 'jsx', which drops spaces between inline elements
   trailingSlash: 'never',
   // format:'file' emits /about.html (not /about/index.html), so nginx serves
   // /about WITHOUT a trailing-slash 301 — matching trailingSlash:'never' and the
