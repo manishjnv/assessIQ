@@ -47,6 +47,20 @@ describe("updateAssessment — SECTIONS_LOCKED", () => {
     await expect(updateAssessment("t", "a1", { settings: {} }, "u")).rejects.toMatchObject({ status: 409 });
   });
 
+  it("whole_test_minutes and negative_marks_default are locked once an attempt exists", async () => {
+    const nm = { name: "Quant", question_count: 5 };
+    state.settings = { sections: [nm], whole_test_minutes: 30, scoring: { negative_marks_default: 0.25 } };
+    state.attempts = 1;
+    await expect(
+      updateAssessment("t", "a1", { settings: { sections: [nm], whole_test_minutes: 40, scoring: { negative_marks_default: 0.25 } } }, "u"),
+    ).rejects.toMatchObject({ status: 409, details: { code: "SECTIONS_LOCKED" } });
+    await expect(
+      updateAssessment("t", "a1", { settings: { sections: [nm], whole_test_minutes: 30, scoring: { negative_marks_default: 0.5 } } }, "u"),
+    ).rejects.toMatchObject({ status: 409, details: { code: "SECTIONS_LOCKED" } });
+    await updateAssessment("t", "a1", { settings: { sections: [nm], whole_test_minutes: 30, scoring: { negative_marks_default: 0.25 } } }, "u");
+    expect(state.updated).toHaveLength(1);
+  });
+
   it("unchanged sections (different key order) and other edits still work", async () => {
     state.attempts = 1;
     await updateAssessment("t", "a1", { settings: { sections: [{ minutes: 10, question_count: 5, name: "Quant" }] } }, "u");

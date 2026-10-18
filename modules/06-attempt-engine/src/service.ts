@@ -363,6 +363,13 @@ export async function startAttempt(
     // Test sections (migration 0132): the pool is partitioned per section, in section
     // order, and the resulting order is frozen. sectionOf[i] = section of chosen[i].
     const sections = readSections(assessment.settings);
+    // Fail closed: configured but unreadable sections must not fall back to an unsectioned draw.
+    const rawSections = (assessment.settings as { sections?: unknown } | null | undefined)?.sections;
+    if (sections === null && Array.isArray(rawSections) && rawSections.length > 0) {
+      throw new ValidationError("This test's sections are misconfigured. Ask your administrator.", {
+        details: { code: AE_ERROR_CODES.SECTIONS_INVALID },
+      });
+    }
     let sectionOf: number[] | null = null;
 
     if (sections !== null) {
@@ -991,7 +998,13 @@ export async function toggleFlag(
       );
     }
 
-    await assertSectionOpen(client, attempt, aq.section_index, new Date());
+    const now = new Date();
+    if (attempt.ends_at !== null && attempt.ends_at.getTime() <= now.getTime()) {
+      throw new ConflictError("Timer has expired", {
+        details: { code: AE_ERROR_CODES.TIMER_EXPIRED },
+      });
+    }
+    await assertSectionOpen(client, attempt, aq.section_index, now);
 
     const result = await repo.setAnswerFlag(
       client,

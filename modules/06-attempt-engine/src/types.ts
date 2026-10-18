@@ -381,6 +381,7 @@ export const AE_ERROR_CODES = {
   SECTION_LOCKED: "AE_SECTION_LOCKED",
   /** Finish-section on an assessment without sections, or on the last section. */
   SECTION_NOT_FINISHABLE: "AE_SECTION_NOT_FINISHABLE",
+  SECTIONS_INVALID: "AE_SECTIONS_INVALID",
   /** Z-39: every allowed attempt (max_attempts + extra attempts) is used. */
   ATTEMPTS_EXHAUSTED: "AE_ATTEMPTS_EXHAUSTED",
 } as const;
