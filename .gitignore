@@ -121,3 +121,6 @@ modules/07-ai-grading/eval/cases-private/
 # Autopilot runtime (not committed)
 # Autopilot working folder (owner request 2026-10-16): the whole folder stays local
 .agent/
+
+# pnpm verify stamp
+.claude/.verify-stamp
