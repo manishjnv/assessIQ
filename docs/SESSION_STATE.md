@@ -1,3 +1,51 @@
+# Session — 2026-10-19 — S30: owner answers into ROADMAP, design review of Z-71 and Q9, Q44, dependency majors
+
+**Headline:** 18 ROADMAP rows closed from the owner sheet (recount 81 pending, 181 closed, 262 total, 69%). The Z-71 and Q9 designs went through a review gate: both REVISE, findings written into the design files, nothing built. Q44 (row delete or cancel, bulk clear of empty drafts, simpler status tabs) is built and deployed. Z-73 (docs-only CI runs the docs-reading tests) is proven. Storybook vite 6 and basic-ftp 6 are in. Seven page proposals are written.
+**Commits:** `4daf94a4` — ci Z-73; `cea5012e` — docs (ROADMAP, designs, page proposals); `6a44cfa4` — Q44 (migration 0206); `61192fa3` — Z-38 vite 6; `b63f2b23` — Z-11 row PDF, Z-15 band labels (migration 0208); `9bd08797` — Z-38 basic-ftp 6; docs commit (this file, ROADMAP, NEXT).
+**Deploy:** `tools/deploy.sh --yes` at `6a44cfa4` (VPS was `2eb00bb7`): assessiq-api, assessiq-worker, assessiq-frontend recreated, migration 0206 applied, sweep 0 failures, 6 assessiq-* containers up. Second deploy at `9bd08797` (VPS `6a44cfa4` to `9bd08797`): migration 0208 applied (help_content rows 580), the same three services recreated, sweep 0 failures. CI on `9bd08797` was red once: unit shard 2, `modules/19-billing/src/__tests__/billing-events.test.ts:74` said the Docker testcontainer was unavailable; a rerun of the failed job was green (runner flake, no code cause found). Marketing (Astro 7) NOT deployed (owner approval pending).
+**Tests:** `pnpm verify` green before each push. Module 05 199, admin dashboard 239, candidate UI 159, help system 116, tools 4 docs-reading files 13. Storybook build passes on vite 6. No browser smoke of the new list buttons: owner check.
+**Gate:** one Sonnet takeover design-review gate (Z-71 and Q9): REVISE for both (12 and 9 findings). One Sonnet review of the Q44 bulk endpoint: REVISE (check-then-delete race), fixed before push (row lock, guarded DELETE, all-or-nothing).
+**Next:** (1) Owner: approve the revised Z-71 and Q9 designs after the design edits (findings in each design file); lawyer answers (liability proposal addenda). (2) Owner yes before: Z-46 on the VPS, Astro 7 deploy, react-router 7 plan. (3) FU-B2 (audit-log JSONL download) was NOT started (Batch 4 skipped, time). (4) Remaining tails need owner wording: Z-15 (a)(c)(d)(e), SP11 company ETA.
+**Open questions:**
+- Z-71 and Q9: findings 1 to 7 and 1 to 5 must be written into the designs, then the owner approves. Check on the VPS (read-only) whether other apps import the Caddy `(security-headers)` snippet before changing Permissions-Policy.
+- Daily sign-up cap of 50 is still a proposal.
+- Appeal hold for flagged-attempt photos: recommended yes with a lawyer-set upper limit; not decided.
+- Results card: should the default feedback level change from "none"? (Z-15 g)
+- The details drawer shows "Download PDF" for a revoked certificate (server answers 410); small fix, not done.
+- CI flake: the testcontainer start failure above. If it returns, note the date and look at the runner Docker step (Z-55 area).
+- Dependabot opened a branch to take storybook vite to 8.3.4: not taken.
+**Not included:** Z-71 and Q9 build, live /terms or /privacy, Z-46 on the VPS, marketing deploy, Z-75 execution, react-router 7, Q22 retention job, FU-B2, any Cloudflare or DNS change.
+**Old task or feature checked:** Q44 (existing `deleteAssessment` and `cancelAssessment` reused), Z-11, Z-15, Z-38, Z-52 gaps, RW-1, FU-D14 and RW-100 (already closed), X2, X5/OD5, Z-70 to Z-72, Z-73 (RCA 2026-10-18) (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Detail
+
+- **Roadmap.** Rows closed by owner answers: D2/FU-A8, OD4, OD8, RW-42, A5, RW-62/L2, RO4/B4, RW-46, A3, C1, C2, C3, SEO-1, RW-57, FR21/X4, FR12, EXP-0, FR6/FU-B20, RW-43, X1/FR9, X5/OD5. Decided but still open: X2, D1/RV28, D3/FU-A7, RW-89/RW-98, C6/RW-49, N7, X8, N10/FU-D12/FU-D13. The result is above the planned 70 to 75 pending because RV33, SP-gap-2, Y-3, Y-9 and C7 were already closed in S29. New rows: Z-73 (closed), Z-74 PROCTOR-RET, Z-75 PUBLICDOCS-1, Z-76 PAGES-1, Z-77 ADMINLIST-1 (closed).
+- **Z-73.** The `docs-check` job now runs `next-brief`, `next-migration`, `roadmap-recount` and `routing-report` tests (about 3 s). Proof: the docs-only run of `cea5012e` ran the step and passed. Rejected: running the unit shards on docs commits (slow). Maintenance: a new docs-reading test must be added to the file list by hand.
+- **Design review.** Main Z-71 findings: sign-up and admin-login codes share a Redis key and compare-then-delete is not atomic (double tenant), plus-address abuse, Turnstile server check, `PLAN_TIERS_ENFORCED` must be enforced by the route, Free limits are not implemented (race on the 5-candidate cap), AI kill switch authority, anonymous audit rows. Reviewer error corrected: `extractRateLimitClientIp` exists. Main Q9 findings: Permissions-Policy only on take pages (Caddy is shared), photos served only through an authenticated route, erasure does not cover photos yet, 90-day job and appeal hold need a hard cap, upload endpoint limits.
+- **Q44.** Delete is offered per row; a row with invitations offers Cancel. The bulk route takes ids chosen from the loaded list and re-checks every one on the server. Rejected: a server-side "delete all drafts" with no id list (over-deletion risk), a time-based rule. Not included: restore, deleting anything with attempts.
+- **Z-38.** vite 6 (storybook copy only; the web app was already on vite 8). basic-ftp through a root override. react-router 7 left as a plan.
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): Phase 0, roadmap edits (scripts), design edits, gate prompts, line-by-line review of the Q44 server diff and the race fix, vite and basic-ftp, deploy, handoff. Estimate ~450k tokens.
+- Sonnet: 4 runs (Z-73 CI, design gate, Q44 build, Q44 bulk review).
+- Haiku: 3 runs (page proposals, Z-15, Z-11).
+- codex:rescue: n/a — Codex down since 2026-10-11; Sonnet takeover gates.
+- Gemini (agy): 1 run, timed out after 2m30s with no answer; the RW-1 count was done with git.
+- Codex (exec): n/a — down.
+  - Sonnet · Z-73 CI step · reworked: N · tokens: 90522
+  - Sonnet · design gate Z-71 and Q9 · reworked: N (one finding wrong, corrected by Opus) · tokens: 134490
+  - Sonnet · Q44 build · reworked: Y (race fixed by Opus after the review) · tokens: 169545
+  - Sonnet · Q44 bulk endpoint review · reworked: N · tokens: 94457
+  - Haiku · page proposals · reworked: N (claims to check listed) · tokens: 112742
+  - Haiku · Z-15 f, b, g · reworked: N (b and g needed no change) · tokens: 112746
+  - Haiku · Z-11 row PDF · reworked: N · tokens: 133518
+  - Gemini (agy) · RW-1 digest · reworked: Y (no output, redone with git) · tokens: n/a
+
+
 # Session — 2026-10-19 — S29: owner answers wave 1 (Q17 to Q23, Q11, Z-52, designs)
 
 **Headline:** Sign-in code UX (Q17), activity labels "Former reviewer" and "AssessIQ staff" (Q18, Q19), protected-file edits (Q20), lockfile ignore (Q23), invite batching (Q11) and EXP-18 gaps 1 to 4 (Z-52) are built. Free plan pack, self-serve sign-up design and tiered proctoring design are written.

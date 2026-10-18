@@ -2,28 +2,30 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-18T21:29:21.353Z (2026-10-19 02:59:21 IST)
-- HEAD: `4daf94a4`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 14
+- Generated: 2026-10-18T22:19:53.090Z (2026-10-19 03:49:53 IST)
+- HEAD: `9bd08797`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 4
 
 ## 1. Last session (SESSION_STATE, first block)
 
-## Session — 2026-10-19 — S29: owner answers wave 1 (Q17 to Q23, Q11, Z-52, designs)
+## Session — 2026-10-19 — S30: owner answers into ROADMAP, design review of Z-71 and Q9, Q44, dependency majors
 
-**Headline:** Sign-in code UX (Q17), activity labels "Former reviewer" and "AssessIQ staff" (Q18, Q19), protected-file edits (Q20), lockfile ignore (Q23), invite batching (Q11) and EXP-18 gaps 1 to 4 (Z-52) are built. Free plan pack, self-serve sign-up design and tiered proctoring design are written.
-**Commits:** `2517d072` — Q17, Q18, Q19, Q20, Q23 (CI green); `28bd5bf3` — Q11, Z-52, Z-46 reference line, Z-48; docs commit (this file, ROADMAP, designs).
-**Deploy:** `tools/deploy.sh --yes` at `2eb00bb7` (VPS was `ce3be56`): assessiq-api, assessiq-worker, assessiq-frontend recreated, 0 migrations, sweep 0 failures, 6 assessiq-* containers up. The marketing site (Astro 7) was NOT deployed (owner approval pending). Owner check: open /admin signed in and a take page; try the email sign-in code once.
-**Tests:** `pnpm verify` green before each push. New: email-otp page 2, activity feed 3 (30 in file), bulk cap 6 and queue route 1, question review 7 (25 in file), publish gate 13 of 13. 13-notifications full suite 300 of 300. Docs lint: markdownlint 0 errors; Vale not installed locally.
-**Gate:** two Sonnet takeover gates, both ACCEPT. Gate 1 (Q17 web page, Q18/Q19 feed): low notes only (same-tick double submit costs an attempt on the server; a dangling actor id would show "AssessIQ staff"). Gate 2 (Z-52, bulk cap, Caddy line): low notes (the cap is global across tenants; `getDelayed` scans all tenants).
-**Next:** (1) Owner: answer the free plan questions (what "5 chosen subjects" means, AI attempt count, locked vs hidden). (2) Owner: OK the Caddy report-only line on the VPS (Z-46). (3) Z-71 build needs your OK of the design, a design review and a gate. (4) Remaining: Z-38 majors (vite 6, basic-ftp 6, react-router 7), FU-D14, RW-100, SP2/SP11/P3 notices, Z-11, Z-15, RW-1 list, Y-10; FU-B2 in a later gate batch.
+**Headline:** 18 ROADMAP rows closed from the owner sheet (recount 81 pending, 181 closed, 262 total, 69%). The Z-71 and Q9 designs went through a review gate: both REVISE, findings written into the design files, nothing built. Q44 (row delete or cancel, bulk clear of empty drafts, simpler status tabs) is built and deployed. Z-73 (docs-only CI runs the docs-reading tests) is proven. Storybook vite 6 and basic-ftp 6 are in. Seven page proposals are written.
+**Commits:** `4daf94a4` — ci Z-73; `cea5012e` — docs (ROADMAP, designs, page proposals); `6a44cfa4` — Q44 (migration 0206); `61192fa3` — Z-38 vite 6; `b63f2b23` — Z-11 row PDF, Z-15 band labels (migration 0208); `9bd08797` — Z-38 basic-ftp 6; docs commit (this file, ROADMAP, NEXT).
+**Deploy:** `tools/deploy.sh --yes` at `6a44cfa4` (VPS was `2eb00bb7`): assessiq-api, assessiq-worker, assessiq-frontend recreated, migration 0206 applied, sweep 0 failures, 6 assessiq-* containers up. Second deploy at `9bd08797` (VPS `6a44cfa4` to `9bd08797`): migration 0208 applied (help_content rows 580), the same three services recreated, sweep 0 failures. CI on `9bd08797` was red once: unit shard 2, `modules/19-billing/src/__tests__/billing-events.test.ts:74` said the Docker testcontainer was unavailable; a rerun of the failed job was green (runner flake, no code cause found). Marketing (Astro 7) NOT deployed (owner approval pending).
+**Tests:** `pnpm verify` green before each push. Module 05 199, admin dashboard 239, candidate UI 159, help system 116, tools 4 docs-reading files 13. Storybook build passes on vite 6. No browser smoke of the new list buttons: owner check.
+**Gate:** one Sonnet takeover design-review gate (Z-71 and Q9): REVISE for both (12 and 9 findings). One Sonnet review of the Q44 bulk endpoint: REVISE (check-then-delete race), fixed before push (row lock, guarded DELETE, all-or-nothing).
+**Next:** (1) Owner: approve the revised Z-71 and Q9 designs after the design edits (findings in each design file); lawyer answers (liability proposal addenda). (2) Owner yes before: Z-46 on the VPS, Astro 7 deploy, react-router 7 plan. (3) FU-B2 (audit-log JSONL download) was NOT started (Batch 4 skipped, time). (4) Remaining tails need owner wording: Z-15 (a)(c)(d)(e), SP11 company ETA.
 **Open questions:**
-- Free plan: meaning of "5 chosen subjects"; AI attempt count (5 proposed); locked vs hidden features; public name "Free" is used.
-- Q9 proctoring: "camera required" setting, retention (30 days proposed, lawyer decides), age self-declaration, Free plan gets tier 1.
-- Q17: the owner review of `23c77e2` is still the owner's call (Y-2 stays open).
-- Z-48: confirm the Vale count in the CI Docs lint job (Vale is not installed here). Z-54 not before 2026-10-29.
-- Q6, Q13, Q14, Q21, Q36 to Q47 are blank on the sheet. Nothing was guessed.
-**Not included:** Z-71 and Q9 build, any live /terms or /privacy change, Q22 retention rule, TIME-13, GATE-8, Z-54, any VPS or Cloudflare change (so the Z-46 line is not live), uuid 11 (no direct dependency), API-mode AI grading.
-**Old task or feature checked:** Y-2/RV60, Y-3, SP-gap-2, Y-9, RV33/FU-D26, A5/RW-52 (Brevo 300 a day, delivery-policy), Z-46, Z-48, Z-52, Z-70 to Z-72, X5/OD5 (Rule B, PROJECT_BRAIN.md)
+- Z-71 and Q9: findings 1 to 7 and 1 to 5 must be written into the designs, then the owner approves. Check on the VPS (read-only) whether other apps import the Caddy `(security-headers)` snippet before changing Permissions-Policy.
+- Daily sign-up cap of 50 is still a proposal.
+- Appeal hold for flagged-attempt photos: recommended yes with a lawyer-set upper limit; not decided.
+- Results card: should the default feedback level change from "none"? (Z-15 g)
+- The details drawer shows "Download PDF" for a revoked certificate (server answers 410); small fix, not done.
+- CI flake: the testcontainer start failure above. If it returns, note the date and look at the runner Docker step (Z-55 area).
+- Dependabot opened a branch to take storybook vite to 8.3.4: not taken.
+**Not included:** Z-71 and Q9 build, live /terms or /privacy, Z-46 on the VPS, marketing deploy, Z-75 execution, react-router 7, Q22 retention job, FU-B2, any Cloudflare or DNS change.
+**Old task or feature checked:** Q44 (existing `deleteAssessment` and `cancelAssessment` reused), Z-11, Z-15, Z-38, Z-52 gaps, RW-1, FU-D14 and RW-100 (already closed), X2, X5/OD5, Z-70 to Z-72, Z-73 (RCA 2026-10-18) (Rule B, PROJECT_BRAIN.md)
 
 
 ## 2. ROADMAP status board
@@ -76,7 +78,11 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d)
 - `Z-15` (Z-15 (Z-9, Z-10, M1-M4 mobile kit)) — Candidate result flow on a phone: findings. — pending (e is a bug) Item (e) closed (S16, 2026-10-17): `modules/15-analytics/src/activity-candidate/stats.ts`. Items (b
 
-## 4. Newest RCA entries (5 newest of 237; file order: mixed (sorted by date; same-day ties keep file order))
+## 4. Newest RCA entries (5 newest of 238; file order: mixed (sorted by date; same-day ties keep file order))
+
+### 2026-10-19 — CI unit shard 2 red once: Docker testcontainer unavailable (flake)
+**Symptom:** CI run 39171014351 (commit `9bd08797`, a lockfile-only dependency change) failed in unit shard 2: `billing-events.test.ts:74` reported `Docker testcontainer required but unavailable in CI`. 110 of 111 files passed.
+**Prevention:** manual discipline: rerun once, log the run id; if it returns twice, look at the Docker setup step in the unit job.
 
 ### 2026-10-18 — Admin page blank after login: two copies of react-router in the bundle
 **Symptom:** after a successful sign-in at assessiq.in/admin the owner saw a blank white page. The browser error log (`stream":"frontend"`) held six `Uncaught Error` entries from `vendor-react-*.js` line 9 at one column, all with referer `/admin`. Public pages, the login page and the candidate pages
@@ -94,13 +100,9 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 **Symptom:** the Z-39 worktree patch conflicted with the Z-44 and Z-41 commits already on main.
 **Prevention:** merge main into the worktree before the agent finishes, or start the agent from current main.
 
-### 2026-10-18 — axe: nested interactive control and low button contrast (Z-23 session 2)
-**Symptom:** the axe a11y run reported two violations: Reports list rows (nested-interactive) and the Regenerate button (red text contrast 4.0, fails AA 4.5).
-**Prevention:** the axe e2e now covers `/admin/reports` and `/admin/integrations/webhooks`.
-
 ## 5. Next free migration
 
-- Next free: `0207` (highest `modules/*/migrations` prefix + 1)
+- Next free: `0209` (highest `modules/*/migrations` prefix + 1)
 - SESSION_STATE block names no next number; computed from files.
 
 ## 6. Reading list reminder

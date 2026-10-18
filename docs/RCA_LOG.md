@@ -2862,3 +2862,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** The new S28 block in `docs/SESSION_STATE.md` had its footer heading inside the block and no `---` line before it. `firstSessionBlock` in `tools/next-brief.mjs` (line 24 to 31) cuts the block at the first `---` line, so the footer went into NEXT.md. S27 had `---` before `## Agent utilization`.
 **Fix:** put `---` and a `## Agent utilization` heading after the S28 summary lines (commit `0675dd30`).
 **Prevention:** `pnpm verify` does not run the tools tests. Run `pnpm vitest run tools/__tests__` after any SESSION_STATE edit. The block shape is: summary lines, `---`, then `## Agent utilization`.
+
+## 2026-10-19 — CI unit shard 2 red once: Docker testcontainer unavailable (flake)
+
+**Symptom:** CI run 39171014351 (commit `9bd08797`, a lockfile-only dependency change) failed in unit shard 2: `billing-events.test.ts:74` reported `Docker testcontainer required but unavailable in CI`. 110 of 111 files passed.
+**Cause:** not found. The test guard fires when the testcontainer cannot start; the same code passed on the earlier commit and on rerun. Treated as a runner flake.
+**Fix:** `gh run rerun --failed` gave green. No code change.
+**Prevention:** manual discipline: rerun once, log the run id; if it returns twice, look at the Docker setup step in the unit job.
