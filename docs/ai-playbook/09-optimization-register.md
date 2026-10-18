@@ -65,6 +65,7 @@ Combined estimate for TIME-8 and TIME-9: daily CI waiting from about 100 min to 
 
 ## Change log
 
+- 2026-10-18 (owner decision, TOK-2): Phase 0 no longer reads `docs/RCA_LOG.md` in full (about 116k tokens). `NEXT.md` holds the newest 5 entries; sessions grep the log by module or keyword before planning or reviewing. Phase 0 reading falls from about 129k to about 13k tokens (est., bytes / 4). Risk: the recurring-pattern view in Phase 3 now depends on the keyword grep.
 - 2026-10-18 (7-point re-review): ROADMAP rows added by category: time Z-58 to Z-62, token Z-64 and Z-66, gate Z-65, register sync Z-63. Order: Z-63, Z-64, Z-58, Z-59, Z-60 (retries to 0 after 3 green runs), Z-65, Z-66.
 - 2026-10-18 (S24 review): TIME-15 to TIME-18 added (ROADMAP Z-59 to Z-62) after an Opus 5.5 and Fable cross-check. Measured baseline: CI 6.8 min on a code push. The red-CI figure of that review is superseded; see `12`. TIME-8 e2e shards are Z-58. Rejected: affected-only tests on main, migration dry run (already in `ci.yml`), image registry, auto-deploy.
 - 2026-10-18 (later): owner decided GATE-2 deferred (no for now), GATE-4 approved (one gate per batch, checklist, cap 3 security rows); GATE-8 added.
