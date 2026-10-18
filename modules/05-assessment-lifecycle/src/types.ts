@@ -472,6 +472,8 @@ export const AL_ERROR_CODES = {
   BLUEPRINT_NODE_EMPTY: "BLUEPRINT_NODE_EMPTY",
   BLUEPRINT_DIFFICULTY_INVALID: "BLUEPRINT_DIFFICULTY_INVALID",
   POOL_TOO_SMALL_CRITERION: "POOL_TOO_SMALL_CRITERION",
+  // EXP-18 — publish blocked while a pool question has an explicit review_state other than verified
+  QUESTIONS_NOT_VERIFIED: "QUESTIONS_NOT_VERIFIED",
   // Slice A.2 — opens_at mandatory
   OPENS_AT_REQUIRED: "OPENS_AT_REQUIRED",
   // Invitation resend / re-invite (2026-10-01)

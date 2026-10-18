@@ -278,3 +278,13 @@ Tests:
 - **Not included.** UI to edit the new keys (the admin SectionsEditor still writes `minutes` only), draw by node (Z-43 covers blueprints, not sections).
 - **Tests.** `src/__tests__/sections-settings.test.ts`, `src/__tests__/mock-from-blueprint.test.ts`.
 - **Z-42 hardening.** `updateAssessment` also locks `settings.whole_test_minutes` and `settings.scoring.negative_marks_default` (409 `SECTIONS_LOCKED`) once an attempt exists; test in `src/__tests__/sections-locked.test.ts`.
+
+### Publish review gate (EXP-18, 2026-10-18)
+
+- **What.** `publishAssessment` (module 05, `service/lifecycle.ts`) refuses with 422 `QUESTIONS_NOT_VERIFIED` while any ACTIVE question of the assessment's (pack, level) pool has `review_state` of `in_review`, `disputed` or `needs_fix`. `details` carries `count` (total) and `question_ids` (ids only, first 50). The check runs after the entitlement and pool-size checks and before the status change, in the same tenant transaction, so a blocked publish writes nothing.
+- **Why the whole (pack, level) pool.** `freezeAssessmentPool` snapshots that whole set, and the whole-pool, section, blueprint-category and Z-43 node draws all read the frozen set. One check covers every draw path. A blueprint that draws only one category still waits for the other unverified questions of that pool (strict, simple, no false pass).
+- **NULL does not block.** `review_state IS NULL` means no verification concept (legacy and ungated content). 0194 grandfathered every active question as `verified`. So existing assessments and packs publish exactly as before. Archived and draft questions are outside the pool and never block.
+- **Considered and rejected.** Blocking NULL too: the row says "not verified", but no route or screen sets `review_state` yet (only `repository.updateQuestion` can), so a NULL block would stop every new tenant-authored question from ever publishing. Reopen is not gated (its freeze is a no-op for a normally published assessment).
+- **Not included (rest of row EXP-18).** The review screen with Verify / Needs fix / Withdraw, the audit row per verification, bulk "verify all in this pack", the invite-route check (invites need a published assessment, so publish already gates them), setting `review_state='in_review'` on import, scraped and cloned items, and clone reset of `review_state` (EXP-2 note). Until those exist nothing puts questions into `in_review`, so the gate only bites once they do.
+- **Tests.** `src/__tests__/publish-review-gate.test.ts` (blocked, allowed after verify, NULL regression, archived, sections, blueprint category and node, tenant isolation).
+- **Rollback.** Remove the `listUnverifiedPoolQuestions` call in `publishAssessment`.

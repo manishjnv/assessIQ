@@ -387,3 +387,7 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 - **Considered and rejected.** Tenant-owned blueprints; storing the cutoff in the seed; a `total_questions` column.
 - **Not included.** Other exams (add only after the owner verifies them), UI and help ids, normalisation across shifts, rank prediction.
 - **Downstream.** Module 05 builds a draft from a blueprint (`createMockFromBlueprint`). Module 14 has three new actions. Tests: `src/__tests__/exam-blueprints.test.ts`.
+
+### Review gate consumer (EXP-18, 2026-10-18)
+
+Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disputed` and `needs_fix` on an active pool question block publish (422 `QUESTIONS_NOT_VERIFIED`); NULL and `verified` pass. No module 04 code changed. The verify actions, review screen and per-verification audit row are still open in row EXP-18.

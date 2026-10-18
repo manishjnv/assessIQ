@@ -7,7 +7,7 @@ import * as repo from "../repository.js";
 import { assertCanTransition, assertReopenAllowed } from "../state-machine.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { Assessment, ResolvedBlueprint } from "../types.js";
-import { log, countActiveQuestionsForLevel } from "./_shared.js";
+import { log, countActiveQuestionsForLevel, listUnverifiedPoolQuestions } from "./_shared.js";
 import { countActiveQuestionsForCriterion, criterionNodeScope } from "./blueprint.js";
 
 // ---------------------------------------------------------------------------
@@ -151,6 +151,22 @@ export async function publishAssessment(
           },
         );
       }
+    }
+
+    // c2. EXP-18 review gate: no publish while a pool question is in_review / disputed / needs_fix.
+    //     Covers whole-pool, section and blueprint (category and node) draws: all use the frozen pool.
+    const unverified = await listUnverifiedPoolQuestions(client, assessment.pack_id, assessment.level_id);
+    if (unverified.count > 0) {
+      throw new ValidationError(
+        `Cannot publish: ${unverified.count} question(s) in the pool are not verified`,
+        {
+          details: {
+            code: AL_ERROR_CODES.QUESTIONS_NOT_VERIFIED,
+            count: unverified.count,
+            question_ids: unverified.ids,
+          },
+        },
+      );
     }
 
     // d. Transition to published
