@@ -54,6 +54,13 @@ if [ "$SKIPCI" -eq 1 ]; then
 else
   ci="$(gh run list --workflow CI --commit "$SHA" --json status,conclusion -q '.[0] | if .conclusion == "" then .status else .conclusion end' 2>/dev/null)"
   [ "$ci" = success ] || fail "CI for ${SHA:0:7} is '${ci:-no run found}' (needs success; wait for the run to finish)"
+  # Docs-only commits skip the heavy CI jobs, so also require CI success on the newest commit that touched code.
+  CODESHA="$(git log -1 --format=%H -- . ':!docs' ':!*.md' ':!.vale')"
+  if [ -n "$CODESHA" ] && [ "$CODESHA" != "$SHA" ]; then
+    cci="$(gh run list --workflow CI --commit "$CODESHA" --json status,conclusion -q '.[0] | if .conclusion == "" then .status else .conclusion end' 2>/dev/null)"
+    [ "$cci" = success ] || fail "CI for last code commit ${CODESHA:0:7} is '${cci:-no run found}' (needs success)"
+  fi
+  echo "CI checked: HEAD=${SHA:0:7} last-code-commit=${CODESHA:0:7}"
 fi
 ok "HEAD=${SHA:0:7} pushed$([ "$SKIPCI" -eq 1 ] || echo ", CI success")"
 

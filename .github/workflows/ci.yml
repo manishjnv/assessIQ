@@ -10,7 +10,56 @@ permissions:
   contents: read
 
 jobs:
+  # ---------------------------------------------------------------------------
+  # changes: docs-only commits skip the heavy jobs (a run still exists for every commit,
+  # so tools/deploy.sh can read CI status). Fail safe: any error or empty diff => code=true.
+  # ---------------------------------------------------------------------------
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Classify changed files
+        id: diff
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set +e
+          code=true
+          if [ "$EVENT" = pull_request ]; then
+            files=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+            rc=$?
+          else
+            base="$BEFORE"
+            # first push, all-zero sha, or unreachable (force push): fall back to the parent
+            if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]] || ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+              base="HEAD~1"
+            fi
+            files=$(git diff --name-only "$base" "$SHA")
+            rc=$?
+          fi
+          if [ "$rc" -eq 0 ] && [ -n "$files" ]; then
+            if [ -z "$(printf '%s\n' "$files" | grep -vE '^docs/|\.md$|^\.vale/')" ]; then
+              code=false
+            fi
+          fi
+          echo "changed files:"; printf '%s\n' "$files"
+          echo "code=$code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   quality:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -41,17 +90,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # 5. Type-check all workspaces
-      - name: Typecheck
-        run: pnpm -r typecheck
+      # 5. Typecheck runs in the parallel `typecheck` job.
 
       # 6. Lint
       - name: Lint
         run: pnpm lint
 
-      # 7. Test
-      - name: Test
-        run: pnpm test
+      # 7. Root vitest runs in the sharded `unit` job.
 
       # 7-api. apps/api route tests — the root vitest config only covers
       # modules/** and packages/**, so apps/api needs its own run. Some tests
@@ -393,6 +438,96 @@ jobs:
       - name: Cross-module dep lint (repo scan)
         run: pnpm lint:cross-module-deps
 
+  # Typecheck, parallel to quality (was a 102 s serial step there).
+  typecheck:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+  # Root vitest run (what `pnpm test` runs: `vitest run`), split in 3 shards.
+  # Testcontainers need Docker, available on ubuntu-latest.
+  unit:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Test (shard ${{ matrix.shard }}/3)
+        run: pnpm exec vitest run --shard=${{ matrix.shard }}/3
+
+  # Cheap doc guards. Always runs, including on docs-only commits. The same steps also
+  # stay in `quality`.
+  docs-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Doc guards (self-test)
+        run: |
+          pnpm lint:doc-anchors:self-test
+          pnpm lint:skill-mount:self-test
+          pnpm lint:deploy-procedure:self-test
+          pnpm lint:vitest-coverage:self-test
+
+      - name: Doc guards
+        run: |
+          pnpm lint:doc-anchors
+          pnpm lint:skill-mount
+          pnpm lint:docs
+          pnpm lint:deploy-procedure
+          pnpm lint:vitest-coverage
+
   # ---------------------------------------------------------------------------
   # E2E job — Playwright against a stack built INSIDE the runner (no staging, no repo vars)
   # ---------------------------------------------------------------------------
@@ -407,6 +542,8 @@ jobs:
   # throwaway stack. NEVER set it on production (the config refuses to boot in production).
   # Local equivalent: bash apps/web/e2e/local-stack.sh. See apps/web/e2e/README.md.
   e2e:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     # E13 (2026-10-06): required. The job ran in-runner and green since 09595fa
     # (runs 37400230396, 37415618512, 37417892862, 37419878620); continue-on-error removed.
@@ -475,8 +612,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
       - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @assessiq/web exec playwright install --with-deps chromium
+
+      # Browsers come from the cache; the OS libraries do not, so install them anyway.
+      - name: Install Playwright OS dependencies
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @assessiq/web exec playwright install-deps chromium
 
       - name: Apply migrations and seed
         run: PSQL="psql postgres://postgres:postgres@localhost:5432/assessiq" bash apps/web/e2e/seed-db.sh
@@ -538,3 +688,35 @@ jobs:
           name: playwright-traces-${{ github.run_id }}
           path: apps/web/test-results/
           retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # ci-ok: single aggregate result. Failed or cancelled anywhere => red.
+  # `skipped` is fine for the four heavy jobs only on a docs-only commit.
+  # ---------------------------------------------------------------------------
+  ci-ok:
+    needs: [changes, quality, typecheck, unit, e2e, docs-check]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        shell: bash
+        env:
+          CODE: ${{ needs.changes.outputs.code }}
+          R_CHANGES: ${{ needs.changes.result }}
+          R_DOCS: ${{ needs.docs-check.result }}
+          R_QUALITY: ${{ needs.quality.result }}
+          R_TYPECHECK: ${{ needs.typecheck.result }}
+          R_UNIT: ${{ needs.unit.result }}
+          R_E2E: ${{ needs.e2e.result }}
+        run: |
+          bad=0
+          for j in CHANGES DOCS; do
+            r=R_$j; [ "${!r}" = success ] || { echo "::error::$j result is '${!r}' (needs success)"; bad=1; }
+          done
+          for j in QUALITY TYPECHECK UNIT E2E; do
+            r=R_$j
+            if [ "${!r}" = success ]; then continue; fi
+            if [ "${!r}" = skipped ] && [ "$CODE" = false ]; then continue; fi
+            echo "::error::$j result is '${!r}' (code=$CODE)"; bad=1
+          done
+          [ "$bad" -eq 0 ] && echo "ci-ok: all required jobs passed" || exit 1
