@@ -2834,3 +2834,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `findByText` resolved on a DOM change. React had not yet run the passive effect that binds the keydown listener (`apps/web/src/pages/take/attempt-parts/KeyNav.tsx:60`), so the key press came too early.
 **Fix:** `await act(async () => {})` after each `findByText` in `apps/web/src/pages/take/AttemptSubmitModal.test.tsx`. No timers and no retries (`05193ac1`).
 **Prevention:** manual discipline. After an async query, flush effects with `act` before you fire a keyboard event.
+
+## 2026-10-18 — Z-53 proof: second router copy fails the gates
+
+**Symptom:** none. This closes the open proof of the RCA "Admin page blank after login".
+**Cause:** n/a. On a throw-away worktree one workspace was set to react-router-dom 6.27.0.
+**Fix:** n/a. Result: `tools/__tests__/single-router-copy.test.ts` failed 3 of 4 and `pnpm verify:signed-in` failed every spec. Since Z-59 the same spec runs in CI, so a regression turns CI red before a deploy.
+**Prevention:** CI e2e runs `signed-in-smoke`; deploy requires CI success.

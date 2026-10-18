@@ -1,3 +1,29 @@
+# Session — 2026-10-18 — S25: CI and deploy time rows Z-53, Z-58 to Z-62
+
+**Headline:** CI on a code push fell from 6m50 to 3m45 to 3m58 (measured). Deploy no longer runs the 3 to 6 min signed-in step, builds only changed images, and CI has no blind retries.
+**Commits (main):** `d60c0b85` e2e 2-way shard + phone leg, test-clean.sh, red-CI table (Z-58, Z-60) · `23ee76fc` signed-in-smoke in CI, step 1b removed, deploy build plan, bg-verify (Z-59, Z-61, Z-62) · `84305460` review fixes (per-image markers) · `8eb0a949` Playwright retries 0 (Z-60 d) · docs commit after this block.
+**Tests:** CI green on `d60c0b85`, `84305460`, `8eb0a949`. Test counts unchanged (27 + 8 passed, 2 skipped, phone 1). `deploy.sh --dry-run` passed on `8430546`.
+**Gate:** Sonnet takeover (Codex down) on `23ee76fc`: revise; all 4 material points fixed in `84305460` (stale diff base, rename, fail-open diff, `*.md` in app folders).
+**Next:** The first real deploy builds both images and writes the VPS markers; run `bash tools/post-deploy-sweep.sh` after it. Count 10 green CI runs for Z-60. Run `bash tools/bg-verify.sh --install` in other clones.
+**Open questions:**
+- Z-60 acceptance (10 runs without a false red) is counted over later sessions. If a false red appears, fix the test; do not restore retries.
+- Shard 2 is the floor (admin-workflow serial group). A split of that spec would be a test change; not done.
+- The markers `/srv/assessiq/.deployed/*` do not exist yet; the first deploy creates them.
+**Not included:** scoped verify stamp (GATE-2), affected-only tests, image registry, auto-deploy, 4th unit shard, TIME-13 (already shipped), Z-54 (not before 2026-10-29).
+**Old task or feature checked:** Z-55, Z-56 (parallel CI, docs-only skip) and Z-47 signed-in check (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): plan, ci.yml and deploy.sh edits, review fixes, CI watch, docs.
+- Sonnet: 1 adversarial takeover review of `23ee76fc` (108k tokens; verdict revise, reworked: Y — design hole found and fixed).
+- Haiku: n/a — edits were small and in hot cache.
+- codex:rescue: n/a — Codex down since 2026-10-11; Sonnet takeover used.
+- Gemini (agy): n/a — `gh` gave the red-run data directly.
+- Codex (exec): n/a — not needed.
+
+---
+
 # Session — 2026-10-18 — S24: CI and tooling time work
 
 **Headline:** S24 cut CI time and tooling waits. Docs-only commits skip heavy CI, deploys check the last code commit, migrations run in one transaction, and a flaky test is fixed. CI is 6m50, not the 5.5 min target; e2e sharding is next (Z-58).

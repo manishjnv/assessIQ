@@ -25,6 +25,17 @@ Wall time is the longer job. `main` has no branch protection, so renaming jobs d
 
 Add to row 7 (small, about 30 min): GATE-4, a gate checklist file `docs/ai-playbook/gate-checklist.md` with the threat model and attack vectors for auth, tenancy, grading, audit log and infra, and the rule "one gate per batch of at most 3 security rows, log what it found" in `CLAUDE.md`.
 
+## Results (session S25, 2026-10-18)
+
+- Measured CI wall time on a code push: 6m50 (`39137810235`) to 4m09 (`d60c0b85`), 3m45 (`84305460`) and 3m58 (`8eb0a949`, retries 0). The longest jobs are now e2e shard 2 (about 3m24, the serial admin-workflow group) and e2e shard 1 (3m29 with `signed-in-smoke`).
+- Z-58: e2e matrix `shard-1`, `shard-2`, `phone`. Each leg has its own Postgres and Redis. Test count is the same as before. The phone check (RW-79) is a separate leg, off the critical path.
+- Z-59: `signed-in-smoke` runs in CI. Deploy step 1b is removed. A deploy still needs CI success on HEAD and on the last code commit; the checked SHAs are printed. Why safe: the spec fails when a second router copy is injected (Z-53).
+- Z-60: red-run causes in `12-red-ci-analysis.md`. `tools/test-clean.sh` removes stale testcontainers and ryuk containers only. Playwright retries are 0 in CI.
+- Z-61: per-image deploy markers on the VPS. The first reviewer pass (Sonnet takeover, Codex is down) rejected diffing against the VPS HEAD, rename blindness, a fail-open diff and `*.md` skipping inside app folders. All fixed.
+- Z-62: `tools/bg-verify.sh` background verify after commit. The 4th unit shard was not built: unit shards take 3m00 to 3m17, below e2e.
+- Not included: scoped verify stamp (GATE-2, deferred), affected-only tests, image registry, auto-deploy, TIME-13 (shipped earlier in `05193ac1`, not touched).
+- Downstream: `ci-ok` needs list is unchanged (a matrix job reports one result). Artifact names now include the matrix leg.
+
 ## Not changed
 
 No product code, no migration, no deploy unless the preflight dry run is needed. Opus reviews every workflow and hook diff line by line. A broken workflow blocks every deploy.

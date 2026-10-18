@@ -361,7 +361,7 @@ bash tools/deploy.sh --yes --services "assessiq-frontend" --no-sweep
 | `--services "<list>"` | Names must match `^assessiq-[a-z-]+$`. If `assessiq-api` is in the list, the script adds `assessiq-worker` (same image). |
 | `--no-sweep` | Skip `tools/post-deploy-sweep.sh`. |
 | `--skip-ci-check` | Skip the CI check for the SHA. The script prints a warning. |
-| `--skip-signed-in` | Skip step 1b, the signed-in check before a frontend deploy. The script prints a warning. |
+| `--force-all` | Build and recreate every service in the default list. Without it, step 3b builds only the changed images (Z-61). |
 
 The seven steps (each prints `STEP n/7` and `OK` or `FAIL`):
 
@@ -370,9 +370,13 @@ The seven steps (each prints `STEP n/7` and `OK` or `FAIL`):
    - The newest commit that changes a non-docs path. The script finds it with `git log -1 -- . ':!docs' ':!*.md' ':!.vale'`.
 
    The script prints both SHAs, for example `CI checked: HEAD=fb2cd88 last-code-commit=aa5dbf6`. A docs-only `HEAD` therefore deploys against the CI run of the last code change. If a force push makes the old `before` SHA unreachable, the script uses `HEAD~1`. The second check covers that case.
-   - Step 1b (only when `assessiq-frontend` is in the service list): run `pnpm verify:signed-in`. A failure aborts before anything changes on the VPS. A dry run only prints that it would run.
+
 2. VPS preflight: `/srv/assessiq/.git` exists and no tracked file changed.
 3. Pull: `git pull --ff-only` (dry run: `git fetch` only). The VPS SHA must equal the local `HEAD`.
+3b. Build plan (Z-61, S25). Without `--services` and `--force-all`, the script compares each image with its marker on the VPS (`/srv/assessiq/.deployed/api` and `/srv/assessiq/.deployed/frontend`). A marker holds the SHA the image was last deployed at, and the script writes it only after the recreated container is healthy. The diff base is the marker, not the VPS git HEAD, because a failed run moves HEAD but not the marker.
+   - The api image (and the worker) takes `apps/api`. The frontend image takes `apps/web`. Changes in `docs/`, `.github/`, `tools/`, `.vale/`, `.githooks/`, `.agent/` and root `*.md` files build nothing.
+   - Any other path builds that image: `modules/**`, `packages/**`, `infra/**`, the lockfile, manifests, `tsconfig.base.json`. A missing marker, an unknown commit or a failed diff also builds that image. The first deploy after S25 builds both images and creates the markers.
+   - If both images match, the script prints `Nothing to build or recreate` and exits 0. The printed `PLAN api=... | frontend=...` line gives the reason for each image. Rejected: an image registry, and diffing against the VPS HEAD (a reviewer found it hides a failed deploy).
 4. Drift gate: same rules as the table below. A DB-only name outside the allowlist aborts.
 5. Migrations: apply each pending file in sorted order, record its sha256 in `schema_migrations`, then re-apply the help seed and print the `help_content` row count before and after.
    - A file with no `BEGIN`, `COMMIT` or `START TRANSACTION` line runs with `psql -1`. Its `schema_migrations` row goes in the same transaction. A failing file rolls back in full.
@@ -385,7 +389,7 @@ The seven steps (each prints `STEP n/7` and `OK` or `FAIL`):
 
 Safety rules: the script touches only `assessiq-*` services and `/srv/assessiq`. It never runs prune, `rm`, `stop`, `apt`, `systemctl` or a Caddy command, and never prints secrets. Any error before step 7 aborts before the recreate. A migration that fails stops the run, and later files are not applied.
 
-The sweep cannot sign in. Step 1b runs the signed-in check on a local build before the deploy. After the sweep, the owner still opens `/admin` signed in and the take page on the live site. The sweep ends with the line `ASK OWNER: open /admin signed in and the take page` as a reminder.
+The sweep cannot sign in. The CI job runs the signed-in smoke spec on every code push, and deploy step 1 requires that CI run to be green (Z-59). After the sweep, the owner still opens `/admin` signed in and the take page on the live site. The sweep ends with the line `ASK OWNER: open /admin signed in and the take page` as a reminder.
 
 #### How to read the drift diff
 
@@ -415,7 +419,7 @@ curl -sI https://assessiq.automateedge.cloud/api/health  # expect HTTP/2 200
 
 **Post-deploy sweep:** run `bash tools/post-deploy-sweep.sh` after every deploy. It is read-only. It prints one `PASS|FAIL|SKIP` line for each check, and the exit code is the number of FAIL lines. Use `--no-ssh` to skip the VPS checks and `--base URL` to test a local stack. The owner still does the signed-in `/admin` check by hand.
 
-**Signed-in check (Z-47, before every frontend deploy):** run `pnpm verify:signed-in` (`tools/verify-signed-in.sh`). It builds `apps/web`, starts the local e2e stack (`apps/web/e2e/local-stack.sh`), serves that exact build with `vite preview` on port 5173, runs `apps/web/e2e/signed-in-smoke.spec.ts` and removes the stack. The exit code is non-zero when the spec fails. `tools/deploy.sh` runs it as step 1b for a frontend deploy. Ports 3000 and 5173 must be free on your machine. The check takes several minutes. The spec is the one described next.
+**Signed-in check (Z-47, manual command; CI runs the same spec):** run `pnpm verify:signed-in` (`tools/verify-signed-in.sh`). It builds `apps/web`, starts the local e2e stack (`apps/web/e2e/local-stack.sh`), serves that exact build with `vite preview` on port 5173, runs `apps/web/e2e/signed-in-smoke.spec.ts` and removes the stack. The exit code is non-zero when the spec fails. `tools/deploy.sh` no longer runs it (Z-59, S25): the CI e2e job runs `signed-in-smoke` and deploy requires CI success on HEAD. Ports 3000 and 5173 must be free on your machine. The check takes several minutes. The spec is the one described next.
 
 **Signed-in smoke spec (Z-47):** `apps/web/e2e/signed-in-smoke.spec.ts` signs in as a test admin and a test candidate and opens `/admin`, `/admin/assessments`, `/admin/attempts`, `/admin/question-bank`, `/admin/settings` and the candidate home. Each page needs a heading, a nav and zero console errors. The dev minter (`ENABLE_E2E_TEST_MINTER`) is set only on the local API process and stays absent in production, so this check never runs against the live site. Why: RCA 2026-10-18 (two router copies crashed `/admin` only after sign-in). Not included: a check of the live site after the deploy; that stays with the owner.
 

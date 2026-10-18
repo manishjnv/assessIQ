@@ -18,6 +18,12 @@
 | `tools/deploy.sh` step 1 (two-commit preflight) | Checks CI success on `HEAD` and on the last code commit | Prints both SHAs. A docs-only `HEAD` deploys against the CI run of the last code change. |
 | `tools/next-brief.mjs`, `tools/roadmap-recount.mjs`, `tools/next-migration.mjs`, `tools/routing-report.mjs`, `tools/codex-review.sh` | Planned in `08-token-tooling-plan.md` | Check `ls tools` before using. |
 
+## Session time helpers (S25)
+
+- `bash tools/test-clean.sh [--dry-run]` removes stale testcontainers and ryuk containers. It touches no other container.
+- `bash tools/bg-verify.sh --install` adds a local `post-commit` hook that runs `pnpm verify` in the background. Log: `.claude/verify-bg.log`. It removes the stamp when the tree changes during the run.
+- `bash tools/deploy.sh --force-all` builds every service. The default builds only the changed images (see `docs/06-deployment.md`, step 3b).
+
 ## Local e2e stack
 
 `apps/web/e2e/README.md` and `apps/web/e2e/local-stack.sh`. The session minter is a dev tool; never enable it on production.
