@@ -2855,3 +2855,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the CI gate was built (`23ee76fc`) but never run against a bad lockfile. CI runs only on push to main and on pull requests to main, so a plain branch push starts no run.
 **Fix:** S27 proof on a throw-away worktree and draft PR #26 (closed, branch and worktree deleted). `modules/10-admin-dashboard/package.json` pinned `react-router-dom` 6.27.0, lockfile held 6.27.0 and 6.30.6. Run https://github.com/manishjnv/assessIQ/actions/runs/39146004131 = failure after about 6 min. Failed jobs: `unit (2)` (`tools/__tests__/single-router-copy.test.ts`, 3 of 4 tests, `expected 2 to be 1`), `e2e (shard-1, 1)` and `e2e (shard-2, 2)` (step Run E2E specs, `signed-in-smoke.spec.ts` failed on every admin route), `ci-ok`. Lighthouse CI and Visual regression also failed on the PR. The push hook did not block the branch push.
 **Prevention:** the lockfile test and `signed-in-smoke` in CI are proven. For any future CI proof, open a draft PR; a branch push alone runs nothing.
+
+## 2026-10-18 — CI unit red: next-brief test failed after a SESSION_STATE block without `---`
+
+**Symptom:** CI run 39150638840 (Astro upgrade commit) failed in `unit (2)`: `tools/__tests__/next-brief.test.ts` found "## Agent utilization" in the generated `docs/NEXT.md`. Astro was not the cause.
+**Cause:** The new S28 block in `docs/SESSION_STATE.md` had its footer heading inside the block and no `---` line before it. `firstSessionBlock` in `tools/next-brief.mjs` (line 24 to 31) cuts the block at the first `---` line, so the footer went into NEXT.md. S27 had `---` before `## Agent utilization`.
+**Fix:** put `---` and a `## Agent utilization` heading after the S28 summary lines (commit `0675dd30`).
+**Prevention:** `pnpm verify` does not run the tools tests. Run `pnpm vitest run tools/__tests__` after any SESSION_STATE edit. The block shape is: summary lines, `---`, then `## Agent utilization`.
