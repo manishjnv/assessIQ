@@ -123,7 +123,7 @@ Set `LOG_DIR=/var/log/assessiq` in `/srv/assessiq/.env`, so `00-core` activates 
 
 **Goal:** find a missing operational dependency before you deploy. Run the lint locally, or read the CI result.
 
-Four automated CI checks run in `.github/workflows/ci.yml` (step 12) through `pnpm lint:deploy-procedure`. Each check is independent. A violation in any one check exits 1 and blocks the PR. Exit 0 means all four checks are clean. Exit 2 means the lint itself hit an internal error (missing file, parse failure).
+Four automated CI checks run in `.github/workflows/ci.yml` through `pnpm lint:deploy-procedure`. They run in the `docs-check` job. That job runs on every commit, including docs-only commits. Each check is independent. A violation in any one check exits 1 and blocks the PR. Exit 0 means all four checks are clean. Exit 2 means the lint itself hit an internal error (missing file, parse failure).
 
 `score-goldens` runs in CI as the AI generation eval gate. Failures block the merge. The evidence is in the CI step log under "AI generation eval gate".
 
@@ -365,14 +365,23 @@ bash tools/deploy.sh --yes --services "assessiq-frontend" --no-sweep
 
 The seven steps (each prints `STEP n/7` and `OK` or `FAIL`):
 
-1. Local preflight: no tracked changes, `HEAD` equals `origin/main`, CI is `success` for that SHA.
+1. Local preflight: no tracked changes, `HEAD` equals `origin/main`, and CI is `success` for two SHAs:
+   - `HEAD`.
+   - The newest commit that changes a non-docs path. The script finds it with `git log -1 -- . ':!docs' ':!*.md' ':!.vale'`.
+
+   The script prints both SHAs, for example `CI checked: HEAD=fb2cd88 last-code-commit=aa5dbf6`. A docs-only `HEAD` therefore deploys against the CI run of the last code change. If a force push makes the old `before` SHA unreachable, the script uses `HEAD~1`. The second check covers that case.
    - Step 1b (only when `assessiq-frontend` is in the service list): run `pnpm verify:signed-in`. A failure aborts before anything changes on the VPS. A dry run only prints that it would run.
 2. VPS preflight: `/srv/assessiq/.git` exists and no tracked file changed.
 3. Pull: `git pull --ff-only` (dry run: `git fetch` only). The VPS SHA must equal the local `HEAD`.
 4. Drift gate: same rules as the table below. A DB-only name outside the allowlist aborts.
 5. Migrations: apply each pending file in sorted order, record its sha256 in `schema_migrations`, then re-apply the help seed and print the `help_content` row count before and after.
+   - A file with no `BEGIN`, `COMMIT` or `START TRANSACTION` line runs with `psql -1`. Its `schema_migrations` row goes in the same transaction. A failing file rolls back in full.
+   - A file with its own transaction control keeps the older two-step path.
 6. Build: output goes to `/tmp/deploy-build.log` on the VPS. The script aborts unless `BUILD_EXIT=0`.
 7. Recreate with `up -d --no-deps --force-recreate`, wait up to 90 s for healthy, then run the sweep. The exit code is the sweep exit code.
+
+> [!WARNING]
+> Do not put `CREATE INDEX CONCURRENTLY` or `VACUUM` in a migration that the script applies in one transaction. Both fail inside a transaction block. Apply that file by hand, then insert its `schema_migrations` row yourself. Adding your own `BEGIN` and `COMMIT` lines does not fix this.
 
 Safety rules: the script touches only `assessiq-*` services and `/srv/assessiq`. It never runs prune, `rm`, `stop`, `apt`, `systemctl` or a Caddy command, and never prints secrets. Any error before step 7 aborts before the recreate. A migration that fails stops the run, and later files are not applied.
 

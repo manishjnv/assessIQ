@@ -2827,3 +2827,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the gate looks for a `pnpm verify` run that finished before the push command. A chained `pnpm verify && git push` does not count.
 **Fix:** run `pnpm verify` as a separate command, then run the trailer commit as its own command, then push.
 **Prevention:** manual discipline; see the CLAUDE.md speed rules (push hook).
+
+## 2026-10-18 — Flaky AttemptSubmitModal test: N and P keys
+
+**Symptom:** the "N and P keys" test in `apps/web/src/pages/take/AttemptSubmitModal.test.tsx` failed on some CI runs and passed on rerun.
+**Cause:** `findByText` resolved on a DOM change. React had not yet run the passive effect that binds the keydown listener (`apps/web/src/pages/take/attempt-parts/KeyNav.tsx:60`), so the key press came too early.
+**Fix:** `await act(async () => {})` after each `findByText` in `apps/web/src/pages/take/AttemptSubmitModal.test.tsx`. No timers and no retries (`05193ac1`).
+**Prevention:** manual discipline. After an async query, flush effects with `act` before you fire a keyboard event.

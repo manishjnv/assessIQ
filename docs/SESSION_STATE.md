@@ -1,3 +1,28 @@
+# Session — 2026-10-18 — S24: CI and tooling time work
+
+**Headline:** S24 cut CI time and tooling waits. Docs-only commits skip heavy CI, deploys check the last code commit, migrations run in one transaction, and a flaky test is fixed. CI is 6m50, not the 5.5 min target; e2e sharding is next (Z-58).
+**Commits (main, oldest first):** `aa5dbf6e` parallel CI, docs-only skip, `ci-ok` (Z-55, Z-56) · `bd3a1218` e2e workers (Z-55) · `05193ac1` deploy transaction, worktree scripts, flaky test, agent rules (Z-57) · docs commit TBD (this block)
+**Tests:** CI green on `39137810235` (6m50) and on docs-only `fb2cd882` (37 s). Dry-run deploy on `fb2cd88` passed. Web suite 5 of 5 under load. Migration transaction tested on a throw-away postgres:16.
+**Next:** Push the docs commit (`pnpm verify` in its own command first), then build Z-58 (e2e 2-way shard).
+**Open questions:**
+- Z-54: flip `fail_on_error` on or after 2026-10-29, after 3 green runs.
+- Migration one-transaction path: dry run on the VPS not run yet (needs ssh).
+- Z-53: RCA entry not written; the evidence is in the ROADMAP row only.
+**New rows:** Z-58 (e2e 2-way shard). Closed: Z-53, Z-56, Z-57. Partly done: Z-55. Z-54 open with a date note. Z.7 counts not recounted.
+**Old task or feature checked:** Z-55, Z-56 vs the S21 parallel CI job (extended) (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): plan, diff review of `ci.yml`, verify-stamp, `deploy.sh` and `wt-clean.sh`, commits, CI watch, ROADMAP.
+- Sonnet: `ci.yml` rewrite 117k tokens (reworked: N); verify-stamp 87k (discarded: owner deferred); flaky tests 108k (reworked: N); `deploy.sh` transaction 99k (reworked: N).
+- Haiku: worktree scripts and Z-57 docs 119k (reworked: N); Z-53 check 89k (reworked: N); this docs run.
+- codex:rescue: n/a — no security path touched.
+- Gemini (agy): n/a — no bulk read needed.
+- Codex (exec): n/a — no review needed.
+
+---
+
 # Session — 2026-10-18 — S22: Z-50, Z-47, Z-48, Z-24, Z-39 tails and EXP-18 part 2 built
 
 **Headline:** S22 built and pushed six items; deploy of the last commit may still be pending. Z-50 (distinction switch), Z-47 (signed-in sweep), Z-24 (Home checklist), Z-39 tails and EXP-18 part 2 (review gate) are done. Z-48 (Docs lint) is partly done. Z-42 stays open.

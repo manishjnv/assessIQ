@@ -20,3 +20,14 @@
 | Big logs | Reading SESSION_STATE, ROADMAP and RCA in full costs about 490k tokens | Use `docs/NEXT.md` and grep. |
 | Docs ignored by git | `docs/` is in `.gitignore` but files are tracked | `git add -f <file>`. |
 | Shared VPS | Other apps run on it | Additive deploys only; enumerate before touching shared config; ask the owner before editing Caddy. |
+
+## S24 traps (2026-10-18)
+
+- The `pnpm verify` stamp is tied to the HEAD tree. Order: commit, then `pnpm verify` in its own command, then push in its own command. Run verify again if the stamp is stale.
+- Two sessions share one clone. Another session committed during S24 (`fb2cd882`). Run `git log` before each commit.
+- Git Bash rewrites `/s /q` as paths. Set `MSYS_NO_PATHCONV=1` and run `cmd.exe /d /c`.
+- `gh run rerun <id> --failed` reruns only the failed jobs. The run keeps its id and gets a new attempt number.
+- Skipped jobs on a docs-only commit are normal. Read the `ci-ok` result.
+- Redis ECONNREFUSED lines in failed logs are noise from unmocked API tests. They are not the failing assertion.
+- A migration with `CREATE INDEX CONCURRENTLY` or `VACUUM` cannot run in the one-transaction path. Apply it by hand, then insert its `schema_migrations` row. Adding your own BEGIN and COMMIT does not help.
+- A docs-only commit that is force-pushed after a code change can look docs-only. The deploy check on the last code commit covers this case.

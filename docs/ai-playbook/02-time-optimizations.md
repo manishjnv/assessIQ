@@ -26,3 +26,34 @@ Known gap: migrations are not wrapped in one transaction. A failed file stops th
 ## Pending time work
 
 See `09-optimization-register.md` (TIME-8 to TIME-13) and `11-time-tooling-plan.md`. Summary: faster CI (Z-55), docs-only commits (Z-56), agent workflow rules (Z-57), worktree per session, flaky test fix, migrations in one transaction. The signed-in smoke gate (Z-47) is built; its injected-failure proof (Z-53) is open.
+
+## S24 results (2026-10-18)
+
+Measured on the owner's setup. Times are wall-clock.
+
+| Item | Before | After | Status |
+| --- | --- | --- | --- |
+| CI wall time per code push | About 9 to 10 minutes (11 minutes on `0a58c457`) | 6 minutes 50 seconds (run `39137810235`) | Partly done. Target of 5.5 minutes not reached. |
+| Docs-only commit wait | About 11 minutes (full CI run) | 37 seconds (`fb2cd882`) | Done. Heavy jobs skip. |
+| Deploy preflight | HEAD CI had to pass; a docs-only HEAD waited for a full run | CI checked on HEAD and on the last code commit | Done. Dry run on `fb2cd88` passed. |
+| Worktree setup | Manual steps | 91 to 99 seconds with `pnpm install`; `pnpm verify` about 35 seconds | Done (`tools/wt-setup.sh`, `tools/wt-clean.sh`). |
+| Migration apply | One file at a time; a failed file left partial changes | One transaction per file that has no transaction control of its own | Done. Dry run on the VPS not run yet (needs ssh). |
+| Flaky test | Intermittent red CI | Fixed (`05193ac1`) | Done. |
+
+CI job times in run `39137810235`:
+
+- `changes`: 4 seconds.
+- `docs-check`: 30 seconds.
+- `quality`: 1 minute 19 seconds.
+- `typecheck`: 1 minute 57 seconds.
+- `unit` shards: 2 minutes 36 seconds to 3 minutes 34 seconds.
+- `e2e`: 6 minutes 36 seconds. This is now the longest job.
+
+The target is not reached. Workers 1 to 2 alone saved little. Runner minutes rose, but the repository is public, so Actions minutes are free.
+
+Two green runs exist on the new layout. The third comes with the next code push.
+
+Follow-up (row Z-58 in `docs/ROADMAP.md`): shard the e2e job two ways.
+
+- Each shard needs its own Postgres and Redis service.
+- The phone timing check (RW-79) runs on shard 1 only.
