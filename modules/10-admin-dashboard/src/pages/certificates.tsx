@@ -383,6 +383,21 @@ export function AdminCertificates(): React.ReactElement {
     { key: "actions", label: "Actions",
       render: (c) => cell(c, (
         <>
+          {/* Same URL as the drawer's Download PDF link. Hidden for revoked certs:
+              GET /api/certificates/:id/pdf returns 410 Gone for them (pdf.test.ts). */}
+          {c.revoked_at === null && (
+            <HelpTip helpId="admin.certificates.row_pdf">
+              <a
+                href={`/api/certificates/${c.credential_id}/pdf`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-accent)", textDecoration: "none", padding: "2px 6px", whiteSpace: "nowrap" }}
+              >
+                PDF
+              </a>
+            </HelpTip>
+          )}
           {c.revoked_at === null && (
             <HelpTip helpId="admin.certificates.revoke">
               <button

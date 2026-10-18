@@ -182,14 +182,15 @@ function domainBreakdown(items: ActivityBreakdownItem[]): StatCardBreakdownItem[
   return items.map((item) => ({ label: domainLabel(item.key), value: item.value, pct: item.pct }));
 }
 
+// Same plain wording as the admin Activity page (modules/10-admin-dashboard/src/pages/activity.tsx, RW-21).
 const QUARTILE_LABELS: Record<string, string> = {
-  top_quartile:    "Top quartile",
-  above_median:    "Above median",
-  below_median:    "Below median",
-  bottom_quartile: "Bottom quartile",
+  top_quartile:    "Top 25%",
+  above_median:    "Upper middle",
+  below_median:    "Lower middle",
+  bottom_quartile: "Bottom 25%",
 };
 
-function quartileBreakdown(items: ActivityBreakdownItem[]): StatCardBreakdownItem[] {
+export function quartileBreakdown(items: ActivityBreakdownItem[]): StatCardBreakdownItem[] {
   return items.map((item) => ({
     label: QUARTILE_LABELS[item.key] ?? item.key,
     value: item.value,
