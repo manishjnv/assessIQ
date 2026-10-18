@@ -20,7 +20,8 @@
 | `node tools/next-migration.mjs [--count N]` | Prints the next N free migration numbers (highest `modules/*/migrations` prefix + 1, skipping numbers marked reserved in ROADMAP or SESSION_STATE) | Exit 0. Does not assign numbers to agents. Not wired into `next-brief.mjs`. |
 | `node tools/routing-report.mjs [--json] [--since YYYY-MM-DD]` | Rework rate per route; Haiku 5.5 trial counts only runs on or after 2026-10-18 (or `--since`). Prints run count and files | Exit 2 on a bad date. Date comes from the `## Session — date` header. |
 | `node tools/next-brief.mjs` | Writes `docs/NEXT.md` | See `08-token-tooling-plan.md`. |
-| `tools/codex-review.sh` | Planned (Z-69) | Check `ls tools` before using. |
+| `bash tools/ci-green-streak.sh [since-sha]` | Prints `streak N of 10`: green code runs of `ci.yml` on main since `8eb0a949` (retries 0). Docs-only runs are ignored | Read-only. Looks at the last 40 runs; a red code run ends the streak. Does not change retries. |
+| `bash tools/codex-review.sh <base-ref> [--dry-run]` | Text-only Codex review of `git diff <base>...HEAD`. Scans added lines for secrets first | Exit 0 ok, 2 diff over 3000 lines, 3 secret found or tree changed, 4 Codex failed, 64 usage. `--dry-run` prints the prompt and counts, calls nothing. The live call is NOT tested: Codex is down since 2026-10-11. Not a replacement for the Sonnet takeover gate. |
 
 ## Session time helpers (S25)
 

@@ -2848,3 +2848,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** The check was built (Z-47) but never run against a bad lockfile.
 **Fix:** S24 run on a throw-away worktree: one workspace set to react-router-dom 6.27.0 and relocked. `tools/__tests__/single-router-copy.test.ts` failed 3 of 4; `pnpm verify:signed-in` exited 1 and the signed-in-smoke specs failed. Worktree deleted. CI now runs `signed-in-smoke` (Z-59), so the same injection turns CI red.
 **Prevention:** single-router test plus `signed-in-smoke` in CI.
+
+## 2026-10-18 — Z-59 CI proof: injected second router copy turns CI red
+
+**Symptom:** none in production. The Z-53 proof (S24) ran the injection only locally. After Z-59 moved `signed-in-smoke` into CI, nobody had shown that CI itself goes red.
+**Cause:** the CI gate was built (`23ee76fc`) but never run against a bad lockfile. CI runs only on push to main and on pull requests to main, so a plain branch push starts no run.
+**Fix:** S27 proof on a throw-away worktree and draft PR #26 (closed, branch and worktree deleted). `modules/10-admin-dashboard/package.json` pinned `react-router-dom` 6.27.0, lockfile held 6.27.0 and 6.30.6. Run https://github.com/manishjnv/assessIQ/actions/runs/39146004131 = failure after about 6 min. Failed jobs: `unit (2)` (`tools/__tests__/single-router-copy.test.ts`, 3 of 4 tests, `expected 2 to be 1`), `e2e (shard-1, 1)` and `e2e (shard-2, 2)` (step Run E2E specs, `signed-in-smoke.spec.ts` failed on every admin route), `ci-ok`. Lighthouse CI and Visual regression also failed on the PR. The push hook did not block the branch push.
+**Prevention:** the lockfile test and `signed-in-smoke` in CI are proven. For any future CI proof, open a draft PR; a branch push alone runs nothing.

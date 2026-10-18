@@ -124,3 +124,7 @@ modules/07-ai-grading/eval/cases-private/
 
 # pnpm verify stamp
 .claude/.verify-stamp
+
+# Deploy markers on the VPS clone (Z-61) and the background verify lock (Z-62)
+.deployed/
+.claude/verify-bg.lock

@@ -16,7 +16,7 @@ export const SECTIONS = ["Z.2", "Z.3", "Z.4", "Z.5", "Z.6"];
 const CHECK = "✅";
 const POINTER = /^(pointer|merged into)/i;
 // Rows added after S22 write "closed (S26, ...)" without a check mark; count them closed too.
-const CLOSED = /^(closed|done)/i;
+const CLOSED = /^(closed|done)/i;
 
 export function splitLines(text) {
   return text.split(/\r?\n/);

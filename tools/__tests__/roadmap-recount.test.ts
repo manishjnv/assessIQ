@@ -35,7 +35,7 @@ const FIXTURE = [
   "| Z.4 After pilot | 1 (fixture) |",
   "| Z.5 Closed | 1 (fixture) |",
   "| Z.6 New pending | 1 rows |",
-  "- S9 close recount (2026-10-18), by the status column: Pending = 1 + 1 + 0 + 0 + 1 = 3. Closed = 1 + 1 + 1 = 3. Total = 6.",
+  "- S9 close recount (2026-10-18), by the status column: Pending = 1 + 1 + 0 + 0 + 0 = 2. Closed = 1 + 0 + 1 + 1 + 1 = 4. Total = 6.",
 ].join("\n");
 
 describe("roadmap recount (Z-68)", () => {
@@ -53,13 +53,22 @@ describe("roadmap recount (Z-68)", () => {
       "Z.3": [1, 0, 1, 0],
       "Z.4": [1, 1, 0, 0], // bold check mark still counts
       "Z.5": [1, 1, 0, 1], // all closed; pointer row skipped
-      "Z.6": [1, 0, 1, 1], // "closed (S24)" has no check mark, so pending; pointer skipped
+      "Z.6": [1, 1, 0, 1], // "closed (S24)" counts as closed without a check mark; pointer skipped
     });
+  });
+
+  it("counts a status that starts with the word closed or done as closed", () => {
+    const rows = [
+      ["Z-1", "", "", "", "closed (S26, 2026-10-18)"],
+      ["Z-2", "", "", "", "done (S24)"],
+      ["Z-3", "", "", "", "pending (Claude)"],
+    ];
+    expect(countSection("Z.6", { rows, malformed: 0 })).toMatchObject({ rows: 3, closed: 2, open: 1 });
   });
 
   it("reports no differences when the fixture Z.7 numbers match", () => {
     const report = buildReport(lines);
-    expect(report.totals).toEqual({ pending: 3, closed: 3, total: 6, doneSharePct: 50 });
+    expect(report.totals).toEqual({ pending: 2, closed: 4, total: 6, doneSharePct: 67 });
     expect(report.differences).toEqual([]);
     expect(report.same).toBe(true);
   });
@@ -72,6 +81,6 @@ describe("roadmap recount (Z-68)", () => {
   });
 
   it("reads the newest recount line from Z.7", () => {
-    expect(parseZ7(lines).recount).toEqual({ label: "S9 close recount (2026-10-18)", pending: 3, closed: 3, total: 6 });
+    expect(parseZ7(lines).recount).toEqual({ label: "S9 close recount (2026-10-18)", pending: 2, closed: 4, total: 6 });
   });
 });
