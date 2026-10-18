@@ -412,6 +412,37 @@ Rows marked ✅ or done whose code check found a leftover. A new leftover gets a
 - S15 (2026-10-17): eight rows closed in place (RW-79, RW-80 built with the default gate, RW-81, RW-82, RW-83, RW-84, RW-60/FU-C14, Y-13); Z.4 rows RW-79..RW-84 are the first after-pilot rows closed; done share = (94 + 8) / 188 = 54%. The request text said 82 pending and 184 total; the file series is 188 rows and 94 pending, so 94 - 8 = 86.
 - Counting rule for Y-10: count one row per piece of work in this section only. Do not count rows in the older sections.
 
+### Z.7b Owner review sheet answers Q7 to Q49 (recorded 2026-10-19, S29)
+
+Source: `docs/owner-review/AssessIQ_Owner_Decisions_2026-10-18.docx`. Q1 to Q6 are in the rows above. Blank questions (Q6 box, Q13, Q14, Q21, Q36 to Q47) were NOT guessed. Memory file `owner-decisions.md` holds the same list.
+
+| Q | Rows | Owner answer | State |
+|---|---|---|---|
+| Q7 | RW-43, R6 | Use the business API once a paid contract is signed; until then AI grading is free use, no legal issue | recorded; lawyer to confirm |
+| Q8 | X1, FR9, OD2 | API-mode AI grading later, for paying customers only | recorded, not built |
+| Q9 | X5, OD5 | Approve the tiered webcam and ID plan for free and paid customers (adults only, consent first). **Reverses "live proctoring out of scope"**; live human proctoring stays out | design `docs/design/2026-10-18-tiered-proctoring-design.md`; build pending |
+| Q10 | RW-42, X8 | Languages: later | recorded |
+| Q11 | A5, RW-52 | Keep the email plan free, send in smaller groups | built S29: bulk cap 250 a day (`EMAIL_BULK_DAILY_CAP`), queue panel |
+| Q12 | RW-62, L2 | Question statistics and adaptive tests: later | recorded |
+| Q15 | RO4, B4, FU-B21 | MFA for company admins stays optional | recorded |
+| Q16 | N7, B1, B2, B4, E8 | Both confirmed; weekly backup by the VPS provider is the current state; daily off-site backup waits for the first paying customer | recorded |
+| Q17 | Y-2, RV60 | Emailed code works; wants auto sign-in on the correct code and a message on a wrong code | built S29 (Y-2 review of `23c77e2` stays the owner's call) |
+| Q18, Q19 | Y-3, SP-gap-2 | "Former reviewer"; "AssessIQ staff" | built S29, closed |
+| Q20 | RV33, FU-D26 | Approve protected-file edits | done S29, closed |
+| Q22 | RW-89, RW-98 | Keep the two consent fields with a time limit; the lawyer sets the period | recorded; not built |
+| Q23 | Y-9 | Ignore the stray lockfile | done S29, closed |
+| Q24, Q25, Q28, Q29, Q33 | RW-10, N5, B5, E2, FU-D28, RV67, E4, A7, SP-gap-3, C4 | Owner will do these before the pilot | owner |
+| Q26 | RW-46, RW-92, RV62 | Topic focus is good enough | recorded |
+| Q27 | A3 | Pilot company done (Rajneesh logged in) | recorded |
+| Q30, Q31 | C1, C2 | Contact form works; the emailed sign-in code works | recorded |
+| Q32 | C3 | Enterprise enquiry reply not needed; will watch the next one | recorded |
+| Q34 | C5 | Phishing pack not ready | recorded |
+| Q35 | C7 | Wildcard DNS cutover done | closed |
+| Q48 | X8, RW-82 | Trust center and accessibility: after the pilot | recorded |
+| Q49 | EXP-0 | Exam pack sourcing rules still stand | recorded |
+
+Free plan (Q3, final 2026-10-19): public name Free, no end date, no auto-delete, 5 candidates in total, no Trial mark, no export, AI grading for a few attempts with a kill switch. See Z-70.
+
 ### Z.8 Repo hygiene plan — private planning docs out of the public repo (2026-10-17, plan only, no code yet)
 
 Owner instruction (2026-10-17): every plan and roadmap lives in `docs/`, which git ignores; one roadmap (`docs/ROADMAP.md`) collects improvements and new ideas; remove the design files from GitHub without damage to existing features. This block is the plan. Nothing below is executed until the owner says "run Z.8".

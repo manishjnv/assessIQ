@@ -1184,6 +1184,8 @@ docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate asse
 
 ## Edit the `.env` file (`/srv/assessiq/.env`)
 
+> **S29 (2026-10-19), Q11:** optional `EMAIL_BULK_DAILY_CAP` (positive integer, default 250). It limits bulk email (candidate invitations, results, digests) per day in Asia/Kolkata time; the rest go out at 09:00 IST on the next free day. Sign-in codes are never limited. The default needs no VPS change. To use another value, add it to `.env` and make sure the compose file passes it to `assessiq-api` and `assessiq-worker` (not checked). Brevo free plan: 300 a day, shared with other products.
+
 **Goal:** set the production environment variables.
 
 ```ini
