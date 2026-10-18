@@ -1,3 +1,37 @@
+# Session — 2026-10-18 — S22: Z-50, Z-47, Z-48, Z-24, Z-39 tails and EXP-18 part 2 built
+
+**Headline:** S22 built and pushed six items; deploy of the last commit may still be pending. Z-50 (distinction switch), Z-47 (signed-in sweep), Z-24 (Home checklist), Z-39 tails and EXP-18 part 2 (review gate) are done. Z-48 (Docs lint) is partly done. Z-42 stays open.
+**Commits (main, oldest first):** `8cd6b9d` to `76b8de8` Z-50 (migration 0205) · `dbfc554` Z-47 · `e93f309` Z-24 + Z-42 part 3 · `78165b0` Z-48 · `449e8aa2`, `bea8a8b0` Z-39 tails · `0a58c457`, `a3a41852` Docs lint follow-ups · `0ed17887` EXP-18 part 2 (no migration)
+**Tests:** `pnpm verify` green. Module tests: help 116, admin-dashboard 236, certification 153, scoring release 51, analytics 163, question-review 18, lifecycle gate 13. Docs lint CI on main after `a3a41852`: CONFIRM (status unknown at write time). Help-id count 531. Next free migration: 0206 (0206 and 0207 were reserved and unused).
+**Next:** (1) Deploy `0ed17887` if not yet done (`bash tools/deploy.sh`, then the sweep). (2) Confirm Docs lint is green (Z-48, Z-54). (3) Z-42 form decision (Z-51). (4) Z-38 Dependabot majors: not started. (5) Z-46 CSP: not started, the owner has not said yes.
+**Open questions:**
+- Z-49: does `/try` carry the Cloudflare beacon? Owner picks A or B.
+- Z-42 / Z-51: (a) allow `sections` and `blueprint` together, or (b) keep them exclusive and put the fields in the blueprint.
+- Z-46: yes or no on the CSP Report-Only header.
+- EXP-18 NULL review state: decided, no backfill. Gaps are in row Z-52.
+**New rows:** Z-51 (Z-42 form fields), Z-52 (EXP-18 gaps), Z-53 (injected fail run for Z-47), Z-54 (Docs lint flip). Z.7 recount: 239 rows, 101 pending, 138 closed (58%).
+**Old task or feature checked:** Z-39, Z-47, Z-50 (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Agent utilization
+- Opus: plan, line-by-line diff review, fixes after gates (Z-39 gate items, EXP-18 REVISE fixes, Z-47 port fix, Docs lint follow-ups), patch merges for Z-24 / Z-42, final verify, these docs.
+- Sonnet: builders for Z-50, Z-47, Z-48, Z-39 and EXP-18; 3 takeover gates (Z-50 ACCEPT, Z-39 ACCEPT, EXP-18 REVISE); docs runs.
+- Haiku: warm-start digest; Z-24 build; Z-42 part 3 build.
+- codex:rescue: n/a — sandbox down; Sonnet takeover gates used.
+- Gemini (agy): 1 run timed out with no output.
+- Codex (exec): 2 text-only reviews (Z-39: revise-minor; EXP-18: failed, argument list too long).
+- Routing telemetry:
+  - Sonnet · Z-50 distinction switch · reworked: N
+  - Sonnet · Z-47 signed-in sweep · reworked: Y (port 3000 blocker; Opus fixed the port)
+  - Sonnet · Z-48 Docs lint · reworked: Y (CI Vale scan scope and "Too many results"; two Opus follow-ups)
+  - Haiku · Z-24 Home checklist · reworked: N (patch merge conflicts, fixed by Opus)
+  - Haiku · Z-42 part 3 mock card · reworked: Y (partial; server gap)
+  - Sonnet · Z-39 tails · reworked: N (gate items fixed by Opus)
+  - Sonnet · EXP-18 part 2 · reworked: Y (gate REVISE, 3 fixes)
+
+---
+
 # Session — 2026-10-18 — S21: Z-47, Z-41, Z-44, Z-43, Z-23, Z-45 closed; Z-32 closed; Z-39, Z-42, EXP-18 in part; speed tooling shipped
 
 **Headline:** S21 is complete and live. VPS = `74704fc`, deployed with `tools/deploy.sh`. Closed: Z-41, Z-43, Z-44, Z-23, Z-45, Z-32 (production check passed). In part: Z-39, Z-42, Z-47, EXP-18. Speed work: API image build 25 min to 37 s on the VPS, `pnpm verify`, parallel CI. Owner decisions: every passing candidate gets a certificate; the distinction line shows only when the org admin enables it (new row Z-50); a later attempt never changes an issued certificate (Z-39 tier-upgrade question closed).

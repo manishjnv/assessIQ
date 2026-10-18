@@ -2717,3 +2717,8 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 - `tools/post-deploy-sweep.sh` (commit `c4f0159`): the sweep that `tools/deploy.sh` runs after each deploy.
 - `tools/deploy.sh` (commit `9b7d18c`): pull, build, recreate, health check and sweep in one run. It is additive only and touches `assessiq-*` services.
 - CI (commit `054baf3`): the `e2e` job no longer has `needs: quality`. Run 39115160491: quality 7m02, e2e 9m36, total 9m38. The serial layout took about 15 min.
+
+## S22 (2026-10-18)
+
+- Commit range: `8cd6b9d` to `0ed17887` (Z-50 migration 0205, Z-47, Z-24, Z-48, Z-39 tails, EXP-18 part 2).
+- Deploy: pending

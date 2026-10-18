@@ -2792,3 +2792,38 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the `e2e` job in `.github/workflows/ci.yml` had `needs: quality`. A lint error in `quality` skipped `e2e`, so real e2e breakage was hidden behind it. The serial run also took about 15 min.
 **Fix:** commit `054baf3`: removed `needs: quality` from the `e2e` job. Run 39115160491: quality 7m02, e2e 9m36, total 9m38.
 **Prevention:** independent jobs run in parallel. Read the result of every job, not only the first red one.
+
+## 2026-10-18 — Docs lint: Vale scanned the whole repo and reviewdog stopped with "Too many results"
+
+**Symptom:** the Docs lint job failed or reported nothing useful. The log said "Too many results" after about 60000 Vale findings.
+**Cause:** the `vale-action` `files` input was a comma string, so Vale scanned the whole repo including vendor paths. reviewdog stops when the finding count is too high.
+**Fix:** commit `0a58c457` passes `files` as a JSON array and excludes out-of-scope paths. Commit `a3a41852` sets CI to report errors only (`minAlertLevel=error`).
+**Prevention:** keep `files` a JSON array. Confirm Docs lint is green on main before flipping `fail_on_error` (ROADMAP row Z-54).
+
+## 2026-10-18 — `git commit --amend` on a shared clone hit another session's commit
+
+**Symptom:** an amend (for the noreply author fix) rewrote a commit that another session had just made.
+**Cause:** HEAD moved between the commit and the amend, because two sessions use one working clone.
+**Fix:** none needed in code; the amend was redone on the right commit.
+**Prevention:** run `git log -1` right before every amend, or use a rebase reword of a named commit.
+
+## 2026-10-18 — `git add -f <directory>` pulled in `node_modules`
+
+**Symptom:** `git add -f docs/...` failed with "Filename too long".
+**Cause:** a directory path with `-f` also added ignored `node_modules` content.
+**Fix:** add named files only.
+**Prevention:** never run `git add -f` on a directory (already in the CLAUDE.md speed rules).
+
+## 2026-10-18 — `git apply` of several agent patches that touch the same files fails
+
+**Symptom:** the second and later patches failed to apply.
+**Cause:** the patches changed the same files (for example the help seed), so the context differed after the first patch.
+**Fix:** stage the first patch, apply the next with `--3way`, then regenerate generated files (the help seed) after the merge.
+**Prevention:** give parallel agents disjoint file lists; regenerate generated files last.
+
+## 2026-10-18 — Push gate needs `pnpm verify` in its own command
+
+**Symptom:** `git push` was blocked by the hook.
+**Cause:** the gate looks for a `pnpm verify` run that finished before the push command. A chained `pnpm verify && git push` does not count.
+**Fix:** run `pnpm verify` as a separate command, then run the trailer commit as its own command, then push.
+**Prevention:** manual discipline; see the CLAUDE.md speed rules (push hook).
