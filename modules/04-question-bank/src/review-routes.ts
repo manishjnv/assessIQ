@@ -22,7 +22,11 @@ const ActionBody = z.object({
 });
 const VerifyAllBody = z.object({
   confirm: z.literal(true),
-  expected_count: z.number().int().min(0).max(100_000),
+  expected_count: z.number().int().min(0).max(100_000).optional(),
+  // Z-52: the exact set the admin saw; when present the operation affects exactly this set.
+  expected_ids: z.array(z.string().uuid()).max(100_000).optional(),
+}).refine((b) => b.expected_count !== undefined || b.expected_ids !== undefined, {
+  message: "expected_count or expected_ids is required",
 });
 
 function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, v: unknown, what: string): T {
@@ -61,6 +65,6 @@ export function registerReviewRoutes(
   app.post(`/api/admin/packs/:id/review/verify-all`, { preHandler }, async (req) => {
     const { id } = parse(IdParams, req.params, "params");
     const body = parse(VerifyAllBody, req.body, "body");
-    return bulkVerifyPack(actorOf(req), id, body.expected_count);
+    return bulkVerifyPack(actorOf(req), id, body.expected_count, body.expected_ids);
   });
 }

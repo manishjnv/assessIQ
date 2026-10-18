@@ -35,6 +35,7 @@ import { z } from 'zod';
 import { ValidationError, AuthzError } from '@assessiq/core';
 import * as webhookService from './webhooks/service.js';
 import * as inAppService from './in-app/service.js';
+import { getEmailQueueStatus } from './email/index.js';
 
 // ---------------------------------------------------------------------------
 // Options — DI auth chains (mirrors pattern from modules/07-ai-grading)
@@ -106,6 +107,11 @@ export async function registerNotificationsRoutes(
     if (!tenantId) throw new AuthzError('No organisation context');
     return tenantId;
   }
+
+  /** GET /api/admin/email-queue — this tenant's bulk emails held back by the daily cap (Q11). */
+  app.get('/api/admin/email-queue', { preHandler: adminChain }, async (req: FastifyRequest) => {
+    return getEmailQueueStatus(getTenantId(req));
+  });
 
   /** GET /api/admin/webhooks — list all webhook endpoints for the tenant */
   app.get('/api/admin/webhooks', { preHandler: webhooksChain }, async (req: FastifyRequest) => {

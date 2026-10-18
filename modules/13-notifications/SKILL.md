@@ -281,3 +281,18 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 **Not included.** Logos in admin or alert emails. A separate email queue (open in the roadmap).
 
 **Downstream impact.** Template facts: `docs/13-email-system.md` (header logo). Audit and rate-limit facts: `docs/11-observability.md` § 39.
+
+
+## Bulk email daily soft cap and queue notice (Q11, 2026-10-19)
+
+**What.** `src/email/bulk-cap.ts` adds a daily soft cap for class `bulk` only. `EMAIL_BULK_DAILY_CAP` (positive integer, default 250, read from `process.env`; a bad value falls back to 250) is set in `.env.example`. In `sendEmail`, a bulk job reserves a slot with `INCR aiq:email:bulk:<YYYY-MM-DD>` (Asia/Kolkata date, `EXPIRE` 3 days on the first hit). If the count is at or below the cap the job is sent now. Otherwise the job gets a BullMQ `delay` to 09:00 IST of the first later day whose counter is at or below the cap. Class `auth` (`admin_email_otp`, `candidate_login_link`, `invitation_admin`) never calls the cap: it is not delayed and not counted. If Redis fails or takes more than 2 s, bulk mail is sent now (fail-open) and one `email.bulk_cap` warning is logged. The counter uses its own Redis connection (`maxRetriesPerRequest: 1`), not the Queue connection.
+
+**Route.** `GET /api/admin/email-queue` (admin chain, tenant from the session) returns `{ queuedCount, nextSendAt, dailyCap, sentToday }`. `getEmailQueueStatus(tenantId)` reads the BullMQ delayed set and counts jobs with `data.tenantId` equal to the session tenant and `opts.delay > 0`. Retry backoffs also sit in the delayed set, but they have no `opts.delay`, so they are not counted. `sentToday` is the Redis counter clamped to the cap. UI: `EmailQueuePanel` on assessment detail, Invitations section, shown only when `queuedCount > 0`. Help id `admin.assessments.invitations.email_queue` (YAML and seed only).
+
+**Why.** Brevo free allows 300 emails a day, shared with other products. A large invitation batch used to hit the provider limit and retry for 45 hours. Now the batch spreads over days and sign-in codes keep the remaining room.
+
+**Considered and rejected.** A DB table of queued mail (the BullMQ delayed set already holds it). Reading the cap from the `00-core` config schema (that path is out of scope for this row; move it when `00-core` is next opened). A tight accounting of provider sends (the counter counts reservations, not provider replies).
+
+**NOT included.** A per-tenant cap or per-tenant fairness (one tenant can use the whole day). A way to cancel or re-time queued mail from the UI. A counter for auth mail (the 50-email headroom of the default cap is the only reserve for codes). Over-cap tries also raise today's counter, so `sentToday` is clamped to the cap.
+
+**Downstream.** `docs/03-api-contract.md` has the route. No schema change. No VPS change: the default 250 needs no new variable; set `EMAIL_BULK_DAILY_CAP` in the VPS `.env` only to change it.

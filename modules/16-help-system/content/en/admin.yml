@@ -2867,6 +2867,20 @@ admin.assessments.invitations.resend_result:
     - **Still to send** — more candidates are waiting than one click can send
       (200). Press **Resend to everyone who hasn't started** again to continue.
 
+admin.assessments.invitations.email_queue:
+  audience: admin
+  short_text: "Invitation emails that wait for a later day because of the daily email limit."
+  long_md: |
+    ## Queued invitation emails
+
+    The email service has a daily limit, so a large batch is spread over
+    several days. Sign-in codes are never held back.
+
+    - **Queued** — emails that will send on a later day.
+    - **Next ones send on** — the date of the next batch. Emails go out at
+      about 09:00 India time.
+    - The notice disappears when no email is waiting.
+
 admin.assessments.invitations.paging:
   audience: admin
   short_text: "Invitations are shown 100 at a time. Use Previous and Next to move between pages."

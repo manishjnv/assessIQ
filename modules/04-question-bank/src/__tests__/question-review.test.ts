@@ -12,8 +12,8 @@ import { applyAllMigrations } from "../../../../tools/test-support/apply-all-mig
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { registerQuestionBankRoutes } from "../routes.js";
 import { createPack, addLevel, publishPack } from "../service/packs.js";
-import { createQuestion, bulkImport, updateQuestion } from "../service/questions.js";
-import { reviewQuestion, bulkVerifyPack, getPackReview } from "../service/review.js";
+import { createQuestion, bulkImport, updateQuestion, restoreVersion } from "../service/questions.js";
+import { reviewQuestion, bulkVerifyPack, getPackReview, asRetryableDeadlock } from "../service/review.js";
 import { parseImportFile } from "../import/parse.js";
 import { stageImport } from "../import/staging.js";
 import { commitImport } from "../import/commit.js";
@@ -321,5 +321,117 @@ describe("archived questions and edits (EXP-18 gate fixes)", () => {
 
     await updateQuestion(tA, ids[2]!, { topic: "renamed" }, uA);
     expect((await state(ids[2]!)).review_state).toBe("verified");
+  });
+});
+
+describe("Z-52 gap 1: Needs fix on a platform master reaches its clones", () => {
+  it("clones of a flagged master become needs_fix with a system audit row; archived and unrelated clones are untouched", async () => {
+    const { packId, ids } = await seed(tP, uP, ["verified", "verified"]);
+    await sup((c) => c.query(`UPDATE questions SET status='active' WHERE pack_id=$1`, [packId]).then(() => undefined));
+    await publishPack(tP, packId, uP);
+    await materializeSetForTenant(packId, tB, uB);
+    const cloneOf = async (src: string) => (await sup((c) => c.query(`SELECT id, review_state FROM questions WHERE source_question_id=$1 AND id <> $1`, [src]))).rows[0] as { id: string; review_state: string };
+    const c0 = await cloneOf(ids[0]!);
+    const c1 = await cloneOf(ids[1]!);
+    expect([c0.review_state, c1.review_state]).toEqual(["verified", "verified"]);
+
+    await reviewQuestion({ tenantId: tP, userId: uP, role: "super_admin" }, ids[0]!, "needs_fix", "wrong key");
+    expect((await state(c0.id)).review_state).toBe("needs_fix");
+    expect((await state(c1.id)).review_state).toBe("verified"); // other master untouched
+    const a = await sup((c) => c.query(`SELECT tenant_id, actor_kind, after FROM audit_log WHERE entity_id=$1 AND tenant_id=$2 AND action='question.review_changed'`, [ids[0], tB]));
+    expect(a.rows).toHaveLength(1);
+    expect(a.rows[0]).toMatchObject({ actor_kind: "system", after: { review_state: "needs_fix", action: "needs_fix_propagated", clone_question_ids: [c0.id] } });
+
+    // The caller's context is restored: a normal audit row of the master lands in the platform tenant.
+    expect((await audits(ids[0]!)).some((r) => r.tenant_id === tP)).toBe(true);
+  });
+
+  it("an organisation question needs_fix touches no other tenant", async () => {
+    const { ids } = await seed(tA, uA, ["verified"]);
+    await reviewQuestion({ tenantId: tA, userId: uA, role: "admin" }, ids[0]!, "needs_fix", "x");
+    expect((await state(ids[0]!)).review_state).toBe("needs_fix");
+    expect(await sup((c) => c.query(`SELECT 1 FROM audit_log WHERE action='question.review_changed' AND entity_id=$1 AND actor_kind='system'`, [ids[0]]))).toHaveProperty("rowCount", 0);
+  });
+});
+
+describe("Z-52 gap 2: restoreVersion resets a verified key", () => {
+  it("restoring an older version puts verified back to in_review with an audit row; NULL stays NULL", async () => {
+    const { ids } = await seed(tA, uA, ["in_review", undefined]);
+    for (const id of ids) await updateQuestion(tA, id, { content: { ...MCQ, question: "Edited once?" } }, uA);
+    await reviewQuestion({ tenantId: tA, userId: uA, role: "admin" }, ids[0]!, "verify");
+    expect((await state(ids[0]!)).review_state).toBe("verified");
+
+    await restoreVersion(tA, ids[0]!, 1, uA);
+    expect((await state(ids[0]!)).review_state).toBe("in_review");
+    expect((await audits(ids[0]!)).at(-1)).toMatchObject({ before: { review_state: "verified" }, after: { review_state: "in_review", action: "content_restored" } });
+
+    await restoreVersion(tA, ids[1]!, 1, uA);
+    expect((await state(ids[1]!)).review_state).toBeNull();
+  });
+});
+
+describe("Z-52 gap 3: deadlock maps to a retryable 409", () => {
+  it("asRetryableDeadlock maps 40P01 only", () => {
+    const mapped = asRetryableDeadlock({ code: "40P01" }) as AppError;
+    expect(mapped).toBeInstanceOf(AppError);
+    expect(mapped.status).toBe(409);
+    expect(mapped.details).toMatchObject({ code: "DEADLOCK_RETRY", retry: true });
+    expect(asRetryableDeadlock({ code: "23505" })).toEqual({ code: "23505" });
+  });
+
+  it("a real deadlock on bulk verify returns 409 DEADLOCK_RETRY and writes nothing", async () => {
+    const { packId, ids } = await seed(tA, uA, ["in_review", "in_review"]);
+    const [x, y] = [...ids].sort() as [string, string];
+    const other = new Client({ connectionString: url });
+    await other.connect();
+    try {
+      await other.query("BEGIN");
+      await other.query(`SELECT 1 FROM questions WHERE id=$1 FOR UPDATE`, [y]); // holds the later row
+      const bulk = bulkVerifyPack({ tenantId: tA, userId: uA, role: "admin" }, packId, 2).catch((e: unknown) => e);
+      await new Promise((r) => setTimeout(r, 500)); // bulk now holds x and waits for y
+      const wait = other.query(`SELECT 1 FROM questions WHERE id=$1 FOR UPDATE`, [x]).catch(() => undefined); // closes the cycle
+      const err = (await bulk) as AppError;
+      expect(err).toBeInstanceOf(AppError);
+      expect(err.status).toBe(409);
+      expect(err.details).toMatchObject({ code: "DEADLOCK_RETRY" });
+      await other.query("ROLLBACK").catch(() => undefined);
+      await wait;
+    } finally {
+      await other.end();
+    }
+    expect((await state(x)).review_state).toBe("in_review");
+    expect((await state(y)).review_state).toBe("in_review");
+  }, 30_000);
+});
+
+describe("Z-52 gap 4: expected_ids pins the exact set", () => {
+  const post = (app: Awaited<ReturnType<typeof buildApp>>, packId: string, payload: unknown) =>
+    app.inject({ method: "POST", url: `/api/admin/packs/${packId}/review/verify-all`, headers: hdr(asA), payload: payload as object });
+
+  it("same count but a different question is refused; the exact set verifies; expected_count alone still works", async () => {
+    const { packId, ids } = await seed(tA, uA, ["in_review", "in_review"]);
+    const extra = (await seed(tA, uA, ["in_review"])).ids[0]!;
+    const app = await buildApp();
+    const swapped = await post(app, packId, { confirm: true, expected_count: 2, expected_ids: [ids[0]!, extra] });
+    expect(swapped.statusCode).toBe(409);
+    expect(swapped.json().details).toMatchObject({ code: "REVIEW_COUNT_CHANGED", new_count: 1, gone_count: 1 });
+    expect((await state(ids[0]!)).review_state).toBe("in_review");
+
+    const subset = await post(app, packId, { confirm: true, expected_ids: [ids[0]!] });
+    expect(subset.statusCode).toBe(409);
+
+    const ok = await post(app, packId, { confirm: true, expected_ids: [ids[1]!, ids[0]!] });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toEqual({ verified: 2 });
+
+    const legacy = await seed(tA, uA, ["in_review"]);
+    expect((await post(app, legacy.packId, { confirm: true, expected_count: 1 })).json()).toEqual({ verified: 1 });
+  });
+
+  it("needs at least one of expected_count and expected_ids", async () => {
+    const { packId } = await seed(tA, uA, ["in_review"]);
+    const app = await buildApp();
+    expect((await post(app, packId, { confirm: true })).statusCode).toBe(400);
+    expect((await post(app, packId, { confirm: true, expected_ids: ["nope"] })).statusCode).toBe(400);
   });
 });

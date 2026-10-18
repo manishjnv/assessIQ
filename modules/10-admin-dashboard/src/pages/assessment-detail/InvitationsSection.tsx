@@ -5,6 +5,7 @@ import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { CandidateCsvImport } from "../../components/CandidateCsvImport.js";
+import { EmailQueuePanel } from "../../components/EmailQueuePanel.js";
 import { type Invitation, INV_PAGE_SIZE, type ResendAllResponse, RESEND_SKIP_REASON, type UserItem, type SortDir } from "./shared.js";
 
 export interface InvitationsSectionProps {
@@ -118,6 +119,8 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
     </div>
 
     {id && <CandidateCsvImport assessmentId={id} onImported={fetchData} />}
+
+    <EmailQueuePanel refreshKey={invTotal} />
 
     {/* Invite inline form */}
     {showInviteForm && (

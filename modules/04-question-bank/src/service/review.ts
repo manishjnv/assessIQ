@@ -20,6 +20,7 @@ import { QB_ERROR_CODES } from "../types.js";
 import type { ReviewState } from "../types.js";
 import * as repo from "../repository.js";
 import { withdrawInTx } from "./questions.js";
+import { getPlatformTenantId } from "../clone/helpers.js";
 
 export const REVIEW_ACTIONS = ["verify", "needs_fix", "withdraw"] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];
@@ -30,6 +31,20 @@ export interface ReviewActor {
   tenantId: string;
   userId: string;
   role: string;
+}
+
+/**
+ * Z-52 gap 3: a Postgres deadlock (40P01) becomes a retryable 409. Rows are locked in id order in every
+ * review and publish path, so this should not happen; if it still does, the tx is already rolled back
+ * and the caller can safely repeat the request.
+ */
+export function asRetryableDeadlock(err: unknown): unknown {
+  if (typeof err === "object" && err !== null && (err as { code?: unknown }).code === "40P01") {
+    return new ConflictError("The review changed at the same moment as another change. Retry the request.", {
+      details: { code: QB_ERROR_CODES.DEADLOCK_RETRY, retry: true },
+    });
+  }
+  return err;
 }
 
 export const NOTE_MAX = 1000;
@@ -143,19 +158,88 @@ export async function reviewQuestion(
       before: { review_state: q.review_state },
       after: { review_state: next, action, ...(trimmed.length > 0 ? { note: trimmed } : {}), bulk: false },
     });
+    // Z-52 gap 1: Needs fix on a platform master blocks its tenant clones too.
+    if (next === "needs_fix") await propagateNeedsFix(client, id, actor.tenantId);
     return { id, review_state: next, status: q.status, changed: true };
-  });
+  }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
+}
+
+/**
+ * Z-52 gap 1 (option: propagate on mark, no schema change). A tenant cannot read the platform master
+ * (RLS), so the invite and publish gate cannot look it up at read time. Instead, when a PLATFORM master
+ * goes to needs_fix, every live tenant clone (questions.source_question_id = master) is set to needs_fix
+ * in the same tx, so the existing gate blocks it. One system audit row per affected tenant.
+ * Not undone when the master is verified again: the clone content may be out of date, so the tenant
+ * admin reviews the clone (or re-syncs) to clear it. Same role-switch pattern as propagateTakedown.
+ */
+async function propagateNeedsFix(client: PoolClient, masterId: string, callerTenantId: string): Promise<void> {
+  await client.query("SET LOCAL ROLE assessiq_system");
+  let failed = false;
+  try {
+    const platformTenantId = await getPlatformTenantId(client);
+    const master = await client.query(
+      `SELECT 1 FROM questions m JOIN question_packs mp ON mp.id = m.pack_id WHERE m.id = $1 AND mp.tenant_id = $2`,
+      [masterId, platformTenantId],
+    );
+    if (master.rowCount === 0) return;
+    const clones = await client.query<{ id: string; tenant_id: string }>(
+      `SELECT cq.id, cp.tenant_id
+         FROM questions cq JOIN question_packs cp ON cp.id = cq.pack_id
+        WHERE cq.source_question_id = $1 AND cp.tenant_id <> $2 AND cq.status <> 'archived'
+          AND cq.review_state IS DISTINCT FROM 'needs_fix'
+        ORDER BY cq.id
+          FOR UPDATE OF cq`,
+      [masterId, platformTenantId],
+    );
+    const byTenant = new Map<string, string[]>();
+    for (const r of clones.rows) {
+      const list = byTenant.get(r.tenant_id) ?? [];
+      list.push(r.id);
+      byTenant.set(r.tenant_id, list);
+    }
+    for (const [tenantId, ids] of byTenant) {
+      await client.query(
+        `UPDATE questions q SET review_state = 'needs_fix' FROM question_packs p
+          WHERE q.id = ANY($1::uuid[]) AND p.id = q.pack_id AND p.tenant_id = $2`,
+        [ids, tenantId],
+      );
+      await client.query("SET LOCAL ROLE assessiq_app");
+      await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "system",
+        ip: null,
+        userAgent: null,
+        action: "question.review_changed",
+        entityType: "question",
+        entityId: masterId,
+        after: { review_state: "needs_fix", action: "needs_fix_propagated", source_question_id: masterId, clone_question_ids: ids },
+      });
+      await client.query("SET LOCAL ROLE assessiq_system");
+    }
+  } catch (err) {
+    failed = true;
+    throw err;
+  } finally {
+    if (!failed) {
+      await client.query("SET LOCAL ROLE assessiq_app");
+      await client.query("SELECT set_config('app.current_tenant', $1, true)", [callerTenantId]);
+    }
+  }
 }
 
 /**
  * Verify every in_review question of one pack. `expectedCount` is the number the admin saw in the
  * confirm step; a different current count means the pack changed meanwhile, so nothing is written.
+ * Z-52 gap 4: when `expectedIds` is given, the live set must equal it exactly (swapping one question
+ * for another keeps the count, so a count alone cannot see it); otherwise 409 and nothing is written.
  * Needs-fix and disputed questions are NOT touched (each needs its own look). One audit row per question.
  */
 export async function bulkVerifyPack(
   actor: ReviewActor,
   packId: string,
-  expectedCount: number,
+  expectedCount: number | undefined,
+  expectedIds?: string[],
 ): Promise<{ verified: number }> {
   assertReviewRole(actor.role);
   return withTenant(actor.tenantId, async (client) => {
@@ -173,7 +257,19 @@ export async function bulkVerifyPack(
           FOR UPDATE OF q`,
       [packId],
     )).rows;
-    if (rows.length !== expectedCount) {
+    if (expectedIds !== undefined) {
+      const want = new Set(expectedIds);
+      const have = new Set(rows.map((r) => r.id));
+      const gone = [...want].filter((x) => !have.has(x)).length;
+      const added = [...have].filter((x) => !want.has(x)).length;
+      if (gone > 0 || added > 0) {
+        throw new ConflictError(
+          `The set of questions to verify changed (${added} new, ${gone} gone). Review the list and confirm again.`,
+          { details: { code: QB_ERROR_CODES.REVIEW_COUNT_CHANGED, expected: want.size, actual: have.size, new_count: added, gone_count: gone } },
+        );
+      }
+    }
+    if (expectedCount !== undefined && rows.length !== expectedCount) {
       throw new ConflictError(
         `The number of questions to verify changed from ${expectedCount} to ${rows.length}. Review the list and confirm again.`,
         { details: { code: QB_ERROR_CODES.REVIEW_COUNT_CHANGED, expected: expectedCount, actual: rows.length } },
@@ -196,7 +292,7 @@ export async function bulkVerifyPack(
       });
     }
     return { verified: ids.length };
-  });
+  }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
 }
 
 export interface ReviewItem {
