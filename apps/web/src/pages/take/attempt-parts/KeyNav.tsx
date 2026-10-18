@@ -24,7 +24,7 @@ export function useKeyShortcuts(): [boolean, (on: boolean) => void] {
   ];
 }
 
-export function KeyShortcutsToggle(props: { on: boolean; onChange: (on: boolean) => void }): JSX.Element {
+export function KeyShortcutsToggle(props: { on: boolean; onChange: (on: boolean) => void }): React.JSX.Element {
   return (
     <label
       data-help-id="candidate.attempt.key_shortcuts"
