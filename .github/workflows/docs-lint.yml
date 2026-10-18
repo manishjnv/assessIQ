@@ -37,7 +37,7 @@ jobs:
         uses: errata-ai/vale-action@v2
         with:
           vale_flags: '--config=.vale.ini'
-          files: docs,README.md
+          files: '["docs","README.md"]' # JSON array: a comma string is read as ONE path and Vale scanned the whole repo (Z-48)
           # github-check posts through the Checks API. The default pr-check reporter
           # hit an 'Unhandled error event' socket error in reviewdog (Z-48) and failed the job
           # even when Vale found no error. nofilter keeps push runs working.
