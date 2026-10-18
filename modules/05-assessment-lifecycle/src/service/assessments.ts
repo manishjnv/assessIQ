@@ -616,9 +616,13 @@ export async function updateAssessment(
 
     // Sections are frozen once any attempt exists (draws + section_index are per attempt).
     if (patch.settings !== undefined) {
-      const cur = (current.settings as Record<string, unknown> | undefined)?.["sections"];
-      const next = (patch.settings as Record<string, unknown>)["sections"];
-      if (canonicalJson(cur) !== canonicalJson(next)) {
+      // Z-42: whole_test_minutes and scoring.negative_marks_default are frozen with them.
+      const pick = (s: unknown): unknown[] => {
+        const o = (s ?? {}) as Record<string, unknown>;
+        const sc = (o["scoring"] ?? {}) as Record<string, unknown>;
+        return [o["sections"], o["whole_test_minutes"], sc["negative_marks_default"]];
+      };
+      if (canonicalJson(pick(current.settings)) !== canonicalJson(pick(patch.settings))) {
         const has = await client.query(`SELECT 1 FROM attempts WHERE assessment_id = $1 LIMIT 1`, [id]);
         if (has.rows.length > 0) {
           throw new ConflictError("Sections can't be changed after students have started this test.", {

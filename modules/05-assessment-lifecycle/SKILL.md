@@ -277,3 +277,4 @@ Tests:
 - **Considered and rejected.** Scaling bank points in module 04 (the bank must stay untouched); one default penalty for the whole assessment (blueprints may differ per section).
 - **Not included.** UI to edit the new keys (the admin SectionsEditor still writes `minutes` only), draw by node (Z-43 covers blueprints, not sections).
 - **Tests.** `src/__tests__/sections-settings.test.ts`, `src/__tests__/mock-from-blueprint.test.ts`.
+- **Z-42 hardening.** `updateAssessment` also locks `settings.whole_test_minutes` and `settings.scoring.negative_marks_default` (409 `SECTIONS_LOCKED`) once an attempt exists; test in `src/__tests__/sections-locked.test.ts`.

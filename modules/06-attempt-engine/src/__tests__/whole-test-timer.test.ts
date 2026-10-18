@@ -11,7 +11,7 @@ import { randomUUID } from "node:crypto";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import { scoreMcqForAttempt, getSectionScoresForAttempt } from "@assessiq/scoring";
-import { startAttempt, recordTakeConsent, getAttemptForCandidate, saveAnswer, finishSection } from "../service.js";
+import { startAttempt, recordTakeConsent, getAttemptForCandidate, saveAnswer, finishSection, toggleFlag } from "../service.js";
 import { AE_ERROR_CODES } from "../types.js";
 
 let container: StartedTestContainer;
@@ -159,6 +159,25 @@ describe("Z-42 whole-test timer", () => {
         saveAnswer(tenant, userId, { attemptId: attempt.id, questionId: qids[i] as string, answer: { selected: 1 } }),
       ).rejects.toMatchObject({ details: { code: AE_ERROR_CODES.TIMER_EXPIRED } });
     }
+  });
+
+  it("flagging obeys the same deadline: 1 ms past ends_at is rejected, before it is accepted", async () => {
+    const { assessmentId, userId } = await setup(WHOLE);
+    const attempt = await startAttempt(tenant, { assessmentId, userId });
+    const q = qids[0] as string;
+    await sup((c) => c.query(`UPDATE attempts SET ends_at = now() + interval '30 seconds' WHERE id = $1`, [attempt.id]));
+    await expect(toggleFlag(tenant, userId, { attemptId: attempt.id, questionId: q, flagged: true })).resolves.toMatchObject({ flagged: true });
+    await sup((c) => c.query(`UPDATE attempts SET ends_at = now() - interval '1 millisecond' WHERE id = $1`, [attempt.id]));
+    await expect(
+      toggleFlag(tenant, userId, { attemptId: attempt.id, questionId: q, flagged: false }),
+    ).rejects.toMatchObject({ details: { code: AE_ERROR_CODES.TIMER_EXPIRED } });
+  });
+
+  it("fails closed when sections are configured but unreadable (no unsectioned fallback)", async () => {
+    const { assessmentId, userId } = await setup({ sections: [{ name: "Bad", minutes: -5 }] });
+    await expect(startAttempt(tenant, { assessmentId, userId })).rejects.toMatchObject({
+      details: { code: AE_ERROR_CODES.SECTIONS_INVALID },
+    });
   });
 
   it("REGRESSION: per-section minutes still lock one section at a time and sum the minutes", async () => {
