@@ -2651,3 +2651,65 @@ Order matters: 0186 must apply before the api restart because `getUsage` now sel
 - **Sweep after batch 3:** `/api/ready` 200; `/`, `/try`, `/admin/login`, `/candidate/login`, `/take` all 200 with no redirect; `/try` has the title "Try a sample assessment | AssessIQ" and the canonical link `https://assessiq.in/try`; beacon on `/` and `/try`, absent on `/admin/login`, `/take`, `/candidate/login`; new routes answer 401; 0 `level":50` lines.
 - **Not checked:** a signed-in `/admin` page on production. The owner opens it and confirms.
 - **Rollback (batch 3):** check out `9be4fbd` on the VPS and rebuild api and frontend. Migration 0204 only inserts help rows (`ON CONFLICT DO NOTHING`); no rollback needed.
+
+## S21 close: final deploys and speed tooling (2026-10-18)
+
+### Final deploy record
+
+- **Commit on the VPS:** `74704fc`. The deploy used `tools/deploy.sh`.
+- **What changed:**
+  - The API Dockerfile (`infra/docker/assessiq-api/Dockerfile`) has a manifests stage. The install layer now depends only on the `package.json` files and the lockfile.
+  - The Dockerfile uses `COPY --chown` instead of `chown -R`.
+  - A local rebuild after a one-line edit fell from 11m09 to 4m01.
+- **Real runs of `tools/deploy.sh`:**
+  - Frontend: 2m03 (pull, build, recreate, health check, sweep, 0 fails).
+  - API and worker: 1m04.
+- **VPS API image build with the new Dockerfile:** 37 s. The old build took about 25 min.
+- **Image check before the recreate:** the new image matches the old one for User (`root`), ports (`3000`), Entrypoint (`docker-entrypoint.sh`), Cmd (`pnpm exec tsx src/server.ts`) and WorkingDir (`/app/apps/api`). `tsx` v4.23.15 starts. 0 files have a wrong owner.
+- **Z-32 production check:** `curl` shows `/try` returns 200 with no redirect, the title "Try a sample assessment | AssessIQ" and the canonical link `https://assessiq.in/try`.
+- **Not checked:** a signed-in `/admin` page on production. The owner opens it and confirms (Z-47).
+- **Rollback:** 1. Check out the previous commit on the VPS: `cd /srv/assessiq && git checkout <previous-sha>`. 2. Rebuild the changed services. 3. Recreate them with `up -d --no-deps --force-recreate`. No migration ran in this step.
+
+### Before you push: pnpm verify
+
+Use this check before every push of code. It runs the lint and type checks that CI runs, but only on what you changed.
+
+1. Commit or stage your work. Do not leave tracked changes uncommitted (see the stamp rule below).
+2. Run `pnpm verify`. The script is `tools/verify.mjs`.
+3. Wait for the line that reports the result. A pass writes the stamp `.claude/.verify-stamp`.
+4. Run `git push`.
+
+What the script does:
+
+- It runs `eslint --cache` on the whole repo.
+- It runs the type check only for the packages you changed and the packages that depend on them. It uses `pnpm --filter "...[origin/main]"`.
+- It runs the FULL type check if any of these files changed: a `package.json`, a `tsconfig*`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.npmrc`, or anything under `tools/`.
+- `pnpm verify:all` forces the full type check.
+
+Timings measured on 2026-10-18:
+
+| Step | Time |
+|---|---|
+| eslint, warm cache | 15 s |
+| Scoped type check, 11 packages | 142 to 176 s |
+| Scoped type check, 1 package | 35 s |
+| Full type check | 435 s |
+| Full verify | about 4m38 to 7m40, depending on load |
+
+The scoped check caught the S21 TS2503 error in 35 s. CI needed several minutes to report the same error.
+
+The stamp and the push hook:
+
+- `tools/verify-stamp.mjs` writes `.claude/.verify-stamp`. The stamp holds the tree hash of `HEAD` and a hash of `git diff HEAD`.
+- The hook `.claude/hooks/push-adversarial-gate.sh` blocks a `git push` that contains non-docs changes unless the stamp matches the current state.
+- A push that changes only `docs/*.md` files skips the stamp check.
+- Any uncommitted change to a tracked file changes the `git diff HEAD` hash. The stamp is then invalid. Run `pnpm verify` again.
+- A new commit changes the tree hash. The stamp is then invalid. Run `pnpm verify` again.
+
+Known limit: the scoped path has not run end to end through the script yet. The first app-only push is its first full test.
+
+### Other tools from this step
+
+- `tools/post-deploy-sweep.sh` (commit `c4f0159`): the sweep that `tools/deploy.sh` runs after each deploy.
+- `tools/deploy.sh` (commit `9b7d18c`): pull, build, recreate, health check and sweep in one run. It is additive only and touches `assessiq-*` services.
+- CI (commit `054baf3`): the `e2e` job no longer has `needs: quality`. Run 39115160491: quality 7m02, e2e 9m36, total 9m38. The serial layout took about 15 min.

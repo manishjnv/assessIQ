@@ -2771,3 +2771,24 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the script raised an encoding error while the file was open for writing, so the file was left truncated.
 **Fix:** the file was restored from git and the edit was applied again.
 **Prevention:** build the full string first, then open the file and write it; always use utf-8. Check `git diff --stat` matches the size of the edit.
+
+## 2026-10-18 — Session banner shown at exactly zero days left
+
+**Symptom:** the candidate session banner test failed once in CI (run for `524da5d`). It passed on rerun.
+**Cause:** `modules/11-candidate-ui/src/components/CandidateSessionBanner.tsx:75` used `daysLeft < 0` to hide an expired banner. A session that expires exactly now (`daysLeft === 0`) still showed the banner. The test passed only because the clock drifted a few milliseconds past the boundary.
+**Fix:** commit `9ae085d`: the check is now `daysLeft <= 0`. The test freezes the clock, so it no longer depends on drift.
+**Prevention:** the test uses a fixed clock. For any boundary check on time, test the exact boundary value with a frozen clock.
+
+## 2026-10-18 — Unhandled Redis connection error in the API test step (cause inferred, not reproduced)
+
+**Symptom:** CI step "Test (apps/api)" failed once (run 39111554932 on `74704fc`). 31 test files passed, then an unhandled `ECONNREFUSED ::1:6379` and `127.0.0.1:6379` error ended the run. A rerun passed.
+**Cause (inferred, not proven):** `apps/api/src/routes/admin-worker.ts` created `new Redis(config.REDIS_URL)` and a BullMQ `Queue` when the server was built. The quality job has no Redis service, so building the server in a test opened a connection that was refused. We could not reproduce it locally in 10 clean runs, so the exact trigger is unknown.
+**Fix:** commit `d6e6997`: the queue is created lazily in `q()` (`admin-worker.ts:157`, `const q = (): Queue => injectedQueue ?? _getDefaultQueue()`). It opens a connection only on the first request.
+**Prevention:** watch the next CI runs. If the error returns, look for other code that opens Redis at build time. The fix removes one known cause. It is not a proven cure.
+
+## 2026-10-18 — Serial CI layout hid e2e failures for 2 days
+
+**Symptom:** e2e failures stayed unseen for 2 days. CI showed a red "quality" job, and the e2e job never ran.
+**Cause:** the `e2e` job in `.github/workflows/ci.yml` had `needs: quality`. A lint error in `quality` skipped `e2e`, so real e2e breakage was hidden behind it. The serial run also took about 15 min.
+**Fix:** commit `054baf3`: removed `needs: quality` from the `e2e` job. Run 39115160491: quality 7m02, e2e 9m36, total 9m38.
+**Prevention:** independent jobs run in parallel. Read the result of every job, not only the first red one.

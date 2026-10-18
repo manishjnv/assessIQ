@@ -1,29 +1,32 @@
-# Session — 2026-10-18 — S21: Z-47, Z-41, Z-44, Z-43, Z-23, Z-45 closed; Z-39, Z-42, Z-32, EXP-18 built in part
+# Session — 2026-10-18 — S21: Z-47, Z-41, Z-44, Z-43, Z-23, Z-45 closed; Z-32 closed; Z-39, Z-42, EXP-18 in part; speed tooling shipped
 
-**Headline:** Three batches. Batch 1 (deployed): Z-41, Z-43, Z-44 closed; Z-39, Z-42, Z-47 partly done. Batch 2 (deployed at `9be4fbd`): take-page section grouping (Z-42), admin reason modal (Z-39), `section_names` in the attempt view. Batch 3 (deployed 524da5d (see docs/06 record)): Z-23 sessions 1 and 2 (closed), Z-32 `/try` prerender and nginx line, EXP-18 publish gate (part 1). Z-45 closed as a docs-only owner decision. Two CI failures (typecheck, e2e) were found and fixed.
-**Commits (main):** `051e0e1` Z-47 · `280422d` Z-41 (0202) · `01edead` Z-44 · `bdf5920` Z-43 · `2ff24c9` typecheck fix · `1b61f18` Z-39 (0203 in 05 and 06) · `5816807` Z-39 merge · `43fc9b9` Z-42 · `6985d3e` Z-39 gate fixes · `7ef8826` Z-42 gate fixes · `051f48a` e2e locator fix · batch 2: `7977a96` take-page grouping · `218b6ed` reason modal · `9be4fbd` section_names · batch 3 (local, not pushed): `723c322` Z-23 s1 · `524da5d` Z-23 s2 · `68e24d8` Z-32 · `e5f5e5c` EXP-18 part 1 · `524da5d` Z-23 s2 head (migration 0204)
-**Tests:** module suites green per agent reports. CI green on 051f48a (quality and e2e); batch 1 and batch 2 deployed 2026-10-18. Batch 3: module suites green per agent reports; local e2e last full pass not clean because of machine load, CI e2e is the judge. Batch 3 deployed 524da5d (see docs/06 record).
-**Next:** Push and deploy batch 3, then run `curl -sI https://assessiq.in/try` (Z-32). After that, build Z-24 (unblocked, Z-23 done). Z-46 CSP waits for the owner yes. Decide the tier-upgrade question for Z-39.
+**Headline:** S21 is complete and live. VPS = `74704fc`, deployed with `tools/deploy.sh`. Closed: Z-41, Z-43, Z-44, Z-23, Z-45, Z-32 (production check passed). In part: Z-39, Z-42, Z-47, EXP-18. Speed work: API image build 25 min to 37 s on the VPS, `pnpm verify`, parallel CI. Owner decisions: every passing candidate gets a certificate; the distinction line shows only when the org admin enables it (new row Z-50); a later attempt never changes an issued certificate (Z-39 tier-upgrade question closed).
+**Commits (main, oldest first):** `051e0e1` Z-47 · `280422d` Z-41 (0202) · `01edead` Z-44 · `bdf5920` Z-43 · `2ff24c9` typecheck fix · `1b61f18` Z-39 (0203 in 05 and 06) · `5816807` Z-39 merge · `43fc9b9` Z-42 · `6985d3e` Z-39 gate fixes · `7ef8826` Z-42 gate fixes · `051f48a` e2e locator fix · `7977a96` take-page grouping · `218b6ed` reason modal · `9be4fbd` section_names · `723c322` Z-23 s1 · `524da5d` Z-23 s2 (0204) · `68e24d8` Z-32 · `e5f5e5c` EXP-18 part 1 · `9ae085d` banner `<= 0` fix · `90f02ea` (see `git log`) · `c4f0159` post-deploy sweep script + CLAUDE.md Speed rules · `369c25e` `pnpm verify` + stamp · `74704fc` API Dockerfile manifests stage · `9b7d18c` `tools/deploy.sh` · `d6e6997` lazy admin-worker queue · `054baf3` parallel e2e job · `0f3d53a` final status docs · `ac9878f` rows Z-48, Z-49 · `bbe24e7` row Z-50, Z-39 question closed
+**Tests:** CI green on `051f48a`, `524da5d` and `054baf3`. One flake on `74704fc` (Redis ECONNREFUSED in "Test (apps/api)"); the rerun passed. Module suites green per agent reports.
+**Next:** (1) Z-50 distinction switch. (2) Z-24 flow-first Home (unblocked). (3) Z-42 admin screen for `whole_test_minutes` and marks per question. (4) EXP-18 part 2 after the NULL `review_state` decision. (5) Z-46 after the owner yes. (6) Watch the Redis flake in the next CI runs. (7) Scoped `pnpm verify` is not tested end to end through the script until the first app-only push.
 **Open questions (owner):**
+- Open /admin signed in on production and confirm the page loads (last part of Z-47).
+- Should a NULL `review_state` also block publish? (EXP-18 part 2)
 - Z-46: may we add a CSP Report-Only header at the shared Caddy?
-- Z-26: Google Search Console DNS verification still open.
+- Z-26: Google Search Console DNS verification.
 - Z-35: the `sameAs` profile URLs.
 - Admin 2FA: still open.
-- Open /admin signed in after the deploy and confirm the page loads (last part of Z-47).
-- Should a later distinction pass upgrade an earlier completion certificate? (Z-39)
-- Should a NULL `review_state` also block publish? Yes blocks every new tenant-authored question until a verify action exists (EXP-18 part 2).
-- Z-32: production check after deploy (`curl -sI https://assessiq.in/try`, expect 200 and no redirect). The row stays open until then.
-- Z-24 (flow-first Home) is next now that Z-23 is done. Confirm it is the next build.
-- The Docs lint Vale step fails on push only because reviewdog `github-pr-annotations` needs a PR. It is advisory until 2026-10-29.
+- Z-50: is the distinction switch per organisation or per assessment? (default OFF is the safer reading)
+- Z-49: does `/try` keep the analytics beacon? (A: keep and edit one privacy sentence; B: add `/try` to the Cloudflare rule)
 **Old task or feature checked:** Z-41 vs Z-7 KeyNav (extended) · Z-44 vs result email sentence (shared `feedbackSentence` in 00-core) · Z-43 vs `resolveBlueprintNodes` (reused) · Z-39 vs unique-per-user attempt + reissue invitation (extended) · Z-42 vs S20 section marks view and `mock.ts` (extended) (Rule B, PROJECT_BRAIN.md)
+**Optimization work (S21):**
+- Done: API Dockerfile manifests stage + `COPY --chown` (local rebuild 11m09 to 4m01; VPS build 25 min to 37 s); `tools/deploy.sh` (frontend 2m03, API and worker 1m04); `tools/post-deploy-sweep.sh`; `pnpm verify` with stamp and push hook (docs-only pushes skip); parallel CI (about 15 min to 9m38); CLAUDE.md "Speed rules".
+- Watch: Redis flake (cause inferred, not reproduced; fix `d6e6997`); first app-only push through the scoped `pnpm verify`.
+- Dropped: `wt-setup.sh`, Chromium base image, VPS prebuild during CI (build is 37 s now), splitting big rows, background verify, typecheck caching.
+- Parked, not built: registry image builds, shared test DB.
 
 ---
 
 ## Agent utilization
-- Main session (Sonnet 5.5, not Opus): plan, diff review of Wave A and the Z-39 start guard, commits, CI triage, push.
-- Sonnet: about 22 runs (builds of Z-47, Z-41, Z-44, Z-39, Z-43, Z-42; 3 adversarial gates; revisions of Z-43, Z-39, Z-42; Z-39 merge; e2e run; e2e diagnosis; batch 2 and 3: Z-23 s1, Z-23 s2, take-page grouping, reason modal, section_names, Z-32, EXP-18 build and gate).
+- Main session (Sonnet 5.5, not Opus): plan, diff review of Wave A and the Z-39 start guard, commits, CI triage, push, speed tooling, final deploys.
+- Sonnet: about 31 runs (builds of Z-47, Z-41, Z-44, Z-39, Z-43, Z-42; 3 adversarial gates; revisions of Z-43, Z-39, Z-42; Z-39 merge; e2e run; e2e diagnosis; batch 2 and 3: Z-23 s1, Z-23 s2, take-page grouping, reason modal, section_names, Z-32, EXP-18 build and gate).
 - Haiku: 6 runs (S20 digest, code map, docs-lint check, sizing, two sweeps).
-- codex:rescue: n/a — companion and sandbox down; Sonnet takeover accepted all three gates (accept, revise-addressed).
+- codex:rescue: n/a — companion and sandbox down; Sonnet takeover gates.
 - Gemini (agy): n/a — Haiku used.
 - Codex (exec): n/a — sandbox down.
 
