@@ -72,6 +72,7 @@ import { RATE_CAP_CONSTANTS, tryAdmitEvent } from "./rate-cap.js";
 import {
   buildSectionsSummary,
   readSections,
+  readWholeTestMinutes,
   resolveSection,
   sectionDeadline,
   totalSectionSeconds,
@@ -155,6 +156,8 @@ async function sectionStateFor(
   const assessment = await alRepo.findAssessmentById(client, attempt.assessment_id);
   const sections = readSections(assessment?.settings);
   if (sections === null) return null;
+  // Z-42: one whole-test timer = no section lock; ends_at (server, stored at start) is the only deadline.
+  if (readWholeTestMinutes(assessment?.settings) !== null) return null;
   const stored = await repo.getSectionProgress(client, attempt.id);
   const pos = resolveSection(sections, stored, attempt.started_at ?? now, now);
   if (pos !== null && pos.current !== (stored?.current ?? 0)) {
@@ -482,8 +485,13 @@ export async function startAttempt(
     const startedAt = new Date();
     // Sectioned: the whole test is the sum of the section minutes (the level's
     // duration is not used); each section's own deadline is derived from it later.
+    const wholeMinutes = sections !== null ? readWholeTestMinutes(assessment.settings) : null;
     const durationSeconds =
-      sections !== null ? totalSectionSeconds(sections) : level.duration_minutes * 60;
+      wholeMinutes !== null
+        ? wholeMinutes * 60
+        : sections !== null
+          ? totalSectionSeconds(sections)
+          : level.duration_minutes * 60;
     const endsAt = new Date(startedAt.getTime() + durationSeconds * 1000);
 
     // h. Insert attempt row.
@@ -537,6 +545,13 @@ export async function startAttempt(
         ? buildOrderingOrder(orderingKeys.get(q.id)?.items, orderingKeys.get(q.id)?.correct_order)
         : buildOptionOrder(mcqOptions.get(q.id), Math.random, MAX_SHUFFLE_OPTIONS),
       sectionIndex: sectionOf !== null ? (sectionOf[i] as number) : null,
+      // Z-42: marks of the section, frozen here. Absent = the question's own points / penalty as before.
+      ...(sections !== null && sectionOf !== null && sections[sectionOf[i] as number]?.marks_per_question !== undefined
+        ? {
+            pointsOverride: sections[sectionOf[i] as number]!.marks_per_question as number,
+            negativeOverride: sections[sectionOf[i] as number]!.negative_marks_per_question ?? 0,
+          }
+        : {}),
     }));
     await repo.insertAttemptQuestions(client, attempt.id, aqRows, readNegativeMarksDefault(assessment.settings));
     await repo.insertEmptyAttemptAnswers(client, attempt.id, chosen.map((q) => q.id));

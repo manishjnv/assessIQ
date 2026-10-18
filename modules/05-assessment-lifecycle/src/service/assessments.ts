@@ -7,7 +7,7 @@ import * as qbRepo from "../../../04-question-bank/src/repository.js";
 import { materializeSetForTenant, resyncSetForTenant } from "../../../04-question-bank/src/clone.js";
 import { assertValidWindow } from "../state-machine.js";
 import { assertRemindersSettings } from "../reminders.js";
-import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema, AssessmentSectionsSchema } from "../types.js";
+import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema, AssessmentSectionsSchema, sectionTimingProblem } from "../types.js";
 import type { Assessment, ResolvedBlueprint, AssessmentSettings, CreateAssessmentInput, CreateAssessmentFromSetInput, ListAssessmentsInput, PaginatedAssessments, UpdateAssessmentPatch } from "../types.js";
 import type { InvitationCounts } from "../repository.js";
 import { log, assertPageSize } from "./_shared.js";
@@ -337,6 +337,18 @@ export function assertSectionsSettings(settings: AssessmentSettings | undefined)
       `settings.sections is invalid: ${r.error.issues.map((i) => i.message).join("; ")}`,
       { details: { code: "INVALID_PARAM", param: "settings.sections" } },
     );
+  }
+  const whole = s?.["whole_test_minutes"];
+  if (whole !== undefined && (typeof whole !== "number" || !Number.isInteger(whole) || whole < 1 || whole > 600)) {
+    throw new ValidationError("settings.whole_test_minutes must be a whole number from 1 to 600", {
+      details: { code: "INVALID_PARAM", param: "settings.whole_test_minutes" },
+    });
+  }
+  const timing = sectionTimingProblem(r.data, whole as number | undefined);
+  if (timing !== null) {
+    throw new ValidationError(`settings.sections is invalid: ${timing}`, {
+      details: { code: "INVALID_PARAM", param: "settings.sections" },
+    });
   }
   if (s?.["blueprint"] !== undefined) {
     throw new ValidationError("settings.sections cannot be combined with settings.blueprint", {

@@ -17,7 +17,7 @@ import React from 'react';
 import { feedbackSentence } from '@assessiq/core/feedback-copy';
 import { Chip, Icon, Num, ScoreRing } from '@assessiq/ui-system';
 import { certificateRuleText, resultSupportLine, retakeLine } from '../copy.js';
-import type { ResultCertificateWire, ResultNegativeMarkingWire, ResultRetakeWire } from '../types.js';
+import type { ResultCertificateWire, ResultNegativeMarkingWire, ResultRetakeWire, ResultSectionWire } from '../types.js';
 
 export interface ResultSummaryProps {
   totalEarned: number;
@@ -44,6 +44,8 @@ export interface ResultSummaryProps {
   onRetake?: (() => void) | undefined;
   retaking?: boolean;
   retakeError?: string | null | undefined;
+  /** Z-42: marks per section (table under the score). Undefined or empty: no table. Full result page only. */
+  sections?: ResultSectionWire[] | undefined;
   /** Z-44: tenant feedback level; shows the same plain sentence as the result email. Undefined or "none": no sentence. */
   feedbackLevel?: string | undefined;
 }
@@ -85,6 +87,7 @@ export function ResultSummary({
   retaking = false,
   retakeError = null,
   feedbackLevel,
+  sections,
 }: ResultSummaryProps): React.ReactElement {
   const feedbackLine = feedbackSentence(feedbackLevel);
   const hasFeedback = feedbackOn || feedbackLine !== null;
@@ -220,6 +223,36 @@ export function ResultSummary({
           )}
         </div>
       </div>
+
+      {!compact && sections !== undefined && sections.length > 0 && (
+        <table data-testid="result-sections" style={{ ...MUTED_14, marginTop: 16, borderCollapse: 'collapse', width: '100%' }}>
+          <caption style={{ ...EYEBROW, textAlign: 'left' }}>Marks by section</caption>
+          <thead>
+            <tr>
+              <th scope="col" style={{ textAlign: 'left', padding: '4px 8px 4px 0' }}>Section</th>
+              <th scope="col" style={{ textAlign: 'right', padding: '4px 0' }}>Marks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sections.map((s) => (
+              <tr key={s.index} style={{ borderTop: '1px solid var(--aiq-color-border)' }}>
+                <td style={{ padding: '4px 8px 4px 0', overflowWrap: 'anywhere' }}>
+                  {s.name}
+                  {s.passed_cutoff !== undefined && s.cutoff_marks !== undefined && (
+                    <span data-testid="result-section-cutoff">
+                      {' '}
+                      ({s.passed_cutoff ? 'qualified' : 'did not qualify'}, cutoff {trim(s.cutoff_marks, 2)})
+                    </span>
+                  )}
+                </td>
+                <td style={{ padding: '4px 0', textAlign: 'right' }}>
+                  {trim(s.earned, 2)} / {trim(s.max, 2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
 
       {certificate === null && passMark !== undefined && (
         <div style={{ ...MUTED_14, marginTop: compact ? 12 : 16 }}>{certificateRuleText(passMark)}</div>

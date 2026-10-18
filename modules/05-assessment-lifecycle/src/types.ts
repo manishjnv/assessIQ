@@ -146,7 +146,12 @@ export const AssessmentSectionSchema = z
     name: z.string().trim().min(1, "section name is required").max(80),
     category_ids: z.array(z.string().uuid()).min(1).max(50).optional(),
     question_count: z.number().int().min(1).max(500).optional(),
-    minutes: z.number().int().min(1, "minutes must be at least 1").max(300, "minutes must be at most 300"),
+    /** Per-section timer. Absent only when settings.whole_test_minutes sets ONE timer for the whole test (Z-42). */
+    minutes: z.number().int().min(1, "minutes must be at least 1").max(300, "minutes must be at most 300").optional(),
+    /** Z-42: every question of this section scores this many marks (frozen into attempt_questions at start). */
+    marks_per_question: z.number().min(0).max(1000).optional(),
+    /** Z-42: marks lost for a wrong answer in this section (absolute, frozen at start). Only used with marks_per_question. */
+    negative_marks_per_question: z.number().min(0).max(1000).optional(),
     calculator: z.boolean().optional(),
     /** EXP-6: a qualifying section with a cutoff reports `passed_cutoff` in the result (marks, not percent). */
     qualifying: z.boolean().optional(),
@@ -159,6 +164,21 @@ export const AssessmentSectionSchema = z
 export type AssessmentSection = z.infer<typeof AssessmentSectionSchema>;
 export const AssessmentSectionsSchema = z.array(AssessmentSectionSchema).min(1).max(10);
 
+/**
+ * Z-42: timing rule across sections. With `whole_test_minutes` there is ONE server timer and no section
+ * carries `minutes`; without it every section needs `minutes` (one-at-a-time lock, as before).
+ * Returns a message, or null when valid.
+ */
+export function sectionTimingProblem(
+  sections: ReadonlyArray<{ minutes?: number | undefined }>,
+  wholeTestMinutes: number | undefined,
+): string | null {
+  if (wholeTestMinutes !== undefined) {
+    return sections.some((s) => s.minutes !== undefined) ? "with whole_test_minutes, sections must not have minutes" : null;
+  }
+  return sections.some((s) => s.minutes === undefined) ? "each section needs minutes (or set whole_test_minutes)" : null;
+}
+
 export const AssessmentSettingsSchema = z
   .object({
     blueprint: AssessmentBlueprintSchema.optional(),
@@ -168,6 +188,8 @@ export const AssessmentSettingsSchema = z
     /** Z-39: which attempt counts when a candidate retakes. Absent = latest. */
     score_counts: z.enum(["latest", "best"]).optional(),
     sections: AssessmentSectionsSchema.optional(),
+    /** Z-42: one timer for the whole test, free movement between sections. Needs sections without `minutes`. */
+    whole_test_minutes: z.number().int().min(1).max(600).optional(),
     /** EX-1: default penalty for a wrong attempted answer on auto-scored questions (a question's own value wins). */
     scoring: z.object({ negative_marks_default: z.number().min(0).max(1000).optional() }).strict().optional(),
   })

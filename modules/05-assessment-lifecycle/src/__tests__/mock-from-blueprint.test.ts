@@ -64,12 +64,13 @@ describe("createMockFromBlueprint", () => {
     const secs = s["sections"] as Array<Record<string, unknown>>;
     expect(secs.map((x) => x["name"])).toEqual(["Reasoning", "General Awareness", "Quantitative Aptitude (Quant)", "English"]);
     expect(secs.map((x) => x["question_count"])).toEqual([25, 25, 25, 25]);
-    expect(secs.map((x) => x["minutes"])).toEqual([15, 15, 15, 15]); // even split of 60; sum equals total_minutes
+    expect(secs.map((x) => x["minutes"])).toEqual([undefined, undefined, undefined, undefined]); // Z-42: no even split
+    expect(s["whole_test_minutes"]).toBe(60);
+    expect(secs.map((x) => x["marks_per_question"])).toEqual([2, 2, 2, 2]); // 25 x 2 = 50 per section, 200 total
+    expect(secs.map((x) => x["negative_marks_per_question"])).toEqual([0.5, 0.5, 0.5, 0.5]);
     expect(secs.every((x) => x["qualifying"] === undefined && x["cutoff_marks"] === undefined && x["calculator"] === undefined)).toBe(true);
-    expect(s["scoring"]).toEqual({ negative_marks_default: 0.5 });
     expect(s["exam_blueprint"]).toMatchObject({ id: BP, verification_status: "verified" });
-    expect(warnings).toHaveLength(2); // one overall timer is not modelled by sections + marks-per-question note
-    expect(warnings.join(" ")).toContain("marks per question");
+    expect(warnings).toHaveLength(0); // verified blueprint; timer and marks are now applied
     const row = await sup(async (c) => (await c.query(`SELECT status, settings FROM assessments WHERE id=$1`, [assessment.id])).rows[0]);
     expect(row.status).toBe("draft");
     expect(row.settings.sections).toHaveLength(4);
@@ -83,7 +84,8 @@ describe("createMockFromBlueprint", () => {
     const { assessment, warnings } = await createMockFromBlueprint(tenant, BP, { pack_id: pack, level_id: level, opens_at: opensAt, name: "Mock 2" }, admin);
     const secs = (assessment.settings as { sections: Array<Record<string, unknown>> }).sections;
     expect(secs[2]).toMatchObject({ minutes: 15, qualifying: true, cutoff_marks: 10, calculator: true });
-    expect(warnings).toHaveLength(1); // only the marks-per-question note
+    expect(warnings).toHaveLength(0);
+    expect((assessment.settings as Record<string, unknown>)["whole_test_minutes"]).toBeUndefined(); // sectional: per-section minutes
     expect(assessment.name).toBe("Mock 2");
   });
 
@@ -94,9 +96,11 @@ describe("createMockFromBlueprint", () => {
     await expect(createMockFromBlueprint(tenant, randomUUID(), { pack_id: pack, level_id: level, opens_at: opensAt }, admin)).rejects.toMatchObject({ status: 404 });
   });
 
-  it("rejects a blueprint whose sections use different negative marks", async () => {
+  it("each section keeps its own marks and negative marks", async () => {
     await sup((c) => c.query(`UPDATE exam_blueprint_sections SET negative_marks_per_question=0.25 WHERE blueprint_id=$1 AND position=1`, [BP]));
-    await expect(createMockFromBlueprint(tenant, BP, { pack_id: pack, level_id: level, opens_at: opensAt }, admin)).rejects.toMatchObject({ status: 400 });
+    const { assessment } = await createMockFromBlueprint(tenant, BP, { pack_id: pack, level_id: level, opens_at: opensAt }, admin);
+    const secs = (assessment.settings as { sections: Array<Record<string, unknown>> }).sections;
+    expect(secs.map((x) => x["negative_marks_per_question"])).toEqual([0.25, 0.5, 0.5, 0.5]);
   });
 });
 

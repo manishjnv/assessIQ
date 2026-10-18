@@ -269,3 +269,11 @@ Tests:
 - **Considered and rejected.** A separate grants table (a counter plus one audit row per grant is enough). Letting `resendInvitation` handle submitted rows (its "not started" rule protects live attempts). A `score_counts` column (it is a presentation setting, so it stays in `settings`).
 - **Not included.** Cooling-off timer, paid retakes, other question draws per retake, editing `max_attempts` after publish.
 - **Downstream.** Module 06 `startAttempt` (the real guard, with the unique key). Module 18 (one certificate per assessment and candidate). Admin UI: `RetakeCard` and the `Re-open` and `Give extra attempt` buttons in the invitations list. Routes: `POST /api/admin/invitations/:id/extra-attempt` and `/reopen`. Tests: `modules/06-attempt-engine/src/__tests__/retake.test.ts` (this module's harness has no `attempts` table).
+
+## Whole-test timer and section marks (Z-42, 2026-10-18)
+
+- **What.** `settings.whole_test_minutes` and `sections[].marks_per_question` / `negative_marks_per_question` (see `docs/02-data-model.md` "Whole-test timer and marks per question"). `sections[].minutes` became optional; `sectionTimingProblem` (`src/types.ts`) enforces "all sections have minutes, or none and `whole_test_minutes` is set". `assertSectionsSettings` calls it. `createMockFromBlueprint` now copies minutes (sectional) or sets `whole_test_minutes` (not sectional) and copies marks and penalties per section.
+- **Why.** The even split and the unused `marks_per_question` made a full mock differ from the real exam. This closes both gaps listed in the EXP-6 section above (gaps 1 and the marks note).
+- **Considered and rejected.** Scaling bank points in module 04 (the bank must stay untouched); one default penalty for the whole assessment (blueprints may differ per section).
+- **Not included.** UI to edit the new keys (the admin SectionsEditor still writes `minutes` only), draw by node (Z-43 covers blueprints, not sections).
+- **Tests.** `src/__tests__/sections-settings.test.ts`, `src/__tests__/mock-from-blueprint.test.ts`.

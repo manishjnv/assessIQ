@@ -8,7 +8,7 @@
  * "Finish section" is the only way a section opens earlier than that.
  */
 
-import { AssessmentSectionsSchema } from "../../05-assessment-lifecycle/src/types.js";
+import { AssessmentSectionsSchema, sectionTimingProblem } from "../../05-assessment-lifecycle/src/types.js";
 import type { AssessmentSection } from "../../05-assessment-lifecycle/src/types.js";
 
 export type { AssessmentSection };
@@ -23,12 +23,19 @@ export function readSections(settings: unknown): AssessmentSection[] | null {
   const raw = (settings as { sections?: unknown } | null | undefined)?.sections;
   if (raw === undefined) return null;
   const r = AssessmentSectionsSchema.safeParse(raw);
-  return r.success ? r.data : null;
+  if (!r.success) return null;
+  return sectionTimingProblem(r.data, readWholeTestMinutes(settings) ?? undefined) === null ? r.data : null;
 }
 
-/** Whole-test length in seconds = sum of the section minutes. */
+/** Z-42: settings.whole_test_minutes (one server timer, free movement), or null for per-section timing. */
+export function readWholeTestMinutes(settings: unknown): number | null {
+  const v = (settings as { whole_test_minutes?: unknown } | null | undefined)?.whole_test_minutes;
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 600 ? v : null;
+}
+
+/** Whole-test length in seconds = sum of the section minutes (per-section timing only). */
 export function totalSectionSeconds(sections: readonly AssessmentSection[], from = 0): number {
-  return sections.slice(from).reduce((n, s) => n + s.minutes * 60, 0);
+  return sections.slice(from).reduce((n, s) => n + (s.minutes ?? 0) * 60, 0);
 }
 
 /**
@@ -44,7 +51,7 @@ export function resolveSection(
   let current = stored?.current ?? 0;
   let startedAt = stored !== null ? new Date(stored.started_at) : attemptStartedAt;
   while (current < sections.length) {
-    const deadline = startedAt.getTime() + (sections[current] as AssessmentSection).minutes * 60_000;
+    const deadline = startedAt.getTime() + ((sections[current] as AssessmentSection).minutes ?? 0) * 60_000;
     if (deadline > now.getTime()) return { current, startedAt };
     startedAt = new Date(deadline);
     current += 1;
@@ -95,5 +102,5 @@ export function buildSectionsSummary(
 }
 
 export function sectionDeadline(sections: readonly AssessmentSection[], pos: SectionPosition): Date {
-  return new Date(pos.startedAt.getTime() + (sections[pos.current] as AssessmentSection).minutes * 60_000);
+  return new Date(pos.startedAt.getTime() + ((sections[pos.current] as AssessmentSection).minutes ?? 0) * 60_000);
 }

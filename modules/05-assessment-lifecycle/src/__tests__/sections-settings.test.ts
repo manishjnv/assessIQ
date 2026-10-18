@@ -25,6 +25,17 @@ describe("settings.sections validation", () => {
     expect(() => assertSectionsSettings({ sections } as never)).toThrow(/settings\.sections is invalid/);
   });
 
+  it("Z-42: whole_test_minutes replaces per-section minutes; marks per question is accepted", () => {
+    const bare = { name: "Quant", question_count: 25, marks_per_question: 2, negative_marks_per_question: 0.5 };
+    expect(() => assertSectionsSettings({ whole_test_minutes: 60, sections: [bare] } as never)).not.toThrow();
+    expect(() => assertSectionsSettings({ sections: [bare] } as never)).toThrow(/needs minutes/); // no timer at all
+    expect(() => assertSectionsSettings({ whole_test_minutes: 60, sections: [ok] } as never)).toThrow(/must not have minutes/);
+    for (const bad of [0, 601, 1.5, "60"]) {
+      expect(() => assertSectionsSettings({ whole_test_minutes: bad, sections: [bare] } as never)).toThrow(/whole_test_minutes/);
+    }
+    expect(() => assertSectionsSettings({ sections: [{ ...ok, marks_per_question: -1 }] } as never)).toThrow(/settings\.sections is invalid/);
+  });
+
   it("rejects sections combined with a blueprint", () => {
     expect(() =>
       assertSectionsSettings({ sections: [ok], blueprint: {} } as never),

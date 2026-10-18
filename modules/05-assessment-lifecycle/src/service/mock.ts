@@ -3,7 +3,6 @@
 // Section subject nodes are NOT used by the draw today: a section draws from the pack/level pool by
 // question_count (module 06 startAttempt), so the pool must be built for the exam. Rewrite of the draw
 // by node is EXP-5 follow-up work, not done here.
-import { ValidationError } from "@assessiq/core";
 import { getExamBlueprint } from "../../../04-question-bank/src/exam-blueprints.js";
 import type { Assessment, AssessmentSection } from "../types.js";
 import { createAssessment } from "./assessments.js";
@@ -25,31 +24,18 @@ export async function createMockFromBlueprint(
   const bp = await getExamBlueprint(tenantId, blueprintId);
   const warnings: string[] = [];
 
-  // settings.scoring has ONE negative_marks_default for the whole assessment.
-  const negatives = new Set(bp.sections.map((s) => s.negative_marks_per_question));
-  if (negatives.size > 1) {
-    throw new ValidationError("blueprint sections use different negative marks; a mock supports one value", {
-      details: { code: "INVALID_PARAM", param: "blueprint" },
-    });
-  }
-  const negative = bp.sections[0]!.negative_marks_per_question;
-
-  // Module 05/06 sections are always timed per section (a section closes at its own deadline).
-  // Without sectional timing, split total_minutes across sections (remainder to the last one).
+  // Z-42: sections are all timed one by one, or the whole test has ONE timer (settings.whole_test_minutes)
+  // and the candidate moves freely. The blueprint forbids a mix. Marks and penalties are per section and
+  // are frozen into attempt_questions at attempt start (module 06), so no even split of the minutes.
   const sectional = bp.sections.every((s) => s.sectional_timing);
-  const base = Math.floor(bp.total_minutes / bp.sections.length);
-  if (!sectional) {
-    warnings.push("This exam has one timer for the whole test, but sections are timed one by one in this version. The section minutes are an even split; check them before you publish.");
-  }
   if (bp.verification_status !== "verified") warnings.push("This blueprint is not verified.");
-  // Scoring uses each question's own points; the blueprint's marks per question is not applied (EXP-6 limit).
-  const marks = [...new Set(bp.sections.map((s) => s.marks_per_question))].join(", ");
-  warnings.push(`This exam gives ${marks} marks per question and ${negative} negative marks. Scores use the points of each question, so give every question in the pool ${marks} points. If not, the totals and the section cutoffs will not match the real exam.`);
 
-  const sections: AssessmentSection[] = bp.sections.map((s, i) => ({
+  const sections: AssessmentSection[] = bp.sections.map((s) => ({
     name: s.name,
     question_count: s.question_count,
-    minutes: sectional ? (s.minutes as number) : base + (i === bp.sections.length - 1 ? bp.total_minutes - base * bp.sections.length : 0),
+    ...(sectional ? { minutes: s.minutes as number } : {}),
+    marks_per_question: s.marks_per_question,
+    negative_marks_per_question: s.negative_marks_per_question,
     ...(s.calculator_allowed ? { calculator: true } : {}),
     ...(s.qualifying ? { qualifying: true } : {}),
     ...(s.qualifying && s.cutoff_marks !== null ? { cutoff_marks: s.cutoff_marks } : {}),
@@ -66,7 +52,7 @@ export async function createMockFromBlueprint(
       ...(input.closes_at !== undefined ? { closes_at: input.closes_at } : {}),
       settings: {
         sections,
-        scoring: { negative_marks_default: negative },
+        ...(sectional ? {} : { whole_test_minutes: bp.total_minutes }),
         exam_blueprint: { id: bp.id, edition: bp.edition, verification_status: bp.verification_status },
       },
     },

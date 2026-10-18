@@ -287,3 +287,10 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - **Rejected.** A server-provided rule value (over-built until Z-16 decides the rule).
 - **Not included.** LinkedIn share and admin row shortcut (Z-11 a, b).
 - **Downstream.** The string hard-codes 70, the floor in `modules/18-certification/src/service.ts:668`. Change both together. UI notes: `docs/08-ui-system.md`, `docs/10-branding-guideline.md` section 15.5. Sign-in: `CandidateLogin.tsx` has a mobile-only top-alignment class `aiq-candidate-login-body` (Z-15 b).
+
+## Z-42 marks by section on the result page (2026-10-18)
+
+- **What.** `ResultSummary` takes `sections` (`ResultSectionWire[]`, from `GET /api/me/attempts/:id/result`). On the full result page it shows a "Marks by section" table (`data-testid="result-sections"`): section name, `earned / max`, and for a qualifying section with a cutoff "qualified" or "did not qualify" with the cutoff. `apps/web/src/pages/take/Submitted.tsx` passes `state.result.sections`.
+- **Why.** Exam candidates need the section marks and the qualifying result (S20 sent the data, nothing showed it). Owner rule P1 stays: no per-question data, bands or percentile.
+- **Not included.** The table in the compact list row (`MyResults`), a help id (no new help text), section ranks.
+- **Tests.** `src/__tests__/ResultSummary.test.tsx` ("Z-42 section marks").

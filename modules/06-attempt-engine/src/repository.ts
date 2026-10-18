@@ -395,6 +395,9 @@ export async function insertAttemptQuestions(
     optionOrder?: ReadonlyArray<number> | null;
     /** Test sections: index into settings.sections; null/omitted = assessment has no sections. */
     sectionIndex?: number | null;
+    /** Z-42: frozen marks for a blueprint section; replaces the question's points and penalty. */
+    pointsOverride?: number;
+    negativeOverride?: number;
   }>,
   /** EX-1: assessment-level default penalty (settings.scoring.negative_marks_default), used when the question has none. */
   negativeMarksDefault = 0,
@@ -406,14 +409,15 @@ export async function insertAttemptQuestions(
   const values: unknown[] = [];
   let i = 1;
   // One shared parameter after the 6-per-row grid carries the assessment default.
-  const defaultIdx = rows.length * 6 + 1;
+  const defaultIdx = rows.length * 8 + 1;
   for (const r of rows) {
     // points = the question's points AT START (E12): scoring reads this frozen copy, never live questions.points.
     // negative_marks (EX-1, 0185) = the question's own penalty, else the assessment default, frozen the same way.
     placeholders.push(
-      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], (SELECT points FROM questions WHERE id = $${i - 4}::uuid), COALESCE((SELECT negative_marks FROM questions WHERE id = $${i - 4}::uuid), $${defaultIdx}::numeric), $${i++}::smallint)`,
+      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], COALESCE($${i + 1}::numeric, (SELECT points FROM questions WHERE id = $${i - 4}::uuid)), COALESCE($${i + 2}::numeric, (SELECT negative_marks FROM questions WHERE id = $${i - 4}::uuid), $${defaultIdx}::numeric), $${i++}::smallint)`,
     );
-    values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null, r.sectionIndex ?? null);
+    i += 2; // the two override parameters, referenced above by index
+    values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null, r.sectionIndex ?? null, r.pointsOverride ?? null, r.negativeOverride ?? null);
   }
   values.push(negativeMarksDefault);
 

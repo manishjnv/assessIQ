@@ -181,3 +181,9 @@ Commit `b68523c`. The per-type scoring code left `src/mcq.ts`. Call `determinist
 - **Why.** Exams such as SSC CGL have a negative mark per wrong answer and section marks; the candidate result (module 06) shows them.
 - **Arithmetic.** `earned` is the sum of the effective `gradings.score_earned` of the section (negative marks already applied, so a section can be below zero); `max` is the sum of `score_max`. No rounding is added: numeric values come from Postgres as exact decimals.
 - **Not included.** Any change to `isPass`, `attempt_scores.pass_mark_pct`, `auto_pct` or the band scale. Normalisation across shifts. Rank prediction. A cutoff in percent.
+
+## Z-42 scaled section marks (2026-10-18)
+
+- **What.** No code change. `scoreMcqForAttempt` and `getSectionScoresForAttempt` read the frozen `attempt_questions.points` and `negative_marks`, which module 06 now sets from `settings.sections[i].marks_per_question` and `negative_marks_per_question` at attempt start. Section totals therefore match the blueprint (SSC CGL Tier 1: 25 x 2 = 50 per section, minus 0.5 per wrong answer).
+- **Why.** One scoring rule for every assessment; the scaling happens once, at freeze time.
+- **Not included.** Any change to `isPass`, `pass_mark_pct` or the band scale. The scaled-marks test lives in module 06 (`whole-test-timer.test.ts`) because it needs `startAttempt`.
