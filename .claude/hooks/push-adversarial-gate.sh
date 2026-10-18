@@ -59,6 +59,17 @@ if [ -z "$CHANGED" ]; then
   exit 0
 fi
 
+# --- verify gate: lint + typecheck must have passed on this exact committed tree.
+# Docs-only pushes (docs/ or *.md) skip it. Fails OPEN if node/stamp tool missing.
+if printf '%s\n' "$CHANGED" | grep -qvE '^docs/|\.md$'; then
+  if ! command -v node >/dev/null 2>&1 || [ ! -f tools/verify-stamp.mjs ]; then
+    echo "push-verify-gate: node or tools/verify-stamp.mjs missing - allowing, run 'pnpm verify' manually." >&2
+  elif ! node tools/verify-stamp.mjs check 2>/dev/null; then
+    echo "Push blocked by push-verify-gate: Run pnpm verify first (lint + typecheck). Commit first; edits after verify invalidate the stamp." >&2
+    exit 2
+  fi
+fi
+
 # Load-bearing security paths that require an adversarial sign-off before push
 # (matches CLAUDE.md's "requires codex:rescue before push" set).
 SEC_RE='^(modules/(01-auth|02-tenancy|07-ai-grading|14-audit-log)/|infra/)|(^|/)Dockerfile|docker-compose|\.env|nginx'
