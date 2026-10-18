@@ -105,7 +105,7 @@ Postgres mirror (`sessions` table, `02-DATA:145–157`) holds the same fields in
 
 **Source.** `PLAN` decision #5; `04-AUTH:84–89` (cookie spec, 8h sliding, 60min idle); `04-AUTH:91–97` (middleware order — sessionLoader runs before tenantContext).
 
-**Rationale.** lowerCamelCase + ISO timestamps mean the JSON parses directly into the TypeScript `Session` type with no field-name mapping layer. Idle-eviction-distinct-from-hard-expiry is the standard banking-app pattern: protects against an attacker who steals a cookie when the legitimate user has been idle but hasn't yet hit hard expiry. Refreshing only on `requireAuth` (not health checks) prevents an attacker's curl-keepalive from extending the lifetime indefinitely without ever touching business endpoints — which would also generate audit signal.
+**Rationale.** lowerCamelCase + ISO timestamps mean the JSON parses directly into the TypeScript `Session` type with no field-name mapping layer. Idle-eviction-distinct-from-hard-expiry is the standard banking-app pattern: protects against an attacker who steals a cookie when the legitimate user has been idle but has not yet hit hard expiry. Refreshing only on `requireAuth` (not health checks) prevents an attacker's curl-keepalive from extending the lifetime indefinitely without ever touching business endpoints — which would also generate audit signal.
 
 ### 2. Recovery codes
 
@@ -204,7 +204,7 @@ Postgres mirror (`sessions` table, `02-DATA:145–157`) holds the same fields in
 
 **Source.** `04-AUTH:144–166`.
 
-**Rationale.** Re-click-until-submitted is the correct UX for candidates whose browsers crash mid-attempt — the alternative (single-redemption) traps users behind admin re-issue and ruins the candidate experience. The hard cutoff is "attempt past `in_progress`" because that's the moment grading kicks off; replay after grading would re-fire grading jobs against an immutable submission. `totpVerified=true` for the candidate session is a flag-state convenience (so `requireAuth` doesn't bounce), not a security claim — `requireAuth(roles=['admin'])` blocks candidates regardless of TOTP state.
+**Rationale.** Re-click-until-submitted is the correct UX for candidates whose browsers crash mid-attempt — the alternative (single-redemption) traps users behind admin re-issue and ruins the candidate experience. The hard cutoff is "attempt past `in_progress`" because that is the moment grading kicks off; replay after grading would re-fire grading jobs against an immutable submission. `totpVerified=true` for the candidate session is a flag-state convenience (so `requireAuth` does not bounce), not a security claim — `requireAuth(roles=['admin'])` blocks candidates regardless of TOTP state.
 
 ### 9. Tenant-context handoff (01-auth → 02-tenancy)
 

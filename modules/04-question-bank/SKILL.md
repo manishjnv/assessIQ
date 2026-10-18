@@ -1,6 +1,6 @@
 # 04-question-bank — Packs, levels, questions
 
-> **Status update 2026-05-04 (2):** `parsePagination()` upper bound raised from 100 → 500. Pack-detail page requests `pageSize=200` to render all questions grouped by level in one shot; the old cap produced a 400. `admin-users.ts` keeps its own 100 cap (user lists don't need full dumps). Frontend `pack-detail.tsx` now splits the pack fetch from the questions fetch so a questions-specific error shows a styled card with Retry instead of raw error text.
+> **Status update 2026-05-04 (2):** `parsePagination()` upper bound raised from 100 → 500. Pack-detail page requests `pageSize=200` to render all questions grouped by level in one shot; the old cap produced a 400. `admin-users.ts` keeps its own 100 cap (user lists do not need full dumps). Frontend `pack-detail.tsx` now splits the pack fetch from the questions fetch so a questions-specific error shows a styled card with Retry instead of raw error text.
 
 > **Status update 2026-05-04:** `createPack()` now auto-generates `slug` from `name` when the caller omits it. Algorithm: NFKD lowercase → strip non-`[a-z0-9\s-]` → hyphenate spaces → collapse → 64-char cap. Collision retry appends `-2`…`-10`; all-emoji names throw `INVALID_NAME_FOR_SLUG`. Explicit slugs still validated against `/^[a-z0-9-]{3,80}$/`. Root cause: UI was omitting slug → `undefined` matched the regex via JS coercion → Postgres NOT NULL 500. See `docs/RCA_LOG.md` 2026-05-04.
 
@@ -129,7 +129,7 @@ AI-assisted question generation is the only AI-touching surface in this module's
 
 ### Pack publish snapshot semantics (decision #21)
 
-`publishPack(id)` flips `question_packs.status` to `published` AND writes a `question_versions` row for every question in the pack at the current `(content, rubric)`, **even if no edit happened since the last publish**. This guarantees a permanent immutable snapshot keyed by `(question_id, version)` for the published pack version. Subsequent question edits create new `question_versions` rows but do NOT alter the published snapshot — until `publishPack` is called again, which bumps `question_packs.version` and re-snapshots. Resolves the SKILL.md ambiguity about whether publish is a metadata-only flip or a content snapshot. (It's both.)
+`publishPack(id)` flips `question_packs.status` to `published` AND writes a `question_versions` row for every question in the pack at the current `(content, rubric)`, **even if no edit happened since the last publish**. This guarantees a permanent immutable snapshot keyed by `(question_id, version)` for the published pack version. Subsequent question edits create new `question_versions` rows but do NOT alter the published snapshot — until `publishPack` is called again, which bumps `question_packs.version` and re-snapshots. Resolves the SKILL.md ambiguity about whether publish is a metadata-only flip or a content snapshot. (It is both.)
 
 ### Exam content is never committed (2026-10-01)
 
@@ -166,7 +166,7 @@ AI-assisted question generation is the only AI-touching surface in this module's
 - **Adding fastify as a peer dep** (vs regular dep). Routes.ts uses type-only imports from fastify — runtime cost is zero. But the question-bank package imports fastify types, so calling it a "peer" misrepresents the dep relationship. Regular dep is honest.
 - **Inline FastifyRequest augmentation in routes.ts** (vs separate `fastify.d.ts`). Co-locating the augmentation with the consumer is briefer but couples module-internal type plumbing to a route file. Separate `fastify.d.ts` matches the pattern 01-auth uses.
 - **Generating routes from an OpenAPI schema.** Postponed — Phase 1's route count is small enough to hand-author. Phase 4+ (when 50+ endpoints across multiple modules) would benefit from contract-first generation.
-- **Re-publishing a published pack** (transition published → published with re-snapshot). The current gate only allows draft → published. Re-publish would re-snapshot every question at its current version, useful when an admin wants to "freeze a new edition." Deferred to Phase 2 once authoring workflows mature; the SKILL.md decision #21 hints at this but explicit re-publish UX isn't in Phase 1.
+- **Re-publishing a published pack** (transition published → published with re-snapshot). The current gate only allows draft → published. Re-publish would re-snapshot every question at its current version, useful when an admin wants to "freeze a new edition." Deferred to Phase 2 once authoring workflows mature; the SKILL.md decision #21 hints at this but explicit re-publish UX is not in Phase 1.
 
 ### Not included (Phase 1 boundary)
 

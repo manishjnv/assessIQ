@@ -230,7 +230,7 @@ Erasure leaves `certificates.name` (snapshot) **verbatim**:
 - Public `/verify/:credentialId` still resolves for recruiters — that is
   18-certification's contract, not this module's.
 - The candidate already published the name on LinkedIn / printed PDF;
-  there's no privacy benefit to erasing one local copy.
+  there is no privacy benefit to erasing one local copy.
 
 After erasure, the candidate's `users` row is tombstoned, so the admin/UI
 no longer surfaces the cert under that candidate. The public verify URL
