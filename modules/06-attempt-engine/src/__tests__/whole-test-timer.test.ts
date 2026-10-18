@@ -133,6 +133,7 @@ describe("Z-42 whole-test timer", () => {
     expect(attempt.duration_seconds).toBe(120);
     const v = await getAttemptForCandidate(tenant, attempt.id, userId);
     expect(v.sections).toBeUndefined();
+    expect(v.section_names).toEqual(["Quant", "Logic"]);
     expect(v.questions).toHaveLength(4);
     // Free movement: section 1 first, then section 0, then section 1 again.
     for (const i of [2, 0, 3, 1]) {
@@ -186,6 +187,7 @@ describe("Z-42 whole-test timer", () => {
     expect(attempt.duration_seconds).toBe(120);
     const v = await getAttemptForCandidate(tenant, attempt.id, userId);
     expect(v.sections).toMatchObject({ current: 0, total: 2 });
+    expect("section_names" in v).toBe(false);
     expect(v.questions).toHaveLength(2);
     await expect(
       saveAnswer(tenant, userId, { attemptId: attempt.id, questionId: qids[2] as string, answer: { selected: 1 } }),
@@ -232,5 +234,7 @@ describe("Z-42 marks per question", () => {
     const attempt = await startAttempt(tenant, { assessmentId, userId });
     expect(await frozen(attempt.id)).toEqual([...qids].sort().map((q) => ({ q, points: 1, neg: 0 })));
     expect(attempt.duration_seconds).toBe(3600);
+    const v = await getAttemptForCandidate(tenant, attempt.id, userId);
+    expect("section_names" in v).toBe(false);
   });
 });
