@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-command production deploy. Encodes docs/06-deployment.md "Deploy procedure (steady-state)".
-# Usage: bash tools/deploy.sh [--dry-run] [--yes] [--services "assessiq-api assessiq-frontend"] [--no-sweep] [--skip-ci-check] [--skip-signed-in]
+# Usage: bash tools/deploy.sh [--dry-run] [--yes] [--services "assessiq-api assessiq-frontend"] [--no-sweep] [--skip-ci-check] [--force-all]
 # Shared VPS: additive only, assessiq-* services only, no prune/rm/stop/apt/systemctl/caddy. Fails closed before the recreate.
 set -u -o pipefail
 cd "$(dirname "$0")/.." || exit 1
@@ -10,17 +10,17 @@ DIR=/srv/assessiq
 COMPOSE="docker compose -f infra/docker-compose.yml"
 PSQL="docker exec -i assessiq-postgres psql -U assessiq -d assessiq"
 ALLOW='0011_seed_help_content.sql 0100_attempts_ai_proposals_cache 0106_generation_attempts_batch_id 0109_seed_platform_aptitude_pack.sql'
-DRY=0; YES=0; SWEEP=1; SKIPCI=0; SKIPSI=0; SERVICES="assessiq-api assessiq-frontend"
+DRY=0; YES=0; SWEEP=1; SKIPCI=0; FORCEALL=0; SVCSET=0; SERVICES="assessiq-api assessiq-frontend"
 
-usage() { echo "usage: bash tools/deploy.sh [--dry-run] [--yes] [--services \"assessiq-api assessiq-frontend\"] [--no-sweep] [--skip-ci-check] [--skip-signed-in]" >&2; exit 64; }
+usage() { echo "usage: bash tools/deploy.sh [--dry-run] [--yes] [--services \"assessiq-api assessiq-frontend\"] [--no-sweep] [--skip-ci-check] [--force-all]" >&2; exit 64; }
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;;
     --yes) YES=1 ;;
     --no-sweep) SWEEP=0 ;;
     --skip-ci-check) SKIPCI=1 ;;
-    --skip-signed-in) SKIPSI=1 ;;
-    --services) shift; [ $# -gt 0 ] || usage; SERVICES="$1" ;;
+    --force-all) FORCEALL=1 ;;
+    --services) shift; [ $# -gt 0 ] || usage; SERVICES="$1"; SVCSET=1 ;;
     *) usage ;;
   esac
   shift
@@ -64,20 +64,6 @@ else
 fi
 ok "HEAD=${SHA:0:7} pushed$([ "$SKIPCI" -eq 1 ] || echo ", CI success")"
 
-# (1b) signed-in check before a frontend deploy (Z-47)
-case " $SVC " in
-  *" assessiq-frontend "*)
-    STEPN=1b; echo "STEP 1b/7 signed-in check (frontend)"
-    if [ "$SKIPSI" -eq 1 ]; then
-      echo "WARNING: --skip-signed-in set, the signed-in check did NOT run"
-    elif [ "$DRY" -eq 1 ]; then
-      echo "dry-run: would run 'pnpm verify:signed-in' (build + local stack + signed-in smoke spec)"
-    else
-      pnpm verify:signed-in || fail "signed-in check failed (pnpm verify:signed-in)"
-    fi
-    ok ;;
-esac
-
 # (2) VPS preflight
 step 2 "VPS preflight"
 R "test -d $DIR/.git" || fail "$DIR is not a git clone (or ssh failed)"
@@ -87,7 +73,8 @@ ok
 
 # (3) pull
 step 3 "pull"
-OLD="$(R "cd $DIR && git rev-parse --short HEAD")" || fail "cannot read VPS HEAD"
+OLDFULL="$(R "cd $DIR && git rev-parse HEAD")" || fail "cannot read VPS HEAD"
+OLD="${OLDFULL:0:7}"
 if [ "$DRY" -eq 1 ]; then
   R "cd $DIR && git fetch -q origin" || fail "VPS git fetch failed"
   REF=origin/main
@@ -98,6 +85,35 @@ fi
 NEWFULL="$(R "cd $DIR && git rev-parse $REF")" || fail "cannot read $REF"
 [ "$NEWFULL" = "$SHA" ] || fail "VPS $REF (${NEWFULL:0:7}) differs from local HEAD (${SHA:0:7})"
 ok "VPS $OLD -> ${SHA:0:7}"
+
+# (3b) build plan (Z-61). Only when no --services and no --force-all. Unknown or shared path => build both.
+# Frontend image inputs: apps/web, packages, modules, lockfile/manifests, tsconfig.base.json, infra/docker/assessiq-frontend.
+# API image inputs: apps/api, packages, modules, lockfile/manifests, tsconfig.base.json, infra/docker/assessiq-api.
+# Any path under infra/ or modules/ or packages/, and any unlisted path, builds both. Safe skips: docs, *.md, .github, tools, .vale, .githooks.
+if [ "$FORCEALL" -eq 1 ] || [ "$SVCSET" -eq 1 ]; then
+  echo "PLAN services as requested: $SVC (reason: $([ "$FORCEALL" -eq 1 ] && echo --force-all || echo --services))"
+else
+  NEED_FE=0; NEED_API=0; REASON=""
+  if ! git cat-file -e "$OLDFULL^{commit}" 2>/dev/null; then
+    NEED_FE=1; NEED_API=1; REASON="VPS commit ${OLD} unknown locally"
+  else
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      case "$f" in
+        docs/*|*.md|.github/*|tools/*|.vale/*|.githooks/*|.agent/*) ;;
+        apps/web/*) NEED_FE=1; REASON="${REASON:-$f}" ;;
+        apps/api/*) NEED_API=1; REASON="${REASON:-$f}" ;;
+        *) NEED_FE=1; NEED_API=1; REASON="${REASON:-shared or unknown path $f}" ;;
+      esac
+    done < <(git diff --name-only "$OLDFULL" "$SHA")
+  fi
+  NEW=""
+  [ "$NEED_API" -eq 1 ] && NEW="assessiq-api assessiq-worker"
+  [ "$NEED_FE" -eq 1 ] && NEW="${NEW:+$NEW }assessiq-frontend"
+  echo "PLAN api=$NEED_API frontend=$NEED_FE (reason: ${REASON:-no deployable change})"
+  if [ -z "$NEW" ]; then echo "Nothing to build or recreate. VPS is on ${SHA:0:7}. Use --force-all to build anyway."; exit 0; fi
+  SVC="$NEW"
+fi
 
 # (4) drift gate
 step 4 "drift gate"

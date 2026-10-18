@@ -668,7 +668,7 @@ jobs:
           E2E_API_BASE_URL: http://localhost:3000
         run: >-
           pnpm --filter @assessiq/web exec playwright test --shard=${{ matrix.shard }}/2
-          admin-workflow take-happy-path take-timer-expiry ordering-admin a11y-authed
+          admin-workflow take-happy-path take-timer-expiry ordering-admin a11y-authed signed-in-smoke
 
       # advisory until 2026-10-31, then remove PHONE_FLOW_ADVISORY and continue-on-error (RW-79)
       - name: Phone first-question timing (RW-79)
