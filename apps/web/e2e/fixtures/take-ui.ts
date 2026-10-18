@@ -9,7 +9,7 @@ export async function openAttempt(page: Page, context: BrowserContext, cookie: s
     { name: cookie.slice(0, eq), value: cookie.slice(eq + 1), domain: 'localhost', path: '/', httpOnly: true, secure: false, sameSite: 'Lax' },
   ]);
   await page.goto(`/take/attempt/${attemptId}`);
-  await expect(page.getByText(/Question 1 of/)).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByText(/^Question 1 of [0-9]+$/)).toBeVisible({ timeout: 20_000 });
 }
 
 /** Submit through the confirmation dialog and wait for the submitted page. */

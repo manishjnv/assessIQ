@@ -62,7 +62,7 @@ test.describe('phone: invitation link to first question', () => {
       const t1 = Date.now();
       await page.getByRole('checkbox').check();
       await beginBtn.click();
-      await expect(page.getByText(/Question 1 of/)).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByText(/^Question 1 of [0-9]+$/)).toBeVisible({ timeout: 60_000 });
       const t2 = Date.now();
 
       landing.push(t1 - t0);

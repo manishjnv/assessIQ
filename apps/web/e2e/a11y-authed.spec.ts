@@ -47,7 +47,7 @@ const pages: Array<{ role: 'admin' | 'candidate'; path: (id: string) => string; 
   { role: 'admin', path: () => '/admin/assessments', ready: (pg) => expect(pg.locator('main h1, main h2').first()).toBeVisible({ timeout: 20_000 }) },
   { role: 'admin', path: (id) => `/admin/attempts/${id}`, ready: (pg) => expect(pg.locator('main h1, main h2').first()).toBeVisible({ timeout: 20_000 }) },
   { role: 'candidate', path: () => '/candidate/results', ready: (pg) => expect(pg.locator('main h1, main h2').first()).toBeVisible({ timeout: 20_000 }) },
-  { role: 'candidate', path: (id) => `/take/attempt/${id}`, ready: (pg) => expect(pg.getByText(/Question 1 of/)).toBeVisible({ timeout: 20_000 }) },
+  { role: 'candidate', path: (id) => `/take/attempt/${id}`, ready: (pg) => expect(pg.getByText(/^Question 1 of [0-9]+$/)).toBeVisible({ timeout: 20_000 }) },
 ];
 
 for (const c of pages) {
