@@ -10,8 +10,8 @@ In ONE parallel-tool-call message, read:
 
 1. `PROJECT_BRAIN.md` — orientation (mandatory every session)
 2. `docs/01-architecture-overview.md` — system context
-3. `docs/SESSION_STATE.md` — last-session handoff (skip silently if absent)
-4. `docs/ROADMAP.md` — open work; status board at the top; plans index in `docs/plans/README.md` (layout 2026-10-15)
+3. `docs/NEXT.md` — generated start brief (Z-64): last handoff, ROADMAP status board, open Z-rows, newest 5 RCA entries, next migration number. Run `node tools/next-brief.mjs` first if its HEAD sha differs from `git rev-parse --short HEAD` or the file is absent. Replaces the full reads of `docs/SESSION_STATE.md` and `docs/ROADMAP.md`; open those only for a specific row or section
+4. `docs/ROADMAP.md` — read only the row you work on (plans index in `docs/plans/README.md`)
 5. `docs/RCA_LOG.md` — incident patterns to honor (skip silently if absent)
 6. `claude-mem:mem-search "<goal phrase>"` — only if the goal sounds like something you may have worked on before
 
@@ -159,11 +159,13 @@ Functionality first. Test enough to prove the feature works (happy path and main
 
 - **Verify before push:** run `pnpm verify` (lint and typecheck) before every push. Agents run it for the packages they touch before they report. Module tests: only touched modules, one at a time.
 - **Gate only security paths:** the adversarial gate (`codex:rescue`, or Sonnet takeover while Codex is down) is for `01-auth`, `02-tenancy`, `07-ai-grading`, `14-audit-log`, `infra/**`, and anything that decides who may sit a test or gets marks or time. UI, docs and display-only rows skip the gate.
+- **One gate per batch (owner, 2026-10-18; Z-65):** run ONE adversarial gate for the whole batch, with at most 3 security rows in it. Use `docs/ai-playbook/gate-checklist.md` (attack list per area, prompt shape, findings log line that names the row). Which paths are gated does not change.
 - **Smoke, not full e2e:** for a changed screen run one local smoke spec. CI runs the rest.
 - **Batches:** 3 to 4 rows, then push, watch CI, deploy, sweep (`bash tools/post-deploy-sweep.sh`). Never stack new work on a red CI. Give an ETA for the next push only.
 - **Agent brief (every build agent):** `git merge main` first in a worktree; own migration number and own help-id and seed-count range from the orchestrator; run `pnpm verify` before reporting; do not commit; report the worktree path. Take patches with `git add -N` and `git diff --binary`, apply with `git apply --3way` only when the worktree base equals `main`.
 - **Haiku 5.5 first (owner, 2026-10-18; `model: "haiku"` resolves to `claude-haiku-5-5`):** for fully specified, non-load-bearing rows (display or copy changes, help ids and YAML, tab strips and page wiring, docs, tests for existing behaviour, digests, sweeps) fire a Haiku 5.5 build agent first. Escalate to Sonnet only if the Haiku diff fails `pnpm verify` or needs a second revision, and log `reworked: Y/N` in the footer so the routing can be tuned. Sonnet stays the default for load-bearing paths (scoring, auth, tenancy, credentials, migrations with RLS). One agent run costs about 70k tokens of fixed context, so give each agent several rows of the same file area instead of one small row each.
 - **Optimization register (owner, 2026-10-18):** time, token and gate ideas are kept in `docs/ai-playbook/09-optimization-register.md`. At Phase 6, update the rows you touched (status, date, measured evidence) and list the changed IDs in the handoff.
+- **Phase 6 brief and footer (Z-64, Z-66):** at Phase 6 run `node tools/next-brief.mjs` (regenerate NEXT.md; never edit it by hand). Footer routing lines use `- <Opus|Sonnet|Haiku> · <task> · reworked: Y/N (<why>) · tokens: <subagent_tokens>`; `node tools/routing-report.mjs` prints rework rate per route. Stop the Haiku 5.5 trial if non-gate rework is above 25% after 8 runs.
 - **Docs writes:** build the string first, then write the file (`python -X utf8`). `git add -f` named docs files only, never a directory.
 - **Push hook:** the trailer commit (`Adversarial-Review:`) must be its own command before the push.
 - **Two sessions at once = two worktrees.** Run `bash tools/wt-setup.sh <name>` for each extra code session. Remove it with `bash tools/wt-clean.sh <name>` when done.
