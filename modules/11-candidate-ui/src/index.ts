@@ -26,6 +26,7 @@ export type {
   SubmitAttemptResponseWire,
   AttemptResultPendingWire,
   AttemptResultReleasedWire,
+  ResultRetakeWire,
   AttemptResultWire,
   ResultExpectation,
   ReleaseMode,

@@ -120,6 +120,14 @@ The verify page puts Open Graph and Twitter Card meta tags in its `<head>`. A li
 - **Edge case.** A pass mark above 90 makes every pass a Distinction. The help text for the field says so.
 - **Downstream.** The `modules/13-notifications` result email still reads `levels.passing_score_pct`. The `modules/15-analytics` results export still reads it. Both are follow-ups.
 
+### One certificate per assessment and candidate (Z-39, 2026-10-18)
+
+- **What.** A candidate can pass more than once when the assessment allows retakes. `issueCertificateOnRelease` first looks for a live (not revoked) certificate of the same candidate on any EARLIER attempt of the same assessment. If one exists it returns that certificate and issues nothing new. The unique key stays `(tenant_id, candidate_id, attempt_id)`; the new check is in the service.
+- **Why.** The owner wants the existing rule per passed attempt, but one credential per assessment and candidate. A second credential id for the same result would confuse verifiers.
+- **Considered and rejected.** A database unique key on (candidate, assessment): the certificate row has no assessment column, and a join key would need a cross-table index. Upgrading the first certificate when a later attempt scores higher: it would change a signed credential after issue.
+- **Not included.** A tier upgrade from a later attempt. If the first certificate is revoked, the next passed attempt can earn a new one.
+- **Downstream.** `modules/18-certification/src/service.ts`; test in `modules/09-scoring/src/__tests__/release.test.ts`.
+
 ### Never-raise invariant
 
 - A cert failure must not block the release.

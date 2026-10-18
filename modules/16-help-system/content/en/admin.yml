@@ -4690,3 +4690,57 @@ admin.assessments.pass_mark:
     - **A pass mark above 90 makes Completion and Distinction the same band.**
       Every pass is then 90 percent or more, so every certificate is Distinction.
     - **Old results do not change.** Each result keeps the pass mark it was judged by.
+
+admin.assessments.max_attempts:
+  audience: admin
+  short_text: "How many times one candidate can take this assessment. Empty or 1 means one attempt."
+  long_md: |
+    ## Attempts allowed
+
+    This is the number of times one candidate can take this assessment, from 1 to 10.
+    Leave it empty or set 1 for a single attempt. That is the default.
+
+    - **You can change it only while the assessment is a draft.** After you publish, it is locked.
+    - **A candidate sees "Attempt 2 of 3" on the start page.** After the last attempt, the result page does not offer another try.
+    - **Each attempt is a new test.** The timer, the questions and the answers are new for each attempt.
+    - **An extra attempt for one candidate is possible.** Use "Give extra attempt" in the invitations list. You must write a reason.
+    - **A certificate is issued once.** If a candidate passes more than once, the first certificate stays.
+
+admin.assessments.score_counts:
+  audience: admin
+  short_text: "Which attempt counts when a candidate takes the assessment more than once: the latest or the best."
+  long_md: |
+    ## Score that counts
+
+    This setting matters only when the assessment allows more than one attempt.
+
+    - **Latest attempt (default).** The newest attempt is the one you see in the invitations list.
+    - **Best attempt.** The attempt with the highest released score is the one you see.
+    - **Every attempt keeps its own result.** The candidate can still see each result in the results list.
+
+    You can change it only while the assessment is a draft.
+
+admin.assessments.extra_attempt:
+  audience: admin
+  short_text: "Give one candidate one more attempt than the assessment allows. You must write a reason."
+  long_md: |
+    ## Give extra attempt
+
+    Use this to let one candidate take the assessment one more time. It does not change the
+    assessment or other candidates.
+
+    - **A reason is required.** The reason is saved in the audit log with your name.
+    - **One press gives one attempt.** Press it again for a second extra attempt. The most is 10 extra attempts.
+    - **The candidate can use the same link if it is still valid.** If the link expired, use "Re-open".
+
+admin.assessments.invitations.reopen:
+  audience: admin
+  short_text: "Email a new link so a candidate who finished can take the next attempt."
+  long_md: |
+    ## Re-open
+
+    Use this when a candidate finished an attempt and the assessment allows another one.
+
+    - **Only for assessments with more than one attempt.** The button appears when the candidate has an attempt left.
+    - **The candidate gets a new link by email.** The old link stops working. The new link is valid for 7 days.
+    - **No attempts left?** Use "Give extra attempt" first, then re-open.

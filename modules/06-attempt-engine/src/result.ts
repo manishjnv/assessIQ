@@ -23,7 +23,7 @@
  */
 
 import type { PoolClient } from "pg";
-import { NotFoundError, config, isPass, isUuid, streamLogger } from "@assessiq/core";
+import { NotFoundError, attemptsAllowed, config, isPass, isUuid, streamLogger } from "@assessiq/core";
 import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from "@assessiq/tenancy";
 import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import { getSectionScoresForAttempt, type SectionScore } from "@assessiq/scoring";
@@ -99,10 +99,20 @@ export interface ReleasedResult {
   negative_marking: NegativeMarkingSummary;
   /** EXP-6: marks per section (earned/max, plus passed_cutoff for a qualifying section with a cutoff). Absent when the assessment has no sections. */
   sections?: SectionScore[];
+  /** Z-39: which attempt this is and whether the candidate may start another. */
+  retake?: ResultRetake;
   /** Organisation name (text fallback when there is no logo). Added by getCandidateResult. */
   tenant_name?: string;
   /** Tenant logo URL for the co-branded Submitted page; null when none. Added by getCandidateResult. */
   company_logo_url?: string | null;
+}
+
+/** Z-39: 'Attempt n of m' plus the rule for the Try again button. can_retake is the whole rule (see loadCandidateResult). */
+export interface ResultRetake {
+  assessment_id: string;
+  attempt_number: number;
+  attempts_allowed: number;
+  can_retake: boolean;
 }
 
 export interface PendingResult extends SubmitExpectation {
@@ -299,6 +309,15 @@ interface ReleasedRow {
   credential_id: string | null;
 }
 
+interface RetakeRow {
+  assessment_id: string;
+  assessment_status: string;
+  max_attempts: number | null;
+  attempt_number: number;
+  latest_attempt_number: number;
+  extra_attempts: number;
+}
+
 /** released_at = the grading.released audit row; falls back to the score computation time. */
 export const RELEASED_AT_SQL = `COALESCE(
   (SELECT al.at FROM audit_log al
@@ -331,8 +350,16 @@ async function loadCandidateResult(
     }
 
     if (attempt.status === "released") {
-      const res = await client.query<ReleasedRow>(
+      const res = await client.query<ReleasedRow & RetakeRow>(
         `SELECT asm.name AS assessment_name,
+                asm.id AS assessment_id,
+                asm.status AS assessment_status,
+                asm.max_attempts,
+                a.attempt_number,
+                (SELECT max(t.attempt_number) FROM attempts t
+                  WHERE t.assessment_id = a.assessment_id AND t.user_id = a.user_id) AS latest_attempt_number,
+                COALESCE((SELECT i.extra_attempts FROM assessment_invitations i
+                           WHERE i.assessment_id = a.assessment_id AND i.user_id = a.user_id LIMIT 1), 0) AS extra_attempts,
                 s.total_earned::text AS total_earned,
                 s.total_max::text    AS total_max,
                 s.pass_mark_pct AS passing_score_pct,
@@ -354,6 +381,17 @@ async function loadCandidateResult(
         const percent = resultPercent(earned, max);
         const negativeMarking = (await loadNegativeMarking(client, [attemptId])).get(attemptId) ?? NO_NEGATIVE_MARKING;
         const sections = await getSectionScoresForAttempt(client, attemptId); // [] without sections
+        // Z-39: offer another try only from the LATEST attempt, while attempts are left and the test is open.
+        const allowed = attemptsAllowed(r.max_attempts, r.extra_attempts);
+        const retake: ResultRetake = {
+          assessment_id: r.assessment_id,
+          attempt_number: r.attempt_number,
+          attempts_allowed: allowed,
+          can_retake:
+            r.assessment_status === "active" &&
+            r.attempt_number === r.latest_attempt_number &&
+            r.attempt_number < allowed,
+        };
         return {
           status: "released",
           total_earned: earned,
@@ -365,6 +403,7 @@ async function loadCandidateResult(
           released_at: new Date(r.released_at).toISOString(),
           certificate: certificateRef(r.credential_id),
           negative_marking: negativeMarking,
+          retake,
           ...(sections.length > 0 ? { sections } : {}),
         };
       }

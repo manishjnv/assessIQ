@@ -982,6 +982,23 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 - **Not included.** A separate Distinction threshold (fixed at 90). Honors.
 - **Impact.** Candidate result payloads carry `pass_mark_pct` (below). The welcome preview carries `assessment.pass_mark_pct`.
 
+#### Retake policy (Z-39): `max_attempts`, `settings.score_counts`, extra attempt, re-open, attempt fields
+
+**History:** added 2026-10-18 (migration `0203`).
+- **What.**
+  - `POST /api/admin/assessments`, `POST .../from-set` and `PATCH /api/admin/assessments/:id` accept `max_attempts`: `null` or `1` = one attempt (the default, no retake), a whole number `2` to `10` = attempts allowed. Anything else (0, 11, decimals, strings) returns `422 INVALID_PARAM` with `details.param = "max_attempts"`. A `PATCH` works only while the assessment is `draft` (the existing `409 ASSESSMENT_NOT_DRAFT`). The assessment payload carries `max_attempts`.
+  - `settings.score_counts` is `"latest"` (default when absent) or `"best"`. Any other value returns `422 INVALID_PARAM` (`settings.score_counts`). It decides which attempt the invitations list shows for a candidate who sat the test more than once.
+  - `POST /api/admin/invitations/:id/extra-attempt` body `{ reason }` (required, 1 to 500 characters, trimmed) gives ONE candidate ONE more attempt than `max_attempts` allows. Response `200 { invitation, attempts_used, attempts_allowed }`. One audit row per grant (`assessment.invitation.extra_attempt_granted`, `after.reason`) in the same transaction as the counter. Errors: `404 INVITATION_NOT_FOUND` (also another tenant, by RLS), `409 ASSESSMENT_NOT_ACTIVE` (draft, closed, cancelled), `409 EXTRA_ATTEMPT_LIMIT` (10 extra attempts already), `422 INVALID_PARAM` (reason).
+  - `POST /api/admin/invitations/:id/reopen` re-opens a `submitted` invitation for the next attempt: new link by email, 7 days, status `pending`, audit `assessment.invitation.reopened`. Errors: `409 ATTEMPTS_EXHAUSTED` (attempts used is not below `max_attempts` plus extras), `409 RETAKE_NOT_AVAILABLE` (not submitted, or an attempt is unfinished), `409 ASSESSMENT_NOT_ACTIVE`, `409 USER_INACTIVE`, `502 INVITATION_EMAIL_FAILED` (the new link is saved).
+  - `GET /api/admin/assessments/:id/invitations` items add `attempts_used`, `attempts_allowed`, `can_reopen`, `can_grant_extra`. There is still ONE row per candidate: the attempt that counts (`score_counts`).
+  - `POST /take/start` preview and start responses add `assessment.attempt_number` and `assessment.attempts_allowed` (the page shows "Attempt n of m" when `attempts_allowed` is above 1). A finished invitation with attempts left is no longer `410`; it previews the next attempt. `410` stays when no attempt is left.
+  - `POST /api/me/assessments/:id/start` accepts `{ new_attempt: true }` (the Try again button). Without it the call keeps its old meaning (returns the latest attempt). With it a new attempt starts only while attempts are left, else `409 AE_ATTEMPTS_EXHAUSTED`; an unfinished attempt is resumed, never duplicated. The `Attempt` payload adds `attempt_number`.
+  - `GET /api/me/attempts/:id/result` (released) adds `retake: { assessment_id, attempt_number, attempts_allowed, can_retake }`. `can_retake` is true only for the latest attempt of an active assessment with attempts left.
+- **Why.** Owner decision 2026-10-17 (Z-39): the organisation admin sets the maximum attempts. The result page needs a real rule instead of "ask your organisation".
+- **Considered and rejected.** A global retake setting (organisations differ). Automatic retakes. A candidate-triggered retake with no admin limit.
+- **Not included.** Cooling-off timers, paid retakes, a different question draw per retake. Changing `max_attempts` after publish.
+- **Impact.** Module 18: one certificate per assessment and candidate (the first pass keeps it). Modules 07, 09, 15 that join `attempts` by `(assessment_id, user_id)` now see one row per attempt. Help rows `admin.assessments.max_attempts`, `.score_counts`, `.extra_attempt`, `.invitations.reopen`, `candidate.result.retake`.
+
 #### `PATCH /api/admin/assessments/:id` and create: `SECTIONS_LOCKED` (409)
 
 **History:** added in the 2026-10-02 batch 5 notes.
@@ -3301,7 +3318,9 @@ Chains are defined in `apps/api/src/routes/admin-super-evaluations.ts`; the rout
 
 | Method + path | Success | Errors |
 | --- | --- | --- |
-| `POST /api/admin/invitations/:id/resend` | 200 the invitation; a new link is emailed after commit, the old link stops working, valid 7 days | 404 `INVITATION_NOT_FOUND` · 409 `INVITATION_ALREADY_STARTED` / `ASSESSMENT_NOT_ACTIVE` / `USER_INACTIVE` · 502 `INVITATION_EMAIL_FAILED` (link rotated but email not queued: resend again) |
+| `POST /api/admin/invitations/:id/extra-attempt` | 200 `{ invitation, attempts_used, attempts_allowed }` (Z-39; body `{ reason }` required) | 404 `INVITATION_NOT_FOUND` · 409 `ASSESSMENT_NOT_ACTIVE`, `EXTRA_ATTEMPT_LIMIT` · 422 `INVALID_PARAM` |
+| `POST /api/admin/invitations/:id/reopen` | 200 the invitation; a new link is emailed (Z-39, next attempt) | 404 `INVITATION_NOT_FOUND` · 409 `ATTEMPTS_EXHAUSTED`, `RETAKE_NOT_AVAILABLE`, `ASSESSMENT_NOT_ACTIVE`, `USER_INACTIVE` · 502 `INVITATION_EMAIL_FAILED` |
+| `POST /api/admin/assessments/:id/invitations/resend` | 200 the invitation; a new link is emailed after commit, the old link stops working, valid 7 days | 404 `INVITATION_NOT_FOUND` · 409 `INVITATION_ALREADY_STARTED` / `ASSESSMENT_NOT_ACTIVE` / `USER_INACTIVE` · 502 `INVITATION_EMAIL_FAILED` (link rotated but email not queued: resend again) |
 | `POST /api/admin/assessments/:id/invitations/resend` | 200 `{ resent, skipped: [{ id, code }], remaining }`: at most 200 per call, one transaction per row; skips revoked rows and rows re-issued in the last 10 minutes | 404 |
 
 - **Invitation list:** `GET /api/admin/assessments/:id/invitations` rows gain `can_resend`, and the response gains `resendable` (the bulk count).

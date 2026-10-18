@@ -138,6 +138,9 @@ export interface TakePreviewResponseWire {
     company_name: string;
     /** Logo L3a: tenant logo URL; null/absent (older servers) = name only. */
     company_logo_url?: string | null;
+    /** Z-39: the attempt this page is about and how many the candidate may make. Absent on older servers. */
+    attempt_number?: number;
+    attempts_allowed?: number;
   };
 }
 
@@ -213,9 +216,19 @@ export interface AttemptResultReleasedWire {
   pass_mark_pct?: number;
   certificate: ResultCertificateWire | null;
   negative_marking?: ResultNegativeMarkingWire;
+  /** Z-39: attempt n of m and whether another try is open. Absent on older servers. */
+  retake?: ResultRetakeWire;
   /** Logo L3a: organisation name and logo URL for the Submitted page; absent on older servers. */
   tenant_name?: string;
   company_logo_url?: string | null;
+}
+
+/** Z-39: GET /api/me/attempts/:id/result `retake`. can_retake is the whole server-side rule. */
+export interface ResultRetakeWire {
+  assessment_id: string;
+  attempt_number: number;
+  attempts_allowed: number;
+  can_retake: boolean;
 }
 
 export type AttemptResultWire =

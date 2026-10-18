@@ -1,8 +1,8 @@
 // Tests for ResultSummary — the candidate-facing COMPLETE result.
 // Owner rule P1: total, percent, pass/fail and certificate link only.
 
-import { describe, expect, it, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { describe, expect, it, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { ResultSummary } from '../components';
 import { certificateRuleText } from '../copy';
 
@@ -151,6 +151,36 @@ describe('ResultSummary', () => {
     it('fail without feedback shows only the ask line', () => {
       render(<ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} tenantName="Acme" />);
       expect(screen.getByText('Ask Acme if you can try again.')).toBeDefined();
+    });
+
+    it('Z-39: attempts left -> real rule line and a Try again button that calls back', () => {
+      const onRetake = vi.fn();
+      const retake = { assessment_id: 'a1', attempt_number: 1, attempts_allowed: 3, can_retake: true };
+      render(
+        <ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} tenantName="Acme" retake={retake} onRetake={onRetake} />,
+      );
+      expect(screen.getByText('You can try again. This was attempt 1 of 3.')).toBeDefined();
+      fireEvent.click(screen.getByTestId('result-retake'));
+      expect(onRetake).toHaveBeenCalledTimes(1);
+    });
+
+    it('Z-39: last attempt used -> no button, the rule says so; a single-attempt test says that', () => {
+      const used = { assessment_id: 'a1', attempt_number: 3, attempts_allowed: 3, can_retake: false };
+      const { rerender } = render(
+        <ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} tenantName="Acme" retake={used} onRetake={() => undefined} />,
+      );
+      expect(screen.queryByTestId('result-retake')).toBeNull();
+      expect(screen.getByText('You used all 3 attempts. Ask Acme if you need another.')).toBeDefined();
+      rerender(
+        <ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} tenantName="Acme" retake={{ ...used, attempt_number: 1, attempts_allowed: 1 }} />,
+      );
+      expect(screen.getByText('This test allows one attempt. Ask Acme if you need another.')).toBeDefined();
+    });
+
+    it('Z-39: a pass never shows Try again', () => {
+      const retake = { assessment_id: 'a1', attempt_number: 1, attempts_allowed: 3, can_retake: true };
+      render(<ResultSummary totalEarned={50} totalMax={60} percent={83} passed retake={retake} onRetake={() => undefined} />);
+      expect(screen.queryByTestId('result-retake')).toBeNull();
     });
 
     it('list-row one-liners', () => {

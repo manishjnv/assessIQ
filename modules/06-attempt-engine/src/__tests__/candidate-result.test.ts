@@ -333,6 +333,8 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
       tenant_name: "Acme University", // Logo L3a: name fallback for the Submitted page
       company_logo_url: null,
       negative_marking: { enabled: false, penalty_total: 0 }, // EX-1: no deterministic question carries a penalty
+      // Z-39: default assessment = one attempt, so no retake is offered.
+      retake: { assessment_id: expect.any(String), attempt_number: 1, attempts_allowed: 1, can_retake: false },
     });
   });
 

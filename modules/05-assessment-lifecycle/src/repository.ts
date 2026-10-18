@@ -33,6 +33,7 @@
  */
 
 import type { PoolClient } from "pg";
+import { attemptsAllowed } from "@assessiq/core";
 import type {
   Assessment,
   AssessmentInvitation,
@@ -46,9 +47,9 @@ import type {
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
+const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
 
-const INVITATION_COLUMNS = `id, assessment_id, user_id, token_hash, expires_at, status, invited_by, created_at`;
+const INVITATION_COLUMNS = `id, assessment_id, user_id, token_hash, expires_at, status, invited_by, created_at, extra_attempts`;
 
 // ---------------------------------------------------------------------------
 // Row interfaces (raw Postgres types before mapping)
@@ -65,6 +66,7 @@ interface AssessmentRow {
   status: string;
   question_count: number;
   passing_score_pct: number;
+  max_attempts: number | null;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -83,11 +85,14 @@ interface InvitationRow {
   status: string;
   invited_by: string;
   created_at: Date;
+  extra_attempts: number;
 }
 
 /** Extended row returned by the list query (includes JOINed user + attempt data). */
 interface InvitationRowWithMeta extends InvitationRow {
   reminded_at: Date | null;
+  attempts_used: number;
+  max_attempts: number | null;
   user_name: string | null;
   user_email: string | null;
   attempt_id: string | null;
@@ -128,6 +133,7 @@ function mapAssessmentRow(row: AssessmentRow): Assessment {
     status: row.status as AssessmentStatus,
     question_count: row.question_count,
     passing_score_pct: row.passing_score_pct,
+    max_attempts: row.max_attempts,
     randomize: row.randomize,
     opens_at: row.opens_at,
     closes_at: row.closes_at,
@@ -150,12 +156,15 @@ function mapInvitationRow(row: InvitationRow): AssessmentInvitation {
     status: row.status as InvitationStatus,
     invited_by: row.invited_by,
     created_at: row.created_at,
+    extra_attempts: row.extra_attempts,
   };
 }
 
 function mapInvitationRowWithMeta(row: InvitationRowWithMeta): AssessmentInvitation {
   return {
     ...mapInvitationRow(row),
+    attempts_used: row.attempts_used,
+    attempts_allowed: attemptsAllowed(row.max_attempts, row.extra_attempts),
     reminded_at: row.reminded_at,
     user_name: row.user_name,
     user_email: row.user_email,
@@ -415,6 +424,7 @@ export async function insertAssessment(
     description?: string;
     questionCount: number;
     passingScorePct: number;
+    maxAttempts?: number | null;
     randomize: boolean;
     opensAt?: Date | null;
     closesAt?: Date | null;
@@ -428,8 +438,8 @@ export async function insertAssessment(
   const result = await client.query<AssessmentRow>(
     `INSERT INTO assessments
        (id, tenant_id, pack_id, level_id, pack_version, name, description,
-        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14)
+        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct, max_attempts)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15)
      RETURNING ${ASSESSMENT_COLUMNS}`,
     [
       input.id,
@@ -446,6 +456,7 @@ export async function insertAssessment(
       JSON.stringify(input.settings),
       input.createdBy,
       input.passingScorePct,
+      input.maxAttempts ?? null,
     ],
   );
   const row = result.rows[0];
@@ -463,6 +474,7 @@ export async function updateAssessmentRow(
     description?: string | null;
     questionCount?: number;
     passingScorePct?: number;
+    maxAttempts?: number | null;
     randomize?: boolean;
     opensAt?: Date | null;
     closesAt?: Date | null;
@@ -500,6 +512,11 @@ export async function updateAssessmentRow(
   if (patch.passingScorePct !== undefined) {
     sets.push(`passing_score_pct = $${i}`);
     values.push(patch.passingScorePct);
+    i++;
+  }
+  if (patch.maxAttempts !== undefined) {
+    sets.push(`max_attempts = $${i}`);
+    values.push(patch.maxAttempts);
     i++;
   }
   if (patch.randomize !== undefined) {
@@ -780,7 +797,11 @@ export async function listInvitationRows(
        ai.status,
        ai.invited_by,
        ai.created_at,
+       ai.extra_attempts,
        ai.reminded_at,
+       asm.max_attempts,
+       (SELECT count(*)::int FROM attempts t
+         WHERE t.assessment_id = ai.assessment_id AND t.user_id = ai.user_id) AS attempts_used,
        u.name               AS user_name,
        u.email              AS user_email,
        a.id                 AS attempt_id,
@@ -792,9 +813,21 @@ export async function listInvitationRows(
        s.auto_pct,
        s.pending_review
      FROM  assessment_invitations ai
+     JOIN assessments        asm ON asm.id = ai.assessment_id
      LEFT JOIN users         u  ON u.id  = ai.user_id
-     LEFT JOIN attempts      a  ON a.assessment_id = ai.assessment_id
-                                AND a.user_id      = ai.user_id
+     -- Z-39: ONE row per candidate = the attempt that counts. settings.score_counts
+     -- 'best' = highest released score (then newest); anything else = newest attempt.
+     LEFT JOIN LATERAL (
+       SELECT a2.* FROM attempts a2
+       LEFT JOIN attempt_scores s2 ON s2.attempt_id = a2.id
+                                  AND (a2.status = 'released'
+                                       OR (a2.status = 'graded' AND a2.evaluation_released_at IS NOT NULL))
+        WHERE a2.assessment_id = ai.assessment_id AND a2.user_id = ai.user_id
+        ORDER BY CASE WHEN asm.settings->>'score_counts' = 'best' AND s2.total_max > 0
+                      THEN s2.total_earned / s2.total_max END DESC NULLS LAST,
+                 a2.attempt_number DESC
+        LIMIT 1
+     ) a ON true
      -- score only once the result is released to the tenant
      -- (same rule as 09 TENANT_VISIBLE_ATTEMPT_SQL)
      LEFT JOIN attempt_scores s ON s.attempt_id = a.id
@@ -919,6 +952,66 @@ export async function hasStartedAttempt(
     [assessmentId, userId],
   );
   return result.rows.length > 0;
+}
+
+/**
+ * Z-39: attempts the candidate has used on this assessment, and whether one is
+ * still unfinished ('draft' / 'in_progress'). Reads 06's table like
+ * hasStartedAttempt does.
+ */
+export async function getAttemptUsage(
+  client: PoolClient,
+  assessmentId: string,
+  userId: string,
+): Promise<{ used: number; unfinished: boolean }> {
+  const result = await client.query<{ used: number; unfinished: boolean }>(
+    `SELECT count(*)::int AS used,
+            COALESCE(bool_or(status IN ('draft', 'in_progress')), false) AS unfinished
+       FROM attempts
+      WHERE assessment_id = $1 AND user_id = $2`,
+    [assessmentId, userId],
+  );
+  return result.rows[0] ?? { used: 0, unfinished: false };
+}
+
+/**
+ * Z-39: add ONE extra attempt to an invitation (capped at 10 by the table CHECK;
+ * the guard keeps the error a clean null instead of a constraint violation).
+ */
+export async function grantExtraAttempt(
+  client: PoolClient,
+  invitationId: string,
+): Promise<AssessmentInvitation | null> {
+  const result = await client.query<InvitationRow>(
+    `UPDATE assessment_invitations SET extra_attempts = extra_attempts + 1
+      WHERE id = $1 AND extra_attempts < 10
+      RETURNING ${INVITATION_COLUMNS}`,
+    [invitationId],
+  );
+  const row = result.rows[0];
+  return row !== undefined ? mapInvitationRow(row) : null;
+}
+
+/**
+ * Z-39: re-open a SUBMITTED invitation for a retake: fresh token, new expiry,
+ * status back to 'pending'. Returns null when the row is not 'submitted'.
+ */
+export async function reopenSubmittedInvitation(
+  client: PoolClient,
+  id: string,
+  tokenHash: string,
+  expiresAt: Date,
+): Promise<AssessmentInvitation | null> {
+  const result = await client.query<InvitationRow>(
+    `UPDATE assessment_invitations
+        SET token_hash = $1, expires_at = $2, status = 'pending', last_resent_at = now(),
+            reminded_at = NULL
+      WHERE id = $3 AND status = 'submitted'
+      RETURNING ${INVITATION_COLUMNS}`,
+    [tokenHash, expiresAt, id],
+  );
+  const row = result.rows[0];
+  return row !== undefined ? mapInvitationRow(row) : null;
 }
 
 /**

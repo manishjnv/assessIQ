@@ -9,9 +9,12 @@ export interface InvitationColumnsDeps {
   resendingId: string | null;
   resendingAll: boolean;
   onResend: (inv: Invitation) => void | Promise<void>;
+  /** Z-39: re-open a submitted invitation / give one extra attempt. */
+  onReopen: (inv: Invitation) => void | Promise<void>;
+  onGrantExtra: (inv: Invitation) => void | Promise<void>;
 }
 
-export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onResend }: InvitationColumnsDeps): ColumnDef<Invitation>[] {
+export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onResend, onReopen, onGrantExtra }: InvitationColumnsDeps): ColumnDef<Invitation>[] {
   return [
     {
       key: "user_name",
@@ -70,6 +73,11 @@ export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onRes
                 }}
               >
                 {expiry.text}
+              </span>
+            )}
+            {row.attempts_allowed != null && row.attempts_allowed > 1 && (
+              <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: "var(--aiq-text-xs)", color: "var(--aiq-color-fg-muted)" }}>
+                Attempts {row.attempts_used ?? 0} of {row.attempts_allowed}
               </span>
             )}
             {row.reminded_at != null && (row.status === "pending" || row.status === "viewed") && (
@@ -212,6 +220,33 @@ export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onRes
               {resendingId === row.id ? "Sending…" : "Resend"}
             </button>
           ) : null;
+        const busy = resendingId !== null || resendingAll;
+        const reopenBtn =
+          row.can_reopen === true ? (
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+              data-help-id="admin.assessments.invitations.reopen"
+              title="Email a new link so the candidate can take the next attempt."
+              disabled={busy}
+              onClick={() => void onReopen(row)}
+            >
+              Re-open
+            </button>
+          ) : null;
+        const extraBtn =
+          row.can_grant_extra === true ? (
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+              data-help-id="admin.assessments.extra_attempt"
+              title="Give this candidate one more attempt. A reason is required."
+              disabled={busy}
+              onClick={() => void onGrantExtra(row)}
+            >
+              Give extra attempt
+            </button>
+          ) : null;
         const viewLink =
           row.attempt_id != null ? (
             <Link
@@ -226,10 +261,12 @@ export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onRes
               View attempt →
             </Link>
           ) : null;
-        if (resendBtn === null && viewLink === null) return <span>—</span>;
+        if (resendBtn === null && reopenBtn === null && extraBtn === null && viewLink === null) return <span>—</span>;
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "var(--aiq-space-sm)" }}>
             {resendBtn}
+            {reopenBtn}
+            {extraBtn}
             {viewLink}
           </div>
         );

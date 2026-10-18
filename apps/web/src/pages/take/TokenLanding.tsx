@@ -69,6 +69,8 @@ type PageState =
       durationSeconds: number;
       questionCount: number;
       passMarkPct: number | null;
+      attemptNumber: number | null;
+      attemptsAllowed: number | null;
     }
   | { tag: 'error404' }
   | { tag: 'invalid' }
@@ -88,6 +90,8 @@ export function SuccessContent({
   durationSeconds,
   questionCount,
   passMarkPct = null,
+  attemptNumber = null,
+  attemptsAllowed = null,
   resumed,
   onBegin,
   beginning,
@@ -101,6 +105,9 @@ export function SuccessContent({
   questionCount: number;
   /** Z-16: pass mark (1-100); null on older servers. */
   passMarkPct?: number | null;
+  /** Z-39: 'Attempt n of m' shows only when the assessment allows more than one attempt. */
+  attemptNumber?: number | null;
+  attemptsAllowed?: number | null;
   resumed: boolean;
   onBegin: () => void;
   beginning: boolean;
@@ -153,6 +160,8 @@ export function SuccessContent({
           {company ? `${company} · ` : ''}
           {totalMinutes} min · {questionCount} question{questionCount !== 1 ? 's' : ''}
           {passMarkPct !== null && ` · Pass mark ${passMarkPct}%`}
+          {attemptNumber !== null && attemptsAllowed !== null && attemptsAllowed > 1 &&
+            ` · Attempt ${attemptNumber} of ${attemptsAllowed}`}
         </p>
         <ul
           style={{
@@ -351,6 +360,8 @@ export function TokenLanding(): React.JSX.Element {
         questionCount: res.assessment.question_count,
         // pass_mark_pct is not in the shared wire type yet (module 11 is edited elsewhere).
         passMarkPct: (res.assessment as { pass_mark_pct?: number }).pass_mark_pct ?? null,
+        attemptNumber: res.assessment.attempt_number ?? null,
+        attemptsAllowed: res.assessment.attempts_allowed ?? null,
       });
     } catch (err) {
       if (err instanceof CandidateApiError) {
@@ -414,6 +425,8 @@ export function TokenLanding(): React.JSX.Element {
         durationSeconds={state.durationSeconds}
         questionCount={state.questionCount}
         passMarkPct={state.passMarkPct}
+        attemptNumber={state.attemptNumber}
+        attemptsAllowed={state.attemptsAllowed}
         resumed={state.resumed}
         onBegin={() => void handleBegin()}
         beginning={beginning}

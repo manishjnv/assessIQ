@@ -706,3 +706,16 @@ candidate.results.feedback.study:
     ## What to study
 
     This line names the unit and subject of the question. If the question has no unit, it shows the topic.
+
+candidate.result.retake:
+  audience: candidate
+  short_text: "Try again starts your next attempt. You see how many attempts you have."
+  long_md: |
+    ## Try again
+
+    Some assessments allow more than one attempt. When you have an attempt left, you see
+    "Try again" under a result that is not a pass.
+
+    - **A new attempt is a new test.** The timer starts when you press the button.
+    - **Your earlier result stays.** You can see it in your results list.
+    - **No attempts left?** Ask your organisation if you need another attempt.

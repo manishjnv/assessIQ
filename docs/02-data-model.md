@@ -930,6 +930,7 @@ CREATE TABLE assessments (
   status          assessment_status NOT NULL DEFAULT 'draft',
   question_count  INT NOT NULL CHECK (question_count >= 1),
   passing_score_pct SMALLINT NOT NULL DEFAULT 60 CHECK (passing_score_pct BETWEEN 1 AND 100), -- Z-16, 0198; editable only while draft
+  max_attempts    SMALLINT CHECK (max_attempts IS NULL OR max_attempts BETWEEN 1 AND 10), -- Z-39, 0203; NULL or 1 = no retake (default); editable only while draft. settings.score_counts ('latest' default | 'best') lives in the settings JSON
   randomize       BOOLEAN NOT NULL DEFAULT true,
   opens_at        TIMESTAMPTZ,
   closes_at       TIMESTAMPTZ,
@@ -950,6 +951,7 @@ CREATE TABLE assessment_invitations (
   status          TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','viewed','started','submitted','expired')),
   invited_by      UUID NOT NULL REFERENCES users(id),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  extra_attempts  SMALLINT NOT NULL DEFAULT 0 CHECK (extra_attempts BETWEEN 0 AND 10), -- Z-39, 0203; attempts an admin granted this candidate on top of assessments.max_attempts (one audit row per grant)
   UNIQUE (assessment_id, user_id)
   -- JOIN-based RLS — no tenant_id column; tenancy resolves via assessment_id → assessments.tenant_id
 );
@@ -998,7 +1000,8 @@ CREATE TABLE attempts (
   ai_proposals    JSONB,                                   -- Migration 0100 (2026-05-29, Bug A robustness): server-side cache of latest GradingProposal[] from handleAdminGrade. Review buffer ONLY — D8 unchanged, no gradings row is written without admin Accept click. Cleared in same tx as the gate-flip status='graded' in admin-accept.ts (true completion). Lets the FE hydrate proposals state on page load even if the original synchronous POST /grade response was dropped by Cloudflare's ~100s edge timeout. Null when no run yet or after a successful accept.
   grading_started_at TIMESTAMPTZ,                          -- Migration 0100 (2026-05-29): in-flight marker. SET by handleAdminGrade on entry (after status + heartbeat + single-flight checks), nulled at batch completion (success or thrown-error catch path). Drives the FE "Grading in progress" banner + 15s auto-poll. FE treats marker > 10 min as stalled (likely API restart mid-batch) — shows "Re-grade (previous stalled)" + caps polling at 12 min. A fresh Grade-all click overwrites a stale marker (no DB-level lock needed; the single-flight mutex is the real lock).
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (assessment_id, user_id)                         -- one attempt per user per assessment v1
+  attempt_number  SMALLINT NOT NULL DEFAULT 1 CHECK (attempt_number >= 1), -- Z-39, 0203: 1 = first attempt, 2 = first retake ...
+  UNIQUE (assessment_id, user_id, attempt_number)         -- Z-39, 0203 (was UNIQUE (assessment_id, user_id)): the race-proof limit on retakes
 );
 CREATE INDEX attempts_user_idx ON attempts (tenant_id, user_id);
 CREATE INDEX attempts_timer_sweep_idx ON attempts (ends_at) WHERE status = 'in_progress';
@@ -2662,6 +2665,7 @@ This table indexes every dated change on this page. The sections above hold the 
 | 2026-10-16 | S14: tenant logos, negative marking columns, plan AI override, AI grading scope, help rows, user purge tombstone | `0183`; `0184`; `0185`; `0186`; `0187`; `0188` | S14 additions |
 | 2026-10-17 | EXP-4 import v2: help rows for the import page (no schema change) | `0195` | Import v2 writes |
 | 2026-10-17 | Z-16: per-assessment pass mark. `assessments.passing_score_pct` (SMALLINT, 1 to 100, default 60, backfilled once from `levels.passing_score_pct`) and `attempt_scores.pass_mark_pct` (snapshot of the mark at first score write, never updated by a re-score, backfilled from the assessment). Help row in `0200` (module 16). Why: one pass rule per assessment, and old results must not change when an assessment is edited. Rejected: reading `levels.passing_score_pct` at read time (a level edit would rewrite history). No new table, no FK, RLS unchanged | `0198` (05), `0199` (09), `0200` (16) | Tables `assessments`, `attempt_scores` |
+| 2026-10-18 | Z-39: retake policy. `assessments.max_attempts` (SMALLINT, NULL or 1 = no retake, 2 to 10 = attempts allowed, CHECK 1..10), `assessment_invitations.extra_attempts` (SMALLINT 0..10, admin grants), `attempts.attempt_number` (SMALLINT, default 1) and the unique key on `attempts` changes from `(assessment_id, user_id)` to `(assessment_id, user_id, attempt_number)`. Two files carry number `0203` because each is owned by one module and a module-local test harness must not need another module's table: `0203_assessments_max_attempts.sql` (module 05) and `0203_attempts_attempt_number.sql` (module 06); they do not depend on each other. Why: owner decision 2026-10-17 (the organisation admin sets the maximum number of attempts); the unique key makes the limit race-proof, because two simultaneous starts compute the same next number and the second INSERT fails. Considered and rejected: a separate attempt-group table, a counter column on the invitation (a second source of truth), a global retake setting. Not included: cooling-off timers, paid retakes, a different question draw per retake, a per-candidate extra-attempt table (the counter plus one audit row per grant is enough). Downstream: 05 (`grantExtraAttempt`, `reopenInvitationForRetake`), 06 (`startAttempt` with `newAttempt`), 18 (one certificate per assessment and candidate), 15 and 07 readers that join `attempts` on `(assessment_id, user_id)` now see one row per attempt. Forward-only, existing rows are attempt 1. | `0203` | Reads of one attempt per candidate must pick the attempt (latest or best) |
 | 2026-10-17 | S15: materialized view `question_stats_mv` for per-question statistics (RW-60 / FU-C14) | `0189` | Materialized view — `question_stats_mv` |
 | 2026-10-17 | S15: column `tenant_settings.result_feedback_level` for per-question candidate feedback (RW-80). Help rows come in `0191` (module 16) | `0190` | Table `tenant_settings`, column `result_feedback_level` |
 ### Exam blueprints (EXP-6, migration 0201, 2026-10-17)

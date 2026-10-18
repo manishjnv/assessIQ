@@ -28,11 +28,12 @@
 //   - No import from AssessIQ_UI_Template (ESLint-forbidden).
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useParams, useLocation, Navigate } from 'react-router-dom';
+import { useParams, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Chip, Card, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import {
   AFTER_SUBMIT_TEXT,
   getResult,
+  startAttempt,
   CandidateApiError,
   ResultSummary,
   NewCertificateModal,
@@ -131,6 +132,10 @@ const SUB_TEXT: CSSProperties = {
 export function Submitted(): React.JSX.Element {
   const { id: attemptId } = useParams<{ id: string }>();
   const location = useLocation();
+  const navigate = useNavigate();
+  // Z-39: the Try again button on a not-passed result.
+  const [retaking, setRetaking] = useState(false);
+  const [retakeError, setRetakeError] = useState<string | null>(null);
 
   // Submit response handed over by Attempt.tsx; null when there is none.
   const [seed] = useState<Pending | null>(() => toPending(location.state));
@@ -141,6 +146,25 @@ export function Submitted(): React.JSX.Element {
         ? { tag: 'scoring', info: seed }
         : { tag: 'email', info: seed },
   );
+
+  const handleRetake = async (assessmentId: string | undefined): Promise<void> => {
+    if (retaking || assessmentId === undefined) return;
+    setRetaking(true);
+    setRetakeError(null);
+    try {
+      const res = await startAttempt(assessmentId, { newAttempt: true });
+      navigate(`/take/attempt/${res.attempt_id}`);
+    } catch (err) {
+      setRetaking(false);
+      setRetakeError(
+        err instanceof CandidateApiError && err.status === 409
+          ? 'No attempts are left. Ask your organisation if you need another.'
+          : err instanceof CandidateApiError && (err.status === 400 || err.status === 404 || err.status === 422)
+            ? 'This invitation has expired. Ask your organisation to send a new link.'
+            : 'We could not start the next attempt. Check your connection and try again.',
+      );
+    }
+  };
 
   // First check on mount, then (only while scoring) every POLL_MS until the
   // POLL_MAX_MS window closes.
@@ -312,6 +336,14 @@ export function Submitted(): React.JSX.Element {
                     tenantName={text(state.result.tenant_name) ?? undefined}
                     certificate={state.result.certificate}
                     negativeMarking={state.result.negative_marking}
+                    retake={state.result.retake}
+                    onRetake={
+                      state.result.retake !== undefined
+                        ? () => void handleRetake(state.result.retake?.assessment_id)
+                        : undefined
+                    }
+                    retaking={retaking}
+                    retakeError={retakeError}
                   />
                   {state.result.certificate && (
                     <NewCertificateModal credential_id={state.result.certificate.credential_id} />

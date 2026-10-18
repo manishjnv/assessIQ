@@ -73,6 +73,12 @@ export const ACTION_CATALOG = [
   // 'assessment.invite' with after.kind='reinvite'. Naming mirrors
   // 'admin.invitation.resent'.
   'assessment.invitation.resent',
+  // Z-39 retake policy. 'extra_attempt_granted': an admin gave ONE candidate one more
+  // attempt; one row per grant, after = { extra_attempts, attempts_allowed, reason,
+  // assessment_id, user_id }. 'reopened': a submitted invitation was re-opened for the
+  // next attempt (fresh link); after = { attempt_number_next, attempts_allowed, ... }.
+  'assessment.invitation.extra_attempt_granted',
+  'assessment.invitation.reopened',
   // S7/N5 — one row per bulk "resend to everyone who hasn't started" call.
   'assessment.invitations.bulk_resent',
   // Attempt

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DISTINCTION_PCT, isPass, meetsPct } from "../pass-mark.js";
+import { DISTINCTION_PCT, attemptsAllowed, isPass, meetsPct } from "../pass-mark.js";
 
 describe("pass mark (integer math)", () => {
   it.each([
@@ -22,5 +22,13 @@ describe("pass mark (integer math)", () => {
   it("fails on a zero or invalid maximum", () => {
     expect(isPass(0, 0, 1)).toBe(false);
     expect(isPass(5, Number.NaN, 1)).toBe(false);
+  });
+});
+
+describe("attemptsAllowed (Z-39)", () => {
+  it.each([
+    [null, 0, 1], [undefined, 0, 1], [1, 0, 1], [0, 0, 1], [2, 0, 2], [3, 1, 4], [null, 1, 2], [2, -5, 2],
+  ])("max %s + extra %i -> %i", (max, extra, expected) => {
+    expect(attemptsAllowed(max, extra)).toBe(expected);
   });
 });

@@ -159,6 +159,8 @@ export const AssessmentSettingsSchema = z
     integrity: AssessmentIntegritySettingsSchema.optional(),
     reminders: AssessmentRemindersSettingsSchema.optional(),
     high_stakes: z.boolean().optional(),
+    /** Z-39: which attempt counts when a candidate retakes. Absent = latest. */
+    score_counts: z.enum(["latest", "best"]).optional(),
     sections: AssessmentSectionsSchema.optional(),
     /** EX-1: default penalty for a wrong attempted answer on auto-scored questions (a question's own value wins). */
     scoring: z.object({ negative_marks_default: z.number().min(0).max(1000).optional() }).strict().optional(),
@@ -188,6 +190,8 @@ export interface Assessment {
   question_count: number;
   /** Z-16: pass mark, integer 1..100. Pre-filled from the level; editable only while draft. */
   passing_score_pct: number;
+  /** Z-39: attempts one candidate may make. null or 1 = no retake (default); 2..10 allowed. Draft-only edit. */
+  max_attempts: number | null;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -225,6 +229,11 @@ export interface AssessmentInvitation {
   status: InvitationStatus;
   invited_by: string;
   created_at: Date;
+  /** Z-39: extra attempts an admin granted this candidate on top of assessments.max_attempts. */
+  extra_attempts?: number;
+  /** Z-39: attempts used / total allowed. Populated by listInvitationRows only. */
+  attempts_used?: number;
+  attempts_allowed?: number;
   /** When the automatic reminder was sent (null = none yet). Populated by listInvitationRows only. */
   reminded_at?: Date | null;
   /** Optional — populated by listInvitationRows (list view only, not single-row reads). */
@@ -245,6 +254,10 @@ export interface AssessmentInvitation {
    * invitations are resendable; started / submitted ones are not.
    */
   can_resend?: boolean;
+  /** Z-39: POST /invitations/:id/reopen would be accepted (submitted, attempts left, assessment open). */
+  can_reopen?: boolean;
+  /** Z-39: POST /invitations/:id/extra-attempt would be accepted. */
+  can_grant_extra?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +279,8 @@ export interface CreateAssessmentInput {
   question_count: number;
   /** Z-16: integer 1..100; defaults to the level's passing_score_pct. */
   passing_score_pct?: number;
+  /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. */
+  max_attempts?: number | null;
   randomize?: boolean;     // defaults true
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -286,6 +301,8 @@ export interface CreateAssessmentFromSetInput {
   question_count: number;
   /** Z-16: integer 1..100; defaults to the chosen level's passing_score_pct. */
   passing_score_pct?: number;
+  /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. */
+  max_attempts?: number | null;
   randomize?: boolean;
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -300,6 +317,8 @@ export interface UpdateAssessmentPatch {
   question_count?: number;
   /** Z-16: integer 1..100. Draft only; any patch on a published assessment is rejected. */
   passing_score_pct?: number;
+  /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. Draft only. */
+  max_attempts?: number | null;
   randomize?: boolean;
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -427,6 +446,12 @@ export const AL_ERROR_CODES = {
   // 409 — the candidate already has an attempt (or the invitation is started /
   // submitted), so the link can no longer be replaced.
   INVITATION_ALREADY_STARTED: "INVITATION_ALREADY_STARTED",
+  // Z-39 retake policy. 409 — every allowed attempt is used (max_attempts + extra), so the
+  // invitation can't be re-opened. 409 — this candidate already has the most extra attempts.
+  ATTEMPTS_EXHAUSTED: "ATTEMPTS_EXHAUSTED",
+  EXTRA_ATTEMPT_LIMIT: "EXTRA_ATTEMPT_LIMIT",
+  // 409 — re-open needs a submitted invitation with no unfinished attempt.
+  RETAKE_NOT_AVAILABLE: "RETAKE_NOT_AVAILABLE",
   // 409 — the invited user is disabled / not a candidate any more.
   USER_INACTIVE: "USER_INACTIVE",
   // 409 — the candidate was erased (DPDP/GDPR, users.erased_at); no invitation may be sent.

@@ -1,4 +1,4 @@
-import { AppError, NotFoundError, ValidationError, ConflictError, uuidv7, UUID_RE } from "@assessiq/core";
+import { AppError, NotFoundError, ValidationError, ConflictError, uuidv7, UUID_RE, attemptsAllowed } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import * as tenancyRepo from "../../../02-tenancy/src/repository.js";
@@ -593,6 +593,11 @@ export async function listInvitations(
           inv.status !== "started" &&
           inv.status !== "submitted" &&
           (inv.attempt_id == null || inv.attempt_status === "draft"),
+        // Z-39 retake affordances: re-open a submitted invitation while attempts are left; an
+        // extra attempt can be granted to anyone who has used (or can use) the invitation.
+        can_reopen:
+          open && inv.status === "submitted" && (inv.attempts_used ?? 0) < (inv.attempts_allowed ?? 1),
+        can_grant_extra: open && inv.status !== "expired" && (inv.extra_attempts ?? 0) < 10,
       })),
       page,
       pageSize,
@@ -650,3 +655,158 @@ export async function revokeInvitation(
   });
 }
 
+
+// ===========================================================================
+// Z-39 RETAKE POLICY — extra attempt grant + re-open for the next attempt
+// ===========================================================================
+
+/** Longest reason an admin may give for an extra attempt. */
+const EXTRA_ATTEMPT_REASON_MAX = 500;
+
+/**
+ * Admin gives ONE candidate ONE extra attempt on top of assessments.max_attempts.
+ * Reason is required. One audit row per grant, written in the SAME transaction
+ * as the counter bump (auditInTx). Allowed while the assessment is published /
+ * active. Does not start or re-open anything: if the candidate's last attempt is
+ * finished, re-open the invitation (reopenInvitationForRetake) or let them use
+ * their link while it is still valid.
+ *   404 INVITATION_NOT_FOUND, 409 ASSESSMENT_NOT_ACTIVE, 409 EXTRA_ATTEMPT_LIMIT,
+ *   422 INVALID_PARAM (reason missing / too long)
+ */
+export async function grantExtraAttempt(
+  tenantId: string,
+  invitationId: string,
+  reason: unknown,
+  actorUserId: string,
+): Promise<{ invitation: AssessmentInvitation; attempts_used: number; attempts_allowed: number }> {
+  const why = typeof reason === "string" ? reason.trim() : "";
+  if (why.length === 0 || why.length > EXTRA_ATTEMPT_REASON_MAX) {
+    throw new ValidationError(
+      `reason is required (1 to ${String(EXTRA_ATTEMPT_REASON_MAX)} characters)`,
+      { details: { code: "INVALID_PARAM", param: "reason" } },
+    );
+  }
+  if (!UUID_RE.test(invitationId)) throw invitationNotFound(invitationId);
+
+  return withTenant(tenantId, async (client) => {
+    const invitation = await repo.findInvitationById(client, invitationId, { forUpdate: true });
+    if (invitation === null) throw invitationNotFound(invitationId);
+
+    const assessment = await repo.findAssessmentById(client, invitation.assessment_id);
+    if (assessment === null) throw assessmentNotFound(invitation.assessment_id);
+    assertAssessmentAcceptsResend(assessment);
+
+    const updated = await repo.grantExtraAttempt(client, invitation.id);
+    if (updated === null) {
+      throw new ConflictError("This candidate already has the most extra attempts allowed.", {
+        details: { code: AL_ERROR_CODES.EXTRA_ATTEMPT_LIMIT },
+      });
+    }
+    const usage = await repo.getAttemptUsage(client, invitation.assessment_id, invitation.user_id);
+    const allowed = attemptsAllowed(assessment.max_attempts, updated.extra_attempts ?? 0);
+
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "assessment.invitation.extra_attempt_granted",
+      entityType: "assessment_invitation",
+      entityId: invitation.id,
+      before: { extra_attempts: invitation.extra_attempts ?? 0 },
+      after: {
+        extra_attempts: updated.extra_attempts ?? 0,
+        attempts_allowed: allowed,
+        attempts_used: usage.used,
+        reason: why,
+        assessment_id: invitation.assessment_id,
+        user_id: invitation.user_id,
+      },
+    });
+    return { invitation: updated, attempts_used: usage.used, attempts_allowed: allowed };
+  });
+}
+
+/**
+ * Re-open a SUBMITTED invitation so the candidate can sit the next attempt:
+ * fresh link (old one dies), 7 days, status 'pending', one audit row, email after
+ * the commit. The limit is checked HERE under the invitation row lock:
+ *   attempts used >= max_attempts + extra_attempts  -> 409 ATTEMPTS_EXHAUSTED
+ *   an attempt still unfinished / invitation not submitted -> 409 RETAKE_NOT_AVAILABLE
+ */
+export async function reopenInvitationForRetake(
+  tenantId: string,
+  invitationId: string,
+  actorUserId: string,
+): Promise<AssessmentInvitation> {
+  if (!UUID_RE.test(invitationId)) throw invitationNotFound(invitationId);
+
+  const { invitation, email } = await withTenant(tenantId, async (client) => {
+    const tenantName = await resolveTenantNameForEmail(client, tenantId);
+    const current = await repo.findInvitationById(client, invitationId, { forUpdate: true });
+    if (current === null) throw invitationNotFound(invitationId);
+
+    const assessment = await repo.findAssessmentById(client, current.assessment_id);
+    if (assessment === null) throw assessmentNotFound(current.assessment_id);
+    assertAssessmentAcceptsResend(assessment);
+
+    const usage = await repo.getAttemptUsage(client, current.assessment_id, current.user_id);
+    if (current.status !== "submitted" || usage.unfinished) {
+      throw new ConflictError("This invitation can only be re-opened after the candidate finished an attempt.", {
+        details: { code: AL_ERROR_CODES.RETAKE_NOT_AVAILABLE },
+      });
+    }
+    const allowed = attemptsAllowed(assessment.max_attempts, current.extra_attempts ?? 0);
+    if (usage.used >= allowed) {
+      throw new ConflictError(
+        `All ${String(allowed)} allowed attempts are used. Give an extra attempt first.`,
+        { details: { code: AL_ERROR_CODES.ATTEMPTS_EXHAUSTED, attempts_used: usage.used, attempts_allowed: allowed } },
+      );
+    }
+
+    const user = await repo.findUserForInvitation(client, current.user_id);
+    if (user === null || user.role !== "candidate" || user.status !== "active") {
+      throw new ConflictError("This candidate's account is disabled, so the invitation can't be re-opened.", {
+        details: { code: AL_ERROR_CODES.USER_INACTIVE },
+      });
+    }
+    if (user.erased) throw candidateErasedError();
+
+    const { plaintext, hash } = generateInvitationToken();
+    const expiresAt = new Date(Date.now() + DEFAULT_INVITATION_TTL_HOURS * 3_600_000);
+    const updated = await repo.reopenSubmittedInvitation(client, current.id, hash, expiresAt);
+    if (updated === null) {
+      throw new ConflictError("This invitation can only be re-opened after the candidate finished an attempt.", {
+        details: { code: AL_ERROR_CODES.RETAKE_NOT_AVAILABLE },
+      });
+    }
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId,
+      action: "assessment.invitation.reopened",
+      entityType: "assessment_invitation",
+      entityId: current.id,
+      before: { status: current.status },
+      after: {
+        status: updated.status,
+        attempt_number_next: usage.used + 1,
+        attempts_allowed: allowed,
+        expires_at: updated.expires_at.toISOString(),
+        assessment_id: current.assessment_id,
+        user_id: current.user_id,
+      },
+    });
+    const mail: SendAssessmentInvitationInput = {
+      tenantId,
+      to: user.email,
+      candidateName: user.name,
+      assessmentName: assessment.name,
+      invitationLink: `${PUBLIC_URL}/take/${plaintext}`,
+      expiresAt: updated.expires_at,
+      tenantName,
+    };
+    return { invitation: updated, email: mail };
+  });
+  await sendAfterCommit(email, invitation.id);
+  return invitation;
+}

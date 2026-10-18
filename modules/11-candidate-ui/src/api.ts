@@ -77,12 +77,17 @@ export async function listInvitedAssessments(): Promise<{
 
 export async function startAttempt(
   assessmentId: string,
+  opts: { newAttempt?: boolean } = {},
 ): Promise<{ attempt_id: string }> {
   // Server returns the full Attempt; the candidate UI only needs the id to
   // pivot the route, the full view is fetched fresh via getAttempt below.
+  // Z-39: newAttempt = the Try again button on the result page (a retake).
   const attempt = await call<{ id: string }>(
     `/me/assessments/${encodeURIComponent(assessmentId)}/start`,
-    { method: "POST" },
+    {
+      method: "POST",
+      ...(opts.newAttempt === true ? { body: JSON.stringify({ new_attempt: true }) } : {}),
+    },
   );
   return { attempt_id: attempt.id };
 }
