@@ -36,7 +36,8 @@ jobs:
       - name: Vale
         uses: errata-ai/vale-action@v2
         with:
-          vale_flags: '--config=.vale.ini'
+          # CI reports errors only: 60000 suggestion/warning findings made reviewdog stop with "Too many results" (Z-48).
+          vale_flags: '--config=.vale.ini --minAlertLevel=error'
           files: '["docs","README.md"]' # JSON array: a comma string is read as ONE path and Vale scanned the whole repo (Z-48)
           # github-check posts through the Checks API. The default pr-check reporter
           # hit an 'Unhandled error event' socket error in reviewdog (Z-48) and failed the job
