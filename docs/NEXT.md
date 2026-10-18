@@ -2,31 +2,32 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-18T17:25:03.263Z (2026-10-18 22:55:03 IST)
-- HEAD: `709c7b52`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 3
+- Generated: 2026-10-18T17:39:56.281Z (2026-10-18 23:09:56 IST)
+- HEAD: `694b91d2`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 8
 
 ## 1. Last session (SESSION_STATE, first block)
 
 ## Session — 2026-10-18 — S28: owner review sheet Q1 to Q6
 
-**Headline:** Owner answers Q1 to Q6 are recorded in ROADMAP. The free trial plan pack (Z-70) and the liability and DPA proposal (Z-72) are written as proposals. The Astro upgrade plan is researched, not applied.
-**Commits:** one docs commit (see git log). No deploy (docs only).
+**Headline:** Owner answers Q1 to Q6 are recorded in ROADMAP. The Trial plan pack (Z-70, name "Trial" confirmed) and the liability and DPA proposal (Z-72) are written as proposals. Astro is upgraded to 7.4.0 in apps/marketing (not deployed).
+**Commits:** `694b91d2` docs (CI green); Astro upgrade commit (see git log). No deploy yet.
 **Tests:** `pnpm verify` and `node tools/roadmap-recount.mjs` run. No code changed.
 **Gate:** none. No security path touched. Z-71 (self-serve build) needs a design review and one adversarial gate after the owner approves Z-70.
-**Next:** (1) Owner: read `docs/design/2026-10-18-free-plan-pack.md` and answer its 3 questions. (2) Owner: send `docs/design/2026-10-18-liability-and-dpa-proposal.md` to the lawyer. (3) Owner: say go or no go for the staged Astro upgrade. (4) Owner: decide the Haiku trial (TOK-6) and Q23 (`tools/assessiq-mcp/package-lock.json`).
+**Next:** (1) Owner: read `docs/design/2026-10-18-free-plan-pack.md` and answer its 3 questions. (2) Owner: send `docs/design/2026-10-18-liability-and-dpa-proposal.md` to the lawyer. (3) Owner: approve the marketing deploy of the Astro upgrade. (4) Owner: decide the Haiku trial (TOK-6) and Q23 (`tools/assessiq-mcp/package-lock.json`).
 **Open questions:**
 - Q7 to Q49 are unanswered on the owner sheet. Nothing was guessed.
-- Dependabot: 2 critical `astro` alerts in `apps/marketing` (installed 5.18.2, fix 7.2.8). The AVIF path is not used by code. Plan: stage A Astro 5 to 6, stage B 6 to 7 with `compressHTML` check. Not upgraded.
+- Dependabot: 2 critical `astro` alerts in `apps/marketing`. UPGRADED in S28 (owner "go"): astro 5.18.2 to 7.4.0, in two stages (6.4.8, then 7.4.0). Build is the same as before: 56 pages, 54 OG images, sitemap files byte-identical, visible text identical on all 56 pages. Two small fixes: `compressHTML: true` (the Astro 7 default dropped spaces between inline elements) and the Home nav `aria-current` on the root page (`Header.astro`, Astro 6+ reports `/index.html`). NOT deployed: the marketing deploy needs owner approval. Not checked: a browser visual check, a Docker build. Dependabot re-scan after push.
 - Z-60 CI streak: 4 of 10.
-**Not included:** any Astro bump, any change to /terms or /privacy, the `.gitignore` line for the stray lockfile, Z-71.
+**Not included:** the marketing deploy, any change to /terms or /privacy, the `.gitignore` line for the stray lockfile, Z-71.
 **Old task or feature checked:** X2, D1/RV28, D2/FU-A8, D3/FU-A7, OD4, OD8, PRICING_TIERS 2026-10-06, TOK-6 (Rule B, PROJECT_BRAIN.md)
 
 #### Agent utilization
 - Opus (main session ran on Sonnet 5.5): Phase 0, ROADMAP rows, both design docs, register row, review of the Astro report.
-- Sonnet: n/a — no build code.
+- Sonnet: 1 run (Astro upgrade, worktree). Opus slot reviewed the diff and re-ran frozen install and build.
 - Haiku: 1 run.
   - Haiku · Astro 5 to 7 upgrade research · reworked: N · tokens: 105353
+  - Sonnet · Astro 5 to 7 staged upgrade · reworked: N · tokens: 117240
 - codex:rescue: n/a — no security path touched.
 - Gemini (agy): n/a — not needed.
 - Codex (exec): n/a — down since 2026-10-11.
@@ -96,7 +97,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-52` (Z-52 (EXP18-GAPS)) — EXP-18 review gate: known gaps. — pending (Claude; P2; M)
 - `Z-54` (Z-54 (DOCSLINT-2)) — Docs lint: confirm green on main, then flip `fail_on_error` to true. — pending (Claude; XS; not before 2026-10-29). S24 check (2026-10-18): Docs lint on main is green in the last 4 runs, incl
 - `Z-55` (Z-55 (CI-1)) — Cut CI wall time from about 11 minutes to about 5.5 minutes per push. — partly done (S24, 2026-10-18; Claude; M). Built: parallel typecheck job, 3-way unit shards, docs-only skip and `ci-ok` (
-- `Z-70` (Z-70 (FREEPLAN)) — Free trial plan pack for self-serve organisations. — pending (owner approval of the proposal; Claude; S). Draft written S28.
+- `Z-70` (Z-70 (FREEPLAN)) — Free trial plan pack for self-serve organisations. — pending (owner approval of the proposal; Claude; S). Draft written S28. Owner answer 2026-10-18: the public name is "Tri
 - `Z-71` (Z-71 (SELFSERVE-BUILD)) — Self-serve organisation sign-up (build). — pending (blocked on Z-70 approval; Claude; L; design-gated)
 - `Z-72` (Z-72 (LIABILITY-1)) — Liability and data-processing proposal for the lawyer. — pending (owner and lawyer approve; Claude; S). Draft written S28.
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)

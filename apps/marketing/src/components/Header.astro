@@ -3,7 +3,7 @@
 // Logo mark: CSS-driven dot + halo (per branding guideline §6 "In-product Logo component — Path 1 decision")
 // Wordmark: serif "AssessIQ" per branding guideline §6 (not "AccessIQ" — vendor-side typo)
 // Nav: Home, Solutions (dropdown → 4 solution pages), Skill Tests, Resources (dropdown → Glossary), Pricing, About, Compare, Contact + Sign in CTA
-const currentPath = Astro.url.pathname;
+const currentPath = Astro.url.pathname === '/index.html' ? '/' : Astro.url.pathname; // Astro 6+ reports the root page as /index.html with build.format 'file'
 
 const navLinks = [
   { href: '/',        label: 'Home' },

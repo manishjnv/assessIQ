@@ -96,3 +96,47 @@ These cannot move to the organisation:
 - Any change to `/terms` or `/privacy`.
 - Legal advice, or a promise about how a court would decide.
 - The AI legal question (Q7) and the data-erasure rule for consent records (Q22).
+
+## Addendum A (added 2026-10-18 by a second reviewer): extra points for the lawyer
+
+The sections below add to the proposal above. They do not replace it.
+
+### A1. Role map by kind of data
+
+| Data | Who decides why and how | Role of the organisation | Role of AssessIQ |
+| --- | --- | --- | --- |
+| Candidate answers, scores, certificates | The organisation | Data fiduciary (controller) | Data processor |
+| Candidate name and email given by the organisation | The organisation | Data fiduciary | Data processor |
+| Organisation admin accounts and sign-in data | AssessIQ | Customer | Data fiduciary for its own service |
+| Website visitors, contact form, analytics | AssessIQ | None | Data fiduciary |
+| Question statistics, AI quality cases built from candidate answers | AssessIQ, if it uses them for its own goals | None | **Risk: AssessIQ becomes a fiduciary for this use** |
+
+Design rule that follows: use candidate data only to deliver the service to that organisation. Do not use it to improve question quality or AI tests unless it is made anonymous first, or the DPA allows it and the lawyer agrees. Today the product builds AI evaluation cases from admin overrides (`harvest-overrides`) and plans question statistics (IRT). Check both against this rule.
+
+### A2. Children and consent
+
+If the organisation is a school, candidates may be under 18. The organisation must get verified consent from a parent or guardian before it sends the test. The lawyer should confirm the current rules on children's data.
+
+### A3. Product changes this needs (after the lawyer approves)
+
+| Change | Where | Load-bearing |
+| --- | --- | --- |
+| DPA tick-box and acceptance record | Company creation and the self-serve sign-up (Z-71) | Yes (tenancy and audit) |
+| Organisation name on the test start screen | Candidate take flow | No |
+| Organisation notice link or text per assessment | Assessment settings | No |
+| Parent or guardian consent flag for under-18 candidates | Candidate invitation | Yes (consent) |
+| Free plan: same DPA tick-box | Z-70 and Z-71 | Yes |
+| Rule check on use of candidate data (section 2) | AI eval harvest, item statistics | Yes (AI grading) |
+
+Each change is a separate roadmap row. Any change in `01-auth`, `02-tenancy`, `07-ai-grading` or `14-audit-log` needs the adversarial gate.
+
+### A4. Extra questions for the lawyer
+
+1. Is "fees in the last 12 months" with a floor valid for both the free and the paid plan?
+2. Which liabilities cannot be capped under Indian law?
+3. Is an indemnity from a school valid for claims about children's data?
+4. Does using anonymous candidate data for question statistics keep AssessIQ a processor? What counts as anonymous?
+5. Do we need a separate notice for candidates, or is the organisation notice enough?
+6. Is a tick-box acceptance enough for a DPA, or do we need a signature on paid plans?
+7. What breach notice time should the DPA promise?
+

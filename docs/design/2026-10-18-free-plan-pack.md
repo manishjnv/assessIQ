@@ -1,6 +1,6 @@
 # Free trial plan pack (Z-70)
 
-**Date:** 2026-10-18. **Status:** proposal for owner approval. This file has no code. Nothing here is built.
+**Date:** 2026-10-18. **Status:** proposal for owner approval (question 1 answered 2026-10-18). This file has no code. Nothing here is built.
 **Source:** owner review sheet, Q3 (organisations sign up alone, free sample quiz, 5 students, all features with limits).
 **Old task or feature checked:** PRICING_TIERS 2026-10-06 (Starter tier, 25-credit trial), module 19-billing (`TIER_LIMITS`, `tierAllows`), `PLAN_TIERS_ENFORCED`, ROADMAP X2, Z-18, Z-71.
 
@@ -97,7 +97,7 @@ The database allows the tier values `free`, `pro`, `enterprise` and `internal`. 
 
 ## Owner questions
 
-1. **Name.** The database calls this tier `free`; your rule is "never call it free". Is **Trial** the public name? (Proposed: yes.)
+1. **Name.** ANSWERED (owner, 2026-10-18): the public plan name is **Trial**. Marketing text may say "free", for example "Try it free for 14 days". The plan name, the admin screens and the contract text keep "Trial". The database tier stays `free` (shown as Starter).
 2. **After the trial.** Is "read-only for 7 days, then delete" right? Or keep the data for 30 days if the organisation asks to upgrade?
 3. **Locked features.** Should webhooks, API keys, embed and audit show as locked with "Contact us" (proposed), or be hidden?
 
