@@ -74,7 +74,7 @@ pnpm test          # unit + integration (testcontainers — no local DB needed)
 
 1. **Always start with** `PROJECT_BRAIN.md` — it gives Claude (and you) the orientation needed to navigate everything else.
 2. **For cross-cutting questions** (auth, deployment, data model, etc.), point Claude at the matching `docs/` file.
-3. **For implementing a feature**, point Claude at the relevant `modules/<n>-<name>/SKILL.md` plus the docs files it lists as related. Each module's SKILL.md tells Claude what's in scope, what's out, what its dependencies are, and what help text it owns.
+3. **For implementing a feature**, point Claude at the relevant `modules/<n>-<name>/SKILL.md` plus the docs files it lists as related. Each module's SKILL.md tells Claude what is in scope, what is out, what its dependencies are, and what help text it owns.
 4. **When schema changes**, update both the migration AND `docs/02-data-model.md` in the same change.
 5. **When API surface changes**, update `docs/03-api-contract.md` in the same change.
 
@@ -132,7 +132,7 @@ infra/                          ← (populated as you build) docker-compose, ngi
 Recommended order to get a thin slice working end-to-end:
 
 1. **00-core** — env, logger, errors, request context. Foundation.
-2. **17-ui-system** — token CSS + a handful of primitives (Button, Input, Card, Stack). You'll need these for every screen.
+2. **17-ui-system** — token CSS + a handful of primitives (Button, Input, Card, Stack). You will need these for every screen.
 3. **02-tenancy** + **03-users** — minimal CRUD; one tenant + one admin user seeded.
 4. **01-auth** — Google SSO + TOTP. This is the gate; everything else lives behind it.
 5. **16-help-system** — get the framework wired (HelpTip, HelpProvider, public read API). Even with stub content. Then content fills in as you build screens.
@@ -140,7 +140,7 @@ Recommended order to get a thin slice working end-to-end:
 
 Then Phase 1 (author + take), then Phase 2 (grade + report), as laid out in `PROJECT_BRAIN.md`.
 
-## What's next from the user
+## What is next from the user
 
 - Provide the **UI template**. Drop it under `modules/17-ui-system/templates/<vendor-name>/` and follow the integration plan in `docs/08-ui-system.md`.
 - Provision the **DNS** for `assessiq.in` in Cloudflare (proxied A record to VPS IP; zone-level Authenticated Origin Pulls ON). Canonical host as of 2026-05-22 — see `docs/06-deployment.md` § "Domain switch to assessiq.in".

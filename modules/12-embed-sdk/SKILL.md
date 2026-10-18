@@ -37,7 +37,7 @@ embedBus.on("aiq.theme", ({ tokens }) => applyThemeOverrides(tokens));
 embedBus.on("aiq.locale", ({ locale }) => setLocale(locale));
 ```
 
-The bus wraps `window.parent.postMessage` with origin verification (against tenant's `embed_origins`). Outside embed mode it's a no-op.
+The bus wraps `window.parent.postMessage` with origin verification (against tenant's `embed_origins`). Outside embed mode it is a no-op.
 
 ### Helper NPM package (`@assessiq/embed`)
 ```ts
@@ -265,7 +265,7 @@ type AiqInboundMessage = AiqThemeMessage | AiqLocaleMessage | AiqCloseRequestMes
 
 **Decision.**
 
-- **Current state (Phase 3 live, production-blocking for embed).** The global Caddy `security-headers` snippet includes `Content-Security-Policy: frame-ancestors 'none'` (confirmed in `docs/06-deployment.md` § "What's live"). This BLOCKS all iframe embedding of AssessIQ in every browser. Phase 4 MUST address this before the embed surface is usable.
+- **Current state (Phase 3 live, production-blocking for embed).** The global Caddy `security-headers` snippet includes `Content-Security-Policy: frame-ancestors 'none'` (confirmed in `docs/06-deployment.md` § "What is live"). This BLOCKS all iframe embedding of AssessIQ in every browser. Phase 4 MUST address this before the embed surface is usable.
 - **Mechanism.** The Fastify `/embed` route handler sets `reply.header('Content-Security-Policy', 'frame-ancestors ' + tenant.embed_origins.join(' '))` after resolving the tenant from the JWT. For requests where the token is invalid (before tenant resolution), the handler sets `frame-ancestors 'none'` (fail-closed). The handler also sets `reply.removeHeader('X-Frame-Options')` — Caddy's `security-headers` may also inject `X-Frame-Options: DENY`; removing it ensures browsers that check `X-Frame-Options` (pre-CSP) also allow the embed.
 - **Caddy non-interference.** Caddy in reverse-proxy mode does NOT rewrite upstream response headers unless an explicit `header` directive modifies them. The Fastify-set CSP reaches the browser intact. Phase 4 deploy verification step (below) confirms this empirically.
 - **Other routes.** `frame-ancestors 'none'` from the Caddy snippet remains in effect for all non-embed routes (`/admin/*`, `/api/*`, SPA). The override is surgical — only the embed handler changes this header.
@@ -279,7 +279,7 @@ curl -sI 'https://assessiq.automateedge.cloud/embed?token=<valid-jwt>' \
 # Must NOT show: frame-ancestors 'none'
 ```
 
-**Source.** `docs/06-deployment.md` § "What's live" (frame-ancestors 'none' confirmed); `04-AUTH` Flow 3 (embed uses iframe).
+**Source.** `docs/06-deployment.md` § "What is live" (frame-ancestors 'none' confirmed); `04-AUTH` Flow 3 (embed uses iframe).
 
 **Rationale.** Per-request (per-tenant) CSP is the only correct mechanism — Caddy cannot resolve the tenant from the request path alone (tenant is resolved from the JWT claim). The global Caddy default of `'none'` is appropriate for all non-embed routes (clickjacking protection on admin panel); the embed handler's surgical override is the minimal change that enables embedding.
 

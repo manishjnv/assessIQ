@@ -32,7 +32,7 @@ AssessIQ's SEO is in good shape. The architecture is correct: a **static Astro m
 ### MEDIUM — within 1 month
 
 2. **Measure live Core Web Vitals (LCP/INP/CLS).**
-   - **Why:** Performance (CWV) = 10% of health score; never measured (Playwright/PSI scripts didn't install on Windows — `bin/pip` vs `Scripts/pip`).
+   - **Why:** Performance (CWV) = 10% of health score; never measured (Playwright/PSI scripts did not install on Windows — `bin/pip` vs `Scripts/pip`).
    - **How:** PageSpeed Insights / CrUX on top marketing pages. Watch the external Google Fonts `@import` in `BaseLayout.astro` as a render-blocking/LCP risk (already uses `&display=swap`; consider self-hosting fonts if LCP suffers).
 
 3. **Ensure every content page emits both `datePublished` and `dateModified`.**
@@ -41,7 +41,7 @@ AssessIQ's SEO is in good shape. The architecture is correct: a **static Astro m
 
 ### LOW / INFO — backlog
 
-4. **FAQPage rich-results reality (info only, no action required).** Test pages use FAQPage schema. Google restricted FAQ rich results to gov/health since Aug 2023 → these will NOT render as Google rich snippets, but they retain AI/LLM citation value. Keep them; just don't expect SERP FAQ accordions. Do NOT add new FAQPage for Google benefit.
+4. **FAQPage rich-results reality (info only, no action required).** Test pages use FAQPage schema. Google restricted FAQ rich results to gov/health since Aug 2023 → these will NOT render as Google rich snippets, but they retain AI/LLM citation value. Keep them; just do not expect SERP FAQ accordions. Do NOT add new FAQPage for Google benefit.
 5. **IndexNow** for faster Bing/Yandex indexing (Bing verification already present). Optional.
 6. **Sitemap `lastmod` is hardcoded to build date** (all-identical) — wire real per-page modification dates when practical. `apps/marketing/astro.config.mjs`.
 7. **Future raster/blog images** must ship with `alt`, explicit width/height (CLS), and webp/avif. N/A until images are added.

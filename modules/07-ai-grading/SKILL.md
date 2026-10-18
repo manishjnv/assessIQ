@@ -102,7 +102,7 @@ Tests: 102/102 passing across 7 vitest files in 12.5s (testcontainer Postgres fo
 
 Adversarial sign-off: sonnet-takeover (in lieu of codex:rescue per user preference) — verdict REVISED, 3 of 4 findings accepted + applied, 1 (admin-grade.ts spawn-allow-list tightening) deferred as a separate contract change for a future rescue pass.
 
-What's still NOT live in 1.b:
+What is still NOT live in 1.b:
 - `prompt_versions` table (D3 — Phase 3+; SHAs persist on `gradings` rows directly per D4).
 - `grading_jobs` table (D3 — Phase 2+ when `anthropic-api` mode lands).
 - Real `anthropic-api` runtime (deferred to Phase 3+).

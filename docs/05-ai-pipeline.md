@@ -1160,7 +1160,7 @@ Before commit `b7e5552`, the system filled `generation_attempts.stderr_tail` onl
 - A root-cause fix for the retry behaviour. The bump is belt and braces. The structural cure is to align the SKILL.md prose, HARD RULE and FORBIDDEN sections with the MCP `.strict()` Zod schema. The RCA "Sharded generation retry-loop" documents it, and commits `6fb4f5d` + `573aed7` fully landed it. A re-baseline smoke remains pending.
 - `generate-scenario-opus` escalation (deferred per design doc § 1 Non-goals).
 
-**Cross-reference.** RCA `docs/RCA_LOG.md` § "2026-05-09 to 2026-05-11 — Sharded generation retry-loop: SKILL.md / Zod schema drift" carries the full incident log, including the prevention note "Don't bump timeouts as a first response". The bump that shipped in `a124812` did **not** cure the failure on its own. That record exists so that the next investigator does not propose the same constant tweak again.
+**Cross-reference.** RCA `docs/RCA_LOG.md` § "2026-05-09 to 2026-05-11 — Sharded generation retry-loop: SKILL.md / Zod schema drift" carries the full incident log, including the prevention note "Do not bump timeouts as a first response". The bump that shipped in `a124812` did **not** cure the failure on its own. That record exists so that the next investigator does not propose the same constant tweak again.
 
 ### Answer-format hint generation (feature 4 Phase B)
 

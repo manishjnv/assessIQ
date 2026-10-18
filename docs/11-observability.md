@@ -125,14 +125,14 @@ Allowlist coverage (see [modules/00-core/src/log-redact.ts](../modules/00-core/s
 
 | PII category | Where it lives | Logging rule |
 |---|---|---|
-| Candidate-answer text | `attempts.answers` JSON column | NEVER include `answer*` fields in log calls. They're allowlisted as a backstop, but assume the allowlist is broken — don't depend on it. |
+| Candidate-answer text | `attempts.answers` JSON column | NEVER include `answer*` fields in log calls. They are allowlisted as a backstop, but assume the allowlist is broken — do not depend on it. |
 | Recovery codes (TOTP) | `recovery_codes` table, hashed | The plaintext only exists at generation time and is shown to the user once. Never log either form. |
 | TOTP secrets | `user_credentials.totp_secret_enc` (encrypted) | Same. |
 | Embed JWTs | `tenant_embed_secrets`. JWTs themselves are short-lived bearers. | Log the JWT's `kid`, `iss`, `exp` claims if needed; never the raw token. |
 | Session cookie value | Redis-keyed by sha256 of cookie. | Cookie value is allowlisted at the header level; never log directly. |
-| Email addresses | `users.email` | Acceptable to log when it's already part of the operational signal (e.g., invitation accept). NOT acceptable to bulk-log on cron sweeps. |
+| Email addresses | `users.email` | Acceptable to log when it is already part of the operational signal (e.g., invitation accept). NOT acceptable to bulk-log on cron sweeps. |
 
-### When in doubt, don't log it
+### When in doubt, do not log it
 
 - Do not log a request body. Log only specific fields that you have considered, for example `{ userId, action, role }`, not the whole `req.body`.
 - The allowlist catches known names. It cannot rescue a careless `logger.info({ body: req.body }, ...)` that includes an answer-text field named `essay_response` (not in the allowlist).
@@ -318,7 +318,7 @@ export async function createSession(input) {
 
 ### Stream-name table (when in doubt)
 
-| If you're emitting from… | Use stream |
+| If you are emitting from… | Use stream |
 |---|---|
 | HTTP request lifecycle (Fastify hooks) | `request` |
 | Login, MFA, sessions, embed JWTs, API keys, invitation accept | `auth` |
@@ -743,7 +743,7 @@ This slice re-uses the existing `pack.*` and `question.*` namespaces from the G3
 - If `auditInTx` throws (catalog mismatch, RLS denial, FK violation), the outer try/catch in `withTenant` triggers a ROLLBACK. The ROLLBACK drops the domain mutation too. This module has no fire-and-forget audit path.
 - Failure-injection tests are in [src/__tests__/audit-writes.test.ts](../modules/04-question-bank/src/__tests__/audit-writes.test.ts). The case "publishPack on a non-existent pack throws and writes NO audit row" proves the atomicity contract from the error path.
 
-### 15.4 What's NOT audited here
+### 15.4 What is NOT audited here
 
 - GET routes (read-only). These write only to the operational `request.log`.
 - Service methods that delegate to other modules (`generateQuestions` → `handleAdminGenerate` in [07-ai-grading](../modules/07-ai-grading/SKILL.md)). The audit wiring lives at the runtime boundary in 07, not in the question-bank service.
@@ -789,7 +789,7 @@ Semantic gaps:
 - The proof from the error path is in [src/__tests__/audit-writes.test.ts](../modules/05-assessment-lifecycle/src/__tests__/audit-writes.test.ts). The case "publishAssessment on a non-existent id throws and writes NO audit row" exercises the contract. The mutation can never produce an `assessment.published` event when the assessment does not exist.
 - A coverage-grep assertion at the bottom of the same test file counts `auditInTx(` occurrences in `service.ts` and expects exactly 7. A new admin-mutating method without an audit write fails this guard.
 
-### 16.4 What's NOT audited here
+### 16.4 What is NOT audited here
 
 - Read-only methods: `listAssessments`, `getAssessment`, `getInvitationCounts`, `listInvitations`, `previewAssessment`, `resolveInvitationToken`.
 - The candidate-flow mutation `markInvitationViewedByToken` (see § 16.2).
@@ -806,7 +806,7 @@ Every admin-mutating service method in [modules/03-users](../modules/03-users/SK
 | `createUser` | `user.created` | `user` | `after`: email, name, role, status, metadata |
 | `updateUser` | `user.updated` | `user` | `before/after`: name, role, status, metadata; `after.changed_fields` + `after.kind` (`status_change` \| `role_change` \| `general`). One row per call regardless of patch size |
 | `softDelete` | `user.deleted` | `user` | `before` snapshot; `after.deleted=true` + `after.cascaded_pending_invitations` (count of `user_invitations` rows DELETEd in the same tx by the addendum-§5 cascade) |
-| `restore` | `user.restored` | `user` | `before/after.deleted_at` + `before/after.status`. Distinct from `user.deleted` so admin queries on "who restored this account" don't have to filter on a marker field — different from QB/AL where reopen/restore are folded under shared actions with `kind` markers |
+| `restore` | `user.restored` | `user` | `before/after.deleted_at` + `before/after.status`. Distinct from `user.deleted` so admin queries on "who restored this account" do not have to filter on a marker field — different from QB/AL where reopen/restore are folded under shared actions with `kind` markers |
 | `inviteUser` (new user) | `user.invited` (`after.kind=new`) | `user` | `entity_id` is the newly-created user. Token material (`token_hash`, plaintext token) intentionally NOT logged |
 | `inviteUser` (re-invite of pending user) | `user.invited` (`after.kind=reinvite`) | `user` | `entity_id` is the existing user (durable identity). `after.replaced_invitation_count` records the prior pending invitations DELETEd in the same tx |
 
@@ -836,7 +836,7 @@ Every admin-mutating service method in [modules/03-users](../modules/03-users/SK
   - This catches a class of regression: calling `auditInTx` on a different client (this breaks transaction sharing), or moving the call outside the `withTenant` callback.
 - A coverage-grep assertion at the bottom of the same test file counts `auditInTx(` occurrences in `service.ts` (expects 4) and `invitations.ts` (expects 2). A new admin-mutating method without an audit write fails this guard.
 
-### 17.5 What's NOT audited here
+### 17.5 What is NOT audited here
 
 - `acceptInvitation`: the invitee acts on their own pending invitation. An admin does not act on another user. The audit trail of 01-auth session events (`session.created`) covers the session minting that follows. A second record here would confuse.
 - `bulkImport`: a Phase-1 stub (throws `BULK_IMPORT_PHASE_1`). The Phase-1 implementation will add its own audit wiring when the route stops returning 501. [Update 2026-10-03: the `POST /admin/users/import` route and bulk import are live since 2026-10-01. See `docs/03-api-contract.md`.]
@@ -1199,7 +1199,7 @@ Every admin-mutating service method in [modules/16-help-system](../modules/16-he
 - Failure-injection test in [src/__tests__/audit-writes.test.ts](../modules/16-help-system/src/__tests__/audit-writes.test.ts): "when auditInTx throws inside upsertHelpForTenant, the help_content row is NOT mutated". It mocks `@assessiq/audit-log.auditInTx` to throw once. A superuser read of `help_content` after the rejected call asserts that the row was never committed.
 - A coverage-grep assertion at the bottom of the same test file counts `auditInTx(` occurrences in `service.ts` and expects exactly 2. A new admin-mutating method without an audit write fails this guard.
 
-### 26.4 What's NOT audited here
+### 26.4 What is NOT audited here
 
 - `recordHelpEvent`: fire-and-forget telemetry (tooltip shown, drawer opened, feedback thumbs). It is not an admin mutation. The actor is a candidate or an anonymous user. Telemetry writes to `app.log` (pino) only, per the Phase 1 deferral decision #16 in [SKILL.md](../modules/16-help-system/SKILL.md). An upgrade to `audit_log` writes is a future Phase 3 sub-slice, not this one.
 - `getHelpForPage`, `getHelpKey`, `exportHelp`: read-only. They write only to the operational `request.log`. `exportHelp` is a GET route and a read-only bulk fetch for the translation workflow.
@@ -1235,7 +1235,7 @@ This slice adds **0** new entries. `webhook.created`, `webhook.deleted`, `webhoo
 - `@assessiq/audit-log` is imported **statically** from `13-notifications/src/webhooks/service.ts`. This is safe because the reverse direction (audit-log → notifications) uses a **dynamic import** in `modules/14-audit-log/src/webhook-fanout.ts`. The dynamic import breaks what would be a static circular dependency between the two modules.
 - Failure-injection tests are in [src/__tests__/audit-writes.test.ts](../modules/13-notifications/src/__tests__/audit-writes.test.ts). The file has 19 audit-related call sites: a happy path for each action, an atomicity case for each action, and payload-shape assertions. A coverage-grep at the bottom of the file asserts that `auditInTx(` occurs exactly 3 times in `webhooks/service.ts`.
 
-### 27.4 What's NOT audited here
+### 27.4 What is NOT audited here
 
 - `emitWebhook` and `emitWebhookToEndpoint`: they queue deliveries in response to state changes in other modules (for example `attempt.submitted` fanout). The audit trail for *why* the webhook fired lives on the audit row of the originating action. A `webhook.dispatched` row for each delivery would inflate the audit trail by orders of magnitude. It would answer no compliance question that the originating row does not already answer.
 - BullMQ `deliver-job` (the worker that POSTs the HTTP request and records the HTTP status): purely operational. The outcome lands in `webhook.log` and the `webhook_deliveries` table.
@@ -1254,7 +1254,7 @@ Certificates carry HMAC integrity signatures (see [modules/18-certification/SKIL
 |---|---|---|---|---|---|
 | `issueCertificate` | `certification.cert.issue` | `certificate` | New cert UUID | Candidate completes a passing attempt → admin sync grades it → certificate row inserted | `after`: `credential_id` (the public-facing 26-char base32 ID), `tier` (`completion` \| `distinction` \| `honors`), `candidate_id`, `attempt_id`. `before` omitted — INSERT. `actor_user_id` is the **admin** who clicked "Issue" (Phase 1 single-admin model), not the candidate. |
 | `upgrade` | `certification.cert.upgrade` | `certificate` | Existing cert UUID (id changes only if the upgrade re-issues; `credential_id` stays stable per CLAUDE.md "stable shared URL" invariant) | Candidate's tier improves on a later attempt (e.g. completion → distinction) | `before`: `{ tier: existing.tier }`. `after`: full `credential_id`, new `tier`, `candidate_id`, `attempt_id`. Distinct action (not `cert.updated`) because tier upgrades are a compliance-significant lifecycle event auditors search for explicitly. The TOCTOU concern was resolved in Phase 5 Session 2 R3 fix (see RCA log 2026-05-11). |
-| `revokeCertificate` | `certificates.revoked` | `certificate` | Cert UUID | Admin clicks "Revoke" on the certificates admin page (`/admin/certificates`) | `before`: `{ revoked_at: null, revoke_reason: null }`. `after`: `revoked_at`, `revoke_reason`. The `revoke_reason` is admin-supplied free text; not redacted because it's already admin-authored and may be needed in the audit trail. |
+| `revokeCertificate` | `certificates.revoked` | `certificate` | Cert UUID | Admin clicks "Revoke" on the certificates admin page (`/admin/certificates`) | `before`: `{ revoked_at: null, revoke_reason: null }`. `after`: `revoked_at`, `revoke_reason`. The `revoke_reason` is admin-supplied free text; not redacted because it is already admin-authored and may be needed in the audit trail. |
 | `reissue` | `certificates.reissued` | `certificate` | Cert UUID | Admin re-signs a cert after a `display_name` correction (typo fix, legal-name change) | `before`: `{ display_name: cert.display_name }`. `after`: `{ display_name: newDisplayName }`. The cert's `credential_id` and `issued_at` are preserved by invariant — reissue is a snapshot refresh, not a new issuance (see RCA log 2026-05-11 "Revoke is a state flag; reissue preserves credential_id + issued_at invariant"). |
 
 `actor_kind` is always `"user"` for all four sites. Every certificate lifecycle event in Phase 5 has a known admin actor (issuance through the admin grading flow, revoke and reissue through explicit admin clicks). There is no `system` certificate-lifecycle path.
@@ -1286,7 +1286,7 @@ This module added **4** entries to the G3.A action catalog (lines 82–86 of [mo
   - `admin-reissue.test.ts`: reissue-specific audit-row assertions and the credential_id-preservation invariant.
 - No coverage-grep assertion is wired today (the module predates the §15/§17/§26 pattern). The 4 call sites in `service.ts` are stable. A future contributor who adds a lifecycle method without an audit row fails the atomicity assertions of the test suite.
 
-### 28.4 What's NOT audited here
+### 28.4 What is NOT audited here
 
 - `getCertificateByCredentialId`, `findCertificatesByCandidate`, `listAdminCertificates`: read paths. No state change.
 - `verifyCertificateSignature`: pure HMAC verification, no DB I/O.
@@ -1314,7 +1314,7 @@ Every admin-mutating handler in [modules/07-ai-grading](../modules/07-ai-grading
 | [`handlers/admin-claim-release.ts:169`](../modules/07-ai-grading/src/handlers/admin-claim-release.ts) | `handleAdminClaimAttempt` | `grading.claimed` | `attempt` | `attemptId` | **Conditional emit**: only fires when `wasClaimed === true` (the UPDATE actually transitioned `submitted → pending_admin_grading`). Idempotent second-claim by the same admin is a no-op and writes no audit row — repeated audit rows for a no-op would inflate the trail and answer no compliance question. `before: { attempt_status: 'submitted' }`, `after: { attempt_status: 'pending_admin_grading' }`. |
 | [`handlers/admin-claim-release.ts:241`](../modules/07-ai-grading/src/handlers/admin-claim-release.ts) | `handleAdminReleaseAttempt` | `grading.released` | `attempt` | `attemptId` | `before: { attempt_status: 'graded' }`, `after: { attempt_status: 'released' }`. Release is the candidate-visible state flip; the audit row is the compliance receipt for "who made this attempt visible to the candidate, when." |
 | [`handlers/admin-override.ts:111`](../modules/07-ai-grading/src/handlers/admin-override.ts) | `handleAdminOverride` | `grading.override` | `grading` | `newRow.id` | `after.new_grading_id` carries the new gradings row's id; the original row's `id` lives in `override_of` on the new row (audit-traceable forward and backward). G3.D atomicity fix: the audit write was previously out-of-transaction; it now commits inside the same `withTenant` as the gradings INSERT. **PII policy (2026-05-13 follow-up):** `override_reason` is free-text admin input and is **NOT** placed in the audit row's `after` payload. The full reason is preserved in `gradings.override_reason` (the immutable D8 INSERT row). Auditors pivot `audit_log.entity_id` → `gradings.id` to read the reason. Keeps `audit_log` free of unbounded free-text PII while preserving forensic traceability via the FK chain. **Retention alignment (V2 from the same adversarial review):** the pivot only resolves while the `gradings` row is reachable. Any future retention sweep that hard-deletes `gradings` rows MUST run on a window ≥ the `audit_log` retention window, or `grading.override` audit rows will outlive their justification chain. Neither table has a retention policy as of 2026-05-13; this paragraph is the load-bearing constraint that the future retention design must satisfy. |
-| [`handlers/admin-rerun.ts:262`](../modules/07-ai-grading/src/handlers/admin-rerun.ts) | `handleAdminRerun` | `grading.retry` | `attempt` | `attemptId` | Fires when the admin re-runs the cascade after a failed or `review_needed` proposal. `after` carries `attempt_id`; the new proposal lands via the standard `admin-accept` path which writes its own `grading.accepted` audit row — re-runs that aren't accepted leave the previous gradings row untouched (the `grading.retry` row is the only trace). |
+| [`handlers/admin-rerun.ts:262`](../modules/07-ai-grading/src/handlers/admin-rerun.ts) | `handleAdminRerun` | `grading.retry` | `attempt` | `attemptId` | Fires when the admin re-runs the cascade after a failed or `review_needed` proposal. `after` carries `attempt_id`; the new proposal lands via the standard `admin-accept` path which writes its own `grading.accepted` audit row — re-runs that are not accepted leave the previous gradings row untouched (the `grading.retry` row is the only trace). |
 | [`handlers/admin-generate.ts:578`](../modules/07-ai-grading/src/handlers/admin-generate.ts) (per-chunk) | `handleAdminGenerate` (sharded path, chunk-success branch) | `question.ai_generated` | `question` | omitted | One audit row per successful generated-question batch chunk (sharded mode). `after` carries `generation_attempt_id`, `pack_id`, `level_id`, `question_type`, `question_count`. **Not folded under `question.created`** because AI-generated questions and admin-authored questions answer different compliance questions ("did AI produce this?" vs "did an admin manually write this?"). |
 | [`handlers/admin-generate.ts:672`](../modules/07-ai-grading/src/handlers/admin-generate.ts) (per-chunk, retry path) | `handleAdminGenerate` (retry-success branch) | `question.ai_generated` | `question` | omitted | Same shape as line 578; fired when a retry of a previously-failed chunk succeeds. |
 | [`handlers/admin-generate.ts:839`](../modules/07-ai-grading/src/handlers/admin-generate.ts) (non-sharded) | `handleAdminGenerate` (single-shot, non-sharded mode) | `question.ai_generated` | `question` | omitted | Same shape; fired in the legacy single-shot generation path (pre-Stage-3-sharded default). |
@@ -1349,7 +1349,7 @@ The catalog adds **6** entries for this module (line numbers refer to [modules/1
 - The claim site in `admin-claim-release.ts` is **conditional**. The audit row fires only when the UPDATE changed the row. The release site is unconditional: if the UPDATE matched zero rows (release of an already released attempt), the handler throws before it reaches `auditInTx`.
 - The coverage-grep guard in [src/__tests__/audit-writes.test.ts](../modules/07-ai-grading/src/__tests__/audit-writes.test.ts) asserts the exact `auditInTx(` count per file: `admin-accept.ts`=1, `admin-claim-release.ts`=2, `admin-override.ts`=1, `admin-rerun.ts`=1, `admin-generate.ts`=3 (total = 8). A new admin-mutating handler without an audit write fails this guard.
 
-### 29.4 What's NOT audited here
+### 29.4 What is NOT audited here
 
 - **`gradeSubjective(input)`**: the runtime entry point that the cascade calls. It returns a `GradingProposal` and **never writes** to the DB. Phase 1 compliance means "admin clicks Accept before commit". The proposal is the *recommendation* of the AI, not a state change. The audit row that matters is on `admin-accept` (the human-in-the-loop confirmation), not on the proposal generation.
 - **`handleAdminGrade`**: it returns proposals to the admin UI and **never writes**. The reasoning is the same as above. The grading-pipeline lint at `ci/lint-no-ambient-claude.ts` enforces that only an authenticated admin Fastify route can invoke this handler. No ambient invocation path can bypass the Accept step.
@@ -1399,7 +1399,7 @@ Two actions were added for this module (lines refer to [modules/14-audit-log/src
   - Happy-path tests verify the `before`/`after` payload shape and `actor_kind` on the written row.
   - Atomicity tests use `ALTER TABLE audit_log ADD CONSTRAINT CHECK (false) NOT VALID` to cause a real DB error on the `auditInTx` INSERT. Then they assert that the domain mutation rolled back. `NOT VALID` is required, because the happy-path tests already wrote rows. A plain `CHECK (false)` would fail with "is violated by some row."
 
-### 30.5 What's NOT audited here
+### 30.5 What is NOT audited here
 
 - `getTenantById`, `getTenantBySlug`, `listActiveTenantIds`: read paths or system-role queries that do not mutate state.
 - RLS policy enforcement itself: Postgres enforces it. Operator visibility comes from the `pg_audit` extension if enabled on the VPS, not from `audit_log`. (This bullet sat at the end of § 31.7 in an earlier revision. It belongs here.)
@@ -1701,7 +1701,7 @@ Not covered: there is no queue-age metric beyond the platform queue page and the
 | Log: other changes | `email.queued` gains `emailClass`. `webhook.delivery.refused` (warn: reason, endpointId, host, address). `webhook.delivery.permanent_fail` now also covers 3xx. Network error text `webhook request timed out after 10000ms` |
 | `webhook_deliveries.last_error` values | `blocked_address`, `blocked_url`, `HTTP 3xx: redirects are not followed`, `HTTP 4xx: <snippet>` |
 | Audit | `assessment.invitation.resent`. `assessment.invite` rows with `after.kind = reinvite`. `grading.accepted`, `grading.override` and manual score with `after.evaluation_released = true` when that call handed the result to the company |
-| Triage: "My link doesn't work" | The admin clicks Resend on the invitation. The old link dies and a new 7-day link is emailed |
+| Triage: "My link does not work" | The admin clicks Resend on the invitation. The old link dies and a new 7-day link is emailed |
 | Triage: "Email never arrived" | Check `email_log.status`. `queued` means still retrying (up to about 45 h). `failed` means permanent or exhausted. Then grep the worker logs for `email.send.attempt_failed` and read `smtpCode`. A daily-limit reply means: wait for the reset or upgrade the plan |
 
 **Status:** known follow-ups (open):

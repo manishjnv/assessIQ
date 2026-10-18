@@ -63,7 +63,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 5. `/this-is-not-a-page` — `<NotFound>` (404)
 
 **Route selection notes:**
-- `/` excluded: it's a `<Navigate replace />` to `/admin/login` — would duplicate that run.
+- `/` excluded: it is a `<Navigate replace />` to `/admin/login` — would duplicate that run.
 - `/verify/:id` excluded: no `/verify/` route exists in the current SPA router (`App.tsx`).
 - Auth-seeded coverage (admin/candidate dashboards, attempt pages) still deferred — needs Playwright session fixtures (see "Auth-seeded axe pass" section above).
 
@@ -74,8 +74,8 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 **STATUS: SHIPPED (scaffolding only)** in commit `10f1540`.
 
 **What landed:**
-- `apps/web/e2e/visual.spec.ts` — 5 snapshot tests against the same unauthenticated routes Lighthouse CI covers. Linux-only guard via `testInfo.skip` + `visual` project filter so Windows-rendered local runs don't fail PRs.
-- `apps/web/playwright.config.ts` — new `visual` project (`testMatch: /visual\.spec\.ts/`, viewport 1280×800); `testIgnore: /visual\.spec\.ts/` added to the default chromium project so visual.spec doesn't get double-run.
+- `apps/web/e2e/visual.spec.ts` — 5 snapshot tests against the same unauthenticated routes Lighthouse CI covers. Linux-only guard via `testInfo.skip` + `visual` project filter so Windows-rendered local runs do not fail PRs.
+- `apps/web/playwright.config.ts` — new `visual` project (`testMatch: /visual\.spec\.ts/`, viewport 1280×800); `testIgnore: /visual\.spec\.ts/` added to the default chromium project so visual.spec does not get double-run.
 - `apps/web/e2e/visual.spec.ts-snapshots/.gitkeep` — directory placeholder; actual baseline PNGs intentionally NOT committed (must be generated inside the Playwright Docker image for byte-identical CI renders).
 - `apps/web/package.json` — `visual:run` and `visual:update` scripts.
 - `.github/workflows/visual-regression.yml` — PR-triggered, advisory, runs inside `mcr.microsoft.com/playwright:v1.59.1-jammy` (pinned to the installed Playwright version).
@@ -202,7 +202,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 
 #### Wired in commit `6007e1e` (admin.attempts.* + admin.generation-attempts.*)
 
-2 of 8 keys wired (6 skipped — UI element doesn't exist). Updated count: **39 of 57** wired. This closes the help-wiring chapter for the namespaces enumerated in this audit.
+2 of 8 keys wired (6 skipped — UI element does not exist). Updated count: **39 of 57** wired. This closes the help-wiring chapter for the namespaces enumerated in this audit.
 
 | Key | File:line | Status |
 |---|---|---|
@@ -224,7 +224,7 @@ Checklist of sub-items from `UI_KIT_V1_1_PORT.md:500-506` not completed in this 
 - ~~Activity / assessments / questions / packs (~20 entries)~~ (11 wired in `28c97be`, 9 skipped — no UI element)
 - ~~Attempts / audit / notifications / ops / generation-attempts (8 entries)~~ (2 wired in `6007e1e`, 6 skipped — no UI element)
 
-**Help-wiring chapter status: COMPLETE.** All 57 enumerated keys have been processed. 39 are wired; the remaining 18 are deferred until the corresponding UI elements ship (Phase 3+ features: audit UI, notifications-settings UI, in-session disconnect banner, Phase 2 result-band display, assessment-wizard advanced fields, KQL/scenario type explainers, import-format UI). The skipped keys remain in the YAML as design intent — they're ready to wire as soon as their target DOM elements land.
+**Help-wiring chapter status: COMPLETE.** All 57 enumerated keys have been processed. 39 are wired; the remaining 18 are deferred until the corresponding UI elements ship (Phase 3+ features: audit UI, notifications-settings UI, in-session disconnect banner, Phase 2 result-band display, assessment-wizard advanced fields, KQL/scenario type explainers, import-format UI). The skipped keys remain in the YAML as design intent — they are ready to wire as soon as their target DOM elements land.
 
 ### Branding-guideline doc reconcile — token drift
 

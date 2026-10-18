@@ -87,6 +87,18 @@ The checks are advisory from 2026-10-15 to 2026-10-29. They report findings but 
 
 `tools/lint-docs.mjs` turns strict on its own from that date.
 
+### Vale settings (Z-48)
+
+The Vale run reports 0 errors on the checked pages. The settings that make this true are in `.vale.ini`:
+
+- Inline code and fenced code are not checked (`SkippedScopes`, `IgnoredScopes`).
+- Project terms, snake_case names, camelCase names and hash strings pass the spelling check. Add new terms to `.vale/styles/config/vocabularies/AssessIQ/accept.txt`.
+- Google rules that do not fit the STE style are off: em dash, quotes, units, Latin words, date format and a few more. The list is in `.vale.ini`.
+- `Vale.Avoid` (for example "via", "etc") is a warning until the pages are reworded (RW-100). The contraction rule stays an error.
+- The workflow uses the `github-check` reporter, because the default reporter failed with an "Unhandled error event" socket error.
+
+To run Vale on all checked pages, use `vale --config=.vale.ini docs README.md`. Run `vale sync` once first.
+
 Not checked: `docs/plans/archive/`, `docs/SESSION_STATE.md` and `docs/RCA_LOG.md` history.
 
 ## Not included

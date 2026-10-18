@@ -69,7 +69,7 @@ Owns: `assessments`, `assessment_invitations`.
 - `admin.assessments.publish` — what changes when you publish (irreversible parts)
 - `admin.assessments.close.early` — what happens to in-progress attempts
 - `admin.assessments.invite.bulk` — CSV format
-- `admin.assessments.invitations.resend` / `.resend_all` / `.resend_result` — resend one / resend everyone who hasn't started / the outcome chips (migration `16-help-system/0120`)
+- `admin.assessments.invitations.resend` / `.resend_all` / `.resend_result` — resend one / resend everyone who has not started / the outcome chips (migration `16-help-system/0120`)
 
 ## Open questions
 - Re-attempts (one user, multiple attempts) — v1 caps at 1 per assessment via DB UNIQUE; v2 may allow with new `attempt_number` column
@@ -117,14 +117,14 @@ Phase 0 G0.C-5 ships the console+file logger stub. Phase 1 G1.B Session 3 swaps 
 
 **Phase 1 G1.B Session 3 shipped — 2026-05-02.** Full module live: migrations applied, service surface implemented, Fastify routes registered, 69 testcontainer integration tests green.
 
-### What's live
+### What is live
 
 - **Migrations** — `0020_assessment_status_enum.sql`, `0021_assessments.sql` (with `pack_version` frozen-contract column + window CHECK + `(tenant_id,status)` and partial-index pair for boundary cron), `0022_assessment_invitations.sql` (JOIN-based RLS through `assessments.tenant_id`). Plus additive `02-tenancy/migrations/0004_tenants_smtp_config.sql` (column only; SMTP driver swap-in deferred).
 - **Source** — 9 files in `src/`: `types.ts` (Zod settings + domain types + `AL_ERROR_CODES`), `state-machine.ts` (pure functions: `canTransition`, `assertCanTransition`, `nextStateOnTimeBoundary`, `assertValidWindow`, `assertReopenAllowed`), `tokens.ts` (CSPRNG + sha256), `email.ts` (shim over `13-notifications.sendAssessmentInvitationEmail`), `repository.ts` (RLS-aware pg queries — 13 functions), `service.ts` (full public surface), `routes.ts` (11 admin Fastify endpoints), `boundaries.ts` (`processBoundariesForTenant` — pure idempotent logic), `index.ts` (barrel).
 - **Wiring** — `apps/api/package.json` adds `@assessiq/assessment-lifecycle` workspace dep; `apps/api/src/server.ts` calls `registerAssessmentLifecycleRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) })`. `tools/lint-rls-policies.ts` extends `JOIN_RLS_TABLES` with `assessment_invitations`.
 - **Tests** — `src/__tests__/lifecycle.test.ts` covers every KICKOFF verification item: state-machine exhaustive transitions (legal + illegal), pool-size pre-flight (POOL_TOO_SMALL + exact-match success), illegal close-on-draft, time-boundary reject on past-closes_at reopen, boundary cron (activate, close, idempotency, stale-window-skip-active, draft/cancelled untouched), invitation flow (token uniqueness, INVITATION_EXISTS skip, USER_NOT_CANDIDATE skip, USER_NOT_FOUND skip, draft-assessment reject, revoke + idempotent revoke, sha256 verify), cross-tenant RLS (assessments + JOIN-RLS on invitations), dev-emails.log assertion (template_id, plaintext-token-only-in-body), preview smoke. 69 it / 69 passing.
 
-### What's deferred to follow-up sessions
+### What is deferred to follow-up sessions
 
 - **BullMQ repeating job** runtime — `boundaries.ts` is pure logic; an `apps/worker/` Node process to host the BullMQ scheduler does not exist yet (apps/api is the only application; no BullMQ in any package.json). Follow-up: create `apps/worker/`, add `bullmq` + `ioredis` deps, schedule `processBoundariesForTenant(tenant.id, new Date())` per active tenant every 60s. Until then admins must trigger close/reopen manually via the routes; assessments with `opens_at <= now` stay in `published` until processed.
 - **SMTP driver** in `13-notifications` — the dev-emails.log stub still handles all sends. The `tenants.smtp_config` column is in place for Phase 1.5 nodemailer wiring (decision #12).

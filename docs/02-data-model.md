@@ -641,7 +641,7 @@ Commits: `5125b3c` (stage 1, hooks), `d0b5bb8` (stage 2A, 04 + tools + apps/api)
 
 | Item | Detail |
 | --- | --- |
-| Flags | `aiGradeable`, `rubricRequired`, `rubricSynthesis` (`none | expected_findings | steps_expected`), `shuffleField` (`options | items | null`) |
+| Flags | `aiGradeable`, `rubricRequired`, `rubricSynthesis` (`none \| expected_findings \| steps_expected`), `shuffleField` (`options \| items \| null`) |
 | Hooks | Pure (no DB, no React): `candidateView`, `coerceContent`, `guidanceText`, `rubricText`, `synthConcepts` (only when `rubricSynthesis` is not `none`), `deterministicScore` (only when `scoring` is `deterministic`), `evalStructuralCheck`, `checkAnswer` (optional) |
 | Derived arrays | `DETERMINISTIC_IDS`, `AI_GRADEABLE_IDS`, `RUBRIC_REQUIRED_IDS`, `RUBRIC_SYNTHESIS_IDS`. They keep the order of `QUESTION_TYPES` |
 | String-typed wrappers | For callers with `type: string` from the DB: `candidateViewFor` (an unknown type returns the question only), `coerceContentFor`, `deterministicScoreFor`, `checkAnswerFor` |
@@ -2231,7 +2231,7 @@ Content shapes (`questions.content` and `question_versions.content`):
 | Item | Detail |
 | --- | --- |
 | Answers (`attempt_answers.answer`) | numeric = a JSON number (or null). multi_select = `{ "selected": [int] }` in original option indexes (the per-student shuffle in `attempt_questions.option_order` is translated at the save seam, as for mcq) |
-| Scoring | `gradings` rows with `grader='deterministic'`, status `correct`, `partial` or `incorrect`. Partial multi_select writes `score_earned = round(points x (right - wrong) / |correct|, 2)`, floored at 0. No schema change to `gradings` |
+| Scoring | `gradings` rows with `grader='deterministic'`, status `correct`, `partial` or `incorrect`. Partial multi_select writes `score_earned = round(points x (right - wrong) / \|correct\|, 2)`, floored at 0. No schema change to `gradings` |
 | Help ids | Migration `0131` in module 16 |
 | Not included | AI generation of these types, unit conversion, numeric ranges |
 

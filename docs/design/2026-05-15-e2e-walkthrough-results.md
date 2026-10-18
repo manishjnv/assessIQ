@@ -107,7 +107,7 @@ Both omissions are carry-forward misses: `lastSeenAt` was added to the underlyin
 
 ## Why the changes were made
 
-**`lastSeenAt` omission:** The field was added to the `Session` interface at some point but the two downstream consumer sites (`types.ts` type declaration and `session-loader.ts` mapping) were not updated in the same commit. A straightforward carry-forward miss — the type system didn't catch it because `lastSeenAt` was optional in the interface, so TypeScript did not complain about its absence in the session-loader.
+**`lastSeenAt` omission:** The field was added to the `Session` interface at some point but the two downstream consumer sites (`types.ts` type declaration and `session-loader.ts` mapping) were not updated in the same commit. A straightforward carry-forward miss — the type system did not catch it because `lastSeenAt` was optional in the interface, so TypeScript did not complain about its absence in the session-loader.
 
 **`attempts.user_id` vs `candidate_id`:** The `attempts` table was designed with `user_id` as the physical column name, following the FK convention used across AssessIQ schema (`user_id → users.id`). The certification service was written using the conceptual domain name `candidate_id`, which is consistent with how the field is referred to in the product and API contract but does not match the physical schema. The mismatch was not caught because there is no ORM layer to validate column names at build time.
 

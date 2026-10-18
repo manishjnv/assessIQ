@@ -92,8 +92,8 @@ Each endpoint owns its full vertical slice in `src/activity/<name>.ts` (types + 
 ### Phase 9 architecture decisions
 
 **D5 — split data sources by staleness tolerance.**
-- `stats` + `timeline`: read `attempt_summary_mv` (joined to `question_packs` on `pack_id`, `levels` on `level_id`). Acceptable to be up-to-24h stale; the MV's nightly refresh is fast and these aggregates don't need same-day precision. Explicit MV tenant filter required (`current_setting('app.current_tenant', true)::uuid`), enforced by `tools/lint-mv-tenant-filter.ts`.
-- `heatmap` + `leaderboard`: read live `attempts` table. Heatmap needs same-day completions to surface immediately (MV staleness would hide today's activity from the visualisation). Leaderboard's week-over-week delta would silently smooth out the most recent ~24h of activity if the MV were used — unacceptable for "what's trending now" semantics. RLS on live tables; no explicit tenant filter needed inside `withTenant`.
+- `stats` + `timeline`: read `attempt_summary_mv` (joined to `question_packs` on `pack_id`, `levels` on `level_id`). Acceptable to be up-to-24h stale; the MV's nightly refresh is fast and these aggregates do not need same-day precision. Explicit MV tenant filter required (`current_setting('app.current_tenant', true)::uuid`), enforced by `tools/lint-mv-tenant-filter.ts`.
+- `heatmap` + `leaderboard`: read live `attempts` table. Heatmap needs same-day completions to surface immediately (MV staleness would hide today's activity from the visualisation). Leaderboard's week-over-week delta would silently smooth out the most recent ~24h of activity if the MV were used — unacceptable for "what is trending now" semantics. RLS on live tables; no explicit tenant filter needed inside `withTenant`.
 
 **D6 — domain slugs returned raw.** No `domain_display_name` mapping in the DB; backend returns `question_packs.domain` slug values verbatim. Frontend maps slug → display name via a hardcoded module shared across admin and candidate Activity pages. Decision locked in commit `db020d1`.
 

@@ -221,7 +221,7 @@ A `{{ var }}` placeholder is a Handlebars context input (HTML-escaped via `noEsc
 </div>
 ```
 
-**Why.** The `&#8199;&#65279;` (figure-space + zero-width no-break-space) pairs pad the preview line past the first characters of the body. This stops the client from showing a mixed line such as "Set up your account · You're receiving this because…". `mso-hide:all` hides the line from Outlook explicitly. Every modern client respects `display:none`.
+**Why.** The `&#8199;&#65279;` (figure-space + zero-width no-break-space) pairs pad the preview line past the first characters of the body. This stops the client from showing a mixed line such as "Set up your account · You are receiving this because…". `mso-hide:all` hides the line from Outlook explicitly. Every modern client respects `display:none`.
 
 ### A3 — `{{> email-header }}`
 
@@ -471,7 +471,7 @@ The plan's open decision #4 splits production templates into **transactional** (
 
 For: `candidate_login_link`, `admin_email_otp`, `totp_enrolled`, `attempt_submitted_candidate`, `attempt_ready_for_review_admin`.
 
-**Inputs:** `reason` (override per template, defaults to a generic "you're receiving this because…" line).
+**Inputs:** `reason` (override per template, defaults to a generic "you are receiving this because…" line).
 
 **HTML:**
 

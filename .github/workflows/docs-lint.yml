@@ -38,6 +38,12 @@ jobs:
         with:
           vale_flags: '--config=.vale.ini'
           files: docs,README.md
+          # github-check posts through the Checks API. The default pr-check reporter
+          # hit an 'Unhandled error event' socket error in reviewdog (Z-48) and failed the job
+          # even when Vale found no error. nofilter keeps push runs working.
+          reporter: github-check
+          filter_mode: nofilter
+          level: warning
           fail_on_error: false # flip to true on 2026-10-29
       - name: markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v19

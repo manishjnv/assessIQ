@@ -49,7 +49,7 @@ id_token → `resolveIdentities(email)` → branch. `super_admin` rows included.
 
 ### Email-OTP — admin/reviewer only (P2)
 Email entered → **constant-time, identical response** ("If that email can
-sign in, we've sent a code") regardless of existence (anti-enumeration),
+sign in, we have sent a code") regardless of existence (anti-enumeration),
 reusing candidate-login rate-limit + Redis-fail-closed + 200ms-floor infra.
 A code is sent **only if** `resolveIdentities(email)` has ≥1 `admin`/`reviewer`
 identity. 6-digit, single-use, 10-min, entered on a verify screen. On verify →
@@ -58,7 +58,7 @@ identities filtered OUT of this path (a super-admin-only email gets the generic
 "use Google sign-in" message; never a code).
 
 ### Branch on resolved identities (both paths)
-- **0 eligible** → terminal "This email isn't registered for access — contact
+- **0 eligible** → terminal "This email is not registered for access — contact
   your administrator." No enumeration.
 - **1** → mint session immediately → dashboard.
 - **≥2** → identity picker ("Role @ Organisation" rows; the authenticated

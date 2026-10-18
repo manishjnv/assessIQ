@@ -186,7 +186,7 @@ SLO tracking, and on-call dashboards.
 
 Daily restore smoke test against staging: restore the previous night's backup, run a
 schema-version check and row-count spot check, alert if the restore fails. Eliminates the
-"we have backups but haven't verified them" risk class permanently.
+"we have backups but have not verified them" risk class permanently.
 
 ### MO-4 — PagerDuty or equivalent on-call rotation
 
@@ -236,7 +236,7 @@ trigger a manual backup to prove the end-to-end pipeline.
 1. `ssh assessiq-vps "rclone listremotes"` — confirm the named remote exists.
 2. `ssh assessiq-vps "rclone lsd remote:assessiq-backups-prod"` — confirm the bucket is
    reachable and has at least one directory/object.
-3. If the remote doesn't exist: `ssh assessiq-vps "rclone config show"` to see what IS
+3. If the remote does not exist: `ssh assessiq-vps "rclone config show"` to see what IS
    configured, then set up the correct remote (Backblaze B2 / S3 / Cloudflare R2 per user
    preference). Record the provider and bucket name.
 4. If the bucket is empty: reproduce the cron pipeline manually (`pg_dump | gzip | rclone copy`)

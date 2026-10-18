@@ -4,7 +4,27 @@
     "MD013": false,
     "MD033": false,
     "MD041": true,
-    "MD024": { "siblings_only": true }
+    "MD024": { "siblings_only": true },
+    // Z-48: layout-only rules. The docs are table-heavy and written by many sessions; a mass reformat is not planned.
+    "MD004": false,
+    "MD009": false,
+    "MD012": false,
+    "MD022": false,
+    "MD026": false,
+    "MD028": false,
+    "MD029": false,
+    "MD031": false,
+    "MD032": false,
+    "MD034": false,
+    "MD036": false,
+    "MD037": false,
+    "MD038": false,
+    "MD040": false,
+    "MD049": false,
+    "MD050": false,
+    "MD055": false,
+    "MD058": false,
+    "MD060": false
   },
   "globs": ["docs/**/*.md", "README.md"],
   "ignores": [
@@ -12,6 +32,6 @@
     "docs/SESSION_STATE.md",
     "docs/RCA_LOG.md",
     ".claude/**",
-    "node_modules/**"
+    "**/node_modules/**"
   ]
 }

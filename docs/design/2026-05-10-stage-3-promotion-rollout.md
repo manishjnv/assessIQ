@@ -68,7 +68,7 @@ criterion**:
 | **3.1 (pilot)** | ≥3 of 5 clean in rolling window, avg chunks_failed ≤ 1.0, no double-chunk failures | Single-tenant pilot with 24h watch; staged rollout absorbs variance |
 | **3.2 (25%)** | ≥4 of 5 clean in rolling window | Tighten as risk widens |
 | **3.3 (100%)** | ≥4 of 5 OR 5 consecutive clean | Production-grade reliability |
-| **3.4 (default flip)** | 5 consecutive clean over a 7-day window | Hardest gate; we've earned a quiet flip |
+| **3.4 (default flip)** | 5 consecutive clean over a 7-day window | Hardest gate; we have earned a quiet flip |
 
 Window is scoped to **post-D1+D2 deploy** (commit `5d05d15`, 2026-05-13a SKILL.md
 + MCP inline rejection) — earlier smokes are not counted because they ran
@@ -111,7 +111,7 @@ At the observed ~60% per-smoke clean rate, probability of ≥4 of 5 clean in 5
 smokes: ~33%. Expected smokes to satisfy: ~3 windows = ~15 smokes ≈ ~3 hours.
 Worse than 5-consecutive on time-to-pass, but BETTER on "the gate actually
 reflects production reliability": Stage 3.1 needs to be flippable when the
-system is reliable ENOUGH for one tenant, not when it's perfect.
+system is reliable ENOUGH for one tenant, not when it is perfect.
 
 **Alternative: drop the gate to ≥3 of 5 clean.** Probability ~68%, expected
 ≈ 2 windows ≈ ~6 smokes ≈ 1.2 hours. More relaxed; risks letting a
@@ -467,7 +467,7 @@ of clean 100%-tenant coverage), the skill ships into a stable baseline.
 - 7 days clean at Stage 3.3 with zero rollback events.
 - Subjective skill SHA recorded in VPS skills inventory.
 - `generation_attempts.skill_sha` for a subjective-containing run includes the
-  `generate-subjective` SHA (confirming it's routing correctly).
+  `generate-subjective` SHA (confirming it is routing correctly).
 
 **Rollback:** Flip `AI_GENERATE_MODE=omnibus` in `.env`, recreate container. All tenants
 revert to omnibus in the next request cycle. No migration rollback (the column stays NULL;

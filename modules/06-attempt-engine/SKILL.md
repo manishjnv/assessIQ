@@ -112,13 +112,13 @@ Question order was already random per attempt; option order was not, and the fir
 - `candidate.attempt.flag` — flagging mechanics
 - `candidate.attempt.kql.editor` — KQL editor capabilities, no execution
 - `candidate.attempt.subjective.length` — expected length, structure tips
-- `candidate.attempt.scenario.steps` — linear stepping, can't skip back if dependency
+- `candidate.attempt.scenario.steps` — linear stepping, cannot skip back if dependency
 - `candidate.attempt.submit.confirm` — what happens after submit (grading time, when results visible)
 - `candidate.attempt.disconnect` — what to do if connection drops (autosaves on reconnect)
 
 ## Open questions / deferred work
 
-- **BullMQ scheduler runtime** — `sweepStaleTimersForTenant` ships as pure idempotent logic. The BullMQ runtime now exists: the `assessiq-worker` container runs `apps/api/src/worker.ts` (commit `2675e2f`). The auto-submit ALSO fires opportunistically inside `getAttemptForCandidate` whenever a candidate hits the endpoint past their `ends_at` — that's the safety net.
+- **BullMQ scheduler runtime** — `sweepStaleTimersForTenant` ships as pure idempotent logic. The BullMQ runtime now exists: the `assessiq-worker` container runs `apps/api/src/worker.ts` (commit `2675e2f`). The auto-submit ALSO fires opportunistically inside `getAttemptForCandidate` whenever a candidate hits the endpoint past their `ends_at` — that is the safety net.
 - **Magic-link `/take/<token>` flow** — the candidate-session minting half is deferred to Session 4b. Phase 1 G1.C Session 4a admits attempts via the existing candidate auth chain (`requireAuth({ roles: ['candidate'] })`), assuming the candidate is already logged in. The token-bearing entry point lands with embed in 4b.
 - **Embed routes** (`/embed?token=<JWT>`) — Phase 4 territory; Session 4b lays the groundwork.
 - **Redis-backed rate cap** — Phase 1 ships an in-process `Map<attemptId, bucket>` token bucket in `src/rate-cap.ts`. Per-process buckets are fine while apps/api is single-replica; multi-replica scale-out (Phase 3+) requires moving to Redis (`aiq:attempt:<id>:events`).

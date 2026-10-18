@@ -108,7 +108,7 @@ Sitemap: https://{domain}/sitemap_index.xml
 ```
 
 - Disallow the gated app, the OG renderer (images are surfaced via `og:image` + sitemap, never crawled as standalone URLs), and **faceted-filter query params** that would otherwise spawn infinite low-value crawl paths (§3.4).
-- **Always include an explicit `Sitemap:` directive** — primes engines that don't auto-probe `/sitemap.xml`.
+- **Always include an explicit `Sitemap:` directive** — primes engines that do not auto-probe `/sitemap.xml`.
 
 **Critical operational caveat (learned the hard way):** if you front the site with a CDN (Cloudflare, etc.), the **edge may intercept or merge `/robots.txt`** with its own managed content. **Always verify the live file with an external `curl` using a real crawler UA — never assume your origin config is what crawlers see:**
 
@@ -159,13 +159,13 @@ Per-URL pattern — **`<lastmod>` on every URL** (a quality signal many sites sk
 - **Pagination:** `/resources?page=2` is **self-canonical** to `/resources?page=2` (NOT to page 1 — that drops deep pages from the index). Add `rel="prev"`/`rel="next"` link hints. Render pagination **server-side**; infinite scroll may layer on top as progressive enhancement, but numbered SSR pages are the crawl path.
 - **Faceted / filtered library pages** (`/tests?skill=python&level=hard&sort=...`): canonicalize back to the clean hub, `noindex` the filtered combinations, and disallow the param patterns in robots. This is the #1 index-bloat trap for catalog sites — thousands of thin filter permutations dilute crawl budget and trip "scaled content" signals.
 - **One host, one protocol.** 301 `http→https` and `www↔non-www` to the single canonical host. Enforce trailing-slash policy with a single redirect rule. Do this at the edge/server, not in app code.
-- **Never 302 a permanent move** (302 doesn't pass equity the way 301 does). Audit redirect chains — collapse `A→B→C` to `A→C`.
+- **Never 302 a permanent move** (302 does not pass equity the way 301 does). Audit redirect chains — collapse `A→B→C` to `A→C`.
 
 ### 3.4 Rendering & indexability (the make-or-break for SaaS)
 
 With an SSR/SSG framework, **render every public page's primary content server-side.** Concretely:
 
-- **Marketing, solutions, library, comparison, glossary, blog → SSG or SSR.** Static-generate what's stable (glossary, comparison), server-render or ISR what's data-driven (test library counts, pricing).
+- **Marketing, solutions, library, comparison, glossary, blog → SSG or SSR.** Static-generate what is stable (glossary, comparison), server-render or ISR what is data-driven (test library counts, pricing).
 - **The app (`/app`, `/dashboard`) → CSR + `noindex`.** It has no SEO value; keep it out of the index entirely.
 - **Hydration must not change indexable content.** If JS rewrites the H1/copy after load, Google may rank the pre-hydration version. Keep server and client output consistent.
 
@@ -177,7 +177,7 @@ With an SSR/SSG framework, **render every public page's primary content server-s
 | Client-side SPA (CSR-only) | **Highest-risk posture.** Add SSR/prerendering for public routes, or ship a server-rendered **content scaffold** in the initial HTML (real H1/H2/copy/links) that the SPA replaces on mount. Never ship an empty `<div id="root">` for a page you want to rank. |
 | Traditional server-rendered | Already fine; focus on schema + speed. |
 
-**Indexability hygiene:** `noindex` only what you can't fix (gated app, thank-you pages, internal search results, filter permutations). Never `noindex` a page you could simply improve. Keep an `X-Robots-Tag`/meta-robots audit in the monthly review.
+**Indexability hygiene:** `noindex` only what you cannot fix (gated app, thank-you pages, internal search results, filter permutations). Never `noindex` a page you could simply improve. Keep an `X-Robots-Tag`/meta-robots audit in the monthly review.
 
 ### 3.5 The `<head>` contract (every public page)
 
@@ -245,7 +245,7 @@ Per-page share images drive social/LinkedIn/Slack/iMessage previews — a major 
 
 - **Route:** `GET /og/{type}/{slug}.png` → 1200×630 PNG composed at request time (Pillow/`@vercel/og`/Satori/Playwright-screenshot), branded template per type (`test`, `role`, `compare`, `resource`, `integration`, `verify`).
 - **Cache to disk/CDN** keyed by `{type}/{slug}`; first request renders, rest serve cached. Bust on content update.
-- **Slug-validate** with a strict regex (`^[a-z0-9][a-z0-9-]{0,120}$`) so the route can't be abused to render arbitrary text — return 404 on mismatch.
+- **Slug-validate** with a strict regex (`^[a-z0-9][a-z0-9-]{0,120}$`) so the route cannot be abused to render arbitrary text — return 404 on mismatch.
 - **`Disallow: /og/`** in robots; the images reach Google via `og:image` meta + the `<image:image>` sitemap extension, not as crawlable URLs.
 
 ### 3.8 Internal linking & breadcrumbs
@@ -290,7 +290,7 @@ add_header Content-Security-Policy "default-src 'self'; ..." always;
 
 - Generate a 32-char hex key (`openssl rand -hex 16`), set it in env, serve it at `/{key}.txt`.
 - On **publish/update of any indexable page** (new test page, blog post, case study, integration), fire-and-forget POST to `https://api.indexnow.org/indexnow` with `{ host, key, keyLocation, urlList }` (≤ 10k URLs/request). Never block the publish on it.
-- Near-instant for Bing/Yandex; Google ingests the signal. Pair with manual GSC "URL inspection → Request indexing" for your most important new pages (throttled ~10/day — don't spam it).
+- Near-instant for Bing/Yandex; Google ingests the signal. Pair with manual GSC "URL inspection → Request indexing" for your most important new pages (throttled ~10/day — do not spam it).
 
 ---
 
@@ -308,7 +308,7 @@ Tactics:
 
 - **Fonts:** `font-display: swap`, `preconnect` to the font host, self-host or subset where possible.
 - **Images:** WebP/AVIF, responsive `srcset`, `loading="lazy"` below the fold, `fetchpriority="high"` on the LCP image.
-- **CSS:** inline critical above-the-fold CSS, defer the rest. (Only invest here if Lighthouse shows LCP > 2.5s — don't pre-optimize.)
+- **CSS:** inline critical above-the-fold CSS, defer the rest. (Only invest here if Lighthouse shows LCP > 2.5s — do not pre-optimize.)
 - **JS:** code-split; the quiz/code-editor widget loads only on `/tools/*`, never on the homepage. Third-party scripts (chat, analytics) loaded `async`/`defer` or via a tag manager with consent gating.
 - **Edge caching/CDN** for all static + SSG output.
 
@@ -347,7 +347,7 @@ The **highest-intent, highest-converting** programmatic cluster (bottom-funnel b
 
 - `<h1>{A} vs {B}: Complete 2026 Comparison</h1>` + 50-word TL;DR (snippet target)
 - Honest side-by-side table (8–12 rows: pricing model, question library size, proctoring, anti-cheat, integrations, code eval, support, free trial, ideal customer)
-- A balanced "which should you choose?" section (don't trash competitors — Google and buyers both reward fairness)
+- A balanced "which should you choose?" section (do not trash competitors — Google and buyers both reward fairness)
 - FAQ from PAA + `DefinedTerm` for each product/method
 - **Schema:** `Article` + `FAQPage` + `BreadcrumbList` (+ a semantic `Table`)
 - Mirror for `/alternatives/{competitor}` ("Best {competitor} alternatives in 2026") — `ItemList` of alternatives with honest pros/cons.
@@ -372,7 +372,7 @@ Before any programmatic page publishes, an **automated validator** must pass it.
 6. **Internal links:** ≥ N contextual links to hubs/siblings.
 7. **FAQ present** with ≥ 6 Q&As where applicable.
 
-Pages that fail are held as drafts, not published. **Roll out the cluster gradually** (e.g. 20–50 high-quality pages/week) and watch GSC indexation + impressions — if Google indexes and ranks them, scale; if it ignores or excludes them, they're too thin. Quality over count, always.
+Pages that fail are held as drafts, not published. **Roll out the cluster gradually** (e.g. 20–50 high-quality pages/week) and watch GSC indexation + impressions — if Google indexes and ranks them, scale; if it ignores or excludes them, they are too thin. Quality over count, always.
 
 ---
 
@@ -407,7 +407,7 @@ Each pillar hub links to its supporting posts and the relevant programmatic page
 
 ### 6.3 E-E-A-T citation allowlist (the trust differentiator)
 
-Maintain a curated `trusted_sources.json` and enforce ≥ N citations from it per pillar post (use safe **suffix-match** so `fake-shrm.com` doesn't match `shrm.org`). For this domain:
+Maintain a curated `trusted_sources.json` and enforce ≥ N citations from it per pillar post (use safe **suffix-match** so `fake-shrm.com` does not match `shrm.org`). For this domain:
 
 - **Standards & guidelines:** SIOP (Society for Industrial-Organizational Psychology) *Principles*, EEOC *Uniform Guidelines on Employee Selection Procedures*, APA/AERA/NCME *Standards for Educational and Psychological Testing*, ISO 10667 (assessment service delivery), GDPR/data-protection authorities.
 - **Research:** peer-reviewed I-O psychology journals, Google Scholar / academic sources on selection validity (e.g. meta-analyses on work-sample test validity).
@@ -440,9 +440,9 @@ Search increasingly happens inside **Google AI Overviews / AI Mode, ChatGPT, Per
 2. **Structured data + clean semantics** make content machine-parseable — the same `FAQPage`/`HowTo`/`DefinedTerm`/`Article` schema that earns rich results also helps answer engines extract you.
 3. **Question-shaped headings** (`How do you assess a backend developer?`) mirror how users prompt LLMs.
 4. **Cite primary sources** (the §6.3 allowlist) — answer engines prefer pages that themselves cite authoritative sources, and being the *citing* hub increases your odds of being the *cited* source.
-5. **`llms.txt`** (§3.1) + **don't block beneficial AI crawlers** you want citations from (separate `Disallow: /` for training-only bots from search/answer bots via per-UA rules; use `Content-Signal` where your CDN supports it).
+5. **`llms.txt`** (§3.1) + **do not block beneficial AI crawlers** you want citations from (separate `Disallow: /` for training-only bots from search/answer bots via per-UA rules; use `Content-Signal` where your CDN supports it).
 6. **Entity consistency:** consistent brand name, logo, `sameAs`, and a complete `Organization`/`SoftwareApplication` schema build the knowledge-graph entity that both Google and LLMs reason over. Claim/maintain G2, Capterra, Crunchbase, LinkedIn, Wikidata.
-7. **Track AI referrals** — monitor referral traffic from `chatgpt.com`, `perplexity.ai`, `gemini.google.com` in analytics; it's a fast-growing channel and a leading indicator of GEO performance.
+7. **Track AI referrals** — monitor referral traffic from `chatgpt.com`, `perplexity.ai`, `gemini.google.com` in analytics; it is a fast-growing channel and a leading indicator of GEO performance.
 
 ---
 
@@ -462,10 +462,10 @@ Assessment platforms sell globally; if you localize:
 
 - **`hreflang`** annotations (in `<head>` or the sitemap) for each language/region variant, with a self-referencing entry + `x-default`. Bidirectional and consistent, or Google ignores them.
 - **URL strategy:** subdirectories (`/de/`, `/in/`) are simplest to manage and consolidate authority; subdomains/ccTLDs only if you have separate teams/entities.
-- **Localize, don't machine-translate-and-dump** — thin auto-translated pages trip the same scaled-content signals as §5.6.
+- **Localize, do not machine-translate-and-dump** — thin auto-translated pages trip the same scaled-content signals as §5.6.
 - **Local currency/pricing, local case studies, local compliance** (GDPR for EU, India DPDP, etc.) for relevance + trust.
 
-Skip this entirely if you're single-market — premature `hreflang` is a common foot-gun.
+Skip this entirely if you are single-market — premature `hreflang` is a common foot-gun.
 
 ---
 
@@ -517,17 +517,17 @@ Set 90/180-day targets per metric against the `ASMT-00` baseline.
 
 ## 13. Guardrails — what NOT to do
 
-- **Don't ship a CSR-only marketing site.** Public pages must be server-rendered/static. (The biggest SEO failure mode for assessment SaaS.)
-- **Don't mass-produce thin programmatic pages** without the §5.6 quality gate — "scaled content abuse" earns penalties. Quality and uniqueness over count.
-- **Don't fabricate Review/AggregateRating** or any schema not matching visible content — manual-action risk.
-- **Don't expose candidate PII** in any meta tag, JSON-LD, sitemap, or public page. Opt-in only, minimal data (§10).
-- **Don't index the gated app, internal search results, or filter permutations** — index bloat dilutes crawl budget.
-- **Don't buy backlinks or hire "SEO services" selling links** — permanent trust damage.
-- **Don't keyword-stuff.** Write for humans; schema expresses machine intent.
-- **Don't trust your origin `robots.txt`/sitemap** without an external crawler-UA `curl` — the CDN edge may override them.
-- **Don't put verification tokens / API keys in the repo** — env vars only.
-- **Don't `noindex` a page you could simply fix.**
-- **Don't touch any `application/ld+json` block without re-running the Rich Results Test.**
+- **Do not ship a CSR-only marketing site.** Public pages must be server-rendered/static. (The biggest SEO failure mode for assessment SaaS.)
+- **Do not mass-produce thin programmatic pages** without the §5.6 quality gate — "scaled content abuse" earns penalties. Quality and uniqueness over count.
+- **Do not fabricate Review/AggregateRating** or any schema not matching visible content — manual-action risk.
+- **Do not expose candidate PII** in any meta tag, JSON-LD, sitemap, or public page. Opt-in only, minimal data (§10).
+- **Do not index the gated app, internal search results, or filter permutations** — index bloat dilutes crawl budget.
+- **Do not buy backlinks or hire "SEO services" selling links** — permanent trust damage.
+- **Do not keyword-stuff.** Write for humans; schema expresses machine intent.
+- **Do not trust your origin `robots.txt`/sitemap** without an external crawler-UA `curl` — the CDN edge may override them.
+- **Do not put verification tokens / API keys in the repo** — env vars only.
+- **Do not `noindex` a page you could simply fix.**
+- **Do not touch any `application/ld+json` block without re-running the Rich Results Test.**
 
 ---
 
@@ -766,7 +766,7 @@ Pick this before writing a single public page. Everything in §1–§15 depends 
 
 ### 16.3 Minimum viable public surface (per the About / Blog / Contact intent)
 
-Start with the smallest set that earns real SEO value, **not** the full §5 programmatic engine. Build the §5 clusters (`/tests/*`, `/compare/*`, `/glossary/*`, `/integrations/*`) only after the MVP surface proves the render→index→rank pipeline works. *Don't build 500 pages before 5 rank.*
+Start with the smallest set that earns real SEO value, **not** the full §5 programmatic engine. Build the §5 clusters (`/tests/*`, `/compare/*`, `/glossary/*`, `/integrations/*`) only after the MVP surface proves the render→index→rank pipeline works. *Do not build 500 pages before 5 rank.*
 
 | Page | SEO value | Effort | Verdict |
 |---|---|---|---|
@@ -779,7 +779,7 @@ Start with the smallest set that earns real SEO value, **not** the full §5 prog
 ### 16.4 Edge & deploy deltas (your §3.9 is nginx; you run Caddy + Cloudflare)
 
 - **`x-origin-verify` is in `enforce` mode.** Any new public route must reach the origin **through Cloudflare** so the injected `x-origin-verify` header is present — a direct-origin hit or a mis-scoped Cloudflare rule returns **429 / TLS-rejects**. You have already lived this exact failure (RCA 2026-05-22: the Cloudflare Transform Rule request-vs-response bug that 429'd `assessiq.in`). When public marketing routes go live, confirm Googlebot's path through CF injects the header.
-- **§3.1's "don't trust your origin `robots.txt` — `curl` with a crawler UA" is proven for you, not theoretical.** Re-verify `robots.txt`, the sitemap, and every public page with a real Googlebot UA *through the edge* before trusting origin config.
+- **§3.1's "do not trust your origin `robots.txt` — `curl` with a crawler UA" is proven for you, not theoretical.** Re-verify `robots.txt`, the sitemap, and every public page with a real Googlebot UA *through the edge* before trusting origin config.
 - **Shared VPS, additive-only (CLAUDE.md rule #8).** A new public site/routes = an **additive** Caddy block under the `assessiq` namespace. Enumerate before touching; never blanket-reload or alter other tenants' config.
 
 ### 16.5 Canonical host is brand-new — baseline from near-zero
@@ -798,9 +798,9 @@ AssessIQ has a **documented candidate answer-key / PII leak history** (RCA 2026-
 - **`ASMT-00b` (NEW, P0):** replace the `/`→`/admin/login` redirect with a real indexable home; serve the app only to authenticated users.
 - **Then** the §16.3 MVP surface (home / about / contact, + blog only with a committed cadence) — **before** any §5 programmatic cluster.
 - **`ASMT-29` (international `hreflang`): skip** — single-market today; premature `hreflang` is a foot-gun (§9 already warns this).
-- Add an **effort + "this-quarter / later"** annotation to each `ASMT-*` row — with a from-scratch site, P0/P1/P2 alone doesn't tell you what's affordable now.
+- Add an **effort + "this-quarter / later"** annotation to each `ASMT-*` row — with a from-scratch site, P0/P1/P2 alone does not tell you what is affordable now.
 
-### 16.8 What's genuinely missing from §0–§15 (stack-independent)
+### 16.8 What is genuinely missing from §0–§15 (stack-independent)
 
 - **Status-code / soft-404 discipline** for the new public routes (a CSR `*`→`<NotFound>` that returns HTTP 200 is a soft-404; the marketing site must return real 404s).
 - **No ownership/RACI** — fine for a methodology doc, but assign one before execution.
@@ -819,13 +819,13 @@ AssessIQ has a **documented candidate answer-key / PII leak history** (RCA 2026-
 
 ### 17.1 The thesis
 
-**Win the queries a zero-authority new domain *can* win — branded, India-specific, and high-intent comparison searches — with a small set of excellent evergreen pages, and let the hybrid model's free asset (candidate result-sharing) build links.** Do **not** fight global head terms (`coding assessment platform`) or mass-produce thin programmatic pages we can't maintain.
+**Win the queries a zero-authority new domain *can* win — branded, India-specific, and high-intent comparison searches — with a small set of excellent evergreen pages, and let the hybrid model's free asset (candidate result-sharing) build links.** Do **not** fight global head terms (`coding assessment platform`) or mass-produce thin programmatic pages we cannot maintain.
 
 SEO is a **support channel** here, not the primary pipe for a sales-led-ish B2B product. **Realistic horizon: 6–12 months to meaningful organic traffic.** Set expectations accordingly; front-load cheap, permanent assets over a content treadmill.
 
 ### 17.2 The four phases (execution order)
 
-**Phase 0 — the gate (before anything):** Lock rendering (§16.2). **Decision: Astro SSG as a separate marketing site**, decoupled from the React SPA — chosen because the public surface is mostly static + content is lean (build-once, fastest, cheapest to maintain; SSR's per-request value isn't needed). This unblocks everything below.
+**Phase 0 — the gate (before anything):** Lock rendering (§16.2). **Decision: Astro SSG as a separate marketing site**, decoupled from the React SPA — chosen because the public surface is mostly static + content is lean (build-once, fastest, cheapest to maintain; SSR's per-request value is not needed). This unblocks everything below.
 
 **Phase 1 — Foundation & entity (Month 1–2, mostly build-once):**
 - Real indexable **home** (retire the `/`→`/admin/login` redirect for logged-out visitors; authed users still route to the app), **About**, **Contact**, **Pricing**, **`/trust` + `/security`** (India DPDP, data residency — institutions and buyers care).
@@ -849,7 +849,7 @@ SEO is a **support channel** here, not the primary pipe for a sales-led-ish B2B 
 
 - ❌ Full 500-page programmatic engine — unmaintainable + scaled-content-penalty risk.
 - ❌ Global head-term competition — deferred to the "global later" phase.
-- ❌ High-frequency blog — bandwidth is monthly; don't pretend otherwise.
+- ❌ High-frequency blog — bandwidth is monthly; do not pretend otherwise.
 - ❌ `hreflang` / international (§9, `ASMT-29`) — single-market for now.
 - ❌ Fabricated reviews / paid links — permanent trust damage.
 
@@ -894,4 +894,4 @@ Original §14 IDs preserved for traceability; resequenced and pruned for this pl
 
 ### 17.6 Success signals (decide whether to scale Phase 3)
 
-After Phase 1–2 are live ~8 weeks: if GSC shows the foundation + comparison pages getting **indexed and accumulating impressions on India queries**, scale the Phase 3 library. If they sit unindexed/excluded, the pages are too thin or rendering is wrong — fix before scaling, per §5.6's "if Google ignores them, they're too thin."
+After Phase 1–2 are live ~8 weeks: if GSC shows the foundation + comparison pages getting **indexed and accumulating impressions on India queries**, scale the Phase 3 library. If they sit unindexed/excluded, the pages are too thin or rendering is wrong — fix before scaling, per §5.6's "if Google ignores them, they are too thin."

@@ -51,7 +51,7 @@ You are implementing the **P0 tasks** for AssessIQ (repo `E:\code\AssessIQ`, pro
 
 - **Problem, verified 2026-10-01 as root:** `docs/06-deployment.md` § Backups (~line 1168) and § Disaster recovery (~1251+) describe a daily `pg_dump` plus an offsite copy, but **none of it is installed**. There is no `/etc/cron.daily/assessiq-backup`, no `/var/backups/assessiq`, and no rclone.
 - **Enumerate first, read-only:** `docker ps`, `ls /etc/cron.daily`, `df -h`, and the postgres container, DB and user names (`assessiq-postgres`, `assessiq`).
-- **Implement the documented design; don't reinvent it:**
+- **Implement the documented design; do not reinvent it:**
   - Create `/etc/cron.daily/assessiq-backup` (root, 0755, `set -euo pipefail`).
   - The script runs `docker exec assessiq-postgres pg_dump -U assessiq -d assessiq -Fc` and writes to `/var/backups/assessiq/assessiq-<UTC-ts>.dump`.
   - Retention: 14 days, deleting only inside that directory.
@@ -59,7 +59,7 @@ You are implementing the **P0 tasks** for AssessIQ (repo `E:\code\AssessIQ`, pro
   - Log to `/var/log/assessiq/backup.log`.
   - Ping healthchecks on success and `/fail` on error. Never `|| true` the offsite step.
 - **Install rclone additively** (static binary in `/usr/local/bin`, or apt). Confirm with me first.
-- **Secrets are not in the dump.** Without `MASTER_KEY`, encrypted columns can't be read after a restore. Tell me to store the VPS `.env` values in my password manager. Never upload `.env` unencrypted.
+- **Secrets are not in the dump.** Without `MASTER_KEY`, encrypted columns cannot be read after a restore. Tell me to store the VPS `.env` values in my password manager. Never upload `.env` unencrypted.
 - **Restore drill, once:**
   - Start a throwaway `assessiq-restore-drill` postgres:16 container (no published ports).
   - `pg_restore` the latest dump into it.
@@ -93,9 +93,9 @@ You are implementing the **P0 tasks** for AssessIQ (repo `E:\code\AssessIQ`, pro
   - `admin-grade.ts:352-357` skips MCQ.
   - `modules/09-scoring/src/service.ts:35-130` only sums existing rows.
   - `submitAttempt` (`modules/06-attempt-engine/src/service.ts:647-680`) does no scoring.
-  - **Result:** MCQ-only attempts never reach `graded`, so they can't be released (`admin-claim-release.ts:362-382` needs `graded`), and no certificate or billing follows. Mixed attempts silently drop MCQ points.
+  - **Result:** MCQ-only attempts never reach `graded`, so they cannot be released (`admin-claim-release.ts:362-382` needs `graded`), and no certificate or billing follows. Mixed attempts silently drop MCQ points.
   - The comments at `admin-grade.ts:72,356` and `admin-accept.ts:209` wrongly claim module 09 scores MCQ.
-- **Design (decided, don't re-litigate):**
+- **Design (decided, do not re-litigate):**
   - Add `scoreMcqForAttempt(client, attemptId)`, deterministic with no AI.
   - For each `mcq` question in the attempt:
     - Read the **frozen** content used for that attempt (attempt_questions → question version snapshot, not the live question) and the saved answer.
@@ -111,7 +111,7 @@ You are implementing the **P0 tasks** for AssessIQ (repo `E:\code\AssessIQ`, pro
        - set status `graded`;
        - call `recordGradedAttempt` (billing is in the grade-commit critical path; see memory);
        - write the audit row.
-       - Follow the attempt state machine. If `submitted → graded` isn't allowed, pass through `pending_admin_grading` in the same transaction, or add the transition and document it in `02-data-model.md`.
+       - Follow the attempt state machine. If `submitted → graded` is not allowed, pass through `pending_admin_grading` in the same transaction, or add the transition and document it in `02-data-model.md`.
     3. **Mixed attempts:** MCQ rows are written at submit. The completion gate at `admin-accept.ts:219-240` keeps counting only AI-gradable questions, and final totals include the deterministic rows.
     4. Also call it at the start of the admin Grade handler, so attempts submitted before this fix can be finalised by one admin click. For an MCQ-only attempt that click must finalise it, not return 422 on empty proposals.
   - Fix the false comments. KQL has the same gap but is out of scope; add a one-line note in SESSION_STATE.
@@ -161,7 +161,7 @@ You are implementing the **P0 tasks** for AssessIQ (repo `E:\code\AssessIQ`, pro
   - the assessment report lists every candidate with score, %, status and a per-category breakdown;
   - CSV export includes name, email, score, %, status and submitted_at.
 - Fix gaps minimally.
-- **Report, don't build unless I say so:**
+- **Report, do not build unless I say so:**
   - whether a **bulk "release results"** action exists (release emails also use quota);
   - whether `sendResultReleasedEmail` exists (it was missing in the 2026-05-15 walkthrough).
 
@@ -210,7 +210,7 @@ You are implementing the **P0 tasks** for AssessIQ (repo `E:\code\AssessIQ`, pro
   - license the Aptitude pack to that tenant (entitlement plus clone-on-grant) so it shows under "Licensed sets";
   - confirm the invite email arrives.
 - **Draft a short welcome email** for me to send him, as a greeting plus bullets: how to log in, create an assessment from the licensed pack, import students by CSV, and view or export results.
-- Don't put his email in any committed file.
+- Do not put his email in any committed file.
 
 ### Step 10 — owner items
 

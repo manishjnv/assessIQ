@@ -2,14 +2,14 @@
 
 > **Status:** DONE 2026-05-22 (c2fd170). Astro marketing site and additive Caddy/compose wiring shipped. Original text: PROPOSED draft.
 > **Scope:** *where* the public marketing/content site lives, *how* it renders, *how* it coexists with the existing app on `assessiq.in`, *how* it shares branding, and *how* it deploys additively on the shared VPS.
-> **Not in scope:** the content of individual pages (that's Phase 1+). This doc decides the container/route/deploy shape only.
+> **Not in scope:** the content of individual pages (that is Phase 1+). This doc decides the container/route/deploy shape only.
 > **Implementation gate:** the build-out touches `infra/**` + the shared ti-platform Caddyfile = **load-bearing** (CLAUDE.md). The Caddy/compose diff must pass a `codex:rescue` adversarial sign-off before push, and follow the additive-only, inode-safe, canary-with-auto-revert procedure already documented in [06-deployment.md](../06-deployment.md).
 
 ---
 
 ## 1. Context — the two facts that force this decision
 
-1. **The app is a pure CSR SPA.** [apps/web](../../apps/web) is Vite + React + react-router-dom. Its first response is an empty shell; bots that don't run JS see nothing, and `/` does `<Navigate to="/admin/login">` ([App.tsx:73](../../apps/web/src/App.tsx#L73)). A marketing/blog page built *inside* this SPA will not rank. (SEO_Strategy §16.1.)
+1. **The app is a pure CSR SPA.** [apps/web](../../apps/web) is Vite + React + react-router-dom. Its first response is an empty shell; bots that do not run JS see nothing, and `/` does `<Navigate to="/admin/login">` ([App.tsx:73](../../apps/web/src/App.tsx#L73)). A marketing/blog page built *inside* this SPA will not rank. (SEO_Strategy §16.1.)
 2. **There is no public surface today.** Every route is gated app. We are *building* a public site, not optimizing one.
 
 Therefore the public site must be **server-rendered or static**, and — because it has a different lifecycle, different audience, and must not bloat the app bundle — it should be a **separate project**, not a bolt-on to the SPA.
@@ -19,7 +19,7 @@ Therefore the public site must be **server-rendered or static**, and — because
 | Option | Verdict | Why |
 |---|---|---|
 | **Astro, static (SSG)** | ✅ **Chosen** | Marketing/glossary/comparison/blog are *stable* content → static-generate. Astro ships **zero JS by default** (best Core Web Vitals = a ranking factor), supports MDX for the content cluster, and can embed React "islands" if a page ever needs interactivity. Cheapest to build + maintain — matches the lean (~monthly) content bandwidth. |
-| Next.js (SSR/SSG/ISR) | ❌ Not now | More capable, but its per-request SSR value isn't needed for static marketing pages, and it carries a heavier runtime + ops surface. Revisit only if pages need request-time personalization. |
+| Next.js (SSR/SSG/ISR) | ❌ Not now | More capable, but its per-request SSR value is not needed for static marketing pages, and it carries a heavier runtime + ops surface. Revisit only if pages need request-time personalization. |
 | Prerender the existing SPA | ❌ Rejected | Couples marketing to the app's deploy cycle, fights the SPA's architecture, and still ships the app's JS to marketing visitors. The doc itself calls CSR-only "the highest-risk posture." |
 
 **Consequence:** the public site is a tree of static HTML/CSS (+ minimal JS islands), buildable to a `dist/` folder and servable by any static file server.
@@ -37,7 +37,7 @@ apps/
 
 - Own `package.json` (`@assessiq/marketing`), own `astro.config.mjs`, own build (`astro build` → `apps/marketing/dist/`).
 - Joins the existing pnpm workspace; shares lint/tsconfig conventions.
-- Owns `robots.txt` and the typed sitemaps as build outputs (so they're real static files, not SPA-fallback `index.html` — §6.2/§3.1 of the strategy).
+- Owns `robots.txt` and the typed sitemaps as build outputs (so they are real static files, not SPA-fallback `index.html` — §6.2/§3.1 of the strategy).
 
 ## 4. Decision 3 — host coexistence: **path-split on `assessiq.in` (keep the app where it is)**
 
@@ -61,7 +61,7 @@ assessiq.in/api/*, /embed*,
 
 - **Why recommended:** the `assessiq.in` migration *just* shipped (2026-05-22) — OAuth redirect, session-cookie scope, `x-origin-verify`, AOP origin cert all freshly settled. Option A is **fully additive** (one new container + extend the single existing Caddy block) and disturbs none of that. Marketing lands on the high-authority apex root, which is what we want for SEO.
 - **SEO impact of the app sharing the host:** none. `/admin`, `/take`, `/candidate` are `noindex` + robots-disallowed regardless of host; the apex still accrues all marketing authority.
-- **The "new-route-needs-allowlist" discipline applies** (strategy §3.9): because the app/api matchers are explicit and marketing is the default `handle`, *new app/api paths* must be added to their matcher or they'll fall through to marketing. Bake into the PR checklist.
+- **The "new-route-needs-allowlist" discipline applies** (strategy §3.9): because the app/api matchers are explicit and marketing is the default `handle`, *new app/api paths* must be added to their matcher or they will fall through to marketing. Bake into the PR checklist.
 
 ### Option B — subdomain split *(defer; cleaner eventual state)*
 
@@ -71,7 +71,7 @@ Marketing on `assessiq.in`, app moves to `app.assessiq.in`. Cleaner separation, 
 
 ## 5. Decision 4 — branding shared from `modules/17-ui-system`
 
-The marketing site must look like the product. Reuse, don't re-invent (per [feedback-ui-template-canonical], CLAUDE.md rule #7):
+The marketing site must look like the product. Reuse, do not re-invent (per [feedback-ui-template-canonical], CLAUDE.md rule #7):
 
 - **Design tokens / Tailwind preset:** consume the same tokens that drive `@assessiq/ui-system` so colours, type, spacing match. Export a shared Tailwind preset (or the CSS variables) from the UI-system package and import it in `apps/marketing`'s Tailwind config.
 - **Components:** marketing pages are mostly Astro components styled with the shared tokens. Where a genuinely interactive widget is needed (e.g. a pricing toggle, a free sample-test), use an **Astro React island** importing from `@assessiq/ui-system`.
@@ -92,7 +92,7 @@ The painful `x-origin-verify` **`enforce`** behaviour lives in the **Node app mi
 ### 6.2 Cloudflare cache + robots verification
 
 - **Cache rule (additive, CF dashboard):** "Cache Everything" for marketing paths; bypass cache for `/api/*`, `/admin/*`, `/take/*`. Free CWV win.
-- **Edge-verify (strategy §3.1, proven for us by RCA 2026-05-22):** after go-live, `curl` `robots.txt`, a sitemap, and the home page with a real Googlebot UA *through Cloudflare* — confirm CF isn't intercepting/merging them.
+- **Edge-verify (strategy §3.1, proven for us by RCA 2026-05-22):** after go-live, `curl` `robots.txt`, a sitemap, and the home page with a real Googlebot UA *through Cloudflare* — confirm CF is not intercepting/merging them.
 
 ## 7. Risks & sharp edges
 

@@ -23,7 +23,7 @@
 **Every UI change — new page, new layout, new composite, new variant of an existing component — starts at the design-system kit shipped in [`modules/17-ui-system/AssessIQ_UI_Template/`](../modules/17-ui-system/AssessIQ_UI_Template/).** That folder is the brand contract. Read it in this exact order before opening Figma, drafting a screen, or writing a component:
 
 1. [`AssessIQ_UI_Template/CLAUDE.md`](../modules/17-ui-system/AssessIQ_UI_Template/CLAUDE.md) — folder-local entry point. Non-negotiables (single accent, two type families, generous whitespace, borders not shadows, pill primary buttons).
-2. [`AssessIQ_UI_Template/design-system/README.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/README.md) — design philosophy + Do/Don't.
+2. [`AssessIQ_UI_Template/design-system/README.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/README.md) — design philosophy + Do/Do not.
 3. [`AssessIQ_UI_Template/design-system/tokens.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/tokens.md) — exact colors, type, spacing, radii, shadows.
 4. [`AssessIQ_UI_Template/design-system/components.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/components.md) — primitive recipes (buttons, inputs, cards, chips, icons).
 5. [`AssessIQ_UI_Template/design-system/patterns.md`](../modules/17-ui-system/AssessIQ_UI_Template/design-system/patterns.md) — page layouts (sidebar, hero, results, empty states).
@@ -47,11 +47,11 @@ This guideline (`docs/10-branding-guideline.md`) is the **production-translation
 
 The rules:
 
-1. **Consult the kit first, in the order above.** If a screen exists in `screens/` for what you're building, port its structure, spacing, type ramp, and composition into the live page. The recipes in `design-system/components.md` are the canonical specs; the JSX in `screens/` shows them in context.
+1. **Consult the kit first, in the order above.** If a screen exists in `screens/` for what you are building, port its structure, spacing, type ramp, and composition into the live page. The recipes in `design-system/components.md` are the canonical specs; the JSX in `screens/` shows them in context.
 
 2. **Never lift-and-shift template code.** Files under `AssessIQ_UI_Template/` are reference, not production — [`modules/17-ui-system/SKILL.md:47`](../modules/17-ui-system/SKILL.md) is explicit: *"The designer-tool harness must never be imported by app code; port the screen JSX and atoms into typed components under `components/` on demand as features land."* Importing `screens/login.jsx` directly into `apps/web/...` is a Phase 3 bounce condition. ESLint `no-restricted-imports` blocks `**/AssessIQ_UI_Template/**` globally.
 
-3. **If no screen or pattern exists for what you're building, STOP and surface the gap.** Either request the user add a `screens/<name>.jsx` + a `design-system/components.md` recipe entry first, or get explicit approval to compose from existing atoms. Do NOT silently invent a layout from primitives — that's how admin-side pages drift apart visually (the `apps/web/src/pages/admin/users.tsx` gap, surfaced 2026-05-01: no `users.jsx` template existed, so the page was assembled ad-hoc from atoms with no canonical reference to anchor future admin-list pages).
+3. **If no screen or pattern exists for what you are building, STOP and surface the gap.** Either request the user add a `screens/<name>.jsx` + a `design-system/components.md` recipe entry first, or get explicit approval to compose from existing atoms. Do NOT silently invent a layout from primitives — that is how admin-side pages drift apart visually (the `apps/web/src/pages/admin/users.tsx` gap, surfaced 2026-05-01: no `users.jsx` template existed, so the page was assembled ad-hoc from atoms with no canonical reference to anchor future admin-list pages).
 
 4. **Phase 3 critique of any UI diff includes a "does this match the kit?" gate.** Subagents (Sonnet, Haiku) proposing UI code without citing the screen, recipe, or pattern they referenced get bounced back. The diff review reads the relevant `screens/<name>.jsx` + `design-system/<topic>.md` alongside the diff.
 
@@ -118,7 +118,7 @@ Until all three land, the SPA is locked to light. The page-mount comment at [app
 .num             { font-family: var(--aiq-font-serif); font-variant-numeric: lining-nums tabular-nums; }
 ```
 
-The `.num` class is load-bearing: every score, count, time, percent on a results/dashboard surface uses serif lining-tabular-nums. **Never use sans for big numbers** — it's the strongest brand signal we have.
+The `.num` class is load-bearing: every score, count, time, percent on a results/dashboard surface uses serif lining-tabular-nums. **Never use sans for big numbers** — it is the strongest brand signal we have.
 
 ### 2.3 Type scale
 
@@ -255,9 +255,9 @@ Defined in OKLCH for perceptual uniformity and easy hue rotation per tenant.
 ### 3.3 Color rules
 
 1. **Status by color + icon, never color alone.** A "passed" pill is `chip-success` *with* a checkmark icon; "flagged" question is warn-border *with* a warn dot. WCAG and brand both demand this.
-2. **Accent reserved for action and selection.** Filled-accent appears on: primary buttons, current question marker, selected option ring, current sparkline point, focused input ring, growth-area bullets. Don't tint backgrounds or borders accent unless they're interactive.
+2. **Accent reserved for action and selection.** Filled-accent appears on: primary buttons, current question marker, selected option ring, current sparkline point, focused input ring, growth-area bullets. Do not tint backgrounds or borders accent unless they are interactive.
 3. **Per-tenant override = accent only.** Tenants override `--aiq-color-accent` (and its soft/hover companions auto-derive). Surfaces, text, and status colors stay AssessIQ's. This keeps brand recognizability while allowing client white-label.
-4. **Soft accent for selected backgrounds.** MCQ selected option fills `--aiq-color-accent-soft`; user avatar mark uses `--aiq-color-accent` solid. Don't invent intermediate shades.
+4. **Soft accent for selected backgrounds.** MCQ selected option fills `--aiq-color-accent-soft`; user avatar mark uses `--aiq-color-accent` solid. Do not invent intermediate shades.
 
 > **Updated 2026-05-14 to v1.1 token values (commit `2e1af79`).** Six light-mode hex values (`--aiq-color-bg-sunken`, `--aiq-color-fg-primary`, `--aiq-color-fg-secondary`, `--aiq-color-fg-muted`, `--aiq-color-border`, `--aiq-color-border-strong`) and two dark-mode hex values (`--aiq-color-fg-secondary`, `--aiq-color-fg-muted`) were reconciled to match `modules/17-ui-system/src/styles/tokens.css`. See `docs/design/2026-05-14-phase-14-reduced-motion-audit.md` for the original drift report.
 
@@ -613,15 +613,15 @@ modules/17-ui-system/AssessIQ_UI_Template/Logo/
 **Production wiring (`apps/web/index.html`):**
 
 - Favicon set: `favicon.svg` (modern browsers), `favicon-{16,32}.png` (legacy), `apple-touch-icon-180.png` (iOS).
-- PWA manifest: `<link rel="manifest" href="/brand/favicon/site.webmanifest" />` — nginx serves it as `application/manifest+json` via an explicit MIME location in [`infra/docker/assessiq-frontend/nginx.conf`](../infra/docker/assessiq-frontend/nginx.conf) (the default mime.types doesn't include `.webmanifest`).
+- PWA manifest: `<link rel="manifest" href="/brand/favicon/site.webmanifest" />` — nginx serves it as `application/manifest+json` via an explicit MIME location in [`infra/docker/assessiq-frontend/nginx.conf`](../infra/docker/assessiq-frontend/nginx.conf) (the default mime.types does not include `.webmanifest`).
 - Theme color: `<meta name="theme-color" content="#3177dc" />`.
 - OG / Twitter share card: `og:title`, `og:description`, `og:image`, `og:type`, `twitter:card=summary_large_image`, `twitter:image`.
 
 **In-product Logo component — Path 1 decision (2026-05-03):**
 
-[`modules/17-ui-system/src/components/Logo.tsx`](../modules/17-ui-system/src/components/Logo.tsx) stays the existing CSS-driven `aiq-mark` (a 10×10 dot + 1px halo at -4px inset, per § 6). It does NOT inline the kit's SVG. The kit's mark is intentionally *richer* (dot + two hairline rings r=18 and r=26 at varying opacity) — it's the brand on a deck or share card, not a calmer in-context detail. The two variants are a feature, not a bug.
+[`modules/17-ui-system/src/components/Logo.tsx`](../modules/17-ui-system/src/components/Logo.tsx) stays the existing CSS-driven `aiq-mark` (a 10×10 dot + 1px halo at -4px inset, per § 6). It does NOT inline the kit's SVG. The kit's mark is intentionally *richer* (dot + two hairline rings r=18 and r=26 at varying opacity) — it is the brand on a deck or share card, not a calmer in-context detail. The two variants are a feature, not a bug.
 
-If a future surface needs the richer kit mark (e.g. an admin "branding settings" preview), import the SVG from `apps/web/public/brand/logo/assessiq-mark.svg` directly — don't duplicate it into `Logo.tsx`.
+If a future surface needs the richer kit mark (e.g. an admin "branding settings" preview), import the SVG from `apps/web/public/brand/logo/assessiq-mark.svg` directly — do not duplicate it into `Logo.tsx`.
 
 **Tagline — RESOLVED 2026-05-19.** The site-wide brand line is **`Graded on evidence.`**, recorded as canonical in [`copy-and-voice.md` § Tagline](../modules/17-ui-system/AssessIQ_UI_Template/design-system/copy-and-voice.md). It replaces the earlier placeholder *"A calmer way to measure ability."* The runtime `meta description` + `og:description` in [`apps/web/index.html`](../apps/web/index.html) are updated. **Remaining divergence:** the baked OG social card raster and the stacked lockup subtagline still render the *old* placeholder text — they are images, not markup, so the new line only reaches them by editing the kit source and running `pnpm --filter @assessiq/ui-system brand:regen` (§13.b workflow 1). Deferred deliberately (no official social push yet); regenerate before any social launch so shares match the site.
 
@@ -787,7 +787,7 @@ Mechanism:
 - No new routes, no new flows. The NavLinks point at existing routes that were previously reachable only by direct URL.
 - Mobile menu opens via controlled state, not `<details>` — so outside-click and Escape close it (the `<details>` element has no outside-click semantic).
 - Heatmap overflow-scroll does not change the underlying `ActivityHeatmap` props or the 15-analytics API contract.
-- Leaderboard `columns` prop is the only viewport-aware JS branch in M4 — all other deltas are CSS-only. This is acceptable per anti-pattern #5 because `columns` is a layout hint that doesn't change backend payloads or surfaced errors.
+- Leaderboard `columns` prop is the only viewport-aware JS branch in M4 — all other deltas are CSS-only. This is acceptable per anti-pattern #5 because `columns` is a layout hint that does not change backend payloads or surfaced errors.
 
 #### Admin graceful-degrade interstitial (M5 — 2026-05-20, **superseded 2026-05-21**)
 
@@ -827,7 +827,7 @@ Otherwise pass-through children (desktop, candidate routes, take-flow, embed mod
 - Security warnings (rate-limit errors, locked-account messages, MFA prompts) render exactly as on desktop when the override is on. The override relaxes the LAYOUT interstitial; it does not relax any security gate.
 - Embed mode (`?embed=true`) skips the interstitial — embed contexts (iframed admin views inside partner SaaS) have their own viewport contract and the host frame handles desktop-vs-mobile concerns.
 - Login + MFA routes always render normally (excluded). An admin who legitimately needs to complete an MFA challenge on their phone must not be blocked.
-- `ViewportLock` is path-aware via `useLocation()` — wraps `<Routes>` once at the top, not every individual admin route. Candidate / take / 404 routes pass through unaffected because their pathnames don't match `/admin/`.
+- `ViewportLock` is path-aware via `useLocation()` — wraps `<Routes>` once at the top, not every individual admin route. Candidate / take / 404 routes pass through unaffected because their pathnames do not match `/admin/`.
 
 ### 15.4 Email-webview testing
 

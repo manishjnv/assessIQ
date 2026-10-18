@@ -79,7 +79,7 @@ Owns: `attempt_scores` (0050_attempt_scores.sql). Writes `gradings` rows with `g
 Reads: `gradings`, `attempt_events`, `attempt_answers`, `attempt_questions`, `attempts`, `assessments`, `users`.
 
 ## Help/tooltip surface
-- `admin.scoring.archetype.disclaimer` — what archetypes are for, what they're not for
+- `admin.scoring.archetype.disclaimer` — what archetypes are for, what they are not for
 - `admin.scoring.archetype.list` — what each label means
 - `admin.scoring.cohort.percentiles` — sample-size caveats
 - `admin.scoring.leaderboard.privacy` — anonymization options, when to disable

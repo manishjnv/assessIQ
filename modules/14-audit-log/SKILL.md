@@ -88,7 +88,7 @@ help.content.updated
 
 ## Help/tooltip surface
 - `admin.audit.actions` — action catalog with descriptions
-- `admin.audit.retention` — what's archived when
+- `admin.audit.retention` — what is archived when
 - `admin.audit.export` — CSV/JSONL format
 
 ## Open questions

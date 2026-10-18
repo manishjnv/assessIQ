@@ -80,7 +80,7 @@ Surfaced in admin attempt detail under "Integrity signals". Never auto-flag or a
 - On hard-stale connection (>2 min): banner offers reload (preserves answer via localStorage backup)
 
 ## Help/tooltip surface
-- `candidate.intro.integrity` — what's monitored, what's not
+- `candidate.intro.integrity` — what is monitored, what is not
 - `candidate.attempt.timer`, `candidate.attempt.flag`, `candidate.attempt.kql.editor`, etc. (see 07-help-system)
 - `candidate.submit.confirm` — what happens after submit (instant result vs emailed result)
 - `candidate.result.bands` — explains the released-result card: score, percent, Passed / Not passed, certificate. Key name kept (renaming breaks tenant overrides); no bands or AI justifications are shown to candidates (owner rule P1, 2026-10-01)
@@ -243,14 +243,14 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - **Semantic HTML first.** Use `<button type="button">` for interactive controls, `<nav aria-label="…">` for navigation regions, `<header>` / `<main>` / `<footer>` as landmark elements. Never use `<div onClick>` or `<span onClick>` for actionable surfaces.
 - **Every form control has an accessible name.** Use `<label htmlFor>`, `aria-label`, or `aria-labelledby`. No unlabelled `<input>`, `<textarea>`, or `<select>` — hidden visual labels still require `aria-label`.
 - **Status regions use `role="status"` or `role="alert"`.** Polite, non-urgent updates (autosave, reconnect status) use `role="status" aria-live="polite"`; urgent interruptions that demand immediate attention use `role="alert" aria-live="assertive"`. Avoid adding `aria-live` to elements that update at sub-second frequency (flag for review instead).
-- **Decorative icons carry `aria-hidden={true}` explicitly.** An icon inside a control that already has a visible text label or an `aria-label` on the parent must have `aria-hidden={true}` to suppress duplicate announcements — don't rely on the Icon component's default behaviour.
+- **Decorative icons carry `aria-hidden={true}` explicitly.** An icon inside a control that already has a visible text label or an `aria-label` on the parent must have `aria-hidden={true}` to suppress duplicate announcements — do not rely on the Icon component's default behaviour.
 - **Dialogs return focus to their trigger on close.** Any component that opens a modal, drawer, or panel must hold a `ref` on the trigger element and call `triggerRef.current?.focus()` in its close handler (WCAG 2.4.3 Focus Order). The `CandidateHelp` component is the reference implementation.
 
 ## Public demo mode (2026-10-02)
 `apps/web/src/pages/try/` (`/try`, `/try/certificate`) reuses `AttemptTimer`, `AutosaveIndicator` and `QuestionNavigator` from this package, plus the take/* MCQ, multi-select and numeric answer areas, as pure-props components with static content. No components in this package changed. Invariant: the demo makes zero network requests (asserted in `Try.test.tsx`), so never wire api.ts calls into those components' demo usage.
 ## Sections + calculator (2026-10-02)
 
-- `finishSection(attemptId)` (POST `/me/attempts/:id/finish-section`) and `SectionsViewWire` on `CandidateAttemptViewWire.sections` (present only for sectioned tests; the questions/answers in the view are already the running section's). The runner (`apps/web/.../Attempt.tsx`) shows "Section N of M · name", a section timer keyed per section, "Finish section" with a confirm ("You can't come back to this section."), and a navigator numbered inside the section; the last section keeps Submit.
+- `finishSection(attemptId)` (POST `/me/attempts/:id/finish-section`) and `SectionsViewWire` on `CandidateAttemptViewWire.sections` (present only for sectioned tests; the questions/answers in the view are already the running section's). The runner (`apps/web/.../Attempt.tsx`) shows "Section N of M · name", a section timer keyed per section, "Finish section" with a confirm ("You cannot come back to this section."), and a navigator numbered inside the section; the last section keeps Submit.
 - `Calculator` (+ `calculator-eval.ts`): four-function calculator, no `eval()`/`Function` (tokenizer + two-pass precedence evaluator), 12-significant-digit formatting, keyboard only while focus is inside the panel (digits . + - * / x, Enter/=, Backspace, Esc/c). Plain buttons with no clipboard use, so integrity `block_copy_paste` (which cancels copy/cut/paste/contextmenu) does not affect it. Shown only when the running section has `calculator: true`.
 - Not included: parentheses, memory, percent, a calculator history; no persistence of the calculator state across sections.
 - Tests: `calculator.test.tsx`; runner behaviour in `apps/web/src/pages/take/AttemptSections.test.tsx`.

@@ -251,7 +251,7 @@ Local scores (desktop, production build) after the contrast fixes:
 | `modules/10-admin-dashboard/src/__tests__/question-stats-card.test.tsx` | 2 cases. No volume shows a note and no table. The "Noise" and "Miscalibrated" chips and the sample-size note |
 | `tools/lint-mv-tenant-filter.ts` | Self-test covers both view names and the exact allow marker for super-admin roll-ups |
 
-### Start a test test (RW-83, S15)
+### Start-a-test tests (RW-83, S15)
 
 | Test file | Cases |
 | --- | --- |

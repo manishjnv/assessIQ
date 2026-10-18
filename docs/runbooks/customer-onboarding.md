@@ -232,7 +232,7 @@ The import in section 8 also invites the candidates. To invite more people later
 
 Resend:
 1. One person: on the invitation row, click **Resend**. This also works after a revoke or an expiry, and gives a new 7-day link.
-2. Everyone who has not started: click **Resend to everyone who hasn't started**. It sends up to 200 per click. Click again for the rest. The assessment must be active (not draft, closed or cancelled).
+2. Everyone who has not started: click **Resend to everyone who has not started**. It sends up to 200 per click. Click again for the rest. The assessment must be active (not draft, closed or cancelled).
 3. Bulk email is retried for about 45 hours. Sign-in codes go first.
 
 Reminders (default off):
@@ -387,7 +387,7 @@ Retention: companies can set data retention days at `/admin/tenant-settings` (`P
 
 **Candidates**
 - [ ] CSV imported, skipped rows checked
-- [ ] Invites sent; **Resend to everyone who hasn't started** if needed
+- [ ] Invites sent; **Resend to everyone who has not started** if needed
 - [ ] Email limit (about 300 a day) is enough
 
 **Exam day**

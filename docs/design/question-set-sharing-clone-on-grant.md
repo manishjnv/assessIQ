@@ -2,7 +2,7 @@
 
 > **Status:** FULLY LIVE (2026-05-23). Phases 1–4 backend + Phase 5 UI (5a/5b/5c) shipped & deployed to `assessiq.in`. **Remaining: a behavioral UI walkthrough — operator-gated (see "Phase 6 verification status" below).**
 > **Predecessor:** Step 1 (platform-tenant master-library seed) shipped — migration `0083`, commit `b9d3c57`.
-> **Routing:** load-bearing **and** security-adjacent (tenancy + entitlements + question-bank). UI work MUST read `docs/10-branding-guideline.md` first; consult the kit (`modules/17-ui-system/AssessIQ_UI_Template/`) — but the admin dashboard has its OWN established pattern (AdminShell + CSS vars + Card/Chip/Icon), so reuse existing admin pages (`platform.tsx`, `pack-detail.tsx`, `assessments.tsx`), don't lift from the candidate kit.
+> **Routing:** load-bearing **and** security-adjacent (tenancy + entitlements + question-bank). UI work MUST read `docs/10-branding-guideline.md` first; consult the kit (`modules/17-ui-system/AssessIQ_UI_Template/`) — but the admin dashboard has its OWN established pattern (AdminShell + CSS vars + Card/Chip/Icon), so reuse existing admin pages (`platform.tsx`, `pack-detail.tsx`, `assessments.tsx`), do not lift from the candidate kit.
 
 ---
 
@@ -11,7 +11,7 @@
 **Done & LIVE on `main` + production VPS (commits, in order):**
 `c303fa0` Phase 1 schema (`0084` provenance cols + `tenant.pack_cloned` audit) · `79b1d6c` model-pivot doc · `13ba2f7` Phase 2 clone engine · `d7c3b95` Phase 3 lineage + catalog · `26583c7` Phase 4 clone-on-use · `6a9b2a6` review fixes (`0085` unique index + advisory lock) · `b5e5fb2` docs 02/03 · `e68f78e` frontend API wiring.
 
-**Migrations applied to prod:** `0083`, `0084`, `0085` (recorded in `schema_migrations`). NOTE: prod has a long-standing `schema_migrations` *tracking gap* (most old migrations aren't recorded though their tables exist) — do NOT run the full `tools/migrate.ts` runner; apply any NEW migration manually via `psql` + record it (deploy doc § "Deploy procedure" step 2b). `assessiq-api`/`worker` already rebuilt with the backend.
+**Migrations applied to prod:** `0083`, `0084`, `0085` (recorded in `schema_migrations`). NOTE: prod has a long-standing `schema_migrations` *tracking gap* (most old migrations are not recorded though their tables exist) — do NOT run the full `tools/migrate.ts` runner; apply any NEW migration manually via `psql` + record it (deploy doc § "Deploy procedure" step 2b). `assessiq-api`/`worker` already rebuilt with the backend.
 
 **Live, working backend (all wired, verified 401-unauth):**
 - `clonePackToTenant` / `materializeSetForTenant` — `modules/04-question-bank/src/clone.ts` (system-role clone; remap taxonomy by slug; idempotent via `source_pack_id`; advisory-lock serialized).
@@ -20,9 +20,9 @@
 - `GET /api/billing/available-sets` — `modules/19-billing/src/routes.ts`.
 - **Frontend API helpers READY (not yet called by any UI):** `getAvailableSets()` and `createAssessmentFromSet(body)` + types `AvailableSet` / `CreateAssessmentFromSetRequest` — `modules/10-admin-dashboard/src/api.ts` (right after `getCompanyEntitlements`).
 
-**Key model facts (so you don't re-derive):**
+**Key model facts (so you do not re-derive):**
 - A **domain license** (`scope_type='domain'`, `scope_id=<domain slug>`) covers ALL current + future platform sets in that domain. A **pack license** = one set (`scope_id=<platform pack id>`).
-- The SA domain-grant UI **already exists** — `platform.tsx` billing drawer, `handleGrantEntitlement` (`~:813`), but `grantScopeType` is **hardcoded `'domain'`** (`:740`). So domain-licensing a company works TODAY end-to-end except the company has no picker to USE the set (that's 5b).
+- The SA domain-grant UI **already exists** — `platform.tsx` billing drawer, `handleGrantEntitlement` (`~:813`), but `grantScopeType` is **hardcoded `'domain'`** (`:740`). So domain-licensing a company works TODAY end-to-end except the company has no picker to USE the set (that is 5b).
 - Company assessments are **pack-based** here: the pool query filters by `pack_id` (`modules/05-assessment-lifecycle/src/service.ts:~184`); the blueprint path draws from a per-domain auto-pack, NOT arbitrary sets. So a granted set is consumed via the **from-set** path (clone → assessment from the clone), not the blueprint builder.
 
 **Phase 5 — UI rendering: SHIPPED + DEPLOYED (2026-05-23).** Commits `fa49578` (5b) · `13e8289` (5a) · `ad66099` (5c); live on `assessiq.in` (frontend rebuilt + recreated, additive, marketing untouched).
@@ -136,7 +136,7 @@ Steps (all within the one system-role tx):
 2. **Derive a collision-safe slug** in the target tenant: base `clone-<sourceSlug>`, retry `-2…-N` on `UNIQUE(tenant_id, slug, version)` (copy the retry loop from `createPack` `service.ts:285-320`). Preserve the `domain` TEXT verbatim.
 3. **Insert pack** into target tenant (copy `insertPack` `repository.ts:373`) + set `source_pack_id`, `source_version = sourcePack.version`, `status='published'` (so non-blueprint assessments work immediately).
 4. **Insert levels** (copy `insertLevel` `repository.ts:496`); then set `rubric_defaults` via `updateLevelRow` for any level that had it (insertLevel omits that column). Build a `sourceLevelId → newLevelId` map.
-5. **Build slug→id maps** of the TARGET tenant's `domains` and `categories` (one query each, scoped to `targetTenantId`). For each source question, look up the source's domain/category SLUG (join source `domain_id`/`category_id` → platform domain/category → slug), then resolve to the target tenant's UUID via the maps. If a slug is missing in the target (custom platform domain not seeded for that company) → either skip with a recorded warning or seed it; **plan decision: skip + report** (don't silently attach a foreign UUID).
+5. **Build slug→id maps** of the TARGET tenant's `domains` and `categories` (one query each, scoped to `targetTenantId`). For each source question, look up the source's domain/category SLUG (join source `domain_id`/`category_id` → platform domain/category → slug), then resolve to the target tenant's UUID via the maps. If a slug is missing in the target (custom platform domain not seeded for that company) → either skip with a recorded warning or seed it; **plan decision: skip + report** (do not silently attach a foreign UUID).
 6. **Insert questions** via a NEW `insertClonedQuestion` repo helper (model on `insertAiDraftQuestion` `repository.ts:738`, which already takes `domain_id`/`category_id`) carrying: remapped `level_id`, remapped `domain_id`/`category_id`, original `type/topic/points/content/rubric/status/knowledge_base_sources`, `source_question_id = q.id`. Re-attach tags (copy the tag loop from `createQuestion` `service.ts` after `insertQuestion`).
 7. Return `{ clonedPackId, questionCount, skippedCount }`.
 
@@ -152,7 +152,7 @@ Steps (all within the one system-role tx):
 
 1. `BEGIN` → `SET LOCAL ROLE assessiq_system`.
 2. `assertTenantActive(targetTenantId)` (copy `admin-super.ts:940`).
-3. Idempotency: if a clone with `source_pack_id = sourcePackId` already exists in the target tenant, reuse it (don't double-clone); else `clonePackToTenant(...)` (Phase 2).
+3. Idempotency: if a clone with `source_pack_id = sourcePackId` already exists in the target tenant, reuse it (do not double-clone); else `clonePackToTenant(...)` (Phase 2).
 4. `insertEntitlement` — `scope_type='pack'`, `scope_id = clonedPackId` (precise) **or** `scope_type='domain'`, `scope_id = pack.domain` (bundle). Idempotent via `UNIQUE(tenant_id, scope_type, scope_id)`.
 5. `SET LOCAL ROLE assessiq_app` + `set_config('app.current_tenant', targetTenantId, …)`.
 6. `auditInTx` × 2: `'tenant.pack_cloned'` (after: source/clone ids, version, counts) + `'tenant.entitlement_granted'`.
@@ -170,7 +170,7 @@ Steps (all within the one system-role tx):
 
 **Re-sync (opt-in):** for a cloned pack whose `source_version < ` current source `version`, a super-admin "Re-sync" action re-runs the clone into the SAME target pack: archive-or-replace the old questions, insert the new snapshot, bump `source_version`. Surface "update available" by comparing `source_version` to the live source pack version. Never auto-propagate.
 
-**Revoke:** extend `revokeEntitlement` flow (copy `service.ts:381`) so revoking a pack/domain grant ALSO sets the cloned pack(s) `status='archived'` in the target tenant (same system-role tx + audit). Archived packs can't seed new assessments; **in-flight attempts are unaffected** (attempts snapshot their questions). Never hard-delete (audit/history). 
+**Revoke:** extend `revokeEntitlement` flow (copy `service.ts:381`) so revoking a pack/domain grant ALSO sets the cloned pack(s) `status='archived'` in the target tenant (same system-role tx + audit). Archived packs cannot seed new assessments; **in-flight attempts are unaffected** (attempts snapshot their questions). Never hard-delete (audit/history). 
 
 **Verification:** revoke → cloned pack `archived`, entitlement `revoked`, existing attempts still resolve their questions. Re-sync → question set matches the newer source version; `source_version` bumped.
 
@@ -192,7 +192,7 @@ Steps (all within the one system-role tx):
 
 **Verification (behavioral, per "verify behavior not bundle"):** SA clicks Grant on a published platform pack → picks a company → company admin logs in → the domain appears in the blueprint builder → builds + publishes an assessment (passes `assertPublishEntitled`) → a candidate attempt draws the cloned questions.
 
-**Anti-pattern guards:** don't expose the platform pack id to the company UI; don't let a company admin see the platform tenant's bank.
+**Anti-pattern guards:** do not expose the platform pack id to the company UI; do not let a company admin see the platform tenant's bank.
 
 ---
 

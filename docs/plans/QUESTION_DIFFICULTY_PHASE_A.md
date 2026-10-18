@@ -198,5 +198,5 @@ A1 (pure spec + validator + tests)  ──► A2 (migration + data-model doc)  �
 
 ## Open items to confirm with the user before A3
 
-1. **`generation_attempts.difficulty_dropped` column** — add it (symmetry with `citation_dropped`) or log-only? (Recommend: add — it's one nullable INT.)
+1. **`generation_attempts.difficulty_dropped` column** — add it (symmetry with `citation_dropped`) or log-only? (Recommend: add — it is one nullable INT.)
 2. **Scenario `step_dependency` divergence** (`linear|parallel` Zod vs `linear|dag` prose) — Phase A validates against Zod and flags it; a separate decision is whether to reconcile the schema/skill later.

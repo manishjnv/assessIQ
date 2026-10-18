@@ -273,7 +273,7 @@ Super-admin drill-down: new route `/admin/platform/:tenantId/users` using same `
 
 ### Pre-auth (login screen, magic-link landing, OTP entry)
 
-Uniform copy for every failure: *"We couldn't sign you in. If you think this is wrong, contact your company administrator or AssessIQ support."*
+Uniform copy for every failure: *"We could not sign you in. If you think this is wrong, contact your company administrator or AssessIQ support."*
 
 Same HTTP code (400), same response body shape, same timing (extend existing 200 ms floor from candidate login to admin login + magic-link landing).
 
