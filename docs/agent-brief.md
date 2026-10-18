@@ -1,5 +1,7 @@
 # Build agent brief (template)
 
+*Type: reference* — This page is the template for the brief that every build agent receives.
+
 Use this template for every build agent. Fill each field before you start the agent.
 
 > [!NOTE]

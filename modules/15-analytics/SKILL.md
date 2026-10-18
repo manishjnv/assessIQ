@@ -177,3 +177,10 @@ Migration `0189` adds the materialized view `question_stats_mv` (one row for eac
 - **Not included.** The results CSV/JSONL export and `getIndividualScores` keep every attempt on purpose (detail views). Queue summary counts are workload counts by status and stay per attempt. The candidate activity feeds count submissions.
 - **Downstream.** 09 `getCohortStats`, `getLeaderboard`; 07 `listAttemptsForAdmin` adds `attempt_number` and `attempts_total`; admin Attempts page shows the chip. No API path changes, so `docs/03-api-contract.md` is untouched except two response fields on the attempts list.
 - **Test.** `src/__tests__/analytics.test.ts` ("Z-39: which attempt counts ..."), `modules/09-scoring/src/__tests__/release.test.ts` ("Z-39 tails: which attempt counts ...").
+
+## Activity feed actor labels (S29, owner Q18/Q19)
+
+- `actorLabel` of an audit row is "Former reviewer" when the actor user has the legacy `reviewer` role, and "AssessIQ staff" when the actor is a user row that tenant RLS hides (platform staff acting in a company). Display mapping only: no stored row changes and the append-only rule holds.
+- `actorRole` and the role filter are unchanged (these actors stay "system").
+- Why in the feed: the audit-log page (`14-audit-log`) shows only short user ids, so it has no name to mask. Not included: names for staff actors, a staff chip.
+- Tests: `activity-feed.test.ts` "actor labels".

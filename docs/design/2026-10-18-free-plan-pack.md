@@ -1,114 +1,125 @@
-# Free trial plan pack (Z-70)
+# Free plan pack (Z-70)
 
-**Date:** 2026-10-18. **Status:** proposal for owner approval (question 1 answered 2026-10-18). This file has no code. Nothing here is built.
-**Source:** owner review sheet, Q3 (organisations sign up alone, free sample quiz, 5 students, all features with limits).
-**Old task or feature checked:** PRICING_TIERS 2026-10-06 (Starter tier, 25-credit trial), module 19-billing (`TIER_LIMITS`, `tierAllows`), `PLAN_TIERS_ENFORCED`, ROADMAP X2, Z-18, Z-71.
+**Date:** 2026-10-18, updated 2026-10-19. **Status:** approved by the owner with changes (Q3, review sheet). Proposal text only. This file has no code. Nothing here is built.
+**Source:** owner review sheet Q3, Q5, Q7, Q8 and the owner replies of 2026-10-19: the plan has no end date, there is no auto-delete, the public name is "Free".
+**Old task or feature checked:** PRICING_TIERS 2026-10-06 (Starter tier, 25-credit trial), module 19-billing (`TIER_LIMITS`, `tierAllows`), `PLAN_TIERS_ENFORCED`, ROADMAP X2, Z-18, Z-71, Z-72.
 
 ## Summary
 
-- A new organisation signs up alone and gets a **Trial** plan for 14 days.
-- The Trial has one sample question set, for one subject that the organisation picks.
+- A new organisation signs up alone and gets the **Free** plan. The plan has no end date.
 - The organisation can test **5 candidates in total**.
-- Almost all features work. Each has a limit.
-- AI grading is OFF. The sample set uses only questions that the system can mark by itself.
-- When the trial ends, the organisation chooses: contact us to upgrade, or the data is deleted.
+- The plan includes sample question sets for the subjects that the organisation picks. The number of subjects is an open question (question 1).
+- All features work. Each has a limit.
+- Result release works. Certificates work and carry **no** "Trial" mark.
+- Data export is off.
+- AI grading is on, for a few attempts only. A kill switch can turn it off at once.
+- Upgrade is by "Contact us".
+
+## What changed from the first draft
+
+| First draft (S28) | Now (owner) |
+|---|---|
+| Public name "Trial" | Public name **Free** |
+| 14 days, then read-only, then delete | **No end date.** No auto-delete. |
+| Certificate says "Trial" | **No mark** on the certificate |
+| AI grading off | AI grading **on**, for a few attempts, with a kill switch |
+| One trial for each email domain | **Dropped.** The owner did not keep it. |
+| One sample set, one subject | Sample sets for chosen subjects (count open) |
 
 ## What the old decisions say (kept)
 
-- The Starter tier is stored as `free` in the database. The public name is **Starter**.
-- The owner decided on 2026-10-03: keep the 25-credit `free` trial. One credit pays for one graded attempt.
-- The owner rule says: do not call the product "free". This proposal uses the public name **Trial**.
-- Plan limits only act when `PLAN_TIERS_ENFORCED=true`. It is `false` on the VPS today (ROADMAP Z-18). The Trial plan needs the flag ON, or the limits do nothing.
-- Tenants never write questions. Platform staff own the question sets. The Trial uses a copy of a platform set (the existing single-set entitlement).
+- The Starter tier is stored as `free` in the database. The new public name **Free** fits this value.
+- The owner decided on 2026-10-03: keep the 25-credit `free` plan. One credit pays for one graded attempt.
+- Plan limits only act when `PLAN_TIERS_ENFORCED=true`. It is `false` on the VPS today (ROADMAP Z-18). The Free plan needs the flag ON, or the limits do nothing.
+- Tenants never write questions. Platform staff own the question sets. The Free plan uses copies of platform sets (the existing set entitlement).
+- The old memory rule "never call it free" is replaced by this owner decision.
 
 ## Limits
 
-| Item | Trial limit | Why |
+| Item | Free limit | Why |
 |---|---|---|
-| Length | 14 days from the first sign-in | Short, so that unused accounts end. |
+| Length | No end date | Owner reply 2026-10-19. |
 | Organisations for each sign-up | 1 | Stops the same person from making many. |
-| Admins | up to 3 | Enough for a small team to try it. |
-| Candidates in total | 5 | Owner wish (Q3). Counts every invited candidate. |
-| Attempts for each candidate | 1 | 5 candidates then use 5 of the 25 credits. |
+| Admins | up to 3 | Enough for a small team. |
+| Candidates in total | 5 | Owner wish (Q3). Counts every invited candidate, for ever. |
+| Attempts for each candidate | 1 | 5 candidates use 5 credits. |
 | Credits | 25, hard stop | Same as the 2026-10-03 decision. |
-| Question set | 1 sample set, 1 subject, fixed after sign-up | Owner wish (Q3). The subject can change once, by support. |
-| Question types | Only types that the system marks by itself (choice, number, ordering) | AI grading stays OFF. |
-| AI grading | 0 answers. OFF | The AI legal question (Q7) has no answer yet. |
-| Result release | Yes, manual or auto | The owner wants a full try. |
-| Certificates | Yes, with the word "Trial" on the certificate | Owner draft. A pass still shows the full flow. |
+| Question sets | Sample sets for the chosen subjects. Count to confirm. | Owner wish (Q3). |
+| AI grading | A few attempts only. Proposed: 5 in total. Kill switch. | Owner wish. Q7: the business API is for paid contracts only. |
+| Result release | Yes, manual or auto | Full try of the flow. |
+| Certificates | Yes, no "Trial" mark | Owner decision. |
 | Cohort report | Basic report | Same as Starter. |
-| Data export (CSV, API) | No | Stops copying of data. The trial has 5 people only. |
-| Webhooks, API keys, embed, audit viewer, own email sender | Visible but locked, with a "Contact us" note | These are Growth and Enterprise features in the tier table. |
+| Data export (CSV, API) | No | Owner decision. |
+| Webhooks, API keys, embed, audit viewer, own email sender | Visible but locked, with a "Contact us" note (proposed) | Growth and Enterprise features. |
 | Support | Email | Same as Starter. |
-| After the trial ends | Read-only for 7 days, then all data is deleted | Short data life under DPDP. |
+| Upgrade | "Contact us" | Q1 and Q2: no public prices, manual invoices. |
 
 ## Abuse controls
 
 1. **Email check.** The first admin must confirm the email address with the sign-in code.
-2. **One trial for each email domain.** Public mail domains (for example gmail.com) get one trial for each address instead.
-3. **Bot check.** A bot check (for example Cloudflare Turnstile) sits on the sign-up form.
-4. **Rate limit.** Sign-up has an IP rate limit. It uses the same rule as other public routes.
-5. **No email blast.** The trial can send invites to 5 addresses only.
-6. **Auto-delete.** A job ends the trial on the expiry day and deletes the data after 7 days. The job must write an audit row.
-7. **Block list.** Super admin can block a domain.
-8. **Terms tick-box.** The sign-up asks the admin to accept the terms and the data processing addendum (see Z-72).
+2. **Bot check.** A bot check (for example Cloudflare Turnstile) sits on the sign-up form.
+3. **Rate limit.** Sign-up has an IP rate limit. It uses the same rule as other public routes.
+4. **Invite limit.** The Free plan can invite 5 candidates in total, so it cannot send a mail blast.
+5. **AI kill switch.** Platform staff can turn off AI grading for all Free organisations, or for one. This needs a platform setting and an audit row.
+6. **Block list.** Super admin can block a domain.
+7. **Terms tick-box.** The sign-up asks the admin to accept the terms and the data processing addendum (see Z-72).
+8. **Manual removal.** There is no auto-delete. Platform staff remove an abusive organisation by hand, through the existing tenant lifecycle. This needs no new code.
+
+Dropped by the owner: one trial for each email domain, and auto-delete after expiry.
 
 ## What stays out
 
-- Real candidate data from a school or company is not the aim of the trial. The sign-up page says: use test people.
 - Your own questions (tenants never write questions).
-- AI grading, AI question generation, AI reports.
+- AI question generation and AI reports.
 - Payments. Upgrade is by "Contact us" until the owner picks a provider (Q2).
 - Single-person (B2C) sign-up. Q3 covers organisations only.
 - Public prices (Q1: keep "Contact us").
+- API-mode AI grading. It is for paying customers only, later (Q8).
 
 ## Entitlement keys and settings needed
 
-These are names for the build (Z-71). The new keys do not exist yet. Credits, the AI override column and the single-set entitlement exist today.
+These are names for the build (Z-71). The new keys do not exist yet. Credits, the AI override column and the set entitlement exist today.
 
-| Key | Type | Value for Trial |
+| Key | Type | Value for Free |
 |---|---|---|
-| `plan.name` | text | `trial` (new value or a flag on `free`; the build decides) |
-| `trial_ends_at` | date | sign-up date + 14 days |
+| `plan.name` | text | `free` (exists; shown as "Free") |
 | `max_admins` | number | 3 |
 | `max_candidates_total` | number | 5 |
 | `max_attempts_per_candidate` | number | 1 |
 | `included_credits` | number | 25 (exists) |
-| `ai_answers_included_override` | number | 0 (column exists) |
-| `ai_grading_allowed` | yes/no | no |
+| `ai_answers_included_override` | number | 5 proposed (column exists) |
+| `ai_grading_allowed` | yes/no | yes, limited by the override |
+| `ai_grading_kill_switch` | platform yes/no | off by default; staff turn it on to stop AI grading |
 | `export_allowed` | yes/no | no |
-| `certificate_label` | text | `Trial` |
-| `question_set_entitlement` | one set | the chosen sample set (exists as a single-set entitlement) |
-| `delete_after` | date | trial end + 7 days |
+| `certificate_label` | text | none (no mark) |
+| `question_set_entitlement` | set list | the chosen sample sets (exists as a set entitlement) |
 
-The database allows the tier values `free`, `pro`, `enterprise` and `internal`. A new `trial` value needs a migration. A flag on `free` does not. The build design decides.
+There is no `trial_ends_at` and no `delete_after`. The database tier `free` already exists, so this plan needs no new tier value.
 
 ## Risks
 
 | Risk | Effect | Answer |
 |---|---|---|
 | Sign-up creates tenants and first admins (load-bearing, security) | A bug can leak data across tenants | Design review, then one adversarial gate before the push (Z-71). |
-| Limits do nothing while `PLAN_TIERS_ENFORCED=false` | Trial users get all features without limits | Flip the flag first (Z-18), or enforce trial limits separately. |
-| Fake organisations send mail | Brevo reputation, spam | Email check, 5 invites, bot check, rate limit. |
-| Personal data in a free trial with no contract | DPDP duties without a signed order | Tick-box addendum (Z-72); test people only; auto-delete. |
-| Real students enter the trial | Liability | The start screen names the organisation. The sign-up page says: test people only. |
-| Auto-delete removes data too early or too late | Complaints or DPDP breach | Show the date in the admin screen; send two warning emails. |
-| Trial users expect AI grading | Disappointment | Say clearly: AI grading is a paid, staff-run service. |
+| Limits do nothing while `PLAN_TIERS_ENFORCED=false` | Free users get all features without limits | Flip the flag first (Z-18), or enforce Free limits separately. |
+| Fake organisations send mail | Brevo reputation, spam | Email check, 5 invites in total, bot check, rate limit. |
+| Personal data held for ever with no contract | DPDP duties without a signed order | Tick-box addendum (Z-72). The lawyer sets the retention period (Q22). Platform staff can remove an organisation by hand. |
+| Real students enter the Free plan | Liability moves to AssessIQ | The organisation is the controller (Z-72). The sign-up page names it. |
+| AI grading on a free plan while the legal opinion is open | Legal and cost risk | Few attempts, kill switch. Owner Q7: free use has no legal issue; confirm with the lawyer. |
+| Unused Free organisations pile up | Storage grows | Owner chose no auto-delete. Watch the count. Revisit if it grows. |
 
 ## Owner questions
 
-1. **Name.** ANSWERED (owner, 2026-10-18): the public plan name is **Trial**. Marketing text may say "free", for example "Try it free for 14 days". The plan name, the admin screens and the contract text keep "Trial". The database tier stays `free` (shown as Starter).
-2. **After the trial.** Is "read-only for 7 days, then delete" right? Or keep the data for 30 days if the organisation asks to upgrade?
+1. **Subjects.** What does "5 chosen subjects" mean? Option A: the organisation picks 5 subjects at sign-up. Option B: AssessIQ offers 5 fixed sample sets and the organisation uses them all. Proposed default: B, starting with aptitude (Q4).
+2. **AI attempts.** How many AI-graded attempts in total? Proposed: 5.
 3. **Locked features.** Should webhooks, API keys, embed and audit show as locked with "Contact us" (proposed), or be hidden?
-
-Also noted: Q4 says aptitude first, so the proposal offers **aptitude** only as the sample subject at launch.
 
 ## Not decided here
 
-- Z-71 (the build) waits for your approval of this file.
+- Z-71 (the build) needs a design review and an adversarial gate. See `docs/design/2026-10-18-self-serve-signup-design.md`.
 - Prices and payment (Q1, Q2) are separate.
-- AI grading in the trial waits for Q7.
+- The retention period for consent records (Q22) is for the lawyer.
 
 ## Downstream docs when built
 
-`docs/02-data-model.md` (new columns), `docs/03-api-contract.md` (sign-up route), `docs/04-auth-flows.md` (first admin), `modules/19-billing/SKILL.md`, `docs/06-deployment.md` (flag and cleanup job), and help ids for each new screen.
+`docs/02-data-model.md` (new columns and the platform setting), `docs/03-api-contract.md` (sign-up route), `docs/04-auth-flows.md` (first admin), `modules/19-billing/SKILL.md`, `docs/06-deployment.md` (flag), and help ids for each new screen.

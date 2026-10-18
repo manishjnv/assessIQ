@@ -1,3 +1,44 @@
+# Session — 2026-10-19 — S29: owner answers wave 1 (Q17 to Q23, Q11, Z-52, designs)
+
+**Headline:** Sign-in code UX (Q17), activity labels "Former reviewer" and "AssessIQ staff" (Q18, Q19), protected-file edits (Q20), lockfile ignore (Q23), invite batching (Q11) and EXP-18 gaps 1 to 4 (Z-52) are built. Free plan pack, self-serve sign-up design and tiered proctoring design are written.
+**Commits:** `2517d072` — Q17, Q18, Q19, Q20, Q23 (CI green); `28bd5bf3` — Q11, Z-52, Z-46 reference line, Z-48; docs commit (this file, ROADMAP, designs).
+**Tests:** `pnpm verify` green before each push. New: email-otp page 2, activity feed 3 (30 in file), bulk cap 6 and queue route 1, question review 7 (25 in file), publish gate 13 of 13. 13-notifications full suite 300 of 300. Docs lint: markdownlint 0 errors; Vale not installed locally.
+**Gate:** two Sonnet takeover gates, both ACCEPT. Gate 1 (Q17 web page, Q18/Q19 feed): low notes only (same-tick double submit costs an attempt on the server; a dangling actor id would show "AssessIQ staff"). Gate 2 (Z-52, bulk cap, Caddy line): low notes (the cap is global across tenants; `getDelayed` scans all tenants).
+**Next:** (1) Owner: answer the free plan questions (what "5 chosen subjects" means, AI attempt count, locked vs hidden). (2) Owner: OK the Caddy report-only line on the VPS (Z-46). (3) Z-71 build needs your OK of the design, a design review and a gate. (4) Remaining: Z-38 majors (vite 6, basic-ftp 6, react-router 7), FU-D14, RW-100, SP2/SP11/P3 notices, Z-11, Z-15, RW-1 list, Y-10; FU-B2 in a later gate batch.
+**Open questions:**
+- Free plan: meaning of "5 chosen subjects"; AI attempt count (5 proposed); locked vs hidden features; public name "Free" is used.
+- Q9 proctoring: "camera required" setting, retention (30 days proposed, lawyer decides), age self-declaration, Free plan gets tier 1.
+- Q17: the owner review of `23c77e2` is still the owner's call (Y-2 stays open).
+- Z-48: confirm the Vale count in the CI Docs lint job (Vale is not installed here). Z-54 not before 2026-10-29.
+- Q6, Q13, Q14, Q21, Q36 to Q47 are blank on the sheet. Nothing was guessed.
+**Not included:** Z-71 and Q9 build, any live /terms or /privacy change, Q22 retention rule, TIME-13, GATE-8, Z-54, any VPS or Cloudflare change (so the Z-46 line is not live), uuid 11 (no direct dependency), API-mode AI grading.
+**Old task or feature checked:** Y-2/RV60, Y-3, SP-gap-2, Y-9, RV33/FU-D26, A5/RW-52 (Brevo 300 a day, delivery-policy), Z-46, Z-48, Z-52, Z-70 to Z-72, X5/OD5 (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Detail
+
+- **Q17.** The server already minted the session and returned `redirectTo`. Gap was in `apps/web/src/pages/admin/email-otp.tsx`: a Verify click was needed and the wrong-code text differed. Now the 6th digit submits, one message "That code is not right. Check it and try again." covers wrong, expired and locked (anti-enumeration kept), and "Send a new code" returns to the email step. Rejected: changing the server (limits, TTL, ip/ua binding stay), a separate message for expired codes (reveals state). Not included: lowering the ip/ua binding (a changing mobile IP can fail a correct code; the owner said the code works).
+- **Q18/Q19.** The labels sit in `modules/15-analytics/src/activity/feed.ts` (the audit-log page only shows short ids). Platform staff are detected as a user actor whose row tenant RLS hides. Display only, no stored row changed. Their role chip stays "system" so the role filter is unchanged.
+- **Q11.** `modules/13-notifications/src/email/bulk-cap.ts`. Redis counter per IST day; over the cap the job gets a BullMQ delay to 09:00 IST of the next free day (60 days max). Rejected: per-tenant caps (later), cancel from the UI, DB table of queued mail. The default 250 leaves 50 of Brevo's 300 for sign-in codes and the other products. `EMAIL_BULK_DAILY_CAP` is read from `process.env` (not the 00-core schema); VPS pass-through unchecked, only matters for a value other than 250.
+- **Z-52.** Gap 1 solved by propagate-on-mark (RLS hides the master from tenants, so a read-time check is not possible). A clone is not restored when the master is verified again (fails closed).
+- **Docs lint (Z-48).** The Haiku agent also escaped 822 citation brackets in three research docs and added a type line to `agent-brief.md`.
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): Phase 0, sign-in trace, Q17/Q18/Q19 code and tests, Q20/Q23 edits, Z-70/Z-71/Q9 docs, line-by-line review of Q11 and Z-52, ROADMAP and handoff.
+- Sonnet: 4 runs (Q11 build, Z-52 build, 2 gates).
+- Haiku: 1 run (Z-48 docs lint, uuid check).
+- codex:rescue: n/a — Codex down since 2026-10-11; Sonnet takeover gates, both ACCEPT.
+- Gemini (agy): n/a — not needed.
+- Codex (exec): n/a — down.
+  - Sonnet · gate 1 Q17 + Q18/Q19 · reworked: N · tokens: 105462
+  - Sonnet · Q11 invite batching · reworked: Y (one fix by Opus: a retried email counted as queued) · tokens: 167623
+  - Sonnet · Z-52 gaps 1 to 4 · reworked: N · tokens: 150637
+  - Sonnet · gate 2 Z-52, bulk cap, Caddy · reworked: N · tokens: 109605
+  - Haiku · Z-48 docs lint + uuid · reworked: N (uuid skipped, correctly) · tokens: 108513
+
 # Session — 2026-10-18 — S28: owner review sheet Q1 to Q6
 
 **Headline:** Owner answers Q1 to Q6 are recorded in ROADMAP. The Trial plan pack (Z-70, name "Trial" confirmed) and the liability and DPA proposal (Z-72) are written as proposals. Astro is upgraded to 7.4.0 in apps/marketing (not deployed).
