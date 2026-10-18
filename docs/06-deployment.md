@@ -344,6 +344,38 @@ ssh assessiq-vps 'cd /srv/assessiq && docker compose -f infra/docker-compose.yml
 ssh assessiq-vps 'cd /srv/assessiq && docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <service>'
 ```
 
+### One-command deploy (`tools/deploy.sh`)
+
+**Goal:** run the steady-state procedure above with one command. The manual procedure stays the source of truth. If the script and this page differ, follow this page.
+
+```bash
+bash tools/deploy.sh --dry-run                 # read-only rehearsal, only `git fetch` runs on the VPS
+bash tools/deploy.sh --yes                     # real deploy of assessiq-api, assessiq-frontend (+ assessiq-worker)
+bash tools/deploy.sh --yes --services "assessiq-frontend" --no-sweep
+```
+
+| Flag | Meaning |
+| --- | --- |
+| `--dry-run` | Run steps 1 to 5 as checks only. Skip the build, the recreate and the sweep. |
+| `--yes` | Required for a real run. Without it the script prints usage and exits 64. |
+| `--services "<list>"` | Names must match `^assessiq-[a-z-]+$`. If `assessiq-api` is in the list, the script adds `assessiq-worker` (same image). |
+| `--no-sweep` | Skip `tools/post-deploy-sweep.sh`. |
+| `--skip-ci-check` | Skip the CI check for the SHA. The script prints a warning. |
+
+The seven steps (each prints `STEP n/7` and `OK` or `FAIL`):
+
+1. Local preflight: no tracked changes, `HEAD` equals `origin/main`, CI is `success` for that SHA.
+2. VPS preflight: `/srv/assessiq/.git` exists and no tracked file changed.
+3. Pull: `git pull --ff-only` (dry run: `git fetch` only). The VPS SHA must equal the local `HEAD`.
+4. Drift gate: same rules as the table below. A DB-only name outside the allowlist aborts.
+5. Migrations: apply each pending file in sorted order, record its sha256 in `schema_migrations`, then re-apply the help seed and print the `help_content` row count before and after.
+6. Build: output goes to `/tmp/deploy-build.log` on the VPS. The script aborts unless `BUILD_EXIT=0`.
+7. Recreate with `up -d --no-deps --force-recreate`, wait up to 90 s for healthy, then run the sweep. The exit code is the sweep exit code.
+
+Safety rules: the script touches only `assessiq-*` services and `/srv/assessiq`. It never runs prune, `rm`, `stop`, `apt`, `systemctl` or a Caddy command, and never prints secrets. Any error before step 7 aborts before the recreate. A migration that fails stops the run, and later files are not applied.
+
+The signed-in `/admin` check stays with the owner. The sweep cannot sign in.
+
 #### How to read the drift diff
 
 The gate in step 2 compares the repo file list with `schema_migrations`. Production is expected to show exactly four extra DB-only names (checked 2026-10-16, HEAD `b3bcfb4`: 150 repo files, 154 DB rows).
