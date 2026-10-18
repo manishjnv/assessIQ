@@ -16,7 +16,7 @@ vi.mock("../components/AdminShell.js", () => ({
 vi.mock("../components/UsageBanner.js", () => ({ usageMessage: () => null }));
 vi.mock("../pages/tenant-settings.js", () => ({ TenantSettings: () => null }));
 vi.mock("../session.js", () => ({ useAdminSession: () => ({ session: { user: { role: "admin" }, tenant: { id: "t1" } } }) }));
-vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn(), useSearchParams: () => [new URLSearchParams("tab=plan")] }));
 vi.mock("@assessiq/help-system/components", () => ({
   HelpTip: ({ children }: { children: React.ReactNode }) => React.createElement("span", null, children),
 }));

@@ -159,10 +159,16 @@ export interface TenantSettingsProps {
    * (default), render as the standalone /admin/tenant-settings page.
    */
   embedded?: boolean;
+  /**
+   * Z-23: when set, the Settings tab strip in AdminShell picks the tab (URL
+   * ?tab=) and the inner buttons are not drawn. Unset: standalone behaviour.
+   */
+  tab?: "organisation" | "results" | "privacy";
 }
 
-export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): React.ReactElement {
-  const [activeTab, setActiveTab] = useState<"company" | "results" | "privacy">("company");
+export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = {}): React.ReactElement {
+  const [innerTab, setActiveTab] = useState<"company" | "results" | "privacy">("company");
+  const activeTab = tab ? (tab === "organisation" ? "company" : tab) : innerTab;
   // ── Load state ────────────────────────────────────────────────────────────
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -747,10 +753,10 @@ export function TenantSettings({ embedded = false }: TenantSettingsProps = {}): 
         )}
 
         {/* ── Tabs (inline; hidden panels stay mounted so form state survives) ── */}
-        <div role="tablist" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div role="tablist" hidden={Boolean(tab)} style={{ display: tab ? "none" : "flex", gap: 8, flexWrap: "wrap" }}>
           {(
             [
-              ["company", "Company"],
+              ["company", "Organisation"],
               ["results", "Results"],
               ["privacy", "Data privacy"],
             ] as const

@@ -105,8 +105,8 @@ export function App(): React.JSX.Element {
           <Route path="/admin/reports/individual/:userId" element={<RequireSession role="admin"><AdminIndividualReport /></RequireSession>} />
           <Route path="/admin/question-bank/questions/:id" element={<RequireSession role="admin"><AdminQuestionEditor /></RequireSession>} />
           <Route path="/admin/settings" element={<RequireSession role="admin"><AdminBilling /></RequireSession>} />
-          {/* Back-compat: old /admin/settings/billing bookmarks → /admin/settings */}
-          <Route path="/admin/settings/billing" element={<Navigate to="/admin/settings" replace />} />
+          {/* Back-compat: old /admin/settings/billing bookmarks → the Plan and usage tab (Z-23) */}
+          <Route path="/admin/settings/billing" element={<Navigate to="/admin/settings?tab=plan" replace />} />
           <Route path="/admin/settings/help-content" element={<RequireSession role="super_admin"><AdminHelpContent /></RequireSession>} />
           <Route path="/admin/guide" element={<RequireSession role="admin"><AdminShell breadcrumbs={["Help guide"]}><AdminGuide /></AdminShell></RequireSession>} />
           {/* Question Bank pages (session 2026-05-04) */}

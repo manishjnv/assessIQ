@@ -22,13 +22,23 @@ async function openAndCheck(page: Page, path: string, nav: string) {
   expect(errors, `console errors on ${path}`).toEqual([]);
 }
 
-const ADMIN_PATHS = ['/admin', '/admin/assessments', '/admin/attempts', '/admin/question-bank', '/admin/settings'];
+// Z-23: every admin URL that existed before the 7-group nav must still render. Detail routes
+// (/:id) need seeded ids and are covered by admin-workflow.spec.ts.
+const ADMIN_PATHS = [
+  '/admin', '/admin/start-test', '/admin/assessments', '/admin/attempts', '/admin/grading-jobs',
+  '/admin/certificates', '/admin/question-bank', '/admin/reports', '/admin/activity', '/admin/users',
+  '/admin/audit-log', '/admin/integrations/webhooks', '/admin/integrations/embed', '/admin/settings',
+  '/admin/settings?tab=results', '/admin/settings?tab=privacy', '/admin/settings?tab=plan',
+  '/admin/settings/billing', '/admin/tenant-settings', '/admin/guide', '/admin/account-security',
+];
+const NAV_LABELS = ['Home', 'Assessments', 'Question bank', 'Reports', 'People', 'Integrations', 'Settings'];
 
 for (const path of ADMIN_PATHS) {
   test(`signed-in admin ${path}: heading, nav, no console errors`, async ({ page }) => {
     const s = await factories.mintAdminSession(factories.SEEDED_TENANT_ADMIN);
     await setCookie(page, s.cookie);
     await openAndCheck(page, path, 'nav, aside');
+    for (const label of NAV_LABELS) await expect(page.locator('aside, nav').getByRole('link', { name: label, exact: true }).first()).toBeVisible();
   });
 }
 

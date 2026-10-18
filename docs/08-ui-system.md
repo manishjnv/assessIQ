@@ -1683,3 +1683,19 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 **Not included.** Saved filters, a URL for the filter state, filters on the candidate side, multi-select values (the API accepts comma lists; the UI picks one value).
 
 **Downstream impact.** Admin API clients that call `/admin/questions` keep working. No change to `LevelPanel`. Help ids are new, so the help seed has 11 more rows.
+
+## AdminShell seven groups and tab strips (Z-23 session 1, 2026-10-18)
+
+**What changed.** The tenant-admin sidebar has seven entries: Home, Assessments, Question bank, Reports, People, Integrations, Settings. The model lives in `modules/10-admin-dashboard/src/lib/admin-nav.ts` (`NAV_GROUPS`, `resolveActiveNav(pathname, search)`). A group is active when the URL is under any of its tabs (segment-aware prefix match). Each entry links to the first tab of its group. `components/TabStrip.tsx` draws a `nav` landmark with links; the current tab has `aria-current="page"`; the strip scrolls sideways on phones. `AdminShell` renders the strip above the page for groups with `strip: true`: **Assessments** (Assessments, Start a test, Attempts, Grading status, Certificates) and **Settings** (Organisation, Results, Data privacy, Plan and usage). Strips for Reports, People and Integrations are session 2 (the groups are in the nav and active-state logic already).
+
+**Why.** Owner approved the 7 names and order on 2026-10-18 (`docs/plans/ADMIN_NAV_REVIEW_2026-10-17.md` section 3). Tabs keep every page and help id; only the sidebar and a strip change.
+
+**Settings.** All four tabs share `/admin/settings`; the tab is `?tab=organisation|results|privacy|plan` (default organisation). `billing.tsx` shows Plan and usage for `plan` and `<TenantSettings embedded tab=...>` otherwise; both panels stay mounted so unsaved form state survives a tab switch. `TenantSettings` hides its own button row when it gets a `tab` prop (standalone `/admin/tenant-settings` keeps it). The inner "Company" label is now "Organisation". `/admin/settings/billing` redirects to `/admin/settings?tab=plan`.
+
+**Routes and gates.** No route moved or was removed. All seven groups are admin-or-higher, the same as every `RequireSession role="admin"` guard in `apps/web/src/App.tsx`; nothing changed there. Generate questions and Generation history (super admin) sit under a "Content" label, Platform items unchanged. Help guide, Account security and Help content are outside the groups (no active entry).
+
+**Rejected.** Collapsible groups (2026-05-20 decision). Per-tab routes for Settings (would need new URLs and redirects). `role="tablist"` buttons: each tab is a real URL, so links are the correct semantics.
+
+**Not included.** Start a test as Home primary button (Z-24), Home checklist (Z-24), Z-46, Reports/People/Integrations tab strips, moving the Webhook secret card (session 2). Help ids unchanged: no new ids, no migration 0204.
+
+**Verify.** `modules/10-admin-dashboard/src/__tests__/admin-nav.test.tsx`; `apps/web/e2e/signed-in-smoke.spec.ts` opens 21 old admin URLs; `a11y-authed.spec.ts` axe clean on `/admin` and `/admin/assessments`. **Rollback:** revert the commit; no data or route change.

@@ -22,6 +22,8 @@ import { NotificationBell } from "./NotificationBell.js";
 import { AdminHelp } from "./AdminHelp.js";
 import { MyAccountCard } from "./MyAccountCard.js";
 import { RegenerateCodesModal } from "./RegenerateCodesModal.js";
+import { TabStrip } from "./TabStrip.js";
+import { NAV_GROUPS, resolveActiveNav, type NavIcon } from "../lib/admin-nav.js";
 
 /**
  * Breadcrumb segment — either a plain string (non-clickable label) or
@@ -238,8 +240,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   interface NavEntry {
     label: string;
     href: string;
-    icon: "home" | "chart" | "grid" | "user" | "settings" | "book" | "bell" | "eye" | "clock" | "sparkle" | "check";
-    adminOnly?: boolean;
+    icon: NavIcon | "check" | "book";
     /** A nested route that has its own nav entry — this entry is not active on it. */
     excludePath?: string;
     /**
@@ -252,58 +253,22 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     superAdminOnly?: boolean;
   }
 
-  // Nav split into four sections (2026-05-20 IA reorg):
-  //   Workspace — the assessment lifecycle pipeline (Dashboard + design→take→grade→report)
-  //   Library   — question-bank surface (catalogue + AI generation + history)
-  //   Admin     — management / audit (users, activity log)
-  //   Account   — help, settings, super-admin platform
-  // The previous 10-item flat WORKSPACE list was scan-heavy; four sub-headers
-  // group items by intent without introducing collapsibles (lowest-risk reorg).
-  // Role filtering (adminOnly / superAdminOnly) is applied per section by the
-  // shared renderEntries helper below.
-  const workspaceEntries: NavEntry[] = [
-    { label: "Dashboard", href: "/admin", icon: "home" },
-    { label: "Assessments", href: "/admin/assessments", icon: "clock", adminOnly: true },
-    { label: "Start a test", href: "/admin/start-test", icon: "sparkle", adminOnly: true },
-    { label: "Attempts", href: "/admin/attempts", icon: "eye" },
-    // FU-C1 (2026-10-06): the page is now the read-only evaluation status (route path unchanged).
-    { label: "Grading status", href: "/admin/grading-jobs", icon: "chart" },
-    { label: "Reports", href: "/admin/reports", icon: "sparkle", adminOnly: true },
-    { label: "Certificates", href: "/admin/certificates", icon: "book", adminOnly: true },
-  ];
+  // Z-23 (2026-10-18): seven tenant-admin groups from lib/admin-nav.ts. Each
+  // group links to its first tab and is active on any URL under one of its tabs
+  // (resolveActiveNav). Every group is admin-or-higher, matching the
+  // RequireSession role="admin" guards in apps/web/src/App.tsx. Z-21 moved Help
+  // guide and Account security to the help drawer and My account card.
+  const activeNav = resolveActiveNav(path, location.search);
+  const groupEntries: NavEntry[] = NAV_GROUPS.map((g) => ({
+    label: g.label,
+    href: g.tabs[0]?.href ?? "/admin",
+    icon: g.icon,
+  }));
 
-  // Library — question-bank surface. Phase B1: generation history + generate
-  // wizard remain super_admin-only (FE defense-in-depth; backend Part 4 is
-  // authoritative). "AI generation history" renamed to "Generation history"
-  // for nav consistency (Activity is also a history; "AI" prefix is implied
-  // by living inside the Library section).
-  const libraryEntries: NavEntry[] = [
-    { label: "Question bank", href: "/admin/question-bank", icon: "grid", adminOnly: true },
+  // Content — AI question generation, super_admin only (backend Part 4 is authoritative).
+  const contentEntries: NavEntry[] = [
     { label: "Generate questions", href: "/admin/generate-wizard", icon: "sparkle", superAdminOnly: true },
     { label: "Generation history", href: "/admin/generation-attempts", icon: "sparkle", superAdminOnly: true },
-  ];
-
-  // Admin — management + audit. Users moved out of Workspace (it's a
-  // management task, not a daily workspace activity). Activity (audit log)
-  // joins it as a sibling — both are management/oversight surfaces.
-  const adminEntries: NavEntry[] = [
-    { label: "Users", href: "/admin/users", icon: "user", adminOnly: true },
-    { label: "Activity", href: "/admin/activity", icon: "chart", adminOnly: true },
-    { label: "Audit log", href: "/admin/audit-log", icon: "chart", adminOnly: true },
-  ];
-
-  // Integrations — webhook and embed configuration (tenant-admin facing).
-  const integrationsEntries: NavEntry[] = [
-    { label: "Webhooks", href: "/admin/integrations/webhooks", icon: "settings", adminOnly: true },
-    { label: "Embed", href: "/admin/integrations/embed", icon: "settings", adminOnly: true },
-  ];
-
-  const accountEntries: NavEntry[] = [
-    // Z-21: "Help guide" lives in the top-bar help drawer and "Account security" in
-    // the My account footer card; the /admin/guide and /admin/account-security routes stay.
-    // Settings hosts billing + DPDP retention controls (tenant-settings is
-    // embedded as a section at the bottom of the billing page).
-    { label: "Settings", href: "/admin/settings", icon: "settings", adminOnly: true },
   ];
 
   // Platform — super_admin-only surfaces (RW-16), split out of Account.
@@ -399,43 +364,37 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             // Shared filter — adminOnly + superAdminOnly gates are identical
             // across all sections; extracted to keep each section a one-liner.
             const visible = (e: NavEntry): boolean =>
-              (!e.adminOnly || isAdmin) &&
-              (!e.superAdminOnly || session?.user.role === "super_admin");
-            const renderEntry = (e: NavEntry): React.JSX.Element => (
+              !e.superAdminOnly || session?.user.role === "super_admin";
+            const renderEntry = (e: NavEntry, groupId?: string): React.JSX.Element => (
               <NavItem
                 key={e.href}
                 label={e.label}
                 icon={e.icon}
                 href={e.href}
                 active={
-                  path === e.href ||
-                  (e.href !== "/admin" &&
-                    path.startsWith(e.href) &&
-                    !(e.excludePath && path.startsWith(e.excludePath)))
+                  groupId
+                    ? activeNav?.group.id === groupId
+                    : path === e.href ||
+                      (path.startsWith(e.href) && !(e.excludePath && path.startsWith(e.excludePath)))
                 }
                 collapsed={collapsed}
               />
             );
-            // Render a section header only if at least one of its entries is
-            // visible to the current role — avoids an empty "Admin" label for
-            // a non-admin session with no admin entries.
+            // Render a section header only if at least one entry is visible to the role.
             const renderSection = (label: string, entries: NavEntry[]): React.JSX.Element | null => {
               const shown = entries.filter(visible);
               if (shown.length === 0) return null;
               return (
                 <Fragment key={label}>
                   <SidebarSection label={label} collapsed={collapsed} />
-                  {shown.map(renderEntry)}
+                  {shown.map((e) => renderEntry(e))}
                 </Fragment>
               );
             };
             return (
               <>
-                {renderSection("Work", workspaceEntries)}
-                {renderSection("Content", libraryEntries)}
-                {renderSection("Admin", adminEntries)}
-                {renderSection("Integrations", integrationsEntries)}
-                {renderSection("Account", accountEntries)}
+                {isAdmin && groupEntries.map((e, i) => renderEntry(e, NAV_GROUPS[i]?.id))}
+                {renderSection("Content", contentEntries)}
                 {renderSection("Platform", platformEntries)}
               </>
             );
@@ -633,6 +592,13 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             padding: "var(--aiq-space-xl)",
           }}
         >
+          {activeNav?.group.strip && (
+            <TabStrip
+              label={`${activeNav.group.label} sections`}
+              items={activeNav.group.tabs}
+              activeId={activeNav.tab.id}
+            />
+          )}
           {children}
         </main>
       </div>
