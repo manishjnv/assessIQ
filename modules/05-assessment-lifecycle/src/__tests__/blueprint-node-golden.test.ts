@@ -258,11 +258,11 @@ describe("RW-55 blueprint node_id golden", () => {
     expect((e as ValidationError).status).toBe(400);
   });
 
-  it("outcome-kind node -> 400 BLUEPRINT_NODE_KIND_UNSUPPORTED", async () => {
+  it("criterion-kind node -> 400 BLUEPRINT_NODE_KIND_UNSUPPORTED", async () => {
     const outcomeId = await sup(async (c) => {
       const r = await c.query<{ id: string }>(
         `INSERT INTO taxonomy_nodes (tenant_id, framework_id, parent_id, kind, code, label)
-         SELECT NULL, framework_id, id, 'outcome', 'o1', 'Outcome 1' FROM taxonomy_nodes WHERE id = $1
+         SELECT NULL, framework_id, id, 'criterion', 'o1', 'Criterion 1' FROM taxonomy_nodes WHERE id = $1
          RETURNING id`,
         [nodeOf[cat1]],
       );

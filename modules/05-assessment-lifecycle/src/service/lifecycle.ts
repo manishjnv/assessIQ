@@ -8,7 +8,7 @@ import { assertCanTransition, assertReopenAllowed } from "../state-machine.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { Assessment, ResolvedBlueprint } from "../types.js";
 import { log, countActiveQuestionsForLevel } from "./_shared.js";
-import { countActiveQuestionsForCriterion } from "./blueprint.js";
+import { countActiveQuestionsForCriterion, criterionNodeScope } from "./blueprint.js";
 
 // ---------------------------------------------------------------------------
 // freezeAssessmentPool — "lock at assignment" snapshot (additive)
@@ -113,15 +113,17 @@ export async function publishAssessment(
           blueprint.domain_id,
           criterion.category_id,
           criterion.type,
+          criterionNodeScope(criterion),
         );
         if (criterionAvailable < criterion.count) {
           throw new ValidationError(
-            `Blueprint criterion ${idx} pool too small: ${criterionAvailable} available < ${criterion.count} required (category_id=${criterion.category_id}, type=${criterion.type})`,
+            `Blueprint criterion ${idx} pool too small: ${criterionAvailable} available < ${criterion.count} required (${criterion.category_id !== undefined ? `category_id=${criterion.category_id}` : `node_id=${criterion.node_id}`}, type=${criterion.type})`,
             {
               details: {
                 code: AL_ERROR_CODES.POOL_TOO_SMALL_CRITERION,
                 criterion_index: idx,
                 category_id: criterion.category_id,
+                node_id: criterion.node_id,
                 type: criterion.type,
                 available: criterionAvailable,
                 required: criterion.count,
