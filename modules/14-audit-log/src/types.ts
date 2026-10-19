@@ -182,6 +182,8 @@ export const ACTION_CATALOG = [
   // Phase A2 billing — super-admin plan update (tier / included_credits).
   // Fired inside updateTenantPlan via auditInTx (same tx as the UPDATE).
   'tenant.plan_updated',
+  // Z-93: super-admin offline credit grant (purchase / bonus / pilot).
+  'billing.credits_granted',
   // Phase B1 entitlements — super-admin grant / revoke of domain or pack scope.
   // Fired inside grantEntitlement / revokeEntitlement via auditInTx (same tx).
   'tenant.entitlement_granted',

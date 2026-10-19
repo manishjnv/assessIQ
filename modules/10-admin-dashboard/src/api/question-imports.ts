@@ -180,8 +180,5 @@ export function downloadOrgImportTemplate(type: string, format: TemplateFormat):
   return downloadImportTemplate(type, format, true);
 }
 
-/** True when the plan does not include organisation upload (403 TIER_NOT_INCLUDED). */
-export function isTierLocked(err: unknown): boolean {
-  return err instanceof AdminApiError && err.status === 403
-    && (err.apiError.code === "TIER_NOT_INCLUDED" || err.apiError.details?.["code"] === "TIER_NOT_INCLUDED");
-}
+// isTierLocked (403 TIER_NOT_INCLUDED) lives in ./tier-lock.ts (Z-80). Re-exported for the upload page.
+export { isTierLocked } from "./tier-lock.js";

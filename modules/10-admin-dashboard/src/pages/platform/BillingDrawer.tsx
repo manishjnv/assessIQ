@@ -7,6 +7,7 @@ import { AdminApiError, getTenantBillingDetail, updateTenantPlan, tenantBillingC
 import { HelpTip } from "@assessiq/help-system/components";
 import { META_LABEL, formatDate } from "./shared.js";
 import { AiGradingScopeCard } from "./AiGradingScopeCard.js";
+import { CreditsCard } from "./CreditsCard.js";
 
 // ── Billing drawer ────────────────────────────────────────────────────────────
 
@@ -553,6 +554,7 @@ export function BillingDrawer({
               </div>
             </Card>
             <AiGradingScopeCard tenantId={tenant.id} readOnly={isReadOnly} />
+            <CreditsCard tenantId={tenant.id} readOnly={isReadOnly} />
             {/* Entitlements subsection — B1 */}
             <Card>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>

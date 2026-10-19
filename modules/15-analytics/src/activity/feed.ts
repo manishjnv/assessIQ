@@ -123,6 +123,7 @@ const AUDIT_ACTION_LABELS: Record<string, string> = {
   'tenant.renamed':                       'renamed tenant',
   'tenant.purged':                        'purged tenant',
   'tenant.plan_updated':                  'updated tenant plan',
+  'billing.credits_granted':              'granted credits',
   'tenant.entitlement_granted':           'granted entitlement',
   'tenant.entitlement_revoked':           'revoked entitlement',
   'tenant.pack_cloned':                   'cloned question pack',

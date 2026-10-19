@@ -1476,6 +1476,27 @@ admin.settings.billing.ai_answers:
     submitting or releasing. To change your plan, contact your AssessIQ
     administrator.
 
+admin.settings.billing.credits_balance:
+  audience: admin
+  short_text: "Credits you can still use. Credits expire 12 months after they are added."
+  long_md: |
+    ## Credit balance
+
+    Your balance is the sum of all credits that have not expired. Each graded
+    attempt uses credits from the grant that expires first. A grant can come
+    from your monthly free credits or from credits your AssessIQ administrator
+    adds for you. The next expiry date shows when the first credits run out.
+
+admin.settings.billing.credits_burn:
+  audience: admin
+  short_text: "Credits used so far, split by test type: mock, real, and real with camera."
+  long_md: |
+    ## Credits used by test type
+
+    A mock test uses 1 credit. A real test uses 2 credits. A real test with
+    camera uses 3 credits. The credits are used once for each graded attempt.
+    A re-grade of the same attempt does not use credits again.
+
 admin.settings.billing.alert_threshold:
   audience: admin
   short_text: "A usage banner shows at 80% of your included credits. It is information only and never blocks you."
@@ -5280,3 +5301,14 @@ admin.question_bank.review.attempts:
     - **What.** Attempts that were made on an earlier version of this question.
     - **Read only.** This panel changes nothing.
     - **Marks.** Marks are not changed. A correction creates a new version. Attempts keep the version they used.
+
+# ─── Locked feature popup (Z-80) ───
+admin.locked.contact:
+  audience: admin
+  short_text: "This feature is not in your plan. Contact AssessIQ to get full access."
+  long_md: |
+    ## Full access needed
+
+    - **What.** This feature is not in your plan.
+    - **Next step.** Select **Contact us**. It opens the AssessIQ contact page.
+    - **Nothing changes.** Your settings stay as they are.

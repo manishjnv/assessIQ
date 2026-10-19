@@ -23,6 +23,7 @@ function inlineSitemap() {
     '/security',
     '/privacy',
     '/terms',
+    '/dpa',
     '/solutions/it-hiring',
     '/solutions/campus-recruitment',
     '/solutions/educational-institutions',

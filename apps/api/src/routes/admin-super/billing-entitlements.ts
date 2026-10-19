@@ -3,13 +3,15 @@
 
 import type { FastifyInstance } from 'fastify';
 import { parseBody, parseParams, tenantIdParams } from '../_validate.js';
-import { updatePlanBody, entitlementScopeBody } from '../_schemas.js';
+import { updatePlanBody, entitlementScopeBody, grantCreditsBody } from '../_schemas.js';
 import { assertTenantActive } from '@assessiq/tenancy';
 import { config } from '@assessiq/core';
 import {
   getTenantBillingDetail,
   getTenantBillingEventsCsv,
   updateTenantPlan,
+  grantCredits,
+  listTenantCredits,
   assertTierLimit,
   listTenantEntitlements,
   listTenantContentScopes,
@@ -114,6 +116,46 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
 
       const result = await updateTenantPlan(req.session!.userId, tenantId, patch);
       return reply.code(200).send(result);
+    },
+  );
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // POST/GET /api/admin/super/tenants/:tenantId/credits   (Z-93 / Z-79)
+  //
+  // Offline credit grant (purchase / bonus / pilot) and the ledger view.
+  // Gate: superAdminOnly. The grant and its audit row share one transaction.
+  // 400: bad input. 403: not super_admin. 404: tenant has no plan.
+  // ──────────────────────────────────────────────────────────────────────────
+  app.post(
+    '/api/admin/super/tenants/:tenantId/credits',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = parseParams(tenantIdParams, req.params);
+      await assertTenantActive(tenantId);
+      const body = parseBody(grantCreditsBody, req.body, {
+        code: { credits: 'INVALID_CREDITS', source: 'INVALID_SOURCE', expiresInMonths: 'INVALID_EXPIRY' },
+      });
+      const result = await grantCredits(
+        tenantId,
+        {
+          source: body.source,
+          credits: body.credits,
+          ...(body.invoiceRef !== undefined ? { invoiceRef: body.invoiceRef } : {}),
+          ...(body.note !== undefined ? { note: body.note } : {}),
+          ...(body.expiresInMonths !== undefined ? { expiresInMonths: body.expiresInMonths } : {}),
+        },
+        req.session!.userId,
+      );
+      return reply.code(200).send(result);
+    },
+  );
+
+  app.get(
+    '/api/admin/super/tenants/:tenantId/credits',
+    { preHandler: superAdminOnly },
+    async (req, reply) => {
+      const { tenantId } = parseParams(tenantIdParams, req.params);
+      return reply.code(200).send(await listTenantCredits(tenantId));
     },
   );
 

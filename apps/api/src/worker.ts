@@ -50,6 +50,7 @@ import {
   ANALYTICS_REFRESH_MV_JOB_NAME,
 } from "@assessiq/analytics";
 import { runRetentionPurgeAllTenants } from "@assessiq/data-rights";
+import { refillFreeMonthlyCredits, expireCredits } from "@assessiq/billing";
 import {
   AUTO_RELEASE_JOB_NAME,
   AUTO_RELEASE_INTERVAL_MS,
@@ -98,6 +99,13 @@ const USER_PURGE_CRON = "45 3 * * *";
 // RW-94: every 15 min, flip generation_attempts stuck 'running' (pure SQL, no AI call).
 const GEN_STALE_JOB_NAME = "generation-stale-sweep";
 const GEN_STALE_EVERY_MS = 15 * 60_000;
+
+// Z-93: credit ledger jobs (pure SQL, non-AI). Free tenants are reset to the monthly
+// allowance (the first run each UTC month does the work, later runs are no-ops); expired grants are zeroed daily at 02:20 UTC.
+const CREDIT_REFILL_JOB_NAME = "credit-free-refill";
+const CREDIT_REFILL_CRON = "10 0 * * *"; // daily and idempotent (unique index): heals a missed 1st-of-month run
+const CREDIT_EXPIRE_JOB_NAME = "credit-expire";
+const CREDIT_EXPIRE_CRON = "20 2 * * *";
 
 const BOUNDARY_INTERVAL_MS = 60_000;
 const TIMER_SWEEP_INTERVAL_MS = 30_000;
@@ -150,6 +158,9 @@ export const JOB_RETRY_POLICY: Record<
   // retry of a failed tick would only double the work. processAutoReleaseTick never
   // throws (per-attempt errors are logged + cooled down), so this is belt and braces.
   [GEN_STALE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
+  // credit jobs: idempotent SQL (unique index / WHERE remaining > 0), retries are safe.
+  [CREDIT_REFILL_JOB_NAME]: { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
+  [CREDIT_EXPIRE_JOB_NAME]: { attempts: 3, backoff: { type: "exponential", delay: 60_000 } },
   [AUTO_RELEASE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
   // evaluation.queue_alert — attempts 1: it runs hourly anyway, and a retry inside the
   // same hour would only repeat the count. A tick that sent nothing releases its Redis
@@ -513,6 +524,23 @@ async function start(): Promise<void> {
     },
   );
 
+  // Z-93: monthly free-credit refill and daily expiry sweep (non-AI SQL).
+  for (const [name, cron] of [[CREDIT_REFILL_JOB_NAME, CREDIT_REFILL_CRON], [CREDIT_EXPIRE_JOB_NAME, CREDIT_EXPIRE_CRON]] as const) {
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const policy = JOB_RETRY_POLICY[name]!;
+    await queue.add(
+      name,
+      {},
+      {
+        repeat: { pattern: cron },
+        attempts: policy.attempts,
+        backoff: policy.backoff,
+        removeOnComplete: 10,
+        removeOnFail: 20,
+      },
+    );
+  }
+
   // RW-94: stale generation-attempt sweep every 15 min (non-AI SQL).
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const genStalePolicy = JOB_RETRY_POLICY[GEN_STALE_JOB_NAME]!;
@@ -609,6 +637,10 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processUserPurgeTick);
         case GEN_STALE_JOB_NAME:
           return runJobWithLogging(job, async () => (await import("@assessiq/question-bank")).sweepStaleGenerationAttempts());
+        case CREDIT_REFILL_JOB_NAME:
+          return runJobWithLogging(job, () => refillFreeMonthlyCredits());
+        case CREDIT_EXPIRE_JOB_NAME:
+          return runJobWithLogging(job, async () => ({ expired: await expireCredits() }));
         case AUTO_RELEASE_JOB_NAME:
           return runJobWithLogging(job, () => processAutoReleaseTick());
         case EVAL_QUEUE_ALERT_JOB_NAME:

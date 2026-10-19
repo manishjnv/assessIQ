@@ -1,0 +1,158 @@
+---
+// dpa.astro — AssessIQ Data Processing Addendum (DPA) page
+// Text: docs/design/2026-10-19-legal-texts-v1.md section 2 (DPA v1.0). Copied as written.
+// The version is one constant so a reviewed version can replace v1.0.
+// JSON-LD: BreadcrumbList (Home › DPA) per SEO §3.6 / §15 template
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const DPA_VERSION = '1.0';
+const DPA_DATE = '19 October 2026';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Data Processing Addendum"
+      // NOTE: no "item" on current/last breadcrumb per SEO §15 spec
+    }
+  ]
+};
+
+const clauses = [
+  { n: 1, title: 'What this is.', text: 'This addendum is part of the agreement between AssessIQ and the organisation that signs up ("the Organisation"). It explains who is responsible for candidate data. It applies when the Organisation ticks the box at sign-up, or accepts it in writing.' },
+  { n: 2, title: 'Roles.', text: 'The Organisation decides why and how it tests people. For candidate data, the Organisation is the controller (data fiduciary) and AssessIQ is the processor. AssessIQ uses candidate data only to run the platform for the Organisation, on the Organisation\'s instructions. For the Organisation\'s own account data and for the public website, AssessIQ is the controller.' },
+  { n: 3, title: 'What data AssessIQ handles for the Organisation.', text: 'Candidate name and email; answers; start, pause and submit times; browser and device information; an IP address for security; activity events (for example leaving full screen, switching tabs, copy and paste); the result of the readiness check; and, only for a real exam with the camera on, photos and low-size video.' },
+  { n: 4, title: 'The Organisation\'s promises.', text: 'The Organisation (a) has a lawful basis for testing each candidate and gets any consent that the law requires; (b) gives each candidate a notice before the test (the platform shows a start-screen notice that names the Organisation); (c) uses the data only for lawful purposes; (d) is responsible for every decision about a candidate; (e) will not use the platform for anything illegal.' },
+  { n: 5, title: 'AI scores are advice.', text: 'Some written answers are scored with AI help. An AI score is advice only. A named person at the Organisation reviews it and decides what happens to the candidate. AssessIQ does not make decisions about candidates.' },
+  { n: 6, title: 'Camera.', text: 'A real exam may use the camera. The Organisation chooses to run real exams, and for a real exam the camera is on unless this section says otherwise. A mock test never uses the camera. For a school, the school admin decides whether the camera is on; if it is off, no photo or video is taken. The Organisation must tell each candidate before the test that the camera is used, and the candidate can choose "I do not agree, do not start". Photos and video are used only to review the exam and are not used to identify a person by face or to judge emotion.' },
+  { n: 7, title: 'Adults and schools.', text: 'The Organisation confirms that every candidate in a camera-on real exam is 18 years or older, or that the school or guardian has agreed to the camera for that candidate. For candidates who are children, the Organisation (for example the school) is responsible for getting the consent that the law requires.' },
+  { n: 8, title: 'How long data is kept.', text: 'Photos are deleted 90 days after they are taken, and video 7 days after it is recorded. For schools, photos and video are kept 7 days. If an attempt is flagged and a candidate appeals, the photos and video stay until the appeal closes, up to 90 days for schools and up to 1 year for other organisations. On an erasure request they are deleted sooner. Other candidate data is kept while the Organisation\'s account is active and is deleted when the Organisation asks, or after the Organisation\'s account is closed, as the privacy page describes.' },
+  { n: 9, title: 'Uploads.', text: 'The Organisation keeps ownership of what it uploads. It uploads at its own risk, for use within its own tests, and confirms that it owns the content or has the right to use and upload it. It gives AssessIQ a licence to store, process and run the service with that content. AssessIQ does not use one Organisation\'s uploads for other organisations.' },
+  { n: 10, title: 'Security and breaches.', text: 'AssessIQ keeps data safe with reasonable measures: encryption in transit, access control for each Organisation, an audit log and backups. If AssessIQ confirms a personal data breach, it tells the Organisation within 48 hours, so the Organisation can meet its own duties.' },
+  { n: 11, title: 'Sub-processors.', text: 'AssessIQ uses the sub-processors listed on the privacy page (server hosting, network security, email, optional Google sign-in, AI-assisted evaluation). AssessIQ gives notice on the website before it adds one. Sub-processors may not use data for their own purposes.' },
+  { n: 12, title: 'Requests from candidates.', text: 'If a candidate asks to see, correct or delete data, the Organisation sends the request to AssessIQ. AssessIQ helps the Organisation to answer it and confirms when data is deleted.' },
+  { n: 13, title: 'Liability and cost.', text: 'Section 11 (liability) and section 12 (misuse and indemnity) of the Terms apply to this DPA. The Organisation pays for claims, fines and costs that come from its own instructions, its missing notice or consent, its uploads, or its decisions about candidates. AssessIQ\'s total liability is limited as the Terms say.' },
+  { n: 14, title: 'Ending.', text: 'When the agreement ends, AssessIQ returns or deletes the Organisation\'s data within 30 days, unless the law requires it to keep some data.' },
+  { n: 15, title: 'New versions.', text: 'AssessIQ may publish a new version. The Organisation must accept it before it starts its next test.' },
+  { n: 16, title: 'Law.', text: 'Indian law applies, as in the Terms.' },
+];
+---
+
+<BaseLayout
+  title="Data Processing Addendum (DPA)"
+  description="The Data Processing Addendum (version 1.0) for AssessIQ organisations: roles, candidate data, camera use, retention, uploads, breach notice and sub-processors."
+  canonicalPath="/dpa"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Data Processing Addendum
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Legal</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Data Processing Addendum (DPA), version 1.0
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        This addendum explains who is responsible for candidate data when an organisation uses AssessIQ.
+      </p>
+    </div>
+  </section>
+
+  <!-- Version and effective date -->
+  <section class="bg-aiq-accent-soft border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-xl">
+      <p id="dpa-version" data-version={DPA_VERSION} class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 max-w-3xl">
+        <strong class="font-medium text-aiq-fg-primary">Version {DPA_VERSION}.</strong>
+        <span>Effective date: {DPA_DATE}.</span>
+      </p>
+    </div>
+  </section>
+
+  <!-- Clauses 1 to 16 -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl flex flex-col gap-aiq-3xl">
+        {clauses.map(c => (
+          <div id={`dpa-${c.n}`}>
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">
+              {c.n}. {c.title}
+            </p>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              {c.text}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Related links -->
+  <section class="bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-2xl">
+        <h2 class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">
+          Questions about this addendum?
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-xl">
+          Read the Terms of Service and the Privacy Policy that apply with this addendum.
+        </p>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="/terms"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Terms of Service
+          </a>
+          <a
+            href="/privacy"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Privacy Policy
+          </a>
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Contact us
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

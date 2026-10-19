@@ -424,6 +424,39 @@ export function AdminBilling(): React.ReactElement {
                     </div>
                   );
                 })()}
+
+                {/* Z-93: credit ledger. Hidden for unlimited plans and older APIs. */}
+                {companyUsage.credits !== undefined && !companyUsage.credits.unlimited && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+                    <p style={{ ...BODY_SM, fontWeight: 600 }}>Credits</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "var(--aiq-space-md)" }}>
+                      <div>
+                        <HelpTip helpId="admin.settings.billing.credits_balance">
+                          <p style={MUTED_SM}>Credit balance</p>
+                        </HelpTip>
+                        <p style={{ ...BODY_SM, fontWeight: 600 }}>{companyUsage.credits.balance}</p>
+                      </div>
+                      <div>
+                        <p style={MUTED_SM}>Next expiry</p>
+                        <p style={{ ...BODY_SM, fontWeight: 600 }}>
+                          {companyUsage.credits.next_expiry !== null ? formatDate(companyUsage.credits.next_expiry) : "None"}
+                        </p>
+                      </div>
+                      <div>
+                        <HelpTip helpId="admin.settings.billing.credits_burn">
+                          <p style={MUTED_SM}>Credits used by test type</p>
+                        </HelpTip>
+                        <p style={{ ...BODY_SM, fontWeight: 600 }}>
+                          Mock {companyUsage.credits.burn_by_type.mock} · Real {companyUsage.credits.burn_by_type.real} · Real + camera {companyUsage.credits.burn_by_type.real_camera}
+                        </p>
+                      </div>
+                      <div>
+                        <p style={MUTED_SM}>AI-graded answers</p>
+                        <p style={{ ...BODY_SM, fontWeight: 600 }}>{companyUsage.credits.ai_answers}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
           );

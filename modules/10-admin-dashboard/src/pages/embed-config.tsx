@@ -12,11 +12,13 @@
 //
 // INVARIANTS: no claude/anthropic imports.
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Button, Card, ConfirmDialog, Input, Spinner, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { adminApi } from "../api.js";
+import { isTierLocked } from "../api/tier-lock.js";
+import { LockedFeatureModal } from "../components/LockedFeatureModal.js";
 
 const err = (e: unknown): string => (e instanceof Error ? e.message : "Something went wrong.");
 interface EmbedSecretRow { id: string; name: string; status: "active" | "rotated" | "revoked"; createdAt: string; rotatedAt: string | null }
@@ -43,18 +45,21 @@ export default function EmbedConfigPage(): React.ReactElement {
   const [fresh, setFresh] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [revokeId, setRevokeId] = useState<string | null>(null);
+  const [locked, setLocked] = useState(false);
+  // Z-80: a tier 403 opens the Contact us popup; the feature stays visible.
+  const fail = useCallback((e: unknown): string => { if (isTierLocked(e)) setLocked(true); return err(e); }, []);
 
   const loadSecrets = () =>
     adminApi<{ items: EmbedSecretRow[] }>("/admin/embed-secrets")
       .then((r) => { setSecrets(r.items); setSecretsError(null); })
-      .catch((e) => setSecretsError(err(e)));
+      .catch((e) => setSecretsError(fail(e)));
 
   useEffect(() => {
     adminApi<{ origins: string[] }>("/admin/embed-origins")
       .then((r) => { setSaved(r.origins); setOrigins(r.origins); })
-      .catch((e) => setLoadError(err(e)));
+      .catch((e) => setLoadError(fail(e)));
     void loadSecrets();
-  }, []);
+  }, [fail]);
 
   async function secretAction(id: string, run: () => Promise<{ plaintextSecret: string } | void>) {
     setBusyId(id);
@@ -63,7 +68,7 @@ export default function EmbedConfigPage(): React.ReactElement {
       const r = await run();
       if (r) setFresh(r.plaintextSecret);
       await loadSecrets();
-    } catch (e) { setMsg(err(e)); } finally { setBusyId(null); setRevokeId(null); }
+    } catch (e) { setMsg(fail(e)); } finally { setBusyId(null); setRevokeId(null); }
   }
 
   const dirty = saved !== null && (origins.length !== saved.length || origins.some((o) => !saved.includes(o)));
@@ -85,11 +90,12 @@ export default function EmbedConfigPage(): React.ReactElement {
       for (const o of saved.filter((x) => !origins.includes(x))) await adminApi("/admin/embed-origins", { method: "DELETE", body: JSON.stringify({ origin: o }) });
       setSaved(origins);
       setMsg("Trusted origins saved.");
-    } catch (e) { setMsg(err(e)); } finally { setSaving(false); }
+    } catch (e) { setMsg(fail(e)); } finally { setSaving(false); }
   }
 
   return (
     <AdminShell breadcrumbs={["Integrations", "Embed configuration"]} helpPage="admin.embed">
+      <LockedFeatureModal open={locked} feature="embedding AssessIQ" onClose={() => setLocked(false)} />
       <div data-help-id="admin.embed.page" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)", maxWidth: 720 }}>
         <PageHeader eyebrow="Integrations" title="Embed configuration." lede="Control which sites can embed AssessIQ and the secrets that sign their requests. The webhook secret is on the Webhooks tab." />
         {msg && <div role="status" style={{ fontSize: "var(--aiq-text-sm)" }}>{msg}</div>}

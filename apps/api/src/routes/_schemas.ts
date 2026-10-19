@@ -23,6 +23,15 @@ export const entitlementScopeBody = z.object({
 
 // ---- admin-super billing -----------------------------------------
 // RW-36(b): PATCH plan body. Domain validation (tier set, credit range) stays in updateTenantPlan.
+// Z-93 / Z-79: offline credit grant body. Range checks repeat in grantCredits (the authority).
+export const grantCreditsBody = z.object({
+  credits: z.number({ invalid_type_error: 'credits must be a number' }).int('credits must be a whole number').min(1, 'credits must be 1 or more').max(1_000_000, 'credits must be 1000000 or less'),
+  source: z.enum(['purchase', 'bonus', 'pilot'], { errorMap: () => ({ message: 'source must be purchase, bonus or pilot' }) }),
+  invoiceRef: z.string().max(200, 'invoiceRef must be 200 characters or fewer').optional(),
+  note: z.string().max(500, 'note must be 500 characters or fewer').optional(),
+  expiresInMonths: z.number({ invalid_type_error: 'expiresInMonths must be a number' }).int().min(1).max(120).optional(),
+});
+
 export const updatePlanBody = z.object({
   tier: z.string({ invalid_type_error: 'tier must be a string' }).max(32, 'tier must be 32 characters or fewer').optional(),
   includedCredits: z
