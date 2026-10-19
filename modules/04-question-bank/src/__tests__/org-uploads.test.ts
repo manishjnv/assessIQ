@@ -19,6 +19,8 @@ const tA = randomUUID();
 const tB = randomUUID();
 const uA = randomUUID();
 const uB = randomUUID();
+let tP = ""; // the seeded platform tenant (migrations create it)
+const uP = randomUUID();
 
 async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
   const c = new Client({ connectionString: url });
@@ -40,11 +42,11 @@ const body = (extra: Record<string, unknown> = {}) => ({
   content_base64: Buffer.from(uniqueCsv(), "utf8").toString("base64"), ...extra,
 });
 
-async function buildApp(tenantId: string, userId: string, guard?: never[] | unknown[]) {
+async function buildApp(tenantId: string, userId: string, guard?: never[] | unknown[], role = "admin") {
   const app = Fastify({ logger: false });
   await app.register(multipart, { limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 10 } });
   app.addHook("preHandler", async (req) => {
-    (req as unknown as { session: unknown }).session = { tenantId, userId, role: "admin" };
+    (req as unknown as { session: unknown }).session = { tenantId, userId, role };
   });
   app.setErrorHandler((err: Error, _req, reply) => {
     void reply.code(err instanceof AppError ? err.status : 500).send({ error: err.message });
@@ -71,6 +73,8 @@ beforeAll(async () => {
       await c.query(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,$3,'Admin','admin','active')`, [uid, id, email]);
       await c.query(`INSERT INTO domains (tenant_id, slug, name) VALUES ($1,'soc','SOC')`, [id]);
     }
+    tP = (await c.query<{ id: string }>(`SELECT id FROM tenants WHERE slug = 'platform'`)).rows[0]!.id;
+    await c.query(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,'p@x.io','Admin','admin','active')`, [uP, tP]);
   });
 }, 120_000);
 
@@ -168,15 +172,26 @@ describe("EXP-17 plan gate", () => {
       ["POST", "/api/admin/question-imports"],
       ["GET", "/api/admin/question-imports"],
       ["GET", "/api/admin/question-imports/templates/mcq"],
-      ["GET", `/api/admin/question-imports/${id}`],
       ["PATCH", `/api/admin/question-imports/${id}/rows/1`],
       ["POST", `/api/admin/question-imports/${id}/commit`],
-      ["POST", `/api/admin/question-imports/${id}/discard`],
-      ["POST", `/api/admin/question-imports/${id}/withdraw`],
     ];
     for (const [method, url] of calls) {
       const r = await app.inject({ method: method as "GET", url, ...(method === "GET" ? {} : { payload: {} as object }) });
       expect([method, url, r.statusCode]).toEqual([method, url, 403]);
     }
+    // Gate finding 2: read, discard and withdraw stay open on a lapsed plan (takedown path).
+    for (const [method, url] of [["GET", `/api/admin/question-imports/${id}`], ["POST", `/api/admin/question-imports/${id}/discard`], ["POST", `/api/admin/question-imports/${id}/withdraw`]] as const) {
+      const r = await app.inject({ method, url, ...(method === "GET" ? {} : { payload: {} as object }) });
+      expect([method, url, r.statusCode === 403]).toEqual([method, url, false]);
+    }
+  });
+
+  it("an admin (not super_admin) of the platform tenant cannot list or withdraw (gate finding 1)", async () => {
+    const admin = await buildApp(tP, uP);
+    const id = randomUUID();
+    expect((await admin.inject({ method: "GET", url: "/api/admin/question-imports" })).statusCode).toBe(403);
+    expect((await admin.inject({ method: "POST", url: `/api/admin/question-imports/${id}/withdraw` })).statusCode).toBe(403);
+    const boss = await buildApp(tP, uP, undefined, "super_admin");
+    expect((await boss.inject({ method: "GET", url: "/api/admin/question-imports" })).statusCode).toBe(200);
   });
 });

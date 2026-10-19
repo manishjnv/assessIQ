@@ -4,6 +4,7 @@ import { ConflictError, NotFoundError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import * as repo from "../repository.js";
 import { withdrawInTx } from "../service/questions.js";
+import { assertRoleFitsTenant, asRetryableDeadlock } from "../service/review.js";
 
 export interface OrgUploadItem {
   id: string;
@@ -20,8 +21,9 @@ export interface OrgUploadItem {
 }
 
 /** The caller tenant's own uploads (imports with an uploader rights_status), newest first. Discarded ones are hidden. */
-export async function listOrgUploads(tenantId: string): Promise<{ items: OrgUploadItem[] }> {
+export async function listOrgUploads(tenantId: string, role: string | undefined): Promise<{ items: OrgUploadItem[] }> {
   return withTenant(tenantId, async (client) => {
+    await assertRoleFitsTenant(client, { tenantId, userId: "", role: role ?? "" });
     const r = await client.query<OrgUploadItem>(
       `SELECT i.id, i.file_name, i.format, i.status, i.row_count, i.error_count,
               i.upload_rights_status AS rights_status, i.created_at, i.committed_pack_id,
@@ -42,9 +44,12 @@ export async function listOrgUploads(tenantId: string): Promise<{ items: OrgUplo
 export async function withdrawImport(
   tenantId: string,
   actorUserId: string,
+  role: string | undefined,
   importId: string,
 ): Promise<{ importId: string; withdrawn: number }> {
   return withTenant(tenantId, async (client) => {
+    // Gate finding 1: platform content only by a super_admin, organisation content only by an admin (same rule as review).
+    await assertRoleFitsTenant(client, { tenantId, userId: actorUserId, role: role ?? "" });
     const imp = (await client.query<{ status: string }>(
       `SELECT status FROM question_imports WHERE id = $1 AND upload_rights_status IS NOT NULL FOR UPDATE`, [importId],
     )).rows[0];
@@ -63,5 +68,5 @@ export async function withdrawImport(
       if (!s.withdrawn) withdrawn++;
     }
     return { importId, withdrawn };
-  });
+  }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
 }
