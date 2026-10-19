@@ -214,7 +214,7 @@ async function buildPublishedPack(
   // publishPack does not auto-flip; flip via superuser client.
   await withSuperClient(async (client) => {
     await client.query(
-      `UPDATE questions SET status = 'active' WHERE pack_id = $1`,
+      `UPDATE questions SET status = 'active', review_state = 'verified' WHERE pack_id = $1`,
       [pack.id],
     );
   });

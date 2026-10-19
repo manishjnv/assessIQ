@@ -9,7 +9,7 @@ import { V2_COLUMNS } from "./v2.js";
 export const COMMON_COLUMNS = ["type", "topic", "points", "level", "negative_marks", ...V2_COLUMNS] as const;
 
 // Example values for the v2 columns, in V2_COLUMNS order. rights_status is the one required cell.
-const V2_EXAMPLE = ["", "", "", "", "original", "", "", "", "", "en", "", ""];
+const V2_EXAMPLE = ["", "", "", "", "original", "", "", "", "", "en", "", "", "", ""];
 
 export function templateRows(type: QuestionType): { header: string[]; example: string[] } {
   const cols = getQuestionType(type).importColumns;

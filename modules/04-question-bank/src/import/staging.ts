@@ -109,6 +109,28 @@ export function validateRowV2(
   };
 }
 
+/** EXP-8: one passage_text per passage_ref (first non-empty cell); it is copied to every row of the group. A missing or conflicting text fails the group. */
+export function applyPassageGroups(
+  rows: Array<{ row: number; raw: Record<string, string>; normalized: NormalizedRow | null; errors: RowError[] }>,
+): void {
+  const groups = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const ref = (r.raw.passage_ref ?? "").trim();
+    if (ref !== "") groups.set(ref, [...(groups.get(ref) ?? []), r]);
+  }
+  for (const [ref, members] of groups) {
+    const texts = [...new Set(members.map((m) => (m.raw.passage_text ?? "").trim()).filter((t) => t !== ""))];
+    const message = texts.length === 0 ? `passage_ref '${ref}' has no passage_text on any row`
+      : texts.length > 1 ? `passage_ref '${ref}' has different passage_text values; give the text once` : null;
+    for (const m of members) {
+      if (message !== null) {
+        m.errors.push({ row: m.row, column: "passage_text", message });
+        m.normalized = null;
+      } else if (m.normalized?.meta) m.normalized.meta.passageText = texts[0]!;
+    }
+  }
+}
+
 export interface DecideRow {
   normalized: NormalizedRow | null; hash: string | null; errors: RowError[]; skipped: boolean;
   /** Trigram hit against an existing question (computed by the caller when pg_trgm exists). */
@@ -145,11 +167,11 @@ export function decide(
 // DB helpers
 // ---------------------------------------------------------------------------
 
-interface ImportRow { id: string; domain: string; status: ImportStatus; format: ImportFormat }
+interface ImportRow { id: string; domain: string; status: ImportStatus; format: ImportFormat; upload_rights_status: TenantUploadRights | null }
 
 async function loadImport(client: PoolClient, importId: string, lock = false): Promise<ImportRow> {
   const r = await client.query<ImportRow>(
-    `SELECT id, domain, status, format FROM question_imports WHERE id = $1${lock ? " FOR UPDATE" : ""}`,
+    `SELECT id, domain, status, format, upload_rights_status FROM question_imports WHERE id = $1${lock ? " FOR UPDATE" : ""}`,
     [importId],
   );
   const row = r.rows[0];
@@ -251,6 +273,20 @@ async function syncCounts(client: PoolClient, importId: string): Promise<void> {
   );
 }
 
+/** Rights an organisation may claim on upload (the values that do not block publish). */
+export const TENANT_UPLOAD_RIGHTS = ["original", "derived_from_source", "licensed"] as const;
+export type TenantUploadRights = (typeof TENANT_UPLOAD_RIGHTS)[number];
+
+/** validateRowV2; for an organisation upload the cells cannot choose origin or rights (the uploader's choice wins). */
+function validateTenantAware(
+  row: number, cells: Record<string, string>, ctx: Parameters<typeof validateRowV2>[2], rights: TenantUploadRights | null | undefined,
+): ReturnType<typeof validateRowV2> {
+  if (!rights) return validateRowV2(row, cells, ctx);
+  const v = validateRowV2(row, { ...cells, rights_status: rights, origin: "" }, ctx);
+  if (v.normalized?.meta) { v.normalized.meta.origin = "tenant_upload"; v.normalized.meta.rightsStatus = rights; }
+  return v;
+}
+
 // ---------------------------------------------------------------------------
 // stageImport
 // ---------------------------------------------------------------------------
@@ -260,6 +296,8 @@ export async function stageImport(
   actorUserId: string,
   meta: ImportFileMeta,
   parsed: ParseResult,
+  /** EXP-17: organisation upload. Forces origin 'tenant_upload' and the uploader's rights_status on every row. */
+  tenantUpload?: { rightsStatus: TenantUploadRights },
 ): Promise<DryRunReport> {
   return withTenant(tenantId, async (client) => {
     const domain = meta.domain.trim().toLowerCase();
@@ -276,7 +314,7 @@ export async function stageImport(
 
     const taxonomy = await loadTaxonomyIndex(client);
     const checked = parsed.rows.map((p: ParsedRow) => {
-      const v = validateRowV2(p.row, p.cells, { format: meta.format, taxonomy });
+      const v = validateTenantAware(p.row, p.cells, { format: meta.format, taxonomy }, tenantUpload?.rightsStatus);
       return {
         row: p.row, raw: p.cells, normalized: v.normalized, errors: v.errors,
         hash: v.normalized ? contentHash(v.normalized.type, v.normalized.content) : null, skipped: false, similar: false,
@@ -286,6 +324,7 @@ export async function stageImport(
       checked.push({ row: e.row, raw: {}, normalized: null, errors: [e], hash: null, skipped: false, similar: false });
     }
     checked.sort((a, b) => a.row - b.row);
+    applyPassageGroups(checked);
     const stems = checked.flatMap((c) => { const stem = stemOf(c.normalized); return stem === null ? [] : [{ row: c.row, stem }]; });
     const similarRows = await similarRowNumbers(client, domain, stems);
     for (const c of checked) c.similar = similarRows.has(c.row);
@@ -295,9 +334,11 @@ export async function stageImport(
     checked.forEach((c, i) => { if (c.normalized?.meta) c.normalized.meta.dupClass = verdicts[i]!.dup; });
 
     const ins = await client.query<{ id: string }>(
-      `INSERT INTO question_imports (tenant_id, created_by, file_name, file_sha256, format, domain, pack_name)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
-      [tenantId, actorUserId, meta.fileName, meta.fileSha256, meta.format, domain, meta.packName],
+      `INSERT INTO question_imports (tenant_id, created_by, file_name, file_sha256, format, domain, pack_name,
+                                     upload_rights_status, warranty_accepted_by, warranty_accepted_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text, CASE WHEN $8::text IS NULL THEN NULL ELSE $2::uuid END,
+               CASE WHEN $8::text IS NULL THEN NULL ELSE now() END) RETURNING id`,
+      [tenantId, actorUserId, meta.fileName, meta.fileSha256, meta.format, domain, meta.packName, tenantUpload?.rightsStatus ?? null],
     );
     const importId = ins.rows[0]!.id;
     if (checked.length > 0) {
@@ -320,7 +361,11 @@ export async function stageImport(
     await auditInTx(client, {
       tenantId, actorKind: "user", actorUserId, action: "question_import.staged",
       entityType: "question_import", entityId: importId,
-      after: { file_name: meta.fileName, format: meta.format, domain, rows: checked.length },
+      after: {
+        file_name: meta.fileName, format: meta.format, domain, rows: checked.length,
+        // EXP-17: who accepted the content warranty is the audit actor; when is the audit timestamp.
+        ...(tenantUpload ? { content_warranty: true, rights_status: tenantUpload.rightsStatus, origin: "tenant_upload" } : {}),
+      },
     });
     return buildReport(client, importId);
   }).catch(async (err: unknown) => {
@@ -367,7 +412,18 @@ export async function fixImportRow(
     if (target === undefined) throw new NotFoundError("import row not found", { details: { code: "IMPORT_ROW_NOT_FOUND" } });
 
     const taxonomy = await loadTaxonomyIndex(client);
+    // EXP-8: a passage group is judged as a whole. When a row of a group is edited, every row of the old and
+    // new group is validated again, so the shared passage_text is never lost (Z-52 gate finding).
+    const refOf = (r: Record<string, string>): string => (r.passage_ref ?? "").trim();
+    const groupRefs = new Set([refOf(target.raw), refOf({ ...target.raw, ...(patch.values ?? {}) })].filter((r) => r !== ""));
     const items = all.rows.map((x) => {
+      if (x.row_number !== rowNumber && groupRefs.has(refOf(x.raw))) {
+        const v = validateTenantAware(x.row_number, x.raw, { format: imp.format, taxonomy }, imp.upload_rights_status);
+        return {
+          rec: x, normalized: v.normalized, hash: v.normalized ? contentHash(v.normalized.type, v.normalized.content) : null,
+          errors: v.errors, skipped: x.decision === "skip", similar: false,
+        };
+      }
       if (x.row_number !== rowNumber) {
         // Untouched rows keep their stored trigram flag; only the edited row is re-checked below.
         return {
@@ -376,13 +432,16 @@ export async function fixImportRow(
         };
       }
       const raw = { ...x.raw, ...(patch.values ?? {}) };
-      const v = validateRowV2(x.row_number, raw, { format: imp.format, taxonomy });
+      const v = validateTenantAware(x.row_number, raw, { format: imp.format, taxonomy }, imp.upload_rights_status);
       return {
         rec: { ...x, raw }, normalized: v.normalized, errors: v.errors,
         hash: v.normalized ? contentHash(v.normalized.type, v.normalized.content) : null,
         skipped: patch.skip ?? x.decision === "skip", similar: false,
       };
     });
+    const views = items.map((it) => ({ row: it.rec.row_number, raw: it.rec.raw, normalized: it.normalized, errors: it.errors }));
+    applyPassageGroups(views);
+    views.forEach((v, i) => { items[i]!.normalized = v.normalized; });
     const edited = items.find((it) => it.rec.row_number === rowNumber)!;
     const stem = stemOf(edited.normalized);
     if (stem !== null) edited.similar = (await similarRowNumbers(client, imp.domain, [{ row: rowNumber, stem }])).has(rowNumber);

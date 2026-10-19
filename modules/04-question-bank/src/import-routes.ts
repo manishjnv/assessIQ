@@ -1,12 +1,12 @@
 // RW-58: super-admin CSV/XLSX question import routes (staged -> fix rows -> commit | discard).
 // Body is JSON with a base64 file, or multipart/form-data (RW-97).
 import type {} from "@fastify/multipart"; // request.file() / isMultipart() types only; the plugin is registered by apps/api
-import type { FastifyInstance, preHandlerHookHandler } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { z } from "zod";
 import { AppError, ValidationError, sha256Hex } from "@assessiq/core";
 import { QUESTION_TYPES } from "@assessiq/question-types";
 import { parseImportFile, IMPORT_MAX_BYTES } from "./import/parse.js";
-import { stageImport, getImportReport, fixImportRow, discardImport } from "./import/staging.js";
+import { stageImport, getImportReport, fixImportRow, discardImport, TENANT_UPLOAD_RIGHTS, type TenantUploadRights } from "./import/staging.js";
 import { commitImport } from "./import/commit.js";
 import { buildTemplate } from "./import/templates.js";
 import { exportPackQti } from "./import/export.js";
@@ -41,6 +41,58 @@ function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, v: unknown, what:
   return r.data;
 }
 
+const TenantExtra = z.object({
+  content_warranty: z.literal(true, { errorMap: () => ({ message: "content_warranty must be true: you must hold the rights to this content" }) }),
+  rights_status: z.enum(TENANT_UPLOAD_RIGHTS),
+});
+
+type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; data: Buffer };
+
+/** Reads a JSON-base64 or multipart upload. `extra` carries the tenant-only fields (warranty, rights). */
+async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra: Record<string, unknown> }> {
+  const tooLarge = () => new AppError("The file is larger than 4 MB.", "FILE_TOO_LARGE", 413);
+  if (req.isMultipart()) {
+    let part;
+    try { part = await req.file(); } catch (e) {
+      if ((e as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") throw tooLarge();
+      throw e;
+    }
+    if (part === undefined) throw new ValidationError("invalid body", { details: { code: "INVALID_PARAM", issues: [{ message: "file part is required" }] } });
+    let data: Buffer;
+    try { data = await part.toBuffer(); } catch (e) {
+      if ((e as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") throw tooLarge();
+      throw e;
+    }
+    if (part.file.truncated) throw tooLarge();
+    const text = (k: string): string | undefined => {
+      const f = part.fields[k] as { value?: unknown } | undefined;
+      return typeof f?.value === "string" ? f.value : undefined;
+    };
+    const f = parse(MultipartFields, {
+      file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"),
+    }, "body");
+    return {
+      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, data },
+      extra: { content_warranty: text("content_warranty") === "true" ? true : undefined, rights_status: text("rights_status") },
+    };
+  }
+  const raw = (req.body ?? {}) as Record<string, unknown>;
+  const body = parse(UploadBody, raw, "body");
+  return {
+    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, data: Buffer.from(body.content_base64, "base64") },
+    extra: { content_warranty: raw["content_warranty"], rights_status: raw["rights_status"] },
+  };
+}
+
+async function stageAndReply(req: FastifyRequest, reply: FastifyReply, u: Upload, tenantUpload?: { rightsStatus: TenantUploadRights }) {
+  const parsed = await parseImportFile(u.format, u.data);
+  const report = await stageImport(req.session!.tenantId, req.session!.userId, {
+    fileName: u.fileName, fileSha256: sha256Hex(u.data), format: u.format,
+    domain: u.domain, packName: u.packName ?? u.fileName.replace(/\.[^.]+$/, ""),
+  }, parsed, tenantUpload);
+  return reply.code(201).send(report);
+}
+
 const ExportParams = z.object({ id: uuid });
 const ExportQuery = z.object({ format: z.literal("qti3") });
 
@@ -49,58 +101,56 @@ const MIME = {
   xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 } as const;
 
+// Shared by the super-admin and the organisation-admin routes.
+const templateHandler = async (req: FastifyRequest, reply: FastifyReply) => {
+  const { type } = parse(TemplateParams, req.params, "type");
+  const { format } = parse(TemplateQuery, req.query, "query");
+  const file = await buildTemplate(type, format);
+  return reply
+    .header("content-type", MIME[format])
+    .header("content-disposition", `attachment; filename="question-import-${type}.${format}"`)
+    .send(file);
+};
+const getHandler = async (req: FastifyRequest) => {
+  const { id } = parse(IdParams, req.params, "id");
+  return getImportReport(req.session!.tenantId, id);
+};
+const patchHandler = async (req: FastifyRequest) => {
+  const { id, row } = parse(RowParams, req.params, "params");
+  const body = parse(PatchBody, req.body, "body");
+  return fixImportRow(req.session!.tenantId, req.session!.userId, id, row, body);
+};
+const commitHandler = async (req: FastifyRequest) => {
+  const { id } = parse(IdParams, req.params, "id");
+  return commitImport(req.session!.tenantId, req.session!.userId, id, { mode: "skip-errors" });
+};
+const discardHandler = async (req: FastifyRequest) => {
+  const { id } = parse(IdParams, req.params, "id");
+  return discardImport(req.session!.tenantId, req.session!.userId, id);
+};
+
 export function registerImportRoutes(
   app: FastifyInstance,
   preHandler: preHandlerHookHandler[] | preHandlerHookHandler,
+  tenantPreHandler: preHandlerHookHandler[] | preHandlerHookHandler,
 ): void {
   // Literal paths on purpose: tools/lint-ui-api-contract.ts matches route strings, not template variables.
 
+  // EXP-17: organisation admins upload into their own tenant. Same service, same limits; the body must carry
+  // content_warranty: true and the uploader's rights_status.
+  app.post("/api/admin/question-imports", { preHandler: tenantPreHandler, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
+    const { upload, extra } = await readUpload(req);
+    const w = parse(TenantExtra, extra, "body");
+    return stageAndReply(req, reply, upload, { rightsStatus: w.rights_status });
+  });
+
   app.post("/api/admin/super/question-imports", { preHandler, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
-    const tooLarge = () => new AppError("The file is larger than 4 MB.", "FILE_TOO_LARGE", 413);
-    let fileName: string; let format: z.infer<typeof Format>; let domain: string; let packName: string | undefined; let data: Buffer;
-    if (req.isMultipart()) {
-      let part;
-      try { part = await req.file(); } catch (e) {
-        if ((e as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") throw tooLarge();
-        throw e;
-      }
-      if (part === undefined) throw new ValidationError("invalid body", { details: { code: "INVALID_PARAM", issues: [{ message: "file part is required" }] } });
-      try { data = await part.toBuffer(); } catch (e) {
-        if ((e as { code?: string }).code === "FST_REQ_FILE_TOO_LARGE") throw tooLarge();
-        throw e;
-      }
-      if (part.file.truncated) throw tooLarge();
-      const text = (k: string): string | undefined => {
-        const f = part.fields[k] as { value?: unknown } | undefined;
-        return typeof f?.value === "string" ? f.value : undefined;
-      };
-      const f = parse(MultipartFields, {
-        file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"),
-      }, "body");
-      ({ file_name: fileName, format, domain, pack_name: packName } = f);
-    } else {
-      const body = parse(UploadBody, req.body, "body");
-      ({ file_name: fileName, format, domain, pack_name: packName } = body);
-      data = Buffer.from(body.content_base64, "base64");
-    }
-    const parsed = await parseImportFile(format, data);
-    const report = await stageImport(req.session!.tenantId, req.session!.userId, {
-      fileName, fileSha256: sha256Hex(data), format,
-      domain, packName: packName ?? fileName.replace(/\.[^.]+$/, ""),
-    }, parsed);
-    return reply.code(201).send(report);
+    const { upload } = await readUpload(req);
+    return stageAndReply(req, reply, upload);
   });
 
   // Static "/templates/:type" is registered before "/:id".
-  app.get(`/api/admin/super/question-imports/templates/:type`, { preHandler }, async (req, reply) => {
-    const { type } = parse(TemplateParams, req.params, "type");
-    const { format } = parse(TemplateQuery, req.query, "query");
-    const file = await buildTemplate(type, format);
-    return reply
-      .header("content-type", MIME[format])
-      .header("content-disposition", `attachment; filename="question-import-${type}.${format}"`)
-      .send(file);
-  });
+  app.get(`/api/admin/super/question-imports/templates/:type`, { preHandler }, templateHandler);
 
   // RW-59: QTI 3.0 package of one pack. The answer key is included on purpose (super-admin only).
   app.get(`/api/admin/super/packs/:id/export`, { preHandler }, async (req, reply) => {
@@ -113,26 +163,20 @@ export function registerImportRoutes(
       .send(file);
   });
 
-  app.get(`/api/admin/super/question-imports/:id`, { preHandler }, async (req) => {
-    const { id } = parse(IdParams, req.params, "id");
-    return getImportReport(req.session!.tenantId, id);
-  });
+  // EXP-17: organisation-admin copies of the five routes below (RLS limits every query to the caller's tenant).
+  app.get(`/api/admin/question-imports/templates/:type`, { preHandler: tenantPreHandler }, templateHandler);
+  app.get(`/api/admin/question-imports/:id`, { preHandler: tenantPreHandler }, getHandler);
+  app.patch(`/api/admin/question-imports/:id/rows/:row`, { preHandler: tenantPreHandler }, patchHandler);
+  app.post(`/api/admin/question-imports/:id/commit`, { preHandler: tenantPreHandler }, commitHandler);
+  app.post(`/api/admin/question-imports/:id/discard`, { preHandler: tenantPreHandler }, discardHandler);
 
-  app.patch(`/api/admin/super/question-imports/:id/rows/:row`, { preHandler }, async (req) => {
-    const { id, row } = parse(RowParams, req.params, "params");
-    const body = parse(PatchBody, req.body, "body");
-    return fixImportRow(req.session!.tenantId, req.session!.userId, id, row, body);
-  });
+  app.get(`/api/admin/super/question-imports/:id`, { preHandler }, getHandler);
 
-  app.post(`/api/admin/super/question-imports/:id/commit`, { preHandler }, async (req) => {
-    const { id } = parse(IdParams, req.params, "id");
-    return commitImport(req.session!.tenantId, req.session!.userId, id, { mode: "skip-errors" });
-  });
+  app.patch(`/api/admin/super/question-imports/:id/rows/:row`, { preHandler }, patchHandler);
 
-  app.post(`/api/admin/super/question-imports/:id/discard`, { preHandler }, async (req) => {
-    const { id } = parse(IdParams, req.params, "id");
-    return discardImport(req.session!.tenantId, req.session!.userId, id);
-  });
+  app.post(`/api/admin/super/question-imports/:id/commit`, { preHandler }, commitHandler);
+
+  app.post(`/api/admin/super/question-imports/:id/discard`, { preHandler }, discardHandler);
 
   // EXP-2: takedown of one question (rights_status = 'withdrawn', status = 'archived'). Super admin only.
   app.post(`/api/admin/super/questions/:id/withdraw`, { preHandler }, async (req) => {

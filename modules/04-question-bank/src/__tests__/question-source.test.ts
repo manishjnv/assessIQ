@@ -148,7 +148,7 @@ describe("question_source RLS and create paths", () => {
       content: MCQ, knowledgeBaseSources: [], createdBy: uA,
     }));
     expect(await source(ai.id)).toMatchObject({ origin: "ai_original", rights_status: "original" });
-    expect(ai.review_state).toBeNull();
+    expect(ai.review_state).toBe("in_review");
     expect(ai.language_primary).toBe("en");
 
     const seenByB = await withTenant(tB, async (c) => (await c.query(`SELECT 1 FROM question_source WHERE question_id=$1`, [ids[0]])).rowCount);

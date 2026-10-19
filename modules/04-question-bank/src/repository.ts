@@ -886,7 +886,7 @@ export async function insertQuestion(
     sourceExtra?: QuestionSourceExtra;
     difficultyEst?: number | null;
     languagePrimary?: string;
-    /** EXP-18: imports and tenant uploads pass 'in_review'; omitted = NULL (no review concept). */
+    /** EXP-18 / Z-52 gap 5: omitted = 'in_review' (every new row starts unverified); legacy NULL rows are not backfilled. */
     reviewState?: ReviewState | null;
   },
 ): Promise<Question> {
@@ -913,7 +913,7 @@ export async function insertQuestion(
       input.negativeMarks ?? null,
       input.difficultyEst ?? null,
       input.languagePrimary ?? null,
-      input.reviewState ?? null,
+      input.reviewState === undefined ? "in_review" : input.reviewState,
     ],
   );
   const row = result.rows[0];
@@ -946,8 +946,8 @@ export async function insertAiDraftQuestion(
 ): Promise<Question> {
   const result = await client.query<QuestionRow>(
     `INSERT INTO questions
-       (id, pack_id, level_id, type, topic, points, status, content, rubric, knowledge_base_sources, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, 'ai_draft', $7::jsonb, $8::jsonb, $9::jsonb, $10)
+       (id, pack_id, level_id, type, topic, points, status, content, rubric, knowledge_base_sources, created_by, review_state)
+     VALUES ($1, $2, $3, $4, $5, $6, 'ai_draft', $7::jsonb, $8::jsonb, $9::jsonb, $10, 'in_review')
      RETURNING ${QUESTION_COLUMNS}`,
     [
       input.id,

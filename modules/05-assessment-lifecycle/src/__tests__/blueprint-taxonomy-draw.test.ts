@@ -170,7 +170,7 @@ beforeAll(async () => {
     );
     qid[name] = q.id;
     await sup(async (c) => {
-      await c.query(`UPDATE questions SET domain_id=$2, category_id=$3, status=$4, difficulty_est=$5 WHERE id=$1`, [
+      await c.query(`UPDATE questions SET domain_id=$2, category_id=$3, status=$4, difficulty_est=$5, review_state='verified' WHERE id=$1`, [
         q.id, domainId, cat1, status, diff,
       ]);
       await c.query(

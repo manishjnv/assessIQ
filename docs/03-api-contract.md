@@ -644,6 +644,13 @@ A super admin imports questions from a CSV or XLSX file. The file is staged and 
 | `POST /api/admin/super/question-imports/:id/commit` | none | 200 `{ importId, packId, committed }` |
 | `POST /api/admin/super/question-imports/:id/discard` | none | 200 report |
 
+**Organisation upload (EXP-17, 2026-10-19).** Admins of any tenant use the same five routes under `/api/admin/question-imports` (`POST` upload, `GET /templates/:type`, `GET /:id`, `PATCH /:id/rows/:row`, `POST /:id/commit`, `POST /:id/discard`). They use the `adminOnly` guard. Row Level Security limits every call to the caller's tenant, so another tenant gets `404 IMPORT_NOT_FOUND`.
+- The upload body adds two required fields: `content_warranty` (must be `true`; the uploader states they hold the rights) and `rights_status` (`original`, `derived_from_source` or `licensed`). In multipart, send both as text fields (`content_warranty=true`). A missing or false warranty, or any other rights value, answers `400 INVALID_PARAM`.
+- The uploader's `rights_status` replaces the file cell on every row, and the origin is always `tenant_upload`. A row edit cannot change either value.
+- The commit creates a draft pack owned by the caller's tenant. Every question starts `review_state = 'in_review'`, so it stays away from candidates until the organisation verifies it (EXP-18 routes).
+- `question_imports` records `upload_rights_status`, `warranty_accepted_by` and `warranty_accepted_at`. The audit row `question_import.staged` also carries `content_warranty: true`.
+- Not included: plan quotas (billing has no question or pack count limit), UI.
+
 **Multipart request (RW-97, S11, 2026-10-16).**
 - Send `Content-Type: multipart/form-data`. The text fields are `format` (`csv` or `xlsx`), `domain` and `pack_name` (optional). A `file_name` field is optional. The file part is named `file`.
 - **Field order rule.** Put every text field BEFORE the `file` part. The handler reads the stream in order. A field after the file part is not seen.
@@ -3839,3 +3846,12 @@ This section supersedes the "even split", "400 when the sections have different 
 
 - **New behaviour.** When the flag is on, `POST /api/admin/users` (role candidate), `POST /api/admin/users/import` and `PATCH /api/admin/users/:id` (role change) answer `403` with `details.code` `TIER_LIMIT_REACHED` once a Free organisation would hold more than 5 candidates in total. On a capped tier a candidate cannot change role. `POST /api/admin/super/evaluations/:attemptId/grade` and `/rerun` answer `403` `TIER_LIMIT_REACHED` after 5 AI-graded attempts, or `403` `AI_GRADING_DISABLED` when `FREE_PLAN_AI_DISABLED=true`. Paid tiers are never blocked.
 - **Why.** The approved Free plan (docs/design/2026-10-18-free-plan-pack.md). **Not included:** a DB-level guard against concurrent requests (Z-71), a changed response shape. Detail: `docs/design/2026-10-20-free-tier-limits.md`.
+
+## Import: passage columns (EXP-8, 2026-10-19)
+
+No route changed. The v2 import template has two more columns, after `pyq_shift`: `passage_ref` and `passage_text`.
+
+- Rows with the same `passage_ref` in one file share one passage. The text comes from `passage_text`, on any row of the group (usually the first).
+- A `passage_ref` with no `passage_text` on any row, or with two different texts, gives a row error `passage_text` on every row of the group. `passage_text` without `passage_ref` is a row error.
+- Commit writes one `passages` row for each ref (tenant of the import) and sets `questions.passage_id` and `passage_position` (1, 2, 3 in file order among the committed rows).
+- The candidate attempt view (`GET` attempt payload, `questions[]`) gets an optional `passage: { id, title, body }` on each question that has one.

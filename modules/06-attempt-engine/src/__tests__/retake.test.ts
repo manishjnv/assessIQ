@@ -141,7 +141,7 @@ async function setup(opts: { maxAttempts?: number | null; scoreCounts?: "latest"
     );
   }
   await publishPack(tenantA, pack.id, adminA);
-  await sup((c) => c.query(`UPDATE questions SET status = 'active' WHERE pack_id = $1`, [pack.id]));
+  await sup((c) => c.query(`UPDATE questions SET status = 'active', review_state = 'verified' WHERE pack_id = $1`, [pack.id]));
   const assessment = await createAssessment(
     tenantA,
     {

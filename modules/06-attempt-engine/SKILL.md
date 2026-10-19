@@ -266,3 +266,11 @@ Each step also carries `points` and `negative_marks` when the author set them. T
 - **Section names.** `getAttemptView` adds `section_names` (section names by `section_index`) only in whole-test mode; the key is absent otherwise. The take page navigator groups by it.
 - **Tests.** `src/__tests__/whole-test-timer.test.ts` (free movement, reload keeps `ends_at`, 1 ms past `ends_at` rejected for every section, frozen marks, section totals 4 and 1.5, regressions for per-section and no-section assessments), `src/__tests__/sections-timing.test.ts`.
 - **Z-42 hardening.** `toggleFlag` rejects past `ends_at` (`AE_TIMER_EXPIRED`) like `saveAnswer`; `startAttempt` fails closed with `AE_SECTIONS_INVALID` when `settings.sections` is non-empty but unreadable (no unsectioned fallback).
+
+## Passage draw and freeze (EXP-8, 2026-10-19)
+
+- **Draw unit.** In all three draw paths (sections, blueprint, full pool) `startAttempt` works on units: a standalone question, or all pool members of one passage. `src/passages.ts` (`takeUnits`, `groupUnits`) is pure. Siblings come from the SAME eligible pool (live active questions, or the frozen pool), so a withdrawn or inactive child is simply not there.
+- **Count decision.** A passage counts as its number of children. A passage that does not fit the remaining slots of a section, criterion or assessment is skipped whole; a later smaller unit may fill the gap. Never a partial passage. Greedy, so an unlucky shuffle can leave a section short; it then fails with `POOL_TOO_SMALL` (full pool, sections) or draws fewer with a warning (blueprint, as before). Upgrade path if it matters: try a few shuffles.
+- **Order.** Children stay together in `passage_position`, then `created_at`, then `id`. The blueprint final shuffle regroups units, so it never splits a passage. With no passage in the pool the result is identical to the old `slice(0, N)`.
+- **Freeze.** `attempt_questions.passage_id` (0213) is written by `insertAttemptQuestions`. `listFrozenQuestionsForAttempt` returns `passage { id, title, body }` from that id. Passages are immutable, so later edits never change an attempt.
+- **Scoring.** Unchanged. Each child has its own `points` and `negative_marks` rows.

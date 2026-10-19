@@ -115,6 +115,8 @@ beforeAll(async () => {
     // EXP-2: clone code now copies question_source (0194); same after-the-chain rule as 0156 (0194 reads question_packs.source from 0174).
     await c.query(await readFile(join(MODULES, "04-question-bank", "migrations", "0174_question_imports.sql"), "utf8"));
     await c.query(await readFile(join(MODULES, "04-question-bank", "migrations", "0194_question_source_and_exam_columns.sql"), "utf8"));
+    // EXP-8: clone code now copies passages (0211).
+    await c.query(await readFile(join(MODULES, "04-question-bank", "migrations", "0211_exp8_passages.sql"), "utf8"));
     // 016_super_admin.sql already bootstraps the platform tenant + super_admin user.
     platformId = "00000000-0000-7000-0000-000000000001";
     platformUser = "00000000-0000-7000-0000-000000000002";

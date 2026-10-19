@@ -9,11 +9,12 @@ import type { RowError, RowMeta } from "./types.js";
 export const V2_COLUMNS = [
   "exam_stage", "subject_path", "difficulty", "difficulty_scale", "rights_status", "origin",
   "source_ref", "source_url", "seed_ref", "language", "pyq_year", "pyq_shift",
+  "passage_ref", "passage_text",
 ] as const;
 
 /** 'withdrawn' is a takedown state set by the withdraw route; it is never importable. */
 export const IMPORT_RIGHTS = ["original", "derived_from_source", "scraped_raw", "licensed", "metadata_only"] as const;
-/** question_source.origin CHECK values minus 'tenant_upload' (EXP-17, not open yet). */
+/** question_source.origin CHECK values minus 'tenant_upload' (EXP-17: set by the tenant upload route, never by a cell). */
 export const IMPORT_ORIGINS = ["original_human", "ai_original", "ai_seeded", "derived_from_source", "scraped_raw", "licensed"] as const;
 type Rights = (typeof IMPORT_RIGHTS)[number];
 
@@ -123,9 +124,12 @@ export function parseV2(
   }
   const url = c("source_url");
   if (url !== "" && !/^https?:\/\/\S+$/i.test(url)) err("source_url", "source_url must start with http:// or https://");
-  for (const [k, max] of [["source_ref", 500], ["source_url", 2000], ["seed_ref", 200], ["pyq_shift", 100]] as const) {
+  for (const [k, max] of [["source_ref", 500], ["source_url", 2000], ["seed_ref", 200], ["pyq_shift", 100], ["passage_ref", 100], ["passage_text", 20000]] as const) {
     if (c(k).length > max) err(k, `${k} is too long (max ${max} characters)`);
   }
+
+  // EXP-8: passage_text is only meaningful with a passage_ref (rows with the same ref share one passage).
+  if (c("passage_text") !== "" && c("passage_ref") === "") err("passage_text", "passage_text needs a passage_ref");
 
   // Taxonomy: an unknown name is a row error, never a silent skip.
   const { nodes } = opts.taxonomy;
@@ -154,7 +158,7 @@ export function parseV2(
   return {
     meta: {
       origin, rightsStatus: rights, sourceRef: c("source_ref") || null, sourceUrl: url || null, seedRef: c("seed_ref") || null,
-      sourceDifficultyRaw, difficultyEst, language, pyqYear, pyqShift: c("pyq_shift") || null, stageNodeId, subjectNodeId,
+      sourceDifficultyRaw, difficultyEst, language, pyqYear, pyqShift: c("pyq_shift") || null, passageRef: c("passage_ref") || null, passageText: c("passage_text") || null, stageNodeId, subjectNodeId,
     },
     errors,
   };

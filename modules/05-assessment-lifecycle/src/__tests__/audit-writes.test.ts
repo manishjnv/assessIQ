@@ -194,7 +194,7 @@ async function buildPublishedPack(
   // createQuestion defaults to 'draft' and publishPack does NOT auto-flip.
   await withSuperClient(async (client) => {
     await client.query(
-      `UPDATE questions SET status = 'active' WHERE pack_id = $1`,
+      `UPDATE questions SET status = 'active', review_state = 'verified' WHERE pack_id = $1`,
       [pack.id],
     );
   });

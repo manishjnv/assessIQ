@@ -87,6 +87,8 @@ vi.mock("../repository.js", () => ({
   // Per-student option shuffle: no MCQ options known -> every row gets optionOrder null.
   listMcqOptionsForPicks: vi.fn().mockResolvedValue(new Map()),
   listOrderingKeysForPicks: vi.fn().mockResolvedValue(new Map()),
+  // EXP-8: no passages in these pools -> draw is unchanged.
+  listPassageInfo: vi.fn().mockResolvedValue(new Map()),
   insertEmptyAttemptAnswers: vi.fn().mockResolvedValue(undefined),
   markInvitationStarted: vi.fn().mockResolvedValue(undefined),
   insertAttemptEvent: vi.fn().mockResolvedValue(undefined),

@@ -828,6 +828,8 @@ A golden test (`blueprint-node-golden.test.ts`) proves that a `category_id` blue
 | Migration | `modules/04-question-bank/migrations/0174_question_imports.sql`. Commit: (S10, 2026-10-16) |
 | What | Two new tables hold a staged CSV or XLSX import. `question_packs` gains two columns |
 | `question_imports` | One row for each uploaded file. Columns: `id`, `tenant_id`, `created_by` (users), `file_name`, `file_sha256`, `format` (`csv` or `xlsx`), `domain`, `pack_name`, `status` (`staged`, `committed`, `discarded`; default `staged`), `row_count`, `error_count`, `committed_pack_id` (question_packs), `created_at`, `updated_at` |
+| `question_imports` (EXP-17, migration 0209) | Adds `upload_rights_status` (NULL for a platform import; `original`, `derived_from_source` or `licensed` for an organisation upload), `warranty_accepted_by` (users) and `warranty_accepted_at`. No backfill. |
+| `questions.review_state` (Z-52 gap 5) | Every new row (createQuestion, AI draft, import) starts `in_review`. Legacy NULL rows are not backfilled; readers treat NULL as "legacy, not reviewed". Clones copy the master state. |
 | `question_import_rows` | One row for each file row. Columns: `id`, `import_id` (cascade delete), `tenant_id`, `row_number`, `raw` (JSONB), `normalized` (JSONB, null when invalid), `content_hash`, `errors` (JSONB array, default empty), `decision` (`ok`, `skip`, `duplicate`, `error`). Unique `(import_id, row_number)` |
 | `question_packs.source` | `TEXT NOT NULL DEFAULT 'authored'` with a CHECK for `authored`, `generated`, `import`. The default covers every existing row, so no backfill runs |
 | `question_packs.import_file_sha256` | Nullable. Set on a pack created by a commit. It links the pack to its source file |
@@ -2721,3 +2723,16 @@ New optional keys in `assessments.settings` (JSONB). No column, no table, so mig
 | Not included | Organisation upload (EXP-17: it must pass `reviewState: 'in_review'` and origin `tenant_upload`). Reset of `review_state` after a content edit. Setting `disputed`. Showing the Needs fix note on the question editor. Two-person review. Gating `reopenAssessment` (its freeze is a no-op). |
 | Downstream impact | Module 14: new action `question.review_changed`. Module 05: `publishAssessment`, `inviteUsers`, `resendInvitation`, `resendInvitations` and `reopenInvitationForRetake` refuse with `QUESTIONS_NOT_VERIFIED`. Module 10: new page `/admin/question-bank/:id/review`. Module 16: 6 help ids. Imported question sets now need a review before an assessment can publish. Clone and re-sync copy the state as before. |
 | Rollback | Revert the code. No data change is needed: the state column and its values stay valid. Questions already set to `in_review` by an import stay `in_review` and need a Verify. |
+
+## Passages (EXP-8, migrations 0211 and 0213, 2026-10-19)
+
+A passage is shared stem text used by several question rows (reading text, data set, logic set).
+
+| Item | Detail |
+| --- | --- |
+| `passages` (0211, module 04) | `id`, `tenant_id` (FK tenants), `title` NULL, `body` TEXT NOT NULL (plain text, rendered like a stem), `language`, `source_passage_id` (clone provenance), `created_at`. RLS: `tenant_isolation` plus `tenant_isolation_insert`, same as `question_source` |
+| Immutable | A `BEFORE UPDATE` trigger rejects a change of `body`, `title`, `language` or `tenant_id`. To change a passage, insert a new row and repoint the questions. No tenant policy allows a delete that matters: `questions.passage_id` is `ON DELETE RESTRICT` |
+| `questions.passage_id`, `questions.passage_position` (0211) | Nullable. `passage_position` orders the children inside a passage (NULL sorts last, then `created_at`, then `id`). No backfill |
+| `attempt_questions.passage_id` (0213, module 06) | UUID, no FK on purpose (module-local harness). Frozen at attempt start by the same INSERT that freezes the question version. Immutable passages make the id a freeze of the text |
+| Clone and re-sync | `copyQuestionSource` also copies the passage once per target tenant (unique on `(tenant_id, source_passage_id)`) and keeps `passage_position`. Re-sync copies it for NEW master questions only |
+| Not included | Images in passages (EXP-10), AI-graded passages, a passage edit screen, `has_passage` list filter, re-sync of a changed passage link on an existing clone |

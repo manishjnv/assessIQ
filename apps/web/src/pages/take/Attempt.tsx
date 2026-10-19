@@ -581,6 +581,30 @@ export function AttemptPage(): React.JSX.Element {
 
           {currentQuestion !== null ? (
             <>
+              {/* EXP-8: shared passage, plain text like the stem. Open by default; the candidate may fold it. */}
+              {currentQuestion.passage !== undefined && (
+                <details
+                  key={currentQuestion.passage.id}
+                  open
+                  data-testid="attempt-passage"
+                  style={{
+                    margin: '0 0 var(--aiq-space-md)',
+                    padding: 'var(--aiq-space-sm)',
+                    border: '1px solid var(--aiq-color-border)',
+                    borderRadius: 'var(--aiq-radius-md)',
+                    fontFamily: 'var(--aiq-font-sans)',
+                    fontSize: 'var(--aiq-text-sm)',
+                  }}
+                >
+                  <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+                    {currentQuestion.passage.title ?? 'Passage'}
+                  </summary>
+                  <p style={{ whiteSpace: 'pre-wrap', margin: 'var(--aiq-space-sm) 0 0' }}>
+                    {currentQuestion.passage.body}
+                  </p>
+                </details>
+              )}
+
               {/* Question text — canonical field names per type; no forbidden-synonym reads.
                    For scenario, title is the stem; intro is rendered inside ScenarioAnswerArea.
                    For all others, content.question is the stem.
