@@ -10,6 +10,9 @@
 #                     Cloudflare Transform Rule and the API env, not in Caddy. So no
 #                     {env.*} placeholders were needed. If one is ever added, template it
 #                     as {env.ASSESSIQ_ORIGIN_VERIFY} here and note it in this header.
+# Line numbers above and in the diff below are from 2026-10-02 and are STALE (the live file has
+# grown since; Z-46 moved 4 lines on 2026-10-19). Find the real ranges with `grep -n` on the live
+# file before you compare. Check: `grep -c Report-Only` on the live file must print 1 (assessiq.in).
 # Compare with live : (run from repo root; no output = identical body)
 #   diff <(sed '1,/^# ---- END HEADER ----$/d' infra/caddy/assessiq.caddy) <(ssh assessiq-vps "sed -n '8,19p' /opt/ti-platform/caddy/Caddyfile; echo; sed -n '51,112p' /opt/ti-platform/caddy/Caddyfile")
 # Policy            : this repo copy is a reference; the live file is edited on the VPS by
