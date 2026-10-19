@@ -166,10 +166,11 @@ export function parseQuestionFilters(q: Record<string, string | undefined>): Omi
   if (review) f.review_state = review;
   const language = parseList(q, "language", null);
   if (language) f.language = language;
-  const sol = q["has_solution"];
-  if (sol !== undefined && sol !== "") {
-    if (sol !== "true" && sol !== "false") badParam("has_solution", "must be true or false");
-    f.has_solution = sol === "true";
+  for (const key of ["has_solution", "has_passage"] as const) {
+    const v = q[key];
+    if (v === undefined || v === "") continue;
+    if (v !== "true" && v !== "false") badParam(key, "must be true or false");
+    f[key] = v === "true";
   }
   return f;
 }
@@ -291,6 +292,8 @@ export interface RegisterQuestionBankRoutesOptions {
    * Mirror of how 07-ai-grading declares adminOnly + adminFreshMfa in its opts.
    */
   superAdminOnly: import("fastify").preHandlerHookHandler[] | import("fastify").preHandlerHookHandler;
+  /** EXP-17: adminOnly plus the plan gate for organisation question upload. Defaults to adminOnly. */
+  orgUploadGuard?: import("fastify").preHandlerHookHandler[] | import("fastify").preHandlerHookHandler;
 }
 
 export async function registerQuestionBankRoutes(
@@ -600,7 +603,7 @@ export async function registerQuestionBankRoutes(
 
   // RW-55: read-only curriculum frameworks (adminOnly; RLS shows NULL-tenant + own rows).
   registerTaxonomyRoutes(app, adminOnly, superAdminOnly);
-  registerImportRoutes(app, superAdminOnly, adminOnly); // RW-58; EXP-17 organisation routes use adminOnly
+  registerImportRoutes(app, superAdminOnly, adminOnly, opts.orgUploadGuard); // RW-58; EXP-17 organisation routes use adminOnly
   registerReviewRoutes(app, adminOnly); // EXP-18 part 2 (admin and super_admin; the service splits platform vs organisation)
   registerExamBlueprintRoutes(app, adminOnly, superAdminOnly); // EXP-6
 

@@ -11,7 +11,7 @@ import { csvCell, sha256Hex } from "@assessiq/core";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { parseImportFile } from "../import/parse.js";
-import { stageImport, fixImportRow } from "../import/staging.js";
+import { stageImport, fixImportRow, previewImport } from "../import/staging.js";
 import { commitImport } from "../import/commit.js";
 
 let container: StartedTestContainer;
@@ -157,6 +157,15 @@ describe("EXP-4 import v2", () => {
     ]);
     const r = await stage(next);
     expect(r.rows.map((x) => [x.decision, x.dupClass])).toEqual([["duplicate", "exact"], ["duplicate", "normalised"], ["ok", null]]);
+  });
+
+  it("EXP-15 previewImport reports file and existing duplicates and writes nothing", async () => {
+    const countImports = () => sup(async (c) => Number((await c.query(`SELECT count(*) FROM question_imports`)).rows[0].count));
+    const before = await countImports();
+    const data = buildCsv([mcq(1), mcq(400), mcq(400)]); // 1 = existing (committed above), 400 twice = repeat inside the file
+    const prev = await previewImport(tA, meta(data), await parseImportFile("csv", data));
+    expect(prev.rows.map((x) => [x.decision, x.dupScope])).toEqual([["duplicate", "existing"], ["ok", null], ["duplicate", "file"]]);
+    expect(await countImports()).toBe(before);
   });
 
   it("an old-style file without rights_status gives a row error per row, not a file error", async () => {

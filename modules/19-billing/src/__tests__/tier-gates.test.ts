@@ -50,6 +50,7 @@ const MIN: Record<TierFeature, 'free' | 'pro' | 'enterprise'> = {
   embed: 'enterprise',
   audit_viewer: 'enterprise',
   own_email_sender: 'enterprise',
+  question_upload: 'pro',
 };
 const ORDER = ['free', 'pro', 'enterprise', 'internal'];
 

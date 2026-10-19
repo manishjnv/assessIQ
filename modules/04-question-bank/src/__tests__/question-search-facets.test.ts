@@ -266,6 +266,22 @@ describe("filter combinations", () => {
     expect(ids(await f({ has_solution: false }))).toEqual(want("b", "c", "e"));
   });
 
+  it("has_passage splits questions by passage_id (EXP-6 tail, migration 0211)", async () => {
+    await sup(async (c) => {
+      const pid = randomUUID();
+      await c.query(`INSERT INTO passages (id, tenant_id, title, body) VALUES ($1,$2,'P','Read the text')`, [pid, tA]);
+      await c.query(`UPDATE questions SET passage_id = $1 WHERE id = $2`, [pid, smallIds["b"]]);
+      try {
+        expect(ids(await f({ has_passage: true }))).toEqual(want("b"));
+        expect(ids(await f({ has_passage: false }))).toEqual(want("a", "c", "d", "e", "f"));
+        expect(ids(await f({ has_passage: true, has_solution: false }))).toEqual(want("b"));
+      } finally {
+        await c.query(`UPDATE questions SET passage_id = NULL WHERE id = $1`, [smallIds["b"]]);
+        await c.query(`DELETE FROM passages WHERE id = $1`, [pid]);
+      }
+    });
+  });
+
   it("taxonomy node filters match the node and its descendants, and respect the node kind", async () => {
     expect(ids(await f({ outcome_id: outcomeA }))).toEqual(want("a", "b"));
     expect(ids(await f({ unit_id: unit }))).toEqual(want("a", "b", "d"));
@@ -358,7 +374,7 @@ describe("routes", () => {
     const app = await buildApp(tA);
     for (const qs of [
       "difficulty_min=9", "difficulty_min=3&difficulty_max=2", "origin=bogus", "rights_status=nope",
-      "review_state=maybe", "has_solution=yes", "outcome_id=not-a-uuid", `q=${"x".repeat(201)}`,
+      "review_state=maybe", "has_solution=yes", "has_passage=1", "outcome_id=not-a-uuid", `q=${"x".repeat(201)}`,
     ]) {
       for (const path of ["/api/admin/questions", "/api/admin/questions/facets"]) {
         const r = await app.inject({ method: "GET", url: `${path}?${qs}` });

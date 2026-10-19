@@ -269,6 +269,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   const contentEntries: NavEntry[] = [
     { label: "Generate questions", href: "/admin/generate-wizard", icon: "sparkle", superAdminOnly: true },
     { label: "Generation history", href: "/admin/generation-attempts", icon: "sparkle", superAdminOnly: true },
+    { label: "Exam blueprints", href: "/admin/exam-blueprints", icon: "book", superAdminOnly: true },
   ];
 
   // Platform — super_admin-only surfaces (RW-16), split out of Account.

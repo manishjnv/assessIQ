@@ -11,6 +11,7 @@ import { commitImport } from "./import/commit.js";
 import { buildTemplate } from "./import/templates.js";
 import { exportPackQti } from "./import/export.js";
 import { withdrawQuestion } from "./service/questions.js";
+import { listOrgUploads, withdrawImport } from "./import/org-uploads.js";
 
 const uuid = z.string().uuid();
 const Format = z.enum(["csv", "xlsx", "gift", "aiken", "qti"]);
@@ -26,6 +27,8 @@ const UploadBody = z.object({
   content_base64: z.string().min(1).max(Math.ceil((IMPORT_MAX_BYTES * 4) / 3) + 8),
   domain: z.string().min(1).max(80),
   pack_name: z.string().min(1).max(200).optional(),
+  /** EXP-17: default source reference for every row that has no source_ref cell of its own. */
+  source_ref: z.string().max(500).optional(),
 });
 const MultipartFields = UploadBody.omit({ content_base64: true });
 const PatchBody = z.object({
@@ -46,7 +49,7 @@ const TenantExtra = z.object({
   rights_status: z.enum(TENANT_UPLOAD_RIGHTS),
 });
 
-type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; data: Buffer };
+type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; sourceRef?: string | undefined; data: Buffer };
 
 /** Reads a JSON-base64 or multipart upload. `extra` carries the tenant-only fields (warranty, rights). */
 async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra: Record<string, unknown> }> {
@@ -69,23 +72,31 @@ async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra:
       return typeof f?.value === "string" ? f.value : undefined;
     };
     const f = parse(MultipartFields, {
-      file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"),
+      file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"), source_ref: text("source_ref"),
     }, "body");
     return {
-      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, data },
+      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, sourceRef: f.source_ref, data },
       extra: { content_warranty: text("content_warranty") === "true" ? true : undefined, rights_status: text("rights_status") },
     };
   }
   const raw = (req.body ?? {}) as Record<string, unknown>;
   const body = parse(UploadBody, raw, "body");
   return {
-    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, data: Buffer.from(body.content_base64, "base64") },
+    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, sourceRef: body.source_ref, data: Buffer.from(body.content_base64, "base64") },
     extra: { content_warranty: raw["content_warranty"], rights_status: raw["rights_status"] },
   };
 }
 
 async function stageAndReply(req: FastifyRequest, reply: FastifyReply, u: Upload, tenantUpload?: { rightsStatus: TenantUploadRights }) {
   const parsed = await parseImportFile(u.format, u.data);
+  const ref = u.sourceRef?.trim();
+  if (ref) {
+    // The form-level source reference fills rows that have none of their own.
+    for (const p of parsed.rows) {
+      const has = Object.entries(p.cells).some(([k, v]) => k.trim().toLowerCase() === "source_ref" && String(v).trim() !== "");
+      if (!has) p.cells = { ...p.cells, source_ref: ref };
+    }
+  }
   const report = await stageImport(req.session!.tenantId, req.session!.userId, {
     fileName: u.fileName, fileSha256: sha256Hex(u.data), format: u.format,
     domain: u.domain, packName: u.packName ?? u.fileName.replace(/\.[^.]+$/, ""),
@@ -133,12 +144,14 @@ export function registerImportRoutes(
   app: FastifyInstance,
   preHandler: preHandlerHookHandler[] | preHandlerHookHandler,
   tenantPreHandler: preHandlerHookHandler[] | preHandlerHookHandler,
+  orgUploadGuard: preHandlerHookHandler[] | preHandlerHookHandler = tenantPreHandler,
 ): void {
+  // EXP-17: every organisation-upload route uses orgUploadGuard (admin chain + the 'question_upload' plan gate).
   // Literal paths on purpose: tools/lint-ui-api-contract.ts matches route strings, not template variables.
 
   // EXP-17: organisation admins upload into their own tenant. Same service, same limits; the body must carry
   // content_warranty: true and the uploader's rights_status.
-  app.post("/api/admin/question-imports", { preHandler: tenantPreHandler, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
+  app.post("/api/admin/question-imports", { preHandler: orgUploadGuard, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
     const { upload, extra } = await readUpload(req);
     const w = parse(TenantExtra, extra, "body");
     return stageAndReply(req, reply, upload, { rightsStatus: w.rights_status });
@@ -164,11 +177,17 @@ export function registerImportRoutes(
   });
 
   // EXP-17: organisation-admin copies of the five routes below (RLS limits every query to the caller's tenant).
-  app.get(`/api/admin/question-imports/templates/:type`, { preHandler: tenantPreHandler }, templateHandler);
-  app.get(`/api/admin/question-imports/:id`, { preHandler: tenantPreHandler }, getHandler);
-  app.patch(`/api/admin/question-imports/:id/rows/:row`, { preHandler: tenantPreHandler }, patchHandler);
-  app.post(`/api/admin/question-imports/:id/commit`, { preHandler: tenantPreHandler }, commitHandler);
-  app.post(`/api/admin/question-imports/:id/discard`, { preHandler: tenantPreHandler }, discardHandler);
+  app.get(`/api/admin/question-imports/templates/:type`, { preHandler: orgUploadGuard }, templateHandler);
+  // List of the organisation's own uploads, and withdraw of every question one upload made.
+  app.get(`/api/admin/question-imports`, { preHandler: orgUploadGuard }, async (req) => listOrgUploads(req.session!.tenantId));
+  app.post(`/api/admin/question-imports/:id/withdraw`, { preHandler: orgUploadGuard }, async (req) => {
+    const { id } = parse(IdParams, req.params, "id");
+    return withdrawImport(req.session!.tenantId, req.session!.userId, id);
+  });
+  app.get(`/api/admin/question-imports/:id`, { preHandler: orgUploadGuard }, getHandler);
+  app.patch(`/api/admin/question-imports/:id/rows/:row`, { preHandler: orgUploadGuard }, patchHandler);
+  app.post(`/api/admin/question-imports/:id/commit`, { preHandler: orgUploadGuard }, commitHandler);
+  app.post(`/api/admin/question-imports/:id/discard`, { preHandler: orgUploadGuard }, discardHandler);
 
   app.get(`/api/admin/super/question-imports/:id`, { preHandler }, getHandler);
 

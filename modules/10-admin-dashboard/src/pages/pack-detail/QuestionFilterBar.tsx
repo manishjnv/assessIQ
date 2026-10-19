@@ -9,7 +9,7 @@ import { humanize } from "../../lib/labels.js";
 export type QuestionFilters = {
   [K in
     | "q" | "stage_id" | "subject_id" | "unit_id" | "outcome_id" | "difficulty_min" | "difficulty_max"
-    | "origin" | "rights_status" | "review_state" | "language" | "has_solution"]?: string | undefined;
+    | "origin" | "rights_status" | "review_state" | "language" | "has_solution" | "has_passage"]?: string | undefined;
 };
 
 interface Bucket { value: string; count: number }
@@ -146,6 +146,16 @@ export function QuestionFilterBar(props: {
             <option value="">All</option>
             <option value="true">With solution ({countOf(f?.has_solution ?? [], "true")})</option>
             <option value="false">Without solution ({countOf(f?.has_solution ?? [], "false")})</option>
+          </select>
+        </label>
+      </HelpTip>
+      <HelpTip helpId="admin.question_bank.pack.filter_passage">
+        <label style={{ display: "flex", flexDirection: "column", gap: 2, fontSize: "var(--aiq-text-xs)" }}>
+          Passage
+          <select style={fieldStyle} value={value.has_passage ?? ""} onChange={(e) => set("has_passage", e.target.value)}>
+            <option value="">All</option>
+            <option value="true">With passage</option>
+            <option value="false">Without passage</option>
           </select>
         </label>
       </HelpTip>

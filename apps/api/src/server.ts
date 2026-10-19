@@ -187,6 +187,8 @@ export async function buildServer() {
   await registerQuestionBankRoutes(app, {
     adminOnly: authChain({ roles: ['admin'] }),
     superAdminOnly: authChain({ roles: ['super_admin'] }),
+    // EXP-17: organisation question upload is a Pro feature (no-op until PLAN_TIERS_ENFORCED).
+    orgUploadGuard: [...authChain({ roles: ['admin'] }), requireTier('question_upload')],
   });
 
   // Assessment-lifecycle admin routes — same admin-gated authChain DI shape.

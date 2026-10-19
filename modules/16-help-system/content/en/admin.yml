@@ -5045,3 +5045,153 @@ admin.assessments.status_tabs:
     - **Drafts** shows tests you have not published.
     - **Live** shows tests that are published or active.
     - **Finished** shows tests that are closed or cancelled.
+
+admin.org_upload.page:
+  audience: admin
+  short_text: "Upload your own questions. You see a check first. Nothing is saved until you confirm."
+  long_md: |
+    ## Upload questions
+
+    Use this page to add questions from a CSV or XLSX file.
+
+    - **Private.** The questions belong to your organisation only.
+    - **Check first.** You see how many rows are valid, wrong or duplicate before anything is saved.
+    - **Review next.** Saved questions start as In review. Check them on the question review screen before you invite candidates.
+    - **Withdraw.** You can withdraw a whole upload later from the list on this page.
+
+admin.org_upload.file:
+  audience: admin
+  short_text: "Choose a CSV or XLSX file up to 4 MB."
+  long_md: |
+    ## File
+
+    - **Formats.** CSV and XLSX only.
+    - **Size.** Up to 4 MB.
+    - **Template.** Use the question import templates so the columns match.
+
+admin.org_upload.domain:
+  audience: admin
+  short_text: "The subject of the new question set, and an optional name for it."
+  long_md: |
+    ## Subject and set name
+
+    - **Subject.** The new question set uses this subject.
+    - **Set name.** Optional. The file name is used when you leave it empty.
+
+admin.org_upload.source_ref:
+  audience: admin
+  short_text: "Where the questions come from, for example a book or a course name."
+  long_md: |
+    ## Source reference
+
+    - **Optional.** Write the book, course or document the questions come from.
+    - **Use.** It helps you and your reviewers to find the origin later.
+
+admin.org_upload.rights:
+  audience: admin
+  short_text: "Say how you hold the rights to this content."
+  long_md: |
+    ## Rights
+
+    - **Original.** You or your team wrote the questions.
+    - **Derived from source.** The questions are based on another work and you may use them.
+    - **Licensed.** You hold a licence that lets you use and upload them.
+
+admin.org_upload.warranty:
+  audience: admin
+  short_text: "You must confirm that you hold the rights before you can check the file."
+  long_md: |
+    ## Rights confirmation
+
+    - **Required.** You cannot check or save the file without this confirmation.
+    - **Recorded.** AssessIQ stores who confirmed it and when.
+
+admin.org_upload.preview:
+  audience: admin
+  short_text: "The check result. It shows valid, wrong, duplicate and skipped rows."
+  long_md: |
+    ## Check result
+
+    - **Nothing is saved yet.** This is only a check.
+    - **Valid rows** are added when you confirm. Wrong rows and duplicates are left out.
+    - **Wrong rows.** Open a row to read the problem. Fix the file and upload it again.
+
+admin.org_upload.commit:
+  audience: admin
+  short_text: "Save the valid rows as a new draft question set."
+  long_md: |
+    ## Add the questions
+
+    - **Draft set.** The questions go into a new draft question set.
+    - **In review.** Every question starts as In review. Verify them before you invite candidates.
+
+admin.org_upload.withdraw:
+  audience: admin
+  short_text: "Withdraw every question this upload added."
+  long_md: |
+    ## Withdraw an upload
+
+    - **What happens.** All questions from this upload are archived and marked withdrawn.
+    - **Results kept.** Candidates who already took a test keep their results.
+    - **Cannot undo.** Upload the file again to add the questions again.
+admin.question_bank.pack.filter_passage:
+  audience: admin
+  short_text: "Show only questions that belong to a passage, or only questions that stand alone."
+  long_md: |
+    ## Passage
+
+    A passage is a shared text, data set or case. Several questions can use one passage. Pick With passage or Without passage to filter the list.
+
+admin.blueprints.page:
+  audience: admin
+  short_text: "Exam blueprints show the sections, marks and timing of each official exam. Read only."
+  long_md: |
+    ## Exam blueprints
+
+    A blueprint sets the structure of a full mock test: the sections, the number of questions, the marks, the negative marks and the minutes.
+
+    - **Read only.** You cannot change a blueprint on this page.
+    - **Start a mock.** Use Start full mock to create a draft test from a blueprint. You still publish it yourself.
+    - **Unverified.** An unverified blueprint is not checked against the official notice.
+
+admin.blueprints.verification:
+  audience: admin
+  short_text: "Verified means the blueprint was checked against the official exam notice."
+  long_md: |
+    ## Verification
+
+    - **Verified.** The sections, timing and marks match the official notice.
+    - **Unverified.** Check the details against the notice before you use the blueprint for a real test.
+
+admin.blueprints.sections:
+  audience: admin
+  short_text: "The sections of the exam, in the order the candidate sees them."
+  long_md: |
+    ## Sections
+
+    - **Questions.** The number of questions in the section.
+    - **Marks.** The marks for each correct answer. Negative marks are taken off for each wrong answer.
+    - **Minutes.** The time for the section. A dash means the whole test has one timer.
+    - **Qualifying.** A qualifying section has its own cut-off mark.
+
+admin.blueprints.mock_form:
+  audience: admin
+  short_text: "Pick the question set and the level for the mock. Set when the test opens."
+  long_md: |
+    ## Mock test form
+
+    - **Question set.** The platform question set that the mock uses.
+    - **Level.** The level of that set to use.
+    - **Opens at.** The time the mock opens. Set it in your local time.
+
+    The mock is created as a draft. Nothing is sent to candidates yet.
+
+admin.blueprints.start_mock:
+  audience: admin
+  short_text: "Create a draft full mock from this blueprint. Nothing is sent to candidates."
+  long_md: |
+    ## Start full mock
+
+    This creates a draft assessment with the sections, timing and marks of this blueprint. Open the draft to check it, then publish it when you are ready.
+
+    - **No candidates are invited.** The draft does not send any invitation.

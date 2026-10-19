@@ -329,6 +329,8 @@ export interface ListQuestionsInput {
   language?: string[];
   /** true = rationale text present; false = absent or blank. */
   has_solution?: boolean;
+  /** EXP-6 tail / 0211: true = the question belongs to a passage; false = it stands alone. */
+  has_passage?: boolean;
 }
 
 /** EXP-5: one facet bucket. */
