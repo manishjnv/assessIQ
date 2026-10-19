@@ -90,11 +90,13 @@ export async function discardImportApi(id: string): Promise<unknown> {
   return adminApi<unknown>(`/admin/super/question-imports/${encodeURIComponent(id)}/discard`, { method: "POST" });
 }
 
-/** Downloads the template file for one question type (browser save). `base` is the route root (organisation upload passes its own). */
+/** Downloads the template file for one question type (browser save). `org` selects the organisation route. Literal paths: tools/lint-ui-api-contract.ts reads them. */
 export async function downloadImportTemplate(
-  type: string, format: TemplateFormat, base = "/api/admin/super/question-imports",
+  type: string, format: TemplateFormat, org = false,
 ): Promise<void> {
-  const res = await fetch(`${base}/templates/${encodeURIComponent(type)}?format=${format}`, {
+  const res = await fetch(org
+    ? `/api/admin/question-imports/templates/${encodeURIComponent(type)}?format=${format}`
+    : `/api/admin/super/question-imports/templates/${encodeURIComponent(type)}?format=${format}`, {
     credentials: "same-origin",
   });
   if (!res.ok) throw new Error("template");
@@ -175,7 +177,7 @@ export async function withdrawOrgUploadApi(id: string): Promise<{ importId: stri
 }
 
 export function downloadOrgImportTemplate(type: string, format: TemplateFormat): Promise<void> {
-  return downloadImportTemplate(type, format, ORG_BASE);
+  return downloadImportTemplate(type, format, true);
 }
 
 /** True when the plan does not include organisation upload (403 TIER_NOT_INCLUDED). */
