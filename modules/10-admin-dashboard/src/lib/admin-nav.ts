@@ -69,6 +69,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         href: "/admin/question-bank",
         under: ["/admin/question-bank", "/admin/question-import"],
       },
+      { id: "org-question-upload", label: "Upload questions", href: "/admin/org-question-upload", under: ["/admin/org-question-upload"] },
     ],
   },
   {

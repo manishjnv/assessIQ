@@ -287,6 +287,33 @@ function validateTenantAware(
   return v;
 }
 
+/** Validate and duplicate-check every row (reads only). Shared by stageImport and previewImport. */
+async function evaluateRows(
+  client: PoolClient, domain: string, format: ImportFormat, parsed: ParseResult, rights?: TenantUploadRights,
+) {
+  const taxonomy = await loadTaxonomyIndex(client);
+  const checked = parsed.rows.map((p: ParsedRow) => {
+    const v = validateTenantAware(p.row, p.cells, { format, taxonomy }, rights);
+    return {
+      row: p.row, raw: p.cells, normalized: v.normalized, errors: v.errors,
+      hash: v.normalized ? contentHash(v.normalized.type, v.normalized.content) : null, skipped: false, similar: false,
+    };
+  });
+  for (const e of parsed.errors) {
+    checked.push({ row: e.row, raw: {}, normalized: null, errors: [e], hash: null, skipped: false, similar: false });
+  }
+  checked.sort((a, b) => a.row - b.row);
+  applyPassageGroups(checked);
+  const stems = checked.flatMap((c) => { const stem = stemOf(c.normalized); return stem === null ? [] : [{ row: c.row, stem }]; });
+  const similarRows = await similarRowNumbers(client, domain, stems);
+  for (const c of checked) c.similar = similarRows.has(c.row);
+  const existing = await existingHashes(client, domain);
+  const verdicts = decide(checked, existing.exact, existing.norm);
+  const decisions = verdicts.map((v) => v.decision);
+  checked.forEach((c, i) => { if (c.normalized?.meta) c.normalized.meta.dupClass = verdicts[i]!.dup; });
+  return { checked, verdicts, decisions };
+}
+
 // ---------------------------------------------------------------------------
 // stageImport
 // ---------------------------------------------------------------------------
@@ -312,26 +339,7 @@ export async function stageImport(
     );
     if (prior.rows[0] !== undefined) return buildReport(client, prior.rows[0].id);
 
-    const taxonomy = await loadTaxonomyIndex(client);
-    const checked = parsed.rows.map((p: ParsedRow) => {
-      const v = validateTenantAware(p.row, p.cells, { format: meta.format, taxonomy }, tenantUpload?.rightsStatus);
-      return {
-        row: p.row, raw: p.cells, normalized: v.normalized, errors: v.errors,
-        hash: v.normalized ? contentHash(v.normalized.type, v.normalized.content) : null, skipped: false, similar: false,
-      };
-    });
-    for (const e of parsed.errors) {
-      checked.push({ row: e.row, raw: {}, normalized: null, errors: [e], hash: null, skipped: false, similar: false });
-    }
-    checked.sort((a, b) => a.row - b.row);
-    applyPassageGroups(checked);
-    const stems = checked.flatMap((c) => { const stem = stemOf(c.normalized); return stem === null ? [] : [{ row: c.row, stem }]; });
-    const similarRows = await similarRowNumbers(client, domain, stems);
-    for (const c of checked) c.similar = similarRows.has(c.row);
-    const existing = await existingHashes(client, domain);
-    const verdicts = decide(checked, existing.exact, existing.norm);
-    const decisions = verdicts.map((v) => v.decision);
-    checked.forEach((c, i) => { if (c.normalized?.meta) c.normalized.meta.dupClass = verdicts[i]!.dup; });
+    const { checked, decisions } = await evaluateRows(client, domain, meta.format, parsed, tenantUpload?.rightsStatus);
 
     const ins = await client.query<{ id: string }>(
       `INSERT INTO question_imports (tenant_id, created_by, file_name, file_sha256, format, domain, pack_name,
@@ -379,6 +387,33 @@ export async function stageImport(
       });
     }
     throw err;
+  });
+}
+
+/** EXP-15: one row of a dry run (nothing stored). dupScope tells whether a duplicate repeats an earlier row of the file or an existing question. */
+export interface PreviewRow extends DryRunRow { dupScope: "file" | "existing" | null }
+
+/**
+ * EXP-15: the same validation and duplicate checks as stageImport, for a file that is not stored.
+ * The transaction is READ ONLY, so a write is impossible, not just unlikely.
+ */
+export async function previewImport(tenantId: string, meta: ImportFileMeta, parsed: ParseResult): Promise<{ rows: PreviewRow[]; checksRun: DupClass[] }> {
+  return withTenant(tenantId, async (client) => {
+    await client.query("SET TRANSACTION READ ONLY");
+    const domain = meta.domain.trim().toLowerCase();
+    const dom = await client.query(`SELECT 1 FROM domains WHERE slug = $1 AND status = 'active'`, [domain]);
+    if (dom.rowCount === 0) {
+      throw new ValidationError(`domain '${domain}' does not exist`, { details: { code: "IMPORT_DOMAIN_NOT_FOUND" } });
+    }
+    const { checked, verdicts } = await evaluateRows(client, domain, meta.format, parsed);
+    const fileOnly = decide(checked, new Set(), new Set());
+    const rows = checked.map((c, i): PreviewRow => ({
+      row: c.row, decision: verdicts[i]!.decision, dupClass: verdicts[i]!.dup, errors: c.errors, raw: c.raw, normalized: c.normalized,
+      dupScope: verdicts[i]!.decision !== "duplicate" ? null : fileOnly[i]!.decision === "duplicate" ? "file" : "existing",
+    }));
+    const checksRun: DupClass[] = ["exact", "normalised"];
+    if (await trigramAvailable(client)) checksRun.push("similar");
+    return { rows, checksRun };
   });
 }
 

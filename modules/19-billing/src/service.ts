@@ -734,7 +734,8 @@ export type TierFeature =
   | 'embed'
   | 'audit_viewer'
   | 'cohort_analytics_full'
-  | 'own_email_sender';
+  | 'own_email_sender'
+  | 'question_upload';
 
 const TIER_RANK: Record<PlanTier, number> = { free: 0, pro: 1, enterprise: 2, internal: 3 };
 
@@ -746,6 +747,7 @@ const FEATURE_MIN_TIER: Record<TierFeature, PlanTier> = {
   audit_viewer: 'enterprise',
   cohort_analytics_full: 'pro',
   own_email_sender: 'enterprise',
+  question_upload: 'pro', // EXP-17: organisation question upload
 };
 
 /**

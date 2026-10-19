@@ -723,6 +723,10 @@ function buildQuestionWhere(filters: ListQuestionsInput, exclude?: FilterKey, fo
   if (filters.has_solution !== undefined && exclude !== "has_solution") {
     conditions.push(filters.has_solution ? HAS_SOLUTION_SQL : `NOT ${HAS_SOLUTION_SQL}`);
   }
+  // Not a facet (no counts), so it is never excluded. q.passage_id is set by migration 0211.
+  if (filters.has_passage !== undefined) {
+    conditions.push(filters.has_passage ? "q.passage_id IS NOT NULL" : "q.passage_id IS NULL");
+  }
   // Taxonomy node filters: the node must have the named kind; matches the node and all descendants.
   for (const kind of NODE_KINDS) {
     const id = filters[`${kind}_id` as const];

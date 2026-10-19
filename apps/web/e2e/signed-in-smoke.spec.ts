@@ -29,7 +29,7 @@ const ADMIN_PATHS = [
   '/admin/certificates', '/admin/question-bank', '/admin/reports', '/admin/activity', '/admin/users',
   '/admin/audit-log', '/admin/integrations/webhooks', '/admin/integrations/embed', '/admin/settings',
   '/admin/settings?tab=results', '/admin/settings?tab=privacy', '/admin/settings?tab=plan',
-  '/admin/settings/billing', '/admin/tenant-settings', '/admin/guide', '/admin/account-security',
+  '/admin/settings/billing', '/admin/tenant-settings', '/admin/guide', '/admin/account-security', '/admin/org-question-upload',
 ];
 const NAV_LABELS = ['Home', 'Assessments', 'Question bank', 'Reports', 'People', 'Integrations', 'Settings'];
 

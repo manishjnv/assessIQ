@@ -60,6 +60,7 @@ export { AdminStartTest } from "./pages/start-test.js";
 export { AdminAssessmentDetail } from "./pages/assessment-detail.js";
 export { AdminReports } from "./pages/reports.js";
 export { AdminGenerationAttempts } from "./pages/generation-attempts.js";
+export { AdminExamBlueprints } from "./pages/exam-blueprints.js"; // EXP-6 tail (super admin, read only)
 export { AdminCertificates } from "./pages/certificates.js";
 export { AdminActivity } from "./pages/activity.js";
 export { AdminUsers } from "./pages/users.js";
@@ -67,6 +68,7 @@ export { TenantSettings as AdminTenantSettings } from "./pages/tenant-settings.j
 export { AdminGenerateWizard } from "./pages/generate-wizard.js";
 export { AdminPlatform } from "./pages/platform.js";
 export { AdminQuestionImport } from "./pages/question-import.js";
+export { OrgQuestionUpload } from "./pages/org-question-upload.js";
 export { SuperAdminUsers } from "./pages/super-admin-users.js";
 export { AdminAccountSecurity } from "./pages/account-security.js";
 export { AdminEvaluationsQueue } from "./pages/evaluations-queue.js";
