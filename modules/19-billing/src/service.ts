@@ -23,6 +23,8 @@ import {
   revokeEntitlement as revokeEntitlementRow,
   listEntitlements,
   getTenantTier,
+  countCandidatesEver,
+  countAiAttemptsEver,
   getPackEntitlementInfo,
   listActiveEntitlements,
   getTenantContentScopes,
@@ -737,7 +739,7 @@ export type TierFeature =
 const TIER_RANK: Record<PlanTier, number> = { free: 0, pro: 1, enterprise: 2, internal: 3 };
 
 const FEATURE_MIN_TIER: Record<TierFeature, PlanTier> = {
-  certificates: 'pro',
+  certificates: 'free', // owner 2026-10-19: Free plan has certificates (no Trial mark)
   webhooks: 'pro',
   api_keys: 'enterprise',
   embed: 'enterprise',
@@ -771,18 +773,30 @@ export async function tierAllows(tenantId: string, feature: TierFeature): Promis
 // block completion); the hard cap is checked at invite time instead.
 // ---------------------------------------------------------------------------
 
-/** Per-tier limits. null = no limit. pro/enterprise/internal are uncapped. */
+/**
+ * Per-tier limits. null = no limit. pro/enterprise/internal are uncapped.
+ * Free plan (owner 2026-10-19, docs/design/2026-10-20-free-tier-limits.md):
+ * 5 sample sets, 5 candidates in total, 5 AI-graded attempts in total, hard stop
+ * at 100 % of the 25 credits. per_drive_candidates stays 200 (never reached while
+ * max_candidates_total is 5; kept so the PT-4 tests and gate keep their meaning).
+ */
 export const TIER_LIMITS: Record<
   PlanTier,
-  { licensed_packs: number | null; per_drive_candidates: number | null; overage_hard_cap_ratio: number | null }
+  {
+    licensed_packs: number | null;
+    per_drive_candidates: number | null;
+    max_candidates_total: number | null;
+    ai_attempts_total: number | null;
+    overage_hard_cap_ratio: number | null;
+  }
 > = {
-  free: { licensed_packs: 2, per_drive_candidates: 200, overage_hard_cap_ratio: 1.2 },
-  pro: { licensed_packs: null, per_drive_candidates: null, overage_hard_cap_ratio: null },
-  enterprise: { licensed_packs: null, per_drive_candidates: null, overage_hard_cap_ratio: null },
-  internal: { licensed_packs: null, per_drive_candidates: null, overage_hard_cap_ratio: null },
+  free: { licensed_packs: 5, per_drive_candidates: 200, max_candidates_total: 5, ai_attempts_total: 5, overage_hard_cap_ratio: 1.0 },
+  pro: { licensed_packs: null, per_drive_candidates: null, max_candidates_total: null, ai_attempts_total: null, overage_hard_cap_ratio: null },
+  enterprise: { licensed_packs: null, per_drive_candidates: null, max_candidates_total: null, ai_attempts_total: null, overage_hard_cap_ratio: null },
+  internal: { licensed_packs: null, per_drive_candidates: null, max_candidates_total: null, ai_attempts_total: null, overage_hard_cap_ratio: null },
 };
 
-export type TierDenialCode = 'TIER_NOT_INCLUDED' | 'TIER_LIMIT_REACHED' | 'CREDITS_HARD_CAP';
+export type TierDenialCode = 'TIER_NOT_INCLUDED' | 'TIER_LIMIT_REACHED' | 'CREDITS_HARD_CAP' | 'AI_GRADING_DISABLED';
 
 /** 403 for a tier gate or limit; `details.code` mirrors the error code. */
 export function tierDenial(
@@ -826,7 +840,84 @@ export async function assertTierLimit(
   );
 }
 
-/** Throw CREDITS_HARD_CAP when used >= included * ratio (Starter: 120 %). No-op when off or uncapped. */
+/**
+ * Free plan: throw TIER_LIMIT_REACHED when the tenant would exceed its total
+ * candidate cap. Counts every candidate user row ever created in the tenant
+ * (soft-deleted and erased tombstones stay counted, so delete-and-re-add cannot
+ * reset the cap). Runs under withTenant, so RLS applies. No-op when off/unlimited.
+ */
+export async function assertCandidateTotalCap(tenantId: string, adding = 1): Promise<void> {
+  if (!config.PLAN_TIERS_ENFORCED) return;
+  if (!tenantId) throw new ValidationError('tenantId is required for the candidate cap');
+  const tier = (await readTier(tenantId)) ?? 'free'; // missing plan row = free
+  const limit = TIER_LIMITS[tier].max_candidates_total;
+  if (limit === null) return;
+  const current = await withTenant(tenantId, (c) => countCandidatesEver(c, tenantId));
+  if (current + adding <= limit) return;
+  throw tierDenial(
+    `Your plan allows at most ${limit} candidates in total. Contact your platform operator to upgrade.`,
+    'TIER_LIMIT_REACHED',
+    { tier, feature: 'max_candidates_total', limit, current },
+  );
+}
+
+/**
+ * Free plan: a role change must not reset the candidate count (gate finding, 2026-10-19).
+ * Promoting a candidate would drop the count; demoting an admin adds a candidate. So on a
+ * capped tier a candidate cannot change role, and a change TO candidate counts as one new
+ * candidate. No-op when the flag is off or the tier is uncapped.
+ */
+export async function assertCandidateRoleChange(tenantId: string, userId: string, newRole: string): Promise<void> {
+  if (!config.PLAN_TIERS_ENFORCED) return;
+  if (!tenantId) throw new ValidationError('tenantId is required for the candidate cap');
+  const tier = (await readTier(tenantId)) ?? 'free';
+  const limit = TIER_LIMITS[tier].max_candidates_total;
+  if (limit === null) return;
+  const cur = await withTenant(tenantId, async (c) => {
+    const r = await c.query<{ role: string }>('SELECT role FROM users WHERE id = $1 AND tenant_id = $2', [userId, tenantId]);
+    return r.rows[0]?.role ?? null;
+  });
+  if (cur === null || cur === newRole) return;
+  if (cur === 'candidate') {
+    throw tierDenial(
+      'On your plan a candidate cannot change role. Contact your platform operator to upgrade.',
+      'TIER_LIMIT_REACHED',
+      { tier, feature: 'max_candidates_total', limit },
+    );
+  }
+  if (newRole === 'candidate') await assertCandidateTotalCap(tenantId, 1);
+}
+
+/**
+ * Free plan: block a new AI-graded attempt. `attemptId` (optional) is the attempt
+ * being graded; an attempt that already counts (re-run) never adds to the total.
+ * Order: FREE_PLAN_AI_DISABLED kill switch (free tier only), then the
+ * ai_attempts_total cap. Paid tiers (null cap) are never blocked. No-op when off.
+ * The per-tenant AI pause is a separate gate inside 07-ai-grading.
+ */
+export async function assertAiAttemptAllowed(tenantId: string, attemptId?: string): Promise<void> {
+  if (!config.PLAN_TIERS_ENFORCED) return;
+  if (!tenantId) throw new ValidationError('tenantId is required for the AI attempt cap');
+  const tier = (await readTier(tenantId)) ?? 'free'; // missing plan row = free
+  if (tier === 'free' && config.FREE_PLAN_AI_DISABLED) {
+    throw tierDenial(
+      'AI grading is switched off for the Free plan. Contact your platform operator.',
+      'AI_GRADING_DISABLED',
+      { tier, feature: 'ai_attempts_total' },
+    );
+  }
+  const limit = TIER_LIMITS[tier].ai_attempts_total;
+  if (limit === null) return;
+  const current = await withTenant(tenantId, (c) => countAiAttemptsEver(c, tenantId, attemptId ?? null));
+  if (current < limit) return;
+  throw tierDenial(
+    `Your plan allows at most ${limit} AI-graded attempts in total. Contact your platform operator to upgrade.`,
+    'TIER_LIMIT_REACHED',
+    { tier, feature: 'ai_attempts_total', limit, current },
+  );
+}
+
+/** Throw CREDITS_HARD_CAP when used >= included * ratio (Free: 100 %). No-op when off or uncapped. */
 export async function assertCreditsUnderHardCap(tenantId: string): Promise<void> {
   if (!config.PLAN_TIERS_ENFORCED) return;
   const { tier, included_credits, used } = await getUsage(tenantId);

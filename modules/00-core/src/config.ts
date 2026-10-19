@@ -159,6 +159,12 @@ const ConfigSchema = z
     PLAN_TIERS_ENFORCED: z
       .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
       .transform((s) => s === "true"),
+    // Free-plan AI kill switch (modules/19-billing assertAiAttemptAllowed). true =
+    // Free-tier tenants cannot start AI grading. Read at call time, only when
+    // PLAN_TIERS_ENFORCED is true. Never set on the VPS by default.
+    FREE_PLAN_AI_DISABLED: z
+      .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
+      .transform((s) => s === "true"),
     // Sibling dev-only flag read directly by apps/api/src/routes/auth/embed.ts
     // (=== '1'). Declared here so the production refine below covers it too.
     ENABLE_EMBED_TEST_MINTER: z

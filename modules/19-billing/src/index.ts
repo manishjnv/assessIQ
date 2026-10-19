@@ -57,6 +57,9 @@ export {
   assertTierAllows,
   assertTierLimit,
   assertCreditsUnderHardCap,
+  assertCandidateTotalCap,
+  assertCandidateRoleChange,
+  assertAiAttemptAllowed,
   getTierLimits,
 } from './service.js';
 
