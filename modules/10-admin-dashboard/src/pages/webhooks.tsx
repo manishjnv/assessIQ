@@ -17,6 +17,8 @@ import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";
 import { adminApi } from "../api.js";
+import { isTierLocked } from "../api/tier-lock.js";
+import { LockedFeatureModal } from "../components/LockedFeatureModal.js";
 
 interface Endpoint { id: string; name: string; url: string; events: string[]; status: "active" | "disabled" }
 interface Delivery { id: string; endpoint_id: string; event: string; status: "pending" | "delivered" | "failed"; http_status: number | null; attempts: number; last_error: string | null; created_at: string; payload?: { attemptId?: string; attempt_id?: string } | null }
@@ -58,11 +60,14 @@ export default function WebhooksPage(): React.ReactElement {
   const [reveal, setReveal] = useState(false);
   const [confirmRegen, setConfirmRegen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [locked, setLocked] = useState(false);
+  // Z-80: a tier 403 opens the Contact us popup; the feature stays visible.
+  const fail = useCallback((e: unknown): string => { if (isTierLocked(e)) setLocked(true); return err(e); }, []);
 
   const load = useCallback(() => {
-    adminApi<{ items: Endpoint[] }>("/admin/webhooks").then((r) => setEndpoints(r.items)).catch((e) => setEpError(err(e)));
-    adminApi<{ items: Delivery[] }>("/admin/webhooks/deliveries").then((r) => setDeliveries(r.items)).catch((e) => setDlError(err(e)));
-  }, []);
+    adminApi<{ items: Endpoint[] }>("/admin/webhooks").then((r) => setEndpoints(r.items)).catch((e) => setEpError(fail(e)));
+    adminApi<{ items: Delivery[] }>("/admin/webhooks/deliveries").then((r) => setDeliveries(r.items)).catch((e) => setDlError(fail(e)));
+  }, [fail]);
   useEffect(() => { load(); }, [load]);
 
   async function create() {
@@ -76,7 +81,7 @@ export default function WebhooksPage(): React.ReactElement {
       setAdding(false);
       setForm({ name: "", url: "", events: ["attempt.graded"] });
       load();
-    } catch (e) { setNotice(err(e)); }
+    } catch (e) { setNotice(fail(e)); }
   }
   async function regenerate() {
     setRegenerating(true);
@@ -85,22 +90,22 @@ export default function WebhooksPage(): React.ReactElement {
       setHmac(r.plaintextSecret);
       setReveal(true);
       setNotice("New secret created. Copy it now; it is not shown again.");
-    } catch (e) { setNotice(err(e)); } finally { setRegenerating(false); setConfirmRegen(false); }
+    } catch (e) { setNotice(fail(e)); } finally { setRegenerating(false); setConfirmRegen(false); }
   }
   async function test(id: string) {
     try { await adminApi(`/admin/webhooks/${id}/test`, { method: "POST" }); setNotice("Test event sent."); load(); }
-    catch (e) { setNotice(err(e)); }
+    catch (e) { setNotice(fail(e)); }
   }
   async function replay(id: string) {
     setReplaying(id); setNotice(null);
     try { await adminApi(`/admin/webhooks/deliveries/${id}/replay`, { method: "POST" }); setNotice("Delivery queued again."); load(); }
-    catch (e) { setNotice(err(e)); }
+    catch (e) { setNotice(fail(e)); }
     finally { setReplaying(null); }
   }
   async function remove(id: string) {
     setDeleting(true);
     try { await adminApi(`/admin/webhooks/${id}`, { method: "DELETE" }); load(); }
-    catch (e) { setNotice(err(e)); }
+    catch (e) { setNotice(fail(e)); }
     finally { setDeleting(false); setPendingDelete(null); }
   }
 
@@ -117,6 +122,7 @@ export default function WebhooksPage(): React.ReactElement {
 
   return (
     <AdminShell breadcrumbs={["Integrations", "Webhooks"]} helpPage="admin.webhooks">
+      <LockedFeatureModal open={locked} feature="webhooks" onClose={() => setLocked(false)} />
       <div data-help-id="admin.webhooks.page" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }}>
         <PageHeader
           eyebrow="Integrations"

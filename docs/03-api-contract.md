@@ -3872,3 +3872,25 @@ No route changed. The v2 import template has two more columns, after `pyq_shift`
 - A `passage_ref` with no `passage_text` on any row, or with two different texts, gives a row error `passage_text` on every row of the group. `passage_text` without `passage_ref` is a row error.
 - Commit writes one `passages` row for each ref (tenant of the import) and sets `questions.passage_id` and `passage_position` (1, 2, 3 in file order among the committed rows).
 - The candidate attempt view (`GET` attempt payload, `questions[]`) gets an optional `passage: { id, title, body }` on each question that has one.
+
+## Credit ledger endpoints (Z-93, Z-79)
+
+*Type: reference*
+
+### `POST /api/admin/super/tenants/:tenantId/credits`
+
+- Gate: super admin (`superAdminOnly`). Tenant must be active.
+- Body: `{ credits: int 1..1000000, source: 'purchase' | 'bonus' | 'pilot', invoiceRef?: string (200), note?: string (500), expiresInMonths?: int 1..120 (default 12) }`.
+- 200: `{ id, expires_at, auditId }`. The grant and the audit row `billing.credits_granted` are written in one transaction.
+- 400: bad input (`INVALID_CREDITS`, `INVALID_SOURCE`, `INVALID_EXPIRY`). 403: not a super admin. 404: the tenant has no plan row.
+
+### `GET /api/admin/super/tenants/:tenantId/credits`
+
+- Gate: super admin.
+- 200: `{ grants: CreditGrantView[], burns: { mock, real, real_camera } }`. Grants include expired ones, newest first.
+
+### `GET /api/billing/usage` (extended)
+
+- New field `credits` (additive; no existing field changes): `{ unlimited, has_grants, balance, next_expiry, grants[], burn_by_type: { mock, real, real_camera }, ai_answers }`.
+- `balance` sums `remaining` of unexpired grants. `unlimited` is true when the plan has `included_credits` NULL.
+- With `PLAN_TIERS_ENFORCED` on, a Free tenant that has any grant is stopped with `CREDITS_HARD_CAP` when the balance is 0 or less. Other tiers keep the old meter.

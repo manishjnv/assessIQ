@@ -116,6 +116,13 @@ vi.mock('@assessiq/tenancy', () => ({
   updateAiGenerateMode: (...args: unknown[]) => mockUpdateAiGenerateMode(...args),
 }));
 
+// @assessiq/billing — real module, only the Z-93 credit grant is controllable.
+const mockGrantCredits = vi.fn();
+vi.mock('@assessiq/billing', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@assessiq/billing');
+  return { ...actual, grantCredits: (...args: unknown[]) => mockGrantCredits(...args) };
+});
+
 // Remaining dependencies that buildServer() pulls transitively.
 vi.mock('@assessiq/users', () => ({
   listUsers: vi.fn(),
@@ -582,5 +589,47 @@ describe('POST /api/admin/super/tenants/:tenantId/{suspend,resume,archive,unarch
     const res = await post('suspend', SUPER_ADMIN_HEADERS, { reason: 'x'.repeat(501) });
     expect(res.statusCode).toBe(400);
     expect(mockSuspendTenant).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Z-93 / Z-79: POST /api/admin/super/tenants/:tenantId/credits
+// ---------------------------------------------------------------------------
+
+describe('POST /api/admin/super/tenants/:tenantId/credits', () => {
+  let app: FastifyInstance;
+  beforeAll(async () => { app = await buildServer(); });
+  afterAll(async () => { await app.close(); });
+
+  const post = (headers: Record<string, string>, body: unknown) =>
+    app.inject({
+      method: 'POST',
+      url: `/api/admin/super/tenants/${TARGET_TENANT_ID}/credits`,
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  it('200 for a super_admin and passes the actor to grantCredits', async () => {
+    mockGrantCredits.mockResolvedValue({ id: 'g1', expires_at: '2027-10-20T00:00:00.000Z', auditId: 'a1' });
+    const res = await post(SUPER_ADMIN_HEADERS, { credits: 50, source: 'purchase', invoiceRef: 'INV-1' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json<{ auditId: string }>().auditId).toBe('a1');
+    expect(mockGrantCredits).toHaveBeenCalledWith(
+      TARGET_TENANT_ID,
+      expect.objectContaining({ credits: 50, source: 'purchase', invoiceRef: 'INV-1' }),
+      'super-admin-user-uuid',
+    );
+  });
+
+  it('403 for a tenant admin (service not called)', async () => {
+    mockGrantCredits.mockClear();
+    const res = await post(TENANT_ADMIN_HEADERS, { credits: 50, source: 'purchase' });
+    expect(res.statusCode).toBe(403);
+    expect(mockGrantCredits).not.toHaveBeenCalled();
+  });
+
+  it('400 for bad input', async () => {
+    const res = await post(SUPER_ADMIN_HEADERS, { credits: 0, source: 'free_monthly' });
+    expect(res.statusCode).toBe(400);
   });
 });

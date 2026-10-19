@@ -106,13 +106,13 @@ const breadcrumbSchema = {
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
             Name, email address, and assessment responses are collected when a candidate accepts an invitation
             to take an assessment. We also record attempt details (such as start and submit times and
-            timing) and technical data such as IP address and browser or device information. AssessIQ does
-            not currently record webcam, microphone, or screen content.
+            timing) and technical data such as IP address and browser or device information. Except for a real exam with the
+            camera on (see below), AssessIQ does not record webcam, microphone, or screen content.
           </p>
           <!-- RV28 draft: owner approval pending -->
           <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 mt-aiq-md">
             During an attempt, the application can record integrity events: fullscreen exits, tab switches,
-            and blocked copy or paste actions. These events are shown to the organisation that runs the assessment.
+            and blocked copy or paste actions. These events are shown to the organisation that runs the assessment. Also: photos and low-size video from a real exam with the camera on; the result of the readiness check (device type, screen size, browser, camera permission, network speed); and activity events.
           </p>
         </div>
 
@@ -194,7 +194,7 @@ const breadcrumbSchema = {
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
               Usage logs and metadata are used to detect abuse, investigate reported incidents, and respond
               to support requests. Data is not used for behavioural advertising, sold to data brokers, or
-              shared with third parties for their independent marketing purposes.
+              shared with third parties for their independent marketing purposes. Photos and video from a real exam with the camera on are used to review the exam for cheating. We do not identify a person by face and we do not judge emotion.
             </p>
           </div>
         </div>
@@ -271,7 +271,7 @@ const breadcrumbSchema = {
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
               The organisation that invited a candidate to take an assessment can view that candidate's
               result, band score, and supporting rationale. Access within the organisation is further
-              limited by role (administrators and candidates see different things). No organisation can see data belonging to another.
+              limited by role (administrators and candidates see different things). No organisation can see data belonging to another. People at the organisation who review flagged events can also see that candidate data.
             </p>
           </div>
           <div>
@@ -356,7 +356,7 @@ const breadcrumbSchema = {
           Candidate data is retained for the lifecycle of the assessment engagement and for as long as the
           hiring organisation's account remains active on the platform. When a customer terminates their
           contract, candidate data associated with their account is deleted or anonymised within a reasonable
-          period, subject to any legal hold obligations.
+          period, subject to any legal hold obligations. Photos from a real exam with the camera on are deleted 90 days after they are taken, and video 7 days after it is recorded. For schools, photos and video are kept 7 days. If an attempt is flagged and a candidate appeals, the photos and video stay until the appeal closes, up to 90 days for schools and up to 1 year for other organisations. On an erasure request they are deleted sooner.
         </p>
         <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
           Organisations can request deletion of specific candidate records at any time via the admin
@@ -477,7 +477,7 @@ const breadcrumbSchema = {
           Where an educational institution administers assessments to students who may be under 18, it is
           the institution's responsibility — as Data Fiduciary — to ensure that appropriate parental or
           guardian consent is obtained in accordance with the DPDP Act and any applicable institutional
-          policy before inviting those students to take an assessment on the platform.
+          policy before inviting those students to take an assessment on the platform. A school or other organisation that tests children is responsible for the consent that the law requires. For schools the camera is off unless the school admin turns it on.
         </p>
       </div>
     </div>

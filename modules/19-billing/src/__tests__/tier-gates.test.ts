@@ -1,7 +1,8 @@
 // PT1 / PT-4 — pure tests for plan-tier gates and limits (no DB).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const { cfg, tierRef, usageRef, countRef, roleRef } = vi.hoisted(() => ({
+const { cfg, tierRef, usageRef, countRef, roleRef, ledgerRef } = vi.hoisted(() => ({
+  ledgerRef: { has: false, balance: 0 },
   cfg: { PLAN_TIERS_ENFORCED: true, FREE_PLAN_AI_DISABLED: false },
   tierRef: { value: 'free' as string | null },
   usageRef: { included: 100 as number | null, used: 0 },
@@ -28,6 +29,14 @@ vi.mock('../repository.js', async (orig) => ({
       ? null
       : { tier: tierRef.value, included_credits: usageRef.included, status: 'active', ai_answers_included_override: null },
   countBillingEvents: async () => ({ used: usageRef.used, ai_used: 0, cycle_window_start: null }),
+}));
+
+vi.mock('../credit-repository.js', async (orig) => ({
+  ...(await orig<typeof import('../credit-repository.js')>()),
+  readCreditBalance: async () => ({
+    unlimited: false, has_grants: ledgerRef.has, balance: ledgerRef.balance, next_expiry: null,
+    grants: [], burn_by_type: { mock: 0, real: 0, real_camera: 0 }, ai_answers: 0,
+  }),
 }));
 
 import {
@@ -120,6 +129,18 @@ describe('assertCreditsUnderHardCap', () => {
     usageRef.included = 0;
     usageRef.used = 5;
     await expect(assertCreditsUnderHardCap('t')).resolves.toBeUndefined();
+  });
+  it('Z-93: free tenant with ledger grants is capped by its balance', async () => {
+    ledgerRef.has = true;
+    try {
+      usageRef.used = 0;
+      ledgerRef.balance = 0;
+      await expect(assertCreditsUnderHardCap('t')).rejects.toMatchObject({ code: 'CREDITS_HARD_CAP' });
+      ledgerRef.balance = 3;
+      await expect(assertCreditsUnderHardCap('t')).resolves.toBeUndefined();
+    } finally {
+      ledgerRef.has = false;
+    }
   });
   it('pro is never capped', async () => {
     tierRef.value = 'pro';

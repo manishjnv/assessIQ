@@ -48,6 +48,32 @@ export interface BillingUsage {
   /** From the tier table (TIER_AI_ANSWERS_INCLUDED); null => no cap recorded. */
   ai_answers_included: number | null;
   ai_answers_remaining: number | null;
+  /** Z-93: credit ledger view (additive). */
+  credits: CreditBalance;
+}
+
+/** Z-93: one credit grant as shown to admins. */
+export interface CreditGrantView {
+  id: string;
+  source: 'purchase' | 'free_monthly' | 'bonus' | 'pilot';
+  credits: number;
+  remaining: number;
+  granted_at: string;
+  expires_at: string;
+  invoice_ref: string | null;
+  note: string | null;
+}
+
+/** Z-93: ledger balance for a tenant. `unlimited` tenants (included_credits NULL) never burn. */
+export interface CreditBalance {
+  unlimited: boolean;
+  /** True when at least one grant row exists (decides whether the ledger or the legacy meter applies). */
+  has_grants: boolean;
+  balance: number;
+  next_expiry: string | null;
+  grants: CreditGrantView[];
+  burn_by_type: { mock: number; real: number; real_camera: number };
+  ai_answers: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -19,6 +19,8 @@ export type {
   EntitlementScopeType,
   TenantEntitlement,
   GrantEntitlementInput,
+  CreditBalance,
+  CreditGrantView,
 } from './types.js';
 
 export {
@@ -61,7 +63,16 @@ export {
   assertCandidateRoleChange,
   assertAiAttemptAllowed,
   getTierLimits,
+  // Z-93 credit ledger
+  getCreditBalance,
+  grantCredits,
+  listTenantCredits,
+  refillFreeMonthlyCredits,
+  expireCredits,
 } from './service.js';
+
+export type { GrantCreditsInput } from './service.js';
+export { BURN, FREE_MONTHLY_CREDITS, GRANT_VALIDITY_MONTHS, LOW_BALANCE_THRESHOLD_RATIO } from './burn-rates.js';
 
 export type { TierFeature } from './service.js';
 

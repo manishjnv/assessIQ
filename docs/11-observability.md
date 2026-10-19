@@ -1586,6 +1586,8 @@ The CI workflow (`.github/workflows/visual-regression.yml`) is **advisory only**
 
 **Status:** one alert source is not created and one is not wired (see the Status column). The owner must create the UptimeRobot monitors. <!-- verify -->
 
+> **Setup steps:** see `docs/runbooks/uptimerobot-setup.md`.
+
 All alert sources deliver to `connect@assessiq.in`, which forwards to the Gmail of the owner.
 
 | Signal | Mechanism | Status |

@@ -965,6 +965,43 @@ export async function updateTenantPlan(
   );
 }
 
+export interface CreditGrantRow {
+  id: string;
+  source: 'purchase' | 'free_monthly' | 'bonus' | 'pilot';
+  credits: number;
+  remaining: number;
+  granted_at: string;
+  expires_at: string;
+  invoice_ref: string | null;
+  note: string | null;
+}
+
+export interface CreditBurnTotals {
+  mock: number;
+  real: number;
+  real_camera: number;
+}
+
+/** GET /api/admin/super/tenants/:tenantId/credits (Z-93). */
+export async function getTenantCredits(
+  tenantId: string,
+): Promise<{ grants: CreditGrantRow[]; burns: CreditBurnTotals }> {
+  return adminApi<{ grants: CreditGrantRow[]; burns: CreditBurnTotals }>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/credits`,
+  );
+}
+
+/** POST /api/admin/super/tenants/:tenantId/credits (Z-79 offline grant). */
+export async function grantTenantCredits(
+  tenantId: string,
+  body: { credits: number; source: 'purchase' | 'bonus' | 'pilot'; invoiceRef?: string; note?: string; expiresInMonths?: number },
+): Promise<{ id: string; expires_at: string; auditId: string }> {
+  return adminApi<{ id: string; expires_at: string; auditId: string }>(
+    `/admin/super/tenants/${encodeURIComponent(tenantId)}/credits`,
+    { method: "POST", body: JSON.stringify(body) },
+  );
+}
+
 /**
  * Build the absolute URL for downloading a tenant's billing events as CSV.
  *
@@ -994,6 +1031,16 @@ export interface CompanyUsage {
     overage_hard_cap_ratio: number | null;
   };
   tiers_enforced?: boolean;
+  /** Z-93: credit ledger view; absent on an older API. */
+  credits?: {
+    unlimited: boolean;
+    has_grants: boolean;
+    balance: number;
+    next_expiry: string | null;
+    grants: CreditGrantRow[];
+    burn_by_type: CreditBurnTotals;
+    ai_answers: number;
+  };
 }
 
 /**

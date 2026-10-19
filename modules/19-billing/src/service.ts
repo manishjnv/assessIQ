@@ -32,7 +32,19 @@ import {
   listAvailablePlatformSets,
   findClonesBySource,
 } from './repository.js';
+import {
+  burnCredits,
+  readCreditBalance,
+  insertCreditGrant,
+  insertFreeMonthlyGrant,
+  refillFreeMonthlyAll,
+  expireCreditGrants,
+  listGrantsAndBurns,
+} from './credit-repository.js';
+import { GRANT_VALIDITY_MONTHS } from './burn-rates.js';
 import type {
+  CreditBalance,
+  CreditGrantView,
   BillingUsage,
   PlanTier,
   UsageStatus,
@@ -115,6 +127,8 @@ export async function recordGradedAttempt(
   attemptId: string,
 ): Promise<void> {
   await insertBillingEvent(client, tenantId, attemptId);
+  // Z-93: burn ledger credits in the SAME tx. Never throws on a low balance.
+  await burnCredits(client, tenantId, attemptId);
 }
 
 /**
@@ -129,7 +143,7 @@ export async function provisionDefaultPlan(
   includedCredits = DEFAULT_FREE_CREDITS,
 ): Promise<void> {
   await withTenant(tenantId, (c) =>
-    insertDefaultFreePlan(c, tenantId, includedCredits),
+    insertDefaultFreePlan(c, tenantId, includedCredits).then(() => insertFreeMonthlyGrant(c, tenantId)),
   );
 }
 
@@ -221,6 +235,7 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
       ai_answers_used: meters.ai_used,
       ai_answers_included: aiIncluded,
       ai_answers_remaining: aiIncluded === null ? null : aiIncluded - meters.ai_used,
+      credits: await readCreditBalance(c, tenantId, meters.ai_used, plan !== null && includedCredits === null),
     } satisfies BillingUsage;
   });
 }
@@ -922,7 +937,16 @@ export async function assertAiAttemptAllowed(tenantId: string, attemptId?: strin
 /** Throw CREDITS_HARD_CAP when used >= included * ratio (Free: 100 %). No-op when off or uncapped. */
 export async function assertCreditsUnderHardCap(tenantId: string): Promise<void> {
   if (!config.PLAN_TIERS_ENFORCED) return;
-  const { tier, included_credits, used } = await getUsage(tenantId);
+  const { tier, included_credits, used, credits } = await getUsage(tenantId);
+  // Z-93: a free tenant with ledger grants is capped by its balance, not the legacy meter.
+  if (tier === 'free' && included_credits !== null && credits.has_grants) {
+    if (credits.balance > 0) return;
+    throw tierDenial(
+      'Your plan has reached its credit limit. Contact your platform operator to upgrade or add credits.',
+      'CREDITS_HARD_CAP',
+      { tier, limit: 0, current: 0 },
+    );
+  }
   const ratio = TIER_LIMITS[tier].overage_hard_cap_ratio;
   // included <= 0 (incl. the missing-plan fallback) is not a cap: 120 % of nothing must not read as "limit reached".
   if (ratio === null || included_credits === null || included_credits <= 0) return;
@@ -1132,4 +1156,93 @@ export async function updateTenantPlan(
       auditId: auditRow.id,
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Z-93 — credit ledger service
+// ---------------------------------------------------------------------------
+
+/** Ledger balance for a tenant (tenant-scoped via withTenant). */
+export async function getCreditBalance(tenantId: string): Promise<CreditBalance> {
+  return (await getUsage(tenantId)).credits;
+}
+
+export interface GrantCreditsInput {
+  source: 'purchase' | 'bonus' | 'pilot';
+  credits: number;
+  expiresAt?: Date;
+  expiresInMonths?: number;
+  invoiceRef?: string;
+  note?: string;
+}
+
+/**
+ * Super-admin offline grant (Z-79). Two-role tx like updateTenantPlan: insert under
+ * the system role, then audit under assessiq_app + tenant GUC in the SAME tx.
+ */
+export async function grantCredits(
+  tenantId: string,
+  input: GrantCreditsInput,
+  actorUserId: string,
+): Promise<{ id: string; expires_at: string; auditId: string }> {
+  if (!['purchase', 'bonus', 'pilot'].includes(input.source)) {
+    throw new ValidationError('source must be purchase, bonus or pilot', { details: { code: 'INVALID_SOURCE' } });
+  }
+  if (!Number.isInteger(input.credits) || input.credits < 1 || input.credits > 1_000_000) {
+    throw new ValidationError('credits must be an integer from 1 to 1000000', { details: { code: 'INVALID_CREDITS' } });
+  }
+  const months = input.expiresInMonths ?? GRANT_VALIDITY_MONTHS;
+  if (!Number.isInteger(months) || months < 1 || months > 120) {
+    throw new ValidationError('expiresInMonths must be an integer from 1 to 120', { details: { code: 'INVALID_EXPIRY' } });
+  }
+  return withSystemRole('super-admin credit grant', async (client) => {
+    const plan = await getTenantPlanRow(client, tenantId);
+    if (plan === null) {
+      throw new NotFoundError(`No billing plan found for organisation ${tenantId}`, {
+        details: { code: 'PLAN_NOT_FOUND', tenantId },
+      });
+    }
+    const row = await insertCreditGrant(client, tenantId, {
+      source: input.source,
+      credits: input.credits,
+      expiresInMonths: months,
+      expiresAt: input.expiresAt ?? null,
+      invoiceRef: input.invoiceRef ?? null,
+      note: input.note ?? null,
+      createdBy: actorUserId,
+    });
+    await client.query('SET LOCAL ROLE assessiq_app');
+    await client.query("SELECT set_config('app.current_tenant', $1, true)", [tenantId]);
+    const audit = await auditInTx(client, {
+      action: 'billing.credits_granted',
+      actorKind: 'user',
+      actorUserId,
+      tenantId,
+      entityType: 'credit_grant',
+      entityId: row.id,
+      after: { source: input.source, credits: input.credits, invoice_ref: input.invoiceRef ?? null, expires_at: row.expires_at },
+    });
+    return {
+      id: row.id,
+      expires_at: row.expires_at instanceof Date ? row.expires_at.toISOString() : String(row.expires_at),
+      auditId: audit.id,
+    };
+  });
+}
+
+/** Super-admin view: all grants (incl. expired) and burn totals. */
+export async function listTenantCredits(
+  tenantId: string,
+): Promise<{ grants: CreditGrantView[]; burns: CreditBalance['burn_by_type'] }> {
+  return withSystemRole('super-admin credit ledger read', (client) => listGrantsAndBurns(client, tenantId));
+}
+
+/** Monthly job: free tenants get exactly FREE_MONTHLY_CREDITS (no rollover). Non-AI. */
+export async function refillFreeMonthlyCredits(): Promise<{ zeroed: number; granted: number }> {
+  return withSystemRole('free monthly credit refill', (client) => refillFreeMonthlyAll(client));
+}
+
+/** Daily job: zero the remaining credits of expired grants. Non-AI. */
+export async function expireCredits(): Promise<number> {
+  return withSystemRole('credit grant expiry sweep', (client) => expireCreditGrants(client));
 }
