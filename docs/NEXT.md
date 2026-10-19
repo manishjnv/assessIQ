@@ -2,17 +2,17 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-19T15:11:43.491Z (2026-10-19 20:41:43 IST)
-- HEAD: `abd2a939`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 4
+- Generated: 2026-10-19T16:08:51.354Z (2026-10-19 21:38:51 IST)
+- HEAD: `ca5870de`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 3
 
 ## 1. Last session (SESSION_STATE, first block)
 
 ## Session — 2026-10-19 — S34: EXP-17 org upload screen, review notes and dispute, review queue, slice tooling
 
 **Headline:** the second half of Wave 1 code is built and pushed: the organisation upload screen, the review notes table, staff `disputed`, the cross-pack review queue, the affected-attempts list, the exam blueprint page, the `has_passage` filter and the 200-item slice loader. Nothing is deployed. Rescoring is NOT built (owner questions written).
-**Commits:** `a427d51f` — EXP-17 screen, list and withdraw, EXP-5/6 tails, EXP-15 tool. `48430cfb` — Z-52 gaps 6 and 7, EXP-12 queue, affected attempts (migration 0214). `d8396ca4` — gate fixes. `c83839c2` — gate trailer. `abd2a939` — docs. Handoff docs commit follows.
-**Tests:** `pnpm verify` green before the push. Module 04 full 44 files, 484 pass (agent run); org-uploads and tenant-upload files re-run after the gate fixes, 11 pass. Module 19 all 10 files pass. Module 06 affected-attempts, retake, attempt-engine pass. Module 10 admin-nav 28 pass, new page tests pass. Help system 23 pass (seed count 560). Local smoke `/admin/org-question-upload` and `/admin/question-bank` pass. CI: see the next line in this block once it is green.
+**Commits:** `a427d51f` — EXP-17 screen, list and withdraw, EXP-5/6 tails, EXP-15 tool. `48430cfb` — Z-52 gaps 6 and 7, EXP-12 queue, affected attempts (migration 0214). `d8396ca4` — gate fixes. `c83839c2` — gate trailer. `abd2a939` — docs. Handoff docs commit follows. CI-fix commits after `abd2a939`: `f03885b4` help page prefix `admin.review_queue`, erasure exemption for `question_review_notes.note`.
+**Tests:** `pnpm verify` green before the push. Module 04 full 44 files, 484 pass (agent run); org-uploads and tenant-upload files re-run after the gate fixes, 11 pass. Module 19 all 10 files pass. Module 06 affected-attempts, retake, attempt-engine pass. Module 10 admin-nav 28 pass, new page tests pass. Help system 23 pass (seed count 560). Local smoke `/admin/org-question-upload` and `/admin/question-bank` pass. CI: RED on `abd2a939` (run 39275607685, unit shards 2 and 3: help-id page prefix on the review queue page, and erasure-coverage did not know `question_review_notes.note`); fixed in `f03885b4`; a third fix `ca5870de` (literal template URLs for the route contract lint) was needed because CI stops at the first red step. CI GREEN on `ca5870de` (run 39278024804, all jobs).
 **Gate:** Sonnet takeover, ONE gate, 3 rows (org list and withdraw, Z-52 gaps 6 and 7 with the review gate, affected attempts): ACCEPT on all, no high or medium. 5 low: fixed 3 (platform imports only for a super_admin; read, discard and withdraw off the plan gate so a lapsed plan keeps the takedown path; deadlock maps to a retryable 409). Recorded, not fixed: (4) a clone set to disputed or needs_fix by propagation has no note row, so the tenant admin sees a blocked question without a reason; (5) the REVOKE is weak because `assessiq_app` may `SET ROLE assessiq_system`, the trigger is the backstop (same trust as `propagateTakedown`).
 **Next:** (1) CI green, then owner says deploy: `bash tools/deploy.sh --dry-run`, `--yes`, `bash tools/post-deploy-sweep.sh` (migration 0214 only adds; api redeploy also makes `previewImport` available for the slice tool). (2) Owner: send the slice file and source list, run the GIFT check, answer the rescoring questions. (3) Next build rows: EXP-9 Hindi (0215), Z-43.
 **Open questions (owner):**
@@ -33,7 +33,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 **Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
 
-## 3. Open Z and EXP rows (51 total)
+## 3. Open Z and EXP rows (52 total)
 
 - `EXP-3` (EXP-3 (lane B catalog)) — Previous-year catalog without question text. — pending (after pilot; Claude; M)
 - `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S34 added the `has_passage` filter; Z-43 draws by outcome node still open) (S20, 2026-10-17, `c34a597`; migrati
@@ -81,13 +81,14 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-89` (Z-89 (DELIVERY-MODE)) — Invite as REAL EXAM or MOCK TEST. — pending (Claude; M; gate) RESEARCH 2026-10-19 (web search; owner asked for a better idea): vendors and test makers treat
 - `Z-90` (Z-90 (MOCK-DASH)) — Separate dashboard for mock tests. — pending (Claude; M; waits for Z-89 data model) Owner follow-up 2026-10-19 (final list): schools use the mock dashboard t
 - `Z-91` (Z-91 (READINESS)) — Readiness check before every real exam. — pending (Claude; M; gate; builds with Z-87 and Z-89)
-- `Z-92` (Z-92 (RATECARD)) — Rate card: how to charge for mock tests, real exams, camera and AI evaluation. — pending (Claude drafts options; owner decides; S)
+- `Z-92` (Z-92 (RATECARD)) — Rate card: how to charge for mock tests, real exams, camera and AI evaluation. — pending (Claude drafts options; owner decides; S) Owner decision 2026-10-19 (credits): the owner likes credits valid for
+- `Z-93` (Z-93 (CREDIT-LEDGER)) — Credit ledger with 12-month expiry, burn by test type, and free monthly refill. — pending (Claude; M-L; gate; after Z-89 and Z-92 numbers are confirmed)
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
 - `Z-11` (Z-11 (Phase 5, FR13, Z-9, Z-15)) — Certificate visibility after a release. — pending (small). Item (c) done (S17, 2026-10-17, `f9c569f`): `CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui/src/cop
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d)
 - `Z-15` (Z-15 (Z-9, Z-10, M1-M4 mobile kit)) — Candidate result flow on a phone: findings. — pending (e is a bug) Item (e) closed (S16, 2026-10-17): `modules/15-analytics/src/activity-candidate/stats.ts`. Items (b
 
-## 4. Newest RCA entries (5 newest of 239; file order: mixed (sorted by date; same-day ties keep file order))
+## 4. Newest RCA entries (5 newest of 240; file order: mixed (sorted by date; same-day ties keep file order))
 
 ### 2026-10-19 — CI unit shard 2 red once: Docker testcontainer unavailable (flake)
 **Symptom:** CI run 39171014351 (commit `9bd08797`, a lockfile-only dependency change) failed in unit shard 2: `billing-events.test.ts:74` reported `Docker testcontainer required but unavailable in CI`. 110 of 111 files passed.
@@ -97,6 +98,10 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 **Symptom:** CI run on `af47990b`: every signed-in smoke spec failed with two console errors, "Failed to load resource: 404". Local runs were green.
 **Prevention:** after an agent adds files, run `git status --short` and `git ls-files <new paths>` before the commit. A new public file must not sit under an ignored folder (`git check-ignore -v <path>`). A local `vite preview` run cannot catch this.
 
+### 2026-10-19 — CI unit red after S34: two guard tests outside the touched modules
+**Symptom:** CI run 39275607685 on `abd2a939`: unit shard 2 failed `erasure-coverage.test.ts` (`question_review_notes.note` not in REGISTRY or EXEMPT) and shard 3 failed `help-id-page-prefix.test.ts` (six ids of `review-queue.tsx` outside `helpPage="admin.review_queue.page"`). Local runs of the touc
+**Prevention:** after a new table or a new page, run the two guard tests (`erasure-coverage`, `help-id-page-prefix`) before the push; the agent brief should list them. Local `pnpm verify` runs lint and typecheck only, not these tests.
+
 ### 2026-10-18 — Admin page blank after login: two copies of react-router in the bundle
 **Symptom:** after a successful sign-in at assessiq.in/admin the owner saw a blank white page. The browser error log (`stream":"frontend"`) held six `Uncaught Error` entries from `vendor-react-*.js` line 9 at one column, all with referer `/admin`. Public pages, the login page and the candidate pages
 **Prevention:** the lockfile test above (runs in CI); a Dependabot bump must change every workspace that declares the package; the post-deploy sweep needs one signed-in check of `/admin` and an error boundary that shows a message instead of a blank page (ROADMAP Z-47).
@@ -104,10 +109,6 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 ### 2026-10-18 — CI typecheck red after Z-41
 **Symptom:** the CI typecheck step failed after the Z-41 commit. Local vitest and eslint were green.
 **Prevention:** run `pnpm typecheck` before push. The build agents ran only vitest and eslint.
-
-### 2026-10-18 — CI e2e red: "Question 1 of" locator matched two elements
-**Symptom:** the CI e2e step failed with a Playwright strict-mode error on the text "Question 1 of".
-**Prevention:** use anchored, role-based locators in e2e specs. Watch that CI steps after a red step are also run once green.
 
 ## 5. Next free migration
 
