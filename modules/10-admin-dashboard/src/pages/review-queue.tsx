@@ -134,7 +134,7 @@ export function ReviewQueue(): React.ReactElement {
   ];
 
   return (
-    <AdminShell breadcrumbs={["Question bank", "Review queue"]} helpPage="admin.review_queue.page">
+    <AdminShell breadcrumbs={["Question bank", "Review queue"]} helpPage="admin.review_queue">
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" }}>
         <div data-help-id="admin.review_queue.page">
           <h1 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: "var(--aiq-h1-size)", fontWeight: 400, margin: 0, letterSpacing: "-0.02em" }}>
