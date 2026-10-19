@@ -2876,3 +2876,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the CSP work put `viewport.js` and `font-swap.js` in `apps/web/public/brand/js/`. The folder `apps/web/public/brand/` is a generated mirror and is in `.gitignore` (line 18), so `git add` skipped both files. They existed only on the build laptop. A deploy would have shipped an `index.html` that pointed to missing files.
 **Fix:** files moved to `apps/web/public/assets/` (tracked; Caddy already routes `/assets/*` to the SPA); `apps/web/index.html` and the CSP plan updated. No Caddy change.
 **Prevention:** after an agent adds files, run `git status --short` and `git ls-files <new paths>` before the commit. A new public file must not sit under an ignored folder (`git check-ignore -v <path>`). A local `vite preview` run cannot catch this.
+
+## 2026-10-19 — CI unit red after S34: two guard tests outside the touched modules
+
+**Symptom:** CI run 39275607685 on `abd2a939`: unit shard 2 failed `erasure-coverage.test.ts` (`question_review_notes.note` not in REGISTRY or EXEMPT) and shard 3 failed `help-id-page-prefix.test.ts` (six ids of `review-queue.tsx` outside `helpPage="admin.review_queue.page"`). Local runs of the touched modules were green.
+**Cause:** the new table column looks personal to the erasure test, and the page used a `.page` id as its helpPage so no id began with `<helpPage>.`. Both tests live in modules the agents did not touch.
+**Fix:** `modules/20-data-rights/src/__tests__/erasure-coverage.test.ts` EXEMPT entry for `question_review_notes.note` (staff note, no candidate personal data); `modules/10-admin-dashboard/src/pages/review-queue.tsx` `helpPage="admin.review_queue"`.
+**Prevention:** after a new table or a new page, run the two guard tests (`erasure-coverage`, `help-id-page-prefix`) before the push; the agent brief should list them. Local `pnpm verify` runs lint and typecheck only, not these tests.
