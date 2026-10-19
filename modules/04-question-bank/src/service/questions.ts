@@ -379,6 +379,7 @@ export async function withdrawQuestion(
 /**
  * The withdraw steps on the caller's tenant tx (shared with the EXP-18 review screen, which has
  * already checked who may act). Audit row carries the previous review_state (EXP-18).
+ * Z-52 gap 6: a reason goes to question_review_notes (same tx); the audit row carries only its id.
  */
 export async function withdrawInTx(
   client: PoolClient,
@@ -397,11 +398,14 @@ export async function withdrawInTx(
     await propagateTakedown(client, id, tenantId);
     return { id, status: "archived", rights_status: "withdrawn" };
   }
+  const noteId = note !== undefined && note.length > 0
+    ? await repo.insertReviewNote(client, { tenantId, questionId: id, version: current.version, state: "withdrawn", note, authorUserId: actorUserId })
+    : undefined;
   await auditInTx(client, {
     tenantId, actorKind: "user", actorUserId, action: "question.withdrawn",
     entityType: "question", entityId: id,
     before: { status: current.status, review_state: current.review_state },
-    after: { status: "archived", rights_status: "withdrawn", ...(note !== undefined ? { note } : {}) },
+    after: { status: "archived", rights_status: "withdrawn", ...(noteId !== undefined ? { note_id: noteId } : {}) },
   });
   // EXP-19: same tx, mark every tenant clone withdrawn (one audit row per affected tenant).
   await propagateTakedown(client, id, tenantId);

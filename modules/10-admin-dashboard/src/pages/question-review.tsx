@@ -4,13 +4,16 @@
 //
 // The review gate before students are invited. For one question set it shows each question with its
 // answer key, rationale, source reference and rights status, and three actions: Verify, Needs fix
-// (a note is required) and Withdraw. "Verify all in this question set" verifies every question in
-// review after a confirm step that shows the count.
+// (a note is required), Mark disputed (a note is required) and Withdraw. "Verify all in this question
+// set" verifies every question in review after a confirm step that shows the count.
+// Each card shows the latest review note, a note history and the attempts that used an older version.
 //
 // Fetches:
 //   GET  /admin/packs/:id/review?state=&page=      → { pack, counts, total, items }
-//   POST /admin/questions/:id/review               → { action: verify | needs_fix | withdraw, note? }
+//   POST /admin/questions/:id/review               → { action: verify | needs_fix | dispute | withdraw, note? }
 //   POST /admin/packs/:id/review/verify-all        → { confirm: true, expected_count }
+//   GET  /admin/questions/:id/review-notes         → { latest, items }   (per card, see api/review.ts)
+//   GET  /admin/questions/:id/affected-attempts    → { total, items }    (per card, opened on demand)
 //
 // Who sees what is decided by the server: the super admin reviews platform questions, an
 // organisation admin reviews that organisation's questions. A refused call shows the server message.
@@ -25,6 +28,8 @@ import { ConfirmDialog, Modal } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
+import { getAffectedAttemptsApi, getReviewNotesApi, postQuestionReviewApi } from "../api/review.js";
+import type { AffectedAttemptsResponse, ReviewAction, ReviewNotesResponse } from "../api/review.js";
 import { questionPrompt } from "./pack-detail/shared.js";
 
 type ReviewState = "in_review" | "verified" | "disputed" | "needs_fix";
@@ -180,6 +185,152 @@ function AnswerKey({ item }: { item: ReviewItem }): React.ReactElement {
   );
 }
 
+const NOTE_WHEN = (iso: string): string => new Date(iso).toLocaleString();
+
+/**
+ * Latest note, note history and attempts on an older version, for one question.
+ * The notes load on mount and again after each action (reloadKey). The attempts load when the panel opens.
+ */
+function QuestionHistory({ itemId, reloadKey }: { itemId: string; reloadKey: number }): React.ReactElement {
+  const [notes, setNotes] = useState<ReviewNotesResponse | null>(null);
+  const [notesError, setNotesError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [attemptsOpen, setAttemptsOpen] = useState(false);
+  const [attempts, setAttempts] = useState<AffectedAttemptsResponse | null>(null);
+  const [attemptsError, setAttemptsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setNotesError(null);
+    getReviewNotesApi(itemId)
+      .then((r) => { if (!cancelled) setNotes(r); })
+      .catch((err: unknown) => {
+        if (!cancelled) setNotesError(err instanceof AdminApiError ? err.apiError.message : "Could not load the notes. Try again.");
+      });
+    return () => { cancelled = true; };
+  }, [itemId, reloadKey]);
+
+  useEffect(() => {
+    setAttempts(null);
+    setAttemptsError(null);
+  }, [itemId, reloadKey]);
+
+  useEffect(() => {
+    if (!attemptsOpen || attempts !== null || attemptsError !== null) return;
+    let cancelled = false;
+    getAffectedAttemptsApi(itemId)
+      .then((r) => { if (!cancelled) setAttempts(r); })
+      .catch((err: unknown) => {
+        if (!cancelled) setAttemptsError(err instanceof AdminApiError ? err.apiError.message : "Could not load the attempts. Try again.");
+      });
+    return () => { cancelled = true; };
+  }, [attemptsOpen, attempts, attemptsError, itemId, reloadKey]);
+
+  const latest = notes?.latest ?? null;
+  const panelId = `affected-attempts-${itemId}`;
+  const historyId = `note-history-${itemId}`;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+      <div>
+        <div style={LABEL_STYLE}>Latest note</div>
+        {notesError ? (
+          <p role="alert" style={{ ...BODY_STYLE, margin: "4px 0 0", color: "var(--aiq-color-danger)" }}>{notesError}</p>
+        ) : (
+          <>
+            <p style={{ ...BODY_STYLE, margin: "4px 0 0", whiteSpace: "pre-wrap", color: latest ? undefined : "var(--aiq-color-fg-muted)" }}>
+              {latest ? latest.note : notes ? "No note yet." : "Loading the latest note."}
+            </p>
+            {latest ? (
+              <div style={LABEL_STYLE}>{`${STATE_LABEL[latest.state] ?? latest.state} · version ${latest.version} · ${NOTE_WHEN(latest.created_at)}`}</div>
+            ) : null}
+          </>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
+        <HelpTip helpId="admin.question_bank.review.note_history">
+          <button
+            type="button"
+            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+            aria-expanded={historyOpen}
+            aria-controls={historyId}
+            onClick={() => setHistoryOpen((o) => !o)}
+          >
+            Note history
+          </button>
+        </HelpTip>
+        <HelpTip helpId="admin.question_bank.review.attempts">
+          <button
+            type="button"
+            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+            aria-expanded={attemptsOpen}
+            aria-controls={panelId}
+            onClick={() => setAttemptsOpen((o) => !o)}
+          >
+            Attempts on an older version
+          </button>
+        </HelpTip>
+      </div>
+
+      {historyOpen ? (
+        <div id={historyId}>
+          {notes === null && !notesError ? <p style={{ ...BODY_STYLE, margin: 0 }}>Loading the notes.</p> : null}
+          {notes !== null && notes.items.length === 0 ? (
+            <p style={{ ...BODY_STYLE, margin: 0, color: "var(--aiq-color-fg-muted)" }}>No notes yet.</p>
+          ) : null}
+          {notes !== null && notes.items.length > 0 ? (
+            <ol style={{ ...BODY_STYLE, margin: 0, paddingLeft: 22, display: "flex", flexDirection: "column", gap: 6 }}>
+              {notes.items.map((n) => (
+                <li key={n.id}>
+                  <div style={LABEL_STYLE}>{`${STATE_LABEL[n.state] ?? n.state} · version ${n.version} · ${NOTE_WHEN(n.created_at)}`}</div>
+                  <div style={{ ...BODY_STYLE, whiteSpace: "pre-wrap" }}>{n.note}</div>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </div>
+      ) : null}
+
+      {attemptsOpen ? (
+        <section
+          id={panelId}
+          aria-label="Attempts on an older version"
+          style={{ border: "1px dashed var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", padding: "var(--aiq-space-md)" }}
+        >
+          {attemptsError ? <p role="alert" style={{ ...BODY_STYLE, margin: 0, color: "var(--aiq-color-danger)" }}>{attemptsError}</p> : null}
+          {!attemptsError && attempts === null ? <p role="status" style={{ ...BODY_STYLE, margin: 0 }}>Loading the attempts.</p> : null}
+          {attempts !== null ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <p role="status" aria-live="polite" style={{ ...BODY_STYLE, margin: 0 }}>
+                {attempts.total === 0
+                  ? "No attempt used an older version of this question."
+                  : `${attempts.total} ${attempts.total === 1 ? "attempt" : "attempts"} used an older version of this question. The current version is ${attempts.current_version}.`}
+              </p>
+              {attempts.items.length > 0 ? (
+                <>
+                  <ul style={{ ...BODY_STYLE, margin: 0, paddingLeft: 22 }}>
+                    {attempts.items.slice(0, 5).map((a) => (
+                      <li key={a.attempt_id}>
+                        <span style={{ fontFamily: "var(--aiq-font-mono)" }}>{a.attempt_id}</span>
+                        {` · version ${a.question_version}`}
+                      </li>
+                    ))}
+                  </ul>
+                  {attempts.total > 5 ? <div style={LABEL_STYLE}>{`Showing the first 5 of ${attempts.total}.`}</div> : null}
+                </>
+              ) : null}
+              <p style={{ ...BODY_STYLE, margin: 0, color: "var(--aiq-color-fg-secondary)" }}>
+                Marks are not changed. A correction creates a new version; attempts keep the version they used.
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
 export function AdminQuestionReview(): React.ReactElement {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -192,8 +343,9 @@ export function AdminQuestionReview(): React.ReactElement {
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const [fixFor, setFixFor] = useState<ReviewItem | null>(null);
-  const [fixNote, setFixNote] = useState("");
+  const [noteDialog, setNoteDialog] = useState<{ item: ReviewItem; action: "needs_fix" | "dispute" } | null>(null);
+  const [noteText, setNoteText] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
   const [withdrawFor, setWithdrawFor] = useState<ReviewItem | null>(null);
   const [verifyAllCount, setVerifyAllCount] = useState<number | null>(null);
   const [verifyAllBusy, setVerifyAllBusy] = useState(false);
@@ -214,15 +366,13 @@ export function AdminQuestionReview(): React.ReactElement {
 
   useEffect(() => { void load(); }, [load]);
 
-  async function act(item: ReviewItem, action: "verify" | "needs_fix" | "withdraw", note?: string): Promise<boolean> {
+  async function act(item: ReviewItem, action: ReviewAction, note?: string): Promise<boolean> {
     setBusyId(item.id);
     setActionError(null);
     try {
-      await adminApi(`/admin/questions/${item.id}/review`, {
-        method: "POST",
-        body: JSON.stringify({ action, ...(note !== undefined ? { note } : {}) }),
-      });
+      await postQuestionReviewApi(item.id, action, note);
       await load();
+      setReloadTick((t) => t + 1);
       return true;
     } catch (err) {
       setActionError(err instanceof AdminApiError ? err.apiError.message : "The action failed. Try again.");
@@ -243,6 +393,7 @@ export function AdminQuestionReview(): React.ReactElement {
       });
       setVerifyAllCount(null);
       await load();
+      setReloadTick((t) => t + 1);
     } catch (err) {
       setVerifyAllCount(null);
       setActionError(err instanceof AdminApiError ? err.apiError.message : "Verify all failed. Try again.");
@@ -370,6 +521,8 @@ export function AdminQuestionReview(): React.ReactElement {
                 </p>
               </div>
 
+              <QuestionHistory itemId={item.id} reloadKey={reloadTick} />
+
               <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>
                 <HelpTip helpId="admin.question_bank.review.verify">
                   <button
@@ -386,9 +539,19 @@ export function AdminQuestionReview(): React.ReactElement {
                     type="button"
                     className="aiq-btn aiq-btn-outline aiq-btn-sm"
                     disabled={busy}
-                    onClick={() => { setFixFor(item); setFixNote(""); }}
+                    onClick={() => { setNoteDialog({ item, action: "needs_fix" }); setNoteText(""); }}
                   >
                     Needs fix
+                  </button>
+                </HelpTip>
+                <HelpTip helpId="admin.question_bank.review.disputed">
+                  <button
+                    type="button"
+                    className="aiq-btn aiq-btn-outline aiq-btn-sm"
+                    disabled={busy}
+                    onClick={() => { setNoteDialog({ item, action: "dispute" }); setNoteText(""); }}
+                  >
+                    Mark disputed
                   </button>
                 </HelpTip>
                 <HelpTip helpId="admin.question_bank.review.withdraw">
@@ -416,14 +579,20 @@ export function AdminQuestionReview(): React.ReactElement {
         ) : null}
       </div>
 
-      <Modal open={fixFor !== null} onClose={() => setFixFor(null)} title="Needs fix">
-        <label htmlFor="review-fix-note" style={{ ...BODY_STYLE, display: "block", fontWeight: 500, marginBottom: 6 }}>
-          What must change? The note is saved in the audit log.
+      <Modal
+        open={noteDialog !== null}
+        onClose={() => setNoteDialog(null)}
+        title={noteDialog?.action === "dispute" ? "Mark disputed" : "Needs fix"}
+      >
+        <label htmlFor="review-note-text" style={{ ...BODY_STYLE, display: "block", fontWeight: 500, marginBottom: 6 }}>
+          {noteDialog?.action === "dispute"
+            ? "Why is this question disputed? The note is saved in the audit log."
+            : "What must change? The note is saved in the audit log."}
         </label>
         <textarea
-          id="review-fix-note"
-          value={fixNote}
-          onChange={(e) => setFixNote(e.target.value)}
+          id="review-note-text"
+          value={noteText}
+          onChange={(e) => setNoteText(e.target.value)}
           maxLength={1000}
           rows={4}
           style={{
@@ -439,18 +608,18 @@ export function AdminQuestionReview(): React.ReactElement {
           }}
         />
         <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--aiq-space-sm)" }}>
-          <button type="button" className="aiq-btn aiq-btn-outline" onClick={() => setFixFor(null)}>Cancel</button>
+          <button type="button" className="aiq-btn aiq-btn-outline" onClick={() => setNoteDialog(null)}>Cancel</button>
           <button
             type="button"
             className="aiq-btn aiq-btn-primary"
-            disabled={fixNote.trim() === "" || busyId !== null}
+            disabled={noteText.trim() === "" || busyId !== null}
             onClick={() => {
-              const item = fixFor;
-              if (item === null) return;
-              void act(item, "needs_fix", fixNote.trim()).then((ok) => { if (ok) setFixFor(null); });
+              const dialog = noteDialog;
+              if (dialog === null) return;
+              void act(dialog.item, dialog.action, noteText.trim()).then((ok) => { if (ok) setNoteDialog(null); });
             }}
           >
-            Mark needs fix
+            {noteDialog?.action === "dispute" ? "Mark disputed" : "Mark needs fix"}
           </button>
         </div>
       </Modal>

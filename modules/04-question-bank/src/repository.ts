@@ -1515,3 +1515,16 @@ export async function countAssessmentsReferencingPack(
   );
   return parseInt(result.rows[0]?.count ?? "0", 10);
 }
+
+/** Z-52 gap 6: append one reviewer note (append-only table, migration 0214). Returns the note id. */
+export async function insertReviewNote(
+  client: PoolClient,
+  n: { tenantId: string; questionId: string; version: number; state: string; note: string; authorUserId: string },
+): Promise<string> {
+  const r = await client.query<{ id: string }>(
+    `INSERT INTO question_review_notes (tenant_id, question_id, version, state, note, author_user_id)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [n.tenantId, n.questionId, n.version, n.state, n.note, n.authorUserId],
+  );
+  return r.rows[0]!.id;
+}

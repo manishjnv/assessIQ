@@ -5195,3 +5195,88 @@ admin.blueprints.start_mock:
     This creates a draft assessment with the sections, timing and marks of this blueprint. Open the draft to check it, then publish it when you are ready.
 
     - **No candidates are invited.** The draft does not send any invitation.
+
+# EXP-18 review queue (seed only, no migration). Keys under admin.review_queue.* and the new controls on the question review screen.
+admin.review_queue.page:
+  audience: admin
+  short_text: "Questions from all question sets that need a check. Open one to take action."
+  long_md: |
+    ## Review queue
+
+    - **What.** Every question from your question sets, in one list.
+    - **Filter.** Pick a state. The number in brackets is the count of questions in that state.
+    - **Action.** Open a question to verify it, mark it as needing a fix or dispute it.
+
+admin.review_queue.filter:
+  audience: admin
+  short_text: "Show only the questions in one review state."
+  long_md: |
+    ## Review state
+
+    - **Needs review** shows questions that are in review, disputed or need a fix.
+    - **Not set** shows questions that were made before the review step.
+    - **All** shows every question.
+
+admin.review_queue.state:
+  audience: admin
+  short_text: "The review state of the question. In review, Needs fix and Disputed block invitations."
+  long_md: |
+    ## Review state
+
+    - **In review.** A person must check the question.
+    - **Needs fix.** A note says what must change.
+    - **Disputed.** A note says why the question is in doubt.
+    - **Verified.** The check is done.
+    - **Not set.** The question was made before the review step.
+
+admin.review_queue.latest_note:
+  audience: admin
+  short_text: "The newest review note for the question. Open the review to see every note."
+  long_md: |
+    ## Latest note
+
+    The note shows the last change made to the question and the reason for it. Open the review screen to read the full note history.
+
+admin.review_queue.open:
+  audience: admin
+  short_text: "Open the review screen of this question set. Take the action there."
+  long_md: |
+    ## Open review
+
+    The review screen shows the answer key, the rationale and the buttons for Verify, Needs fix, Mark disputed and Withdraw.
+
+admin.review_queue.paging:
+  audience: admin
+  short_text: "Move between pages of 25 questions."
+  long_md: |
+    ## Pages
+
+    The list shows 25 questions for each page. The line above the list shows the first and last question on this page.
+
+admin.question_bank.review.disputed:
+  audience: admin
+  short_text: "Mark the question as disputed. A note is required. Invitations wait until it is resolved."
+  long_md: |
+    ## Mark disputed
+
+    - **Use it when** the answer or the wording is in doubt, but the question is not clearly wrong.
+    - **Note.** Required. Say why the question is in doubt. The note is saved in the audit log.
+    - **Changes.** Marking a question does not change the marks of past attempts.
+
+admin.question_bank.review.note_history:
+  audience: admin
+  short_text: "Show every review note for this question, newest first."
+  long_md: |
+    ## Note history
+
+    Each note shows its review state, its version and the time it was saved. The newest note is first.
+
+admin.question_bank.review.attempts:
+  audience: admin
+  short_text: "Show attempts that used an older version of this question. Marks are not changed."
+  long_md: |
+    ## Attempts on an older version
+
+    - **What.** Attempts that were made on an earlier version of this question.
+    - **Read only.** This panel changes nothing.
+    - **Marks.** Marks are not changed. A correction creates a new version. Attempts keep the version they used.

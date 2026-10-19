@@ -62,6 +62,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     id: "question-bank",
     label: "Question bank",
     icon: "grid",
+    strip: true,
     tabs: [
       {
         id: "question-bank",
@@ -70,6 +71,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
         under: ["/admin/question-bank", "/admin/question-import"],
       },
       { id: "org-question-upload", label: "Upload questions", href: "/admin/org-question-upload", under: ["/admin/org-question-upload"] },
+      { id: "review-queue", label: "Review queue", href: "/admin/review-queue", under: ["/admin/review-queue"] },
     ],
   },
   {

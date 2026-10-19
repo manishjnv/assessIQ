@@ -140,7 +140,8 @@ describe("review actions (EXP-18 part 2)", () => {
 
     expect((await review(app, asA, ids[0]!, { action: "needs_fix", note: "Key should be B" })).statusCode).toBe(200);
     expect((await state(ids[0]!)).review_state).toBe("needs_fix");
-    expect((await audits(ids[0]!))[0]).toMatchObject({ before: { review_state: "in_review" }, after: { review_state: "needs_fix", note: "Key should be B" } });
+    expect((await audits(ids[0]!))[0]).toMatchObject({ before: { review_state: "in_review" }, after: { review_state: "needs_fix", note_id: expect.any(String) } });
+    expect(JSON.stringify((await audits(ids[0]!))[0])).not.toContain("Key should be B");
   });
 
   it("Withdraw archives, marks rights withdrawn and audits with the previous review state; verify after is refused", async () => {
@@ -150,7 +151,7 @@ describe("review actions (EXP-18 part 2)", () => {
     expect((await state(ids[0]!)).status).toBe("archived");
     const src = await sup((c) => c.query(`SELECT rights_status FROM question_source WHERE question_id=$1`, [ids[0]]));
     expect(src.rows[0].rights_status).toBe("withdrawn");
-    expect((await audits(ids[0]!, "question.withdrawn"))[0]).toMatchObject({ before: { status: "draft", review_state: "in_review" }, after: { rights_status: "withdrawn", note: "copyright" } });
+    expect((await audits(ids[0]!, "question.withdrawn"))[0]).toMatchObject({ before: { status: "draft", review_state: "in_review" }, after: { rights_status: "withdrawn", note_id: expect.any(String) } });
     expect((await review(app, asA, ids[0]!, { action: "verify" })).statusCode).toBe(409);
   });
 

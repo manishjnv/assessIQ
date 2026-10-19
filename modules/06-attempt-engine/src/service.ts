@@ -878,6 +878,76 @@ export async function getAttemptIntegritySummary(
 }
 
 // ===========================================================================
+// listAttemptsOnOlderVersions — EXP-12, read only, no rescoring
+// ===========================================================================
+
+export interface AffectedAttemptItem {
+  attempt_id: string;
+  assessment_id: string;
+  assessment_name: string;
+  candidate_user_id: string;
+  status: string;
+  question_version: number;
+  submitted_at: string | null;
+}
+
+export interface AffectedAttempts {
+  question_id: string;
+  current_version: number;
+  total: number;
+  items: AffectedAttemptItem[];
+}
+
+const AFFECTED_ATTEMPTS_CAP = 200;
+const FINISHED_STATUSES = ["submitted", "auto_submitted", "pending_admin_grading", "graded", "released"];
+
+/** Finished attempts that froze an older version of the question (an answer-key correction made a newer one). */
+export async function listAttemptsOnOlderVersions(
+  tenantId: string,
+  questionId: string,
+): Promise<AffectedAttempts> {
+  return withTenant(tenantId, async (client) => {
+    await client.query("SET TRANSACTION READ ONLY");
+    // RLS on questions: a question of another tenant reads as null.
+    const q = await qbRepo.findQuestionById(client, questionId);
+    if (q === null) {
+      throw new NotFoundError(`Question not found: ${questionId}`, {
+        details: { code: "QUESTION_NOT_FOUND" },
+      });
+    }
+    const from = `
+      FROM attempt_questions aq
+      JOIN attempts a ON a.id = aq.attempt_id
+      JOIN assessments s ON s.id = a.assessment_id
+      WHERE aq.question_id = $1 AND aq.question_version < $2 AND a.status = ANY($3::text[])`;
+    const params = [questionId, q.version, FINISHED_STATUSES];
+    const total = await client.query<{ n: number }>(`SELECT count(*)::int AS n ${from}`, params);
+    const rows = await client.query<{
+      attempt_id: string;
+      assessment_id: string;
+      assessment_name: string;
+      candidate_user_id: string;
+      status: string;
+      question_version: number;
+      submitted_at: Date | null;
+    }>(
+      `SELECT a.id AS attempt_id, a.assessment_id, s.name AS assessment_name, a.user_id AS candidate_user_id,
+              a.status, aq.question_version, a.submitted_at
+       ${from}
+       ORDER BY a.submitted_at DESC NULLS LAST, a.id
+       LIMIT ${AFFECTED_ATTEMPTS_CAP}`,
+      params,
+    );
+    return {
+      question_id: questionId,
+      current_version: q.version,
+      total: total.rows[0]!.n,
+      items: rows.rows.map((r) => ({ ...r, submitted_at: r.submitted_at?.toISOString() ?? null })),
+    };
+  });
+}
+
+// ===========================================================================
 // saveAnswer — last-write-wins (decision #7)
 // ===========================================================================
 

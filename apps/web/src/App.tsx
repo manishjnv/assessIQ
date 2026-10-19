@@ -42,6 +42,7 @@ const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => (
 const AdminQuestionImport = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminQuestionImport })));
 const AdminExamBlueprints = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminExamBlueprints })));
 const OrgQuestionUpload = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.OrgQuestionUpload })));
+const ReviewQueue = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.ReviewQueue })));
 const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
 const AdminAccountSecurity = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminAccountSecurity })));
 const AdminEvaluationsQueue = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminEvaluationsQueue })));
@@ -130,6 +131,7 @@ export function App(): React.JSX.Element {
           <Route path="/admin/question-import" element={<RequireSession role="super_admin"><AdminQuestionImport /></RequireSession>} />
           <Route path="/admin/exam-blueprints" element={<RequireSession role="super_admin"><AdminExamBlueprints /></RequireSession>} />
           <Route path="/admin/org-question-upload" element={<RequireSession role="admin"><OrgQuestionUpload /></RequireSession>} />
+          <Route path="/admin/review-queue" element={<RequireSession role="admin"><ReviewQueue /></RequireSession>} />
           {/* Certificates admin (Phase 5 Session 5) — AdminCertificates wraps AdminShell internally */}
           <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
           {/* Activity page (Phase 11) */}
