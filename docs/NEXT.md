@@ -2,20 +2,23 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-19T17:43:22.920Z (2026-10-19 23:13:22 IST)
-- HEAD: `8c0f0ec0`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 3
+- Generated: 2026-10-19T18:01:30.145Z (2026-10-19 23:31:30 IST)
+- HEAD: `dfa84116`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 2
 
 ## 1. Last session (SESSION_STATE, first block)
 
 ## Session — 2026-10-19 — S35: owner v2 sheet, pricing and the final build list (planning, no code)
 
 **Headline:** the owner answered the v2 sheet (R1 to R39) and gave follow-up decisions; they are written into ROADMAP rows Z-70..Z-95, section Z.9 (final build list, five waves), the register and memory `owner-decisions.md`. No code changed.
-**Commits:** `7f57e728` — ROADMAP and register: owner decisions, Z-79..Z-94, Z.9, exam-pack row updates merged from the S34 session, Z-77 ID clash fixed (admin list is now Z-95). Not pushed at the time of writing.
+**Commits:** `d530e4a3` (the six S35 and S34 docs commits squashed so that private pricing is not in the public history; force-pushed), `1b974a21` and `dfa84116` (handoff notes). Earlier ids `7f57e728`, `92b22a42`, `c9c0bc8a`, `4776221a`, `8c0f0ec0`, `7ff964ce` no longer exist on `main`. All pushed; local and origin agree. No code changed.
 **Tests:** n/a (docs only). `node tools/roadmap-recount.mjs`: 93 pending, 187 closed, 280 total, 67 percent, SAME as Z.7.
-**Next:** (1) push `7f57e728`; (2) write the Wave 1 prompt from ROADMAP Z.9 (credit ledger Z-93 and Z-79, test types Z-89, desktop-only Z-87 and readiness Z-91, sign-up Z-71 with Z-81 and Z-80, then Z-18 flip and the pilot tenant to paid, Z-90 mock dashboard); (3) owner tasks: live test of /admin, sign-in code and Delete buttons, console check of the CSP header, speed check, dry runs, the AI evaluation bless, lawyer review before the 2nd or 3rd paying customer.
+**Next:** (1) start the Wave 1 session 1 from ROADMAP Z.9 (credit ledger Z-93 and Z-79, test types Z-89, desktop-only Z-87, readiness Z-91, locked-feature popup Z-80); (2) session 2: public sign-up Z-71 with the DPA checkbox Z-81, the `/dpa` page and the terms and privacy edits from `docs/design/2026-10-19-legal-texts-v1.md`, then Z-18 and the pilot tenant to paid, then the mock dashboard Z-90; (3) owner tasks: live test of /admin, sign-in code and Delete buttons, console check of the CSP header, speed check, the AI evaluation bless and dry runs, UptimeRobot (Z-83). RULE: no prices, costs or strategy in tracked files; they live in the untracked `docs/owner-review/PRIVATE_pricing_and_costs.md`.
 **Open questions (owner):**
-- **Public repo incident (found at the close of S35):** the rate card, founding offer, costs and break-even were pushed to the PUBLIC repo in ROADMAP Z-92, NEXT.md and this file (commits `7f57e728`, `92b22a42`, about 1.5 hours). Scrubbed in the next commit; the details moved to the untracked `docs/owner-review/PRIVATE_pricing_and_costs.md`. Git history still holds the old text: the owner decides whether to rewrite history (git filter-repo plus force push, destructive, see row Z.8) or accept the risk. Rule saved in memory `public-repo-hygiene.md`.
+- **Public repo incident (found at the close of S35):** the rate card, founding offer, costs and break-even were pushed to the PUBLIC repo in ROADMAP Z-92, NEXT.md and this file (commits `7f57e728`, `92b22a42`, about 1.5 hours). Scrubbed in the next commit; the details moved to the untracked `docs/owner-review/PRIVATE_pricing_and_costs.md`. History REWRITTEN on 2026-10-19 (the six docs commits squashed into `d530e4a3` and force-pushed); a search of the new history finds none of the private strings. The old commit ids (`7f57e728`, `92b22a42`, `c9c0bc8a`, `4776221a`, `8c0f0ec0`, `7ff964ce`) are still viewable on GitHub by direct address. The owner ACCEPTED this risk and chose not to contact GitHub Support (2026-10-19). The local backup branch was deleted.
+- `CLAUDE.md` (tracked, public) still holds the server host name and IP: replace with a note?
+- Legal defaults to confirm: liability floor 10,000 rupees and breach notice 48 hours (`docs/design/2026-10-19-legal-texts-v1.md`). The `/dpa` page and the terms and privacy edits are not live yet (Wave 1, session 2).
+- Sensitive-content rule: the repo stays PUBLIC (owner, 2026-10-19). Rule saved in memory `public-repo-hygiene.md`.
 - Z-52 gap 7: the S34 session built the staff-only dispute action before the owner's answer A arrived; keep or remove.
 - GIFT uploads: the format check allows csv and xlsx only; say if GIFT must work.
 - Rescoring questions Q1 to Q4 in `docs/design/2026-10-19-answer-key-rescore-proposal.md`; warranty wording `ORG_UPLOAD_WARRANTY_TEXT`.
