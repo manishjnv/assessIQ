@@ -146,7 +146,8 @@ export function registerImportRoutes(
   tenantPreHandler: preHandlerHookHandler[] | preHandlerHookHandler,
   orgUploadGuard: preHandlerHookHandler[] | preHandlerHookHandler = tenantPreHandler,
 ): void {
-  // EXP-17: every organisation-upload route uses orgUploadGuard (admin chain + the 'question_upload' plan gate).
+  // EXP-17: upload, template, list, row edit and commit use orgUploadGuard (admin chain + the 'question_upload' plan gate).
+  // Read, discard and withdraw stay on the plain admin chain (gate finding 2, S34).
   // Literal paths on purpose: tools/lint-ui-api-contract.ts matches route strings, not template variables.
 
   // EXP-17: organisation admins upload into their own tenant. Same service, same limits; the body must carry
@@ -179,15 +180,16 @@ export function registerImportRoutes(
   // EXP-17: organisation-admin copies of the five routes below (RLS limits every query to the caller's tenant).
   app.get(`/api/admin/question-imports/templates/:type`, { preHandler: orgUploadGuard }, templateHandler);
   // List of the organisation's own uploads, and withdraw of every question one upload made.
-  app.get(`/api/admin/question-imports`, { preHandler: orgUploadGuard }, async (req) => listOrgUploads(req.session!.tenantId));
-  app.post(`/api/admin/question-imports/:id/withdraw`, { preHandler: orgUploadGuard }, async (req) => {
+  app.get(`/api/admin/question-imports`, { preHandler: orgUploadGuard }, async (req) => listOrgUploads(req.session!.tenantId, req.session!.role));
+  app.post(`/api/admin/question-imports/:id/withdraw`, { preHandler: tenantPreHandler }, async (req) => {
     const { id } = parse(IdParams, req.params, "id");
-    return withdrawImport(req.session!.tenantId, req.session!.userId, id);
+    return withdrawImport(req.session!.tenantId, req.session!.userId, req.session!.role, id);
   });
-  app.get(`/api/admin/question-imports/:id`, { preHandler: orgUploadGuard }, getHandler);
+  // A lapsed plan must not remove the takedown path: read, discard and withdraw use the plain admin chain.
+  app.get(`/api/admin/question-imports/:id`, { preHandler: tenantPreHandler }, getHandler);
   app.patch(`/api/admin/question-imports/:id/rows/:row`, { preHandler: orgUploadGuard }, patchHandler);
   app.post(`/api/admin/question-imports/:id/commit`, { preHandler: orgUploadGuard }, commitHandler);
-  app.post(`/api/admin/question-imports/:id/discard`, { preHandler: orgUploadGuard }, discardHandler);
+  app.post(`/api/admin/question-imports/:id/discard`, { preHandler: tenantPreHandler }, discardHandler);
 
   app.get(`/api/admin/super/question-imports/:id`, { preHandler }, getHandler);
 

@@ -57,7 +57,7 @@ export function assertReviewRole(role: string | undefined): asserts role is "adm
 }
 
 /** Role against the caller's own tenant: platform only for a super_admin, an organisation only for an admin. Returns isPlatform. */
-async function assertRoleFitsTenant(client: PoolClient, actor: ReviewActor): Promise<boolean> {
+export async function assertRoleFitsTenant(client: PoolClient, actor: ReviewActor): Promise<boolean> {
   assertReviewRole(actor.role);
   const t = await client.query<{ slug: string }>(`SELECT slug FROM tenants WHERE id = $1`, [actor.tenantId]);
   const isPlatform = t.rows[0]?.slug === "platform";
