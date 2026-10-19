@@ -2764,3 +2764,35 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 **How to verify after deploy:** open `/`, `/pricing`, `/terms`, `/privacy`; check the Home link has `aria-current="page"` on `/`; check `/sitemap-0.xml` and one `/og/*.png`; run `bash tools/post-deploy-sweep.sh`.
 
 **Rollback:** revert commit `8633cd84` (restores the old `package.json`, lockfile, config and `Header.astro`), rebuild `assessiq-marketing`.
+
+## 2026-10-19 marketing deploy: Astro 5.18.2 to 7.4.0 (Z-38), owner "go"
+
+**What changed.** The `assessiq-marketing` container was rebuilt from `da2a95cd` and recreated (`docker compose -f infra/docker-compose.yml build assessiq-marketing`, then `up -d --no-deps --force-recreate assessiq-marketing`). `tools/deploy.sh` does not build marketing, so this followed the manual steady-state steps above. API, worker and frontend were not touched (markers stay `9bd08797`).
+
+**Why.** Two critical Dependabot alerts: astro below 7.2.8 (remote code execution in AVIF image optimisation). No use of that path was found in the marketing code, but the fix is the supported route.
+
+**Checks before the deploy.** Local build with astro 7.4.0: 56 HTML files and 42 sitemap URLs, the same sitemap count as live. Visible text of `/` and `/about` matched live byte for byte. `/pricing`, `/contact` and `/privacy` differed only where Cloudflare rewrites e-mail addresses to `[email protected]` on the live site.
+
+**Checks after.** `/`, `/about`, `/pricing`, `/contact`, `/privacy`, `/try`, `/robots.txt`, sitemap files and `/llms.txt` return 200. A missing page returns 404. Sitemap: 42 URLs. The contact page still has its form and the Turnstile widget. The post-deploy sweep showed no FAIL line. The container is healthy.
+
+**Rollback.** The previous image is tagged `assessiq/marketing:rollback-20261019`. Run `docker tag assessiq/marketing:rollback-20261019 assessiq/marketing:latest`, then `docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate assessiq-marketing`.
+
+**Considered and rejected.** Waiting for the pilot (the alert is critical); a staging copy (the local build compare covered the page set).
+
+**Not included.** IndexNow ping (no content change); the Caddy CSP report-only line (Z-46, blocked by a permission check; see ROADMAP Z-46); marketing text about self-serve (the pricing page still says there is no self-serve sign-up, which is true until Z-71 ships).
+
+**Downstream.** None for the app. Z-38 loses its astro item (done).
+
+## 2026-10-19 Caddy: CSP report-only header on assessiq.in (Z-46), owner "go"
+
+**What changed.** One line was added to the `assessiq.in { ... }` block of `/opt/ti-platform/caddy/Caddyfile` (new line 82, after `import security-headers`): `header Content-Security-Policy-Report-Only "default-src 'self'; script-src ..."`. Backup: `/opt/ti-platform/caddy/Caddyfile.bak.20261019T015310Z`. The new file was checked with `caddy validate` in the container, written in place (same inode 4194330, never `sed -i` on this single-file mount), then loaded with `caddy reload` (graceful; no restart).
+
+**Why.** The live CSP has only `frame-ancestors`. Report-only shows in the browser console which scripts, styles and frames a stricter policy would block, so a later enforced policy does not break a page.
+
+**Considered and rejected.** Putting the header in the shared `(security-headers)` snippet (the first repo draft did): 8 sites import it, so other apps would get a header meant for AssessIQ. The repo reference file `infra/caddy/assessiq.caddy` now matches the live placement.
+
+**Checked after.** `https://assessiq.in/` sends both `content-security-policy: frame-ancestors 'none'` and the report-only header. `/admin/login`, `/take`, `/try`, `/api/ready` return 200. `scopesense.in` has no report-only header. Caddy stayed up.
+
+**Rollback.** `cat /opt/ti-platform/caddy/Caddyfile.bak.20261019T015310Z > /opt/ti-platform/caddy/Caddyfile`, then `docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
+
+**Not included.** Enforcing the policy. That waits for a clean console check on the signed-in admin, take and marketing pages (inline script and style are still allowed). Violation reports are not collected on a server; only the browser console shows them.
