@@ -2,6 +2,8 @@
 
 Status: advisory. This work changes no Caddy file, no VPS and no DNS.
 
+Update 2026-10-19: the inline code listed below is removed from the apps, and the enforcing policies are measured at 0 violations on production builds. The final policy strings, the Caddy lines and the owner steps are in `docs/design/2026-10-20-csp-enforce-plan.md`. The policy table below is the earlier draft.
+
 ## What was measured
 
 - Spec: `apps/web/e2e/csp-report-only.spec.ts`. It reads the `Content-Security-Policy-Report-Only` value from `infra/caddy/assessiq.caddy` at run time. It adds the header to every document response and records `securitypolicyviolation` events.

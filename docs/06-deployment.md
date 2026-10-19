@@ -734,6 +734,7 @@ After bootstrap, sign in at `https://assessiq.automateedge.cloud/admin/login` an
 - **Failure alert:** an `ERR` trap emails `connect@assessiq.in` (which forwards to the Gmail of the owner). It uses `curl` with the own `SMTP_URL` of the app from `/srv/assessiq/.env` (Brevo), with no extra account. The team tested the alert path on 2026-10-01, and it delivered.
 - **Offsite:** the **Hostinger weekly VPS backup** that the owner enabled, which captures `/var/backups/assessiq`. The worst-case data loss is about 1 day if the disk survives, and up to about 7 days if the whole VPS is lost.
 - **Prompt skills (added 2026-10-01 b):** each run also tars `/srv/assessiq/prompts/skills` to `prompts-skills-<ts>.tgz` (14-day retention). The prompts are gitignored, so this tarball plus the host copy are the only copies besides the laptop of the owner. If the folder is missing, the run emails an alert.
+- **Daily off-site (built, not switched on):** `tools/backup-daily.sh` encrypts the dump with `age` (public key only) and uploads it to Cloudflare R2 with `rclone`, with verify and retention. It does not touch the job above. Runbook and switch-on steps: `docs/runbooks/backup-daily.md`. The owner switches it on at the first paying customer.
 - **Known ceiling (`ponytail`):** if the cron daemon itself stops, nothing alerts. Add an external dead-man ping (healthchecks.io) if that matters. The team did not adopt the rclone/R2 offsite (the original design below). Add it if the RPO must be under 7 days for a VPS loss.
 
 **Restore drill, 2026-10-01: PASSED.**
@@ -2820,3 +2821,36 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 - **What.** Env flag, default `false`, declared in `modules/00-core/src/config.ts` and `.env.example`. NOT set on the VPS. When `true` AND `PLAN_TIERS_ENFORCED=true`, Free-tier organisations cannot start AI grading (403 `AI_GRADING_DISABLED`). Paid tiers are not affected.
 - **Why an env flag.** A platform setting table is Z-71 scope and needs a migration. The flag needs only an `.env` edit and `up -d --no-deps --force-recreate assessiq-api`.
 - **Not included.** No UI toggle and no audit row for the switch (add both in Z-71). `PLAN_TIERS_ENFORCED` stays unset until the Z-71 build.
+
+### S33 batch (2026-10-19, code `1e0932b2`): deploy notes and CSP enforcing steps
+
+Status: committed and pushed. Not deployed when this was written. Update this block after the deploy.
+
+**What ships**
+
+- API, worker and frontend: EXP-17 routes, EXP-8 passages, Z-52 gap 5, CSP code (external scripts).
+- Migrations: `0209` (module 04), `0211` (module 04), `0213` (module 06). All forward-only and idempotent. No backfill.
+- Marketing: new files `font-swap.js`, `search-prefill.js`, `cost-calculator.js` and an `assetsInlineLimit: 0` build setting. Deploy by the manual marketing steps in this document, not by `tools/deploy.sh`.
+- Not shipped: any Caddy change, the backup timer, any flag.
+
+**Order**
+
+1. Wait for a green CI on `1e0932b2`.
+2. Run `tools/deploy.sh --yes` (frontend, API, worker).
+3. Rebuild and swap the marketing container by the manual steps.
+4. Run `bash tools/post-deploy-sweep.sh`.
+5. Check one admin flow: create a question, press Verify, publish an assessment.
+
+**Behaviour change after this deploy**
+
+- A new question starts as `in_review`. An assessment cannot publish while a pool question is `in_review`. Old questions (NULL) are not blocked.
+
+**CSP enforcing (separate step, needs the owner go)**
+
+- The exact Caddy lines, the apply steps and the rollback are in `docs/design/2026-10-20-csp-enforce-plan.md`.
+- Apply them only after the code above is live. Keep the report-only header in place.
+- Never edit the shared `(security-headers)` snippet. Never use `sed -i` on the single-file Caddy mount.
+
+**Off-site backup (not switched on)**
+
+- Script `tools/backup-daily.sh`, runbook `docs/runbooks/backup-daily.md`. Nothing is installed on the VPS. Switch-on needs the owner to choose where the R2 keys live.

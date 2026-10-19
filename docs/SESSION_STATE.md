@@ -1,3 +1,38 @@
+# Session — 2026-10-19 — S33: EXP-17 org upload (API), EXP-8 passages, Z-52 gap 5, CSP enforce-ready, off-site backup script
+
+**Headline:** exam-pack Wave 1 code is built: organisations can upload question sets (API only), passages are drawn whole, and every new question starts `in_review`. The CSP is ready to enforce (0 violations on 12 pages) and the daily off-site backup script is ready. Nothing is switched on. Recount: 80 pending, 184 closed, 264 total, 70% (EXP-8 closed; Z-77 and Z-78 added).
+**Commits:** `1e0932b2` — EXP-17, EXP-8, Z-52 gap 5, CSP code, backup script. `af47990b` — gate trailer. Docs commit follows.
+**Deploy:** NOT done in this block. Needs CI green on `1e0932b2` and the owner go. New migrations: 0209 and 0211 (module 04), 0213 (module 06). Next free migration: 0214.
+**Tests:** `pnpm verify` green. Module 04 full: 42 files, 465 pass. Module 06 full: 355 pass after the fixture fix (27 files). Module 05 touched files pass. Backup test 40 of 40. CSP enforcing sweep 0 violations on 12 pages (production builds).
+**Gate:** Sonnet takeover, ONE gate for EXP-17, gap 5 and the EXP-8 draw: ACCEPT, no high finding. Fixed: a row edit lost the shared passage text (test added). Documented, not fixed: passages that cannot pack into the count make the attempt start fail with `POOL_TOO_SMALL` (no publish-time check); the blueprint path draws fewer; an org admin can verify their own upload; `licensed` has no licence id; no delete guard on passages.
+**Behaviour change to know:** every new admin-authored question now needs Verify before an assessment can publish (Z-52 gap 5, owner-approved B). About 100 test fixtures and the e2e factory were updated to verify their questions.
+**Next:** (1) CI green, then owner go, then deploy (SPA and API `tools/deploy.sh`; marketing by the manual steps; CSP code ships with it, Caddy switch does NOT). (2) Owner: CSP Caddy go (Z-77), gap 6 pick (history table or latest note), R2 key location (Z-78), GIFT format check on org upload. (3) Build the EXP-17 admin UI, EXP-9 Hindi overlay (migration 0214), Z-43.
+**Open questions (owner):**
+- Z-52 gap 6: keep a history of review notes (recommended, new table) or only the latest note (column)?
+- Accept `'unsafe-inline'` for SPA styles in the CSP, or fund the CSS-extraction row?
+- Where should the R2 keys for the backup live (options in `docs/runbooks/backup-daily.md`)?
+- `question_imports.format` CHECK allows csv and xlsx only; routes accept gift, aiken, qti. Check a GIFT upload.
+**Not done on purpose:** Caddy edit, backup switch-on, scraping, AI generation, exam content in git, flag flips, GATE-8, react-router 7, Z-71, webcam build, EXP-9 Hindi (next batch), Z-43.
+**Old task or feature checked:** EXP-1, EXP-2, EXP-4, EXP-18, EXP-19, EXP-20, Z-42, Z-43, Z-46, Z-52, the existing on-box dump (kept, not replaced), `tools/backup-restore-test.sh`.
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): Phase 0, briefs, line-by-line diff review of all five builds, fixture fix in the e2e factory and the admin-generate insert, row-edit passage fix, merge of two worktree patches, gate prompt, commits, docs. Estimate ~380k tokens.
+- Sonnet: 6 runs (EXP-17 plus gap 5, EXP-8, CSP, backup, fixture fix, gate).
+- Haiku: n/a — all rows touched load-bearing paths or needed a design call.
+- codex:rescue: n/a — Codex down since 2026-10-11; Sonnet takeover verdict=accept.
+- Gemini (agy): n/a — direct reads were small.
+- Codex (exec): n/a — down.
+  - Sonnet · EXP-17 org upload and gap 5 · reworked: Y (gap 5 default broke ~100 fixtures; Opus found it in review, a second Sonnet fixed them) · tokens: 152956
+  - Sonnet · EXP-8 passages · reworked: Y (one fixture needed review_state after merge; Opus fixed; row-edit passage loss found by the gate) · tokens: 209308
+  - Sonnet · CSP enforce-ready code and sweep · reworked: N · tokens: 164012
+  - Sonnet · daily backup script and test · reworked: N · tokens: 160440
+  - Sonnet · test fixture fix · reworked: N · tokens: 103773
+  - Sonnet · adversarial gate · reworked: N · tokens: 164186
+
+---
+
 # Session — 2026-10-19 — S32: purge flip, Free-plan limits (flag off), restore test, CSP sweep, drafts
 
 **Headline:** `USER_PURGE_ENABLED` is ON (first tick had 0 candidates). Free-plan limits are built behind `PLAN_TIERS_ENFORCED`, which stays OFF. The restore test passed. Recount unchanged: 79 pending, 183 closed, 262 total, 70% (no row closed on purpose).
