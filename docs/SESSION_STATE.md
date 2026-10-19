@@ -1,3 +1,39 @@
+# Session — 2026-10-19 — S34: EXP-17 org upload screen, review notes and dispute, review queue, slice tooling
+
+**Headline:** the second half of Wave 1 code is built and pushed: the organisation upload screen, the review notes table, staff `disputed`, the cross-pack review queue, the affected-attempts list, the exam blueprint page, the `has_passage` filter and the 200-item slice loader. Nothing is deployed. Rescoring is NOT built (owner questions written).
+**Commits:** `a427d51f` — EXP-17 screen, list and withdraw, EXP-5/6 tails, EXP-15 tool. `48430cfb` — Z-52 gaps 6 and 7, EXP-12 queue, affected attempts (migration 0214). `d8396ca4` — gate fixes. `c83839c2` — gate trailer. `abd2a939` — docs. Handoff docs commit follows.
+**Tests:** `pnpm verify` green before the push. Module 04 full 44 files, 484 pass (agent run); org-uploads and tenant-upload files re-run after the gate fixes, 11 pass. Module 19 all 10 files pass. Module 06 affected-attempts, retake, attempt-engine pass. Module 10 admin-nav 28 pass, new page tests pass. Help system 23 pass (seed count 560). Local smoke `/admin/org-question-upload` and `/admin/question-bank` pass. CI: green on `abd2a939` (run 39275607685).
+**Gate:** Sonnet takeover, ONE gate, 3 rows (org list and withdraw, Z-52 gaps 6 and 7 with the review gate, affected attempts): ACCEPT on all, no high or medium. 5 low: fixed 3 (platform imports only for a super_admin; read, discard and withdraw off the plan gate so a lapsed plan keeps the takedown path; deadlock maps to a retryable 409). Recorded, not fixed: (4) a clone set to disputed or needs_fix by propagation has no note row, so the tenant admin sees a blocked question without a reason; (5) the REVOKE is weak because `assessiq_app` may `SET ROLE assessiq_system`, the trigger is the backstop (same trust as `propagateTakedown`).
+**Next:** (1) CI green, then owner says deploy: `bash tools/deploy.sh --dry-run`, `--yes`, `bash tools/post-deploy-sweep.sh` (migration 0214 only adds; api redeploy also makes `previewImport` available for the slice tool). (2) Owner: send the slice file and source list, run the GIFT check, answer the rescoring questions. (3) Next build rows: EXP-9 Hindi (0215), Z-43.
+**Open questions (owner):**
+- Rescoring (EXP-12): Q1 to Q4 in `docs/design/2026-10-19-answer-key-rescore-proposal.md`.
+- The organisation warranty wording `ORG_UPLOAD_WARRANTY_TEXT` needs the lawyer.
+- `question_imports.format` CHECK allows csv and xlsx only; the screen offers only those. Widen it (new migration) if GIFT upload must work.
+- Z-51 (a or b) is still blank; not built.
+- Gap 6 and gap 7 and R3 cards were blank in the v2 sheet: I used the recommendations (gap 6 = A, gap 7 = B after gap 6, Free shows "Contact us").
+**Behaviour to know:** notes now live in `question_review_notes`; new audit rows carry `note_id`, old audit rows keep their old note text. An admin can mark a question `disputed`; it blocks publish and invite like `needs_fix` and reaches tenant clones. A correction of an answer key is an edit: new version, attempts and frozen pools keep theirs.
+**Another session:** `docs/ROADMAP.md` was being edited by another session in this clone (Z-79..Z-92 and an S34 recount line). My ROADMAP row edits (Z-52 done, EXP-5, 6, 12, 15, 17 notes) are in the working tree but NOT committed by me; the other session commits that file. My Z-52 closure moves the recount by one (pending down 1, closed up 1): re-run `node tools/roadmap-recount.mjs` and fix its Z.7 line before commit.
+**Old task or feature checked:** EXP-4, EXP-5, EXP-6, EXP-8, EXP-17, EXP-18, EXP-19, EXP-20, Z-42, Z-43, Z-51, Z-52, the S33 org upload API, `withdrawInTx`, `propagateNeedsFix` (generalised), `updateQuestion` version bump.
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): Phase 0, briefs, contract for the review API, line-by-line diff review of module 04, 06 and the billing and route wiring, wiring of App.tsx, nav and help count, gate prompt, gate fixes with tests, docs.
+- Sonnet: 6 runs (EXP-17 plus API, EXP-15 tool, notes table and review queue, affected attempts, gate) plus gate-fix edits by Opus.
+- Haiku: 2 runs (EXP-5/6 tails, review queue UI), both accepted without rework.
+- codex:rescue: n/a — Codex down since 2026-10-11; Sonnet takeover verdict=accept.
+- Gemini (agy): n/a — direct reads were small.
+- Codex (exec): n/a — down.
+  - Sonnet · EXP-17 screen, list, withdraw, tier gate · reworked: Y (gate low findings 1 to 3 fixed by Opus) · tokens: 202365
+  - Haiku · EXP-5 has_passage and blueprint page · reworked: N (my own nav test break, not the agent) · tokens: 197671
+  - Sonnet · EXP-15 slice tool and runbook · reworked: N · tokens: 172535
+  - Sonnet · notes table, dispute, review queue · reworked: N · tokens: 176734
+  - Sonnet · affected-attempts list · reworked: N · tokens: 115781
+  - Haiku · review queue UI · reworked: N · tokens: 187805
+  - Sonnet · adversarial gate · reworked: N · tokens: 153962
+
+---
+
 # Session — 2026-10-19 — S33: EXP-17 org upload (API), EXP-8 passages, Z-52 gap 5, CSP enforce-ready, off-site backup script
 
 **Headline:** exam-pack Wave 1 code is built: organisations can upload question sets (API only), passages are drawn whole, and every new question starts `in_review`. The CSP is ready to enforce (0 violations on 12 pages) and the daily off-site backup script is ready. Nothing is switched on. Recount: 80 pending, 184 closed, 264 total, 70% (EXP-8 closed; Z-77 and Z-78 added).

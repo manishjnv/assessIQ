@@ -2,28 +2,28 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-19T13:27:09.517Z (2026-10-19 18:57:09 IST)
-- HEAD: `1eda2ec9`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 2
+- Generated: 2026-10-19T15:11:43.491Z (2026-10-19 20:41:43 IST)
+- HEAD: `abd2a939`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 4
 
 ## 1. Last session (SESSION_STATE, first block)
 
-## Session — 2026-10-19 — S33: EXP-17 org upload (API), EXP-8 passages, Z-52 gap 5, CSP enforce-ready, off-site backup script
+## Session — 2026-10-19 — S34: EXP-17 org upload screen, review notes and dispute, review queue, slice tooling
 
-**Headline:** exam-pack Wave 1 code is built: organisations can upload question sets (API only), passages are drawn whole, and every new question starts `in_review`. The CSP is ready to enforce (0 violations on 12 pages) and the daily off-site backup script is ready. Nothing is switched on. Recount: 80 pending, 184 closed, 264 total, 70% (EXP-8 closed; Z-77 and Z-78 added).
-**Commits:** `1e0932b2` — EXP-17, EXP-8, Z-52 gap 5, CSP code, backup script. `af47990b` — gate trailer. `0fb3a043` — docs. `1eda2ec9` — fix: two SPA scripts were in a gitignored folder (CI e2e 404; RCA entry). Deploy-record docs commit follows.
-**Deploy:** DONE 2026-10-19. CI green on `1eda2ec9`. `tools/deploy.sh --yes`: VPS `ac8c6cc9` to `1eda2ec9`, migrations 0209, 0211, 0213 applied, api, worker and frontend recreated, sweep 0 failures. Marketing rebuilt and recreated by the manual steps (`assessiq-marketing` only): 5 pages checked, 0 inline scripts, 0 `onload`, beacon present, Turnstile present, new JS files 200. All 6 containers healthy. Live data check: 505 verified, 74 legacy NULL, 0 in review (nothing broke existing questions). Next free migration: 0214.
-**Tests:** `pnpm verify` green. Module 04 full: 42 files, 465 pass. Module 06 full: 355 pass after the fixture fix (27 files). Module 05 touched files pass. Backup test 40 of 40. CSP enforcing sweep 0 violations on 12 pages (production builds).
-**Gate:** Sonnet takeover, ONE gate for EXP-17, gap 5 and the EXP-8 draw: ACCEPT, no high finding. Fixed: a row edit lost the shared passage text (test added). Documented, not fixed: passages that cannot pack into the count make the attempt start fail with `POOL_TOO_SMALL` (no publish-time check); the blueprint path draws fewer; an org admin can verify their own upload; `licensed` has no licence id; no delete guard on passages.
-**Behaviour change to know:** every new admin-authored question now needs Verify before an assessment can publish (Z-52 gap 5, owner-approved B). About 100 test fixtures and the e2e factory were updated to verify their questions.
-**Next:** (1) Owner live check: create a question, press Verify, publish an assessment. (2) Owner: CSP Caddy go (Z-77), gap 6 pick (history table or latest note), R2 key location (Z-78), GIFT format check on org upload. (3) Build the EXP-17 admin UI, EXP-9 Hindi overlay (migration 0214), Z-43.
+**Headline:** the second half of Wave 1 code is built and pushed: the organisation upload screen, the review notes table, staff `disputed`, the cross-pack review queue, the affected-attempts list, the exam blueprint page, the `has_passage` filter and the 200-item slice loader. Nothing is deployed. Rescoring is NOT built (owner questions written).
+**Commits:** `a427d51f` — EXP-17 screen, list and withdraw, EXP-5/6 tails, EXP-15 tool. `48430cfb` — Z-52 gaps 6 and 7, EXP-12 queue, affected attempts (migration 0214). `d8396ca4` — gate fixes. `c83839c2` — gate trailer. `abd2a939` — docs. Handoff docs commit follows.
+**Tests:** `pnpm verify` green before the push. Module 04 full 44 files, 484 pass (agent run); org-uploads and tenant-upload files re-run after the gate fixes, 11 pass. Module 19 all 10 files pass. Module 06 affected-attempts, retake, attempt-engine pass. Module 10 admin-nav 28 pass, new page tests pass. Help system 23 pass (seed count 560). Local smoke `/admin/org-question-upload` and `/admin/question-bank` pass. CI: see the next line in this block once it is green.
+**Gate:** Sonnet takeover, ONE gate, 3 rows (org list and withdraw, Z-52 gaps 6 and 7 with the review gate, affected attempts): ACCEPT on all, no high or medium. 5 low: fixed 3 (platform imports only for a super_admin; read, discard and withdraw off the plan gate so a lapsed plan keeps the takedown path; deadlock maps to a retryable 409). Recorded, not fixed: (4) a clone set to disputed or needs_fix by propagation has no note row, so the tenant admin sees a blocked question without a reason; (5) the REVOKE is weak because `assessiq_app` may `SET ROLE assessiq_system`, the trigger is the backstop (same trust as `propagateTakedown`).
+**Next:** (1) CI green, then owner says deploy: `bash tools/deploy.sh --dry-run`, `--yes`, `bash tools/post-deploy-sweep.sh` (migration 0214 only adds; api redeploy also makes `previewImport` available for the slice tool). (2) Owner: send the slice file and source list, run the GIFT check, answer the rescoring questions. (3) Next build rows: EXP-9 Hindi (0215), Z-43.
 **Open questions (owner):**
-- Z-52 gap 6: keep a history of review notes (recommended, new table) or only the latest note (column)?
-- Accept `'unsafe-inline'` for SPA styles in the CSP, or fund the CSS-extraction row?
-- Where should the R2 keys for the backup live (options in `docs/runbooks/backup-daily.md`)?
-- `question_imports.format` CHECK allows csv and xlsx only; routes accept gift, aiken, qti. Check a GIFT upload.
-**Not done on purpose:** Caddy edit, backup switch-on, scraping, AI generation, exam content in git, flag flips, GATE-8, react-router 7, Z-71, webcam build, EXP-9 Hindi (next batch), Z-43.
-**Old task or feature checked:** EXP-1, EXP-2, EXP-4, EXP-18, EXP-19, EXP-20, Z-42, Z-43, Z-46, Z-52, the existing on-box dump (kept, not replaced), `tools/backup-restore-test.sh`.
+- Rescoring (EXP-12): Q1 to Q4 in `docs/design/2026-10-19-answer-key-rescore-proposal.md`.
+- The organisation warranty wording `ORG_UPLOAD_WARRANTY_TEXT` needs the lawyer.
+- `question_imports.format` CHECK allows csv and xlsx only; the screen offers only those. Widen it (new migration) if GIFT upload must work.
+- Z-51 (a or b) is still blank; not built.
+- Gap 6 and gap 7 and R3 cards were blank in the v2 sheet: I used the recommendations (gap 6 = A, gap 7 = B after gap 6, Free shows "Contact us").
+**Behaviour to know:** notes now live in `question_review_notes`; new audit rows carry `note_id`, old audit rows keep their old note text. An admin can mark a question `disputed`; it blocks publish and invite like `needs_fix` and reaches tenant clones. A correction of an answer key is an edit: new version, attempts and frozen pools keep theirs.
+**Another session:** `docs/ROADMAP.md` was being edited by another session in this clone (Z-79..Z-92 and an S34 recount line). My ROADMAP row edits (Z-52 done, EXP-5, 6, 12, 15, 17 notes) are in the working tree but NOT committed by me; the other session commits that file. My Z-52 closure moves the recount by one (pending down 1, closed up 1): re-run `node tools/roadmap-recount.mjs` and fix its Z.7 line before commit.
+**Old task or feature checked:** EXP-4, EXP-5, EXP-6, EXP-8, EXP-17, EXP-18, EXP-19, EXP-20, Z-42, Z-43, Z-51, Z-52, the S33 org upload API, `withdrawInTx`, `propagateNeedsFix` (generalised), `updateQuestion` version bump.
 
 
 ## 2. ROADMAP status board
@@ -33,21 +33,21 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 **Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
 
-## 3. Open Z and EXP rows (39 total)
+## 3. Open Z and EXP rows (51 total)
 
 - `EXP-3` (EXP-3 (lane B catalog)) — Previous-year catalog without question text. — pending (after pilot; Claude; M)
-- `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S20, 2026-10-17, `c34a597`; migrations 0196 module 04, 0197 module 16): facets, counts, tsvector plus `pg_trgm`
-- `EXP-6` (EXP-6 (EX-2)) — Exam blueprints and section marks. — PARTIAL (S20, 2026-10-17, `8445eba`; migration 0201 module 04): blueprint tables (platform-only, read-only for tenants),
+- `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S34 added the `has_passage` filter; Z-43 draws by outcome node still open) (S20, 2026-10-17, `c34a597`; migrati
+- `EXP-6` (EXP-6 (EX-2)) — Exam blueprints and section marks. — PARTIAL (S34 added a read-only super-admin page `/admin/exam-blueprints` with Start full mock; Z-51 fields and other exa
 - `EXP-7` (EXP-7 (OD-X8, lane A)) — Generator skill for exam items, light-edit mode and the seed-similarity gate. — pending (after EXP-2; Claude + owner for the VPS skill deploy; M)
 - `EXP-9` (EXP-9 (EX-10, OD-X6)) — Hindi through an overlay on the same question. — pending (Wave 1 completion; Claude + owner reviewer; L)
 - `EXP-10` (EXP-10 (EX-11, EX-12)) — Images and KaTeX. — pending (Wave 2 and 3; Claude; L)
 - `EXP-11` (EXP-11 (EX-6, FU-D23 drill part)) — Drill mode. — pending (Wave 2 and 3; Claude; M-L)
-- `EXP-12` (EXP-12 (answer-key disputes)) — Review workflow and answer-key corrections. — pending (Wave 1 completion; Claude; M)
+- `EXP-12` (EXP-12 (answer-key disputes)) — Review workflow and answer-key corrections. — PARTIAL (S34, 2026-10-19; Claude; M): review queue across packs (`/admin/review-queue`), note history, dispute, affected
 - `EXP-13` (EXP-13 (RW-60 reuse)) — Calibrate difficulty from attempts. — pending (after volume exists; Claude; S-M)
 - `EXP-14` (EXP-14 (D3, EX-4, EX-5)) — Design gate: shared question store for B2C. — pending (blocked on owner B2C start; Claude; L design)
-- `EXP-15` (EXP-15 (Wave 1 start, OD-X9)) — Vertical slice: SSC CGL Tier 1, Quant, about 200 original items, end to end. — pending (after EXP-1, EXP-2, EXP-4, EXP-5, EXP-6, EXP-7; Claude + owner spot-check; M)
+- `EXP-15` (EXP-15 (Wave 1 start, OD-X9)) — Vertical slice: SSC CGL Tier 1, Quant, about 200 original items, end to end. — pending (S34: tooling built, `tools/exam-slice/load.mjs` dry-run and apply plus runbook `docs/runbooks/exam-slice-spot-c
 - `EXP-16` (EXP-16 (lane E, scraping)) — Scraping intake for previous-year and practice questions. — pending (after EXP-2 and EXP-4; Claude; M per source)
-- `EXP-17` (EXP-17 (lane F, organisation upload)) — Organisation admins upload their own question sets. — PARTIAL (S33, 2026-10-19, code `1e0932b2`; migration 0209 module 04): API only. Admins of a tenant import through `/api/
+- `EXP-17` (EXP-17 (lane F, organisation upload)) — Organisation admins upload their own question sets. — PARTIAL (S34, 2026-10-19: screen `/admin/org-question-upload` built with preview, warranty, rights, uploads list and wit
 - `EXP-20` (EXP-20 (EXP-2 gate finding)) — Frozen assessment pools keep a withdrawn question. — pending (owner decides purge or sign-off; Claude; S-M) DECIDED (owner, 2026-10-18): leave frozen copies as they are; rem
 - `Z-18` (Z-18 (PT1/PT-4 flip)) — Flip `PLAN_TIERS_ENFORCED=true` on the VPS (`/srv/assessiq/.env`, then recreate  — pending (owner decides the date; Claude flips and smokes) S32 (2026-10-19): owner decided there is NO flip date. The Fre
 - `Z-19` (Z-19 (LC-2 flip)) — Flip `USER_PURGE_ENABLED=true` on the VPS (`.env`, then recreate `assessiq-worke — pending (owner decides after the first dry-run tick) S32 (2026-10-19 09:01 UTC): FLIPPED. The first tick (2026-10-19 03:
@@ -58,18 +58,30 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-38` (Z-38 (Dependabot tail)) — Dependabot items left after the S17 patch pass. — partly done (S31, 2026-10-19; Claude; M): astro 7.4.0 DONE and DEPLOYED 2026-10-19 (marketing rebuilt from `da2a95cd`, 4
 - `Z-42` (Z-42 (EXP-6 tail)) — Blueprint mocks: whole-test timer and marks per question. — pending, mostly done (S21, 2026-10-18, `43fc9b9` + gate hardening `7ef8826`): whole-test timer (`settings.whole_test_min
 - `Z-48` (Z-48 (DOCSLINT-1)) — Make the Docs lint workflow pass before it becomes required on 2026-10-29. — pending, partly done (S22, 2026-10-18, `78165b0`, follow-ups `0a58c457`, `a3a41852`): Vale scoped to the docs set, 19 ma
-- `Z-49` (Z-49 (BEACON-2)) — Decide whether the public demo page `/try` carries the Cloudflare Web Analytics beacon. — pending (owner decides A or B; Claude; XS)
-- `Z-51` (Z-51 (FORM-1)) — Admin form fields `whole_test_minutes` and marks per section for blueprint mocks. — pending (owner picks a or b; Claude; S)
-- `Z-52` (Z-52 (EXP18-GAPS)) — EXP-18 review gate: known gaps. — pending (Claude; P2; M) S33 (2026-10-19, `1e0932b2`): gap 5 CLOSED, option B: `insertQuestion`, `insertAiDraftQuestion` 
+- `Z-49` (Z-49 (BEACON-2)) — Decide whether the public demo page `/try` carries the Cloudflare Web Analytics beacon. — pending (owner decides A or B; Claude; XS) Owner v2 sheet 2026-10-19, R21: DECIDED option A: keep the Cloudflare beacon 
+- `Z-51` (Z-51 (FORM-1)) — Admin form fields `whole_test_minutes` and marks per section for blueprint mocks. — pending (owner picks a or b; Claude; S) Owner v2 sheet 2026-10-19, R26: DECIDED option (b): keep sections and blueprint 
 - `Z-54` (Z-54 (DOCSLINT-2)) — Docs lint: confirm green on main, then flip `fail_on_error` to true. — pending (Claude; XS; not before 2026-10-29). S24 check (2026-10-18): Docs lint on main is green in the last 4 runs, incl
-- `Z-70` (Z-70 (FREEPLAN)) — Free trial plan pack for self-serve organisations. — pending (owner approval of the proposal; Claude; S). Draft written S28. Owner answer 2026-10-18: the public name is "Tri
 - `Z-71` (Z-71 (SELFSERVE-BUILD)) — Self-serve organisation sign-up (build). — pending (design revision 2 written S31, 2026-10-19; owner approves; then build in two gated rows; Claude; L; design-gate
-- `Z-72` (Z-72 (LIABILITY-1)) — Liability and data-processing proposal for the lawyer. — pending (owner and lawyer approve; Claude; S). Draft written S28.
+- `Z-72` (Z-72 (LIABILITY-1)) — Liability and data-processing proposal for the lawyer. — pending (owner and lawyer approve; Claude; S). Draft written S28. Owner follow-up 2026-10-19 (after the v2 sheet): not a
 - `Z-74` (Z-74 (PROCTOR-RET)) — Webcam photos: 90-day automatic deletion job, and the appeal question. — pending (design revision 2 written S31, 2026-10-19; owner approves; no build until the owner says so; Claude; L split in
 - `Z-75` (Z-75 (PUBLICDOCS-1)) — Plan to stop tracking public docs files in the public repo. — pending (plan written S31, 2026-10-19: `docs/plans/Z-75-stop-tracking-public-docs.md`; execution needs the owner's yes a
 - `Z-76` (Z-76 (PAGES-1)) — Website page proposals (5 to 8), owner approves each. — pending (S30: proposals written, 7 pages, in `docs/design/2026-10-19-page-proposals.md`; owner approves each; Claude; S)
-- `Z-77` (Z-77 (CSP-ENFORCE)) — Enforce the Content-Security-Policy on assessiq.in. — pending (owner go for the Caddy edit; Claude prepares and verifies; S)
+- `Z-77` (Z-77 (CSP-ENFORCE)) — Enforce the Content-Security-Policy on assessiq.in. — pending (owner go for the Caddy edit; Claude prepares and verifies; S) Owner v2 sheet 2026-10-19: the owner has not yet 
 - `Z-78` (Z-78 (BACKUP-OFFSITE)) — Switch on the daily off-site backup. — pending (after the first paying customer; owner decides the key location; Claude switches on and watches the first run; 
+- `Z-79` (Z-79 (PLAN-ADMIN)) — Super admin controls for plan and quota. — pending (Claude; M; gate)
+- `Z-80` (Z-80 (LOCKED-CTA)) — Locked-feature 'Contact us' popup. — pending (Claude; S) Owner follow-up 2026-10-19 (after the v2 sheet): 'Contact us' is the route to every paid feature for
+- `Z-81` (Z-81 (DPA-CLICK)) — DPA text, link and sign-up checkbox. — pending (Claude; S; part of Z-71 step e) Owner follow-up 2026-10-19 (after the v2 sheet): the DPA text is written by Cla
+- `Z-82` (Z-82 (SCHOOL-CAM)) — School mode for webcam photos. — pending (Claude; M; lawyer first) Owner follow-up 2026-10-19 (after the v2 sheet): school flag is set by the super admin
+- `Z-83` (Z-83 (UPTIME-1)) — UptimeRobot set-up guide and health URL list. — pending (Claude guide, owner account; XS)
+- `Z-84` (Z-84 (SAMPLE-1)) — Parse and normalise the sample quiz files. — pending (Claude; M; uses the EXP-17 and EXP-15 tooling)
+- `Z-85` (Z-85 (BREVO-DOC)) — Brevo mention fix. — pending (Claude; XS)
+- `Z-86` (Z-86 (GATE-8)) — Full security review before the pilot. — pending (Claude; L; gate)
+- `Z-87` (Z-87 (DESKTOP-ONLY)) — Tests can be taken only on a laptop or desktop. — pending (Claude; S; gate) Owner clarification 2026-10-19: SCOPE. The site stays mobile friendly. Mock tests, practice an
+- `Z-88` (Z-88 (MOBILE-RETIRE)) — Bring the mobile work in line with the desktop-only rule. — pending (Claude; S) Owner clarification 2026-10-19: the mobile layouts stay in use. Keep a phone smoke for /try, the inv
+- `Z-89` (Z-89 (DELIVERY-MODE)) — Invite as REAL EXAM or MOCK TEST. — pending (Claude; M; gate) RESEARCH 2026-10-19 (web search; owner asked for a better idea): vendors and test makers treat
+- `Z-90` (Z-90 (MOCK-DASH)) — Separate dashboard for mock tests. — pending (Claude; M; waits for Z-89 data model) Owner follow-up 2026-10-19 (final list): schools use the mock dashboard t
+- `Z-91` (Z-91 (READINESS)) — Readiness check before every real exam. — pending (Claude; M; gate; builds with Z-87 and Z-89)
+- `Z-92` (Z-92 (RATECARD)) — Rate card: how to charge for mock tests, real exams, camera and AI evaluation. — pending (Claude drafts options; owner decides; S)
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
 - `Z-11` (Z-11 (Phase 5, FR13, Z-9, Z-15)) — Certificate visibility after a release. — pending (small). Item (c) done (S17, 2026-10-17, `f9c569f`): `CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui/src/cop
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d)
@@ -99,8 +111,8 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 ## 5. Next free migration
 
-- Next free: `0214` (highest `modules/*/migrations` prefix + 1)
-- Matches the newest SESSION_STATE block.
+- Next free: `0215` (highest `modules/*/migrations` prefix + 1)
+- SESSION_STATE block names no next number; computed from files.
 
 ## 6. Reading list reminder
 
