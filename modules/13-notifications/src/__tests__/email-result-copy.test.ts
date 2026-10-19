@@ -135,6 +135,18 @@ describe('sign-off', () => {
       expect(t, f).not.toMatch(/^Thanks,/m);
     }
   });
+
+  it('every HTML template whose .txt has the sign-off includes the shared footer that renders it', () => {
+    const dir = join(__dirname, '../email/templates');
+    const partial = readFileSync(join(__dirname, '../email/partials/email-footer-transactional.html'), 'utf8');
+    expect(partial.split('— The AssessIQ team').length - 1).toBe(1);
+    const names = readdirSync(dir).filter((f) => f.endsWith('.txt')).map((f) => f.replace(/\.txt$/, ''));
+    const signed = names.filter((n) => readFileSync(join(dir, `${n}.txt`), 'utf8').includes('— The AssessIQ team'));
+    expect(signed.length).toBe(13);
+    for (const n of signed) {
+      expect(readFileSync(join(dir, `${n}.html`), 'utf8'), n).toContain('{{> email-footer-transactional');
+    }
+  });
 });
 
 // WCAG 2.x relative luminance contrast.
