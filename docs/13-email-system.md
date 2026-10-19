@@ -870,3 +870,11 @@ Helpers E1 must register: `concat` (~5 lines, string join for serif H1 compositi
 E1 cannot start until the team resolves decision #5 (the footer partial needs the literal address in its source). Decisions #7 (OTP preheader) and #11 (Litmus budget) can be deferred — they affect E2b and E3 respectively, both downstream of E1.
 
 — *AssessIQ · E0 foundation · 2026-05-21*
+
+## HTML sign-off line (Z-37 a, S31, 2026-10-19)
+
+- **What changed:** the line `— The AssessIQ team` now ends every HTML email, as it already ended every .txt email. It sits once in the shared partial `src/email/partials/email-footer-transactional.html`, above the legal line.
+- **Why:** the HTML and the text version of one email must say the same. Before this, only the text version had the sign-off.
+- **Rejected:** editing each of the 13 HTML templates (13 places to keep in step).
+- **Not included:** the wording of other templates (Z-37 b) and the Submitted page feedback sentence (Z-44).
+- **Downstream:** snapshots for `evaluation_queue_alert`, `invitation_candidate` and `result_released` gained one line. A test in `email-result-copy.test.ts` checks that the partial holds the line once and that every HTML template with a signed .txt includes the partial.
