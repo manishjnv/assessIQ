@@ -1,3 +1,42 @@
+# Session — 2026-10-19 — S32: purge flip, Free-plan limits (flag off), restore test, CSP sweep, drafts
+
+**Headline:** `USER_PURGE_ENABLED` is ON (first tick had 0 candidates). Free-plan limits are built behind `PLAN_TIERS_ENFORCED`, which stays OFF. The restore test passed. Recount unchanged: 79 pending, 183 closed, 262 total, 70% (no row closed on purpose).
+**Commits:** `ac8c6cc9` — Free-plan limits, restore test script, CSP spec, S32 docs and drafts.
+**Deploy:** `tools/deploy.sh --yes`, VPS `02500fc8` to `ac8c6cc9`, 0 migrations, api, worker and frontend recreated, sweep 0 failures. Separate VPS change at 09:01 UTC: `USER_PURGE_ENABLED=true` in `.env` (backup `.env.bak.20261019T090102Z`), worker recreated.
+**Tests:** `pnpm verify` green. Billing module 123 pass (10 files). apps/api 4 files, 17 pass. CI green on `ac8c6cc9`. Restore test PASS (all six table counts equal, restore 3 s).
+**Gate:** owner decision 2026-10-20: no gate for this batch. The prompt arrived after a Sonnet takeover review had run. It found 1 real bug (a role flip reset the candidate count), fixed with `assertCandidateRoleChange` and a test, plus a UUID guard. No trailer commit. The flag flip with Z-71 gets the gate.
+**Z-60:** NOT closed. Run `9bd08797` passed only on attempt 2. Clean streak is 3 (`3435a60f`, `9fa5be34`, `b6cdb8c0`) plus `ac8c6cc9`; needs 10.
+**Next:** (1) After 2026-10-20 03:45 UTC read the live `user-purge-cron` tick (expect dryRun false, purged 0). (2) Owner picks Z-49 (A or B), Z-51 (a or b), Z-15 (a). (3) Owner reads the drafts and sends the legal file to the lawyer. (4) Before any flip: pilot tenant to paid (`tools/pilot-tenant-to-paid.sql`).
+**Open questions (owner):**
+- Z-15 (a): 30 days for the result-email sign-in link (the live candidate login link lasts 15 minutes).
+- Z-15 (d): the live empty-certificates text already changed; confirm the 70% rule or Z-16.
+- Email provider: docs/06 mentions Resend, other docs say Brevo (300/day). Confirm Brevo.
+- Sentry DSN is empty and UptimeRobot is not set up (checklist items 2, 3).
+- Backups: a daily on-box dump exists (06:25 UTC, same disk). Off-box copy = weekly provider snapshot only. Accept, or add an off-site copy.
+- Candidate cap counts re-imported emails; concurrent-request race; both left for Z-71.
+**Not done on purpose:** Z-71 and webcam builds, flag flips (`PLAN_TIERS_ENFORCED`), live /terms and /privacy edits, Caddy/Cloudflare/DNS, GATE-8.
+**Old task or feature checked:** Z-18, Z-19, Z-20, Z-37, Z-15, Z-46, Z-60, Z-70 to Z-74, SP11, PT1/PT-4 (TIER_LIMITS reused, not rebuilt), the existing nightly VPS dump (found, so no new backup job built), RCA purge/tenant entries.
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): Phase 0, purge flip and checks, diff review, gate fixes, roadmap edits, docs, deploy, handoff. Estimate ~420k tokens.
+- Sonnet: 4 runs (billing build, CSP spec, restore script, review).
+- Haiku: 3 runs (terms and wording, legal text, checklist).
+- codex:rescue: n/a — Codex down since 2026-10-11; owner set no gate for this batch.
+- Gemini (agy): n/a — no bulk reads needed.
+- Codex (exec): n/a — down.
+  - Sonnet · Free-tier limits code and doc · reworked: Y (certificates left locked, contrary to owner decision; fixed by Opus) · tokens: 202825
+  - Sonnet · CSP report-only spec and proposal · reworked: N · tokens: 122704
+  - Sonnet · backup-restore script and runbook · reworked: N (runbook claim about backups corrected by Opus after a VPS check) · tokens: 113377
+  - Sonnet · billing review (before the no-gate decision) · reworked: N · tokens: 140419
+  - Haiku · terms and wording drafts · reworked: N · tokens: 155998
+  - Haiku · DPA and candidate notice draft · reworked: N · tokens: 147350
+  - Haiku · pre-pilot checklist · reworked: Y (backup line corrected by Opus; Sentry/uptime found missing) · tokens: 135761
+  - Optimization register rows touched: none.
+
+---
+
 # Session — 2026-10-19 — S31: close-out, Z-71 and Q9 designs rev 2, flake fix, three plans
 
 **Headline:** Z-46 and Z-55 closed (recount 79 pending, 183 closed, 262 total, 70%). The Z-71 and Z-74 designs were rewritten for all S30 findings; a second review gate said REVISE again with detail findings, all answered in the design files; nothing built. FU-B2 (audit JSONL download) was already built in S13, so nothing was rebuilt. The CI Docker flake has a most-likely cause and a fix (probe timeout). Plans written: Z-52 gaps 5 to 7, Z-75, react-router 7. Z-37 (a) shipped and deployed.
