@@ -408,3 +408,17 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 - **Not included.** EXP-17 organisation upload, `disputed` writer, Needs fix note outside the audit log.
 - **Downstream.** Module 05 gates (publish, invite, resend, re-open). Module 14 action `question.review_changed`. Module 10 page. Module 16 help ids.
 - **Tests.** `src/__tests__/question-review.test.ts` (each action, bulk, count guard, platform and tenant isolation, role refusal, imports, clone state).
+
+## Passages (EXP-8, migration 0211, 2026-10-19)
+
+- **What.** `passages` table plus `questions.passage_id` / `passage_position`. Import v2 reads `passage_ref` and `passage_text` (`import/v2.ts`, `applyPassageGroups` in `import/staging.ts`, group insert in `import/commit.ts`). `copyQuestionSource` in `clone/helpers.ts` copies the passage with the question.
+- **Why.** EX-3 only had steps inside one `structured_case` question. Exams need one stem for several separate, separately scored rows. `structured_case` stays as is.
+- **Considered, rejected.** Putting the passage text into `question_versions.content` (needs a change in every snapshot writer, and doubles the text per child). Mutable passages with a text copy on each `attempt_questions` row (more storage; immutable rows give the same freeze).
+- **Not included.** Images (EXP-10), AI grading of passages, an edit screen (edit = new row + repoint), `has_passage` filter, re-sync of a changed link on an existing clone.
+- **Downstream.** 06 draws passages whole (see its SKILL). 11/apps/web show the passage above the stem.
+
+## EXP-17 organisation upload and Z-52 gap 5 (2026-10-19)
+- Admins upload through `/api/admin/question-imports*` (see docs/03-api-contract.md). It reuses `stageImport` and `commitImport`; `stageImport` takes an optional `tenantUpload` argument that forces origin `tenant_upload` and the uploader's rights on every row, also after a row edit (`question_imports.upload_rights_status`, migration 0209).
+- The warranty (who and when) is stored on `question_imports` and in the audit row. The pack is private to the tenant. No AI call is made.
+- `insertQuestion` defaults `review_state` to `in_review`; `insertAiDraftQuestion` writes `in_review`. The raw INSERT in `modules/07-ai-grading/src/handlers/admin-generate.ts` is outside this module and still writes NULL.
+- Not included: plan quotas, UI, help ids, backfill of legacy NULL rows.

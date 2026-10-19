@@ -15,6 +15,7 @@
  * attempt_id → attempts.tenant_id (JOIN-based RLS).
  */
 
+import type { PassageFact } from "./passages.js";
 import type { PoolClient } from "pg";
 import { nodeScopeArgs, taxonomyDrawPredicate, type NodeScope } from "../../04-question-bank/src/taxonomy-nodes.js";
 import type {
@@ -103,6 +104,9 @@ interface FrozenQuestionRow {
   // Live-read from the `questions` row (NOT the frozen snapshot), like topic/
   // points. NULL → resolved to a per-type default by answerGuidanceFor().
   answer_guidance: string | null;
+  passage_id: string | null;
+  passage_title: string | null;
+  passage_body: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -398,6 +402,8 @@ export async function insertAttemptQuestions(
     /** Z-42: frozen marks for a blueprint section; replaces the question's points and penalty. */
     pointsOverride?: number;
     negativeOverride?: number;
+    /** EXP-8: passage of the question at attempt start; null/omitted = none. */
+    passageId?: string | null;
   }>,
   /** EX-1: assessment-level default penalty (settings.scoring.negative_marks_default), used when the question has none. */
   negativeMarksDefault = 0,
@@ -409,20 +415,20 @@ export async function insertAttemptQuestions(
   const values: unknown[] = [];
   let i = 1;
   // One shared parameter after the 6-per-row grid carries the assessment default.
-  const defaultIdx = rows.length * 8 + 1;
+  const defaultIdx = rows.length * 9 + 1;
   for (const r of rows) {
     // points = the question's points AT START (E12): scoring reads this frozen copy, never live questions.points.
     // negative_marks (EX-1, 0185) = the question's own penalty, else the assessment default, frozen the same way.
     placeholders.push(
-      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], COALESCE($${i + 1}::numeric, (SELECT points FROM questions WHERE id = $${i - 4}::uuid)), COALESCE($${i + 2}::numeric, (SELECT negative_marks FROM questions WHERE id = $${i - 4}::uuid), $${defaultIdx}::numeric), $${i++}::smallint)`,
+      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], COALESCE($${i + 1}::numeric, (SELECT points FROM questions WHERE id = $${i - 4}::uuid)), COALESCE($${i + 2}::numeric, (SELECT negative_marks FROM questions WHERE id = $${i - 4}::uuid), $${defaultIdx}::numeric), $${i++}::smallint, $${i + 2}::uuid)`,
     );
-    i += 2; // the two override parameters, referenced above by index
-    values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null, r.sectionIndex ?? null, r.pointsOverride ?? null, r.negativeOverride ?? null);
+    i += 3; // the two override parameters, referenced above by index
+    values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null, r.sectionIndex ?? null, r.pointsOverride ?? null, r.negativeOverride ?? null, r.passageId ?? null);
   }
   values.push(negativeMarksDefault);
 
   await client.query(
-    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order, points, negative_marks, section_index)
+    `INSERT INTO attempt_questions (attempt_id, question_id, position, question_version, option_order, points, negative_marks, section_index, passage_id)
      VALUES ${placeholders.join(", ")}`,
     values,
   );
@@ -582,9 +588,11 @@ export async function listFrozenQuestionsForAttempt(
        aq.points,
        aq.section_index,
        q.answer_guidance,
-       qv.content
+       qv.content,
+       p.id AS passage_id, p.title AS passage_title, p.body AS passage_body
      FROM attempt_questions aq
      JOIN questions q ON q.id = aq.question_id
+     LEFT JOIN passages p ON p.id = aq.passage_id
      JOIN question_versions qv
        ON qv.question_id = aq.question_id
       AND qv.version    = aq.question_version
@@ -604,6 +612,10 @@ export async function listFrozenQuestionsForAttempt(
     // the question carries no authored guidance.
     answer_guidance: answerGuidanceFor(r.type, r.answer_guidance),
     content: sanitizeContentForCandidate(r.type, r.content),
+    // EXP-8: the passage frozen on attempt_questions (passages are immutable).
+    ...(r.passage_id !== null && r.passage_body !== null
+      ? { passage: { id: r.passage_id, title: r.passage_title, body: r.passage_body } }
+      : {}),
   }));
 }
 
@@ -995,6 +1007,27 @@ export async function countFrozenPool(
  * The frozen snapshot already pinned each question to the version that was
  * MAX(qv.version) at publish, so no JOIN/aggregation is needed here.
  */
+/**
+ * EXP-8: passage facts of the given questions (only those that have a passage). Read live from
+ * `questions`, also for a frozen pool: the pool pins version and membership, not the passage link.
+ */
+export async function listPassageInfo(
+  client: PoolClient,
+  ids: ReadonlyArray<string>,
+): Promise<Map<string, PassageFact>> {
+  const out = new Map<string, PassageFact>();
+  if (ids.length === 0) return out;
+  const r = await client.query<{ id: string; passage_id: string; passage_position: number | null; created_at: Date }>(
+    `SELECT id, passage_id, passage_position, created_at FROM questions
+      WHERE passage_id IS NOT NULL AND id = ANY($1::uuid[])`,
+    [ids],
+  );
+  for (const x of r.rows) {
+    out.set(x.id, { passageId: x.passage_id, position: x.passage_position, createdAt: x.created_at.getTime() });
+  }
+  return out;
+}
+
 export async function listFrozenPoolForPick(
   client: PoolClient,
   assessmentId: string,

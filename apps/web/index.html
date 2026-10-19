@@ -22,35 +22,17 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <!-- Non-render-blocking font load: preload triggers early fetch without blocking paint;
-         onload swaps rel to stylesheet once downloaded. noscript covers JS-off browsers. -->
-    <link
-      rel="preload"
-      as="style"
-      onload="this.onload=null;this.rel='stylesheet'"
-      href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap"
-    />
+    <!-- Non-render-blocking font load without inline JS (CSP script-src has no unsafe-inline):
+         media=print keeps the sheet off the render path; /brand/js/font-swap.js sets media=all. -->
+    <link rel="stylesheet" media="print" data-font-swap href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" />
     <noscript>
       <link
         rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap"
       />
     </noscript>
-    <script>
-      // Set data-viewport on <html> before React mounts to avoid first-paint
-      // flicker between desktop and mobile layouts. Kept in sync at runtime by
-      // useViewportSync() in @assessiq/ui-system (modules/17-ui-system/src/hooks/useViewportSync.ts).
-      // See docs/plans/archive/MOBILE_KIT_PORT.md § Phase M0.
-      (function () {
-        try {
-          var q = "(max-width: 719px), ((pointer: coarse) and (max-width: 1024px))";
-          var v = window.matchMedia && window.matchMedia(q).matches ? "mobile" : "desktop";
-          document.documentElement.setAttribute("data-viewport", v);
-        } catch (e) {
-          document.documentElement.setAttribute("data-viewport", "desktop");
-        }
-      })();
-    </script>
+    <script src="/brand/js/viewport.js"></script>
+    <script src="/brand/js/font-swap.js" defer></script>
   </head>
   <body>
     <div id="root"></div>

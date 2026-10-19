@@ -58,6 +58,8 @@ export interface FrozenQuestionWire {
   content: unknown;
   /** Test sections: index into the section list; null/absent = not sectioned. */
   section_index?: number | null;
+  /** EXP-8: shared passage (plain text). Shown above the question; absent when the question has none. */
+  passage?: { id: string; title: string | null; body: string };
 }
 
 export interface CandidateAttemptViewWire {

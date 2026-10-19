@@ -125,14 +125,10 @@ const ogImage = ogPagesWithDynamicImage.has(ogSlug)
       JetBrains Mono: mono microcopy
     -->
     <!-- F3 (2026-10-02): non-render-blocking. Lighthouse showed this stylesheet blocking first
-         paint ~1 s on mobile; preload + onload swap lets text paint in the fallback font first
+         paint ~1 s on mobile; media=print + external /font-swap.js (no inline JS, CSP) lets text paint in the fallback font first
          (display=swap). <noscript> keeps the fonts for no-JS visitors. -->
-    <link
-      rel="preload"
-      as="style"
-      href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap"
-      onload="this.onload=null;this.rel='stylesheet'"
-    />
+    <link rel="stylesheet" media="print" data-font-swap href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,300;0,6..72,400;0,6..72,500;1,6..72,400&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <script is:inline src="/font-swap.js" defer></script>
     <noscript>
       <link
         rel="stylesheet"

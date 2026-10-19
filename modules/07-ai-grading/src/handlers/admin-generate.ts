@@ -312,9 +312,9 @@ async function insertDrafts(
         `INSERT INTO questions
            (id, pack_id, level_id, type, topic, points, status, content, rubric,
             knowledge_base_sources, created_by, domain_id, category_id,
-            cognitive_level, nice_task_id, difficulty_params)
+            cognitive_level, nice_task_id, difficulty_params, review_state)
          VALUES ($1, $2, $3, $4, $5, $6, 'ai_draft', $7::jsonb, $8::jsonb, $9::jsonb, $10,
-                 $11::uuid, $12::uuid, $13, $14, $15::jsonb)`,
+                 $11::uuid, $12::uuid, $13, $14, $15::jsonb, 'in_review')`,
         [
           id,
           input.packId,

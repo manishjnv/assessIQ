@@ -199,7 +199,7 @@ beforeAll(async () => {
     );
   }
   await publishPack(tenantA, pack.id, adminA);
-  await sql(`UPDATE questions SET status = 'active' WHERE pack_id = $1`, [pack.id]);
+  await sql(`UPDATE questions SET status = 'active', review_state = 'verified' WHERE pack_id = $1`, [pack.id]);
   packId = pack.id;
   levelId = level.id;
 

@@ -48,6 +48,8 @@ export async function commitImport(
       });
       levelIds.set(position, id);
     }
+    const passageIds = new Map<string, string>(); // EXP-8: passage_ref -> passages.id (one per ref per file)
+    const passageCount = new Map<string, number>();
     for (const [i, q] of ok.entries()) {
       const id = uuidv7();
       // Rows staged before v2 have no meta: they commit as human originals, as every import did before.
@@ -65,6 +67,18 @@ export async function commitImport(
           },
         } : {}),
       });
+      const ref = m?.passageRef ?? null;
+      if (ref !== null && m?.passageText) {
+        let pid = passageIds.get(ref);
+        if (pid === undefined) {
+          pid = uuidv7();
+          await client.query(`INSERT INTO passages (id, tenant_id, body, language) VALUES ($1, $2, $3, $4)`, [pid, tenantId, m.passageText, m.language]);
+          passageIds.set(ref, pid);
+        }
+        const pos = (passageCount.get(ref) ?? 0) + 1;
+        passageCount.set(ref, pos);
+        await client.query(`UPDATE questions SET passage_id = $2, passage_position = $3 WHERE id = $1`, [id, pid, pos]);
+      }
       const nodeIds = [m?.stageNodeId, m?.subjectNodeId].filter((n): n is string => typeof n === "string");
       if (nodeIds.length > 0) {
         await client.query(

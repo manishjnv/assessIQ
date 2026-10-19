@@ -46,7 +46,7 @@ export interface NormalizedRow {
 export type DupClass = "exact" | "normalised" | "similar";
 
 export interface RowMeta {
-  origin: "original_human" | "ai_original" | "ai_seeded" | "derived_from_source" | "scraped_raw" | "licensed";
+  origin: "original_human" | "ai_original" | "ai_seeded" | "derived_from_source" | "scraped_raw" | "tenant_upload" | "licensed";
   rightsStatus: "original" | "derived_from_source" | "scraped_raw" | "licensed" | "metadata_only";
   sourceRef: string | null;
   sourceUrl: string | null;
@@ -57,6 +57,9 @@ export interface RowMeta {
   language: string;
   pyqYear: number | null;
   pyqShift: string | null;
+  /** EXP-8: rows with the same passageRef in one file share one passage; passageText is filled for every row of the group at staging. */
+  passageRef?: string | null;
+  passageText?: string | null;
   /** Resolved taxonomy_nodes ids (Exam structure stage, deepest Subject map node). */
   stageNodeId: string | null;
   subjectNodeId: string | null;

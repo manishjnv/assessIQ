@@ -48,6 +48,7 @@ import { assertPoolVerifiedForInvites } from "@assessiq/assessment-lifecycle";
 import * as qbRepo from "../../04-question-bank/src/repository.js";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import * as repo from "./repository.js";
+import { groupUnits, takeUnits, type PassageFact } from "./passages.js";
 import { getCompanyBranding } from "./result.js";
 import {
   AE_ERROR_CODES,
@@ -385,6 +386,7 @@ export async function startAttempt(
         useFrozen,
       });
       const used = new Set<string>();
+      const passageInfo = await repo.listPassageInfo(client, pool.map((q) => q.id)); // EXP-8
       chosen = [];
       sectionOf = [];
       for (const [si, s] of sections.entries()) {
@@ -394,20 +396,22 @@ export async function startAttempt(
         );
         if (assessment.randomize) shuffleInPlace(cand);
         const n = s.question_count ?? cand.length;
-        if (cand.length < n) {
+        // EXP-8: whole passages only; a passage that does not fit the section is skipped whole.
+        const taken = takeUnits(cand, n, passageInfo);
+        if (taken.length < n) {
           throw new ValidationError(
-            `Question pool too small for section "${s.name}": ${cand.length} < ${n}`,
+            `Question pool too small for section "${s.name}": ${taken.length} < ${n}`,
             {
               details: {
                 code: AE_ERROR_CODES.POOL_TOO_SMALL,
                 section: s.name,
-                available: cand.length,
+                available: taken.length,
                 required: n,
               },
             },
           );
         }
-        for (const q of cand.slice(0, n)) {
+        for (const q of taken) {
           used.add(q.id);
           chosen.push({ id: q.id, version: q.version });
           sectionOf.push(si);
@@ -416,6 +420,7 @@ export async function startAttempt(
     } else if (blueprint !== undefined) {
       // ── Blueprint draw (C3) ─────────────────────────────────────────────────
       const allPicks: Array<{ id: string; version: number }> = [];
+      const bpInfo = new Map<string, PassageFact>(); // EXP-8
 
       for (const criterion of blueprint.criteria) {
         // Z-43: a node_id criterion with no category_id draws by taxonomy node (+ descendants).
@@ -449,8 +454,11 @@ export async function startAttempt(
         const picks = [...criterionPool];
         shuffleInPlace(picks);
 
-        const drawCount = picks.length >= criterion.count ? criterion.count : picks.length;
-        if (drawCount < criterion.count) {
+        const critInfo = await repo.listPassageInfo(client, picks.map((q) => q.id));
+        for (const [k, v] of critInfo) bpInfo.set(k, v);
+        // EXP-8: whole passages only (a passage counts as its number of children).
+        const drawn = takeUnits(picks, criterion.count, critInfo);
+        if (drawn.length < criterion.count) {
           // Pool shrank post-publish — draw what is available, continue (defensive).
           log.warn(
             {
@@ -460,17 +468,18 @@ export async function startAttempt(
               required: criterion.count,
               available: picks.length,
             },
-            "startAttempt(blueprint): criterion pool shrank post-publish; drawing available subset",
+            "startAttempt(blueprint): criterion pool shrank post-publish or passages do not pack into the count; drawing available subset",
           );
         }
-        allPicks.push(...picks.slice(0, drawCount));
+        allPicks.push(...drawn);
       }
 
       // Optional final shuffle across all criteria (assessment.randomize still governs)
       if (assessment.randomize) {
         shuffleInPlace(allPicks);
       }
-      chosen = allPicks;
+      // EXP-8: the final shuffle must not split a passage; no passages = unchanged order.
+      chosen = bpInfo.size === 0 ? allPicks : groupUnits(allPicks, bpInfo).flat();
     } else {
       // ── Full-pool draw (no blueprint) ───────────────────────────────────────
       // Frozen snapshot when locked at publish; otherwise the UNCHANGED legacy
@@ -499,7 +508,20 @@ export async function startAttempt(
       if (assessment.randomize) {
         shuffleInPlace(picks);
       }
-      chosen = picks.slice(0, assessment.question_count);
+      // EXP-8: whole passages only. No passages in the pool = picks.slice(0, N) as before.
+      chosen = takeUnits(picks, assessment.question_count, await repo.listPassageInfo(client, picks.map((q) => q.id)));
+      if (chosen.length < assessment.question_count) {
+        throw new ValidationError(
+          `Question pool too small at start: ${chosen.length} < ${assessment.question_count}`,
+          {
+            details: {
+              code: AE_ERROR_CODES.POOL_TOO_SMALL,
+              available: chosen.length,
+              required: assessment.question_count,
+            },
+          },
+        );
+      }
     }
 
     // g. Compute timer.
@@ -558,8 +580,10 @@ export async function startAttempt(
     // Ordering questions are ALWAYS shuffled (independent of `randomize`): the authored item
     // order is the answer key, so the candidate must never be shown it.
     const orderingKeys = await repo.listOrderingKeysForPicks(client, chosen);
+    const chosenPassages = await repo.listPassageInfo(client, chosen.map((q) => q.id)); // EXP-8: frozen below
     const aqRows = chosen.map((q, i) => ({
       questionId: q.id,
+      passageId: chosenPassages.get(q.id)?.passageId ?? null,
       position: i + 1,
       questionVersion: q.version,
       optionOrder: orderingKeys.has(q.id)

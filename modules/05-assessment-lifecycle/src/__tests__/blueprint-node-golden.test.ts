@@ -136,7 +136,7 @@ beforeAll(async () => {
       admin,
     );
     await sup(async (c) => {
-      await c.query(`UPDATE questions SET type=$2, domain_id=$3, category_id=$4, status='active' WHERE id=$1`, [
+      await c.query(`UPDATE questions SET type=$2, domain_id=$3, category_id=$4, status='active', review_state='verified' WHERE id=$1`, [
         q.id, type, domainId, cat,
       ]);
       // question_versions are written by publishPack in production; snapshot v1 directly here.

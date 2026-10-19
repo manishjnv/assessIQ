@@ -126,6 +126,8 @@ export interface FrozenQuestion {
   // default) so it is never null. Instructional only — never a rubric / answer
   // key. Read LIVE from the question row (like topic/points), not the snapshot.
   answer_guidance: string;
+  /** EXP-8: shared passage frozen with the attempt; absent when the question has none. */
+  passage?: { id: string; title: string | null; body: string };
   // content with the rubric stripped (rubric is internal-only — candidates
   // must NEVER see grading anchors / band thresholds).
   content: unknown;

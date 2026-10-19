@@ -100,6 +100,23 @@ export async function copyQuestionSource(
        FROM questions m WHERE c.id = $2 AND m.id = $1`,
     [masterQuestionId, cloneQuestionId],
   );
+  // EXP-8: a passage belongs to one tenant, so copy it once per target tenant (keyed by
+  // source_passage_id) and point the clone question at the copy. Position is kept.
+  await client.query(
+    `INSERT INTO passages (tenant_id, title, body, language, source_passage_id)
+     SELECT $2::uuid, p.title, p.body, p.language, p.id
+       FROM questions m JOIN passages p ON p.id = m.passage_id
+      WHERE m.id = $1
+     ON CONFLICT (tenant_id, source_passage_id) WHERE source_passage_id IS NOT NULL DO NOTHING`,
+    [masterQuestionId, targetTenantId],
+  );
+  await client.query(
+    `UPDATE questions c
+        SET passage_id = (SELECT tp.id FROM passages tp WHERE tp.tenant_id = $3 AND tp.source_passage_id = m.passage_id),
+            passage_position = m.passage_position
+       FROM questions m WHERE c.id = $2 AND m.id = $1 AND m.passage_id IS NOT NULL`,
+    [masterQuestionId, cloneQuestionId, targetTenantId],
+  );
 }
 
 /** Resolve the platform tenant (master library) by its well-known slug. */

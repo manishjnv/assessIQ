@@ -218,13 +218,24 @@ export async function addLevel(
   });
 }
 
+/** Z-52 gap 5: every new question starts `in_review`; the publish gate needs `verified`. */
+async function verifyNewQuestion(cookie: string, questionId: string): Promise<void> {
+  await apiFetchJson(`/api/admin/questions/${questionId}/review`, {
+    method: 'POST',
+    cookie,
+    body: { action: 'verify' },
+    expectedStatus: 200,
+    label: `verifyNewQuestion(${questionId})`,
+  });
+}
+
 export async function createMcqQuestion(
   adminCookie: string,
   packId: string,
   levelId: string,
   stem: string,
 ): Promise<TestQuestion> {
-  return apiFetchJson<TestQuestion>('/api/admin/questions', {
+  const created = await apiFetchJson<TestQuestion>('/api/admin/questions', {
     method: 'POST',
     cookie: adminCookie,
     body: {
@@ -250,6 +261,8 @@ export async function createMcqQuestion(
     expectedStatus: 201,
     label: 'createMcqQuestion',
   });
+  await verifyNewQuestion(adminCookie, created.id);
+  return created;
 }
 
 async function createQuestion(
@@ -260,13 +273,15 @@ async function createQuestion(
   points: number,
   content: unknown,
 ): Promise<TestQuestion> {
-  return apiFetchJson<TestQuestion>('/api/admin/questions', {
+  const created = await apiFetchJson<TestQuestion>('/api/admin/questions', {
     method: 'POST',
     cookie: superCookie,
     body: { pack_id: packId, level_id: levelId, type, topic: 'e2e-test', points, tags: ['e2e-test'], content, rubric: null },
     expectedStatus: 201,
     label: `create ${type} question`,
   });
+  await verifyNewQuestion(superCookie, created.id);
+  return created;
 }
 
 /** `items` are authored in the CORRECT order (correct_order = 0..n-1); candidates always see them shuffled. */
@@ -287,7 +302,7 @@ export async function createSubjectiveQuestion(
   levelId: string,
   stem: string,
 ): Promise<TestQuestion> {
-  return apiFetchJson<TestQuestion>('/api/admin/questions', {
+  const created = await apiFetchJson<TestQuestion>('/api/admin/questions', {
     method: 'POST',
     cookie: adminCookie,
     body: {
@@ -329,6 +344,8 @@ export async function createSubjectiveQuestion(
     expectedStatus: 201,
     label: 'createSubjectiveQuestion',
   });
+  await verifyNewQuestion(adminCookie, created.id);
+  return created;
 }
 
 export async function activateQuestion(adminCookie: string, questionId: string): Promise<void> {

@@ -133,4 +133,6 @@ export default defineConfig({
     buildGuards(),
   ],
   output: 'static',
+  // CSP: assetsInlineLimit 0 stops Vite inlining small bundled scripts (e.g. contact form) into the HTML.
+  vite: { build: { assetsInlineLimit: 0 } },
 });
