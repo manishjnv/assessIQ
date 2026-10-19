@@ -2814,3 +2814,9 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 - **Verify.** After 2026-10-20 03:45 UTC run `ssh assessiq-vps 'docker logs assessiq-worker 2>&1 | grep user-purge-cron | tail -2'`. Expect `dryRun:false`, `purged:0`.
 - **Rollback.** Set `USER_PURGE_ENABLED=false` in `.env` (or restore the backup file), then recreate `assessiq-worker`.
 - **Restore test.** `bash tools/backup-restore-test.sh` passed on 2026-10-19: dump 1,775,816 bytes in under 1 s, restore in 3 s, 0 `pg_restore` errors, counts equal for tenants 6, users 12, assessments 8, attempts 6, audit_log 1067, schema_migrations 184. The temporary container, volume and dump were removed. Runbook: `docs/runbooks/backup-restore.md`. Note: a daily on-box `pg_dump` runs at 06:25 UTC into `/var/backups/assessiq/` (same disk). The weekly provider snapshot is the only off-box copy.
+
+### `FREE_PLAN_AI_DISABLED` (S32, 2026-10-19)
+
+- **What.** Env flag, default `false`, declared in `modules/00-core/src/config.ts` and `.env.example`. NOT set on the VPS. When `true` AND `PLAN_TIERS_ENFORCED=true`, Free-tier organisations cannot start AI grading (403 `AI_GRADING_DISABLED`). Paid tiers are not affected.
+- **Why an env flag.** A platform setting table is Z-71 scope and needs a migration. The flag needs only an `.env` edit and `up -d --no-deps --force-recreate assessiq-api`.
+- **Not included.** No UI toggle and no audit row for the switch (add both in Z-71). `PLAN_TIERS_ENFORCED` stays unset until the Z-71 build.
