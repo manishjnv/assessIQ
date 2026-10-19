@@ -2854,3 +2854,22 @@ Status: DEPLOYED 2026-10-19 at `1eda2ec9` (code commit `1e0932b2` plus the scrip
 **Off-site backup (not switched on)**
 
 - Script `tools/backup-daily.sh`, runbook `docs/runbooks/backup-daily.md`. Nothing is installed on the VPS. Switch-on needs the owner to choose where the R2 keys live.
+
+## Deploy record 2026-10-19 (S34): organisation upload screen, review notes, review queue
+
+**What shipped:** VPS `1eda2ec9` to `bf07d80b`. Migration 0214 applied. `assessiq-api`, `assessiq-worker` and `assessiq-frontend` were recreated. The sweep showed 0 failures. Nothing outside the `assessiq-` namespace was touched.
+
+**Migration 0214 (`question_review_notes`).**
+- It only adds: one table, two indexes, two RLS policies (SELECT and INSERT only), one trigger. No existing row changes.
+- The trigger rejects every UPDATE. It allows a DELETE only for `assessiq_system` or a superuser. The tenant purge (`modules/02-tenancy/src/purge.ts`) deletes as `assessiq_system`, so a blanket block would break it.
+- The migration is idempotent. It can run twice.
+- Rollback: no code path needs the table to be absent. To undo, redeploy the previous commit. Leave the table in place (forward-only rule).
+
+**Slice tool (EXP-15).**
+- `tools/exam-slice/load.mjs` calls `previewImport`, which lives in the api image. Redeploy `assessiq-api` first (done on 2026-10-19). Then the dry run works.
+- The command list for the owner is in `docs/runbooks/exam-slice-spot-check.md`. Do not copy it here.
+- The tool writes nothing in `--dry-run` mode. `--apply` needs a dry run of the same file in the last hour.
+
+**Plan gate.** The Pro-only gate `question_upload` is a no-op while `PLAN_TIERS_ENFORCED` is false. No flag was flipped.
+
+**Owner check after deploy:** open `/admin` signed in. Check the tabs Upload questions and Review queue. Mark a test question as disputed and read the note history.

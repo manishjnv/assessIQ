@@ -23,6 +23,7 @@ Give these rules to every agent. Do not remove them.
 1. If in a worktree, run `git merge main` first.
 2. Migration number: <N> from the orchestrator; help-id and seed-count range: <range> from the orchestrator.
 3. Run `pnpm verify` for the packages you touch before you report.
+   After a new table or a new page, also run `pnpm exec vitest run modules/20-data-rights/src/__tests__/erasure-coverage.test.ts` and the help-id page prefix test (`modules/16-help-system/src/__tests__/help-id-page-prefix.test.ts`). `pnpm verify` does not run them. A page's `helpPage` is the id prefix without `.page`. Write route paths as literal strings in UI clients (`pnpm lint:ui-api-contract`).
 4. Do not commit.
 
 ## Report

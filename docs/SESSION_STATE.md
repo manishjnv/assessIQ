@@ -1,3 +1,29 @@
+# Session — 2026-10-19 — S35: owner v2 sheet, pricing and the final build list (planning, no code)
+
+**Headline:** the owner answered the v2 sheet (R1 to R39) and gave follow-up decisions; they are written into ROADMAP rows Z-70..Z-95, section Z.9 (final build list, five waves), the register and memory `owner-decisions.md`. No code changed.
+**Commits:** `7f57e728` — ROADMAP and register: owner decisions, Z-79..Z-94, Z.9, exam-pack row updates merged from the S34 session, Z-77 ID clash fixed (admin list is now Z-95). Not pushed at the time of writing.
+**Tests:** n/a (docs only). `node tools/roadmap-recount.mjs`: 93 pending, 187 closed, 280 total, 67 percent, SAME as Z.7.
+**Next:** (1) push `7f57e728`; (2) write the Wave 1 prompt from ROADMAP Z.9 (credit ledger Z-93 and Z-79, test types Z-89, desktop-only Z-87 and readiness Z-91, sign-up Z-71 with Z-81 and Z-80, then Z-18 flip and the pilot tenant to paid, Z-90 mock dashboard); (3) owner tasks: live test of /admin, sign-in code and Delete buttons, console check of the CSP header, speed check, dry runs, the AI evaluation bless, lawyer review before the 2nd or 3rd paying customer.
+**Open questions (owner):**
+- **Public repo incident (found at the close of S35):** the rate card, founding offer, costs and break-even were pushed to the PUBLIC repo in ROADMAP Z-92, NEXT.md and this file (commits `7f57e728`, `92b22a42`, about 1.5 hours). Scrubbed in the next commit; the details moved to the untracked `docs/owner-review/PRIVATE_pricing_and_costs.md`. Git history still holds the old text: the owner decides whether to rewrite history (git filter-repo plus force push, destructive, see row Z.8) or accept the risk. Rule saved in memory `public-repo-hygiene.md`.
+- Z-52 gap 7: the S34 session built the staff-only dispute action before the owner's answer A arrived; keep or remove.
+- GIFT uploads: the format check allows csv and xlsx only; say if GIFT must work.
+- Rescoring questions Q1 to Q4 in `docs/design/2026-10-19-answer-key-rescore-proposal.md`; warranty wording `ORG_UPLOAD_WARRANTY_TEXT`.
+- Pricing: confirm the rate card; prices and costs are in the private file `docs/owner-review/PRIVATE_pricing_and_costs.md` (the repo is public).
+- Haiku 5.5 trial: continue or stop (stop rule says STOP at 38 percent rework).
+**Decisions to keep (full text in memory and the rows):** two test types (Mock any device and no camera; Real exam desktop only and camera, schools control the camera); real and mock burn different credits; credits valid 12 months; Free 20 credits a month; photos 90 days and video 7 days (schools 7); sign-up public at 5 a day with a DPA checkbox, lawyer review before the 2nd or 3rd paying customer; organisation keeps upload ownership, AssessIQ gets a licence; AI support only after 3 paying customers; no per-row gate, one GATE-8 review before the pilot.
+**Old task or feature checked:** Z-18, Z-19, Z-20, Z-26, Z-35, Z-49, Z-51, Z-52, Z-70..Z-76, Z-77, Z-78, E11, D3, X2, X5, FR9, RW-1, C5, C7, C8, N10, SP2/SP11/P3, EXP-12, EXP-15, EXP-17 (Rule B).
+
+---
+
+## Agent utilization
+- Opus: n/a for the main session (it ran on Sonnet 5.5). Two Opus 5.5 review runs: CI and deploy speed-ups, and the optimization status audit (about 237k tokens).
+- Sonnet: the main session (reviews, ROADMAP and register edits, Word sheets v1 and v2, pricing research with 9 web searches, merge of two sessions' edits).
+- Haiku: n/a (no cheap-model work here).
+- codex:rescue: n/a, Codex is down since 2026-10-11 and the owner waived per-row gates. Gemini (agy): n/a. Two Fable review runs (about 316k tokens).
+
+---
+
 # Session — 2026-10-19 — S34: EXP-17 org upload screen, review notes and dispute, review queue, slice tooling
 
 **Headline:** the second half of Wave 1 code is built and pushed: the organisation upload screen, the review notes table, staff `disputed`, the cross-pack review queue, the affected-attempts list, the exam blueprint page, the `has_passage` filter and the 200-item slice loader. Nothing is deployed. Rescoring is NOT built (owner questions written).
@@ -13,6 +39,15 @@
 - Z-51 (a or b) is still blank; not built.
 - Gap 6 and gap 7 and R3 cards were blank in the v2 sheet: I used the recommendations (gap 6 = A, gap 7 = B after gap 6, Free shows "Contact us").
 **Behaviour to know:** notes now live in `question_review_notes`; new audit rows carry `note_id`, old audit rows keep their old note text. An admin can mark a question `disputed`; it blocks publish and invite like `needs_fix` and reaches tenant clones. A correction of an answer key is an edit: new version, attempts and frozen pools keep theirs.
+**Considered and rejected (S34):**
+- Widen the `question_imports.format` CHECK for GIFT, aiken and qti: rejected for now. It needs a migration and the owner has not tested GIFT. The screen offers csv and xlsx only.
+- A new audit action `question_import.withdrawn` in module 14: rejected. Module 14 is a gated path. One `question.withdrawn` row per question already records the withdrawal, ids only.
+- The plan gate on withdraw, discard and read: rejected (gate finding 2). A lapsed plan must not remove the takedown path. The list stays gated because the screen uses its 403 to show "Contact us".
+- Trust in the REVOKE on `question_review_notes`: rejected as a control. `assessiq_app` may `SET ROLE assessiq_system`. The RLS (no UPDATE or DELETE policy) and the trigger are the barriers.
+- Rescoring after an answer-key correction: not built. It changes marks. See the proposal and the four owner questions.
+- Candidate or organisation disputes: not built (a later EXP-12 design).
+- A note row for clones set by propagation (gate finding 4): not built. The tenant cannot read platform notes. The clone shows only the state.
+- Z-43 (draws by outcome node) and the Z-51 admin fields: skipped. Z-43 touches modules 05 and 06 and needs its own design. Z-51 waits for your choice (a or b).
 **Another session:** `docs/ROADMAP.md` was being edited by another session in this clone (Z-79..Z-92 and an S34 recount line). My ROADMAP row edits (Z-52 done, EXP-5, 6, 12, 15, 17 notes) are in the working tree but NOT committed by me; the other session commits that file. My Z-52 closure moves the recount by one (pending down 1, closed up 1): re-run `node tools/roadmap-recount.mjs` and fix its Z.7 line before commit.
 **Old task or feature checked:** EXP-4, EXP-5, EXP-6, EXP-8, EXP-17, EXP-18, EXP-19, EXP-20, Z-42, Z-43, Z-51, Z-52, the S33 org upload API, `withdrawInTx`, `propagateNeedsFix` (generalised), `updateQuestion` version bump.
 

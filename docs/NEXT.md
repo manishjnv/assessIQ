@@ -2,29 +2,27 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-19T16:34:07.259Z (2026-10-19 22:04:07 IST)
-- HEAD: `bf07d80b`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Generated: 2026-10-19T17:43:22.920Z (2026-10-19 23:13:22 IST)
+- HEAD: `8c0f0ec0`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
 - Dirty files (`git status --short` lines): 3
 
 ## 1. Last session (SESSION_STATE, first block)
 
-## Session — 2026-10-19 — S34: EXP-17 org upload screen, review notes and dispute, review queue, slice tooling
+## Session — 2026-10-19 — S35: owner v2 sheet, pricing and the final build list (planning, no code)
 
-**Headline:** the second half of Wave 1 code is built and pushed: the organisation upload screen, the review notes table, staff `disputed`, the cross-pack review queue, the affected-attempts list, the exam blueprint page, the `has_passage` filter and the 200-item slice loader. Nothing is deployed. Rescoring is NOT built (owner questions written).
-**Commits:** `a427d51f` — EXP-17 screen, list and withdraw, EXP-5/6 tails, EXP-15 tool. `48430cfb` — Z-52 gaps 6 and 7, EXP-12 queue, affected attempts (migration 0214). `d8396ca4` — gate fixes. `c83839c2` — gate trailer. `abd2a939` — docs. Handoff docs commit follows. CI-fix commits after `abd2a939`: `f03885b4` help page prefix `admin.review_queue`, erasure exemption for `question_review_notes.note`.
-**Tests:** `pnpm verify` green before the push. Module 04 full 44 files, 484 pass (agent run); org-uploads and tenant-upload files re-run after the gate fixes, 11 pass. Module 19 all 10 files pass. Module 06 affected-attempts, retake, attempt-engine pass. Module 10 admin-nav 28 pass, new page tests pass. Help system 23 pass (seed count 560). Local smoke `/admin/org-question-upload` and `/admin/question-bank` pass. CI: RED on `abd2a939` (run 39275607685, unit shards 2 and 3: help-id page prefix on the review queue page, and erasure-coverage did not know `question_review_notes.note`); fixed in `f03885b4`; a third fix `ca5870de` (literal template URLs for the route contract lint) was needed because CI stops at the first red step. CI GREEN on `ca5870de` (run 39278024804, all jobs).
-**Deploy:** DONE 2026-10-19. CI green on `bf07d80b` (code `ca5870de`). `tools/deploy.sh --dry-run` clean, then `--yes`: VPS `1eda2ec9` to `bf07d80b`, migration 0214 applied (additive), help rows 581 to 605, api, worker and frontend recreated and healthy, sweep 0 failures, 6 `assessiq-*` containers up. Not run: owner live check of `/admin`, the new Upload questions tab, the Review queue tab and a Mark disputed click.
-**Gate:** Sonnet takeover, ONE gate, 3 rows (org list and withdraw, Z-52 gaps 6 and 7 with the review gate, affected attempts): ACCEPT on all, no high or medium. 5 low: fixed 3 (platform imports only for a super_admin; read, discard and withdraw off the plan gate so a lapsed plan keeps the takedown path; deadlock maps to a retryable 409). Recorded, not fixed: (4) a clone set to disputed or needs_fix by propagation has no note row, so the tenant admin sees a blocked question without a reason; (5) the REVOKE is weak because `assessiq_app` may `SET ROLE assessiq_system`, the trigger is the backstop (same trust as `propagateTakedown`).
-**Next:** (1) CI green, then owner says deploy: `bash tools/deploy.sh --dry-run`, `--yes`, `bash tools/post-deploy-sweep.sh` (migration 0214 only adds; api redeploy also makes `previewImport` available for the slice tool). (2) Owner: send the slice file and source list, run the GIFT check, answer the rescoring questions. (3) Next build rows: EXP-9 Hindi (0215), Z-43.
+**Headline:** the owner answered the v2 sheet (R1 to R39) and gave follow-up decisions; they are written into ROADMAP rows Z-70..Z-95, section Z.9 (final build list, five waves), the register and memory `owner-decisions.md`. No code changed.
+**Commits:** `7f57e728` — ROADMAP and register: owner decisions, Z-79..Z-94, Z.9, exam-pack row updates merged from the S34 session, Z-77 ID clash fixed (admin list is now Z-95). Not pushed at the time of writing.
+**Tests:** n/a (docs only). `node tools/roadmap-recount.mjs`: 93 pending, 187 closed, 280 total, 67 percent, SAME as Z.7.
+**Next:** (1) push `7f57e728`; (2) write the Wave 1 prompt from ROADMAP Z.9 (credit ledger Z-93 and Z-79, test types Z-89, desktop-only Z-87 and readiness Z-91, sign-up Z-71 with Z-81 and Z-80, then Z-18 flip and the pilot tenant to paid, Z-90 mock dashboard); (3) owner tasks: live test of /admin, sign-in code and Delete buttons, console check of the CSP header, speed check, dry runs, the AI evaluation bless, lawyer review before the 2nd or 3rd paying customer.
 **Open questions (owner):**
-- Rescoring (EXP-12): Q1 to Q4 in `docs/design/2026-10-19-answer-key-rescore-proposal.md`.
-- The organisation warranty wording `ORG_UPLOAD_WARRANTY_TEXT` needs the lawyer.
-- `question_imports.format` CHECK allows csv and xlsx only; the screen offers only those. Widen it (new migration) if GIFT upload must work.
-- Z-51 (a or b) is still blank; not built.
-- Gap 6 and gap 7 and R3 cards were blank in the v2 sheet: I used the recommendations (gap 6 = A, gap 7 = B after gap 6, Free shows "Contact us").
-**Behaviour to know:** notes now live in `question_review_notes`; new audit rows carry `note_id`, old audit rows keep their old note text. An admin can mark a question `disputed`; it blocks publish and invite like `needs_fix` and reaches tenant clones. A correction of an answer key is an edit: new version, attempts and frozen pools keep theirs.
-**Another session:** `docs/ROADMAP.md` was being edited by another session in this clone (Z-79..Z-92 and an S34 recount line). My ROADMAP row edits (Z-52 done, EXP-5, 6, 12, 15, 17 notes) are in the working tree but NOT committed by me; the other session commits that file. My Z-52 closure moves the recount by one (pending down 1, closed up 1): re-run `node tools/roadmap-recount.mjs` and fix its Z.7 line before commit.
-**Old task or feature checked:** EXP-4, EXP-5, EXP-6, EXP-8, EXP-17, EXP-18, EXP-19, EXP-20, Z-42, Z-43, Z-51, Z-52, the S33 org upload API, `withdrawInTx`, `propagateNeedsFix` (generalised), `updateQuestion` version bump.
+- **Public repo incident (found at the close of S35):** the rate card, founding offer, costs and break-even were pushed to the PUBLIC repo in ROADMAP Z-92, NEXT.md and this file (commits `7f57e728`, `92b22a42`, about 1.5 hours). Scrubbed in the next commit; the details moved to the untracked `docs/owner-review/PRIVATE_pricing_and_costs.md`. Git history still holds the old text: the owner decides whether to rewrite history (git filter-repo plus force push, destructive, see row Z.8) or accept the risk. Rule saved in memory `public-repo-hygiene.md`.
+- Z-52 gap 7: the S34 session built the staff-only dispute action before the owner's answer A arrived; keep or remove.
+- GIFT uploads: the format check allows csv and xlsx only; say if GIFT must work.
+- Rescoring questions Q1 to Q4 in `docs/design/2026-10-19-answer-key-rescore-proposal.md`; warranty wording `ORG_UPLOAD_WARRANTY_TEXT`.
+- Pricing: confirm the rate card; prices and costs are in the private file `docs/owner-review/PRIVATE_pricing_and_costs.md` (the repo is public).
+- Haiku 5.5 trial: continue or stop (stop rule says STOP at 38 percent rework).
+**Decisions to keep (full text in memory and the rows):** two test types (Mock any device and no camera; Real exam desktop only and camera, schools control the camera); real and mock burn different credits; credits valid 12 months; Free 20 credits a month; photos 90 days and video 7 days (schools 7); sign-up public at 5 a day with a DPA checkbox, lawyer review before the 2nd or 3rd paying customer; organisation keeps upload ownership, AssessIQ gets a licence; AI support only after 3 paying customers; no per-row gate, one GATE-8 review before the pilot.
+**Old task or feature checked:** Z-18, Z-19, Z-20, Z-26, Z-35, Z-49, Z-51, Z-52, Z-70..Z-76, Z-77, Z-78, E11, D3, X2, X5, FR9, RW-1, C5, C7, C8, N10, SP2/SP11/P3, EXP-12, EXP-15, EXP-17 (Rule B).
 
 
 ## 2. ROADMAP status board
@@ -82,12 +80,12 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-89` (Z-89 (DELIVERY-MODE)) — Invite as REAL EXAM or MOCK TEST. — pending (Claude; M; gate) RESEARCH 2026-10-19 (web search; owner asked for a better idea): vendors and test makers treat
 - `Z-90` (Z-90 (MOCK-DASH)) — Separate dashboard for mock tests. — pending (Claude; M; waits for Z-89 data model) Owner follow-up 2026-10-19 (final list): schools use the mock dashboard t
 - `Z-91` (Z-91 (READINESS)) — Readiness check before every real exam. — pending (Claude; M; gate; builds with Z-87 and Z-89)
-- `Z-92` (Z-92 (RATECARD)) — Rate card: how to charge for mock tests, real exams, camera and AI evaluation. — pending (Claude drafts options; owner decides; S) Owner decision 2026-10-19 (credits): the owner likes credits valid for
+- `Z-92` (Z-92 (RATECARD)) — Rate card for credits (details are private). — pending (Claude drafts rate-card options in the private file; owner decides; S)
 - `Z-93` (Z-93 (CREDIT-LEDGER)) — Credit ledger with 12-month expiry, burn by test type, and free monthly refill. — pending (Claude; M-L; gate; after Z-89 and Z-92 numbers are confirmed) Also record the ACTUAL AI cost (model, tokens in 
-- `Z-94` (Z-94 (SUPPORT-AI)) — Support automation with AI (no support hire). — pending (Claude; phases A and B S-M; phase C owner decision and gate)
+- `Z-94` (Z-94 (SUPPORT-AI)) — Support automation with AI (no support hire). — pending (Claude; phases A and B S-M; phase C owner decision and gate) OWNER DECISION 2026-10-19: DEFERRED. Start only wh
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
 - `Z-11` (Z-11 (Phase 5, FR13, Z-9, Z-15)) — Certificate visibility after a release. — pending (small). Item (c) done (S17, 2026-10-17, `f9c569f`): `CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui/src/cop
-- `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d)
+- `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d) Owner sheets 2026-10-19 (applied S34), v1 Q39: embed 
 - `Z-15` (Z-15 (Z-9, Z-10, M1-M4 mobile kit)) — Candidate result flow on a phone: findings. — pending (e is a bug) Item (e) closed (S16, 2026-10-17): `modules/15-analytics/src/activity-candidate/stats.ts`. Items (b
 
 ## 4. Newest RCA entries (5 newest of 240; file order: mixed (sorted by date; same-day ties keep file order))
