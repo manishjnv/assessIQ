@@ -1379,6 +1379,17 @@ chars and non-empty `long_md` per the help-key test.
 - **`AttemptGradingPanel`.** A "Graded by" line reads "answer key N · reuse N · rule N · AI N · human N". The line omits tiers with a count of zero. Help id: `admin.attempts.grading.tiers`.
 - **`AiGradingScopeCard`.** The Platform billing drawer has this card for super admins. It sets the AI grading scope of an organisation: "written" or "none". Help id: `admin.platform.tenant.ai_grading_scope`.
 
+### Organisation question upload page (EXP-17, 2026-10-19)
+
+- **What.** Page `/admin/org-question-upload` (`modules/10-admin-dashboard/src/pages/org-question-upload.tsx`) for a tenant admin. Steps: file (CSV or XLSX, up to 4 MB), subject, optional set name, optional source reference, rights (original, based on a source, licensed), the rights confirmation tick-box, then **Check file**. The check is the dry run: it stages the file and shows valid, with problems, duplicates and skipped counts in an `aria-live` region, plus a table of the rows that are not valid. Nothing becomes a question yet. **Add N questions** is the second, explicit click. After it the page shows the result and a link to the draft set. The list **Your uploads** shows each upload with its state, rights and question count, and a Withdraw action behind a confirm dialog.
+- **Warranty text.** One exported constant, `ORG_UPLOAD_WARRANTY_TEXT`: "I confirm that I own this content or hold the right to use and upload it, and that it does not break anyone's copyright." Check file stays disabled until the box is ticked. The server also refuses the upload without `content_warranty: true`.
+- **Locked state.** A `403` with code `TIER_NOT_INCLUDED` from the list call replaces the form with a "Contact us" panel. The panel names the AssessIQ administrator (the app has no shared contact link; the billing page uses the same wording). No flag is changed.
+- **Help ids.** `admin.org_upload.page`, `.file`, `.domain`, `.source_ref`, `.rights`, `.warranty`, `.preview`, `.commit`, `.withdraw` (9 keys, seed only, no migration).
+- **Why.** Owner row EXP-17: a tenant adds its own questions with a rights statement, and can take them back. **Considered and rejected:** a separate staging table for the preview (the stage step already is the dry run); gift, aiken and qti for organisations (the database CHECK on `question_imports.format` allows csv and xlsx only).
+- **Not included.** Per-row fix in the browser (fix the file and upload again), AI checks, quotas, a Playwright spec (needs App.tsx wiring, done by the orchestrator).
+- **Wiring (orchestrator).** Route in `App.tsx` inside `RequireSession role="admin"`, nav item "Upload questions" in `admin-nav.ts`.
+- **Downstream.** API: `docs/03-api-contract.md` § "Organisation upload". Gate: `modules/19-billing/src/service.ts` (`question_upload`, tier `pro`).
+
 ### Question import page (RW-59, S14)
 
 - The page lists the accepted formats: CSV, XLSX, GIFT, Aiken and QTI (zip or one `.xml` item). Help id: `admin.question_import.formats`.
@@ -1729,3 +1740,58 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 - **Considered and rejected.** Putting the actions into the existing pack page (the page is already long and the review task is its own flow). Inline editing of a question in the review card (the question editor exists). A diff view of a flagged question.
 - **Not included.** Showing the saved Needs fix note on the card or in the question editor, keyboard shortcuts, a review queue across all question sets.
 - **Downstream.** `apps/web/src/App.tsx` route (before `/admin/question-bank/:id`). API in `docs/03-api-contract.md` § "Question review routes".
+
+## Exam blueprints page and passage filter (EXP-6 tail, EXP-5 tail, 2026-10-19)
+
+**What changed.**
+- New page `modules/10-admin-dashboard/src/pages/exam-blueprints.tsx` at `/admin/exam-blueprints` (super admin only; the App.tsx route is added by the owner). It lists every exam blueprint with a verified or unverified chip, the totals, and a table of its sections: questions, marks per question, negative marks, minutes and qualifying (with the cut-off mark). It has no edit controls.
+- "Start full mock" on a blueprint opens a small form: question set (platform packs), level (from the pack) and opens at (local time). Submit calls `POST /api/admin/blueprints/:id/mock`. The draft id and warnings show in a status region; a server error shows in an alert region. Focus moves to the first field when the form opens. The toggle sets `aria-expanded` and `aria-controls`.
+- API client `modules/10-admin-dashboard/src/api/exam-blueprints.ts` (list with sections, start mock). The older helpers in `src/api.ts` stay for the start-test page.
+- Help ids (all under `admin.blueprints.`): `page`, `verification`, `sections`, `mock_form`, `start_mock`. Plus `admin.question_bank.pack.filter_passage` on the question set page (see below).
+- Question set page: a "Passage" select (All, With passage, Without passage) in `QuestionFilterBar.tsx`, sent as `has_passage`. It has no counts, so it stays a plain select.
+
+**Why.** Super admins check exam structure against the official notice before they run a mock, and they need to see the sections and the marks in one place. The passage filter lets an admin find questions that use a shared text (EXP-8).
+
+**Considered and rejected.**
+- Editing blueprints on this page (Z-51 admin fields are a separate row with an owner decision).
+- A passage facet with counts (the filter is enough for now, and the facet endpoint would grow).
+- A stage name in the card. The list returns only the stage id, so the card shows no stage label.
+
+**Not included.** Blueprint edit or delete, the Z-51 fields (whole-test minutes, marks per section), the draw by outcome node (Z-43), other exams, and a link from the created draft to its assessment page.
+
+**Downstream impact.** Help seed gets 6 new keys (seed only, as with EXP-18; production needs the help rows applied by hand, see docs/06). The help-system test count changes and must be updated by the owner in the same change. The API gains one optional query parameter, `has_passage` (docs/03).
+
+## Review queue page and review controls (EXP-18, 2026-10-19)
+
+**What changed.**
+- New page `modules/10-admin-dashboard/src/pages/review-queue.tsx` (`ReviewQueue`) at `/admin/review-queue`. It lists the questions of all question sets in one table, with a tab for each review state and its count. A row shows the question set, topic, type, state, the latest note (first 140 characters) and the update time. "Open review" goes to the pack review page of that question set.
+- Paging: 25 questions for each page, Previous and Next buttons, and a status line ("Showing 1 to 25 of 60 questions.").
+- Pack review page (`pages/question-review.tsx`): a "Mark disputed" button on each card opens the same dialog as Needs fix. The note is required. The dialog title and button name change to match the action.
+- Each card shows the latest review note under the question. A "Note history" button shows every note, newest first. An "Attempts on an older version" button loads the attempts that used an older version. It shows the total, the first five attempt ids and this sentence: "Marks are not changed. A correction creates a new version; attempts keep the version they used."
+- API client `modules/10-admin-dashboard/src/api/review.ts`: queue, review notes, review action (verify, needs_fix, dispute, withdraw), affected attempts. The types are defined in this file. The module does not import types from the backend modules.
+
+**Why.** Admins need one place to see every question that still waits for a check. The pack page needs the reason for the last change and the attempts that a correction does not change.
+
+**Words and states.**
+- "Question set" is the name of a pack. "Needs review" groups In review, Disputed and Needs fix. "Not set" means the question was made before the review step.
+- Errors show the server message when the server sends one. Otherwise the page shows a plain sentence.
+
+**Accessibility.**
+- The state tabs are buttons with `role="tab"` and `aria-selected`. They work with the keyboard.
+- The result line and the attempts panel use `role="status"` and `aria-live="polite"`. Errors use `role="alert"`.
+- The note history and the attempts buttons set `aria-expanded` and `aria-controls`.
+
+**Loading.** The queue loads when the page opens and when the state or the page changes. Each question card loads its notes once when it mounts and again after each action. The attempts load only when the panel opens.
+
+**Help ids (9 new, seed only, no migration).** `admin.review_queue.page`, `.filter`, `.state`, `.latest_note`, `.open`, `.paging`, and `admin.question_bank.review.disputed`, `.note_history`, `.attempts`. Content is in `modules/16-help-system/content/en/admin.yml`. The seed is regenerated with `pnpm help:seed:regen`.
+
+**Considered and rejected.**
+- Loading the latest note for every question in one list call. The pack review contract does not return it, so the card loads its own notes. The server could add `latest_note` to the pack review items to remove these calls.
+- Adding the queue as a tab in the question set page. The queue covers all sets, so it needs its own page.
+
+**Not included.** Bulk actions in the queue, a filter by question set or topic, and a view of the answer key in the queue.
+
+**Downstream impact.**
+- Routes: `App.tsx` needs the `/admin/review-queue` route (role admin, as for the pack review route). `admin-nav.ts` needs a tab in the Question bank group. Both are added by the owner.
+- The help-system test counts (`help-system.test.ts`) rise by 9 on a fresh DB, from 551 to 560.
+- The API routes are in `docs/03-api-contract.md`. That file is changed by another session.
