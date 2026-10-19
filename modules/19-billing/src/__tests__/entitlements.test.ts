@@ -47,7 +47,7 @@ let containerUrl: string;
 // it.skipIf(!dockerAvailable) correctly skips tests before beforeAll runs.
 function isDockerAvailable(): boolean {
   try {
-    execSync('docker info', { stdio: 'ignore', timeout: 5_000 });
+    execSync('docker info', { stdio: 'ignore', timeout: 30_000 });
     return true;
   } catch {
     return false;
