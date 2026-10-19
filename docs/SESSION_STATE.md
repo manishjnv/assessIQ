@@ -1,3 +1,35 @@
+# Session — 2026-10-19 — S31: close-out, Z-71 and Q9 designs rev 2, flake fix, three plans
+
+**Headline:** Z-46 and Z-55 closed (recount 79 pending, 183 closed, 262 total, 70%). The Z-71 and Z-74 designs were rewritten for all S30 findings; a second review gate said REVISE again with detail findings, all answered in the design files; nothing built. FU-B2 (audit JSONL download) was already built in S13, so nothing was rebuilt. The CI Docker flake has a most-likely cause and a fix (probe timeout). Plans written: Z-52 gaps 5 to 7, Z-75, react-router 7. Z-37 (a) shipped and deployed.
+**Commits:** `f9a3243c` — Z-46 Caddy reference copy and Astro 7 record; `2a264d43` — stale line-range note; `b67cd329` — ROADMAP close-out; `3435a60f` — gate trailer (Caddy); `88f4e3c8` — docker probe timeout 5 s to 30 s (11 suites); `9fa5be34` — gate trailer; `b6cdb8c0` — Z-37 a, HTML sign-off line; `02500fc8` — docs (designs rev 2, plans, ROADMAP); handoff commit (this file, NEXT, RCA).
+**Deploy:** `tools/deploy.sh --yes`, VPS `da2a95cd` to `02500fc8`, no migration, api, worker and frontend recreated, sweep 0 failures. No Caddy, Cloudflare, DNS or flag change.
+**Tests:** `pnpm verify` green before each push. Notifications 3 files, 99 tests. CI green on `88f4e3c8` (3m50) and `b6cdb8c0`. CI green streak 7 of 10 before these runs (Z-60 not closable yet).
+**Gates:** (1) Sonnet takeover on the Caddy reference diff: accept (1 note fixed). (2) ONE design-review gate for Z-71 and Z-74: REVISE for both, 11 and 12 findings, all answered in the designs, no third review run. (3) Sonnet takeover on the timeout diff (3 files under 07-ai-grading): accept.
+**Next:** (1) Owner reads the revised Z-71 and Z-74 designs and answers the new owner questions below. (2) Owner sets the Z-18 date (flip `PLAN_TIERS_ENFORCED` before any Free sign-up). (3) Build rows only after approval, each with its own gate.
+**Open questions (owner):**
+- Z-18 date; daily sign-up cap 50; certificate line for unverified organisations; should AI drafts count as AI attempts; appeal hold for photos (recommended yes); VPS backups of `/var/assessiq/uploads`; disk numbers (80 percent guard, 5 GB default); Caddy diff yes at webcam build time.
+- Z-75: option A (stop tracking all 107 docs files) or B; yes for the VPS copy-then-pull step. react-router 7: yes or no (step 1 is safe).
+- Z-52 gap options (5: set in_review in new paths; 6: note table; 7: wait for EXP-12).
+- Lawyer: 90 days, self-declared age, school tests, acceptance-record retention after a purge, liability file.
+- Owner checks: live /admin test, emailed sign-in code, Delete buttons; browser console check of the CSP report-only header on /admin, a take page and the marketing site; pagespeed.web.dev; DMARC move later.
+**Not done on purpose:** Z-71 build, webcam build, SP2/SP11/P3 (the per-assessment release-mode override is a gated feature in 05/07, the company ETA needs your wording), Z-42 admin UI (row Z-51 needs your pick a or b), Z-37 b (needs wording), Z-15 a, c, d, e and Z-35, Z-54 (not before 2026-10-29), TIME-13, GATE-8.
+**Old task or feature checked:** FU-B2 and FR1 (JSONL download, cap, audit row, rate limit already built S13; not rebuilt, Rule B), Z-37, Z-38, Z-42, Z-46, Z-52, Z-55, Z-60, Z-70 to Z-75, RCA 2026-10-19 (flake), RCA 2026-10-18 (router copies) (Rule B, PROJECT_BRAIN.md)
+
+---
+
+## Agent utilization
+- Opus (main session ran on Sonnet 5.5): Phase 0, ROADMAP edits (scripts), both design rewrites, plans, gate prompts, diff review of the Haiku and flake changes, deploy, handoff. Estimate ~330k tokens.
+- Sonnet: 3 runs (Caddy gate, design gate, timeout gate).
+- Haiku: 1 run (Z-37 a).
+- codex:rescue: n/a — Codex down since 2026-10-11; Sonnet takeover gates.
+- Gemini (agy): n/a — the bulk reads were short greps.
+- Codex (exec): n/a — down.
+  - Sonnet · Caddy reference diff gate · reworked: N (1 note fixed by Opus) · tokens: 87814
+  - Sonnet · design gate Z-71 and Z-74 · reworked: Y (REVISE, findings folded in by Opus) · tokens: 172732
+  - Sonnet · timeout diff gate · reworked: N · tokens: 87206
+  - Haiku · Z-37 a sign-off line · reworked: N (one test deviation noted, accepted) · tokens: 119822
+  - Optimization register rows touched: none this session.
+
 # Session — 2026-10-19 — S30: owner answers into ROADMAP, design review of Z-71 and Q9, Q44, dependency majors
 
 **Headline:** 18 ROADMAP rows closed from the owner sheet (recount 81 pending, 181 closed, 262 total, 69%). The Z-71 and Q9 designs went through a review gate: both REVISE, findings written into the design files, nothing built. Q44 (row delete or cancel, bulk clear of empty drafts, simpler status tabs) is built and deployed. Z-73 (docs-only CI runs the docs-reading tests) is proven. Storybook vite 6 and basic-ftp 6 are in. Seven page proposals are written.

@@ -2866,6 +2866,6 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 ## 2026-10-19 — CI unit shard 2 red once: Docker testcontainer unavailable (flake)
 
 **Symptom:** CI run 39171014351 (commit `9bd08797`, a lockfile-only dependency change) failed in unit shard 2: `billing-events.test.ts:74` reported `Docker testcontainer required but unavailable in CI`. 110 of 111 files passed.
-**Cause:** not found. The test guard fires when the testcontainer cannot start; the same code passed on the earlier commit and on rerun. Treated as a runner flake.
-**Fix:** `gh run rerun --failed` gave green. No code change.
-**Prevention:** manual discipline: rerun once, log the run id; if it returns twice, look at the Docker setup step in the unit job.
+**Cause:** most likely cause (S31, 2026-10-19; the run log had expired, so the exact error text could not be read). 12 test files probe Docker at module load with `execSync('docker info', { timeout })`. Eleven used a 5 second timeout. On a busy runner a slow `docker info` reads as "no Docker", and the suite throws the fail-loud error at load. One file already used 30 seconds. The same code passed on rerun.
+**Fix:** first `gh run rerun --failed` gave green. S31 (`88f4e3c8`): the timeout is 30 seconds in all 12 files (only the number changed; the fail-loud throw and CI `retries: 0` stay). Sonnet takeover review: accept.
+**Prevention:** if the error returns with 30 seconds, the cause is not the probe: read the runner Docker step and the testcontainer start logs the same day (logs expire). A shared probe helper for the 12 files is a later cleanup.

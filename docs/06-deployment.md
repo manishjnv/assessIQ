@@ -2796,3 +2796,11 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 **Rollback.** `cat /opt/ti-platform/caddy/Caddyfile.bak.20261019T015310Z > /opt/ti-platform/caddy/Caddyfile`, then `docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
 
 **Not included.** Enforcing the policy. That waits for a clean console check on the signed-in admin, take and marketing pages (inline script and style are still allowed). Violation reports are not collected on a server; only the browser console shows them.
+
+## Deploy record 2026-10-19 (S31): email sign-off line, test timeouts
+
+- **What:** `bash tools/deploy.sh --yes` took the VPS from `da2a95cd` to `02500fc8`. Deployed code change: one line in the shared email footer (`modules/13-notifications`, Z-37 a). The other commits were tests, docs and the Caddy reference copy.
+- **Why three services were rebuilt:** the deploy plan treats `infra/caddy/assessiq.caddy` as a shared path. The file is a repo reference copy; Caddy reads `/opt/ti-platform/caddy/Caddyfile`, so the pull changed nothing live.
+- **Result:** migrations applied 0 (drift gate: repo 180, db 184, pending 0). `assessiq-api`, `assessiq-worker`, `assessiq-frontend` recreated. Sweep: 0 failures, 6 `assessiq-*` containers up, VPS commit equals `origin/main`.
+- **Not changed:** Caddy, Cloudflare, DNS, flags (`PLAN_TIERS_ENFORCED`, `USER_PURGE_ENABLED`), other apps.
+- **Rollback:** `ssh assessiq-vps 'cd /srv/assessiq && git checkout da2a95cd'`, rebuild the three services, `up -d --no-deps --force-recreate`.

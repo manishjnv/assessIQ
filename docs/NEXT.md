@@ -2,30 +2,28 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-18T22:19:53.090Z (2026-10-19 03:49:53 IST)
-- HEAD: `9bd08797`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 4
+- Generated: 2026-10-19T02:50:34.644Z (2026-10-19 08:20:34 IST)
+- HEAD: `02500fc8`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 3
 
 ## 1. Last session (SESSION_STATE, first block)
 
-## Session — 2026-10-19 — S30: owner answers into ROADMAP, design review of Z-71 and Q9, Q44, dependency majors
+## Session — 2026-10-19 — S31: close-out, Z-71 and Q9 designs rev 2, flake fix, three plans
 
-**Headline:** 18 ROADMAP rows closed from the owner sheet (recount 81 pending, 181 closed, 262 total, 69%). The Z-71 and Q9 designs went through a review gate: both REVISE, findings written into the design files, nothing built. Q44 (row delete or cancel, bulk clear of empty drafts, simpler status tabs) is built and deployed. Z-73 (docs-only CI runs the docs-reading tests) is proven. Storybook vite 6 and basic-ftp 6 are in. Seven page proposals are written.
-**Commits:** `4daf94a4` — ci Z-73; `cea5012e` — docs (ROADMAP, designs, page proposals); `6a44cfa4` — Q44 (migration 0206); `61192fa3` — Z-38 vite 6; `b63f2b23` — Z-11 row PDF, Z-15 band labels (migration 0208); `9bd08797` — Z-38 basic-ftp 6; docs commit (this file, ROADMAP, NEXT).
-**Deploy:** `tools/deploy.sh --yes` at `6a44cfa4` (VPS was `2eb00bb7`): assessiq-api, assessiq-worker, assessiq-frontend recreated, migration 0206 applied, sweep 0 failures, 6 assessiq-* containers up. Second deploy at `9bd08797` (VPS `6a44cfa4` to `9bd08797`): migration 0208 applied (help_content rows 580), the same three services recreated, sweep 0 failures. CI on `9bd08797` was red once: unit shard 2, `modules/19-billing/src/__tests__/billing-events.test.ts:74` said the Docker testcontainer was unavailable; a rerun of the failed job was green (runner flake, no code cause found). Marketing (Astro 7) NOT deployed (owner approval pending).
-**Tests:** `pnpm verify` green before each push. Module 05 199, admin dashboard 239, candidate UI 159, help system 116, tools 4 docs-reading files 13. Storybook build passes on vite 6. No browser smoke of the new list buttons: owner check.
-**Gate:** one Sonnet takeover design-review gate (Z-71 and Q9): REVISE for both (12 and 9 findings). One Sonnet review of the Q44 bulk endpoint: REVISE (check-then-delete race), fixed before push (row lock, guarded DELETE, all-or-nothing).
-**Next:** (1) Owner: approve the revised Z-71 and Q9 designs after the design edits (findings in each design file); lawyer answers (liability proposal addenda). (2) Owner yes before: Z-46 on the VPS, Astro 7 deploy, react-router 7 plan. (3) FU-B2 (audit-log JSONL download) was NOT started (Batch 4 skipped, time). (4) Remaining tails need owner wording: Z-15 (a)(c)(d)(e), SP11 company ETA.
-**Open questions:**
-- Z-71 and Q9: findings 1 to 7 and 1 to 5 must be written into the designs, then the owner approves. Check on the VPS (read-only) whether other apps import the Caddy `(security-headers)` snippet before changing Permissions-Policy.
-- Daily sign-up cap of 50 is still a proposal.
-- Appeal hold for flagged-attempt photos: recommended yes with a lawyer-set upper limit; not decided.
-- Results card: should the default feedback level change from "none"? (Z-15 g)
-- The details drawer shows "Download PDF" for a revoked certificate (server answers 410); small fix, not done.
-- CI flake: the testcontainer start failure above. If it returns, note the date and look at the runner Docker step (Z-55 area).
-- Dependabot opened a branch to take storybook vite to 8.3.4: not taken.
-**Not included:** Z-71 and Q9 build, live /terms or /privacy, Z-46 on the VPS, marketing deploy, Z-75 execution, react-router 7, Q22 retention job, FU-B2, any Cloudflare or DNS change.
-**Old task or feature checked:** Q44 (existing `deleteAssessment` and `cancelAssessment` reused), Z-11, Z-15, Z-38, Z-52 gaps, RW-1, FU-D14 and RW-100 (already closed), X2, X5/OD5, Z-70 to Z-72, Z-73 (RCA 2026-10-18) (Rule B, PROJECT_BRAIN.md)
+**Headline:** Z-46 and Z-55 closed (recount 79 pending, 183 closed, 262 total, 70%). The Z-71 and Z-74 designs were rewritten for all S30 findings; a second review gate said REVISE again with detail findings, all answered in the design files; nothing built. FU-B2 (audit JSONL download) was already built in S13, so nothing was rebuilt. The CI Docker flake has a most-likely cause and a fix (probe timeout). Plans written: Z-52 gaps 5 to 7, Z-75, react-router 7. Z-37 (a) shipped and deployed.
+**Commits:** `f9a3243c` — Z-46 Caddy reference copy and Astro 7 record; `2a264d43` — stale line-range note; `b67cd329` — ROADMAP close-out; `3435a60f` — gate trailer (Caddy); `88f4e3c8` — docker probe timeout 5 s to 30 s (11 suites); `9fa5be34` — gate trailer; `b6cdb8c0` — Z-37 a, HTML sign-off line; `02500fc8` — docs (designs rev 2, plans, ROADMAP); handoff commit (this file, NEXT, RCA).
+**Deploy:** `tools/deploy.sh --yes`, VPS `da2a95cd` to `02500fc8`, no migration, api, worker and frontend recreated, sweep 0 failures. No Caddy, Cloudflare, DNS or flag change.
+**Tests:** `pnpm verify` green before each push. Notifications 3 files, 99 tests. CI green on `88f4e3c8` (3m50) and `b6cdb8c0`. CI green streak 7 of 10 before these runs (Z-60 not closable yet).
+**Gates:** (1) Sonnet takeover on the Caddy reference diff: accept (1 note fixed). (2) ONE design-review gate for Z-71 and Z-74: REVISE for both, 11 and 12 findings, all answered in the designs, no third review run. (3) Sonnet takeover on the timeout diff (3 files under 07-ai-grading): accept.
+**Next:** (1) Owner reads the revised Z-71 and Z-74 designs and answers the new owner questions below. (2) Owner sets the Z-18 date (flip `PLAN_TIERS_ENFORCED` before any Free sign-up). (3) Build rows only after approval, each with its own gate.
+**Open questions (owner):**
+- Z-18 date; daily sign-up cap 50; certificate line for unverified organisations; should AI drafts count as AI attempts; appeal hold for photos (recommended yes); VPS backups of `/var/assessiq/uploads`; disk numbers (80 percent guard, 5 GB default); Caddy diff yes at webcam build time.
+- Z-75: option A (stop tracking all 107 docs files) or B; yes for the VPS copy-then-pull step. react-router 7: yes or no (step 1 is safe).
+- Z-52 gap options (5: set in_review in new paths; 6: note table; 7: wait for EXP-12).
+- Lawyer: 90 days, self-declared age, school tests, acceptance-record retention after a purge, liability file.
+- Owner checks: live /admin test, emailed sign-in code, Delete buttons; browser console check of the CSP report-only header on /admin, a take page and the marketing site; pagespeed.web.dev; DMARC move later.
+**Not done on purpose:** Z-71 build, webcam build, SP2/SP11/P3 (the per-assessment release-mode override is a gated feature in 05/07, the company ETA needs your wording), Z-42 admin UI (row Z-51 needs your pick a or b), Z-37 b (needs wording), Z-15 a, c, d, e and Z-35, Z-54 (not before 2026-10-29), TIME-13, GATE-8.
+**Old task or feature checked:** FU-B2 and FR1 (JSONL download, cap, audit row, rate limit already built S13; not rebuilt, Rule B), Z-37, Z-38, Z-42, Z-46, Z-52, Z-55, Z-60, Z-70 to Z-75, RCA 2026-10-19 (flake), RCA 2026-10-18 (router copies) (Rule B, PROJECT_BRAIN.md)
 
 
 ## 2. ROADMAP status board
@@ -35,7 +33,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 **Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
 
-## 3. Open Z and EXP rows (40 total)
+## 3. Open Z and EXP rows (38 total)
 
 - `EXP-3` (EXP-3 (lane B catalog)) — Previous-year catalog without question text. — pending (after pilot; Claude; M)
 - `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S20, 2026-10-17, `c34a597`; migrations 0196 module 04, 0197 module 16): facets, counts, tsvector plus `pg_trgm`
@@ -58,20 +56,18 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-26` (Z-26 (SEO-A2; unblocks F2 and CWV-1)) — Connect Search Console and a privacy-light analytics tool. — pending (owner verifies and picks the tool; Claude adds tag and privacy line; XS). S17 fact: a Microsoft Clarity script 
 - `Z-35` (Z-35 (SEO-F5, F7)) — Organization `sameAs` is empty (F5). Microsoft Clarity is live (F7): check `privacy.astro` and the consent wording. — pending (partly done S18, `59a5962`): (a) privacy page now names what Clarity records, cookie names and lifetimes (`_clc
 - `Z-37` (Z-37 (Z-10 code fixes)) — Email code fixes from the Z-10 review. — PART 1 DONE earlier (67e5db5) and PART 2 DONE in S20 (`f253297` + `75a42ca`: plain result email, share links, `.txt` sig
-- `Z-38` (Z-38 (Dependabot tail)) — Dependabot items left after the S17 patch pass. — pending (Claude; M per major) S29 (2026-10-19): uuid 11 checked and skipped: no workspace declares uuid (lighthouse, sto
+- `Z-38` (Z-38 (Dependabot tail)) — Dependabot items left after the S17 patch pass. — partly done (S31, 2026-10-19; Claude; M): astro 7.4.0 DONE and DEPLOYED 2026-10-19 (marketing rebuilt from `da2a95cd`, 4
 - `Z-42` (Z-42 (EXP-6 tail)) — Blueprint mocks: whole-test timer and marks per question. — pending, mostly done (S21, 2026-10-18, `43fc9b9` + gate hardening `7ef8826`): whole-test timer (`settings.whole_test_min
-- `Z-46` (Z-46 (CSP-1)) — The CSP header has only `frame-ancestors`; no `script-src` or `default-src`. — pending (Claude; P2; S) S29 (2026-10-19): a `Content-Security-Policy-Report-Only` line (default-src, script-src for Turn
 - `Z-48` (Z-48 (DOCSLINT-1)) — Make the Docs lint workflow pass before it becomes required on 2026-10-29. — pending, partly done (S22, 2026-10-18, `78165b0`, follow-ups `0a58c457`, `a3a41852`): Vale scoped to the docs set, 19 ma
 - `Z-49` (Z-49 (BEACON-2)) — Decide whether the public demo page `/try` carries the Cloudflare Web Analytics beacon. — pending (owner decides A or B; Claude; XS)
 - `Z-51` (Z-51 (FORM-1)) — Admin form fields `whole_test_minutes` and marks per section for blueprint mocks. — pending (owner picks a or b; Claude; S)
 - `Z-52` (Z-52 (EXP18-GAPS)) — EXP-18 review gate: known gaps. — pending (Claude; P2; M) S29 (2026-10-19): gaps 1 to 4 closed (needs_fix on a platform master reaches live clones in the 
 - `Z-54` (Z-54 (DOCSLINT-2)) — Docs lint: confirm green on main, then flip `fail_on_error` to true. — pending (Claude; XS; not before 2026-10-29). S24 check (2026-10-18): Docs lint on main is green in the last 4 runs, incl
-- `Z-55` (Z-55 (CI-1)) — Cut CI wall time from about 11 minutes to about 5.5 minutes per push. — partly done (S24, 2026-10-18; Claude; M). Built: parallel typecheck job, 3-way unit shards, docs-only skip and `ci-ok` (
 - `Z-70` (Z-70 (FREEPLAN)) — Free trial plan pack for self-serve organisations. — pending (owner approval of the proposal; Claude; S). Draft written S28. Owner answer 2026-10-18: the public name is "Tri
-- `Z-71` (Z-71 (SELFSERVE-BUILD)) — Self-serve organisation sign-up (build). — pending (blocked on Z-70 approval; Claude; L; design-gated) Design written 2026-10-19 (S29): `docs/design/2026-10-18-sel
+- `Z-71` (Z-71 (SELFSERVE-BUILD)) — Self-serve organisation sign-up (build). — pending (design revision 2 written S31, 2026-10-19; owner approves; then build in two gated rows; Claude; L; design-gate
 - `Z-72` (Z-72 (LIABILITY-1)) — Liability and data-processing proposal for the lawyer. — pending (owner and lawyer approve; Claude; S). Draft written S28.
-- `Z-74` (Z-74 (PROCTOR-RET)) — Webcam photos: 90-day automatic deletion job, and the appeal question. — pending (design reviewed in S30 batch 2; design review S30: REVISE, 9 findings recorded in the design file; no build unt
-- `Z-75` (Z-75 (PUBLICDOCS-1)) — Plan to stop tracking public docs files in the public repo. — pending (plan only; Claude; S)
+- `Z-74` (Z-74 (PROCTOR-RET)) — Webcam photos: 90-day automatic deletion job, and the appeal question. — pending (design revision 2 written S31, 2026-10-19; owner approves; no build until the owner says so; Claude; L split in
+- `Z-75` (Z-75 (PUBLICDOCS-1)) — Plan to stop tracking public docs files in the public repo. — pending (plan written S31, 2026-10-19: `docs/plans/Z-75-stop-tracking-public-docs.md`; execution needs the owner's yes a
 - `Z-76` (Z-76 (PAGES-1)) — Website page proposals (5 to 8), owner approves each. — pending (S30: proposals written, 7 pages, in `docs/design/2026-10-19-page-proposals.md`; owner approves each; Claude; S)
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
 - `Z-11` (Z-11 (Phase 5, FR13, Z-9, Z-15)) — Certificate visibility after a release. — pending (small). Item (c) done (S17, 2026-10-17, `f9c569f`): `CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui/src/cop
@@ -82,7 +78,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 ### 2026-10-19 — CI unit shard 2 red once: Docker testcontainer unavailable (flake)
 **Symptom:** CI run 39171014351 (commit `9bd08797`, a lockfile-only dependency change) failed in unit shard 2: `billing-events.test.ts:74` reported `Docker testcontainer required but unavailable in CI`. 110 of 111 files passed.
-**Prevention:** manual discipline: rerun once, log the run id; if it returns twice, look at the Docker setup step in the unit job.
+**Prevention:** if the error returns with 30 seconds, the cause is not the probe: read the runner Docker step and the testcontainer start logs the same day (logs expire). A shared probe helper for the 12 files is a later cleanup.
 
 ### 2026-10-18 — Admin page blank after login: two copies of react-router in the bundle
 **Symptom:** after a successful sign-in at assessiq.in/admin the owner saw a blank white page. The browser error log (`stream":"frontend"`) held six `Uncaught Error` entries from `vendor-react-*.js` line 9 at one column, all with referer `/admin`. Public pages, the login page and the candidate pages
