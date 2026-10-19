@@ -171,9 +171,12 @@ The billing export now prefixes a cell that starts with `= + - @` with `'` (one 
 ## Plan tier limits and gates (PT1, PT-4, S14, 2026-10-16)
 
 **What.**
-- `TIER_LIMITS` in `src/service.ts`: free has 2 licensed packs, 200 candidates for each drive, and an overage hard cap of 120 % (`overage_hard_cap_ratio` 1.2). Other tiers have `null` (no limit).
+- `TIER_LIMITS` in `src/service.ts` (Free plan, owner 2026-10-19, updated 2026-10-20): free has 5 licensed packs, 200 candidates for each drive (never reached), `max_candidates_total` 5, `ai_attempts_total` 5, and a credit hard stop at 100 % (`overage_hard_cap_ratio` 1.0; was 1.2). Other tiers have `null` (no limit). Full table: `docs/design/2026-10-20-free-tier-limits.md`.
+- `assertCandidateTotalCap(tenantId, adding = 1)`: counts `users` rows with `role='candidate'` for the tenant (soft-deleted and erased rows stay counted) through `withTenant`. Wired in `POST /api/admin/invitations` (role candidate), `POST /api/admin/users` (role candidate) and `POST /api/admin/users/import`.
+- `assertAiAttemptAllowed(tenantId, attemptId?)`: first the `FREE_PLAN_AI_DISABLED` kill switch (free tier only, code `AI_GRADING_DISABLED`), then `ai_attempts_total`. Counts distinct attempts with cached `attempts.ai_proposals` or an `ai_answer_evaluated` billing event; the attempt being graded is excluded, so a re-run is free. Wired in `apps/api/src/routes/admin-super-evaluations.ts` on `POST .../:attemptId/grade` and `/rerun` (not in 07-ai-grading). The per-tenant AI pause is a separate gate.
+- Both helpers are no-ops while `PLAN_TIERS_ENFORCED` is false.
 - Feature `cohort_analytics_full` is included from the pro tier.
-- Assert helpers: `assertTierAllows(tenantId, feature)`, `assertTierLimit(tenantId, kind, current)`, `assertCreditsUnderHardCap(tenantId)`. Reads: `getTierLimits`, `tierDenial`. A denied call returns 403 with `TIER_NOT_INCLUDED`, `TIER_LIMIT_REACHED` or `CREDITS_HARD_CAP` (`details { code, tier, feature?, limit?, current? }`).
+- Assert helpers: `assertTierAllows(tenantId, feature)`, `assertTierLimit(tenantId, kind, current)`, `assertCreditsUnderHardCap(tenantId)`. Reads: `getTierLimits`, `tierDenial`. A denied call returns 403 with `TIER_NOT_INCLUDED`, `TIER_LIMIT_REACHED`, `CREDITS_HARD_CAP` or `AI_GRADING_DISABLED` (`details { code, tier, feature?, limit?, current? }`).
 - `PLAN_TIERS_ENFORCED` (00-core config, default false, `.env.example`). While false, every assert is a no-op and `getUsage` reports `tiers_enforced: false`. `getUsage` adds `tier_limits` and `tiers_enforced`.
 - Override column (migration `0186`): `tenant_plans.ai_answers_included_override INT NULL CHECK (>= 0)`. The AI answers included value is `ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier]`. `PATCH /api/admin/super/tenants/:id/plan` accepts `aiAnswersIncludedOverride` (400 `INVALID_AI_ANSWERS_OVERRIDE`). The super list `getAllTenantUsage` still shows the tier default.
 
@@ -200,3 +203,12 @@ WHERE p.tier='free' GROUP BY 1;
 **Not included.** Payment flow. Per-tenant limit overrides other than the AI answers override.
 
 **Downstream impact.** Billing page "Plan limits" block: `docs/08-ui-system.md`. Env flag: `docs/06-deployment.md`. Gate wording: `docs/03-api-contract.md`.
+
+## S32 (2026-10-19): Free-plan limits behind `PLAN_TIERS_ENFORCED`
+
+- `TIER_LIMITS.free` = 5 sets, 5 candidates in total (`max_candidates_total`), 5 AI-graded attempts (`ai_attempts_total`), hard stop at 100 % of 25 credits. Paid tiers: null (uncapped).
+- Helpers (all no-ops while the flag is off): `assertCandidateTotalCap(tenantId, adding)`, `assertCandidateRoleChange(tenantId, userId, newRole)` (a role flip must not reset the count; added after the S32 gate), `assertAiAttemptAllowed(tenantId, attemptId?)` and the `FREE_PLAN_AI_DISABLED` kill switch (error code `AI_GRADING_DISABLED`).
+- `FEATURE_MIN_TIER.certificates` is now `free` (owner 2026-10-19). Webhooks, API keys, embed, audit viewer stay locked.
+- Callers: `apps/api` routes `admin-users.ts`, `invitations.ts`, `admin-super-evaluations.ts` (a pre-handler; `modules/07-ai-grading` is untouched).
+- **Known gaps, accepted.** Check-then-act race (Z-71 adds a DB guard). CSV import counts rows that already exist. The AI count is not a perfect ledger: a Grade run that fails before caching proposals is not counted, and `release-to-tenant` clears the cache. Only a super admin can reach those cases.
+- Tools: `tools/free-tier-at-risk.sql` (read-only), `tools/pilot-tenant-to-paid.sql` (written, ends in ROLLBACK). Full design: `docs/design/2026-10-20-free-tier-limits.md`.

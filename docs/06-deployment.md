@@ -2804,3 +2804,13 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 - **Result:** migrations applied 0 (drift gate: repo 180, db 184, pending 0). `assessiq-api`, `assessiq-worker`, `assessiq-frontend` recreated. Sweep: 0 failures, 6 `assessiq-*` containers up, VPS commit equals `origin/main`.
 - **Not changed:** Caddy, Cloudflare, DNS, flags (`PLAN_TIERS_ENFORCED`, `USER_PURGE_ENABLED`), other apps.
 - **Rollback:** `ssh assessiq-vps 'cd /srv/assessiq && git checkout da2a95cd'`, rebuild the three services, `up -d --no-deps --force-recreate`.
+
+### Z-19 flip: `USER_PURGE_ENABLED=true` and restore test (S32, 2026-10-19)
+
+- **What changed.** `USER_PURGE_ENABLED=true` was added to `/srv/assessiq/.env` (backup `.env.bak.20261019T090102Z`, same folder). `assessiq-worker` was recreated with `up -d --no-deps --force-recreate`. It was healthy after 25 s. `docker exec assessiq-worker printenv USER_PURGE_ENABLED` prints `true`. `tools/post-deploy-sweep.sh`: 0 failures.
+- **Why now.** The first tick (2026-10-19 03:45 UTC, job `user-purge-cron`) logged `dryRun: true`, `candidates: 0`. A read-only count showed 0 soft-deleted users in the whole database. So the flip could not remove anyone. The owner's rule was: flip after a dry-run tick shows only expected users.
+- **Rejected.** Waiting for real soft-deleted users: the purge needs the job to run live to prove itself, and the database is empty of candidates for it. The 180-day minimum, the super-admin and platform-tenant skips and the last-admin check stay in code (`modules/03-users/src/purge.ts`).
+- **Not included.** No data was purged. No code or image changed.
+- **Verify.** After 2026-10-20 03:45 UTC run `ssh assessiq-vps 'docker logs assessiq-worker 2>&1 | grep user-purge-cron | tail -2'`. Expect `dryRun:false`, `purged:0`.
+- **Rollback.** Set `USER_PURGE_ENABLED=false` in `.env` (or restore the backup file), then recreate `assessiq-worker`.
+- **Restore test.** `bash tools/backup-restore-test.sh` passed on 2026-10-19: dump 1,775,816 bytes in under 1 s, restore in 3 s, 0 `pg_restore` errors, counts equal for tenants 6, users 12, assessments 8, attempts 6, audit_log 1067, schema_migrations 184. The temporary container, volume and dump were removed. Runbook: `docs/runbooks/backup-restore.md`. Note: a daily on-box `pg_dump` runs at 06:25 UTC into `/var/backups/assessiq/` (same disk). The weekly provider snapshot is the only off-box copy.

@@ -3834,3 +3834,8 @@ This section supersedes the "even split", "400 when the sections have different 
 - **What.** Each item of the admin attempts list (`GET /api/admin/attempts`, handler `admin-attempts-list.ts`) adds two integers: `attempt_number` (this attempt's number for the candidate on the assessment) and `attempts_total` (how many attempts the candidate has on it). The admin page shows an "Attempt n of m" chip when `attempts_total` is above 1.
 - **Why.** The list keeps every attempt, so an admin needs to tell the attempts of one candidate apart. Cohort reports and dashboard counts show the candidate once instead (module 15 SKILL.md).
 - **Not included.** No filter by attempt number. No change to the request. The fields are additive; old clients ignore them.
+
+### S32 additions: Free-plan limits (all no-ops while `PLAN_TIERS_ENFORCED=false`)
+
+- **New behaviour.** When the flag is on, `POST /api/admin/users` (role candidate), `POST /api/admin/users/import` and `PATCH /api/admin/users/:id` (role change) answer `403` with `details.code` `TIER_LIMIT_REACHED` once a Free organisation would hold more than 5 candidates in total. On a capped tier a candidate cannot change role. `POST /api/admin/super/evaluations/:attemptId/grade` and `/rerun` answer `403` `TIER_LIMIT_REACHED` after 5 AI-graded attempts, or `403` `AI_GRADING_DISABLED` when `FREE_PLAN_AI_DISABLED=true`. Paid tiers are never blocked.
+- **Why.** The approved Free plan (docs/design/2026-10-18-free-plan-pack.md). **Not included:** a DB-level guard against concurrent requests (Z-71), a changed response shape. Detail: `docs/design/2026-10-20-free-tier-limits.md`.

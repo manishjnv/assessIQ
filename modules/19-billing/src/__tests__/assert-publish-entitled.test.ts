@@ -359,7 +359,7 @@ describe('tierAllows (FU-A3)', () => {
   it.skipIf(!dockerAvailable)('free tier: false for a pro-gated feature, true for nothing below free', async () => {
     await setTenantPlan(TENANT_ID, 'free', 25);
     await expect(tierAllows(TENANT_ID, 'webhooks')).resolves.toBe(false);
-    await expect(tierAllows(TENANT_ID, 'certificates')).resolves.toBe(false);
+    await expect(tierAllows(TENANT_ID, 'certificates')).resolves.toBe(true); // owner 2026-10-19: certificates are on for Free
     await expect(tierAllows(TENANT_ID, 'api_keys')).resolves.toBe(false);
   });
 

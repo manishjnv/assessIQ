@@ -28,8 +28,10 @@
 // only ever started by handleAdminGrade / handleAdminRerun on a super admin's click —
 // nothing in apps/api's worker or cron paths imports @assessiq/ai-grading.
 
-import type { FastifyInstance } from 'fastify';
-import { registerSuperEvaluationRoutes } from '@assessiq/ai-grading';
+import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
+import { registerSuperEvaluationRoutes, resolveEvaluationTenant } from '@assessiq/ai-grading';
+import { config, isUuid } from '@assessiq/core';
+import { assertAiAttemptAllowed } from '@assessiq/billing';
 import { authChain } from '../middleware/auth-chain.js';
 
 // Gate: session must exist AND role must be 'super_admin'. requireAuth enforces
@@ -42,6 +44,23 @@ const superAdminFreshMfa = authChain({
   freshMfaWithinMinutes: 15,
 });
 
+// Free-plan AI attempt cap (docs/design/2026-10-20-free-tier-limits.md). The cap lives
+// here, not in modules/07-ai-grading: it is appended to the superAdminOnly chain and acts
+// only on the two routes that start the AI (POST .../:attemptId/grade and .../rerun).
+// It runs after the auth chain, so req.session is set. A no-op while PLAN_TIERS_ENFORCED is false.
+const AI_START_URL = /^\/api\/admin\/super\/evaluations\/:attemptId\/(grade|rerun)$/;
+const aiAttemptCap: preHandlerHookHandler = async (req) => {
+  if (!config.PLAN_TIERS_ENFORCED) return; // flag off: no extra lookup, behaviour unchanged
+  if (req.method !== 'POST' || !AI_START_URL.test(req.routeOptions.url ?? '')) return;
+  const { attemptId } = req.params as { attemptId: string };
+  if (!isUuid(attemptId)) return; // the route handler answers 400 for a bad id
+  const tenantId = await resolveEvaluationTenant(attemptId);
+  await assertAiAttemptAllowed(tenantId, attemptId);
+};
+
 export async function registerAdminSuperEvaluationsRoutes(app: FastifyInstance): Promise<void> {
-  await registerSuperEvaluationRoutes(app, { superAdminOnly, superAdminFreshMfa });
+  await registerSuperEvaluationRoutes(app, {
+    superAdminOnly: [superAdminOnly, aiAttemptCap].flat() as preHandlerHookHandler[],
+    superAdminFreshMfa,
+  });
 }

@@ -113,6 +113,47 @@ export async function countBillingEvents(
 }
 
 /**
+ * Free-plan candidate cap source: every candidate user row ever created in the
+ * tenant. users rows are never hard-deleted for candidates (soft delete sets
+ * deleted_at, erasure tombstones the row), so no deleted_at/erased_at filter.
+ * Runs under withTenant: RLS limits rows to the tenant (no context = zero rows,
+ * so callers must always go through withTenant with a real tenant id).
+ */
+export async function countCandidatesEver(client: PoolClient, tenantId: string): Promise<number> {
+  const r = await client.query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM users WHERE tenant_id = $1 AND role = 'candidate'`,
+    [tenantId],
+  );
+  return r.rows[0]?.n ?? 0;
+}
+
+/**
+ * Free-plan AI attempt cap source: distinct attempts that were AI-graded.
+ * Union of (a) attempts with cached AI proposals (set when the super admin
+ * clicks Grade, before Accept) and (b) attempts with an ai_answer_evaluated
+ * billing event (written on Accept). `excludeAttemptId` leaves out the attempt
+ * being graded so a re-run never counts twice.
+ */
+export async function countAiAttemptsEver(
+  client: PoolClient,
+  tenantId: string,
+  excludeAttemptId: string | null,
+): Promise<number> {
+  const r = await client.query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM (
+       SELECT id AS attempt_id FROM attempts
+        WHERE tenant_id = $1 AND ai_proposals IS NOT NULL AND ai_proposals <> '[]'::jsonb
+       UNION
+       SELECT attempt_id FROM billing_events
+        WHERE tenant_id = $1 AND event_type = 'ai_answer_evaluated'
+     ) s
+     WHERE ($2::uuid IS NULL OR s.attempt_id <> $2::uuid)`,
+    [tenantId, excludeAttemptId],
+  );
+  return r.rows[0]?.n ?? 0;
+}
+
+/**
  * Provision a default free plan for a newly-created tenant.
  *
  * ON CONFLICT DO NOTHING makes this safe to call more than once

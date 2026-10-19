@@ -3,6 +3,7 @@ import { config, RateLimitError, ValidationError } from '@assessiq/core';
 import { consumeRateLimit, extractClientIp, isRateLimited } from '@assessiq/auth';
 import { inviteUser, acceptInvitation } from '@assessiq/users';
 import { authChain } from '../middleware/auth-chain.js';
+import { assertCandidateTotalCap } from '@assessiq/billing';
 import { assertInviteWithinTier } from '../middleware/require-tier.js';
 
 // Admin gate: full @assessiq/auth chain. Replaces the pre-W4 dev-auth shim.
@@ -51,6 +52,8 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
       for (const assessmentId of body.assessmentIds ?? []) {
         await assertInviteWithinTier(tenantId, assessmentId, 1);
       }
+      // Free plan: total candidate cap, also when no assessment is given (inviteUser still creates the user).
+      if (body.role === 'candidate') await assertCandidateTotalCap(tenantId, 1);
 
       // Conditional spread to satisfy exactOptionalPropertyTypes.
       const input: import('@assessiq/users').InviteUserInput = {
