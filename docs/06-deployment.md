@@ -2824,7 +2824,7 @@ Known limit: the scoped path has not run end to end through the script yet. The 
 
 ### S33 batch (2026-10-19, code `1e0932b2`): deploy notes and CSP enforcing steps
 
-Status: committed and pushed. Not deployed when this was written. Update this block after the deploy.
+Status: DEPLOYED 2026-10-19 at `1eda2ec9` (code commit `1e0932b2` plus the script-location fix). `tools/deploy.sh --yes` applied 0209, 0211, 0213 and recreated api, worker and frontend, sweep 0 failures. Marketing was built and recreated by hand (`docker compose -f infra/docker-compose.yml build assessiq-marketing`, then `up -d --no-deps --force-recreate assessiq-marketing`). Live check: no inline scripts, beacon and Turnstile present.
 
 **What ships**
 

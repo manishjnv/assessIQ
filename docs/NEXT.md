@@ -2,21 +2,21 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-19T11:18:07.304Z (2026-10-19 16:48:07 IST)
-- HEAD: `af47990b`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 5
+- Generated: 2026-10-19T13:27:09.517Z (2026-10-19 18:57:09 IST)
+- HEAD: `1eda2ec9`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 2
 
 ## 1. Last session (SESSION_STATE, first block)
 
 ## Session — 2026-10-19 — S33: EXP-17 org upload (API), EXP-8 passages, Z-52 gap 5, CSP enforce-ready, off-site backup script
 
 **Headline:** exam-pack Wave 1 code is built: organisations can upload question sets (API only), passages are drawn whole, and every new question starts `in_review`. The CSP is ready to enforce (0 violations on 12 pages) and the daily off-site backup script is ready. Nothing is switched on. Recount: 80 pending, 184 closed, 264 total, 70% (EXP-8 closed; Z-77 and Z-78 added).
-**Commits:** `1e0932b2` — EXP-17, EXP-8, Z-52 gap 5, CSP code, backup script. `af47990b` — gate trailer. Docs commit follows.
-**Deploy:** NOT done in this block. Needs CI green on `1e0932b2` and the owner go. New migrations: 0209 and 0211 (module 04), 0213 (module 06). Next free migration: 0214.
+**Commits:** `1e0932b2` — EXP-17, EXP-8, Z-52 gap 5, CSP code, backup script. `af47990b` — gate trailer. `0fb3a043` — docs. `1eda2ec9` — fix: two SPA scripts were in a gitignored folder (CI e2e 404; RCA entry). Deploy-record docs commit follows.
+**Deploy:** DONE 2026-10-19. CI green on `1eda2ec9`. `tools/deploy.sh --yes`: VPS `ac8c6cc9` to `1eda2ec9`, migrations 0209, 0211, 0213 applied, api, worker and frontend recreated, sweep 0 failures. Marketing rebuilt and recreated by the manual steps (`assessiq-marketing` only): 5 pages checked, 0 inline scripts, 0 `onload`, beacon present, Turnstile present, new JS files 200. All 6 containers healthy. Live data check: 505 verified, 74 legacy NULL, 0 in review (nothing broke existing questions). Next free migration: 0214.
 **Tests:** `pnpm verify` green. Module 04 full: 42 files, 465 pass. Module 06 full: 355 pass after the fixture fix (27 files). Module 05 touched files pass. Backup test 40 of 40. CSP enforcing sweep 0 violations on 12 pages (production builds).
 **Gate:** Sonnet takeover, ONE gate for EXP-17, gap 5 and the EXP-8 draw: ACCEPT, no high finding. Fixed: a row edit lost the shared passage text (test added). Documented, not fixed: passages that cannot pack into the count make the attempt start fail with `POOL_TOO_SMALL` (no publish-time check); the blueprint path draws fewer; an org admin can verify their own upload; `licensed` has no licence id; no delete guard on passages.
 **Behaviour change to know:** every new admin-authored question now needs Verify before an assessment can publish (Z-52 gap 5, owner-approved B). About 100 test fixtures and the e2e factory were updated to verify their questions.
-**Next:** (1) CI green, then owner go, then deploy (SPA and API `tools/deploy.sh`; marketing by the manual steps; CSP code ships with it, Caddy switch does NOT). (2) Owner: CSP Caddy go (Z-77), gap 6 pick (history table or latest note), R2 key location (Z-78), GIFT format check on org upload. (3) Build the EXP-17 admin UI, EXP-9 Hindi overlay (migration 0214), Z-43.
+**Next:** (1) Owner live check: create a question, press Verify, publish an assessment. (2) Owner: CSP Caddy go (Z-77), gap 6 pick (history table or latest note), R2 key location (Z-78), GIFT format check on org upload. (3) Build the EXP-17 admin UI, EXP-9 Hindi overlay (migration 0214), Z-43.
 **Open questions (owner):**
 - Z-52 gap 6: keep a history of review notes (recommended, new table) or only the latest note (column)?
 - Accept `'unsafe-inline'` for SPA styles in the CSP, or fund the CSS-extraction row?
@@ -75,11 +75,15 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d)
 - `Z-15` (Z-15 (Z-9, Z-10, M1-M4 mobile kit)) — Candidate result flow on a phone: findings. — pending (e is a bug) Item (e) closed (S16, 2026-10-17): `modules/15-analytics/src/activity-candidate/stats.ts`. Items (b
 
-## 4. Newest RCA entries (5 newest of 238; file order: mixed (sorted by date; same-day ties keep file order))
+## 4. Newest RCA entries (5 newest of 239; file order: mixed (sorted by date; same-day ties keep file order))
 
 ### 2026-10-19 — CI unit shard 2 red once: Docker testcontainer unavailable (flake)
 **Symptom:** CI run 39171014351 (commit `9bd08797`, a lockfile-only dependency change) failed in unit shard 2: `billing-events.test.ts:74` reported `Docker testcontainer required but unavailable in CI`. 110 of 111 files passed.
 **Prevention:** if the error returns with 30 seconds, the cause is not the probe: read the runner Docker step and the testcontainer start logs the same day (logs expire). A shared probe helper for the 12 files is a later cleanup.
+
+### 2026-10-19 — CI e2e red: two new SPA scripts returned 404 (files sat in a gitignored folder)
+**Symptom:** CI run on `af47990b`: every signed-in smoke spec failed with two console errors, "Failed to load resource: 404". Local runs were green.
+**Prevention:** after an agent adds files, run `git status --short` and `git ls-files <new paths>` before the commit. A new public file must not sit under an ignored folder (`git check-ignore -v <path>`). A local `vite preview` run cannot catch this.
 
 ### 2026-10-18 — Admin page blank after login: two copies of react-router in the bundle
 **Symptom:** after a successful sign-in at assessiq.in/admin the owner saw a blank white page. The browser error log (`stream":"frontend"`) held six `Uncaught Error` entries from `vendor-react-*.js` line 9 at one column, all with referer `/admin`. Public pages, the login page and the candidate pages
@@ -92,10 +96,6 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 ### 2026-10-18 — CI e2e red: "Question 1 of" locator matched two elements
 **Symptom:** the CI e2e step failed with a Playwright strict-mode error on the text "Question 1 of".
 **Prevention:** use anchored, role-based locators in e2e specs. Watch that CI steps after a red step are also run once green.
-
-### 2026-10-18 — Worktree agent patch conflicts (Z-39)
-**Symptom:** the Z-39 worktree patch conflicted with the Z-44 and Z-41 commits already on main.
-**Prevention:** merge main into the worktree before the agent finishes, or start the agent from current main.
 
 ## 5. Next free migration
 
