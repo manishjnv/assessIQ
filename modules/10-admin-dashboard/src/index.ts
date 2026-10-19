@@ -69,6 +69,7 @@ export { AdminGenerateWizard } from "./pages/generate-wizard.js";
 export { AdminPlatform } from "./pages/platform.js";
 export { AdminQuestionImport } from "./pages/question-import.js";
 export { OrgQuestionUpload } from "./pages/org-question-upload.js";
+export { ReviewQueue } from "./pages/review-queue.js";
 export { SuperAdminUsers } from "./pages/super-admin-users.js";
 export { AdminAccountSecurity } from "./pages/account-security.js";
 export { AdminEvaluationsQueue } from "./pages/evaluations-queue.js";

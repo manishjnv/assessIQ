@@ -274,3 +274,12 @@ Each step also carries `points` and `negative_marks` when the author set them. T
 - **Order.** Children stay together in `passage_position`, then `created_at`, then `id`. The blueprint final shuffle regroups units, so it never splits a passage. With no passage in the pool the result is identical to the old `slice(0, N)`.
 - **Freeze.** `attempt_questions.passage_id` (0213) is written by `insertAttemptQuestions`. `listFrozenQuestionsForAttempt` returns `passage { id, title, body }` from that id. Passages are immutable, so later edits never change an attempt.
 - **Scoring.** Unchanged. Each child has its own `points` and `negative_marks` rows.
+
+## Affected attempts after an answer-key correction (EXP-12, 2026-10-19)
+
+- **What.** `listAttemptsOnOlderVersions(tenantId, questionId)` in `service.ts` and `GET /api/admin/questions/:id/affected-attempts` (adminOnly, in `registerAttemptAdminRoutes`). Lists finished attempts (`submitted`, `auto_submitted`, `pending_admin_grading`, `graded`, `released`) whose `attempt_questions.question_version` is below `questions.version`, newest first, max 200 items, `total` is the full count. Ids only: no answers, scores, names or emails.
+- **Why.** An answer-key fix makes a new question version; attempts keep the frozen old one. The admin needs to see who was marked on the old key before deciding anything.
+- **Tenancy.** The question is read first under the caller's tenant (RLS); a foreign or unknown id returns `404 QUESTION_NOT_FOUND`, not an empty list. The transaction is `READ ONLY`.
+- **Imports.** Reads module 04 through `qbRepo.findQuestionById` (same relative import `startAttempt` already uses). No new table, FK or column.
+- **Not included.** Rescoring, notifying candidates, per-version diff, paging beyond 200.
+- **Tests.** `src/__tests__/affected-attempts.test.ts`.

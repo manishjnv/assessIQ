@@ -5,7 +5,7 @@ import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { z } from "zod";
 import { AuthzError, ValidationError } from "@assessiq/core";
 import {
-  assertReviewRole, reviewQuestion, bulkVerifyPack, getPackReview,
+  assertReviewRole, reviewQuestion, bulkVerifyPack, getPackReview, listReviewQueue, getReviewNotes,
   REVIEW_ACTIONS, REVIEW_FILTERS, NOTE_MAX,
   type ReviewActor,
 } from "./service/review.js";
@@ -54,6 +54,16 @@ export function registerReviewRoutes(
     const { id } = parse(IdParams, req.params, "params");
     const q = parse(ListQuery, req.query, "query");
     return getPackReview(actorOf(req), id, q.state, q.page, q.pageSize);
+  });
+
+  app.get(`/api/admin/review-queue`, { preHandler }, async (req) => {
+    const q = parse(ListQuery, req.query, "query");
+    return listReviewQueue(actorOf(req), q.state, q.page, q.pageSize);
+  });
+
+  app.get(`/api/admin/questions/:id/review-notes`, { preHandler }, async (req) => {
+    const { id } = parse(IdParams, req.params, "params");
+    return getReviewNotes(actorOf(req), id);
   });
 
   app.post(`/api/admin/questions/:id/review`, { preHandler }, async (req) => {

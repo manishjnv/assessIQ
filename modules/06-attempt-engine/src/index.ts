@@ -25,6 +25,7 @@ export {
   finishSection,
   recordEvent,
   getAttemptIntegritySummary,
+  listAttemptsOnOlderVersions,
   submitAttempt,
   listAnswersForAttempt,
 } from "./service.js";
