@@ -2869,3 +2869,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** most likely cause (S31, 2026-10-19; the run log had expired, so the exact error text could not be read). 12 test files probe Docker at module load with `execSync('docker info', { timeout })`. Eleven used a 5 second timeout. On a busy runner a slow `docker info` reads as "no Docker", and the suite throws the fail-loud error at load. One file already used 30 seconds. The same code passed on rerun.
 **Fix:** first `gh run rerun --failed` gave green. S31 (`88f4e3c8`): the timeout is 30 seconds in all 12 files (only the number changed; the fail-loud throw and CI `retries: 0` stay). Sonnet takeover review: accept.
 **Prevention:** if the error returns with 30 seconds, the cause is not the probe: read the runner Docker step and the testcontainer start logs the same day (logs expire). A shared probe helper for the 12 files is a later cleanup.
+
+## 2026-10-19 — CI e2e red: two new SPA scripts returned 404 (files sat in a gitignored folder)
+
+**Symptom:** CI run on `af47990b`: every signed-in smoke spec failed with two console errors, "Failed to load resource: 404". Local runs were green.
+**Cause:** the CSP work put `viewport.js` and `font-swap.js` in `apps/web/public/brand/js/`. The folder `apps/web/public/brand/` is a generated mirror and is in `.gitignore` (line 18), so `git add` skipped both files. They existed only on the build laptop. A deploy would have shipped an `index.html` that pointed to missing files.
+**Fix:** files moved to `apps/web/public/assets/` (tracked; Caddy already routes `/assets/*` to the SPA); `apps/web/index.html` and the CSP plan updated. No Caddy change.
+**Prevention:** after an agent adds files, run `git status --short` and `git ls-files <new paths>` before the commit. A new public file must not sit under an ignored folder (`git check-ignore -v <path>`). A local `vite preview` run cannot catch this.

@@ -9,9 +9,9 @@ Measured data and the earlier report-only run: `docs/runbooks/csp-enforcing-prop
 The enforcing policy has no `'unsafe-inline'` in `script-src`. Inline code was the blocker. These changes remove it.
 
 - **Font stylesheet (both apps).** The `onload="this.onload=null;this.rel='stylesheet'"` handler is gone. The link is now `<link rel="stylesheet" media="print" data-font-swap ...>`. A small external script sets `media="all"`. The font load is still off the render path. The `<noscript>` fallback stays.
-  - SPA: `apps/web/index.html`, `apps/web/public/brand/js/font-swap.js`.
+  - SPA: `apps/web/index.html`, `apps/web/public/assets/font-swap.js`.
   - Marketing: `apps/marketing/src/layouts/BaseLayout.astro`, `apps/marketing/public/font-swap.js`.
-- **SPA viewport script.** Moved to `apps/web/public/brand/js/viewport.js`. It stays a blocking script in `<head>`, so there is no first-paint flicker. It sits under `/brand/`, which Caddy already sends to the SPA. A root path such as `/viewport.js` would reach marketing, so do not use one.
+- **SPA viewport script.** Moved to `apps/web/public/assets/viewport.js`. It stays a blocking script in `<head>`, so there is no first-paint flicker. It sits under `/brand/`, which Caddy already sends to the SPA. A root path such as `/viewport.js` would reach marketing, so do not use one.
 - **Marketing inline scripts.**
   - The contact form script is a bundled Astro script. `vite.build.assetsInlineLimit: 0` in `apps/marketing/astro.config.mjs` stops Astro from inlining it. It is now `/_astro/contact.astro_astro_type_script_index_0_lang.*.js`.
   - The `/search` prefill script moved to `apps/marketing/public/search-prefill.js`.
@@ -147,7 +147,7 @@ Stage option: apply the marketing line first (lowest risk), watch, then the SPA 
 ## Deploy notes
 
 - Marketing deploys with the manual steps in `docs/06-deployment.md` (not `tools/deploy.sh`). New public files: `font-swap.js`, `search-prefill.js`, `cost-calculator.js`. They fall to the default route, so they need no Caddy change.
-- SPA deploys with `tools/deploy.sh`. New public files are under `/brand/js/`, already routed to the SPA.
+- SPA deploys with `tools/deploy.sh`. New public files are under `/assets/`, already routed to the SPA.
 - Nothing is deployed by this work.
 
 ## Considered and rejected
