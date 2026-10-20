@@ -471,7 +471,12 @@ export async function startAttempt(
     const res = await apiFetch(`/api/me/assessments/${assessmentId}/start`, {
       method: 'POST',
       cookie: candidateCookie,
-      body: { consent: true }, // a NEW attempt needs the consent row (else 422 CONSENT_REQUIRED)
+      // a NEW attempt needs the consent row (else 422 CONSENT_REQUIRED) and, for a real exam, a passing
+      // readiness check (Z-91, else 422 READINESS_FAILED). These are desktop-sized Chrome signals.
+      body: {
+        consent: true,
+        readiness: { browser: { name: 'chrome', version: '126' }, screenWidth: 1920, screenHeight: 1080, downlinkMbps: 10, rttMs: 40 },
+      },
     });
     if (res.status === 200 || res.status === 201) return (await res.json()) as TestAttempt;
     const text = await res.text().catch(() => '(unreadable body)');
