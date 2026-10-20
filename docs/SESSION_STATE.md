@@ -1,3 +1,28 @@
+# Session — 2026-10-20 — S38: Session 4 pre-pilot readiness (exact meter, expiry warning, result sign-in link, ETA notice, sample quiz, load-test script)
+
+**Headline:** Z-93 and Z-96 closed (exact meter + expiry-warning email), Z-15 (a) shipped (7-day one-time sign-in link in the result email), SP11 live, Z-84 report done, load-test script and checklist written (not run).
+**Commits:** `5afedc62` — feat: exact credit meter and expiry-warning email, one-time result sign-in link, admin ETA notice, sample-quiz tool, load-test script
+**Tests:** pass (billing 12+7, auth 334, notifications 308, help guards, `pnpm verify`); CI green; deployed, sweep 0 failures; migration 0228 applied (next 0229).
+**Recount:** pending 81, closed 204, total 285, 72% (was 84/201/285, 71%).
+**Next:** owner decisions (sample-quiz rights, SP11 wording for auto-release tenants, withdraw-revoke for result links), then Wave 2 or GATE-8 and the load test.
+**Open questions:** run the load test? (needs a test tenant and a test-only token export); revoke result links on withdrawal (needs a column); fix stale help text `admin.grading.jobs.oldest/.page`.
+**Old task or feature checked:** Z-93, Z-96, Z-15, SP11, Z-84 (Rule B); the 2026-05-13 candidate magic-link decision is honoured (POST verify via SPA).
+**Change record:** `docs/plans/2026-10-20-session4-change-record.md`
+
+---
+
+## Agent utilization
+- Opus · plan, billing code (meter, expiry job, tests), review of every agent diff, gate fixes (redact, retire, erased check), deploy, docs
+- Sonnet · Z-15 a build · reworked: N · tokens: 123k
+- Sonnet · gate review of Z-15 a (takeover) · reworked: N (verdict REVISE, fixed by Opus) · tokens: 87k
+- Haiku · SP11 notice · reworked: N · tokens: 136k
+- Haiku · Z-84 sample quiz tool · reworked: N · tokens: 142k
+- Haiku · load-test script + checklist · reworked: N · tokens: 161k
+- Haiku · fixed-date test sweep (no findings) · reworked: N · tokens: 106k
+- Haiku · IndexNow readiness check · reworked: N · tokens: 78k
+- codex:rescue: n/a — Codex down; Sonnet takeover gate on Z-15 a (owner approved), verdict REVISE, all fixed
+- Gemini (agy): n/a — bulk reads were small
+
 # Session — 2026-10-20 — S37: Wave 1 leftovers and Wave 4 small rows (low-balance emails, legal wording, resources pages 1 to 4, router step 1)
 
 **Headline:** Low-balance credit emails (20 and 10 percent) are live, the terms and privacy wording is live, four new `/resources` pages are live, and the router has the v7 flags on (no version bump). SP11 and Z-15 (a) were not built. RW-1 is done: 6 local and 4 remote merged branches deleted after proof and the owner yes.

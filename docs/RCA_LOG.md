@@ -2932,3 +2932,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `modules/19-billing/src/service.ts` `sendCreditLowBalanceNotices` wrote the audit row after the send.
 **Fix:** audit row first, then send (`6862328a`).
 **Prevention:** the review gate. The ledger test covers the roll-back and retry of a failed send.
+
+## 2026-10-20 — Meter tests encoded the old counter (Z-96)
+
+**Symptom:** after the exact meter, two `billing-events.test.ts` cases failed (400 vs 200, 40 vs 10). The template sign-off count test failed (17 vs 16).
+**Cause:** the tests assumed attempts x 10, the very gap Z-96 fixes. The count test pins the number of email templates (`email-result-copy.test.ts`).
+**Fix:** expectations moved to the real burn (a real attempt is 20). The aged-out case also moves `credit_burns.burned_at`. Count set to 17.
+**Prevention:** the new `credit-ledger.test.ts` meter case covers mock + real + camera = 60.
