@@ -3,6 +3,7 @@
 // Hidden when nothing is queued or the call fails (it is a courtesy notice).
 
 import React, { useEffect, useState } from "react";
+import { formatDate } from "@assessiq/ui-system";
 import { adminApi } from "../api.js";
 
 interface EmailQueueStatus {
@@ -25,7 +26,7 @@ export function EmailQueuePanel({ refreshKey }: { refreshKey: number }): React.R
 
   if (status === null || status.queuedCount <= 0) return null;
   const when = status.nextSendAt
-    ? new Date(status.nextSendAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })
+    ? formatDate(status.nextSendAt)
     : null;
   return (
     <div

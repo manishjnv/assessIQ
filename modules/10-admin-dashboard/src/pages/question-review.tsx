@@ -24,7 +24,8 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ConfirmDialog, Modal } from "@assessiq/ui-system";
+import { ConfirmDialog, Modal, formatDateTime } from "@assessiq/ui-system";
+import { questionTypeLabel } from "../lib/labels.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
@@ -185,7 +186,7 @@ function AnswerKey({ item }: { item: ReviewItem }): React.ReactElement {
   );
 }
 
-const NOTE_WHEN = (iso: string): string => new Date(iso).toLocaleString();
+const NOTE_WHEN = (iso: string): string => formatDateTime(iso);
 
 /**
  * Latest note, note history and attempts on an older version, for one question.
@@ -489,7 +490,7 @@ export function AdminQuestionReview(): React.ReactElement {
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
-                <span style={LABEL_STYLE}>{item.topic} · {item.type} · {item.points} {item.points === 1 ? "point" : "points"}</span>
+                <span style={LABEL_STYLE}>{item.topic} · {questionTypeLabel(item.type)} · {item.points} {item.points === 1 ? "point" : "points"}</span>
                 <span style={{ display: "flex", gap: 6 }}>
                   <Pill text={STATE_LABEL[item.review_state ?? "none"] ?? "Not set"} colors={stateColors(item.review_state)} />
                   <Pill

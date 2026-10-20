@@ -4,7 +4,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Chip, ConfirmDialog, Table } from "@assessiq/ui-system";
+import { Chip, ConfirmDialog, Table, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { QUESTION_TYPES } from "@assessiq/question-types";
 import { HelpTip } from "@assessiq/help-system/components";
@@ -149,7 +149,7 @@ export function OrgQuestionUpload(): React.ReactElement {
   ];
   const uploadColumns: ColumnDef<OrgUploadItem>[] = [
     { key: "file_name", label: "File", render: (u) => u.file_name },
-    { key: "created_at", label: "Date", render: (u) => new Date(u.created_at).toLocaleDateString() },
+    { key: "created_at", label: "Date", render: (u) => formatDate(u.created_at) },
     { key: "status", label: "State", render: (u) => <Chip>{STATUS_LABEL[u.status] ?? u.status}</Chip> },
     { key: "rights", label: "Rights", render: (u) => (u.rights_status ? RIGHTS_LABEL[u.rights_status] ?? u.rights_status : "") },
     {
