@@ -60,6 +60,52 @@ This how-to checks whether AssessIQ is ready for the pilot. Use it before you in
 9. Send the liability and DPA proposal to the lawyer. Ask for approval of the privacy and terms text.
 10. After 03:45 UTC on 2026-10-20, read one `user_purge.tick` line in the worker log. Then accept or stop the purge.
 
+## Technical gates
+
+Check each gate before you invite pilot users. `[x]` means done with evidence. `[ ]` means not done or not confirmed.
+
+- [ ] **CI green.** The last CI run on the pilot commit passed. Run `gh run list --branch main --limit 3`. Not checked in this review. Read it on the day of the pilot.
+- [x] **Post-deploy sweep.** Run `bash tools/post-deploy-sweep.sh` after every deploy. The exit code is the number of FAIL lines, so it must be 0. Last recorded run 2026-10-19: 0 failures (`docs/06-deployment.md`).
+- [x] **Backups restore tested.** The restore drill passed on 2026-10-19 (`tools/backup-restore-test.sh`). The only off-box copy is the weekly provider snapshot. Owner item 5 decides on a daily off-site copy. The restore guide `docs/runbooks/backup-restore.md` is not written yet.
+- [x] **Uptime monitors.** Three UptimeRobot monitors show Up: home, health and readiness (owner action 1, 2026-10-20).
+- [ ] **CSP enforced.** The plan is `docs/design/2026-10-20-csp-enforce-plan.md`. Measured violations are 0 on production builds. The owner steps are not confirmed here. Check the live header with `curl -sI https://assessiq.in/` before you call it done.
+- [ ] **Load test run.** Follow `docs/runbooks/load-test-500.md`. The script exists. The run has not happened. It needs owner approval and a token source (open item in that runbook).
+- [x] **Rate limits.** Defaults checked in row 4. From one IP, candidate requests reach about 50 a second before the server answers `429` (see "Known limits" in the load-test runbook).
+- [ ] **Email deliverability.** Brevo sends the mail. No DMARC TXT record was found (row 12). Google Postmaster Tools is not set up (owner item 8). The daily bulk cap is 250 (owner item 3).
+- [ ] **Rollback plan.** The steps are in "Rollback plan" below. The deploy script does not tag images yet.
+- [ ] **GATE-8.** Full security review before the pilot. ROADMAP row Z-86. Pending.
+
+### Rollback plan
+
+Use these steps for the api, worker, frontend and marketing services. Run them on the VPS, in the order shown.
+
+1. Record the current commit: `cd /srv/assessiq && git rev-parse --short HEAD`.
+2. Tag the current images, so the previous build stays available. Use today's date for `<date>`:
+   - `docker tag assessiq/api:latest assessiq/api:rollback-<date>`
+   - `docker tag assessiq/frontend:latest assessiq/frontend:rollback-<date>`
+   - `docker tag assessiq/marketing:latest assessiq/marketing:rollback-<date>`
+   - The worker uses the api image. `tools/deploy.sh` does not run this step yet, so do it by hand before each deploy.
+3. Pick the last good commit: `git log --oneline -5`.
+4. Go to that commit: `git checkout <prev-sha>`. A detached HEAD is expected.
+5. Choose one way to get the old build:
+   - Use the tagged image: `docker tag assessiq/api:rollback-<date> assessiq/api:latest`, and do the same for the frontend and marketing images.
+   - Or rebuild from the commit: `docker compose -f infra/docker-compose.yml build <svc>`.
+6. Recreate only the changed services: `docker compose -f infra/docker-compose.yml up -d --no-deps --force-recreate <svc>`.
+7. Check that `/`, `/admin` and `/api/health` return 200. Check `docker logs --tail 50 assessiq-api` for errors.
+8. Do not drop tables. Migrations are forward only. Read `docs/06-deployment.md` section "Roll back and stage".
+9. When the fix lands, go back to main: `git checkout main && git pull --ff-only`.
+
+## Owner dry runs
+
+The owner runs each dry run. Write the date and the result in the notes of this file.
+
+- [ ] **AI quality test.** Run the grading eval set in `modules/07-ai-grading/eval/`, as `docs/05-ai-pipeline.md` describes.
+- [ ] **Generator check.** Generate a small question set with the admin wizard. Follow `docs/testing/generators/README.txt`. Check each question and its source.
+- [ ] **Candidate dry run.** Follow `docs/testing/uat/student/01-take-assessment.md` and `docs/testing/uat/student/02-view-result.md`. Use a test tenant.
+- [ ] **Scoring dry run.** Follow `docs/testing/feature-scripts/AssessIQ_Scoring_Release_Test_Script.docx`. It has 85 steps, T1 to T9.
+- [ ] **Live tests.** Follow `docs/testing/go-live-p0/AssessIQ_P0_Test_Script_v2.docx`.
+- [ ] **Rollback rehearsal.** Run the "Rollback plan" steps on a planned window or a local stack. No staging server exists (`docs/06-deployment.md`). Record the time of each step.
+
 ## Not checked
 
 - Sentry account and error inbox: no access. Only the name was checked.

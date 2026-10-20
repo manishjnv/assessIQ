@@ -51,7 +51,7 @@ import {
   ANALYTICS_REFRESH_MV_JOB_NAME,
 } from "@assessiq/analytics";
 import { runRetentionPurgeAllTenants } from "@assessiq/data-rights";
-import { refillFreeMonthlyCredits, expireCredits, sendCreditLowBalanceNotices } from "@assessiq/billing";
+import { refillFreeMonthlyCredits, expireCredits, sendCreditLowBalanceNotices, sendCreditExpiryNotices } from "@assessiq/billing";
 import {
   AUTO_RELEASE_JOB_NAME,
   AUTO_RELEASE_INTERVAL_MS,
@@ -649,6 +649,18 @@ async function start(): Promise<void> {
                 to,
                 template: "credit_low_balance",
                 vars: { remaining, level: level as 20 | 10, usageLink: new URL("/admin/settings?tab=plan", config.ASSESSIQ_BASE_URL).toString() },
+                tenantId,
+              }),
+            ),
+            expiryWarnings: await sendCreditExpiryNotices(({ to, tenantId, remaining, expiresAt }) =>
+              sendEmail({
+                to,
+                template: "credit_expiring",
+                vars: {
+                  remaining,
+                  expiresOn: expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }),
+                  usageLink: new URL("/admin/settings?tab=plan", config.ASSESSIQ_BASE_URL).toString(),
+                },
                 tenantId,
               }),
             ),

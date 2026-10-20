@@ -1804,3 +1804,7 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 - Sections, each with a help id: Weak and strong topics (`admin.mock_results.topics`, two ranked bar lists), Students (`.students`, table sortable by average), Trend (`.trend`, plain SVG line of average % per day, no chart library), Not taken (`.not_taken`, needs one assessment selected). The page id is `admin.mock_results.page`.
 - Empty state: "No mock tests have been taken yet. Invite candidates to a Mock test to see results here."
 - Read only: no export, no edit. Not included: per-question drilldown, practice tracks.
+
+## Evaluation status: expected grading line (SP11, 2026-10-20)
+
+- The Evaluation status page (`/admin/grading-jobs`) shows one muted line under the header: "Expect grading {turnaround}. Results stay hidden until you release them." It uses the `evaluationTurnaroundText` field from `GET /api/admin/dashboard/queue` and the `admin.grading.jobs.eta_notice` help id (see `docs/03-api-contract.md`, SP11 note). Style: the page's existing `MUTED_SM` text, no new component.

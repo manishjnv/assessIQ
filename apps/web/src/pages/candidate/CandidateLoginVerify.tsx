@@ -27,7 +27,10 @@ export function CandidateLoginVerify(): React.JSX.Element {
   const [message, setMessage] = useState<string>('Verifying…');
 
   useEffect(() => {
-    const token = params.get('token');
+    // Z-15 (a): the result email carries the token in the URL FRAGMENT (not sent to servers,
+    // not logged). The ?token= query form stays for the 15-minute login-link email.
+    const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const token = hash.get('token') ?? params.get('token');
     if (token === null || token.trim().length === 0) {
       navigate('/candidate/login?error=invalid_link', { replace: true });
       return;
@@ -45,6 +48,8 @@ export function CandidateLoginVerify(): React.JSX.Element {
 
         if (data.ok === true) {
           setMessage('Signed in. Redirecting…');
+          // Drop the one-time token from the address bar and history.
+          window.history.replaceState(null, '', window.location.pathname);
           navigate(data.redirect, { replace: true });
         } else {
           navigate('/candidate/login?error=invalid_link', { replace: true });

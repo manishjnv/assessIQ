@@ -131,3 +131,6 @@ modules/07-ai-grading/eval/cases-private/
 
 # Stray lockfile (owner Q23, 2026-10-18): not tracked; the repo uses pnpm-lock.yaml
 tools/assessiq-mcp/package-lock.json
+
+# Load-test result JSON (tools/load-test/take-flow.mjs)
+tools/load-test/out/

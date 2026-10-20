@@ -89,6 +89,12 @@
     "heading": "Your credits are running low.",
     "cta": "See your credits"
   },
+  "credit_expiring": {
+    "page_title": "Your credits expire soon",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Your credits expire soon.",
+    "cta": "See your credits"
+  },
   "signup_existing_account": {
     "page_title": "You already have an AssessIQ account",
     "brand_wordmark": "AssessIQ",

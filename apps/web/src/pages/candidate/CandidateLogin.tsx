@@ -267,7 +267,7 @@ export function CandidateLogin(): React.JSX.Element {
                   fontSize: 14,
                 }}
               >
-                That link was expired or already used. Request a new one below.
+                This link has expired or was already used. Enter your email to get a new one.
               </div>
             )}
 

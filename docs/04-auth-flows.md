@@ -840,6 +840,22 @@ The candidate magic-link UI (`/candidate/login`, `/candidate/login/verify`) is m
 
 The anti-enumeration timing, the rate-limit copy, the unconditional 204 response and the magic-link token semantics are identical across viewports. See [`docs/10-branding-guideline.md` § 15.3](./10-branding-guideline.md#153-pattern-reflows-catalog--m1m5-shipped-2026-05-20) for the full reflow catalog entry.
 
+### Result-email sign-in link (Z-15 a, 2026-10-20)
+
+**What.** The "View your result" button in the result email opens `/candidate/login/verify#token=<64 hex>`. The token is a normal row in `candidate_login_tokens` (sha256 hash only, tenant RLS), minted by `mintResultLoginToken` (`modules/13-notifications/src/email/result-login-token.ts`) with a 7-day expiry instead of 15 minutes. It is single use: the same atomic `UPDATE ... WHERE consumed_at IS NULL AND expires_at > now()` of `verifyCandidateLoginTokenSystem` consumes it. Rate limit, audit rows (`auth.candidate.login_link_consumed`), session-fixation hygiene and the 30-day session are the existing verify path, unchanged. The 15-minute login-link TTL is unchanged.
+
+**Why.** Before this the student tapped the button, typed the email again, waited for a second email, then reached Results (two emails, three steps).
+
+**Fragment, then POST.** The token sits in the URL fragment, so the browser never sends it to a server and it is not in access logs. `CandidateLoginVerify.tsx` reads `location.hash` (the `?token=` query form stays for the login-link email), POSTs to `/api/auth/candidate/verify-link`, clears the fragment with `history.replaceState`, and goes to `/candidate/results`. A mail scanner that only does a GET never runs the script, so it cannot burn the token. A used, expired or unknown token gives one neutral message on the sign-in page: "This link has expired or was already used. Enter your email to get a new one."
+
+**Failure mode.** If minting fails, the email still goes out with the plain sign-in URL. The send never fails because of this.
+
+**Rejected.** Token in the query string (reaches servers and logs). A GET verify endpoint (scanners burn the token). A longer TTL for all login links (weakens the normal flow). Pre-filling the email only (still a second email).
+
+**Not included.** The link is not tied to one result and is not revoked when a result is withdrawn: it signs the student in (same as any login link) and then the normal Results page rules apply. Owner asked for revocation on withdraw; this needs a per-attempt column and is left as a follow-up. No endpoint changed, so `docs/03-api-contract.md` is unchanged. The tenant slug is not in the fragment, so after an expired link the student types the organisation code if the sign-in page asks for it.
+
+**Downstream.** `result_released` template unchanged (`portalLink` now carries the fragment link). Help ids: none added (the message sits inside the existing sign-in banner).
+
 ### Flow 5 — Future auth methods (designed in)
 
 A tenant admin opens *Settings → Authentication* and turns these methods on or off:

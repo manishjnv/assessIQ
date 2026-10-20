@@ -1,0 +1,13 @@
+Subject: Your AssessIQ credits expire on {{expiresOn}} ({{remaining}} left)
+
+Hello,
+
+Your organisation has {{remaining}} credits that expire on {{expiresOn}}.
+
+Credits that you do not use by that date are lost. To add credits, ask AssessIQ support or the person who manages your account.
+
+See your credits:
+{{usageLink}}
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

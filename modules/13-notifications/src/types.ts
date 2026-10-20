@@ -38,6 +38,8 @@ export const EmailTemplateNameSchema = z.enum([
   'signup_existing_account',
   // Z-96: credit balance fell to 20 or 10 percent of the largest active grant. Counts + link only.
   'credit_low_balance',
+  // Z-96: a credit grant with credits left expires within 30 days. Counts, date and link only.
+  'credit_expiring',
 ]);
 
 export type EmailTemplateName = z.infer<typeof EmailTemplateNameSchema>;
@@ -183,6 +185,13 @@ export const CreditLowBalanceVarsSchema = z.object({
   usageLink: z.string().url(),
 });
 export type CreditLowBalanceVars = z.infer<typeof CreditLowBalanceVarsSchema>;
+// Z-96: expiry warning, sent once per grant 30 days before it expires. expiresOn is a plain date text.
+export const CreditExpiringVarsSchema = z.object({
+  remaining: z.number().int().min(0),
+  expiresOn: z.string().min(1),
+  usageLink: z.string().url(),
+});
+export type CreditExpiringVars = z.infer<typeof CreditExpiringVarsSchema>;
 
 export type SignupExistingAccountVars = z.infer<typeof SignupExistingAccountVarsSchema>;
 
@@ -204,6 +213,7 @@ export type TemplateVarsMap = {
   signup_code: SignupCodeVars;
   signup_existing_account: SignupExistingAccountVars;
   credit_low_balance: CreditLowBalanceVars;
+  credit_expiring: CreditExpiringVars;
 };
 
 // ---------------------------------------------------------------------------

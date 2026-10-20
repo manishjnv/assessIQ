@@ -234,3 +234,27 @@ export async function listTenantAdminEmails(client: PoolClient, tenantId: string
   );
   return r.rows.map((x) => x.email);
 }
+
+/** Z-96: unexpired paid/bonus/pilot grants with credits left that expire within 30 days and were not yet mailed. */
+export async function listExpiringGrantCandidates(
+  client: PoolClient,
+): Promise<Array<{ tenant_id: string; grant_id: string; remaining: number; expires_at: Date }>> {
+  const r = await client.query<{ tenant_id: string; grant_id: string; remaining: number; expires_at: Date }>(
+    `SELECT g.tenant_id, g.id AS grant_id, g.remaining, g.expires_at
+       FROM credit_grants g
+       JOIN tenants t ON t.id = g.tenant_id AND t.status = 'active'
+      WHERE g.source <> 'free_monthly' AND g.remaining > 0
+        AND g.expires_at > now() AND g.expires_at <= now() + interval '30 days'
+        AND NOT EXISTS (SELECT 1 FROM credit_expiry_notices n WHERE n.grant_id = g.id)`,
+  );
+  return r.rows;
+}
+
+/** Z-96: record the notice; false when another tick already did (UNIQUE grant_id). */
+export async function insertExpiryNotice(client: PoolClient, tenantId: string, grantId: string): Promise<boolean> {
+  const r = await client.query(
+    `INSERT INTO credit_expiry_notices (tenant_id, grant_id) VALUES ($1, $2) ON CONFLICT (grant_id) DO NOTHING`,
+    [tenantId, grantId],
+  );
+  return (r.rowCount ?? 0) > 0;
+}

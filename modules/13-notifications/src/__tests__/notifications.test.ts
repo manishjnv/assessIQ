@@ -408,6 +408,7 @@ describe('email template rendering', () => {
         queueLink: 'https://x.com/admin/platform/evaluations',
       }},
       { name: 'credit_low_balance' as const, vars: { remaining: 150, level: 10, usageLink: 'https://x.com/admin/settings?tab=plan' }},
+      { name: 'credit_expiring' as const, vars: { remaining: 150, expiresOn: '19 November 2026', usageLink: 'https://x.com/admin/settings?tab=plan' }},
     ] as const;
 
     for (const { name, vars } of templates) {

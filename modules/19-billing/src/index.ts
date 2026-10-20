@@ -72,6 +72,7 @@ export {
   refillFreeMonthlyCredits,
   expireCredits,
   sendCreditLowBalanceNotices,
+  sendCreditExpiryNotices,
 } from './service.js';
 
 export type { GrantCreditsInput } from './service.js';

@@ -26,10 +26,12 @@
 import { config, isPass, streamLogger } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { sendEmail } from './index.js';
+import { mintResultLoginToken } from './result-login-token.js';
 
 const log = streamLogger('webhook'); // email sends go to webhook.log per § 8 stream table
 
 interface ReleasedAttemptRow {
+  user_id: string;
   status: string;
   embed_origin: boolean;
   erased_at: Date | null;
@@ -59,6 +61,7 @@ export async function sendResultReleasedEmail(input: {
     const row = await withTenant(tenantId, async (client) => {
       const res = await client.query<ReleasedAttemptRow>(
         `SELECT a.status,
+                u.id::text AS user_id,
                 a.embed_origin,
                 u.erased_at,
                 u.email,
@@ -115,9 +118,23 @@ export async function sendResultReleasedEmail(input: {
     const portal = new URL('/candidate/login', config.ASSESSIQ_BASE_URL);
     portal.searchParams.set('tenant', row.tenant_slug);
 
+    // Z-15 (a): one-time 7-day sign-in link, token in the FRAGMENT (never sent to a server or
+    // logged). The SPA page POSTs it. Any failure falls back to the plain sign-in URL.
+    let buttonLink = portal.toString();
+    try {
+      const token = await withTenant(tenantId, (client) =>
+        mintResultLoginToken(client, { tenantId, userId: row.user_id }),
+      );
+      buttonLink = new URL('/candidate/login/verify', config.ASSESSIQ_BASE_URL).toString() + `#token=${token}`;
+    } catch (err) {
+      log.warn({ err, tenantId, attemptId }, 'result_released.signin_link_mint_failed');
+    }
+
     await sendEmail({
       to: row.email,
       template: 'result_released',
+      // The body holds a 7-day sign-in token: keep it out of email_log and the queue job data.
+      redactLogBody: true,
       vars: {
         ...(row.name?.trim() ? { candidateName: row.name.trim() } : {}),
         assessmentName: row.assessment_name,
@@ -126,7 +143,7 @@ export async function sendResultReleasedEmail(input: {
         resultText: passed ? 'Passed' : 'Not passed',
         ...(passMark !== null ? { passMarkPct: passMark } : {}),
         ...(row.result_feedback_level !== null ? { feedbackLevel: row.result_feedback_level } : {}),
-        portalLink: portal.toString(),
+        portalLink: buttonLink,
         ...(row.credential_id !== null
           ? { certificateLink: new URL(`/verify/${encodeURIComponent(row.credential_id)}`, config.ASSESSIQ_BASE_URL).toString() }
           : {}),

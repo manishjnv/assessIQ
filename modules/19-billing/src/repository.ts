@@ -83,6 +83,17 @@ export interface MeterCounts {
 }
 
 /**
+ * Z-96: the exact meter. Tenants with ledger rows (credit_burns) show the real burn of the
+ * cycle (10/20/30 per attempt); tenants with none fall back to graded attempts x U.
+ */
+const USED_SQL = `CASE WHEN EXISTS (SELECT 1 FROM credit_burns cb WHERE cb.tenant_id = p.tenant_id)
+       THEN (SELECT COALESCE(SUM(cb.credits), 0)::int FROM credit_burns cb
+              WHERE cb.tenant_id = p.tenant_id AND cb.burned_at >= ${CYCLE_WINDOW_START_SQL})
+       ELSE (SELECT COUNT(*)::int * ${U} FROM billing_events b
+              WHERE b.tenant_id = p.tenant_id AND b.event_type = 'assessment_graded'
+                AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) END`;
+
+/**
  * Count the two meters for a tenant inside the current monthly window
  * (FU-A2). Works under withTenant (own plan row via RLS) and under the
  * system role (cross-tenant path) alike.
@@ -96,9 +107,7 @@ export async function countBillingEvents(
   const result = await client.query<MeterCounts>(
     `SELECT
        ${CYCLE_WINDOW_START_SQL} AS cycle_window_start,
-       (SELECT COUNT(*)::int * ${U} FROM billing_events b
-         WHERE b.tenant_id = p.tenant_id AND b.event_type = 'assessment_graded'
-           AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS used,
+       ${USED_SQL} AS used,
        (SELECT COUNT(*)::int FROM billing_events b
          WHERE b.tenant_id = p.tenant_id AND b.event_type = 'ai_answer_evaluated'
            AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS ai_used
@@ -109,7 +118,9 @@ export async function countBillingEvents(
   const row = result.rows[0];
   if (row !== undefined) return row;
   const lifetime = await client.query<{ used: number; ai_used: number }>(
-    `SELECT COUNT(*) FILTER (WHERE event_type = 'assessment_graded')::int * ${U} AS used,
+    `SELECT CASE WHEN EXISTS (SELECT 1 FROM credit_burns WHERE tenant_id = $1)
+                 THEN (SELECT COALESCE(SUM(credits), 0)::int FROM credit_burns WHERE tenant_id = $1)
+                 ELSE COUNT(*) FILTER (WHERE event_type = 'assessment_graded')::int * ${U} END AS used,
             COUNT(*) FILTER (WHERE event_type = 'ai_answer_evaluated')::int AS ai_used
        FROM billing_events WHERE tenant_id = $1`,
     [tenantId],

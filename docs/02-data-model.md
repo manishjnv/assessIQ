@@ -2823,3 +2823,15 @@ A passage is shared stem text used by several question rows (reading text, data 
 **Not included.** Expiry-warning email, exact usage meter, SMS, in-app banner (rest of Z-96). Erasure: no new personal-data column, so `erasure-coverage.test.ts` needs no entry.
 
 **Downstream.** `modules/13-notifications` gains template `credit_low_balance`; `modules/14-audit-log` gains one catalog entry; the worker `credit-expire` job result gains a `lowBalance` object.
+
+### Session 4 (2026-10-20): credit expiry notices (Z-96, migration 0228)
+
+| Item | Detail |
+| --- | --- |
+| What | New table `credit_expiry_notices` (module 19): `id`, `tenant_id`, `grant_id` (FK `credit_grants`, `UNIQUE`), `sent_at`. RLS enabled and forced: select policy by tenant, insert policy required by `lint:rls`; INSERT, UPDATE, DELETE, TRUNCATE revoked from `assessiq_app`. Only the daily worker job writes it, under the system role. |
+| Why | One expiry-warning email for each grant, 30 days before it expires. The `UNIQUE (grant_id)` is the "send once" guard. Same shape as `credit_lowbalance_notices` (0227). |
+| Rejected | A column on `credit_grants` (the app role may update that table, and it would mix a notice flag into the ledger). |
+| Not included | Resend after a top-up; SMS; in-app banner. Free monthly grants are skipped because they refill. |
+| Downstream | New audit action `billing.credit_expiry_notice`; new email template `credit_expiring`. No personal data in the table (ids and time only). |
+| Rollback | Revert the code, then `DROP TABLE credit_expiry_notices`. |
+

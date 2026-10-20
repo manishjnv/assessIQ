@@ -1,0 +1,21 @@
+<!-- Composes kit partials. Z-96: credit expiry warning to the organisation admin. Counts, date and link only. -->
+{{#> email-shell preheader=(concat remaining " credits expire on " expiresOn ".")}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-short
+      eyebrow="CREDITS"
+      title=_t_heading
+      body=(concat "Your organisation has " remaining " credits that expire on " expiresOn ". Credits that you do not use by that date are lost. To add credits, ask AssessIQ support or the person who manages your account.")}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px">
+      <tr><td>{{> email-cta label=_t_cta href=usageLink width_px=190}}</td></tr>
+    </table>
+
+  {{/email-body}}
+
+  {{> email-footer-transactional reason="You receive this because you are an administrator of an AssessIQ organisation."}}
+
+{{/email-shell}}

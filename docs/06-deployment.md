@@ -1818,6 +1818,10 @@ Procedure: back up to `Caddyfile.bak.20261002T034840Z` next to the Caddyfile, va
 - Adding `.git` to the build context (it is large, and it leaks history into the build).
 - A new sitemap package (the inline integration exists because `@astrojs/sitemap` 3.x crashes with `trailingSlash: 'never'`).
 
+### Marketing container deploy (2026-10-20)
+
+`tools/deploy.sh` builds only `assessiq-api` and `assessiq-frontend` by default. To ship a marketing change run it with the marketing service named: `bash tools/deploy.sh --dry-run --services "assessiq-marketing"`, then `--yes`. The name passes the script's `assessiq-*` check, so the script needs no edit. After the deploy run `node apps/marketing/scripts/indexnow-submit.mjs` (see above). Rejected: adding marketing to the default service list (every API deploy would rebuild the site).
+
 ## Deploy history
 
 This section records every dated deploy in order. Read the table first. Each entry follows in full below the table.
