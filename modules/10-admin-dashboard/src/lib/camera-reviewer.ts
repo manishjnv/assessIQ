@@ -1,15 +1,15 @@
-// Camera feature: shows the "Camera review" nav entry only when the flagged-list probe succeeds.
-// One probe per user per page load (module cache). A 403 (not a reviewer) or any error means hidden.
+// Camera feature: shows the "Camera review" nav entry only when the access probe says reviewer.
+// One probe per user per page load (module cache). Not a reviewer or any error means hidden.
 import { useEffect, useState } from "react";
-import { listFlaggedCameraApi } from "../api/camera.js";
+import { cameraAccessApi } from "../api/camera.js";
 
 const cache = new Map<string, Promise<boolean>>();
 
 export function probeCameraReviewer(userKey: string): Promise<boolean> {
   let p = cache.get(userKey);
   if (p === undefined) {
-    p = listFlaggedCameraApi({ limit: 1 }).then(
-      () => true,
+    p = cameraAccessApi().then(
+      (r) => r.reviewer,
       () => false,
     );
     cache.set(userKey, p);

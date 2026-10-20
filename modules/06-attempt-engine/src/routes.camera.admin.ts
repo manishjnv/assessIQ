@@ -84,6 +84,13 @@ export async function registerCameraAdminRoutes(app: FastifyInstance, opts: Regi
   const { users } = opts;
 
   // ---- flagged attempts ---------------------------------------------------------------------
+  // Nav probe: always 200 for an admin, so a non-reviewer does not log a 403 in the browser console on every page.
+  app.get("/api/admin/camera/access", { preHandler: adminOnly }, async (req) => {
+    const s = req.session!;
+    const reviewer = s.role === "super_admin" || (s.role === "admin" && (await withTenant(s.tenantId, (c) => isReviewer(c, s.userId))));
+    return { reviewer };
+  });
+
   app.get("/api/admin/camera/flagged", { preHandler: reviewerOnly }, async (req) => {
     const q = parseOr400(listQuery, req.query, "query");
     const { tenantId } = req.session!;
