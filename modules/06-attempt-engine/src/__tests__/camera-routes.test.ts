@@ -414,6 +414,16 @@ describe("staff camera routes", () => {
     routeCtx.session = { userId, tenantId, role };
   };
 
+  it("access probe answers 200 for every admin and says who is a reviewer", async () => {
+    const app = await buildApp();
+    as(admin, T, "admin");
+    const plain = await app.inject({ method: "GET", url: "/api/admin/camera/access" });
+    expect(plain.statusCode).toBe(200);
+    expect(plain.json()).toEqual({ reviewer: false });
+    as(reviewer, T, "admin");
+    expect((await app.inject({ method: "GET", url: "/api/admin/camera/access" })).json()).toEqual({ reviewer: true });
+  });
+
   it("named reviewer views a file: audit row written, safe headers; plain admin gets 403; other tenant gets 404", async () => {
     const app = await buildApp();
     const f = await flaggedAttempt(app, "View");

@@ -4004,6 +4004,7 @@ Reviewer guard = platform super admin, or a tenant admin named in `camera_review
 
 | Route | Who | Body or query | Success |
 | --- | --- | --- | --- |
+| `GET /api/admin/camera/access` | admin | Nav probe, always 200 | `{ reviewer: boolean }` |
 | `GET /api/admin/camera/flagged?cursor&limit` | reviewer | limit 1 to 200 | `{ items: [{ attemptId, userId, candidateName, candidateEmail, assessmentId, assessmentName, flaggedFiles, lastFlaggedAt, reviewedAt, appealState, uploadRefused }], nextCursor }` |
 | `GET /api/admin/camera/attempts/:attemptId/files` | reviewer | none | `{ items: [{ id, kind, takenAt, flagged, flagReason, sizeBytes }], review: { reviewedAt, appealState, uploadRefused } }` (no storage path) |
 | `GET /api/admin/camera/files/:fileId/content` | reviewer | none | the bytes; `Content-Type` image/jpeg or video/webm; `Cache-Control: private, no-store`; `X-Content-Type-Options: nosniff`; `Content-Disposition: inline`. One `camera.file.viewed` audit row (ids only) commits before the first byte. 404 for a missing row, another tenant's id, or a missing disk file |

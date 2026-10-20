@@ -83,6 +83,11 @@ export async function listTenantAdminsApi(): Promise<{ items: Array<{ id: string
   );
 }
 
+/** Nav probe. Always 200 for an admin, so a non-reviewer sees no console error. */
+export async function cameraAccessApi(): Promise<{ reviewer: boolean }> {
+  return adminApi<{ reviewer: boolean }>("/admin/camera/access");
+}
+
 export async function listFlaggedCameraApi(opts?: { cursor?: string; limit?: number }): Promise<{ items: FlaggedAttempt[]; nextCursor: string | null }> {
   const q = new URLSearchParams();
   if (opts?.cursor) q.set("cursor", opts.cursor);
