@@ -53,5 +53,25 @@ export function takeUnits<T extends { id: string }>(picks: readonly T[], n: numb
     if (out.length + u.length <= n) out.push(...u);
     if (out.length === n) break;
   }
-  return out;
+  if (out.length === n) return out;
+  // First-fit can strand a gap (e.g. 4 singles first, then only passages of 2 and 3 for n = 5).
+  // Fall back to an exact fit: keep the earliest units that still allow a total of exactly n.
+  const units = groupUnits(picks, info);
+  const can: boolean[][] = Array.from({ length: units.length + 1 }, () => new Array<boolean>(n + 1).fill(false));
+  can[units.length]![0] = true;
+  for (let i = units.length - 1; i >= 0; i--) {
+    const len = units[i]!.length;
+    for (let s = 0; s <= n; s++) can[i]![s] = can[i + 1]![s]! || (s >= len && can[i + 1]![s - len]!);
+  }
+  if (!can[0]![n]) return out; // no exact fit exists: caller reports the pool as too small
+  const exact: T[] = [];
+  let left = n;
+  for (let i = 0; i < units.length && left > 0; i++) {
+    const u = units[i]!;
+    if (u.length <= left && can[i + 1]![left - u.length]) {
+      exact.push(...u);
+      left -= u.length;
+    }
+  }
+  return exact;
 }
