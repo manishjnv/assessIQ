@@ -28,6 +28,7 @@
 //   - No import from AssessIQ_UI_Template (ESLint-forbidden).
 
 import { useEffect, useState, type CSSProperties } from 'react';
+import { DEVICE_BLOCKED_MESSAGE, collectDeviceSignals, collectReadinessSignals } from './readiness.js';
 import { useParams, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { Chip, Card, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import {
@@ -152,12 +153,21 @@ export function Submitted(): React.JSX.Element {
     setRetaking(true);
     setRetakeError(null);
     try {
-      const res = await startAttempt(assessmentId, { newAttempt: true });
+      // Z-87 / Z-91: a retake of a real exam needs the same device + readiness signals as the first start.
+      const res = await startAttempt(assessmentId, {
+        newAttempt: true,
+        device: collectDeviceSignals(),
+        readiness: await collectReadinessSignals(),
+      });
       navigate(`/take/attempt/${res.attempt_id}`);
     } catch (err) {
       setRetaking(false);
       setRetakeError(
-        err instanceof CandidateApiError && err.status === 409
+        err instanceof CandidateApiError && err.status === 403
+          ? DEVICE_BLOCKED_MESSAGE
+          : err instanceof CandidateApiError && err.status === 422 && err.apiError.code === 'READINESS_FAILED'
+            ? 'Your device is not ready for this test. Use a laptop or desktop with a recent browser and a good connection, then try again.'
+        : err instanceof CandidateApiError && err.status === 409
           ? 'No attempts are left. Ask your organisation if you need another.'
           : err instanceof CandidateApiError && (err.status === 400 || err.status === 404 || err.status === 422)
             ? 'This invitation has expired. Ask your organisation to send a new link.'

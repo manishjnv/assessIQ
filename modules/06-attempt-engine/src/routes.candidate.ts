@@ -25,6 +25,8 @@ import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ValidationError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { isIP } from "node:net";
+import { isMobileOrTabletClient } from "./device.js";
+import { evaluateReadiness, parseReadinessSignals } from "./readiness.js";
 import { extractClientIp } from "@assessiq/auth";
 import {
   recordTakeConsent,
@@ -146,7 +148,7 @@ export async function registerAttemptCandidateRoutes(
       // 422 CONSENT_REQUIRED (resume of an existing attempt never needs it).
       // Z-39: { new_attempt: true } = the candidate pressed "Try again" on the result page.
       // Honoured only when attempts are left (startAttempt throws 409 ATTEMPTS_EXHAUSTED otherwise).
-      const body = (req.body ?? {}) as { consent?: unknown; new_attempt?: unknown };
+      const body = (req.body ?? {}) as { consent?: unknown; new_attempt?: unknown; device?: unknown; readiness?: unknown };
       if (body.consent === true) {
         const ip = extractClientIp(req);
         await recordTakeConsent(tenantId, {
@@ -155,9 +157,21 @@ export async function registerAttemptCandidateRoutes(
           userAgent: ((req.headers["user-agent"] as string | undefined) ?? "unknown").slice(0, 512),
         });
       }
+      // Z-87 / Z-91: same gate as /take/start. startAttempt enforces it for a REAL exam's new attempt.
+      const mobile = isMobileOrTabletClient({
+        userAgent: req.headers["user-agent"],
+        secChUaMobile: req.headers["sec-ch-ua-mobile"] as string | undefined,
+        reported: body.device,
+      });
+      const signals = parseReadinessSignals(body.readiness);
+      const verdict = signals === null ? null : evaluateReadiness(signals);
       const attempt = await startAttempt(tenantId, {
         userId,
         assessmentId: id,
+        gate: { mobile },
+        ...(signals !== null && verdict !== null
+          ? { readiness: { passed: verdict.passed, at: new Date().toISOString(), signals, failed: verdict.failed } }
+          : {}),
         ...(body.new_attempt === true ? { newAttempt: true } : {}),
       });
       return reply.code(201).send(attempt);

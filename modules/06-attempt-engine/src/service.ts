@@ -299,6 +299,31 @@ export async function startAttempt(
           { details: { code: AE_ERROR_CODES.CONSENT_REQUIRED } },
         );
       }
+
+      // c3. Z-87 / Z-91 invariant — enforced HERE so EVERY non-embed path that creates a NEW attempt of a
+      //     REAL exam (/take/start, /api/me/assessments/:id/start incl. a retake) is laptop/desktop only and
+      //     has passed the readiness check. The two request-facing callers (routes.take.ts and
+      //     routes.candidate.ts) ALWAYS pass `gate`; direct service callers (tests, internal tools) do not
+      //     and are not request-facing. Route tests prove both routes pass it.
+      if (deliveryMode === "real" && input.gate !== undefined) {
+        if (input.gate.mobile) {
+          throw new AppError(
+            "Please open this link on a laptop or desktop computer to take this test",
+            "DEVICE_NOT_ALLOWED",
+            403,
+            { details: { code: "DEVICE_NOT_ALLOWED" } },
+          );
+        }
+        const rd = input.readiness as { passed?: unknown } | undefined;
+        if (rd === undefined || rd === null || rd.passed !== true) {
+          throw new AppError(
+            "Your device is not ready for this test. Run the readiness check first.",
+            "READINESS_FAILED",
+            422,
+            { details: { code: "READINESS_FAILED" } },
+          );
+        }
+      }
     }
 
     // c3. Retake limit (Z-39): attempt n+1 is allowed only while n < max_attempts + extras.

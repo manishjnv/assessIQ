@@ -663,9 +663,31 @@ describe("HTTP routes — consent invariant (R4 review fixes)", () => {
     expect(denied.statusCode).toBe(422);
     expect(denied.json().error.code).toBe("CONSENT_REQUIRED");
     expect(await counts(candidate, assessmentId)).toEqual({ attempts: 0, consents: 0 });
-    const ok = await app.inject({ method: "POST", url, payload: { consent: true } });
+    const ok = await app.inject({ method: "POST", url, payload: { consent: true, readiness: READY } });
     expect(ok.statusCode).toBe(201);
     expect(await counts(candidate, assessmentId)).toEqual({ attempts: 1, consents: 1 });
+  });
+
+  it("Z-87/Z-91: /api/me/assessments/:id/start applies the same gate for a real exam (phone 403, no readiness 422, desktop + readiness 201)", async () => {
+    const { candidate, assessmentId } = await setup("MeGate");
+    const app = await buildApp();
+    const url = `/api/me/assessments/${assessmentId}/start`;
+    const phone = await app.inject({ method: "POST", url, headers: { "user-agent": IPHONE }, payload: { consent: true, readiness: READY } });
+    expect(phone.statusCode).toBe(403);
+    expect(phone.json().error.code).toBe("DEVICE_NOT_ALLOWED");
+    const none = await app.inject({ method: "POST", url, payload: { consent: true } });
+    expect(none.statusCode).toBe(422);
+    expect(none.json().error.code).toBe("READINESS_FAILED");
+    const small = await app.inject({ method: "POST", url, payload: { consent: true, readiness: { ...READY, screenWidth: 800 } } });
+    expect(small.statusCode).toBe(422);
+    expect((await counts(candidate, assessmentId)).attempts).toBe(0);
+    const ok = await app.inject({ method: "POST", url, payload: { consent: true, readiness: READY } });
+    expect(ok.statusCode).toBe(201);
+    // a mock on a phone stays allowed through this route too
+    const mock = await setup("MeMock");
+    await setMode(mock.assessmentId, "mock");
+    const m = await app.inject({ method: "POST", url: `/api/me/assessments/${mock.assessmentId}/start`, headers: { "user-agent": IPHONE }, payload: { consent: true } });
+    expect(m.statusCode).toBe(201);
   });
 
   // ─── Z-87 desktop-only, Z-89 mock/real, Z-91 readiness ─────────────────────

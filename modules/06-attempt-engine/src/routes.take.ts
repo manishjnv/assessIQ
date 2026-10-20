@@ -368,6 +368,7 @@ export async function registerAttemptTakeRoutes(
           // Z-39: the preview showed no resumable attempt, so Begin means "start the next one".
           // startAttempt still refuses unless attempts are left; an unfinished attempt is resumed.
           newAttempt: pv.existing === null,
+          gate: { mobile: false }, // the device check above already refused a phone/tablet on a real exam
           ...(readinessRecord !== undefined ? { readiness: readinessRecord } : {}),
         });
       } catch (err) {
