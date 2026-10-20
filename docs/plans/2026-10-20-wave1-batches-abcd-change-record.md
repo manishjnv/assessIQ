@@ -3,7 +3,7 @@
 *Type: explanation and reference.* This page records every change of session S36 so that a later session can resume without reading the diffs.
 
 **Old task or feature checked:** Z-18, Z-70, Z-71, Z-72, Z-79, Z-80, Z-81, Z-83, Z-85, Z-87, Z-89, Z-90, Z-91, Z-93, EXP-8 (passages), S32 Free-plan limits.
-**Code state at close:** see the S36 block at the top of `docs/SESSION_STATE.md` for the final commit and for the state of the flags. Migrations 0215 to 0224 are applied on the server. `PLAN_TIERS_ENFORCED` and `SIGNUP_ENABLED` are OFF unless that block says otherwise.
+**Code state at close:** see the S36 block at the top of `docs/SESSION_STATE.md` for the final commit and for the state of the flags. Migrations 0215 to 0224 are applied on the server. `PLAN_TIERS_ENFORCED` is ON since the late S36 owner yes (pilot tenants birla and wipro-soc are `pro`); `SIGNUP_ENABLED` is OFF.
 
 ## Summary
 

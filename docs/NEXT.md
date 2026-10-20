@@ -2,19 +2,19 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-20T05:44:55.502Z (2026-10-20 11:14:55 IST)
-- HEAD: `9fb863b5`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 3
+- Generated: 2026-10-20T06:18:15.505Z (2026-10-20 11:48:15 IST)
+- HEAD: `3540166f`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 4
 
 ## 1. Last session (SESSION_STATE, first block)
 
 ## Session — 2026-10-20 — S36: Wave 1 batches A to D (credit ledger, test types, device gate, mock dashboard, closed sign-up, marketing legal pages)
 
-**Headline:** Wave 1 code is live on the server: credit ledger and offline grants, Mock/Real test type, desktop-only rule and readiness check, mock results dashboard, race-safe Free candidate cap, and public self-serve sign-up built but CLOSED. The marketing site (`/dpa`, `/terms`, `/privacy`, `/signup`) is live. NOT done: the real pilot tier change (waits for the owner yes), the `PLAN_TIERS_ENFORCED` flip and `SIGNUP_ENABLED`.
+**Headline:** Wave 1 code is live on the server: credit ledger and offline grants, Mock/Real test type, desktop-only rule and readiness check, mock results dashboard, race-safe Free candidate cap, and public self-serve sign-up built but CLOSED. The marketing site (`/dpa`, `/terms`, `/privacy`, `/signup`) is live. The pilot tier change and the `PLAN_TIERS_ENFORCED=true` flip are DONE (owner yes, late S36). NOT done: `SIGNUP_ENABLED` (sign-up stays closed until the owner says).
 **Commits:** `917fe904`, `c5a1987e` (ledger, data columns, popup, `/dpa`, guides), `f9fd6820` (passage draw fix), `2301abb7`, `a3a0b337`, `f3b0243f` (test type, device gate, readiness, e2e factory), `a1d5ae54` (candidate cap guard), `3e15e9dc`, `6c770069`, `0e3ede7c` (sign-up core, review fixes, CI fix), `0499d893` (Z-90 dashboard), `546d0c33`, `2492af8a` (terms date, ui-labels, smoke route, runbook, change record), plus the S36 docs commit. Code on the server: `2492af8a`; migrations 0215 to 0224 applied. Marketing container rebuilt from `2492af8a`.
 **Tests:** `pnpm verify` green before every push; CI green on `c5a1987e`, `f3b0243f`, `a1d5ae54`, `0e3ede7c`, `2492af8a` (two reds on the way: e2e factory without readiness, route-test mocks without the new exports; both fixed, see RCA 2026-10-20). Sweep: 0 failures after each of the 5 deploys. Read-only curl: `/dpa`, `/terms`, `/privacy`, `/signup` answer 200; the sign-up config answers `open:false`; `POST /api/public/signup/request` answers 404.
-**Recount:** 93 pending, 187 closed, 280 total, 67% before; 86 pending, 198 closed, 284 total, 70% after (Z.7 line written, tool says SAME).
-**Next:** (1) owner says yes: run `tools/pilot-tenant-to-paid.sql` for real (birla only changes; wipro-soc is already internal), re-check, flip `PLAN_TIERS_ENFORCED=true`, sweep (Z-18); (2) owner says when: open sign-up with `docs/runbooks/open-signup.md` (Z-97); (3) Z-96 low-balance emails; (4) Wave 2 camera and photos.
+**Recount:** 93 pending, 187 closed, 280 total, 67% before; 85 pending, 199 closed, 284 total, 70% after (Z.7 line written, tool says SAME).
+**Next:** (1) the flag is ON on the server; watch the first real Free-tier limits and smoke a Free tenant's webhooks page (expect 403 TIER_NOT_INCLUDED); (2) owner says when: open sign-up with `docs/runbooks/open-signup.md` (Z-97); (3) Z-96 low-balance emails; (4) Wave 2 camera and photos.
 **Open questions (owner):**
 - Pilot tier for birla: the dry run used `pro` with no credit cap (unlimited, no ledger burn). Confirm the tier and the cap.
 - Legal defaults (liability floor 10,000 rupees, breach notice 48 hours) went live unreviewed; owner accepted the risk; lawyer review before the second or third paying customer.
@@ -24,7 +24,7 @@ GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 - Still open from before: rescoring Q1 to Q4, GIFT format, Z-52 gap 7, rate card, the server host name and IP in `CLAUDE.md`.
 **Old task or feature checked:** Z-18, Z-70, Z-71, Z-72, Z-79, Z-80, Z-81, Z-83, Z-85, Z-87, Z-89, Z-90, Z-91, Z-93, EXP-8, S32 Free-plan limits (Rule B).
 **Change record:** `docs/plans/2026-10-20-wave1-batches-abcd-change-record.md`.
-**Late S36 additions (after the first close-out):** (a) credit scale x10 live (Z-99): migrations 0225 and 0226, commits `136d09f2`, `33b7b52c`, `9fb863b5`, code on the server `9fb863b5`, sweep 0 failures; checked on the server (every Free tenant 250 included credits and a 200-credit grant); marketing rebuilt, `/signup` says 200 credits each month. (b) Owner decision: birla and wipro-soc are treated equally (wipro-soc is the test organisation): same tier `pro`, same 4,500-credit pilot grant (200 mock at 10, 50 real at 20, 50 real with camera at 30), 12 months. `tools/pilot-tenant-to-paid.sql` rewritten for this and run once in ROLLBACK on the server (result: both pro, included credits 4500, one pilot grant each, birla free grant zeroed). The REAL run, the `PLAN_TIERS_ENFORCED` flip and the sweep still wait for the owner yes. (c) UptimeRobot: 3 monitors Up, test alert mail received (Z-83 complete). Third CI red of the session (ledger test path) in RCA.
+**Late S36 additions (after the first close-out):** (a) credit scale x10 live (Z-99): migrations 0225 and 0226, commits `136d09f2`, `33b7b52c`, `9fb863b5`, code on the server `9fb863b5`, sweep 0 failures; checked on the server (every Free tenant 250 included credits and a 200-credit grant); marketing rebuilt, `/signup` says 200 credits each month. (b) Owner decision: birla and wipro-soc are treated equally (wipro-soc is the test organisation): same tier `pro`, same 4,500-credit pilot grant (200 mock at 10, 50 real at 20, 50 real with camera at 30), 12 months. `tools/pilot-tenant-to-paid.sql` rewritten for this and run once in ROLLBACK on the server (result: both pro, included credits 4500, one pilot grant each, birla free grant zeroed). UPDATE (same day, owner yes): the REAL run was done (both pro, included credits 4500, one pilot grant each, birla free grant zeroed, checked on the server), `PLAN_TIERS_ENFORCED=true` was appended to `/srv/assessiq/.env` (backup copy kept on the server) and `assessiq-api` was recreated; sweep 0 failures, `/api/health` and `/api/ready` 200, sign-up config still `open:false`, 0 error log lines. wipro-soc (5 candidates, 7 packs, 1 embed secret) now follows paid-tier checks; its embed admin is locked below enterprise. To undo: set `PLAN_TIERS_ENFORCED=false`, recreate `assessiq-api`; restore values were wipro-soc internal with no credit cap and birla free with 250 credits. (c) UptimeRobot: 3 monitors Up, test alert mail received (Z-83 complete). Third CI red of the session (ledger test path) in RCA.
 
 
 ## 2. ROADMAP status board
@@ -34,7 +34,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 **Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
 
-## 3. Open Z and EXP rows (45 total)
+## 3. Open Z and EXP rows (44 total)
 
 - `EXP-3` (EXP-3 (lane B catalog)) — Previous-year catalog without question text. — pending (after pilot; Claude; M)
 - `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S34 added the `has_passage` filter; Z-43 draws by outcome node still open) (S20, 2026-10-17, `c34a597`; migrati
@@ -50,7 +50,6 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `EXP-16` (EXP-16 (lane E, scraping)) — Scraping intake for previous-year and practice questions. — pending (after EXP-2 and EXP-4; Claude; M per source)
 - `EXP-17` (EXP-17 (lane F, organisation upload)) — Organisation admins upload their own question sets. — PARTIAL (S34, 2026-10-19: screen `/admin/org-question-upload` built with preview, warranty, rights, uploads list and wit
 - `EXP-20` (EXP-20 (EXP-2 gate finding)) — Frozen assessment pools keep a withdrawn question. — pending (owner decides purge or sign-off; Claude; S-M) DECIDED (owner, 2026-10-18): leave frozen copies as they are; rem
-- `Z-18` (Z-18 (PT1/PT-4 flip)) — Flip `PLAN_TIERS_ENFORCED=true` on the VPS (`/srv/assessiq/.env`, then recreate  — pending (S36 2026-10-20: owner named the pilot tenants birla and wipro-soc; wipro-soc is already internal, birla is Free
 - `Z-19` (Z-19 (LC-2 flip)) — Flip `USER_PURGE_ENABLED=true` on the VPS (`.env`, then recreate `assessiq-worke — pending (owner decides after the first dry-run tick) S32 (2026-10-19 09:01 UTC): FLIPPED. The first tick (2026-10-19 03:
 - `Z-20` (Z-20 (RV31 terms)) — Approve or edit the terms §8 sentence drafted in SESSION_STATE S14 § Owner gates — pending (owner wording) S32 (2026-10-19): owner said use Claude's draft. Draft ready: `docs/design/2026-10-20-terms-sect
 - `Z-26` (Z-26 (SEO-A2; unblocks F2 and CWV-1)) — Connect Search Console and a privacy-light analytics tool. — pending (owner verifies and picks the tool; Claude adds tag and privacy line; XS). S17 fact: a Microsoft Clarity script 
