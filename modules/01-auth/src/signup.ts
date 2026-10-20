@@ -300,12 +300,14 @@ export interface VerifySignupInput {
   code: string;
   /** Optional: when present it must equal the version stored with the code. */
   dpaVersion?: string | undefined;
-  ip: string;
+  /** From extractRateLimitClientIp (null = cannot be determined, verify is refused). */
+  ip: string | null;
   ua: string;
 }
 
 export type VerifySignupResult =
-  | { ok: true; sessionToken: string; redirectTo: string; tenantId: string; userId: string }
+  // sessionToken null: the organisation exists but the session could not be made; the admin signs in with the emailed code.
+  | { ok: true; sessionToken: string | null; redirectTo: string; tenantId: string; userId: string }
   | { ok: false };
 
 export async function verifySignup(input: VerifySignupInput, deps: VerifySignupDeps = {}): Promise<VerifySignupResult> {
@@ -318,27 +320,36 @@ async function verifyWork(input: VerifySignupInput, deps: VerifySignupDeps): Pro
   if (!/^\d{6}$/.test(input.code)) return { ok: false };
   const emailKey = signupEmailKey(email);
 
-  // Cap first, so a full day does not burn a code that was already sent.
-  if (await dailyCapReached()) {
-    await auditRejectOnce("daily_cap", emailKey);
-    return { ok: false };
-  }
+  // Cap first, so a full day does not burn a code that was already sent. NO audit row here:
+  // this step runs before any code check, so an anonymous caller could create one row (and one
+  // Redis key) per address. The request path already audits a daily_cap reject.
+  if (await dailyCapReached()) return { ok: false };
+  // No determinable client IP = fail closed, same rule as the request step.
+  if (input.ip === null) return { ok: false };
+  const ip = input.ip;
 
   // Atomic take: only one caller can ever see the record.
   const rec = await takeSignupCode(email, input.code);
   if (rec === null) return { ok: false };
   if (input.dpaVersion !== undefined && input.dpaVersion !== rec.dpaVersion) return { ok: false };
 
-  const created = await createSelfServeTenant({
-    orgName: rec.orgName,
-    adminName: rec.adminName,
-    email,
-    dpaVersion: rec.dpaVersion,
-    termsVersion: rec.termsVersion,
-    ip: rec.ip,
-    userAgent: rec.ua,
-    ...(deps.provision !== undefined ? { provision: deps.provision } : {}),
-  });
+  let created: Awaited<ReturnType<typeof createSelfServeTenant>>;
+  try {
+    created = await createSelfServeTenant({
+      orgName: rec.orgName,
+      adminName: rec.adminName,
+      email,
+      dpaVersion: rec.dpaVersion,
+      termsVersion: rec.termsVersion,
+      ip: rec.ip,
+      userAgent: rec.ua,
+      ...(deps.provision !== undefined ? { provision: deps.provision } : {}),
+    });
+  } catch (err) {
+    // Nothing committed (one transaction). Neutral answer; the visitor requests a new code.
+    log.error({ err }, "signup.create_failed");
+    return { ok: false };
+  }
   if (!created.ok) {
     await auditRejectOnce(created.reason, emailKey);
     return { ok: false };
@@ -356,14 +367,21 @@ async function verifyWork(input: VerifySignupInput, deps: VerifySignupDeps): Pro
 
   // A NEW session for the new admin (never a pre-login cookie). Role admin only; same MFA rule
   // as google-sso.ts mintForIdentity for a tenant admin.
-  const { token } = await sessions.create({
-    userId: created.adminUserId,
-    tenantId: created.tenantId,
-    role: "admin",
-    totpVerified: !config.MFA_REQUIRED,
-    ip: input.ip,
-    ua: input.ua,
-  });
+  let token: string;
+  try {
+    ({ token } = await sessions.create({
+      userId: created.adminUserId,
+      tenantId: created.tenantId,
+      role: "admin",
+      totpVerified: !config.MFA_REQUIRED,
+      ip,
+      ua: input.ua,
+    }));
+  } catch (err) {
+    // The tenant is committed; the admin can sign in with the emailed admin code.
+    log.error({ err, tenantId: created.tenantId }, "signup.session_failed: tenant is active");
+    return { ok: true, sessionToken: null, redirectTo: "/admin/login", tenantId: created.tenantId, userId: created.adminUserId };
+  }
   return {
     ok: true,
     sessionToken: token,

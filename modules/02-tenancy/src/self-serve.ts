@@ -88,9 +88,11 @@ export function normalizeOrgName(raw: string): string {
 
 const ORG_NAME_RE = /^[\p{L}\p{N} .\-&']{3,80}$/u;
 
-/** 3-80 chars after normalisation; letters, digits, space and . - & ' only. */
+/** 3-80 chars after normalisation; letters, digits, space and . - & ' only; no Latin mixed with Cyrillic or Greek. */
 export function isValidOrgName(raw: string): boolean {
-  return ORG_NAME_RE.test(normalizeOrgName(raw));
+  const n = normalizeOrgName(raw);
+  if (/\p{Script=Latin}/u.test(n) && /[\p{Script=Cyrillic}\p{Script=Greek}]/u.test(n)) return false;
+  return ORG_NAME_RE.test(n);
 }
 
 /** 2-80 chars after trim, no control characters, no angle brackets. */
@@ -114,6 +116,11 @@ const MODULE_NAMES = [
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "admin", "api", "www", "assessiq", "app", "take", "verify", "embed", "help", "try", "static",
   "assets", "brand", "candidate", "login", "signup", "support", "mail", "status", "platform",
+  // Blocked brand names (same list as modules/01-auth/src/signup-blocklist.ts, slug form).
+  "google", "microsoft", "amazon", "apple", "facebook", "meta", "ibm", "oracle", "tcs",
+  "tata-consultancy-services", "infosys", "wipro", "hcl", "accenture", "cognizant", "deloitte",
+  "kpmg", "pwc", "upsc", "ssc", "nta", "cbse", "ugc", "aicte", "reserve-bank-of-india", "rbi",
+  "sebi", "government-of-india", "ministry-of", "indian-army", "ibps",
   ...MODULE_NAMES,
 ]);
 

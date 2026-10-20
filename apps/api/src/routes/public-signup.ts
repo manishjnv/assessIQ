@@ -22,8 +22,6 @@
 import type { FastifyInstance } from 'fastify';
 import { config, NotFoundError, RateLimitError } from '@assessiq/core';
 import {
-  TERMS_VERSION,
-  extractClientIp,
   extractRateLimitClientIp,
   requestSignup,
   sessions,
@@ -70,6 +68,8 @@ export async function registerPublicSignupRoutes(app: FastifyInstance): Promise<
           turnstileToken: 'MISSING_TURNSTILE',
           dpaAccepted: 'DPA_NOT_ACCEPTED',
           dpaVersion: 'DPA_VERSION_MISMATCH',
+          termsAccepted: 'TERMS_NOT_ACCEPTED',
+          termsVersion: 'TERMS_VERSION_MISMATCH',
         },
       });
 
@@ -79,7 +79,7 @@ export async function registerPublicSignupRoutes(app: FastifyInstance): Promise<
         email: body.email,
         turnstileToken: body.turnstileToken,
         dpaVersion: body.dpaVersion,
-        termsVersion: TERMS_VERSION,
+        termsVersion: body.termsVersion,
         // Same IP source as the rate-limit middleware; null = cannot be trusted = refused.
         ip: extractRateLimitClientIp(req as unknown as AuthRequest),
         ua: (req.headers['user-agent'] as string | undefined) ?? 'unknown',
@@ -109,7 +109,7 @@ export async function registerPublicSignupRoutes(app: FastifyInstance): Promise<
       reply.header('Cache-Control', 'no-store');
       await requireOpen();
 
-      const ip = extractClientIp(req);
+      const ip = extractRateLimitClientIp(req as unknown as AuthRequest);
       const ua = (req.headers['user-agent'] as string | undefined) ?? 'unknown';
       const body = tryParse(signupVerifyBody, req.body);
       // A malformed body gets the same answer (and the same 800 ms floor) as a wrong code.
@@ -131,13 +131,16 @@ export async function registerPublicSignupRoutes(app: FastifyInstance): Promise<
       // the new one. Same cookie flags as the sign-in routes.
       const old = req.cookies?.[config.SESSION_COOKIE_NAME];
       if (typeof old === 'string' && old.length > 0) await sessions.destroy(old).catch(() => undefined);
-      reply.setCookie(config.SESSION_COOKIE_NAME, out.sessionToken, {
-        httpOnly: true,
-        secure: config.NODE_ENV === 'production',
-        sameSite: 'lax',
-        path: '/',
-        maxAge: 8 * 3600,
-      });
+      // Session could not be made after the organisation committed: no cookie, admin signs in by code.
+      if (out.sessionToken !== null) {
+        reply.setCookie(config.SESSION_COOKIE_NAME, out.sessionToken, {
+          httpOnly: true,
+          secure: config.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: 8 * 3600,
+        });
+      }
       return reply.code(200).send({ ok: true, redirect: out.redirectTo });
     },
   );

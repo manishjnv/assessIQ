@@ -3920,7 +3920,7 @@ Always `200 { open: boolean, turnstileSiteKey: string | null, dpaVersion: "1.0" 
 
 ### `POST /api/public/signup/request`
 
-Body (strict, unknown fields are refused): `{ orgName, adminName, email, turnstileToken, dpaAccepted, dpaVersion }`.
+Body (strict, unknown fields are refused): `{ orgName, adminName, email, turnstileToken, dpaAccepted, dpaVersion, termsAccepted, termsVersion }`.
 
 | Field | Rule |
 | --- | --- |
@@ -3930,11 +3930,13 @@ Body (strict, unknown fields are refused): `{ orgName, adminName, email, turnsti
 | `turnstileToken` | 1-2048 characters |
 | `dpaAccepted` | literally `true` |
 | `dpaVersion` | must equal the server constant `DPA_VERSION` (`"1.0"`) |
+| `termsAccepted` | literally `true` (the form has its own Terms of Service checkbox) |
+| `termsVersion` | must equal the server constant `TERMS_VERSION` (`"1.0"`); stored with the code and written to the acceptance row at verify |
 
 | Status | Body | When |
 | --- | --- | --- |
 | 200 | `{ ok: true }` | Every case after the checks: new address, existing account, super-admin or blocked address, daily cap reached. Same body and the same 800 ms minimum time. |
-| 400 | `VALIDATION_FAILED`, `details.code` one of `INVALID_ORG_NAME`, `INVALID_ADMIN_NAME`, `INVALID_EMAIL`, `MISSING_TURNSTILE`, `DPA_NOT_ACCEPTED`, `DPA_VERSION_MISMATCH` | body rule failed |
+| 400 | `VALIDATION_FAILED`, `details.code` one of `INVALID_ORG_NAME`, `INVALID_ADMIN_NAME`, `INVALID_EMAIL`, `MISSING_TURNSTILE`, `DPA_NOT_ACCEPTED`, `DPA_VERSION_MISMATCH`, `TERMS_NOT_ACCEPTED`, `TERMS_VERSION_MISMATCH` | body rule failed |
 | 403 | `TURNSTILE_FAILED` | siteverify failed, timed out (3 s), wrong action or hostname, or token already used |
 | 404 | `NOT_FOUND` | gate closed |
 | 429 | `RATE_LIMITED`, `details.scope` `signup_ip` (5 a day for each source; a request with no determinable IP is refused with this scope) or `signup_email` (3 a day for each folded address; both mails count), `Retry-After` set | limit reached |
@@ -3943,6 +3945,6 @@ Order of checks: gate, body, Turnstile, IP limit, address limit, super-admin add
 
 ### `POST /api/public/signup/verify`
 
-Body: `{ email, code, dpaVersion? }` (`code` is 6 digits). On success: `200 { ok: true, redirect: "/admin" }` (or `"/admin/mfa"` when `MFA_REQUIRED=true`) and a `Set-Cookie` for the new admin session. Every failure is `400 { error: { code: "SIGNUP_INVALID", message: "The code is not valid. Request a new one." } }` after the same 800 ms minimum: wrong, expired or burnt code, a malformed body, a claim conflict, an address that already has a user, a different `dpaVersion` than the stored one, the daily cap. `404` when the gate is closed.
+Body: `{ email, code, dpaVersion? }` (`code` is 6 digits). On success: `200 { ok: true, redirect: "/admin" }` (or `"/admin/mfa"` when `MFA_REQUIRED=true`) and a `Set-Cookie` for the new admin session. Every failure is `400 { error: { code: "SIGNUP_INVALID", message: "The code is not valid. Request a new one." } }` after the same 800 ms minimum: wrong, expired or burnt code, a malformed body, a claim conflict, an address that already has a user, a different `dpaVersion` than the stored one, the daily cap (no audit row at verify), a create step that fails before commit (logged), a client IP that cannot be determined. If the organisation committed but the session could not be created, the answer is `200 { ok: true, redirect: "/admin/login" }` with no cookie (sign in with the emailed admin code). `404` when the gate is closed.
 
 **Not included.** A resend route (the page calls `request` again; the address limit applies). An endpoint that tells if an address is free (it would allow enumeration).

@@ -1419,11 +1419,15 @@ The server key is `HMAC(SESSION_SECRET, "aiq:signup:hmac-key:v1")`. A purpose la
 - Many real mail boxes at other hosts are not folded. Turnstile, the IP limit and the daily cap bound them.
 - A farm that solves Turnstile can fill the daily cap and delay real sign-ups. The cap limits damage; it does not block. A caller can also use up the 3 requests a day of a victim's address (a one-day delay).
 - The daily cap is read, then incremented after the sign-up. A burst at the cap can overshoot by a few.
-- The code is consumed before the tenant is created. If the create step fails (for example the database is down), the code is lost and the visitor requests a new one (3 a day). The failure is a 500, not the neutral answer.
+- The code is consumed before the tenant is created. If the create step fails (for example the database is down), the code is lost and the visitor requests a new one (3 a day). The failure is logged and the answer is the neutral `SIGNUP_INVALID`. If the tenant committed but the session could not be created, the answer is `200` with redirect `/admin/login` and no cookie.
 - The taxonomy seed (`seedTenantTaxonomy`) opens its own transaction, so it runs right after commit with the tenant already `active`. If it fails, the tenant exists without domains. The log line is `signup.after_commit_failed`; the seed is idempotent and can run again by hand.
 - The Redis record holds the organisation name, admin name and the request IP and user agent for up to 10 minutes.
 - Sign-up mails use `redactLogBody`, so `email_log.body_text` and `body_html` are NULL. The address stays in `email_log.to_address`, and the send job in Redis holds the body until BullMQ removes the job. The 30-day purge of platform-tenant `email_log` rows is NOT built (no retention hook exists for the platform tenant). Open follow-up.
 - The admin sign-in code verify (`email-otp.ts`) is still not atomic. Separate row FU-OTP-ATOMIC.
+- The per-address bucket (3 a day) can be used up by a stranger, which locks the real owner out for a day (accepted).
+- A spoofed request for the same address replaces the pending code and record (accepted; the real owner requests again).
+- The daily cap is read at request and incremented at completion, so it can overshoot by the number of outstanding codes (accepted).
+- Verify writes no audit row for a full day (it runs before the code check). The request path audits `daily_cap` once for each address each day.
 - `tenant_legal_acceptances` rows are removed by the tenant purge (system role). The archive row of design finding 9 is not built; the retention period is an open question for the lawyer.
 
 ### Considered and rejected
