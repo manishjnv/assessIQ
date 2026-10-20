@@ -49,7 +49,7 @@ This how-to checks whether AssessIQ is ready for the pilot. Use it before you in
 
 ## Owner actions
 
-1. Create two UptimeRobot monitors. Point them at `https://assessiq.in/api/health` and `https://assessiq.in/`. Set the alert contact to the owner Gmail, not `connect@assessiq.in`. Steps: `docs/runbooks/uptimerobot-setup.md`.
+1. Create two UptimeRobot monitors. Point them at `https://assessiq.in/api/health` and `https://assessiq.in/`. Set the alert contact to the owner Gmail, not `connect@assessiq.in`. Steps: `docs/runbooks/uptimerobot-setup.md`. DONE 2026-10-20: three monitors Up (home, health, readiness) and the test alert mail arrived.
 2. Decide if Sentry is needed before the pilot. The DSN is empty and no SDK is wired.
 3. The live email provider is Brevo (Resend was the provider until 2026-09-20). Confirm the daily bulk cap (default 250).
 4. Run the RV66 check on the `consent_events` table.

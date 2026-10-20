@@ -2898,3 +2898,17 @@ Status: DEPLOYED 2026-10-19 at `1eda2ec9` (code commit `1e0932b2` plus the scrip
 **Plan gate.** The Pro-only gate `question_upload` is a no-op while `PLAN_TIERS_ENFORCED` is false. No flag was flipped.
 
 **Owner check after deploy:** open `/admin` signed in. Check the tabs Upload questions and Review queue. Mark a test question as disputed and read the note history.
+
+## S36 deploy record (2026-10-20): Wave 1 batches A to D and credit scale x10
+
+*Type: reference.* Five code deploys with `tools/deploy.sh --yes` (dry run first each time), plus one marketing rebuild. Sweep: 0 failures each time.
+
+- **Migrations applied, in order.** 0215 credit ledger (19-billing); 0216 delivery_mode on assessments and invitations (05); 0217 delivery_mode, camera_enabled, readiness on attempts (06); 0218 help rows; 0219 real-only materialized views (15); 0220 help rows; 0221 sign-up claims and `tenants.self_registered` (02); 0222 counted candidates (19); 0223 legal acceptances (03); 0224 help rows; 0225 credit scale x10 (19); 0226 help versions. All additive.
+- **New worker jobs (queue `assessiq-cron`, no AI).** `credit-free-refill` daily 00:10 UTC (idempotent; the first run each UTC month does the work); `credit-expire` daily 02:20 UTC.
+- **New environment values.** `SIGNUP_ENABLED` (default false; OFF on the server), `TURNSTILE_SITE_KEY` (empty), `SIGNUP_TURNSTILE_HOSTNAMES` (optional). `PLAN_TIERS_ENFORCED` stays false until the pilot tenants are on a paid tier (Z-18).
+- **Marketing deploy used.** On the server, in `/srv/assessiq`: `docker compose -f infra/docker-compose.yml build assessiq-marketing`, then `up -d --no-deps --force-recreate assessiq-marketing`. Only that container was recreated. Page dates came from `node apps/marketing/scripts/page-dates.mjs` committed before the build. The IndexNow ping was NOT run.
+- **Read-only checks after the marketing deploy.** `/dpa`, `/terms`, `/privacy`, `/signup` answered 200; `/terms` shows "Effective date: 20 October 2026"; `GET /api/public/signup/config` answered `open:false`; `POST /api/public/signup/request` answered 404.
+- **Credit scale x10 on the server.** After migration 0225: every Free tenant shows 250 included credits and a 200-credit free grant; `obj_description('credit_grants')` is "Z-95 credit scale x10 applied". Deploy-order note: migrations run before the services are recreated, so for a few minutes old code ran on scaled data (accepted before launch).
+- **Pilot tenants.** `tools/pilot-tenant-to-paid.sql` (two tenants, same tier, same grant) ran once with ROLLBACK. The real run and the flag flip are in the S36 block of `docs/SESSION_STATE.md` as the next owner-approved step.
+- **Rollback.** Revert the commits and deploy again; migrations stay. Sign-up: `SIGNUP_ENABLED=false` and recreate `assessiq-api`. Credit scale: divide credits, remaining, shortfall and included credits by 10, restore the insert policy limit 20, clear the table comment (not automatic).
+- **Sign-up steps.** `docs/runbooks/open-signup.md`. Monitoring: `docs/runbooks/uptimerobot-setup.md` (three monitors Up, alert mail tested 2026-10-20).
