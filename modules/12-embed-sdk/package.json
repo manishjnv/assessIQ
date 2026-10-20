@@ -18,7 +18,7 @@
     "@assessiq/tenancy": "workspace:*",
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/billing": "workspace:*",
-    "fastify": "^5.12.2",
+    "fastify": "^5.12.7",
     "@assessiq/attempt-engine": "workspace:*",
     "jose": "^6.2.12"
   },
