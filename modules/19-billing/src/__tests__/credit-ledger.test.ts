@@ -15,6 +15,8 @@ import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainer
 import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
 import { recordGradedAttempt, grantCredits, refillFreeMonthlyCredits, getCreditBalance } from '../service.js';
@@ -110,22 +112,35 @@ afterAll(async () => {
 describe('burn order and split', () => {
   it.skipIf(!dockerAvailable)('takes the oldest-expiring grant first and splits across grants', async () => {
     const { tenantId, asmId } = await seedTenant('pro', 100);
-    const late = await addGrant(tenantId, 'purchase', 10, `now() + interval '300 days'`);
-    const soon = await addGrant(tenantId, 'bonus', 1, `now() + interval '10 days'`);
-    const attemptId = await seedAttempt(tenantId, asmId, 'real'); // cost 2
+    const late = await addGrant(tenantId, 'purchase', 30, `now() + interval '300 days'`);
+    const soon = await addGrant(tenantId, 'bonus', 5, `now() + interval '10 days'`);
+    const attemptId = await seedAttempt(tenantId, asmId, 'real'); // cost 20
     await withTenant(tenantId, (c) => recordGradedAttempt(c, tenantId, attemptId));
     expect(await remaining(soon)).toBe(0);
-    expect(await remaining(late)).toBe(10 - (BURN.real - 1));
+    expect(await remaining(late)).toBe(30 - (BURN.real - 5));
     const row = await sup((c) => c.query(`SELECT grant_id, credits, shortfall, test_type FROM credit_burns WHERE attempt_id = $1`, [attemptId]));
     expect(row.rows[0]).toMatchObject({ grant_id: soon, credits: BURN.real, shortfall: 0, test_type: 'real' });
     // idempotent: a second call burns nothing more
     await withTenant(tenantId, (c) => recordGradedAttempt(c, tenantId, attemptId));
-    expect(await remaining(late)).toBe(10 - (BURN.real - 1));
+    expect(await remaining(late)).toBe(30 - (BURN.real - 5));
+  });
+});
+
+describe('burn amounts (Z-95 x10 scale)', () => {
+  it.skipIf(!dockerAvailable)('real burns 20, mock 10, camera 30', async () => {
+    expect(BURN).toEqual({ mock: 10, real: 20, real_camera: 30 });
+    const { tenantId, asmId } = await seedTenant('pro', 1000);
+    const g = await addGrant(tenantId, 'purchase', 100, `now() + interval '300 days'`);
+    for (const [mode, camera] of [['real', false], ['mock', false], ['real', true]] as const) {
+      const a = await seedAttempt(tenantId, asmId, mode, camera);
+      await withTenant(tenantId, (c) => recordGradedAttempt(c, tenantId, a));
+    }
+    expect(await remaining(g)).toBe(100 - 20 - 10 - 30);
   });
 });
 
 describe('burn with no balance', () => {
-  it.skipIf(!dockerAvailable)('never throws; records the shortfall; mock burns 1 and camera burns 3', async () => {
+  it.skipIf(!dockerAvailable)('never throws; records the shortfall; mock burns 10 and camera burns 30', async () => {
     const { tenantId, asmId } = await seedTenant('pro', 100);
     const a = await seedAttempt(tenantId, asmId, 'real', true);
     await expect(withTenant(tenantId, (c) => recordGradedAttempt(c, tenantId, a))).resolves.toBeUndefined();
@@ -159,13 +174,14 @@ describe('expired grant', () => {
 
 describe('monthly refill', () => {
   it.skipIf(!dockerAvailable)('is idempotent and does not roll over the previous month', async () => {
-    const { tenantId } = await seedTenant('free', 25);
+    const { tenantId } = await seedTenant('free', 250);
     const prev = await addGrant(tenantId, 'free_monthly', FREE_MONTHLY_CREDITS, `now() + interval '300 days'`, `now() - interval '40 days'`);
     await refillFreeMonthlyCredits();
     await refillFreeMonthlyCredits();
     expect(await remaining(prev)).toBe(0);
     const bal = await getCreditBalance(tenantId);
-    expect(bal.balance).toBe(FREE_MONTHLY_CREDITS);
+    expect(FREE_MONTHLY_CREDITS).toBe(200);
+    expect(bal.balance).toBe(200);
     const n = await sup((c) => c.query(`SELECT COUNT(*)::int AS n FROM credit_grants WHERE tenant_id = $1 AND source = 'free_monthly'`, [tenantId]));
     expect(n.rows[0].n).toBe(2);
   });
@@ -179,5 +195,32 @@ describe('grantCredits', () => {
     const au = await sup((c) => c.query(`SELECT 1 FROM audit_log WHERE entity_id = $1 AND action = 'billing.credits_granted'`, [res.id]));
     expect(au.rows.length).toBe(1);
     await expect(grantCredits(tenantId, { source: 'purchase', credits: 0 }, adminId)).rejects.toThrow();
+  });
+});
+
+describe('0225 credit scale x10', () => {
+  const sql = readFileSync(join(process.cwd(), 'modules/19-billing/migrations/0225_credit_scale_x10.sql'), 'utf8');
+  it.skipIf(!dockerAvailable)('scales an existing grant once; a second run does not scale again', async () => {
+    const { tenantId } = await seedTenant('pro', 100);
+    const id = randomUUID();
+    await sup(async (c) => {
+      await c.query(`INSERT INTO credit_grants (id, tenant_id, source, credits, remaining, expires_at) VALUES ($1,$2,'purchase',20,15, now() + interval '30 days')`, [id, tenantId]);
+      await c.query(`COMMENT ON TABLE credit_grants IS NULL`); // simulate a DB that has not run 0225 yet
+      await c.query(sql);
+      await c.query(sql);
+    });
+    const r = await sup((c) => c.query(`SELECT credits, remaining FROM credit_grants WHERE id = $1`, [id]));
+    expect(r.rows[0]).toEqual({ credits: 200, remaining: 150 });
+  });
+
+  it.skipIf(!dockerAvailable)('app role may insert a 200-credit free_monthly grant, not 201 or another source', async () => {
+    const { tenantId } = await seedTenant('free', 250);
+    const ins = (source: string, n: number) =>
+      withTenant(tenantId, (c) =>
+        c.query(`INSERT INTO credit_grants (tenant_id, source, credits, remaining, expires_at) VALUES ($1,$2,$3,$3, now() + interval '30 days')`, [tenantId, source, n]),
+      );
+    await expect(ins('free_monthly', 201)).rejects.toThrow();
+    await expect(ins('purchase', 10)).rejects.toThrow();
+    await expect(ins('free_monthly', 200)).resolves.toBeDefined();
   });
 });

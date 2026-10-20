@@ -217,7 +217,7 @@ beforeAll(
       // Provision plans directly as superuser (bypasses RLS)
       await client.query(
         `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES
-           ($1, 'free', 25),
+           ($1, 'free', 250),
            ($2, 'internal', NULL)`,
         [FREE_TENANT_ID, INTERNAL_TENANT_ID],
       );
@@ -339,7 +339,7 @@ describe('getUsage — free/25 tenant', () => {
         );
         await superClient.query(
           `INSERT INTO tenant_plans (tenant_id, tier, included_credits)
-           VALUES ($1, 'free', 25)`,
+           VALUES ($1, 'free', 250)`,
           [tenantId],
         );
         await superClient.query(
@@ -369,9 +369,9 @@ describe('getUsage — free/25 tenant', () => {
       const usage = await getUsage(tenantId);
 
       expect(usage.tier).toBe('free');
-      expect(usage.included_credits).toBe(25);
-      expect(usage.used).toBe(20);
-      expect(usage.remaining).toBe(5);
+      expect(usage.included_credits).toBe(250);
+      expect(usage.used).toBe(200);
+      expect(usage.remaining).toBe(50);
       expect(usage.overage).toBe(0);
       expect(usage.status).toBe('warn'); // 20/25 = 80% → warn
     },
@@ -427,7 +427,7 @@ describe('0080 backfill — idempotency', () => {
         );
         await client.query(
           `INSERT INTO tenant_plans (tenant_id, tier, included_credits)
-           SELECT id, 'free', 25 FROM tenants
+           SELECT id, 'free', 250 FROM tenants
            WHERE id = $1
            ON CONFLICT (tenant_id) DO NOTHING`,
           [ordinaryTenantId],
@@ -446,7 +446,7 @@ describe('0080 backfill — idempotency', () => {
           [ordinaryTenantId],
         );
         expect(ord1[0]?.tier).toBe('free');
-        expect(ord1[0]?.included_credits).toBe(25);
+        expect(ord1[0]?.included_credits).toBe(250);
 
         // Second run — must be idempotent
         await client.query(
@@ -457,7 +457,7 @@ describe('0080 backfill — idempotency', () => {
         );
         await client.query(
           `INSERT INTO tenant_plans (tenant_id, tier, included_credits)
-           SELECT id, 'free', 25 FROM tenants
+           SELECT id, 'free', 250 FROM tenants
            WHERE id = $1
            ON CONFLICT (tenant_id) DO NOTHING`,
           [ordinaryTenantId],
@@ -476,7 +476,7 @@ describe('0080 backfill — idempotency', () => {
           [ordinaryTenantId],
         );
         expect(ord2[0]?.tier).toBe('free');
-        expect(ord2[0]?.included_credits).toBe(25);
+        expect(ord2[0]?.included_credits).toBe(250);
       });
     },
   );
@@ -505,7 +505,7 @@ describe('AI answer meter and monthly window (FU-A2, FU-A4)', () => {
         // Anchor 45 days ago: the current window started 15 days ago.
         await superClient.query(
           `INSERT INTO tenant_plans (tenant_id, tier, included_credits, cycle_start)
-           VALUES ($1, 'free', 25, now() - interval '45 days')`,
+           VALUES ($1, 'free', 250, now() - interval '45 days')`,
           [tenantId],
         );
         await superClient.query(
@@ -533,7 +533,7 @@ describe('AI answer meter and monthly window (FU-A2, FU-A4)', () => {
       });
 
       const usage = await getUsage(tenantId);
-      expect(usage.used).toBe(1);              // the 40-day-old event is outside this month
+      expect(usage.used).toBe(10);             // the 40-day-old event is outside this month
       expect(usage.ai_answers_used).toBe(2);   // q1 once, q2 once
       expect(usage.ai_answers_included).toBe(20);
       expect(usage.ai_answers_remaining).toBe(18);
@@ -563,7 +563,7 @@ describe('AI answer meter and monthly window (FU-A2, FU-A4)', () => {
         );
         await superClient.query(
           `INSERT INTO tenant_plans (tenant_id, tier, included_credits, cycle_start)
-           VALUES ($1, 'free', 25, now() + interval '40 days')`,
+           VALUES ($1, 'free', 250, now() + interval '40 days')`,
           [tenantId],
         );
         await superClient.query(

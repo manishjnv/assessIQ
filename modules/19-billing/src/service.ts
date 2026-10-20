@@ -62,7 +62,7 @@ import type {
 const log = streamLogger('billing');
 
 /** Default credit allowance for newly-provisioned free-tier tenants. */
-export const DEFAULT_FREE_CREDITS = 25;
+export const DEFAULT_FREE_CREDITS = 250;
 
 /**
  * FU-A9 (2026-10-06): AI-evaluated answers included per month, from the tier
@@ -807,7 +807,7 @@ export async function tierAllows(tenantId: string, feature: TierFeature): Promis
  * Per-tier limits. null = no limit. pro/enterprise/internal are uncapped.
  * Free plan (owner 2026-10-19, docs/design/2026-10-20-free-tier-limits.md):
  * 5 sample sets, 5 candidates in total, 5 AI-graded attempts in total, hard stop
- * at 100 % of the 25 credits. per_drive_candidates stays 200 (never reached while
+ * at 100 % of the 250 credits. per_drive_candidates stays 200 (never reached while
  * max_candidates_total is 5; kept so the PT-4 tests and gate keep their meaning).
  */
 export const TIER_LIMITS: Record<

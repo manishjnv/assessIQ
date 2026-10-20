@@ -206,7 +206,7 @@ WHERE p.tier='free' GROUP BY 1;
 
 ## S32 (2026-10-19): Free-plan limits behind `PLAN_TIERS_ENFORCED`
 
-- `TIER_LIMITS.free` = 5 sets, 5 candidates in total (`max_candidates_total`), 5 AI-graded attempts (`ai_attempts_total`), hard stop at 100 % of 25 credits. Paid tiers: null (uncapped).
+- `TIER_LIMITS.free` = 5 sets, 5 candidates in total (`max_candidates_total`), 5 AI-graded attempts (`ai_attempts_total`), hard stop at 100 % of 250 credits (Z-95 scale). Paid tiers: null (uncapped).
 - Helpers (all no-ops while the flag is off): `assertCandidateTotalCap(tenantId, adding)`, `assertCandidateRoleChange(tenantId, userId, newRole)` (a role flip must not reset the count; added after the S32 gate), `assertAiAttemptAllowed(tenantId, attemptId?)` and the `FREE_PLAN_AI_DISABLED` kill switch (error code `AI_GRADING_DISABLED`).
 - `FEATURE_MIN_TIER.certificates` is now `free` (owner 2026-10-19). Webhooks, API keys, embed, audit viewer stay locked.
 - Callers: `apps/api` routes `admin-users.ts`, `invitations.ts`, `admin-super-evaluations.ts` (a pre-handler; `modules/07-ai-grading` is untouched).
@@ -215,10 +215,10 @@ WHERE p.tier='free' GROUP BY 1;
 
 ## Z-93 credit ledger (2026-10-20)
 
-- **What.** `credit_grants` (balance with expiry) and `credit_burns` (one row per graded attempt), migration 0215. Constants live only in `src/burn-rates.ts` (`BURN` mock 1, real 2, real with camera 3; `FREE_MONTHLY_CREDITS` 20; 12 months validity; low-balance ratio 0.2). SQL is in `src/credit-repository.ts`.
-- **Burn.** `recordGradedAttempt` calls `burnCredits` in the same transaction as the `billing_events` row. The test type comes from `attempts.delivery_mode` and `attempts.camera_enabled`. Grants are locked `FOR UPDATE` and used oldest-expiry first, split across grants when needed. It never throws on a short balance: the missing part is stored as `credit_burns.shortfall`. A repeat call for the same attempt does nothing. Unlimited tenants (`included_credits` NULL) and tenants without a plan row are skipped. Mock attempts burn 1 and never touch certificates.
+- **What.** `credit_grants` (balance with expiry) and `credit_burns` (one row per graded attempt), migration 0215. Constants live only in `src/burn-rates.ts` (`BURN` mock 10, real 20, real with camera 30 after Z-95; `FREE_MONTHLY_CREDITS` 200; 12 months validity; low-balance ratio 0.2). SQL is in `src/credit-repository.ts`.
+- **Burn.** `recordGradedAttempt` calls `burnCredits` in the same transaction as the `billing_events` row. The test type comes from `attempts.delivery_mode` and `attempts.camera_enabled`. Grants are locked `FOR UPDATE` and used oldest-expiry first, split across grants when needed. It never throws on a short balance: the missing part is stored as `credit_burns.shortfall`. A repeat call for the same attempt does nothing. Unlimited tenants (`included_credits` NULL) and tenants without a plan row are skipped. Mock attempts burn 10 and never touch certificates.
 - **Grants.** `grantCredits` (super admin, route `POST /api/admin/super/tenants/:tenantId/credits`) writes under the system role, then audits as `billing.credits_granted` under the app role in the same transaction (same two-role pattern as `updateTenantPlan`). `provisionDefaultPlan` also inserts the free monthly grant for the current month.
-- **Jobs (worker, no AI).** `credit-free-refill` on `10 0 1 * *`: zero the free grants of earlier months, add 20 credits for this month (unique index = idempotent, no rollover). `credit-expire` on `20 2 * * *`: zero `remaining` of expired grants.
+- **Jobs (worker, no AI).** `credit-free-refill` on `10 0 1 * *`: zero the free grants of earlier months, add 200 credits for this month (unique index = idempotent, no rollover). `credit-expire` on `20 2 * * *`: zero `remaining` of expired grants.
 - **Why.** Pay-per-credit plans need one balance with expiry and an audit trail. The old window counter stays for the existing usage banner.
 - **Considered and rejected.** A balance column on `tenant_plans` (no UPDATE policy there, no history). Failing grading on a short balance (revenue vs. availability: grading must not fail). One burn row per grant (kept one row per attempt).
 - **Not included.** Prices and invoices, low-balance e-mail (no existing helper that fits: skipped), rollover, refunds, any reader of `delivery_mode` (Z-89).
@@ -236,3 +236,11 @@ WHERE p.tier='free' GROUP BY 1;
 - **What.** `provisionDefaultPlanInTx(client, tenantId)` is the client-taking inner step of `provisionDefaultPlan` (same two inserts, no behaviour change). `provisionSelfServePlan(client, tenantId)` (`src/self-serve-plan.ts`) adds the sample-set entitlements: the latest published platform pack of each slug in `FREE_SAMPLE_PACK_SLUGS`, at most 5, through `insertEntitlement`. A slug with no published platform pack is skipped. Today only `campus-placement-aptitude` is listed.
 - **Why.** The Free plan, the monthly credit grant and the entitlements must commit with the new tenant (02-tenancy `createSelfServeTenant`). apps/api passes the function in.
 - **Not included.** The other four sample slugs (add them to `FREE_SAMPLE_PACK_SLUGS` when published). Cloning the packs into the tenant (the admin adds them from the catalog).
+
+## Credit scale x10 (Z-95, 2026-10-20)
+
+- **What.** Every credit amount is 10 times larger; 1 new credit = 1/10 of an old credit. `BURN` = mock 10, real 20, real with camera 30. `FREE_MONTHLY_CREDITS` = 200. `DEFAULT_FREE_CREDITS` = 250 (was 25). Migration 0225 multiplies existing `credit_grants.credits/remaining`, `credit_burns.credits/shortfall` and non-NULL `tenant_plans.included_credits` by 10 once (guard: a table comment on `credit_grants`; the `remaining_decrease_only` trigger is dropped and recreated inside the migration) and raises the app-role insert limit for a `free_monthly` grant to 200. Help rows: migration 0226.
+- **Old meter units.** The `billing_events` meter counts 1 row per graded attempt. It is now reported in credit units: `used` = attempts x `LEGACY_METER_UNITS_PER_ATTEMPT` (10), applied in the three SQL meters in `repository.ts` (`countBillingEvents` incl. the lifetime fallback, `getAllTenantUsageRaw`). So `computeUsage`, the usage banner, the hard-cap ratio and `TIER_LIMITS` keep their logic and compare like with like. `tools/free-tier-at-risk.sql` still counts attempts (25 attempts = 250 credits); only its comments changed.
+- **Why.** Finer pricing steps later without fractions.
+- **Rejected.** Changing only the price per credit (the monetary value would change for existing buyers).
+- **Not included.** Any change to the monetary value of a test, prices, or the rules (expiry, order, no rollover). Rollback is NOT automatic: divide the same columns by 10 and restore the policy limit 20.

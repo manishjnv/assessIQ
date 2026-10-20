@@ -10,6 +10,11 @@
 
 import type { PoolClient } from 'pg';
 import type { TenantPlanRow, BillingEventRow, TenantEntitlement, EntitlementScopeType } from './types.js';
+import { LEGACY_METER_UNITS_PER_ATTEMPT } from './burn-rates.js';
+
+// Z-95: `used` (old per-attempt meter) is reported in credit units so it compares
+// with included_credits, which is on the x10 scale. One graded attempt = 10 units.
+const U = LEGACY_METER_UNITS_PER_ATTEMPT;
 
 /**
  * Record a graded-attempt billing event.
@@ -91,7 +96,7 @@ export async function countBillingEvents(
   const result = await client.query<MeterCounts>(
     `SELECT
        ${CYCLE_WINDOW_START_SQL} AS cycle_window_start,
-       (SELECT COUNT(*)::int FROM billing_events b
+       (SELECT COUNT(*)::int * ${U} FROM billing_events b
          WHERE b.tenant_id = p.tenant_id AND b.event_type = 'assessment_graded'
            AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS used,
        (SELECT COUNT(*)::int FROM billing_events b
@@ -104,7 +109,7 @@ export async function countBillingEvents(
   const row = result.rows[0];
   if (row !== undefined) return row;
   const lifetime = await client.query<{ used: number; ai_used: number }>(
-    `SELECT COUNT(*) FILTER (WHERE event_type = 'assessment_graded')::int AS used,
+    `SELECT COUNT(*) FILTER (WHERE event_type = 'assessment_graded')::int * ${U} AS used,
             COUNT(*) FILTER (WHERE event_type = 'ai_answer_evaluated')::int AS ai_used
        FROM billing_events WHERE tenant_id = $1`,
     [tenantId],
@@ -230,7 +235,7 @@ export async function getAllTenantUsageRaw(
     ai_used: number;
   }>(
     `SELECT p.tenant_id, p.tier, p.included_credits,
-            (SELECT COUNT(*)::int FROM billing_events b
+            (SELECT COUNT(*)::int * ${U} FROM billing_events b
               WHERE b.tenant_id = p.tenant_id AND b.event_type = 'assessment_graded'
                 AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS used,
             (SELECT COUNT(*)::int FROM billing_events b

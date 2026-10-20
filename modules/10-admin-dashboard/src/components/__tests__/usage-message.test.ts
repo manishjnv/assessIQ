@@ -10,9 +10,9 @@ import type { CompanyUsage } from '../../api.js';
 function makeUsage(overrides: Partial<CompanyUsage>): CompanyUsage {
   return {
     tier: 'free',
-    included_credits: 25,
+    included_credits: 250,
     used: 0,
-    remaining: 25,
+    remaining: 250,
     overage: 0,
     status: 'ok',
     ...overrides,
@@ -33,30 +33,30 @@ describe('usageMessage', () => {
   });
 
   it('returns ok text with muted colour for status ok', () => {
-    const usage = makeUsage({ used: 10, remaining: 15, status: 'ok' });
+    const usage = makeUsage({ used: 100, remaining: 150, status: 'ok' });
     const result = usageMessage(usage);
     expect(result).not.toBeNull();
-    expect(result?.text).toContain('10 of 25');
+    expect(result?.text).toContain('100 of 250');
     expect(result?.color).toContain('muted');
   });
 
   it('returns warn text with amber colour and percentage for status warn', () => {
-    const usage = makeUsage({ used: 20, remaining: 5, status: 'warn' });
+    const usage = makeUsage({ used: 200, remaining: 50, status: 'warn' });
     const result = usageMessage(usage);
     expect(result).not.toBeNull();
-    expect(result?.text).toContain('20 of 25');
+    expect(result?.text).toContain('200 of 250');
     expect(result?.text).toContain('80%');
     expect(result?.text).toContain('Contact your platform operator');
     expect(result?.color).toContain('warning');
   });
 
   it('returns over text with danger colour and overage count for status over', () => {
-    const usage = makeUsage({ used: 30, remaining: -5, overage: 5, status: 'over' });
+    const usage = makeUsage({ used: 300, remaining: -50, overage: 50, status: 'over' });
     const result = usageMessage(usage);
     expect(result).not.toBeNull();
-    expect(result?.text).toContain('30 used');
-    expect(result?.text).toContain('25 included');
-    expect(result?.text).toContain('5 over');
+    expect(result?.text).toContain('300 used');
+    expect(result?.text).toContain('250 included');
+    expect(result?.text).toContain('50 over');
     expect(result?.text).toContain('contact your platform operator');
     expect(result?.color).toContain('danger');
   });

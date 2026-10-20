@@ -193,7 +193,7 @@ beforeAll(
 
       // Provision default free plan
       await client.query(
-        `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'free', 25)`,
+        `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'free', 250)`,
         [TENANT_ID],
       );
     });
@@ -226,7 +226,7 @@ async function runCheck(tenantId: string, packId: string): Promise<void> {
 describe('assertPublishEntitled — (a) domain entitlement resolves', () => {
   it.skipIf(!dockerAvailable)('resolves when an active domain-scope entitlement matches the pack domain', async () => {
     await resetTenantEntitlements(TENANT_ID);
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
     await insertEntitlement(TENANT_ID, 'domain', PACK_DOMAIN);
 
     await expect(runCheck(TENANT_ID, PACK_ID)).resolves.toBeUndefined();
@@ -240,7 +240,7 @@ describe('assertPublishEntitled — (a) domain entitlement resolves', () => {
 describe('assertPublishEntitled — (b) pack_id entitlement resolves', () => {
   it.skipIf(!dockerAvailable)('resolves when an active pack-scope entitlement matches the pack_id (domain not entitled)', async () => {
     await resetTenantEntitlements(TENANT_ID);
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
     // Only pack-scope — no domain entitlement
     await insertEntitlement(TENANT_ID, 'pack', PACK_ID);
 
@@ -255,7 +255,7 @@ describe('assertPublishEntitled — (b) pack_id entitlement resolves', () => {
 describe('assertPublishEntitled — (c) no entitlement throws 403', () => {
   it.skipIf(!dockerAvailable)('throws AppError with status 403 and code NOT_ENTITLED when no entitlement matches', async () => {
     await resetTenantEntitlements(TENANT_ID);
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
     // No entitlements at all
 
     const err = await runCheck(TENANT_ID, PACK_ID).then(
@@ -285,7 +285,7 @@ describe('assertPublishEntitled — (d) internal tier bypasses', () => {
     await expect(runCheck(TENANT_ID, PACK_ID)).resolves.toBeUndefined();
 
     // Restore free plan for subsequent tests
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
   });
 });
 
@@ -296,7 +296,7 @@ describe('assertPublishEntitled — (d) internal tier bypasses', () => {
 describe('assertPublishEntitled — (e) revoked entitlement is not active', () => {
   it.skipIf(!dockerAvailable)('throws 403 when the only matching entitlement has status=revoked', async () => {
     await resetTenantEntitlements(TENANT_ID);
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
     // Insert a revoked domain entitlement — must NOT count as entitled
     await insertEntitlement(TENANT_ID, 'domain', PACK_DOMAIN, 'revoked');
 
@@ -333,7 +333,7 @@ describe('assertPublishEntitled — (f) missing plan is fail-closed', () => {
     expect(appErr.code).toBe('NOT_ENTITLED');
 
     // Restore plan for subsequent tests
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
   });
 });
 
@@ -344,7 +344,7 @@ describe('assertPublishEntitled — (f) missing plan is fail-closed', () => {
 describe('assertPublishEntitled — (g) non-internal tier with valid domain grant resolves', () => {
   it.skipIf(!dockerAvailable)('resolves for free tier when domain entitlement is active', async () => {
     await resetTenantEntitlements(TENANT_ID);
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
     await insertEntitlement(TENANT_ID, 'domain', PACK_DOMAIN);
 
     await expect(runCheck(TENANT_ID, PACK_ID)).resolves.toBeUndefined();
@@ -357,7 +357,7 @@ describe('assertPublishEntitled — (g) non-internal tier with valid domain gran
 
 describe('tierAllows (FU-A3)', () => {
   it.skipIf(!dockerAvailable)('free tier: false for a pro-gated feature, true for nothing below free', async () => {
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
     await expect(tierAllows(TENANT_ID, 'webhooks')).resolves.toBe(false);
     await expect(tierAllows(TENANT_ID, 'certificates')).resolves.toBe(true); // owner 2026-10-19: certificates are on for Free
     await expect(tierAllows(TENANT_ID, 'api_keys')).resolves.toBe(false);
@@ -383,13 +383,13 @@ describe('tierAllows (FU-A3)', () => {
     await setTenantPlan(TENANT_ID, 'internal', null);
     await expect(tierAllows(TENANT_ID, 'api_keys')).resolves.toBe(true);
     // Restore for any subsequent file in the same suite.
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
   });
 
   it.skipIf(!dockerAvailable)('no plan row: fail-closed (false), not a bypass', async () => {
     await deleteTenantPlan(TENANT_ID);
     await expect(tierAllows(TENANT_ID, 'webhooks')).resolves.toBe(false);
     // Restore plan for subsequent tests.
-    await setTenantPlan(TENANT_ID, 'free', 25);
+    await setTenantPlan(TENANT_ID, 'free', 250);
   });
 });
