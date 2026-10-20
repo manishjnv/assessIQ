@@ -355,6 +355,9 @@ importers:
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../01-auth
+      '@assessiq/billing':
+        specifier: workspace:*
+        version: link:../19-billing
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
@@ -364,6 +367,9 @@ importers:
       '@assessiq/tenancy':
         specifier: workspace:*
         version: link:../02-tenancy
+      fastify:
+        specifier: ^5.12.2
+        version: 5.12.5
       ioredis:
         specifier: ^5.4.0
         version: 5.10.1
@@ -680,12 +686,18 @@ importers:
       '@assessiq/auth':
         specifier: workspace:*
         version: link:../01-auth
+      '@assessiq/billing':
+        specifier: workspace:*
+        version: link:../19-billing
       '@assessiq/core':
         specifier: workspace:*
         version: link:../00-core
       '@assessiq/tenancy':
         specifier: workspace:*
         version: link:../02-tenancy
+      fastify:
+        specifier: ^5.12.2
+        version: 5.12.5
       jose:
         specifier: ^6.2.12
         version: 6.2.12

@@ -73,8 +73,7 @@ Note on certificates: the owner decided certificates work on Free. The orchestra
 
 ## Known limits
 
-- Two clicks at the same time can both pass the count check (check then act, no lock). The super admin clicks Grade, so the window is small. A lock or a DB constraint is Z-71 work.
-- CSV import counts every valid row, including emails that already exist. A re-import of existing candidates can be refused on Free.
+- Race closed (Z-71, migration 0222): the candidate cap is enforced by `countCandidateOrRefuse` inside the creating transaction. Two parallel creates at count 4: one wins, one gets `TIER_LIMIT_REACHED`. CSV import counts only new user ids. The AI-attempt cap is still check then act.
 - Re-inviting an existing candidate by email counts as one new candidate.
 
 ## How to verify

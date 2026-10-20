@@ -24,6 +24,7 @@ import {
   listEntitlements,
   getTenantTier,
   countCandidatesEver,
+  recordCandidateCounted,
   countAiAttemptsEver,
   getPackEntitlementInfo,
   listActiveEntitlements,
@@ -875,6 +876,27 @@ export async function assertCandidateTotalCap(tenantId: string, adding = 1): Pro
     `Your plan allows at most ${limit} candidates in total. Contact your platform operator to upgrade.`,
     'TIER_LIMIT_REACHED',
     { tier, feature: 'max_candidates_total', limit, current },
+  );
+}
+
+/**
+ * Race-safe candidate cap (migration 0222). Call INSIDE the transaction (`client`) that creates
+ * the candidate user or invitation: a refusal throws, the transaction rolls back, and neither a
+ * user row nor a counted row survives. An already-counted user id does not count twice.
+ * No-op while the flag is off or the tier has no total cap.
+ */
+export async function countCandidateOrRefuse(client: PoolClient, tenantId: string, userId: string): Promise<void> {
+  if (!config.PLAN_TIERS_ENFORCED) return;
+  if (!tenantId) throw new ValidationError('tenantId is required for the candidate cap');
+  const tier = ((await getTenantTier(client, tenantId)) as PlanTier | null) ?? 'free'; // missing plan row = free
+  const limit = TIER_LIMITS[tier].max_candidates_total;
+  if (limit === null) return;
+  const current = await recordCandidateCounted(client, tenantId, userId);
+  if (current <= limit) return;
+  throw tierDenial(
+    `Your plan allows at most ${limit} candidates in total. Contact your platform operator to upgrade.`,
+    'TIER_LIMIT_REACHED',
+    { tier, feature: 'max_candidates_total', limit, current: current - 1 },
   );
 }
 

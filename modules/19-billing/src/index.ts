@@ -60,6 +60,7 @@ export {
   assertTierLimit,
   assertCreditsUnderHardCap,
   assertCandidateTotalCap,
+  countCandidateOrRefuse,
   assertCandidateRoleChange,
   assertAiAttemptAllowed,
   getTierLimits,

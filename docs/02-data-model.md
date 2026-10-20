@@ -2766,3 +2766,15 @@ A passage is shared stem text used by several question rows (reading text, data 
 | Not included | Prices, invoices, payment, low-balance e-mail, rollover of free credits, refunds, any code that reads `delivery_mode` (Z-89 UI and rules). |
 | Downstream impact | `recordGradedAttempt` (module 19) burns in the same transaction as the grade. `GET /api/billing/usage` gains a `credits` object. `erasure-coverage.test.ts` exempts `credit_grants.note`. Audit action `billing.credits_granted` added to the catalog. |
 | Rollback | Revert the code first. Then `DROP TABLE credit_burns, credit_grants` and drop the new columns; the credit data is lost. |
+
+## Z-71 (2026-10-20): `tenant_candidate_counted` (migration 0222, module 19)
+
+| Item | Detail |
+| --- | --- |
+| Table | `tenant_candidate_counted(tenant_id uuid NOT NULL REFERENCES tenants ON DELETE CASCADE, user_id uuid NOT NULL, counted_at timestamptz DEFAULT now(), PRIMARY KEY (tenant_id, user_id))`. No FK on `user_id` on purpose: erased and deleted candidates stay counted. |
+| RLS | SELECT and INSERT policies on `app.current_tenant`. `REVOKE UPDATE, DELETE, TRUNCATE` from `assessiq_app`: the table is append-only, so a delete never lowers the count. |
+| Backfill | One row for every existing `users` row with `role = 'candidate'` (soft-deleted and erased included). Idempotent (`ON CONFLICT DO NOTHING`). |
+| Why | The Free plan cap of 5 candidates was a check then act count of `users` rows. Two parallel creates at count 4 both passed. `countCandidateOrRefuse` (module 19) now takes a per-tenant advisory lock, inserts the user id once, counts the rows and throws `TIER_LIMIT_REACHED` above the cap, inside the transaction that creates the user. A refusal rolls back both rows. |
+| Rejected | A row-count check only (race stays). `SELECT ... FOR UPDATE` on `tenant_plans` (the app role has no UPDATE policy there). A lock-free counter column (needs UPDATE rights and a decrement rule). |
+| Not included | The AI-attempt allowance guard. The admins cap. |
+| Rollback | Revert the code, then `DROP TABLE tenant_candidate_counted`. The cap falls back to `assertCandidateTotalCap` (racy). |

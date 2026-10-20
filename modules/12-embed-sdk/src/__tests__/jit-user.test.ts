@@ -5,13 +5,24 @@
  *
  * INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import { setPoolForTesting, closePool } from '@assessiq/tenancy';
 import { AuthzError } from '@assessiq/core';
+const { cfg } = vi.hoisted(() => ({ cfg: { PLAN_TIERS_ENFORCED: false } }));
+vi.mock('@assessiq/core', async (orig) => {
+  const real = await orig<typeof import('@assessiq/core')>();
+  return {
+    ...real,
+    config: new Proxy(real.config, {
+      get: (t, k) => (k === 'PLAN_TIERS_ENFORCED' ? cfg.PLAN_TIERS_ENFORCED : (t as never)[k]),
+    }),
+  };
+});
+
 import { resolveJitUser } from '../jit-user.js';
 
 let pgContainer: StartedTestContainer;
@@ -142,5 +153,23 @@ describe('resolveJitUser (real insert path)', () => {
     const b = await resolveJitUser(input(t2, 'shared@embed.test'));
     expect(b.created).toBe(true);
     expect(b.userId).not.toBe(a.userId);
+  });
+});
+
+describe('resolveJitUser Free-plan candidate cap (flag on)', () => {
+  it('refuses the 6th new candidate, leaves no user row; flag off does nothing', async () => {
+    const t = await createTenant();
+    await sql(`INSERT INTO tenant_plans (tenant_id, tier) VALUES ($1, 'free')`, [t]);
+    cfg.PLAN_TIERS_ENFORCED = true;
+    try {
+      for (let i = 0; i < 5; i++) await resolveJitUser(input(t, `cap${i}@embed.test`));
+      await expect(resolveJitUser(input(t, 'cap6@embed.test'))).rejects.toMatchObject({ code: 'TIER_LIMIT_REACHED' });
+      const [n] = await sql<{ n: string }>(`SELECT COUNT(*) n FROM users WHERE tenant_id=$1`, [t]);
+      expect(Number(n!.n)).toBe(5);
+      cfg.PLAN_TIERS_ENFORCED = false;
+      await expect(resolveJitUser(input(t, 'cap7@embed.test'))).resolves.toMatchObject({ created: true });
+    } finally {
+      cfg.PLAN_TIERS_ENFORCED = false;
+    }
   });
 });

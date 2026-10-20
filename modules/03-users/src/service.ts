@@ -1,6 +1,7 @@
 import { streamLogger, NotFoundError, ValidationError, ConflictError, uuidv7, DEFAULT_MAX_PAGE_SIZE } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { auditInTx } from '@assessiq/audit-log';
+import { countCandidateOrRefuse } from '@assessiq/billing';
 import type {
   User,
   UserRole,
@@ -147,6 +148,8 @@ export async function createUser(
         status: input.role === 'candidate' ? 'active' : 'pending',
         metadata: input.metadata ?? {},
       });
+      // Free-plan total candidate cap, race-safe, same tx (a refusal rolls the insert back).
+      if (user.role === 'candidate') await countCandidateOrRefuse(client, tenantId, user.id);
       await auditInTx(client, {
         tenantId,
         actorKind: 'user',
@@ -249,6 +252,8 @@ export async function updateUser(
     if (patch.metadata !== undefined) repoPatch.metadata = patch.metadata;
 
     const updated = await repo.updateUserRow(client, id, repoPatch);
+    // A role flip to candidate counts toward the Free-plan cap (same tx; refusal rolls the update back).
+    if (patch.role === 'candidate' && current.role !== 'candidate') await countCandidateOrRefuse(client, tenantId, id);
 
     // Compute changed-fields list across the four mutable columns. This is
     // forensic diff metadata (cheap to query) and avoids logging full row
