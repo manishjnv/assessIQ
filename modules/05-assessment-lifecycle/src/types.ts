@@ -220,6 +220,8 @@ export interface Assessment {
   passing_score_pct: number;
   /** Z-39: attempts one candidate may make. null or 1 = no retake (default); 2..10 allowed. Draft-only edit. */
   max_attempts: number | null;
+  /** Z-89: default test type for invitations. 'real' = laptop/desktop only; 'mock' = any device, no certificate. */
+  delivery_mode: "real" | "mock";
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -259,6 +261,8 @@ export interface AssessmentInvitation {
   created_at: Date;
   /** Z-39: extra attempts an admin granted this candidate on top of assessments.max_attempts. */
   extra_attempts?: number;
+  /** Z-89: set by the admin at invite time; copied onto the attempt at start. */
+  delivery_mode: "real" | "mock";
   /** Z-39: attempts used / total allowed. Populated by listInvitationRows only. */
   attempts_used?: number;
   attempts_allowed?: number;
@@ -309,6 +313,8 @@ export interface CreateAssessmentInput {
   passing_score_pct?: number;
   /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. */
   max_attempts?: number | null;
+  /** Z-89: 'real' (default) or 'mock'. */
+  delivery_mode?: "real" | "mock";
   randomize?: boolean;     // defaults true
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -331,6 +337,8 @@ export interface CreateAssessmentFromSetInput {
   passing_score_pct?: number;
   /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. */
   max_attempts?: number | null;
+  /** Z-89: 'real' (default) or 'mock'. */
+  delivery_mode?: "real" | "mock";
   randomize?: boolean;
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -347,6 +355,8 @@ export interface UpdateAssessmentPatch {
   passing_score_pct?: number;
   /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. Draft only. */
   max_attempts?: number | null;
+  /** Z-89: 'real' (default) or 'mock'. */
+  delivery_mode?: "real" | "mock";
   randomize?: boolean;
   opens_at?: Date | null;
   closes_at?: Date | null;

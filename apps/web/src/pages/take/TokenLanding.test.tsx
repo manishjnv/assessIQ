@@ -227,3 +227,74 @@ describe('TokenLanding pre-test screen', () => {
     expect(screen.queryByRole('img', { name: /logo/i })).toBeNull();
   });
 });
+
+// Z-87 / Z-89 / Z-91: the page shows the right screen for each test type; the server still enforces.
+describe('TokenLanding test type (Z-87, Z-89, Z-91)', () => {
+  const DESKTOP_UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+  const IPHONE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1';
+  const withMode = (mode: 'real' | 'mock') => ({
+    ...PREVIEW,
+    assessment: { ...PREVIEW.assessment, delivery_mode: mode },
+  });
+  const useDevice = (ua: string, width: number): void => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(ua);
+    vi.stubGlobal('screen', { width, height: width > 900 ? 1080 : 800 });
+  };
+
+  it('real exam on a phone: the plain message replaces Begin', async () => {
+    useDevice(IPHONE_UA, 390);
+    takePreview.mockResolvedValue(withMode('real'));
+    renderLanding();
+    await screen.findByText('Please open this link on a laptop or desktop computer to take this test');
+    expect(screen.queryByRole('button', { name: /Begin/i })).toBeNull();
+    expect(takeStart).not.toHaveBeenCalled();
+  });
+
+  it('real exam on a desktop: Begin waits for the readiness check, then sends the signals', async () => {
+    useDevice(DESKTOP_UA, 1920);
+    takePreview.mockResolvedValue(withMode('real'));
+    renderLanding();
+    await screen.findByText('Readiness check');
+    await waitFor(() => expect(screen.getAllByText('Pass').length).toBe(4));
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(beginBtn().disabled).toBe(false);
+    fireEvent.click(beginBtn());
+    await screen.findByText('ATTEMPT PAGE');
+    const body = takeStart.mock.calls[0]![1] as { readiness: { screenWidth: number; browser: { name: string } } };
+    expect(body.readiness.screenWidth).toBe(1920);
+    expect(body.readiness.browser.name).toBe('chrome');
+  });
+
+  it('real exam on a small screen: readiness fails and Begin stays disabled', async () => {
+    useDevice(DESKTOP_UA, 1000);
+    takePreview.mockResolvedValue(withMode('real'));
+    renderLanding();
+    await screen.findByText(/Your screen is too small/);
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(beginBtn().disabled).toBe(true);
+  });
+
+  it('mock test: labelled Mock, readiness is an optional rehearsal that never blocks Begin', async () => {
+    useDevice(IPHONE_UA, 390);
+    takePreview.mockResolvedValue(withMode('mock'));
+    renderLanding();
+    await screen.findByText('Mock test');
+    await screen.findByText('Dress rehearsal (optional)');
+    fireEvent.click(screen.getByRole('checkbox'));
+    expect(beginBtn().disabled).toBe(false);
+  });
+
+  it('server answer DEVICE_NOT_ALLOWED shows the same plain message', async () => {
+    useDevice(DESKTOP_UA, 1920);
+    takePreview.mockResolvedValue(withMode('real'));
+    const { CandidateApiError } = await import('@assessiq/candidate-ui');
+    takeStart.mockRejectedValue(new CandidateApiError(403, { code: 'DEVICE_NOT_ALLOWED', message: 'x' }));
+    renderLanding();
+    await waitFor(() => expect(screen.getAllByText('Pass').length).toBe(4));
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(beginBtn());
+    await screen.findByRole('alert');
+    expect(screen.getAllByText('Please open this link on a laptop or desktop computer to take this test').length).toBeGreaterThan(0);
+  });
+});

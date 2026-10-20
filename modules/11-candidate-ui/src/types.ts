@@ -147,6 +147,8 @@ export interface TakePreviewResponseWire {
     /** Z-39: the attempt this page is about and how many the candidate may make. Absent on older servers. */
     attempt_number?: number;
     attempts_allowed?: number;
+    /** Z-89: set by the admin; the page shows the right screen before start. Absent on older servers. */
+    delivery_mode?: "real" | "mock";
   };
 }
 
@@ -230,6 +232,8 @@ export interface AttemptResultReleasedWire {
   released_at: string;
   /** Z-16: pass mark (1-100) snapshot for this result. Absent on older servers: hide the number. */
   pass_mark_pct?: number;
+  /** Z-89: 'mock' results are labelled Mock. Absent on older servers = real. */
+  delivery_mode?: "real" | "mock";
   certificate: ResultCertificateWire | null;
   negative_marking?: ResultNegativeMarkingWire;
   /** Z-42: marks per section; absent when the test has no sections or the server is older. */
@@ -266,6 +270,8 @@ export interface MyResultItemWire {
   passed: boolean;
   /** Z-16: pass mark (1-100) snapshot for this result. Absent on older servers: hide the number. */
   pass_mark_pct?: number;
+  /** Z-89: 'mock' results get a Mock badge. */
+  delivery_mode?: "real" | "mock";
   certificate: ResultCertificateWire | null;
   negative_marking?: ResultNegativeMarkingWire;
   /** Z-12: true until the candidate opens this result. */

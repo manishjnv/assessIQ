@@ -734,3 +734,44 @@ candidate.attempt.key_shortcuts:
     - **Clear the box to turn the keys off.** Then P and N do nothing. This stops
       accidental moves if you use speech input or press keys by mistake.
     - **Your choice stays on this browser.** It does not change your answers.
+
+# ─── Mock test, readiness check, laptop-only message (Z-89, Z-91, Z-87) ───
+
+candidate.intro.test_type_mock:
+  audience: candidate
+  short_text: "This is a mock test. It is practice: it gives no certificate and does not count as the real exam."
+  long_md: |
+    ## Mock test
+
+    This is a practice run of the test. You can take it on any device.
+
+    - **No certificate.** A mock test does not give a certificate.
+    - **Labelled.** Your result shows a Mock label.
+    - **Real exam later.** The real exam needs a laptop or desktop computer.
+
+candidate.intro.readiness:
+  audience: candidate
+  short_text: "A quick check of your device, screen, browser and internet. Fix any item marked Fix needed, then select Retry."
+  long_md: |
+    ## Readiness check
+
+    Before a real exam, AssessIQ checks that your device is ready.
+
+    - **Laptop or desktop.** Phones and tablets cannot take a real exam.
+    - **Screen size.** Use a screen of at least 1024 by 600 pixels.
+    - **Browser.** Use a recent Chrome, Edge, Firefox or Safari.
+    - **Internet speed.** A slow connection can lose your answers.
+
+    Select **Retry** after you fix an item. You can begin when every item passes.
+    For a mock test, this check is optional practice and never stops you.
+
+candidate.intro.device_blocked:
+  audience: candidate
+  short_text: "Please open this link on a laptop or desktop computer to take this test."
+  long_md: |
+    ## Open this link on a laptop or desktop
+
+    A real exam cannot start on a phone or tablet.
+
+    - **Your invitation is safe.** It is not used up.
+    - **What to do.** Open the same link on a laptop or desktop computer.

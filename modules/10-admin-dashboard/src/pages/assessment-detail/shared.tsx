@@ -23,6 +23,8 @@ export interface Assessment {
   passing_score_pct?: number;
   /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. */
   max_attempts?: number | null;
+  /** Z-89: default test type for new invitations. */
+  delivery_mode?: "real" | "mock";
 }
 
 export interface Invitation {
@@ -51,6 +53,8 @@ export interface Invitation {
   can_reopen?: boolean;
   /** Z-39: Give extra attempt is allowed. */
   can_grant_extra?: boolean;
+  /** Z-89: 'mock' invitations show a Mock badge. */
+  delivery_mode?: "real" | "mock";
 }
 
 /** API cap for /admin/assessments/:id/invitations (routes.ts parsePagination). */

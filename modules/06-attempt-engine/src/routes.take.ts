@@ -53,6 +53,8 @@ import {
 } from "@assessiq/assessment-lifecycle";
 import { isIP } from "node:net";
 import { getTakePreview, recordTakeConsent, startAttempt } from "./service.js";
+import { isMobileOrTabletClient } from "./device.js";
+import { evaluateReadiness, parseReadinessSignals } from "./readiness.js";
 
 const log = streamLogger("app");
 
@@ -68,6 +70,14 @@ const NOT_FOUND_ENVELOPE = {
   error: {
     code: "INVITATION_NOT_FOUND",
     message: "The invitation link is invalid, expired, or already used.",
+  },
+};
+
+/** Z-87: a REAL exam cannot be started from a phone or tablet. The invitation stays valid and unused. */
+const DEVICE_NOT_ALLOWED_ENVELOPE = {
+  error: {
+    code: "DEVICE_NOT_ALLOWED",
+    message: "Please open this link on a laptop or desktop computer to take this test",
   },
 };
 
@@ -151,6 +161,10 @@ export async function registerAttemptTakeRoutes(
     token?: unknown;
     preview?: unknown;
     consent?: unknown;
+    /** Z-87: optional client signals {coarsePointerOnly, maxTouchPoints, screenWidth}; malformed = ignored. */
+    device?: unknown;
+    /** Z-91: optional readiness signals; required for a REAL exam's new attempt. */
+    readiness?: unknown;
   }
 
   app.post<{ Body: TakeStartBody }>(
@@ -259,6 +273,8 @@ export async function registerAttemptTakeRoutes(
         // Z-39: 'Attempt n of m' on the welcome page. allowed = 1 when the assessment has no retake.
         attempt_number: pv.attemptNumber,
         attempts_allowed: pv.attemptsAllowed,
+        // Z-89: the page picks the right screen before start. Set by the admin; read-only for the candidate.
+        delivery_mode: pv.deliveryMode,
       };
       if (body.preview === true) {
         return reply.code(200).send({
@@ -268,6 +284,19 @@ export async function registerAttemptTakeRoutes(
           assessment: assessmentShape,
         });
       }
+      // Z-87: a REAL exam is laptop/desktop only. Enforced HERE, before any session or attempt
+      // exists, so a hand-made request cannot skip the page check. Mock tests are never blocked.
+      if (
+        pv.deliveryMode === "real" &&
+        isMobileOrTabletClient({
+          userAgent: req.headers["user-agent"],
+          secChUaMobile: req.headers["sec-ch-ua-mobile"] as string | undefined,
+          reported: body.device,
+        })
+      ) {
+        log.info({ tokenTrace: tokenLogTrace(token), outcome: "device_not_allowed" }, "/take/start");
+        return reply.code(403).send(DEVICE_NOT_ALLOWED_ENVELOPE);
+      }
       if (pv.existing === null && body.consent !== true) {
         return reply.code(422).send({
           error: {
@@ -275,6 +304,37 @@ export async function registerAttemptTakeRoutes(
             message: "Please accept the consent statement before beginning.",
           },
         });
+      }
+
+      // Z-91: readiness gate for a NEW attempt. Real = required and must pass; mock = optional,
+      // never refused, stored when sent. A resume needs no check. The server decides from the
+      // raw signals; the page's own verdict is not sent and not trusted.
+      let readinessRecord: Record<string, unknown> | undefined;
+      if (pv.existing === null) {
+        const signals = parseReadinessSignals(body.readiness);
+        if (signals === null) {
+          if (pv.deliveryMode === "real") {
+            return reply.code(422).send({
+              error: {
+                code: "READINESS_FAILED",
+                message: "Run the readiness check first",
+                failed: [],
+              },
+            });
+          }
+        } else {
+          const verdict = evaluateReadiness(signals);
+          if (!verdict.passed && pv.deliveryMode === "real") {
+            return reply.code(422).send({
+              error: {
+                code: "READINESS_FAILED",
+                message: "Your device is not ready for this test",
+                failed: verdict.failed,
+              },
+            });
+          }
+          readinessRecord = { passed: verdict.passed, at: new Date().toISOString(), signals, failed: verdict.failed };
+        }
       }
 
       // Mint candidate session BEFORE startAttempt so the session_id is
@@ -308,6 +368,7 @@ export async function registerAttemptTakeRoutes(
           // Z-39: the preview showed no resumable attempt, so Begin means "start the next one".
           // startAttempt still refuses unless attempts are left; an unfinished attempt is resumed.
           newAttempt: pv.existing === null,
+          ...(readinessRecord !== undefined ? { readiness: readinessRecord } : {}),
         });
       } catch (err) {
         // Translate domain failures (assessment not active, pool too small,

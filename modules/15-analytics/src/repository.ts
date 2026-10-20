@@ -61,7 +61,8 @@ export async function queryHomeKpis(client: PoolClient, tenantId: string): Promi
     // Z-39: candidates who sat a test this week; three retakes count once per assessment.
     `SELECT COUNT(DISTINCT (assessment_id, user_id))::text AS count
      FROM attempts
-     WHERE created_at >= now() - interval '7 days'`,
+     WHERE created_at >= now() - interval '7 days'
+       AND delivery_mode = 'real'`, // Z-89
   );
   const attemptsThisWeek = parseInt(attemptsWeekResult.rows[0]?.count ?? '0', 10);
 
@@ -397,6 +398,7 @@ export async function queryTopicHeatmap(
      JOIN gradings g ON g.attempt_id = a.id AND g.question_id = aq.question_id
      WHERE ${conditions.join(' AND ')}
        AND a.status IN ('submitted','pending_admin_grading','graded','released')
+       AND a.delivery_mode = 'real' -- Z-89: real-exam heatmap
      GROUP BY q.topic
      ORDER BY q.topic`,
     params,

@@ -327,6 +327,7 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
       percent: 70,
       passed: true,
       pass_mark_pct: 60,
+      delivery_mode: "real", // Z-89
       assessment_name: "SOC Analyst L1",
       released_at: "2026-10-01T10:00:00.000Z",
       certificate: null,
@@ -460,7 +461,7 @@ describe("listCandidateResults", () => {
     expect(items.map((i) => i.attempt_id)).not.toContain(other.attemptId);
     expect(items.map((i) => i.total_earned)).not.toContain(59); // the provisional 'graded' score never appears
     expect(Object.keys(items[0]!).sort()).toEqual( // nothing per-question, no bands / justifications
-      ["assessment_name", "attempt_id", "certificate", "is_new", "negative_marking", "pass_mark_pct", "passed", "percent", "released_at", "total_earned", "total_max"],
+      ["assessment_name", "attempt_id", "certificate", "delivery_mode", "is_new", "negative_marking", "pass_mark_pct", "passed", "percent", "released_at", "total_earned", "total_max"],
     );
   });
 

@@ -283,3 +283,15 @@ Each step also carries `points` and `negative_marks` when the author set them. T
 - **Imports.** Reads module 04 through `qbRepo.findQuestionById` (same relative import `startAttempt` already uses). No new table, FK or column.
 - **Not included.** Rescoring, notifying candidates, per-version diff, paging beyond 200.
 - **Tests.** `src/__tests__/affected-attempts.test.ts`.
+
+## Test type, desktop-only rule and readiness check (Z-87, Z-89, Z-91, 2026-10-20)
+
+- **What.** `startAttempt` reads `delivery_mode` from the invitation row (under the row lock) and writes it to `attempts.delivery_mode`. No request field can set or change it. `camera_enabled` stays false (Wave 2). `StartAttemptInput.readiness` is stored in `attempts.readiness` in the same transaction. The retake limit counts only attempts of the same mode (`countAttemptsByMode`). `getTakePreview` returns `deliveryMode`.
+- **Device gate.** `src/device.ts` `isMobileOrTabletClient({ userAgent, secChUaMobile, reported })` is pure. True for `Sec-CH-UA-Mobile: ?1`, a phone/tablet user agent, or reported signals (coarse pointer only with touch points, or screen width under 900). `POST /take/start` runs it for a REAL invitation before the session and the attempt: `403 DEVICE_NOT_ALLOWED`. The invitation stays unused. Mock is never blocked.
+- **Readiness gate.** `src/readiness.ts` `evaluateReadiness(signals)` is pure (screen at least 1024 by 600, a recent Chrome/Edge/Firefox/Safari, downlink at least 0.5 Mbps when reported). A new real attempt without a passing `readiness` body field gets `422 READINESS_FAILED` with plain messages. A mock is never refused and stores what it sends.
+- **Why on the server.** The page shows the same checks early, but a hand-made request must not skip them. The numbers live in two places (server constants and `apps/web/src/pages/take/readiness.ts`); change both.
+- **Rejected.** Trusting only the client check. A per-organisation opt-out (owner: none). A secure or lockdown browser. Reading the mode from the request.
+- **Known limit.** "Request desktop site" can hide a phone user agent; the touch and screen signals and the readiness check narrow this but a determined user can still send false numbers. The camera (Wave 2) closes this for proctored exams.
+- **Not included.** Camera, photos, video. Certificates for mocks (module 09 skips them). Report filters (module 15).
+- **Result views.** `ReleasedResult` and `ResultListItem` add `delivery_mode` so the UI shows a Mock label.
+- **Tests.** `src/__tests__/device-readiness.test.ts` (pure rules) and the Z-87/89/91 cases in `attempt-engine.test.ts` (403, mode copy, 422, per-mode allowance).

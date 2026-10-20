@@ -269,6 +269,20 @@ describe("releaseAttemptInTx — happy path", () => {
   });
 });
 
+describe("Z-89: a mock attempt never makes a certificate", () => {
+  it("a mock pass releases (status released, audit row) without any certificate; the same score as a real exam gets one", async () => {
+    const mock = await seed({ pct: 95 });
+    await sup((c) => c.query(`UPDATE attempts SET delivery_mode = 'mock' WHERE id = $1`, [mock.attemptId]));
+    expect(await release(mock.attemptId, userActor())).toEqual({ released: true });
+    expect(await status(mock.attemptId)).toBe("released");
+    expect(await certs(mock.attemptId)).toHaveLength(0);
+
+    const real = await seed({ pct: 95 });
+    await release(real.attemptId, userActor());
+    expect(await certs(real.attemptId)).toHaveLength(1);
+  });
+});
+
 describe("Z-16: per-assessment pass mark drives the certificate (boundaries, tier, snapshot)", () => {
   // [score %, pass mark %, expected tier or null for a fail]
   it.each([

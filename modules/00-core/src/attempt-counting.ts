@@ -7,6 +7,8 @@
 //      (a pending retake never hides an earlier released result).
 //   2. 'best' = highest score percent among those; ties and 'latest' = highest attempt_number.
 //   3. A candidate with no released attempt counts by the newest attempt (workload counts).
+// Z-89: only REAL-exam attempts count. A mock attempt is never chosen, and never hides a real one,
+// so every report that uses this predicate stays a real-exam report.
 // It only chooses a row. It never changes a score and never reads a setting from the client.
 
 /** Same visibility rule as 09 TENANT_VISIBLE_ATTEMPT_SQL, on alias `ca`. */
@@ -18,11 +20,12 @@ const VISIBLE_CA = "(ca.status = 'released' OR (ca.status = 'graded' AND ca.eval
  */
 export function countingAttemptSql(alias = "a"): string {
   if (!/^[a-z_][a-z0-9_]*$/i.test(alias)) throw new Error("countingAttemptSql: bad alias");
-  return `${alias}.id = (
+  return `${alias}.delivery_mode = 'real' AND ${alias}.id = (
     SELECT ca.id FROM attempts ca
       JOIN assessments cm ON cm.id = ca.assessment_id
       LEFT JOIN attempt_scores cs ON cs.attempt_id = ca.id
      WHERE ca.assessment_id = ${alias}.assessment_id AND ca.user_id = ${alias}.user_id
+       AND ca.delivery_mode = 'real'
      ORDER BY (CASE WHEN ${VISIBLE_CA} THEN 1 ELSE 0 END) DESC,
               (CASE WHEN ${VISIBLE_CA} AND cm.settings->>'score_counts' = 'best' AND cs.total_max > 0
                     THEN cs.total_earned / cs.total_max END) DESC NULLS LAST,

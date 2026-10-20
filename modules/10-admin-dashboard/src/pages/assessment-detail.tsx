@@ -47,6 +47,7 @@ import { SectionsCard } from "../components/SectionsCard.js";
 import { HighStakesCard } from "../components/HighStakesCard.js";
 import { NegativeMarksCard } from "../components/NegativeMarksCard.js";
 import { PassMarkCard } from "../components/PassMarkCard.js";
+import { TestTypeCard } from "../components/TestTypeCard.js";
 import { RetakeCard } from "../components/RetakeCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
@@ -71,6 +72,8 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  // Z-89: test type for this batch. Starts at the assessment's own default each time the form opens.
+  const [inviteMode, setInviteMode] = useState<"real" | "mock">("real");
 
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -274,7 +277,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
     try {
       await adminApi(`/admin/assessments/${id}/invite`, {
         method: "POST",
-        body: JSON.stringify({ user_ids: Array.from(selectedUserIds) }),
+        body: JSON.stringify({ user_ids: Array.from(selectedUserIds), delivery_mode: inviteMode }),
       });
       setSelectedUserIds(new Set());
       setShowInviteForm(false);
@@ -641,6 +644,12 @@ export function AdminAssessmentDetail(): React.ReactElement {
           handleResendAll={handleResendAll}
         />
 
+        <TestTypeCard
+          key={`tt-${assessment.id}`}
+          assessmentId={assessment.id}
+          initial={assessment.delivery_mode ?? "real"}
+          isDraft={assessment.status === "draft"}
+        />
         <PassMarkCard
           key={`pm-${assessment.id}`}
           assessmentId={assessment.id}
@@ -709,6 +718,9 @@ export function AdminAssessmentDetail(): React.ReactElement {
           selectedUserIds={selectedUserIds}
           toggleUser={toggleUser}
           inviteError={inviteError}
+          inviteMode={inviteMode}
+          setInviteMode={setInviteMode}
+          defaultInviteMode={assessment.delivery_mode ?? "real"}
           inviting={inviting}
           resendable={resendable}
           resendResult={resendResult}

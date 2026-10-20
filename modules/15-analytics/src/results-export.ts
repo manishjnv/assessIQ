@@ -72,6 +72,7 @@ export async function buildAssessmentResultsCsv(
             WHERE assessment_id = i.assessment_id AND user_id = i.user_id
             ORDER BY created_at DESC LIMIT 1) at ON true
         WHERE i.assessment_id = $1
+          AND i.delivery_mode = 'real' -- Z-89: mock invitations stay out of the real-exam results file
         ORDER BY lower(u.name), u.email
         LIMIT ${RESULTS_ROW_CAP}`,
       [assessmentId],

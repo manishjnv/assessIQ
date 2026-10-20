@@ -22,6 +22,10 @@ export interface InvitationsSectionProps {
   selectedUserIds: Set<string>;
   toggleUser: (userId: string) => void;
   inviteError: string | null;
+  /** Z-89: test type for this batch (default = the assessment's own). */
+  inviteMode: "real" | "mock";
+  setInviteMode: Dispatch<SetStateAction<"real" | "mock">>;
+  defaultInviteMode: "real" | "mock";
   inviting: boolean;
   resendable: number;
   resendResult: ResendAllResponse | null;
@@ -47,7 +51,7 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
   const {
     id, resultsSort, setResultsSort, showInviteForm, setShowInviteForm, setInviteError,
     setSelectedUserIds, fetchData, handleInvite, uninvitedUsers, selectedUserIds, toggleUser,
-    inviteError, inviting, resendable, resendResult, resendError, setResendError,
+    inviteError, inviteMode, setInviteMode, defaultInviteMode, inviting, resendable, resendResult, resendError, setResendError,
     setShowResendAll, resendingAll, resendingId, invitations, invitationColumns,
     sortedInvitations, sortBy, setSortBy, sortDir, setSortDir, invPage, invPaging,
     invTotal, goToInvPage,
@@ -110,6 +114,7 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
               setShowInviteForm((v) => !v);
               setInviteError(null);
               setSelectedUserIds(new Set());
+              setInviteMode(defaultInviteMode);
             }}
           >
             {showInviteForm ? "Cancel" : "+ Invite candidates"}
@@ -156,6 +161,36 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
             </p>
           ) : (
             <>
+              <fieldset
+                data-help-id="admin.assessment.invite.test_type"
+                style={{
+                  border: "none",
+                  padding: 0,
+                  margin: "0 0 var(--aiq-space-md)",
+                  fontFamily: "var(--aiq-font-sans)",
+                  fontSize: "var(--aiq-text-sm)",
+                }}
+              >
+                <legend style={{ fontWeight: 600, marginBottom: "var(--aiq-space-xs)" }}>Test type</legend>
+                <label style={{ display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}>
+                  <input
+                    type="radio"
+                    name="invite-test-type"
+                    checked={inviteMode === "real"}
+                    onChange={() => setInviteMode("real")}
+                  />
+                  Real exam (laptop or desktop only)
+                </label>
+                <label style={{ display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}>
+                  <input
+                    type="radio"
+                    name="invite-test-type"
+                    checked={inviteMode === "mock"}
+                    onChange={() => setInviteMode("mock")}
+                  />
+                  Mock test (any device, no certificate)
+                </label>
+              </fieldset>
               <p
                 style={{
                   fontFamily: "var(--aiq-font-sans)",

@@ -58,11 +58,17 @@ export async function takePreview(
  */
 export async function takeStart(
   token: string,
-  opts: { consent?: boolean } = {},
+  opts: { consent?: boolean; device?: unknown; readiness?: unknown } = {},
 ): Promise<TakeStartResponseWire> {
+  // Z-87 / Z-91: device and readiness signals ride along; the server decides (the page is not trusted).
   return call<TakeStartResponseWire>("/take/start", {
     method: "POST",
-    body: JSON.stringify({ token, ...(opts.consent === true ? { consent: true } : {}) }),
+    body: JSON.stringify({
+      token,
+      ...(opts.consent === true ? { consent: true } : {}),
+      ...(opts.device !== undefined ? { device: opts.device } : {}),
+      ...(opts.readiness !== undefined ? { readiness: opts.readiness } : {}),
+    }),
     base: "",
   });
 }

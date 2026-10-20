@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { formatDate, formatDateTime } from "@assessiq/ui-system";
+import { Chip, formatDate, formatDateTime } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { invitationExpiry, invitationStatusColor, invitationStatusLabel, type Invitation } from "./shared.js";
 
@@ -64,6 +64,9 @@ export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onRes
             >
               {invitationStatusLabel(row.status)}
             </span>
+            {row.delivery_mode === "mock" && (
+              <Chip variant="default">Mock</Chip>
+            )}
             {expiry !== null && (
               <span
                 style={{

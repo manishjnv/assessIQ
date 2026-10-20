@@ -5312,3 +5312,15 @@ admin.locked.contact:
     - **What.** This feature is not in your plan.
     - **Next step.** Select **Contact us**. It opens the AssessIQ contact page.
     - **Nothing changes.** Your settings stay as they are.
+
+# ─── Test type: real exam or mock test (Z-89) ───
+admin.assessment.invite.test_type:
+  audience: admin
+  short_text: "Real exam: laptop or desktop only, counts in reports. Mock test: any device, no certificate."
+  long_md: |
+    ## Test type
+
+    - **Real exam.** The candidate must use a laptop or desktop. The candidate passes a readiness check before Begin. Results count in your reports and can earn a certificate.
+    - **Mock test.** The candidate can use any device. Results show a Mock label. A mock gives no certificate and stays out of your real-exam reports.
+    - **You choose.** You pick the type when you invite. The candidate cannot change it.
+    - **Attempts.** A mock does not use up the attempts of a real exam.

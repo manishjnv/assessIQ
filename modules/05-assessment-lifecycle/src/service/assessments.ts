@@ -137,6 +137,7 @@ export async function createAssessment(
   assertSectionsSettings(input.settings);
   if (input.passing_score_pct !== undefined) assertPassMark(input.passing_score_pct);
   if (input.max_attempts !== undefined) assertMaxAttempts(input.max_attempts);
+  if (input.delivery_mode !== undefined) assertDeliveryMode(input.delivery_mode);
   assertScoreCounts(input.settings);
   let resolvedInput = input;
   let mergedSettings: AssessmentSettings = input.settings ?? {};
@@ -238,6 +239,7 @@ export async function createAssessment(
       // Z-16: explicit mark wins; else the level's value (clamped: levels allow 0).
       passingScorePct: input.passing_score_pct ?? Math.min(100, Math.max(1, level.passing_score_pct)),
       maxAttempts: input.max_attempts ?? null,
+      deliveryMode: input.delivery_mode ?? "real",
       randomize: resolvedInput.randomize ?? true,
       opensAt: resolvedInput.opens_at ?? null,
       closesAt: resolvedInput.closes_at ?? null,
@@ -260,6 +262,7 @@ export async function createAssessment(
         question_count: assessment.question_count,
         passing_score_pct: assessment.passing_score_pct,
         max_attempts: assessment.max_attempts,
+        delivery_mode: assessment.delivery_mode,
         randomize: assessment.randomize,
         status: assessment.status,
         has_blueprint: rawBlueprint !== undefined,
@@ -290,6 +293,15 @@ export function assertPassMark(v: unknown): asserts v is number {
   if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > 100) {
     throw new ValidationError("passing_score_pct must be a whole number from 1 to 100", {
       details: { code: "INVALID_PARAM", param: "passing_score_pct" },
+    });
+  }
+}
+
+/** Z-89: delivery_mode is 'real' or 'mock'; anything else is a 400. */
+export function assertDeliveryMode(v: unknown): asserts v is "real" | "mock" {
+  if (v !== "real" && v !== "mock") {
+    throw new ValidationError("delivery_mode must be 'real' or 'mock'", {
+      details: { code: "INVALID_PARAM", param: "delivery_mode" },
     });
   }
 }
@@ -388,6 +400,7 @@ export async function createAssessmentFromSet(
   if (input.randomize !== undefined) createInput.randomize = input.randomize;
   if (input.passing_score_pct !== undefined) createInput.passing_score_pct = input.passing_score_pct;
   if (input.max_attempts !== undefined) createInput.max_attempts = input.max_attempts;
+  if (input.delivery_mode !== undefined) createInput.delivery_mode = input.delivery_mode;
   if (input.settings !== undefined) {
     // from-set resolves pack/level from the CLONED set. A blueprint would
     // override that and is a super_admin-only authoring capability (enforced at
@@ -571,6 +584,7 @@ export async function updateAssessment(
   assertSectionsSettings(patch.settings);
   if (patch.passing_score_pct !== undefined) assertPassMark(patch.passing_score_pct);
   if (patch.max_attempts !== undefined) assertMaxAttempts(patch.max_attempts);
+  if (patch.delivery_mode !== undefined) assertDeliveryMode(patch.delivery_mode);
   assertScoreCounts(patch.settings);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
   let validatedBlueprint: ResolvedBlueprint | null = null;
@@ -655,6 +669,7 @@ export async function updateAssessment(
     if (patch.description !== undefined) repoPatch.description = patch.description;
     if (patch.passing_score_pct !== undefined) repoPatch.passingScorePct = patch.passing_score_pct;
     if (patch.max_attempts !== undefined) repoPatch.maxAttempts = patch.max_attempts;
+    if (patch.delivery_mode !== undefined) repoPatch.deliveryMode = patch.delivery_mode;
     if (patch.randomize !== undefined) repoPatch.randomize = patch.randomize;
     if (patch.opens_at !== undefined) repoPatch.opensAt = patch.opens_at;
     if (patch.closes_at !== undefined) repoPatch.closesAt = patch.closes_at;
@@ -687,6 +702,7 @@ export async function updateAssessment(
         question_count: current.question_count,
         passing_score_pct: current.passing_score_pct,
         max_attempts: current.max_attempts,
+        delivery_mode: current.delivery_mode,
         randomize: current.randomize,
         opens_at: current.opens_at?.toISOString() ?? null,
         closes_at: current.closes_at?.toISOString() ?? null,
@@ -696,6 +712,7 @@ export async function updateAssessment(
         question_count: updated.question_count,
         passing_score_pct: updated.passing_score_pct,
         max_attempts: updated.max_attempts,
+        delivery_mode: updated.delivery_mode,
         randomize: updated.randomize,
         opens_at: updated.opens_at?.toISOString() ?? null,
         closes_at: updated.closes_at?.toISOString() ?? null,
