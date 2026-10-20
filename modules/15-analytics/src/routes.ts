@@ -48,6 +48,7 @@ import { processRefreshMvJob } from './refresh-mv-job.js';
 import { getQuestionStats } from './question-stats.js';
 import { registerActivityRoutes } from './activity/index.js';
 import { registerActivityCandidateRoutes } from './activity-candidate/index.js';
+import { registerMockRoutes } from './mock/index.js';
 
 // ---------------------------------------------------------------------------
 // Convenience session accessor (matches the cast pattern across all modules)
@@ -430,6 +431,8 @@ export async function registerAnalyticsRoutes(
   // Each endpoint owns its full vertical slice in src/activity/<name>.ts.
   // -------------------------------------------------------------------------
   registerActivityRoutes(app, preHandler);
+  // Z-90 — read-only mock results (GET /api/admin/mock/*)
+  registerMockRoutes(app, preHandler);
 
   // -------------------------------------------------------------------------
   // Phase 10 — Candidate Activity routes

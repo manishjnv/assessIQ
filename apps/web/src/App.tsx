@@ -35,6 +35,7 @@ const AdminReports = lazy(() => import('@assessiq/admin-dashboard').then(m => ({
 const AdminGenerationAttempts = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerationAttempts })));
 const AdminCertificates = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminCertificates })));
 const AdminActivity = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminActivity })));
+const AdminMockResults = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminMockResults })));
 const AdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminUsers })));
 const AdminTenantSettings = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminTenantSettings })));
 const AdminGenerateWizard = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerateWizard })));
@@ -136,6 +137,8 @@ export function App(): React.JSX.Element {
           <Route path="/admin/certificates" element={<RequireSession role="admin"><AdminCertificates /></RequireSession>} />
           {/* Activity page (Phase 11) */}
           <Route path="/admin/activity" element={<RequireSession role="admin"><AdminActivity /></RequireSession>} />
+          {/* Mock results (Z-90) */}
+          <Route path="/admin/mock-results" element={<RequireSession role="admin"><AdminMockResults /></RequireSession>} />
           {/* Audit log — RW-25 admin audit trail */}
           <Route path="/admin/audit-log" element={<RequireSession role="admin"><AdminAuditLog /></RequireSession>} />
           {/* Webhooks — RW-25 integrations */}

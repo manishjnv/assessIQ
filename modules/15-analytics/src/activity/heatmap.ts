@@ -148,6 +148,7 @@ export async function queryActivityHeatmapCounts(
        AND submitted_at >= $1::timestamptz
        AND submitted_at <  $2::timestamptz + interval '1 day'
        AND status IN ('submitted', 'auto_submitted', 'graded', 'released', 'pending_admin_grading')
+       AND delivery_mode = 'real'
      GROUP BY 1
      ORDER BY 1`,
     [`${from}T00:00:00Z`, `${to}T00:00:00Z`],

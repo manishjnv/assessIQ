@@ -184,3 +184,10 @@ Migration `0189` adds the materialized view `question_stats_mv` (one row for eac
 - `actorRole` and the role filter are unchanged (these actors stay "system").
 - Why in the feed: the audit-log page (`14-audit-log`) shows only short user ids, so it has no name to mask. Not included: names for staff actors, a staff chip.
 - Tests: `activity-feed.test.ts` "actor labels".
+## Z-90 (2026-10-20) - mock results
+
+- **What.** `src/mock/index.ts` adds five read-only admin routes under `/api/admin/mock/*` (summary, topics, students, trend, not-taken). Page: `/admin/mock-results` in module 10. Contract: `docs/03-api-contract.md`.
+- **Why live tables.** Since migration 0219 `attempt_summary_mv` and `question_stats_mv` hold real attempts only, so mock data must come from `attempts WHERE delivery_mode = 'mock'` joined to `attempt_scores`, `gradings`, `attempt_questions`, `questions`. Effective grading is the newest `graded_at` with `admin_override` winning ties (same rule as 09-scoring). Scores come from `attempt_scores`; no scoring change.
+- **Rejected.** Reading the real-only MVs (wrong data). A new mock MV (extra refresh job and a lint surface for a small, filterable data set; revisit if queries get slow).
+- **Leak fix.** The Activity readers (admin leaderboard, heatmap, feed; candidate leaderboard, stats, heatmap) now filter `delivery_mode = 'real'`. `activity-candidate/stats.ts` and `timeline.ts` MV reads are untouched.
+- **Not included.** Export (Free plan has none), candidate-started practice tracks (EXP-11), per-question drilldown, any scoring change.

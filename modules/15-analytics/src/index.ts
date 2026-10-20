@@ -147,3 +147,5 @@ export type {
   CandidateLeaderboardItem,
   CandidateLeaderboardQuery,
 } from './activity-candidate/index.js';
+
+export { registerMockRoutes, queryMockSummary, queryMockTopics, queryMockStudents, queryMockTrend, queryMockNotTaken } from './mock/index.js';
