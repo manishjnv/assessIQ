@@ -2912,3 +2912,11 @@ Status: DEPLOYED 2026-10-19 at `1eda2ec9` (code commit `1e0932b2` plus the scrip
 - **Pilot tenants and the flag flip (owner yes, late S36).** `tools/pilot-tenant-to-paid.sql` ran for real: birla and wipro-soc are `pro` with 4,500 credits and a 4,500-credit pilot grant each. Then `PLAN_TIERS_ENFORCED=true` was appended to `/srv/assessiq/.env` (a backup copy of the file stayed on the server) and only `assessiq-api` was recreated. Sweep 0 failures. The flag is ON. Undo: set it to false and recreate `assessiq-api`.
 - **Rollback.** Revert the commits and deploy again; migrations stay. Sign-up: `SIGNUP_ENABLED=false` and recreate `assessiq-api`. Credit scale: divide credits, remaining, shortfall and included credits by 10, restore the insert policy limit 20, clear the table comment (not automatic).
 - **Sign-up steps.** `docs/runbooks/open-signup.md`. Monitoring: `docs/runbooks/uptimerobot-setup.md` (three monitors Up, alert mail tested 2026-10-20).
+
+
+## S37 deploy record (2026-10-20)
+
+- Code `160e89e5` deployed with `bash tools/deploy.sh --yes` (dry run first). Migration `0227_credit_lowbalance_notices.sql` applied. Services recreated: `assessiq-api`, `assessiq-worker`, `assessiq-frontend`. Sweep: 0 failures.
+- The deploy script does not rebuild `assessiq-marketing`. It was rebuilt by hand on the server: `docker compose -f infra/docker-compose.yml build assessiq-marketing`, then `up -d --no-deps --force-recreate assessiq-marketing`. Read-only curl: the four new `/resources/*` pages, `/privacy`, `/terms`, `/signup` answer 200 and the sitemap lists the new pages.
+- Not run: the IndexNow ping (`node apps/marketing/scripts/indexnow-submit.mjs`).
+- Owner check still open: open `/admin` signed in and one take page (router flags, step 1).

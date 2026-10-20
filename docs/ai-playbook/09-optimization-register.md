@@ -89,3 +89,5 @@ Combined estimate for TIME-8 and TIME-9: daily CI waiting from about 100 min to 
 - 2026-10-18 (S27, batches 2 and 3): TIME-7, 15, 16 updated (CI proof, streak 3 of 10); TOK-5 done in code; GATE-6 closed with the four numbers above; Z-59 proof recorded in RCA_LOG.
 - 2026-10-18 (S27, batch 1): TOK-3, TOK-4 done; TOK-6 `--since` added and stale "43 runs" text fixed. Trial since 2026-10-18 reads STOP (29% non-gate rework over 7 runs: Z-64 and Z-42 part 3); owner decides.
 - 2026-10-18 (S26): Z-63 to Z-66 built. TOK-2, TOK-6, TOK-7 and GATE-4 rows updated. Phase 0 reading set estimate 512k to 129k tokens.
+
+- 2026-10-20 (S37): TIME-13 checked, already built in `05193ac1`, applies at the next real migration. Migration 0227 ran through `deploy.sh` with no problem. New rule: run every CI lint locally before a push (the CI stops at the first red step); `lint:rls` scans `.claude/worktrees`, so remove agent worktrees first. Haiku 5.5 trial: 4 runs this session, 1 reworked (Z-37 b missed a test assertion).

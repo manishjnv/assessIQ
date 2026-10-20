@@ -2918,3 +2918,17 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the new migration test read `modules/19-billing/migrations/0225_credit_scale_x10.sql` with `process.cwd()`. A module-folder run (local) and the root run (CI) have different working folders, and the jsdom root run has no `file:` URL for `import.meta.url`.
 **Fix:** the test tries both paths and uses the one that exists (commit `9fb863b5`).
 **Prevention:** a test that reads a repo file must work from the module folder and from the repo root; run it both ways before the push.
+
+## 2026-10-20 — CI red after the S37 push: RLS lint, a date-bound test, an old-wording test
+
+**Symptom:** CI run on `6862328a` failed: `lint:rls` (`credit_lowbalance_notices — missing tenant_isolation_insert policy`), `email-bulk-cap.test.ts` (queuedCount 1, expected 2) and `totp-reset-notice.test.ts` (old wording).
+**Cause:** (1) Migration 0227 had a select policy and revoked app inserts, but the lint needs an insert policy on every tenant table. (2) The bulk-cap test used the fixed date 2026-10-19 plus a 20 hour delay, so the job was in the past after 06:00 UTC on 2026-10-20 (`modules/13-notifications/src/__tests__/email-bulk-cap.test.ts:132`). (3) Z-37 b changed the TOTP reset wording and one assertion kept the old text.
+**Fix:** `0227` insert policy; the test uses `Date.now()`; the assertion is updated (`160e89e5`).
+**Prevention:** run the CI lint list locally before a push (every `lint:*` step in `.github/workflows/ci.yml`). A test must not hard-code a calendar date for a time-relative rule. Remove agent worktrees before the lint run, because `lint:rls` scans `.claude/worktrees`.
+
+## 2026-10-20 — Low-balance job could repeat a sent mail every day when the audit write failed (found in review)
+
+**Symptom:** none in production (Sonnet takeover review of `0bc3e5ad`). The mail was queued before the audit insert. An audit failure rolled the notice back and the next tick sent the mail again.
+**Cause:** `modules/19-billing/src/service.ts` `sendCreditLowBalanceNotices` wrote the audit row after the send.
+**Fix:** audit row first, then send (`6862328a`).
+**Prevention:** the review gate. The ledger test covers the roll-back and retry of a failed send.
