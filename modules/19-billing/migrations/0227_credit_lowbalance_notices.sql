@@ -22,4 +22,9 @@ CREATE POLICY tenant_isolation_select ON credit_lowbalance_notices
   FOR SELECT
   USING (tenant_id = current_setting('app.current_tenant', true)::uuid);
 
+-- Required by lint:rls. The app role cannot insert anyway (REVOKE below); only the system role writes.
+CREATE POLICY tenant_isolation_insert ON credit_lowbalance_notices
+  FOR INSERT
+  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid);
+
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON credit_lowbalance_notices FROM assessiq_app;
