@@ -63,6 +63,7 @@ export { AdminGenerationAttempts } from "./pages/generation-attempts.js";
 export { AdminExamBlueprints } from "./pages/exam-blueprints.js"; // EXP-6 tail (super admin, read only)
 export { AdminCertificates } from "./pages/certificates.js";
 export { AdminActivity } from "./pages/activity.js";
+export { AdminMockResults } from "./pages/mock-results.js";
 export { AdminUsers } from "./pages/users.js";
 export { TenantSettings as AdminTenantSettings } from "./pages/tenant-settings.js";
 export { AdminGenerateWizard } from "./pages/generate-wizard.js";

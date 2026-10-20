@@ -119,6 +119,7 @@ export async function queryCandidateLeaderboardRows(
        WHERE a.user_id = $1
          AND a.submitted_at IS NOT NULL
          AND a.status = 'released'
+         AND a.delivery_mode = 'real'
        GROUP BY ass.pack_id
      ),
      all_best AS (
@@ -132,6 +133,7 @@ export async function queryCandidateLeaderboardRows(
        WHERE ass.pack_id IN (SELECT pack_id FROM my_packs)
          AND a.submitted_at IS NOT NULL
          AND a.status = 'released'
+         AND a.delivery_mode = 'real'
        GROUP BY ass.pack_id, a.user_id
      ),
      ranked AS (
@@ -180,7 +182,8 @@ export async function queryCandidateLeaderboardTotal(
      JOIN assessments ass ON ass.id = a.assessment_id
      WHERE a.user_id = $1
        AND a.submitted_at IS NOT NULL
-       AND a.status = 'released'`,
+       AND a.status = 'released'
+       AND a.delivery_mode = 'real'`,
     [userId],
   );
   return parseInt(result.rows[0]?.total ?? '0', 10);

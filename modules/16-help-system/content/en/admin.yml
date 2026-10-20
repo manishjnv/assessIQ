@@ -5324,3 +5324,52 @@ admin.assessment.invite.test_type:
     - **Mock test.** The candidate can use any device. Results show a Mock label. A mock gives no certificate and stays out of your real-exam reports.
     - **You choose.** You pick the type when you invite. The candidate cannot change it.
     - **Attempts.** A mock does not use up the attempts of a real exam.
+
+# ─── Mock results dashboard (Z-90) ───
+admin.mock_results.page:
+  audience: admin
+  short_text: "Mock results show how your students do in mock tests and where they are weak."
+  long_md: |
+    ## Mock results
+
+    - **Mock only.** This page counts mock tests only. Real exams stay in Reports.
+    - **Read only.** Nothing here changes marks or sends data out.
+    - **Filter.** Pick one assessment, or keep All to see every mock.
+
+admin.mock_results.topics:
+  audience: admin
+  short_text: "Topics with the lowest share of correct answers are the weak spots. The highest are strong."
+  long_md: |
+    ## Weak and strong topics
+
+    - **Correct share.** The share of graded answers in a topic that earned full marks.
+    - **Weakest and strongest.** The five lowest and the five highest topics.
+    - **No topic.** A question with no topic uses its section name. Otherwise it shows as General.
+
+admin.mock_results.students:
+  audience: admin
+  short_text: "Each student's mock count, average score and last score."
+  long_md: |
+    ## Students
+
+    - **Average.** The mean score across the student's mock attempts.
+    - **Last score.** The score of the newest mock.
+    - **Sort.** Select the Average heading to change the order.
+
+admin.mock_results.trend:
+  audience: admin
+  short_text: "Average mock score by day. A rising line means the group is improving."
+  long_md: |
+    ## Trend
+
+    - **One point a day.** Each point is the average score of the mocks taken that day.
+    - **Few points.** The line needs at least two days of mocks.
+
+admin.mock_results.not_taken:
+  audience: admin
+  short_text: "Students who were invited to this mock and have not started it."
+  long_md: |
+    ## Not taken
+
+    - **Needs one assessment.** Pick an assessment in the filter to see this list.
+    - **Who.** Students invited to the mock with no attempt yet.

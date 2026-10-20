@@ -360,6 +360,7 @@ export async function queryActivityFeed(
     LEFT JOIN assessments asmt ON asmt.id = a.assessment_id
     WHERE TRUE
       AND u.erased_at IS NULL
+      AND a.delivery_mode = 'real'
       ${dateFromClause('ae.at')}
       ${dateToClause('ae.at')}
       ${actionClause('ae.event_type')}

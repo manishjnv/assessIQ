@@ -3948,3 +3948,14 @@ Order of checks: gate, body, Turnstile, IP limit, address limit, super-admin add
 Body: `{ email, code, dpaVersion? }` (`code` is 6 digits). On success: `200 { ok: true, redirect: "/admin" }` (or `"/admin/mfa"` when `MFA_REQUIRED=true`) and a `Set-Cookie` for the new admin session. Every failure is `400 { error: { code: "SIGNUP_INVALID", message: "The code is not valid. Request a new one." } }` after the same 800 ms minimum: wrong, expired or burnt code, a malformed body, a claim conflict, an address that already has a user, a different `dpaVersion` than the stored one, the daily cap (no audit row at verify), a create step that fails before commit (logged), a client IP that cannot be determined. If the organisation committed but the session could not be created, the answer is `200 { ok: true, redirect: "/admin/login" }` with no cookie (sign in with the emailed admin code). `404` when the gate is closed.
 
 **Not included.** A resend route (the page calls `request` again; the address limit applies). An endpoint that tells if an address is free (it would allow enumeration).
+## Mock results endpoints (Z-90, 2026-10-20)
+
+Read-only, admin role, tenant-scoped. All five read live tables where `attempts.delivery_mode = 'mock'` and the status is submitted, auto_submitted, pending_admin_grading, graded or released. They never read `attempt_summary_mv` or `question_stats_mv` (real-only since migration 0219). No export. Response shape `{ data: ... }`. A bad UUID returns 400.
+
+- `GET /api/admin/mock/summary?assessmentId=` returns `{ mock_attempts, students, completed_pct, avg_score_pct, by_assessment: [{ assessment_id, name, attempts, avg_score_pct, last_taken_at }] }`. `completed_pct` is the share of mock invitations with status `submitted`.
+- `GET /api/admin/mock/topics?assessmentId=` returns `{ topics, strongest, weakest }`, each topic `{ topic, attempts_graded, correct_pct }`. Topic is `questions.topic`, else the section name, else `General`. Correct means full marks on the newest grading (an admin override wins a tie). Rows with status `review_needed` are not counted. strongest and weakest hold five rows each.
+- `GET /api/admin/mock/students?assessmentId=` returns `[{ user_id, name, mock_attempts, avg_score_pct, last_score_pct, last_taken_at }]`, best average first.
+- `GET /api/admin/mock/trend?userId=&assessmentId=` returns `[{ date, score_pct, attempts }]`, average score per UTC day, for one student or the whole cohort.
+- `GET /api/admin/mock/not-taken?assessmentId=` (required) returns `[{ user_id, name, email, invited_at }]` for candidates invited with `delivery_mode = 'mock'` who have no mock attempt.
+
+Related fix: the admin and candidate Activity readers (leaderboard, stats, heatmap, feed) now count real attempts only.

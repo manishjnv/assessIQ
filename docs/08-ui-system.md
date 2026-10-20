@@ -1795,3 +1795,12 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 - Routes: `App.tsx` needs the `/admin/review-queue` route (role admin, as for the pack review route). `admin-nav.ts` needs a tab in the Question bank group. Both are added by the owner.
 - The help-system test counts (`help-system.test.ts`) rise by 9 on a fresh DB, from 551 to 560.
 - The API routes are in `docs/03-api-contract.md`. That file is changed by another session.
+## Mock results page (Z-90, 2026-10-20)
+
+`/admin/mock-results`, tab "Mock results" in the Reports group (between Reports and Activity). Component `modules/10-admin-dashboard/src/pages/mock-results.tsx`, `helpPage="admin.mock_results"`.
+
+- Header carries a "Mock" label and an assessment filter (All mock assessments, or one).
+- Four tiles: mock attempts, students, average score, completed.
+- Sections, each with a help id: Weak and strong topics (`admin.mock_results.topics`, two ranked bar lists), Students (`.students`, table sortable by average), Trend (`.trend`, plain SVG line of average % per day, no chart library), Not taken (`.not_taken`, needs one assessment selected). The page id is `admin.mock_results.page`.
+- Empty state: "No mock tests have been taken yet. Invite candidates to a Mock test to see results here."
+- Read only: no export, no edit. Not included: per-question drilldown, practice tracks.

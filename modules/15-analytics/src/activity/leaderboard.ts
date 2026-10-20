@@ -229,6 +229,7 @@ export async function queryActivityLeaderboardRows(
          AND a.submitted_at >= $1::timestamptz
          AND a.submitted_at <  $2::timestamptz + interval '1 day'
          AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')
+         AND a.delivery_mode = 'real'
        GROUP BY ass.pack_id
      ),
      prior_period AS (
@@ -239,6 +240,7 @@ export async function queryActivityLeaderboardRows(
          AND a.submitted_at >= $3::timestamptz
          AND a.submitted_at <  $4::timestamptz + interval '1 day'
          AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')
+         AND a.delivery_mode = 'real'
        GROUP BY ass.pack_id
      )
      SELECT
@@ -283,7 +285,8 @@ export async function queryActivityLeaderboardTotal(
      WHERE a.submitted_at IS NOT NULL
        AND a.submitted_at >= $1::timestamptz
        AND a.submitted_at <  $2::timestamptz + interval '1 day'
-       AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')`,
+       AND a.status IN ('submitted','auto_submitted','graded','released','pending_admin_grading')
+       AND a.delivery_mode = 'real'`,
     [currentFrom, currentTo],
   );
 

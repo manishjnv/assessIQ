@@ -100,6 +100,7 @@ export async function queryCandidateActivityStats(
        WHERE att.tenant_id = current_setting('app.current_tenant', true)::uuid
          AND att.user_id = $3
          AND att.status IN ${SUBMITTED}
+         AND att.delivery_mode = 'real'
          AND att.submitted_at >= $1::timestamptz
          AND att.submitted_at <  $2::timestamptz + interval '1 day'
      )
@@ -137,6 +138,7 @@ export async function queryCandidateActivityStats(
      WHERE att.tenant_id = current_setting('app.current_tenant', true)::uuid
        AND att.user_id = $3
        AND att.status IN ${SUBMITTED}
+       AND att.delivery_mode = 'real'
        AND att.submitted_at >= $1::timestamptz
        AND att.submitted_at <  $2::timestamptz + interval '1 day'`,
     [from, to, userId],
