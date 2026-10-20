@@ -9,7 +9,7 @@ import { Client } from "pg";
 import { randomUUID } from "node:crypto";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
-import { mintResultLoginToken, RESULT_LOGIN_TOKEN_TTL_SEC } from "@assessiq/notifications";
+import { mintResultLoginToken, retireResultLoginLinks, RESULT_LOGIN_TOKEN_TTL_SEC } from "@assessiq/notifications";
 import { setRedisForTesting, closeRedis } from "../redis.js";
 import {
   verifyCandidateLoginTokenSystem,
@@ -129,5 +129,17 @@ describe("result-email sign-in token (Z-15 a)", () => {
     } finally {
       await sup((c) => c.query(`UPDATE users SET erased_at = NULL WHERE id = $1`, [userId]));
     }
+  });
+
+  it("a withdrawn result retires the link, but not a fresh 15-minute login link", async () => {
+    const link = await mint();
+    const login = await withTenant(tenantId, (c) =>
+      requestCandidateLoginLink(c, { email: "z15@example.com", ip: "127.0.0.2", ua: "vitest" }),
+    );
+    expect(login).not.toBeNull();
+    const n = await withTenant(tenantId, (c) => retireResultLoginLinks(c, userId));
+    expect(n).toBeGreaterThanOrEqual(1);
+    expect(await verifyCandidateLoginTokenSystem(link)).toBeNull();
+    expect(await verifyCandidateLoginTokenSystem(login!.token)).toEqual({ user_id: userId, tenant_id: tenantId });
   });
 });

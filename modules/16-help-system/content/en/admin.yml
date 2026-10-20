@@ -3778,6 +3778,7 @@ admin.grading.jobs.counts:
 
 admin.grading.jobs.oldest:
   audience: admin
+  version: 2
   short_text: "How long the oldest attempt in the queue has waited since the candidate submitted it."
   long_md: |
     ## Waiting time
@@ -3785,8 +3786,9 @@ admin.grading.jobs.oldest:
     The line shows the submit time of the oldest attempt still in the queue and
     how long ago that was. Attempts are graded in the order they were submitted.
 
-    No fixed turnaround is promised on this page. If an attempt waits longer than
-    the turnaround you were given, contact your AssessIQ operator.
+    The expected grading time for your company is the line at the top of this
+    page. It is a plan, not a promise for each attempt. If an attempt waits longer
+    than that time, contact your AssessIQ operator.
 
 admin.grading.jobs.by_assessment:
   audience: admin
@@ -3800,13 +3802,14 @@ admin.grading.jobs.by_assessment:
 
 admin.grading.jobs.eta_notice:
   audience: admin
+  version: 2
   short_text: "The expected time for AssessIQ to grade your candidates' written answers."
   long_md: |
     ## Expected grading time
 
     This line shows how long AssessIQ takes to grade the written answers of your
     candidates. The time is set for your company. It is a plan, not a promise for
-    each attempt. Results stay hidden until you release them.
+    each attempt. Results appear after AssessIQ finishes the evaluation. If your organisation releases results by hand, you release them next.
 
     If an attempt waits longer than this time, contact your AssessIQ operator.
 
