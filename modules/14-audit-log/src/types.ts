@@ -269,6 +269,14 @@ export const ACTION_CATALOG = [
   'exam_blueprint.created',
   'exam_blueprint.updated',
   'exam_blueprint.deleted',
+  // Z-71 self-serve sign-up. signup.completed: written in the create transaction, in the NEW
+  // tenant's log; after = { plan, dpa_version, terms_version, admin_user_id }; NO plain email,
+  // ip and user_agent NULL. signup.rejected: a LATER reject only (block list, super-admin
+  // address, daily cap, claim conflict), written once per HMAC(email) per day under the
+  // platform tenant; after = { reason, email_hmac }; ip and user_agent NULL. Requests that
+  // fail the bot check or a rate limit write NO audit row (anonymous storage DoS).
+  'signup.completed',
+  'signup.rejected',
 ] as const;
 
 export type ActionName = (typeof ACTION_CATALOG)[number];

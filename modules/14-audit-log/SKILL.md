@@ -127,3 +127,9 @@ The audit export now prefixes a cell that starts with `= + - @` with `'` (one un
 **Rate limit (S14, verified Z-13).** `registerAuditRoutes` takes an injected `heavyOpGuard` appended after `adminOnly` on `export.csv`, `export.jsonl` and `POST /archive`. apps/api passes `tenantRateLimit({ name: 'audit-export', max: 5, windowSeconds: 600 })`. This module never imports 01-auth. One bucket per tenant, shared by all three routes (archive hands out the export URL, so it is the same cost). Key uses the session tenant id only. Missing session fails closed. A Redis error propagates from `consumeRateLimit`, so the call fails (500), not open. Window is 10 minutes, stricter than 5 per minute. Tests: `apps/api/src/__tests__/routes/audit-routes.test.ts`.
 
 **Downstream impact.** An archive click that follows `export_url` writes `audit.archived` and then `audit.exported`. Anyone who counts audit rows by action sees both. Log lines and triage: `docs/11-observability.md` § 38. Route facts: `docs/03-api-contract.md` § "S13 additions (2026-10-16)".
+
+## Z-71 (2026-10-20) - signup actions
+
+- `signup.completed`: written by `createSelfServeTenant` in the create transaction, in the new tenant's log. `after` = `{ plan, dpa_version, terms_version, admin_user_id }`. No plain address; `ip` and `user_agent` NULL.
+- `signup.rejected`: written for later rejects only (block list, super-admin address, daily cap, claim conflict), once for each address HMAC each day, under the platform tenant, with `ip` and `user_agent` NULL (via `auditInTx`; `audit()` would fill them from the request). `after` = `{ reason, email_hmac }`.
+- No audit row for a request that fails Turnstile or a rate limit (anonymous storage DoS on an append-only table).

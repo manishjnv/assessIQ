@@ -1251,6 +1251,11 @@ AI_PIPELINE_MODE=claude-code-vps
 # Plan tier gates and limits (PT1, PT-4) — API. Default false = every gate is a no-op.
 # PLAN_TIERS_ENFORCED=false
 
+# Self-serve organisation sign-up (Z-71) — API. Default false = the public routes answer 404.
+# Also needs PLAN_TIERS_ENFORCED=true, TURNSTILE_SECRET and TURNSTILE_SITE_KEY. See the SIGNUP_ENABLED section.
+# SIGNUP_ENABLED=false
+# TURNSTILE_SITE_KEY=
+
 # Rate limiting — optional; Zod defaults are 100/30/30/600 req/min/IP per tier.
 # Set only to tune for your traffic; zero-config deploy works without any of these.
 # RATE_LIMIT_IP_ADMIN=100     # admin/reviewer session: 100 req/min/IP
@@ -1289,6 +1294,26 @@ AI_PIPELINE_MODE=claude-code-vps
 - **Default.** `false` (declared in `.env.example`). While it is false, every gate and limit is a no-op. The billing page shows the limits for information only.
 - **Where it is read.** The `00-core` config (`config.PLAN_TIERS_ENFORCED`).
 - **Before you enable it.** Check that no current organisation on the free tier loses a feature it uses. The check is in `modules/19-billing/SKILL.md` § "Owner gate". Unset on the VPS means off.
+
+### `SIGNUP_ENABLED` and the Turnstile keys (Z-71, Z-81, 2026-10-20)
+
+| Name | Where | Default | Purpose |
+| --- | --- | --- | --- |
+| `SIGNUP_ENABLED` | API (`00-core` config) | `false` | Owner switch for the public self-serve sign-up. While false, the three routes under `/api/public/signup/` answer 404. |
+| `TURNSTILE_SECRET` | API | unset | Cloudflare Turnstile secret. The contact form already uses it. Sign-up needs it too. |
+| `TURNSTILE_SITE_KEY` | API | unset | Public site key, served by `GET /api/public/signup/config`. |
+| `SIGNUP_TURNSTILE_HOSTNAMES` | API | host of `ASSESSIQ_BASE_URL` | Comma list of hostnames the widget may run on. Set it if the sign-up page is on another host (for example the marketing site). |
+
+The widget must be created with the action `signup-request`. The CSP must allow `challenges.cloudflare.com` (script and frame) on the sign-up page; today's CSP is report-only (Z-46), so this is no blocker yet.
+
+**Flip order.**
+1. Deploy the code with `SIGNUP_ENABLED` unset. Apply migrations `0221` (02-tenancy) and `0222` (03-users) by hand with the normal procedure. The routes answer 404.
+2. Set `TURNSTILE_SITE_KEY` (and `TURNSTILE_SECRET` if it is not set) and recreate the API.
+3. Z-18: the owner sets `PLAN_TIERS_ENFORCED=true` on the date the owner chooses. Sign-up must not open before this.
+4. The lawyer approves the DPA and terms text. If the text changes, change `DPA_VERSION` in `modules/01-auth/src/signup-legal.ts` and the sign-up page in the same deploy.
+5. Set `SIGNUP_ENABLED=true` and recreate the API. Check `GET /api/public/signup/config` shows `open: true`.
+
+**Rollback.** Unset `SIGNUP_ENABLED` (or set it to `false`) and recreate the API. The routes answer 404 again. Organisations that exist stay; staff remove an abusive one with the tenant life cycle.
 
 **Migrations for this change.** This deploy applies two migrations by hand with the existing procedure (`psql -1 -v ON_ERROR_STOP=1`, then record them in `schema_migrations` with the sha256):
 - `0170` (`modules/02-tenancy/migrations/0170_tenant_purge.sql`) adds `purged` to `tenants_status_check`.

@@ -2778,3 +2778,21 @@ A passage is shared stem text used by several question rows (reading text, data 
 | Rejected | A row-count check only (race stays). `SELECT ... FOR UPDATE` on `tenant_plans` (the app role has no UPDATE policy there). A lock-free counter column (needs UPDATE rights and a decrement rule). |
 | Not included | The AI-attempt allowance guard. The admins cap. |
 | Rollback | Revert the code, then `DROP TABLE tenant_candidate_counted`. The cap falls back to `assertCandidateTotalCap` (racy). |
+
+## Self-serve sign-up tables (Z-71, Z-81, migration 0221, 2026-10-20)
+
+*Type: reference.* Migrations `modules/02-tenancy/migrations/0221_self_serve_signup.sql` (`tenants.self_registered`, `signup_claims`) and `modules/03-users/migrations/0223_tenant_legal_acceptances.sql` (`tenant_legal_acceptances`). Additive only. The acceptance table is in 03-users because it references `users(id)`, and several module-local test harnesses apply every 02-tenancy file before a users table exists.
+
+| Object | Columns and rules |
+| --- | --- |
+| `tenants.self_registered` | `BOOLEAN NOT NULL DEFAULT false`. True for an organisation made through the public sign-up. Free certificates will use it for the text "Issued by [Organisation], a self-registered AssessIQ customer". The rendering is not built. |
+| `signup_claims` (platform table, no tenant) | `email_key TEXT PRIMARY KEY` = HMAC-SHA256 (server key) of the folded address (plus-tag removed; dots removed and `googlemail.com` folded for Gmail); `claimed_tenant_id UUID NULL REFERENCES tenants(id)`; `created_at`. RLS is on with deny-all policies (`USING (false)` and `WITH CHECK (false)`; the standard names only satisfy `lint:rls`, which matches the text `tenant_id` inside `claimed_tenant_id`), and `assessiq_app` has no grants: only the system role reaches it. The column is `claimed_tenant_id`, not `tenant_id`, so `purge.ts` (which deletes from every table that has a `tenant_id`) ignores it and a purge does not free the address. |
+| `tenant_legal_acceptances` | `id`, `tenant_id NOT NULL`, `user_id NOT NULL`, `document` (`terms` or `dpa`), `version` (the version the form showed), `accepted_at`, `ip_hash`, `user_agent_hash` (HMACs, never the plain values); `UNIQUE (tenant_id, user_id, document, version)`. RLS: one SELECT policy and one INSERT policy pinned to `app.current_tenant`. No UPDATE or DELETE policy; UPDATE, DELETE and TRUNCATE are revoked from `assessiq_app`. The tenant purge (system role) can still delete the rows. |
+
+**Why.** One organisation for each verified address must hold under parallel requests, so the guard is a database primary key. The acceptance record is legal evidence, so it is append-only and holds hashes.
+
+**Considered and rejected.** A `tenant_id` column on `signup_claims` (purge would free the address). A plain sha256 of the address (reversible by dictionary). A Redis-only claim.
+
+**Not included.** The archive row before a purge (design finding 9; retention period is a question for the lawyer). A `tenants.org_verified` column (design finding 8; not part of this row). Erasure: the three new hash columns are exempt in `erasure-coverage.test.ts` with reasons.
+
+**Downstream.** `modules/02-tenancy/src/self-serve.ts` writes all three. `modules/20-data-rights` needs nothing else.

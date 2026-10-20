@@ -1368,6 +1368,76 @@ The canary script (see `docs/06-deployment.md § Authenticated Origin Pulls (AOP
 - **Considered and rejected.** A new `reviewer` role (decommissioned, RV60). Letting a `super_admin` review any organisation's questions (cross-tenant power stays in the platform routes).
 - **Not included.** Two-person review.
 
+## Self-serve organisation sign-up (Z-71, Z-81, 2026-10-20)
+
+*Type: explanation.* Code: `modules/01-auth/src/signup.ts`, `signup-otp.ts`, `signup-legal.ts`, `signup-blocklist.ts`; `modules/02-tenancy/src/self-serve.ts`; routes `apps/api/src/routes/public-signup.ts`. Design and review result: `docs/design/2026-10-18-self-serve-signup-design.md` (the section "S31 review result and corrections" is binding). API: `docs/03-api-contract.md` § "Public self-serve sign-up". Tables: `docs/02-data-model.md` § "Self-serve sign-up tables".
+
+**What it does.** A visitor passes a Cloudflare Turnstile check and gets a 6-digit code by email. A correct code creates ONE organisation on the Free plan, its first admin, the DPA and terms acceptance record, and starts that admin's session.
+
+### Flow
+
+1. `GET /api/public/signup/config` tells the page if sign-up is open, the Turnstile site key and the DPA version.
+2. `POST /api/public/signup/request` runs these checks in order and stops at the first failure: preconditions (404), body validation (400), Turnstile (403), IP limit (429 `signup_ip`), address limit (429 `signup_email`), super-admin address and block list (neutral 200, nothing sent), daily cap of completed sign-ups (neutral 200, nothing sent), then ONE of two mails: the sign-up code (new address) or "you already have an account, sign in" (address that has a user in any tenant, or a claim). The answer is always `200 { ok: true }` and takes at least 800 ms, so it never shows which mail was sent.
+3. `POST /api/public/signup/verify` takes the code with one Lua script (compare and delete in one call), then runs `createSelfServeTenant`, then mints a NEW session for the new admin. Every failure (wrong, expired or burnt code, claim conflict, daily cap, malformed body) is the same `400 SIGNUP_INVALID` after the same 800 ms floor.
+
+### Preconditions (checked on every request, fail closed)
+
+`PLAN_TIERS_ENFORCED=true`, `SIGNUP_ENABLED=true`, `TURNSTILE_SECRET` and `TURNSTILE_SITE_KEY` set, Redis answers `PING`. If one is missing, `request` and `verify` answer `404 NOT_FOUND` and `config` answers `open: false`.
+
+### Why the routes are public and still safe
+
+- They need no session and no tenant context, because the tenant does not exist yet. No tenant data is read or written until `createSelfServeTenant` creates the tenant, and that function runs under `withSystemRole("self-serve sign-up")` in one transaction.
+- Every input is validated (zod in `_schemas.ts`, `.strict()`): organisation name 3-80 characters (letters, digits, space, `. - & '`), admin name 2-80, address up to 254 characters, `dpaAccepted` literally `true`, `dpaVersion` equal to `DPA_VERSION`.
+- Control of the address is proved BEFORE the tenant exists (emailed code).
+- Abuse is bounded by Turnstile (single use, bound to the action `signup-request` and to the site hostname), the IP and address limits, the daily cap and `signup_claims` (a database primary key: one organisation for each folded address).
+- The first user has role `admin` only. No code path in sign-up sets `super_admin`. A super-admin address (or an alias that folds to it) is refused at request time and again inside the transaction.
+- An address that already has a user in any tenant gets no organisation (checked inside the transaction, so a race cannot take over a tenant). It gets the "you already have an account" mail and nothing else.
+
+### Key spaces (Redis)
+
+| Key | Purpose | Notes |
+| --- | --- | --- |
+| `aiq:signup:otp:signup:<hmac(email)>` | the sign-up code record (hash) | Separate from the admin sign-in code `aiq:email-otp:<sha256(email)>`. The value is `HMAC-SHA256(server key, "signup" + email + code)`. The hash also holds the organisation name, admin name, DPA and terms versions, IP and user agent of the request. TTL 10 minutes, 5 wrong tries burn it. |
+| `aiq:signup:ts:<sha256(token)>` | Turnstile single use | `SET NX EX 300` after a good siteverify. |
+| `aiq:rl:signup:ip:<ip>` | scope `signup_ip` | 5 a day. The IP comes from `extractRateLimitClientIp`; if it is null the request is refused. |
+| `aiq:rl:signup:email:<hmac(folded email)>` | scope `signup_email` | 3 a day. Counts requests (both mails). Plus-tags and Gmail dots share the bucket. |
+| `aiq:rl:signup:day:<UTC date>` | scope `signup_global` | 50 completed sign-ups a day. Read at request and at verify, incremented after a sign-up completes. |
+| `aiq:signup:rej:<UTC date>:<hmac>` | audit once a day | Makes `signup.rejected` one row for each address each day. |
+
+The server key is `HMAC(SESSION_SECRET, "aiq:signup:hmac-key:v1")`. A purpose label is part of every HMAC, so an IP hash cannot equal an address hash.
+
+### Session
+
+`verifySignup` calls `sessions.create` for a new session id (the route first destroys any session the browser already holds). Role `admin`, `totpVerified = !MFA_REQUIRED` (same rule as `google-sso.ts` for a tenant admin), cookie flags as the sign-in routes (`HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` in production, 8 hours). Redirect is `/admin`, or `/admin/mfa` when `MFA_REQUIRED=true` (same as Google sign-in).
+
+### Audit
+
+`tenant.provisioned` and `signup.completed` are written in the create transaction (system actor, no plain address, `ip` and `user_agent` NULL). `signup.rejected` is written only for later rejects (block list, super-admin address, daily cap, claim conflict), once for each address HMAC each day, under the platform tenant. A request that fails Turnstile or a rate limit writes NO audit row (an anonymous caller must not add permanent rows to an append-only table).
+
+### Residual risks (accepted, stated)
+
+- Many real mail boxes at other hosts are not folded. Turnstile, the IP limit and the daily cap bound them.
+- A farm that solves Turnstile can fill the daily cap and delay real sign-ups. The cap limits damage; it does not block. A caller can also use up the 3 requests a day of a victim's address (a one-day delay).
+- The daily cap is read, then incremented after the sign-up. A burst at the cap can overshoot by a few.
+- The code is consumed before the tenant is created. If the create step fails (for example the database is down), the code is lost and the visitor requests a new one (3 a day). The failure is a 500, not the neutral answer.
+- The taxonomy seed (`seedTenantTaxonomy`) opens its own transaction, so it runs right after commit with the tenant already `active`. If it fails, the tenant exists without domains. The log line is `signup.after_commit_failed`; the seed is idempotent and can run again by hand.
+- The Redis record holds the organisation name, admin name and the request IP and user agent for up to 10 minutes.
+- Sign-up mails use `redactLogBody`, so `email_log.body_text` and `body_html` are NULL. The address stays in `email_log.to_address`, and the send job in Redis holds the body until BullMQ removes the job. The 30-day purge of platform-tenant `email_log` rows is NOT built (no retention hook exists for the platform tenant). Open follow-up.
+- The admin sign-in code verify (`email-otp.ts`) is still not atomic. Separate row FU-OTP-ATOMIC.
+- `tenant_legal_acceptances` rows are removed by the tenant purge (system role). The archive row of design finding 9 is not built; the retention period is an open question for the lawyer.
+
+### Considered and rejected
+
+- Reusing the admin sign-in code key space with a flag: a purpose prefix and an own Lua script are simpler to prove.
+- A Redis-only "one organisation for each address" check: Redis can lose data and two parallel calls can pass. A database primary key is the only safe guard.
+- Forcing a work email address: dropped by the owner.
+- An audit row for every request: rejected (storage DoS on an append-only table).
+- Binding the code to the folded key: the code is bound to the exact address that received it, so a code sent to `a+1@x` cannot create an admin `a+2@x`. The folded key is used only for `signup_claims` and the address limit.
+
+### Not included
+
+The sign-up page (web or marketing), the help ids for it, certificate text "Issued by ..., a self-registered AssessIQ customer" (only the flag `tenants.self_registered` is set), the new DPA re-acceptance gate, flipping `PLAN_TIERS_ENFORCED` (Z-18) and `SIGNUP_ENABLED` (owner date), and the 30-day `email_log` purge.
+
 ## Decisions and history
 
 This section holds the decisions that shaped the flows above. Each row names the date, the decision and the section that explains it.
@@ -1386,6 +1456,7 @@ This section holds the decisions that shaped the flows above. Each row names the
 | 2026-10-03 | Embed JIT user rules (FR4) | Embed JIT user rules |
 | 2026-10-03 | Shared AES-256-GCM envelope (N24) | Shared AES-256-GCM envelope and fixed-window rate-limit script (N24) |
 | 2026-10-15 | Tenant purge (RW-48b) and self-service MFA (RW-45) | Tenant purge, Self-service MFA |
+| 2026-10-20 | Self-serve organisation sign-up (Z-71, Z-81) | Self-serve organisation sign-up |
 
 ### Reviewer role removed (RV60)
 

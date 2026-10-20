@@ -1,0 +1,10 @@
+Subject: Your AssessIQ sign-up code
+
+Your AssessIQ sign-up code is: {{code}}
+
+This code expires in {{expires_minutes}} minutes.
+
+If you did not ask to create an AssessIQ organisation, you can ignore this email. No action is needed.
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

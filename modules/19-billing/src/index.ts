@@ -31,6 +31,7 @@ export {
   cycleWindowStart,
   TIER_AI_ANSWERS_INCLUDED,
   provisionDefaultPlan,
+  provisionDefaultPlanInTx,
   computeUsage,
   getUsage,
   // A2 exports
@@ -78,6 +79,9 @@ export { BURN, FREE_MONTHLY_CREDITS, GRANT_VALIDITY_MONTHS, LOW_BALANCE_THRESHOL
 export type { TierFeature } from './service.js';
 
 export type { AvailableSet } from './types.js';
+
+// Z-71 self-serve sign-up: Free plan + monthly grant + sample-set entitlements in the caller's tx.
+export { provisionSelfServePlan, FREE_SAMPLE_PACK_SLUGS } from './self-serve-plan.js';
 
 export {
   registerBillingRoutes,

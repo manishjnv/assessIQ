@@ -165,6 +165,20 @@ const ConfigSchema = z
     FREE_PLAN_AI_DISABLED: z
       .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
       .transform((s) => s === "true"),
+    // Z-71: self-serve organisation sign-up. Owner switch, default OFF. The public
+    // sign-up routes also need PLAN_TIERS_ENFORCED=true, both Turnstile keys and Redis;
+    // they answer 404 when any of these is missing (checked on every request).
+    SIGNUP_ENABLED: z
+      .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
+      .transform((s) => s === "true"),
+    // Cloudflare Turnstile. TURNSTILE_SECRET is also read by apps/api/src/routes/contact.ts.
+    TURNSTILE_SECRET: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+    TURNSTILE_SITE_KEY: z.preprocess((v) => (v === "" ? undefined : v), z.string().optional()),
+    // Hostnames Turnstile may report for the sign-up widget (comma list). Unset = the host
+    // of ASSESSIQ_BASE_URL only.
+    SIGNUP_TURNSTILE_HOSTNAMES: z
+      .preprocess((v) => (v === "" ? undefined : v), z.string().optional())
+      .transform((s) => (s ?? "").split(",").map((h) => h.trim().toLowerCase()).filter((h) => h !== "")),
     // Sibling dev-only flag read directly by apps/api/src/routes/auth/embed.ts
     // (=== '1'). Declared here so the production refine below covers it too.
     ENABLE_EMBED_TEST_MINTER: z

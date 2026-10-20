@@ -128,7 +128,7 @@ describe('sign-off', () => {
   it('every .txt template ends its body with the single sign-off line', () => {
     const dir = join(__dirname, '../email/templates');
     const files = readdirSync(dir).filter((f) => f.endsWith('.txt'));
-    expect(files.length).toBe(13);
+    expect(files.length).toBe(15);
     for (const f of files) {
       const t = readFileSync(join(dir, f), 'utf8').replaceAll('\r\n', '\n');
       expect(t, f).toContain('\n— The AssessIQ team\n');
@@ -142,7 +142,7 @@ describe('sign-off', () => {
     expect(partial.split('— The AssessIQ team').length - 1).toBe(1);
     const names = readdirSync(dir).filter((f) => f.endsWith('.txt')).map((f) => f.replace(/\.txt$/, ''));
     const signed = names.filter((n) => readFileSync(join(dir, `${n}.txt`), 'utf8').includes('— The AssessIQ team'));
-    expect(signed.length).toBe(13);
+    expect(signed.length).toBe(15);
     for (const n of signed) {
       expect(readFileSync(join(dir, `${n}.html`), 'utf8'), n).toContain('{{> email-footer-transactional');
     }

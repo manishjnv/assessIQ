@@ -12,6 +12,7 @@ import { registerAdminUserRoutes } from './routes/admin-users.js';
 import { registerAdminUserTotpResetRoute } from './routes/admin-users-totp-reset.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
 import { registerContactRoutes } from './routes/contact.js';
+import { registerPublicSignupRoutes } from './routes/public-signup.js';
 import { registerHealthRoutes } from './routes/health.js';
 import { registerLogIngestRoutes } from './routes/_log.js';
 import { registerAuthRoutes } from './routes/auth/index.js';
@@ -160,6 +161,8 @@ export async function buildServer() {
   await registerInvitationRoutes(app);
   // public, unauthenticated, rate-limited contact form → emails connect@assessiq.in
   await registerContactRoutes(app);
+  // Z-71 public self-serve sign-up (no session, no tenant; answers 404 unless every precondition holds)
+  await registerPublicSignupRoutes(app);
   // Auth routes install their own per-route preHandler chain (rateLimit →
   // sessionLoader → apiKeyAuth → syncCtx → requireAuth → extendOnPass)
   // via apps/api/src/middleware/auth-chain.ts. Routes are config:{skipAuth:true}

@@ -19,6 +19,7 @@ function inlineSitemap() {
     '/',
     '/about',
     '/contact',
+    '/signup',
     '/pricing',
     '/security',
     '/privacy',

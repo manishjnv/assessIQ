@@ -143,9 +143,21 @@ export async function provisionDefaultPlan(
   tenantId: string,
   includedCredits = DEFAULT_FREE_CREDITS,
 ): Promise<void> {
-  await withTenant(tenantId, (c) =>
-    insertDefaultFreePlan(c, tenantId, includedCredits).then(() => insertFreeMonthlyGrant(c, tenantId)),
-  );
+  await withTenant(tenantId, (c) => provisionDefaultPlanInTx(c, tenantId, includedCredits));
+}
+
+/**
+ * Client-taking inner step of provisionDefaultPlan (same two inserts, same order, no
+ * behaviour change). Z-71 self-serve sign-up calls it on its own system-role client so the
+ * Free plan and the monthly credit grant commit or roll back with the new tenant.
+ */
+export async function provisionDefaultPlanInTx(
+  client: PoolClient,
+  tenantId: string,
+  includedCredits = DEFAULT_FREE_CREDITS,
+): Promise<void> {
+  await insertDefaultFreePlan(client, tenantId, includedCredits);
+  await insertFreeMonthlyGrant(client, tenantId);
 }
 
 /**

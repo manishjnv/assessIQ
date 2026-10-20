@@ -1,0 +1,25 @@
+<!-- Composes kit partials (Z-71 self-serve sign-up). No code and no signed-in link: the button opens the normal sign-in page. -->
+{{#> email-shell preheader="This address already has an AssessIQ account."}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-short
+      eyebrow="SIGN-UP"
+      title=_t_heading
+      body="Someone asked to create an AssessIQ organisation with this email address. This address already has an account, so no new organisation was made."}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px">
+      <tr><td>{{> email-cta label=_t_cta href=signInLink width_px=190}}</td></tr>
+    </table>
+
+    <p style="margin:28px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.55">
+      If you did not ask for this, you can ignore this email.
+    </p>
+
+  {{/email-body}}
+
+  {{> email-footer-transactional}}
+
+{{/email-shell}}

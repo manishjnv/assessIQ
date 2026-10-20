@@ -1,0 +1,491 @@
+---
+// signup.astro — public self-sign-up page (Z-71).
+// Server contract (built elsewhere, called by literal URL):
+//   GET  /api/public/signup/config   → {open, turnstileSiteKey, dpaVersion}
+//   POST /api/public/signup/request  → {ok:true} | 400 | 429
+//   POST /api/public/signup/verify   → {ok:true, redirect} | 400 {error:{code:'SIGNUP_INVALID'}}
+// Turnstile uses explicit render (api.js?render=explicit) so the site key comes from the config call.
+// JSON-LD: BreadcrumbList (Home › Sign up) per SEO §3.6 / §15 template
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Sign up"
+    }
+  ]
+};
+
+const freeIncludes = [
+  '5 sample question sets',
+  'Up to 5 candidates',
+  '20 credits each month',
+  'Certificates',
+];
+---
+
+<BaseLayout
+  title="Sign up"
+  description="Create a free AssessIQ organisation account. Free includes sample question sets, up to 5 candidates, 20 credits each month and certificates."
+  canonicalPath="/signup"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav — visible, matches JSON-LD (SEO §3.8) -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">
+            Home
+          </a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">
+            Sign up
+          </span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Sign up</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-[44px] font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Create your free account.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        Set up your organisation in a few minutes. We send a code to your email to confirm it is you.
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <!-- What Free includes -->
+        <div>
+          <h2 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            What Free includes.
+          </h2>
+          <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+            {freeIncludes.map((item) => (
+              <li class="flex items-start gap-aiq-sm">
+                <span class="text-aiq-accent mt-0.5 flex-shrink-0" aria-hidden="true">&#10003;</span>
+                {item}
+              </li>
+            ))}
+          </ul>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-xl mb-0">
+            Need more? <a href="/contact" class="text-aiq-accent underline">Contact us</a>.
+          </p>
+        </div>
+
+        <!-- Sign-up card -->
+        <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-2xl">
+
+          <!-- Loading state, shown until the config call returns -->
+          <p id="signup-loading" role="status" class="font-sans text-aiq-md text-aiq-fg-secondary m-0">Loading…</p>
+
+          <!-- Closed state -->
+          <div id="signup-closed" hidden>
+            <p class="font-sans text-aiq-md text-aiq-fg-primary m-0">
+              Sign-up is closed right now. Contact us if you need an account.
+            </p>
+            <p class="font-sans text-aiq-md mt-aiq-lg mb-0">
+              <a href="/contact" class="text-aiq-accent underline">Go to the contact page</a>
+            </p>
+          </div>
+
+          <!-- Step 1: request a code -->
+          <div id="signup-step1" hidden>
+            <h2 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+              Your organisation.
+            </h2>
+
+            <form id="signup-form" class="flex flex-col gap-aiq-lg" aria-label="Sign-up form">
+              <div class="flex flex-col gap-aiq-sm">
+                <label for="signup-org" class="font-sans text-aiq-sm font-medium text-aiq-fg-primary">
+                  Organisation name
+                </label>
+                <input
+                  type="text"
+                  id="signup-org"
+                  name="orgName"
+                  autocomplete="organization"
+                  required
+                  placeholder="e.g. Acme Technologies"
+                  class="font-sans text-aiq-md text-aiq-fg-primary placeholder:text-aiq-fg-muted
+                         border border-aiq-border-strong rounded-aiq-md px-4 py-3
+                         focus:outline-none focus:border-aiq-accent focus:shadow-[0_0_0_4px_#eef3fd]
+                         transition-colors bg-aiq-bg-base"
+                />
+              </div>
+
+              <div class="flex flex-col gap-aiq-sm">
+                <label for="signup-name" class="font-sans text-aiq-sm font-medium text-aiq-fg-primary">
+                  Your name
+                </label>
+                <input
+                  type="text"
+                  id="signup-name"
+                  name="adminName"
+                  autocomplete="name"
+                  required
+                  placeholder="e.g. Priya Sharma"
+                  class="font-sans text-aiq-md text-aiq-fg-primary placeholder:text-aiq-fg-muted
+                         border border-aiq-border-strong rounded-aiq-md px-4 py-3
+                         focus:outline-none focus:border-aiq-accent focus:shadow-[0_0_0_4px_#eef3fd]
+                         transition-colors bg-aiq-bg-base"
+                />
+              </div>
+
+              <div class="flex flex-col gap-aiq-sm">
+                <label for="signup-email" class="font-sans text-aiq-sm font-medium text-aiq-fg-primary">
+                  Work or school email
+                </label>
+                <input
+                  type="email"
+                  id="signup-email"
+                  name="email"
+                  autocomplete="email"
+                  required
+                  placeholder="you@company.in"
+                  class="font-sans text-aiq-md text-aiq-fg-primary placeholder:text-aiq-fg-muted
+                         border border-aiq-border-strong rounded-aiq-md px-4 py-3
+                         focus:outline-none focus:border-aiq-accent focus:shadow-[0_0_0_4px_#eef3fd]
+                         transition-colors bg-aiq-bg-base"
+                />
+              </div>
+
+              <!-- Cloudflare Turnstile — bot check. Rendered by script once the site key is known. -->
+              <div id="signup-turnstile" class="min-h-[65px]"></div>
+
+              <label class="flex items-start gap-aiq-sm font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="signup-dpa"
+                  name="dpaAccepted"
+                  class="mt-1 h-4 w-4 flex-shrink-0 accent-[#1f4fd8]"
+                />
+                <span>
+                  I have read and accept the
+                  <a href="/dpa" target="_blank" rel="noopener" class="text-aiq-accent underline">Data Processing Addendum<span class="sr-only"> (opens in a new tab)</span></a>.
+                </span>
+              </label>
+
+              <button
+                type="submit"
+                id="signup-submit"
+                disabled
+                class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                       hover:bg-aiq-accent-hover transition-colors duration-150 self-start
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Sign up
+              </button>
+
+              <p id="signup-status" role="status" aria-live="polite" class="font-sans text-aiq-sm m-0 min-h-[1.25rem]"></p>
+            </form>
+          </div>
+
+          <!-- Step 2: enter the code -->
+          <div id="signup-step2" hidden>
+            <h2 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-lg mt-0">
+              Check your email.
+            </h2>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mt-0 mb-aiq-xl">
+              We sent a 6-digit code to <strong id="signup-sent-to" class="font-medium text-aiq-fg-primary"></strong>.
+            </p>
+
+            <form id="signup-verify-form" class="flex flex-col gap-aiq-lg" aria-label="Code form" novalidate>
+              <div class="flex flex-col gap-aiq-sm">
+                <label for="signup-code" class="font-sans text-aiq-sm font-medium text-aiq-fg-primary">
+                  6-digit code
+                </label>
+                <input
+                  type="text"
+                  id="signup-code"
+                  name="code"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  maxlength="6"
+                  required
+                  placeholder="123456"
+                  aria-describedby="signup-code-help"
+                  class="font-mono text-aiq-lg tracking-[0.3em] text-aiq-fg-primary placeholder:text-aiq-fg-muted
+                         border border-aiq-border-strong rounded-aiq-md px-4 py-3 w-full max-w-[12rem]
+                         focus:outline-none focus:border-aiq-accent focus:shadow-[0_0_0_4px_#eef3fd]
+                         transition-colors bg-aiq-bg-base"
+                />
+                <p id="signup-code-help" class="font-sans text-aiq-xs text-aiq-fg-muted m-0">
+                  The code is in the email from AssessIQ. Check your spam folder if you cannot see it.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                id="signup-verify"
+                class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                       hover:bg-aiq-accent-hover transition-colors duration-150 self-start
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Verify
+              </button>
+
+              <p id="signup-verify-status" role="status" aria-live="polite" class="font-sans text-aiq-sm m-0 min-h-[1.25rem]"></p>
+
+              <button
+                type="button"
+                id="signup-new-code"
+                hidden
+                class="font-sans text-aiq-sm text-aiq-accent underline self-start bg-transparent border-0 p-0 cursor-pointer
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+              >
+                Send a new code
+              </button>
+            </form>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
+
+<!-- Cloudflare Turnstile API — explicit render; the widget is drawn by the script below. is:inline keeps the URL verbatim. -->
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer is:inline></script>
+
+<script>
+  type SignupConfig = { open: boolean; turnstileSiteKey: string | null; dpaVersion: string };
+
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T | null;
+
+  const loadingEl   = $('signup-loading');
+  const closedEl    = $('signup-closed');
+  const step1El     = $('signup-step1');
+  const step2El     = $('signup-step2');
+  const form        = $('signup-form') as HTMLFormElement | null;
+  const orgEl       = $('signup-org') as HTMLInputElement | null;
+  const nameEl      = $('signup-name') as HTMLInputElement | null;
+  const emailEl     = $('signup-email') as HTMLInputElement | null;
+  const dpaEl       = $('signup-dpa') as HTMLInputElement | null;
+  const submitBtn   = $('signup-submit') as HTMLButtonElement | null;
+  const statusEl    = $('signup-status');
+  const tsBox       = $('signup-turnstile');
+  const verifyForm  = $('signup-verify-form') as HTMLFormElement | null;
+  const codeEl      = $('signup-code') as HTMLInputElement | null;
+  const verifyBtn   = $('signup-verify') as HTMLButtonElement | null;
+  const verifyStatus = $('signup-verify-status');
+  const sentToEl    = $('signup-sent-to');
+  const newCodeBtn  = $('signup-new-code') as HTMLButtonElement | null;
+
+  let siteKey = '';
+  let dpaVersion = '';
+  let token = '';
+  let widgetId: string | null = null;
+  let sentTo = '';
+
+  const setStatus = (el: HTMLElement | null, text: string, isError = false) => {
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = isError ? 'var(--aiq-color-danger, #c0392b)' : 'var(--aiq-color-fg-secondary, #555)';
+  };
+
+  const showStep = (n: 1 | 2) => {
+    if (step1El) step1El.hidden = n !== 1;
+    if (step2El) step2El.hidden = n !== 2;
+  };
+
+  const showClosed = () => {
+    if (loadingEl) loadingEl.hidden = true;
+    if (closedEl) closedEl.hidden = false;
+  };
+
+  const updateButton = () => {
+    if (submitBtn) submitBtn.disabled = !(dpaEl?.checked && token);
+  };
+
+  // Waits for the Turnstile API script. Resolves when window.turnstile exists; rejects on load error.
+  const whenTurnstile = () =>
+    new Promise<void>((resolve, reject) => {
+      if ((window as any).turnstile) return resolve();
+      const s = document.querySelector<HTMLScriptElement>('script[src^="https://challenges.cloudflare.com/turnstile/"]');
+      if (!s) return reject(new Error('turnstile script missing'));
+      s.addEventListener('load', () => resolve());
+      s.addEventListener('error', () => reject(new Error('turnstile load failed')));
+    });
+
+  const renderWidget = () => {
+    const ts = (window as any).turnstile;
+    if (!ts || !siteKey || !tsBox) return;
+    if (widgetId !== null) return;
+    widgetId = ts.render(tsBox, {
+      sitekey: siteKey,
+      action: 'signup-request',
+      theme: 'light',
+      callback: (t: string) => { token = t; updateButton(); },
+      'expired-callback': () => { token = ''; updateButton(); },
+      'error-callback': () => { token = ''; updateButton(); },
+    });
+  };
+
+  // Turnstile tokens are single-use. Reset after each request so a retry gets a fresh one.
+  const resetWidget = () => {
+    token = '';
+    const ts = (window as any).turnstile;
+    if (ts && widgetId !== null) ts.reset(widgetId);
+    updateButton();
+  };
+
+  const init = async () => {
+    let cfg: SignupConfig;
+    try {
+      const res = await fetch('/api/public/signup/config', { headers: { Accept: 'application/json' } });
+      if (!res.ok) throw new Error('config ' + res.status);
+      cfg = (await res.json()) as SignupConfig;
+    } catch {
+      return showClosed();
+    }
+    if (!cfg.open || !cfg.turnstileSiteKey) return showClosed();
+
+    siteKey = cfg.turnstileSiteKey;
+    dpaVersion = cfg.dpaVersion;
+    if (loadingEl) loadingEl.hidden = true;
+    showStep(1);
+
+    try {
+      await whenTurnstile();
+      renderWidget();
+    } catch {
+      setStatus(statusEl, 'The security check did not load. Turn off blockers and reload the page.', true);
+    }
+  };
+
+  dpaEl?.addEventListener('change', updateButton);
+
+  form?.addEventListener('submit', async (e: Event) => {
+    e.preventDefault();
+    if (!orgEl || !nameEl || !emailEl || !submitBtn) return;
+    if (!dpaEl?.checked || !token) return updateButton();
+
+    const orgName = orgEl.value.trim();
+    const adminName = nameEl.value.trim();
+    const email = emailEl.value.trim();
+    if (!orgName || !adminName || !email) {
+      setStatus(statusEl, 'Check the details and try again.', true);
+      return;
+    }
+
+    submitBtn.disabled = true;
+    setStatus(statusEl, 'Sending…');
+
+    try {
+      const res = await fetch('/api/public/signup/request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orgName,
+          adminName,
+          email,
+          turnstileToken: token,
+          dpaAccepted: true,
+          dpaVersion,
+        }),
+      });
+
+      if (res.ok) {
+        sentTo = email;
+        if (sentToEl) sentToEl.textContent = email;
+        setStatus(statusEl, '');
+        if (codeEl) codeEl.value = '';
+        setStatus(verifyStatus, '');
+        if (newCodeBtn) newCodeBtn.hidden = true;
+        showStep(2);
+        codeEl?.focus();
+      } else if (res.status === 429) {
+        setStatus(statusEl, 'Too many tries. Try again tomorrow.', true);
+      } else {
+        setStatus(statusEl, 'Check the details and try again.', true);
+      }
+    } catch {
+      setStatus(statusEl, 'Check the details and try again.', true);
+    } finally {
+      resetWidget();
+    }
+  });
+
+  verifyForm?.addEventListener('submit', async (e: Event) => {
+    e.preventDefault();
+    if (!codeEl || !verifyBtn) return;
+    const code = codeEl.value.replace(/\s/g, '');
+    if (!/^\d{6}$/.test(code)) {
+      setStatus(verifyStatus, 'Enter the 6-digit code.', true);
+      return;
+    }
+
+    verifyBtn.disabled = true;
+    setStatus(verifyStatus, 'Checking…');
+    if (newCodeBtn) newCodeBtn.hidden = true;
+
+    try {
+      const res = await fetch('/api/public/signup/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: sentTo, code }),
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as { ok?: boolean; redirect?: unknown };
+        const next = typeof data.redirect === 'string' && data.redirect.startsWith('/') && !data.redirect.startsWith('//')
+          ? data.redirect
+          : '/admin';
+        window.location.assign(next);
+        return;
+      }
+
+      const body = (await res.json().catch(() => null)) as { error?: { code?: string } } | null;
+      if (res.status === 400 && body?.error?.code === 'SIGNUP_INVALID') {
+        setStatus(verifyStatus, 'The code is not valid. Request a new one.', true);
+        if (newCodeBtn) newCodeBtn.hidden = false;
+      } else if (res.status === 429) {
+        setStatus(verifyStatus, 'Too many tries. Try again tomorrow.', true);
+      } else {
+        setStatus(verifyStatus, 'Something went wrong. Try again.', true);
+      }
+    } catch {
+      setStatus(verifyStatus, 'Something went wrong. Try again.', true);
+    } finally {
+      verifyBtn.disabled = false;
+    }
+  });
+
+  newCodeBtn?.addEventListener('click', () => {
+    if (newCodeBtn) newCodeBtn.hidden = true;
+    setStatus(verifyStatus, '');
+    showStep(1);
+    setStatus(statusEl, 'Complete the security check again, then press Sign up for a new code.');
+    resetWidget();
+  });
+
+  init();
+</script>

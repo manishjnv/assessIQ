@@ -85,7 +85,7 @@ describe('email classes', () => {
     const names = EmailTemplateNameSchema.options;
     expect(Object.keys(EMAIL_CLASS).sort()).toEqual([...names].sort());
     const auth = names.filter((n) => EMAIL_CLASS[n] === 'auth').sort();
-    expect(auth).toEqual(['admin_email_otp', 'candidate_login_link', 'invitation_admin']);
+    expect(auth).toEqual(['admin_email_otp', 'candidate_login_link', 'invitation_admin', 'signup_code', 'signup_existing_account']);
     for (const bulk of ['invitation_candidate', 'invitation_reminder', 'result_released', 'evaluation_queue_alert'] as const) {
       expect(EMAIL_CLASS[bulk]).toBe('bulk');
     }

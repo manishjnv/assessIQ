@@ -78,6 +78,17 @@
     "brand_wordmark": "AssessIQ",
     "heading": "Your sign-in code."
   },
+  "signup_code": {
+    "page_title": "Your AssessIQ sign-up code",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Your sign-up code."
+  },
+  "signup_existing_account": {
+    "page_title": "You already have an AssessIQ account",
+    "brand_wordmark": "AssessIQ",
+    "heading": "You already have an account.",
+    "cta": "Sign in to AssessIQ"
+  },
   "weekly_digest_admin": {
     "page_title": "Weekly digest",
     "brand_wordmark": "AssessIQ",

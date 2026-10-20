@@ -49,6 +49,26 @@ export type {
   TenantLogoMeta,
 } from "./service.js";
 export { sniffImage, validateLogo, LOGO_MAX_BYTES, LOGO_MIN_PX, LOGO_MAX_PX } from "./logo.js";
+export {
+  createSelfServeTenant,
+  signupEmailTaken,
+  signupHmac,
+  signupEmailKey,
+  foldSignupEmail,
+  normalizeSignupEmail,
+  normalizeOrgName,
+  isValidOrgName,
+  isValidAdminName,
+  isSuperAdminEmail,
+  slugFromName,
+  RESERVED_SLUGS,
+} from "./self-serve.js";
+export type {
+  CreateSelfServeTenantInput,
+  CreateSelfServeTenantResult,
+  SelfServeProvisionContext,
+  SelfServeRefusal,
+} from "./self-serve.js";
 export { purgeArchivedTenants, MIN_PURGE_DAYS } from "./purge.js";
 export type { PurgeOptions, PurgeReport, TenantPurgeReport } from "./purge.js";
 export { findTenantSettings } from "./repository.js";

@@ -5,6 +5,8 @@
 // documented against docs/03-api-contract.md. Behaviour notes live next to each schema.
 
 import { z, requiredString, queryFlag } from './_validate.js';
+import { DPA_VERSION } from '@assessiq/auth';
+import { isValidOrgName, isValidAdminName } from '@assessiq/tenancy';
 
 // ---- admin-super shared ------------------------------------------
 // RW-36(b): body shared by POST/DELETE /tenants/:tenantId/entitlements.
@@ -243,3 +245,48 @@ export const sdkMintBody = z.object({
     .max(64, 'assessmentId must be 64 characters or fewer'),
 });
 
+
+// ---- public self-serve sign-up (Z-71 / Z-81) ------------------------
+// Public routes: no session, no tenant. The server, not the form, decides what counts as a
+// valid acceptance: dpaAccepted must be literally true and dpaVersion must equal DPA_VERSION.
+const signupEmail = z
+  .string({ required_error: 'email is required' })
+  .max(254, 'email must be 254 characters or fewer')
+  .transform((s) => s.trim().toLowerCase())
+  .pipe(z.string().email('email must be a valid address').max(254));
+
+export const signupRequestBody = z
+  .object({
+    orgName: z
+      .string({ required_error: 'orgName is required' })
+      .max(200, 'orgName is too long')
+      .refine(isValidOrgName, {
+        message: "Organisation name must be 3 to 80 characters: letters, digits, spaces and . - & ' only.",
+        params: { code: 'INVALID_ORG_NAME' },
+      }),
+    adminName: z
+      .string({ required_error: 'adminName is required' })
+      .max(200, 'adminName is too long')
+      .refine(isValidAdminName, {
+        message: 'Your name must be 2 to 80 characters.',
+        params: { code: 'INVALID_ADMIN_NAME' },
+      }),
+    email: signupEmail,
+    turnstileToken: z.string({ required_error: 'turnstileToken is required' }).min(1, 'turnstileToken is required').max(2048),
+    // Codes DPA_NOT_ACCEPTED / DPA_VERSION_MISMATCH are set per field in the route (parseBody code map).
+    dpaAccepted: z.literal(true, {
+      errorMap: () => ({ message: 'You must accept the data processing addendum.' }),
+    }),
+    dpaVersion: z.literal(DPA_VERSION, {
+      errorMap: () => ({ message: 'The data processing addendum version is out of date. Reload the page.' }),
+    }),
+  })
+  .strict();
+
+export const signupVerifyBody = z
+  .object({
+    email: signupEmail,
+    code: z.string().regex(/^\d{6}$/),
+    dpaVersion: z.string().max(32).optional(),
+  })
+  .strict();

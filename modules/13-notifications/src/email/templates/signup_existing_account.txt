@@ -1,0 +1,12 @@
+Subject: You already have an AssessIQ account
+
+Someone asked to create an AssessIQ organisation with this email address. This address already has an account, so no new organisation was made.
+
+To use your account, sign in here:
+
+{{signInLink}}
+
+If you did not ask for this, you can ignore this email. No action is needed.
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

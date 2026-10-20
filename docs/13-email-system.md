@@ -878,3 +878,7 @@ E1 cannot start until the team resolves decision #5 (the footer partial needs th
 - **Rejected:** editing each of the 13 HTML templates (13 places to keep in step).
 - **Not included:** the wording of other templates (Z-37 b) and the Submitted page feedback sentence (Z-44).
 - **Downstream:** snapshots for `evaluation_queue_alert`, `invitation_candidate` and `result_released` gained one line. A test in `email-result-copy.test.ts` checks that the partial holds the line once and that every HTML template with a signed .txt includes the partial.
+
+## Self-serve sign-up mails (Z-71, 2026-10-20)
+
+*Type: reference.* Two templates, both class `auth` (never delayed by the bulk cap): `signup_code` (vars `code`, `expires_minutes`; layout follows `admin_email_otp`) and `signup_existing_account` (var `signInLink`; a button to `/admin/login`, no code, no signed-in link). The sign-up has no tenant yet, so both go through the platform sender path: `tenantId` = `PLATFORM_TENANT_ID`, system actor. `sendEmail` has a new option `redactLogBody`: `email_log.body_text` and `body_html` stay NULL, so the plain code is not stored (test: `signup-mail.test.ts`). The send job in Redis still holds the body until BullMQ removes it. Both mails count against the 3 a day limit for each address. **Not included:** a 30-day purge of platform-tenant `email_log` rows (no retention hook exists for the platform tenant; open follow-up).

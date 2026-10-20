@@ -90,6 +90,7 @@ export {
   consumeRateLimit,
   isRateLimited,
   extractClientIp,
+  extractRateLimitClientIp,
   sessionLoaderMiddleware,
   apiKeyAuthMiddleware,
   requireAuth,
@@ -98,4 +99,24 @@ export {
   requireScope,
   extendOnPassMiddleware,
 } from "./middleware/index.js";
-export type { AuthRequest, AuthReply, AuthHook } from "./middleware/index.js";
+export type { AuthRequest, AuthReply, AuthHook, RateLimitScope } from "./middleware/index.js";
+
+// Z-71 / Z-81 — self-serve organisation sign-up (public routes live in apps/api).
+export { DPA_VERSION, TERMS_VERSION } from "./signup-legal.js";
+export {
+  signupAvailable,
+  signupPublicConfig,
+  requestSignup,
+  verifySignup,
+  SIGNUP_TURNSTILE_ACTION,
+  SIGNUP_IP_MAX_PER_DAY,
+  SIGNUP_EMAIL_MAX_PER_DAY,
+  SIGNUP_GLOBAL_MAX_PER_DAY,
+} from "./signup.js";
+export type {
+  SignupRequestInput,
+  SignupRequestResult,
+  VerifySignupInput,
+  VerifySignupResult,
+  VerifySignupDeps,
+} from "./signup.js";

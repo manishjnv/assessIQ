@@ -3907,3 +3907,42 @@ No route changed. The v2 import template has two more columns, after `pyq_shift`
 - Candidate result (`GET /api/me/attempts/:id/result`) and `GET /api/me/results` items add `delivery_mode`. The UI shows a Mock label. A mock result never has a `certificate`.
 - Reports: the cohort report, results CSV, attempts export, dashboard "attempts this week", topic heatmap, question statistics and Activity stats count REAL attempts only (`countingAttemptSql`, migration `0219`, and `delivery_mode = 'real'` filters).
 - Attempts allowance (Z-39): only attempts of the same `delivery_mode` as the invitation count, so a mock does not use up a real allowance.
+
+## Public self-serve sign-up (Z-71, Z-81, 2026-10-20)
+
+*Type: reference.* Three PUBLIC routes (`config: { skipAuth: true }`, no session, no tenant context). Code: `apps/api/src/routes/public-signup.ts`. Flow, safety argument and key spaces: `docs/04-auth-flows.md` § "Self-serve organisation sign-up". All answers carry `Cache-Control: no-store`. The routes sit behind the public credential chain (anonymous IP bucket and the 20 a minute credential bucket) in addition to the limits below.
+
+**Gate.** The routes answer `404 NOT_FOUND` unless `PLAN_TIERS_ENFORCED=true`, `SIGNUP_ENABLED=true`, both Turnstile keys are set and Redis answers. Checked on every request.
+
+### `GET /api/public/signup/config`
+
+Always `200 { open: boolean, turnstileSiteKey: string | null, dpaVersion: "1.0" }`. `turnstileSiteKey` is `null` while `open` is false. The Turnstile widget must use the action `signup-request`.
+
+### `POST /api/public/signup/request`
+
+Body (strict, unknown fields are refused): `{ orgName, adminName, email, turnstileToken, dpaAccepted, dpaVersion }`.
+
+| Field | Rule |
+| --- | --- |
+| `orgName` | 3-80 characters after trim and whitespace collapse; letters, digits, space and `. - & '` only |
+| `adminName` | 2-80 characters, no control characters or angle brackets |
+| `email` | valid address, up to 254 characters, lower-cased |
+| `turnstileToken` | 1-2048 characters |
+| `dpaAccepted` | literally `true` |
+| `dpaVersion` | must equal the server constant `DPA_VERSION` (`"1.0"`) |
+
+| Status | Body | When |
+| --- | --- | --- |
+| 200 | `{ ok: true }` | Every case after the checks: new address, existing account, super-admin or blocked address, daily cap reached. Same body and the same 800 ms minimum time. |
+| 400 | `VALIDATION_FAILED`, `details.code` one of `INVALID_ORG_NAME`, `INVALID_ADMIN_NAME`, `INVALID_EMAIL`, `MISSING_TURNSTILE`, `DPA_NOT_ACCEPTED`, `DPA_VERSION_MISMATCH` | body rule failed |
+| 403 | `TURNSTILE_FAILED` | siteverify failed, timed out (3 s), wrong action or hostname, or token already used |
+| 404 | `NOT_FOUND` | gate closed |
+| 429 | `RATE_LIMITED`, `details.scope` `signup_ip` (5 a day for each source; a request with no determinable IP is refused with this scope) or `signup_email` (3 a day for each folded address; both mails count), `Retry-After` set | limit reached |
+
+Order of checks: gate, body, Turnstile, IP limit, address limit, super-admin address and block list, daily cap, then the mail.
+
+### `POST /api/public/signup/verify`
+
+Body: `{ email, code, dpaVersion? }` (`code` is 6 digits). On success: `200 { ok: true, redirect: "/admin" }` (or `"/admin/mfa"` when `MFA_REQUIRED=true`) and a `Set-Cookie` for the new admin session. Every failure is `400 { error: { code: "SIGNUP_INVALID", message: "The code is not valid. Request a new one." } }` after the same 800 ms minimum: wrong, expired or burnt code, a malformed body, a claim conflict, an address that already has a user, a different `dpaVersion` than the stored one, the daily cap. `404` when the gate is closed.
+
+**Not included.** A resend route (the page calls `request` again; the address limit applies). An endpoint that tells if an address is free (it would allow enumeration).
