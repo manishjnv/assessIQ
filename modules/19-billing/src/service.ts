@@ -1310,6 +1310,17 @@ export async function sendCreditLowBalanceNotices(send: LowBalanceSender): Promi
         if (fresh.length === 0) return false;
         const level = Math.min(...fresh);
         const admins = await listTenantAdminEmails(client, c.tenant_id);
+        await client.query('SET LOCAL ROLE assessiq_app');
+        await client.query("SELECT set_config('app.current_tenant', $1, true)", [c.tenant_id]);
+        await auditInTx(client, {
+          action: 'billing.credit_low_balance_notice',
+          actorKind: 'system',
+          tenantId: c.tenant_id,
+          entityType: 'credit_grant',
+          entityId: c.grant_id,
+          after: { level, remaining: c.balance, largest_grant: c.largest, recipients: admins.length },
+        });
+        // Audit first: if it throws the whole tx rolls back before any mail is queued (no daily duplicate).
         let sent = 0;
         for (const to of admins) {
           try {
@@ -1320,16 +1331,6 @@ export async function sendCreditLowBalanceNotices(send: LowBalanceSender): Promi
           }
         }
         if (sent === 0) throw new Error('credit low-balance: no admin email was sent');
-        await client.query('SET LOCAL ROLE assessiq_app');
-        await client.query("SELECT set_config('app.current_tenant', $1, true)", [c.tenant_id]);
-        await auditInTx(client, {
-          action: 'billing.credit_low_balance_notice',
-          actorKind: 'system',
-          tenantId: c.tenant_id,
-          entityType: 'credit_grant',
-          entityId: c.grant_id,
-          after: { level, remaining: c.balance, largest_grant: c.largest, recipients: sent },
-        });
         return true;
       });
       if (did) notified += 1;
