@@ -294,3 +294,12 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - **Why.** Exam candidates need the section marks and the qualifying result (S20 sent the data, nothing showed it). Owner rule P1 stays: no per-question data, bands or percentile.
 - **Not included.** The table in the compact list row (`MyResults`), a help id (no new help text), section ranks.
 - **Tests.** `src/__tests__/ResultSummary.test.tsx` ("Z-42 section marks").
+
+## Camera (S39)
+
+- `takeCameraConsent` in `src/api.ts` posts the candidate's answer to `POST /take/camera-consent`.
+- The preview type in `src/types.ts` carries `camera_required` and `camera_notice_version` on the assessment.
+- Capture hook: `apps/web/src/pages/take/useCameraCapture.ts`. It takes a photo every 60 seconds. It uploads a short video only when the camera stops or is blocked.
+- Consent comes before Start. "Allow camera and start" waits for the general consent checkbox.
+- A retake needs a fresh consent. The server refuses the start without one.
+- Screens and components: `docs/08-ui-system.md`, "Camera screens".

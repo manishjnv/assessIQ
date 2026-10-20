@@ -2939,3 +2939,38 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the tests assumed attempts x 10, the very gap Z-96 fixes. The count test pins the number of email templates (`email-result-copy.test.ts`).
 **Fix:** expectations moved to the real burn (a real attempt is 20). The aged-out case also moves `credit_burns.burned_at`. Count set to 17.
 **Prevention:** the new `credit-ledger.test.ts` meter case covers mock + real + camera = 60.
+
+## 2026-10-20 — Camera module folder hidden by a local exclude rule (Z-74)
+
+**Symptom:** none in production. The first camera commit staged 37 files and left the whole `modules/06-attempt-engine/src/camera/` folder out. A CI build of that commit would have failed on missing imports.
+**Cause:** `.git/info/exclude` on the shared clone ignores a folder named `camera/`. `git status` listed it as one untracked folder, so it was easy to miss.
+**Fix:** the 8 files were added by name with `git add -f` before the commit (`737ccb13`).
+**Prevention:** run `git check-ignore -v` on every new folder before the commit, and compare `git diff --cached --name-only` with the planned file list.
+
+## 2026-10-20 — A retake reused the first attempt's camera consent (Z-74)
+
+**Symptom:** found in the review gate, not in production. The second attempt of the same invitation started, then every camera upload returned 403 CAMERA_CONSENT_REQUIRED.
+**Cause:** the start gate in `modules/06-attempt-engine/src/service.ts` (step c4) accepted the newest agreed consent of the invitation. That consent was already linked to attempt 1, and `linkConsentToAttempt` links only unlinked rows, so attempt 2 had no linked consent.
+**Fix:** the gate also requires `consent.attemptId === null`. A new attempt needs a fresh consent (`737ccb13`).
+**Prevention:** the gate review. A dedicated retake test is not written yet (open item in the change record).
+
+## 2026-10-20 — Camera nav probe logged a 403 on every admin page and failed CI (Z-74)
+
+**Symptom:** all signed-in e2e smoke specs failed in CI on `6dbabbd4` with "console errors on /admin/...: 403 (Forbidden)".
+**Cause:** `modules/10-admin-dashboard/src/lib/camera-reviewer.ts` probed `GET /api/admin/camera/flagged`. That route answers 403 to every admin who is not a named reviewer. The browser logs each 403 as a console error.
+**Fix:** new `GET /api/admin/camera/access` (admin chain, always 200, body `{ reviewer }`). The probe uses it (`b1426b66`).
+**Prevention:** the e2e console-error check caught it. Never probe a role with a route that answers 403 to the people you test for.
+
+## 2026-10-20 — The general test consent was hidden on camera tests (Z-74)
+
+**Symptom:** found in review. On a camera test the page showed the camera consent screen but no general assessment consent checkbox. The server still stored the general consent from the Begin request.
+**Cause:** `apps/web/src/pages/take/TokenLanding.tsx` replaced the checkbox block when the camera rule applied.
+**Fix:** the checkbox stays. "Allow camera and start" is disabled until it is ticked (`6dbabbd4`).
+**Prevention:** the TokenLanding tests tick the checkbox before Allow.
+
+## 2026-10-21 — A Caddy header added in the site block lost to the shared snippet (Z-74, Z-77)
+
+**Symptom:** after the first edge reload, `/take/...` still sent `Permissions-Policy: camera=()`. A second try inside the app handler failed the same way.
+**Cause:** the shared `security-headers` snippet sets that header as a deferred write. Caddy applies deferred writes from the outer handler last, so a plain header, or one inside a handler, is overwritten. My validation helper also read only the last log line and falsely reported "invalid" once, which restored the old file; the running config was not harmed.
+**Fix:** a site-level deferred header `header @take_pages >Permissions-Policy "camera=(self), ..."`. Caddy sorts the matcher form before the snippet's handler, so it is the outer one and writes last. Checked with `curl -sI` on `/take/abc` (camera=(self)) and `/admin` (camera=()).
+**Prevention:** `docs/06-deployment.md` records the trap. After each edge edit read the whole `caddy validate` output, then check the live headers with curl.

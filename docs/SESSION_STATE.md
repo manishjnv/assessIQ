@@ -1,3 +1,33 @@
+# Session — 2026-10-20/21 — S39: Wave 2 camera for real exams (Z-74, Z-82)
+
+**Headline:** The camera feature is built and live behind the `CAMERA_ENFORCED` switch (still OFF): consent, photos, flagged short video, authenticated file view, reviewer page, school mode, daily delete job, erasure. Caddy `camera=(self)` is applied on take pages only. Z-74 and Z-82 closed in place.
+**Commits:** `737ccb13` — camera server side (Batch A, trailer `Adversarial-Review: sonnet-takeover revise-addressed`) · `6dbabbd4` — candidate and staff screens, help 0231 · `b1426b66` — nav probe fix (always-200 access route) · close-out docs commit follows (smoke spec, runbook, edge reference copies, docs).
+**Tests:** pass. Module 06 full file set (418+), camera routes 19, admin-dashboard 275, take pages 81, help 116, smoke spec 3 of 3 (local). `pnpm verify` green before every push. CI green on `b1426b66` (the first CI run of `6dbabbd4` failed on the nav probe; fixed). Deployed twice, sweep 0 failures. Migrations 0229, 0230, 0231 applied; next free 0232. Last deployed sha `b1426b66`.
+**Recount:** pending 79, closed 206, total 285, 72% (was 81/204/285, 72%).
+**Edge:** the shared Caddyfile was edited once with the owner's go. A copy of the old file is kept in the assessiq backups folder on the server. The camera header must be a site-level deferred header; a plain one loses to the shared snippet (RCA 2026-10-21). Repo reference copies match the live file.
+**Next:** the owner creates the school test organisation (Platform page, **School** switch), walks through `docs/runbooks/camera-school-test.md`, then decides on `CAMERA_ENFORCED=true`. After that Wave 3 (exam content) or Wave 5 (GATE-8, load test).
+**Open questions:** the real-exam invitation email has no camera line yet (design step 1, not built). Turn `CAMERA_ENFORCED` on? Add a retake consent test? Per-tenant storage quota, orphan-file sweep and a consent rate limit are accepted gaps (change record section 5). Owner tasks: Caddy header check done by Claude; still yours: school test walk-through, signed-in check of /admin and one take page, CSP console check, speed check, AI evaluation bless and dry runs, rate card, host and IP in the public CLAUDE.md.
+**Old task or feature checked:** Z-87 and Z-91 (the camera reuses the desktop rule and the readiness page), Z-39 (retake), Z-77 (CSP, `media-src` added) (Rule B).
+**Change record:** `docs/plans/2026-10-20-camera-change-record.md`
+**Optimization register rows touched:** TOK-6, GATE-4.
+
+---
+
+## Agent utilization
+- Opus: n/a in the strict sense (this session ran on Sonnet 5.5 as orchestrator) · plan, contracts for every agent, line review of all server code and both gate-sensitive diffs, 6 fixes (retake consent, general consent, probe route, help ids, is_school in the tenant list, body limits), commit, push, deploy, Caddy edit, docs
+- Sonnet · A1 camera data layer · reworked: N · tokens: 202k
+- Sonnet · A2 routes and start gate · reworked: Y (retake consent bug found in review, fixed by orchestrator) · tokens: 258k
+- Sonnet · B1 capture hook · reworked: N · tokens: 110k
+- Sonnet · C2 "Did not consent" label · reworked: N · tokens: 143k
+- Sonnet · adversarial gate on batch A (takeover, owner approved) · verdict REVISE, findings 2 3 4 fixed, 1 5 6 accepted · tokens: 129k
+- Haiku · B2 readiness camera and consent screen, help 0231 · reworked: Y (general consent checkbox restored, tests updated) · tokens: 213k
+- Haiku · C1 staff screens · reworked: Y (3 help ids renamed, is_school added to the tenant list, nav probe replaced after CI) · tokens: 206k
+- Haiku · D1 local smoke spec · reworked: N · tokens: 146k
+- Haiku · D2 runbook · reworked: N · tokens: 111k
+- Haiku · docs as-built update · reworked: N · tokens: see final report
+- codex:rescue: n/a — Codex down; Sonnet takeover gate on batch A, verdict REVISE, fixed or accepted as listed
+- Gemini (agy): n/a — no bulk digest needed; reads were targeted
+
 # Session — 2026-10-20 — S38: Session 4 pre-pilot readiness (exact meter, expiry warning, result sign-in link, ETA notice, sample quiz, load-test script)
 
 **Headline:** Z-93 and Z-96 closed (exact meter + expiry-warning email), Z-15 (a) shipped (7-day one-time sign-in link in the result email), SP11 live, Z-84 report done, load-test script and checklist written (not run).

@@ -1808,3 +1808,25 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 ## Evaluation status: expected grading line (SP11, 2026-10-20)
 
 - The Evaluation status page (`/admin/grading-jobs`) shows one muted line under the header: "Expect grading {turnaround}. Results appear after AssessIQ finishes the evaluation. If your organisation releases results by hand, you release them next." It uses the `evaluationTurnaroundText` field from `GET /api/admin/dashboard/queue` and the `admin.grading.jobs.eta_notice` help id (see `docs/03-api-contract.md`, SP11 note). Style: the page's existing `MUTED_SM` text, no new component.
+
+## Camera screens (Z-74, Z-82; S39, 2026-10-20)
+
+The real-exam camera adds the components below. The candidate side records consent and capture. The staff side sets the school switches and reviews files.
+
+| Component | File | Help ids |
+| --- | --- | --- |
+| `CameraConsent` | `apps/web/src/pages/take/CameraConsent.tsx` | `candidate.intro.camera_consent` |
+| `CameraIndicator` | `apps/web/src/pages/take/CameraIndicator.tsx` | `candidate.attempt.camera_indicator` ("Camera on"), `candidate.attempt.camera_lost` ("Your camera stopped") |
+| `ReadinessPanel` camera row | `apps/web/src/pages/take/ReadinessPanel.tsx` | `candidate.intro.camera_check` |
+| `CameraSettingsCard` | `modules/10-admin-dashboard/src/components/CameraSettingsCard.tsx` | `admin.tenant_settings.camera`, `admin.tenant_settings.camera_notice` |
+| `CameraReviewersCard` | `modules/10-admin-dashboard/src/components/CameraReviewersCard.tsx` | `admin.tenant_settings.camera_reviewers` |
+| `SchoolSwitch` | `modules/10-admin-dashboard/src/pages/platform/SchoolSwitch.tsx` | `admin.platform.tenants.school` |
+| Reviewer page (`/admin/camera-review`) | `modules/10-admin-dashboard/src/pages/camera-review.tsx` | `admin.camera.review_list`, `admin.camera.review_files` |
+
+Rules:
+
+- File bytes load only when a reviewer clicks View.
+- The page fetches the file as an authenticated blob. It creates an object URL and revokes it when the viewer closes.
+- No public URL exists for a camera file.
+- Each View writes one `camera.file.viewed` audit row.
+- A help id must start with the page's `helpPage` prefix. The reviewer page uses `admin.camera`.

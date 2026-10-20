@@ -2927,13 +2927,20 @@ Status: DEPLOYED 2026-10-19 at `1eda2ec9` (code commit `1e0932b2` plus the scrip
 
 ## Real-exam camera: storage, env and daily job (Batch A part 2, 2026-10-20)
 
-*Type: how-to.* Deploy with the usual additive steps. Nothing in this change touches other apps on the shared host.
-
 1. Create the host folder before the first `up`: `mkdir -p /var/lib/assessiq/camera`. It must be writable by the container user. The API and worker run as root in the current image, so a root-owned `0700` folder works. The compose file bind-mounts it into `assessiq-api` and `assessiq-worker` at the same path.
 2. The env vars reach both containers through `../.env` (`env_file`), like `SIGNUP_ENABLED`. They are `CAMERA_ENFORCED` (default `false`), `CAMERA_STORAGE_DIR` (default `/var/lib/assessiq/camera`) and `CAMERA_STORAGE_MAX_BYTES` (default 5368709120). Leave `CAMERA_STORAGE_DIR` unset unless the mount path changes.
-3. Keep `CAMERA_ENFORCED=false` until the candidate and staff screens are deployed. If you turn it on earlier, every real exam answers 422 `CAMERA_CONSENT_REQUIRED` and no page collects consent.
+3. Keep `CAMERA_ENFORCED=false` until the owner decides to turn it on. If you turn it on early, every real exam answers 422 `CAMERA_CONSENT_REQUIRED`.
 4. Daily job: `camera-retention-cron` runs at 03:00 UTC in the worker (1 attempt, concurrency 1). It deletes expired files (disk first, then the row; held flagged files stay). Then it logs a warning when storage is at 80 percent or more of the cap. No AI, no new queue.
-5. Edge route (owner Caddy change, not in this commit): add `/take/camera-consent` to the `@api` path matcher in `infra/caddyfile/assessiq.snippet` and `infra/caddy/assessiq.caddy`, next to `/take/start`. Caddy matches exact paths, so without it the SPA answers the consent POST and the page cannot record consent. Do this before you set `CAMERA_ENFORCED=true`.
-6. Check: run `docker exec assessiq-api ls -ld /var/lib/assessiq/camera`. Then upload one photo on a test exam and look for the `<tenant>/<attempt>/<file>.jpg` path under the folder.
+5. **Caddy edge change (applied).** The AssessIQ site block in the shared Caddyfile has three changes:
+   - A site-level deferred header for `/take` and `/take/*`: `header @take_pages >Permissions-Policy "camera=(self), microphone=(), geolocation=()"`. Other pages keep `camera=()`.
+   - `media-src 'self' blob:` in the report-only CSP.
+   - `/take/camera-consent` in the `@api` matcher, next to `/take/start`. Without it, the SPA answers the consent POST.
+   - **Trap:** a plain `header`, or a `header` inside a handler block, loses to the shared `security-headers` snippet. Caddy applies deferred header writes from the outer handler last. The site-level deferred form (`>`) wins.
+6. Verify the edge change:
+   - `curl -sI` on a `/take` page shows `camera=(self)`.
+   - `curl -sI` on `/admin` shows `camera=()`.
+   - `POST /take/camera-consent` returns JSON, not HTML.
+7. Back up before each Caddy edit. Copy the live Caddyfile to the AssessIQ backups folder on the server (`/var/backups/assessiq/`). Write the file in place with a truncate-write (`cat >`, `printf >` or `tee`). Never use `mv` or `sed -i`. Both create a new inode, and the bind mount then keeps the old file (RCA 2026-04-30).
+8. Check: run `docker exec assessiq-api ls -ld /var/lib/assessiq/camera`. Then upload one photo on a test exam and look for the `<tenant>/<attempt>/<file>.jpg` path under the folder.
 
 **Why a bind mount.** Files must survive container recreates, and Postgres should not hold image bytes (backup size). **Not included.** Off-host copies or backup of the folder (camera data is short-lived by design), a CDN, virus scanning. **Rollback.** Set `CAMERA_ENFORCED=false` and recreate `assessiq-api` and `assessiq-worker`; the mount stays harmless. The daily job, or deleting the folder, removes the disk files.

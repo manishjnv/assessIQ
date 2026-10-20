@@ -183,3 +183,11 @@ Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the
 **Not included.** Hindi rows. Tenant guide editor.
 
 **Downstream impact.** `docs/07-help-system.md` section "Admin guide as help rows, S16"; `AdminHelp.tsx` in 10-admin-dashboard.
+
+## Camera help ids (S39, migration 0231)
+
+- Migration `0231_camera_help.sql` adds 10 ids: 4 candidate and 6 admin.
+- Candidate: `candidate.intro.camera_check`, `candidate.intro.camera_consent`, `candidate.attempt.camera_indicator`, `candidate.attempt.camera_lost`.
+- Admin: `admin.tenant_settings.camera`, `admin.tenant_settings.camera_notice`, `admin.tenant_settings.camera_reviewers`, `admin.camera.review_list`, `admin.camera.review_files`, `admin.platform.tenants.school`.
+- The seeded global count goes from 575 to 585 (`help-system.test.ts`).
+- An id must start with the page's `helpPage` prefix. Otherwise the help does not load. The reviewer page uses `admin.camera`.

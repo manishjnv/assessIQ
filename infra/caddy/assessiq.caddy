@@ -64,13 +64,18 @@ assessiq.in {
         }
     }
     import security-headers
+    # Camera (S39): camera=(self) on take pages only. The shared snippet sets camera=() for every site, so this
+    # header is deferred (>) and sits at site level; Caddy sorts it before the snippet's handler, which makes it the
+    # outer handler and the last one to write. A plain or inner header loses to the snippet.
+    @take_pages path /take /take/*
+    header @take_pages >Permissions-Policy "camera=(self), microphone=(), geolocation=()"
     # Z-46 (2026-10-19): REPORT-ONLY CSP, live on the VPS since 2026-10-19. It sits in the assessiq.in block ONLY:
     # the (security-headers) snippet is imported by 8 sites, so a header there would reach other apps.
     # Logs violations in the browser console; blocks nothing. Enforce only after a clean signed-in sweep.
-    header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://cloudflareinsights.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'"
+    header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cloudflareinsights.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'"
     encode zstd gzip
 
-    @api path /api/* /embed* /help/* /take/start /verify/*
+    @api path /api/* /embed* /help/* /take/start /take/camera-consent /verify/*
     handle @api {
         reverse_proxy 172.17.0.1:9092 {
             header_up X-Forwarded-Proto https
