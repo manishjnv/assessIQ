@@ -2883,3 +2883,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the new table column looks personal to the erasure test, and the page used a `.page` id as its helpPage so no id began with `<helpPage>.`. Both tests live in modules the agents did not touch.
 **Fix:** `modules/20-data-rights/src/__tests__/erasure-coverage.test.ts` EXEMPT entry for `question_review_notes.note` (staff note, no candidate personal data); `modules/10-admin-dashboard/src/pages/review-queue.tsx` `helpPage="admin.review_queue"`.
 **Prevention:** after a new table or a new page, run the two guard tests (`erasure-coverage`, `help-id-page-prefix`) before the push; the agent brief should list them. Local `pnpm verify` runs lint and typecheck only, not these tests.
+
+## 2026-10-20 — Passage draw could fail an attempt start with "Question pool too small" (random)
+
+**Symptom:** CI unit test `passage-draw.test.ts` failed once with `Question pool too small at start: 4 < 5`. In production a candidate could be refused at start on a random shuffle.
+**Cause:** `takeUnits` in `modules/06-attempt-engine/src/passages.ts` is first-fit over the shuffled units. With a pool of two passages (2 and 3 questions) and four single questions, a shuffle that puts all four singles first leaves one free slot that no whole passage fits. The result had 4 of 5 questions although a valid set of 5 existed. The bug came in with EXP-8 (S34).
+**Fix:** `passages.ts` `takeUnits`: when first-fit is short, an exact-fit search over the units (subset-sum table, earliest units kept) fills `n` exactly. If no exact fit exists, the old shorter result is returned and the caller reports the pool as too small. New unit test `take-units.test.ts`.
+**Prevention:** the unit test pins the stranded-gap case. The DB test `passage-draw.test.ts` already runs 12 random draws.
