@@ -1,0 +1,159 @@
+---
+// resources/how-to-run-a-campus-aptitude-test.astro
+// JSON-LD: HowTo (steps are real product steps, verified in code), BreadcrumbList.
+// Claims verified in code (see docs/design/2026-10-19-page-proposals.md, Z-76):
+// - CSV import: 1,000 rows, 512 KB max (modules/03-users/src/import.ts)
+// - Timer: server stores end time at start; writes after end are refused (modules/06-attempt-engine/src/service.ts)
+// - Timer sweep: submits expired attempts every 30 s (apps/api/src/worker.ts)
+// - Release: manual by default, auto option (modules/09-scoring/src/release.ts, tenant-settings.tsx)
+import { getPageDates, formatDate } from '../../lib/page-dates';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const dates = getPageDates('/resources/how-to-run-a-campus-aptitude-test');
+const canonicalPath = '/resources/how-to-run-a-campus-aptitude-test';
+
+const steps = [
+  { name: 'Build the test', text: 'Create the aptitude test and add its questions. You can add questions one by one or import a file.' },
+  { name: 'Set the time limit', text: 'Set the test duration in minutes. The server keeps the end time from the moment a student starts.' },
+  { name: 'Publish the test', text: 'Review the settings, then publish the test. Published tests can receive invitations.' },
+  { name: 'Invite students', text: 'Invite students one by one, or import a CSV file with up to 1,000 rows.' },
+  { name: 'Students take the test', text: 'Students open their invitation link and start the test. The timer starts at the start.' },
+  { name: 'Time ends', text: 'When time runs out, the system submits the attempt. Answers sent after the end time are refused.' },
+  { name: 'Review the attempts', text: 'Multiple-choice answers are scored on submit. Written answers get AI-assisted grades that you review and accept.' },
+  { name: 'Release the results', text: 'Release each result to the student, or switch to automatic release.' },
+];
+
+const howToSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'HowTo',
+  name: 'How to run a campus aptitude test online',
+  description: 'The steps to run an online aptitude test for students, from building the test to releasing results.',
+  datePublished: dates.published,
+  dateModified: dates.modified,
+  step: steps.map((s, i) => ({ '@type': 'HowToStep', position: i + 1, name: s.name, text: s.text })),
+};
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${site}/` },
+    { '@type': 'ListItem', position: 2, name: 'Resources', item: `${site}/resources` },
+    { '@type': 'ListItem', position: 3, name: 'How to run a campus aptitude test' },
+  ],
+};
+---
+
+<BaseLayout
+  hasDatedNode
+  title="How to Run a Campus Aptitude Test Online"
+  description="Step-by-step guide to running an online campus aptitude test for a placement drive: build it, invite students, set timers and release results."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(howToSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/resources" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Resources</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">How-to guide</span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <header class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Campus hiring &middot; How-to
+      </p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        How to run a campus aptitude test online
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-xl max-w-2xl">
+        Follow these steps to run an online aptitude test for students. The steps follow the order of the product, from building the test to releasing results.
+      </p>
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+        Published {formatDate(dates.published, true)} &middot; AssessIQ Editorial
+      </p>
+    </div>
+  </header>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <section aria-labelledby="steps" class="mb-aiq-4xl">
+        <h2 id="steps" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Steps
+        </h2>
+        <ol class="flex flex-col gap-aiq-lg list-decimal pl-aiq-xl m-0">
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+            <strong class="text-aiq-fg-primary font-medium">Build the test.</strong> Create the aptitude test and add its questions. You can add questions one by one or import a file.
+          </li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+            <strong class="text-aiq-fg-primary font-medium">Set the time limit.</strong> Set the test duration in minutes. The server keeps the end time from the moment a student starts.
+          </li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+            <strong class="text-aiq-fg-primary font-medium">Publish the test.</strong> Review the settings, then publish the test. Only a published test can receive invitations.
+          </li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+            <strong class="text-aiq-fg-primary font-medium">Invite students.</strong> Invite students one by one, or import a CSV file with up to 1,000 rows. See <a href="/resources/send-test-invitations-to-students" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">how to send test invitations</a>.
+          </li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+            <strong class="text-aiq-fg-primary font-medium">Students take the test.</strong> Students open their invitation link and start the test. The timer starts when they start.
+          </li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+            <strong class="text-aiq-fg-primary font-medium">Time ends.</strong> When time runs out, the system submits the attempt. Answers sent after the end time are refused.
+          </li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+            <strong class="text-aiq-fg-primary font-medium">Review the attempts.</strong> Multiple-choice answers are scored on submit. Written answers get AI-assisted grades. You review and accept them.
+          </li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+            <strong class="text-aiq-fg-primary font-medium">Release the results.</strong> Release each result to the student, or switch to automatic release. See <a href="/resources/release-campus-test-results" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">how to release test results</a>.
+          </li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="before-you-start" class="mb-aiq-4xl">
+        <h2 id="before-you-start" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Good to know
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The CSV import accepts up to 1,000 rows and a file of 512 KB.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Students never see a partial or provisional score.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Bulk email, such as invitations and results, has a daily limit. See <a href="/resources/send-test-invitations-to-students" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">invitations</a>.</p>
+          </li>
+        </ul>
+      </section>
+
+      <aside class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Related reading</p>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li><a href="/tests/aptitude" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Aptitude test topics</a></li>
+          <li><a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Campus recruitment solution</a></li>
+          <li><a href="/pricing" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Pricing</a></li>
+        </ul>
+      </aside>
+
+    </div>
+  </article>
+</BaseLayout>

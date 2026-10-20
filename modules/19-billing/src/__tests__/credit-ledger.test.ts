@@ -25,7 +25,7 @@ const MIGRATION_0225 = [
   join(process.cwd(), 'migrations/0225_credit_scale_x10.sql'),
 ].find((f) => existsSync(f)) ?? '';
 import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
-import { recordGradedAttempt, grantCredits, refillFreeMonthlyCredits, getCreditBalance } from '../service.js';
+import { recordGradedAttempt, grantCredits, refillFreeMonthlyCredits, getCreditBalance, sendCreditLowBalanceNotices } from '../service.js';
 import { BURN, FREE_MONTHLY_CREDITS } from '../burn-rates.js';
 
 function isDockerAvailable(): boolean {
@@ -228,5 +228,45 @@ describe('0225 credit scale x10', () => {
     await expect(ins('free_monthly', 201)).rejects.toThrow();
     await expect(ins('purchase', 10)).rejects.toThrow();
     await expect(ins('free_monthly', 200)).resolves.toBeDefined();
+  });
+});
+
+// Z-96: low-balance emails (20 and 10 percent of the largest active grant), once per level per grant.
+describe('low-balance notices', () => {
+  const setRemaining = (id: string, n: number) => sup((c) => c.query(`UPDATE credit_grants SET remaining = $2 WHERE id = $1`, [id, n]));
+  const notices = (tenantId: string) =>
+    sup(async (c) => (await c.query<{ level: number }>(`SELECT level FROM credit_lowbalance_notices WHERE tenant_id = $1 ORDER BY level DESC`, [tenantId])).rows.map((r) => r.level));
+  const auditCount = (tenantId: string) =>
+    sup(async (c) => (await c.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action = 'billing.credit_low_balance_notice'`, [tenantId])).rows[0]!.n);
+
+  it.skipIf(!dockerAvailable)('sends one email per level, never repeats, and rolls back when the send fails', async () => {
+    const { tenantId } = await seedTenant('pro', 1000);
+    const grant = await addGrant(tenantId, 'purchase', 1000, `now() + interval '300 days'`);
+    const mine: number[] = [];
+    const ok = async (m: { tenantId: string; level: number }) => {
+      if (m.tenantId === tenantId) mine.push(m.level);
+    };
+
+    await sendCreditLowBalanceNotices(ok);
+    expect(mine).toEqual([]); // 100 percent left: nothing
+
+    await setRemaining(grant, 200); // 20 percent
+    await sendCreditLowBalanceNotices(ok);
+    await sendCreditLowBalanceNotices(ok); // second tick: no second email
+    expect(mine).toEqual([20]);
+    expect(await auditCount(tenantId)).toBe(1);
+
+    // failure: every send throws -> notice is rolled back, next tick retries
+    await setRemaining(grant, 100); // 10 percent
+    const bad = await sendCreditLowBalanceNotices(async () => {
+      throw new Error('smtp down');
+    });
+    expect(bad.failed).toBeGreaterThanOrEqual(1);
+    expect(await notices(tenantId)).toEqual([20]);
+    await sendCreditLowBalanceNotices(ok);
+    await sendCreditLowBalanceNotices(ok);
+    expect(mine).toEqual([20, 10]);
+    expect(await notices(tenantId)).toEqual([20, 10]);
+    expect(await auditCount(tenantId)).toBe(2);
   });
 });

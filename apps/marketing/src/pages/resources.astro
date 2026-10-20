@@ -43,6 +43,34 @@ const blogSchema = {
       "url": `${site}/resources/remote-proctoring-integrity`,
       "datePublished": getPageDates('/resources/remote-proctoring-integrity').published,
       "author": { "@type": "Organization", "name": "AssessIQ" }
+    },
+    {
+      "@type": "BlogPosting",
+      "headline": "How to Run a Campus Aptitude Test Online",
+      "url": `${site}/resources/how-to-run-a-campus-aptitude-test`,
+      "datePublished": getPageDates('/resources/how-to-run-a-campus-aptitude-test').published,
+      "author": { "@type": "Organization", "name": "AssessIQ" }
+    },
+    {
+      "@type": "BlogPosting",
+      "headline": "Release Test Results to Students",
+      "url": `${site}/resources/release-campus-test-results`,
+      "datePublished": getPageDates('/resources/release-campus-test-results').published,
+      "author": { "@type": "Organization", "name": "AssessIQ" }
+    },
+    {
+      "@type": "BlogPosting",
+      "headline": "Send Test Invitations to Students by Email",
+      "url": `${site}/resources/send-test-invitations-to-students`,
+      "datePublished": getPageDates('/resources/send-test-invitations-to-students').published,
+      "author": { "@type": "Organization", "name": "AssessIQ" }
+    },
+    {
+      "@type": "BlogPosting",
+      "headline": "Verify a Skill Certificate Online",
+      "url": `${site}/resources/verify-skill-certificate`,
+      "datePublished": getPageDates('/resources/verify-skill-certificate').published,
+      "author": { "@type": "Organization", "name": "AssessIQ" }
     }
   ]
 };
@@ -88,7 +116,35 @@ const posts = [
     heading: "Remote Proctoring Integrity: What Actually Works (and What Doesn't)",
     intro: "Online proctoring has proliferated, but not all controls are equally effective. This guide separates evidence-backed deterrents from security theatre, and explains the tradeoffs for candidates, administrators, and legal risk.",
     topics: ["Browser controls", "Webcam monitoring", "Identity verification", "Legal risk"],
-  }
+  },
+  {
+    slug: "how-to-run-a-campus-aptitude-test",
+    label: "Campus Hiring · How-to",
+    heading: "How to Run a Campus Aptitude Test Online",
+    intro: "The steps to run an online aptitude test for students, from building the test and inviting students to releasing results.",
+    topics: ["Set up", "Timers", "Review", "Release"],
+  },
+  {
+    slug: "release-campus-test-results",
+    label: "Results · Release",
+    heading: "Release Test Results to Students",
+    intro: "How results reach students: manual or automatic release, what a student sees, and how to release one result or all ready results.",
+    topics: ["Manual release", "Automatic release", "Complete results"],
+  },
+  {
+    slug: "send-test-invitations-to-students",
+    label: "Invitations · Email",
+    heading: "Send Test Invitations to Students by Email",
+    intro: "How invitations work: one by one or by CSV, how long a link stays valid, and the daily email limit.",
+    topics: ["CSV import", "Link validity", "Daily limit"],
+  },
+  {
+    slug: "verify-skill-certificate",
+    label: "Certificates · Verification",
+    heading: "Verify a Skill Certificate Online",
+    intro: "How to check a skill certificate on its public verify page, what the page shows, and what each status means.",
+    topics: ["Credential ID", "Status", "Revoked"],
+  },
 ];
 ---
 

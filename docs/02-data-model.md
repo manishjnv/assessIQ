@@ -2807,3 +2807,19 @@ A passage is shared stem text used by several question rows (reading text, data 
 **Not included.** The archive row before a purge (design finding 9; retention period is a question for the lawyer). A `tenants.org_verified` column (design finding 8; not part of this row). Erasure: the three new hash columns are exempt in `erasure-coverage.test.ts` with reasons.
 
 **Downstream.** `modules/02-tenancy/src/self-serve.ts` writes all three. `modules/20-data-rights` needs nothing else.
+
+
+## Z-96 (2026-10-20): low-balance notices (migration 0227, module 19)
+
+| Item | Detail |
+| --- | --- |
+| `credit_lowbalance_notices` | `id UUID PK`, `tenant_id UUID NOT NULL REFERENCES tenants ON DELETE CASCADE`, `grant_id UUID NOT NULL REFERENCES credit_grants ON DELETE CASCADE`, `level SMALLINT CHECK (level IN (20,10))`, `sent_at`; `UNIQUE (grant_id, level)`. RLS enabled and forced; one SELECT policy pinned to `app.current_tenant`; INSERT/UPDATE/DELETE/TRUNCATE revoked from `assessiq_app`. Only the daily worker job writes it (system role). No personal data. |
+| Audit action | `billing.credit_low_balance_notice` (actor kind `system`, entity `credit_grant`, after = level, remaining, largest grant, recipient count). |
+
+**Why.** The unique key is the "send once" guard and survives retries and parallel ticks. The row is written before the send in the same transaction as the audit row; a failed send rolls both back so the next tick retries.
+
+**Considered and rejected.** A Redis key (not durable, not per grant). A column on `credit_grants` (the app role may update `remaining` only, and two levels need two flags).
+
+**Not included.** Expiry-warning email, exact usage meter, SMS, in-app banner (rest of Z-96). Erasure: no new personal-data column, so `erasure-coverage.test.ts` needs no entry.
+
+**Downstream.** `modules/13-notifications` gains template `credit_low_balance`; `modules/14-audit-log` gains one catalog entry; the worker `credit-expire` job result gains a `lowBalance` object.

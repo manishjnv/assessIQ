@@ -36,6 +36,8 @@ export const EmailTemplateNameSchema = z.enum([
   // Z-71 self-serve sign-up: the code mail, and the notice sent when the address already has an account.
   'signup_code',
   'signup_existing_account',
+  // Z-96: credit balance fell to 20 or 10 percent of the largest active grant. Counts + link only.
+  'credit_low_balance',
 ]);
 
 export type EmailTemplateName = z.infer<typeof EmailTemplateNameSchema>;
@@ -174,6 +176,14 @@ export type AdminEmailOtpVars = z.infer<typeof AdminEmailOtpVarsSchema>;
 export type ResultReleasedVars = z.infer<typeof ResultReleasedVarsSchema>;
 export type EvaluationQueueAlertVars = z.infer<typeof EvaluationQueueAlertVarsSchema>;
 export type SignupCodeVars = z.infer<typeof SignupCodeVarsSchema>;
+// Z-96: low-balance notice. level = 20 or 10 (percent of the largest active grant).
+export const CreditLowBalanceVarsSchema = z.object({
+  remaining: z.number().int().min(0),
+  level: z.union([z.literal(20), z.literal(10)]),
+  usageLink: z.string().url(),
+});
+export type CreditLowBalanceVars = z.infer<typeof CreditLowBalanceVarsSchema>;
+
 export type SignupExistingAccountVars = z.infer<typeof SignupExistingAccountVarsSchema>;
 
 export type TemplateVarsMap = {
@@ -193,6 +203,7 @@ export type TemplateVarsMap = {
   evaluation_queue_alert: EvaluationQueueAlertVars;
   signup_code: SignupCodeVars;
   signup_existing_account: SignupExistingAccountVars;
+  credit_low_balance: CreditLowBalanceVars;
 };
 
 // ---------------------------------------------------------------------------

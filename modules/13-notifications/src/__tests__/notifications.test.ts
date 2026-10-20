@@ -323,7 +323,7 @@ describe('email template rendering', () => {
       expiresInDays: 7,
     });
 
-    expect(result.subject).toContain('invited');
+    expect(result.subject).toContain('invites you');
     expect(result.html).toContain('Acme Corp');
     expect(result.text).toContain('https://assessiq.test/invite?token=abc');
     // Verify no triple-stash escaping — the link must appear as-is (not HTML-entity-encoded)
@@ -407,6 +407,7 @@ describe('email template rendering', () => {
         count: 3, oldestAgeHours: 37.5,
         queueLink: 'https://x.com/admin/platform/evaluations',
       }},
+      { name: 'credit_low_balance' as const, vars: { remaining: 150, level: 10, usageLink: 'https://x.com/admin/settings?tab=plan' }},
     ] as const;
 
     for (const { name, vars } of templates) {
@@ -523,7 +524,7 @@ describe('email template rendering', () => {
 
     it('renders the closes-soon subject, deadline and link in both variants', () => {
       const r = renderTemplate('invitation_reminder', base);
-      expect(r.subject).toBe('Reminder: your Aptitude Round 1 closes soon');
+      expect(r.subject).toBe('Reminder: start Aptitude Round 1 before Thu, 08 Oct 2026 18:30:00 GMT');
       for (const body of [r.html, r.text]) {
         expect(body).toContain('Asha');
         expect(body).toContain('https://assessiq.test/take/tok123');
@@ -549,7 +550,7 @@ describe('email template rendering', () => {
 
     it('renders subject, count, oldest age and the queue link in both variants', () => {
       const r = renderTemplate('evaluation_queue_alert', base);
-      expect(r.subject).toBe('Grading queue: 4 waiting more than 24 hours');
+      expect(r.subject).toBe('Grading queue: 4 waiting over 24 hours');
       for (const body of [r.html, r.text]) {
         expect(body).toContain('4');
         expect(body).toContain('37.5');
@@ -1437,7 +1438,7 @@ describe('i18n resolver (email/i18n.ts)', () => {
   it('t() multi-token substitution — expiry in invitation_admin', () => {
     const result = t('invitation_admin', 'expiry', { expiresInDays: 7 });
     expect(result).toBe(
-      'This link expires in 7 days. If you did not expect this email, you can ignore it.',
+      'Accept within 7 days. If you did not expect this email, you can ignore it.',
     );
   });
 
@@ -1477,7 +1478,7 @@ describe('i18n resolver (email/i18n.ts)', () => {
       enrolledAt: '2026-05-10T12:00:00Z',
     });
     expect(html).toContain(
-      'If you did not do this, contact your administrator at once.',
+      'If this was not you, contact your administrator now.',
     );
   });
 

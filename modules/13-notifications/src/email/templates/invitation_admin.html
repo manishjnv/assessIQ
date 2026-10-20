@@ -1,5 +1,5 @@
 <!-- Composes kit partials (Email Kit Port E2a). Diverges from kit/emails/templates-1.jsx <TeamInvite> only where docs/13-email-system.md §4 records. -->
-{{#> email-shell preheader=(concat "You have been invited to join AssessIQ as " role ".")}}
+{{#> email-shell preheader=(concat tenantName " invites you to join AssessIQ as " roleLabel ".")}}
 
   {{> email-header}}
 
@@ -8,7 +8,7 @@
     {{> email-lede-editorial
       eyebrow="TEAM INVITATION"
       title="You have been invited."
-      body=(concat "You have been invited to join AssessIQ as " role ". The details are below.")}}
+      body=(concat tenantName " invites you to join AssessIQ as " roleLabel ". The details are below.")}}
 
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">
       <tr><td>{{> email-meta-card rows=meta_rows}}</td></tr>

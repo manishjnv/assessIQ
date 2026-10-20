@@ -1,0 +1,171 @@
+---
+// resources/send-test-invitations-to-students.astro
+// JSON-LD: Article (hasDatedNode), BreadcrumbList.
+// Claims verified in code:
+// - One by one, or CSV up to 1,000 rows and 512 KB (modules/03-users/src/import.ts; help admin.guide.step_08)
+// - Invitation link valid 7 days; resend issues a fresh token and the old link stops working (modules/05-assessment-lifecycle/src/tokens.ts, service/invitations.ts)
+// - Bulk email daily cap 250 by default, Asia/Kolkata day, excess delayed to 09:00 IST (modules/13-notifications/src/email/bulk-cap.ts)
+// - Invitation and reminder emails are class bulk; sign-in codes are class auth and not capped (modules/13-notifications/src/email/delivery-policy.ts)
+import { getPageDates, formatDate } from '../../lib/page-dates';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const dates = getPageDates('/resources/send-test-invitations-to-students');
+const canonicalPath = '/resources/send-test-invitations-to-students';
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: 'How to send test invitations to students',
+  datePublished: dates.published,
+  dateModified: dates.modified,
+  author: { '@type': 'Organization', name: 'AssessIQ' },
+  publisher: {
+    '@type': 'Organization',
+    name: 'AssessIQ',
+    logo: { '@type': 'ImageObject', url: `${site}/favicon.svg` },
+  },
+  image: `${site}/og-default.png`,
+  mainEntityOfPage: `${site}${canonicalPath}`,
+  description: 'How invitations work for online tests: one by one or by CSV, how long a link stays valid, and the daily email limit.',
+};
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${site}/` },
+    { '@type': 'ListItem', position: 2, name: 'Resources', item: `${site}/resources` },
+    { '@type': 'ListItem', position: 3, name: 'Send test invitations to students' },
+  ],
+};
+---
+
+<BaseLayout
+  hasDatedNode
+  title="Send Test Invitations to Students by Email"
+  description="How to send online test invitations to students: invite one by one or import a CSV of up to 1,000 rows, link validity, resend and the daily email limit."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/resources" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Resources</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Invitations</span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <header class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Invitations &middot; Email
+      </p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Send test invitations to students
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-xl max-w-2xl">
+        Each student gets an email with a personal link to the test. This page explains how to send invitations, how long a link works, and how many emails go out each day.
+      </p>
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+        Published {formatDate(dates.published, true)} &middot; AssessIQ Editorial
+      </p>
+    </div>
+  </header>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <section aria-labelledby="send" class="mb-aiq-4xl">
+        <h2 id="send" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Send invitations
+        </h2>
+        <ol class="flex flex-col gap-aiq-lg list-decimal pl-aiq-xl m-0">
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">Open the test page. The test must be published.</li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">Invite one student by entering the details, or choose <strong class="text-aiq-fg-primary font-medium">Import from CSV</strong>.</li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">Check the invitation status on the test page.</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="limits" class="mb-aiq-4xl">
+        <h2 id="limits" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          CSV file limits
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">One file can hold up to 1,000 student rows.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">The file size limit is 512 KB.</p>
+          </li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="link" class="mb-aiq-4xl">
+        <h2 id="link" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          How long a link works
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          An invitation link is valid for 7 days from the day it is sent.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg">
+          If a student misses the window, select <strong class="text-aiq-fg-primary font-medium">Resend</strong> on the student's row. The student gets a new 7-day link. The old link stops working.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          To resend to every student who has not started, select <strong class="text-aiq-fg-primary font-medium">Resend to everyone who hasn't started</strong>.
+        </p>
+      </section>
+
+      <section aria-labelledby="cap" class="mb-aiq-4xl">
+        <h2 id="cap" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Daily email limit
+        </h2>
+        <div class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl mb-aiq-lg">
+          <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">Default: 250 emails a day</p>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            The limit counts invitation, reminder and result emails per day in Indian Standard Time (IST).
+          </p>
+        </div>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Emails over the limit wait. They go out at 09:00 IST on the next day with room under the limit.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Sign-in codes are not limited.</p>
+          </li>
+          <li class="flex gap-aiq-md">
+            <span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">Email delivery depends on the student's mail provider. AssessIQ cannot promise that a message reaches the inbox.</p>
+          </li>
+        </ul>
+      </section>
+
+      <aside class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Related reading</p>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li><a href="/resources/how-to-run-a-campus-aptitude-test" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">How to run a campus aptitude test online</a></li>
+          <li><a href="/resources/release-campus-test-results" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Release test results to students</a></li>
+          <li><a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Campus recruitment solution</a></li>
+        </ul>
+      </aside>
+
+    </div>
+  </article>
+</BaseLayout>

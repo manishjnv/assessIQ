@@ -41,8 +41,11 @@ import {
   refillFreeMonthlyAll,
   expireCreditGrants,
   listGrantsAndBurns,
+  listLowBalanceCandidates,
+  insertLowBalanceNotices,
+  listTenantAdminEmails,
 } from './credit-repository.js';
-import { GRANT_VALIDITY_MONTHS } from './burn-rates.js';
+import { GRANT_VALIDITY_MONTHS, LOW_BALANCE_LEVELS } from './burn-rates.js';
 import type {
   CreditBalance,
   CreditGrantView,
@@ -1279,4 +1282,61 @@ export async function refillFreeMonthlyCredits(): Promise<{ zeroed: number; gran
 /** Daily job: zero the remaining credits of expired grants. Non-AI. */
 export async function expireCredits(): Promise<number> {
   return withSystemRole('credit grant expiry sweep', (client) => expireCreditGrants(client));
+}
+
+/** What the worker passes in so billing does not import the notifications module. */
+export type LowBalanceSender = (m: { to: string; tenantId: string; remaining: number; level: number }) => Promise<void>;
+
+/**
+ * Z-96 daily job (non-AI): tell the tenant admins when the balance falls to <= 20 percent and
+ * <= 10 percent of the largest unexpired grant. One email per level per grant, ever.
+ * Per tenant, in ONE transaction: insert the notice rows first (unique guard, concurrent ticks
+ * block then skip), send, write the audit row. If the send fails for every admin (or there is
+ * no admin) the transaction rolls back, so the notice is not final and the next tick retries.
+ * Jumping straight past 20 to 10 records both levels but sends one email (level 10).
+ * ponytail: sends inside the transaction (one open connection per tenant at a time); at-least-once
+ * if the commit fails after the send.
+ */
+export async function sendCreditLowBalanceNotices(send: LowBalanceSender): Promise<{ checked: number; notified: number; failed: number }> {
+  const candidates = await withSystemRole('credit low-balance scan', (client) => listLowBalanceCandidates(client));
+  let notified = 0;
+  let failed = 0;
+  for (const c of candidates) {
+    const crossed = LOW_BALANCE_LEVELS.filter((lvl) => c.balance * 100 <= c.largest * lvl);
+    if (crossed.length === 0) continue;
+    try {
+      const did = await withSystemRole('credit low-balance notice', async (client) => {
+        const fresh = await insertLowBalanceNotices(client, c.tenant_id, c.grant_id, crossed);
+        if (fresh.length === 0) return false;
+        const level = Math.min(...fresh);
+        const admins = await listTenantAdminEmails(client, c.tenant_id);
+        let sent = 0;
+        for (const to of admins) {
+          try {
+            await send({ to, tenantId: c.tenant_id, remaining: c.balance, level });
+            sent += 1;
+          } catch (err) {
+            log.warn({ err, tenantId: c.tenant_id }, 'credit_low_balance.email_failed');
+          }
+        }
+        if (sent === 0) throw new Error('credit low-balance: no admin email was sent');
+        await client.query('SET LOCAL ROLE assessiq_app');
+        await client.query("SELECT set_config('app.current_tenant', $1, true)", [c.tenant_id]);
+        await auditInTx(client, {
+          action: 'billing.credit_low_balance_notice',
+          actorKind: 'system',
+          tenantId: c.tenant_id,
+          entityType: 'credit_grant',
+          entityId: c.grant_id,
+          after: { level, remaining: c.balance, largest_grant: c.largest, recipients: sent },
+        });
+        return true;
+      });
+      if (did) notified += 1;
+    } catch (err) {
+      failed += 1;
+      log.warn({ err, tenantId: c.tenant_id }, 'credit_low_balance.tenant_failed');
+    }
+  }
+  return { checked: candidates.length, notified, failed };
 }

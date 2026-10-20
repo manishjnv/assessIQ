@@ -1,10 +1,10 @@
-Subject: Two-factor authentication is now on for your AssessIQ account
+Subject: You turned on two-factor authentication
 
 Hi {{recipientName}},
 
-Two-factor authentication was turned on for your AssessIQ account{{#if tenantName}} at {{tenantName}}{{/if}} on {{enrolledAt}}.
+You turned on two-factor authentication for your AssessIQ account{{#if tenantName}} at {{tenantName}}{{/if}} on {{enrolledAt}}.
 
-If you did not do this, contact your administrator at once.
+If this was not you, contact your administrator now.
 
 — The AssessIQ team
 {{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

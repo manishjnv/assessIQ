@@ -20,3 +20,9 @@ export const GRANT_VALIDITY_MONTHS = 12;
 
 /** Low-balance warning when balance / granted credits falls to this ratio. */
 export const LOW_BALANCE_THRESHOLD_RATIO = 0.2;
+
+/** Z-96: low-balance email levels, percent of the largest active grant (20 and 10). One email per level per grant. */
+export const LOW_BALANCE_LEVELS = [
+  Math.round(LOW_BALANCE_THRESHOLD_RATIO * 100),
+  Math.round(LOW_BALANCE_THRESHOLD_RATIO * 50),
+] as const;

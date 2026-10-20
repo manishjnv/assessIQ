@@ -1,0 +1,176 @@
+---
+// resources/verify-skill-certificate.astro
+// JSON-LD: Article (hasDatedNode), BreadcrumbList. No sample certificate on purpose: fields only.
+// Claims verified in code:
+// - Public route /verify/:credentialId, no login (modules/18-certification/src/routes-public.ts)
+// - Fields shown: Credential ID, Name, Course, Issued by, Level, Tier, Issued; Revoked date and reason when revoked (routes-public.ts ~lines 240-280)
+// - Statuses: Verified, Revoked, Invalid Signature (routes-public.ts ~180)
+// - Name withheld after an erasure request (routes-public.ts ~247)
+// - PDF certificate has a QR code to the verify URL (modules/18-certification/src/pdf/render.ts)
+// - LinkedIn share button on valid certificates (routes-public.ts; verify.test.ts)
+// - Certificate created at release (modules/09-scoring/src/release.ts)
+// Not shown on the page, so not claimed: score, accreditation, blockchain, employer recognition.
+import { getPageDates, formatDate } from '../../lib/page-dates';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const dates = getPageDates('/resources/verify-skill-certificate');
+const canonicalPath = '/resources/verify-skill-certificate';
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: 'How to verify a skill certificate',
+  datePublished: dates.published,
+  dateModified: dates.modified,
+  author: { '@type': 'Organization', name: 'AssessIQ' },
+  publisher: {
+    '@type': 'Organization',
+    name: 'AssessIQ',
+    logo: { '@type': 'ImageObject', url: `${site}/favicon.svg` },
+  },
+  image: `${site}/og-default.png`,
+  mainEntityOfPage: `${site}${canonicalPath}`,
+  description: 'How a skill certificate from AssessIQ is checked on its public verify page: the fields shown, and what each status means.',
+};
+
+const breadcrumbSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: [
+    { '@type': 'ListItem', position: 1, name: 'Home', item: `${site}/` },
+    { '@type': 'ListItem', position: 2, name: 'Resources', item: `${site}/resources` },
+    { '@type': 'ListItem', position: 3, name: 'Verify a skill certificate' },
+  ],
+};
+---
+
+<BaseLayout
+  hasDatedNode
+  title="Verify a Skill Certificate Online"
+  description="How to check an AssessIQ skill certificate on its public verify page: the credential ID, the fields shown and what each status means."
+  canonicalPath={canonicalPath}
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/resources" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Resources</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Verify a certificate</span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <header class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Certificates &middot; Verification
+      </p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0">
+        Verify a skill certificate
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-xl max-w-2xl">
+        A skill certificate from AssessIQ has a public check page. Anyone can open it with the credential ID or the link on the certificate. No login is needed.
+      </p>
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase m-0">
+        Published {formatDate(dates.published, true)} &middot; AssessIQ Editorial
+      </p>
+    </div>
+  </header>
+
+  <article class="bg-aiq-bg-base">
+    <div class="max-w-4xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <section aria-labelledby="issue" class="mb-aiq-4xl">
+        <h2 id="issue" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          How a certificate is issued
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          An admin releases the student's result. When the result is released, the certificate is created. See <a href="/resources/release-campus-test-results" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">how to release test results</a>.
+        </p>
+      </section>
+
+      <section aria-labelledby="steps" class="mb-aiq-4xl">
+        <h2 id="steps" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          How to verify a certificate
+        </h2>
+        <ol class="flex flex-col gap-aiq-lg list-decimal pl-aiq-xl m-0">
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">Open the verify link on the certificate. The path starts with <code class="font-mono text-aiq-sm">/verify/</code> and ends with the credential ID.</li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">Or scan the QR code on the PDF certificate. It opens the same page.</li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">Read the status at the top of the page.</li>
+          <li class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">Compare the name, course, level and tier with the certificate.</li>
+        </ol>
+      </section>
+
+      <section aria-labelledby="fields" class="mb-aiq-4xl">
+        <h2 id="fields" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Fields on the check page
+        </h2>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li class="flex gap-aiq-md"><span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Credential ID.</strong> The ID that identifies the certificate.</p></li>
+          <li class="flex gap-aiq-md"><span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Name.</strong> The holder's name. It is withheld if the holder asked for erasure of their data.</p></li>
+          <li class="flex gap-aiq-md"><span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Course.</strong> The course title.</p></li>
+          <li class="flex gap-aiq-md"><span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Issued by.</strong> AssessIQ. If the issuing organisation has a name, it shows that name with "via AssessIQ".</p></li>
+          <li class="flex gap-aiq-md"><span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Level and Tier.</strong> The level and the tier of the certificate.</p></li>
+          <li class="flex gap-aiq-md"><span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Issued.</strong> The date the certificate was issued.</p></li>
+          <li class="flex gap-aiq-md"><span class="font-mono text-aiq-xs text-aiq-accent mt-1 shrink-0">&#8212;</span><p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0"><strong class="text-aiq-fg-primary font-medium">Revoked.</strong> Shown only for a revoked certificate. It gives the date and the reason.</p></li>
+        </ul>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mt-aiq-lg mb-0">
+          The check page does not show the test score.
+        </p>
+      </section>
+
+      <section aria-labelledby="status" class="mb-aiq-4xl">
+        <h2 id="status" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          What each status means
+        </h2>
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse font-sans text-aiq-md text-aiq-fg-secondary">
+            <thead>
+              <tr class="text-left border-b border-aiq-border">
+                <th scope="col" class="py-aiq-md pr-aiq-lg font-medium text-aiq-fg-primary">Status</th>
+                <th scope="col" class="py-aiq-md font-medium text-aiq-fg-primary">Meaning</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-aiq-border">
+                <td class="py-aiq-md pr-aiq-lg align-top">Verified</td>
+                <td class="py-aiq-md align-top">The stored certificate data matches its signature, and the certificate is not revoked.</td>
+              </tr>
+              <tr class="border-b border-aiq-border">
+                <td class="py-aiq-md pr-aiq-lg align-top">Revoked</td>
+                <td class="py-aiq-md align-top">The issuer revoked the certificate. The page shows the date and the reason.</td>
+              </tr>
+              <tr class="border-b border-aiq-border">
+                <td class="py-aiq-md pr-aiq-lg align-top">Invalid Signature</td>
+                <td class="py-aiq-md align-top">The stored data does not match its signature.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="bg-aiq-bg-raised border border-aiq-border rounded-aiq-lg p-aiq-xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md mt-0">Related reading</p>
+        <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+          <li><a href="/resources/release-campus-test-results" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Release test results to students</a></li>
+          <li><a href="/resources/how-to-run-a-campus-aptitude-test" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">How to run a campus aptitude test online</a></li>
+          <li><a href="/security" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">Security</a></li>
+        </ul>
+      </aside>
+
+    </div>
+  </article>
+</BaseLayout>

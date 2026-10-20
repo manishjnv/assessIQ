@@ -44,13 +44,14 @@ import {
   processWebhookDeliverJob,
   type WebhookDeliverJobData,
   notificationsBackoffStrategy,
+  sendEmail,
 } from "@assessiq/notifications";
 import {
   processRefreshMvJob,
   ANALYTICS_REFRESH_MV_JOB_NAME,
 } from "@assessiq/analytics";
 import { runRetentionPurgeAllTenants } from "@assessiq/data-rights";
-import { refillFreeMonthlyCredits, expireCredits } from "@assessiq/billing";
+import { refillFreeMonthlyCredits, expireCredits, sendCreditLowBalanceNotices } from "@assessiq/billing";
 import {
   AUTO_RELEASE_JOB_NAME,
   AUTO_RELEASE_INTERVAL_MS,
@@ -640,7 +641,18 @@ async function start(): Promise<void> {
         case CREDIT_REFILL_JOB_NAME:
           return runJobWithLogging(job, () => refillFreeMonthlyCredits());
         case CREDIT_EXPIRE_JOB_NAME:
-          return runJobWithLogging(job, async () => ({ expired: await expireCredits() }));
+          // Z-96: same daily tick also sends the 20/10 percent low-balance emails (plain mail, no AI).
+          return runJobWithLogging(job, async () => ({
+            expired: await expireCredits(),
+            lowBalance: await sendCreditLowBalanceNotices(({ to, tenantId, remaining, level }) =>
+              sendEmail({
+                to,
+                template: "credit_low_balance",
+                vars: { remaining, level: level as 20 | 10, usageLink: new URL("/admin/settings?tab=plan", config.ASSESSIQ_BASE_URL).toString() },
+                tenantId,
+              }),
+            ),
+          }));
         case AUTO_RELEASE_JOB_NAME:
           return runJobWithLogging(job, () => processAutoReleaseTick());
         case EVAL_QUEUE_ALERT_JOB_NAME:

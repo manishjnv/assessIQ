@@ -187,3 +187,50 @@ export async function listGrantsAndBurns(
   );
   return { grants: g.rows.map(toView), burns: await burnTotals(client, tenantId) };
 }
+
+/**
+ * Z-96: one row per tenant with finite credits: its largest unexpired grant and the
+ * summed remaining credits of its unexpired grants (system role, cross-tenant read).
+ * Spent grants still count as "largest" so a tenant at zero is still told.
+ */
+export async function listLowBalanceCandidates(
+  client: PoolClient,
+): Promise<Array<{ tenant_id: string; grant_id: string; largest: number; balance: number }>> {
+  const r = await client.query<{ tenant_id: string; grant_id: string; largest: number; balance: number }>(
+    `SELECT DISTINCT ON (g.tenant_id) g.tenant_id, g.id AS grant_id, g.credits AS largest,
+            (SUM(g.remaining) OVER (PARTITION BY g.tenant_id))::int AS balance
+       FROM credit_grants g
+       JOIN tenants t ON t.id = g.tenant_id AND t.status = 'active'
+       JOIN tenant_plans p ON p.tenant_id = g.tenant_id AND p.included_credits IS NOT NULL
+      WHERE g.expires_at > now() AND g.credits > 0
+      ORDER BY g.tenant_id, g.credits DESC, g.granted_at DESC`,
+  );
+  return r.rows;
+}
+
+/** Z-96: record the levels; returns only the levels that were new (UNIQUE grant_id+level). */
+export async function insertLowBalanceNotices(
+  client: PoolClient,
+  tenantId: string,
+  grantId: string,
+  levels: number[],
+): Promise<number[]> {
+  const r = await client.query<{ level: number }>(
+    `INSERT INTO credit_lowbalance_notices (tenant_id, grant_id, level)
+     SELECT $1, $2, l FROM unnest($3::smallint[]) AS l
+     ON CONFLICT (grant_id, level) DO NOTHING
+     RETURNING level`,
+    [tenantId, grantId, levels],
+  );
+  return r.rows.map((x) => Number(x.level));
+}
+
+/** Z-96: active admin addresses of a tenant (system role). */
+export async function listTenantAdminEmails(client: PoolClient, tenantId: string): Promise<string[]> {
+  const r = await client.query<{ email: string }>(
+    `SELECT email FROM users
+      WHERE tenant_id = $1 AND role = 'admin' AND status = 'active' AND deleted_at IS NULL AND erased_at IS NULL`,
+    [tenantId],
+  );
+  return r.rows.map((x) => x.email);
+}

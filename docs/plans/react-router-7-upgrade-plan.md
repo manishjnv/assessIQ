@@ -59,3 +59,17 @@
 ## Owner decision needed
 
 - Yes or no for the upgrade. Recommendation: do step 1 now (no risk), and do steps 2 to 7 in one batch of its own after the Free plan work, not in a batch with feature changes.
+
+## Step 1 done (2026-10-20)
+
+**What changed:** `apps/web/src/App.tsx`: the one `<BrowserRouter>` now has `future={{ v7_startTransition: true, v7_relativeSplatPath: true }}`. No version bump. No `package.json` or `pnpm-lock.yaml` change.
+
+**Why:** these are the only two v7 flags that `BrowserRouter` accepts on 6.30. The other flags (`v7_fetcherPersist`, `v7_normalizeFormMethod`, `v7_partialHydration`, `v7_skipActionErrorRevalidation`) apply to data routers only. The app has none.
+
+**Checked:** the only splat route is `path="*"` (NotFound) in `App.tsx`. It has no relative links, so no link needed a fix. Tests in `apps/web` (109), `modules/10-admin-dashboard` (262) and `modules/11-candidate-ui` (159) pass with no change. `single-router-copy` test passes.
+
+**Rejected:** adding the `future` prop to the 31 files that use `MemoryRouter`. No test changed behaviour, so it adds noise only. Add it in step 3 if the warning output matters.
+
+**Not included:** steps 2 to 7 (version align, bump, deploy).
+
+**Rollback:** remove the `future` prop from `App.tsx`.
