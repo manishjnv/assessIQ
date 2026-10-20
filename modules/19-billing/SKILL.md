@@ -256,3 +256,9 @@ WHERE p.tier='free' GROUP BY 1;
 - **Rejected.** A separate queue/cron (the existing tick is enough); a "once per month" rule (the spec says once per level per grant; a Free refill is a new grant, so it can notify again next month); inserting the notice after the send (retry could double-send).
 - **Not included.** The expiry-warning email, SMS, in-app banner, the exact usage meter (rest of Z-96). No AI call anywhere on this path. Delivery: `sendEmail` queues the mail, so "sent" means queued; a failure after queueing is handled by the email queue, not by this job.
 - **Added outside billing.** Template files, schema and string in `modules/13-notifications`; one catalog entry in `modules/14-audit-log/src/types.ts`.
+
+## Z-96 session 4: exact meter and expiry warning (2026-10-20)
+
+- **Exact meter.** `countBillingEvents` (repository.ts, `USED_SQL`) now returns `used` = sum of `credit_burns.credits` in the current cycle window when the tenant has any `credit_burns` row. With none, it falls back to graded attempts x 10 (old counter). The banner, `GET /api/billing/usage` and the super-admin screens all use this one function, so they agree with the ledger (mock 10, real 20, real with camera 30).
+- **Expiry warning.** `sendCreditExpiryNotices` (service.ts) runs in the daily `credit-expire` worker tick. For each non-Free grant with credits left that expires within 30 days, in ONE system-role transaction: insert the `credit_expiry_notices` row (unique guard), write the `billing.credit_expiry_notice` audit row, then send. If no admin mail goes out the transaction rolls back and the next tick retries. No AI call.
+

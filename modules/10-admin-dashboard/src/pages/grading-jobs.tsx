@@ -112,6 +112,7 @@ export function waitingAge(submittedAtIso: string, now: Date = new Date()): stri
 export function AdminGradingJobs(): React.ReactElement {
   const navigate = useNavigate();
   const [counts, setCounts] = useState<QueueCounts | null>(null);
+  const [turnaround, setTurnaround] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,8 +121,9 @@ export function AdminGradingJobs(): React.ReactElement {
     setError(null);
     try {
       // limit=1: only the tenant-wide `counts` are used here.
-      const data = await adminApi<{ counts: QueueCounts }>("/admin/dashboard/queue?limit=1");
+      const data = await adminApi<{ counts: QueueCounts; evaluationTurnaroundText: string }>("/admin/dashboard/queue?limit=1");
       setCounts(data.counts);
+      setTurnaround(data.evaluationTurnaroundText);
     } catch (err) {
       setError(err instanceof AdminApiError ? err.apiError.message : "Failed to load the grading status.");
     } finally {
@@ -147,6 +149,13 @@ export function AdminGradingJobs(): React.ReactElement {
           <h1 style={SERIF_H1}>Grading status.</h1>
           <p style={MUTED_SM}>Where the written answers of your candidates are in the grading queue. Nothing is started from this page.</p>
         </div>
+
+        {/* SP11: expected grading time for this company (one line, muted) */}
+        {turnaround !== null && (
+          <p data-help-id="admin.grading.jobs.eta_notice" style={MUTED_SM}>
+            Expect grading {turnaround}. Results stay hidden until you release them.
+          </p>
+        )}
 
         {error && <div><Chip>{error}</Chip></div>}
 

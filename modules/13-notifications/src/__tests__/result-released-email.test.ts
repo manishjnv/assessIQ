@@ -160,8 +160,10 @@ describe("sendResultReleasedEmail", () => {
     });
     const portal = new URL(call.vars["portalLink"] as string);
     expect(portal.origin).toBe(new URL(config.ASSESSIQ_BASE_URL).origin);
-    expect(portal.pathname).toBe("/candidate/login");
-    expect(portal.searchParams.get("tenant")).toBe(SLUG);
+    // Z-15 (a): the button is a one-time sign-in link with the token in the fragment.
+    expect(portal.pathname).toBe("/candidate/login/verify");
+    expect(portal.search).toBe("");
+    expect(portal.hash).toMatch(/^#token=[0-9a-f]{64}$/);
     expect(call.vars["certificateLink"]).toBeUndefined();
   });
 

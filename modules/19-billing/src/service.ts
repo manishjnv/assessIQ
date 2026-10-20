@@ -43,6 +43,8 @@ import {
   listGrantsAndBurns,
   listLowBalanceCandidates,
   insertLowBalanceNotices,
+  listExpiringGrantCandidates,
+  insertExpiryNotice,
   listTenantAdminEmails,
 } from './credit-repository.js';
 import { GRANT_VALIDITY_MONTHS, LOW_BALANCE_LEVELS } from './burn-rates.js';
@@ -1337,6 +1339,55 @@ export async function sendCreditLowBalanceNotices(send: LowBalanceSender): Promi
     } catch (err) {
       failed += 1;
       log.warn({ err, tenantId: c.tenant_id }, 'credit_low_balance.tenant_failed');
+    }
+  }
+  return { checked: candidates.length, notified, failed };
+}
+
+/** What the worker passes in for the expiry mail. */
+export type ExpiryNoticeSender = (m: { to: string; tenantId: string; remaining: number; expiresAt: Date }) => Promise<void>;
+
+/**
+ * Z-96 daily job (non-AI): one email per grant, 30 days before it expires (grants with credits left;
+ * Free monthly grants are skipped because they refill). Same shape as the low-balance job: per grant,
+ * ONE transaction: notice row (unique guard), audit row, then the mail. No admin mail sent = rollback,
+ * the next tick retries.
+ */
+export async function sendCreditExpiryNotices(send: ExpiryNoticeSender): Promise<{ checked: number; notified: number; failed: number }> {
+  const candidates = await withSystemRole('credit expiry-warning scan', (client) => listExpiringGrantCandidates(client));
+  let notified = 0;
+  let failed = 0;
+  for (const c of candidates) {
+    try {
+      const did = await withSystemRole('credit expiry-warning notice', async (client) => {
+        if (!(await insertExpiryNotice(client, c.tenant_id, c.grant_id))) return false;
+        const admins = await listTenantAdminEmails(client, c.tenant_id);
+        await client.query('SET LOCAL ROLE assessiq_app');
+        await client.query("SELECT set_config('app.current_tenant', $1, true)", [c.tenant_id]);
+        await auditInTx(client, {
+          action: 'billing.credit_expiry_notice',
+          actorKind: 'system',
+          tenantId: c.tenant_id,
+          entityType: 'credit_grant',
+          entityId: c.grant_id,
+          after: { remaining: c.remaining, expires_at: c.expires_at.toISOString(), recipients: admins.length },
+        });
+        let sent = 0;
+        for (const to of admins) {
+          try {
+            await send({ to, tenantId: c.tenant_id, remaining: c.remaining, expiresAt: c.expires_at });
+            sent += 1;
+          } catch (err) {
+            log.warn({ err, tenantId: c.tenant_id }, 'credit_expiry.email_failed');
+          }
+        }
+        if (sent === 0) throw new Error('credit expiry: no admin email was sent');
+        return true;
+      });
+      if (did) notified += 1;
+    } catch (err) {
+      failed += 1;
+      log.warn({ err, tenantId: c.tenant_id }, 'credit_expiry.tenant_failed');
     }
   }
   return { checked: candidates.length, notified, failed };

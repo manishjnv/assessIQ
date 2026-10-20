@@ -28,6 +28,7 @@ export { notificationsBackoffStrategy } from './email/delivery-policy.js';
 // SP4: candidate result email, sent after the release tx commits (best-effort,
 // never throws). Called by 07 (manual release / release-all) and the worker sweep.
 export { sendResultReleasedEmail } from './email/result-released.js';
+export { mintResultLoginToken, RESULT_LOGIN_TOKEN_TTL_SEC } from './email/result-login-token.js';
 
 // Phase II SP11: platform-owner alert when evaluations wait > 24 h (worker job
 // evaluation.queue_alert; best-effort per recipient, never throws).

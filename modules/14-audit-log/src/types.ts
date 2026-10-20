@@ -186,6 +186,8 @@ export const ACTION_CATALOG = [
   'billing.credits_granted',
   // Z-96: system low-balance email (20 or 10 percent of the largest grant), written by the daily job.
   'billing.credit_low_balance_notice',
+  // Z-96: system expiry-warning email (30 days before a grant expires), written by the daily job.
+  'billing.credit_expiry_notice',
   // Phase B1 entitlements — super-admin grant / revoke of domain or pack scope.
   // Fired inside grantEntitlement / revokeEntitlement via auditInTx (same tx).
   'tenant.entitlement_granted',

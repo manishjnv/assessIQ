@@ -452,6 +452,8 @@ export async function verifyCandidateLoginTokenSystem(
        WHERE token_hash = $1
          AND expires_at > now()
          AND consumed_at IS NULL
+         AND EXISTS (SELECT 1 FROM users u WHERE u.id = candidate_login_tokens.user_id
+                      AND u.erased_at IS NULL AND u.deleted_at IS NULL)
        RETURNING user_id::text, tenant_id::text`,
         [tokenHash],
       );

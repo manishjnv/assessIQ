@@ -12,6 +12,7 @@
  * NOT add WHERE tenant_id — RLS on attempts enforces isolation.
  */
 
+import { config } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { countGradingQueue, listGradingQueue } from "../repository.js";
 import type { QueueCounts, QueueRow } from "../repository.js";
@@ -36,6 +37,8 @@ export interface HandleAdminQueueOutput {
   /** Tenant-wide totals for the dashboard cards and the Evaluation status page
    *  (FU-C1: + oldest waiting attempt, per-assessment rows); `items` is capped by `limit`, these are not. */
   counts: QueueCounts;
+  /** SP11: the expected turnaround for this deployment (config EVALUATION_TURNAROUND_TEXT, e.g. "within 72 hours"). Plain text, no DB. */
+  evaluationTurnaroundText: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,5 +66,5 @@ export async function handleAdminQueue(
       ? items.filter((r) => r.status === filters.status)
       : items;
 
-  return { items: filtered, counts };
+  return { items: filtered, counts, evaluationTurnaroundText: config.EVALUATION_TURNAROUND_TEXT };
 }

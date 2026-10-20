@@ -3798,6 +3798,18 @@ admin.grading.jobs.by_assessment:
     in-queue, awaiting-grading and ready-to-release counts. The rows add up
     to the totals above. Select the assessment name to open its page.
 
+admin.grading.jobs.eta_notice:
+  audience: admin
+  short_text: "The expected time for AssessIQ to grade your candidates' written answers."
+  long_md: |
+    ## Expected grading time
+
+    This line shows how long AssessIQ takes to grade the written answers of your
+    candidates. The time is set for your company. It is a plan, not a promise for
+    each attempt. Results stay hidden until you release them.
+
+    If an attempt waits longer than this time, contact your AssessIQ operator.
+
 admin.question.editor.page:
   audience: admin
   short_text: "Create a question, or view and edit its rubric. Only platform admins can change questions."

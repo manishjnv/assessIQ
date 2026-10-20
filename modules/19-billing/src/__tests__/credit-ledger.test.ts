@@ -25,7 +25,7 @@ const MIGRATION_0225 = [
   join(process.cwd(), 'migrations/0225_credit_scale_x10.sql'),
 ].find((f) => existsSync(f)) ?? '';
 import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
-import { recordGradedAttempt, grantCredits, refillFreeMonthlyCredits, getCreditBalance, sendCreditLowBalanceNotices } from '../service.js';
+import { recordGradedAttempt, grantCredits, refillFreeMonthlyCredits, getCreditBalance, sendCreditLowBalanceNotices, sendCreditExpiryNotices, getUsage } from '../service.js';
 import { BURN, FREE_MONTHLY_CREDITS } from '../burn-rates.js';
 
 function isDockerAvailable(): boolean {
@@ -268,5 +268,57 @@ describe('low-balance notices', () => {
     expect(mine).toEqual([20, 10]);
     expect(await notices(tenantId)).toEqual([20, 10]);
     expect(await auditCount(tenantId)).toBe(2);
+  });
+});
+
+// Z-96: the usage meter shows the real burn from the ledger (10/20/30), not attempts x 10.
+describe('exact usage meter', () => {
+  it.skipIf(!dockerAvailable)('sums the real burn for a ledger tenant and falls back to the old count without ledger rows', async () => {
+    const { tenantId, asmId } = await seedTenant('pro', 1000);
+    await addGrant(tenantId, 'purchase', 1000, `now() + interval '300 days'`);
+    for (const [mode, cam] of [['mock', false], ['real', false], ['real', true]] as const) {
+      const a = await seedAttempt(tenantId, asmId, mode, cam);
+      await withTenant(tenantId, (c) => recordGradedAttempt(c, tenantId, a));
+    }
+    expect((await getUsage(tenantId)).used).toBe(BURN.mock + BURN.real + BURN.real_camera); // 60, not 3 x 10
+
+    // no ledger rows: old counter (graded attempts x 10)
+    const old = await seedTenant('pro', 1000);
+    await sup((c) => c.query(`INSERT INTO billing_events (tenant_id, attempt_id, event_type) SELECT $1, id, 'assessment_graded' FROM attempts WHERE tenant_id = $1`, [old.tenantId]));
+    const a2 = await seedAttempt(old.tenantId, old.asmId, 'real');
+    await sup((c) => c.query(`INSERT INTO billing_events (tenant_id, attempt_id, event_type) VALUES ($1, $2, 'assessment_graded')`, [old.tenantId, a2]));
+    expect((await getUsage(old.tenantId)).used).toBe(10);
+  });
+});
+
+// Z-96: expiry warning, one email per grant, 30 days before it expires.
+describe('expiry-warning notices', () => {
+  const auditCount = (tenantId: string) =>
+    sup(async (c) => (await c.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM audit_log WHERE tenant_id = $1 AND action = 'billing.credit_expiry_notice'`, [tenantId])).rows[0]!.n);
+
+  it.skipIf(!dockerAvailable)('mails once inside 30 days, skips far, spent and free grants, and retries after a failed send', async () => {
+    const { tenantId } = await seedTenant('pro', 1000);
+    await addGrant(tenantId, 'purchase', 500, `now() + interval '200 days'`); // too far
+    await addGrant(tenantId, 'free_monthly', 200, `now() + interval '10 days'`); // free refills: skipped
+    const spent = await addGrant(tenantId, 'bonus', 100, `now() + interval '10 days'`);
+    await sup((c) => c.query(`UPDATE credit_grants SET remaining = 0 WHERE id = $1`, [spent]));
+    const near = await addGrant(tenantId, 'purchase', 300, `now() + interval '20 days'`);
+    const mine: number[] = [];
+    const ok = async (m: { tenantId: string; remaining: number }) => {
+      if (m.tenantId === tenantId) mine.push(m.remaining);
+    };
+
+    const bad = await sendCreditExpiryNotices(async () => {
+      throw new Error('smtp down');
+    });
+    expect(bad.failed).toBeGreaterThanOrEqual(1);
+    expect(await auditCount(tenantId)).toBe(0); // rolled back with the notice row
+
+    await sendCreditExpiryNotices(ok);
+    await sendCreditExpiryNotices(ok); // second tick: no second email
+    expect(mine).toEqual([300]);
+    expect(await auditCount(tenantId)).toBe(1);
+    const n = await sup((c) => c.query(`SELECT grant_id FROM credit_expiry_notices WHERE tenant_id = $1`, [tenantId]));
+    expect(n.rows.map((r) => r.grant_id)).toEqual([near]);
   });
 });

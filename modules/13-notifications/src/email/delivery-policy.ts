@@ -55,6 +55,7 @@ export const EMAIL_CLASS: Record<EmailTemplateName, EmailClass> = {
   result_released: 'bulk',
   evaluation_queue_alert: 'bulk',
   credit_low_balance: 'bulk',
+  credit_expiring: 'bulk',
 };
 
 /** Class of a template id read back from job data; unknown ids are bulk. */

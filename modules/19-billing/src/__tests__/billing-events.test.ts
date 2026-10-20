@@ -370,10 +370,11 @@ describe('getUsage — free/25 tenant', () => {
 
       expect(usage.tier).toBe('free');
       expect(usage.included_credits).toBe(250);
-      expect(usage.used).toBe(200);
-      expect(usage.remaining).toBe(50);
-      expect(usage.overage).toBe(0);
-      expect(usage.status).toBe('warn'); // 20/25 = 80% → warn
+      // Z-96 exact meter: 20 real attempts burn 20 credits each (ledger), not 10.
+      expect(usage.used).toBe(400);
+      expect(usage.remaining).toBe(-150);
+      expect(usage.overage).toBe(150);
+      expect(usage.status).toBe('over'); // 400/250 → over
     },
   );
 });
@@ -530,10 +531,14 @@ describe('AI answer meter and monthly window (FU-A2, FU-A4)', () => {
           `UPDATE billing_events SET occurred_at = now() - interval '40 days' WHERE tenant_id = $1 AND attempt_id = $2 AND event_type = 'assessment_graded'`,
           [tenantId, oldAttempt],
         );
+        await superClient.query(
+          `UPDATE credit_burns SET burned_at = now() - interval '40 days' WHERE tenant_id = $1 AND attempt_id = $2`,
+          [tenantId, oldAttempt],
+        );
       });
 
       const usage = await getUsage(tenantId);
-      expect(usage.used).toBe(10);             // the 40-day-old event is outside this month
+      expect(usage.used).toBe(20);             // one real attempt (20 credits); the 40-day-old event is outside this month
       expect(usage.ai_answers_used).toBe(2);   // q1 once, q2 once
       expect(usage.ai_answers_included).toBe(20);
       expect(usage.ai_answers_remaining).toBe(18);
