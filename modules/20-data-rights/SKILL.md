@@ -465,3 +465,7 @@ The module now has 11 DB integration tests (commit `e5090b1`): erasure, export, 
   - The retention cron and the erasure flow in this module handle candidate data under the DPDP rules: the retention window, the export bundle and the full erasure steps.
 - **Rule.** The two jobs do not call each other. A user that module 20 already erased has `erased_at` set, so the user purge skips that user.
 - **Not included.** A merge of the two jobs.
+
+## Erasure step 4d: camera data (Batch A, 2026-10-20)
+
+`eraseCandidatePii` unlinks the user's camera files from disk first (`deleteCameraFile` from `@assessiq/core`; ENOENT counts as gone). A failed unlink throws, the transaction rolls back and the erasure job retries. Then it deletes the user's `camera_files`, `camera_consents`, `camera_attempt_reviews` and `camera_reviewers` rows. The audit row carries `cameraFilesDeleted` and `cameraConsentsDeleted`. `camera_consents.ip_hash` is exempt in `erasure-coverage.test.ts` (keyed HMAC). Test: `camera-erasure.test.ts`.

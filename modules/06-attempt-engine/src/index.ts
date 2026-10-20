@@ -117,3 +117,11 @@ export type { RegisterAttemptTakeRoutesOptions } from "./routes.take.js";
 export { isMobileOrTabletClient } from "./device.js";
 export { evaluateReadiness } from "./readiness.js";
 export type { ReadinessSignals, ReadinessResult } from "./readiness.js";
+
+// Real-exam camera data layer (Batch A part 1): policy, storage, repository, retention.
+export * from "./camera/index.js";
+
+export { registerCameraCandidateRoutes } from "./routes.camera.candidate.js";
+export type { RegisterCameraCandidateRoutesOptions } from "./routes.camera.candidate.js";
+export { registerCameraAdminRoutes, requireCameraReviewer } from "./routes.camera.admin.js";
+export type { RegisterCameraAdminRoutesOptions, CameraUserLookup } from "./routes.camera.admin.js";

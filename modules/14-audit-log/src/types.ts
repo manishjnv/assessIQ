@@ -222,6 +222,16 @@ export const ACTION_CATALOG = [
   // tenant.purged: forward-compat for 6-month retention purge; wired in a later phase.
   'tenant.resumed',
   'tenant.purged',
+  // camera.retention.sweep: one row per tenant per camera retention sweep that deleted files (counts only).
+  'camera.retention.sweep',
+  // Real-exam camera (Batch A part 2). Ids and states only, never image data.
+  'camera.consent.recorded',
+  'camera.upload.refused',
+  'camera.file.viewed',
+  'camera.review.marked',
+  'camera.appeal.changed',
+  'camera.reviewer.added',
+  'camera.reviewer.removed',
   // Super-admin edits a tenant's display name (the `tenants.name` column) from
   // the Platform page "Edit company" modal. Display-only change; no isolation /
   // RLS impact. Distinct from tenant.settings.updated (settings JSON, not name).

@@ -69,6 +69,8 @@ export type {
   SelfServeProvisionContext,
   SelfServeRefusal,
 } from "./self-serve.js";
+export { getCameraTenantSettings, setTenantIsSchool, updateCameraSettings, confirmCameraNotice } from "./camera.js";
+export type { CameraTenantSettings } from "./camera.js";
 export { purgeArchivedTenants, MIN_PURGE_DAYS } from "./purge.js";
 export type { PurgeOptions, PurgeReport, TenantPurgeReport } from "./purge.js";
 export { findTenantSettings } from "./repository.js";

@@ -37,7 +37,7 @@ import { config, streamLogger } from "@assessiq/core";
 import { closePool, purgeArchivedTenants } from "@assessiq/tenancy";
 import { purgeSoftDeletedUsers } from "@assessiq/users";
 import { processBoundariesForTenant, listTenantsWithDueBoundaries } from "@assessiq/assessment-lifecycle";
-import { sweepStaleTimersForTenant, listTenantsWithExpiredAttempts } from "@assessiq/attempt-engine";
+import { sweepStaleTimersForTenant, listTenantsWithExpiredAttempts, runCameraRetentionAll, diskGuard } from "@assessiq/attempt-engine";
 import {
   processEmailSendJob,
   type EmailSendJobData,
@@ -88,6 +88,8 @@ const MV_REFRESH_CRON = "0 2 * * *";
 // via eraseCandidatePii's alreadyErased short-circuit; safe to retry.
 const RETENTION_JOB_NAME = "dsr-retention-cron";
 const RETENTION_CRON = "0 3 * * *";
+// Real-exam camera: daily delete of expired photos/video (non-AI, disk + rows) at 03:00 UTC.
+const CAMERA_RETENTION_JOB_NAME = "camera-retention-cron";
 // RW-48b: nightly purge of tenants archived >= 180 days (non-AI). 03:30 UTC, after the retention job.
 // Dry run unless TENANT_PURGE_ENABLED=true (read from process.env here; worker-only flag, not in 00-core config).
 const TENANT_PURGE_JOB_NAME = "tenant-purge-cron";
@@ -151,6 +153,8 @@ export const JOB_RETRY_POLICY: Record<
   // attempts than other crons because a misfire could erase additional PII on
   // re-run (it won't — alreadyErased guards — but conservative is fine).
   [RETENTION_JOB_NAME]: { attempts: 2, backoff: { type: "exponential", delay: 60_000 } },
+  // camera-retention-cron: 1 attempt. Per-tenant errors are isolated in the sweep; a failed disk delete keeps its row and tomorrow retries it.
+  [CAMERA_RETENTION_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
   // tenant-purge-cron: 1 attempt. Per-tenant errors are isolated inside the sweep; the job reruns tomorrow.
   [TENANT_PURGE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
   // user-purge-cron: 1 attempt. Per-tenant errors are isolated inside the sweep; the job reruns tomorrow.
@@ -340,6 +344,21 @@ async function processRetentionTick(): Promise<{
   return { tenants: reports.length, totalErased, totalSkipped, errorCount };
 }
 
+async function processCameraRetentionTick(): Promise<{ tenants: number; deleted: number; held: number; failed: number }> {
+  const results = await runCameraRetentionAll();
+  const deleted = results.reduce((n, r) => n + r.deleted, 0);
+  const held = results.reduce((n, r) => n + r.held, 0);
+  const failed = results.reduce((n, r) => n + r.failed, 0);
+  const guard = await diskGuard({ incomingBytes: 0 });
+  if (guard.warn) {
+    log.warn({ usedBytes: guard.usedBytes, maxBytes: guard.maxBytes }, "camera storage is at 80 percent or more of its cap");
+  }
+  if (deleted > 0 || failed > 0) {
+    log.info({ tenants: results.length, deleted, held, failed }, "camera-retention-cron tick");
+  }
+  return { tenants: results.length, deleted, held, failed };
+}
+
 async function processTenantPurgeTick(): Promise<{ dryRun: boolean; candidates: number; purged: number; failed: number }> {
   const report = await purgeArchivedTenants({
     now: new Date(),
@@ -423,6 +442,7 @@ async function start(): Promise<void> {
       r.name === TIMER_SWEEP_JOB_NAME ||
       r.name === MV_REFRESH_JOB_NAME ||
       r.name === RETENTION_JOB_NAME ||
+      r.name === CAMERA_RETENTION_JOB_NAME ||
       r.name === AUTO_RELEASE_JOB_NAME ||
       r.name === EVAL_QUEUE_ALERT_JOB_NAME ||
       r.name === INVITATION_REMINDERS_JOB_NAME
@@ -490,6 +510,19 @@ async function start(): Promise<void> {
       repeat: { pattern: RETENTION_CRON },
       attempts: retentionPolicy.attempts,
       backoff: retentionPolicy.backoff,
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  );
+
+  const cameraPolicy = JOB_RETRY_POLICY[CAMERA_RETENTION_JOB_NAME]!;
+  await queue.add(
+    CAMERA_RETENTION_JOB_NAME,
+    {},
+    {
+      repeat: { pattern: RETENTION_CRON },
+      attempts: cameraPolicy.attempts,
+      backoff: cameraPolicy.backoff,
       removeOnComplete: 10,
       removeOnFail: 20,
     },
@@ -632,6 +665,8 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processRefreshMvJob);
         case RETENTION_JOB_NAME:
           return runJobWithLogging(job, processRetentionTick);
+        case CAMERA_RETENTION_JOB_NAME:
+          return runJobWithLogging(job, processCameraRetentionTick);
         case TENANT_PURGE_JOB_NAME:
           return runJobWithLogging(job, processTenantPurgeTick);
         case USER_PURGE_JOB_NAME:

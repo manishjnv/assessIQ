@@ -45,6 +45,7 @@
 //     after a successful resolveInvitationToken).
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
+import { z } from "zod";
 import { config, ConflictError, NotFoundError, streamLogger, ValidationError, sha256Hex } from "@assessiq/core";
 import { consumeRateLimit, extractClientIp, mintCandidateSession } from "@assessiq/auth";
 import {
@@ -54,6 +55,9 @@ import {
 import { isIP } from "node:net";
 import { getTakePreview, recordTakeConsent, startAttempt } from "./service.js";
 import { isMobileOrTabletClient } from "./device.js";
+import { isCameraRequired, recordCameraConsent } from "./camera/gate.js";
+import { hashCameraIp } from "./camera/hash.js";
+import { CAMERA_NOTICE_VERSION } from "./camera/constants.js";
 import { evaluateReadiness, parseReadinessSignals } from "./readiness.js";
 
 const log = streamLogger("app");
@@ -259,6 +263,7 @@ export async function registerAttemptTakeRoutes(
         }
         throw err;
       }
+      const cameraRequired = await isCameraRequired(resolved.assessment.tenant_id, pv.deliveryMode);
       const durationSeconds =
         pv.existing?.duration_seconds ?? resolved.level.duration_minutes * 60;
       const assessmentShape = {
@@ -275,6 +280,9 @@ export async function registerAttemptTakeRoutes(
         attempts_allowed: pv.attemptsAllowed,
         // Z-89: the page picks the right screen before start. Set by the admin; read-only for the candidate.
         delivery_mode: pv.deliveryMode,
+        // Real-exam camera: the page shows the consent step first when true. Always false while CAMERA_ENFORCED is off.
+        camera_required: cameraRequired,
+        camera_notice_version: CAMERA_NOTICE_VERSION,
       };
       if (body.preview === true) {
         return reply.code(200).send({
@@ -427,6 +435,65 @@ export async function registerAttemptTakeRoutes(
           attempt_number: attempt.attempt_number,
         },
       });
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /take/camera-consent — body { token, decision: 'agreed'|'declined', noticeVersion }
+  // -------------------------------------------------------------------------
+  //
+  // Pre-auth like /take/start: the token is the credential, same per-token throttle, same
+  // generic 404. Writes one camera_consents row (attempt not known yet; startAttempt links it)
+  // and one audit row. 'declined' is recorded too and the test does not start.
+  // 422 CAMERA_NOTICE_STALE: the page showed an old notice. 409 CAMERA_NOT_REQUIRED: no camera here.
+  app.post<{ Body: { token?: unknown; decision?: unknown; noticeVersion?: unknown } }>(
+    "/take/camera-consent",
+    { preHandler: publicChain },
+    async (req, reply) => {
+      const body = z
+        .object({
+          token: z.string().min(TOKEN_MIN_LEN).max(256),
+          decision: z.enum(["agreed", "declined"]),
+          noticeVersion: z.string().max(40),
+        })
+        .safeParse(req.body ?? {});
+      if (!body.success) return reply.code(404).send(NOT_FOUND_ENVELOPE);
+      const { token, decision, noticeVersion } = body.data;
+
+      const tokenKey = sha256Hex(token).slice(0, 32);
+      const tokenBucket = await consumeRateLimit(`aiq:rl:take-token:${tokenKey}`, TAKE_TOKEN_MAX_PER_MIN, 60);
+      if (!tokenBucket.allowed) {
+        reply.header("Retry-After", String(tokenBucket.retryAfterSeconds));
+        return reply.code(429).send({
+          error: { code: "RATE_LIMITED", message: "Too many requests for this link. Please wait a minute and try again." },
+        });
+      }
+      const resolved = await resolveInvitationToken(token).catch((err: unknown) => {
+        log.error({ err, tokenTrace: tokenLogTrace(token) }, "/take/camera-consent: resolveInvitationToken threw");
+        return null;
+      });
+      if (resolved === null) return reply.code(404).send(NOT_FOUND_ENVELOPE);
+      if (resolved.already_submitted) return reply.code(410).send(ALREADY_SUBMITTED_ENVELOPE);
+
+      if (noticeVersion !== CAMERA_NOTICE_VERSION) {
+        return reply.code(422).send({
+          error: { code: "CAMERA_NOTICE_STALE", message: "The camera notice has changed. Please reload the page and read it again." },
+        });
+      }
+      // device type from the same helper as the phone/tablet gate; the raw user agent is never stored
+      const mobile = isMobileOrTabletClient({
+        userAgent: req.headers["user-agent"],
+        secChUaMobile: req.headers["sec-ch-ua-mobile"] as string | undefined,
+      });
+      await recordCameraConsent(resolved.assessment.tenant_id, {
+        invitationId: resolved.invitation.id,
+        userId: resolved.candidate.id,
+        deliveryMode: resolved.invitation.delivery_mode,
+        decision,
+        ipHash: hashCameraIp(extractClientIp(req)),
+        deviceType: mobile ? "mobile" : "desktop",
+      });
+      return reply.code(200).send({ ok: true });
     },
   );
 }

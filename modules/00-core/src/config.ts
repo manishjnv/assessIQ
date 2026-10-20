@@ -165,6 +165,14 @@ const ConfigSchema = z
     FREE_PLAN_AI_DISABLED: z
       .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
       .transform((s) => s === "true"),
+    // Real-exam camera (Batch A). CAMERA_ENFORCED false (default) = the camera gate is a no-op.
+    CAMERA_ENFORCED: z
+      .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
+      .transform((s) => s === "true"),
+    // Root folder for camera photos and video. Files are stored under a relative path from here.
+    CAMERA_STORAGE_DIR: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(1).default("/var/lib/assessiq/camera")),
+    // Total camera storage cap in bytes (default 5 GiB). Uploads are refused above it.
+    CAMERA_STORAGE_MAX_BYTES: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().positive().default(5368709120)),
     // Z-71: self-serve organisation sign-up. Owner switch, default OFF. The public
     // sign-up routes also need PLAN_TIERS_ENFORCED=true, both Turnstile keys and Redis;
     // they answer 404 when any of these is missing (checked on every request).
