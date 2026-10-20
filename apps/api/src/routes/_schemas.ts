@@ -260,14 +260,14 @@ export const signupRequestBody = z
     orgName: z
       .string({ required_error: 'orgName is required' })
       .max(200, 'orgName is too long')
-      .refine(isValidOrgName, {
+      .refine((v) => isValidOrgName(v), { // lazy: many route tests mock @assessiq/tenancy without this export
         message: "Organisation name must be 3 to 80 characters: letters, digits, spaces and . - & ' only.",
         params: { code: 'INVALID_ORG_NAME' },
       }),
     adminName: z
       .string({ required_error: 'adminName is required' })
       .max(200, 'adminName is too long')
-      .refine(isValidAdminName, {
+      .refine((v) => isValidAdminName(v), {
         message: 'Your name must be 2 to 80 characters.',
         params: { code: 'INVALID_ADMIN_NAME' },
       }),
@@ -277,14 +277,15 @@ export const signupRequestBody = z
     dpaAccepted: z.literal(true, {
       errorMap: () => ({ message: 'You must accept the data processing addendum.' }),
     }),
-    dpaVersion: z.literal(DPA_VERSION, {
-      errorMap: () => ({ message: 'The data processing addendum version is out of date. Reload the page.' }),
+    // Lazy compare (not z.literal): many route tests mock @assessiq/auth without these constants.
+    dpaVersion: z.string().refine((v) => v === DPA_VERSION, {
+      message: 'The data processing addendum version is out of date. Reload the page.',
     }),
     termsAccepted: z.literal(true, {
       errorMap: () => ({ message: 'You must accept the Terms of Service.' }),
     }),
-    termsVersion: z.literal(TERMS_VERSION, {
-      errorMap: () => ({ message: 'The Terms of Service version is out of date. Reload the page.' }),
+    termsVersion: z.string().refine((v) => v === TERMS_VERSION, {
+      message: 'The Terms of Service version is out of date. Reload the page.',
     }),
   })
   .strict();
