@@ -191,7 +191,8 @@ export async function sendEmail<T extends EmailTemplateName>(
       ts: new Date().toISOString(),
       to,
       subject: rendered.subject,
-      body: rendered.text,
+      // Dev convenience only: a redacted-body mail (a one-time code) is never written to a production file.
+      body: input.redactLogBody === true && config.NODE_ENV === 'production' ? '[redacted]' : rendered.text,
       template_id: template,
     });
     return;
@@ -209,8 +210,8 @@ export async function sendEmail<T extends EmailTemplateName>(
         toAddress: to,
         subject: rendered.subject,
         templateId: template,
-        bodyText: rendered.text,
-        bodyHtml: rendered.html,
+        bodyText: input.redactLogBody === true ? null : rendered.text,
+        bodyHtml: input.redactLogBody === true ? null : rendered.html,
         status: 'queued',
         provider: 'smtp',
       }),

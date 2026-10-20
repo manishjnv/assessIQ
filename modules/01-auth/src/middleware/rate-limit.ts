@@ -58,11 +58,21 @@ import type { AuthHook, AuthRequest, AuthReply } from "./types.js";
 // (would be the Caddy bridge gateway IP, lumping the entire internet into one
 // bucket). Fail-closed in production: missing CF header → 429.
 
+/**
+ * Bucket names a 429 reports in `details.scope` (read the scope first, one bucket per scope).
+ * The three signup_* scopes belong to the Z-71 public sign-up (modules/01-auth/src/signup.ts):
+ * signup_ip and signup_email are daily request limits, signup_global is the daily cap of
+ * completed sign-ups.
+ */
+export type RateLimitScope =
+  | "ip" | "user" | "tenant" | "credential"
+  | "signup_ip" | "signup_email" | "signup_global";
+
 interface Limit {
   key: string;
   max: number;
   windowSeconds: number;
-  scope: "ip" | "user" | "tenant" | "credential";
+  scope: RateLimitScope;
 }
 
 interface BucketResult {

@@ -48,6 +48,8 @@ import {
   AdminEmailOtpVarsSchema,
   ResultReleasedVarsSchema,
   EvaluationQueueAlertVarsSchema,
+  SignupCodeVarsSchema,
+  SignupExistingAccountVarsSchema,
 } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -77,6 +79,8 @@ const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   admin_email_otp: AdminEmailOtpVarsSchema,
   result_released: ResultReleasedVarsSchema,
   evaluation_queue_alert: EvaluationQueueAlertVarsSchema,
+  signup_code: SignupCodeVarsSchema,
+  signup_existing_account: SignupExistingAccountVarsSchema,
 };
 
 // ---------------------------------------------------------------------------
@@ -249,6 +253,7 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
       ];
     case 'candidate_login_link':
     case 'admin_email_otp':
+    case 'signup_code':
       return [{ k: 'Expires', v: `${escapeHtml(String(p.expires_minutes))} minutes` }];
     case 'totp_enrolled': {
       const rows: MetaRow[] = [{ k: 'Enabled on', v: escapeHtml(String(p.enrolledAt)) }];

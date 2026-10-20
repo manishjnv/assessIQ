@@ -33,6 +33,9 @@ export const EmailTemplateNameSchema = z.enum([
   // than 24 hours in the super-admin queue. Counts + link only (no tenant,
   // assessment or candidate detail).
   'evaluation_queue_alert',
+  // Z-71 self-serve sign-up: the code mail, and the notice sent when the address already has an account.
+  'signup_code',
+  'signup_existing_account',
 ]);
 
 export type EmailTemplateName = z.infer<typeof EmailTemplateNameSchema>;
@@ -136,6 +139,17 @@ export const EvaluationQueueAlertVarsSchema = z.object({
   queueLink: z.string().url(),
 });
 
+// Z-71: self-serve sign-up code (6 digits, 10 minutes).
+export const SignupCodeVarsSchema = z.object({
+  code: z.string().length(6),
+  expires_minutes: z.number().int().positive(),
+});
+
+// Z-71: "you already have an account" notice; the link is the normal sign-in page.
+export const SignupExistingAccountVarsSchema = z.object({
+  signInLink: z.string().url(),
+});
+
 export const WeeklyDigestAdminVarsSchema = z.object({
   tenantName: z.string().min(1),
   weekEnding: z.string(), // ISO8601 date
@@ -159,6 +173,8 @@ export type WeeklyDigestAdminVars = z.infer<typeof WeeklyDigestAdminVarsSchema>;
 export type AdminEmailOtpVars = z.infer<typeof AdminEmailOtpVarsSchema>;
 export type ResultReleasedVars = z.infer<typeof ResultReleasedVarsSchema>;
 export type EvaluationQueueAlertVars = z.infer<typeof EvaluationQueueAlertVarsSchema>;
+export type SignupCodeVars = z.infer<typeof SignupCodeVarsSchema>;
+export type SignupExistingAccountVars = z.infer<typeof SignupExistingAccountVarsSchema>;
 
 export type TemplateVarsMap = {
   invitation_admin: InvitationAdminVars;
@@ -175,6 +191,8 @@ export type TemplateVarsMap = {
   admin_email_otp: AdminEmailOtpVars;
   result_released: ResultReleasedVars;
   evaluation_queue_alert: EvaluationQueueAlertVars;
+  signup_code: SignupCodeVars;
+  signup_existing_account: SignupExistingAccountVars;
 };
 
 // ---------------------------------------------------------------------------
@@ -319,6 +337,11 @@ export interface SendEmailInput<T extends EmailTemplateName = EmailTemplateName>
   logoUrl?: string | null;
   /** Organisation name for the logo alt text; defaults to vars.tenantName. */
   orgName?: string;
+  /**
+   * Z-71: keep the message body out of email_log (body_text / body_html stay NULL). For mails
+   * that carry a one-time code. The code still travels in the send job to the mail provider.
+   */
+  redactLogBody?: boolean;
 }
 
 // ---------------------------------------------------------------------------

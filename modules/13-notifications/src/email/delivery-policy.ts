@@ -39,6 +39,10 @@ export const EMAIL_CLASS: Record<EmailTemplateName, EmailClass> = {
   admin_email_otp: 'auth',
   candidate_login_link: 'auth',
   invitation_admin: 'auth',
+  // Z-71 self-serve sign-up: the sign-up code and the "you already have an account" notice
+  // (a visitor waits for both on screen, so neither may be spread over days by the bulk cap).
+  signup_code: 'auth',
+  signup_existing_account: 'auth',
   // bulk: everything else (totp_enrolled is a receipt, not a code)
   invitation_candidate: 'bulk',
   invitation_reminder: 'bulk',

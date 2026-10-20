@@ -296,3 +296,8 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 **NOT included.** A per-tenant cap or per-tenant fairness (one tenant can use the whole day). A way to cancel or re-time queued mail from the UI. A counter for auth mail (the 50-email headroom of the default cap is the only reserve for codes). Over-cap tries also raise today's counter, so `sentToday` is clamped to the cap.
 
 **Downstream.** `docs/03-api-contract.md` has the route. No schema change. No VPS change: the default 250 needs no new variable; set `EMAIL_BULK_DAILY_CAP` in the VPS `.env` only to change it.
+
+## Z-71 (2026-10-20) - sign-up mails and `redactLogBody`
+
+- **What.** Templates `signup_code` (vars `code`, `expires_minutes`) and `signup_existing_account` (var `signInLink`), both class `auth`. `SendEmailInput.redactLogBody` keeps `body_text` and `body_html` of `email_log` NULL (the send job still carries the body). The sign-up routes send both mails with the platform tenant id.
+- **Why.** The code must not sit in `email_log` in plain text. **Not included.** A 30-day purge of platform-tenant `email_log` rows; redaction of the BullMQ job data.

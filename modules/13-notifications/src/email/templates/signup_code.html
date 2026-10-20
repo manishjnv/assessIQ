@@ -1,0 +1,25 @@
+<!-- Composes kit partials (Z-71 self-serve sign-up; layout follows admin_email_otp). The code never appears in the preheader. -->
+{{#> email-shell preheader="Your AssessIQ sign-up code is inside."}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-short
+      eyebrow="SIGN-UP CODE"
+      title=_t_heading
+      body="Enter this code to finish creating your AssessIQ organisation."}}
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;border:1px solid #e4e4e7;border-radius:12px;border-collapse:separate;background:#fafafa">
+      <tr><td align="center" style="padding:24px 20px;font-family:'SF Mono',Menlo,Consolas,monospace;font-size:36px;font-weight:700;color:#0a0a0b;letter-spacing:0.18em">{{code}}</td></tr>
+    </table>
+
+    <p style="margin:24px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.55">
+      This code expires in <strong style="color:#3f3f46">{{expires_minutes}} minutes</strong>. If you did not ask for it, you can ignore this email.
+    </p>
+
+  {{/email-body}}
+
+  {{> email-footer-transactional}}
+
+{{/email-shell}}

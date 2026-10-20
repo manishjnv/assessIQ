@@ -54,6 +54,10 @@ const EXEMPT: Record<string, string> = {
   'tenant_plans.notes': 'platform-operator billing notes about a tenant',
   'question_imports.file_name': 'uploaded file name chosen by the super admin (RW-58); content metadata, not candidate data',
   'question_imports.pack_name': 'draft question-set name typed by the super admin (RW-58); content metadata',
+  // Z-71 / Z-81 self-serve sign-up (migration 0221): keyed hashes only, no readable personal data
+  'signup_claims.email_key': 'HMAC-SHA256 of the folded sign-up address with a server key; not reversible; kept on purpose so a purge cannot free the address (Z-71 finding 9)',
+  'tenant_legal_acceptances.ip_hash': 'HMAC of the IP with a server key, not the IP; legal acceptance evidence, append-only (Z-81)',
+  'tenant_legal_acceptances.user_agent_hash': 'HMAC of the user agent with a server key; legal acceptance evidence, append-only (Z-81)',
   // Kept by design
   'certificates.display_name': 'D5: certificates are immutable HMAC snapshots, never mutated',
   'audit_log.ip': 'audit_log is append-only by design (14-audit-log invariant)',
