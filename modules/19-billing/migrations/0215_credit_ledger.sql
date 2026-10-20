@@ -35,7 +35,8 @@ CREATE POLICY tenant_isolation_select ON credit_grants
 -- Purchases, bonuses and pilot grants go through the system role (super admin).
 CREATE POLICY tenant_isolation_insert ON credit_grants
   FOR INSERT
-  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid AND source = 'free_monthly');
+  WITH CHECK (tenant_id = current_setting('app.current_tenant', true)::uuid AND source = 'free_monthly'
+              AND credits = remaining AND credits <= 20);
 
 -- Burn decrements `remaining` under the app role in the grading transaction.
 CREATE POLICY tenant_isolation_update ON credit_grants
@@ -45,6 +46,23 @@ CREATE POLICY tenant_isolation_update ON credit_grants
 
 REVOKE UPDATE, DELETE, TRUNCATE ON credit_grants FROM assessiq_app;
 GRANT UPDATE (remaining) ON credit_grants TO assessiq_app;
+
+-- `remaining` may only go down (a burn or an expiry). Blocks raising it to undo burns.
+CREATE OR REPLACE FUNCTION credit_grants_remaining_decrease_only() RETURNS trigger AS $$
+BEGIN
+  IF NEW.remaining > OLD.remaining THEN
+    RAISE EXCEPTION 'credit_grants.remaining can only decrease';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+DROP TRIGGER IF EXISTS credit_grants_remaining_decrease_only ON credit_grants;
+CREATE TRIGGER credit_grants_remaining_decrease_only BEFORE UPDATE ON credit_grants
+  FOR EACH ROW EXECUTE FUNCTION credit_grants_remaining_decrease_only();
+
+-- A paid invoice reference grants once (a double click or retry cannot grant twice).
+CREATE UNIQUE INDEX IF NOT EXISTS credit_grants_purchase_invoice_uniq
+  ON credit_grants (tenant_id, invoice_ref) WHERE invoice_ref IS NOT NULL AND source = 'purchase';
 
 CREATE TABLE IF NOT EXISTS credit_burns (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -77,8 +95,8 @@ REVOKE UPDATE, DELETE, TRUNCATE ON credit_burns FROM assessiq_app;
 INSERT INTO credit_grants (tenant_id, source, credits, remaining, expires_at, note)
 SELECT p.tenant_id,
        CASE WHEN p.tier = 'free' THEN 'free_monthly' ELSE 'pilot' END,
-       p.included_credits,
-       GREATEST(p.included_credits - (
+       CASE WHEN p.tier = 'free' THEN LEAST(p.included_credits, 20) ELSE p.included_credits END,
+       GREATEST(CASE WHEN p.tier = 'free' THEN LEAST(p.included_credits, 20) ELSE p.included_credits END - (
          SELECT COUNT(*)::int FROM billing_events b
           WHERE b.tenant_id = p.tenant_id AND b.event_type = 'assessment_graded'
             AND b.occurred_at >= (p.cycle_start + make_interval(months => GREATEST(0, (
