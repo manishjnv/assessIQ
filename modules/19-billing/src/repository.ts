@@ -128,6 +128,25 @@ export async function countCandidatesEver(client: PoolClient, tenantId: string):
 }
 
 /**
+ * Race-safe candidate cap (migration 0222). Serialises parallel callers of one tenant with a
+ * transaction-scoped advisory lock (tenant_plans cannot be locked FOR UPDATE: the app role has
+ * no UPDATE policy there), records the candidate once, and returns the tenant's counted total.
+ * Must run in the same transaction that creates the candidate.
+ */
+export async function recordCandidateCounted(client: PoolClient, tenantId: string, userId: string): Promise<number> {
+  await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('candidate_cap:' || $1::text, 0))`, [tenantId]);
+  await client.query(
+    `INSERT INTO tenant_candidate_counted (tenant_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+    [tenantId, userId],
+  );
+  const r = await client.query<{ n: number }>(
+    `SELECT COUNT(*)::int AS n FROM tenant_candidate_counted WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  return r.rows[0]?.n ?? 0;
+}
+
+/**
  * Free-plan AI attempt cap source: distinct attempts that were AI-graded.
  * Union of (a) attempts with cached AI proposals (set when the super admin
  * clicks Grade, before Accept) and (b) attempts with an ai_answer_evaluated

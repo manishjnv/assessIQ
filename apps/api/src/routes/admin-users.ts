@@ -16,7 +16,7 @@ import { logLifecycleEvent, sessions } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
 import { eraseCandidatePii, exportCandidateData } from '@assessiq/data-rights';
 import { authChain } from '../middleware/auth-chain.js';
-import { assertCandidateTotalCap, assertCandidateRoleChange } from '@assessiq/billing';
+import { assertCandidateRoleChange } from '@assessiq/billing';
 import { assertInviteWithinTier } from '../middleware/require-tier.js';
 import {
   parseBody,
@@ -132,7 +132,6 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       const body = parseBody(createUserBody, req.body, { code: USER_BODY_CODES });
-      if ((body as { role?: string }).role === 'candidate') await assertCandidateTotalCap(tenantId, 1);
       const user = await createUser(tenantId, body as import('@assessiq/users').CreateUserInput, userId);
       return reply.code(201).send(user);
     },
@@ -184,9 +183,8 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
         await assertInviteWithinTier(tenantId, assessmentId, validRows);
       }
 
-      // Free plan: total candidate cap, also for an import without invites (importCandidates creates users).
-      // ponytail: counts every valid row, including emails that already exist (over-counts re-imports).
-      await assertCandidateTotalCap(tenantId, parseCandidateCsv(body.csv).valid.length);
+      // Free plan total candidate cap: enforced per new user inside importCandidates' transaction
+      // (countCandidateOrRefuse). Existing emails are not counted twice; a refusal rolls back the whole import.
       const imp = await importCandidates(tenantId, body.csv, userId);
       const skipped = [...imp.skipped];
       let invited = 0;

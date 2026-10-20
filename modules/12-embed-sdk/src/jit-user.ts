@@ -12,6 +12,7 @@
 
 import { withTenant } from "@assessiq/tenancy";
 import { uuidv7, AuthzError } from "@assessiq/core";
+import { countCandidateOrRefuse } from "@assessiq/billing";
 import type { PoolClient } from "pg";
 
 export interface JitUserInput {
@@ -92,7 +93,11 @@ export async function resolveJitUser(input: JitUserInput): Promise<JitUserResult
         JSON.stringify({ external_id: input.externalSub }),
       ],
     );
-    if (inserted.rows.length > 0) return { userId, created: true };
+    if (inserted.rows.length > 0) {
+      // Free-plan total candidate cap, race-safe, same tx (embed is locked on Free; wired for consistency).
+      await countCandidateOrRefuse(client, input.tenantId, userId);
+      return { userId, created: true };
+    }
 
     // Lost the race — the winner's row is now committed and visible.
     const winner = await find();

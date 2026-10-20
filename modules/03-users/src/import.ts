@@ -1,6 +1,7 @@
 import { ValidationError, uuidv7 } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { auditInTx } from '@assessiq/audit-log';
+import { countCandidateOrRefuse } from '@assessiq/billing';
 import { normalizeEmail } from './normalize.js';
 import * as repo from './repository.js';
 
@@ -219,8 +220,9 @@ export async function importCandidates(
         continue;
       }
       await client.query('SAVEPOINT import_row');
+      let user: Awaited<ReturnType<typeof repo.insertUser>>;
       try {
-        const user = await repo.insertUser(client, {
+        user = await repo.insertUser(client, {
           id: uuidv7(),
           tenantId,
           email: r.email,
@@ -230,12 +232,16 @@ export async function importCandidates(
           metadata: profileMeta,
         });
         await client.query('RELEASE SAVEPOINT import_row');
-        created++;
-        candidates.push({ userId: user.id, row: r.row, email: r.email });
       } catch {
         await client.query('ROLLBACK TO SAVEPOINT import_row');
         skipped.push({ row: r.row, email: r.email, reason: 'INSERT_FAILED' });
+        continue;
       }
+      // Outside the try: a cap refusal must abort the whole import, not become INSERT_FAILED.
+      // Existing candidates never reach here, so a re-import does not double-count.
+      await countCandidateOrRefuse(client, tenantId, user.id);
+      created++;
+      candidates.push({ userId: user.id, row: r.row, email: r.email });
     }
     skipped.sort((a, b) => a.row - b.row);
 
