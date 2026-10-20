@@ -192,3 +192,15 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 - Help ids: `admin.start_test.mock`, `admin.start_test.mock.unverified`. Module 16 seed count is now 516.
 - No new API route and no module 05 change.
 - NOT built (Z-42 stays open): `whole_test_minutes` and `marks_per_question` fields on the create or edit form. Module 05 rejects `settings.sections` combined with `settings.blueprint`, and `whole_test_minutes` needs sections. The admin UI also has no assessment edit form, so the lock state (after the first attempt) is not shown yet. Decision needed from the owner first.
+
+## Camera (S39)
+
+- New pages and components:
+  - School switch on the Platform page: `pages/platform/SchoolSwitch.tsx`. Only the super admin can use it, with fresh MFA.
+  - Camera card on the Data privacy tab of Settings: `components/CameraSettingsCard.tsx`.
+  - Camera reviewers card on the same tab: `components/CameraReviewersCard.tsx`.
+  - Reviewer page `/admin/camera-review`: `pages/camera-review.tsx`.
+  - "Did not consent" chip on invitation rows: `pages/assessment-detail/invitation-columns.tsx`. The server sends `camera_consent = declined`.
+- Files load only on a View click, through an authenticated blob fetch. See `docs/08-ui-system.md`, "Camera screens".
+- Nav probe: `components/AdminShell.tsx` shows "Camera review" only when `GET /api/admin/camera/access` returns `reviewer: true`. That route always answers 200.
+- Never probe with a reviewer-only route. A 403 shows as a console error on every admin page, and it breaks the signed-in smoke specs in CI.

@@ -81,7 +81,7 @@
 # ═══ AssessIQ — assessiq.in (canonical) ═══
 # THREE-WAY split (SEO Phase 0, 2026-05-22 — see
 # docs/design/seo-marketing-site-architecture.md):
-#   @api  → assessiq-api      on 9092  (/api/* /embed* /help/* /take/start /verify/*)
+#   @api  → assessiq-api      on 9092  (/api/* /embed* /help/* /take/start /take/camera-consent /verify/*)
 #   @app  → assessiq-frontend on 9091  (gated SPA: /admin* /candidate* /take/*)
 #   else  → assessiq-marketing on 9093 (public Astro SEO site: /, /about, /contact, …)
 # Matcher ORDER matters — handle blocks are evaluated top-to-bottom, first match
@@ -102,10 +102,15 @@ assessiq.in {
         }
     }
     import security-headers
+    # Camera (S39): camera=(self) on take pages only. The shared snippet sets camera=() for every site, so this
+    # header is deferred (>) and sits at site level; Caddy sorts it before the snippet's handler, which makes it the
+    # outer handler and the last one to write. A plain or inner header loses to the snippet.
+    @take_pages path /take /take/*
+    header @take_pages >Permissions-Policy "camera=(self), microphone=(), geolocation=()"
     encode zstd gzip
 
     # 1. API + embed + public-help + public-verify routes → assessiq-api on 9092.
-    @api path /api/* /embed* /help/* /take/start /verify/*
+    @api path /api/* /embed* /help/* /take/start /take/camera-consent /verify/*
     handle @api {
         reverse_proxy 172.17.0.1:9092 {
             header_up X-Forwarded-Proto https
