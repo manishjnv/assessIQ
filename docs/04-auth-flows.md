@@ -469,6 +469,8 @@ The flow is the same Google SSO flow as for an admin, with these differences:
 
 3. Candidate clicks "Begin"
    → POST /api/take/start { token }
+   → (Z-87) REAL invitation + phone/tablet client → 403 DEVICE_NOT_ALLOWED, nothing minted, invitation unused
+   → (Z-91) REAL invitation, new attempt, readiness missing/failed → 422 READINESS_FAILED
    → mark invitation status='started'
    → create attempt, create session bound to user_id, totp_verified=true (TOTP not required for magic link mode)
    → return session cookie

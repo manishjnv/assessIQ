@@ -156,6 +156,9 @@ export function MyResults(): React.ReactElement {
                     }}
                   >
                     {r.assessment_name}
+                    {r.delivery_mode === 'mock' && (
+                      <span style={{ marginLeft: 8, verticalAlign: 'middle' }}><Chip>Mock</Chip></span>
+                    )}
                     {r.is_new === true && (
                       <span style={{ marginLeft: 8, verticalAlign: 'middle' }}><Chip>New</Chip></span>
                     )}

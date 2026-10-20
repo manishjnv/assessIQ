@@ -199,6 +199,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) input.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["max_attempts"] !== undefined) input.max_attempts = raw["max_attempts"] as number | null;
+      if (raw["delivery_mode"] !== undefined) input.delivery_mode = raw["delivery_mode"] as "real" | "mock";
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -307,6 +308,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) input.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["max_attempts"] !== undefined) input.max_attempts = raw["max_attempts"] as number | null;
+      if (raw["delivery_mode"] !== undefined) input.delivery_mode = raw["delivery_mode"] as "real" | "mock";
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -407,6 +409,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["randomize"] !== undefined) patch.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) patch.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["max_attempts"] !== undefined) patch.max_attempts = raw["max_attempts"] as number | null;
+      if (raw["delivery_mode"] !== undefined) patch.delivery_mode = raw["delivery_mode"] as "real" | "mock";
       if (raw["settings"] !== undefined) patch.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -589,7 +592,7 @@ export async function registerAssessmentLifecycleRoutes(
   );
 
   // POST /api/admin/assessments/:id/invite
-  // Body: { user_ids: string[] }
+  // Body: { user_ids: string[], delivery_mode?: 'real' | 'mock' }  (Z-89; default = the assessment's own mode)
   app.post(
     "/api/admin/assessments/:id/invite",
     { preHandler: adminOnly },
@@ -597,7 +600,7 @@ export async function registerAssessmentLifecycleRoutes(
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      const body = req.body as { user_ids?: unknown };
+      const body = req.body as { user_ids?: unknown; delivery_mode?: unknown };
 
       if (!Array.isArray(body?.user_ids) || body.user_ids.length === 0) {
         throw new ValidationError("user_ids must be a non-empty array of strings", {
@@ -605,7 +608,19 @@ export async function registerAssessmentLifecycleRoutes(
         });
       }
 
-      const result = await inviteUsers(tenantId, id, body.user_ids as string[], userId);
+      if (body.delivery_mode !== undefined && body.delivery_mode !== "real" && body.delivery_mode !== "mock") {
+        throw new ValidationError("delivery_mode must be 'real' or 'mock'", {
+          details: { code: "INVALID_PARAM", param: "delivery_mode" },
+        });
+      }
+
+      const result = await inviteUsers(
+        tenantId,
+        id,
+        body.user_ids as string[],
+        userId,
+        body.delivery_mode as "real" | "mock" | undefined,
+      );
       return reply.code(201).send(result);
     },
   );

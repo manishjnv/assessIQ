@@ -240,6 +240,9 @@ export async function startAttempt(
     //    For standard attempts, invitation must exist and be valid.
     let invitationId: string | undefined;
     let extraAttempts = 0;
+    // Z-89: the attempt's test type comes from the INVITATION row, read here under the row lock.
+    // It is never read from the request. Embed attempts have no invitation and stay 'real'.
+    let deliveryMode: "real" | "mock" = "real";
     if (!input.embedOrigin) {
       const invitation = await repo.findInvitationForCandidate(
         client,
@@ -277,6 +280,7 @@ export async function startAttempt(
       nextAttemptNumber = existing === null ? 1 : existing.attempt_number + 1;
       invitationId = invitation.id;
       extraAttempts = invitation.extra_attempts;
+      deliveryMode = invitation.delivery_mode;
 
       // c2. Consent invariant (R4) — enforced HERE so EVERY non-embed path that
       //     creates a new attempt (/take/start Begin, /api/me/assessments/:id/start)
@@ -300,13 +304,15 @@ export async function startAttempt(
     // c3. Retake limit (Z-39): attempt n+1 is allowed only while n < max_attempts + extras.
     //     Checked under the invitation row lock (non-embed); the unique key on
     //     (assessment, user, attempt_number) is the backstop for the embed path.
+    //     Z-89: counts only attempts of the SAME test type, so a mock never uses up the real allowance.
     if (existing !== null) {
       const allowed = attemptsAllowed(assessment.max_attempts, extraAttempts);
-      if (existing.attempt_number >= allowed) {
+      const used = await repo.countAttemptsByMode(client, input.assessmentId, input.userId, deliveryMode);
+      if (used >= allowed) {
         throw new ConflictError(`All ${String(allowed)} allowed attempts are used`, {
           details: {
             code: AE_ERROR_CODES.ATTEMPTS_EXHAUSTED,
-            attempts_used: existing.attempt_number,
+            attempts_used: used,
             attempts_allowed: allowed,
           },
         });
@@ -550,6 +556,8 @@ export async function startAttempt(
       durationSeconds,
       embedOrigin: input.embedOrigin ?? false,
       attemptNumber: nextAttemptNumber,
+      deliveryMode,
+      ...(input.readiness !== undefined ? { readiness: input.readiness } : {}),
     });
     if (attempt === null) {
       // Lost a concurrent-Begin race (UNIQUE(assessment_id,user_id,attempt_number)): return the
@@ -638,6 +646,8 @@ export interface TakePreview {
   /** Z-39: the attempt this page is about (the one in progress, or the next one) and how many are allowed. */
   attemptNumber: number;
   attemptsAllowed: number;
+  /** Z-89: the invitation's test type, so the page can pick the right screen BEFORE start. */
+  deliveryMode: "real" | "mock";
 }
 
 export async function getTakePreview(
@@ -671,9 +681,11 @@ async function loadTakePreview(
       assessment.max_attempts,
       await repo.getInvitationExtraAttempts(client, input.assessmentId, input.userId),
     );
-    const retakeOffered = latest !== null && !isUnfinished(latest.status) && latest.attempt_number < allowed;
+    const deliveryMode = await repo.getInvitationDeliveryMode(client, input.assessmentId, input.userId);
+    const used = await repo.countAttemptsByMode(client, input.assessmentId, input.userId, deliveryMode);
+    const retakeOffered = latest !== null && !isUnfinished(latest.status) && used < allowed;
     const existing = retakeOffered ? null : latest;
-    const attemptNumber = latest === null ? 1 : retakeOffered ? latest.attempt_number + 1 : latest.attempt_number;
+    const attemptNumber = latest === null ? 1 : retakeOffered ? used + 1 : latest.attempt_number;
     if (existing === null && assessment.status !== "active") {
       throw new ConflictError(
         `Assessment must be 'active' to start an attempt (current: '${assessment.status}')`,
@@ -691,7 +703,7 @@ async function loadTakePreview(
         ? secs.reduce((n, s) => n + (s.question_count as number), 0)
         : assessment.question_count;
     const tenant = await tenancyRepo.findTenantById(client, tenantId);
-    return { existing, questionCount, companyName: tenant?.name?.trim() ?? "", attemptNumber, attemptsAllowed: allowed };
+    return { existing, questionCount, companyName: tenant?.name?.trim() ?? "", attemptNumber, attemptsAllowed: allowed, deliveryMode };
   });
 }
 

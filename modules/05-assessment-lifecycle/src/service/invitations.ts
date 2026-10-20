@@ -138,6 +138,8 @@ async function reissueInvitationInTx(
     invitation: AssessmentInvitation;
     actorUserId: string;
     kind: "resend" | "reinvite";
+    /** Z-89: new test type on a re-invite; omitted = keep. */
+    deliveryMode?: "real" | "mock";
   },
 ): Promise<{ invitation: AssessmentInvitation; plaintext: string } | null> {
   const { plaintext, hash } = generateInvitationToken();
@@ -149,6 +151,7 @@ async function reissueInvitationInTx(
     args.invitation.id,
     hash,
     expiresAt,
+    args.deliveryMode ?? null,
   );
   if (updated === null) return null;
 
@@ -165,9 +168,11 @@ async function reissueInvitationInTx(
     before: {
       status: args.invitation.status,
       expires_at: args.invitation.expires_at.toISOString(),
+      delivery_mode: args.invitation.delivery_mode,
     },
     after: {
       kind: args.kind,
+      delivery_mode: updated.delivery_mode,
       status: updated.status,
       expires_at: updated.expires_at.toISOString(),
       assessment_id: updated.assessment_id,
@@ -388,6 +393,8 @@ export async function inviteUsers(
   assessmentId: string,
   userIds: readonly string[],
   invitedByUserId: string,
+  /** Z-89: test type chosen by the admin; omitted = the assessment's own default. Validated by the route. */
+  deliveryMode?: "real" | "mock",
 ): Promise<InviteUsersResult> {
   log.info({ tenantId, assessmentId, userCount: userIds.length }, "inviteUsers");
 
@@ -416,6 +423,7 @@ export async function inviteUsers(
 
     const invited: AssessmentInvitation[] = [];
     const skipped: Array<{ userId: string; reason: string }> = [];
+    const mode: "real" | "mock" = deliveryMode ?? assessment.delivery_mode;
 
     // c. Process each userId
     for (const userId of userIds) {
@@ -470,6 +478,7 @@ export async function inviteUsers(
           invitation: existing,
           actorUserId: invitedByUserId,
           kind: "reinvite",
+          deliveryMode: mode,
         });
         if (reissued === null) {
           // Lost a race with the candidate starting — treat as existing.
@@ -503,6 +512,7 @@ export async function inviteUsers(
         tokenHash: hash,
         expiresAt,
         invitedBy: invitedByUserId,
+        deliveryMode: mode,
       });
 
       // Build the accept URL with plaintext token (email body only).
@@ -539,6 +549,7 @@ export async function inviteUsers(
           user_id: userId,
           expires_at: invitation.expires_at.toISOString(),
           status: invitation.status,
+          delivery_mode: invitation.delivery_mode,
         },
       });
 

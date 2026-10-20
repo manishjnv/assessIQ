@@ -70,6 +70,7 @@ export async function resolveInvitationToken(
       inv_status: string;
       inv_invited_by: string;
       inv_created_at: Date;
+      inv_delivery_mode: string;
       // assessments
       a_id: string;
       a_tenant_id: string;
@@ -82,6 +83,7 @@ export async function resolveInvitationToken(
       a_question_count: number;
       a_passing_score_pct: number;
       a_max_attempts: number | null;
+      a_delivery_mode: string;
       inv_extra_attempts: number;
       attempts_used: number;
       a_randomize: boolean;
@@ -111,6 +113,7 @@ export async function resolveInvitationToken(
          ai.status          AS inv_status,
          ai.invited_by      AS inv_invited_by,
          ai.created_at      AS inv_created_at,
+         ai.delivery_mode   AS inv_delivery_mode,
          a.id               AS a_id,
          a.tenant_id        AS a_tenant_id,
          a.pack_id          AS a_pack_id,
@@ -122,9 +125,11 @@ export async function resolveInvitationToken(
          a.question_count   AS a_question_count,
          a.passing_score_pct AS a_passing_score_pct,
          a.max_attempts     AS a_max_attempts,
+         a.delivery_mode    AS a_delivery_mode,
          ai.extra_attempts  AS inv_extra_attempts,
          (SELECT count(*)::int FROM attempts t
-           WHERE t.assessment_id = ai.assessment_id AND t.user_id = ai.user_id) AS attempts_used,
+           WHERE t.assessment_id = ai.assessment_id AND t.user_id = ai.user_id
+             AND t.delivery_mode = ai.delivery_mode) AS attempts_used,
          a.randomize        AS a_randomize,
          a.opens_at         AS a_opens_at,
          a.closes_at        AS a_closes_at,
@@ -167,6 +172,7 @@ export async function resolveInvitationToken(
         status: row.inv_status as InvitationStatus,
         invited_by: row.inv_invited_by,
         created_at: row.inv_created_at,
+        delivery_mode: row.inv_delivery_mode === "mock" ? "mock" : "real",
       },
       assessment: {
         id: row.a_id,
@@ -180,6 +186,7 @@ export async function resolveInvitationToken(
         question_count: row.a_question_count,
         passing_score_pct: row.a_passing_score_pct,
         max_attempts: row.a_max_attempts,
+        delivery_mode: row.a_delivery_mode === "mock" ? "mock" : "real",
         randomize: row.a_randomize,
         opens_at: row.a_opens_at,
         closes_at: row.a_closes_at,

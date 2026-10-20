@@ -641,7 +641,7 @@ describe("HTTP routes — consent invariant (R4 review fixes)", () => {
   it("/take/start Begin with consent -> 201 + cookie + one consent row; second Begin = same attempt, same ends_at, still one consent row", async () => {
     const { candidate, assessmentId } = await setup("Begin");
     const app = await buildApp();
-    const r1 = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, consent: true } });
+    const r1 = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, consent: true, readiness: READY } });
     expect(r1.statusCode).toBe(201);
     expect(String(r1.headers["set-cookie"])).toContain("sess-token");
     expect(await counts(candidate, assessmentId)).toEqual({ attempts: 1, consents: 1 });
@@ -666,6 +666,87 @@ describe("HTTP routes — consent invariant (R4 review fixes)", () => {
     const ok = await app.inject({ method: "POST", url, payload: { consent: true } });
     expect(ok.statusCode).toBe(201);
     expect(await counts(candidate, assessmentId)).toEqual({ attempts: 1, consents: 1 });
+  });
+
+  // ─── Z-87 desktop-only, Z-89 mock/real, Z-91 readiness ─────────────────────
+  const READY = { browser: { name: "chrome", version: "126" }, screenWidth: 1920, screenHeight: 1080, downlinkMbps: 10, rttMs: 40 };
+  const IPHONE = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1";
+  const setMode = (assessmentId: string, mode: "real" | "mock") =>
+    withSuperClient((c) => c.query("UPDATE assessment_invitations SET delivery_mode = $2 WHERE assessment_id = $1", [assessmentId, mode]));
+  const start = (app: Awaited<ReturnType<typeof buildApp>>, payload: Record<string, unknown>, ua?: string) =>
+    app.inject({ method: "POST", url: "/take/start", headers: ua ? { "user-agent": ua } : {}, payload: { token: TOKEN, consent: true, ...payload } });
+
+  it("Z-87: real exam from a phone -> 403 DEVICE_NOT_ALLOWED, no cookie, no attempt; the invitation stays usable on a desktop", async () => {
+    const { candidate, assessmentId } = await setup("Phone");
+    const app = await buildApp();
+    const res = await start(app, { readiness: READY }, IPHONE);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.code).toBe("DEVICE_NOT_ALLOWED");
+    expect(res.json().error.message).toBe("Please open this link on a laptop or desktop computer to take this test");
+    expect(res.headers["set-cookie"]).toBeUndefined();
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 0, consents: 0 });
+    // iPadOS sends a Mac user agent: the page signals decide
+    const ipad = await start(app, { readiness: READY, device: { coarsePointerOnly: true, maxTouchPoints: 5, screenWidth: 820 } });
+    expect(ipad.statusCode).toBe(403);
+    // same link on a desktop works
+    expect((await start(app, { readiness: READY })).statusCode).toBe(201);
+  });
+
+  it("Z-89: mock invitation on a phone is allowed; the attempt copies the mode from the invitation, a body cannot change it", async () => {
+    const { candidate, assessmentId } = await setup("Mock");
+    await setMode(assessmentId, "mock");
+    const app = await buildApp();
+    const pv = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, preview: true } });
+    expect(pv.json().assessment.delivery_mode).toBe("mock");
+    const res = await start(app, { delivery_mode: "real", deliveryMode: "real" }, IPHONE); // no readiness: optional for a mock
+    expect(res.statusCode).toBe(201);
+    const row = (await withSuperClient((c) => c.query("SELECT delivery_mode, camera_enabled, readiness FROM attempts WHERE user_id = $1", [candidate]))).rows[0];
+    expect(row.delivery_mode).toBe("mock");
+    expect(row.camera_enabled).toBe(false);
+    expect(row.readiness).toBeNull();
+  });
+
+  it("Z-91: real start without readiness or with a small screen -> 422 READINESS_FAILED; passing signals are stored on the attempt", async () => {
+    const { candidate, assessmentId } = await setup("Ready");
+    const app = await buildApp();
+    const none = await start(app, {});
+    expect(none.statusCode).toBe(422);
+    expect(none.json().error.code).toBe("READINESS_FAILED");
+    expect(none.json().error.message).toBe("Run the readiness check first");
+    const small = await start(app, { readiness: { ...READY, screenWidth: 800 } });
+    expect(small.statusCode).toBe(422);
+    expect(small.json().error.failed[0].check).toBe("screen");
+    expect(await counts(candidate, assessmentId)).toEqual({ attempts: 0, consents: 0 });
+    const ok = await start(app, { readiness: READY });
+    expect(ok.statusCode).toBe(201);
+    const r = (await withSuperClient((c) => c.query("SELECT readiness FROM attempts WHERE id = $1", [ok.json().attempt_id]))).rows[0].readiness;
+    expect(r.passed).toBe(true);
+    expect(r.signals.screenWidth).toBe(1920);
+    expect(r.failed).toEqual([]);
+  });
+
+  it("Z-89: a mock does not use up the real allowance (counts per mode)", async () => {
+    const { candidate, assessmentId } = await setup("Allow");
+    // default allowance = 1 attempt
+    const app = await buildApp();
+    // a finished mock attempt exists
+    await withSuperClient(async (c) => {
+      await c.query("UPDATE assessment_invitations SET delivery_mode = 'mock' WHERE assessment_id = $1", [assessmentId]);
+    });
+    const m = await start(app, {});
+    expect(m.statusCode).toBe(201);
+    await withSuperClient((c) => c.query("UPDATE attempts SET status = 'submitted' WHERE id = $1", [m.json().attempt_id]));
+    // the admin switches the (never reused) invitation back to real: the mock attempt must not count
+    await setMode(assessmentId, "real");
+    const pv = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, preview: true } });
+    expect(pv.json().assessment.attempt_number).toBe(1);
+    const real = await start(app, { readiness: READY });
+    expect(real.statusCode).toBe(201);
+    expect(await counts(candidate, assessmentId)).toMatchObject({ attempts: 2 });
+    // the single real attempt is now used: a second real start is refused
+    await withSuperClient((c) => c.query("UPDATE attempts SET status = 'submitted' WHERE id = $1", [real.json().attempt_id]));
+    const pv2 = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, preview: true } });
+    expect(pv2.json().resumed).toBe(true);
   });
 
   it("GET /api/me/assessments (FU-C10): shapes id/duration_seconds/question_count; hides a not-yet-open assessment; shows it once opened", async () => {

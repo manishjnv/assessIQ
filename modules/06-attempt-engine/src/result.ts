@@ -94,6 +94,8 @@ export interface ReleasedResult {
   passed: boolean;
   /** Z-16: the pass mark (1-100) used for this result, snapshot from attempt_scores.pass_mark_pct. */
   pass_mark_pct: number;
+  /** Z-89: 'mock' results are labelled in the UI and never carry a certificate. */
+  delivery_mode: "real" | "mock";
   assessment_name: string;
   released_at: string;
   certificate: CandidateCertificateRef | null;
@@ -137,6 +139,8 @@ export interface ResultListItem {
   passed: boolean;
   /** Z-16: pass mark (1-100) used for this result. */
   pass_mark_pct: number;
+  /** Z-89: 'mock' results get a Mock badge. */
+  delivery_mode: "real" | "mock";
   certificate: CandidateCertificateRef | null;
   negative_marking: NegativeMarkingSummary;
   /** Z-12: false once the candidate opened the result (attempts.seen_at set). */
@@ -411,6 +415,7 @@ async function loadCandidateResult(
           percent,
           passed: isPass(earned, max, r.passing_score_pct),
           pass_mark_pct: r.passing_score_pct,
+          delivery_mode: attempt.delivery_mode,
           assessment_name: r.assessment_name,
           released_at: new Date(r.released_at).toISOString(),
           certificate: certificateRef(r.credential_id),
@@ -446,7 +451,7 @@ export async function listCandidateResults(
   return withTenant(tenantId, async (client) => {
     // RW-80: lets the portal hide the per-question review section without an extra call.
     const feedbackLevel = await loadFeedbackLevel(client);
-    const res = await client.query<ReleasedRow & { attempt_id: string; is_new: boolean }>(
+    const res = await client.query<ReleasedRow & { attempt_id: string; is_new: boolean; delivery_mode: string }>(
       `SELECT a.id AS attempt_id,
               asm.name AS assessment_name,
               s.total_earned::text AS total_earned,
@@ -454,6 +459,7 @@ export async function listCandidateResults(
               s.pass_mark_pct AS passing_score_pct,
               ${RELEASED_AT_SQL} AS released_at,
               (a.seen_at IS NULL) AS is_new,
+              a.delivery_mode,
               c.credential_id
          FROM attempts a
          JOIN assessments asm ON asm.id = a.assessment_id
@@ -480,6 +486,7 @@ export async function listCandidateResults(
           percent,
           passed: isPass(earned, max, r.passing_score_pct),
           pass_mark_pct: r.passing_score_pct,
+          delivery_mode: r.delivery_mode === "mock" ? "mock" : "real",
           certificate: certificateRef(r.credential_id),
           negative_marking: negMarking.get(r.attempt_id) ?? NO_NEGATIVE_MARKING,
           is_new: r.is_new,

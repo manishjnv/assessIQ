@@ -1562,6 +1562,7 @@ Heavy analytics queries (cohort reports, heatmaps, exports) join `attempt_scores
 | Rejected | Dropping unreleased rows from the view. The Activity "completions" KPI would then undercount submitted attempts |
 | Readers that changed | The two score lists (`individualReport` and admin cohort attempts in `modules/15-analytics/src/repository.ts`) add `auto_pct IS NOT NULL`. `AVG` and `PERCENTILE_CONT` ignore `NULL`, so the aggregate readers do not change. The candidate readers already filter `attempt_status = 'released'` |
 | Not included | Refresh timing. The view still refreshes nightly (02:00 UTC) and on the manual refresh route. A result released today shows in reports after the next refresh, as before |
+| Z-89 (migration `0219`) | `attempt_summary_mv` and `question_stats_mv` are recreated with `WHERE attempts.delivery_mode = 'real'`. Columns, indexes, owner and grants are unchanged. A mock attempt has no row in either view. Rejected: a `delivery_mode` column filtered in every reader (easy to miss one). The mock dashboard (Z-90) needs its own source |
 | Same rule on the live tables (not the view) | Module 09 `TENANT_VISIBLE_ATTEMPT_SQL` (`modules/09-scoring/src/repository.ts`) on cohort, leaderboard and individual reports. The cohort topic breakdown and the home "avg % this week" KPI (`15-analytics/src/repository.ts`). The assessment invitee list join to `attempt_scores` (`05-assessment-lifecycle/src/repository.ts`) |
 
 ### RLS caveat

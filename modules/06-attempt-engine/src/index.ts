@@ -112,3 +112,8 @@ export type { RegisterAttemptAdminRoutesOptions } from "./routes.admin.js";
 
 export { registerAttemptTakeRoutes } from "./routes.take.js";
 export type { RegisterAttemptTakeRoutesOptions } from "./routes.take.js";
+
+// Z-87 / Z-91: pure device and readiness rules (server gates at POST /take/start).
+export { isMobileOrTabletClient } from "./device.js";
+export { evaluateReadiness } from "./readiness.js";
+export type { ReadinessSignals, ReadinessResult } from "./readiness.js";

@@ -303,3 +303,12 @@ Tests:
 ## Clear empty drafts (Q44, 2026-10-19)
 
 `clearEmptyDrafts(tenantId, ids, userId)` in `service/lifecycle.ts` backs `POST /api/admin/assessments/clear-empty-drafts`. Empty means draft, zero attempts and zero invitations. It runs in one `withTenant` transaction. Each eligible row is audited as `assessment.deleted` (with `after: {bulk: true}`) and then deleted, like `deleteAssessment`. Other rows are skipped with a reason (`not_draft`, `has_attempts`, `has_invitations`, `not_found`). Other-tenant ids are invisible under RLS, so they are `not_found`. Not included: no soft delete and no undo. The admin list status tabs (All, Drafts, Live, Finished) are client-side groups of the single-status list API; the API is unchanged.
+
+## Test type: real exam or mock test (Z-89, 2026-10-20)
+
+- **What.** `assessments.delivery_mode` is the default test type. `assessment_invitations.delivery_mode` is the type of one invitation. Values: `real` (default) or `mock`. `inviteUsers(tenantId, assessmentId, userIds, actor, deliveryMode?)` stores the mode on the new invitation. The default is the assessment's mode. A re-invite of a dead, never-started invitation can switch the mode. Create and update accept `delivery_mode` (update is draft-only like every other edit). The route and the service validate it by hand: any other value is `400 INVALID_PARAM`. The invitation list and the assessment detail return it. The audit rows (`assessment.invite`, `assessment.update`) include it.
+- **Why.** The type decides the rules at start: real = laptop or desktop only plus a readiness check (module 06); mock = any device, no certificate, kept out of real reports. The admin decides on the server. The candidate cannot change it.
+- **Attempt allowance.** The `attempts_used` counts in `resolveInvitationToken` and in the invitation list count only attempts with the same mode as the invitation (a mock does not use up the real allowance).
+- **Rejected.** A candidate-chosen mode (a bypass). A per-organisation opt-out of the desktop rule (owner: no opt-out).
+- **Not included.** A secure or lockdown browser. Camera, photos and video (Wave 2). Credit burn by type (Z-93). The mock dashboard (Z-90).
+- **Downstream.** Module 06 copies the mode to the attempt. Module 09 skips the certificate for a mock. Module 15 reports count real attempts only. UI: invite form radio, Test type card, Mock badge in the invitation list.

@@ -195,6 +195,13 @@ export async function releaseAttemptInTx(
   // signing secret, DB error, ...) rolls back ONLY the certificate work and the
   // release still commits. A raw .catch() would not be enough: a failed SQL
   // statement aborts the whole transaction until we roll back to the savepoint.
+  // Z-89: a mock test never makes a certificate (the delivery mode was copied from the invitation at start).
+  const modeRow = await client.query<{ delivery_mode: string }>(
+    `SELECT delivery_mode FROM attempts WHERE id = $1`,
+    [attemptId],
+  );
+  if (modeRow.rows[0]?.delivery_mode === "mock") return { released: true };
+
   await client.query("SAVEPOINT release_cert");
   try {
     await issueCertificateOnRelease(client, {

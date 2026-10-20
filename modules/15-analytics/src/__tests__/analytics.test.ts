@@ -542,6 +542,34 @@ describe('Z-39: which attempt counts (latest or best) in the admin cohort report
     expect((await homeKpis(F.tenantA)).attemptsThisWeek).toBe(before + 2);
   });
 
+  it('Z-89: a mock attempt stays out of the cohort report and the dashboard; the real result is unchanged', async () => {
+    const asm = await seedRetakes('{}');
+    const before = (await homeKpis(F.tenantA)).attemptsThisWeek;
+    await withSuperClient(async (client) => {
+      const u = randomUUID();
+      await client.query(
+        `INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,$3,'Mocker','candidate','active')`,
+        [u, F.tenantA, `mk-${u.slice(0, 6)}@a.test`],
+      );
+      const id = randomUUID();
+      await client.query(
+        `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, attempt_number, delivery_mode, started_at, submitted_at, ends_at, duration_seconds)
+         VALUES ($1,$2,$3,$4,'released',1,'mock', now() - interval '1 hour', now(), now() + interval '1 hour', 3600)`,
+        [id, F.tenantA, asm, u],
+      );
+      await client.query(
+        `INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, computed_at)
+         VALUES ($1,$2,10,100,10,false,now())`,
+        [id, F.tenantA],
+      );
+      await client.query('REFRESH MATERIALIZED VIEW attempt_summary_mv');
+    });
+    const r = await getAdminCohortReport(F.tenantA, asm);
+    expect(r.total_attempts).toBe(2);
+    expect(r.attempts.map((a) => a.total_score).sort((a, b) => b - a)).toEqual([80, 70]);
+    expect((await homeKpis(F.tenantA)).attemptsThisWeek).toBe(before);
+  });
+
   it('tenant isolation: tenant B sees no rows of the tenant A assessment', async () => {
     const asm = await seedRetakes('{}');
     const r = await getAdminCohortReport(F.tenantB, asm);

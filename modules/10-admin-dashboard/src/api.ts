@@ -1192,6 +1192,8 @@ export interface CreateAssessmentFromSetRequest {
   question_count: number;
   /** Z-16: integer 1..100; omit to use the level default. */
   passing_score_pct?: number;
+  /** Z-89: 'real' (default) or 'mock'. */
+  delivery_mode?: "real" | "mock";
   opens_at: string;
   closes_at?: string | null;
   randomize?: boolean;

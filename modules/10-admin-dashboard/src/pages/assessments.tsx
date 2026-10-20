@@ -82,6 +82,8 @@ export function AdminAssessments(): React.ReactElement {
   });
   // Z-16: blank = use the level default; otherwise a whole number 1..100.
   const [passMark, setPassMark] = useState("");
+  // Z-89: default test type of the new assessment (the invite form can still override per batch).
+  const [deliveryMode, setDeliveryMode] = useState<"real" | "mock">("real");
   const [creating, setCreating] = useState(false);
   // Integrity v1: written to settings.integrity on create (both default off).
   const [integrityFullscreen, setIntegrityFullscreen] = useState(false);
@@ -251,6 +253,7 @@ export function AdminAssessments(): React.ReactElement {
           opens_at: opensAtIso,
           ...(closesAtIso ? { closes_at: closesAtIso } : {}),
           ...(passMarkNum !== null ? { passing_score_pct: passMarkNum } : {}),
+          delivery_mode: deliveryMode,
           settings: { ...integritySettings, ...(builtSections?.settings ?? {}) },
         });
         navigate(`/admin/assessments/${created.id}`);
@@ -262,6 +265,7 @@ export function AdminAssessments(): React.ReactElement {
       body.opens_at = opensAtIso;
       if (closesAtIso) body.closes_at = closesAtIso;
       if (passMarkNum !== null) body.passing_score_pct = passMarkNum;
+      body.delivery_mode = deliveryMode;
 
       if (pendingBlueprint !== null) {
         // Blueprint mode: send settings.blueprint; backend resolves pack/level/question_count
@@ -581,6 +585,23 @@ export function AdminAssessments(): React.ReactElement {
                     value={passMark}
                     onChange={(e) => setPassMark(e.target.value)}
                   />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+                  <label
+                    htmlFor="new-assessment-test-type"
+                    style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500 }}
+                  >
+                    Test type
+                  </label>
+                  <select
+                    id="new-assessment-test-type"
+                    className="aiq-input"
+                    value={deliveryMode}
+                    onChange={(e) => setDeliveryMode(e.target.value === "mock" ? "mock" : "real")}
+                  >
+                    <option value="real">Real exam</option>
+                    <option value="mock">Mock test</option>
+                  </select>
                 </div>
               </div>
 

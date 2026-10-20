@@ -27,6 +27,8 @@ import { Button, Chip, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import { takePreview, takeStart, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
 import { TakeRightPane } from './TakeRightPane.js';
 import { ConsentBlock, PracticeQuestion, SystemCheck, useSystemCheck } from './PreTest.js';
+import { ReadinessPanel, useReadiness } from './ReadinessPanel.js';
+import { DEVICE_BLOCKED_MESSAGE, collectDeviceSignals, isMobileOrTabletClient } from './readiness.js';
 
 // ─── shared style constants (mirrors login.tsx) ───────────────────────────────
 
@@ -71,6 +73,7 @@ type PageState =
       passMarkPct: number | null;
       attemptNumber: number | null;
       attemptsAllowed: number | null;
+      deliveryMode: 'real' | 'mock' | null;
     }
   | { tag: 'error404' }
   | { tag: 'invalid' }
@@ -92,6 +95,7 @@ export function SuccessContent({
   passMarkPct = null,
   attemptNumber = null,
   attemptsAllowed = null,
+  deliveryMode = null,
   resumed,
   onBegin,
   beginning,
@@ -108,8 +112,10 @@ export function SuccessContent({
   /** Z-39: 'Attempt n of m' shows only when the assessment allows more than one attempt. */
   attemptNumber?: number | null;
   attemptsAllowed?: number | null;
+  /** Z-89: null = older server (no extra screens). */
+  deliveryMode?: 'real' | 'mock' | null;
   resumed: boolean;
-  onBegin: () => void;
+  onBegin: (extra?: { device: unknown; readiness: unknown }) => void;
   beginning: boolean;
   beginError: string | null;
 }): React.JSX.Element {
@@ -118,7 +124,20 @@ export function SuccessContent({
   const { rows, blocked, recheck } = useSystemCheck();
   // Resume: the attempt (and its clock) already exist, so no consent, practice
   // or system check again, and the timer is NOT restarted.
-  const canBegin = resumed || (consent && !blocked);
+  // Z-87 / Z-91: a REAL exam needs a laptop or desktop and a passing readiness check; a MOCK runs the
+  // same check as an optional dress rehearsal. The server enforces both again at Begin.
+  const real = deliveryMode === 'real';
+  const mock = deliveryMode === 'mock';
+  const readiness = useReadiness(deliveryMode !== null && !resumed);
+  const deviceBlocked = real && isMobileOrTabletClient(collectDeviceSignals());
+  const readyOk = !real || resumed || readiness.passed;
+  const canBegin = !deviceBlocked && (resumed || (consent && !blocked && readyOk));
+  const begin = (): void =>
+    onBegin(
+      deliveryMode !== null && !resumed && readiness.signals !== null
+        ? { device: readiness.device, readiness: readiness.signals }
+        : undefined,
+    );
 
   return (
     <>
@@ -129,6 +148,11 @@ export function SuccessContent({
       )}
       <span style={{ display: 'inline-block', marginBottom: 20 }}>
         <Chip variant="success">{resumed ? 'Welcome back' : 'Welcome'}</Chip>
+        {mock && (
+          <span data-help-id="candidate.intro.test_type_mock" style={{ marginLeft: 8 }}>
+            <Chip variant="default">Mock test</Chip>
+          </span>
+        )}
       </span>
       <h1 className="aiq-serif" style={SERIF_H1}>
         {resumed ? 'Pick up where you left off.' : 'Ready when you are.'}
@@ -187,7 +211,21 @@ export function SuccessContent({
         </div>
       </div>
 
-      {!resumed && (
+      {deviceBlocked && (
+        <p
+          role="alert"
+          data-help-id="candidate.intro.device_blocked"
+          style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 600, color: 'var(--aiq-color-fg-primary)' }}
+        >
+          {DEVICE_BLOCKED_MESSAGE}
+        </p>
+      )}
+
+      {!resumed && !deviceBlocked && deliveryMode !== null && (
+        <ReadinessPanel state={readiness} optional={mock} />
+      )}
+
+      {!resumed && !deviceBlocked && (
         <>
           {/* RW-26: system check + practice behind one disclosure (native, default closed). */}
           <details open={blocked || undefined} style={{ marginBottom: 16 }}>
@@ -230,15 +268,17 @@ export function SuccessContent({
           Your device is not ready. Open &quot;Test your device&quot; above to see why.
         </p>
       )}
+      {!deviceBlocked && (
       <Button
         size="lg"
         variant="primary"
-        onClick={onBegin}
+        onClick={begin}
         disabled={!canBegin || beginning}
         style={{ width: '100%', justifyContent: 'center' }}
       >
         {beginning ? 'Starting…' : resumed ? 'Resume assessment' : totalMinutes > 0 ? `Begin — your ${totalMinutes}-minute timer starts` : 'Begin'}
       </Button>
+      )}
     </>
   );
 }
@@ -362,6 +402,7 @@ export function TokenLanding(): React.JSX.Element {
         passMarkPct: (res.assessment as { pass_mark_pct?: number }).pass_mark_pct ?? null,
         attemptNumber: res.assessment.attempt_number ?? null,
         attemptsAllowed: res.assessment.attempts_allowed ?? null,
+        deliveryMode: res.assessment.delivery_mode ?? null,
       });
     } catch (err) {
       if (err instanceof CandidateApiError) {
@@ -395,17 +436,25 @@ export function TokenLanding(): React.JSX.Element {
   }
 
   // The Begin click is the ONLY thing that creates the attempt / starts the clock.
-  const handleBegin = async (): Promise<void> => {
+  const handleBegin = async (extra?: { device: unknown; readiness: unknown }): Promise<void> => {
     if (state.tag !== 'success' || !token || beginning) return;
     setBeginning(true);
     setBeginError(null);
     try {
-      const res = await takeStart(token, { consent: !state.resumed });
+      const res = await takeStart(token, {
+        consent: !state.resumed,
+        ...(extra !== undefined ? { device: extra.device, readiness: extra.readiness } : {}),
+      });
       navigate(`/take/attempt/${res.attempt_id}`);
     } catch (err) {
       setBeginning(false);
+      const code = err instanceof CandidateApiError ? err.apiError.code : '';
       setBeginError(
-        err instanceof CandidateApiError && err.status === 422
+        code === 'DEVICE_NOT_ALLOWED'
+          ? DEVICE_BLOCKED_MESSAGE
+          : code === 'READINESS_FAILED'
+            ? 'Your device is not ready for this test. Run the readiness check again and fix any item marked Fix needed.'
+            : err instanceof CandidateApiError && err.status === 422
           ? 'Please accept the consent statement to begin.'
           : err instanceof CandidateApiError && (err.status === 404 || err.status === 410)
             ? 'This invitation link is no longer valid. Ask the person who invited you to send a new one, then use the link in your most recent email.'
@@ -427,8 +476,9 @@ export function TokenLanding(): React.JSX.Element {
         passMarkPct={state.passMarkPct}
         attemptNumber={state.attemptNumber}
         attemptsAllowed={state.attemptsAllowed}
+        deliveryMode={state.deliveryMode}
         resumed={state.resumed}
-        onBegin={() => void handleBegin()}
+        onBegin={(extra) => void handleBegin(extra)}
         beginning={beginning}
         beginError={beginError}
       />

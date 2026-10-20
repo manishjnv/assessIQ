@@ -37,7 +37,7 @@ const OPTION_TYPES = QUESTION_TYPES.filter((t) => QUESTION_TYPE_REGISTRY[t].shuf
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin, attempt_number`;
+const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin, attempt_number, delivery_mode, camera_enabled`;
 
 const ATTEMPT_QUESTION_COLUMNS = `attempt_id, question_id, position, question_version, option_order, section_index`;
 
@@ -60,6 +60,8 @@ interface AttemptRow {
   created_at: Date;
   embed_origin: boolean;
   attempt_number: number;
+  delivery_mode: string;
+  camera_enabled: boolean;
 }
 
 interface AttemptQuestionRow {
@@ -127,6 +129,8 @@ function mapAttemptRow(row: AttemptRow): Attempt {
     created_at: row.created_at,
     embed_origin: row.embed_origin,
     attempt_number: row.attempt_number,
+    delivery_mode: row.delivery_mode === "mock" ? "mock" : "real",
+    camera_enabled: row.camera_enabled,
   };
 }
 
@@ -229,6 +233,10 @@ export async function insertAttempt(
     embedOrigin?: boolean;
     /** Z-39: 1 for the first attempt, then 2, 3 ... UNIQUE (assessment_id, user_id, attempt_number). */
     attemptNumber: number;
+    /** Z-89: copied from the invitation by startAttempt, never from a request. */
+    deliveryMode?: "real" | "mock";
+    /** Z-91: stored check result for the attempt (real: passed; mock: optional). */
+    readiness?: unknown;
   },
 ): Promise<Attempt | null> {
   // Returns null when UNIQUE(assessment_id, user_id, attempt_number) is violated (23505): a
@@ -241,8 +249,8 @@ export async function insertAttempt(
   try {
     result = await client.query<AttemptRow>(
     `INSERT INTO attempts
-       (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, embed_origin, attempt_number)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, embed_origin, attempt_number, delivery_mode, readiness)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
      RETURNING ${ATTEMPT_COLUMNS}`,
     [
       input.id,
@@ -255,6 +263,8 @@ export async function insertAttempt(
       input.durationSeconds,
       input.embedOrigin ?? false,
       input.attemptNumber,
+      input.deliveryMode ?? "real",
+      input.readiness === undefined ? null : JSON.stringify(input.readiness),
     ],
   );
   } catch (err) {
@@ -1137,19 +1147,46 @@ export async function findInvitationForCandidate(
   client: PoolClient,
   assessmentId: string,
   userId: string,
-): Promise<{ id: string; status: string; expires_at: Date; extra_attempts: number } | null> {
+): Promise<{ id: string; status: string; expires_at: Date; extra_attempts: number; delivery_mode: "real" | "mock" } | null> {
   // FOR UPDATE: attempt start and an admin "Resend" (05 resendInvitation, which locks
   // the same row) must take turns. Without it a resend could check "not started", then
   // this start commit, and the resend rotate + email a link for a started candidate.
   // startAttempt re-validates status / expiry on the row it gets under this lock.
-  const result = await client.query<{ id: string; status: string; expires_at: Date; extra_attempts: number }>(
-    `SELECT id, status, expires_at, extra_attempts FROM assessment_invitations
+  const result = await client.query<{ id: string; status: string; expires_at: Date; extra_attempts: number; delivery_mode: "real" | "mock" }>(
+    `SELECT id, status, expires_at, extra_attempts, delivery_mode FROM assessment_invitations
      WHERE assessment_id = $1 AND user_id = $2 LIMIT 1
      FOR UPDATE`,
     [assessmentId, userId],
   );
   const row = result.rows[0];
   return row !== undefined ? row : null;
+}
+
+/** Z-89: the invitation's test type ('real' when there is no invitation: embed path). Plain read. */
+export async function getInvitationDeliveryMode(
+  client: PoolClient,
+  assessmentId: string,
+  userId: string,
+): Promise<"real" | "mock"> {
+  const result = await client.query<{ delivery_mode: string }>(
+    `SELECT delivery_mode FROM assessment_invitations WHERE assessment_id = $1 AND user_id = $2 LIMIT 1`,
+    [assessmentId, userId],
+  );
+  return result.rows[0]?.delivery_mode === "mock" ? "mock" : "real";
+}
+
+/** Z-89: attempts of ONE test type, so a mock does not use up the real allowance. */
+export async function countAttemptsByMode(
+  client: PoolClient,
+  assessmentId: string,
+  userId: string,
+  mode: "real" | "mock",
+): Promise<number> {
+  const result = await client.query<{ n: number }>(
+    `SELECT count(*)::int AS n FROM attempts WHERE assessment_id = $1 AND user_id = $2 AND delivery_mode = $3`,
+    [assessmentId, userId, mode],
+  );
+  return result.rows[0]?.n ?? 0;
 }
 
 /** Z-39: extra attempts an admin granted this candidate (0 when there is no invitation). Plain read, no lock. */

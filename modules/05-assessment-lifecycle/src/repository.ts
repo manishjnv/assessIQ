@@ -48,9 +48,9 @@ import type {
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
+const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, delivery_mode, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
 
-const INVITATION_COLUMNS = `id, assessment_id, user_id, token_hash, expires_at, status, invited_by, created_at, extra_attempts`;
+const INVITATION_COLUMNS = `id, assessment_id, user_id, token_hash, expires_at, status, invited_by, created_at, extra_attempts, delivery_mode`;
 
 // ---------------------------------------------------------------------------
 // Row interfaces (raw Postgres types before mapping)
@@ -68,6 +68,7 @@ interface AssessmentRow {
   question_count: number;
   passing_score_pct: number;
   max_attempts: number | null;
+  delivery_mode: string;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -87,6 +88,7 @@ interface InvitationRow {
   invited_by: string;
   created_at: Date;
   extra_attempts: number;
+  delivery_mode: string;
 }
 
 /** Extended row returned by the list query (includes JOINed user + attempt data). */
@@ -135,6 +137,7 @@ function mapAssessmentRow(row: AssessmentRow): Assessment {
     question_count: row.question_count,
     passing_score_pct: row.passing_score_pct,
     max_attempts: row.max_attempts,
+    delivery_mode: row.delivery_mode === "mock" ? "mock" : "real",
     randomize: row.randomize,
     opens_at: row.opens_at,
     closes_at: row.closes_at,
@@ -158,6 +161,7 @@ function mapInvitationRow(row: InvitationRow): AssessmentInvitation {
     invited_by: row.invited_by,
     created_at: row.created_at,
     extra_attempts: row.extra_attempts,
+    delivery_mode: row.delivery_mode === "mock" ? "mock" : "real",
   };
 }
 
@@ -469,6 +473,7 @@ export async function insertAssessment(
     questionCount: number;
     passingScorePct: number;
     maxAttempts?: number | null;
+    deliveryMode?: "real" | "mock";
     randomize: boolean;
     opensAt?: Date | null;
     closesAt?: Date | null;
@@ -482,8 +487,8 @@ export async function insertAssessment(
   const result = await client.query<AssessmentRow>(
     `INSERT INTO assessments
        (id, tenant_id, pack_id, level_id, pack_version, name, description,
-        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct, max_attempts)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15)
+        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct, max_attempts, delivery_mode)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16)
      RETURNING ${ASSESSMENT_COLUMNS}`,
     [
       input.id,
@@ -501,6 +506,7 @@ export async function insertAssessment(
       input.createdBy,
       input.passingScorePct,
       input.maxAttempts ?? null,
+      input.deliveryMode ?? "real",
     ],
   );
   const row = result.rows[0];
@@ -519,6 +525,7 @@ export async function updateAssessmentRow(
     questionCount?: number;
     passingScorePct?: number;
     maxAttempts?: number | null;
+    deliveryMode?: "real" | "mock";
     randomize?: boolean;
     opensAt?: Date | null;
     closesAt?: Date | null;
@@ -561,6 +568,11 @@ export async function updateAssessmentRow(
   if (patch.maxAttempts !== undefined) {
     sets.push(`max_attempts = $${i}`);
     values.push(patch.maxAttempts);
+    i++;
+  }
+  if (patch.deliveryMode !== undefined) {
+    sets.push(`delivery_mode = $${i}`);
+    values.push(patch.deliveryMode);
     i++;
   }
   if (patch.randomize !== undefined) {
@@ -842,10 +854,12 @@ export async function listInvitationRows(
        ai.invited_by,
        ai.created_at,
        ai.extra_attempts,
+       ai.delivery_mode,
        ai.reminded_at,
        asm.max_attempts,
        (SELECT count(*)::int FROM attempts t
-         WHERE t.assessment_id = ai.assessment_id AND t.user_id = ai.user_id) AS attempts_used,
+         WHERE t.assessment_id = ai.assessment_id AND t.user_id = ai.user_id
+            AND t.delivery_mode = ai.delivery_mode) AS attempts_used,
        u.name               AS user_name,
        u.email              AS user_email,
        a.id                 AS attempt_id,
@@ -906,6 +920,7 @@ export async function insertInvitation(
     tokenHash: string;
     expiresAt: Date;
     invitedBy: string;
+    deliveryMode?: "real" | "mock";
   },
 ): Promise<AssessmentInvitation> {
   // assessment_invitations has no tenant_id column — the WITH CHECK RLS policy
@@ -913,8 +928,8 @@ export async function insertInvitation(
   // status defaults to 'pending' per DB schema — not included in the column list.
   const result = await client.query<InvitationRow>(
     `INSERT INTO assessment_invitations
-       (id, assessment_id, user_id, token_hash, expires_at, invited_by)
-     VALUES ($1, $2, $3, $4, $5, $6)
+       (id, assessment_id, user_id, token_hash, expires_at, invited_by, delivery_mode)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
      RETURNING ${INVITATION_COLUMNS}`,
     [
       input.id,
@@ -923,6 +938,7 @@ export async function insertInvitation(
       input.tokenHash,
       input.expiresAt,
       input.invitedBy,
+      input.deliveryMode ?? "real",
     ],
   );
   const row = result.rows[0];
@@ -965,14 +981,16 @@ export async function reissueInvitation(
   id: string,
   tokenHash: string,
   expiresAt: Date,
+  /** Z-89: a re-invite may switch the test type (the candidate never started). null = keep. */
+  deliveryMode: "real" | "mock" | null = null,
 ): Promise<AssessmentInvitation | null> {
   const result = await client.query<InvitationRow>(
     `UPDATE assessment_invitations
         SET token_hash = $1, expires_at = $2, status = 'pending', last_resent_at = now(),
-            reminded_at = NULL
+            reminded_at = NULL, delivery_mode = COALESCE($4, delivery_mode)
       WHERE id = $3 AND status IN ('pending', 'viewed', 'expired')
       RETURNING ${INVITATION_COLUMNS}`,
-    [tokenHash, expiresAt, id],
+    [tokenHash, expiresAt, id, deliveryMode],
   );
   const row = result.rows[0];
   return row !== undefined ? mapInvitationRow(row) : null;

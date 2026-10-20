@@ -66,6 +66,10 @@ export interface Attempt {
   embed_origin: boolean;
   /** Z-39: 1 for the first attempt, 2 for the first retake, and so on. */
   attempt_number: number;
+  /** Z-89: copied from the invitation at start. 'mock' = any device, no certificate. */
+  delivery_mode: "real" | "mock";
+  /** Z-89: camera is a Wave 2 feature; always false today. */
+  camera_enabled: boolean;
 }
 
 export interface AttemptQuestion {
@@ -273,6 +277,11 @@ export interface StartAttemptInput {
    * With it, a new attempt is created only while attempts used < max_attempts + extras.
    */
   newAttempt?: boolean;
+  /**
+   * Z-91: readiness check result to store on the NEW attempt. The route evaluates the signals
+   * server-side before this is set; startAttempt only stores it.
+   */
+  readiness?: unknown;
 }
 
 export interface SaveAnswerInput {
