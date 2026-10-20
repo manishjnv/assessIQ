@@ -104,6 +104,9 @@ describe("AdminShell — My account footer", () => {
     expect(card.textContent).toContain("On");
     expect(screen.getByText("Regenerate recovery codes")).toBeTruthy();
     expect(card.textContent).toContain("Sign out");
+    // One place only: the account card holds Sign out and the email; the top bar has neither.
+    expect(screen.getAllByRole("button", { name: "Sign out" })).toHaveLength(1);
+    expect(card.textContent).toContain("admin@example.com");
     expect(screen.queryByText("Help guide")).toBeNull();
     expect(screen.queryByText("Account security")).toBeNull();
   });
