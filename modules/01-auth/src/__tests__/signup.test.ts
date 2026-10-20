@@ -89,7 +89,7 @@ const mailsTo = (email: string) => sent.filter((s) => s.to === email);
 const provisionStub = async (client: import("pg").PoolClient, ctx: { tenantId: string }): Promise<{ plan: string }> => {
   await client.query(`INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1,'free',250)`, [ctx.tenantId]);
   await client.query(
-    `INSERT INTO credit_grants (tenant_id, source, credits, remaining, expires_at) VALUES ($1,'free_monthly',20,20, now() + interval '12 months')`,
+    `INSERT INTO credit_grants (tenant_id, source, credits, remaining, expires_at) VALUES ($1,'free_monthly',200,200, now() + interval '12 months')`,
     [ctx.tenantId],
   );
   return { plan: "free" };

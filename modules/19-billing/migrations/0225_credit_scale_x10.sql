@@ -10,6 +10,8 @@
 
 DO $$
 BEGIN
+  -- Serialise concurrent runners before the guard is read (a second runner then sees the comment).
+  LOCK TABLE credit_grants IN ACCESS EXCLUSIVE MODE;
   IF COALESCE(obj_description('credit_grants'::regclass, 'pg_class'), '') NOT LIKE '%x10 applied%' THEN
     -- 0215 trigger blocks raising `remaining`; drop it for the one-time scale, then recreate it as in 0215.
     DROP TRIGGER IF EXISTS credit_grants_remaining_decrease_only ON credit_grants;
