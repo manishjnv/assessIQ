@@ -55,6 +55,8 @@ export interface Invitation {
   can_grant_extra?: boolean;
   /** Z-89: 'mock' invitations show a Mock badge. */
   delivery_mode?: "real" | "mock";
+  /** Camera: newest consent is "declined" and no attempt yet. */
+  camera_consent?: "declined" | null;
 }
 
 /** API cap for /admin/assessments/:id/invitations (routes.ts parsePagination). */

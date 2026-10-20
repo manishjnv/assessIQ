@@ -73,6 +73,22 @@ export async function takeStart(
   });
 }
 
+/**
+ * POST /take/camera-consent { token, decision, noticeVersion } — Z-82. The candidate's answer on the
+ * camera consent screen. Stores the decision; the start then checks the latest one.
+ */
+export async function takeCameraConsent(
+  token: string,
+  decision: "agreed" | "declined",
+  noticeVersion: string,
+): Promise<{ ok: true }> {
+  return call<{ ok: true }>("/take/camera-consent", {
+    method: "POST",
+    body: JSON.stringify({ token, decision, noticeVersion }),
+    base: "",
+  });
+}
+
 // ─── Candidate attempt surface (Session 4a backend, LIVE) ────────────────────
 
 export async function listInvitedAssessments(): Promise<{

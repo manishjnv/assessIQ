@@ -68,6 +68,7 @@ export { AdminUsers } from "./pages/users.js";
 export { TenantSettings as AdminTenantSettings } from "./pages/tenant-settings.js";
 export { AdminGenerateWizard } from "./pages/generate-wizard.js";
 export { AdminPlatform } from "./pages/platform.js";
+export { CameraReview as AdminCameraReview } from "./pages/camera-review.js";
 export { AdminQuestionImport } from "./pages/question-import.js";
 export { OrgQuestionUpload } from "./pages/org-question-upload.js";
 export { ReviewQueue } from "./pages/review-queue.js";

@@ -24,6 +24,7 @@ import { MyAccountCard } from "./MyAccountCard.js";
 import { RegenerateCodesModal } from "./RegenerateCodesModal.js";
 import { TabStrip } from "./TabStrip.js";
 import { NAV_GROUPS, resolveActiveNav, type NavIcon } from "../lib/admin-nav.js";
+import { useCameraReviewer } from "../lib/camera-reviewer.js";
 
 /**
  * Breadcrumb segment — either a plain string (non-clickable label) or
@@ -231,6 +232,9 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     }
   }
 
+  // Camera feature: reviewer probe (hidden on 403 or error).
+  const cameraReviewer = useCameraReviewer(session?.user.id);
+
   const path = location.pathname;
 
   // Nav config — role-aware (admin vs super_admin entries).
@@ -240,7 +244,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
   interface NavEntry {
     label: string;
     href: string;
-    icon: NavIcon | "check" | "book";
+    icon: NavIcon | "check" | "book" | "eye";
     /** A nested route that has its own nav entry — this entry is not active on it. */
     excludePath?: string;
     /**
@@ -251,6 +255,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
      * boundary.
      */
     superAdminOnly?: boolean;
+    /** Camera feature: shown only when the camera reviewer probe succeeds (super admin passes too). */
+    cameraReviewerOnly?: boolean;
   }
 
   // Z-23 (2026-10-18): seven tenant-admin groups from lib/admin-nav.ts. Each
@@ -270,6 +276,11 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     { label: "Generate questions", href: "/admin/generate-wizard", icon: "sparkle", superAdminOnly: true },
     { label: "Generation history", href: "/admin/generation-attempts", icon: "sparkle", superAdminOnly: true },
     { label: "Exam blueprints", href: "/admin/exam-blueprints", icon: "book", superAdminOnly: true },
+  ];
+
+  // Review — camera reviewers (named tenant admins and super admins).
+  const reviewEntries: NavEntry[] = [
+    { label: "Camera review", href: "/admin/camera-review", icon: "eye", cameraReviewerOnly: true },
   ];
 
   // Platform — super_admin-only surfaces (RW-16), split out of Account.
@@ -384,7 +395,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             );
             // Render a section header only if at least one entry is visible to the role.
             const renderSection = (label: string, entries: NavEntry[]): React.JSX.Element | null => {
-              const shown = entries.filter(visible);
+              const shown = entries.filter((e) => visible(e) && (!e.cameraReviewerOnly || cameraReviewer));
               if (shown.length === 0) return null;
               return (
                 <Fragment key={label}>
@@ -397,6 +408,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
               <>
                 {isAdmin && groupEntries.map((e, i) => renderEntry(e, NAV_GROUPS[i]?.id))}
                 {renderSection("Content", contentEntries)}
+                {renderSection("Review", reviewEntries)}
                 {renderSection("Platform", platformEntries)}
               </>
             );

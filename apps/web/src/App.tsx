@@ -38,6 +38,7 @@ const AdminActivity = lazy(() => import('@assessiq/admin-dashboard').then(m => (
 const AdminMockResults = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminMockResults })));
 const AdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminUsers })));
 const AdminTenantSettings = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminTenantSettings })));
+const AdminCameraReview = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminCameraReview })));
 const AdminGenerateWizard = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminGenerateWizard })));
 const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminPlatform })));
 const AdminQuestionImport = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminQuestionImport })));
@@ -146,6 +147,7 @@ export function App(): React.JSX.Element {
           {/* Embed configuration — RW-25 integrations */}
           <Route path="/admin/integrations/embed" element={<RequireSession role="admin"><AdminEmbedConfig /></RequireSession>} />
           {/* Platform provisioning — super_admin only (exact-match gate) */}
+          <Route path="/admin/camera-review" element={<RequireSession role="admin"><AdminCameraReview /></RequireSession>} />
           <Route path="/admin/platform" element={<RequireSession role="super_admin"><AdminPlatform /></RequireSession>} />
           {/* Evaluation queue — AssessIQ evaluates written answers across all
               companies (super_admin only); companies review and publish. */}

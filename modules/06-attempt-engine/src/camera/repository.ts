@@ -2,6 +2,7 @@
 // (RLS pins the tenant). Inserts carry tenant_id explicitly. No AI.
 
 import type { PoolClient } from "pg";
+import { withTenant } from "@assessiq/tenancy";
 import type { CameraFileKind, CameraFlagReason } from "./constants.js";
 
 export interface CameraConsentRow {
@@ -61,6 +62,25 @@ export async function latestConsentForInvitation(client: PoolClient, invitationI
     [invitationId],
   );
   return r.rows[0] ? mapConsent(r.rows[0]) : null;
+}
+
+/**
+ * Of the given invitations, the ids whose NEWEST camera consent is 'declined'. Feeds the admin list label
+ * "Did not consent" (apps/api wiring; module 05 cannot join this table). Empty input skips the query.
+ */
+export async function listDeclinedCameraInvitationIds(tenantId: string, invitationIds: string[]): Promise<string[]> {
+  if (invitationIds.length === 0) return [];
+  return withTenant(tenantId, async (client) => {
+    const r = await client.query<{ invitation_id: string }>(
+      `SELECT invitation_id FROM (
+         SELECT DISTINCT ON (invitation_id) invitation_id, decision FROM camera_consents
+          WHERE tenant_id = $1 AND invitation_id = ANY($2::uuid[])
+          ORDER BY invitation_id, created_at DESC, id DESC) c
+        WHERE decision = 'declined'`,
+      [tenantId, invitationIds],
+    );
+    return r.rows.map((x) => x.invitation_id);
+  });
 }
 
 export async function hasAgreedConsentForAttempt(client: PoolClient, attemptId: string): Promise<boolean> {

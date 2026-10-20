@@ -170,6 +170,7 @@ vi.mock('@assessiq/attempt-engine', () => ({
   registerAttemptAdminRoutes: vi.fn().mockResolvedValue(undefined),
   registerCameraCandidateRoutes: vi.fn().mockResolvedValue(undefined),
   registerCameraAdminRoutes: vi.fn().mockResolvedValue(undefined),
+  listDeclinedCameraInvitationIds: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('@assessiq/ai-grading', () => ({
   registerGradingRoutes: vi.fn().mockResolvedValue(undefined),

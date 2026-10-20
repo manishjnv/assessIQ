@@ -775,3 +775,52 @@ candidate.intro.device_blocked:
 
     - **Your invitation is safe.** It is not used up.
     - **What to do.** Open the same link on a laptop or desktop computer.
+
+candidate.intro.camera_check:
+  audience: candidate
+  short_text: "Check that your camera works and the picture is clear before the test day."
+  long_md: |
+    ## Camera check
+
+    A real exam with a camera needs a working camera.
+
+    - **Allow the camera.** Your browser asks first. Choose Allow.
+    - **Check the picture.** The small picture shows what the camera sees.
+    - **Fix the angle and light.** Sit where your face is clear and lit from the front.
+    - **Retry.** If the check fails, fix the problem and press Retry.
+
+candidate.intro.camera_consent:
+  audience: candidate
+  short_text: "Your test uses your camera. Read what is recorded, then choose Allow or do not start."
+  long_md: |
+    ## Your camera and this test
+
+    The consent screen says why the camera is used, what is recorded, who sees it and how long it is kept.
+
+    - **Allow camera and start.** You agree to this use for this test only. The test starts.
+    - **I do not agree.** The test does not start. Your invitation stays valid. Contact your test organiser.
+    - **Your rights.** You can ask your test organiser to show or erase your files.
+
+candidate.attempt.camera_indicator:
+  audience: candidate
+  short_text: "A small Camera on mark shows that your camera is working during the test."
+  long_md: |
+    ## Camera on
+
+    The camera is on for this test. The mark shows while the camera works.
+
+    - **Stay in view.** Keep your face in the picture.
+    - **Do not cover the camera.** A covered camera can flag your test.
+
+candidate.attempt.camera_lost:
+  audience: candidate
+  short_text: "Your camera stopped. Fix it, then press Retry. The event is flagged for your test organiser."
+  long_md: |
+    ## Camera stopped
+
+    The camera stopped during your test. The test shows this message until the camera works again.
+
+    - **Fix the camera.** Check that it is plugged in and allowed in your browser.
+    - **Press Retry.** The test continues when the camera works.
+    - **The event is flagged.** Your test organiser decides what happens next. AssessIQ does not fail you automatically.
+

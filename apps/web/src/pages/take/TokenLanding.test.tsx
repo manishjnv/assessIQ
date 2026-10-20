@@ -12,6 +12,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 const takePreview = vi.fn();
 const takeStart = vi.fn();
+const takeCameraConsent = vi.fn();
 vi.mock('@assessiq/candidate-ui', () => {
   class CandidateApiError extends Error {
     status: number;
@@ -26,11 +27,13 @@ vi.mock('@assessiq/candidate-ui', () => {
     AFTER_SUBMIT_TEXT: 'Your answers are saved. You will see your result on this page or by email once it is final.',
     takePreview: (...a: unknown[]) => takePreview(...a),
     takeStart: (...a: unknown[]) => takeStart(...a),
+    takeCameraConsent: (...a: unknown[]) => takeCameraConsent(...a),
     CandidateApiError,
     CandidateHelp: () => null,
   };
 });
 
+import { CandidateApiError } from '@assessiq/candidate-ui';
 import { TokenLanding } from './TokenLanding';
 
 const PREVIEW = {
@@ -296,5 +299,139 @@ describe('TokenLanding test type (Z-87, Z-89, Z-91)', () => {
     fireEvent.click(beginBtn());
     await screen.findByRole('alert');
     expect(screen.getAllByText('Please open this link on a laptop or desktop computer to take this test').length).toBeGreaterThan(0);
+  });
+});
+
+// Z-82: a real exam with camera_required. Camera check, consent screen, Allow and Decline.
+describe('TokenLanding camera consent (Z-82)', () => {
+  const DESKTOP_UA =
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+  const CAMERA_PREVIEW = {
+    ...PREVIEW,
+    assessment: {
+      ...PREVIEW.assessment,
+      delivery_mode: 'real',
+      camera_required: true,
+      camera_notice_version: '2026-10-20.v1',
+    },
+  };
+  const TOKEN = 'tok_0123456789abcdef';
+  const stop = vi.fn();
+  const fakeStream = { getTracks: () => [{ stop }] };
+  const getUserMedia = vi.fn();
+  beforeEach(() => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(DESKTOP_UA);
+    vi.stubGlobal('screen', { width: 1920, height: 1080 });
+    Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia } });
+    getUserMedia.mockResolvedValue(fakeStream);
+    takeCameraConsent.mockResolvedValue({ ok: true });
+  });
+
+  afterEach(() => {
+    delete (navigator as unknown as { mediaDevices?: unknown }).mediaDevices;
+  });
+
+  const checkCamera = async (): Promise<void> => {
+    await waitFor(() => expect(screen.getAllByText('Pass').length).toBe(4));
+    fireEvent.click(screen.getByRole('button', { name: 'Check camera' }));
+    await screen.findByText('This test uses your camera');
+  };
+
+  it('the camera row is hidden for a mock test and for a real test without camera_required', async () => {
+    takePreview.mockResolvedValue({
+      ...PREVIEW,
+      assessment: { ...PREVIEW.assessment, delivery_mode: 'mock', camera_required: true },
+    });
+    renderLanding();
+    await screen.findByText('Dress rehearsal (optional)');
+    expect(screen.queryByRole('button', { name: 'Check camera' })).toBeNull();
+    cleanup();
+    takePreview.mockResolvedValue({ ...PREVIEW, assessment: { ...PREVIEW.assessment, delivery_mode: 'real' } });
+    renderLanding();
+    await screen.findByText('Readiness check');
+    expect(screen.queryByRole('button', { name: 'Check camera' })).toBeNull();
+  });
+
+  it('a passing camera check shows the live picture and then the consent screen', async () => {
+    takePreview.mockResolvedValue(CAMERA_PREVIEW);
+    renderLanding();
+    await screen.findByText('Readiness check');
+    await waitFor(() => expect(screen.getAllByText('Pass').length).toBe(4));
+    expect(screen.queryByText('This test uses your camera')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Check camera' }));
+    await screen.findByText('This test uses your camera');
+    expect(getUserMedia).toHaveBeenCalledWith({ video: true, audio: false });
+    expect(screen.getByLabelText('Live picture from your camera')).toBeTruthy();
+    expect(screen.getByRole('checkbox')).toBeTruthy();
+  });
+
+  it('a denied camera shows the plain message and keeps the consent screen closed', async () => {
+    getUserMedia.mockRejectedValue(Object.assign(new Error('denied'), { name: 'NotAllowedError' }));
+    takePreview.mockResolvedValue(CAMERA_PREVIEW);
+    renderLanding();
+    await waitFor(() => expect(screen.getAllByText('Pass').length).toBe(4));
+    fireEvent.click(screen.getByRole('button', { name: 'Check camera' }));
+    await screen.findByText(
+      'Camera access is blocked. Allow the camera in your browser settings, then press Retry.',
+    );
+    expect(screen.queryByText('This test uses your camera')).toBeNull();
+  });
+
+  it('Allow records the agreed consent, then starts the test and stops the camera', async () => {
+    takePreview.mockResolvedValue(CAMERA_PREVIEW);
+    renderLanding();
+    await checkCamera();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Allow camera and start' }));
+    await screen.findByText('ATTEMPT PAGE');
+    expect(takeCameraConsent).toHaveBeenCalledWith(TOKEN, 'agreed', '2026-10-20.v1');
+    expect(takeStart).toHaveBeenCalledWith(
+      TOKEN,
+      expect.objectContaining({ consent: true, device: expect.anything(), readiness: expect.anything() }),
+    );
+    expect(takeCameraConsent.mock.invocationCallOrder[0]!).toBeLessThan(takeStart.mock.invocationCallOrder[0]!);
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it('Decline records the decision, shows the message and never starts the test', async () => {
+    takePreview.mockResolvedValue(CAMERA_PREVIEW);
+    renderLanding();
+    await checkCamera();
+    fireEvent.click(screen.getByRole('button', { name: 'I do not agree, do not start' }));
+    await screen.findByText(/You did not start the test/);
+    expect(takeCameraConsent).toHaveBeenCalledWith(TOKEN, 'declined', '2026-10-20.v1');
+    expect(takeStart).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Allow camera and start' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Back to the start' })).toBeTruthy();
+  });
+
+  it('a stale notice on Allow reloads the preview', async () => {
+    takeCameraConsent.mockRejectedValue(
+      new CandidateApiError(422, { code: 'CAMERA_NOTICE_STALE', message: 'stale' }),
+    );
+    takePreview.mockResolvedValue(CAMERA_PREVIEW);
+    renderLanding();
+    await checkCamera();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Allow camera and start' }));
+    await waitFor(() => expect(takePreview).toHaveBeenCalledTimes(2));
+    expect(takeStart).not.toHaveBeenCalled();
+  });
+
+  it('the server set-up refusal shows its message on Allow', async () => {
+    takeStart.mockRejectedValue(
+      new CandidateApiError(422, {
+        code: 'CAMERA_SETUP_REQUIRED',
+        message: 'The test organiser has not finished the camera set-up. Contact your test organiser.',
+      }),
+    );
+    takePreview.mockResolvedValue(CAMERA_PREVIEW);
+    renderLanding();
+    await checkCamera();
+    fireEvent.click(screen.getByRole('checkbox'));
+    fireEvent.click(screen.getByRole('button', { name: 'Allow camera and start' }));
+    await screen.findByText(/has not finished the camera set-up/);
+    // Begin stopped the camera, so the candidate checks it again before the consent screen returns.
+    expect(screen.getByRole('button', { name: 'Check camera' })).toBeTruthy();
   });
 });

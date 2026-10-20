@@ -567,6 +567,8 @@ export interface TenantListItem {
   admin_count: number;
   /** Active reviewer count; kept for API compatibility, not shown in the UI. */
   reviewer_count: number;
+  /** Camera feature: school flag. The list API does not return it yet (undefined = unknown). */
+  is_school?: boolean;
 }
 
 /**
