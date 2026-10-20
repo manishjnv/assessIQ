@@ -8,7 +8,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Chip, Table } from "@assessiq/ui-system";
+import { Chip, Table, formatDateTime } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
@@ -117,7 +117,7 @@ export function ReviewQueue(): React.ReactElement {
         </HelpTip>
       ),
     },
-    { key: "updated_at", label: "Updated", render: (r) => new Date(r.updated_at).toLocaleString() },
+    { key: "updated_at", label: "Updated", render: (r) => formatDateTime(r.updated_at) },
     {
       key: "open", label: "", width: 140,
       render: (r) => (
