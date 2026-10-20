@@ -1807,4 +1807,4 @@ Note: the pass agent saw an error on `/candidate/progress` for the seeded candid
 
 ## Evaluation status: expected grading line (SP11, 2026-10-20)
 
-- The Evaluation status page (`/admin/grading-jobs`) shows one muted line under the header: "Expect grading {turnaround}. Results stay hidden until you release them." It uses the `evaluationTurnaroundText` field from `GET /api/admin/dashboard/queue` and the `admin.grading.jobs.eta_notice` help id (see `docs/03-api-contract.md`, SP11 note). Style: the page's existing `MUTED_SM` text, no new component.
+- The Evaluation status page (`/admin/grading-jobs`) shows one muted line under the header: "Expect grading {turnaround}. Results appear after AssessIQ finishes the evaluation. If your organisation releases results by hand, you release them next." It uses the `evaluationTurnaroundText` field from `GET /api/admin/dashboard/queue` and the `admin.grading.jobs.eta_notice` help id (see `docs/03-api-contract.md`, SP11 note). Style: the page's existing `MUTED_SM` text, no new component.

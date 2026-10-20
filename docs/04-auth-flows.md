@@ -852,7 +852,9 @@ The anti-enumeration timing, the rate-limit copy, the unconditional 204 response
 
 **Rejected.** Token in the query string (reaches servers and logs). A GET verify endpoint (scanners burn the token). A longer TTL for all login links (weakens the normal flow). Pre-filling the email only (still a second email).
 
-**Not included.** The link is not tied to one result and is not revoked when a result is withdrawn: it signs the student in (same as any login link) and then the normal Results page rules apply. Owner asked for revocation on withdraw; this needs a per-attempt column and is left as a follow-up. No endpoint changed, so `docs/03-api-contract.md` is unchanged. The tenant slug is not in the fragment, so after an expired link the student types the organisation code if the sign-in page asks for it.
+**Withdrawn results (S38, owner decision).** `retireResultLoginLinks(client, userId)` in `modules/13-notifications/src/email/result-login-token.ts` marks every unused result-email link of the student as consumed (links that live longer than 1 hour only, so a fresh 15-minute login link stays valid). It is the same call that a new release already makes when it mints a link, so no column was added. No code path withdraws a released result today (status `released` is never reverted), so nothing calls it for that case yet: any future withdraw or un-release action MUST call it in the same transaction. Test: `result-login-token.test.ts` (used, expired, retired, newer link).
+
+**Not included.** The link is not tied to one result: it signs the student in (same as any login link) and then the normal Results page rules apply. No endpoint changed, so `docs/03-api-contract.md` is unchanged. The tenant slug is not in the fragment, so after an expired link the student types the organisation code if the sign-in page asks for it.
 
 **Downstream.** `result_released` template unchanged (`portalLink` now carries the fragment link). Help ids: none added (the message sits inside the existing sign-in banner).
 

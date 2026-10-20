@@ -91,3 +91,11 @@ The 600 platform questions repeat stems of the MIT source and look machine-made.
 
 - Migration 0228 (`credit_expiry_notices`). Next free: 0229.
 - No new flag. The daily `credit-expire` job now also sends expiry warnings.
+
+## Owner answers and follow-up (same day, S38 part 2)
+
+- **SP11 wording changed.** Text is now: "Results appear after AssessIQ finishes the evaluation. If your organisation releases results by hand, you release them next." It is true for both release modes. Showing it by mode was rejected: the mode is a tenant setting (`tenant_settings.result_release_mode`) and the queue endpoint would need a second query and field for one sentence.
+- **Help text.** `admin.grading.jobs.eta_notice` and `admin.grading.jobs.oldest` are version 2 (new text). The seed adds the v2 rows at the next deploy; no migration needed because `tools/migrate.ts` re-applies the seed after the migrations. `admin.grading.jobs.page` was checked and is not stale. Gates run: `pnpm lint:help-seed-version`, full `modules/16-help-system` tests (116), help-id page prefix test, admin-dashboard tests (262).
+- **Withdrawn results.** No action withdraws a released result today (`attempts.status = 'released'` is never reverted). I extracted the existing retire step into `retireResultLoginLinks` and tested it (used, expired, retired, newer link). No column was added. Any future withdraw action must call it in the same transaction. This is a reviewed change in `modules/13-notifications` only (no 01-auth or 09-scoring code changed).
+- **Sample quiz sources.** Owner decision: load none of the four sources. Reasons: no licence, no answer options, and the 600-question source copies an MIT source and looks machine-made. Use original items (EXP-15) and AI-written questions that the owner reviews.
+- **Load test.** Owner decision: do not run it until after Wave 2 (camera). Blockers to solve first: (a) a test-only token export for a test tenant; (b) no real invite emails; (c) a source-IP plan that does not weaken the production rate limit; (d) an image-tag rollback step in the deploy. Plan: start with 100 users, run off-hours, stop at a set limit.

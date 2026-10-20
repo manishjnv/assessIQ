@@ -17,6 +17,21 @@ import { sha256Hex } from '@assessiq/core';
 
 export const RESULT_LOGIN_TOKEN_TTL_SEC = 7 * 24 * 60 * 60; // 7 days
 
+/**
+ * Retire every unused long-lived (result-email) sign-in link of a user. Called when a new link is
+ * minted, and the call to make whenever a released result is withdrawn (no such action exists yet).
+ * Only links that live longer than 1 hour are retired: a 15-minute login link the student just
+ * asked for stays valid. Returns how many links were retired.
+ */
+export async function retireResultLoginLinks(client: PoolClient, userId: string): Promise<number> {
+  const r = await client.query(
+    `UPDATE candidate_login_tokens SET consumed_at = now()
+      WHERE user_id = $1 AND consumed_at IS NULL AND expires_at > now() + interval '1 hour'`,
+    [userId],
+  );
+  return r.rowCount ?? 0;
+}
+
 /** Insert a hashed 7-day token for the user; returns the plaintext (emailed once, never logged). */
 export async function mintResultLoginToken(
   client: PoolClient,
@@ -24,12 +39,7 @@ export async function mintResultLoginToken(
 ): Promise<string> {
   const token = randomBytes(32).toString('hex');
   // Gate finding (2026-10-20): a re-release or retry must not leave older 7-day links alive.
-  // Only long-lived tokens are retired; a 15-minute login link the student just asked for stays valid.
-  await client.query(
-    `UPDATE candidate_login_tokens SET consumed_at = now()
-      WHERE user_id = $1 AND consumed_at IS NULL AND expires_at > now() + interval '1 hour'`,
-    [input.userId],
-  );
+  await retireResultLoginLinks(client, input.userId);
   await client.query(
     `INSERT INTO candidate_login_tokens (tenant_id, user_id, token_hash, expires_at)
      VALUES ($1, $2, $3, now() + make_interval(secs => $4))`,

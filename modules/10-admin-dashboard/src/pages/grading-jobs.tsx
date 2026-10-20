@@ -153,7 +153,7 @@ export function AdminGradingJobs(): React.ReactElement {
         {/* SP11: expected grading time for this company (one line, muted) */}
         {turnaround !== null && (
           <p data-help-id="admin.grading.jobs.eta_notice" style={MUTED_SM}>
-            Expect grading {turnaround}. Results stay hidden until you release them.
+            Expect grading {turnaround}. Results appear after AssessIQ finishes the evaluation. If your organisation releases results by hand, you release them next.
           </p>
         )}
 
