@@ -1,15 +1,15 @@
 # Session — 2026-10-20 — S37: Wave 1 leftovers and Wave 4 small rows (low-balance emails, legal wording, resources pages 1 to 4, router step 1)
 
-**Headline:** Low-balance credit emails (20 and 10 percent) are live, the terms and privacy wording is live, four new `/resources` pages are live, and the router has the v7 flags on (no version bump). SP11 and Z-15 (a) were not built. Branch deletion (RW-1) waits for the owner yes.
+**Headline:** Low-balance credit emails (20 and 10 percent) are live, the terms and privacy wording is live, four new `/resources` pages are live, and the router has the v7 flags on (no version bump). SP11 and Z-15 (a) were not built. RW-1 is done: 6 local and 4 remote merged branches deleted after proof and the owner yes.
 **Commits:** `0bc3e5ad` (Z-96 part 1, Z-20, Z-49, Z-76 pages 1 to 4, Z-37 b, router flags), `be3da797` (page dates), `6862328a` (audit-before-send review fix, trailer `Adversarial-Review: sonnet-takeover`), `160e89e5` (RLS insert policy, bulk-cap test date, TOTP wording test), plus the S37 docs commit. Server and marketing run `160e89e5`. Migration `0227` applied (next `0228`).
 **Tests:** `pnpm verify` green before each push. CI red once on `6862328a` (RLS lint, a date-bound test, an old-wording test; see RCA 2026-10-20), green on `160e89e5`. Sweep: 0 failures. Read-only curl: the four new pages, `/privacy`, `/terms`, `/signup` answer 200; sitemap lists the new pages.
 **Recount:** 85 pending, 199 closed, 284 total, 70% before; 83 pending, 201 closed, 284 total, 71% after (Z-20 and Z-49 closed; Z.7 line written, tool says SAME).
-**Next:** (1) owner: say yes to the RW-1 branch deletion (list in the change record); open `/admin` signed in once; (2) build SP11 (needs a small admin API field) and Z-96 rest (expiry warning, exact meter); (3) owner: pilot decisions; Wave 2 camera work needs the lawyer answer.
+**Next:** (1) owner: open `/admin` signed in once; (2) build SP11 (needs a small admin API field) and Z-96 rest (expiry warning, exact meter); (3) owner: pilot decisions; Wave 2 camera work needs the lawyer answer.
 **Open questions (owner):**
 - Z-15 (a): validity period of the one-time sign-in link, and fragment or path.
 - Terms section 8 says "The Customer" while the page says "you". Keep the draft wording or change it to "you"?
 - IndexNow ping was not run. Run it?
-- Four merged remote branches exist besides the six approved. Delete them too?
+- Other old local branches remain (`n7b-react19`, `n7b-vite8`, `autopilot/P01-T01.kept-af67488`, two `worktree-agent-*`). Check and delete if merged?
 - Still open from S36: sign-up opening (Z-97), CSP console check (Z-77), speed check, AI evaluation bless, legal defaults, rate card, Haiku trial result, server host and IP in the public `CLAUDE.md`.
 **Old task or feature checked:** Z-93, Z-96, Z-90, Z-49, Z-20, Z-76, Z-37, Z-15, SP11, TIME-13 (already built in `05193ac1`), RW-1 (Rule B).
 **Change record:** `docs/plans/2026-10-20-wave4-change-record.md`.

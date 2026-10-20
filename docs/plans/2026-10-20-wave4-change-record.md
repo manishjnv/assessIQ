@@ -54,7 +54,6 @@ New pages: `/resources/how-to-run-a-campus-aptitude-test`, `/resources/release-c
 - Z-15 (a) one-time sign-in link. It is a build with an open owner question (validity period, fragment or path).
 - Expiry warning email and the exact usage meter (rest of Z-96).
 - Z-76 pages 5 to 7. Pages 5 and 6 are later by owner decision.
-- RW-1 branch deletion. It waits for the owner yes (list below).
 - IndexNow ping after the marketing deploy.
 - Opening sign-up, CSP enforce (Z-77), camera and photos, exam content, GATE-8.
 
@@ -79,6 +78,6 @@ New pages: `/resources/how-to-run-a-campus-aptitude-test`, `/resources/release-c
 5. Review finding, fixed: the audit row now comes before the mail, so an audit failure cannot repeat a sent mail every day.
 6. Known and accepted (low): if one admin send fails and another works, the failed admin is not retried. A scan error in the first query fails the job result after `expireCredits` has run. A grant change can allow a few extra mails.
 
-## Branches for the owner (RW-1)
+## Branch clean-up (RW-1) — DONE after the owner yes
 
-Six local branches are merged into `main`. Delete them on the owner yes: `autopilot/P01-T01`, `feat/domain-consistency-blueprint-scope`, `feat/question-difficulty`, `worktree-agent-a24d9a579ffd83f94`, `worktree-agent-ac882dada56ed9469`, `worktree-agent-af82986a755cc74be`. Four merged remote branches also exist (`origin/feat/platform-edit-admin`, `origin/feat/platform-edit-company`, `origin/feat/qdiff-admin-ui-followups`, `origin/feat/question-difficulty`). The owner approval named six, so they are not touched.
+Proof before deleting: each branch had 0 commits that `main` lacks (`git rev-list --count main..<branch>`), `merge-base --is-ancestor` said yes, no CI file, hook or script named them, no open PR used them. The owner said no one else uses the repo. Deleted locally with `git branch -d` (refuses unmerged work): `autopilot/P01-T01`, `feat/domain-consistency-blueprint-scope`, `feat/question-difficulty`, `worktree-agent-a24d9a579ffd83f94`, `worktree-agent-ac882dada56ed9469`, `worktree-agent-af82986a755cc74be`. Deleted on the remote with `git push origin --delete` (all from 2026-05-24, merged): (`origin/feat/platform-edit-admin`, `origin/feat/platform-edit-company`, `origin/feat/qdiff-admin-ui-followups`, `origin/feat/question-difficulty`). Left alone, outside the approved list and not checked: `autopilot/P01-T01.kept-af67488`, `n7b-react19`, `n7b-vite8`, two other `worktree-agent-*` branches, and the two Dependabot branches.
