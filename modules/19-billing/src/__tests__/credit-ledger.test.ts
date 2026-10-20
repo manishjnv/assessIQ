@@ -10,13 +10,13 @@
 //   (d) monthly refill is idempotent and has no rollover
 //   (e) grantCredits writes the grant and one billing.credits_granted audit row
 
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
 import { Client } from 'pg';
 import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { applyAllMigrations } from '../../../../tools/test-support/apply-all-migrations.js';
 import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
 import { recordGradedAttempt, grantCredits, refillFreeMonthlyCredits, getCreditBalance } from '../service.js';
@@ -199,7 +199,7 @@ describe('grantCredits', () => {
 });
 
 describe('0225 credit scale x10', () => {
-  const sql = readFileSync(join(process.cwd(), 'modules/19-billing/migrations/0225_credit_scale_x10.sql'), 'utf8');
+  const sql = readFileSync(fileURLToPath(new URL('../../migrations/0225_credit_scale_x10.sql', import.meta.url)), 'utf8');
   it.skipIf(!dockerAvailable)('scales an existing grant once; a second run does not scale again', async () => {
     const { tenantId } = await seedTenant('pro', 100);
     const id = randomUUID();
