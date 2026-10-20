@@ -2,20 +2,21 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-20T12:15:28.241Z (2026-10-20 17:45:28 IST)
-- HEAD: `5afedc62`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 2
+- Generated: 2026-10-20T14:51:19.054Z (2026-10-20 20:21:19 IST)
+- HEAD: `d6c998b5`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 1
 
 ## 1. Last session (SESSION_STATE, first block)
 
 ## Session — 2026-10-20 — S38: Session 4 pre-pilot readiness (exact meter, expiry warning, result sign-in link, ETA notice, sample quiz, load-test script)
 
 **Headline:** Z-93 and Z-96 closed (exact meter + expiry-warning email), Z-15 (a) shipped (7-day one-time sign-in link in the result email), SP11 live, Z-84 report done, load-test script and checklist written (not run).
-**Commits:** `5afedc62` — feat: exact credit meter and expiry-warning email, one-time result sign-in link, admin ETA notice, sample-quiz tool, load-test script
-**Tests:** pass (billing 12+7, auth 334, notifications 308, help guards, `pnpm verify`); CI green; deployed, sweep 0 failures; migration 0228 applied (next 0229).
+**Commits:** `5afedc62` — feat: exact credit meter, expiry-warning email, result sign-in link, ETA notice, sample-quiz tool, load-test script · `57801b92` — docs close-out · `23267f7a` — SP11 wording for both release modes, help v2 rows, `retireResultLoginLinks` · `d6c998b5` — docs: withdraw rule on Z-15, GATE-8 check on Z-86
+**Tests:** pass (billing 12+7, auth 334+, notifications 308, help 116 + guards, admin-dashboard 262, `pnpm verify`); CI green on every commit; deployed twice, sweep 0 failures; migration 0228 applied (next 0229). Last deployed sha `23267f7a` (`d6c998b5` is docs only).
 **Recount:** pending 81, closed 204, total 285, 72% (was 84/201/285, 71%).
-**Next:** owner decisions (sample-quiz rights, SP11 wording for auto-release tenants, withdraw-revoke for result links), then Wave 2 or GATE-8 and the load test.
-**Open questions:** run the load test? (needs a test tenant and a test-only token export); revoke result links on withdrawal (needs a column); fix stale help text `admin.grading.jobs.oldest/.page`.
+**Owner answers applied (S38 part 2):** SP11 text changed (true for both modes) and help v2 live; withdraw rule = helper only, no withdraw action built, GATE-8 checks it; sample quiz: none of the 4 sources loaded; load test waits until after Wave 2.
+**Next:** Wave 2 (camera: Z-74, Z-82; needs your Caddy `camera=(self)` go and the lawyer question), or more Wave 1/4 rows. Before the load test: test-only token export, no real invite emails, source-IP plan, image-tag rollback step in deploy.
+**Open questions:** none blocking. Owner tasks: signed-in check of /admin and a take page, CSP console check (unlocks Z-77), speed check, AI evaluation bless and dry runs, legal defaults and lawyer question, rate card, host/IP in public CLAUDE.md, rescoring Q1-Q4, warranty wording, GIFT format.
 **Old task or feature checked:** Z-93, Z-96, Z-15, SP11, Z-84 (Rule B); the 2026-05-13 candidate magic-link decision is honoured (POST verify via SPA).
 **Change record:** `docs/plans/2026-10-20-session4-change-record.md`
 
