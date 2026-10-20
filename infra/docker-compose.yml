@@ -112,6 +112,8 @@ services:
     # deploys still work and override the host's /root/.claude/skills copy.
     volumes:
       - /var/log/assessiq:/var/log/assessiq
+      # Real-exam camera files (photos, video). Host dir must exist and be writable by the container user.
+      - /var/lib/assessiq/camera:/var/lib/assessiq/camera
       - /root/.claude:/home/node/.claude:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
       # E2 eval gate: blessed eval baselines (gitignored) at the path eval-gate.ts
@@ -189,6 +191,8 @@ services:
     # Skills + claude: same binds as assessiq-api (see comment there).
     volumes:
       - /var/log/assessiq:/var/log/assessiq
+      # Real-exam camera files (photos, video). Host dir must exist and be writable by the container user.
+      - /var/lib/assessiq/camera:/var/lib/assessiq/camera
       - /root/.claude:/home/node/.claude:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro

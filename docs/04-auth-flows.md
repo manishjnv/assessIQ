@@ -1516,3 +1516,15 @@ This section holds the decisions that shaped the flows above. Each row names the
 - **Mode source.** `delivery_mode` ('real' or 'mock') is set by the admin on the invitation and copied to the attempt under the invitation row lock. A candidate request cannot set it. A mock test is never blocked and the public `/try` demo is never blocked.
 - **Accepted gaps.** Embed starts skip the gate (the host app asserts the candidate; row Z-98). Client-reported signals can be faked; the header and the user agent are the independent part. Camera checks are Wave 2.
 - **Public sign-up** (no session before the tenant exists) is described in the section "Self-serve sign-up" of this file.
+
+## Real-exam camera: consent step and file access (Batch A part 2, 2026-10-20)
+
+*Type: explanation.* Code: `routes.take.ts`, `service.ts` (`startAttempt`), `routes.camera.*.ts`. Routes and shapes: `docs/03-api-contract.md` section "Real-exam camera routes".
+
+- **When the rule applies.** Only a NEW attempt of a REAL exam, started through `POST /take/start` or `POST /api/me/assessments/:id/start`, with `CAMERA_ENFORCED=true`, outside embed. Mock tests, embed attempts, resumes and a school with the camera off are never asked. With `CAMERA_ENFORCED=false` nothing changes.
+- **Consent step.** The page shows the camera notice, then calls `POST /take/camera-consent` with the notice version it showed. The server stores the decision with a hashed IP and the device type. The start gate then needs the latest decision to be `agreed` with the current version. The consent is linked to the attempt in the same transaction that creates it. Uploads later check that link.
+- **Organisation set-up.** If the organisation has not confirmed the notice, the start answers 422 `CAMERA_SETUP_REQUIRED`: "The test organiser has not finished the camera set-up. Contact your test organiser."
+- **Who can see files.** Only the platform super admin and tenant admins named in `camera_reviewers`. A plain tenant admin gets 403. The tenant admin names and removes reviewers. Every view writes `camera.file.viewed` (file id and viewer, no image data) before the bytes leave the server. Files are never served from a public URL. Reviewer, review and appeal actions are audited.
+- **School flag.** Only the super admin can mark an organisation as a school (`POST /api/admin/platform/tenants/:tenantId/school`, fresh MFA). A school admin then controls camera and photos for its own tests.
+- **Why a gate in the service.** One check covers both start routes, including retakes. A route-only check would leave one path open.
+- **Not included.** AI on images, face matching, camera on embed attempts (accepted gap), screens for candidate and staff (UI work), automatic grading effects of a flag. A flag is evidence for a human reviewer only.

@@ -179,3 +179,7 @@ Migration `0114` adds `tenant_settings.result_release_mode` (`manual` default | 
 - **Considered and rejected.** Calling `createTenant` (needs a super-admin actor and a separate tx per step). Importing 19-billing here (dependency cycle). Seeding the taxonomy in the same tx (`seedTenantTaxonomy` opens its own tx; it runs after commit).
 - **Not included.** The sign-up page. `org_verified`. The pre-purge archive row for acceptance evidence.
 - **Downstream.** `purge.ts` deletes `tenant_legal_acceptances` rows with the tenant (system role) and ignores `signup_claims` (column `claimed_tenant_id`).
+
+## Camera settings (Batch A, migration 0230, 2026-10-20)
+
+New exports (`src/camera.ts`): `getCameraTenantSettings(tenantId)` returns `{isSchool, cameraEnabled, photosEnabled, noticeConfirmedVersion}`. `setTenantIsSchool(tenantId, isSchool, actorUserId)` is for the super admin (the caller checks the role). `updateCameraSettings(tenantId, {cameraEnabled?, photosEnabled?}, actorUserId)` and `confirmCameraNotice(tenantId, version, actorUserId)`. Each write makes one `tenant.settings.updated` audit row in the same transaction. `purgeArchivedTenants` also removes the tenant camera folder (`removeCameraTenantDir`) before the row deletes. Test: `camera-settings.test.ts`.

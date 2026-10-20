@@ -295,3 +295,27 @@ Each step also carries `points` and `negative_marks` when the author set them. T
 - **Not included.** Camera, photos, video. Certificates for mocks (module 09 skips them). Report filters (module 15).
 - **Result views.** `ReleasedResult` and `ResultListItem` add `delivery_mode` so the UI shows a Mock label.
 - **Tests.** `src/__tests__/device-readiness.test.ts` (pure rules) and the Z-87/89/91 cases in `attempt-engine.test.ts` (403, mode copy, 422, per-mode allowance).
+
+## Real-exam camera data layer (Batch A part 1, 2026-10-20)
+
+Migration `0229_camera.sql`. Code in `src/camera/`, exported from the package index. No routes yet. No AI on images, no face matching.
+
+- `constants.ts`: `CAMERA_NOTICE_VERSION`, keep and size limits, MIME types, upload caps.
+- `policy.ts`: `resolveCameraPolicy({deliveryMode, isEmbed, tenantCamera, enforced})` returns `{required, photos, video, keepDays, reason}`. Mock, embed and `enforced=false` are never required. `cameraSetupBlocker(policy, tenantCamera)` returns `'NOT_CONFIRMED'` or `null`. `computeExpiresAt(kind, takenAt, policy)`.
+- `storage.ts`: `buildRelativePath` (re-exported `buildCameraRelativePath`), `resolveSafe`, `writeFileAtomic(rel, buf)`, `deleteFile(rel)`, `getUsage()` (system role, call outside a tenant tx), `diskGuard({incomingBytes})`, pure `evaluateDiskGuard`. Path rules live in `@assessiq/core` `camera-storage.ts`, shared with erasure and tenant purge.
+- `hash.ts`: `hashCameraIp(ip)` (keyed HMAC through tenancy `signupHmac`).
+- `repository.ts`: every function takes the client of an open `withTenant` tx. Consents, files, reviews, appeals, reviewers, `listFlaggedAttempts`.
+- `retention.ts`: `runCameraRetentionForTenant(tenantId, now)` and `runCameraRetentionAll(now)`. Function only; the worker wiring is later.
+- Rejected: a FK from consents to invitations (cross-module). Not included: routes, `/take/start` gate, UI.
+
+## Real-exam camera: routes, start gate and daily job (Batch A part 2, 2026-10-20)
+
+Routes and bodies: `docs/03-api-contract.md` section "Real-exam camera routes". No AI on images, no face matching, no ambient AI.
+
+- `camera/gate.ts`: `resolvePolicyInTx` (one tenant read, then the pure policy with `config.CAMERA_ENFORCED`), `isCameraRequired`, `recordCameraConsent` (insert plus audit in one tx, 409 `CAMERA_NOT_REQUIRED`).
+- `service.ts` `startAttempt` step c4: next to the Z-87/Z-91 block, under the same `input.gate !== undefined` condition, for a new real attempt. A required camera needs the organisation notice confirmed (422 `CAMERA_SETUP_REQUIRED`) and the invitation's latest consent `agreed` for `CAMERA_NOTICE_VERSION` (422 `CAMERA_CONSENT_REQUIRED`). The consent is linked to the attempt right after the row exists, in the same tx.
+- `routes.take.ts`: `POST /take/camera-consent`; the preview and start answers carry `camera_required` and `camera_notice_version`.
+- `routes.camera.candidate.ts`: an encapsulated plugin with its own `image/jpeg` and `video/webm` raw parsers. Global parsers stay untouched. The default `text/plain` parser is removed in that scope, so any other type is a plain 415.
+- `routes.camera.admin.ts`: reviewer guard `requireCameraReviewer` (super admin, or tenant admin named in `camera_reviewers`), file streaming with the audit row committed first, reviewer and settings routes, the super-admin school flag.
+- Worker: `camera-retention-cron` at 03:00 UTC calls `runCameraRetentionAll`, then `diskGuard`.
+- **Why.** The server decides everything: policy is re-resolved on every upload and the client sends no time or path. **Rejected.** A route-only gate; streaming inside the DB tx; a users-module dependency for names (a lookup is injected from `apps/api`). **Not included.** Embed uploads, candidate and staff screens, any AI on files. **Tests.** `src/__tests__/camera-routes.test.ts`.

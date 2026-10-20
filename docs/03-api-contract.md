@@ -3963,3 +3963,60 @@ Read-only, admin role, tenant-scoped. All five read live tables where `attempts.
 - `GET /api/admin/mock/not-taken?assessmentId=` (required) returns `[{ user_id, name, email, invited_at }]` for candidates invited with `delivery_mode = 'mock'` who have no mock attempt.
 
 Related fix: the admin and candidate Activity readers (leaderboard, stats, heatmap, feed) now count real attempts only.
+
+## Real-exam camera routes (Batch A part 2, 2026-10-20)
+
+*Type: reference.* Code: `modules/06-attempt-engine/src/routes.take.ts`, `routes.camera.candidate.ts`, `routes.camera.admin.ts`. Data layer: `docs/02-data-model.md`. Everything is inert while `CAMERA_ENFORCED=false` (the default): the gate resolves to "not required" and no screen asks for a camera.
+
+**Why.** A real exam needs proof of the candidate decision, a server-side check on every upload, and a reviewer path that leaves an audit trail. **Not included:** AI on images, face matching, a public file URL, upload on embed attempts (accepted gap), the candidate and staff screens (UI agents).
+
+### Candidate side
+
+| Route | Body or query | Success | Errors |
+| --- | --- | --- | --- |
+| `POST /take/camera-consent` (pre-auth, token is the credential) | `{ token, decision: 'agreed' or 'declined', noticeVersion }` | 200 `{ ok: true }` | 404 `INVITATION_NOT_FOUND` (bad token or body), 410 `ALREADY_SUBMITTED`, 422 `CAMERA_NOTICE_STALE`, 409 `CAMERA_NOT_REQUIRED`, 429 `RATE_LIMITED` |
+| `POST /take/start` (existing) | no change | preview and 201 answers add `assessment.camera_required` (boolean) and `assessment.camera_notice_version` | new 422 `CAMERA_SETUP_REQUIRED` and 422 `CAMERA_CONSENT_REQUIRED` for a NEW real attempt when the camera is required |
+| `POST /api/me/assessments/:id/start` (existing) | no change | no change | same two new 422 codes (the gate is inside `startAttempt`) |
+| `GET /api/me/attempts/:attemptId/camera/status` | none | `{ required, photos, video, photoIntervalSeconds, noticeVersion }` | 404 (not yours) |
+| `POST /api/me/attempts/:attemptId/camera/photo` | raw body `image/jpeg`, at most 400 KB | 201 `{ id }` | see below |
+| `POST /api/me/attempts/:attemptId/camera/video?reason=camera_stopped` or `camera_blocked` | raw body `video/webm` (a `;codecs=` parameter is allowed), at most 3 MB | 201 `{ id }` (always stored as flagged with that reason) | see below; missing or other reason = 400 `INVALID_REASON` |
+
+Upload checks run in this order:
+
+1. Session and ownership: 404 `ATTEMPT_NOT_FOUND`, same body for every miss.
+2. Attempt `in_progress` and not later than `ends_at` + 60 s: 409 `ATTEMPT_NOT_ACTIVE`.
+3. Policy re-resolved on the server: 403 `CAMERA_NOT_REQUIRED`; 403 `CAMERA_PHOTOS_OFF` for photos when a school turned photos off.
+4. Agreed consent linked to this attempt: 403 `CAMERA_CONSENT_REQUIRED`.
+5. Rate limit 12 per minute per attempt: 429 `RATE_LIMITED` with `Retry-After`.
+6. Exact content type: 415. Empty body: 400 `EMPTY_BODY`. Size: 413. Magic bytes (JPEG `FF D8 FF`, WebM `1A 45 DF A3`): 415.
+7. Per-attempt caps (400 photos, 40 videos): 429 `CAMERA_LIMIT`.
+8. Disk guard: 507 `CAMERA_STORAGE_FULL`. The attempt is flagged `upload_refused` and one `camera.upload.refused` audit row is written.
+
+`taken_at` is the server clock; the client sends no time, name or path. The response never holds a storage path.
+
+`/take/camera-consent` stores one `camera_consents` row (attempt not yet known) and one `camera.consent.recorded` audit row in the same transaction. The IP is stored only as a keyed hash, the device as `desktop` or `mobile`. A declined decision is recorded too. The start gate then answers `CAMERA_CONSENT_REQUIRED`, because the latest decision must be `agreed` with the current notice version. Resume of an existing attempt never needs consent.
+
+Why the gate sits in `startAttempt` and not in the route: both request-facing routes pass `gate`, so one check covers both, and a retake (new attempt) is covered too. Rejected: a route-only check (the `/api/me` route would skip it).
+
+### Staff side
+
+Reviewer guard = platform super admin, or a tenant admin named in `camera_reviewers`. A tenant admin who is not named gets 403 `AUTHZ_FAILED` on the file routes. The decommissioned reviewer role is not used.
+
+| Route | Who | Body or query | Success |
+| --- | --- | --- | --- |
+| `GET /api/admin/camera/flagged?cursor&limit` | reviewer | limit 1 to 200 | `{ items: [{ attemptId, userId, candidateName, candidateEmail, assessmentId, assessmentName, flaggedFiles, lastFlaggedAt, reviewedAt, appealState, uploadRefused }], nextCursor }` |
+| `GET /api/admin/camera/attempts/:attemptId/files` | reviewer | none | `{ items: [{ id, kind, takenAt, flagged, flagReason, sizeBytes }], review: { reviewedAt, appealState, uploadRefused } }` (no storage path) |
+| `GET /api/admin/camera/files/:fileId/content` | reviewer | none | the bytes; `Content-Type` image/jpeg or video/webm; `Cache-Control: private, no-store`; `X-Content-Type-Options: nosniff`; `Content-Disposition: inline`. One `camera.file.viewed` audit row (ids only) commits before the first byte. 404 for a missing row, another tenant's id, or a missing disk file |
+| `POST /api/admin/camera/attempts/:attemptId/reviewed` | reviewer | none | `{ ok: true }`, audit `camera.review.marked` |
+| `POST /api/admin/camera/attempts/:attemptId/appeal` | reviewer | `{ state: 'open', 'closed' or 'none' }` | `{ ok: true }`, audit `camera.appeal.changed` with before and after state |
+| `GET /api/admin/camera/reviewers` | tenant admin | none | `{ items: [{ userId, name, email, addedBy, createdAt }] }` |
+| `POST /api/admin/camera/reviewers` | tenant admin | `{ userId }` | 201 `{ ok: true }`; 404 when the user is not in the tenant; audit `camera.reviewer.added` |
+| `DELETE /api/admin/camera/reviewers/:userId` | tenant admin | none | `{ ok: true }`; 404 when not a reviewer; audit `camera.reviewer.removed` |
+| `GET /api/admin/camera/settings` | tenant admin | none | `{ isSchool, cameraEnabled, photosEnabled, noticeConfirmedVersion, requiredNoticeVersion, storage: { usedBytes, maxBytes, warn } }` (storage is system wide) |
+| `PATCH /api/admin/camera/settings` | tenant admin | `{ cameraEnabled?, photosEnabled? }` | `{ ok: true }`; 403 `CAMERA_SCHOOL_ONLY` for a tenant that is not a school |
+| `POST /api/admin/camera/confirm-notice` | tenant admin | `{ confirm: true }` | `{ ok: true, noticeConfirmedVersion }` |
+| `POST /api/admin/platform/tenants/:tenantId/school` | super admin only (fresh MFA 15 min) | `{ isSchool: boolean }` | `{ ok: true, isSchool }` |
+
+Settings writes reuse the tenancy setters, which write `tenant.settings.updated` themselves. Names in the flagged list come from a lookup that `apps/api` passes in (module 06 has no users dependency); without it the names are `null`.
+
+**Considered and rejected.** Streaming inside the transaction (it holds a pooled connection for the whole download; the audit row commits first instead). A static file plugin (no session check). Letting any tenant admin view files (the owner wants named reviewers only). **Downstream.** The `apps/api` test mocks of `@assessiq/attempt-engine` list the two new register functions.

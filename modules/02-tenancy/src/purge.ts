@@ -19,7 +19,7 @@
 // GATE: enabled=false (default) is a dry run: reports candidates, changes no rows.
 
 import type { PoolClient } from "pg";
-import { config, streamLogger } from "@assessiq/core";
+import { config, streamLogger, removeCameraTenantDir } from "@assessiq/core";
 import { auditInTx } from "@assessiq/audit-log";
 import { withSystemRole } from "./with-tenant.js";
 
@@ -138,6 +138,8 @@ export async function purgeArchivedTenants(opts: PurgeOptions = {}): Promise<Pur
         // Re-check inside the tx: the tenant may have been unarchived since selection.
         const cur = await client.query(`SELECT 1 FROM tenants WHERE id = $1 AND status = 'archived' FOR UPDATE`, [tenantId]);
         if (cur.rowCount === 0) return null;
+        // Camera files live on disk, not in a table: remove the tenant folder first (a failure aborts this tenant, retried next run).
+        await removeCameraTenantDir(tenantId);
         const out: Record<string, number> = {};
         for (const step of order) {
           const d = await client.query(step.sql, [tenantId]);

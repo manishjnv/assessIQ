@@ -18,7 +18,7 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any
 //   AI SDK. data-rights is not part of the AI pipeline (CLAUDE.md rule #1).
 
-import { NotFoundError, ValidationError } from '@assessiq/core';
+import { NotFoundError, ValidationError, deleteCameraFile } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { auditInTx } from '@assessiq/audit-log';
 import type { PoolClient } from 'pg';
@@ -49,6 +49,8 @@ interface TombstoneRow {
  *   4. UPDATE attempt_answers: set answer = '"[erased]"' for non-mcq rows.
  *   4c. RW-89: login-token ip/ua NULL, invitation address + email_log address,
  *      subject and bodies (RW-98) pseudonymised/scrubbed, attempts.evaluation_note NULL.
+ *   4d. Camera: unlink disk files (failure rethrows, job retries), delete camera_files,
+ *      camera_consents, camera_attempt_reviews, camera_reviewers rows of the user.
  *   5. UPDATE sessions: NULL out ip + user_agent.
  *   6. SELECT count(*) from certificates (preserved, never mutated).
  *   7. auditInTx: action = 'user.pii.erased', after = counts only.
@@ -207,6 +209,24 @@ export async function eraseCandidatePii(
     );
     const evaluationNotesCleared: number = notesRes.rowCount ?? 0;
 
+    // ── 4d. Camera data (Batch A) ────────────────────────────────────────────
+    // Disk files first. A failed unlink throws (never silent): the tx rolls back and the job retries.
+    // Rows stay until every file is gone; ENOENT counts as gone.
+    const camFiles = await client.query<{ storage_path: string }>(
+      `SELECT storage_path FROM camera_files WHERE user_id = $1`,
+      [userId],
+    );
+    for (const f of camFiles.rows) await deleteCameraFile(f.storage_path);
+    const camFilesRes = await client.query(`DELETE FROM camera_files WHERE user_id = $1`, [userId]);
+    const cameraFilesDeleted: number = camFilesRes.rowCount ?? 0;
+    const camConsentsRes = await client.query(`DELETE FROM camera_consents WHERE user_id = $1`, [userId]);
+    const cameraConsentsDeleted: number = camConsentsRes.rowCount ?? 0;
+    await client.query(
+      `DELETE FROM camera_attempt_reviews WHERE attempt_id IN (SELECT id FROM attempts WHERE user_id = $1)`,
+      [userId],
+    );
+    await client.query(`DELETE FROM camera_reviewers WHERE user_id = $1`, [userId]);
+
     // ── 5. Redact sessions ──────────────────────────────────────────────────
     const sessionsRes = await client.query(
       `UPDATE sessions SET ip = NULL, user_agent = NULL
@@ -242,6 +262,8 @@ export async function eraseCandidatePii(
         invitationsPseudonymised,
         emailLogPseudonymised,
         evaluationNotesCleared,
+        cameraFilesDeleted,
+        cameraConsentsDeleted,
         sessionsRedacted,
         certificatesPreserved,
         erased: true,

@@ -48,6 +48,10 @@ import { assertPoolVerifiedForInvites } from "@assessiq/assessment-lifecycle";
 import * as qbRepo from "../../04-question-bank/src/repository.js";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import * as repo from "./repository.js";
+import { resolvePolicyInTx } from "./camera/gate.js";
+import { cameraSetupBlocker } from "./camera/policy.js";
+import { CAMERA_NOTICE_VERSION } from "./camera/constants.js";
+import { latestConsentForInvitation, linkConsentToAttempt } from "./camera/repository.js";
 import { groupUnits, takeUnits, type PassageFact } from "./passages.js";
 import { getCompanyBranding } from "./result.js";
 import {
@@ -243,6 +247,7 @@ export async function startAttempt(
     // Z-89: the attempt's test type comes from the INVITATION row, read here under the row lock.
     // It is never read from the request. Embed attempts have no invitation and stay 'real'.
     let deliveryMode: "real" | "mock" = "real";
+    let cameraRequired = false; // Batch A: set by the camera gate below; links the consent once the attempt row exists
     if (!input.embedOrigin) {
       const invitation = await repo.findInvitationForCandidate(
         client,
@@ -322,6 +327,31 @@ export async function startAttempt(
             422,
             { details: { code: "READINESS_FAILED" } },
           );
+        }
+
+        // c4. Real-exam camera gate (Batch A). Same condition as above: request-facing starts only.
+        //     CAMERA_ENFORCED=false, a mock test, an embed attempt (accepted gap) or a school with the
+        //     camera off all resolve to required=false, so nothing changes for them.
+        const { policy, tenantCamera } = await resolvePolicyInTx(client, tenantId, deliveryMode, false);
+        if (policy.required) {
+          if (cameraSetupBlocker(policy, tenantCamera) !== null) {
+            throw new AppError(
+              "The test organiser has not finished the camera set-up. Contact your test organiser.",
+              "CAMERA_SETUP_REQUIRED",
+              422,
+              { details: { code: "CAMERA_SETUP_REQUIRED" } },
+            );
+          }
+          const consent = await latestConsentForInvitation(client, invitation.id);
+          if (consent === null || consent.decision !== "agreed" || consent.noticeVersion !== CAMERA_NOTICE_VERSION || consent.attemptId !== null) {
+            throw new AppError(
+              "Camera consent is required before this test starts.",
+              "CAMERA_CONSENT_REQUIRED",
+              422,
+              { details: { code: "CAMERA_CONSENT_REQUIRED" } },
+            );
+          }
+          cameraRequired = true;
         }
       }
     }
@@ -595,6 +625,11 @@ export async function startAttempt(
       if (winner === null) throw new Error("startAttempt: unique violation but no attempt found");
       assertAttemptOwnedBy(winner, input.userId);
       return winner;
+    }
+
+    // h2. Camera: tie the agreed consent to this attempt (same tx; uploads check this link).
+    if (cameraRequired && invitationId !== undefined) {
+      await linkConsentToAttempt(client, invitationId, attempt.id);
     }
 
     // i. Snapshot the question set + empty answer rows.

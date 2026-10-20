@@ -2835,3 +2835,22 @@ A passage is shared stem text used by several question rows (reading text, data 
 | Downstream | New audit action `billing.credit_expiry_notice`; new email template `credit_expiring`. No personal data in the table (ids and time only). |
 | Rollback | Revert the code, then `DROP TABLE credit_expiry_notices`. |
 
+## Real-exam camera data layer (Batch A part 1, 2026-10-20)
+
+*Type: reference.* Migrations `0229_camera.sql` (module 06) and `0230_camera_tenancy.sql` (module 02-tenancy). Additive only.
+
+| Item | Detail |
+| --- | --- |
+| What | Four tables in module 06: `camera_consents`, `camera_files`, `camera_attempt_reviews`, `camera_reviewers`. Module 02 gets `tenants.is_school` and five `tenant_settings` columns: `camera_enabled`, `camera_photos_enabled`, `camera_notice_confirmed_version`, `camera_notice_confirmed_at`, `camera_notice_confirmed_by`. |
+| `camera_consents` | `id`, `tenant_id`, `invitation_id`, `attempt_id` (NULL until the attempt exists), `user_id`, `decision` (`agreed` or `declined`), `notice_version`, `ip_hash`, `device_type`, `created_at`. `ip_hash` is a keyed HMAC (`hashCameraIp`), never the IP. A BEFORE UPDATE trigger allows one change only: `attempt_id` from NULL to a value. DELETE exists for erasure and tenant purge. |
+| `camera_files` | `id`, `tenant_id`, `attempt_id` (FK `attempts`), `user_id`, `kind` (`photo`, `video`), `storage_path` (RELATIVE path `<tenant>/<attempt>/<file>.jpg|.webm` under `CAMERA_STORAGE_DIR`), `size_bytes > 0`, `taken_at`, `expires_at`, `flagged`, `flag_reason` (`camera_stopped`, `camera_blocked`), `created_at`. Indexes: `(tenant_id, attempt_id)`, `(expires_at)`, partial `(tenant_id) WHERE flagged`. No UPDATE policy: a row never changes. |
+| `camera_attempt_reviews` | PK `(tenant_id, attempt_id)`. `reviewed_at`, `reviewed_by`, `appeal_state` (`none`, `open`, `closed`), `appeal_changed_at`, `upload_refused`, `created_at`, `updated_at`. |
+| `camera_reviewers` | PK `(tenant_id, user_id)`. `added_by`, `created_at`. School admin names the staff who may view flagged files. |
+| RLS | All four tables: `tenant_isolation_select` and `tenant_isolation_insert` by `app.current_tenant`; a delete policy on `camera_consents`, `camera_files`, `camera_attempt_reviews` and `camera_reviewers`; update policy only on `camera_attempt_reviews` and `camera_consents` (the trigger narrows the second). Same template as `credit_burns` (0215). |
+| Retention | Photo 90 days, video 7 days; school tenants 7 days for both (`computeExpiresAt`). A flagged attempt that is not yet reviewed, or has an open appeal, is held past expiry up to 90 days (school) or 365 days (other) after `taken_at`. `runCameraRetentionForTenant` deletes the disk file first, then the row; a failed disk delete keeps the row for the next run. One audit row `camera.retention.sweep` per tenant sweep that deleted files. |
+| Erasure and purge | `erasure.ts` step 4d unlinks the user's files (a failure throws, the tx rolls back, the job retries) and deletes the user's `camera_files`, `camera_consents`, `camera_attempt_reviews` and `camera_reviewers` rows. `purgeArchivedTenants` removes the tenant camera folder before it deletes the rows (rows go through the catalog-driven delete). `erasure-coverage.test.ts` exempts `camera_consents.ip_hash`. |
+| Why | Real exams need proof of who sat the test. Files stay on disk to keep the database small; rows hold only metadata. No AI looks at images and nothing matches faces. |
+| Considered and rejected | Image bytes in Postgres (backup size). A FK from `camera_consents.invitation_id` to `user_invitations` (cross-module FK breaks module-local test harnesses). |
+| Not included | HTTP routes, the `/take/start` gate, the worker wiring of the retention sweep, and the UI. These are the next agent. |
+| Downstream | New env vars `CAMERA_ENFORCED` (default false), `CAMERA_STORAGE_DIR`, `CAMERA_STORAGE_MAX_BYTES` (module 00-core config, listed in `.env.example`). New audit action `camera.retention.sweep`. Tenancy setters write `tenant.settings.updated`. |
+| Rollback | Revert the code first. Then `DROP TABLE camera_reviewers, camera_attempt_reviews, camera_files, camera_consents` and drop the new columns. Disk files are then orphans: delete the folder. |

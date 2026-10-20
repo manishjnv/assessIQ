@@ -58,6 +58,8 @@ const EXEMPT: Record<string, string> = {
   'signup_claims.email_key': 'HMAC-SHA256 of the folded sign-up address with a server key; not reversible; kept on purpose so a purge cannot free the address (Z-71 finding 9)',
   'tenant_legal_acceptances.ip_hash': 'HMAC of the IP with a server key, not the IP; legal acceptance evidence, append-only (Z-81)',
   'tenant_legal_acceptances.user_agent_hash': 'HMAC of the user agent with a server key; legal acceptance evidence, append-only (Z-81)',
+  // Batch A camera (migration 0229): keyed hash, never the IP
+  'camera_consents.ip_hash': 'HMAC of the IP with a server key, not the IP; the whole camera_consents row is deleted by erasure.ts step 4d anyway',
   // Kept by design
   'certificates.display_name': 'D5: certificates are immutable HMAC snapshots, never mutated',
   'audit_log.ip': 'audit_log is append-only by design (14-audit-log invariant)',

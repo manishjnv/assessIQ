@@ -3,11 +3,13 @@ import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
 import {
   AppError,
+  NotFoundError,
   enterWithRequestContext,
   streamLogger,
   uuidv7,
 } from '@assessiq/core';
 import { extractClientIp, rateLimitMiddleware } from '@assessiq/auth';
+import { getUser } from '@assessiq/users';
 import { registerAdminUserRoutes } from './routes/admin-users.js';
 import { registerAdminUserTotpResetRoute } from './routes/admin-users-totp-reset.js';
 import { registerInvitationRoutes } from './routes/invitations.js';
@@ -22,7 +24,7 @@ import { registerAdminTenantSettingsRoutes } from './routes/admin-tenant-setting
 import { registerPublicTenantLogoRoutes } from './routes/public-tenant-logo.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
-import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes } from '@assessiq/attempt-engine';
+import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes, registerCameraCandidateRoutes, registerCameraAdminRoutes } from '@assessiq/attempt-engine';
 import { registerGradingRoutes } from '@assessiq/ai-grading';
 import {
   registerHelpPublicRoutes,
@@ -208,6 +210,25 @@ export async function buildServer() {
   await registerAttemptCandidateRoutes(app, { candidateOnly: authChain({ roles: ['candidate'] }) });
 
   await registerAttemptAdminRoutes(app, { adminOnly: authChain({ roles: ['admin'] }) });
+
+  // Real-exam camera (Batch A part 2): candidate upload + staff review. Uploads live in an encapsulated
+  // plugin with its own image/jpeg and video/webm parsers. The users lookup keeps module 06 free of a users dependency.
+  await registerCameraCandidateRoutes(app, { candidateOnly: authChain({ roles: ['candidate'] }) });
+  await registerCameraAdminRoutes(app, {
+    adminOnly: authChain({ roles: ['admin'] }),
+    superAdminOnly: authChain({ roles: ['super_admin'], freshMfaWithinMinutes: 15 }),
+    users: {
+      get: async (tenantId, userId) => {
+        try {
+          const u = await getUser(tenantId, userId);
+          return { id: u.id, name: u.name, email: u.email };
+        } catch (err) {
+          if (err instanceof NotFoundError) return null;
+          throw err;
+        }
+      },
+    },
+  });
 
   // Attempt-engine take routes — bare-root /take/:token magic-link surface.
   // Pre-auth (token IS the credential), so uses the public chain. Caddy must
