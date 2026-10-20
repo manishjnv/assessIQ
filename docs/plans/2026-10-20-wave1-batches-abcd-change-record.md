@@ -25,7 +25,7 @@
 - **Jobs (worker, no AI).** `credit-free-refill` runs daily at 00:10 UTC and is idempotent: the first run each UTC month does the work and later runs do nothing, which heals a missed run. `credit-expire` runs daily at 02:20 UTC.
 - **Routes.** `POST` and `GET /api/admin/super/tenants/:tenantId/credits` (super admin only, audit action `billing.credits_granted`, same transaction). `GET /api/billing/usage` gains a `credits` object (additive).
 - **UI.** A Credits block on the tenant billing page and a Credits card in the super-admin billing drawer.
-- **Not included.** Low-balance emails at 20 percent and 10 percent (follow-up row Z-94). Online payment. A tier change does not add or remove grants.
+- **Not included.** Low-balance emails at 20 percent and 10 percent (follow-up row Z-96). Online payment. A tier change does not add or remove grants.
 - **Known limits.** The `burn_by_type` view counts all-time burns. A backfilled Free grant is replaced at the next refill.
 
 ### 2. Mock or Real test type, desktop-only rule, readiness check (Z-89, Z-87, Z-91) - migrations 0216, 0217, 0219

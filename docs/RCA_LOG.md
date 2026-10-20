@@ -2890,3 +2890,24 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** `takeUnits` in `modules/06-attempt-engine/src/passages.ts` is first-fit over the shuffled units. With a pool of two passages (2 and 3 questions) and four single questions, a shuffle that puts all four singles first leaves one free slot that no whole passage fits. The result had 4 of 5 questions although a valid set of 5 existed. The bug came in with EXP-8 (S34).
 **Fix:** `passages.ts` `takeUnits`: when first-fit is short, an exact-fit search over the units (subset-sum table, earliest units kept) fills `n` exactly. If no exact fit exists, the old shorter result is returned and the caller reports the pool as too small. New unit test `take-units.test.ts`.
 **Prevention:** the unit test pins the stranded-gap case. The DB test `passage-draw.test.ts` already runs 12 random draws.
+
+## 2026-10-20 — CI e2e red: the test factory started real attempts without readiness signals (Z-91)
+
+**Symptom:** CI run on `a3a0b337` failed in the e2e shards: `take-happy-path`, `take-timer-expiry`, `ordering-admin` and `admin-workflow` step 11 got `422 READINESS_FAILED` from `startAttempt`.
+**Cause:** `apps/web/e2e/fixtures/factories.ts` `startAttempt` posted `{ consent: true }` to `/api/me/assessments/:id/start`. The device and readiness gate (Z-87, Z-91) now applies to that route for real exams, and the factory sent no readiness signals.
+**Fix:** `factories.ts` now sends desktop-sized Chrome readiness signals with the consent flag (commit `f3b0243f`).
+**Prevention:** the gate is covered by a route test for `/api/me/assessments/:id/start` in `attempt-engine.test.ts`. A new gate on a start route must update the e2e factory in the same commit.
+
+## 2026-10-20 — CI unit red: route tests that mock tenancy and auth could not load the sign-up body schema
+
+**Symptom:** CI run on `6c770069` failed about 20 `apps/api` test files at import: `No "isValidOrgName" export is defined on the "@assessiq/tenancy" mock` and `No "DPA_VERSION" export is defined on the "@assessiq/auth" mock`.
+**Cause:** `apps/api/src/routes/_schemas.ts` used `isValidOrgName`, `isValidAdminName`, `DPA_VERSION` and `TERMS_VERSION` while the module loaded (`.refine(isValidOrgName)`, `z.literal(DPA_VERSION)`). Many route tests mock `@assessiq/tenancy` and `@assessiq/auth` without those new exports, and `admin-users.ts` imports `_schemas.ts`.
+**Fix:** the schema now compares lazily inside the refine callbacks (commit `0e3ede7c`). Behaviour and messages are the same.
+**Prevention:** new exports from a shared module must not be read at import time in `_schemas.ts`. Run the full `apps/api` test directory before a push that changes `_schemas.ts`.
+
+## 2026-10-20 — Second start route skipped the device and readiness gate (found in review)
+
+**Symptom:** none in production (found in the adversarial review of `2301abb7`). A candidate with a session could start a real exam from a phone through `POST /api/me/assessments/:id/start`, with no device or readiness check.
+**Cause:** the gate sat only in `POST /take/start` (`modules/06-attempt-engine/src/routes.take.ts`).
+**Fix:** `startAttempt` enforces the gate for a new real attempt when the route passes `gate`; both request routes pass it; the retake button sends the signals (commit `a3a0b337`).
+**Prevention:** route tests for both start routes. Embed starts stay exempt and are recorded as an accepted gap.

@@ -1,3 +1,49 @@
+# Session — 2026-10-20 — S36: Wave 1 batches A to D (credit ledger, test types, device gate, mock dashboard, closed sign-up, marketing legal pages)
+
+**Headline:** Wave 1 code is live on the server: credit ledger and offline grants, Mock/Real test type, desktop-only rule and readiness check, mock results dashboard, race-safe Free candidate cap, and public self-serve sign-up built but CLOSED. The marketing site (`/dpa`, `/terms`, `/privacy`, `/signup`) is live. NOT done: the real pilot tier change (waits for the owner yes), the `PLAN_TIERS_ENFORCED` flip and `SIGNUP_ENABLED`.
+**Commits:** `917fe904`, `c5a1987e` (ledger, data columns, popup, `/dpa`, guides), `f9fd6820` (passage draw fix), `2301abb7`, `a3a0b337`, `f3b0243f` (test type, device gate, readiness, e2e factory), `a1d5ae54` (candidate cap guard), `3e15e9dc`, `6c770069`, `0e3ede7c` (sign-up core, review fixes, CI fix), `0499d893` (Z-90 dashboard), `546d0c33`, `2492af8a` (terms date, ui-labels, smoke route, runbook, change record), plus the S36 docs commit. Code on the server: `2492af8a`; migrations 0215 to 0224 applied. Marketing container rebuilt from `2492af8a`.
+**Tests:** `pnpm verify` green before every push; CI green on `c5a1987e`, `f3b0243f`, `a1d5ae54`, `0e3ede7c`, `2492af8a` (two reds on the way: e2e factory without readiness, route-test mocks without the new exports; both fixed, see RCA 2026-10-20). Sweep: 0 failures after each of the 5 deploys. Read-only curl: `/dpa`, `/terms`, `/privacy`, `/signup` answer 200; the sign-up config answers `open:false`; `POST /api/public/signup/request` answers 404.
+**Recount:** 93 pending, 187 closed, 280 total, 67% before; 86 pending, 197 closed, 283 total, 70% after (Z.7 line written, tool says SAME).
+**Next:** (1) owner says yes: run `tools/pilot-tenant-to-paid.sql` for real (birla only changes; wipro-soc is already internal), re-check, flip `PLAN_TIERS_ENFORCED=true`, sweep (Z-18); (2) owner says when: open sign-up with `docs/runbooks/open-signup.md` (Z-97); (3) Z-96 low-balance emails; (4) Wave 2 camera and photos.
+**Open questions (owner):**
+- Pilot tier for birla: the dry run used `pro` with no credit cap (unlimited, no ledger burn). Confirm the tier and the cap.
+- Legal defaults (liability floor 10,000 rupees, breach notice 48 hours) went live unreviewed; owner accepted the risk; lawyer review before the second or third paying customer.
+- Embed starts skip the device and readiness gate (accepted gap, Z-98).
+- A new Free organisation gets 1 sample set (only one aptitude pack exists). Publish more packs and extend `FREE_SAMPLE_PACK_SLUGS`.
+- IndexNow ping after the marketing deploy was not run (`node apps/marketing/scripts/indexnow-submit.mjs`).
+- Still open from before: rescoring Q1 to Q4, GIFT format, Z-52 gap 7, rate card, the server host name and IP in `CLAUDE.md`.
+**Old task or feature checked:** Z-18, Z-70, Z-71, Z-72, Z-79, Z-80, Z-81, Z-83, Z-85, Z-87, Z-89, Z-90, Z-91, Z-93, EXP-8, S32 Free-plan limits (Rule B).
+**Change record:** `docs/plans/2026-10-20-wave1-batches-abcd-change-record.md`.
+
+---
+
+## Agent utilization
+- Opus: n/a (the main session ran on Sonnet 5.5, about 1.0M tokens, estimate: planning, line-by-line review of every load-bearing diff, patch merges, help seeds, CI fixes, deploys, docs).
+- Sonnet: 6 build agents and 3 review gates, about 1.80M subagent tokens in total.
+- Haiku: 9 runs, about 0.99M subagent tokens.
+- codex:rescue: n/a (Codex is down since 2026-10-11). Three Sonnet takeover reviews ran as the adversarial gate: ledger commit accept (4 findings fixed), mode and device commit revise-addressed (1 high), sign-up commit revise-addressed (6 findings). Trailers are on `c5a1987e`, `a3a0b337` and `6c770069`.
+- Gemini (agy): n/a.
+- Sonnet · credit ledger and data columns · reworked: Y (4 migration findings) · tokens: 218909
+- Sonnet · test type, device gate, readiness · reworked: Y (second start route skipped the gate) · tokens: 321966
+- Sonnet · sign-up core · reworked: Y (6 review findings) · tokens: 474316
+- Sonnet · candidate cap race guard · reworked: N · tokens: 140350
+- Sonnet · sign-up review fixes · reworked: N (one CI follow-up by the orchestrator) · tokens: 138086
+- Sonnet · Z-90 mock dashboard · reworked: N · tokens: 192681
+- Sonnet · adversarial reviews (3) · reworked: N · tokens: 315725
+- Haiku · digest billing and provisioning · reworked: N · tokens: 101906
+- Haiku · digest invitations and attempts · reworked: N · tokens: 94622
+- Haiku · `/dpa`, terms, privacy edits · reworked: Y (one privacy sentence contradicted the camera text) · tokens: 136647
+- Haiku · UptimeRobot guide and Brevo wording · reworked: N · tokens: 143722
+- Haiku · locked-feature popup · reworked: Y (mixed line endings in the help YAML) · tokens: 142975
+- Haiku · marketing sign-up page · reworked: N (Terms checkbox added by the review fixes, a design gap) · tokens: 112190
+- Haiku · Z-90 smoke route · reworked: N · tokens: 89702
+- Haiku · ui-label fixes · reworked: N · tokens: 90020
+- Haiku · sample-set wording sweep · reworked: N · tokens: 78661
+- Haiku trial: 2 of 9 reworked (22 percent), under the 25 percent stop line; owner said continue for non-load-bearing rows only.
+- Register rows touched: TOK-6 (change log line 2026-10-20).
+
+---
+
 # Session — 2026-10-19 — S35: owner v2 sheet, pricing and the final build list (planning, no code)
 
 **Headline:** the owner answered the v2 sheet (R1 to R39) and gave follow-up decisions; they are written into ROADMAP rows Z-70..Z-95, section Z.9 (final build list, five waves), the register and memory `owner-decisions.md`. No code changed.
