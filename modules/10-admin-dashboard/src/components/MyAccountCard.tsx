@@ -7,6 +7,8 @@ import { Chip } from "@assessiq/ui-system";
 export interface MyAccountCardProps {
   initial: string;
   name: string;
+  /** The sign-in email, shown under the name (the top bar no longer shows it). */
+  email?: string | null | undefined;
   roleLabel: string;
   enrolled: boolean;
   onRegenerate: () => void;
@@ -26,7 +28,7 @@ const LINK: React.CSSProperties = {
   textAlign: "left",
 };
 
-export function MyAccountCard({ initial, name, roleLabel, enrolled, onRegenerate, onEnrol, onSignOut }: MyAccountCardProps): React.ReactElement {
+export function MyAccountCard({ initial, name, email, roleLabel, enrolled, onRegenerate, onEnrol, onSignOut }: MyAccountCardProps): React.ReactElement {
   return (
     <div
       role="group"
@@ -67,6 +69,21 @@ export function MyAccountCard({ initial, name, roleLabel, enrolled, onRegenerate
           >
             {name}
           </div>
+          {typeof email === "string" && email !== "" && (
+            <div
+              title={email}
+              style={{
+                fontFamily: "var(--aiq-font-sans)",
+                fontSize: "var(--aiq-text-xs)",
+                color: "var(--aiq-color-fg-secondary)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {email}
+            </div>
+          )}
           <div
             style={{
               fontFamily: "var(--aiq-font-mono)",

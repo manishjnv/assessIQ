@@ -300,6 +300,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     <MyAccountCard
       initial={userInitial}
       name={userDisplayName}
+      email={session?.user.email}
       roleLabel={userRoleLabel}
       enrolled={enrolled}
       onRegenerate={() => setRegenOpen(true)}
@@ -502,23 +503,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
             <AdminHelp />
             <NotificationBell />
-            <span
-              className="aiq-admin-shell-email"
-              style={{
-                fontFamily: "var(--aiq-font-sans)",
-                fontSize: "var(--aiq-text-sm)",
-                color: "var(--aiq-color-fg-secondary)",
-              }}
-            >
-              {session?.user.email}
-            </span>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-              onClick={() => void handleLogout()}
-            >
-              Sign out
-            </button>
+            {/* Account identity and Sign out live in the sidebar account card only (one place). */}
           </div>
         </header>
 
