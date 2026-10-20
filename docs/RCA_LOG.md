@@ -2911,3 +2911,10 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the gate sat only in `POST /take/start` (`modules/06-attempt-engine/src/routes.take.ts`).
 **Fix:** `startAttempt` enforces the gate for a new real attempt when the route passes `gate`; both request routes pass it; the retake button sends the signals (commit `a3a0b337`).
 **Prevention:** route tests for both start routes. Embed starts stay exempt and are recorded as an accepted gap.
+
+## 2026-10-20 — CI unit red: ledger test read migration 0225 from a path that depends on the working folder
+
+**Symptom:** CI run on `33b7b52c` failed `modules/19-billing/src/__tests__/credit-ledger.test.ts` at load (`ENOENT` when run from the module folder; `TypeError: The URL must be of scheme file` when the first fix used `import.meta.url` under the root run).
+**Cause:** the new migration test read `modules/19-billing/migrations/0225_credit_scale_x10.sql` with `process.cwd()`. A module-folder run (local) and the root run (CI) have different working folders, and the jsdom root run has no `file:` URL for `import.meta.url`.
+**Fix:** the test tries both paths and uses the one that exists (commit `9fb863b5`).
+**Prevention:** a test that reads a repo file must work from the module folder and from the repo root; run it both ways before the push.

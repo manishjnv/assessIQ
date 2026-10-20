@@ -2,9 +2,9 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-20T03:30:26.040Z (2026-10-20 09:00:26 IST)
-- HEAD: `2492af8a`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 5
+- Generated: 2026-10-20T05:44:55.502Z (2026-10-20 11:14:55 IST)
+- HEAD: `9fb863b5`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 3
 
 ## 1. Last session (SESSION_STATE, first block)
 
@@ -13,7 +13,7 @@ GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 **Headline:** Wave 1 code is live on the server: credit ledger and offline grants, Mock/Real test type, desktop-only rule and readiness check, mock results dashboard, race-safe Free candidate cap, and public self-serve sign-up built but CLOSED. The marketing site (`/dpa`, `/terms`, `/privacy`, `/signup`) is live. NOT done: the real pilot tier change (waits for the owner yes), the `PLAN_TIERS_ENFORCED` flip and `SIGNUP_ENABLED`.
 **Commits:** `917fe904`, `c5a1987e` (ledger, data columns, popup, `/dpa`, guides), `f9fd6820` (passage draw fix), `2301abb7`, `a3a0b337`, `f3b0243f` (test type, device gate, readiness, e2e factory), `a1d5ae54` (candidate cap guard), `3e15e9dc`, `6c770069`, `0e3ede7c` (sign-up core, review fixes, CI fix), `0499d893` (Z-90 dashboard), `546d0c33`, `2492af8a` (terms date, ui-labels, smoke route, runbook, change record), plus the S36 docs commit. Code on the server: `2492af8a`; migrations 0215 to 0224 applied. Marketing container rebuilt from `2492af8a`.
 **Tests:** `pnpm verify` green before every push; CI green on `c5a1987e`, `f3b0243f`, `a1d5ae54`, `0e3ede7c`, `2492af8a` (two reds on the way: e2e factory without readiness, route-test mocks without the new exports; both fixed, see RCA 2026-10-20). Sweep: 0 failures after each of the 5 deploys. Read-only curl: `/dpa`, `/terms`, `/privacy`, `/signup` answer 200; the sign-up config answers `open:false`; `POST /api/public/signup/request` answers 404.
-**Recount:** 93 pending, 187 closed, 280 total, 67% before; 86 pending, 197 closed, 283 total, 70% after (Z.7 line written, tool says SAME).
+**Recount:** 93 pending, 187 closed, 280 total, 67% before; 86 pending, 198 closed, 284 total, 70% after (Z.7 line written, tool says SAME).
 **Next:** (1) owner says yes: run `tools/pilot-tenant-to-paid.sql` for real (birla only changes; wipro-soc is already internal), re-check, flip `PLAN_TIERS_ENFORCED=true`, sweep (Z-18); (2) owner says when: open sign-up with `docs/runbooks/open-signup.md` (Z-97); (3) Z-96 low-balance emails; (4) Wave 2 camera and photos.
 **Open questions (owner):**
 - Pilot tier for birla: the dry run used `pro` with no credit cap (unlimited, no ledger burn). Confirm the tier and the cap.
@@ -24,6 +24,7 @@ GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 - Still open from before: rescoring Q1 to Q4, GIFT format, Z-52 gap 7, rate card, the server host name and IP in `CLAUDE.md`.
 **Old task or feature checked:** Z-18, Z-70, Z-71, Z-72, Z-79, Z-80, Z-81, Z-83, Z-85, Z-87, Z-89, Z-90, Z-91, Z-93, EXP-8, S32 Free-plan limits (Rule B).
 **Change record:** `docs/plans/2026-10-20-wave1-batches-abcd-change-record.md`.
+**Late S36 additions (after the first close-out):** (a) credit scale x10 live (Z-99): migrations 0225 and 0226, commits `136d09f2`, `33b7b52c`, `9fb863b5`, code on the server `9fb863b5`, sweep 0 failures; checked on the server (every Free tenant 250 included credits and a 200-credit grant); marketing rebuilt, `/signup` says 200 credits each month. (b) Owner decision: birla and wipro-soc are treated equally (wipro-soc is the test organisation): same tier `pro`, same 4,500-credit pilot grant (200 mock at 10, 50 real at 20, 50 real with camera at 30), 12 months. `tools/pilot-tenant-to-paid.sql` rewritten for this and run once in ROLLBACK on the server (result: both pro, included credits 4500, one pilot grant each, birla free grant zeroed). The REAL run, the `PLAN_TIERS_ENFORCED` flip and the sweep still wait for the owner yes. (c) UptimeRobot: 3 monitors Up, test alert mail received (Z-83 complete). Third CI red of the session (ledger test path) in RCA.
 
 
 ## 2. ROADMAP status board
@@ -81,7 +82,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d) Owner sheets 2026-10-19 (applied S34), v1 Q39: embed 
 - `Z-15` (Z-15 (Z-9, Z-10, M1-M4 mobile kit)) — Candidate result flow on a phone: findings. — pending (e is a bug) Item (e) closed (S16, 2026-10-17): `modules/15-analytics/src/activity-candidate/stats.ts`. Items (b
 
-## 4. Newest RCA entries (5 newest of 244; file order: mixed (sorted by date; same-day ties keep file order))
+## 4. Newest RCA entries (5 newest of 245; file order: mixed (sorted by date; same-day ties keep file order))
 
 ### 2026-10-20 — Passage draw could fail an attempt start with "Question pool too small" (random)
 **Symptom:** CI unit test `passage-draw.test.ts` failed once with `Question pool too small at start: 4 < 5`. In production a candidate could be refused at start on a random shuffle.
@@ -99,13 +100,13 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 **Symptom:** none in production (found in the adversarial review of `2301abb7`). A candidate with a session could start a real exam from a phone through `POST /api/me/assessments/:id/start`, with no device or readiness check.
 **Prevention:** route tests for both start routes. Embed starts stay exempt and are recorded as an accepted gap.
 
-### 2026-10-19 — CI unit shard 2 red once: Docker testcontainer unavailable (flake)
-**Symptom:** CI run 39171014351 (commit `9bd08797`, a lockfile-only dependency change) failed in unit shard 2: `billing-events.test.ts:74` reported `Docker testcontainer required but unavailable in CI`. 110 of 111 files passed.
-**Prevention:** if the error returns with 30 seconds, the cause is not the probe: read the runner Docker step and the testcontainer start logs the same day (logs expire). A shared probe helper for the 12 files is a later cleanup.
+### 2026-10-20 — CI unit red: ledger test read migration 0225 from a path that depends on the working folder
+**Symptom:** CI run on `33b7b52c` failed `modules/19-billing/src/__tests__/credit-ledger.test.ts` at load (`ENOENT` when run from the module folder; `TypeError: The URL must be of scheme file` when the first fix used `import.meta.url` under the root run).
+**Prevention:** a test that reads a repo file must work from the module folder and from the repo root; run it both ways before the push.
 
 ## 5. Next free migration
 
-- Next free: `0225` (highest `modules/*/migrations` prefix + 1)
+- Next free: `0227` (highest `modules/*/migrations` prefix + 1)
 - SESSION_STATE block names no next number; computed from files.
 
 ## 6. Reading list reminder
