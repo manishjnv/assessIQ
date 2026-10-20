@@ -24,6 +24,7 @@
 import React, { useEffect, useState, type CSSProperties } from "react";
 import { Button, Card, Chip, Spinner, Table, ConfirmDialog, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
+import { CameraSettingsCard } from "../components/CameraSettingsCard.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
 import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession, fetchAdminWhoami } from "../session.js";
@@ -1488,6 +1489,9 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
         </div>
 
         <div role="tabpanel" hidden={activeTab !== "privacy"} style={{ display: activeTab === "privacy" ? "flex" : undefined, flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
+        {/* ── Real-exam camera (camera feature): notice, school switches, reviewers ── */}
+        <CameraSettingsCard />
+
         {/* ── DPDP Data Retention section ─────────────────────────────────── */}
         <section aria-labelledby="dpdp-retention-heading">
           <div

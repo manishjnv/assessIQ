@@ -105,7 +105,26 @@ export async function collectReadinessSignals(): Promise<ReadinessSignalsWire> {
   };
 }
 
-/** One row per check, each with a plain-words message when it fails. The camera check is not part of this wave. */
+export type CameraCheckState = 'idle' | 'checking' | 'ok' | 'fail';
+
+// Camera check (real exams only). Not sent to the server: the server checks only the signals above.
+export const CAMERA_MESSAGES = {
+  denied: 'Camera access is blocked. Allow the camera in your browser settings, then press Retry.',
+  missing: 'No camera was found. Connect a camera and press Retry.',
+  busy: 'Your camera is in use by another app. Close it and press Retry.',
+  other: 'The camera could not start. Press Retry.',
+} as const;
+
+/** Maps a getUserMedia failure to the plain message for the candidate. */
+export function cameraFailureMessage(err: unknown): string {
+  const name = typeof err === 'object' && err !== null && 'name' in err ? String((err as { name: unknown }).name) : '';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return CAMERA_MESSAGES.denied;
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return CAMERA_MESSAGES.missing;
+  if (name === 'NotReadableError' || name === 'TrackStartError') return CAMERA_MESSAGES.busy;
+  return CAMERA_MESSAGES.other;
+}
+
+/** One row per check, each with a plain-words message when it fails. The camera row is added in ReadinessPanel. */
 export function evaluateReadinessRows(s: ReadinessSignalsWire, d: DeviceSignals): ReadinessRow[] {
   const major = parseInt(s.browser.version, 10);
   const minMajor = MIN_BROWSER_MAJOR[s.browser.name];

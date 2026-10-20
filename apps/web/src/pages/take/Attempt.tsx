@@ -33,6 +33,8 @@ import { AttemptTopBar } from "./attempt-parts/AttemptTopBar.js";
 import { FinishSectionModal } from "./attempt-parts/FinishSectionModal.js";
 import { KeyNav, KeyShortcutsToggle, useKeyShortcuts } from "./attempt-parts/KeyNav.js";
 import { SubmitConfirmModal } from "./attempt-parts/SubmitConfirmModal.js";
+import { useCameraCapture } from "./useCameraCapture.js";
+import { CameraIndicator, CameraLostOverlay } from "./CameraIndicator.js";
 export { isAnsweredValue } from "./attempt-parts/shared.js";
 
 export function AttemptPage(): React.JSX.Element {
@@ -155,6 +157,9 @@ export function AttemptPage(): React.JSX.Element {
   });
 
   const { multiTabActive } = useMultiTabWarning({ attemptId });
+
+  // Real-exam camera: does nothing unless the server says the camera is required.
+  const camera = useCameraCapture(attemptId, { active: !locked && !submitting });
 
   // ── Timer expiry (stable via useCallback) ─────────────────────────────────
 
@@ -536,8 +541,14 @@ export function AttemptPage(): React.JSX.Element {
             }}
           />
         </div>
+        {camera.state === 'on' && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 'var(--aiq-space-2xs) var(--aiq-space-2xl)' }}>
+            <CameraIndicator state={camera.state} />
+          </div>
+        )}
         {lockedBanner}
       </section>
+      <CameraLostOverlay state={camera.state} onRetry={camera.retry} />
 
       {/* ── MIDDLE ROW (main pane + side panel) ─────────────────────────── */}
       <div

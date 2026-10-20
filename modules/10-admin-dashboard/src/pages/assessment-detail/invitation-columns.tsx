@@ -67,6 +67,11 @@ export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onRes
             {row.delivery_mode === "mock" && (
               <Chip variant="default">Mock</Chip>
             )}
+            {row.camera_consent === "declined" && (
+              <span title="The candidate chose not to use the camera, so the test did not start. The invitation stays valid.">
+                <Chip variant="warn">Did not consent</Chip>
+              </span>
+            )}
             {expiry !== null && (
               <span
                 style={{

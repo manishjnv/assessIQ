@@ -24,10 +24,11 @@
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button, Chip, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
-import { takePreview, takeStart, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
+import { takePreview, takeStart, takeCameraConsent, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
 import { TakeRightPane } from './TakeRightPane.js';
 import { ConsentBlock, PracticeQuestion, SystemCheck, useSystemCheck } from './PreTest.js';
 import { ReadinessPanel, useReadiness } from './ReadinessPanel.js';
+import { CameraConsent } from './CameraConsent.js';
 import { DEVICE_BLOCKED_MESSAGE, collectDeviceSignals, isMobileOrTabletClient } from './readiness.js';
 
 // ─── shared style constants (mirrors login.tsx) ───────────────────────────────
@@ -74,10 +75,16 @@ type PageState =
       attemptNumber: number | null;
       attemptsAllowed: number | null;
       deliveryMode: 'real' | 'mock' | null;
+      /** Z-82: a real exam that needs the camera, and the notice version the candidate must agree to. */
+      cameraRequired: boolean;
+      cameraNoticeVersion: string | null;
     }
   | { tag: 'error404' }
   | { tag: 'invalid' }
   | { tag: 'error' };
+
+/** Device and readiness signals sent with /take/start. */
+type BeginExtra = { device: unknown; readiness: unknown };
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -100,6 +107,11 @@ export function SuccessContent({
   onBegin,
   beginning,
   beginError,
+  cameraRequired = false,
+  cameraDeclined = false,
+  onAgreeCamera,
+  onDecline,
+  onBackToStart,
 }: {
   name: string;
   company: string;
@@ -115,9 +127,15 @@ export function SuccessContent({
   /** Z-89: null = older server (no extra screens). */
   deliveryMode?: 'real' | 'mock' | null;
   resumed: boolean;
-  onBegin: (extra?: { device: unknown; readiness: unknown }) => void;
+  onBegin: (extra?: BeginExtra) => void;
   beginning: boolean;
   beginError: string | null;
+  /** Z-82: camera rule for this test, the notice version to agree to, and the declined state. */
+  cameraRequired?: boolean;
+  cameraDeclined?: boolean;
+  onAgreeCamera: (extra?: BeginExtra) => void;
+  onDecline: () => void;
+  onBackToStart: () => void;
 }): React.JSX.Element {
   const totalMinutes = Math.round(durationSeconds / 60);
   const [consent, setConsent] = useState(false);
@@ -128,16 +146,20 @@ export function SuccessContent({
   // same check as an optional dress rehearsal. The server enforces both again at Begin.
   const real = deliveryMode === 'real';
   const mock = deliveryMode === 'mock';
-  const readiness = useReadiness(deliveryMode !== null && !resumed);
+  // Z-82: the camera applies to a new real attempt whose invitation needs it. The camera runs only until Begin.
+  const cameraGate = real && cameraRequired && !resumed;
+  const cameraActive = cameraGate && !beginning && !cameraDeclined;
+  const readiness = useReadiness(deliveryMode !== null && !resumed, cameraGate, cameraActive);
   const deviceBlocked = real && isMobileOrTabletClient(collectDeviceSignals());
   const readyOk = !real || resumed || readiness.passed;
+  // The consent screen replaces the checkbox and Begin. It shows after the checks pass, and stays while the answer is sent or declined.
+  const cameraConsentShown = cameraGate && !deviceBlocked && (readiness.passed || beginning || cameraDeclined);
   const canBegin = !deviceBlocked && (resumed || (consent && !blocked && readyOk));
-  const begin = (): void =>
-    onBegin(
-      deliveryMode !== null && !resumed && readiness.signals !== null
-        ? { device: readiness.device, readiness: readiness.signals }
-        : undefined,
-    );
+  const extra = (): BeginExtra | undefined =>
+    deliveryMode !== null && !resumed && readiness.signals !== null
+      ? { device: readiness.device, readiness: readiness.signals }
+      : undefined;
+  const begin = (): void => onBegin(extra());
 
   return (
     <>
@@ -255,6 +277,18 @@ export function SuccessContent({
         </>
       )}
 
+      {cameraConsentShown && (
+        <CameraConsent
+          organisation={company}
+          busy={beginning}
+          allowDisabled={!consent || blocked}
+          declined={cameraDeclined}
+          onAllow={() => onAgreeCamera(extra())}
+          onDecline={onDecline}
+          onBack={onBackToStart}
+        />
+      )}
+
       {beginError !== null && (
         <p
           role="alert"
@@ -268,7 +302,7 @@ export function SuccessContent({
           Your device is not ready. Open &quot;Test your device&quot; above to see why.
         </p>
       )}
-      {!deviceBlocked && (
+      {!deviceBlocked && !cameraGate && (
       <Button
         size="lg"
         variant="primary"
@@ -377,6 +411,8 @@ export function TokenLanding(): React.JSX.Element {
   const [state, setState] = useState<PageState>({ tag: 'loading' });
   const [beginning, setBeginning] = useState(false);
   const [beginError, setBeginError] = useState<string | null>(null);
+  // Z-82: the candidate chose not to start on the camera consent screen.
+  const [cameraDeclined, setCameraDeclined] = useState(false);
 
   // Read-only: shows the summary WITHOUT creating the attempt or starting the clock.
   const runPreview = useCallback(async (): Promise<void> => {
@@ -385,6 +421,7 @@ export function TokenLanding(): React.JSX.Element {
       return;
     }
     setState({ tag: 'loading' });
+    setCameraDeclined(false);
     try {
       const res = await takePreview(token);
       // RW-79: the next screen is the attempt runner; warm its chunk while the candidate reads and consents.
@@ -403,6 +440,8 @@ export function TokenLanding(): React.JSX.Element {
         attemptNumber: res.assessment.attempt_number ?? null,
         attemptsAllowed: res.assessment.attempts_allowed ?? null,
         deliveryMode: res.assessment.delivery_mode ?? null,
+        cameraRequired: res.assessment.camera_required === true,
+        cameraNoticeVersion: res.assessment.camera_notice_version ?? null,
       });
     } catch (err) {
       if (err instanceof CandidateApiError) {
@@ -436,10 +475,35 @@ export function TokenLanding(): React.JSX.Element {
   }
 
   // The Begin click is the ONLY thing that creates the attempt / starts the clock.
-  const handleBegin = async (extra?: { device: unknown; readiness: unknown }): Promise<void> => {
-    if (state.tag !== 'success' || !token || beginning) return;
-    setBeginning(true);
-    setBeginError(null);
+  const beginErrorText = (err: unknown): string => {
+    const code = err instanceof CandidateApiError ? err.apiError.code : '';
+    if (code === 'DEVICE_NOT_ALLOWED') return DEVICE_BLOCKED_MESSAGE;
+    if (code === 'READINESS_FAILED')
+      return 'Your device is not ready for this test. Run the readiness check again and fix any item marked Fix needed.';
+    if (code === 'CAMERA_SETUP_REQUIRED')
+      return err instanceof CandidateApiError && err.apiError.message !== ''
+        ? err.apiError.message
+        : 'The test organiser has not finished the camera set-up. Contact your test organiser.';
+    if (code === 'CAMERA_CONSENT_REQUIRED') return 'Please choose Allow camera and start to continue.';
+    if (err instanceof CandidateApiError && err.status === 422) return 'Please accept the consent statement to begin.';
+    if (err instanceof CandidateApiError && (err.status === 404 || err.status === 410))
+      return 'This invitation link is no longer valid. Ask the person who invited you to send a new one, then use the link in your most recent email.';
+    return 'We could not start your assessment. Check your connection and try again.';
+  };
+
+  // A stale camera notice reloads the preview so the candidate reads the new text. Other errors show a message.
+  const handleFailure = (err: unknown): void => {
+    setBeginning(false);
+    const code = err instanceof CandidateApiError ? err.apiError.code : '';
+    if (code === 'CAMERA_NOTICE_STALE') {
+      void runPreview();
+      return;
+    }
+    setBeginError(beginErrorText(err));
+  };
+
+  const startAttempt = async (extra?: BeginExtra): Promise<void> => {
+    if (state.tag !== 'success' || !token) return;
     try {
       const res = await takeStart(token, {
         consent: !state.resumed,
@@ -447,20 +511,44 @@ export function TokenLanding(): React.JSX.Element {
       });
       navigate(`/take/attempt/${res.attempt_id}`);
     } catch (err) {
-      setBeginning(false);
-      const code = err instanceof CandidateApiError ? err.apiError.code : '';
-      setBeginError(
-        code === 'DEVICE_NOT_ALLOWED'
-          ? DEVICE_BLOCKED_MESSAGE
-          : code === 'READINESS_FAILED'
-            ? 'Your device is not ready for this test. Run the readiness check again and fix any item marked Fix needed.'
-            : err instanceof CandidateApiError && err.status === 422
-          ? 'Please accept the consent statement to begin.'
-          : err instanceof CandidateApiError && (err.status === 404 || err.status === 410)
-            ? 'This invitation link is no longer valid. Ask the person who invited you to send a new one, then use the link in your most recent email.'
-            : 'We could not start your assessment. Check your connection and try again.',
-      );
+      handleFailure(err);
     }
+  };
+
+  const handleBegin = async (extra?: BeginExtra): Promise<void> => {
+    if (state.tag !== 'success' || !token || beginning) return;
+    setBeginning(true);
+    setBeginError(null);
+    await startAttempt(extra);
+  };
+
+  // Z-82: Allow records the agreed decision, then starts. The camera stops because beginning is true.
+  const handleAgreeCamera = async (extra?: BeginExtra): Promise<void> => {
+    if (state.tag !== 'success' || !token || beginning) return;
+    setBeginning(true);
+    setBeginError(null);
+    try {
+      await takeCameraConsent(token, 'agreed', state.cameraNoticeVersion ?? '');
+    } catch (err) {
+      handleFailure(err);
+      return;
+    }
+    await startAttempt(extra);
+  };
+
+  // Z-82: a declined answer is recorded. The test does not start and the invitation stays valid.
+  const handleDeclineCamera = async (): Promise<void> => {
+    if (state.tag !== 'success' || !token || beginning) return;
+    setBeginning(true);
+    setBeginError(null);
+    try {
+      await takeCameraConsent(token, 'declined', state.cameraNoticeVersion ?? '');
+    } catch (err) {
+      handleFailure(err);
+      return;
+    }
+    setBeginning(false);
+    setCameraDeclined(true);
   };
 
   let leftContent: React.JSX.Element;
@@ -481,6 +569,11 @@ export function TokenLanding(): React.JSX.Element {
         onBegin={(extra) => void handleBegin(extra)}
         beginning={beginning}
         beginError={beginError}
+        cameraRequired={state.cameraRequired}
+        cameraDeclined={cameraDeclined}
+        onAgreeCamera={(extra) => void handleAgreeCamera(extra)}
+        onDecline={() => void handleDeclineCamera()}
+        onBackToStart={() => void runPreview()}
       />
     );
   } else if (state.tag === 'error404') {

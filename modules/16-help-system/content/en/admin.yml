@@ -5391,3 +5391,73 @@ admin.mock_results.not_taken:
 
     - **Needs one assessment.** Pick an assessment in the filter to see this list.
     - **Who.** Students invited to the mock with no attempt yet.
+
+admin.tenant_settings.camera:
+  audience: admin
+  short_text: "Turn the camera on or off for real exams. A school can also turn photos on or off."
+  long_md: |
+    ## Camera for real exams
+
+    - **Camera on.** Real exams need the candidate to agree to the camera before the test starts.
+    - **Camera off.** Real exams run without a camera. Mock tests never use the camera.
+    - **Photos.** Photos are taken during a real exam only when the camera is on.
+
+admin.tenant_settings.camera_notice:
+  audience: admin
+  short_text: "Confirm the camera notice your candidates read before they agree to the camera."
+  long_md: |
+    ## Camera notice
+
+    Candidates read the camera notice before they start a real exam with a camera.
+
+    - **Read the notice.** It lists why the camera is used, what is recorded and how long it is kept.
+    - **Confirm.** Confirm the notice once. A new notice version asks you to confirm again.
+
+admin.tenant_settings.camera_reviewers:
+  audience: admin
+  short_text: "Name the people who may review camera files for your organisation. Only they can open them."
+  long_md: |
+    ## Camera reviewers
+
+    Only named reviewers can see camera photos and video.
+
+    - **Add a reviewer.** Pick a user of your organisation. The change is recorded.
+    - **Remove a reviewer.** The person loses access at once.
+    - **Platform staff.** AssessIQ staff can also open files to support you.
+
+admin.camera.review_list:
+  audience: admin
+  short_text: "Attempts with a camera flag. Open one to review its photos and video."
+  long_md: |
+    ## Flagged attempts
+
+    This list shows attempts where the camera saw a problem or the camera stopped.
+
+    - **Open an attempt.** See its photos and video.
+    - **Mark reviewed.** Mark the attempt when you finish the review.
+    - **Appeal.** Set the appeal state while a candidate disputes the result.
+
+admin.camera.review_files:
+  audience: admin
+  short_text: "Photos and video from one attempt. Each view is recorded. Mark the review when done."
+  long_md: |
+    ## Camera files
+
+    Each view of a file is recorded in the audit log.
+
+    - **Look at a file.** Open a photo or video to see it.
+    - **Flagged moments.** Flagged files show the reason.
+    - **Keep times.** Files are deleted when their keep time ends. An open appeal keeps them longer.
+
+admin.platform.tenants.school:
+  audience: admin
+  short_text: "Mark this organisation as a school. A school admin then chooses the camera settings."
+  long_md: |
+    ## School flag
+
+    A school flag changes how the camera works for this organisation.
+
+    - **School on.** The school admin chooses whether the camera and photos are on.
+    - **School off.** The organisation follows the normal camera rule.
+    - **Fresh sign-in.** Changing this flag needs a recent two-factor check.
+

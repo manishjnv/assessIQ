@@ -111,6 +111,11 @@ export interface RegisterAssessmentLifecycleRoutesOptions {
   adminOnly: import("fastify").preHandlerHookHandler[] | import("fastify").preHandlerHookHandler;
   /** Optional per-tenant throttle appended after adminOnly on the bulk resend route (injected from apps/api). */
   bulkResendGuard?: import("fastify").preHandlerHookHandler;
+  /**
+   * Optional list enricher injected from apps/api (module 06 owns camera consents; no cross-module join here).
+   * Gets the invitation ids that have no attempt yet; returns the ids whose newest camera consent is 'declined'.
+   */
+  declinedCameraInvitations?: (tenantId: string, invitationIds: string[]) => Promise<string[]>;
 }
 
 export async function registerAssessmentLifecycleRoutes(
@@ -587,7 +592,13 @@ export async function registerAssessmentLifecycleRoutes(
       const filters: { status?: InvitationStatus; page: number; pageSize: number } = { page, pageSize };
       if (q["status"] !== undefined) filters.status = q["status"] as InvitationStatus;
 
-      return listInvitations(tenantId, id, filters);
+      const result = await listInvitations(tenantId, id, filters);
+      // "Did not consent": newest camera consent declined AND no attempt yet (a later start clears it).
+      const noAttempt = result.items.filter((i) => i.attempt_id == null).map((i) => i.id);
+      const declined = new Set(
+        opts.declinedCameraInvitations ? (await opts.declinedCameraInvitations(tenantId, noAttempt)).filter((id) => noAttempt.includes(id)) : [],
+      );
+      return { ...result, items: result.items.map((i) => ({ ...i, camera_consent: declined.has(i.id) ? "declined" : null })) };
     },
   );
 

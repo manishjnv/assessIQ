@@ -194,4 +194,10 @@ describe("AdminAssessmentDetail — resend invitations", () => {
 
     expect((await screen.findByRole("alert")).textContent).toMatch(/already started this assessment/);
   });
+
+  it("R6 shows the Did not consent chip only where the server sends camera_consent = declined", async () => {
+    mockApi({ items: [row("inv-dc", "Dana", { camera_consent: "declined" }), row("inv-ok", "Omar", { camera_consent: null })] });
+    await renderPage();
+    expect(await screen.findAllByText("Did not consent")).toHaveLength(1);
+  });
 });

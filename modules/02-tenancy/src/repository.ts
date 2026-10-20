@@ -221,6 +221,7 @@ export interface TenantAdminSummaryRow {
   slug: string;
   name: string;
   status: string;
+  is_school: boolean;
   created_at: Date;
   admin_user_id: string | null;
   admin_email: string | null;
@@ -244,7 +245,7 @@ export async function listTenantsWithAdminSummary(
     // (PATCH /api/admin/super/users/:userId). The invitation id is the
     // outstanding (unaccepted) invite for that admin, used to re-address a
     // pending invite when its email is corrected.
-    `SELECT t.id, t.slug, t.name, t.status, t.created_at,
+    `SELECT t.id, t.slug, t.name, t.status, t.is_school, t.created_at,
                   a.id     AS admin_user_id,
                   a.email  AS admin_email,
                   a.name   AS admin_name,

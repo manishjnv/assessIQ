@@ -18,6 +18,7 @@ import {
   buildCameraRelativePath,
   getUsage,
   insertConsent,
+  listDeclinedCameraInvitationIds,
   linkConsentToAttempt,
   latestConsentForInvitation,
   hasAgreedConsentForAttempt,
@@ -237,5 +238,29 @@ describe("repository and usage", () => {
       expect(await removeReviewer(c, u)).toBe(true);
       expect(await isReviewer(c, u)).toBe(false);
     });
+  });
+});
+
+describe("listDeclinedCameraInvitationIds", () => {
+  it("only invitations whose newest consent is declined; never another tenant's rows", async () => {
+    const declined = randomUUID(), declinedThenAgreed = randomUUID(), agreedOnly = randomUUID(), noConsent = randomUUID(), other = randomUUID();
+    const mk = (tenant: string, inv: string, decision: "agreed" | "declined", at: string) =>
+      sup(
+        `INSERT INTO camera_consents (tenant_id, invitation_id, user_id, decision, notice_version, ip_hash, device_type, created_at)
+         VALUES ($1, $2, $3, $4, 'v1', 'h', 'desktop', $5)`,
+        [tenant, inv, user, decision, at],
+      );
+    await mk(T, declined, "declined", "2026-10-20T01:00:00Z");
+    await mk(T, declinedThenAgreed, "declined", "2026-10-20T01:00:00Z");
+    await mk(T, declinedThenAgreed, "agreed", "2026-10-20T02:00:00Z");
+    await mk(T, agreedOnly, "agreed", "2026-10-20T01:00:00Z");
+    const TB = randomUUID();
+    await sup(`INSERT INTO tenants (id, slug, name) VALUES ($1, $2, 'B')`, [TB, `b-${TB.slice(0, 8)}`]);
+    await mk(TB, other, "declined", "2026-10-20T01:00:00Z");
+
+    const ids = [declined, declinedThenAgreed, agreedOnly, noConsent, other];
+    expect(await listDeclinedCameraInvitationIds(T, ids)).toEqual([declined]);
+    expect(await listDeclinedCameraInvitationIds(TB, ids)).toEqual([other]);
+    expect(await listDeclinedCameraInvitationIds(T, [])).toEqual([]);
   });
 });

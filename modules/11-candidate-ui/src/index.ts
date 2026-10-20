@@ -42,6 +42,7 @@ export type {
 export {
   CandidateApiError,
   takeStart,
+  takeCameraConsent,
   takePreview,
   listInvitedAssessments,
   startAttempt,

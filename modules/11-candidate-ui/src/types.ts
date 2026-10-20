@@ -126,6 +126,9 @@ export interface TakeStartResponseWire {
     company_name?: string;
     /** Logo L3a: tenant logo URL; null/absent = name only. */
     company_logo_url?: string | null;
+    /** Z-82: a real exam that needs the camera. Absent on older servers. */
+    camera_required?: boolean;
+    camera_notice_version?: string;
   };
 }
 
@@ -149,6 +152,9 @@ export interface TakePreviewResponseWire {
     attempts_allowed?: number;
     /** Z-89: set by the admin; the page shows the right screen before start. Absent on older servers. */
     delivery_mode?: "real" | "mock";
+    /** Z-82: the camera rule for this test. Absent on older servers. */
+    camera_required?: boolean;
+    camera_notice_version?: string;
   };
 }
 

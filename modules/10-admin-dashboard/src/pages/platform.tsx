@@ -20,6 +20,7 @@ import { AdminShell } from "../components/AdminShell.js";
 import { AdminApiError, resendInvitationApi, listTenantsApi, suspendTenantApi, resumeTenantApi, archiveTenantApi, unarchiveTenantApi, type TenantListItem, type LifecycleResponse } from "../api.js";
 import { type LifecycleAction, META_LABEL, ROW_PADDING, formatDate } from "./platform/shared.js";
 import { CreateCompanyForm } from "./platform/CreateCompanyForm.js";
+import { SchoolSwitch } from "./platform/SchoolSwitch.js";
 import { EditAdminModal } from "./platform/EditAdminModal.js";
 import { LifecycleConfirmModal } from "./platform/LifecycleConfirmModal.js";
 import { BillingDrawer } from "./platform/BillingDrawer.js";
@@ -175,7 +176,7 @@ export function AdminPlatform(): React.ReactElement {
   };
 
   // Updated ROW_GRID to accommodate Manage column at end
-  const ROW_GRID_WITH_MANAGE = `${ROW_GRID} 120px`;
+  const ROW_GRID_WITH_MANAGE = `${ROW_GRID} 130px 120px`;
 
   return (
     <AdminShell breadcrumbs={["Platform"]} helpPage="admin.platform">
@@ -380,6 +381,7 @@ export function AdminPlatform(): React.ReactElement {
               <span>Primary contact</span>
               <span>Usage</span>
               <span>Status</span>
+              <span>School</span>
               <span>Created</span>
               <span></span>
             </div>
@@ -542,6 +544,16 @@ export function AdminPlatform(): React.ReactElement {
                     ) : (
                       <Chip variant={statusVariant(t.status)}>{organisationStatusDisplay(t.status).label}</Chip>
                     )}
+                  </span>
+                  {/* Camera feature: school flag (super admin, fresh MFA) */}
+                  <span>
+                    <SchoolSwitch
+                      tenant={t}
+                      onChanged={(message) => {
+                        setLifecycleToast(message);
+                        setTimeout(() => setLifecycleToast(null), 4000);
+                      }}
+                    />
                   </span>
                   {/* Created — mono, en-GB */}
                   <span

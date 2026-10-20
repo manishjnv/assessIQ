@@ -24,7 +24,7 @@ import { registerAdminTenantSettingsRoutes } from './routes/admin-tenant-setting
 import { registerPublicTenantLogoRoutes } from './routes/public-tenant-logo.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
 import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
-import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes, registerCameraCandidateRoutes, registerCameraAdminRoutes } from '@assessiq/attempt-engine';
+import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes, registerCameraCandidateRoutes, registerCameraAdminRoutes, listDeclinedCameraInvitationIds } from '@assessiq/attempt-engine';
 import { registerGradingRoutes } from '@assessiq/ai-grading';
 import {
   registerHelpPublicRoutes,
@@ -202,6 +202,8 @@ export async function buildServer() {
     adminOnly: authChain({ roles: ['admin'] }),
     // 10 per 10 min per organisation: an admin may resend for several assessments in a row (review 2026-10-17).
     bulkResendGuard: tenantRateLimit({ name: 'invitations-bulk-resend', max: 10, windowSeconds: 600 }),
+    // Camera "Did not consent" label on the invitations list (module 06 data, wired here).
+    declinedCameraInvitations: listDeclinedCameraInvitationIds,
   });
 
   // Attempt-engine candidate routes — registers /api/me/assessments and
