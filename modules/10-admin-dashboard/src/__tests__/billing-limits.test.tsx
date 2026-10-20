@@ -25,8 +25,8 @@ import { AdminBilling } from "../pages/billing.js";
 
 const base = {
   tier: "free",
-  included_credits: 25,
-  used: 3,
+  included_credits: 250,
+  used: 30,
   remaining: 22,
   overage: 0,
   status: "ok",

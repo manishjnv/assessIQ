@@ -11,7 +11,7 @@
 --   at_risk = true  -> the flip blocks or changes this tenant. Fix first (move it to a paid tier,
 --                      see tools/pilot-tenant-to-paid.sql, or get the owner OK).
 -- Limits (keep in step with TIER_LIMITS.free in modules/19-billing/src/service.ts):
---   candidates 5 in total, licensed packs 5, credits 25 (hard stop at 100 %), AI attempts 5.
+--   candidates 5 in total, licensed packs 5, credits 250 (hard stop at 100 %; the query counts graded attempts, 25 attempts x 10 = 250), AI attempts 5.
 -- Locked on Free (FEATURE_MIN_TIER): webhooks, API keys, embed, audit viewer, own email sender.
 
 WITH t AS (
@@ -47,7 +47,7 @@ aud   AS (  -- audit viewer use is not stored; an audit export action is the nea
 SELECT t.slug, t.tier, t.no_plan_row,
        COALESCE(cand.n, 0)    AS candidates_ever,   -- limit 5
        COALESCE(packs.n, 0)   AS licensed_packs,    -- limit 5
-       COALESCE(credits.n, 0) AS credits_used,      -- limit 25 (t.included_credits)
+       COALESCE(credits.n, 0) AS credits_used,      -- graded attempts; limit 25 attempts = 250 credits (t.included_credits)
        t.included_credits,
        COALESCE(ai.n, 0)      AS ai_attempts,       -- limit 5
        COALESCE(hooks.n, 0)   AS webhook_endpoints, -- locked on Free

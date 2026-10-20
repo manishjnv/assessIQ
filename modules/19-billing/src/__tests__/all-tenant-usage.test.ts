@@ -198,7 +198,7 @@ beforeAll(
       // Provision plans
       await client.query(
         `INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES
-           ($1, 'free', 25),
+           ($1, 'free', 250),
            ($2, 'internal', NULL)`,
         [FREE_TENANT_ID, INTERNAL_TENANT_ID],
       );
@@ -247,11 +247,11 @@ describe('getAllTenantUsage', () => {
 
       expect(freeRow).toBeDefined();
       expect(freeRow?.tier).toBe('free');
-      expect(freeRow?.included_credits).toBe(25);
-      expect(freeRow?.used).toBe(30);
-      expect(freeRow?.overage).toBe(5);
+      expect(freeRow?.included_credits).toBe(250);
+      expect(freeRow?.used).toBe(300);
+      expect(freeRow?.overage).toBe(50);
       expect(freeRow?.status).toBe('over');
-      expect(freeRow?.remaining).toBe(-5); // 25 - 30 = -5
+      expect(freeRow?.remaining).toBe(-50); // 250 - 300
 
       expect(internalRow).toBeDefined();
       expect(internalRow?.tier).toBe('internal');

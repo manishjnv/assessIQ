@@ -112,3 +112,9 @@
 - `docs/02-data-model.md`, `03-api-contract.md`, `04-auth-flows.md`, `06-deployment.md`, `08-ui-system.md` and the SKILL files of 01, 02, 05, 06, 15 and 19 carry the detail.
 - Z-18 (the flag flip) must follow the pilot tier change. A Free-tier pilot would hit the 5-candidate cap.
 - Wave 2 (camera, photos, video) uses `attempts.camera_enabled` and the burn type `real_camera`.
+
+## 9. Credit scale x10 (Z-95)
+
+- **What changed.** All credit amounts are 10 times larger (owner 2026-10-20): mock 10, real 20, real with camera 30; Free monthly refill 200; default Free allowance 250. The monetary value of each test is the same.
+- **Where.** `modules/19-billing/src/burn-rates.ts`, `service.ts`, `repository.ts` (old meter reported in credit units, 10 per graded attempt). Migration 0225 (`credit_scale_x10`, scales data once, new insert-policy limit 200). Migration 0226 (help rows `admin.settings.billing.usage` and `.credits_burn`, new version). Sign-up page text: 200 credits each month.
+- **Rollback.** Not automatic. Divide `credit_grants`, `credit_burns` and `tenant_plans.included_credits` by 10, restore the policy limit 20, clear the table comment on `credit_grants`, revert the code.

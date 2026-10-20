@@ -41,7 +41,7 @@ const base = (over: Partial<Parameters<typeof createSelfServeTenant>[0]> = {}): 
   userAgent: "vitest-agent",
   // Stand-in for the 19-billing step that apps/api passes in.
   provision: async (client, ctx) => {
-    await client.query(`INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1,'free',25)`, [ctx.tenantId]);
+    await client.query(`INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1,'free',250)`, [ctx.tenantId]);
     return { plan: "free" };
   },
   ...over,

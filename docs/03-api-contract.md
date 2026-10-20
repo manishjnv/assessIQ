@@ -2767,6 +2767,8 @@ Re-snapshot `display_name` from the current `users` record and recompute `signed
 
 Returns the calling tenant's credit tier, allowance, and current consumption. Soft-enforcement only — this endpoint reports usage and never blocks a request.
 
+**Credit scale (Z-95, 2026-10-20):** all credit numbers (`included_credits`, `used`, `remaining`, `overage`, `credits.*`) are on the x10 scale: mock 10, real 20, real with camera 30; Free refill 200. The shape of the `credits` object is unchanged.
+
 **Auth:** company tenant admin (`authChain({ roles: ['admin'] })`); own tenant only; read-only. `super_admin` satisfies the admin gate via the role hierarchy and resolves to the platform tenant's plan row (`internal` tier, `included_credits: null` — harmless).
 
 **Request:** no query params, no body.

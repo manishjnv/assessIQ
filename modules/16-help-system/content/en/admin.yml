@@ -700,15 +700,17 @@ admin.audit.archives.restore_procedure:
 
 admin.settings.billing.usage:
   audience: admin
-  short_text: "1 credit = 1 graded attempt. Grading is never blocked. Green = under 80%, amber = 80–100%, red = over included credits."
+  version: 2
+  short_text: "Mock 10, real 20, real with camera 30 credits per graded attempt. Grading is never blocked. Amber at 80%, red when over."
   long_md: |
     ## Your plan & usage
 
     **How credits work.**
-    One credit is used when a candidate attempt reaches the graded state — that
-    is, after the candidate submits and the AI grading completes. Re-grading the
-    same attempt never charges again; the credit is a one-time event per attempt.
-    Credits are counted across your whole organisation.
+    Credits are used when a candidate attempt reaches the graded state — that
+    is, after the candidate submits and the AI grading completes. A mock test
+    uses 10 credits, a real test 20, and a real test with camera 30.
+    Re-grading the same attempt never charges again; the credits are used once
+    for each attempt. Credits are counted across your whole organisation.
 
     **Grading is never blocked.**
     Assigning, submitting, and grading always work, even when you have used more
@@ -1489,12 +1491,13 @@ admin.settings.billing.credits_balance:
 
 admin.settings.billing.credits_burn:
   audience: admin
+  version: 2
   short_text: "Credits used so far, split by test type: mock, real, and real with camera."
   long_md: |
     ## Credits used by test type
 
-    A mock test uses 1 credit. A real test uses 2 credits. A real test with
-    camera uses 3 credits. The credits are used once for each graded attempt.
+    A mock test uses 10 credits. A real test uses 20 credits. A real test with
+    camera uses 30 credits. The credits are used once for each graded attempt.
     A re-grade of the same attempt does not use credits again.
 
 admin.settings.billing.alert_threshold:

@@ -2767,6 +2767,17 @@ A passage is shared stem text used by several question rows (reading text, data 
 | Downstream impact | `recordGradedAttempt` (module 19) burns in the same transaction as the grade. `GET /api/billing/usage` gains a `credits` object. `erasure-coverage.test.ts` exempts `credit_grants.note`. Audit action `billing.credits_granted` added to the catalog. |
 | Rollback | Revert the code first. Then `DROP TABLE credit_burns, credit_grants` and drop the new columns; the credit data is lost. |
 
+## Z-95 (2026-10-20): credit scale x10 (migration 0225, module 19)
+
+| Item | Detail |
+|---|---|
+| What | `credit_grants.credits/remaining`, `credit_burns.credits/shortfall` and non-NULL `tenant_plans.included_credits` are multiplied by 10 once (guard: table comment on `credit_grants`, so a second run does nothing). The insert policy `tenant_isolation_insert` now allows `credits = remaining AND credits <= 200` for `free_monthly`. No new column or table. |
+| Why | 1 new credit = 1/10 of an old credit, for finer pricing steps later. The monetary value of each test is unchanged. |
+| Considered and rejected | Changing only the price per credit. |
+| Not included | Any price or value change; any change to expiry, burn order or refill rules. |
+| Downstream impact | `GET /api/billing/usage`: `used` and `included_credits` are on the x10 scale (shape unchanged). Help rows 0226. |
+| Rollback | Not automatic: divide the columns by 10, restore the policy limit 20, clear the table comment. |
+
 ## Z-71 (2026-10-20): `tenant_candidate_counted` (migration 0222, module 19)
 
 | Item | Detail |
