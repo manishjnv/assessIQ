@@ -650,9 +650,11 @@ export async function issueCertificateOnRelease(
     total_max: string | null;
     pass_mark_pct: number | null;
     erased: boolean;
+    delivery_mode: string;
   }>(
     `SELECT
        a.user_id               AS candidate_id,
+       a.delivery_mode         AS delivery_mode,
        u.name              AS display_name,
        ass.name            AS course_title,
        l.label             AS level,
@@ -672,6 +674,7 @@ export async function issueCertificateOnRelease(
   const row = result.rows[0];
   if (row === undefined) return null;
   if (row.erased) return null; // E3: no certificate for an erased candidate
+  if (row.delivery_mode === 'mock') return null; // Z-89: a mock test never makes a certificate (also guarded in 09 release.ts)
   if (row.total_earned === null || row.total_max === null || row.pass_mark_pct === null) {
     return null; // scores not yet computed
   }

@@ -83,7 +83,7 @@ export async function listInvitedAssessments(): Promise<{
 
 export async function startAttempt(
   assessmentId: string,
-  opts: { newAttempt?: boolean } = {},
+  opts: { newAttempt?: boolean; device?: unknown; readiness?: unknown } = {},
 ): Promise<{ attempt_id: string }> {
   // Server returns the full Attempt; the candidate UI only needs the id to
   // pivot the route, the full view is fetched fresh via getAttempt below.
@@ -92,7 +92,15 @@ export async function startAttempt(
     `/me/assessments/${encodeURIComponent(assessmentId)}/start`,
     {
       method: "POST",
-      ...(opts.newAttempt === true ? { body: JSON.stringify({ new_attempt: true }) } : {}),
+      ...(opts.newAttempt === true || opts.readiness !== undefined
+        ? {
+            body: JSON.stringify({
+              ...(opts.newAttempt === true ? { new_attempt: true } : {}),
+              ...(opts.device !== undefined ? { device: opts.device } : {}),
+              ...(opts.readiness !== undefined ? { readiness: opts.readiness } : {}),
+            }),
+          }
+        : {}),
     },
   );
   return { attempt_id: attempt.id };

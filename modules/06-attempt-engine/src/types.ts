@@ -282,6 +282,13 @@ export interface StartAttemptInput {
    * server-side before this is set; startAttempt only stores it.
    */
   readiness?: unknown;
+  /**
+   * Z-87 / Z-91: set by every NON-embed route that starts an attempt. `mobile` = the request came from
+   * a phone or tablet. A NEW attempt of a REAL exam is refused here (not only in the route) when `gate`
+   * is missing, `mobile` is true, or `readiness.passed` is not true. Embed starts are exempt
+   * (host-asserted, same as consent). Mock tests are never refused.
+   */
+  gate?: { mobile: boolean };
 }
 
 export interface SaveAnswerInput {
