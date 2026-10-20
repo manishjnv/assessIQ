@@ -86,6 +86,8 @@ const body = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
   turnstileToken: `tok-${++tokN}`,
   dpaAccepted: true,
   dpaVersion: '1.0',
+  termsAccepted: true,
+  termsVersion: '1.0',
   ...over,
 });
 const post = (url: string, payload: unknown, headers: Record<string, string> = {}) =>
@@ -211,6 +213,10 @@ describe('request validation (400, nothing sent)', () => {
     ['dpaVersion wrong', { dpaVersion: '0.9' }, 'DPA_VERSION_MISMATCH'],
     ['org name too short', { orgName: 'ab' }, 'INVALID_ORG_NAME'],
     ['org name with markup', { orgName: '<script>alert(1)</script>' }, 'INVALID_ORG_NAME'],
+    ['termsAccepted missing', { termsAccepted: undefined }, 'TERMS_NOT_ACCEPTED'],
+    ['termsAccepted false', { termsAccepted: false }, 'TERMS_NOT_ACCEPTED'],
+    ['termsVersion wrong', { termsVersion: '0.9' }, 'TERMS_VERSION_MISMATCH'],
+    ['mixed-script org name', { orgName: 'G\u043E\u043Egle Latin\u0430' }, 'INVALID_ORG_NAME'],
     ['bad email', { email: 'nope' }, 'INVALID_EMAIL'],
   ])('%s', async (_n, over, code) => {
     const res = await post('/api/public/signup/request', body(over));

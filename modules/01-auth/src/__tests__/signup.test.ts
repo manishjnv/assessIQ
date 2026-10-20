@@ -212,7 +212,7 @@ describe("happy path", () => {
     expect(audit.rows.map((a) => a.action)).toEqual(["tenant.provisioned", "signup.completed"]);
 
     // A NEW session for the new admin: admin role, this tenant, MFA flag follows MFA_REQUIRED=false.
-    const s = await sessions.get(out.sessionToken);
+    const s = await sessions.get(out.sessionToken!);
     expect(s).toMatchObject({ userId: out.userId, tenantId: out.tenantId, role: "admin", totpVerified: true });
     expect(await getRedis().get(`aiq:rl:signup:day:${new Date().toISOString().slice(0, 10)}`)).toBe("1");
     // The code is single-use.
@@ -225,7 +225,7 @@ describe("happy path", () => {
     await requestSignup(reqInput({ email, orgName: "Mfa Required School" }));
     const out = await verifySignup({ email, code: codeFor(email), ip: "203.0.113.51", ua: "ua" }, { provision: provisionStub });
     expect(out.ok && out.redirectTo).toBe("/admin/mfa");
-    if (out.ok) expect(await sessions.get(out.sessionToken)).toMatchObject({ role: "admin", totpVerified: false });
+    if (out.ok) expect(await sessions.get(out.sessionToken!)).toMatchObject({ role: "admin", totpVerified: false });
   });
 
   it("the acceptance rows keep the versions and request IP / UA the visitor ticked, as hashes", async () => {
@@ -481,6 +481,28 @@ describe("super-admin, block list, daily cap", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("brand look-alikes (fullwidth, Cyrillic, diacritics) are blocked; a normal name passes", async () => {
+    const { isBlockedSignup } = await import("../signup-blocklist.js");
+    for (const name of ["\uFF27\uFF4F\uFF4F\uFF47\uFF4C\uFF45", "G\u043E\u043Egle", "Micr\u043Esoft Academy", "G\u00F6\u00F6gle Labs"]) {
+      expect(isBlockedSignup("a@school.test", name), name).toBe(true);
+    }
+    expect(isBlockedSignup("a@school.test", "Bright Future Academy")).toBe(false);
+  });
+
+  it("verify with a wrong code while the cap is full writes no audit row", async () => {
+    const key = `aiq:rl:signup:day:${new Date().toISOString().slice(0, 10)}`;
+    const before = await getRedis().get(key);
+    await getRedis().set(key, String(SIGNUP_GLOBAL_MAX_PER_DAY));
+    try {
+      const rows = await count(`SELECT count(*) n FROM audit_log WHERE action='signup.rejected'`);
+      expect(await verifySignup({ email: nextEmail("capaud"), code: "000000", ip: "203.0.113.82", ua: "u" })).toEqual({ ok: false });
+      expect(await count(`SELECT count(*) n FROM audit_log WHERE action='signup.rejected'`)).toBe(rows);
+    } finally {
+      if (before === null) await getRedis().del(key);
+      else await getRedis().set(key, before);
+    }
+  });
+
   it("at the daily cap: request sends nothing; verify refuses without burning the code", async () => {
     const email = nextEmail("cap");
     await requestSignup(reqInput({ email, orgName: "Cap Day School" }));
@@ -506,9 +528,10 @@ describe("rollback and versions", () => {
   it("a failing step leaves no tenant, no user and no claim", async () => {
     const email = nextEmail("fail");
     await requestSignup(reqInput({ email, orgName: "Failing Step School" }));
-    await expect(
-      verifySignup({ email, code: codeFor(email), ip: "203.0.113.90", ua: "u" }, { provision: async () => { throw new Error("billing down"); } }),
-    ).rejects.toThrow("billing down");
+    // Neutral answer (real error is logged), not a thrown 500.
+    expect(
+      await verifySignup({ email, code: codeFor(email), ip: "203.0.113.90", ua: "u" }, { provision: async () => { throw new Error("billing down"); } }),
+    ).toEqual({ ok: false });
     expect(await count(`SELECT count(*) n FROM tenants WHERE name='Failing Step School'`)).toBe(0);
     expect(await count(`SELECT count(*) n FROM users WHERE email=$1`, [email])).toBe(0);
     expect(await count(`SELECT count(*) n FROM signup_claims WHERE email_key=$1`, [signupEmailKey(email)])).toBe(0);
@@ -523,6 +546,19 @@ describe("rollback and versions", () => {
     );
     expect(out.ok).toBe(true);
     expect(await count(`SELECT count(*) n FROM tenants WHERE name='Seed Failure School' AND status='active'`)).toBe(1);
+  });
+
+  it("a session failure after the tenant committed returns ok with no token and the login redirect", async () => {
+    const email = nextEmail("sessfail");
+    await requestSignup(reqInput({ email, orgName: "Session Failure School" }));
+    const spy = vi.spyOn(sessions, "create").mockRejectedValueOnce(new Error("redis down"));
+    try {
+      const out = await verifySignup({ email, code: codeFor(email), ip: "203.0.113.94", ua: "u" }, { provision: provisionStub });
+      expect(out).toMatchObject({ ok: true, sessionToken: null, redirectTo: "/admin/login" });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await count(`SELECT count(*) n FROM tenants WHERE name='Session Failure School' AND status='active'`)).toBe(1);
   });
 
   it("a dpaVersion on verify that differs from the stored one is refused", async () => {

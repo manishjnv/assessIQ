@@ -5,7 +5,7 @@
 // documented against docs/03-api-contract.md. Behaviour notes live next to each schema.
 
 import { z, requiredString, queryFlag } from './_validate.js';
-import { DPA_VERSION } from '@assessiq/auth';
+import { DPA_VERSION, TERMS_VERSION } from '@assessiq/auth';
 import { isValidOrgName, isValidAdminName } from '@assessiq/tenancy';
 
 // ---- admin-super shared ------------------------------------------
@@ -279,6 +279,12 @@ export const signupRequestBody = z
     }),
     dpaVersion: z.literal(DPA_VERSION, {
       errorMap: () => ({ message: 'The data processing addendum version is out of date. Reload the page.' }),
+    }),
+    termsAccepted: z.literal(true, {
+      errorMap: () => ({ message: 'You must accept the Terms of Service.' }),
+    }),
+    termsVersion: z.literal(TERMS_VERSION, {
+      errorMap: () => ({ message: 'The Terms of Service version is out of date. Reload the page.' }),
     }),
   })
   .strict();

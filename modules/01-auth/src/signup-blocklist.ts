@@ -60,8 +60,27 @@ export const BLOCKED_ORG_NAMES: readonly string[] = [
   "ibps",
 ];
 
+// Look-alike letters (Cyrillic, Greek) folded to ASCII before matching.
+const CONFUSABLES: Readonly<Record<string, string>> = {
+  "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "у": "y", "х": "x", "і": "i", "ј": "j",
+  "ѕ": "s", "һ": "h", "ԁ": "d", "ɡ": "g", "ο": "o", "ν": "v", "ρ": "p", "τ": "t", "α": "a",
+  "ε": "e", "ι": "i", "κ": "k",
+};
+
+/** NFKC, lower-case, collapse spaces, strip diacritics, fold look-alikes. Same NFKC as self-serve.ts. */
+export function foldForBlocklist(s: string): string {
+  return s
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\u0000-\u007f]/g, (c) => CONFUSABLES[c] ?? c);
+}
+
 function words(s: string): string {
-  return ` ${s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
+  return ` ${foldForBlocklist(s).replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
 }
 
 /** True when the address host or the organisation name is on the block list. */

@@ -190,6 +190,19 @@ const freeIncludes = [
                 </span>
               </label>
 
+              <label class="flex items-start gap-aiq-sm font-sans text-aiq-sm text-aiq-fg-secondary leading-relaxed cursor-pointer">
+                <input
+                  type="checkbox"
+                  id="signup-terms"
+                  name="termsAccepted"
+                  class="mt-1 h-4 w-4 flex-shrink-0 accent-[#1f4fd8]"
+                />
+                <span>
+                  I have read and accept the
+                  <a href="/terms" target="_blank" rel="noopener" class="text-aiq-accent underline">Terms of Service<span class="sr-only"> (opens in a new tab)</span></a>.
+                </span>
+              </label>
+
               <button
                 type="submit"
                 id="signup-submit"
@@ -289,6 +302,7 @@ const freeIncludes = [
   const nameEl      = $('signup-name') as HTMLInputElement | null;
   const emailEl     = $('signup-email') as HTMLInputElement | null;
   const dpaEl       = $('signup-dpa') as HTMLInputElement | null;
+  const termsEl     = $('signup-terms') as HTMLInputElement | null;
   const submitBtn   = $('signup-submit') as HTMLButtonElement | null;
   const statusEl    = $('signup-status');
   const tsBox       = $('signup-turnstile');
@@ -301,6 +315,8 @@ const freeIncludes = [
 
   let siteKey = '';
   let dpaVersion = '';
+  // Must equal TERMS_VERSION in modules/01-auth/src/signup-legal.ts (changed in the same deploy).
+  const termsVersion = '1.0';
   let token = '';
   let widgetId: string | null = null;
   let sentTo = '';
@@ -322,7 +338,7 @@ const freeIncludes = [
   };
 
   const updateButton = () => {
-    if (submitBtn) submitBtn.disabled = !(dpaEl?.checked && token);
+    if (submitBtn) submitBtn.disabled = !(dpaEl?.checked && termsEl?.checked && token);
   };
 
   // Waits for the Turnstile API script. Resolves when window.turnstile exists; rejects on load error.
@@ -382,11 +398,12 @@ const freeIncludes = [
   };
 
   dpaEl?.addEventListener('change', updateButton);
+  termsEl?.addEventListener('change', updateButton);
 
   form?.addEventListener('submit', async (e: Event) => {
     e.preventDefault();
     if (!orgEl || !nameEl || !emailEl || !submitBtn) return;
-    if (!dpaEl?.checked || !token) return updateButton();
+    if (!dpaEl?.checked || !termsEl?.checked || !token) return updateButton();
 
     const orgName = orgEl.value.trim();
     const adminName = nameEl.value.trim();
@@ -410,6 +427,8 @@ const freeIncludes = [
           turnstileToken: token,
           dpaAccepted: true,
           dpaVersion,
+          termsAccepted: true,
+          termsVersion,
         }),
       });
 

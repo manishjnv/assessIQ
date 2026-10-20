@@ -221,6 +221,11 @@ export async function sendEmail<T extends EmailTemplateName>(
   // 4. Enqueue 'email.send' BullMQ job.
   const queue = getEmailQueue();
   const jobOpts = emailJobOptions(template);
+  if (input.redactLogBody === true) {
+    // The job data holds the plain code and address: do not keep it after the run.
+    jobOpts.removeOnComplete = true;
+    jobOpts.removeOnFail = { age: 3600 };
+  }
   if (emailClassOf(template) === 'bulk') {
     // Q11: spread bulk mail over days. Fail-open: Redis trouble sends now.
     try {
@@ -244,7 +249,8 @@ export async function sendEmail<T extends EmailTemplateName>(
     jobOpts,
   );
 
-  log.info({ emailLogId, to, template, tenantId, emailClass: emailClassOf(template) }, 'email.queued');
+  const logTo = input.redactLogBody === true ? `${to.slice(0, 1)}***${to.slice(to.lastIndexOf('@'))}` : to;
+  log.info({ emailLogId, to: logTo, template, tenantId, emailClass: emailClassOf(template) }, 'email.queued');
 }
 
 // ---------------------------------------------------------------------------
