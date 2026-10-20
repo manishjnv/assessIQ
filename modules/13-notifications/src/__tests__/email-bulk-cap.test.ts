@@ -129,7 +129,7 @@ describe('reserveBulkSlot day rolling', () => {
 
 describe('getEmailQueueStatus', () => {
   it("counts only this tenant's cap-deferred jobs and returns the earliest send time", async () => {
-    const t0 = Date.parse('2026-10-19T10:00:00Z');
+    const t0 = Date.now(); // a fixed date made the delayed jobs "past" and the test failed after the date
     const H = 3_600_000;
     const job = (tenantId: string, delay: number | undefined) => ({
       name: 'email.send', data: { tenantId }, timestamp: t0, opts: { delay },
