@@ -634,7 +634,9 @@ export async function updateAssessment(
       const pick = (s: unknown): unknown[] => {
         const o = (s ?? {}) as Record<string, unknown>;
         const sc = (o["scoring"] ?? {}) as Record<string, unknown>;
-        return [o["sections"], o["whole_test_minutes"], sc["negative_marks_default"]];
+        // Z-51: the blueprint's whole-test fields are frozen with the sections too.
+        const bp = (o["blueprint"] ?? {}) as Record<string, unknown>;
+        return [o["sections"], o["whole_test_minutes"], sc["negative_marks_default"], bp["whole_test_minutes"], bp["marks_per_question"]];
       };
       if (canonicalJson(pick(current.settings)) !== canonicalJson(pick(patch.settings))) {
         const has = await client.query(`SELECT 1 FROM attempts WHERE assessment_id = $1 LIMIT 1`, [id]);

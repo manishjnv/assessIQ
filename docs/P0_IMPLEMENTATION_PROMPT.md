@@ -196,7 +196,7 @@ You are implementing the **P0 tasks** for AssessIQ (repo `E:\code\AssessIQ`, pro
 
 - **Give me a checklist to follow:**
   - import myself as a candidate via CSV;
-  - take the test on a phone and a laptop;
+  - take a mock test on a phone and a real exam on a laptop;
   - submit and see the score graded instantly;
   - check the report and CSV export;
   - release, and check the certificate if applicable.

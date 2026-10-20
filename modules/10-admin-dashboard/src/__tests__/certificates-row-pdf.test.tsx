@@ -3,6 +3,8 @@
 //   P1  an active row shows a PDF link to the same URL as the drawer's Download PDF
 //   P2  a revoked row shows no PDF link (the server returns 410 for revoked PDFs)
 //   P3  clicking the PDF link does not open the details drawer
+//   P4  the drawer of a revoked certificate has no Download PDF button
+//   P5  the drawer of an active certificate keeps Download PDF
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
@@ -101,5 +103,23 @@ describe("certificates list — row PDF link", () => {
 
     fireEvent.click(screen.getByRole("link", { name: "PDF" }));
     expect(screen.queryByText("Certificate Details")).toBeNull();
+  });
+
+  it("P4: the drawer of a revoked certificate has no Download PDF button", async () => {
+    render(<AdminCertificates />);
+    await waitFor(() => expect(screen.getByText(REVOKED_ID)).toBeTruthy());
+
+    fireEvent.click(screen.getByText(REVOKED_ID));
+    await waitFor(() => expect(screen.getByText("Certificate Details")).toBeTruthy());
+    expect(screen.queryByText("Download PDF")).toBeNull();
+  });
+
+  it("P5: the drawer of an active certificate keeps Download PDF", async () => {
+    render(<AdminCertificates />);
+    await waitFor(() => expect(screen.getByText(ACTIVE_ID)).toBeTruthy());
+
+    fireEvent.click(screen.getByText(ACTIVE_ID));
+    await waitFor(() => expect(screen.getByText("Certificate Details")).toBeTruthy());
+    expect(screen.getByText("Download PDF").getAttribute("href")).toBe(`/api/certificates/${ACTIVE_ID}/pdf`);
   });
 });

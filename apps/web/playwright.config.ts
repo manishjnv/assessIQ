@@ -47,15 +47,16 @@ export default defineConfig({
     // Default project — runs all specs EXCEPT visual.spec.ts.
     {
       name: "chromium",
-      testIgnore: /visual\.spec\.ts|phone-first-question\.spec\.ts/,
+      testIgnore: /visual\.spec\.ts|phone-first-question\.spec\.ts|phone-smoke\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
 
+    // Z-88: phone smoke (/try, invitation landing, sign-in, results) also runs here.
     // RW-79: phone timing (Pixel 5, throttled 4G). Run against a production build:
     //   playwright test --project=mobile phone-first-question
     {
       name: "mobile",
-      testMatch: /phone-first-question\.spec\.ts/,
+      testMatch: /phone-(first-question|smoke)\.spec\.ts/,
       use: { ...devices["Pixel 5"] },
     },
 

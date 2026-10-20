@@ -684,6 +684,11 @@ jobs:
           E2E_API_BASE_URL: http://localhost:3000
           PHONE_FLOW_ADVISORY: "1"
         run: pnpm --filter @assessiq/web exec playwright test --project=mobile phone-first-question
+      # Z-88: phone smoke for /try, the invitation landing, sign-in and results. Advisory until it has one green run on main, then remove continue-on-error.
+      - name: Phone smoke (Z-88)
+        if: matrix.leg == 'phone'
+        continue-on-error: true
+        run: pnpm --filter @assessiq/web exec playwright test --project=mobile phone-smoke
 
       - name: Upload service logs on failure
         if: failure()
