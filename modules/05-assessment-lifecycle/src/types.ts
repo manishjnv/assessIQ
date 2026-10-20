@@ -88,6 +88,19 @@ export const AssessmentBlueprintSchema = z
     criteria: z
       .array(BlueprintCriterionSchema)
       .min(1, "criteria must have at least one entry"),
+    // Z-51 (option b): one timer for the whole test. Absent = no whole-test timer (blueprint mocks keep their own timing).
+    whole_test_minutes: z
+      .number()
+      .int("whole_test_minutes must be a whole number")
+      .min(1, "whole_test_minutes must be at least 1")
+      .max(600, "whole_test_minutes must be at most 600")
+      .optional(),
+    // Z-51 (option b): marks for each question drawn by this blueprint. Absent = each question keeps its own points.
+    marks_per_question: z
+      .number()
+      .min(0, "marks_per_question must be at least 0")
+      .max(1000, "marks_per_question must be at most 1000")
+      .optional(),
   })
   .refine((b) => b.domain_id !== undefined || b.criteria.every((c) => c.node_id !== undefined), {
     message: "domain_id is required unless every criterion has a node_id",
@@ -108,6 +121,8 @@ export interface ResolvedBlueprint {
     type: BlueprintQuestionType;
     count: number;
   }>;
+  whole_test_minutes?: number;
+  marks_per_question?: number;
 }
 
 // ---------------------------------------------------------------------------

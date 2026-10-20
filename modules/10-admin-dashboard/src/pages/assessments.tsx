@@ -82,6 +82,9 @@ export function AdminAssessments(): React.ReactElement {
   });
   // Z-16: blank = use the level default; otherwise a whole number 1..100.
   const [passMark, setPassMark] = useState("");
+  // Z-51: blueprint-mode whole-test fields, sent inside settings.blueprint (blank = not set).
+  const [bpWholeMinutes, setBpWholeMinutes] = useState("");
+  const [bpMarksPerQuestion, setBpMarksPerQuestion] = useState("");
   // Z-89: default test type of the new assessment (the invite form can still override per batch).
   const [deliveryMode, setDeliveryMode] = useState<"real" | "mock">("real");
   const [creating, setCreating] = useState(false);
@@ -213,6 +216,16 @@ export function AdminAssessments(): React.ReactElement {
       setCreateError("Pass mark must be a whole number from 1 to 100.");
       return;
     }
+    const bpWhole = bpWholeMinutes.trim() === "" ? null : Number(bpWholeMinutes.trim());
+    if (bpWhole !== null && (!Number.isInteger(bpWhole) || bpWhole < 1 || bpWhole > 600)) {
+      setCreateError("Whole-test minutes must be a whole number from 1 to 600.");
+      return;
+    }
+    const bpMarks = bpMarksPerQuestion.trim() === "" ? null : Number(bpMarksPerQuestion.trim());
+    if (bpMarks !== null && (!Number.isFinite(bpMarks) || bpMarks < 0 || bpMarks > 1000)) {
+      setCreateError("Marks per section must be a number from 0 to 1000.");
+      return;
+    }
     if (createMode === "from-set" && pendingFromSet === null) {
       setCreateError("Select a licensed set, a difficulty, and the number of questions to draw.");
       return;
@@ -269,7 +282,13 @@ export function AdminAssessments(): React.ReactElement {
 
       if (pendingBlueprint !== null) {
         // Blueprint mode: send settings.blueprint; backend resolves pack/level/question_count
-        body.settings = { blueprint: pendingBlueprint, ...integritySettings };
+        // Z-51: the whole-test fields go inside the blueprint (settings.sections stays exclusive).
+        const blueprintWithTiming = {
+          ...pendingBlueprint,
+          ...(bpWhole !== null ? { whole_test_minutes: bpWhole } : {}),
+          ...(bpMarks !== null ? { marks_per_question: bpMarks } : {}),
+        };
+        body.settings = { blueprint: blueprintWithTiming, ...integritySettings };
         // question_count placeholder — backend overrides via Σcriteria.count
         body.question_count = pendingBlueprint.criteria.reduce((s, c) => s + c.count, 0);
         // pack_id / level_id resolved by findOrCreatePackForDomain on backend
@@ -618,6 +637,57 @@ export function AdminAssessments(): React.ReactElement {
                     entitledDomains={entitledDomains}
                     skipFilter={skipEntitlementFilter}
                   />
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                      gap: "var(--aiq-space-md)",
+                      marginTop: "var(--aiq-space-md)",
+                    }}
+                  >
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+                      <HelpTip helpId="admin.assessments.blueprint.whole_test_minutes">
+                        <label
+                          htmlFor="new-assessment-bp-whole-minutes"
+                          style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500 }}
+                        >
+                          Whole-test minutes
+                        </label>
+                      </HelpTip>
+                      <input
+                        id="new-assessment-bp-whole-minutes"
+                        className="aiq-input"
+                        type="number"
+                        min={1}
+                        max={600}
+                        step={1}
+                        placeholder="No whole-test timer"
+                        value={bpWholeMinutes}
+                        onChange={(e) => setBpWholeMinutes(e.target.value)}
+                      />
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+                      <HelpTip helpId="admin.assessments.blueprint.marks_per_question">
+                        <label
+                          htmlFor="new-assessment-bp-marks"
+                          style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500 }}
+                        >
+                          Marks per section
+                        </label>
+                      </HelpTip>
+                      <input
+                        id="new-assessment-bp-marks"
+                        className="aiq-input"
+                        type="number"
+                        min={0}
+                        max={1000}
+                        step="any"
+                        placeholder="Question points"
+                        value={bpMarksPerQuestion}
+                        onChange={(e) => setBpMarksPerQuestion(e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 

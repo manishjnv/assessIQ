@@ -115,6 +115,10 @@ Common failure causes:
 4. Do not use `test.only`, hardcoded production tokens, or `headless: false`.
 
 
+## Phone smoke (Z-88)
+
+`phone-smoke.spec.ts` runs in the `mobile` project (Pixel 5). It checks that `/try`, the invitation landing (`/take/<token>`), candidate sign-in and the candidate result page render and do not scroll sideways. It does not start a real exam: real exams are desktop-only (Z-87). CI runs it in the `phone` leg with `--project=mobile phone-smoke`.
+
 ## Phone first-question timing (RW-79)
 
 `phone-first-question.spec.ts` runs only in the `mobile` project (Pixel 5, 4G throttle, 4x CPU slowdown). It walks invitation link, `/take/<token>`, Begin, "Question 1 of" five times with a cold cache. It fails when the median is 20 s or more. Run it against a production build: `PLAYWRIGHT_BASE_URL=http://localhost:4173 E2E_API_BASE_URL=http://localhost:3000 pnpm exec playwright test --project=mobile phone-first-question`. The API must run on the same machine: the spec reads the invitation link from the dev email log (`ASSESSIQ_DEV_EMAILS_LOG`, default `~/.assessiq/dev-emails.log`). Set `PHONE_FLOW_ADVISORY=1` to log a miss instead of failing.

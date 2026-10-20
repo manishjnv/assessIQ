@@ -272,7 +272,14 @@ export async function resolveBlueprintNodes(
       details: { code: AL_ERROR_CODES.BLUEPRINT_DOMAIN_REQUIRED },
     });
   }
-  return { domain_id: domainId, level: blueprint.level, criteria };
+  // Z-51: keep the optional whole-test fields when a node_id criterion is resolved.
+  return {
+    domain_id: domainId,
+    level: blueprint.level,
+    criteria,
+    ...(blueprint.whole_test_minutes !== undefined ? { whole_test_minutes: blueprint.whole_test_minutes } : {}),
+    ...(blueprint.marks_per_question !== undefined ? { marks_per_question: blueprint.marks_per_question } : {}),
+  };
 }
 
 /** Entry used by create/update: no node_id anywhere = no extra query (legacy path untouched). */

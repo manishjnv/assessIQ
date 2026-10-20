@@ -1105,7 +1105,7 @@ export function AdminCertificates(): React.ReactElement {
               ))}
             </div>
 
-            {/* Actions — Download PDF (any cert) + Revoke (active only) */}
+            {/* Actions — Download PDF (active only: the server answers 410 for revoked) + Revoke (active only) */}
             <div
               style={{
                 display: "flex",
@@ -1114,24 +1114,26 @@ export function AdminCertificates(): React.ReactElement {
                 borderTop: "1px solid var(--aiq-color-border)",
               }}
             >
-              <a
-                href={`/api/certificates/${selectedCert.credential_id}/pdf`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "inline-block",
-                  fontFamily: "var(--aiq-font-sans)",
-                  fontSize: "var(--aiq-text-sm)",
-                  fontWeight: 600,
-                  padding: "6px 18px",
-                  borderRadius: "var(--aiq-radius-sm)",
-                  background: "var(--aiq-color-accent)",
-                  color: "#fff",
-                  textDecoration: "none",
-                }}
-              >
-                Download PDF
-              </a>
+              {selectedCert.revoked_at === null && (
+                <a
+                  href={`/api/certificates/${selectedCert.credential_id}/pdf`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-block",
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    fontWeight: 600,
+                    padding: "6px 18px",
+                    borderRadius: "var(--aiq-radius-sm)",
+                    background: "var(--aiq-color-accent)",
+                    color: "#fff",
+                    textDecoration: "none",
+                  }}
+                >
+                  Download PDF
+                </a>
+              )}
               {selectedCert.revoked_at === null && (
                 <button
                   type="button"
