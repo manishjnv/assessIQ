@@ -35,7 +35,7 @@ export function BillingDrawer({
 
   // Plan editor state
   const [editTier, setEditTier] = useState<string>("free");
-  const [editCredits, setEditCredits] = useState<string>("25");
+  const [editCredits, setEditCredits] = useState<string>("250");
   const [planConfirmPending, setPlanConfirmPending] = useState(false);
   const [planSaving, setPlanSaving] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
@@ -476,7 +476,7 @@ export function BillingDrawer({
                     value={isInternalTier ? "" : editCredits}
                     disabled={isInternalTier}
                     onChange={(e) => { setEditCredits(e.target.value); setPlanError(null); }}
-                    placeholder={isInternalTier ? "Unlimited" : "e.g. 25"}
+                    placeholder={isInternalTier ? "Unlimited" : "e.g. 250"}
                     style={{
                       fontFamily: "var(--aiq-font-sans)",
                       fontSize: 13,
