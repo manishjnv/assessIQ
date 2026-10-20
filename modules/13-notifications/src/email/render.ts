@@ -50,6 +50,7 @@ import {
   EvaluationQueueAlertVarsSchema,
   SignupCodeVarsSchema,
   SignupExistingAccountVarsSchema,
+  CreditLowBalanceVarsSchema,
 } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -81,6 +82,7 @@ const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   evaluation_queue_alert: EvaluationQueueAlertVarsSchema,
   signup_code: SignupCodeVarsSchema,
   signup_existing_account: SignupExistingAccountVarsSchema,
+  credit_low_balance: CreditLowBalanceVarsSchema,
 };
 
 // ---------------------------------------------------------------------------
@@ -310,6 +312,9 @@ function resultCopy(p: any): Record<string, unknown> {
  * base vars. Kept entirely out of the per-template Zod schemas so call sites
  * are unaffected.
  */
+/** Plain role names for the invitation_admin copy (sender passes the role code). */
+const INVITE_ROLE_LABEL: Record<string, string> = { super_admin: 'Platform admin', admin: 'Admin', reviewer: 'Reviewer' };
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function augmentContext(name: EmailTemplateName, p: any, opts: RenderOptions): Record<string, unknown> {
   const result = name === 'result_released' ? resultCopy(p) : {};
@@ -320,6 +325,7 @@ function augmentContext(name: EmailTemplateName, p: any, opts: RenderOptions): R
   const logo = typeof opts.logoUrl === 'string' && isSafeLogoUrl(opts.logoUrl) ? opts.logoUrl : null;
   const orgName = opts.orgName ?? (typeof p.tenantName === 'string' ? p.tenantName : '');
   return {
+    ...(name === 'invitation_admin' ? { roleLabel: INVITE_ROLE_LABEL[p.role] ?? p.role } : {}),
     ...(logo !== null ? { logo_url: logo, logo_org_name: orgName } : {}),
     meta_rows,
     ...result,

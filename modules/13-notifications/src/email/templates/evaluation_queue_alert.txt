@@ -1,8 +1,8 @@
-Subject: Grading queue: {{count}} waiting more than 24 hours
+Subject: Grading queue: {{count}} waiting over 24 hours
 
 Hello,
 
-{{count}} attempt(s) have waited more than 24 hours for grading. The oldest has waited {{oldestAgeHours}} hours.
+Attempts waiting over 24 hours for grading: {{count}}. The oldest has waited {{oldestAgeHours}} hours.
 
 Open the grading queue:
 {{queueLink}}

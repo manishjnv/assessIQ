@@ -184,6 +184,8 @@ export const ACTION_CATALOG = [
   'tenant.plan_updated',
   // Z-93: super-admin offline credit grant (purchase / bonus / pilot).
   'billing.credits_granted',
+  // Z-96: system low-balance email (20 or 10 percent of the largest grant), written by the daily job.
+  'billing.credit_low_balance_notice',
   // Phase B1 entitlements — super-admin grant / revoke of domain or pack scope.
   // Fired inside grantEntitlement / revokeEntitlement via auditInTx (same tx).
   'tenant.entitlement_granted',

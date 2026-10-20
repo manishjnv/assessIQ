@@ -26,7 +26,7 @@
     "brand_wordmark": "AssessIQ",
     "heading": "You have been invited.",
     "cta": "Accept invitation",
-    "expiry": "This link expires in {{expiresInDays}} days. If you did not expect this email, you can ignore it."
+    "expiry": "Accept within {{expiresInDays}} days. If you did not expect this email, you can ignore it."
   },
   "attempt_submitted_candidate": {
     "page_title": "Submission received",
@@ -65,7 +65,7 @@
     "page_title": "Two-factor authentication enrolled",
     "brand_wordmark": "AssessIQ",
     "greeting": "Hi {{recipientName}},",
-    "security_warning": "If you did not do this, contact your administrator at once."
+    "security_warning": "If this was not you, contact your administrator now."
   },
   "totp_reset_notice": {
     "page_title": "Two-factor sign-in reset",
@@ -82,6 +82,12 @@
     "page_title": "Your AssessIQ sign-up code",
     "brand_wordmark": "AssessIQ",
     "heading": "Your sign-up code."
+  },
+  "credit_low_balance": {
+    "page_title": "Your credits are running low",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Your credits are running low.",
+    "cta": "See your credits"
   },
   "signup_existing_account": {
     "page_title": "You already have an AssessIQ account",

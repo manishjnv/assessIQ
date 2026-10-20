@@ -1,13 +1,13 @@
-Subject: Reminder: your {{assessmentName}} closes soon
+Subject: Reminder: start {{assessmentName}} before {{expiresAt}}
 
 Hi {{candidateName}},
 
-You have not started {{assessmentName}} on {{tenantName}} yet, and it closes soon.
+You have not started {{assessmentName}} yet.
 
 Start your assessment:
 {{invitationLink}}
 
-Deadline: {{expiresAt}}.
+It closes on {{expiresAt}}.
 This link replaces the one in your earlier invitation email.
 If you did not expect this email, you can ignore it.
 

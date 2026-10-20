@@ -1,5 +1,5 @@
 <!-- Composes kit partials (Email Kit Port E2b — derived, no kit screen). Security warning keeps brand danger #e64242. -->
-{{#> email-shell preheader="Two-factor authentication is now on for your AssessIQ account."}}
+{{#> email-shell preheader="You turned on two-factor authentication for your AssessIQ account."}}
 
   {{> email-header}}
 
@@ -7,8 +7,8 @@
 
     {{> email-lede-short
       eyebrow="SECURITY"
-      title="Two-factor authentication is on."
-      body=(concat "Hi " recipientName ", two-factor authentication is now switched on for your AssessIQ account.")}}
+      title="You turned on two-factor authentication."
+      body=(concat "Hi " recipientName ", you turned on two-factor authentication for your AssessIQ account.")}}
 
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin-top:28px">
       <tr><td>{{> email-meta-card rows=meta_rows}}</td></tr>

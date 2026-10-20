@@ -1,0 +1,21 @@
+<!-- Composes kit partials. Z-96: credit low-balance notice to the organisation admin. Counts + link only. -->
+{{#> email-shell preheader=(concat "You have " remaining " credits left.")}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-short
+      eyebrow="CREDITS"
+      title=_t_heading
+      body=(concat "Your organisation has " remaining " credits left. This is " level " percent or less of your largest credit purchase. When credits run out, you cannot start new tests. To add credits, ask AssessIQ support or the person who manages your account.")}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px">
+      <tr><td>{{> email-cta label=_t_cta href=usageLink width_px=190}}</td></tr>
+    </table>
+
+  {{/email-body}}
+
+  {{> email-footer-transactional reason="You receive this because you are an administrator of an AssessIQ organisation."}}
+
+{{/email-shell}}

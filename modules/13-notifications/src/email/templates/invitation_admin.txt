@@ -1,13 +1,13 @@
-Subject: You have been invited to join AssessIQ as {{role}}
+Subject: {{tenantName}} invites you to AssessIQ as {{roleLabel}}
 
 Hello,
 
-You have been invited to join AssessIQ{{#if tenantName}} at {{tenantName}}{{/if}} as {{role}}.
+{{tenantName}} invites you to join AssessIQ as {{roleLabel}}.
 
 Accept your invitation:
 {{invitationLink}}
 
-This link expires in {{expiresInDays}} days.
+Accept within {{expiresInDays}} days.
 If you did not expect this email, you can ignore it.
 
 — The AssessIQ team

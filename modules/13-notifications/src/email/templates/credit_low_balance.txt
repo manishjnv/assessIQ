@@ -1,0 +1,13 @@
+Subject: Your AssessIQ credits are running low ({{remaining}} left)
+
+Hello,
+
+Your organisation has {{remaining}} credits left. This is {{level}} percent or less of your largest credit purchase.
+
+When credits run out, you cannot start new tests. To add credits, ask AssessIQ support or the person who manages your account.
+
+See your credits:
+{{usageLink}}
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

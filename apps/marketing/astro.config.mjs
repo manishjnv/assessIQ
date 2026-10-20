@@ -58,6 +58,10 @@ function inlineSitemap() {
     '/resources/technical-hiring-india-guide',
     '/resources/reducing-bias-technical-hiring',
     '/resources/remote-proctoring-integrity',
+    '/resources/how-to-run-a-campus-aptitude-test',
+    '/resources/release-campus-test-results',
+    '/resources/send-test-invitations-to-students',
+    '/resources/verify-skill-certificate',
     '/tools',
     '/tools/cost-of-a-bad-hire',
   ];
