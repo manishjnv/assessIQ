@@ -109,16 +109,21 @@ const LOGO_BOX_H = 200;
  * ratio, never stretches, never enlarges. Exports PNG so transparency survives.
  * EXIF rotation is applied by the browser (imageOrientation "from-image").
  */
+const LOGO_MIN_SIDE = 64;
+
 async function fitLogoToPng(file: File): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   try {
     const scale = Math.min(1, LOGO_BOX_W / bitmap.width, LOGO_BOX_H / bitmap.height);
     const canvas = document.createElement("canvas");
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    // The API refuses a side under LOGO_MIN_SIDE: pad a very wide or tiny logo with transparent pixels, never stretch it.
+    canvas.width = Math.max(LOGO_MIN_SIDE, w);
+    canvas.height = Math.max(LOGO_MIN_SIDE, h);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("canvas unavailable");
-    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, Math.round((canvas.width - w) / 2), Math.round((canvas.height - h) / 2), w, h);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) throw new Error("png export failed");
     return blob;

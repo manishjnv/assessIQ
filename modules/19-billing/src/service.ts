@@ -3,6 +3,7 @@
 // Business logic layer for usage metering and plan management.
 // Pure-function helpers (computeUsage) are DB-free and unit-testable.
 
+import { averageMinutesPerQuestion } from "./suggested-time.js";
 import type { PoolClient } from 'pg';
 import { withTenant, withSystemRole } from '@assessiq/tenancy';
 import { streamLogger, NotFoundError, ValidationError, AppError, config } from '@assessiq/core';
@@ -32,6 +33,7 @@ import {
   getPlatformTenantId,
   listAvailablePlatformSets,
   findClonesBySource,
+  listActiveQuestionMix,
 } from './repository.js';
 import {
   burnCredits,
@@ -1039,6 +1041,13 @@ export async function listAvailableSetsForTenant(tenantId: string): Promise<Avai
     const sets = await listAvailablePlatformSets(client, platformTenantId, domainSlugs, packIds);
     if (sets.length === 0) return [];
 
+    const mix = await listActiveQuestionMix(client, sets.map((s) => s.id));
+    const mixByPack = new Map<string, Array<{ type: string; difficulty_est: number | null }>>();
+    for (const q of mix) {
+      const list = mixByPack.get(q.pack_id) ?? [];
+      list.push(q);
+      mixByPack.set(q.pack_id, list);
+    }
     const clones = await findClonesBySource(client, tenantId, sets.map((s) => s.id));
     const cloneBySource = new Map(clones.map((c) => [c.source_pack_id, c]));
 
@@ -1052,6 +1061,7 @@ export async function listAvailableSetsForTenant(tenantId: string): Promise<Avai
         question_count: s.question_count,
         level_count: s.level_count,
         level_minutes: s.level_minutes,
+        avg_minutes_per_question: averageMinutesPerQuestion(mixByPack.get(s.id) ?? []),
         cloned: clone !== undefined,
         cloned_pack_id: clone?.id ?? null,
         update_available:

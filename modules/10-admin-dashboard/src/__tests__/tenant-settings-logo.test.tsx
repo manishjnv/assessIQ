@@ -146,6 +146,23 @@ describe("TenantSettings — Organisation logo", () => {
     expect(canvasSizes.at(-1)).toEqual({ width: 200, height: 100 });
   });
 
+  it("L7 never sends a side under 64 px: a very wide or tiny logo is padded, not stretched", async () => {
+    mockApi({});
+    await renderLoaded();
+
+    stubImage(2000, 50);
+    pick(new File(["abc"], "strip.png", { type: "image/png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Upload logo" }));
+    await screen.findByText("Logo updated.");
+    expect(canvasSizes.at(-1)).toEqual({ width: 600, height: 64 });
+
+    stubImage(30, 30);
+    pick(new File(["abc"], "tiny.png", { type: "image/png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Upload logo" }));
+    await waitFor(() => expect(logoCalls()).toHaveLength(2));
+    expect(canvasSizes.at(-1)).toEqual({ width: 64, height: 64 });
+  });
+
   it("L2 uploads base64 and the preview updates", async () => {
     mockApi({});
     await renderLoaded();

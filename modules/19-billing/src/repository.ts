@@ -689,6 +689,22 @@ export async function listAvailablePlatformSets(
 }
 
 /**
+ * Z-103: type + difficulty of the ACTIVE questions of the given packs (the same
+ * pool as `question_count`), for the suggested-time average. Read-only.
+ */
+export async function listActiveQuestionMix(
+  client: PoolClient,
+  packIds: string[],
+): Promise<Array<{ pack_id: string; type: string; difficulty_est: number | null }>> {
+  if (packIds.length === 0) return [];
+  const result = await client.query<{ pack_id: string; type: string; difficulty_est: number | null }>(
+    `SELECT pack_id, type, difficulty_est FROM questions WHERE pack_id = ANY($1::uuid[]) AND status = 'active'`,
+    [packIds],
+  );
+  return result.rows;
+}
+
+/**
  * For a tenant, find existing clones of the given source platform packs.
  * Returns the clone's id + recorded source_version so the catalog can flag
  * "already added" and "update available" (clone.source_version < source.version).
