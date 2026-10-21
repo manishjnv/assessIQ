@@ -29,7 +29,50 @@ export function getPool(): Pool {
   return pool;
 }
 
+let systemPool: Pool | undefined;
+
+/**
+ * FUT-10: pool for `withSystemRole` work. In production SYSTEM_DATABASE_URL (login
+ * assessiq_system) is REQUIRED by config, so the app login never needs the BYPASSRLS
+ * role. In dev/test it is unset and this returns the main pool. The URL is never logged.
+ */
+export function getSystemPool(): Pool {
+  if (config.SYSTEM_DATABASE_URL === undefined && systemPool === undefined) return getPool();
+  if (systemPool === undefined) {
+    systemPool = new Pool({
+      connectionString: config.SYSTEM_DATABASE_URL,
+      max: config.PG_SYSTEM_POOL_MAX,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+      application_name: "assessiq-system",
+    });
+    systemPool.on("error", (err) => {
+      log.error({ err }, "pg system pool idle-client error");
+    });
+  }
+  return systemPool;
+}
+
+/** Test-only: point the system pool at a URL (undefined clears it, back to the main pool). */
+export async function setSystemPoolForTesting(connectionString: string | undefined): Promise<void> {
+  if (systemPool !== undefined) {
+    const p = systemPool;
+    systemPool = undefined;
+    await p.end();
+  }
+  if (connectionString === undefined) return;
+  systemPool = new Pool({ connectionString, max: 3, idleTimeoutMillis: 5_000, connectionTimeoutMillis: 5_000, application_name: "assessiq-system-test" });
+  systemPool.on("error", (err) => {
+    log.error({ err }, "pg system pool idle-client error (test)");
+  });
+}
+
 export async function closePool(): Promise<void> {
+  if (systemPool !== undefined) {
+    const sp = systemPool;
+    systemPool = undefined;
+    await sp.end();
+  }
   if (pool !== undefined) {
     const p = pool;
     pool = undefined;

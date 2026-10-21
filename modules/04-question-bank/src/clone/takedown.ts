@@ -1,5 +1,6 @@
 import { type PoolClient } from "pg";
 import { auditInTx } from "@assessiq/audit-log";
+import { withSystemRoleDetached } from "@assessiq/tenancy";
 import { getPlatformTenantId } from "./helpers.js";
 
 /**
@@ -7,8 +8,9 @@ import { getPlatformTenantId } from "./helpers.js";
  * (questions.source_question_id = the withdrawn id) as withdrawn: status 'archived' plus
  * question_source.rights_status 'withdrawn', the same representation the platform row uses.
  *
- * MUST be called inside the withdraw transaction (withTenant client, assessiq_app role, platform
- * tenant GUC), after the master row is withdrawn. The tx is the atomicity boundary.
+ * Call after the master row is withdrawn inside the withdraw tx. FUT-10: the propagation runs in
+ * its own system-login transaction (it commits on its own; a later rollback of the withdraw leaves
+ * clones withdrawn, which is the fail-safe direction). A propagation error still fails the caller.
  *
  * Cross-tenant mechanism: the same role switch clone-on-grant.ts uses (SET LOCAL ROLE
  * assessiq_system for the cross-tenant read/write, SET LOCAL ROLE assessiq_app + set_config
@@ -26,15 +28,17 @@ import { getPlatformTenantId } from "./helpers.js";
  * and must not be written into a customer tenant's audit log.
  */
 export async function propagateTakedown(
+  masterQuestionId: string,
+): Promise<{ tenantsAffected: number; clonesMarked: number }> {
+  // FUT-10: runs in its OWN system-login tx (the app login cannot SET ROLE assessiq_system).
+  return withSystemRoleDetached("question.takedown_propagate", (client) => propagateTakedownTx(client, masterQuestionId));
+}
+
+async function propagateTakedownTx(
   client: PoolClient,
   masterQuestionId: string,
-  callerTenantId: string,
 ): Promise<{ tenantsAffected: number; clonesMarked: number }> {
-  await client.query("SET LOCAL ROLE assessiq_system");
-  // After a query error the tx is aborted and restore queries would fail and mask the real error;
-  // withTenant rolls the whole tx back on throw, so restore the caller context on success only.
-  let failed = false;
-  try {
+  {
     const platformTenantId = await getPlatformTenantId(client);
     // Only a platform-owned master has tenant clones; a tenant-owned question never does.
     const master = await client.query(
@@ -105,18 +109,10 @@ export async function propagateTakedown(
           rights_status: "withdrawn",
         },
       });
-      await client.query("SET LOCAL ROLE assessiq_system");
+      // Back to the system role: allowed because the system login is the session user.
+      await client.query("RESET ROLE"); // back to the system login (FUT-10)
     }
 
     return { tenantsAffected: byTenant.size, clonesMarked: clones.rows.length };
-  } catch (err) {
-    failed = true;
-    throw err;
-  } finally {
-    // Restore the caller's context (withTenant: app role + the caller's tenant GUC).
-    if (!failed) {
-      await client.query("SET LOCAL ROLE assessiq_app");
-      await client.query("SELECT set_config('app.current_tenant', $1, true)", [callerTenantId]);
-    }
   }
 }

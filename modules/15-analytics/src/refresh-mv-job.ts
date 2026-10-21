@@ -12,7 +12,7 @@
 //
 // INVARIANT: NEVER import from @anthropic-ai, claude, or any AI SDK.
 
-import { getPool } from '@assessiq/tenancy';
+import { withSystemRole } from '@assessiq/tenancy';
 import { streamLogger } from '@assessiq/core';
 
 const log = streamLogger('worker');
@@ -24,34 +24,17 @@ export const ANALYTICS_REFRESH_MV_JOB_NAME = 'analytics:refresh_mv';
  * Returns { duration_ms } for the worker log.
  */
 export async function processRefreshMvJob(): Promise<{ duration_ms: number }> {
-  const pool = getPool();
   const start = Date.now();
-
-  const client = await pool.connect(); // pool-connect-ok: REFRESH MATERIALIZED VIEW needs the MV owner role: session-level SET ROLE assessiq_system + RESET ROLE, release(true) on reset failure
-  try {
-    // The MV aggregates the RLS-subject base tables (attempt_scores / attempts /
-    // assessments) across ALL tenants, and REFRESH requires the executing role to
-    // OWN the MV. So run the refresh as assessiq_system — the BYPASSRLS role that
-    // owns the MV (migration 0088). The worker connects as assessiq_app, a member
-    // of assessiq_system, so SET ROLE elevates for this job only. Consumers still
-    // filter by tenant_id (RLS does not cover MVs — tools/lint-mv-tenant-filter.ts).
-    await client.query('SET ROLE assessiq_system');
+  // The MV aggregates the RLS-subject base tables across ALL tenants, and REFRESH requires the
+  // executing role to OWN the MV (migration 0088: assessiq_system). FUT-10: runs on the system
+  // pool in a tx (SET LOCAL ROLE dies with the tx, so no pooled-connection role leak).
+  // Consumers still filter by tenant_id (RLS does not cover MVs: tools/lint-mv-tenant-filter.ts).
+  await withSystemRole('analytics.refresh_mv', async (client) => {
     await client.query('REFRESH MATERIALIZED VIEW CONCURRENTLY attempt_summary_mv');
     // RW-60: per-question Phase C stats (migration 0189), same role, same job.
     await client.query('REFRESH MATERIALIZED VIEW CONCURRENTLY question_stats_mv');
-    const duration_ms = Date.now() - start;
-    log.info({ duration_ms, views: 2 }, 'analytics.refresh_mv: materialized views refreshed');
-    return { duration_ms };
-  } finally {
-    // Restore the role before returning the connection to the pool. If RESET ever
-    // fails the connection may still be elevated to the BYPASSRLS role — DESTROY it
-    // (release(true)) rather than risk a later query on a pooled connection
-    // inheriting BYPASSRLS and reading across tenants.
-    try {
-      await client.query('RESET ROLE');
-      client.release();
-    } catch {
-      client.release(true);
-    }
-  }
+  });
+  const duration_ms = Date.now() - start;
+  log.info({ duration_ms, views: 2 }, 'analytics.refresh_mv: materialized views refreshed');
+  return { duration_ms };
 }

@@ -271,6 +271,18 @@ const ConfigSchema = z
     // reserved for superuser). Compose overrides per service (api 40, worker 15,
     // + 2x5 system pools = 65; ~32 left for migrations / psql / backups).
     PG_POOL_MAX: z.coerce.number().int().positive().default(30),
+    // FUT-10: login URL of the assessiq_system role, used only by withSystemRole's pool
+    // (modules/02-tenancy/src/pool.ts). REQUIRED in production (superRefine below) so the
+    // app login never needs membership of the BYPASSRLS role. Never log this value.
+    SYSTEM_DATABASE_URL: z
+      .string()
+      .min(1)
+      .refine(
+        (v) => v.startsWith("postgres://") || v.startsWith("postgresql://"),
+        { message: "SYSTEM_DATABASE_URL must start with postgres:// or postgresql://" }
+      )
+      .optional(),
+    PG_SYSTEM_POOL_MAX: z.coerce.number().int().positive().default(5),
 
     // ── Origin-verify anti-IP-spoof ─────────────────────────────────────────
     //
@@ -306,6 +318,13 @@ const ConfigSchema = z
       .default("off"),
   })
   .superRefine((data, ctx) => {
+    if (data.NODE_ENV === "production" && data.SYSTEM_DATABASE_URL === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "NODE_ENV=production requires SYSTEM_DATABASE_URL (assessiq_system login, FUT-10).",
+        path: ["SYSTEM_DATABASE_URL"],
+      });
+    }
     if (
       data.AI_PIPELINE_MODE === "anthropic-api" &&
       !data.ANTHROPIC_API_KEY
