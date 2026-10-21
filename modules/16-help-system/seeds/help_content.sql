@@ -8272,7 +8272,7 @@ VALUES (
   'admin.tenant_settings.attempt_retention_days',
   'admin',
   'en',
-  'How many days to keep the activity log of finished tests (tab switches, focus changes, answer saves). Leave blank to keep it forever. Range 30 to 3650. Answers, scores and certificates are never deleted by this setting.',
+  'Days to keep the activity log of finished tests. Blank keeps it forever. Answers and scores stay.',
   $$## Keep attempt activity log for
 
 How many days to keep the activity log of finished tests (tab switches, focus changes, answer saves). Leave blank to keep it forever. Range 30 to 3650. Answers, scores and certificates are never deleted by this setting.

@@ -5516,7 +5516,7 @@ admin.tenant_settings.camera_reviewers:
 
 admin.tenant_settings.attempt_retention_days:
   audience: admin
-  short_text: "How many days to keep the activity log of finished tests (tab switches, focus changes, answer saves). Leave blank to keep it forever. Range 30 to 3650. Answers, scores and certificates are never deleted by this setting."
+  short_text: "Days to keep the activity log of finished tests. Blank keeps it forever. Answers and scores stay."
   long_md: |
     ## Keep attempt activity log for
 
