@@ -263,7 +263,7 @@ const POOL_NEW_HOME = "modules/02-tenancy/src/";
 const POOL_NEW_EXEMPT_RE = /(?:^|\/)__tests__\/|^tools\/test-support\/|\.test\.ts$/;
 const POOL_MARKER = "// pool-connect-ok:";
 // FUT-10: only withSystemRole (with-tenant.ts) may switch to the BYPASSRLS role.
-const SYSTEM_ROLE_RE = /SET\s+(?:LOCAL\s+|SESSION\s+)?ROLE\s+assessiq_system/i;
+const SYSTEM_ROLE_RE = /SET\s+(?:LOCAL\s+|SESSION\s+)?ROLE\s+assessiq_system/i;
 const SYSTEM_ROLE_MSG =
   "raw SET ROLE assessiq_system outside modules/02-tenancy/src/with-tenant.ts; use withSystemRole (FUT-10)";
 const POOL_CONNECT_MSG =
