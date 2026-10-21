@@ -48,3 +48,14 @@ Make the phone step required at once (risk of a red CI on an unrun spec). Allow 
 - **Verify.** `gh run view <id> --log`, look at the e2e (phone) job for "5 passed". Roll back: revert `be5210dc` to make the step advisory again.
 - **Not fixed (out of scope).** `phone-first-question` (RW-79, advisory) also uses a real link and still fails. Give it a mock link, or drop it as a gate; the owner decides.
 - **Rejected.** Weakening the test (drop the Begin check); changing the page (it is right for a phone user).
+
+
+## 2026-10-21 (S43): RW-79 phone first-question timing fixed and required
+
+- **What was wrong.** The check opened a REAL-exam link. A phone cannot start a real exam (Z-87), so the page shows the laptop-or-desktop message and the first question is never reached. It was advisory (`continue-on-error`) until 2026-10-31, then it would have turned every push red.
+- **Changes.** `apps/web/e2e/phone-first-question.spec.ts`: `deliveryMode: 'mock'` in the factory call; no-sideways-scroll check on the landing; the advisory branch removed. Budget (20 s), throttled Pixel 5 profile and five runs unchanged. `.github/workflows/ci.yml`: removed `continue-on-error` and `PHONE_FLOW_ADVISORY` (the step already had the base URLs). `apps/web/e2e/README.md`: line updated.
+- **Evidence.** Main run 39558886824 (mock link, still advisory): median 3853 ms (landing 2857, begin 996), 1 passed. Main run 39559548191 (step required): median 3798 ms, 1 passed, CI green. Commits `005794e0`, `762a4117`.
+- **Verify.** `gh run view <id> --log`, e2e (phone) job: the "total" row and "1 passed". Roll back: revert `762a4117` to make the step advisory again.
+- **Local run.** Not possible on this machine. Against the dev server the 4x CPU slowdown ends in a "Connection problem" screen; against a local production build the preview proxy dropped sockets. CI is the reference, as the spec header says.
+- **Not included.** No deploy: only test, CI and docs files changed. Counts unchanged (94 pending, 212 closed, 306 total).
+- **Rejected.** Loosening the budget; dropping the check.
