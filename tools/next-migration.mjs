@@ -75,6 +75,14 @@ function migrationFileNames() {
 }
 
 function main() {
+  // docs/ is gitignored: without ROADMAP the reservations cannot be read, so skip (exit 0).
+  // With --count the skip line goes to stderr, so stdout still holds only numbers.
+  if (!existsSync(join(ROOT, "docs/ROADMAP.md"))) {
+    const line = existsSync(join(ROOT, "docs")) ? "next-migration: skipped, docs/ROADMAP.md is not in this checkout" : "next-migration: skipped, docs/ is not in this checkout";
+    if (process.argv.includes("--count")) process.stderr.write(`${line}\n`);
+    else process.stdout.write(`${line}\n`);
+    return;
+  }
   const countArg = process.argv.indexOf("--count");
   let count = 1;
   if (countArg >= 0) {

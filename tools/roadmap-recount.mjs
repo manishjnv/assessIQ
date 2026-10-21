@@ -151,9 +151,9 @@ function printReport(report) {
 }
 
 function main() {
+  // docs/ is gitignored: in a checkout without ROADMAP, skip with one line (exit 0).
   if (!existsSync(ROADMAP)) {
-    process.stderr.write("roadmap-recount: missing docs/ROADMAP.md\n");
-    process.exitCode = 1;
+    console.log(existsSync(join(ROOT, "docs")) ? "roadmap-recount: skipped, docs/ROADMAP.md is not in this checkout" : "roadmap-recount: skipped, docs/ is not in this checkout");
     return;
   }
   const report = buildReport(splitLines(readFileSync(ROADMAP, "utf8")));

@@ -12,6 +12,11 @@ const arg = (n) => {
   return i > 0 ? process.argv[i + 1] : null;
 };
 const tracked = execFileSync("git", ["ls-files"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 }).split("\n").filter(Boolean);
+// docs/ is gitignored and not tracked in a checkout without it: nothing to check there.
+if (!tracked.some((f) => f.startsWith("docs/") && f.endsWith(".md"))) {
+  console.log("check-docs-links: skipped, docs/ is not in this checkout");
+  process.exit(0);
+}
 const files = new Set(tracked);
 const dirs = new Set();
 for (const f of tracked) for (let d = posix.dirname(f); d !== "." && !dirs.has(d); d = posix.dirname(d)) dirs.add(d);

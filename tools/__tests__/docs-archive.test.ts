@@ -150,3 +150,59 @@ describe("docs-archive", () => {
     expect(existsSync(join(root, "docs/archive"))).toBe(false);
   });
 });
+
+describe("docs-archive shrink, recount history, sections", () => {
+  const longTitle = "Title **bold start and `code span that is long` and more words to pass one hundred characters easily so it must be cut here";
+  const longStatus = "✅ (S9, 2026-10-16): a very long status text that goes on and on well past seventy characters in total";
+  const bullets = [5, 4, 3, 2, 1].map((n) => `- S${n} recount update (x): note ${n}.`);
+  bullets[0] = "- S5 recount update (x): Pending = 1 = 1. Closed = 2 = 2. Total = 3.";
+  const rm2 = roadmap
+    .replace(row("Z-1", "✅ done"), `| Z-1 | src | ${longTitle} | ctx | ${longStatus} | evidence | me |`)
+    .replace("### Z.7 Counts\n\n| Z.2 | 3 |\n", `### Z.7 Counts\n\n| Z.2 | 3 |\n\n${bullets.join("\n")}\n\n### Z.7b Sheet\n\nsheet text\n\n### Z.8 Hygiene\n\nhygiene text\n`);
+  const hist = () => get(`docs/archive/ROADMAP-history-${new Date().toISOString().slice(0, 7)}.md`);
+  beforeEach(() => put("docs/ROADMAP.md", rm2));
+
+  it("shrinks stub cells, keeps cell count, recount and closed status", async () => {
+    const base = await recountOf();
+    run();
+    expect(await recountOf()).toBe(base);
+    const l = get("docs/ROADMAP.md").split("\n").find((x) => x.startsWith("| Z-1 | "))!;
+    const c = l.split(" | ");
+    expect(c).toHaveLength(7);
+    expect(c[2].length).toBeLessThanOrEqual(100);
+    expect(c[2]).toMatch(/ …$/);
+    expect((c[2].match(/`/g) ?? []).length % 2).toBe(0);
+    expect((c[2].match(/\*\*/g) ?? []).length % 2).toBe(0);
+    expect(c[4].length).toBeLessThanOrEqual(70);
+    expect(c[4].startsWith("✅")).toBe(true);
+    expect(get(`docs/archive/ROADMAP-closed-rows-${new Date().toISOString().slice(0, 7)}.md`)).toContain(longTitle);
+  });
+
+  it("keeps the newest 3 recount bullets and moves Z.7b and Z.8", () => {
+    run();
+    const r = get("docs/ROADMAP.md");
+    expect(r).toContain("- S5 recount update");
+    expect(r).toContain("- S3 recount update");
+    expect(r).not.toContain("- S2 recount update");
+    expect(r).toContain("- Older recount updates: docs/archive/ROADMAP-history-");
+    expect(r).toContain("- Z.7b and Z.8: docs/archive/ROADMAP-history-");
+    expect(r).not.toContain("sheet text");
+    expect(r).toContain("### Z.9 Final list");
+    const h = hist();
+    expect(h).toContain("## Z.7 recount history (moved)");
+    expect(h).toContain("- S2 recount update (x): note 2.");
+    expect(h).toContain("- S1 recount update (x): note 1.");
+    expect(h).toContain("### Z.7b Sheet\n\nsheet text");
+    expect(h).toContain("### Z.8 Hygiene\n\nhygiene text");
+    const pairs = JSON.parse(get("docs/moves.json")).map((e: { from: string; to: string }) => `${e.from}>${e.to}`);
+    expect(new Set(pairs).size).toBe(pairs.length);
+  });
+
+  it("changes nothing on a second run", () => {
+    run();
+    const names = ["docs/ROADMAP.md", "docs/moves.json", "docs/SESSION_STATE.md"];
+    const snap = [...names.map(get), hist()];
+    run();
+    expect([...names.map(get), hist()]).toEqual(snap);
+  });
+});

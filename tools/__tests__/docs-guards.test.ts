@@ -49,6 +49,14 @@ describe("check-docs-privacy", () => {
     expect(out).not.toContain(ip);
   });
 
+  it("no longer exempts docs/ files: a tracked docs/ROADMAP.md with an amount fails", () => {
+    put("docs/ROADMAP.md", `cost ${price}\n`);
+    commit();
+    const { out, code } = run("check-docs-privacy.mjs");
+    expect(code).toBe(1);
+    expect(out).toContain("docs/ROADMAP.md:1: currency-amount");
+  });
+
   it("passes clean text: private IP, SQL placeholder, mention of a PRIVATE_ name", () => {
     put("docs/a.md", "ip 192.168.1.5 and 10.0.0.1, see PRIVATE_notes in the list, sql $1 and $2\n");
     put("src/q.ts", "const q = 'values ($10, $11)'; const ip = '1.2.3.4';\n");

@@ -74,7 +74,7 @@ if (process.argv.includes("--self-test")) {
     return cache.get(doc);
   };
   if (!fs.existsSync(DOCS)) {
-    console.log("doc-anchors: SKIPPED - docs/ is absent in this checkout (gitignored); runs locally");
+    console.log("doc-anchors: skipped, docs/ is not in this checkout");
     process.exit(0);
   }
   const files = ["modules", "apps", "docs", "tools"].flatMap((d) =>

@@ -68,7 +68,7 @@
 import * as path from "node:path";
 import * as fsp from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { type Dirent } from "node:fs";
+import { type Dirent, existsSync } from "node:fs";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -640,8 +640,11 @@ async function main(): Promise<void> {
     return; // runSelfTest calls process.exit, but keep TS happy
   }
 
-  // Read the canonical matcher from the deployment doc
-  const canonicalPatterns = await readCanonicalMatcherFromDoc();
+  // Read the canonical matcher from the deployment doc. docs/ is not in git (gitignored), so in a
+  // checkout without it only the doc-vs-Caddy comparison is skipped; the route scan still runs.
+  const docsAbsent = !existsSync(path.join(REPO_ROOT, "docs", "06-deployment.md"));
+  if (docsAbsent) process.stdout.write("lint-edge-routing: skipped, docs/ is not in this checkout (doc-vs-Caddy comparison)\n");
+  const canonicalPatterns = docsAbsent ? [] : await readCanonicalMatcherFromDoc();
 
   // Discover route files
   const files = await findRouteFiles();
@@ -657,8 +660,7 @@ async function main(): Promise<void> {
     } catch {
       continue; // unreadable — skip
     }
-    const violations = validateRouteFile(file, content, canonicalPatterns);
-    allViolations.push(...violations);
+    if (!docsAbsent) allViolations.push(...validateRouteFile(file, content, canonicalPatterns));
     filesScanned++;
     mountsChecked += extractRoutes(file, content).length;
   }
@@ -675,7 +677,7 @@ async function main(): Promise<void> {
 
   process.stdout.write(
     `Edge-routing lint: OK (${filesScanned} files scanned, ${mountsChecked} route mounts checked, ` +
-      `canonical matcher: @api path ${canonicalPatterns.join(" ")})\n`
+      (docsAbsent ? "matcher comparison skipped)\n" : `canonical matcher: @api path ${canonicalPatterns.join(" ")})\n`)
   );
   process.exit(0);
 }

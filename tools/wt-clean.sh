@@ -24,6 +24,21 @@ if ! [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
   exit 64
 fi
 
+IS_WIN=0
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WIN=1 ;; esac
+
+# True for a symlink or a Windows junction. Never follows the link.
+is_link() {
+  [ -L "$1" ] && return 0
+  if [ "$IS_WIN" = 1 ] && [ -d "$1" ]; then
+    local w
+    w="$(cygpath -w "$1")"
+    [ "$(pwsh -NoProfile -Command "(Get-Item -LiteralPath '$w' -Force).LinkType" 2>/dev/null | tr -d '\r')" = "Junction" ]
+  else
+    return 1
+  fi
+}
+
 MAIN="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
 TARGET="$MAIN/.claude/worktrees/$NAME"
 REGISTERED="$(git worktree list --porcelain | sed -n 's/^worktree //p')"
@@ -40,8 +55,13 @@ if [ "$TOP" = "$TARGET" ]; then
 fi
 
 DIRTY=""
+# When docs/ is a junction, leave it out of git checks: it points at the main clone's docs (local only).
+DOCS_EXCL=""
+if [ -d "$TARGET" ] && is_link "$TARGET/docs"; then
+  DOCS_EXCL=":(exclude)docs"
+fi
 if [ -d "$TARGET" ]; then
-  DIRTY="$(git -C "$TARGET" status --porcelain)"
+  DIRTY="$(git -C "$TARGET" status --porcelain -- . ${DOCS_EXCL:+"$DOCS_EXCL"})"
 fi
 AHEAD="$(git log --oneline "origin/main..$NAME" 2>/dev/null || true)"
 
@@ -67,12 +87,26 @@ if [ -d "$TARGET" ] && [ "$FORCE" = 1 ] && { [ -n "$DIRTY" ] || [ -n "$AHEAD" ];
   git -C "$TARGET" diff HEAD --binary > "$BK/$NAME.patch"
   echo "Backup patch: $BK/$NAME.patch"
   LIST="$(mktemp)"
-  git -C "$TARGET" ls-files --others --exclude-standard -z > "$LIST"
+  git -C "$TARGET" ls-files --others --exclude-standard -z -- . ${DOCS_EXCL:+"$DOCS_EXCL"} > "$LIST"
   if [ -s "$LIST" ]; then
     (cd "$TARGET" && tar --null -cf "$BK/$NAME-untracked.tar" -T "$LIST")
     echo "Backup untracked files: $BK/$NAME-untracked.tar"
   fi
   rm -f "$LIST"
+fi
+
+if [ -d "$TARGET" ] && is_link "$TARGET/docs"; then
+  # Remove the docs link only. rmdir without /s and rm without -r never enter the link target.
+  if [ "$IS_WIN" = 1 ] && [ ! -L "$TARGET/docs" ]; then
+    MSYS_NO_PATHCONV=1 cmd.exe /d /c rmdir "$(cygpath -w "$TARGET/docs")" < /dev/null || true
+  else
+    rm -- "$TARGET/docs"
+  fi
+  if [ -e "$TARGET/docs" ]; then
+    echo "refused to continue: $TARGET/docs link is still present. Nothing inside the main docs was touched." >&2
+    exit 1
+  fi
+  echo "Removed docs link (main docs/ kept)."
 fi
 
 if [ -d "$TARGET" ]; then
