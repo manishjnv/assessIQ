@@ -9,7 +9,7 @@ This file overrides the global `~/.claude/CLAUDE.md` orchestration playbook wher
 In ONE parallel-tool-call message, read:
 
 1. `docs/PROJECT_BRAIN.md` — orientation (mandatory every session)
-2. `docs/01-architecture-overview.md` — system context
+2. `docs/01-architecture-overview.md` — system context (read only when the task needs it; not mandatory)
 3. `docs/NEXT.md` — generated start brief (Z-64): last handoff, ROADMAP status board, open Z-rows, newest 5 RCA entries, next migration number. Run `node tools/next-brief.mjs` first if its HEAD sha differs from `git rev-parse --short HEAD` or the file is absent. Replaces the full reads of `docs/SESSION_STATE.md` and `docs/ROADMAP.md`; open those only for a specific row or section
 4. `docs/ROADMAP.md` — read only the row you work on (plans index in `docs/plans/README.md`)
 5. `docs/RCA_LOG.md` — do NOT read in full (about 116k tokens, 2850 lines). `docs/NEXT.md` holds the newest 5 entries. Before you plan or review a change in an area, run `grep -n -i "<module or keyword>" docs/RCA_LOG.md` and read only the matching entries (owner decision 2026-10-18, token saving). Skip silently if absent
