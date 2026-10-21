@@ -82,7 +82,7 @@ Follow-up (S39, camera line in the invitation email, design step 1). The real-ex
 ## 6. Migrations, flags, jobs
 
 - Migrations 0229, 0230, 0231 applied on the server. Next free migration: 0232.
-- Flag `CAMERA_ENFORCED`: false. The Caddy edge change is live, so the owner can turn it on after the school test walk-through (set it in the server env and recreate api and worker).
+- Flag `CAMERA_ENFORCED`: **true in production since 2026-10-21** (owner decision). One line added to the server `.env` after a name-only listing (31 variables, no CAMERA line), backup `env.pre-camera-enforced-2026-10-21` (mode 600), `assessiq-api` recreated only (healthy, container reads true), sweep 21 PASS and 0 FAIL, `/api/health` and `/api/ready` 200, error log unchanged. `assessiq-worker` was not recreated (only the reminder email camera line differs). Effect: a normal organisation must confirm the camera notice (Settings, Data privacy, Camera card) before any candidate can start a real exam, else 422 CAMERA_SETUP_REQUIRED. Undo: set false and recreate `assessiq-api`.
 - Env: `CAMERA_STORAGE_DIR` (default `/var/lib/assessiq/camera`), `CAMERA_STORAGE_MAX_BYTES` (default 5 GB).
 - Job: `camera-retention-cron`, daily 03:00 UTC.
 - Server folder `/var/lib/assessiq/camera` created (mode 0700, new, assessiq namespace). Both containers see it.
