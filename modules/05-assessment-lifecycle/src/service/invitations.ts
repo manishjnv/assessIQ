@@ -256,6 +256,7 @@ async function reissueForResend(
         invitationLink: `${PUBLIC_URL}/take/${reissued.plaintext}`,
         expiresAt: reissued.invitation.expires_at,
         tenantName,
+        deliveryMode: reissued.invitation.delivery_mode,
       },
     };
   });
@@ -493,6 +494,7 @@ export async function inviteUsers(
           invitationLink: `${PUBLIC_URL}/take/${reissued.plaintext}`,
           expiresAt: reissued.invitation.expires_at,
           tenantName,
+          deliveryMode: mode,
         });
         invited.push(reissued.invitation);
         continue;
@@ -529,6 +531,7 @@ export async function inviteUsers(
         invitationLink,
         expiresAt,
         tenantName,
+        deliveryMode: mode,
       });
 
       // Audit one row per invitation issued. Per-invitation granularity beats

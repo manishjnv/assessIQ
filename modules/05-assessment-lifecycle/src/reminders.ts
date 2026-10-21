@@ -156,6 +156,7 @@ interface Claimed {
   tenantName: string;
   deadline: Date;
   link: string;
+  deliveryMode: "real" | "mock";
 }
 
 /** Claim ONE invitation in its tenant's transaction; null when it is no longer eligible. */
@@ -163,7 +164,7 @@ async function claim(c: Candidate): Promise<Claimed | null> {
   return withTenant(c.tenant_id, async (client) => {
     const { plaintext, hash } = generateInvitationToken();
     // Re-checks eligibility under the row lock-by-UPDATE; expires_at is deliberately NOT set.
-    const res = await client.query<{ expires_at: Date; closes_at: Date | null; assessment_id: string; user_id: string }>(
+    const res = await client.query<{ expires_at: Date; closes_at: Date | null; assessment_id: string; user_id: string; delivery_mode: string }>(
       `UPDATE assessment_invitations ai
           SET token_hash = $2, reminded_at = now()
          FROM assessments a
@@ -174,7 +175,7 @@ async function claim(c: Candidate): Promise<Claimed | null> {
           AND a.settings->'reminders'->>'enabled' = 'true'
           AND ${DEADLINE_SQL} > now()
           AND ${NO_ATTEMPT_SQL}
-      RETURNING ai.expires_at, a.closes_at, ai.assessment_id, ai.user_id`,
+      RETURNING ai.expires_at, a.closes_at, ai.assessment_id, ai.user_id, ai.delivery_mode`,
       [c.id, hash],
     );
     const row = res.rows[0];
@@ -199,6 +200,7 @@ async function claim(c: Candidate): Promise<Claimed | null> {
       tenantName,
       deadline,
       link: `${config.ASSESSIQ_BASE_URL}/take/${plaintext}`,
+      deliveryMode: row.delivery_mode === "mock" ? "mock" : "real", // the invitation row, never the request
     };
   });
 }
@@ -237,6 +239,7 @@ export async function sweepInvitationReminders(): Promise<ReminderSweepResult> {
         deadline: claimed.deadline,
         tenantName: claimed.tenantName,
         tenantId: c.tenant_id,
+        deliveryMode: claimed.deliveryMode,
       });
       result.sent += 1;
     } catch (err) {

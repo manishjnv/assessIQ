@@ -122,6 +122,8 @@ export interface SendAssessmentInvitationEmailInput {
    * When omitted, falls back to dev-emails.log (legacy stub-only mode).
    */
   tenantId?: string;
+  /** Plain boolean from the caller (real exam that uses the camera). Default false. */
+  cameraRequired?: boolean;
 }
 
 export async function sendAssessmentInvitationEmail(

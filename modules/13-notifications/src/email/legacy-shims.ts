@@ -52,6 +52,7 @@ export async function sendAssessmentInvitationEmail(
       invitationLink: input.invitationLink,
       expiresAt: input.expiresAt.toISOString(),
       tenantName: input.tenantName,
+      cameraRequired: input.cameraRequired === true,
     },
     ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
   });

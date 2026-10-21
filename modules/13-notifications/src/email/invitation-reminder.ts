@@ -20,6 +20,8 @@ export async function sendInvitationReminderEmail(input: {
   deadline: Date;
   tenantName: string;
   tenantId: string;
+  /** Plain boolean from the caller (real exam that uses the camera). Default false. */
+  cameraRequired?: boolean;
 }): Promise<void> {
   await sendEmail({
     to: input.to,
@@ -30,6 +32,7 @@ export async function sendInvitationReminderEmail(input: {
       invitationLink: input.invitationLink,
       expiresAt: input.deadline.toUTCString(),
       tenantName: input.tenantName,
+      cameraRequired: input.cameraRequired === true,
     },
     tenantId: input.tenantId,
   });

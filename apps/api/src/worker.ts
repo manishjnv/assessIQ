@@ -36,8 +36,8 @@ import { Redis } from "ioredis";
 import { config, streamLogger } from "@assessiq/core";
 import { closePool, purgeArchivedTenants } from "@assessiq/tenancy";
 import { purgeSoftDeletedUsers } from "@assessiq/users";
-import { processBoundariesForTenant, listTenantsWithDueBoundaries } from "@assessiq/assessment-lifecycle";
-import { sweepStaleTimersForTenant, listTenantsWithExpiredAttempts, runCameraRetentionAll, diskGuard } from "@assessiq/attempt-engine";
+import { processBoundariesForTenant, listTenantsWithDueBoundaries, setCameraRequiredResolver } from "@assessiq/assessment-lifecycle";
+import { sweepStaleTimersForTenant, listTenantsWithExpiredAttempts, runCameraRetentionAll, diskGuard, isCameraRequired } from "@assessiq/attempt-engine";
 import {
   processEmailSendJob,
   type EmailSendJobData,
@@ -416,6 +416,7 @@ export async function processTimerSweepTick(): Promise<{
 // ---------------------------------------------------------------------------
 
 async function start(): Promise<void> {
+  setCameraRequiredResolver(isCameraRequired); // reminder email camera line, same rule as the take flow
   log.info(
     {
       queue: QUEUE_NAME,

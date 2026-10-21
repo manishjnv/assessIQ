@@ -97,6 +97,8 @@ const ALREADY_SUBMITTED_ENVELOPE = {
  * Hash prefix for log traceability. Never returns the plaintext.
  */
 const TAKE_TOKEN_MAX_PER_MIN = 30;
+// Own bucket for POST /take/camera-consent, so consent then start does not burn two calls of the 30/min start budget.
+const CAMERA_CONSENT_MAX_PER_MIN = 10;
 
 function tokenLogTrace(plaintext: string): string {
   // Use a stable byte-prefix of the plaintext rather than re-hashing here —
@@ -442,7 +444,7 @@ export async function registerAttemptTakeRoutes(
   // POST /take/camera-consent — body { token, decision: 'agreed'|'declined', noticeVersion }
   // -------------------------------------------------------------------------
   //
-  // Pre-auth like /take/start: the token is the credential, same per-token throttle, same
+  // Pre-auth like /take/start: the token is the credential, own 10/min per-token bucket, same
   // generic 404. Writes one camera_consents row (attempt not known yet; startAttempt links it)
   // and one audit row. 'declined' is recorded too and the test does not start.
   // 422 CAMERA_NOTICE_STALE: the page showed an old notice. 409 CAMERA_NOT_REQUIRED: no camera here.
@@ -461,7 +463,7 @@ export async function registerAttemptTakeRoutes(
       const { token, decision, noticeVersion } = body.data;
 
       const tokenKey = sha256Hex(token).slice(0, 32);
-      const tokenBucket = await consumeRateLimit(`aiq:rl:take-token:${tokenKey}`, TAKE_TOKEN_MAX_PER_MIN, 60);
+      const tokenBucket = await consumeRateLimit(`aiq:rl:camera-consent:${tokenKey}`, CAMERA_CONSENT_MAX_PER_MIN, 60);
       if (!tokenBucket.allowed) {
         reply.header("Retry-After", String(tokenBucket.retryAfterSeconds));
         return reply.code(429).send({

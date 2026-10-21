@@ -7,7 +7,11 @@ You have not started {{assessmentName}} yet.
 Start your assessment:
 {{invitationLink}}
 
-It closes on {{expiresAt}}.
+{{#if cameraRequired}}{{_t_camera_note}} {{_t_camera_check}}
+{{invitationLink}}
+{{_t_camera_consent}}
+
+{{/if}}It closes on {{expiresAt}}.
 This link replaces the one in your earlier invitation email.
 If you did not expect this email, you can ignore it.
 

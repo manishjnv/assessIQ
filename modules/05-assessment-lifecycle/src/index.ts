@@ -60,6 +60,8 @@ export {
   REMINDER_DAILY_CAP,
 } from "./reminders.js";
 export type { ReminderSweepResult } from "./reminders.js";
+// Invitation and reminder email: camera line wiring (module 06 rule injected at boot).
+export { setCameraRequiredResolver } from "./email.js";
 
 export { processBoundariesForTenant, listTenantsWithDueBoundaries } from "./boundaries.js";
 export type { BoundaryRunResult } from "./boundaries.js";

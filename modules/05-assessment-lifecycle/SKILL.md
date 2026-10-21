@@ -313,3 +313,10 @@ Tests:
 - **Rejected.** A candidate-chosen mode (a bypass). A per-organisation opt-out of the desktop rule (owner: no opt-out).
 - **Not included.** A secure or lockdown browser. Camera, photos and video (Wave 2). Credit burn by type (Z-93). The mock dashboard (Z-90).
 - **Downstream.** Module 06 copies the mode to the attempt. Module 09 skips the certificate for a mock. Module 15 reports count real attempts only. UI: invite form radio, Test type card, Mock badge in the invitation list.
+
+## Camera line in invitation and reminder email (S39 follow-up, 2026-10-21)
+
+- What: `email.ts` `sendInvitationEmail` and `sendReminderEmail` take `deliveryMode` (from the invitation row, never the request) and pass a plain `cameraRequired` boolean to 13-notifications. Callers set it in `service/invitations.ts` (invite, re-invite, resend) and `reminders.ts` (the claimed row).
+- Rule: true only when `deliveryMode` is `real` and the injected resolver says yes. Mock, no tenant, no resolver or a resolver error give false; the email still goes out.
+- How: module 05 cannot import module 06 (`lint:cross-module-deps`), so `setCameraRequiredResolver(isCameraRequired)` is called at boot in `apps/api/src/server.ts` and `worker.ts`. It is a module-level slot, not threaded through each service call (less wiring; one process, one resolver).
+- Not included: a privacy notice link in the email; per-request override.

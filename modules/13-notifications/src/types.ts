@@ -62,6 +62,8 @@ export const InvitationCandidateVarsSchema = z.object({
   invitationLink: z.string().url(),
   expiresAt: z.string(), // ISO8601 string
   tenantName: z.string().min(1),
+  /** Real exam that uses the camera. The caller decides; the template only shows the line. */
+  cameraRequired: z.boolean().optional(),
 });
 
 // Same shape as the invitation: `expiresAt` is the effective deadline (sooner of link expiry / assessment close).

@@ -25,6 +25,28 @@ export interface SendAssessmentInvitationInput {
   expiresAt: Date;
   tenantName: string;
   tenantId?: string;
+  /** From the invitation row. Decides the camera line; absent = no line. */
+  deliveryMode?: "real" | "mock";
+}
+
+type CameraRequiredFor = (tenantId: string, deliveryMode: "mock" | "real") => Promise<boolean>;
+let cameraRequiredFor: CameraRequiredFor | undefined;
+/**
+ * Wired once at boot (apps/api server.ts and worker.ts) with module 06's isCameraRequired.
+ * Module 05 cannot import module 06. ponytail: module-level slot, not threaded through every service call.
+ */
+export function setCameraRequiredResolver(fn: CameraRequiredFor | undefined): void {
+  cameraRequiredFor = fn;
+}
+
+/** Same rule as the take flow. Mock, no tenant, no resolver or a resolver error all give false (the email still goes out). */
+export async function resolveCameraRequired(tenantId: string | undefined, deliveryMode: "real" | "mock" | undefined): Promise<boolean> {
+  if (deliveryMode !== "real" || tenantId === undefined || cameraRequiredFor === undefined) return false;
+  try {
+    return await cameraRequiredFor(tenantId, deliveryMode);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -48,12 +70,14 @@ export async function sendInvitationEmail(
     expiresAt: input.expiresAt,
     tenantName: input.tenantName,
     ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
+    cameraRequired: await resolveCameraRequired(input.tenantId, input.deliveryMode),
   });
 }
 
 /** Reminder ("closes soon") email — same shim rationale as above; throws on failure. */
 export async function sendReminderEmail(
-  input: Parameters<typeof sendInvitationReminderEmail>[0],
+  input: Omit<Parameters<typeof sendInvitationReminderEmail>[0], "cameraRequired"> & { deliveryMode?: "real" | "mock" },
 ): Promise<void> {
-  await sendInvitationReminderEmail(input);
+  const { deliveryMode, ...rest } = input;
+  await sendInvitationReminderEmail({ ...rest, cameraRequired: await resolveCameraRequired(input.tenantId, deliveryMode) });
 }

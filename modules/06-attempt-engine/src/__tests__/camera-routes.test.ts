@@ -18,6 +18,7 @@ const routeCtx = vi.hoisted(() => ({
   resolved: null as unknown,
   session: null as { userId: string; tenantId: string; role: string } | null,
   rl: { allowed: true, retryAfterSeconds: 30 },
+  rlCalls: [] as Array<[string, number, number]>,
 }));
 vi.mock("@assessiq/assessment-lifecycle", async (orig) => ({
   ...(await orig<typeof import("@assessiq/assessment-lifecycle")>()),
@@ -27,7 +28,10 @@ vi.mock("@assessiq/assessment-lifecycle", async (orig) => ({
 vi.mock("@assessiq/auth", async (orig) => ({
   ...(await orig<typeof import("@assessiq/auth")>()),
   mintCandidateSession: vi.fn(async () => ({ id: "sess-1", token: "sess-token" })),
-  consumeRateLimit: vi.fn(async () => routeCtx.rl),
+  consumeRateLimit: vi.fn(async (key: string, max: number, win: number) => {
+    routeCtx.rlCalls.push([key, max, win]);
+    return routeCtx.rl;
+  }),
 }));
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
@@ -119,6 +123,7 @@ beforeEach(async () => {
   cfg.CAMERA_ENFORCED = true;
   cfg.CAMERA_STORAGE_MAX_BYTES = prev.max;
   routeCtx.rl = { allowed: true, retryAfterSeconds: 30 };
+  routeCtx.rlCalls = [];
   // Non-school, notice confirmed: a real exam needs the camera.
   await sup(`UPDATE tenants SET is_school = false WHERE id = $1`, [T]);
   await sup(`UPDATE tenant_settings SET camera_enabled = true, camera_photos_enabled = true, camera_notice_confirmed_version = $2 WHERE tenant_id = $1`, [T, CAMERA_NOTICE_VERSION]);
@@ -301,6 +306,85 @@ describe("consent endpoint and start gate", () => {
     const { assessmentId } = await newExam("EmbedBase");
     const a = await rawStartAttempt(T, { userId: candidate, assessmentId, embedOrigin: true, gate: { mobile: false } });
     expect(a.id).toBeTruthy();
+  });
+});
+
+describe("retake consent (Z-39) and consent route limits", () => {
+  const consentRows = (inv: string) =>
+    sup<{ decision: string; attempt_id: string | null }>(`SELECT decision, attempt_id FROM camera_consents WHERE invitation_id = $1 ORDER BY created_at, id`, [inv]);
+
+  async function finishedFirstAttempt(app: Awaited<ReturnType<typeof buildApp>>, label: string) {
+    const ex = await newExam(label);
+    await sup(`UPDATE assessments SET max_attempts = 2 WHERE id = $1`, [ex.assessmentId]);
+    expect((await consent(app)).statusCode).toBe(200);
+    const r = await takeStart(app);
+    expect(r.statusCode).toBe(201);
+    const a1 = r.json().attempt_id as string;
+    await sup(`UPDATE attempts SET status = 'submitted', submitted_at = now() WHERE id = $1`, [a1]);
+    return { ...ex, a1 };
+  }
+
+  it("retake without a new consent -> 422 CAMERA_CONSENT_REQUIRED; agreeing again links the new attempt only", async () => {
+    const app = await buildApp();
+    const ex = await finishedFirstAttempt(app, "Retake");
+    const no = await takeStart(app);
+    expect(no.statusCode).toBe(422);
+    expect(no.json().error.code).toBe("CAMERA_CONSENT_REQUIRED");
+    expect((await sup(`SELECT 1 FROM attempts WHERE user_id = $1`, [ex.candidate])).length).toBe(1);
+
+    expect((await consent(app)).statusCode).toBe(200);
+    const ok = await takeStart(app);
+    expect(ok.statusCode).toBe(201);
+    const a2 = ok.json().attempt_id as string;
+    expect(a2).not.toBe(ex.a1);
+    const rows = await consentRows(ex.invitationId);
+    expect(rows.map((r) => r.attempt_id)).toEqual([ex.a1, a2]);
+    expect((await upload(app, a2, "photo", JPEG)).statusCode).toBe(201);
+  });
+
+  it("a declined decision stays unlinked and a later start without a fresh agree is refused", async () => {
+    const app = await buildApp();
+    const ex = await newExam("DeclineLink");
+    expect((await consent(app, "declined")).statusCode).toBe(200);
+    expect((await consentRows(ex.invitationId))).toEqual([{ decision: "declined", attempt_id: null }]);
+    expect((await takeStart(app)).statusCode).toBe(422);
+    expect((await consentRows(ex.invitationId))[0]!.attempt_id).toBeNull();
+  });
+
+  it("consent uses its own 10/min bucket, not the take-token one; 429 carries Retry-After", async () => {
+    const app = await buildApp();
+    await newExam("Limit");
+    expect((await consent(app)).statusCode).toBe(200);
+    expect(routeCtx.rlCalls).toHaveLength(1);
+    const [key, max, win] = routeCtx.rlCalls[0]!;
+    expect(key).toMatch(/^aiq:rl:camera-consent:[0-9a-f]{32}$/);
+    expect([max, win]).toEqual([10, 60]);
+    routeCtx.rl = { allowed: false, retryAfterSeconds: 9 };
+    const r = await consent(app);
+    expect(r.statusCode).toBe(429);
+    expect(r.headers["retry-after"]).toBe("9");
+  });
+
+  it("same open decision twice = one row and one audit row; a changed decision and a post-link agree insert", async () => {
+    const app = await buildApp();
+    const ex = await newExam("Idem");
+    const before = (await audit("camera.consent.recorded")).length;
+    expect((await consent(app)).statusCode).toBe(200);
+    expect((await consent(app)).statusCode).toBe(200);
+    expect((await consentRows(ex.invitationId)).length).toBe(1);
+    expect((await audit("camera.consent.recorded")).length).toBe(before + 1);
+
+    expect((await consent(app, "declined")).statusCode).toBe(200);
+    expect((await consentRows(ex.invitationId)).map((r) => r.decision)).toEqual(["agreed", "declined"]);
+    expect((await consent(app, "agreed")).statusCode).toBe(200);
+    expect((await consentRows(ex.invitationId)).length).toBe(3);
+
+    // start links the newest agree; a new agree after the link inserts again
+    expect((await takeStart(app)).statusCode).toBe(201);
+    expect((await consent(app, "agreed")).statusCode).toBe(200);
+    const rows = await consentRows(ex.invitationId);
+    expect(rows.length).toBe(4);
+    expect(rows[3]!.attempt_id).toBeNull();
   });
 });
 
