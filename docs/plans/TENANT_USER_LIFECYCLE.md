@@ -1,8 +1,10 @@
 # Tenant & user lifecycle controls — implementation plan
 
+Rows: LC-2
+
 **Owner**: super-admin offboarding/onboarding workstream
 **Date opened**: 2026-05-20
-**Status**: DONE for Phases A-E. A `a1db97c` (plan + foundation), B `2af9849` (tenant Suspend/Resume/Archive/Unarchive), C handoff `c315054` (user lifecycle), D `60d4d23` (login banner), E `a5e7cf1` (docs). Source: `git log`, `docs/SESSION_STATE.md` (lines 2132, 2152). Purge after retention: DPDP retention cron in `7739842` (scope not verified against this plan). LC-2 (2026-10-16) DONE in code and tests: the worker job `user-purge-cron` (03:45 UTC, `purgeSoftDeletedUsers` in `modules/03-users/src/purge.ts`) purges users soft-deleted for 180 days or more and keeps a tombstone row. Flag `USER_PURGE_ENABLED` defaults to `false`, which is a dry run. Next: read the dry-run tick `user_purge.tick` on the VPS, then set the flag. Detail: `modules/03-users/SKILL.md` § "User purge (LC-2, S14, 2026-10-16)".
+**Status:** DONE for Phases A-E. A `a1db97c` (plan + foundation), B `2af9849` (tenant Suspend/Resume/Archive/Unarchive), C handoff `c315054` (user lifecycle), D `60d4d23` (login banner), E `a5e7cf1` (docs). Source: `git log`, `docs/SESSION_STATE.md` (lines 2132, 2152). Purge after retention: DPDP retention cron in `7739842` (scope not verified against this plan). LC-2 (2026-10-16) DONE in code and tests: the worker job `user-purge-cron` (03:45 UTC, `purgeSoftDeletedUsers` in `modules/03-users/src/purge.ts`) purges users soft-deleted for 180 days or more and keeps a tombstone row. Flag `USER_PURGE_ENABLED` defaults to `false`, which is a dry run. Next: read the dry-run tick `user_purge.tick` on the VPS, then set the flag. Detail: `modules/03-users/SKILL.md` § "User purge (LC-2, S14, 2026-10-16)".
 **Sessions estimated**: 3 (Phase A; B+C parallel; D+E together)
 
 ## Goal

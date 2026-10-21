@@ -1,5 +1,7 @@
 # Tenant email sender (`smtp_config`) — design note (FU-A15)
 
+Rows: none
+
 **Status: design only, not built.** Date 2026-10-09. Parked for the Enterprise tier until the first customer asks (FR15, FU-A16).
 
 ## What

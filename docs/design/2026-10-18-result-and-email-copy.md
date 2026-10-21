@@ -1,5 +1,7 @@
 # Result copy (Z-9) and email review (Z-10) - draft for owner review
 
+Rows: Z-9, Z-10, Z-15, Z-16, Z-37
+
 Status: DRAFT. Nothing here is built. No code or template changed.
 Sources: ROADMAP rows Z-9, Z-10, Z-11, Z-15, Z-16; glossary `docs/10-branding-guideline.md` section 2.5; templates in `modules/13-notifications/src/email/templates/`; copy in `modules/11-candidate-ui/src/`.
 

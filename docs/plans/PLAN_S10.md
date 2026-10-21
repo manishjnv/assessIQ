@@ -1,5 +1,8 @@
 # AssessIQ — S10 plan (extract for Autopilot, 2026-10-15)
 
+Status: plan (done)
+Rows: none (S10 rows moved to docs/archive/ROADMAP-closed-rows-2026-10.md)
+
 Source: `docs/ROADMAP.md` § P0-W "Hardening roadmap from the 2026-10-09 full review". Only the rows tagged S10 and S10+ are here. The rest of that file is context, not scope.
 
 AssessIQ is a half-built, deployed product: 18 modules under `modules/`, apps under `apps/`, ~127k lines of app source, 72k lines of tests, production on a shared VPS. Nothing here is a new project. Every task edits an existing codebase. Mark anything already shipped as done.

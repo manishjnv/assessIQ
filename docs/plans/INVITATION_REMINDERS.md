@@ -1,5 +1,8 @@
 # Automatic invitation reminders (2026-10-02)
 
+Status: as-built
+Rows: IR-1, IR-2
+
 ## What changed
 - `settings.reminders = { enabled, hours_before? }` per assessment (strict, 1-168 h, default 24 when enabled). **Default OFF.**
 - Worker job `invitation.reminders`, every 30 min (apps/api `jobs/invitation-reminders.ts`, wired in `worker.ts`): sends ONE "closes soon" email per un-started invitation. Logic in `modules/05-assessment-lifecycle/src/reminders.ts`.

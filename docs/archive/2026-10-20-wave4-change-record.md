@@ -1,5 +1,8 @@
 # S37 change record: Wave 1 leftovers and Wave 4 small rows (2026-10-20)
 
+Status: superseded by modules/19-billing/SKILL.md § 2026-10-20 — Wave 4 small rows (S37): low-balance emails and companions
+Rows: Z-96, Z-37, Z-20, Z-49, Z-76, RW-1
+
 *Type: reference.* This page lets a later session continue without reading the diff.
 
 **Commits:** `0bc3e5ad` (main change), `be3da797` (page dates), `6862328a` (review fix with trailer), `160e89e5` (CI fixes). The server runs `160e89e5`. The marketing container was rebuilt from `160e89e5`. Migration `0227` is applied.

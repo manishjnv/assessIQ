@@ -1,5 +1,7 @@
 # SEO Audit Follow-ups — saved plan (implement later)
 
+Rows: none
+
 **Status:** superseded 2026-10-16 — open items are tracked in docs/ROADMAP.md § P0-Z (rows kept here for history). Was: NOT STARTED. Saved 2026-05-27.
 **Origin:** Audit of AssessIQ's SEO against the `claude-seo` skill suite (v2.0.0, installed globally to `~/.claude/skills/`). This doc captures the follow-up actions so a future session can execute without re-running the audit.
 

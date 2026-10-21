@@ -1,5 +1,7 @@
 # Question Difficulty Spec — per-type intrinsic difficulty parameters (L1/L2/L3)
 
+Rows: none
+
 **Date:** 2026-05-23
 **Status:** Phase A DONE and deployed: A1 `667286a`, A2 migration 0086 `fc61718`, A3 `2c102fa`, deploy note `7aed109`. Phases B and C: not started (not verified in git log). Old status: Phase A IMPLEMENTING.
 **Prerequisite reading:** `docs/05-ai-pipeline.md`, `docs/design/2026-05-09-type-sharded-generation.md`, `prompts/skills/generate-*/SKILL.md`

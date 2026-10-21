@@ -1,5 +1,7 @@
 # Plan: stop tracking public docs files in the public repo (Z-75)
 
+Rows: Z-75
+
 **Type:** plan only. **Status:** not started. **Date:** 2026-10-19 (S31). **Execution needs the owner's yes.**
 **Source:** owner Q13 (do it in a planned step); memory "public repo hygiene" (docs are gitignored, new docs need `git add -f`); ROADMAP Z.8 (history purge, separate).
 **Old task or feature checked:** `.gitignore` lines 39-46 (`docs/` is ignored, tracked files stay tracked), H1 (duplicate-ID table, "44 already-committed docs"), Z-73 (docs-reading tests in CI), Z-48 (Docs lint), RCA 2026-05-03 (VPS git clone).

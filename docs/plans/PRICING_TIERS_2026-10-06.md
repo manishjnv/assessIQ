@@ -1,5 +1,8 @@
 # Pricing tiers — definition (FU-A1, 2026-10-06)
 
+Status: reference
+Rows: none
+
 Source: `docs/plans/archive/RS6_FEATURE_REVIEW_A.md` § PT1 (c) and (d), as finalized by the
 owner decisions recorded there on 2026-10-03. This file is the canonical copy
 of the tier table referenced by `docs/ROADMAP.md` FU-A1 to

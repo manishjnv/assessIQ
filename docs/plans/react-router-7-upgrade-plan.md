@@ -1,5 +1,7 @@
 # Plan: upgrade react-router-dom 6 to react-router 7 (Z-38)
 
+Rows: Z-38
+
 **Type:** plan only. **Status:** not started. **Date:** 2026-10-19 (S31). **Owner yes needed before any upgrade.**
 **Old task or feature checked:** RCA 2026-10-18 "Admin page blank after login: two copies of react-router in the bundle"; `tools/__tests__/single-router-copy.test.ts`; Z-47 (error boundary); Z-38 (Dependabot tail).
 

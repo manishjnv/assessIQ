@@ -1,5 +1,7 @@
 # Review fix plan — findings of the 2026-10-02 full project review, in fix order
 
+Rows: none
+
 **Status:** superseded 2026-10-16 — open items are tracked in docs/ROADMAP.md § P0-Z (rows kept here for history). Was: PLAN (revision 2, 2026-10-02 late evening). RS1, RS2, RS3 and RS5 were worked on 2026-10-02 (session n); see the marks in section 5 and section 12. RS6, RS8, RS9, RS11 were done 2026-10-03 (session p). Session q (2026-10-03): RS10 partly done (`e645d81`) and RS4 code done (`9b541ba`, deploy waits for owner). Session r (2026-10-03): RS4 live (`f9473d5`, `67919ce`, `e11cb5b`), RS10 done except owner steps (`60477e0`, `ea906d4`, `e65b993`, `90a9ddb`), plus FU-B6 (`28ab66f`), FU-C17 (`f0884bd`), N21 (`94fdc4a`, `9084a53`), E4 G4 patch (deployed). The review itself made no code, doc or server change.
 **Code state at review time:** `main` at `b3dbd7e`. Production: server at `d0977eb`, API and worker image built 18:53 IST.
 **Local-only file.** `docs/` is gitignored and the repo is PUBLIC. This file lists defects that are not fixed. Do not `git add -f` it.

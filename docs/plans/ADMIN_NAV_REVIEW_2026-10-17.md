@@ -1,6 +1,8 @@
 # Admin navigation review — fewer, flow-shaped pages for the organisation admin
 
-**Status:** REVIEW DONE 2026-10-17, no code yet. Feeds ROADMAP rows Z-21 (help drawer + My account), Z-22 (flow gaps), Z-23 (7-item regroup, owner-gated), Z-24 (flow-first Home checklist). **Same-day update:** S15 shipped RW-83 "Start a test" (`283dd23`, `/admin/start-test`, `pages/start-test.tsx`) as a new nav item in the Work section, so the tenant admin now sees 16 items; the target layout folds it into Home as the primary button.
+Rows: Z-21, Z-22, Z-23, Z-24
+
+**Status:** done. Review of 2026-10-17. Rows Z-21 to Z-24 are closed. Feeds ROADMAP rows Z-21 (help drawer + My account), Z-22 (flow gaps), Z-23 (7-item regroup, owner-gated), Z-24 (flow-first Home checklist). **Same-day update:** S15 shipped RW-83 "Start a test" (`283dd23`, `/admin/start-test`, `pages/start-test.tsx`) as a new nav item in the Work section, so the tenant admin now sees 16 items; the target layout folds it into Home as the primary button.
 **Owner question (2026-10-17, screenshot of assessiq.in/admin):** how many left-nav items are documentation, can they be one user guide, and how can the org admin run one assessment end to end with fewer, more effective pages. Constraint: do not delete or discard any feature (PROJECT_BRAIN Rule A).
 **Method:** four read-only sweeps (Sonnet) over all 36 `/admin/*` routes in `apps/web/src/App.tsx:85-139`, every page under `modules/10-admin-dashboard/src/pages/`, `AdminShell.tsx`, module 16 help components and seeds, docs 07, 08, 09, 10, 14, STYLE, ROADMAP, SESSION_STATE. Two surprising claims re-verified by grep (no admin help trigger; Attempts ignores `assessmentId`).
 

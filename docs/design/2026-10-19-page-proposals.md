@@ -1,5 +1,7 @@
 # New public pages for assessiq.in: proposals
 
+Rows: Z-76, Z-26
+
 **Status:** proposal only. No page is written. No copy is written. No code is changed.
 **Owner task:** ROADMAP Z-76 (PAGES-1, owner Q42).
 **Date:** 2026-10-19.

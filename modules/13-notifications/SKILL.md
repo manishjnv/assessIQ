@@ -308,3 +308,15 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 - Why: the candidate should learn about the camera before test day, not at the Start button. The sender stays dumb: the caller decides, so 13 never imports module 06.
 - Callers: module 05 `email.ts` computes the boolean (see its SKILL).
 - Not included: privacy notice link, Hindi text, any camera line for admin or result mails.
+
+## Credit emails and result sign-in link (Z-96, Z-15 a, 2026-10-20)
+
+The full record is in `modules/19-billing/SKILL.md` § "2026-10-20 — Wave 4 small rows (S37)" and § "2026-10-20 — Session 4 (S38)". This part lists only what lives in this module.
+
+- **`credit_low_balance`** (Z-96 part 1, S37, commit `0bc3e5ad`). Files: html and txt templates, `strings/en.json`, `render.ts`, `types.ts`, `delivery-policy.ts`. Plain mail with the balance and the level (20 or 10 percent), and a link to the plan tab. No price. Sent by the billing job through a sender that the worker passes in, so 13 does not depend on 19. Audit action `billing.credit_low_balance_notice` (14-audit-log).
+- **`credit_expiring`** (Z-96, S38, commit `5afedc62`). Files: html, txt, schema, strings, delivery policy. Warns the org admins that a non-Free grant with credits left expires within 30 days. Audit action `billing.credit_expiry_notice`.
+- **Wording (Z-37 b).** invitation_reminder, invitation_admin, admin_email_otp, totp_enrolled, totp_reset_notice and evaluation_queue_alert use the approved wording. `totp-reset-notice.test.ts` was updated.
+- **Template count.** The sign-off test `email-result-copy.test.ts` counts 16 templates after S37 and 17 after S38. Bump it for each new template.
+- **Result sign-in link (Z-15 a).** New `src/email/result-login-token.ts` (`mintResultLoginToken` export) and `result-released.ts`. The result email button is a one-time link: 7 days, token in the URL fragment. Minting retires older tokens that live longer than 1 hour. `retireResultLoginLinks` is the retire step; any future "withdraw result" action must call it in the same transaction. The mail uses `redactLogBody: true`, so the token is not stored in `email_log` or queue data. Why 13 and not 01-auth: 01-auth already depends on 13, so the mint function in 01-auth would be a cycle. The consume side is in `modules/01-auth/src/candidate-login.ts`.
+- **Not included.** A per-admin retry when one admin send fails and another works. Revoking links on a withdrawn result (no such action exists yet).
+- **Verify.** `cd modules/13-notifications && npx vitest run`.

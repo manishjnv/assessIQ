@@ -1,6 +1,8 @@
 # Self-serve organisation sign-up: design (Z-71)
 
-**Date:** 2026-10-19 (revision 2, S31). **Status:** design only. No code. The build needs the owner's approval of this revision and one adversarial gate on the diff.
+Rows: Z-70, Z-71, Z-72
+
+**Date:** 2026-10-19 (revision 2, S31). **Status:** as-built (self-serve sign-up exists).
 **Source:** owner review sheet Q3 (yes, build it), Z-70 free plan pack (approved with changes), Z-72 liability and DPA proposal, S30 design review (12 findings, all answered in this revision).
 **Old task or feature checked:** `createTenant` in `modules/02-tenancy/src/service.ts` (super-admin only today), the email sign-in code in `modules/01-auth/src/email-otp.ts`, the candidate login in `candidate-login.ts`, the public `/try` demo, `modules/19-billing` plan columns and `TIER_LIMITS`, ROADMAP X2, Z-18, Z-70, Z-72.
 

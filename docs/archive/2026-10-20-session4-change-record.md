@@ -1,5 +1,8 @@
 # Session 4 (S38) change record, 2026-10-20
 
+Status: superseded by modules/19-billing/SKILL.md § 2026-10-20 — Session 4 (S38): exact meter, expiry warning, companions
+Rows: Z-96, Z-93, Z-15, SP11, Z-84
+
 *Type: reference.* Code commit `5afedc62` (CI green, deployed, sweep 0 failures). Migration 0228 applied.
 
 ## What changed

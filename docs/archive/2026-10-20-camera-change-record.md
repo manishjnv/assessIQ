@@ -1,5 +1,8 @@
 # Camera for real exams: change record (2026-10-20, S39)
 
+Status: superseded by modules/06-attempt-engine/SKILL.md § 2026-10-20 — Camera for real exams (S39, rows Z-74 and Z-82)
+Rows: Z-74, Z-82
+
 Rows: Z-74 (photo retention, review), Z-82 (school mode). Design: `docs/design/2026-10-20-camera-consent-flow-draft.md` (now as-built). Runbook: `docs/runbooks/camera-school-test.md`.
 
 ## 1. What changed

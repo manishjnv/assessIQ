@@ -1,5 +1,8 @@
 # Operational Maturity Audit — 2026-05-15
 
+Status: reference
+Rows: none
+
 **Scope:** Single-VPS Docker Compose deployment of AssessIQ on `<VPS_HOST>`
 (shared host with ti-platform, accessbridge, roadmap). Phase 1 — sync-on-click AI grading,
 no API budget, first paying customer window.

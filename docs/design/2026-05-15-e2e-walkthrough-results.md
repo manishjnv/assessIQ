@@ -1,5 +1,8 @@
 # E2E Walkthrough Results — 2026-05-15
 
+Status: reference
+Rows: none
+
 ## Overview
 
 Full production E2E walkthrough completed 2026-05-15, covering the entire candidate lifecycle from pack creation through certification and leaderboard ranking. Two production bugs were found and fixed during the run. All 21 smoke test checks pass against production.

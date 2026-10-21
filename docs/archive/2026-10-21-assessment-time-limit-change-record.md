@@ -1,5 +1,8 @@
 # Assessment time limit - change record (2026-10-21)
 
+Status: superseded by modules/05-assessment-lifecycle/SKILL.md § 2026-10-21 — Assessment time limit (migrations 0233, 0234)
+Rows: none (owner decision 2026-10-21; the record names no row id)
+
 *Type: explanation and reference.*
 
 ## What changed

@@ -1,5 +1,7 @@
 # Implementation Plan — Question Difficulty Spec, Phase A (structural gates)
 
+Rows: none
+
 **Source spec:** `docs/design/2026-05-23-question-difficulty-spec.md` (§4 parameter tables, §5 gate, §7 data model, §8 roll-out)
 **Scope:** Phase A only — spec module + difficulty tagging + HARD structural gates. Phase B (warn heuristics, local embedder) and Phase C (empirical drift report) are out of scope.
 **Resolved decisions:** Bloom + NICE layered taxonomy; structural-gates-first; **forward-only** (tag new items only, no backfill); zero AI-risk (no new `claude` spawn site, no `lint-no-ambient-claude` change).

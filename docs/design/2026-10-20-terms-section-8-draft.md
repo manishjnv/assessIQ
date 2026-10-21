@@ -1,5 +1,7 @@
 # Terms section 8 (intellectual property): draft wording for owner approval
 
+Rows: Z-20
+
 **Summary**
 
 - This draft changes one sentence in terms section 8, "Who owns what."
@@ -8,7 +10,7 @@
 
 **Old task or feature checked:** Z-20 (RV31 terms, owner wording). Proposal from `docs/SESSION_STATE.md` S14 § Owner gates (1) is the base. This draft adds the EXP-17 upload rule and the roles from `docs/design/2026-10-18-liability-and-dpa-proposal.md`.
 
-**Status:** DRAFT. No file changed. The file to edit after approval is `apps/marketing/src/pages/terms.astro`, line 199.
+**Status:** as-built (S37, 2026-10-20). The sentence is in `apps/marketing/src/pages/terms.astro`.
 
 ---
 

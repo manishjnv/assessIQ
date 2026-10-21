@@ -1,5 +1,7 @@
 # Stage 3 Promotion Rollout — Type-Sharded Generation
 
+Rows: none
+
 **Date:** 2026-05-10
 **Status:** APPROVED — §8 decisions locked 2026-05-10; Stage 3.1 ship gated on G1/G2/G4 (see §2)
 **Author:** Copilot design pass

@@ -1,5 +1,7 @@
 # Design / Plan — Question-set sharing via clone-on-grant (Step 2)
 
+Rows: none
+
 > **Status:** FULLY LIVE (2026-05-23). Phases 1–4 backend + Phase 5 UI (5a/5b/5c) shipped & deployed to `assessiq.in`. **Remaining: a behavioral UI walkthrough — operator-gated (see "Phase 6 verification status" below).**
 > **Predecessor:** Step 1 (platform-tenant master-library seed) shipped — migration `0083`, commit `b9d3c57`.
 > **Routing:** load-bearing **and** security-adjacent (tenancy + entitlements + question-bank). UI work MUST read `docs/10-branding-guideline.md` first; consult the kit (`modules/17-ui-system/AssessIQ_UI_Template/`) — but the admin dashboard has its OWN established pattern (AdminShell + CSS vars + Card/Chip/Icon), so reuse existing admin pages (`platform.tsx`, `pack-detail.tsx`, `assessments.tsx`), do not lift from the candidate kit.

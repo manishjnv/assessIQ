@@ -1,5 +1,8 @@
 # Z-104 CERT-POLISH: change record (2026-10-21, S39 part 3)
 
+Status: superseded by modules/18-certification/SKILL.md § 2026-10-21 — Z-104 certificate polish (S39 part 3)
+Rows: Z-104
+
 Row: Z-104 (items a to e). Source: the owner's end-to-end test of 2026-10-21 (4 questions, 45 minutes, pass at 75%, certificate, LinkedIn and X share). Not built here: Z-101 (waits for the owner), Z-103 (waits for the owner's numbers), the load test, and any change to `CAMERA_ENFORCED`.
 
 ## What changed

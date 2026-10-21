@@ -1,5 +1,8 @@
 # Answer-key correction and rescoring: proposal (not built)
 
+Status: design (partly built)
+Rows: EXP-12, EXP-20
+
 **Type:** design proposal and owner question. **Date:** 2026-10-19 (S34). **Row:** EXP-12.
 **Old task or feature checked:** EXP-12, EXP-18, EXP-20, Z-52 gaps 6 and 7, `updateQuestion` (new version on content change), `attempt_questions.question_version` (frozen version per attempt).
 

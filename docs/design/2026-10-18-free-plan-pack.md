@@ -1,5 +1,7 @@
 # Free plan pack (Z-70)
 
+Rows: Z-70, Z-71, Z-72
+
 **Date:** 2026-10-18, updated 2026-10-19. **Status:** approved by the owner with changes (Q3, review sheet). Proposal text only. This file has no code. Nothing here is built.
 **Source:** owner review sheet Q3, Q5, Q7, Q8 and the owner replies of 2026-10-19: the plan has no end date, there is no auto-delete, the public name is "Free".
 **Old task or feature checked:** PRICING_TIERS 2026-10-06 (Starter tier, 25-credit trial), module 19-billing (`TIER_LIMITS`, `tierAllows`), `PLAN_TIERS_ENFORCED`, ROADMAP X2, Z-18, Z-71, Z-72.

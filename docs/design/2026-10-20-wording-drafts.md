@@ -1,5 +1,7 @@
 # Wording drafts: SP11, Z-37 (b), Z-15 (a) design, Z-15 (c), Z-15 (d)
 
+Rows: Z-9, Z-15, Z-16, Z-37
+
 **Summary**
 
 - This file holds draft copy for five items: an admin ETA notice (SP11), email wording fixes (Z-37 b), a one-time sign-in link design (Z-15 a), result email copy (Z-15 c) and the empty certificates text (Z-15 d).

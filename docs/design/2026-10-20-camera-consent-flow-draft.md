@@ -1,6 +1,6 @@
 # Camera consent flow (as built, 2026-10-20)
 
-Status: AS-BUILT on 2026-10-20 (S39). The build follows this design. The change record is `docs/plans/2026-10-20-camera-change-record.md`. Rows: Z-74, Z-82 (Wave 2). Related: `docs/design/2026-10-19-legal-texts-v1.md`.
+Status: AS-BUILT on 2026-10-20 (S39). The build follows this design. The change record is `docs/archive/2026-10-20-camera-change-record.md`. Rows: Z-74, Z-82 (Wave 2). Related: `docs/design/2026-10-19-legal-texts-v1.md`.
 
 ## 1. Owner decisions that shape this design
 

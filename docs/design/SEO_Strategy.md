@@ -1,5 +1,8 @@
 # SEO Playbook — Candidate / Team Assessment Platform
 
+Status: reference
+Rows: none
+
 > **Reusable, stack-agnostic SEO strategy** distilled from a production SEO implementation (27 sequenced tasks, shipped + measured) and re-mapped to a candidate-assessment domain. Contains **only SEO methodology** — none of the source product's business logic.
 >
 > **Domain assumed:** a SaaS platform that lets IT companies and educational institutions assess candidates / teams (skills tests, coding tests, aptitude, proctored exams, team skill-gap analysis, certification). Think the competitive set of HackerRank / TestGorilla / Mettl / iMocha / Codility / Vervoe.

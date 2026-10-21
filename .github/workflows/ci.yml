@@ -533,7 +533,7 @@ jobs:
       # Z-73: these tests read docs/ files, so they must run on docs-only commits too
       # (the unit shards are skipped there). Keep the file list in step with tools/__tests__.
       - name: Docs-reading tests
-        run: pnpm exec vitest run tools/__tests__/next-brief.test.ts tools/__tests__/next-migration.test.ts tools/__tests__/roadmap-recount.test.ts tools/__tests__/routing-report.test.ts tools/__tests__/docs-guards.test.ts tools/__tests__/docs-moves.test.ts
+        run: pnpm exec vitest run tools/__tests__/next-brief.test.ts tools/__tests__/next-migration.test.ts tools/__tests__/roadmap-recount.test.ts tools/__tests__/routing-report.test.ts tools/__tests__/docs-guards.test.ts tools/__tests__/docs-moves.test.ts tools/__tests__/docs-archive.test.ts tools/__tests__/close-session.test.ts
 
   # ---------------------------------------------------------------------------
   # E2E job — Playwright against a stack built INSIDE the runner (no staging, no repo vars)

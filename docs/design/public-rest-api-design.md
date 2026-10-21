@@ -1,5 +1,7 @@
 # Smallest public REST API — design note (FU-B9)
 
+Rows: none
+
 **Status: design only, not built.** Date 2026-10-09. Owner input still open: is a REST API part of a plan tier (PT1)? Build nothing before that answer.
 
 ## What

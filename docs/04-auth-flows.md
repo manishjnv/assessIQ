@@ -1508,7 +1508,7 @@ This section holds the decisions that shaped the flows above. Each row names the
 
 ## Device and readiness gate at test start (Z-87, Z-91, S36 2026-10-20)
 
-*Type: explanation.* This section describes who may start a REAL exam and from which device. The change record is `docs/plans/2026-10-20-wave1-batches-abcd-change-record.md`.
+*Type: explanation.* This section describes who may start a REAL exam and from which device. The change record is `docs/archive/2026-10-20-wave1-batches-abcd-change-record.md`.
 
 - **Two start routes, one gate.** `POST /take/start` (invitation link) and `POST /api/me/assessments/:id/start` (signed-in candidate, including a retake from the result page) both pass `gate` to `startAttempt`. `startAttempt` enforces the gate for a NEW attempt of a REAL exam. A resume of an unfinished attempt needs no readiness check.
 - **Device rule.** A phone or tablet is refused with 403 `DEVICE_NOT_ALLOWED` and the message "Please open this link on a laptop or desktop computer to take this test". The decision uses the `Sec-CH-UA-Mobile` header, the user agent, and the client-reported touch and screen signals (`device.ts`). The invitation stays valid and unused.

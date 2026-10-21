@@ -1,5 +1,8 @@
 # Phase 14 — Reduced-motion audit (2026-05-14)
 
+Status: as-built
+Rows: none
+
 Scope: `modules/17-ui-system/src/components/` + `hooks/useCountUp.ts`.
 Produced by: Phase 14 narrow-slice session.
 

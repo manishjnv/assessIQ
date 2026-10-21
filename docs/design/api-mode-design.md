@@ -1,5 +1,7 @@
 # API mode for AI evaluation — design note (FU-A13)
 
+Rows: none
+
 **Status: design only, not built.** Date 2026-10-09. Owner decision OD2 (switch the engine to an API key when paid plans start) and PT1 (plan tiers) are the triggers. Nothing in this note is live.
 
 ## What

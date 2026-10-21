@@ -1,5 +1,7 @@
 # Future-ready question store — design v2 (EXP-14 and FUT-1 to FUT-9)
 
+Rows: EXP-14, EXP-9, EXP-10, EXP-19, EXP-20, FUT-1, FUT-2, FUT-3, FUT-4, FUT-5, FUT-6, FUT-7, FUT-8, FUT-9, FUT-11
+
 *Type: explanation + decision record.* Status: FINAL v2.1 (final Fable review applied), design only, no code. Date: 2026-10-21.
 Roadmap rows: EXP-14, FUT-1 to FUT-9 (docs/ROADMAP.md, Z.4). Related rows: EXP-9, EXP-10, EXP-19, EXP-20, Q12, R2 (k6), Z-43.
 How it was made: draft v1, then two independent validations against the code (Fable 5.1 and Opus 5.5). Both reports changed the draft. Section 8 lists what changed.

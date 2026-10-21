@@ -1,5 +1,7 @@
 # SEO marketing site — architecture decision (Phase 0)
 
+Rows: none
+
 > **Status:** DONE 2026-05-22 (c2fd170). Astro marketing site and additive Caddy/compose wiring shipped. Original text: PROPOSED draft.
 > **Scope:** *where* the public marketing/content site lives, *how* it renders, *how* it coexists with the existing app on `assessiq.in`, *how* it shares branding, and *how* it deploys additively on the shared VPS.
 > **Not in scope:** the content of individual pages (that is Phase 1+). This doc decides the container/route/deploy shape only.

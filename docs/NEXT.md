@@ -2,9 +2,9 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-21T08:20:41.325Z (2026-10-21 13:50:41 IST)
-- HEAD: `924cd996`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 13
+- Generated: 2026-10-21T08:59:06.169Z (2026-10-21 14:29:06 IST)
+- HEAD: `3f923876`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 76
 
 ## 1. Last session (SESSION_STATE, first block)
 
@@ -19,7 +19,7 @@ GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 **Open questions:** label "marks per section" vs per question; Z-15 (g) default feedback level; Z-38 majors after the pilot.
 **Old task or feature checked:** Z-42, Z-89, Z-87, Z-104 (Rule B).
 **Process note:** the trailer amend landed on another session's HEAD commit `3ccdf443` (docs only); see change record.
-**Change record:** `docs/plans/2026-10-21-session6-change-record.md`
+**Change record:** `docs/archive/2026-10-21-session6-change-record.md`
 
 
 ## 2. ROADMAP status board

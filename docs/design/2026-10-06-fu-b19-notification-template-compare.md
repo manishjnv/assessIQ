@@ -1,5 +1,8 @@
 # FU-B19 — Rule B compare: parked templates vs their live equivalents (2026-10-06)
 
+Status: reference
+Rows: none
+
 Design note only, no code change. Compares the Zod var schemas in
 `modules/13-notifications/src/types.ts`.
 

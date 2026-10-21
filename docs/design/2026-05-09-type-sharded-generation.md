@@ -1,5 +1,7 @@
 # Type-Sharded Question Generation — Design Document
 
+Rows: none
+
 **Date:** 2026-05-09  
 **Status:** DONE 2026-05-09 (f449203 backend; bd43a55 skills promoted). Stage 3.1 default flip still gated, see `2026-05-10-stage-3-promotion-rollout.md`.
 **Author:** Copilot design pass  

@@ -1,5 +1,7 @@
 # DRAFT: DPA tick-box, candidate notice and camera clauses (for the lawyer)
 
+Rows: Z-81, Z-71, Z-74, Z-72
+
 **Status:** draft for the owner's lawyer. Not approved. Nothing here goes live.
 **Date:** 2026-10-19. **Roadmap:** Z-72 (LIABILITY-1). Related: Z-71 (sign-up), Z-74 (camera photos), owner decisions Q9 and Q22.
 

@@ -1,5 +1,7 @@
 # How to switch the Content-Security-Policy from report-only to enforcing (Z-46)
 
+Rows: Z-46
+
 Type: how-to. Status: ready for the owner. **Caddy is NOT changed by this work.** The switch needs the owner's go.
 
 Measured data and the earlier report-only run: `docs/runbooks/csp-enforcing-proposal.md`.

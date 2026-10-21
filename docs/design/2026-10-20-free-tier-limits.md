@@ -1,5 +1,7 @@
 # Free plan limits in code (reference)
 
+Rows: Z-18, Z-70, Z-71
+
 **Date:** 2026-10-20. **Status:** built behind `PLAN_TIERS_ENFORCED` (default `false`, `false` on the VPS). Nothing changes until the owner flips the flag.
 **Source:** `docs/design/2026-10-18-free-plan-pack.md` (owner decisions 2026-10-19).
 **Old task or feature checked:** PT1/PT-4 (`TIER_LIMITS`, `assertTierLimit`), Z-18, Z-70, Z-71.

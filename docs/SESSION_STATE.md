@@ -9,7 +9,7 @@
 **Open questions:** label "marks per section" vs per question; Z-15 (g) default feedback level; Z-38 majors after the pilot.
 **Old task or feature checked:** Z-42, Z-89, Z-87, Z-104 (Rule B).
 **Process note:** the trailer amend landed on another session's HEAD commit `3ccdf443` (docs only); see change record.
-**Change record:** `docs/plans/2026-10-21-session6-change-record.md`
+**Change record:** `docs/archive/2026-10-21-session6-change-record.md`
 
 ---
 
@@ -68,10 +68,10 @@
 **Tests:** pass. Module 05 213 (3 skipped), 06 full, 10 279, 13 314, 16 116, take pages 81, time-limit test file 6, smoke spec 3 of 3 (local). `pnpm verify` green before every push. Deployed three times, sweep 0 failures. Migrations 0229 to 0234 applied (0232 is the other session's blueprint help). Next free migration: 0235. Last deployed sha `e2d2aed6` (Z-104; no migration). Capacity read: disk 46 GB free of 96 GB, camera folder 0 bytes and 0 files (no photo yet), see the Capacity section of the camera change record.
 **Recount:** pending 81, closed 208, total 289, 72% (was 81/204/285 at the start of S39). Rows Z-101 to Z-104 are in ROADMAP (Z-102 time limit and Z-104 closed; Z-101 and Z-103 wait for the owner). Another session has 9 uncommitted FUT rows in ROADMAP.md (Z.4, 90 / 208 / 298 with them): whoever commits them updates the Z.7 line. NEXT.md was not regenerated for that reason; run `node tools/next-brief.mjs` first next session.
 **Edge:** the shared Caddyfile was edited once with the owner's go (old copy saved on the server). The camera header must be a site-level deferred header (RCA 2026-10-21). Repo reference copies match the live file.
-**Next:** (1) owner: run the live camera test yourself; confirm the camera notice in each organisation (Settings, Data privacy, Camera card; needed before any real exam can start), run the 20-minute live camera test (readiness picture, consent, photos, cover the camera, reviewer page, console check for Z-77, free disk and photo size), create the school test organisation and walk `docs/runbooks/camera-school-test.md`. Undo = `CAMERA_ENFORCED=false` and recreate `assessiq-api`. (2) owner or ROADMAP session: add a row for the time limit (change record `docs/plans/2026-10-21-assessment-time-limit-change-record.md`). (3) Wave 3 (exam content) or Wave 5 (GATE-8, load test).
+**Next:** (1) owner: run the live camera test yourself; confirm the camera notice in each organisation (Settings, Data privacy, Camera card; needed before any real exam can start), run the 20-minute live camera test (readiness picture, consent, photos, cover the camera, reviewer page, console check for Z-77, free disk and photo size), create the school test organisation and walk `docs/runbooks/camera-school-test.md`. Undo = `CAMERA_ENFORCED=false` and recreate `assessiq-api`. (2) owner or ROADMAP session: add a row for the time limit (change record `docs/archive/2026-10-21-assessment-time-limit-change-record.md`). (3) Wave 3 (exam content) or Wave 5 (GATE-8, load test).
 **Open questions:** none blocking. The worker was recreated, so reminder emails show the camera line. Accepted gaps: per-tenant camera storage quota, orphan-file sweep, super admin cross-tenant file view (support access deferred), no per-IP cap on the consent route. Time limit: preview and invited list show the override or the level time and ignore section or whole-test time (old behaviour). Owner tasks: school test walk-through, signed-in check of /admin and one take page, CSP console check, speed check, AI evaluation bless and dry runs, rate card, host and IP in the public CLAUDE.md.
 **Old task or feature checked:** Z-87, Z-91 (camera reuses the desktop rule and readiness page), Z-39 (retake limit and retake consent), Z-77 (CSP `media-src`), the level time rule in `levels.duration_minutes` (Rule B).
-**Change records:** `docs/plans/2026-10-20-camera-change-record.md`, `docs/plans/2026-10-21-assessment-time-limit-change-record.md`
+**Change records:** `docs/archive/2026-10-20-camera-change-record.md`, `docs/archive/2026-10-21-assessment-time-limit-change-record.md`
 **Optimization register rows touched:** TOK-6, GATE-4.
 
 ---
@@ -107,7 +107,7 @@
 **Next:** Wave 2 (camera: Z-74, Z-82; needs your Caddy `camera=(self)` go and the lawyer question), or more Wave 1/4 rows. Before the load test: test-only token export, no real invite emails, source-IP plan, image-tag rollback step in deploy.
 **Open questions:** none blocking. Owner tasks: signed-in check of /admin and a take page, CSP console check (unlocks Z-77), speed check, AI evaluation bless and dry runs, legal defaults and lawyer question, rate card, host/IP in public CLAUDE.md, rescoring Q1-Q4, warranty wording, GIFT format.
 **Old task or feature checked:** Z-93, Z-96, Z-15, SP11, Z-84 (Rule B); the 2026-05-13 candidate magic-link decision is honoured (POST verify via SPA).
-**Change record:** `docs/plans/2026-10-20-session4-change-record.md`
+**Change record:** `docs/archive/2026-10-20-session4-change-record.md`
 
 ---
 
@@ -137,7 +137,7 @@
 - Other old local branches remain (`n7b-react19`, `n7b-vite8`, `autopilot/P01-T01.kept-af67488`, two `worktree-agent-*`). Check and delete if merged?
 - Still open from S36: sign-up opening (Z-97), CSP console check (Z-77), speed check, AI evaluation bless, legal defaults, rate card, Haiku trial result, server host and IP in the public `CLAUDE.md`.
 **Old task or feature checked:** Z-93, Z-96, Z-90, Z-49, Z-20, Z-76, Z-37, Z-15, SP11, TIME-13 (already built in `05193ac1`), RW-1 (Rule B).
-**Change record:** `docs/plans/2026-10-20-wave4-change-record.md`.
+**Change record:** `docs/archive/2026-10-20-wave4-change-record.md`.
 
 ---
 

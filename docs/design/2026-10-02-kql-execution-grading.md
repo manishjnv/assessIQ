@@ -1,5 +1,7 @@
 # X4 — Grade KQL answers by running the query (design note)
 
+Rows: none
+
 Status: design only. Nothing is built. Date: 2026-10-02.
 
 ## 1. Goal and why

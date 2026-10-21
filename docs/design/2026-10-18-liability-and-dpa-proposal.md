@@ -1,5 +1,7 @@
 # Liability and data-processing proposal for the lawyer (Z-72)
 
+Rows: Z-70, Z-71, Z-72
+
 **Date:** 2026-10-18. **Status:** draft for the owner and a lawyer.
 **Read this first:** this file is **not legal advice**. The lawyer decides every point. No live page is changed by this file.
 **Source:** owner review sheet, Q6: "We are not serving students directly, so liability is with the org, not us. Suggest a better idea to transfer liability to the org."

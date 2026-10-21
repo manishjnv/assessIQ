@@ -1,5 +1,8 @@
 # Change record: Wave 1 batches A to D (session S36, 2026-10-20)
 
+Status: superseded by modules/19-billing/SKILL.md § 2026-10-20 — Wave 1 batches A to D (session S36): credit ledger, test types, sign-up, candidate cap
+Rows: Z-18, Z-70, Z-71, Z-72, Z-79, Z-80, Z-81, Z-83, Z-85, Z-87, Z-89, Z-90, Z-91, Z-93, Z-95, EXP-8
+
 *Type: explanation and reference.* This page records every change of session S36 so that a later session can resume without reading the diffs.
 
 **Old task or feature checked:** Z-18, Z-70, Z-71, Z-72, Z-79, Z-80, Z-81, Z-83, Z-85, Z-87, Z-89, Z-90, Z-91, Z-93, EXP-8 (passages), S32 Free-plan limits.

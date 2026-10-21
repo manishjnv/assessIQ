@@ -1,5 +1,8 @@
 # Session 6 (S41) change record — small rows (2026-10-21)
 
+Status: archived; session record, the handoff is in docs/archive/sessions-2026-10.md
+Rows: Z-48, Z-54, Z-38, Z-11, Z-15, Z-51, Z-88
+
 *Type: reference* — Rows Z-48, Z-54, Z-38, Z-11, Z-15, Z-51 (b), Z-88. Commit `dd287b3c` (already on main). Migrations: `0232_blueprint_timing_help.sql` (help rows only). No flags, no jobs.
 
 ## What changed
