@@ -16,7 +16,6 @@ const ALLOW = new Set([
 // Each entry is "path|rule"; the rule is skipped for that file only.
 // docs/ entries were removed on 2026-10-21: docs/ is no longer tracked, so the scan does not see it.
 const KNOWN = new Set([
-  "apps/marketing/src/pages/alternatives/imocha.astro|currency-amount",
 ]);
 // Amounts and IPs only matter in prose/config files. In code they are SQL placeholders ($10), test fixtures and quiz content.
 const PROSE = /\.(md|mdx|astro|html|txt|ya?ml|snippet|sh|conf)$|(^|\/)\.env/i;
