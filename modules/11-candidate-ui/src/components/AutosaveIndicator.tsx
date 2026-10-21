@@ -68,9 +68,16 @@ export function AutosaveIndicator(props: AutosaveIndicatorProps) {
   // -------------------------------------------------------------------
 
   // RW-28: binary to the candidate. "Saving…" is transient only.
-  // idle / error / offline all read "Not saved yet" (dot colour still differs).
+  // idle reads "No answers yet". error / offline keep "Not saved yet": a failed
+  // save must never read as "no answers" (dot colour still differs).
   const label =
-    status === "saved" ? "Saved" : status === "saving" ? "Saving…" : "Not saved yet";
+    status === "saved"
+      ? "Saved"
+      : status === "saving"
+        ? "Saving…"
+        : status === "idle"
+          ? "No answers yet"
+          : "Not saved yet";
 
   // -------------------------------------------------------------------
   // Render

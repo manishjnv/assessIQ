@@ -97,4 +97,18 @@ describe('NewCertificateModal', () => {
     fireEvent.click(screen.getByText('Close'));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
+
+  it('after Close the modal is gone and the score behind it is still in the page', async () => {
+    render(
+      <main>
+        <p>Your score: 85%</p>
+        <NewCertificateModal credential_id="CERT-001" />
+      </main>,
+    );
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByText('Close'));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(screen.getByText('Your score: 85%')).toBeDefined();
+    expect(hasSeenCertificate('CERT-001')).toBe(true);
+  });
 });

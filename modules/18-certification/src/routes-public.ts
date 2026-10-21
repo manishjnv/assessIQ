@@ -395,16 +395,32 @@ function renderOgSvg(cert: Certificate, status: CertStatus, logoDataUri?: string
   <image x="908" y="68" width="224" height="80" preserveAspectRatio="xMidYMid meet" href="${logoDataUri}"/>`
       : '';
 
+  // Text is sized for a ~500 px LinkedIn thumbnail. Long values shrink to a
+  // minimum size, then get cut with an ellipsis, so they never leave the canvas.
+  const name = fitText(cert.display_name, 96, 56, 0.6);
+  const course = fitText(cert.course_title, 48, 30, 0.55);
+  const meta = fitText(`${cert.level} · ${cert.tier}`, 32, 28, 0.55);
+
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
   <rect width="1200" height="630" fill="${bgColor}"/>${logoSvg}
   <rect x="60" y="60" width="300" height="48" rx="24" fill="${badgeColor}"/>
-  <text x="210" y="93" font-family="Newsreader, Georgia, serif" font-size="22" font-weight="700" fill="#fff" text-anchor="middle">${badgeText}</text>
-  <text x="60" y="210" font-family="Newsreader, Georgia, serif" font-size="64" font-weight="700" fill="#fff">${escSvg(cert.display_name)}</text>
-  <text x="60" y="290" font-family="system-ui, sans-serif" font-size="32" fill="rgba(255,255,255,0.8)">${escSvg(cert.course_title)}</text>
-  <text x="60" y="340" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.6)">${escSvg(cert.level)} · ${escSvg(cert.tier)}</text>
-  <text x="60" y="540" font-family="system-ui, sans-serif" font-size="22" fill="rgba(255,255,255,0.5)">${escSvg(cert.credential_id)}</text>
-  <text x="1140" y="540" font-family="system-ui, sans-serif" font-size="22" fill="rgba(255,255,255,0.5)" text-anchor="end">AssessIQ</text>
+  <text x="210" y="94" font-family="Newsreader, Georgia, serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${badgeText}</text>
+  <text x="60" y="230" font-family="Newsreader, Georgia, serif" font-size="${name.size}" font-weight="700" fill="#fff">${escSvg(name.text)}</text>
+  <text x="60" y="310" font-family="system-ui, sans-serif" font-size="${course.size}" fill="rgba(255,255,255,0.8)">${escSvg(course.text)}</text>
+  <text x="60" y="370" font-family="system-ui, sans-serif" font-size="${meta.size}" fill="rgba(255,255,255,0.6)">${escSvg(meta.text)}</text>
+  <text x="60" y="540" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.5)">${escSvg(cert.credential_id)}</text>
+  <text x="1140" y="540" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.5)" text-anchor="end">AssessIQ</text>
 </svg>`;
+}
+
+// ponytail: width is estimated from a per-character em factor, no font metrics.
+// Shrink to fit first, then truncate only at the minimum size.
+function fitText(text: string, maxPx: number, minPx: number, charEm: number): { text: string; size: number } {
+  const maxWidth = 1080; // canvas 1200 minus 60 px margin each side
+  const size = Math.max(minPx, Math.min(maxPx, Math.floor(maxWidth / (charEm * text.length))));
+  const maxChars = Math.floor(maxWidth / (charEm * size));
+  if (text.length <= maxChars) return { text, size };
+  return { text: `${text.slice(0, Math.max(1, maxChars - 1))}…`, size };
 }
 
 function escSvg(s: string): string {

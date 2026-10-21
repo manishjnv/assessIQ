@@ -381,6 +381,31 @@ describe('GET /verify/:credentialId/og.svg — OG image', () => {
     expect(res.headers['x-robots-tag']).toBe('noindex');
     expect(res.body).toContain('viewBox="0 0 1200 630"');
   });
+
+  it('uses thumbnail-sized text: every font-size is at least 28 px', async () => {
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}/og.svg`,
+      headers: { 'x-forwarded-for': '10.0.0.6' },
+    });
+    const sizes = [...res.body.matchAll(/font-size="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(sizes.length).toBeGreaterThan(0);
+    expect(Math.min(...sizes)).toBeGreaterThanOrEqual(28);
+    expect(res.body).toContain('font-size="96"'); // short name keeps the full headline size
+  });
+
+  it('shrinks or cuts a long candidate name so it stays on the canvas', async () => {
+    const longName = 'Maximilian Alexander Featherstonehaugh-Wellington the Third of Somewhere';
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue({ ...buildCert(), display_name: longName });
+    const res = await app.inject({
+      method: 'GET',
+      url: `/verify/${CREDENTIAL_ID}/og.svg`,
+      headers: { 'x-forwarded-for': '10.0.0.7' },
+    });
+    expect(res.body).not.toContain(longName);
+    expect(res.body).toContain('…');
+    expect(res.body).toContain('font-size="56"'); // shrunk to the minimum headline size
+  });
 });
 
 // ---------------------------------------------------------------------------

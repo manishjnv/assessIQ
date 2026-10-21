@@ -144,7 +144,11 @@ export function NewCertificateModal({
     listMyCertificates()
       .then((res) => {
         const c = res.certificates.find((x) => x.credential_id === credential_id);
-        if (live && c && c.revoked_at === null) setCert(c);
+        if (live && c && c.revoked_at === null) {
+          // Mark on show, not on close: a refresh or a navigation away must not reopen it.
+          markCertificateSeen(c.credential_id);
+          setCert(c);
+        }
       })
       .catch(() => {});
     return () => {

@@ -19,6 +19,11 @@ describe("pass mark (integer math)", () => {
     expect(meetsPct(90, 100, DISTINCTION_PCT)).toBe(true);
   });
 
+  it("Distinction tier: 75 of 100 is below, 90 of 100 meets DISTINCTION_PCT", () => {
+    expect(meetsPct(75, 100, DISTINCTION_PCT)).toBe(false);
+    expect(meetsPct(90, 100, DISTINCTION_PCT)).toBe(true);
+  });
+
   it("fails on a zero or invalid maximum", () => {
     expect(isPass(0, 0, 1)).toBe(false);
     expect(isPass(5, Number.NaN, 1)).toBe(false);

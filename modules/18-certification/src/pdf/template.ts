@@ -7,7 +7,7 @@
 // AWS / university-diploma style): a framed page, CENTERED and vertically
 // balanced, with the recipient name as the visual centerpiece, an official
 // verification seal (inline SVG — no font-glyph dependency), an authorized-
-// issuer signature line, and a QR + verify URL footer.
+// issuer name, and a QR + verify URL footer.
 //
 // Brand tokens: OKLCH hue 258 palette → sRGB, light mode. Tier accent:
 // completion=blue, distinction=gold, honors=violet (branding gap per SKILL.md).
@@ -82,7 +82,7 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
 
   // Tenant logo (Logo phase L4): 18 mm high, top-left, only for a PNG/JPEG data
   // URI read server-side from the tenant row. The "Issued via AssessIQ" caption
-  // below the signature line keeps the co-branding.
+  // below the organisation name keeps the co-branding.
   const logoHtml =
     typeof logoDataUri === 'string' && SAFE_LOGO_DATA_URI.test(logoDataUri)
       ? `<img class="tenant-logo" src="${logoDataUri}" alt="${escHtml(hasOrg ? orgName.trim() : 'Organisation')} logo" />`
@@ -194,7 +194,7 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
     }
     .meta b { color: ${FG_PRIMARY}; font-weight: 600; }
 
-    /* Footer — signature (left) · seal (center) · QR + verify (right). */
+    /* Footer — issuer (left) · seal (center) · QR + verify (right). */
     .footer {
       width: 100%;
       display: flex;
@@ -206,7 +206,6 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
     .col-center { align-items: center; }
     .col-right { align-items: flex-end; text-align: right; }
 
-    .sign-line { width: 56mm; border-bottom: 1px solid ${FG_PRIMARY}; margin-bottom: 1mm; }
     .sign-label { font-family: ${FONT_SANS}; font-size: 8.5pt; color: ${FG_SECONDARY}; }
     .sign-sub { font-family: ${FONT_SANS}; font-size: 7.5pt; color: ${FG_MUTED}; }
 
@@ -268,7 +267,6 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
 
     <div class="footer">
       <div class="col col-left">
-        <div class="sign-line"></div>
         <div class="sign-label">${issuer}</div>
         <div class="sign-sub">${issuerSub}</div>
       </div>
