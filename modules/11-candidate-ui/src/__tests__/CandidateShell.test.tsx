@@ -202,8 +202,10 @@ describe('CandidateShell', () => {
     );
     renderShell(<CandidateShell><div /></CandidateShell>);
     await waitFor(() => {
-      expect(screen.getByAltText('Acme College logo').getAttribute('src')).toBe('/api/public/tenant-logo/t1?v=abc');
+      expect(document.querySelector('img')?.getAttribute('src')).toBe('/api/public/tenant-logo/t1?v=abc');
     });
+    expect(screen.getByText('Acme College')).toBeDefined();
+    expect(screen.queryByText('via AssessIQ')).toBeNull();
     cleanup();
     vi.stubGlobal(
       'fetch',
@@ -213,7 +215,7 @@ describe('CandidateShell', () => {
     await waitFor(() => {
       expect(screen.getByText('Acme College')).toBeDefined();
     });
-    expect(screen.queryByAltText('Acme College logo')).toBeNull();
+    expect(document.querySelector('img')).toBeNull();
   });
 
   it('Logo L3a - no tenant name or logo in whoami renders no org branding', async () => {

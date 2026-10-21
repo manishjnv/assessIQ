@@ -152,6 +152,17 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
     setDrawerOpen(false);
   }, [location.pathname]);
 
+  // Z-114: browser tab title "Org name · AssessIQ". Restored on unmount.
+  const orgTitleName = session?.tenant.name ?? null;
+  useEffect(() => {
+    if (!orgTitleName) return;
+    const prev = document.title;
+    document.title = `${orgTitleName} · AssessIQ`;
+    return () => {
+      document.title = prev;
+    };
+  }, [orgTitleName]);
+
   // Drawer lifecycle: Escape, body scroll lock, focus capture+trap+restore.
   // Spec § 5 #11 — modal overlays must trap focus.
   useEffect(() => {
@@ -422,9 +433,10 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
         <header
           className="aiq-admin-topbar"
           style={{
-            display: "flex",
+            display: "grid",
+            gridTemplateColumns: "minmax(0,1fr) minmax(0,auto) minmax(0,1fr)",
             alignItems: "center",
-            justifyContent: "space-between",
+            columnGap: "var(--aiq-space-md)",
             padding: "0 var(--aiq-admin-shell-topbar-padding-x)",
             height: "var(--aiq-admin-shell-topbar-h)",
             borderBottom: "1px solid var(--aiq-color-border)",
@@ -432,7 +444,8 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             background: "var(--aiq-color-bg-raised)",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+          {/* Left: AssessIQ mark, small and muted. Hamburger sits here on mobile. */}
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", minWidth: 0, justifySelf: "start" }}>
             {/* Hamburger — mobile-additive overlay (anti-pattern guard #1 carve-out).
                 Render gated by useViewport() hook so resize-driven viewport changes
                 trigger a re-render. Defense-in-depth: tokens.css also has
@@ -476,43 +489,48 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
                 textTransform: "uppercase",
                 letterSpacing: "0.06em",
                 color: "var(--aiq-color-fg-muted)",
+                whiteSpace: "nowrap",
               }}
             >
               AssessIQ
             </button>
+          </div>
+          {/* Centre: organisation logo and name (Z-112). */}
+          <div style={{ minWidth: 0, justifySelf: "center", maxWidth: "100%" }}>
             {session?.tenant.slug && (
-              <span className="aiq-admin-shell-slug">
-                <span style={{ color: "var(--aiq-color-border-strong)" }}>/</span>
-                <button
-                  type="button"
-                  onClick={() => navigate("/admin")}
-                  aria-label={`${session.tenant.name ?? session.tenant.slug} — go to dashboard`}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    padding: 0,
-                    cursor: "pointer",
-                    font: "inherit",
-                    fontFamily: "var(--aiq-font-mono)",
-                    fontSize: "var(--aiq-text-xs)",
-                    color: "var(--aiq-color-accent)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.06em",
-                  }}
+              <button
+                type="button"
+                className="aiq-admin-shell-slug"
+                onClick={() => navigate("/admin")}
+                aria-label={`${session.tenant.name ?? session.tenant.slug} — go to dashboard`}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                  font: "inherit",
+                  color: "var(--aiq-color-fg-primary)",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  className="aiq-mark"
+                  data-help-id="admin.shell.tenant_logo"
+                  style={{ fontWeight: 600, maxWidth: "100%", minWidth: 0 }}
                 >
-                  <span data-help-id="admin.shell.tenant_logo" style={{ display: "inline-flex" }}>
-                    <TenantLogo
-                      src={session.tenant.logo_url ?? null}
-                      name={session.tenant.name ?? session.tenant.slug}
-                      height={28}
-                      viaAssessIQ
-                    />
-                  </span>
-                </button>
-              </span>
+                  <TenantLogo
+                    src={session.tenant.logo_url ?? null}
+                    name={session.tenant.name ?? session.tenant.slug}
+                    height={28}
+                    showName
+                  />
+                </span>
+              </button>
             )}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)" }}>
+          {/* Right: help and notifications. */}
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", justifySelf: "end" }}>
             <AdminHelp />
             <NotificationBell />
             {/* Account identity and Sign out live in the sidebar account card only (one place). */}

@@ -293,9 +293,7 @@
   padding-inline: var(--aiq-space-md);
 }
 
-/* Hide the tenant slug + the desktop email span on mobile to make room
-   for the hamburger. Sign-out stays visible (44px target). */
-[data-viewport="mobile"] .aiq-admin-shell .aiq-admin-shell-slug { display: none; }
+/* Z-112: the organisation block stays visible on mobile (centre of the header). */
 [data-viewport="mobile"] .aiq-admin-shell .aiq-admin-shell-email {
   max-width: 40vw;
   overflow: hidden;

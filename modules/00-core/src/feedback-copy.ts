@@ -18,3 +18,27 @@ export function feedbackSentence(level: string | null | undefined): string | nul
     ? SENTENCES[level]
     : null;
 }
+
+/** Rank of each level: a higher number shows more. Used by effectiveLevel and the feedback query. */
+export const FEEDBACK_LEVEL_RANK: Record<FeedbackLevel, number> = {
+  none: 0,
+  right_wrong: 1,
+  with_expected_answer: 2,
+  with_ai_justification: 3,
+};
+
+/**
+ * Z-111: the level a candidate sees. A mock attempt on an assessment whose default
+ * delivery mode is mock shows the expected answer at least. Other attempts keep the
+ * tenant level. This stops a candidate who saw the answers in a mock from using them
+ * on a real exam from the same pool.
+ */
+export function effectiveLevel(
+  tenantLevel: FeedbackLevel,
+  ctx: { isMockAttempt: boolean; assessmentIsMock: boolean },
+): FeedbackLevel {
+  if (!ctx.isMockAttempt || !ctx.assessmentIsMock) return tenantLevel;
+  return FEEDBACK_LEVEL_RANK[tenantLevel] >= FEEDBACK_LEVEL_RANK.with_expected_answer
+    ? tenantLevel
+    : "with_expected_answer";
+}

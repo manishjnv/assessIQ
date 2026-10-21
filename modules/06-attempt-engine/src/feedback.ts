@@ -19,6 +19,7 @@ import type { ResultFeedbackLevel } from "@assessiq/tenancy";
 import { isQuestionType, QUESTION_TYPE_REGISTRY } from "@assessiq/question-types";
 import * as repo from "./repository.js";
 import { AE_ERROR_CODES } from "./types.js";
+import { effectiveLevel, FEEDBACK_LEVEL_RANK } from "@assessiq/core/feedback-copy";
 
 export type FeedbackOutcome = "correct" | "incorrect" | "partial";
 
@@ -40,13 +41,6 @@ export interface CandidateFeedback {
   level: ResultFeedbackLevel;
   items: FeedbackItem[];
 }
-
-const LEVEL_RANK: Record<ResultFeedbackLevel, number> = {
-  none: 0,
-  right_wrong: 1,
-  with_expected_answer: 2,
-  with_ai_justification: 3,
-};
 
 // ---------------------------------------------------------------------------
 // plainWords - deterministic rewrite of an AI justification for a candidate
@@ -266,8 +260,15 @@ export async function getCandidateFeedback(
     const lvl = await client.query<{ result_feedback_level: ResultFeedbackLevel }>(
       `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
     );
-    const level = lvl.rows[0]?.result_feedback_level ?? "none";
-    const rank = LEVEL_RANK[level];
+    const asm = await client.query<{ delivery_mode: string }>(`SELECT delivery_mode FROM assessments WHERE id = $1`, [
+      attempt.assessment_id,
+    ]);
+    // Z-111: a mock attempt on a mock assessment shows the expected answer at least.
+    const level = effectiveLevel(lvl.rows[0]?.result_feedback_level ?? "none", {
+      isMockAttempt: attempt.delivery_mode === "mock",
+      assessmentIsMock: asm.rows[0]?.delivery_mode === "mock",
+    });
+    const rank = FEEDBACK_LEVEL_RANK[level];
     if (rank === 0) return { level, items: [] };
 
     const rows = (await client.query<Row>(ITEMS_SQL, [attemptId])).rows

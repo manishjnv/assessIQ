@@ -67,13 +67,41 @@ afterEach(() => {
 });
 
 describe("AdminShell — tenant logo", () => {
-  it("shows the logo (28 px) with the via AssessIQ caption when logo_url is set", () => {
+  it("shows the logo (28 px) and the name, with no via AssessIQ caption, when logo_url is set", () => {
     sessionRef.logo_url = "/api/public/tenant-logo/t1?v=abc123abc123";
-    renderShell();
-    const img = screen.getByAltText("Acme College logo");
+    const { container } = render(
+      <MemoryRouter>
+        <ThemeProvider theme="light" density="cozy">
+          <AdminShell breadcrumbs={["Dashboard"]}>
+            <p>page content</p>
+          </AdminShell>
+        </ThemeProvider>
+      </MemoryRouter>,
+    );
+    const img = container.querySelector("img") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("/api/public/tenant-logo/t1?v=abc123abc123");
-    expect((img as HTMLImageElement).style.height).toBe("28px");
-    expect(screen.getByText("via AssessIQ")).toBeTruthy();
+    expect(img.style.height).toBe("28px");
+    // Name is visible next to the logo, so the logo alt is empty (no double read).
+    expect(img.getAttribute("alt")).toBe("");
+    expect(screen.getAllByText("Acme College").length).toBeGreaterThan(0);
+    expect(screen.queryByText("via AssessIQ")).toBeNull();
+  });
+
+  it("sets the tab title to 'Org name · AssessIQ' and restores it on unmount", () => {
+    sessionRef.logo_url = null;
+    document.title = "AssessIQ";
+    const { unmount } = render(
+      <MemoryRouter>
+        <ThemeProvider theme="light" density="cozy">
+          <AdminShell breadcrumbs={["Dashboard"]}>
+            <p>page content</p>
+          </AdminShell>
+        </ThemeProvider>
+      </MemoryRouter>,
+    );
+    expect(document.title).toBe("Acme College · AssessIQ");
+    unmount();
+    expect(document.title).toBe("AssessIQ");
   });
 
   it("shows only the organisation name when logo_url is null", () => {

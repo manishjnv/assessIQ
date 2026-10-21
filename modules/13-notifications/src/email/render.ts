@@ -177,6 +177,16 @@ export const OUTCOME_COLORS = {
 type MetaRow = { k: string; v: string; bar?: string; bg?: string };
 
 /**
+ * Logo box for the email header: scaled to 48 px high, width from the stored
+ * aspect ratio (never squashed), capped at 320 px wide. Null when the stored size is unusable.
+ */
+function logoBox(width: number, height: number): { w: number; h: number } | null {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  const scale = Math.min(48 / height, 320 / width);
+  return { w: Math.max(1, Math.round(width * scale)), h: Math.max(1, Math.round(height * scale)) };
+}
+
+/**
  * The ONLY value allowed into the unescaped logo attribute: the app's own
  * public tenant-logo URL with the exact `?v=<12 hex>` query and nothing else.
  */
@@ -324,11 +334,14 @@ function augmentContext(name: EmailTemplateName, p: any, opts: RenderOptions): R
   assertSafeMetaRows(meta_rows);
   // Tenant logo (Logo phase L3b). Rendered with {{{logo_url}}} in the
   // email-header partial, so it is accepted ONLY when isSafeLogoUrl() passes.
-  const logo = typeof opts.logoUrl === 'string' && isSafeLogoUrl(opts.logoUrl) ? opts.logoUrl : null;
-  const orgName = opts.orgName ?? (typeof p.tenantName === 'string' ? p.tenantName : '');
+  const logo = opts.logo && isSafeLogoUrl(opts.logo.url) ? opts.logo : null;
+  const orgName = opts.orgName ?? (typeof p.tenantName === 'string' ? p.tenantName.trim() : '');
+  const box = logo !== null ? logoBox(logo.width, logo.height) : null;
   return {
     ...(name === 'invitation_admin' ? { roleLabel: INVITE_ROLE_LABEL[p.role] ?? p.role } : {}),
-    ...(logo !== null ? { logo_url: logo, logo_org_name: orgName } : {}),
+    ...(orgName !== '' ? { org_name: orgName } : {}),
+    ...(logo !== null ? { logo_url: logo.url } : {}),
+    ...(box !== null ? { logo_w: box.w, logo_h: box.h } : {}),
     meta_rows,
     ...result,
     copyright_year: String(new Date().getFullYear()),
@@ -370,9 +383,9 @@ function loadAndCompile(name: EmailTemplateName): CompiledPair {
 // ---------------------------------------------------------------------------
 
 export interface RenderOptions {
-  /** Public tenant-logo URL on the app origin; omitted/null/unsafe = no logo row. */
-  logoUrl?: string | null | undefined;
-  /** Organisation name for the logo alt text. Defaults to vars.tenantName. */
+  /** Public tenant-logo URL on the app origin plus its stored size; omitted/null/unsafe = name only. */
+  logo?: { url: string; width: number; height: number } | null | undefined;
+  /** Organisation name for the header and the logo alt text. Defaults to vars.tenantName. */
   orgName?: string | undefined;
 }
 

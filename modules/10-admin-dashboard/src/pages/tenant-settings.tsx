@@ -22,7 +22,7 @@
 // sequential fetches, no extra dependencies.
 
 import React, { useEffect, useState, type CSSProperties } from "react";
-import { Button, Card, Chip, Spinner, Table, ConfirmDialog, formatDateTime } from "@assessiq/ui-system";
+import { Button, Card, Chip, Spinner, Table, ConfirmDialog, TenantLogo, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { CameraSettingsCard } from "../components/CameraSettingsCard.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
@@ -88,7 +88,7 @@ const LOGO_ERROR_COPY: Readonly<Record<string, string>> = {
   LOGO_TOO_LARGE: "The logo is larger than 512 KB.",
 };
 
-function readFileAsBase64(file: File): Promise<string> {
+function readFileAsBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(reader.error ?? new Error("read failed"));
@@ -98,6 +98,33 @@ function readFileAsBase64(file: File): Promise<string> {
     };
     reader.readAsDataURL(file);
   });
+}
+
+/** Z-115: the logo box. A picked logo is scaled to fit inside it. */
+const LOGO_BOX_W = 600;
+const LOGO_BOX_H = 200;
+
+/**
+ * Z-115: draw the picked image into a canvas that fits 600x200. Keeps the aspect
+ * ratio, never stretches, never enlarges. Exports PNG so transparency survives.
+ * EXIF rotation is applied by the browser (imageOrientation "from-image").
+ */
+async function fitLogoToPng(file: File): Promise<Blob> {
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+  try {
+    const scale = Math.min(1, LOGO_BOX_W / bitmap.width, LOGO_BOX_H / bitmap.height);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("canvas unavailable");
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("png export failed");
+    return blob;
+  } finally {
+    bitmap.close();
+  }
 }
 
 const RELEASE_OPTIONS: ReadonlyArray<{ value: ReleaseMode; label: string; help: string }> = [
@@ -317,11 +344,7 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
       setLogoError(LOGO_ERROR_COPY["LOGO_BAD_FORMAT"] ?? "The logo must be a PNG or JPEG image.");
       return;
     }
-    if (file.size > LOGO_MAX_BYTES) {
-      setLogoFile(null);
-      setLogoError(LOGO_ERROR_COPY["LOGO_TOO_LARGE"] ?? "The logo is larger than 512 KB.");
-      return;
-    }
+    // Z-115: no size gate here. The picked file is resized to 600x200 before upload.
     setLogoFile(file);
   };
 
@@ -331,7 +354,16 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
     setLogoError(null);
     setLogoSuccess(null);
     try {
-      const content_base64 = await readFileAsBase64(logoFile);
+      const png = await fitLogoToPng(logoFile).catch(() => null);
+      if (png === null) {
+        setLogoError("This file could not be read as an image. Choose a PNG or JPEG file.");
+        return;
+      }
+      if (png.size > LOGO_MAX_BYTES) {
+        setLogoError(LOGO_ERROR_COPY["LOGO_TOO_LARGE"] ?? "The logo is larger than 512 KB.");
+        return;
+      }
+      const content_base64 = await readFileAsBase64(png);
       const res = await adminApi<{ logo: { url: string } }>("/admin/tenant-settings/logo", {
         method: "PUT",
         body: JSON.stringify({ content_base64 }),
@@ -950,11 +982,20 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
           <Card padding="lg">
             <div style={{ marginBottom: 16 }}>
               {logoUrl !== null ? (
-                <img
-                  src={logoUrl}
-                  alt={`${currentName} logo`}
-                  style={{ maxHeight: 120, maxWidth: 120, objectFit: "contain", display: "block" }}
-                />
+                <>
+                  <img
+                    src={logoUrl}
+                    alt={`${currentName} logo`}
+                    style={{ maxHeight: 120, maxWidth: 120, objectFit: "contain", display: "block" }}
+                  />
+                  {/* Real sizes from docs/10-branding-guideline.md § 11.1. */}
+                  <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 16 }}>
+                    <span style={{ fontSize: 12, color: "var(--aiq-color-fg-secondary)" }}>App header, 28 px high</span>
+                    <TenantLogo src={logoUrl} name={currentName} height={28} showName />
+                    <span style={{ fontSize: 12, color: "var(--aiq-color-fg-secondary)" }}>Verify page, 32 px high</span>
+                    <TenantLogo src={logoUrl} name={currentName} height={32} />
+                  </div>
+                </>
               ) : (
                 <p style={{ margin: 0, fontSize: 13, color: "var(--aiq-color-fg-secondary)" }}>No logo set.</p>
               )}
@@ -981,8 +1022,8 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
               style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 13 }}
             />
             <p style={{ marginTop: 8, fontSize: 12, color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
-              PNG or JPEG, up to 512 KB. It shows next to your organisation name, always with
-              &ldquo;via AssessIQ&rdquo;, in the app header, candidate emails and certificates.
+              PNG or JPEG. Any size is accepted: the logo is resized automatically to fit 600 &times; 200 px,
+              keeping its shape. It shows in the app header, candidate emails and certificates.
             </p>
             {logoSuccess && (
               <div style={{ marginTop: 16 }}>

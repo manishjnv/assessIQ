@@ -37,7 +37,7 @@
 
 import { Resvg } from '@resvg/resvg-js';
 import type { FastifyInstance } from 'fastify';
-import { withTenant, getTenantById } from '@assessiq/tenancy';
+import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from '@assessiq/tenancy';
 import { ERASED_CANDIDATE_LABEL } from '@assessiq/core';
 import { extractClientIp } from '@assessiq/auth';
 
@@ -162,19 +162,29 @@ interface VerifyPageData {
   orgName?: string | undefined;
   /** True when the certificate holder has exercised DPDP right to erasure. */
   isErased?: boolean | undefined;
-  /** Tenant logo as a PNG/JPEG data URI (server-read bytes); absent = name only. */
-  logoDataUri?: string | null | undefined;
+  /** Public, immutable-cached tenant-logo URL (`/api/public/tenant-logo/:id?v=`); absent = name only. */
+  logoUrl?: string | null | undefined;
+}
+
+/** Issuing org name for the verify page, OG images and JSON-LD. Best-effort: undefined on failure. */
+async function loadOrgName(tenantId: string): Promise<string | undefined> {
+  try {
+    return (await getTenantById(tenantId)).name;
+  } catch {
+    return undefined;
+  }
 }
 
 function renderVerifyPage(data: VerifyPageData): string {
-  const { status, cert, orgName, isErased, logoDataUri } = data;
-  const hasOrg = orgName !== undefined && orgName.trim().length > 0;
+  const { status, cert, orgName, isErased, logoUrl } = data;
+  const org = orgName?.trim() ?? '';
+  const hasOrg = org.length > 0;
   const logoImg =
-    hasOrg && typeof logoDataUri === 'string' && SAFE_LOGO_DATA_URI.test(logoDataUri)
-      ? `<img src="${logoDataUri}" alt="${escAttr(orgName.trim())} logo" width="80" height="32" style="height:32px;width:auto;max-width:80px;object-fit:contain;vertical-align:middle;margin-right:.5rem" />`
+    hasOrg && typeof logoUrl === 'string' && logoUrl.length > 0
+      ? `<img src="${escAttr(logoUrl)}" alt="${escAttr(org)} logo" width="80" height="32" style="height:32px;width:auto;max-width:80px;object-fit:contain;vertical-align:middle;margin-right:.5rem" />`
       : '';
   const issuedBy = hasOrg
-    ? `${logoImg}${escHtml(orgName.trim())} &middot; via AssessIQ`
+    ? `${logoImg}${escHtml(org)} &middot; via AssessIQ`
     : 'AssessIQ';
 
   const statusLabel =
@@ -195,7 +205,7 @@ function renderVerifyPage(data: VerifyPageData): string {
           name: cert.course_title,
           credentialCategory: cert.tier,
           identifier: cert.credential_id,
-          issuedBy: { '@type': 'Organization', name: 'AssessIQ' },
+          issuedBy: { '@type': 'Organization', name: hasOrg ? org : 'AssessIQ' },
           about: { '@type': 'Person', name: isErased ? ERASED_CANDIDATE_LABEL : cert.display_name },
           dateCreated: cert.issued_at,
         })}</script>`
@@ -380,7 +390,7 @@ function escAttr(s: string): string {
 // OG SVG rendering (1200×630)
 // ---------------------------------------------------------------------------
 
-function renderOgSvg(cert: Certificate, status: CertStatus, logoDataUri?: string | null): string {
+function renderOgSvg(cert: Certificate, status: CertStatus, logoDataUri?: string | null, orgName?: string | undefined): string {
   // sRGB colours derived from OKLCH hue 258 palette (matches AssessIQ brand).
   const bgColor = status === 'valid' ? '#1e3a5f' : '#5f1e1e';
   const badgeColor = status === 'valid' ? '#22c55e' : '#ef4444';
@@ -400,6 +410,12 @@ function renderOgSvg(cert: Certificate, status: CertStatus, logoDataUri?: string
   const name = fitText(cert.display_name, 96, 56, 0.6);
   const course = fitText(cert.course_title, 48, 30, 0.55);
   const meta = fitText(`${cert.level} · ${cert.tier}`, 32, 28, 0.55);
+  // Issuing organisation, bottom-left under the credential ID. Omitted when unset.
+  const org = orgName?.trim() ? fitText(orgName.trim(), 36, 26, 0.55) : null;
+  const orgSvg = org
+    ? `
+  <text x="60" y="590" font-family="system-ui, sans-serif" font-size="${org.size}" fill="rgba(255,255,255,0.7)">${escSvg(org.text)}</text>`
+    : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
   <rect width="1200" height="630" fill="${bgColor}"/>${logoSvg}
@@ -409,7 +425,7 @@ function renderOgSvg(cert: Certificate, status: CertStatus, logoDataUri?: string
   <text x="60" y="310" font-family="system-ui, sans-serif" font-size="${course.size}" fill="rgba(255,255,255,0.8)">${escSvg(course.text)}</text>
   <text x="60" y="370" font-family="system-ui, sans-serif" font-size="${meta.size}" fill="rgba(255,255,255,0.6)">${escSvg(meta.text)}</text>
   <text x="60" y="540" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.5)">${escSvg(cert.credential_id)}</text>
-  <text x="1140" y="540" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.5)" text-anchor="end">AssessIQ</text>
+  <text x="1140" y="540" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.5)" text-anchor="end">AssessIQ</text>${orgSvg}
 </svg>`;
 }
 
@@ -439,8 +455,8 @@ function escSvg(s: string): string {
 // pure-Rust (no Chromium), ~10ms per render. fitTo width=1200 produces a
 // 1200×630 PNG matching the SVG viewBox.
 
-function renderOgPng(cert: Certificate, status: CertStatus, logoDataUri?: string | null): Buffer {
-  const svg = renderOgSvg(cert, status, logoDataUri);
+function renderOgPng(cert: Certificate, status: CertStatus, logoDataUri?: string | null, orgName?: string | undefined): Buffer {
+  const svg = renderOgSvg(cert, status, logoDataUri, orgName);
   const resvg = new Resvg(svg, {
     fitTo: { mode: 'width', value: 1200 },
     font: { loadSystemFonts: true },
@@ -581,14 +597,16 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
       // Issuing organization (tenant/company) name. Best-effort; falls back to
       // "AssessIQ" in the template if the lookup fails. getTenantById opens its
       // own withTenant for cert.tenant_id, so it resolves cross-tenant here.
-      let orgName: string | undefined;
-      try {
-        orgName = (await getTenantById(cert.tenant_id)).name;
-      } catch {
-        orgName = undefined;
-      }
+      const orgName = await loadOrgName(cert.tenant_id);
 
-      const logoDataUri = await loadLogoDataUri(cert.tenant_id);
+      // Public cached logo URL (no bytes inlined). Best-effort: null = name only.
+      let logoUrl: string | null = null;
+      try {
+        const logoMeta = await getTenantLogoMeta(cert.tenant_id);
+        if (logoMeta !== null) logoUrl = tenantLogoUrl(cert.tenant_id, logoMeta.sha256);
+      } catch {
+        logoUrl = null;
+      }
 
       // DPDP erasure: check whether the certificate holder has been erased.
       // The HMAC snapshot (signed_hash payload) is NOT altered — verification
@@ -607,7 +625,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         .header('content-type', 'text/html; charset=utf-8')
         .header('cache-control', 'no-cache')
         // Z-50: wording follows the organisation switch; the stored tier is untouched.
-        .send(renderVerifyPage({ status, cert: await certForDisplay(cert), orgName, isErased, logoDataUri }));
+        .send(renderVerifyPage({ status, cert: await certForDisplay(cert), orgName, isErased, logoUrl }));
     },
   );
 
@@ -643,7 +661,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
         // so keep it out of image search (the HTML verify page is noindex too).
         // Social unfurlers ignore this header, so LinkedIn/OG previews still work.
         .header('x-robots-tag', 'noindex')
-        .send(renderOgSvg(await certForDisplay(cert), status, await loadLogoDataUri(cert.tenant_id)));
+        .send(renderOgSvg(await certForDisplay(cert), status, await loadLogoDataUri(cert.tenant_id), await loadOrgName(cert.tenant_id)));
     },
   );
 
@@ -674,7 +692,7 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
       }
 
       const status = determineStatus(cert);
-      const png = renderOgPng(await certForDisplay(cert), status, await loadLogoDataUri(cert.tenant_id));
+      const png = renderOgPng(await certForDisplay(cert), status, await loadLogoDataUri(cert.tenant_id), await loadOrgName(cert.tenant_id));
 
       return reply
         .code(200)

@@ -21,18 +21,7 @@ exports[`template snapshots — evaluation_queue_alert (Phase II SP11) > HTML re
       <td align="center" style="padding:32px 24px 40px">
         <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#ffffff;border:1px solid #e4e4e7;border-radius:14px;overflow:hidden">
           
-            <!-- A3 email-header — wordmark left, optional eyebrow right -->
-            <tr>
-              <td style="padding:22px 36px;border-bottom:1px solid #e4e4e7;background:#ffffff">
-                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                  <tr>
-                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#0a0a0b;letter-spacing:-0.01em">
-                      AssessIQ
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
+            <!-- A3 email-header — organisation logo (or name) first. The AssessIQ wordmark lives in the footer only. Omitted when there is no org name. -->
           
           <!-- A4 email-body — generous side padding -->
           <tr>
@@ -161,14 +150,12 @@ exports[`template snapshots — invitation_candidate > HTML renders to a stable 
       <td align="center" style="padding:32px 24px 40px">
         <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#ffffff;border:1px solid #e4e4e7;border-radius:14px;overflow:hidden">
           
-            <!-- A3 email-header — wordmark left, optional eyebrow right -->
+            <!-- A3 email-header — organisation logo (or name) first. The AssessIQ wordmark lives in the footer only. Omitted when there is no org name. -->
             <tr>
               <td style="padding:22px 36px;border-bottom:1px solid #e4e4e7;background:#ffffff">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
-                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#0a0a0b;letter-spacing:-0.01em">
-                      AssessIQ
-                    </td>
+                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#0a0a0b;letter-spacing:-0.01em">Wipro</td>
                   </tr>
                 </table>
               </td>
@@ -317,14 +304,12 @@ exports[`template snapshots — result_released (SP4) > HTML renders to a stable
       <td align="center" style="padding:32px 24px 40px">
         <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:640px;max-width:640px;background:#ffffff;border:1px solid #e4e4e7;border-radius:14px;overflow:hidden">
           
-            <!-- A3 email-header — wordmark left, optional eyebrow right -->
+            <!-- A3 email-header — organisation logo (or name) first. The AssessIQ wordmark lives in the footer only. Omitted when there is no org name. -->
             <tr>
               <td style="padding:22px 36px;border-bottom:1px solid #e4e4e7;background:#ffffff">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
                   <tr>
-                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#0a0a0b;letter-spacing:-0.01em">
-                      AssessIQ
-                    </td>
+                    <td style="font-family:Georgia,'Times New Roman',serif;font-size:18px;font-weight:400;color:#0a0a0b;letter-spacing:-0.01em">Wipro</td>
                   </tr>
                 </table>
               </td>
