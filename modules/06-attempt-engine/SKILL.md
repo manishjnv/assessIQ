@@ -314,7 +314,7 @@ Routes and bodies: `docs/03-api-contract.md` section "Real-exam camera routes". 
 
 - `camera/gate.ts`: `resolvePolicyInTx` (one tenant read, then the pure policy with `config.CAMERA_ENFORCED`), `isCameraRequired`, `recordCameraConsent` (insert plus audit in one tx, 409 `CAMERA_NOT_REQUIRED`).
 - `service.ts` `startAttempt` step c4: next to the Z-87/Z-91 block, under the same `input.gate !== undefined` condition, for a new real attempt. A required camera needs the organisation notice confirmed (422 `CAMERA_SETUP_REQUIRED`) and the invitation's latest consent `agreed` for `CAMERA_NOTICE_VERSION` (422 `CAMERA_CONSENT_REQUIRED`). The consent is linked to the attempt right after the row exists, in the same tx.
-- `routes.take.ts`: `POST /take/camera-consent`; the preview and start answers carry `camera_required` and `camera_notice_version`.
+- `routes.take.ts`: `POST /take/camera-consent` (own bucket `aiq:rl:camera-consent:<hash>` 10/min; `recordCameraConsent` is idempotent for the same unlinked decision and notice version; a retake needs a fresh agree because the gate wants an unlinked consent); the preview and start answers carry `camera_required` and `camera_notice_version`.
 - `routes.camera.candidate.ts`: an encapsulated plugin with its own `image/jpeg` and `video/webm` raw parsers. Global parsers stay untouched. The default `text/plain` parser is removed in that scope, so any other type is a plain 415.
 - `routes.camera.admin.ts`: reviewer guard `requireCameraReviewer` (super admin, or tenant admin named in `camera_reviewers`), file streaming with the audit row committed first, reviewer and settings routes, the super-admin school flag.
 - Worker: `camera-retention-cron` at 03:00 UTC calls `runCameraRetentionAll`, then `diskGuard`.

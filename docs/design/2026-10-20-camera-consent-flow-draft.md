@@ -27,7 +27,7 @@ Status: AS-BUILT on 2026-10-20 (S39). The build follows this design. The change 
 
 ## 4. Flow, step by step
 
-1. **Invitation email (NOT BUILT in S39, open row).** The real-exam email should say that this test uses the camera, links to the privacy notice and links to the readiness check. A school test without a camera does not say this.
+1. **Invitation email (BUILT, S39 follow-up).** The real-exam invitation and its reminder carry one camera line with the take link (readiness check). Not built: the privacy notice link in the email. The real-exam email should say that this test uses the camera, links to the privacy notice and links to the readiness check. A school test without a camera does not say this.
 2. **Readiness check.** The page asks for camera permission and shows a live picture, so the candidate can fix the angle and light before test day. A failed camera check shows plain steps and a Retry button.
 3. **Consent screen** (shown before Start, after the readiness check passes). Text in section 5. The general test consent checkbox stays on the page. The "Allow camera and start" button waits until that checkbox is ticked. The screen has two buttons:
    - "Allow camera and start".

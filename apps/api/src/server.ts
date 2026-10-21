@@ -23,8 +23,8 @@ import { registerAdminSuperEvaluationsRoutes } from './routes/admin-super-evalua
 import { registerAdminTenantSettingsRoutes } from './routes/admin-tenant-settings.js';
 import { registerPublicTenantLogoRoutes } from './routes/public-tenant-logo.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
-import { registerAssessmentLifecycleRoutes } from '@assessiq/assessment-lifecycle';
-import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes, registerCameraCandidateRoutes, registerCameraAdminRoutes, listDeclinedCameraInvitationIds } from '@assessiq/attempt-engine';
+import { registerAssessmentLifecycleRoutes, setCameraRequiredResolver } from '@assessiq/assessment-lifecycle';
+import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes, registerCameraCandidateRoutes, registerCameraAdminRoutes, listDeclinedCameraInvitationIds, isCameraRequired } from '@assessiq/attempt-engine';
 import { registerGradingRoutes } from '@assessiq/ai-grading';
 import {
   registerHelpPublicRoutes,
@@ -205,6 +205,8 @@ export async function buildServer() {
     // Camera "Did not consent" label on the invitations list (module 06 data, wired here).
     declinedCameraInvitations: listDeclinedCameraInvitationIds,
   });
+  // Invitation email camera line: same rule as the take flow (module 06), injected because module 05 cannot import it.
+  setCameraRequiredResolver(isCameraRequired);
 
   // Attempt-engine candidate routes — registers /api/me/assessments and
   // /api/me/attempts/* under the candidate authChain. Admin-side attempt

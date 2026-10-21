@@ -163,6 +163,7 @@ vi.mock('@assessiq/question-bank', () => ({
 }));
 vi.mock('@assessiq/assessment-lifecycle', () => ({
   registerAssessmentLifecycleRoutes: vi.fn().mockResolvedValue(undefined),
+  setCameraRequiredResolver: vi.fn(),
 }));
 vi.mock('@assessiq/attempt-engine', () => ({
   registerAttemptCandidateRoutes: vi.fn().mockResolvedValue(undefined),
@@ -171,6 +172,7 @@ vi.mock('@assessiq/attempt-engine', () => ({
   registerCameraCandidateRoutes: vi.fn().mockResolvedValue(undefined),
   registerCameraAdminRoutes: vi.fn().mockResolvedValue(undefined),
   listDeclinedCameraInvitationIds: vi.fn().mockResolvedValue([]),
+  isCameraRequired: vi.fn().mockResolvedValue(false),
 }));
 vi.mock('@assessiq/ai-grading', () => ({
   registerGradingRoutes: vi.fn().mockResolvedValue(undefined),

@@ -18,6 +18,12 @@
       <tr><td>{{> email-cta label=_t_cta href=invitationLink width_px=210}}</td></tr>
     </table>
 
+    {{#if cameraRequired}}
+    <p style="margin:24px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#3f3f46;line-height:1.55">
+      <strong>{{_t_camera_note}}</strong> {{_t_camera_check}} <a href="{{invitationLink}}" style="color:#3f3f46">{{invitationLink}}</a> {{_t_camera_consent}}
+    </p>
+    {{/if}}
+
     <p style="margin:32px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.55">
       Start before <strong style="color:#3f3f46">{{expiresAt}}</strong>. After that the invitation stops working. If you did not expect this email, you can safely ignore it.
     </p>

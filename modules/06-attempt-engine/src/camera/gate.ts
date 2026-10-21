@@ -6,7 +6,7 @@ import { AppError, config } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { CAMERA_NOTICE_VERSION } from "./constants.js";
-import { insertConsent } from "./repository.js";
+import { insertConsent, latestConsentForInvitation } from "./repository.js";
 import { resolveCameraPolicy, type CameraPolicy, type CameraTenantPolicyInput } from "./policy.js";
 
 export async function loadTenantCameraInput(client: PoolClient, tenantId: string): Promise<CameraTenantPolicyInput> {
@@ -49,6 +49,7 @@ export async function isCameraRequired(tenantId: string, deliveryMode: "mock" | 
 
 /**
  * Record the candidate's camera decision for an invitation (attempt not known yet). One audit row in the same tx.
+ * Repeating the same open decision (newest row unlinked, same notice version) writes nothing.
  * 409 CAMERA_NOT_REQUIRED when the policy does not need a camera for this invitation.
  */
 export async function recordCameraConsent(
@@ -69,6 +70,9 @@ export async function recordCameraConsent(
         details: { code: "CAMERA_NOT_REQUIRED" },
       });
     }
+    // Idempotent: the same open (unlinked) decision on the same notice version is already on file.
+    const last = await latestConsentForInvitation(client, i.invitationId);
+    if (last !== null && last.attemptId === null && last.decision === i.decision && last.noticeVersion === CAMERA_NOTICE_VERSION) return;
     const row = await insertConsent(client, {
       tenantId,
       invitationId: i.invitationId,

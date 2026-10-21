@@ -7,13 +7,19 @@
     "page_title": "Assessment invitation",
     "brand_wordmark": "AssessIQ",
     "greeting": "Hi {{candidateName}},",
-    "cta": "Start your assessment"
+    "cta": "Start your assessment",
+    "camera_note": "This test uses your camera.",
+    "camera_check": "Check your camera early on the readiness page:",
+    "camera_consent": "You will be asked to agree before the test starts."
   },
   "invitation_reminder": {
     "page_title": "Assessment reminder",
     "brand_wordmark": "AssessIQ",
     "greeting": "Hi {{candidateName}},",
-    "cta": "Start your assessment"
+    "cta": "Start your assessment",
+    "camera_note": "This test uses your camera.",
+    "camera_check": "Check your camera early on the readiness page:",
+    "camera_consent": "You will be asked to agree before the test starts."
   },
   "candidate_login_link": {
     "page_title": "Your AssessIQ sign-in link",

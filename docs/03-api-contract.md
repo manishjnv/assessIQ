@@ -3995,7 +3995,7 @@ Upload checks run in this order:
 
 `taken_at` is the server clock; the client sends no time, name or path. The response never holds a storage path.
 
-`/take/camera-consent` stores one `camera_consents` row (attempt not yet known) and one `camera.consent.recorded` audit row in the same transaction. The IP is stored only as a keyed hash, the device as `desktop` or `mobile`. A declined decision is recorded too. The start gate then answers `CAMERA_CONSENT_REQUIRED`, because the latest decision must be `agreed` with the current notice version. Resume of an existing attempt never needs consent.
+`/take/camera-consent` stores one `camera_consents` row (attempt not yet known) and one `camera.consent.recorded` audit row in the same transaction. The IP is stored only as a keyed hash, the device as `desktop` or `mobile`. A declined decision is recorded too. The route has its own limit, 10 calls per minute per link (`aiq:rl:camera-consent:<token hash>`, 429 `RATE_LIMITED` with `Retry-After`); it does not use the shared start budget. The write is idempotent: if the newest row for the invitation has the same decision and notice version and no attempt linked, nothing is written (no row, no audit row). A different decision, or a newest row already linked to an attempt (a retake), inserts a new row. The start gate then answers `CAMERA_CONSENT_REQUIRED`, because the latest decision must be `agreed` with the current notice version. Resume of an existing attempt never needs consent.
 
 Why the gate sits in `startAttempt` and not in the route: both request-facing routes pass `gate`, so one check covers both, and a retake (new attempt) is covered too. Rejected: a route-only check (the `/api/me` route would skip it).
 

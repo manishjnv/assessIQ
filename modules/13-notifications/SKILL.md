@@ -301,3 +301,10 @@ Closed-enum template `totp_reset_notice`. It tells a user that an administrator 
 
 - **What.** Templates `signup_code` (vars `code`, `expires_minutes`) and `signup_existing_account` (var `signInLink`), both class `auth`. `SendEmailInput.redactLogBody` keeps `body_text` and `body_html` of `email_log` NULL (the send job still carries the body). The sign-up routes send both mails with the platform tenant id.
 - **Why.** The code must not sit in `email_log` in plain text. **Not included.** A 30-day purge of platform-tenant `email_log` rows; redaction of the BullMQ job data.
+
+## Camera line in the invitation and reminder email (S39 follow-up, 2026-10-21)
+
+- What: `invitation_candidate` and `invitation_reminder` take an optional plain boolean `cameraRequired` (default false). When true, a short block says the test uses the camera, points to the readiness check on the take link and says the candidate will be asked to agree. Strings: `camera_note`, `camera_check`, `camera_consent` in `strings/en.json` (English only).
+- Why: the candidate should learn about the camera before test day, not at the Start button. The sender stays dumb: the caller decides, so 13 never imports module 06.
+- Callers: module 05 `email.ts` computes the boolean (see its SKILL).
+- Not included: privacy notice link, Hindi text, any camera line for admin or result mails.

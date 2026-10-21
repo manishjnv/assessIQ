@@ -72,10 +72,12 @@ Three pushes, each deployed with a clean sweep.
 - Super admin viewing another tenant's files (support access stays deferred, Z-100). A super admin sees only the platform tenant's own files today.
 - A per-tenant storage quota. One tenant can fill the global cap and cause refusals for all (gate finding 2, accepted for now).
 - A sweep of orphan files and leftover `.tmp` files on disk (gate finding 5). There is no attempt delete path today.
-- A rate limit on `/take/camera-consent` beyond the per-token limit (gate finding 6).
 - A video for a camera that dies between two 5 second segments (no recorder is running to stop).
-- A dedicated test for the retake consent fix (section 8).
-- The camera line in the real-exam invitation email (design step 1). The candidate sees the camera rule on the readiness and consent screens, not in the email yet. Open row for a later session.
+- (Moved to Follow-up below: the camera line in the invitation email is built.)
+
+Follow-up (2026-10-21): `camera-routes.test.ts` now has the retake case (refused without a new consent, agree again links only the new attempt) and tests for the consent limits. `/take/camera-consent` has its own bucket `aiq:rl:camera-consent:<token hash>` at 10 per minute (it replaces the shared take-token call for this route, so consent then start does not use two calls of the 30 per minute start budget). The same open decision is not written twice.
+
+Follow-up (S39, camera line in the invitation email, design step 1). The real-exam invitation email and its reminder show one block: "This test uses your camera. Check your camera early on the readiness page: [take link]. You will be asked to agree before the test starts." Only a boolean `cameraRequired` triggers it. Module 05 computes it in `email.ts` with the same rule as the take flow (`isCameraRequired` from module 06, injected at boot through `setCameraRequiredResolver` in `apps/api/src/server.ts` and `worker.ts`). Mock invitations never show it (mode read from the invitation row). A missing resolver or a resolver error gives false and the email still goes out. Not included: a privacy notice link in the email; Hindi text. Tests: `email-camera-line.test.ts` (13), `invite-camera-flag.test.ts` (05).
 
 ## 6. Migrations, flags, jobs
 
@@ -116,7 +118,7 @@ Shared Caddyfile, `assessiq.in` block only. Final lines:
 ## 8. Bugs found (also in RCA_LOG)
 
 - The `modules/06-attempt-engine/src/camera/` folder was hidden by a local exclude rule. The first commit would have shipped without the camera module. Fix: a named `git add -f` of 8 files. Prevention: run `git check-ignore -v` on new folders.
-- A retake reused the consent linked to the first attempt, so every upload of the second attempt failed. Fix: the gate needs a consent with no attempt linked (`service.ts` step c4). Prevention: add a retake case to a later test pass.
+- A retake reused the consent linked to the first attempt, so every upload of the second attempt failed. Fix: the gate needs a consent with no attempt linked (`service.ts` step c4). Prevention: retake case added (see Follow-up).
 - The general consent checkbox was hidden for camera tests, so a candidate never saw the general statement. Fix: the checkbox stays and "Allow camera and start" waits for it.
 - The nav probe called the reviewer-only list and logged a 403 console error on every admin page for every non-reviewer. All signed-in e2e smoke specs failed in CI. Fix: `GET /api/admin/camera/access` answers 200.
 - Three admin help ids sat on the tenant settings page with a prefix that never matches. Renamed to `admin.tenant_settings.camera*`.
