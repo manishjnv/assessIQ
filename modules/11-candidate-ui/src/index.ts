@@ -50,6 +50,7 @@ export {
   saveAnswer,
   toggleFlag,
   finishSection,
+  recordPosition,
   recordEvent,
   submitAttempt,
   getResult,

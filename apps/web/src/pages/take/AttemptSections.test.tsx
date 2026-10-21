@@ -7,6 +7,7 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 const finishSection = vi.fn();
+const recordPosition = vi.fn();
 let nextView: unknown;
 let currentView: unknown;
 
@@ -51,6 +52,7 @@ vi.mock('@assessiq/candidate-ui', () => ({
   getAttempt: () => Promise.resolve(currentView),
   submitAttempt: vi.fn(),
   finishSection: (...a: unknown[]) => finishSection(...a),
+  recordPosition: (...a: unknown[]) => recordPosition(...a),
   toggleFlag: vi.fn(),
   clearBackup: vi.fn(),
   readBackup: () => null,
