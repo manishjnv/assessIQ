@@ -59,10 +59,13 @@ Rejected: a database per exam, subject or class (RLS, billing, reports and audit
 - `FOR SHARE` on a platform row is checked against UPDATE policies, so the 05 race guard (`_shared.ts:116,141`) would skip those rows. Replace it with a lock on the assessment row.
 - Attempt start reads live `questions.points` and `negative_marks` (06 `repository.ts:433`). Under shared read a master edit would reach a running assessment. Read the frozen pool instead.
 
-### D5. Answer keys for licensed admins (FUT-2) — ACCEPTED, trimmed
-- Add one per-tenant rate bucket on `GET /api/admin/questions`, `/:id`, `/:id/versions` (`tenantRateLimit`, `server.ts:204,267`) and a `buildQuestionWhere` filter (`04 repository.ts:745`) so the list shows only licensed packs.
-- The hourly audit row is dropped until needed. Export is already super-admin only.
-- Product option, not decided: hide key and rubric from tenant admins on licensed packs. Default stays rate limit only. For individual (B2C) tenants the admin is the candidate, so hide key and rubric by default there.
+### D5. Answer keys hidden from licensed admins (FUT-2) — DECIDED by owner 2026-10-21
+- **Rule:** a tenant admin never sees the answer key or rubric of licensed (platform-owned) content. This stops an answer leak by a licensee. Super admin sees everything. Tenant-owned content (EXP-17 uploads) stays fully visible to its own admins.
+- **Where:** the sanitiser is applied on the admin read side for any question whose pack belongs to the platform tenant: `GET /api/admin/questions`, `/:id`, `/:id/versions` (04 `routes.ts:844-876`). Reuse the candidate allowlist idea (`sanitizeContentForCandidate`, 06 `repository.ts:574`): remove correct flags, `answer`, `explanation`, `rubric`, `answer_guidance` by registry hook (add an `adminView` hook next to `candidateView` in `registry.ts`).
+- **Other admin surfaces to check (audit list, not maintained here):** attempt review and grading views (07 `admin-grade.ts`, `admin-rerun.ts`, `admin-manual-score.ts`), results export (15 `results-export.ts`), reports and feedback. They must show the candidate answer, the marks and the band, but not the master key. Server-side AI grading still reads the rubric; it never returns it.
+- **Defence in depth:** keep the per-tenant rate bucket and the `buildQuestionWhere` licensed-packs filter (04 `repository.ts:745`). The hourly audit row stays dropped.
+- **Trade-off:** a licensed admin cannot proof-read the key. They can still read stems and options, report a wrong key through the dispute flow (EXP-12), and pick questions by topic and difficulty.
+- **Not included:** hiding keys from the candidate after release. Release levels already control this (06 `feedback.ts:298`).
 
 ### D6. Immutable versions and pins (FUT-1) — ACCEPTED, extended
 - `BEFORE UPDATE` trigger on `question_versions`, column-specific like `passages_immutable` (0211:44-53), so a later `tenant_id` backfill passes. No code path updates it (zero hits outside migration 0156), but `attempt-engine.test.ts:1009` does and must change.
