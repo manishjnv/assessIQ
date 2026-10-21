@@ -37,6 +37,6 @@ Dropped as already done: gate scope (only security paths get a gate).
 ## Rules of thumb
 
 - Do not read the big logs. Use `docs/NEXT.md`, then `grep -n "^| <ID> " docs/ROADMAP.md`.
-- Never move or delete parts of the big logs. ROADMAP evidence cells cite line numbers in them.
+- Archive big logs only with `tools/docs-archive.mjs` (it records every move in `docs/moves.json`; never delete). ROADMAP evidence cells cite a row id or a commit id. The few old line-number citations carry `[at <commit>]`: read the line with `git show <commit>:docs/SESSION_STATE.md`.
 - Agent output: ask for a diff plus a change log under 200 words, no file dumps.
 - Write the real `subagent_tokens` of each agent in the handoff footer so the next review has measured data.

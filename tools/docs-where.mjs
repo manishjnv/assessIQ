@@ -11,4 +11,5 @@ if (!old) { console.error("usage: docs-where.mjs <old path> [--root <dir>]"); pr
 const root = resolve(i >= 0 ? a[i + 1] : join(dirname(fileURLToPath(import.meta.url)), ".."));
 const p = old.replace(/\\/g, "/").replace(/^\.\//, "");
 const { path, last } = resolveFinal(loadMoves(root), p);
+for (const m of loadMoves(root, true).filter((x) => x.extract && x.from === p)) console.log(`${p}: text moved to ${m.to} (${m.date}: ${m.reason})`);
 console.log(last ? `${p} -> ${path} (moved ${last.date}: ${last.reason})` : `${p}: never moved`);
