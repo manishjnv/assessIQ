@@ -82,7 +82,7 @@ When `?embed=true` is detected at SPA load:
 
 > **Phase 4 pre-flight.** Every decision below was locked before the 12-embed-sdk implementation session opened. Phase 4 builds against these as a frozen contract. The embed JWT wire format and replay-cache mechanics from `modules/01-auth/SKILL.md` § Decisions captured (2026-05-01) are inherited by reference and NOT re-stated here; only embed-SDK-specific decisions appear below.
 >
-> Source shorthand: `01-AUTH` = `modules/01-auth/SKILL.md` § Decisions captured (2026-05-01); `04-AUTH` = `docs/04-auth-flows.md`; `09-INT` = `docs/09-integration-guide.md`; `02-DATA` = `docs/02-data-model.md`; `03-API` = `docs/03-api-contract.md`; `BRAIN` = `PROJECT_BRAIN.md`.
+> Source shorthand: `01-AUTH` = `modules/01-auth/SKILL.md` § Decisions captured (2026-05-01); `04-AUTH` = `docs/04-auth-flows.md`; `09-INT` = `docs/09-integration-guide.md`; `02-DATA` = `docs/02-data-model.md`; `03-API` = `docs/03-api-contract.md`; `BRAIN` = `docs/PROJECT_BRAIN.md`.
 
 ---
 

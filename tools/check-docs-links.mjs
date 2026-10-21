@@ -28,7 +28,7 @@ if (arg("--baseline") && existsSync(arg("--baseline"))) {
 
 const LINK = /\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 const dead = [];
-const sources = tracked.filter((f) => f.endsWith(".md") && (f.startsWith("docs/") || f === "README.md" || f === "PROJECT_BRAIN.md"));
+const sources = tracked.filter((f) => f.endsWith(".md") && (f.startsWith("docs/") || f === "README.md" || f === "docs/PROJECT_BRAIN.md"));
 for (const f of sources) {
   let inFence = false;
   readFileSync(f, "utf8").split(/\r?\n/).forEach((line, i) => {

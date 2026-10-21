@@ -72,7 +72,7 @@ pnpm test          # unit + integration (testcontainers — no local DB needed)
 
 ## How to use this repo with Claude Code
 
-1. **Always start with** `PROJECT_BRAIN.md` — it gives Claude (and you) the orientation needed to navigate everything else.
+1. **Always start with** `docs/PROJECT_BRAIN.md` — it gives Claude (and you) the orientation needed to navigate everything else.
 2. **For cross-cutting questions** (auth, deployment, data model, etc.), point Claude at the matching `docs/` file.
 3. **For implementing a feature**, point Claude at the relevant `modules/<n>-<name>/SKILL.md` plus the docs files it lists as related. Each module's SKILL.md tells Claude what is in scope, what is out, what its dependencies are, and what help text it owns.
 4. **When schema changes**, update both the migration AND `docs/02-data-model.md` in the same change.
@@ -81,7 +81,7 @@ pnpm test          # unit + integration (testcontainers — no local DB needed)
 ## Map
 
 ```
-PROJECT_BRAIN.md             ← READ FIRST in every session
+docs/PROJECT_BRAIN.md             ← READ FIRST in every session
 README.md                    ← this file
 
 docs/
@@ -138,7 +138,7 @@ Recommended order to get a thin slice working end-to-end:
 5. **16-help-system** — get the framework wired (HelpTip, HelpProvider, public read API). Even with stub content. Then content fills in as you build screens.
 6. Smoke test: admin can log in via Google + TOTP, see an empty dashboard with help tooltips. **Phase 0 done.**
 
-Then Phase 1 (author + take), then Phase 2 (grade + report), as laid out in `PROJECT_BRAIN.md`.
+Then Phase 1 (author + take), then Phase 2 (grade + report), as laid out in `docs/PROJECT_BRAIN.md`.
 
 ## What is next from the user
 
