@@ -1,3 +1,29 @@
+# Session — 2026-10-21 — S41: small rows (session 6)
+
+**Headline:** Z-48, Z-11, Z-51 (b) and Z-88 closed; Z-38 minor and patch updates applied; Z-54 waits until 2026-10-29; Z-15 has only an owner decision left. Recount: pending 94, closed 212, total 306, 69%.
+**Commits:** `dd287b3c` — feat: blueprint fields, deps, phone smoke, docs lint fixes (on main, CI green at `3ccdf443`). Marketing container rebuilt by hand.
+**Tests:** pass (`pnpm verify`, module 05 232, guard tests 53, docs lint strict 0). Phone smoke not run locally.
+**Next:** one green CI run of the phone smoke, then remove `continue-on-error`; module 06 must read the blueprint fields (gated; Z-42); Z-54 on or after 2026-10-29.
+**Open questions:** label "marks per section" vs per question; Z-15 (g) default feedback level; Z-38 majors after the pilot.
+**Old task or feature checked:** Z-42, Z-89, Z-87, Z-104 (Rule B).
+**Process note:** the trailer amend landed on another session's HEAD commit `3ccdf443` (docs only); see change record.
+**Change record:** `docs/plans/2026-10-21-session6-change-record.md`
+
+---
+
+## Agent utilization
+- Opus: n/a — the main session ran Sonnet 5.5.
+- Sonnet: main session (coordination, review, docs) · dependency agent · adversarial takeover review · 166,104 tokens in the two agents.
+- Haiku: Z-51/Z-11 build agent 157,666 · Z-88/Z-48 agent 167,914 tokens.
+- codex:rescue: n/a — Codex down; Sonnet takeover on the dependency bump: accept.
+- Routing lines:
+  - Sonnet · dependency bump · reworked: N · tokens: 90074
+  - Haiku · Z-51 form and Z-11 drawer · reworked: N · tokens: 157666
+  - Haiku · Z-88 smoke and Z-48 lint · reworked: Y (CI step made advisory by the orchestrator) · tokens: 167914
+  - Sonnet · adversarial review · reworked: N · tokens: 76028
+
+---
+
 # Session — 2026-10-21 — S40: future-ready question store (design only, no code)
 
 **Headline:** The owner decided ONE master question database, written by the platform super admin and read by licensed organisations. A design (v2.1) now covers it, validated by Fable 5.1 and Opus 5.5 reviews plus a market scan. Roadmap rows FUT-1 to FUT-11 are added and EXP-14 is revised. No code was written.
