@@ -2,23 +2,23 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-21T02:18:20.098Z (2026-10-21 07:48:20 IST)
-- HEAD: `dd287b3c`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 1
+- Generated: 2026-10-21T03:57:34.676Z (2026-10-21 09:27:34 IST)
+- HEAD: `5f72240c`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 2
 
 ## 1. Last session (SESSION_STATE, first block)
 
-## Session — 2026-10-20/21 — S39: Wave 2 camera for real exams (Z-74, Z-82)
+## Session — 2026-10-20/21 — S39: Wave 2 camera for real exams (Z-74, Z-82), camera follow-up, optional time limit per assessment
 
-**Headline:** The camera feature is built and live behind the `CAMERA_ENFORCED` switch (still OFF): consent, photos, flagged short video, authenticated file view, reviewer page, school mode, daily delete job, erasure. Caddy `camera=(self)` is applied on take pages only. Z-74 and Z-82 closed in place.
-**Commits:** `737ccb13` — camera server side (Batch A, trailer `Adversarial-Review: sonnet-takeover revise-addressed`) · `6dbabbd4` — candidate and staff screens, help 0231 · `b1426b66` — nav probe fix (always-200 access route) · close-out docs commit follows (smoke spec, runbook, edge reference copies, docs).
-**Tests:** pass. Module 06 full file set (418+), camera routes 19, admin-dashboard 275, take pages 81, help 116, smoke spec 3 of 3 (local). `pnpm verify` green before every push. CI green on `b1426b66` (the first CI run of `6dbabbd4` failed on the nav probe; fixed). Deployed twice, sweep 0 failures. Migrations 0229, 0230, 0231 applied; next free 0232. Last deployed sha `b1426b66`.
-**Recount:** pending 79, closed 206, total 285, 72% (was 81/204/285, 72%).
-**Edge:** the shared Caddyfile was edited once with the owner's go. A copy of the old file is kept in the assessiq backups folder on the server. The camera header must be a site-level deferred header; a plain one loses to the shared snippet (RCA 2026-10-21). Repo reference copies match the live file.
-**Next:** the owner creates the school test organisation (Platform page, **School** switch), walks through `docs/runbooks/camera-school-test.md`, then decides on `CAMERA_ENFORCED=true`. After that Wave 3 (exam content) or Wave 5 (GATE-8, load test).
-**Open questions:** the real-exam invitation email has no camera line yet (design step 1, not built). Turn `CAMERA_ENFORCED` on? Add a retake consent test? Per-tenant storage quota, orphan-file sweep and a consent rate limit are accepted gaps (change record section 5). Owner tasks: Caddy header check done by Claude; still yours: school test walk-through, signed-in check of /admin and one take page, CSP console check, speed check, AI evaluation bless and dry runs, rate card, host and IP in the public CLAUDE.md.
-**Old task or feature checked:** Z-87 and Z-91 (the camera reuses the desktop rule and the readiness page), Z-39 (retake), Z-77 (CSP, `media-src` added) (Rule B).
-**Change record:** `docs/plans/2026-10-20-camera-change-record.md`
+**Headline:** The camera feature is built and live behind the `CAMERA_ENFORCED` switch (still OFF). Caddy `camera=(self)` is applied on take pages only. Follow-up shipped: camera line in the invitation and reminder emails, own limit and idempotence on the consent route, retake consent test. New: the organisation admin can set an optional time limit per assessment (empty = the difficulty's time). Z-74 and Z-82 closed in place.
+**Commits (all pushed, CI green, deployed):** `737ccb13` camera server side · `6dbabbd4` candidate and staff screens, help 0231 · `b1426b66` nav probe fix · `572a8dff` close-out docs, smoke spec, edge reference copies · `dd287b3c` (the other session's blueprint fields and dependency bumps, pushed with ours after a gate check of its two package changes) · `e1d4ed50` camera follow-up · `5f72240c` time limit plus the gate fixes (bulk invite resolves the camera rule once per batch) · handoff docs commits.
+**Tests:** pass. Module 05 213 (3 skipped), 06 full, 10 279, 13 314, 16 116, take pages 81, time-limit test file 6, smoke spec 3 of 3 (local). `pnpm verify` green before every push. Deployed three times, sweep 0 failures. Migrations 0229 to 0234 applied (0232 is the other session's blueprint help). Next free migration: 0235. Last deployed sha `5f72240c`.
+**Recount:** pending 79, closed 206, total 285, 72% (was 81/204/285). Z-101 (GMAIL-FOLD) was added to ROADMAP.md by the other session; ROADMAP.md was NOT committed by this session and has no row for the time limit yet.
+**Edge:** the shared Caddyfile was edited once with the owner's go (old copy saved on the server). The camera header must be a site-level deferred header (RCA 2026-10-21). Repo reference copies match the live file.
+**Next:** (1) owner: create the school test organisation (Platform page, **School** switch), walk `docs/runbooks/camera-school-test.md`, then decide on `CAMERA_ENFORCED=true`. (2) owner or ROADMAP session: add a row for the time limit (change record `docs/plans/2026-10-21-assessment-time-limit-change-record.md`). (3) Wave 3 (exam content) or Wave 5 (GATE-8, load test).
+**Open questions:** turn `CAMERA_ENFORCED` on? Accepted gaps: per-tenant camera storage quota, orphan-file sweep, super admin cross-tenant file view (support access deferred), no per-IP cap on the consent route. Time limit: preview and invited list show the override or the level time and ignore section or whole-test time (old behaviour). Owner tasks: school test walk-through, signed-in check of /admin and one take page, CSP console check, speed check, AI evaluation bless and dry runs, rate card, host and IP in the public CLAUDE.md.
+**Old task or feature checked:** Z-87, Z-91 (camera reuses the desktop rule and readiness page), Z-39 (retake limit and retake consent), Z-77 (CSP `media-src`), the level time rule in `levels.duration_minutes` (Rule B).
+**Change records:** `docs/plans/2026-10-20-camera-change-record.md`, `docs/plans/2026-10-21-assessment-time-limit-change-record.md`
 **Optimization register rows touched:** TOK-6, GATE-4.
 
 
@@ -29,7 +29,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 **Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
 
-## 3. Open Z and EXP rows (36 total)
+## 3. Open Z and EXP rows (37 total)
 
 - `EXP-3` (EXP-3 (lane B catalog)) — Previous-year catalog without question text. — pending (after pilot; Claude; M)
 - `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S34 added the `has_passage` filter; Z-43 draws by outcome node still open) (S20, 2026-10-17, `c34a597`; migrati
@@ -64,36 +64,37 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-92` (Z-92 (RATECARD)) — Rate card for credits (details are private). — pending (Claude drafts rate-card options in the private file; owner decides; S)
 - `Z-94` (Z-94 (SUPPORT-AI)) — Support automation with AI (no support hire). — pending (Claude; phases A and B S-M; phase C owner decision and gate) OWNER DECISION 2026-10-19: DEFERRED. Start only wh
 - `Z-97` (Z-97 (SIGNUP-OPEN)) — Open public sign-up when the owner says. — pending (owner says when; Claude; S)
+- `Z-101` (Z-101 (GMAIL-FOLD)) — Email address folding: apply the dot rule to Gmail only, and fix the tester case. — pending (owner confirms the exact change; Claude; S)
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
 - `Z-11` (Z-11 (Phase 5, FR13, Z-9, Z-15)) — Certificate visibility after a release. — pending (small). Item (c) done (S17, 2026-10-17, `f9c569f`): `CERTIFICATE_RULE_TEXT` in `modules/11-candidate-ui/src/cop
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d) Owner sheets 2026-10-19 (applied S34), v1 Q39: embed 
 
-## 4. Newest RCA entries (5 newest of 253; file order: mixed (sorted by date; same-day ties keep file order))
+## 4. Newest RCA entries (5 newest of 256; file order: mixed (sorted by date; same-day ties keep file order))
 
 ### 2026-10-21 — A Caddy header added in the site block lost to the shared snippet (Z-74, Z-77)
 **Symptom:** after the first edge reload, `/take/...` still sent `Permissions-Policy: camera=()`. A second try inside the app handler failed the same way.
 **Prevention:** `docs/06-deployment.md` records the trap. After each edge edit read the whole `caddy validate` output, then check the live headers with curl.
 
+### 2026-10-21 — Bulk invite resolved the camera rule inside an open transaction (Z-74 follow-up)
+**Symptom:** found in the review gate, not in production. A bulk invite would hold one pooled connection per request and wait for a second for each invitee; with as many concurrent bulk invites as the pool size, every request would wait forever.
+**Prevention:** the review gate. Rule: never call a function that opens its own pooled connection from inside an open transaction. Single resend and the reminder job send outside a transaction.
+
+### 2026-10-21 — Time limit shown on tests that ignore it (assessment time limit)
+**Symptom:** found in the review gate. The new card accepted a time limit on a sectioned or whole-test assessment, where the clock uses the section minutes, so the screen and the clock would disagree.
+**Prevention:** a test in `time-limit.test.ts`. When a field is ignored in one mode, refuse it in that mode instead of only documenting it.
+
+### 2026-10-21 — Mock factories missed a new export (test trap, again)
+**Symptom:** 20 module 05 tests failed with `No "resolveCameraRequired" export is defined on the "../email.js" mock`.
+**Prevention:** after adding an export to a module that tests mock, grep `vi.mock("../<module>.js"` in the module and in apps/api and add the stub in the same change.
+
 ### 2026-10-20 — Passage draw could fail an attempt start with "Question pool too small" (random)
 **Symptom:** CI unit test `passage-draw.test.ts` failed once with `Question pool too small at start: 4 < 5`. In production a candidate could be refused at start on a random shuffle.
 **Prevention:** the unit test pins the stranded-gap case. The DB test `passage-draw.test.ts` already runs 12 random draws.
 
-### 2026-10-20 — CI e2e red: the test factory started real attempts without readiness signals (Z-91)
-**Symptom:** CI run on `a3a0b337` failed in the e2e shards: `take-happy-path`, `take-timer-expiry`, `ordering-admin` and `admin-workflow` step 11 got `422 READINESS_FAILED` from `startAttempt`.
-**Prevention:** the gate is covered by a route test for `/api/me/assessments/:id/start` in `attempt-engine.test.ts`. A new gate on a start route must update the e2e factory in the same commit.
-
-### 2026-10-20 — CI unit red: route tests that mock tenancy and auth could not load the sign-up body schema
-**Symptom:** CI run on `6c770069` failed about 20 `apps/api` test files at import: `No "isValidOrgName" export is defined on the "@assessiq/tenancy" mock` and `No "DPA_VERSION" export is defined on the "@assessiq/auth" mock`.
-**Prevention:** new exports from a shared module must not be read at import time in `_schemas.ts`. Run the full `apps/api` test directory before a push that changes `_schemas.ts`.
-
-### 2026-10-20 — Second start route skipped the device and readiness gate (found in review)
-**Symptom:** none in production (found in the adversarial review of `2301abb7`). A candidate with a session could start a real exam from a phone through `POST /api/me/assessments/:id/start`, with no device or readiness check.
-**Prevention:** route tests for both start routes. Embed starts stay exempt and are recorded as an accepted gap.
-
 ## 5. Next free migration
 
-- Next free: `0233` (highest `modules/*/migrations` prefix + 1)
-- SESSION_STATE names next free 0232; check before use.
+- Next free: `0235` (highest `modules/*/migrations` prefix + 1)
+- Matches the newest SESSION_STATE block.
 
 ## 6. Reading list reminder
 
