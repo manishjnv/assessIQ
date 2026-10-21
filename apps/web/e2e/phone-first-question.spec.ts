@@ -25,6 +25,7 @@ test.describe('phone: invitation link to first question', () => {
       label: 'phone-first-q',
       count: RUNS,
       questionCount: 2,
+      deliveryMode: 'mock', // a real exam is desktop-only (Z-87); a phone starts a mock
       makeQuestions: async (sa, packId, levelId) => {
         await factories.createMcqQuestion(sa, packId, levelId, 'E2E question one: pick the correct option.');
         await factories.createMcqQuestion(sa, packId, levelId, 'E2E question two: pick the correct option.');
@@ -60,6 +61,8 @@ test.describe('phone: invitation link to first question', () => {
       const beginBtn = page.getByRole('button', { name: /^Begin/ });
       await expect(beginBtn).toBeVisible({ timeout: 60_000 });
       const t1 = Date.now();
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflow, 'landing must not scroll sideways on a phone').toBeLessThanOrEqual(1);
       await page.getByRole('checkbox').check();
       await beginBtn.click();
       await expect(page.getByText(/^Question 1 of [0-9]+$/)).toBeVisible({ timeout: 60_000 });
