@@ -161,6 +161,9 @@ export const retentionDaysBody = z.object({
     invalid_type_error: 'retention_days is required',
   }),
 });
+export const attemptRetentionDaysBody = z.object({
+  attempt_retention_days: z.number({ invalid_type_error: 'attempt_retention_days must be a number or null' }).nullable(),
+});
 export const runNowQuery = z
   .object({ dryRun: z.string().max(10).optional(), maxPerTenant: z.string().max(10).optional() })
   .passthrough();

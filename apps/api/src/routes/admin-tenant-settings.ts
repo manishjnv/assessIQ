@@ -46,10 +46,10 @@ import {
   tenantLogoUrl,
 } from '@assessiq/tenancy';
 import { readLogoUpload } from './_logo-upload.js';
-import { runRetentionPurgeForTenant, listErasedCandidates } from '@assessiq/data-rights';
+import { runRetentionPurgeForTenant, listErasedCandidates, getAttemptRetentionDays, updateAttemptRetentionDays } from '@assessiq/data-rights';
 import { parseBody, parseQuery } from './_validate.js';
 import { authChain } from '../middleware/auth-chain.js';
-import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, resultFeedbackLevelBody, certificateShowDistinctionBody, retentionDaysBody, runNowQuery } from './_schemas.js';
+import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, resultFeedbackLevelBody, certificateShowDistinctionBody, retentionDaysBody, attemptRetentionDaysBody, runNowQuery } from './_schemas.js';
 
 // ---------------------------------------------------------------------------
 // Auth chain — tenant admin only, fresh MFA within 15 minutes.
@@ -129,6 +129,7 @@ export async function registerAdminTenantSettingsRoutes(
       result_feedback_level: settings.result_feedback_level,
       certificate_show_distinction: settings.certificate_show_distinction,
       retention_days: settings.retention_days,
+      attempt_retention_days: await getAttemptRetentionDays(session.tenantId),
       company_name: tenant.name,
       logo: logo === null ? null : { ...logo, url: tenantLogoUrl(session.tenantId, logo.sha256) },
     });
@@ -273,6 +274,21 @@ export async function registerAdminTenantSettingsRoutes(
         updatedAt: result.updatedAt,
         auditId: result.auditId,
       });
+    },
+  );
+
+  // PATCH /api/admin/tenant-settings/attempt-retention-days (Z-132)
+  // Body { attempt_retention_days: 30..3650 | null }. null = keep forever.
+  // The nightly sweep (attempt-retention-cron) deletes attempt_events only.
+  // 200: { attempt_retention_days, previous }   400: ATTEMPT_RETENTION_DAYS_OUT_OF_RANGE
+  app.patch(
+    '/api/admin/tenant-settings/attempt-retention-days',
+    { preHandler: adminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      const body = parseBody(attemptRetentionDaysBody, req.body, { code: 'MISSING_ATTEMPT_RETENTION_DAYS' });
+      const result = await updateAttemptRetentionDays(session.userId, session.tenantId, body.attempt_retention_days);
+      return reply.code(200).send(result);
     },
   );
 

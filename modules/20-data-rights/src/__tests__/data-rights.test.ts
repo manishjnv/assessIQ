@@ -16,6 +16,8 @@ import {
   exportCandidateData,
   runRetentionPurgeForTenant,
   runAttemptRetentionForTenant,
+  getAttemptRetentionDays,
+  updateAttemptRetentionDays,
   listErasedCandidates,
 } from "../index.js";
 
@@ -522,5 +524,22 @@ describe("runAttemptRetentionForTenant (FUT-11)", () => {
     // answers survive
     const ans = await sup(async (c) => Number((await c.query(`SELECT count(*) AS n FROM attempt_answers WHERE attempt_id = $1`, [old.attemptId])).rows[0].n));
     expect(ans).toBe(2);
+  });
+});
+
+describe("updateAttemptRetentionDays (Z-132)", () => {
+  it("sets, clears and rejects out-of-range values, with an audit row", async () => {
+    const t = await seedTenant();
+    const admin = (await seedCandidate(t)).userId;
+    expect(await getAttemptRetentionDays(t.id)).toBeNull();
+    expect(await updateAttemptRetentionDays(admin, t.id, 90)).toEqual({ attempt_retention_days: 90, previous: null });
+    expect(await getAttemptRetentionDays(t.id)).toBe(90);
+    await expect(updateAttemptRetentionDays(admin, t.id, 5)).rejects.toThrow(/between 30 and 3650/);
+    await expect(updateAttemptRetentionDays(admin, t.id, 4000)).rejects.toThrow();
+    await updateAttemptRetentionDays(admin, t.id, null);
+    expect(await getAttemptRetentionDays(t.id)).toBeNull();
+    const n = await sup(async (c) =>
+      Number((await c.query(`SELECT count(*) AS n FROM audit_log WHERE tenant_id = $1 AND action = $2`, [t.id, "tenant_settings.attempt_retention_days.updated"])).rows[0].n));
+    expect(n).toBe(2);
   });
 });
