@@ -26,10 +26,13 @@ export function SectionsCard({
   hasAttempts,
   isDraft,
   onSaved,
+  packDomain,
 }: {
   assessmentId: string;
   /** Page copy of settings, used for the summary only; save() re-reads fresh settings. */
   settings: Record<string, unknown> | null | undefined;
+  /** The pack's subject slug (Z-129). Absent = the old free picker. */
+  packDomain?: string | null | undefined;
   hasAttempts: boolean;
   isDraft: boolean;
   onSaved: (settings: Record<string, unknown>, questionCount: number | null) => void;
@@ -129,7 +132,7 @@ export function SectionsCard({
       )}
       {editing && (
         <>
-          <SectionsEditor rows={rows} onChange={setRows} />
+          <SectionsEditor rows={rows} onChange={setRows} subjectSlug={packDomain ?? undefined} />
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
             <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={busy} onClick={() => void save()}>
               {busy ? "Saving…" : "Save sections"}

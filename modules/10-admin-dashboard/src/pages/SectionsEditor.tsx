@@ -84,8 +84,8 @@ export function SectionsEditor({
 }: {
   rows: SectionRow[];
   onChange: (rows: SectionRow[]) => void;
-  subjectSlug?: string | null;
-  setId?: string | null;
+  subjectSlug?: string | null | undefined;
+  setId?: string | null | undefined;
 }): React.ReactElement {
   const [domains, setDomains] = useState<DomainItem[]>([]);
   const [domainId, setDomainId] = useState("");

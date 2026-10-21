@@ -18,6 +18,8 @@ export interface Assessment {
   created_at: string;
   level_label?: string | null;
   pack_name?: string | null;
+  /** The bound pack's subject slug. Absent on older responses; the sections editor then keeps the free picker. */
+  pack_domain?: string | null;
   settings?: { score_counts?: "latest" | "best"; integrity?: IntegrityValue; reminders?: RemindersValue; high_stakes?: boolean; sections?: unknown; scoring?: { negative_marks_default?: number } } | null;
   question_count?: number;
   passing_score_pct?: number;

@@ -172,6 +172,24 @@ describe('OG image logo', () => {
     expect(res.body).toMatch(/font-family="Noto Sans Devanagari"[^>]*>दिल्ली स्कूल<\/text>/);
   });
 
+  it('SVG splits a mixed Hindi and English organisation name into two runs (Z-127)', async () => {
+    getTenantLogoBytes.mockResolvedValue(null);
+    const { getTenantById } = await import('@assessiq/tenancy');
+    vi.mocked(getTenantById).mockResolvedValueOnce({ name: 'दिल्ली Public School' } as never);
+    const res = await get(`/verify/${CREDENTIAL_ID}/og.svg`);
+    expect(res.body).toMatch(/font-family="Noto Sans Devanagari"[^>]*>दिल्ली<\/text>/);
+    expect(res.body).toMatch(/font-family="system-ui, sans-serif"[^>]*> Public School<\/text>/);
+  });
+
+  it('SVG keeps one text line for a pure English organisation name (Z-127)', async () => {
+    getTenantLogoBytes.mockResolvedValue(null);
+    const { getTenantById } = await import('@assessiq/tenancy');
+    vi.mocked(getTenantById).mockResolvedValueOnce({ name: 'Acme College' } as never);
+    const res = await get(`/verify/${CREDENTIAL_ID}/og.svg`);
+    expect(res.body).toMatch(/font-family="system-ui, sans-serif" font-size="\d+" fill="rgba\(255,255,255,0.7\)">Acme College<\/text>/);
+    expect(res.body).not.toContain('Noto Sans Devanagari');
+  });
+
   it('SVG has no <image> without a logo', async () => {
     getTenantLogoBytes.mockResolvedValue(null);
     const res = await get(`/verify/${CREDENTIAL_ID}/og.svg`);
