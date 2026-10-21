@@ -10,12 +10,11 @@ vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
 
 const tools = join(__dirname, "..");
 let root: string;
-let backup: string;
 const run = (script: string, ...args: string[]) =>
   spawnSync("node", [join(tools, script), ...args, "--root", root], {
     encoding: "utf8",
     cwd: root,
-    env: { ...process.env, VITEST: "", AIQ_DOCS_BACKUP_DIR: backup },
+    env: { ...process.env, VITEST: "" },
   });
 const put = (p: string, s: string) => {
   mkdirSync(join(root, p, ".."), { recursive: true });
@@ -31,7 +30,6 @@ const mdCount = (dir = join(root, "docs")): number =>
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "close-session-"));
-  backup = mkdtempSync(join(tmpdir(), "close-session-backup-"));
   put("docs/plans/B_plan.md", "# B plan\n\nStatus: DONE 2026-10-01\nRows: Z-2, Z-3\n");
   put("docs/plans/A_plan.md", "# A plan\n\n**Status:** open | pipe\n**Rows:** Z-1\n");
   put("docs/plans/C_plan.md", "# C plan\n\nNo front matter here.\n");
@@ -61,17 +59,26 @@ describe("docs-plans-index", () => {
 });
 
 describe("close-session", () => {
-  it("--dry-run lists 11 steps and writes nothing", () => {
+  it("--dry-run lists 10 steps in order and writes nothing", () => {
     put("docs/.session-decisions.txt", "2026-10-21 | do x | S1\n");
     const r = run("close-session.mjs", "--dry-run");
     expect(r.status).toBe(0);
-    expect(r.stdout.match(/^\d+\. /gm)).toHaveLength(11);
-    expect(r.stdout).toContain("1. docs-backup:");
-    expect(r.stdout).toContain("10. file-count:");
+    const names = [...r.stdout.matchAll(/^\d+\. (\S+):/gm)].map((m) => m[1]);
+    expect(names).toEqual([
+      "next-brief",
+      "routing-report",
+      "roadmap-recount",
+      "docs-archive",
+      "docs-plans-index",
+      "lint-docs",
+      "check-docs-links",
+      "check-docs-privacy",
+      "file-count",
+      "decisions",
+    ]);
     expect(existsSync(join(root, "docs/DECISIONS.md"))).toBe(false);
     expect(readdirSync(join(root, "docs/plans")).sort()).toEqual(["A_plan.md", "B_plan.md", "C_plan.md", "README.md", "archive"]);
     expect(existsSync(join(root, "docs/.docs-count"))).toBe(false);
-    expect(readdirSync(backup)).toEqual([]);
   });
 
   it("decisions step is idempotent (run twice, no duplicates)", () => {
@@ -86,10 +93,6 @@ describe("close-session", () => {
     expect(first.match(/\| do y \|/g)).toHaveLength(1);
   });
 
-  it("docs-backup step writes a zip to AIQ_DOCS_BACKUP_DIR", () => {
-    run("close-session.mjs");
-    expect(readdirSync(backup).some((f) => /^assessiq-docs-.*\.zip$/.test(f))).toBe(true);
-  });
 });
 
 describe("close-session file-count", () => {
@@ -98,7 +101,7 @@ describe("close-session file-count", () => {
     const r = run("close-session.mjs");
     expect(r.stdout).toMatch(/WARN file-count: more than 5 files created in one session/);
     expect(r.stdout).toContain("new: docs/notes/n1.md");
-    expect(r.stdout).not.toMatch(/FAIL 10\. file-count/);
+    expect(r.stdout).not.toMatch(/FAIL 9\. file-count/);
   });
 
   it("warns when a new file repeats the last two words of another md file", () => {
@@ -106,6 +109,14 @@ describe("close-session file-count", () => {
     put("docs/other/beta-change-record.md", "# B\n");
     const r = run("close-session.mjs");
     expect(r.stdout).toMatch(/WARN file-count: docs\/\S*change-record\.md looks like a repeat of docs\/\S*change-record\.md/);
+  });
+
+  it("archive and private files with similar names do not warn", () => {
+    put("docs/archive/2026-09-01-old-change-record.md", "# A\n");
+    put("docs/private/2026-09-02-older-change-record.md", "# B\n");
+    put("docs/widgets/2026-10-01-new-change-record.md", "# C\n");
+    const r = run("close-session.mjs");
+    expect(r.stdout).not.toMatch(/looks like a repeat/);
   });
 
   it("inserts the Docs line once under the heading and replaces it on the second run", () => {

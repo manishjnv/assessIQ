@@ -6,6 +6,8 @@
 //   C2. Stub rows get short title and status cells (shrink-stubs); full text stays in the closed-rows archive.
 //   B2. Z.7 "recount update" bullets older than the newest 3, and the Z.7b and Z.8 subsections, move to the history archive.
 //   D. Each archive file is recorded in docs/moves.json as an "extract" entry (source file stays in place).
+//   A. z7-history: other Z.7 narrative bullets (recount / S<NN>) move to the history archive (pass A).
+//   B. long-open-cells: long evidence cells of open Z.3/Z.4/Z.6 rows are cut to --limit chars; full cell goes to ROADMAP-open-row-detail.
 // The roadmap-recount totals must be identical before and after, else nothing is written.
 // Usage: node tools/docs-archive.mjs [--root <dir>] [--dry-run] [--keep 5]
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -23,6 +25,7 @@ const opt = (n) => (a.includes(n) ? a[a.indexOf(n) + 1] : undefined);
 const root = resolve(opt("--root") ?? join(dirname(fileURLToPath(import.meta.url)), ".."));
 const dry = a.includes("--dry-run");
 const keep = Number(opt("--keep") ?? 5);
+const LIMIT = Number(opt("--limit") ?? 700);
 const today = new Date().toISOString().slice(0, 10);
 const month = today.slice(0, 7);
 const fail = (m) => { console.error(`docs-archive: ${m}`); process.exit(1); };
@@ -32,6 +35,7 @@ const SS = "docs/SESSION_STATE.md", RM = "docs/ROADMAP.md", MV = "docs/moves.jso
 const HIST = `docs/archive/ROADMAP-history-${month}.md`;
 const CLOSED = `docs/archive/ROADMAP-closed-rows-${month}.md`;
 const POINTER_LINE = "Older session blocks: docs/archive/sessions-*.md (see docs/moves.json).";
+const OPEN = `docs/archive/ROADMAP-open-row-detail-${month}.md`;
 const OLDER_HEADING = "## Older sections (archived)";
 
 // ---- file helpers: line arrays without the final empty element; eol and final newline remembered per file
@@ -60,7 +64,7 @@ const readCur = (p) => {
   if (nl) lines.pop();
   return { text, lines, eol: text.includes("\r\n") ? "\r\n" : "\n", nl };
 };
-const stats = { blocks: 0, rows: 0, tailSections: 0, shrunk: 0, recount: 0, moved: 0 };
+const stats = { cells: 0, z7a: 0, blocks: 0, rows: 0, tailSections: 0, shrunk: 0, recount: 0, moved: 0 };
 let passReport = [];
 const archiveTargets = []; // [from, to] pairs for moves.json
 
@@ -266,6 +270,47 @@ if (rm) {
   }
   mark("recount-history");
 
+  // pass A: other Z.7 narrative bullets (recount / S<NN>) -> history archive. Kept: newest 3 recount updates,
+  // the first bullet with the Pending/Closed/Total line (parsed by roadmap-recount), pointer bullets, the counts table.
+  const AHEAD = "## Z.7 history (moved, pass A)";
+  const APOINT = `- Older Z.7 notes: ${HIST} § Z.7 history (moved, pass A)`;
+  {
+    const zs = ls.findIndex((l) => /^### Z\.7\b/.test(l));
+    let ze = zs < 0 ? -1 : ls.findIndex((l, i) => i > zs && /^#{1,3} /.test(l));
+    if (zs >= 0 && ze < 0) ze = ls.length;
+    const TOT = /Pending = [^=]*= (\d+)\. Closed = [^=]*= (\d+)\. Total = (\d+)\./;
+    const keepIdx = new Set();
+    let rc = 0, totSeen = false;
+    const cand = [];
+    for (let i = zs + 1; zs >= 0 && i < ze; i++) {
+      const l = ls[i];
+      if (!l.startsWith("- ")) continue;
+      if (RC.test(l) && rc++ < 3) keepIdx.add(i);
+      if (!totSeen && TOT.test(l)) { totSeen = true; keepIdx.add(i); }
+      if (l.startsWith("- Older ") || l.startsWith("- Z.7b")) continue;
+      if (/recount/i.test(l) || /^- S\d+/.test(l)) cand.push(i);
+    }
+    const idx = cand.filter((i) => !keepIdx.has(i));
+    if (idx.length) {
+      let h = hl.indexOf(AHEAD);
+      if (h < 0) {
+        while (hl.at(-1)?.trim() === "") hl.pop();
+        hl.push("", AHEAD, "");
+        h = hl.length - 2;
+      }
+      const have = new Set(hl);
+      const fresh = idx.map((i) => ls[i]).filter((m) => !have.has(m));
+      hl.splice(blockEnd(hl, h), 0, ...fresh);
+      if (fresh.length) histChanged = true;
+      const drop = new Set(idx);
+      const hasPointer = ls.includes(APOINT);
+      ls = ls.flatMap((l, i) => (i === idx[0] && !hasPointer ? [APOINT] : drop.has(i) ? [] : [l]));
+      stats.z7a += idx.length;
+      archiveTargets.push([RM, HIST]);
+    }
+  }
+  mark("z7-history (A)");
+
   // move-sections: Z.7b and Z.8 (checked: no tool or test reads them)
   const SPOINT = `- Z.7b and Z.8: ${HIST}`;
   const secs = ["Z.7b", "Z.8"].map((n) => ls.findIndex((l) => l.startsWith(`### ${n} `))).filter((i) => i >= 0);
@@ -292,6 +337,62 @@ if (rm) {
     archiveTargets.push([RM, HIST]);
   }
   mark("move-sections");
+  // pass B: long cells of open (not closed, not stub) rows in Z.3, Z.4, Z.6. Cells 0-2, status (4) and the last cell stay.
+  {
+    const ox = readCur(OPEN);
+    const ol = ox ? [...ox.lines] : [`# Archived open-row detail — ${month}`, "Moved from docs/ROADMAP.md by tools/docs-archive.mjs. Cell text is verbatim.", ""];
+    let oChanged = false;
+    const cutLong = (str) => {
+      const budget = LIMIT - 300;
+      let t = str.slice(0, budget);
+      if (/[\ud800-\udbff]$/.test(t)) t = t.slice(0, -1);
+      const sent = t.lastIndexOf(". ");
+      if (sent > budget / 3) t = t.slice(0, sent + 1);
+      else {
+        const sp = t.lastIndexOf(" ");
+        if (sp > budget / 3) t = t.slice(0, sp);
+      }
+      t = t.trimEnd();
+      if ((t.match(/`/g) ?? []).length % 2) t += "`";
+      if ((t.match(/\*\*/g) ?? []).length % 2) t += "**";
+      return t;
+    };
+    const skippedB = [];
+    for (const name of ["Z.3", "Z.4", "Z.6"]) {
+      const start = ls.findIndex((l) => l.startsWith(`### ${name} `));
+      let header = null;
+      for (let i = start + 1; i < ls.length && !/^#{1,3} /.test(ls[i]); i++) {
+        const l = ls[i];
+        if (!l.startsWith("|") || /^\|[\s:|-]+\|?$/.test(l)) continue;
+        const cells = l.replace(/^\|\s*/, "").replace(/\s*\|\s*$/, "").split(" | ").map((c) => c.trim());
+        if (cells[0] === "ID (aliases)") { header = cells; continue; }
+        if (!header || header.length < 6) continue;
+        if (cells.length !== header.length) { if (cells.some((c) => c.length > LIMIT)) skippedB.push(cells[0]); continue; }
+        if (cells.some((c) => c === "archived" || c.startsWith("full row:"))) continue;
+        if (countSection(name, { rows: [cells], malformed: 0 }).closed === 1) continue;
+        let touched = false;
+        for (let k = 3; k < cells.length - 1; k++) {
+          if (k === 4 || cells[k].length <= LIMIT || cells[k].includes("[rest:")) continue;
+          const id = cells[0];
+          let h = ol.indexOf(`### ${id}`);
+          if (h < 0) {
+            while (ol.at(-1)?.trim() === "") ol.pop();
+            ol.push("", `### ${id}`, "");
+            h = ol.length - 2;
+          }
+          ol.splice(blockEnd(ol, h), 0, `- cell ${k} (${header[k]}): ${cells[k]}`);
+          cells[k] = `${cutLong(cells[k])} … [rest: ${OPEN} § ${id}]`;
+          touched = true;
+          oChanged = true;
+          stats.cells++;
+        }
+        if (touched) ls[i] = `| ${cells.join(" | ")} |`;
+      }
+    }
+    if (skippedB.length) console.log(`long-open-cells skipped (cell count differs from header): ${skippedB.join(", ")}`);
+    if (oChanged) { stage(OPEN, render(ol, ox?.eol ?? rm.eol)); archiveTargets.push([RM, OPEN]); }
+  }
+  mark("long-open-cells (B)");
   if (histChanged) stage(HIST, render(hl, hx?.eol ?? rm.eol));
   passReport = passReport0;
 
@@ -314,7 +415,7 @@ if (archiveTargets.length) {
 // ---- write and report
 const size = (p, text) => (text !== undefined ? Buffer.byteLength(text) : read(p) ? Buffer.byteLength(read(p).text) : 0);
 console.log(`${dry ? "[dry-run] would move" : "moved"}: ${stats.blocks} session block(s), ${stats.rows} closed row(s) stubbed, ${stats.tailSections} old roadmap section(s)`);
-console.log(`shrink-stubs: ${stats.shrunk} stub row(s) shortened; recount-history: ${stats.recount} bullet(s) moved; move-sections: ${stats.moved} section(s) moved`);
+console.log(`shrink-stubs: ${stats.shrunk} stub row(s) shortened; recount-history: ${stats.recount} bullet(s) moved; move-sections: ${stats.moved} section(s) moved; z7-history: ${stats.z7a} bullet(s) moved; long-open-cells: ${stats.cells} cell(s) cut (limit ${LIMIT})`);
 passReport.forEach(([n, b], i) => console.log(`  ROADMAP.md after ${n}: ${b} bytes${i > 0 ? ` (${b - passReport[i - 1][1]})` : ""}`));
 for (const p of [SS, RM]) console.log(`${p}: ${size(p)} -> ${size(p, writes.get(p) ?? read(p)?.text)} bytes`);
 for (const p of writes.keys()) console.log(`${dry ? "would write" : "write"}: ${p}`);

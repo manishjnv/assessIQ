@@ -27,7 +27,7 @@
 # Staged rollout (the live Caddyfile is edited in this ORDER — do NOT jump
 # straight to the end state, or you break live traffic mid-switch):
 #   Phase 1 (additive, zero impact): the assessiq.in CF zone exists with a
-#     proxied A record → 72.61.227.64, zone-level AOP ON, the x-origin-verify
+#     proxied A record → the origin server, zone-level AOP ON, the x-origin-verify
 #     Transform Rule replicated, and an Origin Cert for assessiq.in (+ www)
 #     placed at /etc/caddy/ssl/assessiq.in.{pem,key} (chmod 0600 the key).
 #     Then ADD the `assessiq.in` block below ALONGSIDE the still-serving
@@ -65,10 +65,10 @@
 #        curl -s -o /dev/null -w '%{http_code}\n' -I https://assessiq.automateedge.cloud # 301 → assessiq.in
 #        curl -s -o /dev/null -w '%{http_code}\n' -L https://www.assessiq.in            # 200 (only if www published; else skip)
 #        # AOP direct-origin spoof check — must reject BOTH hostnames (NOT 200):
-#        curl -s -m 10 -k --resolve assessiq.in:443:72.61.227.64 \
+#        curl -s -m 10 -k --resolve assessiq.in:443:<ORIGIN_IP> \
 #          -H 'CF-Connecting-IP: 203.0.113.99' -o /dev/null -w '%{http_code}\n' \
 #          https://assessiq.in/api/health                                                # NOT 200 (AOP rejects direct origin)
-#        curl -s -m 10 -k --resolve assessiq.automateedge.cloud:443:72.61.227.64 \
+#        curl -s -m 10 -k --resolve assessiq.automateedge.cloud:443:<ORIGIN_IP> \
 #          -H 'CF-Connecting-IP: 203.0.113.99' -o /dev/null -w '%{http_code}\n' \
 #          https://assessiq.automateedge.cloud/api/health                                # NOT 200 (legacy host AOP-locked too)
 #        curl -s -o /dev/null -w '%{http_code}\n' https://accessbridge.space             # 200 (neighbor unaffected)
