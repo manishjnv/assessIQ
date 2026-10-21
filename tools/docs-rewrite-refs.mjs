@@ -10,9 +10,11 @@ const DIRS = ["docs", ".claude", ".github", "tools", "modules", "apps", "package
 const SKIP = new Set(["node_modules", ".git"]);
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export function loadMoves(root) {
+// `extract` entries record text moved out of a file that stays in place; they never remap a path.
+export function loadMoves(root, all = false) {
   const f = join(root, "docs", "moves.json");
-  return existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : [];
+  const moves = existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : [];
+  return all ? moves : moves.filter((m) => !m.extract);
 }
 
 /** Apply the moves in order (chains a->b->c end at c). Returns { path, last } (last = final hop entry or null). */
