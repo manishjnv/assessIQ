@@ -14,7 +14,7 @@
  */
 
 import { AuthzError, ConflictError, NotFoundError, ValidationError } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, withSystemRoleDetached } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
 import { QB_ERROR_CODES } from "../types.js";
@@ -171,7 +171,7 @@ export async function reviewQuestion(
       after: { review_state: next, action, ...(noteId !== undefined ? { note_id: noteId } : {}), bulk: false },
     });
     // Z-52 gap 1 and 7: Needs fix or Disputed on a platform master blocks its tenant clones too.
-    if (next === "needs_fix" || next === "disputed") await propagateBlock(client, id, actor.tenantId, next);
+    if (next === "needs_fix" || next === "disputed") await propagateBlock(id, next);
     return { id, review_state: next, status: q.status, changed: true };
   }).catch((err: unknown) => { throw asRetryableDeadlock(err); });
 }
@@ -184,15 +184,13 @@ export async function reviewQuestion(
  * Not undone when the master is verified again: the clone content may be out of date, so the tenant
  * admin reviews the clone (or re-syncs) to clear it. Same role-switch pattern as propagateTakedown.
  */
-async function propagateBlock(
-  client: PoolClient,
-  masterId: string,
-  callerTenantId: string,
-  target: "needs_fix" | "disputed",
-): Promise<void> {
-  await client.query("SET LOCAL ROLE assessiq_system");
-  let failed = false;
-  try {
+async function propagateBlock(masterId: string, target: "needs_fix" | "disputed"): Promise<void> {
+  // FUT-10: own system-login tx (the app login cannot SET ROLE assessiq_system); fail-safe if the caller rolls back.
+  await withSystemRoleDetached("question.review_block_propagate", (client) => propagateBlockTx(client, masterId, target));
+}
+
+async function propagateBlockTx(client: PoolClient, masterId: string, target: "needs_fix" | "disputed"): Promise<void> {
+  {
     const platformTenantId = await getPlatformTenantId(client);
     const master = await client.query(
       `SELECT 1 FROM questions m JOIN question_packs mp ON mp.id = m.pack_id WHERE m.id = $1 AND mp.tenant_id = $2`,
@@ -232,15 +230,7 @@ async function propagateBlock(
         entityId: masterId,
         after: { review_state: target, action: `${target}_propagated`, source_question_id: masterId, clone_question_ids: ids },
       });
-      await client.query("SET LOCAL ROLE assessiq_system");
-    }
-  } catch (err) {
-    failed = true;
-    throw err;
-  } finally {
-    if (!failed) {
-      await client.query("SET LOCAL ROLE assessiq_app");
-      await client.query("SELECT set_config('app.current_tenant', $1, true)", [callerTenantId]);
+      await client.query("RESET ROLE"); // back to the system login (FUT-10)
     }
   }
 }

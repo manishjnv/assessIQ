@@ -262,6 +262,10 @@ const POOL_NEW_HOME = "modules/02-tenancy/src/";
 // new Pool()/new Client() is exempt in test files: they build throwaway test containers.
 const POOL_NEW_EXEMPT_RE = /(?:^|\/)__tests__\/|^tools\/test-support\/|\.test\.ts$/;
 const POOL_MARKER = "// pool-connect-ok:";
+// FUT-10: only withSystemRole (with-tenant.ts) may switch to the BYPASSRLS role.
+const SYSTEM_ROLE_RE = /SET\s+(?:LOCAL\s+|SESSION\s+)?ROLE\s+assessiq_system/i;
+const SYSTEM_ROLE_MSG =
+  "raw SET ROLE assessiq_system outside modules/02-tenancy/src/with-tenant.ts; use withSystemRole (FUT-10)";
 const POOL_CONNECT_MSG =
   "raw pool.connect() outside withTenant/withSystemRole; list the file in tools/pool-connect.allowlist.txt and mark the line, or use withSystemRole";
 const POOL_NEW_MSG =
@@ -280,6 +284,10 @@ function scanPoolText(rel: string, text: string): PoolHit[] {
     const marked = line.includes(POOL_MARKER) || (lines[i - 1] ?? "").includes(POOL_MARKER);
     if ((POOL_CONNECT_RE.test(line) || hasAlias(line)) && rel !== POOL_CONNECT_HOME) {
       out.push({ file: rel, loc, msg: POOL_CONNECT_MSG, marked });
+    }
+    const code = line.trim();
+    if (SYSTEM_ROLE_RE.test(line) && rel !== POOL_CONNECT_HOME && !/^(\/\/|\*|\/\*)/.test(code)) {
+      out.push({ file: rel, loc, msg: SYSTEM_ROLE_MSG, marked: false });
     }
     if (POOL_NEW_RE.test(line) && !rel.startsWith(POOL_NEW_HOME) && !POOL_NEW_EXEMPT_RE.test(rel)) {
       out.push({ file: rel, loc, msg: POOL_NEW_MSG, marked });
@@ -560,6 +568,10 @@ CREATE POLICY tenant_isolation_insert ON public.questions
     ["new Client outside tenancy", scan("modules/x/src/a.ts", "const c = new Client({});").length === 1],
     ["new Pool in tenancy not flagged", scan("modules/02-tenancy/src/pool.ts", "const p = new Pool({});").length === 0],
     ["new Client in __tests__ exempt", scan("modules/x/src/__tests__/a.ts", "new Client({})").length === 0],
+    ["raw SET LOCAL ROLE assessiq_system flagged", scan("modules/x/src/a.ts", 'await c.query("SET LOCAL ROLE assessiq_system");').length === 1],
+    ["raw SET ROLE assessiq_system flagged", scan("modules/x/src/a.ts", "await c.query('SET ROLE assessiq_system');").length === 1],
+    ["system role in with-tenant.ts allowed", scan("modules/02-tenancy/src/with-tenant.ts", 'c.query("SET LOCAL ROLE assessiq_system")').length === 0],
+    ["system role in a comment allowed", scan("modules/x/src/a.ts", "// SET LOCAL ROLE assessiq_system lets us").length === 0],
     ["plain pool.connect still flagged", scan("modules/x/src/a.ts", "pool.connect()").length === 1],
   ];
   const listed = ["modules/x/src/a.ts"];

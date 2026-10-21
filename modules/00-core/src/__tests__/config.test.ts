@@ -240,7 +240,19 @@ describe("test-only session minters are never on in production", () => {
     ORIGIN_TRUST_MODE: "enforce",
     ORIGIN_VERIFY_SECRET: "x".repeat(32),
     EMAIL_VERIFIED_DOMAINS: "automateedge.cloud",
+    SYSTEM_DATABASE_URL: "postgres://assessiq_system:pw@localhost:5432/aiq",
   };
+
+  it("production without SYSTEM_DATABASE_URL fails loud (FUT-10)", () => {
+    const { SYSTEM_DATABASE_URL: _omit, ...noSys } = PROD;
+    expect(() => loadConfig(noSys)).toThrow("requires SYSTEM_DATABASE_URL");
+  });
+
+  it("test/dev do not need SYSTEM_DATABASE_URL; pool max defaults to 5 (FUT-10)", () => {
+    const cfg = loadConfig({ ...VALID_BASE_ENV });
+    expect(cfg.SYSTEM_DATABASE_URL).toBeUndefined();
+    expect(cfg.PG_SYSTEM_POOL_MAX).toBe(5);
+  });
 
   it("production baseline (flags unset) parses with both minters off", () => {
     const cfg = loadConfig(PROD);
@@ -297,6 +309,7 @@ describe("EMAIL_FROM production check (RW-37)", () => {
     NODE_ENV: "production",
     ORIGIN_TRUST_MODE: "enforce",
     ORIGIN_VERIFY_SECRET: "x".repeat(32),
+    SYSTEM_DATABASE_URL: "postgres://assessiq_system:pw@localhost:5432/aiq",
     EMAIL_FROM: "AssessIQ <connect@assessiq.in>",
   };
 

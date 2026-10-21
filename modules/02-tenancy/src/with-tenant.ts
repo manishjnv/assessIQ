@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ValidationError, UUID_RE, streamLogger } from "@assessiq/core";
-import { getPool } from "./pool.js";
+import { getPool, getSystemPool } from "./pool.js";
 
 const log = streamLogger("app");
 
@@ -75,7 +75,8 @@ async function runInTx<T>(
   setup: (client: PoolClient) => Promise<void>,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  const client = await getPool().connect();
+  // FUT-10: system work uses its own pool (own DB login in production), never the app pool.
+  const client = await (kind === "system" ? getSystemPool() : getPool()).connect();
   const hooks: Array<() => Promise<void>> = [];
   afterCommit.set(client, hooks);
   let result: T;
@@ -154,23 +155,44 @@ export async function withSystemRole<T>(
   reason: string,
   fn: (client: PoolClient) => Promise<T>,
 ): Promise<T> {
-  if (typeof reason !== "string" || reason.trim() === "") {
-    throw new ValidationError("withSystemRole: reason must be a non-empty string", {
-      details: { code: "INVALID_SYSTEM_ROLE_REASON" },
-    });
-  }
   if (als.getStore()?.kind === "tenant") {
     const err = new Error("SYSTEM_ROLE_INSIDE_TENANT") as Error & { code: string };
     err.code = "SYSTEM_ROLE_INSIDE_TENANT";
     throw err;
   }
+  return systemTx(reason, fn);
+}
+
+/**
+ * FUT-10: like withSystemRole, but allowed while a withTenant scope is open. It runs in its OWN
+ * connection and transaction (system login), so it does NOT share the caller's tx: it commits
+ * on its own. Use only for fail-safe cross-tenant propagation (block / takedown of clones), where
+ * a committed propagation with a rolled-back caller leaves clones blocked, never exposed.
+ * Needed because the app login can no longer `SET ROLE assessiq_system` on the tenant client.
+ */
+export async function withSystemRoleDetached<T>(
+  reason: string,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  return systemTx(reason, fn);
+}
+
+async function systemTx<T>(
+  reason: string,
+  fn: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  if (typeof reason !== "string" || reason.trim() === "") {
+    throw new ValidationError("withSystemRole: reason must be a non-empty string", {
+      details: { code: "INVALID_SYSTEM_ROLE_REASON" },
+    });
+  }
   log.info({ reason, caller: callerFrame() }, "system-role.tx");
   return runInTx(
     "system",
     async (client) => {
+      // No-op when the login already is assessiq_system (production, FUT-10).
       await client.query("SET LOCAL ROLE assessiq_system");
     },
     fn,
   );
 }
-

@@ -395,7 +395,7 @@ export async function withdrawInTx(
   }
   if (outcome === "already") {
     // Backfill: a master withdrawn before EXP-19 (or with a later clone) still reaches its clones.
-    await propagateTakedown(client, id, tenantId);
+    await propagateTakedown(id);
     return { id, status: "archived", rights_status: "withdrawn" };
   }
   const noteId = note !== undefined && note.length > 0
@@ -408,7 +408,7 @@ export async function withdrawInTx(
     after: { status: "archived", rights_status: "withdrawn", ...(noteId !== undefined ? { note_id: noteId } : {}) },
   });
   // EXP-19: same tx, mark every tenant clone withdrawn (one audit row per affected tenant).
-  await propagateTakedown(client, id, tenantId);
+  await propagateTakedown(id);
   return { id, status: "archived", rights_status: "withdrawn" };
 }
 
