@@ -114,4 +114,14 @@ if [ ${#errors[@]} -gt 0 ]; then
   exit 2
 fi
 
+# --- Docs privacy (Z-106). WARN-ONLY until 2026-10-29: on that date switch this block to
+# blocking (append to errors[] before the check above). It never blocks today.
+if command -v node >/dev/null 2>&1 && [ -f tools/check-docs-privacy.mjs ]; then
+  PRIV=$(node tools/check-docs-privacy.mjs --staged --warn 2>/dev/null | grep -v '^docs-privacy:' | head -20 || true)
+  if [ -n "$PRIV" ]; then
+    # node does the JSON escaping, so no jq is needed.
+    printf '%s' "$PRIV" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.stringify({systemMessage:"docs privacy warning: "+s.split("\n").join("; ")})))' || true
+  fi
+fi
+
 exit 0

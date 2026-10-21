@@ -38,6 +38,8 @@
     "lint:mv-tenant-filter": "tsx tools/lint-mv-tenant-filter.ts",
     "lint:mv-tenant-filter:self-test": "tsx tools/lint-mv-tenant-filter.ts --self-test",
     "lint:docs": "node tools/lint-docs.mjs",
+    "lint:docs-privacy": "node tools/check-docs-privacy.mjs",
+    "lint:docs-links": "node tools/check-docs-links.mjs --baseline docs/link-baseline.txt",
     "lint:doc-anchors": "tsx tools/lint-doc-anchors.ts",
     "lint:doc-anchors:self-test": "tsx tools/lint-doc-anchors.ts --self-test",
     "lint:vitest-coverage": "tsx tools/lint-vitest-coverage.ts",
