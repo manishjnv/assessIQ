@@ -24,8 +24,8 @@ docs/13-email-system.md|modules/13-notifications/src/email/render.ts
 docs/RCA_LOG.md|../infra/caddy/Caddyfile
 docs/RCA_LOG.md|modules/01-auth/src/middleware/require-auth.ts
 docs/RCA_LOG.md|modules/01-auth/src/sessions.ts
-docs/SESSION_STATE.md|../.env.local
-docs/SESSION_STATE.md|plans/SKILL_PLAN_REVIEW_2026-05-28.md
+docs/archive/sessions-2026-05.md|../../.env.local
+docs/archive/sessions-2026-05.md|../plans/SKILL_PLAN_REVIEW_2026-05-28.md
 docs/plans/QUESTION_DIFFICULTY_PHASE_A.md|modules/04-question-bank/src/types.ts
 docs/plans/QUESTION_DIFFICULTY_PHASE_A.md|modules/07-ai-grading/src/handlers/admin-generate.ts
 docs/plans/archive/ADMIN_MOBILE_PORT.md|../../apps/web/index.html
