@@ -30,6 +30,7 @@ import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import { getSectionScoresForAttempt, type SectionScore } from "@assessiq/scoring";
 import * as repo from "./repository.js";
 import { AE_ERROR_CODES } from "./types.js";
+import { effectiveLevel } from "@assessiq/core/feedback-copy";
 
 const log = streamLogger("app");
 
@@ -319,6 +320,8 @@ interface ReleasedRow {
 interface RetakeRow {
   assessment_id: string;
   assessment_status: string;
+  /** Z-111: the assessment's default delivery mode ('mock' = a mock assessment). */
+  assessment_delivery_mode: string;
   max_attempts: number | null;
   attempt_number: number;
   latest_attempt_number: number;
@@ -369,6 +372,7 @@ async function loadCandidateResult(
         `SELECT asm.name AS assessment_name,
                 asm.id AS assessment_id,
                 asm.status AS assessment_status,
+                asm.delivery_mode AS assessment_delivery_mode,
                 asm.max_attempts,
                 a.attempt_number,
                 (SELECT max(t.attempt_number) FROM attempts t
@@ -407,7 +411,11 @@ async function loadCandidateResult(
             r.attempt_number === r.latest_attempt_number &&
             r.attempt_number < allowed,
         };
-        const feedbackLevel = await loadFeedbackLevel(client);
+        // Z-111: a mock attempt on a mock assessment shows the expected answer at least.
+        const feedbackLevel = effectiveLevel(await loadFeedbackLevel(client), {
+          isMockAttempt: attempt.delivery_mode === "mock",
+          assessmentIsMock: r.assessment_delivery_mode === "mock",
+        });
         return {
           status: "released",
           total_earned: earned,

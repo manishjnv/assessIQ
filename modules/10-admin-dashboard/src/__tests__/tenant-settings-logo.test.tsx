@@ -1,5 +1,6 @@
 // AssessIQ — "Organisation logo" section of the tenant settings page (Logo phase L2).
-//   L1  wrong type / too large is rejected before any API call
+//   L1  wrong type is rejected before any API call; an unreadable file is refused before upload
+//   L6  the picked logo is resized to fit 600x200 (aspect kept, never enlarged) and sent as PNG
 //   L2  upload PUTs base64, preview updates
 //   L3  remove (after confirm) DELETEs and clears the preview
 //   L4  API error code maps to plain copy
@@ -85,17 +86,35 @@ async function renderLoaded(): Promise<void> {
   await waitFor(() => expect(adminApi).toHaveBeenCalledWith("/admin/tenant-settings"));
 }
 
+// Z-115: the browser resizes the logo with createImageBitmap + canvas. jsdom has
+// neither, so stub both. The canvas size is read back to check the fit rule.
+let canvasSizes: Array<{ width: number; height: number }> = [];
+function stubImage(width: number, height: number): void {
+  vi.stubGlobal("createImageBitmap", vi.fn().mockResolvedValue({ width, height, close: vi.fn() }));
+}
+
 beforeEach(() => {
   verifyTotpApi.mockResolvedValue(undefined);
+  canvasSizes = [];
+  stubImage(300, 100);
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (this: HTMLCanvasElement) {
+    canvasSizes.push({ width: this.width, height: this.height });
+    return { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D;
+  });
+  vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(function (cb: BlobCallback) {
+    cb(new Blob(["png-bytes"], { type: "image/png" }));
+  });
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   vi.resetAllMocks();
 });
 
 describe("TenantSettings — Organisation logo", () => {
-  it("L1 rejects a wrong type and an oversize file before any API call", async () => {
+  it("L1 rejects a wrong type before any API call, and refuses an unreadable file before upload", async () => {
     mockApi({});
     await renderLoaded();
 
@@ -103,9 +122,28 @@ describe("TenantSettings — Organisation logo", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("PNG or JPEG");
     expect((screen.getByRole("button", { name: "Upload logo" }) as HTMLButtonElement).disabled).toBe(true);
 
-    pick(new File([new Uint8Array(512 * 1024 + 1)], "big.png", { type: "image/png" }));
-    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("512 KB"));
+    vi.stubGlobal("createImageBitmap", vi.fn().mockRejectedValue(new Error("decode failed")));
+    pick(new File(["x"], "broken.png", { type: "image/png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Upload logo" }));
+    await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("could not be read as an image"));
     expect(logoCalls()).toHaveLength(0);
+  });
+
+  it("L6 resizes to fit 600x200, keeps the aspect ratio and never enlarges", async () => {
+    mockApi({});
+    await renderLoaded();
+
+    stubImage(1200, 300);
+    pick(new File(["abc"], "wide.png", { type: "image/png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Upload logo" }));
+    await screen.findByText("Logo updated.");
+    expect(canvasSizes.at(-1)).toEqual({ width: 600, height: 150 });
+
+    stubImage(200, 100);
+    pick(new File(["abc"], "small.png", { type: "image/png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Upload logo" }));
+    await waitFor(() => expect(logoCalls()).toHaveLength(2));
+    expect(canvasSizes.at(-1)).toEqual({ width: 200, height: 100 });
   });
 
   it("L2 uploads base64 and the preview updates", async () => {
@@ -119,14 +157,14 @@ describe("TenantSettings — Organisation logo", () => {
     await screen.findByText("Logo updated.");
     const [, init] = logoCalls()[0] as [string, RequestInit];
     expect(init.method).toBe("PUT");
-    expect(JSON.parse(String(init.body))).toEqual({ content_base64: "YWJj" });
-    expect(screen.getByAltText("Acme College logo").getAttribute("src")).toBe(NEW_URL);
+    expect(JSON.parse(String(init.body))).toEqual({ content_base64: btoa("png-bytes") });
+    expect(screen.getAllByAltText("Acme College logo")[0]!.getAttribute("src")).toBe(NEW_URL);
   });
 
   it("L3 remove asks for confirmation, DELETEs and clears the preview", async () => {
     mockApi({ logoUrl: "/api/public/tenant-logo/t1?v=oldoldoldold" });
     await renderLoaded();
-    await screen.findByAltText("Acme College logo");
+    await screen.findAllByAltText("Acme College logo");
 
     fireEvent.click(screen.getByRole("button", { name: "Remove logo" }));
     expect(logoCalls()).toHaveLength(0);

@@ -30,21 +30,34 @@ export function isCandidateBrandedTemplate(name: EmailTemplateName): boolean {
   return CANDIDATE_BRANDED.has(name);
 }
 
-const CACHE_TTL_MS = 60_000;
-const cache = new Map<string, { at: number; uri: string | null }>();
+/** Public logo URL plus the stored pixel size (used to set the email img width/height). */
+export interface TenantLogoRef {
+  url: string;
+  width: number;
+  height: number;
+}
 
-export async function loadTenantLogoUrl(tenantId: string): Promise<string | null> {
+const CACHE_TTL_MS = 60_000;
+const cache = new Map<string, { at: number; logo: TenantLogoRef | null }>();
+
+export async function loadTenantLogo(tenantId: string): Promise<TenantLogoRef | null> {
   const hit = cache.get(tenantId);
-  if (hit !== undefined && Date.now() - hit.at < CACHE_TTL_MS) return hit.uri;
-  let uri: string | null = null;
+  if (hit !== undefined && Date.now() - hit.at < CACHE_TTL_MS) return hit.logo;
+  let logo: TenantLogoRef | null = null;
   try {
     const meta = await getTenantLogoMeta(tenantId);
-    if (meta !== null) uri = new URL(tenantLogoUrl(tenantId, meta.sha256), config.ASSESSIQ_BASE_URL).toString();
+    if (meta !== null) {
+      logo = {
+        url: new URL(tenantLogoUrl(tenantId, meta.sha256), config.ASSESSIQ_BASE_URL).toString(),
+        width: meta.width,
+        height: meta.height,
+      };
+    }
   } catch {
-    uri = null;
+    logo = null;
   }
-  cache.set(tenantId, { at: Date.now(), uri });
-  return uri;
+  cache.set(tenantId, { at: Date.now(), logo });
+  return logo;
 }
 
 /** Test hook. */

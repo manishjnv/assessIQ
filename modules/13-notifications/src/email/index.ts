@@ -32,8 +32,9 @@ import { Redis } from 'ioredis';
 import { config, streamLogger, uuidv7 } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { renderTemplate } from './render.js';
-import { isCandidateBrandedTemplate, loadTenantLogoUrl } from './tenant-logo.js';
+import { isCandidateBrandedTemplate, loadTenantLogo } from './tenant-logo.js';
 import { resolveTransport } from './transport.js';
+import { buildFromHeader } from './from-header.js';
 import {
   describeSmtpFailure,
   emailClassOf,
@@ -166,16 +167,16 @@ export async function sendEmail<T extends EmailTemplateName>(
 
   // 1. Render template first (fail fast on bad vars before hitting DB).
   //    Candidate-facing templates carry the tenant logo (Logo phase L3b): the
-  //    caller may pass logoUrl (batch senders load it once); otherwise it
+  //    caller may pass logo (batch senders load it once); otherwise it
   //    is loaded here from the tenant row. No logo = rendered as before.
-  const logoUrl =
-    input.logoUrl !== undefined
-      ? input.logoUrl
+  const logo =
+    input.logo !== undefined
+      ? input.logo
       : tenantId !== undefined && tenantId.length > 0 && isCandidateBrandedTemplate(template)
-        ? await loadTenantLogoUrl(tenantId)
+        ? await loadTenantLogo(tenantId)
         : null;
   const rendered = renderTemplate(template, vars as Parameters<typeof renderTemplate<T>>[1], {
-    logoUrl,
+    logo,
     ...(input.orgName !== undefined ? { orgName: input.orgName } : {}),
   });
 
@@ -245,6 +246,7 @@ export async function sendEmail<T extends EmailTemplateName>(
       bodyHtml: rendered.html,
       bodyText: rendered.text,
       templateId: template,
+      from: buildFromHeader(input.orgName ?? (vars as { tenantName?: unknown }).tenantName),
     },
     jobOpts,
   );
@@ -265,6 +267,8 @@ export interface EmailSendJobData {
   bodyHtml: string;
   bodyText: string;
   templateId: string;
+  /** From header, set at enqueue ("<Org> via AssessIQ" or EMAIL_FROM). Absent on older jobs = EMAIL_FROM. */
+  from?: string | { name: string; address: string };
 }
 
 /** Where this run sits in the BullMQ retry sequence (the worker passes it). */
@@ -279,7 +283,7 @@ export async function processEmailSendJob(
   data: EmailSendJobData,
   ctx?: EmailSendAttempt,
 ): Promise<{ emailLogId: string; status: string; providerMessageId?: string }> {
-  const { emailLogId, tenantId, to, subject, bodyHtml, bodyText, templateId } = data;
+  const { emailLogId, tenantId, to, subject, bodyHtml, bodyText, templateId, from } = data;
 
   const transport = resolveTransport();
   if (transport === null) {
@@ -312,7 +316,7 @@ export async function processEmailSendJob(
 
   try {
     const result = await transport.sendMail({
-      from: config.EMAIL_FROM,
+      from: from ?? config.EMAIL_FROM,
       to,
       subject,
       text: bodyText,

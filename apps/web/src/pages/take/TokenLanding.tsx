@@ -165,7 +165,7 @@ export function SuccessContent({
     <>
       {(companyLogoUrl !== null || company !== '') && (
         <div data-help-id="candidate.take.landing.logo" style={{ marginBottom: 20 }}>
-          <TenantLogo src={companyLogoUrl} name={company} height={40} viaAssessIQ />
+          <TenantLogo src={companyLogoUrl} name={company} height={40} />
         </div>
       )}
       <span style={{ display: 'inline-block', marginBottom: 20 }}>
@@ -413,6 +413,16 @@ export function TokenLanding(): React.JSX.Element {
   const [beginError, setBeginError] = useState<string | null>(null);
   // Z-82: the candidate chose not to start on the camera consent screen.
   const [cameraDeclined, setCameraDeclined] = useState(false);
+  // Z-114: tab title "Org name · AssessIQ" once the invitation loads. Restored on unmount.
+  const orgTitleName = state.tag === 'success' && state.company !== '' ? state.company : null;
+  useEffect(() => {
+    if (!orgTitleName) return;
+    const prev = document.title;
+    document.title = `${orgTitleName} · AssessIQ`;
+    return () => {
+      document.title = prev;
+    };
+  }, [orgTitleName]);
 
   // Read-only: shows the summary WITHOUT creating the attempt or starting the clock.
   const runPreview = useCallback(async (): Promise<void> => {

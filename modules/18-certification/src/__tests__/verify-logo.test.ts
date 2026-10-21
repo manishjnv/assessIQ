@@ -15,7 +15,10 @@ import type { PoolClient } from 'pg';
 import { CERT_SIGNING_SECRET_ENV, signCertificate } from '../crypto.js';
 import type { Certificate } from '../types.js';
 
-const { getTenantLogoBytes } = vi.hoisted(() => ({ getTenantLogoBytes: vi.fn() }));
+const { getTenantLogoBytes, getTenantLogoMeta } = vi.hoisted(() => ({
+  getTenantLogoBytes: vi.fn(),
+  getTenantLogoMeta: vi.fn(),
+}));
 
 vi.mock('../repository.js', async () => {
   const actual = await vi.importActual<typeof import('../repository.js')>('../repository.js');
@@ -34,6 +37,8 @@ vi.mock('@assessiq/tenancy', () => ({
   ),
   getTenantById: vi.fn().mockResolvedValue({ name: 'Acme College' }),
   getTenantLogoBytes: (...a: unknown[]) => getTenantLogoBytes(...a),
+  getTenantLogoMeta: (...a: unknown[]) => getTenantLogoMeta(...a),
+  tenantLogoUrl: (id: string, sha: string) => `/api/public/tenant-logo/${id}?v=${sha.slice(0, 12)}`,
   getPool: vi.fn(),
   closePool: vi.fn(),
   tenantContextMiddleware: vi.fn(() => ({ preHandler: vi.fn(), onResponse: vi.fn() })),
@@ -106,6 +111,7 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.unstubAllEnvs();
   getTenantLogoBytes.mockReset();
+  getTenantLogoMeta.mockReset();
   await app.close();
 });
 
@@ -113,27 +119,29 @@ const get = (url: string) =>
   app.inject({ method: 'GET', url, headers: { 'x-forwarded-for': '10.0.0.7' } });
 
 describe('verify page logo', () => {
-  it('shows the logo (80x32) next to the organisation name when the tenant has one', async () => {
-    getTenantLogoBytes.mockResolvedValue({ mime: 'image/png', bytes: PNG_BYTES, sha256: 'x' });
+  it('links the cached public logo URL (no data URI) next to the organisation name', async () => {
+    getTenantLogoMeta.mockResolvedValue({ sha256: 'abcdef0123456789', width: 600, height: 200 });
     const res = await get(`/verify/${CREDENTIAL_ID}`);
     expect(res.statusCode).toBe(200);
-    expect(res.body).toContain(`src="${DATA_URI}"`);
+    expect(res.body).toContain('src="/api/public/tenant-logo/22222222-2222-2222-2222-222222222222?v=abcdef012345"');
+    expect(res.body).not.toContain('data:image');
     expect(res.body).toContain('alt="Acme College logo"');
     expect(res.body).toContain('width="80" height="32"');
     expect(res.body).toContain('Acme College &middot; via AssessIQ');
+    expect(res.body).toContain('"issuedBy":{"@type":"Organization","name":"Acme College"}');
     expect(res.headers['cache-control']).toBe('no-cache');
-    expect(getTenantLogoBytes).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
+    expect(getTenantLogoMeta).toHaveBeenCalledWith('22222222-2222-2222-2222-222222222222');
   });
 
   it('shows the name only when the tenant has no logo', async () => {
-    getTenantLogoBytes.mockResolvedValue(null);
+    getTenantLogoMeta.mockResolvedValue(null);
     const res = await get(`/verify/${CREDENTIAL_ID}`);
     expect(res.body).not.toContain('<img');
     expect(res.body).toContain('Acme College &middot; via AssessIQ');
   });
 
   it('still renders when the logo read fails', async () => {
-    getTenantLogoBytes.mockRejectedValue(new Error('db down'));
+    getTenantLogoMeta.mockRejectedValue(new Error('db down'));
     const res = await get(`/verify/${CREDENTIAL_ID}`);
     expect(res.statusCode).toBe(200);
     expect(res.body).not.toContain('<img');
@@ -148,6 +156,12 @@ describe('OG image logo', () => {
     expect(res.body).toContain(`<image x="908" y="68" width="224" height="80"`);
     expect(res.body).toContain(`href="${DATA_URI}"`);
     expect(res.body).toContain('<rect x="900" y="60" width="240" height="96"');
+  });
+
+  it('SVG shows the organisation name text', async () => {
+    getTenantLogoBytes.mockResolvedValue(null);
+    const res = await get(`/verify/${CREDENTIAL_ID}/og.svg`);
+    expect(res.body).toContain('>Acme College</text>');
   });
 
   it('SVG has no <image> without a logo', async () => {

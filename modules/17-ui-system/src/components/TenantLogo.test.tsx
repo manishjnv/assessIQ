@@ -17,6 +17,12 @@ describe("TenantLogo", () => {
     expect(screen.queryByText("via AssessIQ")).toBeNull();
   });
 
+  it("shows the name next to the logo with an empty alt when showName is set", () => {
+    const { container } = render(<TenantLogo src="x.png" name="Acme" height={28} showName />);
+    expect(container.querySelector("img")).toHaveAttribute("alt", "");
+    expect(screen.getByText("Acme")).toBeInTheDocument();
+  });
+
   it("appends the via AssessIQ caption when asked", () => {
     render(<TenantLogo src="x.png" name="Acme" height={28} viaAssessIQ />);
     expect(screen.getByText("via AssessIQ")).toBeInTheDocument();

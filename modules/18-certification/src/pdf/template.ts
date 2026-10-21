@@ -121,11 +121,11 @@ export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, veri
     /* Header — centered brand wordmark + rule. */
     .brand {
       font-family: ${FONT_SANS};
-      font-size: 16pt;
+      font-size: 10pt;
       font-weight: 800;
-      letter-spacing: 0.32em;
+      letter-spacing: 0.24em;
       color: ${accent};
-      padding-left: 0.32em; /* offset trailing letter-spacing for true centering */
+      padding-left: 0.24em; /* offset trailing letter-spacing for true centering */
     }
     .brand-sub {
       font-family: ${FONT_SANS};

@@ -100,6 +100,16 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
   // Z-3 — unread "result published" notices. One fetch after whoami, no polling.
   const [newResults, setNewResults] = useState(0);
   const signedIn = !loading && data !== null;
+  // Z-114: browser tab title "Org name · AssessIQ". Restored on unmount.
+  const orgTitleName = data?.tenant?.name ?? null;
+  useEffect(() => {
+    if (!orgTitleName) return;
+    const prev = document.title;
+    document.title = `${orgTitleName} · AssessIQ`;
+    return () => {
+      document.title = prev;
+    };
+  }, [orgTitleName]);
   useEffect(() => {
     if (!signedIn) return;
     let cancelled = false;
@@ -153,34 +163,50 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
           height: TOP_BAR_HEIGHT,
           background: 'var(--aiq-color-bg-base)',
           borderBottom: '1px solid var(--aiq-color-border)',
-          display: 'flex',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1fr) minmax(0,auto) minmax(0,1fr)',
           alignItems: 'center',
-          gap: 16,
+          columnGap: 16,
         }}
       >
-        {/* Logo — left */}
+        {/* Left — AssessIQ mark, small and muted (Z-112). */}
         <div
           className="aiq-mark"
           role="img"
           aria-label="AssessIQ"
-          style={{ fontSize: 'var(--aiq-text-lg)', fontWeight: 600, letterSpacing: '-0.01em', flex: 0 }}
+          style={{
+            fontSize: 'var(--aiq-text-sm)',
+            fontWeight: 500,
+            color: 'var(--aiq-color-fg-muted)',
+            letterSpacing: '-0.01em',
+            justifySelf: 'start',
+            minWidth: 0,
+          }}
         >
           <span className="aiq-mark-dot" aria-hidden="true" />
           <span>AssessIQ</span>
         </div>
 
-        {/* Logo L3a — organisation co-brand next to the platform mark. */}
-        {!loading && (data?.tenant?.logo_url || data?.tenant?.name) && (
-          <span data-help-id="candidate.shell.logo" style={{ flexShrink: 1, minWidth: 0 }}>
-            <TenantLogo
-              src={data?.tenant?.logo_url ?? null}
-              name={data?.tenant?.name ?? ''}
-              height={28}
-              viaAssessIQ
-            />
-          </span>
-        )}
+        {/* Centre — organisation logo and name (Z-112). Z-113: no "via AssessIQ" caption here. */}
+        <div style={{ justifySelf: 'center', minWidth: 0, maxWidth: '100%' }}>
+          {!loading && (data?.tenant?.logo_url || data?.tenant?.name) && (
+            <span
+              className="aiq-mark"
+              data-help-id="candidate.shell.logo"
+              style={{ fontWeight: 600, maxWidth: '100%', minWidth: 0 }}
+            >
+              <TenantLogo
+                src={data?.tenant?.logo_url ?? null}
+                name={data?.tenant?.name ?? ''}
+                height={28}
+                showName
+              />
+            </span>
+          )}
+        </div>
 
+        {/* Right — desktop nav, session info and mobile menu. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, justifySelf: 'end', minWidth: 0 }}>
         {/* M4 — Desktop inline nav. Hidden on mobile via .aiq-candidate-nav-desktop
             CSS rule. Same routes as the mobile overflow menu below. */}
         <nav className="aiq-candidate-nav-desktop" aria-label="Candidate sections">
@@ -197,8 +223,6 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
             Activity
           </NavLink>
         </nav>
-
-        <div style={{ flex: 1 }} />
 
         {/* Session info + sign out — right (desktop). Hidden on mobile via
             .aiq-candidate-shell-userinfo CSS rule; Sign out is reachable
@@ -361,6 +385,7 @@ export function CandidateShell({ children }: CandidateShellProps): React.ReactEl
               </li>
             </ul>
           )}
+        </div>
         </div>
       </header>
 
