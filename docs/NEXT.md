@@ -2,9 +2,9 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-21T07:42:33.540Z (2026-10-21 13:12:33 IST)
-- HEAD: `d9290ec1`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 24
+- Generated: 2026-10-21T08:20:41.325Z (2026-10-21 13:50:41 IST)
+- HEAD: `924cd996`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 13
 
 ## 1. Last session (SESSION_STATE, first block)
 
@@ -49,7 +49,6 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-35` (Z-35 (SEO-F5, F7)) — Organization `sameAs` is empty (F5). Microsoft Clarity is live (F7): check `privacy.astro` and the consent wording. — pending (partly done S18, `59a5962`): (a) privacy page now names what Clarity records, cookie names and lifetimes (`_clc
 - `Z-37` (Z-37 (Z-10 code fixes)) — Email code fixes from the Z-10 review. — PART 1 DONE earlier (67e5db5) and PART 2 DONE in S20 (`f253297` + `75a42ca`: plain result email, share links, `.txt` sig
 - `Z-38` (Z-38 (Dependabot tail)) — Dependabot items left after the S17 patch pass. — partly done (S41, 2026-10-21, `dd287b3c`): the 12 minor and patch updates applied (fastify 5.12.7, react 19.3.1, playwri
-- `Z-42` (Z-42 (EXP-6 tail)) — Blueprint mocks: whole-test timer and marks per question. — pending, mostly done (S21, 2026-10-18, `43fc9b9` + gate hardening `7ef8826`): whole-test timer (`settings.whole_test_min
 - `Z-54` (Z-54 (DOCSLINT-2)) — Docs lint: confirm green on main, then flip `fail_on_error` to true. — pending (Claude; XS; not before 2026-10-29). S41 (2026-10-21): still before the date, `fail_on_error` unchanged, waits u
 - `Z-72` (Z-72 (LIABILITY-1)) — Liability and data-processing proposal for the lawyer. — pending (owner and lawyer approve; Claude; S). Draft written S28. Owner follow-up 2026-10-19 (after the v2 sheet): not a
 - `Z-75` (Z-75 (PUBLICDOCS-1)) — Plan to stop tracking public docs files in the public repo. — pending (plan written S31, 2026-10-19: `docs/plans/Z-75-stop-tracking-public-docs.md`; execution needs the owner's yes a
@@ -68,6 +67,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-108` (Z-108 (DOCS-TIDY)) — Tidy the plan and design docs, and fold the change records into the feature docs. — pending (Claude; M; Sonnet; Opus reviews the rule files)
 - `Z-109` (Z-109 (CLOSE-CMD)) — One command for the session close-out. — pending (Claude; S; Sonnet)
 - `Z-110` (Z-110 (Z75-DECIDE)) — Decide what happens to Z-75 and run the history purge before the pilot. — pending (owner decides; Claude executes)
+- `Z-111` (Z-111 (MOCK-FEEDBACK)) — Mock attempts always show the expected answer; real exams keep the tenant level. — pending (Claude; S; Sonnet; Opus reviews the helper)
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d) Owner sheets 2026-10-19 (applied S34), v1 Q39: embed 
 

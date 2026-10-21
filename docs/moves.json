@@ -70,5 +70,40 @@
     "to": "docs/private/testing-Screenshot/",
     "date": "2026-10-21",
     "reason": "Z-105 phone screenshots from chat (untracked), kept private"
+  },
+  {
+    "from": "docs/SESSION_STATE.md",
+    "to": "docs/archive/sessions-2026-10.md",
+    "date": "2026-10-21",
+    "reason": "Z-107 archive: older text moved out, source file stays",
+    "extract": true
+  },
+  {
+    "from": "docs/SESSION_STATE.md",
+    "to": "docs/archive/sessions-2026-06.md",
+    "date": "2026-10-21",
+    "reason": "Z-107 archive: older text moved out, source file stays",
+    "extract": true
+  },
+  {
+    "from": "docs/SESSION_STATE.md",
+    "to": "docs/archive/sessions-2026-05.md",
+    "date": "2026-10-21",
+    "reason": "Z-107 archive: older text moved out, source file stays",
+    "extract": true
+  },
+  {
+    "from": "docs/ROADMAP.md",
+    "to": "docs/archive/ROADMAP-closed-rows-2026-10.md",
+    "date": "2026-10-21",
+    "reason": "Z-107 archive: older text moved out, source file stays",
+    "extract": true
+  },
+  {
+    "from": "docs/ROADMAP.md",
+    "to": "docs/archive/ROADMAP-history-2026-10.md",
+    "date": "2026-10-21",
+    "reason": "Z-107 archive: older text moved out, source file stays",
+    "extract": true
   }
 ]
