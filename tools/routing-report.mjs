@@ -193,6 +193,11 @@ function main() {
     process.stderr.write(`routing-report: ${err.message}\n`);
     process.exit(2);
   }
+  // docs/ is gitignored: with no SESSION_STATE and no sessions folder, skip (exit 0).
+  if (!existsSync(STATE_FILE) && !existsSync(SESSIONS_DIR)) {
+    process.stdout.write("routing-report: skipped, docs/ is not in this checkout\n");
+    return;
+  }
   const files = sourceFiles();
   if (files.length === 0) {
     process.stderr.write("routing-report: no session files found (docs/SESSION_STATE.md, docs/sessions/*.md)\n");

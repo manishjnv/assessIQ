@@ -1,12 +1,14 @@
 // @vitest-environment node
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const root = join(__dirname, "..", "..");
+// The tool reads these three docs files; without them it skips (see tools/next-brief.mjs).
+const inputsPresent = ["docs/SESSION_STATE.md", "docs/ROADMAP.md", "docs/RCA_LOG.md"].every((p) => existsSync(join(root, p)));
 
-describe("next-brief", () => {
+describe.skipIf(!inputsPresent)("next-brief", () => {
   it("writes docs/NEXT.md with every section and reports the size estimate", () => {
     const out = execFileSync("node", ["tools/next-brief.mjs"], { cwd: root, encoding: "utf8" });
     expect(out).toMatch(/output size: \d+ bytes, ~\d+ tokens \(estimate: bytes \/ 4\)/);

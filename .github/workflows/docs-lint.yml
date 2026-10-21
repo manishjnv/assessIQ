@@ -8,14 +8,12 @@ name: Docs lint
 on:
   pull_request:
     paths:
-      - 'docs/**'
       - 'README.md'
       - 'modules/16-help-system/content/**'
       - 'modules/13-notifications/src/email/**'
   push:
     branches: [main]
     paths:
-      - 'docs/**'
       - 'README.md'
       - 'modules/16-help-system/content/**'
       - 'modules/13-notifications/src/email/**'
@@ -38,7 +36,7 @@ jobs:
         with:
           # CI reports errors only: 60000 suggestion/warning findings made reviewdog stop with "Too many results" (Z-48).
           vale_flags: '--config=.vale.ini --minAlertLevel=error'
-          files: '["docs","README.md"]' # JSON array: a comma string is read as ONE path and Vale scanned the whole repo (Z-48)
+          files: '["README.md"]' # JSON array: a comma string is read as ONE path and Vale scanned the whole repo (Z-48)
           # github-check posts through the Checks API. The default pr-check reporter
           # hit an 'Unhandled error event' socket error in reviewdog (Z-48) and failed the job
           # even when Vale found no error. nofilter keeps push runs working.

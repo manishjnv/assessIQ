@@ -23,6 +23,21 @@ if ! [[ "$NAME" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
   exit 64
 fi
 
+IS_WIN=0
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WIN=1 ;; esac
+
+# True for a symlink or a Windows junction. Never follows the link.
+is_link() {
+  [ -L "$1" ] && return 0
+  if [ "$IS_WIN" = 1 ] && [ -d "$1" ]; then
+    local w
+    w="$(cygpath -w "$1")"
+    [ "$(pwsh -NoProfile -Command "(Get-Item -LiteralPath '$w' -Force).LinkType" 2>/dev/null | tr -d '\r')" = "Junction" ]
+  else
+    return 1
+  fi
+}
+
 MAIN="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
 TARGET="$MAIN/.claude/worktrees/$NAME"
 
@@ -44,6 +59,29 @@ START=$(date +%s)
 echo "Fetching origin..."
 git fetch origin --quiet
 git worktree add -b "$NAME" "$TARGET" "$FROM"
+
+# docs/ is local only once it is untracked. The worktree gets a link to the main docs/, never a copy.
+WT_DOCS="$TARGET/docs"
+MAIN_DOCS="$MAIN/docs"
+if [ ! -d "$MAIN_DOCS" ]; then
+  echo "wt-setup: main clone has no docs/ folder. No junction."
+elif [ -n "$(git -C "$TARGET" ls-files -- docs | head -n 1)" ]; then
+  echo "wt-setup: docs/ is tracked here, no junction"
+elif is_link "$WT_DOCS"; then
+  echo "wt-setup: docs/ junction already exists, nothing to do"
+elif [ -d "$WT_DOCS" ] && [ -n "$(ls -A "$WT_DOCS")" ]; then
+  echo "wt-setup: docs/ exists in the worktree and is not empty. No junction."
+else
+  if [ -d "$WT_DOCS" ]; then
+    rmdir "$WT_DOCS"
+  fi
+  if [ "$IS_WIN" = 1 ]; then
+    MSYS_NO_PATHCONV=1 cmd.exe /d /c mklink /J "$(cygpath -w "$WT_DOCS")" "$(cygpath -w "$MAIN_DOCS")" < /dev/null > /dev/null
+  else
+    ln -s "$MAIN_DOCS" "$WT_DOCS"
+  fi
+  echo "wt-setup: docs/ junction -> $MAIN_DOCS (edits inside the worktree change the main docs)"
+fi
 
 if [ -f "$MAIN/.env" ]; then
   cp "$MAIN/.env" "$TARGET/.env"

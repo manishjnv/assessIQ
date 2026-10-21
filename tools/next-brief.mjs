@@ -121,6 +121,12 @@ function ist(date) {
 }
 
 function main() {
+  // docs/ is gitignored: in a checkout without it, skip with one line (exit 0).
+  const absent = Object.values(SRC).filter((rel) => !existsSync(join(ROOT, rel)));
+  if (absent.length) {
+    console.log(existsSync(join(ROOT, 'docs')) ? `next-brief: skipped, ${absent[0]} is not in this checkout` : 'next-brief: skipped, docs/ is not in this checkout');
+    return;
+  }
   const now = new Date();
   const session = firstSessionBlock(readSource(SRC.session));
   const board = statusBoard(readSource(SRC.roadmap));

@@ -14,19 +14,9 @@ const ALLOW = new Set([
 ]);
 // Known debt, found when the guard was added (Z-106). Owner approval pending, remove after cleanup.
 // Each entry is "path|rule"; the rule is skipped for that file only.
+// docs/ entries were removed on 2026-10-21: docs/ is no longer tracked, so the scan does not see it.
 const KNOWN = new Set([
   "apps/marketing/src/pages/alternatives/imocha.astro|currency-amount",
-  "docs/06-deployment.md|currency-amount",
-  "docs/13-email-system.md|currency-amount",
-  "docs/SESSION_STATE.md|currency-amount",
-  "docs/SESSION_STATE.md|public-ip",
-  "docs/ROADMAP.md|currency-amount",
-  "docs/design/2026-05-09-type-sharded-generation.md|currency-amount",
-  "docs/design/2026-10-18-liability-and-dpa-proposal.md|currency-amount",
-  "docs/design/2026-10-20-dpa-and-candidate-notice-text.md|currency-amount",
-  "docs/plans/archive/EMAIL_KIT_PORT.md|currency-amount",
-  "docs/02-data-model.md|public-ip",
-  "docs/RCA_LOG.md|public-ip",
 ]);
 // Amounts and IPs only matter in prose/config files. In code they are SQL placeholders ($10), test fixtures and quiz content.
 const PROSE = /\.(md|mdx|astro|html|txt|ya?ml|snippet|sh|conf)$|(^|\/)\.env/i;
