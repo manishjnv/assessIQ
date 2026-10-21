@@ -15,6 +15,7 @@ import {
   eraseCandidatePii,
   exportCandidateData,
   runRetentionPurgeForTenant,
+  runAttemptRetentionForTenant,
   listErasedCandidates,
 } from "../index.js";
 
@@ -491,5 +492,35 @@ describe("listErasedCandidates", () => {
     // since filter excludes everything erased before it
     const future = await listErasedCandidates(a.id, { since: new Date(Date.now() + 60_000).toISOString() });
     expect(future).toEqual({ items: [], total: 0 });
+  });
+});
+
+describe("runAttemptRetentionForTenant (FUT-11)", () => {
+  it("keeps everything while the window is NULL, counts on dry run, deletes only old ended attempts' events", async () => {
+    const t = await seedTenant();
+    const old = await seedCandidate(t);
+    const recent = await seedCandidate(t);
+    await sup(async (c) => {
+      await c.query(`UPDATE attempts SET submitted_at = now() - interval '100 days' WHERE id = $1`, [old.attemptId]);
+      for (const id of [old.attemptId, recent.attemptId]) {
+        await c.query(`INSERT INTO attempt_events (attempt_id, event_type) VALUES ($1,'tab_blur'),($1,'tab_focus')`, [id]);
+      }
+    });
+    const count = (id: string) =>
+      sup(async (c) => Number((await c.query(`SELECT count(*) AS n FROM attempt_events WHERE attempt_id = $1`, [id])).rows[0].n));
+
+    expect((await runAttemptRetentionForTenant(t.id)).events).toBe(0);
+    expect(await count(old.attemptId)).toBe(2);
+
+    await sup((c) => c.query(`UPDATE tenant_settings SET attempt_retention_days = 30 WHERE tenant_id = $1`, [t.id]));
+    expect((await runAttemptRetentionForTenant(t.id, { dryRun: true })).events).toBe(2);
+    expect(await count(old.attemptId)).toBe(2);
+
+    expect((await runAttemptRetentionForTenant(t.id)).events).toBe(2);
+    expect(await count(old.attemptId)).toBe(0);
+    expect(await count(recent.attemptId)).toBe(2);
+    // answers survive
+    const ans = await sup(async (c) => Number((await c.query(`SELECT count(*) AS n FROM attempt_answers WHERE attempt_id = $1`, [old.attemptId])).rows[0].n));
+    expect(ans).toBe(2);
   });
 });
