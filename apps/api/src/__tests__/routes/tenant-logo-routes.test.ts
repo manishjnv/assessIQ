@@ -91,6 +91,7 @@ vi.mock('@assessiq/help-system', () => ({
   registerHelpAuthRoutes: vi.fn().mockResolvedValue(undefined),
   registerHelpAdminRoutes: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('@assessiq/data-rights', () => ({ getAttemptRetentionDays: vi.fn().mockResolvedValue(null), updateAttemptRetentionDays: vi.fn(), runRetentionPurgeForTenant: vi.fn(), listErasedCandidates: vi.fn() }));
 vi.mock('@assessiq/notifications', () => ({ registerNotificationsRoutes: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/scoring', () => ({ registerScoringRoutes: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@assessiq/analytics', () => ({ registerAnalyticsRoutes: vi.fn().mockResolvedValue(undefined) }));
