@@ -164,6 +164,14 @@ describe('OG image logo', () => {
     expect(res.body).toContain('>Acme College</text>');
   });
 
+  it('SVG names the Devanagari font for a Hindi organisation name (Z-118)', async () => {
+    getTenantLogoBytes.mockResolvedValue(null);
+    const { getTenantById } = await import('@assessiq/tenancy');
+    vi.mocked(getTenantById).mockResolvedValueOnce({ name: 'दिल्ली स्कूल' } as never);
+    const res = await get(`/verify/${CREDENTIAL_ID}/og.svg`);
+    expect(res.body).toMatch(/font-family="Noto Sans Devanagari"[^>]*>दिल्ली स्कूल<\/text>/);
+  });
+
   it('SVG has no <image> without a logo', async () => {
     getTenantLogoBytes.mockResolvedValue(null);
     const res = await get(`/verify/${CREDENTIAL_ID}/og.svg`);
