@@ -121,7 +121,7 @@ Common failure causes:
 
 ## Phone first-question timing (RW-79)
 
-`phone-first-question.spec.ts` runs only in the `mobile` project (Pixel 5, 4G throttle, 4x CPU slowdown). It walks invitation link, `/take/<token>`, Begin, "Question 1 of" five times with a cold cache. It fails when the median is 20 s or more. Run it against a production build: `PLAYWRIGHT_BASE_URL=http://localhost:4173 E2E_API_BASE_URL=http://localhost:3000 pnpm exec playwright test --project=mobile phone-first-question`. The API must run on the same machine: the spec reads the invitation link from the dev email log (`ASSESSIQ_DEV_EMAILS_LOG`, default `~/.assessiq/dev-emails.log`). Set `PHONE_FLOW_ADVISORY=1` to log a miss instead of failing.
+`phone-first-question.spec.ts` runs only in the `mobile` project (Pixel 5, 4G throttle, 4x CPU slowdown). It walks invitation link, `/take/<token>`, Begin, "Question 1 of" five times with a cold cache. It fails when the median is 20 s or more. Run it against a production build: `PLAYWRIGHT_BASE_URL=http://localhost:4173 E2E_API_BASE_URL=http://localhost:3000 pnpm exec playwright test --project=mobile phone-first-question`. The API must run on the same machine: the spec reads the invitation link from the dev email log (`ASSESSIQ_DEV_EMAILS_LOG`, default `~/.assessiq/dev-emails.log`). It uses a mock link, because a real exam is desktop-only. It is required in CI.
 
 ## Logged-in accessibility and Lighthouse (RW-82)
 

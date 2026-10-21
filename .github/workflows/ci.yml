@@ -675,14 +675,12 @@ jobs:
           pnpm --filter @assessiq/web exec playwright test --shard=${{ matrix.shard }}/2
           admin-workflow take-happy-path take-timer-expiry ordering-admin a11y-authed signed-in-smoke
 
-      # advisory until 2026-10-31, then remove PHONE_FLOW_ADVISORY and continue-on-error (RW-79)
+      # Required (RW-79): median email link to first question under 20 s on a phone; green on main, run 39558886824.
       - name: Phone first-question timing (RW-79)
         if: matrix.leg == 'phone'
-        continue-on-error: true
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
           E2E_API_BASE_URL: http://localhost:3000
-          PHONE_FLOW_ADVISORY: "1"
         run: pnpm --filter @assessiq/web exec playwright test --project=mobile phone-first-question
       # Z-88: phone smoke for /try, the invitation landing, sign-in and results. Required (green on main, run 39554101909).
       - name: Phone smoke (Z-88)
