@@ -14,7 +14,7 @@ import {
   listUnverifiedFrozenQuestions,
   questionsNotVerifiedError,
 } from "./_shared.js";
-import { countActiveQuestionsForCriterion, criterionNodeScope } from "./blueprint.js";
+import { assertSectionPoolsFillable, countActiveQuestionsForCriterion, criterionNodeScope } from "./blueprint.js";
 
 // ---------------------------------------------------------------------------
 // freezeAssessmentPool — "lock at assignment" snapshot (additive)
@@ -158,6 +158,9 @@ export async function publishAssessment(
         );
       }
     }
+
+    // c1. Z-122: each section's own pool must fill (the whole-pool count above can hide a small section).
+    await assertSectionPoolsFillable(client, assessment.pack_id, assessment.level_id, assessment.settings);
 
     // c2. EXP-18 review gate: no publish while a pool question is in_review / disputed / needs_fix.
     //     Covers whole-pool, section and blueprint (category and node) draws: all use the frozen pool.

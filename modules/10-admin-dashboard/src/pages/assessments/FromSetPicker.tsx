@@ -5,6 +5,8 @@ import type { AvailableSet } from "../../api.js";
 
 export interface FromSetSelection {
   source_pack_id: string;
+  /** Subject (domain slug) of the chosen set. The section editor shows only this subject's categories. */
+  domain: string;
   level_position: number;
   question_count: number;
 }
@@ -51,7 +53,7 @@ export function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElem
     if (!selectedSourceId || set === null) { onChange(null); return; }
     if (!Number.isInteger(levelPosition) || levelPosition < 1) { onChange(null); return; }
     if (!Number.isInteger(questionCount) || questionCount < 1) { onChange(null); return; }
-    onChange({ source_pack_id: selectedSourceId, level_position: levelPosition, question_count: questionCount });
+    onChange({ source_pack_id: selectedSourceId, domain: set.domain, level_position: levelPosition, question_count: questionCount });
   }, [sets, selectedSourceId, levelPosition, questionCount, onChange]);
 
   const selectedSet = sets?.find((s) => s.source_pack_id === selectedSourceId) ?? null;

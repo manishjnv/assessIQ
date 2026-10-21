@@ -11,7 +11,7 @@ import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsS
 import type { Assessment, ResolvedBlueprint, AssessmentSettings, CreateAssessmentInput, CreateAssessmentFromSetInput, ListAssessmentsInput, PaginatedAssessments, UpdateAssessmentPatch } from "../types.js";
 import type { InvitationCounts } from "../repository.js";
 import { log, assertPageSize } from "./_shared.js";
-import { assertBlueprintFKOwnership, resolveBlueprint, resolveBlueprintPackLevel } from "./blueprint.js";
+import { assertSectionCategoriesMatchPack, assertBlueprintFKOwnership, resolveBlueprint, resolveBlueprintPackLevel } from "./blueprint.js";
 
 // ===========================================================================
 // ASSESSMENT OPERATIONS
@@ -211,6 +211,9 @@ export async function createAssessment(
         { details: { code: AL_ERROR_CODES.PACK_NOT_PUBLISHED } },
       );
     }
+
+    // Z-122: section categories must belong to this pack's subject (create and from-set both land here).
+    await assertSectionCategoriesMatchPack(client, tenantId, resolvedInput.pack_id, mergedSettings);
 
     // c. Level must exist (RLS scopes through pack FK)
     const level = await qbRepo.findLevelById(client, resolvedInput.level_id);
@@ -734,6 +737,11 @@ export async function updateAssessment(
     // and merge the resolved overrides into the repo patch.
     if (validatedBlueprint !== null && resolvedBlueprintOverride !== null) {
       await assertBlueprintFKOwnership(client, tenantId, validatedBlueprint);
+    }
+
+    // Z-122: a patch that sets sections is checked against the assessment's pack.
+    if (patch.settings !== undefined) {
+      await assertSectionCategoriesMatchPack(client, tenantId, resolvedBlueprintOverride?.packId ?? current.pack_id, patch.settings);
     }
 
     // Build conditional patch — exactOptionalPropertyTypes: never pass undefined

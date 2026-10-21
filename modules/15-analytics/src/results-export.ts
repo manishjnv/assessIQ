@@ -119,15 +119,16 @@ export async function buildAssessmentResultsCsv(
       [assessmentId],
     );
     // Categories present in the assessment's questions (served + graded).
-    const cats = await client.query<{ name: string }>(
+    // LEFT JOIN: a question row never drops out of the list; a null name (no category) is skipped below.
+    const cats = await client.query<{ name: string | null }>(
       `SELECT DISTINCT c.name
          FROM attempt_questions aq
          JOIN attempts at ON at.id = aq.attempt_id AND at.assessment_id = $1
          JOIN questions q ON q.id = aq.question_id
-         JOIN categories c ON c.id = q.category_id`,
+         LEFT JOIN categories c ON c.id = q.category_id`,
       [assessmentId],
     );
-    const catNames = new Set(cats.rows.map((r) => r.name));
+    const catNames = new Set(cats.rows.map((r) => r.name).filter((n): n is string => n !== null));
     for (const r of gr.rows) if (r.category) catNames.add(r.category);
     const categories = [...catNames].sort((x, y) => x.localeCompare(y));
 
