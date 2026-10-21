@@ -133,6 +133,7 @@ describe('GET /api/admin/tenant-settings', () => {
       result_release_mode: 'auto',
       result_release_auto_since: '2026-10-01T10:00:00.000Z',
       retention_days: 730,
+      attempt_retention_days: null,
       company_name: 'Acme University',
       logo: null,
     });
