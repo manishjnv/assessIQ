@@ -36,10 +36,9 @@ pnpm-debug.log*
 !.env.example
 !.env.template
 
-# Docs are tracked. Only the private folder and the local-only content stay ignored
-# (Z-105). A new doc under docs/ shows in git status.
-docs/private/
-docs/Sample-Quiz/
+# Docs are local only (owner decision 2026-10-21, Z-75 done early): the whole docs/ folder is
+# ignored and not in git. tools/close-session.mjs backs it up. The repo is public.
+docs/
 
 # Exam content (question text + answer keys) — NEVER commit: the repo is public.
 # Generated seed SQL lives in docs/exam-content/ (local only). The second line
