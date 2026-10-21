@@ -4,7 +4,7 @@
 // Path: /take/<token> -> Begin visible -> consent + Begin -> "Question 1 of" visible.
 // The result-released email links to /candidate/login (magic link, email round trip). Not measured here
 // (owner decision Z-15 a keeps the magic link).
-// PHONE_FLOW_ADVISORY=1 logs a miss instead of failing (CI, until the 14-day window ends).
+// Required in CI since 2026-10-21 (the advisory window is over).
 import { test, expect } from '@playwright/test';
 import * as factories from './fixtures/factories.js';
 
@@ -85,11 +85,6 @@ test.describe('phone: invitation link to first question', () => {
     );
 
     const m = median(total);
-    if (process.env['PHONE_FLOW_ADVISORY'] === '1' && m >= LIMIT_MS) {
-      // eslint-disable-next-line no-console
-      console.warn(`[RW-79 advisory] median ${m} ms is over ${LIMIT_MS} ms`);
-      return;
-    }
     expect(m).toBeLessThan(LIMIT_MS);
   });
 });
