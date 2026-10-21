@@ -9,10 +9,11 @@
  *       "{{placeholder}}" becomes "X" so Vale does not trip on braces.
  *
  * Checks: (1) page type line under the H1 of docs/*.md and README.md;
- *         (2) vale and markdownlint-cli2 when installed.
+ *         (2) vale and markdownlint-cli2 when installed;
+ *         (3) docs guards (Z-106): Status/Rows lines, closed-row drafts, New-Doc, size caps.
  * Advisory (exit 0) until REQUIRED_FROM; strict after that, or with --strict.
  */
-import { readdirSync, readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, mkdtempSync, rmSync, existsSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -82,6 +83,59 @@ const run = (name, cmd, args) => {
 };
 run('vale', 'vale', ['--config=.vale.ini', '--minAlertLevel=warning', ...pages.filter((p) => !skip.test(p)), tmp]);
 run('markdownlint-cli2', 'npx', ['--no-install', 'markdownlint-cli2', 'README.md', 'docs/*.md']);
+
+// 4. Docs guards (Z-106). Counted in `findings`, so they turn strict on REQUIRED_FROM with the checks above.
+// Every step skips silently when git or ROADMAP is absent.
+const guard = (rule, path) => {
+  console.log(`docs-guard: ${rule}: ${path}`);
+  findings++;
+};
+const gitOut = (...a) => {
+  const r = spawnSync('git', a, { encoding: 'utf8' });
+  return r.status === 0 ? r.stdout : null;
+};
+{
+  const tracked = (gitOut('ls-files', 'docs') ?? '').split('\n').filter(Boolean);
+  const specs = tracked.filter((p) => /^docs\/(design|plans)\/[^/]+\.md$/.test(p) && !/\/README\.md$/.test(p));
+  // Closed rows: any ROADMAP table row with a status cell that starts with a check mark, "closed" or "done".
+  const closed = new Map();
+  if (existsSync('docs/ROADMAP.md')) {
+    for (const l of readFileSync('docs/ROADMAP.md', 'utf8').split(/\r?\n/)) {
+      if (!l.startsWith('|')) continue;
+      const cells = l.replace(/^\|\s*/, '').split(' | ').map((c) => c.replace(/\*\*/g, '').trim());
+      if (cells.length < 5) continue;
+      const done = cells[4].startsWith('✅') || /^(closed|done)/i.test(cells[4]);
+      for (const id of cells[0].match(/\b[A-Z]{1,5}-\d+[a-z]?\b/g) ?? []) closed.set(id, (closed.get(id) ?? true) && done);
+    }
+  }
+  for (const p of specs) {
+    const head = readFileSync(p, 'utf8').split(/\r?\n/).slice(0, 15);
+    const status = head.find((l) => /\bStatus:/.test(l));
+    const rows = head.find((l) => /\bRows:/.test(l));
+    if (!status) guard('missing Status line in first 15 lines', p);
+    if (!rows) guard('missing Rows line in first 15 lines', p);
+    if (status && rows && closed.size) {
+      const ids = rows.replace(/^.*\bRows:\**/, '').match(/\b[A-Z]{1,5}-\d+[a-z]?\b/g) ?? [];
+      if (ids.length && ids.every((id) => closed.get(id) === true) && /\b(draft|proposal|design only)\b/i.test(status.replace(/^.*\bStatus:\**/, '')))
+        guard('all Rows closed but Status still draft/proposal', p);
+    }
+  }
+  // New files in HEAD: need a New-Doc line, and should extend the newest file of the same kind.
+  const added = (gitOut('diff-tree', '--no-commit-id', '--name-only', '--diff-filter=A', '-r', 'HEAD') ?? '')
+    .split('\n').filter((p) => /^docs\/(plans|design)\/[^/]+\.md$/.test(p) && !/\/README\.md$/.test(p));
+  if (added.length) {
+    const msg = gitOut('log', '-1', '--format=%B', 'HEAD') ?? '';
+    if (!/^New-Doc: \S/m.test(msg)) for (const p of added) guard('new doc without "New-Doc: <reason>" in HEAD commit message', p);
+    const kind = (p) => p.replace(/^.*\//, '').replace(/\.md$/, '').split('-').slice(-2).join('-');
+    for (const p of added) {
+      const same = specs.filter((s) => s !== p && !added.includes(s) && kind(s) === kind(p)).sort();
+      if (same.length) guard(`same kind "${kind(p)}" exists, extend ${same[same.length - 1]} instead`, p);
+    }
+  }
+  for (const [p, cap] of [['docs/SESSION_STATE.md', 150000], ['docs/ROADMAP.md', 250000]]) {
+    if (existsSync(p) && statSync(p).size > cap) guard(`file over ${cap} bytes`, p);
+  }
+}
 
 rmSync(tmp, { recursive: true, force: true });
 console.log(`\n${findings} finding group(s); mode: ${strict ? 'strict' : `advisory until ${REQUIRED_FROM}`}`);
