@@ -64,7 +64,14 @@ Rejected: a database per exam, subject or class (RLS, billing, reports and audit
 - **Where:** the sanitiser is applied on the admin read side for any question whose pack belongs to the platform tenant: `GET /api/admin/questions`, `/:id`, `/:id/versions` (04 `routes.ts:844-876`). Reuse the candidate allowlist idea (`sanitizeContentForCandidate`, 06 `repository.ts:574`): remove correct flags, `answer`, `explanation`, `rubric`, `answer_guidance` by registry hook (add an `adminView` hook next to `candidateView` in `registry.ts`).
 - **Other admin surfaces to check (audit list, not maintained here):** attempt review and grading views (07 `admin-grade.ts`, `admin-rerun.ts`, `admin-manual-score.ts`), results export (15 `results-export.ts`), reports and feedback. They must show the candidate answer, the marks and the band, but not the master key. Server-side AI grading still reads the rubric; it never returns it.
 - **Defence in depth:** keep the per-tenant rate bucket and the `buildQuestionWhere` licensed-packs filter (04 `repository.ts:745`). The hourly audit row stays dropped.
-- **Trade-off:** a licensed admin cannot proof-read the key. They can still read stems and options, report a wrong key through the dispute flow (EXP-12), and pick questions by topic and difficulty.
+- **Break-glass key view (owner request 2026-10-21):** a licensed admin may open a proofreading window to see keys. One window = one step-up, not one per question.
+  1. The admin starts a window with a required reason. Step-up uses the existing fresh-MFA check (TOTP, as for super-admin writes), or an email OTP if the admin has no TOTP. No new OTP system.
+  2. The window lasts 15 minutes and allows at most N key reveals (start N = 25). A daily cap per admin and per tenant also applies. Keys show one question at a time, never in a list or an export, with the admin name and time as a watermark.
+  3. Alerts: one email to every other tenant admin and to the super admin when the window opens, and one summary email when it closes (count and question list). One email per reveal is rejected: it is spam for a proofreader. An immediate extra alert goes to the super admin when a cap is hit or when a window opens outside the tenant's working hours.
+  4. Audit: one append-only `audit_log` row per reveal (actor, question id, version, reason, ip, window id) through `auditInTx` (module 14), plus rows for window open and close.
+  5. Super admin can disable the feature for a tenant, and can revoke an open window.
+- **Default path (no break-glass):** wrong-key reports go through the dispute flow (EXP-12); the super admin or a second platform reviewer fixes the master. Break-glass is the exception.
+- **Effort:** M becomes L. It touches 01-auth (step-up), 13-notifications (two emails), 14-audit-log, 04 routes and a small admin screen.
 - **Not included:** hiding keys from the candidate after release. Release levels already control this (06 `feedback.ts:298`).
 
 ### D6. Immutable versions and pins (FUT-1) — ACCEPTED, extended
