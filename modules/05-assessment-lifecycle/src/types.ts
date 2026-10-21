@@ -173,6 +173,10 @@ export const AssessmentSectionSchema = z
     /** EXP-6: a qualifying section with a cutoff reports `passed_cutoff` in the result (marks, not percent). */
     qualifying: z.boolean().optional(),
     cutoff_marks: z.number().min(0).max(1_000_000).optional(),
+    /** FUT-4: a locked block in a free-movement test (whole_test_minutes). Once the candidate leaves it, it cannot be re-entered or changed. */
+    locked: z.boolean().optional(),
+    /** FUT-7: seconds per question in this section. A question closes when its time is up. Absent = no question timer. */
+    seconds_per_question: z.number().int().min(10, "seconds_per_question must be at least 10").max(3600, "seconds_per_question must be at most 3600").optional(),
   })
   .strict()
   .refine((s) => s.category_ids !== undefined || s.question_count !== undefined, {
@@ -187,12 +191,14 @@ export const AssessmentSectionsSchema = z.array(AssessmentSectionSchema).min(1).
  * Returns a message, or null when valid.
  */
 export function sectionTimingProblem(
-  sections: ReadonlyArray<{ minutes?: number | undefined }>,
+  sections: ReadonlyArray<{ minutes?: number | undefined; locked?: boolean | undefined }>,
   wholeTestMinutes: number | undefined,
 ): string | null {
   if (wholeTestMinutes !== undefined) {
     return sections.some((s) => s.minutes !== undefined) ? "with whole_test_minutes, sections must not have minutes" : null;
   }
+  // FUT-4: a locked block only means something in free movement (no one-at-a-time order).
+  if (sections.some((s) => s.locked === true)) return "locked sections need whole_test_minutes (free movement)";
   return sections.some((s) => s.minutes === undefined) ? "each section needs minutes (or set whole_test_minutes)" : null;
 }
 

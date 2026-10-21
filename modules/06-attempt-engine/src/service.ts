@@ -169,6 +169,7 @@ async function sectionStateFor(
   const pos = resolveSection(sections, stored, attempt.started_at ?? now, now);
   if (pos !== null && pos.current !== (stored?.current ?? 0)) {
     await repo.setSectionProgress(client, attempt.id, {
+      ...(stored ?? {}),
       current: pos.current,
       started_at: pos.startedAt.toISOString(),
     });
@@ -185,9 +186,112 @@ async function assertSectionOpen(
 ): Promise<void> {
   if (sectionIndex === null) return; // no sections: nothing to check, no extra query
   const st = await sectionStateFor(client, attempt, now);
-  if (st !== null && (st.pos === null || st.pos.current !== sectionIndex)) {
+  if (st === null) {
+    await assertFreeMovementSection(client, attempt, sectionIndex, now);
+    return;
+  }
+  if (st.pos === null || st.pos.current !== sectionIndex) {
     throw new ConflictError("This section is closed", {
       details: { code: AE_ERROR_CODES.SECTION_LOCKED, section_index: sectionIndex },
+    });
+  }
+}
+
+/**
+ * FUT-4: move the free-movement position to section `index` (writes only on a change).
+ * A locked block records its first entry time in `entered`; that is what closes it later.
+ */
+async function moveFreeMovementSection(
+  client: PoolClient,
+  attempt: Attempt,
+  stored: repo.SectionProgressRecord | null,
+  index: number,
+  locked: boolean,
+  now: Date,
+): Promise<void> {
+  const key = String(index);
+  const entered = stored?.entered ?? {};
+  const firstEntry = locked && entered[key] === undefined;
+  if (stored?.current === index && !firstEntry) return;
+  await repo.setSectionProgress(client, attempt.id, {
+    ...(stored ?? {}),
+    current: index,
+    started_at: stored?.started_at ?? (attempt.started_at ?? now).toISOString(),
+    ...(locked ? { entered: firstEntry ? { ...entered, [key]: now.toISOString() } : entered } : {}),
+  });
+}
+
+/**
+ * FUT-4: free movement (whole_test_minutes) with locked blocks. A locked block that was entered
+ * and then left (the position moved to another section) is closed for good. A write to any
+ * section moves the position there, so a candidate cannot leave a block without the server knowing.
+ * Assessments without a locked block return at once: byte-identical to before.
+ */
+async function assertFreeMovementSection(
+  client: PoolClient,
+  attempt: Attempt,
+  sectionIndex: number,
+  now: Date,
+): Promise<void> {
+  const assessment = await alRepo.findAssessmentById(client, attempt.assessment_id);
+  const sections = readSections(assessment?.settings);
+  if (sections === null || readWholeTestMinutes(assessment?.settings) === null) return;
+  if (!sections.some((s) => s.locked === true)) return;
+  const stored = await repo.getSectionProgress(client, attempt.id);
+  const locked = sections[sectionIndex]?.locked === true;
+  const enteredBefore = stored !== null && stored.entered?.[String(sectionIndex)] !== undefined;
+  if (locked && enteredBefore && stored?.current !== sectionIndex) {
+    throw new ConflictError("This section is closed", {
+      details: { code: AE_ERROR_CODES.SECTION_LOCKED, section_index: sectionIndex },
+    });
+  }
+  // A first write into a locked block enters it here (a save can land before the position call).
+  await moveFreeMovementSection(client, attempt, stored, sectionIndex, locked, now);
+}
+
+/**
+ * FUT-7: when the question's own time runs out. The clock starts at the first view (position call)
+ * or, if that never came, at the first save or flag. Null = this section has no question timer.
+ */
+async function questionDeadline(
+  client: PoolClient,
+  attempt: Attempt,
+  questionId: string,
+  sectionIndex: number,
+  now: Date,
+): Promise<Date | null> {
+  const assessment = await alRepo.findAssessmentById(client, attempt.assessment_id);
+  const section = readSections(assessment?.settings)?.[sectionIndex];
+  const seconds = section?.seconds_per_question;
+  if (seconds === undefined) return null;
+  const stored = await repo.getSectionProgress(client, attempt.id);
+  const questions = stored?.questions ?? {};
+  let started = questions[questionId];
+  if (started === undefined) {
+    started = now.toISOString();
+    await repo.setSectionProgress(client, attempt.id, {
+      ...(stored ?? {}),
+      current: stored?.current ?? 0,
+      started_at: stored?.started_at ?? (attempt.started_at ?? now).toISOString(),
+      questions: { ...questions, [questionId]: started },
+    });
+  }
+  return new Date(new Date(started).getTime() + seconds * 1000);
+}
+
+/** FUT-7: a save or flag on a question whose own time is up is rejected; the answer already saved stands. */
+async function assertQuestionTimeOpen(
+  client: PoolClient,
+  attempt: Attempt,
+  questionId: string,
+  sectionIndex: number | null,
+  now: Date,
+): Promise<void> {
+  if (sectionIndex === null) return;
+  const deadline = await questionDeadline(client, attempt, questionId, sectionIndex, now);
+  if (deadline !== null && deadline.getTime() <= now.getTime()) {
+    throw new ConflictError("This question's time is up", {
+      details: { code: AE_ERROR_CODES.QUESTION_TIME_UP, question_id: questionId },
     });
   }
 }
@@ -1077,6 +1181,8 @@ export async function saveAnswer(
 
     // Test sections: a finished (or not-yet-open) section is read-only.
     await assertSectionOpen(client, attempt, aq.section_index, now);
+    // FUT-7: the question's own time may be up.
+    await assertQuestionTimeOpen(client, attempt, input.questionId, aq.section_index, now);
 
     const incomingRevision = input.client_revision ?? 0;
 
@@ -1157,7 +1263,8 @@ export async function toggleFlag(
   input: ToggleFlagInput,
 ): Promise<{ flagged: boolean }> {
   return withTenant(tenantId, async (client) => {
-    const attempt = await repo.findAttemptById(client, input.attemptId);
+    // Row lock: assertSectionOpen and assertQuestionTimeOpen below can write section_progress, as in saveAnswer.
+    const attempt = await repo.findAttemptByIdForUpdate(client, input.attemptId);
     if (attempt === null) {
       throw new NotFoundError(`Attempt not found: ${input.attemptId}`, {
         details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },
@@ -1191,6 +1298,7 @@ export async function toggleFlag(
       });
     }
     await assertSectionOpen(client, attempt, aq.section_index, now);
+    await assertQuestionTimeOpen(client, attempt, input.questionId, aq.section_index, now);
 
     const result = await repo.setAnswerFlag(
       client,
@@ -1251,13 +1359,80 @@ export async function finishSection(
       });
     }
     const next = st.pos.current + 1;
+    const prev = await repo.getSectionProgress(client, attempt.id);
     await repo.setSectionProgress(
       client,
       attempt.id,
-      { current: next, started_at: now.toISOString() },
+      { ...(prev ?? {}), current: next, started_at: now.toISOString() },
       new Date(now.getTime() + totalSectionSeconds(st.sections, next) * 1000),
     );
     return { section_index: next };
+  });
+}
+
+// ===========================================================================
+// recordPosition — FUT-4 / FUT-7: the take page reports where the candidate is
+// ===========================================================================
+
+/**
+ * Free movement: `section_index` = the candidate entered that section (closes a locked block
+ * they leave). `question_id` = the candidate viewed that question (starts its own timer, if the
+ * section has one). Returns when the question's time ends, or null.
+ */
+export async function recordPosition(
+  tenantId: string,
+  userId: string,
+  attemptId: string,
+  input: { section_index?: number; question_id?: string },
+): Promise<{ question_ends_at: string | null }> {
+  return withTenant(tenantId, async (client) => {
+    const attempt = await repo.findAttemptByIdForUpdate(client, attemptId);
+    if (attempt === null) {
+      throw new NotFoundError(`Attempt not found: ${attemptId}`, {
+        details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },
+      });
+    }
+    assertAttemptOwnedBy(attempt, userId);
+    if (attempt.status !== "in_progress") {
+      throw new ConflictError(`Attempt ${attempt.id} is not writable (status: ${attempt.status})`, {
+        details: { code: AE_ERROR_CODES.WRITES_LOCKED, status: attempt.status },
+      });
+    }
+    const now = new Date();
+    if (attempt.ends_at !== null && attempt.ends_at.getTime() <= now.getTime()) {
+      throw new ConflictError("Timer has expired", {
+        details: { code: AE_ERROR_CODES.TIMER_EXPIRED },
+      });
+    }
+
+    if (input.section_index !== undefined) {
+      const assessment = await alRepo.findAssessmentById(client, attempt.assessment_id);
+      const sections = readSections(assessment?.settings);
+      if (
+        sections === null ||
+        readWholeTestMinutes(assessment?.settings) === null ||
+        sections[input.section_index] === undefined
+      ) {
+        throw new ConflictError("This section cannot be entered", {
+          details: { code: AE_ERROR_CODES.SECTION_NOT_ENTERABLE, section_index: input.section_index },
+        });
+      }
+      await assertFreeMovementSection(client, attempt, input.section_index, now);
+    }
+
+    let questionEndsAt: Date | null = null;
+    if (input.question_id !== undefined) {
+      const aq = await repo.findAttemptQuestion(client, attemptId, input.question_id);
+      if (aq === null) {
+        throw new NotFoundError(`Question ${input.question_id} not in attempt ${attemptId}`, {
+          details: { code: AE_ERROR_CODES.UNKNOWN_QUESTION },
+        });
+      }
+      if (aq.section_index !== null) {
+        questionEndsAt = await questionDeadline(client, attempt, input.question_id, aq.section_index, now);
+      }
+    }
+    return { question_ends_at: questionEndsAt?.toISOString() ?? null };
   });
 }
 

@@ -402,6 +402,10 @@ export const AE_ERROR_CODES = {
   /** Finish-section on an assessment without sections, or on the last section. */
   SECTION_NOT_FINISHABLE: "AE_SECTION_NOT_FINISHABLE",
   SECTIONS_INVALID: "AE_SECTIONS_INVALID",
+  /** FUT-4: the section cannot be entered (not a free-movement test, or it is a locked block already left). */
+  SECTION_NOT_ENTERABLE: "AE_SECTION_NOT_ENTERABLE",
+  /** FUT-7: the question's own time is up; it takes no more answers or flags. */
+  QUESTION_TIME_UP: "AE_QUESTION_TIME_UP",
   /** Z-39: every allowed attempt (max_attempts + extra attempts) is used. */
   ATTEMPTS_EXHAUSTED: "AE_ATTEMPTS_EXHAUSTED",
 } as const;

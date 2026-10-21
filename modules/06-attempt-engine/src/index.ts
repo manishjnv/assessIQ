@@ -23,6 +23,7 @@ export {
   saveAnswer,
   toggleFlag,
   finishSection,
+  recordPosition,
   recordEvent,
   getAttemptIntegritySummary,
   listAttemptsOnOlderVersions,

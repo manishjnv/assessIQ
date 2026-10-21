@@ -23,7 +23,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Navigate } from "react-router-dom";
 import { Button, Drawer, Icon, Spinner } from "@assessiq/ui-system";
-import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
+import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
 import { STEM_FIELD, type PageState, hasForbiddenSynonym, BOTTOM_BAR, QUESTION_TEXT, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
@@ -65,6 +65,27 @@ export function AttemptPage(): React.JSX.Element {
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
   const sectionQidsRef = useRef<string[]>([]);
+
+  // ── FUT-4 / FUT-7: tell the server where the candidate is ─────────────────
+  // Sends the question viewed (starts its own timer, when its section has one). In a
+  // free-movement test it also sends the section entered, which closes a locked block
+  // that was left. A failed call is ignored: the server checks every save anyway.
+  const readyView = pageState.tag === 'ready' ? pageState.view : null;
+  const lastSectionSentRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (readyView === null || currentQuestionId === null) return;
+    const q = readyView.questions.find((x) => x.question_id === currentQuestionId);
+    if (q === undefined || q.section_index === null || q.section_index === undefined) return;
+    const freeMovement = readyView.sections === undefined && readyView.section_names !== undefined;
+    const sendSection = freeMovement && lastSectionSentRef.current !== q.section_index;
+    if (sendSection) lastSectionSentRef.current = q.section_index;
+    Promise.resolve(
+      recordPosition(attemptId, {
+        question_id: currentQuestionId,
+        ...(sendSection ? { section_index: q.section_index } : {}),
+      }),
+    ).catch(() => undefined);
+  }, [attemptId, currentQuestionId, readyView]);
 
   // Stable ref so callbacks can read the latest currentQuestionId without
   // re-creating and breaking memo/effect deps.

@@ -57,6 +57,13 @@ sweepStaleTimersForTenant(tenantId, now?): Promise<{ autoSubmitted, attemptIds }
 | GET    | `/api/admin/attempts/:id/integrity` (admin chain) | — | `200 { tab_switches, copy, paste, paste_blocked, fullscreen_exits, multi_tab_conflicts }` |
 | GET    | `/api/me/attempts/:id/result`      | — | `200 { status: 'released', ... }` when the result is released; otherwise `202 { status: 'pending', ... }`. The candidate sees only a complete, released result (see `src/result.ts`; checked 2026-10-02) |
 
+## Locked sections and per-question timer (FUT-4, FUT-7, 2026-10-22)
+
+- **Keys.** Section `locked` (free movement only) and `seconds_per_question` (10 to 3600). Schema: `modules/05-assessment-lifecycle/src/types.ts`. Enforcement: `service.ts` (`assertFreeMovementSection`, `assertQuestionTimeOpen`, `recordPosition`). State: optional `entered` and `questions` keys in `attempts.section_progress`; every writer (`saveAnswer`, `toggleFlag`, `recordPosition`, `finishSection`) takes the row lock.
+- **Why.** Free-movement exams (Z-42) need a "no going back" block and a per-question limit. Server-side, so the client cannot skip it.
+- **Limits.** Soft question clock (see `docs/03-api-contract.md`, `POST /api/me/attempts/:id/position`); a block that was only viewed is not closed; the take page shows no countdown yet (Z-130); no admin screen (Z-131); every save in a sectioned test reads the assessment up to 3 times.
+- **Not included.** Auto-advance, a migration.
+
 ## Time enforcement
 Server is source of truth. Client computes remaining time from `attempt.started_at + duration` provided by server, but every save/submit re-checks server-side. If `now > ends_at`, server ignores answer writes and auto-submits.
 

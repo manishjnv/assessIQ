@@ -1127,23 +1127,37 @@ export async function listQuestionIdsUnderNode(client: PoolClient, nodeId: strin
   return new Set(r.rows.map((x) => x.id));
 }
 
-/** attempts.section_progress (migration 0132); null = still in section 0. */
+/**
+ * attempts.section_progress (migration 0132); null = still in section 0.
+ * FUT-4 / FUT-7 add two optional keys (JSONB, no migration): `entered` = first entry time per
+ * locked section index, `questions` = first view time per question id. Old rows lack both.
+ */
+export interface SectionProgressRecord {
+  current: number;
+  started_at: string;
+  entered?: Record<string, string>;
+  questions?: Record<string, string>;
+}
+
 export async function getSectionProgress(
   client: PoolClient,
   attemptId: string,
-): Promise<{ current: number; started_at: string } | null> {
-  const r = await client.query<{ section_progress: { current: number; started_at: string } | null }>(
+): Promise<SectionProgressRecord | null> {
+  const r = await client.query<{ section_progress: SectionProgressRecord | null }>(
     `SELECT section_progress FROM attempts WHERE id = $1`,
     [attemptId],
   );
   return r.rows[0]?.section_progress ?? null;
 }
 
-/** Persist the section position; `endsAt` (optional) re-pins attempts.ends_at (Finish section). */
+/**
+ * Persist the section position; `endsAt` (optional) re-pins attempts.ends_at (Finish section).
+ * Callers pass the whole record (keys they keep included), because this overwrites the column.
+ */
 export async function setSectionProgress(
   client: PoolClient,
   attemptId: string,
-  progress: { current: number; started_at: string },
+  progress: SectionProgressRecord,
   endsAt?: Date,
 ): Promise<void> {
   await client.query(

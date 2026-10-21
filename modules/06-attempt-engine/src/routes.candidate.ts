@@ -22,7 +22,7 @@
 // this layer does not try/catch service throws.
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { ValidationError } from "@assessiq/core";
+import { ValidationError, isUuid } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { isIP } from "node:net";
 import { isMobileOrTabletClient } from "./device.js";
@@ -35,6 +35,7 @@ import {
   saveAnswer,
   toggleFlag,
   finishSection,
+  recordPosition,
   recordEvent,
   submitAttempt,
 } from "./service.js";
@@ -323,6 +324,39 @@ export async function registerAttemptCandidateRoutes(
     async (req) => {
       const { id } = req.params as { id: string };
       return finishSection(req.session!.tenantId, req.session!.userId, id);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /api/me/attempts/:id/position — FUT-4 / FUT-7: section entered, question viewed
+  // body: { section_index?: int >= 0, question_id?: uuid }
+  // -------------------------------------------------------------------------
+
+  app.post(
+    "/api/me/attempts/:id/position",
+    { preHandler: candidateOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const input: { section_index?: number; question_id?: string } = {};
+      if (body["section_index"] !== undefined) {
+        const v = body["section_index"];
+        if (typeof v !== "number" || !Number.isInteger(v) || v < 0) {
+          throw new ValidationError("section_index must be a whole number", {
+            details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "section_index" },
+          });
+        }
+        input.section_index = v;
+      }
+      if (body["question_id"] !== undefined) {
+        if (typeof body["question_id"] !== "string" || !isUuid(body["question_id"])) {
+          throw new ValidationError("question_id must be a UUID", {
+            details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "question_id" },
+          });
+        }
+        input.question_id = body["question_id"];
+      }
+      return recordPosition(req.session!.tenantId, req.session!.userId, id, input);
     },
   );
 

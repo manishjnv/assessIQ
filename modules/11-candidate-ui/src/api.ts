@@ -179,6 +179,17 @@ export async function finishSection(attemptId: string): Promise<{ section_index:
   );
 }
 
+/** FUT-4 / FUT-7: report the section entered (free movement) and/or the question viewed. */
+export async function recordPosition(
+  attemptId: string,
+  input: { section_index?: number; question_id?: string },
+): Promise<{ question_ends_at: string | null }> {
+  return call<{ question_ends_at: string | null }>(
+    `/me/attempts/${encodeURIComponent(attemptId)}/position`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
 export async function recordEvent(
   attemptId: string,
   event: CandidateEventInput,
