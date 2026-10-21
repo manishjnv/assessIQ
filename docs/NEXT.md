@@ -2,9 +2,9 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-21T09:14:53.590Z (2026-10-21 14:44:53 IST)
-- HEAD: `7b0963a4`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 10
+- Generated: 2026-10-21T10:26:46.146Z (2026-10-21 15:56:46 IST)
+- HEAD: `dd949648`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 39
 
 ## 1. Last session (SESSION_STATE, first block)
 
@@ -27,7 +27,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 **Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
 
-## 3. Open Z and EXP rows (37 total)
+## 3. Open Z and EXP rows (43 total)
 
 - `EXP-3` (EXP-3 (lane B catalog)) — Previous-year catalog without question text. — pending (after pilot; Claude; M)
 - `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S34 added the `has_passage` filter; Z-43 draws by outcome node still open) (S20, 2026-10-17, `c34a597`; migrati
@@ -49,7 +49,6 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-38` (Z-38 (Dependabot tail)) — Dependabot items left after the S17 patch pass. — partly done (S41, 2026-10-21, `dd287b3c`): the 12 minor and patch updates applied (fastify 5.12.7, react 19.3.1, playwri
 - `Z-54` (Z-54 (DOCSLINT-2)) — Docs lint: confirm green on main, then flip `fail_on_error` to true. — pending (Claude; XS; not before 2026-10-29). S41 (2026-10-21): still before the date, `fail_on_error` unchanged, waits u
 - `Z-72` (Z-72 (LIABILITY-1)) — Liability and data-processing proposal for the lawyer. — pending (owner and lawyer approve; Claude; S). Draft written S28. Owner follow-up 2026-10-19 (after the v2 sheet): not a
-- `Z-75` (Z-75 (PUBLICDOCS-1)) — Plan to stop tracking public docs files in the public repo. — pending (plan written S31, 2026-10-19: `docs/plans/Z-75-stop-tracking-public-docs.md`; execution needs the owner's yes a
 - `Z-76` (Z-76 (PAGES-1)) — Website page proposals (5 to 8), owner approves each. — PARTIAL S37 (2026-10-20, commits `0bc3e5ad`, `6862328a`, `160e89e5`; code and marketing on the server `160e89e5`): pages
 - `Z-77` (Z-77 (CSP-ENFORCE)) — Enforce the Content-Security-Policy on assessiq.in. — pending (S39 note: the report-only policy now has `media-src 'self' blob:` for the reviewer video, and the plan and `app
 - `Z-78` (Z-78 (BACKUP-OFFSITE)) — Switch on the daily off-site backup. — pending (after the first paying customer; owner decides the key location; Claude switches on and watches the first run; 
@@ -59,11 +58,18 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-97` (Z-97 (SIGNUP-OPEN)) — Open public sign-up when the owner says. — pending (owner says when; Claude; S)
 - `Z-101` (Z-101 (GMAIL-FOLD)) — Email address folding: apply the dot rule to Gmail only, and fix the tester case. — pending (owner confirms the exact change; Claude; S)
 - `Z-103` (Z-103 (TIME-SUGGEST)) — Suggest the test time from the question count and difficulty. — pending (owner gives minutes per question; Claude; S)
-- `Z-105` (Z-105 (DOCS-PRIVATE)) — Move the private docs into one ignored folder and fix the leaks in tracked files. — pending (partial, S42 2026-10-21: 15 items moved to docs/private/ and the tracked-file leaks fixed in 477aac15, CI green
 - `Z-108` (Z-108 (DOCS-TIDY)) — Tidy the plan and design docs, and fold the change records into the feature docs. — pending (partial, S42 2026-10-21, 7b0963a4, CI green: 7 change records folded into module SKILL.md files and archived wi
 - `Z-109` (Z-109 (CLOSE-CMD)) — One command for the session close-out. — pending (partial, S42 2026-10-21, 7b0963a4: tools/close-session.mjs and tools/docs-plans-index.mjs built and tested; lef
 - `Z-110` (Z-110 (Z75-DECIDE)) — Decide what happens to Z-75 and run the history purge before the pilot. — pending (owner decides; Claude executes)
 - `Z-111` (Z-111 (MOCK-FEEDBACK)) — Mock attempts always show the expected answer; real exams keep the tenant level. — pending (Claude; S; Sonnet; Opus reviews the helper)
+- `Z-112` (Z-112 (BRAND-HEADER)) — Org logo and name centred in the admin and candidate headers. — pending (Batch A; M; Haiku first, Sonnet if verify fails; no gate)
+- `Z-113` (Z-113 (VIA-CAPTION)) — Remove the "via AssessIQ" caption in the app; keep it on certificates and the verify page. — pending (Batch A; XS; depends on Z-112; owner approved)
+- `Z-114` (Z-114 (TAB-TITLE)) — Browser tab title "Org name · AssessIQ". — pending (Batch A; S)
+- `Z-115` (Z-115 (LOGO-RESIZE)) — Resize the logo in the browser before upload to one 600x200 PNG, fix the size copy, preview at real sizes. — pending (Batch A; S)
+- `Z-116` (Z-116 (EMAIL-BRAND)) — Email: org logo and name first, AssessIQ only in the footer; sender name "Org via AssessIQ"; Outlook-safe logo size. — pending (Batch B; S; display only)
+- `Z-117` (Z-117 (VERIFY-BRAND)) — Verify page and OG image use the cached logo URL; search-engine issuer is the org; smaller ASSESSIQ on the PDF. — pending (Batch B; S; display only)
+- `Z-118` (Z-118 (FONT-CHECK)) — Check that org names in Hindi and other scripts render in the PDF, the OG PNG and the app. — pending (Batch B; S; gate only if the Dockerfile changes, `infra/`)
+- `Z-119` (Z-119 (ORG-ACCENT)) — Show the real org accent colour on screen, with a 4.5:1 contrast check. — pending (Batch B; M; gate yes; depends on Z-112; owner approved)
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
 - `Z-14` (Z-14 (FU-B13, FR4, D8, D12)) — Embed: finish the iframe flow after the Caddy decision. — pending (owner first for a; Claude for b, c; owner decision for d) Owner sheets 2026-10-19 (applied S34), v1 Q39: embed 
 

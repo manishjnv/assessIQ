@@ -708,3 +708,73 @@ Context: the reviewer role is decommissioned (RV60). It is not a product role. T
 | Y-11 | Core Web Vitals field check (CWV-1) | OPEN | F3 font fix is live. Field data was never measured. Needs real traffic; a test run cannot measure it. | Owner or Claude runs CrUX or PageSpeed on the live site after deploy, and records LCP, INP and CLS. | Owner runs; Claude records |
 | Y-12 | EX-1 and EX-3 (exam packs) | OPEN (not started) | Both block the exam-pack roadmap. EX-3 meaning is set: extend `structured_case` for passage-set scoring. | Start EX-1 when the owner gives the go-ahead. Opus review and codex gate (scoring is load-bearing). | Claude builds; Opus and codex review |
 | Y-13 | Marketing build warning (optional) | OPEN (note) | Pagefind says the old search UI still works, but a newer component UI exists. Not a failure. | Optional upgrade later. | Claude |
+
+## Z.7 recount history (moved)
+- S42 recount update (2026-10-21, `node tools/roadmap-recount.mjs`, same rule): Z-88 is done again after the phone smoke passed 5 of 5 on main CI (run 39554101909). Z.2 32 rows (30 closed, 2 open); Z.3 49 (27 closed, 22 open); Z.4 55 (14 closed, 41 open); Z.5 60 closed; Z.6 110 (81 closed, 29 open). Pending = 2 + 22 + 41 + 29 = 94. Closed = 30 + 27 + 14 + 60 + 81 = 212. Total = 306. Done share = 69%.
+- S39 recount update 3 (2026-10-21, `node tools/roadmap-recount.mjs`, same rule): row Z-104 closed. Z.2 32 rows (30 closed, 2 open); Z.3 49 (27 closed, 22 open); Z.4 44 (14 closed, 30 open); Z.5 60 closed; Z.6 104 (77 closed, 27 open). Pending = 2 + 22 + 30 + 27 = 81. Closed = 30 + 27 + 14 + 60 + 77 = 208. Total = 289. Done share = 72%.
+- S39 recount update 2 (2026-10-21, `node tools/roadmap-recount.mjs`, same rule): rows Z-102 (time limit, closed), Z-103 and Z-104 (pending) added. Z.2 32 rows (30 closed, 2 open); Z.3 49 (27 closed, 22 open); Z.4 44 (14 closed, 30 open); Z.5 60 closed; Z.6 104 (76 closed, 28 open). Pending = 2 + 22 + 30 + 28 = 82. Closed = 30 + 27 + 14 + 60 + 76 = 207. Total = 289. Done share = 72%.
+- S39 recount update (2026-10-21, `node tools/roadmap-recount.mjs`, same rule): row Z-101 added (GMAIL-FOLD, pending). Z.2 32 rows (30 closed, 2 open); Z.3 49 (27 closed, 22 open); Z.4 44 (14 closed, 30 open); Z.5 60 closed; Z.6 101 (75 closed, 26 open). Pending = 2 + 22 + 30 + 26 = 80. Closed = 30 + 27 + 14 + 60 + 75 = 206. Total = 286. Done share = 72%.
+
+### Z.7b Owner review sheet answers Q7 to Q49 (recorded 2026-10-19, S29)
+
+Source: `docs/private/owner-review-docx/AssessIQ_Owner_Decisions_2026-10-18.docx`. Q1 to Q6 are in the rows above. Blank questions (Q6 box, Q13, Q14, Q21, Q36 to Q47) were NOT guessed. Memory file `owner-decisions.md` holds the same list.
+
+| Q | Rows | Owner answer | State |
+|---|---|---|---|
+| Q7 | RW-43, R6 | Use the business API once a paid contract is signed; until then AI grading is free use, no legal issue | recorded; lawyer to confirm |
+| Q8 | X1, FR9, OD2 | API-mode AI grading later, for paying customers only | recorded, not built |
+| Q9 | X5, OD5 | Approve the tiered webcam and ID plan for free and paid customers (adults only, consent first). **Reverses "live proctoring out of scope"**; live human proctoring stays out | design `docs/design/2026-10-18-tiered-proctoring-design.md`; build pending |
+| Q10 | RW-42, X8 | Languages: later | recorded |
+| Q11 | A5, RW-52 | Keep the email plan free, send in smaller groups | built S29: bulk cap 250 a day (`EMAIL_BULK_DAILY_CAP`), queue panel |
+| Q12 | RW-62, L2 | Question statistics and adaptive tests: later | recorded |
+| Q15 | RO4, B4, FU-B21 | MFA for company admins stays optional | recorded |
+| Q16 | N7, B1, B2, B4, E8 | Both confirmed; weekly backup by the VPS provider is the current state; daily off-site backup waits for the first paying customer | recorded |
+| Q17 | Y-2, RV60 | Emailed code works; wants auto sign-in on the correct code and a message on a wrong code | built S29 (Y-2 review of `23c77e2` stays the owner's call) |
+| Q18, Q19 | Y-3, SP-gap-2 | "Former reviewer"; "AssessIQ staff" | built S29, closed |
+| Q20 | RV33, FU-D26 | Approve protected-file edits | done S29, closed |
+| Q22 | RW-89, RW-98 | Keep the two consent fields with a time limit; the lawyer sets the period | recorded; not built |
+| Q23 | Y-9 | Ignore the stray lockfile | done S29, closed |
+| Q24, Q25, Q28, Q29, Q33 | RW-10, N5, B5, E2, FU-D28, RV67, E4, A7, SP-gap-3, C4 | Owner will do these before the pilot | owner |
+| Q26 | RW-46, RW-92, RV62 | Topic focus is good enough | recorded |
+| Q27 | A3 | Pilot company done (Rajneesh logged in) | recorded |
+| Q30, Q31 | C1, C2 | Contact form works; the emailed sign-in code works | recorded |
+| Q32 | C3 | Enterprise enquiry reply not needed; will watch the next one | recorded |
+| Q34 | C5 | Phishing pack not ready | recorded |
+| Q35 | C7 | Wildcard DNS cutover done | closed |
+| Q48 | X8, RW-82 | Trust center and accessibility: after the pilot | recorded |
+| Q49 | EXP-0 | Exam pack sourcing rules still stand | recorded |
+
+Free plan (Q3, final 2026-10-19): public name Free, no end date, no auto-delete, 5 candidates in total, no Trial mark, no export, AI grading for a few attempts with a kill switch. See Z-70.
+
+### Z.8 Repo hygiene plan — private planning docs out of the public repo (2026-10-17, plan only, no code yet)
+
+Owner instruction (2026-10-17): every plan and roadmap lives in `docs/`, which git ignores; one roadmap (`docs/ROADMAP.md`) collects improvements and new ideas; remove the design files from GitHub without damage to existing features. This block is the plan. Nothing below is executed until the owner says "run Z.8".
+
+**Owner decisions (2026-10-17, recorded, not yet executed):** (1) purge the FULL set from git history (CHOICE B = full set: the three 2026-10 design docs, `docs/ROADMAP.md`, `docs/SESSION_STATE.md`, `docs/RCA_LOG.md`, `docs/plans/**`, `docs/design/**`, `docs/testing/**`, `docs/superpowers/**`, the two stub/prompt files); keep every file locally under the ignored `docs/`. (2) CHOICE A = `docs/RCA_LOG.md` goes private too; at execution time the three lints that read it (`lint-deploy-procedure`, `lint-edge-routing`, `lint-cross-module-deps`) get the same skip-when-absent rule as `lint-doc-anchors`. (3) No backup routine for now (no private repo, no scp job); the one-time tar before the destructive steps stays as a safety step, not a routine. Execution waits for a quiet window: no other session or Autopilot on this clone (batch 3 was running on 2026-10-17 morning). Status: **pending (owner says "run Z.8" when the clone is free)**; who: Claude; effort: S (one session).
+
+**What is "private" today.** There is no separate private roadmap file. The 45 rows that came from the three local-only design docs (product-review strategy S/X and OD rows, scoring plan P1-P4, org-logo L1-L4 with 31 checkboxes) are already in this section with verified statuses: strategy rows are mostly owner decisions (Z.3) or partial (Z.4); scoring P1 and P2 are done, P3 and P4 partial (Z.2/Z.5); logo L1-L4 are pending and in flight in batch 3 (Z.2); SEO items 1 and 2 open, 3-6 done (Z.3/Z.5). Nothing from those files is missing from this list.
+
+**Scope (proposed; owner confirms the two marked choices).**
+
+| Group | Files | Proposal |
+|---|---|---|
+| Private planning (untrack, keep local) | `docs/ROADMAP.md`, `docs/SESSION_STATE.md`, `docs/plans/**` (39 tracked incl. archive), `docs/design/**` (14 tracked + the untracked ones), `docs/testing/**`, `docs/superpowers/**`, `docs/P0_IMPLEMENTATION_PROMPT.md`, `docs/PENDING_TASKS_2026-10-01.md` | `git rm -r --cached`; local copies stay; `.gitignore` already covers `docs/` |
+| Public reference docs (stay tracked) | `docs/01-*.md` to `docs/14-*.md`, `docs/STYLE.md`, `docs/CHANGELOG.md`, `docs/README.md`, `docs/adr/**`, `docs/runbooks/**` | keep: README links to them; lints read 02, 06, 11 |
+| CHOICE A — `docs/RCA_LOG.md` | read by lint-deploy-procedure, lint-edge-routing, lint-cross-module-deps | keep tracked (engineering notes), or untrack and make the three lints skip when absent (same pattern as lint-doc-anchors, ci.yml:112) |
+| CHOICE B — history purge set | at least the three 2026-10 design docs (`8329630`); recommended also `docs/ROADMAP.md`, `docs/SESSION_STATE.md`, `docs/plans/**` history, because they hold the same strategy text | `git filter-repo --invert-paths` on the set, then force push |
+
+**No-damage checklist (verified 2026-10-17).**
+- Docker images never contained docs (`.dockerignore:59 docs/`). Nothing on the VPS reads `/srv/assessiq/docs` (compose and cron grep: no hits). After the untrack commit a VPS `git pull` deletes those files from the VPS working tree: tar them first to `/var/backups/assessiq/docs-<date>.tgz` (additive).
+- CI: `lint-doc-anchors` already skips when `docs/` is absent (ci.yml:112); `lint-deploy-procedure`, `lint-edge-routing`, `lint-cross-module-deps`, `lint-logging-discipline`, `lint-migrations` read 02/06/11/RCA_LOG, all of which stay tracked (or get the skip per CHOICE A). `docs-lint.yml` is path-filtered only. `tools/stage3-watch.ts` reads a 2026-05 design doc: that doc stays tracked (reference), or the dormant tool is parked per RW-44.
+- `git filter-repo` is installed. The GitHub ruleset "protect" has a Repository-admin bypass (mode always), so the force push is allowed for the owner. The rewrite also rewrites the 47 ahead-of-main branches and the two kept agent worktrees; the worktrees must be removed or re-created afterwards, and `E:/code/aiq-qdiff-ui` re-based or deleted.
+- Backup of the now local-only roadmap (single PC today): owner picks one: (1) a PRIVATE GitHub repo `assessiq-docs-private` that holds `docs/` (recommended; `git subtree` or a second clone), or (2) a daily `scp` of `docs/` to `assessiq-vps:/srv/assessiq-private/docs/` (outside the public clone), or (3) both.
+
+**Execution order (one session, after "run Z.8").**
+1. Back up: tar `docs/` locally and on the VPS; push `docs/` to the private backup chosen above.
+2. Untrack commit: `git rm -r --cached` the private set; `.gitignore` comment updated; CHOICE A lint skips if chosen; commit; push; confirm CI green and the VPS pull removes only docs files.
+3. History purge (CHOICE B set): `git filter-repo --invert-paths ...` on a fresh clone; verify `git log --all -- <file>` is empty; force push main (admin bypass); re-point the VPS clone (`git fetch && git reset --hard origin/main` after the tar); delete or re-create the kept worktrees; confirm `gh api` shows no PR or fork refs that still hold the old commits; ask GitHub support to purge cached views if the owner wants certainty.
+4. Guard: a PreToolUse hook on `git commit` (same shape as `push-adversarial-gate.sh`) that fails when any staged path matches the private set, plus a `lint:private-docs` script in CI that fails on any tracked path under the private set.
+5. Docs: `docs/README.md` map lists the public pages only; `PROJECT_BRAIN.md` says where the roadmap lives and how it is backed up; memory `public-repo-hygiene` updated.
+
+**Not included:** making the repo private (would solve all of this in one click; owner decided public on 2026-10-01, re-confirm or change), moving exam content (already gitignored), prompts (VPS-only already).
+

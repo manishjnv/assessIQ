@@ -10,3 +10,4 @@
 | 2026-10-21 | One repo; no second docs repo. Docs are tracked; only docs/private/ and docs/exam-content/ are ignored. | Z-105, owner |
 | 2026-10-21 | Every doc move is recorded in docs/moves.json; nothing is deleted. | Z-107, owner |
 | 2026-10-21 | New docs guards start in WARN mode and turn strict on 2026-10-29; the privacy check enforces from day one. | Z-106, owner |
+| 2026-10-21 | docs/ is gitignored and untracked; no private repo. Fewer docs files and no new file for each similar piece of work (the close-out script counts and warns). The old versions stay in git history; no history purge. Z-75 done early; Z-105 step 2 replaced. | Owner, S43 |
