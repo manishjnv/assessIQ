@@ -148,3 +148,11 @@ One Sonnet-takeover gate on Batch A (upload, file access, consent, delete job, t
 - Accepted and recorded: reviewer self-grant (1), orphan files (5), consent rows unbounded (6).
 - Trailer `Adversarial-Review: sonnet-takeover revise-addressed` on `737ccb13`.
 - The staff and candidate screens were reviewed by the orchestrator. No second gate was run.
+
+## 12. Follow-up gate (2026-10-21)
+
+One Sonnet-takeover gate on the follow-up commit `e1d4ed50` (consent route limit and idempotence, retake test, camera line in the invitation and reminder emails). Verdict revise.
+
+- Fixed (medium): the bulk invite called the camera resolver inside the open invite transaction. The resolver opens its own tenant connection, so each invitee held one pooled connection and waited for a second (pool deadlock under load). `inviteUsers` in `modules/05-assessment-lifecycle/src/service/invitations.ts` now resolves the rule once per batch before the transaction. `email.ts` accepts a ready `cameraRequired`. Single resend and the reminder job send outside a transaction and were already safe. Two other test files that mock `../email.js` needed the new export.
+- Accepted, low: no per-IP cap on `/take/camera-consent` (same exposure as the old shared bucket; the per-token cap is tighter, 10 against 30); a concurrent identical double submit can write two rows (the start gate reads the newest row, so it is harmless); an unlinked agreed row never expires (not new).
+- Checked, no issue: delivery mode and tenant come from the invitation row and the call, a resolver error gives false and the email still goes out, templates add no user-controlled variable.

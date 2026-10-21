@@ -34,7 +34,7 @@
 
 import { nodeScopeArgs, taxonomyDrawPredicate, type NodeScope } from "../../04-question-bank/src/taxonomy-nodes.js";
 import type { PoolClient } from "pg";
-import { attemptsAllowed } from "@assessiq/core";
+import { attemptsAllowed, effectiveDurationMinutes } from "@assessiq/core";
 import type {
   Assessment,
   AssessmentInvitation,
@@ -48,7 +48,7 @@ import type {
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, delivery_mode, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
+const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, duration_minutes, delivery_mode, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
 
 const INVITATION_COLUMNS = `id, assessment_id, user_id, token_hash, expires_at, status, invited_by, created_at, extra_attempts, delivery_mode`;
 
@@ -68,6 +68,7 @@ interface AssessmentRow {
   question_count: number;
   passing_score_pct: number;
   max_attempts: number | null;
+  duration_minutes: number | null;
   delivery_mode: string;
   randomize: boolean;
   opens_at: Date | null;
@@ -111,18 +112,27 @@ interface InvitationRowWithMeta extends InvitationRow {
 /** AssessmentRow extended with level_label + pack_name (detail view). */
 interface AssessmentRowWithMeta extends AssessmentRow {
   level_label: string | null;
+  level_duration_minutes: number | null;
   pack_name: string | null;
 }
 
 /** AssessmentRow extended with level_label + domain slug (list view). */
 interface AssessmentRowListMeta extends AssessmentRow {
   level_label: string | null;
+  level_duration_minutes: number | null;
   domain: string | null;
 }
 
 // ---------------------------------------------------------------------------
 // Mapper functions
 // ---------------------------------------------------------------------------
+
+/** Minutes the candidate gets (null when the level row is missing). */
+function effectiveOrNull(row: AssessmentRow & { level_duration_minutes: number | null }): number | null {
+  return row.level_duration_minutes === null
+    ? row.duration_minutes
+    : effectiveDurationMinutes(row.duration_minutes, row.level_duration_minutes);
+}
 
 function mapAssessmentRow(row: AssessmentRow): Assessment {
   return {
@@ -137,6 +147,7 @@ function mapAssessmentRow(row: AssessmentRow): Assessment {
     question_count: row.question_count,
     passing_score_pct: row.passing_score_pct,
     max_attempts: row.max_attempts,
+    duration_minutes: row.duration_minutes,
     delivery_mode: row.delivery_mode === "mock" ? "mock" : "real",
     randomize: row.randomize,
     opens_at: row.opens_at,
@@ -313,6 +324,7 @@ export async function findAssessmentByIdWithMeta(
   const result = await client.query<AssessmentRowWithMeta>(
     `SELECT a.${ASSESSMENT_COLUMNS.split(", ").join(", a.")},
             l.label   AS level_label,
+            l.duration_minutes AS level_duration_minutes,
             qp.name   AS pack_name
      FROM   assessments a
      LEFT JOIN levels         l  ON l.id  = a.level_id
@@ -326,6 +338,7 @@ export async function findAssessmentByIdWithMeta(
   return {
     ...mapAssessmentRow(row),
     level_label: row.level_label,
+    effective_duration_minutes: effectiveOrNull(row),
     pack_name: row.pack_name,
   };
 }
@@ -386,6 +399,7 @@ export async function listAssessmentRows(
   const dataResult = await client.query<AssessmentRowListMeta>(
     `SELECT a.${ASSESSMENT_COLUMNS.split(", ").join(", a.")},
             l.label AS level_label,
+            l.duration_minutes AS level_duration_minutes,
             COALESCE(
               (SELECT d.name FROM domains d WHERE d.slug = qp.domain LIMIT 1),
               qp.domain
@@ -403,6 +417,7 @@ export async function listAssessmentRows(
     items: dataResult.rows.map((row) => ({
       ...mapAssessmentRow(row),
       level_label: row.level_label,
+      effective_duration_minutes: effectiveOrNull(row),
       domain: row.domain,
     })),
     total,
@@ -473,6 +488,7 @@ export async function insertAssessment(
     questionCount: number;
     passingScorePct: number;
     maxAttempts?: number | null;
+    durationMinutes?: number | null;
     deliveryMode?: "real" | "mock";
     randomize: boolean;
     opensAt?: Date | null;
@@ -487,8 +503,8 @@ export async function insertAssessment(
   const result = await client.query<AssessmentRow>(
     `INSERT INTO assessments
        (id, tenant_id, pack_id, level_id, pack_version, name, description,
-        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct, max_attempts, delivery_mode)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16)
+        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct, max_attempts, delivery_mode, duration_minutes)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17)
      RETURNING ${ASSESSMENT_COLUMNS}`,
     [
       input.id,
@@ -507,6 +523,7 @@ export async function insertAssessment(
       input.passingScorePct,
       input.maxAttempts ?? null,
       input.deliveryMode ?? "real",
+      input.durationMinutes ?? null,
     ],
   );
   const row = result.rows[0];
@@ -525,6 +542,7 @@ export async function updateAssessmentRow(
     questionCount?: number;
     passingScorePct?: number;
     maxAttempts?: number | null;
+    durationMinutes?: number | null;
     deliveryMode?: "real" | "mock";
     randomize?: boolean;
     opensAt?: Date | null;
@@ -568,6 +586,11 @@ export async function updateAssessmentRow(
   if (patch.maxAttempts !== undefined) {
     sets.push(`max_attempts = $${i}`);
     values.push(patch.maxAttempts);
+    i++;
+  }
+  if (patch.durationMinutes !== undefined) {
+    sets.push(`duration_minutes = $${i}`);
+    values.push(patch.durationMinutes);
     i++;
   }
   if (patch.deliveryMode !== undefined) {
@@ -631,6 +654,22 @@ export async function updateAssessmentRow(
   if (row === undefined) {
     throw new Error(`updateAssessmentRow: no row found for id ${id}`);
   }
+  return mapAssessmentRow(row);
+}
+
+/** Set ONLY duration_minutes (null clears it). Any status. */
+export async function setDurationMinutesRow(
+  client: PoolClient,
+  id: string,
+  durationMinutes: number | null,
+): Promise<Assessment> {
+  const result = await client.query<AssessmentRow>(
+    `UPDATE assessments SET duration_minutes = $2, updated_at = now()
+      WHERE id = $1 RETURNING ${ASSESSMENT_COLUMNS}`,
+    [id, durationMinutes],
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`setDurationMinutesRow: no row found for id ${id}`);
   return mapAssessmentRow(row);
 }
 

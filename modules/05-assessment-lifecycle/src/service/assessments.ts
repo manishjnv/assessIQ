@@ -137,6 +137,8 @@ export async function createAssessment(
   assertSectionsSettings(input.settings);
   if (input.passing_score_pct !== undefined) assertPassMark(input.passing_score_pct);
   if (input.max_attempts !== undefined) assertMaxAttempts(input.max_attempts);
+  if (input.duration_minutes !== undefined) assertDurationMinutes(input.duration_minutes);
+  assertDurationAllowedFor(input.settings, input.duration_minutes);
   if (input.delivery_mode !== undefined) assertDeliveryMode(input.delivery_mode);
   assertScoreCounts(input.settings);
   let resolvedInput = input;
@@ -239,6 +241,7 @@ export async function createAssessment(
       // Z-16: explicit mark wins; else the level's value (clamped: levels allow 0).
       passingScorePct: input.passing_score_pct ?? Math.min(100, Math.max(1, level.passing_score_pct)),
       maxAttempts: input.max_attempts ?? null,
+      durationMinutes: input.duration_minutes ?? null,
       deliveryMode: input.delivery_mode ?? "real",
       randomize: resolvedInput.randomize ?? true,
       opensAt: resolvedInput.opens_at ?? null,
@@ -262,6 +265,7 @@ export async function createAssessment(
         question_count: assessment.question_count,
         passing_score_pct: assessment.passing_score_pct,
         max_attempts: assessment.max_attempts,
+        duration_minutes: assessment.duration_minutes,
         delivery_mode: assessment.delivery_mode,
         randomize: assessment.randomize,
         status: assessment.status,
@@ -312,6 +316,32 @@ export function assertMaxAttempts(v: unknown): asserts v is number | null {
   if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > MAX_ATTEMPTS_LIMIT) {
     throw new ValidationError(`max_attempts must be empty or a whole number from 1 to ${String(MAX_ATTEMPTS_LIMIT)}`, {
       details: { code: "INVALID_PARAM", param: "max_attempts" },
+    });
+  }
+}
+
+/** Time limit is null (use the level time) or a whole number of minutes from 1 to 600. */
+export const MAX_DURATION_MINUTES = 600;
+export function assertDurationMinutes(v: unknown): asserts v is number | null {
+  if (v === null) return;
+  if (typeof v !== "number" || !Number.isInteger(v) || v < 1 || v > MAX_DURATION_MINUTES) {
+    throw new ValidationError(`duration_minutes must be empty or a whole number from 1 to ${String(MAX_DURATION_MINUTES)}`, {
+      details: { code: "INVALID_PARAM", param: "duration_minutes" },
+    });
+  }
+}
+
+/**
+ * A sectioned test or a whole-test timer takes its time from the section minutes (06 startAttempt), so a time limit on it
+ * would be shown but never used. Refuse it instead of letting the screen and the clock disagree.
+ */
+export function assertDurationAllowedFor(settings: unknown, v: number | null | undefined): void {
+  if (v === null || v === undefined) return;
+  const s = settings as { sections?: unknown; whole_test_minutes?: unknown } | null | undefined;
+  const sectioned = (Array.isArray(s?.sections) && s.sections.length > 0) || typeof s?.whole_test_minutes === "number";
+  if (sectioned) {
+    throw new ValidationError("A time limit cannot be set on a test with sections or a whole-test timer. Its time comes from the section minutes.", {
+      details: { code: "TIME_LIMIT_NOT_ALLOWED", param: "duration_minutes" },
     });
   }
 }
@@ -400,6 +430,7 @@ export async function createAssessmentFromSet(
   if (input.randomize !== undefined) createInput.randomize = input.randomize;
   if (input.passing_score_pct !== undefined) createInput.passing_score_pct = input.passing_score_pct;
   if (input.max_attempts !== undefined) createInput.max_attempts = input.max_attempts;
+  if (input.duration_minutes !== undefined) createInput.duration_minutes = input.duration_minutes;
   if (input.delivery_mode !== undefined) createInput.delivery_mode = input.delivery_mode;
   if (input.settings !== undefined) {
     // from-set resolves pack/level from the CLONED set. A blueprint would
@@ -515,6 +546,45 @@ export async function updateAssessmentIntegrity(
 }
 
 // ---------------------------------------------------------------------------
+// updateAssessmentDuration
+// ---------------------------------------------------------------------------
+
+/**
+ * Change only duration_minutes (null clears it = level time). Any status.
+ * Affects attempts started afterwards; a running attempt keeps the seconds it
+ * copied at start (attempts.duration_seconds / ends_at).
+ */
+export async function updateAssessmentDuration(
+  tenantId: string,
+  id: string,
+  durationMinutes: number | null,
+  updatedByUserId: string,
+): Promise<Assessment> {
+  assertDurationMinutes(durationMinutes);
+  return withTenant(tenantId, async (client) => {
+    const current = await repo.findAssessmentById(client, id);
+    if (current === null) {
+      throw new NotFoundError(`Assessment not found: ${id}`, {
+        details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+      });
+    }
+    assertDurationAllowedFor(current.settings, durationMinutes);
+    const updated = await repo.setDurationMinutesRow(client, id, durationMinutes);
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: updatedByUserId,
+      action: "assessment.updated",
+      entityType: "assessment",
+      entityId: id,
+      before: { duration_minutes: current.duration_minutes },
+      after: { duration_minutes: updated.duration_minutes, changed_fields: ["duration_minutes"] },
+    });
+    return updated;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // updateAssessmentGrading
 // ---------------------------------------------------------------------------
 
@@ -584,6 +654,7 @@ export async function updateAssessment(
   assertSectionsSettings(patch.settings);
   if (patch.passing_score_pct !== undefined) assertPassMark(patch.passing_score_pct);
   if (patch.max_attempts !== undefined) assertMaxAttempts(patch.max_attempts);
+  if (patch.duration_minutes !== undefined) assertDurationMinutes(patch.duration_minutes);
   if (patch.delivery_mode !== undefined) assertDeliveryMode(patch.delivery_mode);
   assertScoreCounts(patch.settings);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
@@ -671,6 +742,10 @@ export async function updateAssessment(
     if (patch.description !== undefined) repoPatch.description = patch.description;
     if (patch.passing_score_pct !== undefined) repoPatch.passingScorePct = patch.passing_score_pct;
     if (patch.max_attempts !== undefined) repoPatch.maxAttempts = patch.max_attempts;
+    if (patch.duration_minutes !== undefined) {
+      assertDurationAllowedFor(patch.settings ?? current.settings, patch.duration_minutes);
+      repoPatch.durationMinutes = patch.duration_minutes;
+    }
     if (patch.delivery_mode !== undefined) repoPatch.deliveryMode = patch.delivery_mode;
     if (patch.randomize !== undefined) repoPatch.randomize = patch.randomize;
     if (patch.opens_at !== undefined) repoPatch.opensAt = patch.opens_at;
@@ -704,6 +779,7 @@ export async function updateAssessment(
         question_count: current.question_count,
         passing_score_pct: current.passing_score_pct,
         max_attempts: current.max_attempts,
+        duration_minutes: current.duration_minutes,
         delivery_mode: current.delivery_mode,
         randomize: current.randomize,
         opens_at: current.opens_at?.toISOString() ?? null,
@@ -714,6 +790,7 @@ export async function updateAssessment(
         question_count: updated.question_count,
         passing_score_pct: updated.passing_score_pct,
         max_attempts: updated.max_attempts,
+        duration_minutes: updated.duration_minutes,
         delivery_mode: updated.delivery_mode,
         randomize: updated.randomize,
         opens_at: updated.opens_at?.toISOString() ?? null,

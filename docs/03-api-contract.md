@@ -1050,6 +1050,22 @@ Pull a newer platform-master version into the tenant's EXISTING clone of a licen
 - **Not included.** Cooling-off timers, paid retakes, a different question draw per retake. Changing `max_attempts` after publish.
 - **Impact.** Module 18: one certificate per assessment and candidate (the first pass keeps it). Modules 07, 09, 15 that join `attempts` by `(assessment_id, user_id)` now see one row per attempt. Help rows `admin.assessments.max_attempts`, `.score_counts`, `.extra_attempt`, `.invitations.reopen`, `candidate.result.retake`.
 
+#### Assessment time limit: `duration_minutes` (2026-10-21)
+
+- **Contract.**
+  - `POST /api/admin/assessments`, `POST .../from-set` and `PATCH /api/admin/assessments/:id` accept `duration_minutes`: a whole number `1` to `600`, or `null` to clear it (the level time). `PATCH /:id` still works only while `draft`.
+  - `PATCH /api/admin/assessments/:id/time-limit` body `{ "duration_minutes": <1..600 | null> }` (strict) changes only this field in ANY status. It applies to attempts that start afterwards. Response: the assessment.
+  - Error `400 TIME_LIMIT_NOT_ALLOWED`: the assessment has sections or a whole-test timer (its time comes from the section minutes), so a non-empty `duration_minutes` is refused on create, `PATCH` and `PATCH .../time-limit`. `null` is always allowed.
+  - A value outside 1 to 600, a decimal or a string returns `400 VALIDATION_FAILED` with `details.code = "INVALID_PARAM"` and `details.param = "duration_minutes"`.
+  - `GET /api/admin/assessments/:id` and the list return `duration_minutes` (the override or `null`) and `effective_duration_minutes` (the override, else the level time).
+  - Candidate reads show the effective time: `POST /take/start` preview and start (`assessment.duration_seconds`) and `GET /api/me/assessments` (`duration_seconds`).
+  - `GET /api/billing/available-sets` items add `level_minutes` (level time per level, position order) so the Start a test form can show the default.
+- **Audit.** Create writes `duration_minutes` in `after`. Update and `PATCH .../time-limit` write the old and new value in `before` and `after`, in the same transaction, action `assessment.updated`.
+- **Why.** Owner decision 2026-10-21: the admin sets a manual time, with no automatic suggestion.
+- **Considered and rejected.** An automatic time from question count and difficulty. Per-section times. Opening the main `PATCH` after publish (the dedicated route is smaller and mirrors `/integrity`).
+- **Not included.** Automatic or suggested time, per-question time, extra time for one candidate. A full mock (blueprint with section times) does not use this field.
+- **Impact.** Module 06 `startAttempt` copies the effective time at start, so a running attempt never changes. Help rows `admin.start_test.time_limit` and `admin.assessments.time_limit`.
+
 #### `PATCH /api/admin/assessments/:id` and create: `SECTIONS_LOCKED` (409)
 
 **History:** added in the 2026-10-02 batch 5 notes.

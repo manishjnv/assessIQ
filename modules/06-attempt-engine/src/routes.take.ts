@@ -267,7 +267,7 @@ export async function registerAttemptTakeRoutes(
       }
       const cameraRequired = await isCameraRequired(resolved.assessment.tenant_id, pv.deliveryMode);
       const durationSeconds =
-        pv.existing?.duration_seconds ?? resolved.level.duration_minutes * 60;
+        pv.existing?.duration_seconds ?? resolved.level.effective_duration_minutes * 60;
       const assessmentShape = {
         id: resolved.assessment.id,
         name: resolved.assessment.name,

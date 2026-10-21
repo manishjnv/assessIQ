@@ -76,6 +76,7 @@ export function AdminStartTest(): React.ReactElement {
   const [setId, setSetId] = useState("");
   const [level, setLevel] = useState(1);
   const [count, setCount] = useState(10);
+  const [minutes, setMinutes] = useState(""); // optional time limit; empty = level time
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
   const [candidates, setCandidates] = useState<CandidateOption[]>([]);
@@ -116,11 +117,13 @@ export function AdminStartTest(): React.ReactElement {
   const blueprint = blueprints?.find((b) => b.id === blueprintId) ?? null;
   const parsed = useMemo(() => parsePasted(pasted), [pasted]);
   const total = picked.size + parsed.entries.length;
-  const canSend = set !== null && total > 0 && name.trim() !== "" && opensAt !== "" && !busy;
+  const minutesOk = minutes.trim() === "" || (Number.isInteger(Number(minutes)) && Number(minutes) >= 1 && Number(minutes) <= 600);
+  const canSend = set !== null && total > 0 && name.trim() !== "" && opensAt !== "" && minutesOk && !busy;
 
   function chooseSet(s: AvailableSet) {
     setSetId(s.source_pack_id);
     setLevel(1);
+    setMinutes("");
     setCount(Math.min(10, s.question_count));
     setName(`${s.name} — ${formatDate(new Date())}`);
   }
@@ -164,6 +167,7 @@ export function AdminStartTest(): React.ReactElement {
           question_count: Math.max(1, Math.min(count, set.question_count, MAX_QUESTIONS)),
           opens_at: new Date(opensAt).toISOString(),
           ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
+          ...(minutes.trim() !== "" ? { duration_minutes: Number(minutes) } : {}),
         };
         id = (await createAssessmentFromSet(body)).id;
         mark("Assessment created");
@@ -270,6 +274,17 @@ export function AdminStartTest(): React.ReactElement {
                     <Label htmlFor="st-count">Number of questions</Label>
                     <Input id="st-count" type="number" min={1} max={Math.min(set.question_count, MAX_QUESTIONS)} value={count}
                       onChange={(e) => setCount(Number(e.target.value))} />
+                  </div>
+                )}
+                {blueprint === null && (
+                  <div>
+                    <HelpTip helpId="admin.start_test.time_limit"><Label htmlFor="st-minutes">Time limit (minutes)</Label></HelpTip>
+                    <Input id="st-minutes" type="number" min={1} max={600} step={1} value={minutes}
+                      placeholder={set.level_minutes?.[level - 1] !== undefined ? String(set.level_minutes[level - 1]) : ""}
+                      onChange={(e) => setMinutes(e.target.value)} />
+                    <div style={{ color: "var(--aiq-color-fg-muted)", marginTop: 4 }}>
+                      Leave this empty to use the time of the difficulty you chose. A running attempt keeps the time it started with.
+                    </div>
                   </div>
                 )}
                 <div>

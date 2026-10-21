@@ -664,7 +664,7 @@ export async function listAvailablePlatformSets(
   platformTenantId: string,
   domainSlugs: string[],
   packIds: string[],
-): Promise<Array<{ id: string; name: string; domain: string; version: number; question_count: number; level_count: number }>> {
+): Promise<Array<{ id: string; name: string; domain: string; version: number; question_count: number; level_count: number; level_minutes: number[] }>> {
   const result = await client.query<{
     id: string;
     name: string;
@@ -672,10 +672,12 @@ export async function listAvailablePlatformSets(
     version: number;
     question_count: number;
     level_count: number;
+    level_minutes: number[];
   }>(
     `SELECT p.id, p.name, p.domain, p.version,
             (SELECT count(*)::int FROM questions q WHERE q.pack_id = p.id AND q.status = 'active') AS question_count,
-            (SELECT count(*)::int FROM levels l WHERE l.pack_id = p.id) AS level_count
+            (SELECT count(*)::int FROM levels l WHERE l.pack_id = p.id) AS level_count,
+            COALESCE((SELECT array_agg(l.duration_minutes ORDER BY l.position) FROM levels l WHERE l.pack_id = p.id), '{}') AS level_minutes
        FROM question_packs p
       WHERE p.tenant_id = $1
         AND p.status = 'published'

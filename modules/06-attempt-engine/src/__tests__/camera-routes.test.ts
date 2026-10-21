@@ -188,7 +188,7 @@ async function newExam(label: string, mode: "real" | "mock" = "real") {
     assessment: { id: a.id, tenant_id: T, name: "Camera test" },
     invitation: { id: invitationId, delivery_mode: mode },
     candidate: { id: candidate, name: label },
-    level: { duration_minutes: 30 },
+    level: { duration_minutes: 30, effective_duration_minutes: 30 },
   };
   routeCtx.session = { userId: candidate, tenantId: T, role: "candidate" };
   return { candidate, assessmentId: a.id, invitationId };

@@ -35,3 +35,11 @@ export function attemptsAllowed(maxAttempts: number | null | undefined, extraAtt
       : Math.min(MAX_ATTEMPTS_LIMIT, Math.max(1, maxAttempts));
   return base + (Number.isFinite(extraAttempts) ? Math.max(0, Math.trunc(extraAttempts)) : 0);
 }
+
+/**
+ * The ONE time rule: minutes the candidate gets. The assessment's own limit wins;
+ * null means the level time. SQL readers use COALESCE(a.duration_minutes, l.duration_minutes).
+ */
+export function effectiveDurationMinutes(override: number | null | undefined, levelMinutes: number): number {
+  return override === null || override === undefined ? levelMinutes : override;
+}

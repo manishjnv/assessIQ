@@ -101,7 +101,7 @@ export async function registerAttemptCandidateRoutes(
           `SELECT
              a.id                        AS id,
              a.name                      AS name,
-             (l.duration_minutes * 60)   AS duration_seconds,
+             (COALESCE(a.duration_minutes, l.duration_minutes) * 60) AS duration_seconds,
              a.question_count            AS question_count,
              a.opens_at                  AS opens_at,
              a.closes_at                 AS closes_at

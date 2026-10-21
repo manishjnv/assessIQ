@@ -38,6 +38,7 @@ import {
   attemptsAllowed,
   streamLogger,
   uuidv7,
+  effectiveDurationMinutes,
 } from "@assessiq/core";
 import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
@@ -595,7 +596,7 @@ export async function startAttempt(
         ? wholeMinutes * 60
         : sections !== null
           ? totalSectionSeconds(sections)
-          : level.duration_minutes * 60;
+          : effectiveDurationMinutes(assessment.duration_minutes, level.duration_minutes) * 60;
     const endsAt = new Date(startedAt.getTime() + durationSeconds * 1000);
 
     // h. Insert attempt row.

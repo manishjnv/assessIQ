@@ -44,6 +44,6 @@ export { escapeHtml, csvCell } from "./escape.js";
 export { nowIso, parseIso } from "./time.js";
 export { getRedis, closeRedis } from "./redis.js";
 export { acquireLock, refreshLock, releaseLock, peekLock } from "./lock.js";
-export { meetsPct, isPass, DISTINCTION_PCT, attemptsAllowed, MAX_ATTEMPTS_LIMIT } from "./pass-mark.js";
+export { meetsPct, isPass, DISTINCTION_PCT, attemptsAllowed, MAX_ATTEMPTS_LIMIT, effectiveDurationMinutes } from "./pass-mark.js";
 export { countingAttemptSql } from "./attempt-counting.js";
 export { buildShareLinks, type ShareLinks } from "./share-links.js";

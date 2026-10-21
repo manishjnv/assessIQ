@@ -4415,6 +4415,33 @@ admin.assessments.blueprint.marks_per_question:
     - **Blank.** Each question keeps its own points.
     - **Not yet applied.** Scoring does not use this value for a blueprint test yet.
 
+admin.start_test.time_limit:
+  audience: admin
+  short_text: "Time limit for this test in minutes, 1 to 600. Blank uses the time of the difficulty."
+  long_md: |
+    ## Time limit
+
+    Set how many minutes a candidate has for this test, from 1 to 600.
+
+    - **Blank.** The test uses the time of the difficulty you chose. The grey number in the box shows it.
+    - **A number.** The test uses this time instead.
+    - **Running attempts.** A candidate who has started keeps the time they started with.
+    - **Full mock.** A full mock sets its own section times. This box does not apply to it.
+
+admin.assessments.time_limit:
+  audience: admin
+  short_text: "Time limit in minutes, 1 to 600. Blank uses the time of the difficulty."
+  long_md: |
+    ## Time limit
+
+    Set how many minutes a candidate has for this assessment, from 1 to 600.
+
+    - **Blank.** The assessment uses the time of its difficulty level.
+    - **A number.** The assessment uses this time instead.
+    - **Any status.** You can change it after publish. It applies to attempts that start later.
+    - **Running attempts.** A candidate who has started keeps the time they started with.
+    - **Sections.** An assessment with section times uses those section times.
+
 admin.assessments.settings.negative_marks_default:
   audience: admin
   short_text: "Default marks taken away for a wrong answer, for every question that has no value of its own."

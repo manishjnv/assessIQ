@@ -47,6 +47,7 @@ import {
   updateAssessment,
   updateAssessmentIntegrity,
   updateAssessmentGrading,
+  updateAssessmentDuration,
   publishAssessment,
   closeAssessment,
   cancelAssessment,
@@ -204,6 +205,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) input.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["max_attempts"] !== undefined) input.max_attempts = raw["max_attempts"] as number | null;
+      if (raw["duration_minutes"] !== undefined) input.duration_minutes = raw["duration_minutes"] as number | null;
       if (raw["delivery_mode"] !== undefined) input.delivery_mode = raw["delivery_mode"] as "real" | "mock";
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
@@ -313,6 +315,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["randomize"] !== undefined) input.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) input.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["max_attempts"] !== undefined) input.max_attempts = raw["max_attempts"] as number | null;
+      if (raw["duration_minutes"] !== undefined) input.duration_minutes = raw["duration_minutes"] as number | null;
       if (raw["delivery_mode"] !== undefined) input.delivery_mode = raw["delivery_mode"] as "real" | "mock";
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
@@ -414,6 +417,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["randomize"] !== undefined) patch.randomize = raw["randomize"] as boolean;
       if (raw["passing_score_pct"] !== undefined) patch.passing_score_pct = raw["passing_score_pct"] as number;
       if (raw["max_attempts"] !== undefined) patch.max_attempts = raw["max_attempts"] as number | null;
+      if (raw["duration_minutes"] !== undefined) patch.duration_minutes = raw["duration_minutes"] as number | null;
       if (raw["delivery_mode"] !== undefined) patch.delivery_mode = raw["delivery_mode"] as "real" | "mock";
       if (raw["settings"] !== undefined) patch.settings = raw["settings"] as AssessmentSettings;
 
@@ -462,6 +466,27 @@ export async function registerAssessmentLifecycleRoutes(
         );
       }
       return updateAssessmentIntegrity(req.session!.tenantId, id, parsed.data, req.session!.userId);
+    },
+  );
+
+  // PATCH /api/admin/assessments/:id/time-limit - change only duration_minutes
+  // (1..600, or null = level time; any status; a running attempt is not changed).
+  const TimeLimitBodySchema = z
+    .object({ duration_minutes: z.number().int().min(1).max(600).nullable() })
+    .strict();
+  app.patch(
+    "/api/admin/assessments/:id/time-limit",
+    { preHandler: adminOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const parsed = TimeLimitBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError(
+          `Invalid time-limit body: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+          { details: { code: "INVALID_PARAM", param: "duration_minutes" } },
+        );
+      }
+      return updateAssessmentDuration(req.session!.tenantId, id, parsed.data.duration_minutes, req.session!.userId);
     },
   );
 

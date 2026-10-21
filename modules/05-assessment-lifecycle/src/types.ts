@@ -235,6 +235,10 @@ export interface Assessment {
   passing_score_pct: number;
   /** Z-39: attempts one candidate may make. null or 1 = no retake (default); 2..10 allowed. Draft-only edit. */
   max_attempts: number | null;
+  /** Optional time limit in minutes (1..600) set by the admin; null = use the level time. */
+  duration_minutes: number | null;
+  /** Minutes the candidate gets: duration_minutes, else the level time. Set on the admin detail and list reads. */
+  effective_duration_minutes?: number | null;
   /** Z-89: default test type for invitations. 'real' = laptop/desktop only; 'mock' = any device, no certificate. */
   delivery_mode: "real" | "mock";
   randomize: boolean;
@@ -328,6 +332,8 @@ export interface CreateAssessmentInput {
   passing_score_pct?: number;
   /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. */
   max_attempts?: number | null;
+  /** Optional time limit, integer 1..600; null or omitted = level time. */
+  duration_minutes?: number | null;
   /** Z-89: 'real' (default) or 'mock'. */
   delivery_mode?: "real" | "mock";
   randomize?: boolean;     // defaults true
@@ -352,6 +358,8 @@ export interface CreateAssessmentFromSetInput {
   passing_score_pct?: number;
   /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. */
   max_attempts?: number | null;
+  /** Optional time limit, integer 1..600; null or omitted = level time. */
+  duration_minutes?: number | null;
   /** Z-89: 'real' (default) or 'mock'. */
   delivery_mode?: "real" | "mock";
   randomize?: boolean;
@@ -370,6 +378,8 @@ export interface UpdateAssessmentPatch {
   passing_score_pct?: number;
   /** Z-39: null or 1 = no retake; 2..10 = attempts allowed. Draft only. */
   max_attempts?: number | null;
+  /** Optional time limit, integer 1..600; null clears it (level time). */
+  duration_minutes?: number | null;
   /** Z-89: 'real' (default) or 'mock'. */
   delivery_mode?: "real" | "mock";
   randomize?: boolean;

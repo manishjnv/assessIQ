@@ -2974,3 +2974,24 @@ When a new "visibility" state is added to `attempts`, grep every `attempt_scores
 **Cause:** the shared `security-headers` snippet sets that header as a deferred write. Caddy applies deferred writes from the outer handler last, so a plain header, or one inside a handler, is overwritten. My validation helper also read only the last log line and falsely reported "invalid" once, which restored the old file; the running config was not harmed.
 **Fix:** a site-level deferred header `header @take_pages >Permissions-Policy "camera=(self), ..."`. Caddy sorts the matcher form before the snippet's handler, so it is the outer one and writes last. Checked with `curl -sI` on `/take/abc` (camera=(self)) and `/admin` (camera=()).
 **Prevention:** `docs/06-deployment.md` records the trap. After each edge edit read the whole `caddy validate` output, then check the live headers with curl.
+
+## 2026-10-21 — Bulk invite resolved the camera rule inside an open transaction (Z-74 follow-up)
+
+**Symptom:** found in the review gate, not in production. A bulk invite would hold one pooled connection per request and wait for a second for each invitee; with as many concurrent bulk invites as the pool size, every request would wait forever.
+**Cause:** `modules/05-assessment-lifecycle/src/email.ts` `resolveCameraRequired` calls module 06 `isCameraRequired`, which opens its own `withTenant`. `inviteUsers` called it per invitee through `sendInvitationEmail`, inside its own `withTenant`.
+**Fix:** resolve once per batch before the transaction and pass `cameraRequired` into the send (`invitations.ts`, `email.ts`).
+**Prevention:** the review gate. Rule: never call a function that opens its own pooled connection from inside an open transaction. Single resend and the reminder job send outside a transaction.
+
+## 2026-10-21 — Time limit shown on tests that ignore it (assessment time limit)
+
+**Symptom:** found in the review gate. The new card accepted a time limit on a sectioned or whole-test assessment, where the clock uses the section minutes, so the screen and the clock would disagree.
+**Cause:** `startAttempt` takes the section or whole-test total first and the override only for plain tests; the route and card did not know that.
+**Fix:** the server refuses a non-empty limit there (`TIME_LIMIT_NOT_ALLOWED`) and the card is hidden (`service/assessments.ts`, `assessment-detail.tsx`).
+**Prevention:** a test in `time-limit.test.ts`. When a field is ignored in one mode, refuse it in that mode instead of only documenting it.
+
+## 2026-10-21 — Mock factories missed a new export (test trap, again)
+
+**Symptom:** 20 module 05 tests failed with `No "resolveCameraRequired" export is defined on the "../email.js" mock`.
+**Cause:** `inviteUsers` now imports a new export from `email.ts`; three test files mock that module with a fixed export list.
+**Fix:** the stub was added to the three mocks (`invite-email`, `invitation-resend`, `publish-review-gate`).
+**Prevention:** after adding an export to a module that tests mock, grep `vi.mock("../<module>.js"` in the module and in apps/api and add the stub in the same change.

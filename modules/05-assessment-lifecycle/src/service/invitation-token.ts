@@ -1,5 +1,5 @@
 import { withTenant, withSystemRole } from "@assessiq/tenancy";
-import { attemptsAllowed } from "@assessiq/core";
+import { attemptsAllowed, effectiveDurationMinutes } from "@assessiq/core";
 import { hashInvitationToken } from "../tokens.js";
 import type { Assessment, AssessmentInvitation, AssessmentStatus, InvitationStatus } from "../types.js";
 
@@ -36,7 +36,8 @@ import type { Assessment, AssessmentInvitation, AssessmentStatus, InvitationStat
 export interface ResolvedInvitation {
   invitation: AssessmentInvitation;
   assessment: Assessment;
-  level: { id: string; label: string; duration_minutes: number };
+  /** duration_minutes is the level time; effective_duration_minutes is what the candidate gets. */
+  level: { id: string; label: string; duration_minutes: number; effective_duration_minutes: number };
   candidate: { id: string; email: string; name: string };
   /** Distinct from invitation.status — true when start is allowed (pending/viewed/started). */
   can_start: boolean;
@@ -83,6 +84,7 @@ export async function resolveInvitationToken(
       a_question_count: number;
       a_passing_score_pct: number;
       a_max_attempts: number | null;
+      a_duration_minutes: number | null;
       a_delivery_mode: string;
       inv_extra_attempts: number;
       attempts_used: number;
@@ -125,6 +127,7 @@ export async function resolveInvitationToken(
          a.question_count   AS a_question_count,
          a.passing_score_pct AS a_passing_score_pct,
          a.max_attempts     AS a_max_attempts,
+         a.duration_minutes AS a_duration_minutes,
          a.delivery_mode    AS a_delivery_mode,
          ai.extra_attempts  AS inv_extra_attempts,
          (SELECT count(*)::int FROM attempts t
@@ -186,6 +189,7 @@ export async function resolveInvitationToken(
         question_count: row.a_question_count,
         passing_score_pct: row.a_passing_score_pct,
         max_attempts: row.a_max_attempts,
+        duration_minutes: row.a_duration_minutes,
         delivery_mode: row.a_delivery_mode === "mock" ? "mock" : "real",
         randomize: row.a_randomize,
         opens_at: row.a_opens_at,
@@ -199,6 +203,7 @@ export async function resolveInvitationToken(
         id: row.l_id,
         label: row.l_label,
         duration_minutes: row.l_duration_minutes,
+        effective_duration_minutes: effectiveDurationMinutes(row.a_duration_minutes, row.l_duration_minutes),
       },
       candidate: {
         id: row.u_id,
