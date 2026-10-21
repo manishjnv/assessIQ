@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const TOKEN_LIMIT = 30000;
+const OPEN_ROWS_MAX = 10;
 const SRC = {
   session: 'docs/SESSION_STATE.md',
   roadmap: 'docs/ROADMAP.md',
@@ -130,7 +131,9 @@ function main() {
   const now = new Date();
   const session = firstSessionBlock(readSource(SRC.session));
   const board = statusBoard(readSource(SRC.roadmap));
-  const zRowsAll = openRows(readSource(SRC.roadmap));
+  // Newest first (Z rows by number, then EXP rows by number); NEXT.md lists only OPEN_ROWS_MAX of them, the rest are in ROADMAP.
+  const rowKey = (r) => { const m = r.match(/^- `(Z|EXP)-(\d+)`/); return m ? (m[1] === "Z" ? 1e6 : 0) + Number(m[2]) : 0; };
+  const zRowsAll = openRows(readSource(SRC.roadmap)).sort((a, b) => rowKey(b) - rowKey(a));
   const rca = newestRca(readSource(SRC.rca), 5);
   const sha = git(['rev-parse', '--short', 'HEAD']);
   const dirty = git(['status', '--short']).split('\n').filter(Boolean).length;
@@ -141,7 +144,7 @@ function main() {
     ? `SESSION_STATE names next free ${sessionNext}; check before use.`
     : sessionNext ? 'Matches the newest SESSION_STATE block.' : 'SESSION_STATE block names no next number; computed from files.';
 
-  let zCap = zRowsAll.length;
+  let zCap = Math.min(zRowsAll.length, OPEN_ROWS_MAX);
   let rcaN = rca.items.length;
   let sbCap = board.length;
   let notes = [];
