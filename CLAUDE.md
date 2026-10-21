@@ -8,7 +8,7 @@ This file overrides the global `~/.claude/CLAUDE.md` orchestration playbook wher
 
 In ONE parallel-tool-call message, read:
 
-1. `PROJECT_BRAIN.md` — orientation (mandatory every session)
+1. `docs/PROJECT_BRAIN.md` — orientation (mandatory every session)
 2. `docs/01-architecture-overview.md` — system context
 3. `docs/NEXT.md` — generated start brief (Z-64): last handoff, ROADMAP status board, open Z-rows, newest 5 RCA entries, next migration number. Run `node tools/next-brief.mjs` first if its HEAD sha differs from `git rev-parse --short HEAD` or the file is absent. Replaces the full reads of `docs/SESSION_STATE.md` and `docs/ROADMAP.md`; open those only for a specific row or section
 4. `docs/ROADMAP.md` — read only the row you work on (plans index in `docs/plans/README.md`)
@@ -72,7 +72,7 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
    - Add `if (domain === "soc")` anywhere → bounce (domain lives in question packs, not code)
    - Replace `0/25/50/75/100` band scoring with raw percentages → bounce
 
-5. **Same-PR documentation rules** (from PROJECT_BRAIN.md working agreements):
+5. **Same-PR documentation rules** (from docs/PROJECT_BRAIN.md working agreements):
    - Schema changes update `docs/02-data-model.md` in the same PR
    - API changes update `docs/03-api-contract.md` in the same PR
    - New UI elements get a `help_id` and a content entry in `modules/16-help-system`
@@ -81,7 +81,7 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
 
 7. **Branding base.** UI work inherits from `modules/17-ui-system/AssessIQ_UI_Template/`. See `docs/10-branding-guideline.md`. (Kit-internal files still use "AccessIQ" naming — a vendor-side typo carried over from the previous kit drop; do not mass-rewrite, only update consumers.)
 
-8. **Shared VPS — deploys are additive only.** Production runs on Hostinger VPS `srv1150121.hstgr.cloud` (72.61.227.64), SSH alias `assessiq-vps`. **Other apps already run on this box** (A11yOS / AccessBridge confirmed; the broader `automateedge.cloud` umbrella likely too). Treat the VPS as shared infra:
+8. **Shared VPS — deploys are additive only.** Production runs on a Hostinger VPS (host name and IP are in the owner's private SSH config), SSH alias `assessiq-vps`. **Other apps already run on this box** (A11yOS / AccessBridge confirmed; the broader `automateedge.cloud` umbrella likely too). Treat the VPS as shared infra:
    - All AssessIQ artifacts live under an `assessiq` namespace: `/srv/assessiq/`, `/var/log/assessiq/`, Docker containers prefixed `assessiq-`, Caddy is the global edge (site snippet `infra/caddyfile/assessiq.snippet`; nginx runs only inside the frontend and marketing containers), systemd units prefixed `assessiq-*`.
    - **`/srv/assessiq` is a git clone** of `manishjnv/assessIQ` (converted 2026-05-03 — see RCA 2026-05-03 "Architectural debt"). The standard deploy is: `ssh assessiq-vps 'cd /srv/assessiq && git pull'`, then `docker compose -f infra/docker-compose.yml build <svc>`, then `up -d --no-deps --force-recreate <svc>`. See `docs/06-deployment.md` § "Deploy procedure (steady-state, post-2026-05-03)". Pre-deploy health check: `test -d /srv/assessiq/.git || echo "WARNING: not a git clone"`.
    - Before any `apt`, `docker`, `systemctl`, Caddy reload, or shared-config edit, **enumerate first** (`docker ps`, `systemctl list-units --state=running --no-pager`, the Caddy config on the VPS, `crontab -l`) and confirm the change is purely additive.
@@ -89,7 +89,7 @@ Per global rule, security/auth/AI-classifier diffs require `codex:rescue` advers
    - **Bypass-permissions does NOT authorize destructive ops on this VPS.** Local bypass skips local prompts; it does not excuse touching shared infra. STOP and ask the user before any `rm`, `docker rm/stop` of non-`assessiq-*` containers, `systemctl stop` of non-`assessiq-*` units, or rewrites of shared nginx/cron/systemd configs.
    - Any deploy diff or shell sequence that fails the additive-only check gets bounced in Phase 3 (or routed through `codex:rescue` for shared-infra-touching changes).
 
-   _Rules A and B_ (PROJECT_BRAIN.md): never delete a dormant feature without review and owner approval (Rule A). Find the older similar task first and fill the `**Old task or feature checked:**` handoff line (Rule B).
+   _Rules A and B_ (docs/PROJECT_BRAIN.md): never delete a dormant feature without review and owner approval (Rule A). Find the older similar task first and fill the `**Old task or feature checked:**` handoff line (Rule B).
 
 9. **Definition of Done — commit, deploy, document, handoff.** No implementation is complete until all four steps are done. Treat each as a Phase 5 verification gate; do not claim success to the user if any step is missing.
 
@@ -127,7 +127,7 @@ Top section ≤ 30 lines, detail sections below as long as needed.
 **Tests:** pass / fail / skipped
 **Next:** one line — first thing the next session should do
 **Open questions:** bullets
-**Old task or feature checked:** <ids or "none"> (Rule B, PROJECT_BRAIN.md)
+**Old task or feature checked:** <ids or "none"> (Rule B, docs/PROJECT_BRAIN.md)
 
 ---
 
@@ -168,8 +168,8 @@ Functionality first. Test enough to prove the feature works (happy path and main
 - **Template:** `docs/agent-brief.md` is the standard brief for every build agent. Fill every field.
 - **Haiku 5.5 first (owner, 2026-10-18; `model: "haiku"` resolves to `claude-haiku-5-5`):** for fully specified, non-load-bearing rows (display or copy changes, help ids and YAML, tab strips and page wiring, docs, tests for existing behaviour, digests, sweeps) fire a Haiku 5.5 build agent first. Escalate to Sonnet only if the Haiku diff fails `pnpm verify` or needs a second revision, and log `reworked: Y/N` in the footer so the routing can be tuned. Sonnet stays the default for load-bearing paths (scoring, auth, tenancy, credentials, migrations with RLS). One agent run costs about 70k tokens of fixed context, so give each agent several rows of the same file area instead of one small row each.
 - **Optimization register (owner, 2026-10-18):** time, token and gate ideas are kept in `docs/ai-playbook/09-optimization-register.md`. At Phase 6, update the rows you touched (status, date, measured evidence) and list the changed IDs in the handoff.
-- **Phase 6 brief and footer (Z-64, Z-66):** at Phase 6 run `node tools/next-brief.mjs` (regenerate NEXT.md; never edit it by hand). Footer routing lines use `- <Opus|Sonnet|Haiku> · <task> · reworked: Y/N (<why>) · tokens: <subagent_tokens>`; `node tools/routing-report.mjs` prints rework rate per route. Stop the Haiku 5.5 trial if non-gate rework is above 25% after 8 runs.
-- **Docs writes:** build the string first, then write the file (`python -X utf8`). `git add -f` named docs files only, never a directory.
+- **Phase 6 close-out (Z-109):** run `node tools/close-session.mjs` (next-brief, routing report, recount, archive, plans index, lint, link and privacy checks, file-count line, decisions into `docs/DECISIONS.md`; it never commits). Never edit NEXT.md by hand. Footer routing lines use `- <Opus|Sonnet|Haiku> · <task> · reworked: Y/N (<why>) · tokens: <subagent_tokens>`; `node tools/routing-report.mjs` prints rework rate per route. Stop the Haiku 5.5 trial if non-gate rework is above 25% after 8 runs.
+- **Docs writes:** build the string first, then write the file (`python -X utf8`). Docs are local only (gitignored, not in git): never `git add` docs. `node tools/close-session.mjs` runs the close-out checks.
 - **Push hook:** the trailer commit (`Adversarial-Review:`) must be its own command before the push.
 - **Two sessions at once = two worktrees.** Run `bash tools/wt-setup.sh <name>` for each extra code session. Remove it with `bash tools/wt-clean.sh <name>` when done.
 - **Worktree how-to:** `docs/ai-playbook/07-new-account-checklist.md` (memory link step included).

@@ -162,7 +162,7 @@ function main() {
     out.push(`## 4. Newest RCA entries (5 newest of ${rca.total}; file order: ${rca.order})`, '');
     for (const e of rca.items.slice(0, rcaN)) out.push(`### ${e.heading.slice(3)}`, e.symptom, e.prevention, '');
     out.push('## 5. Next free migration', '', `- Next free: \`${migNext}\` (highest \`modules/*/migrations\` prefix + 1)`, `- ${migNote}`, '');
-    out.push('## 6. Reading list reminder', '', 'Still read PROJECT_BRAIN.md and docs/RCA_LOG.md (CLAUDE.md Phase 0).', '');
+    out.push('## 6. Reading list reminder', '', 'Still read docs/PROJECT_BRAIN.md and docs/RCA_LOG.md (CLAUDE.md Phase 0).', '');
     if (notes.length) out.push('## Truncation', '', ...notes.map((n) => `- ${n}`), '');
     return out.join('\n');
   };

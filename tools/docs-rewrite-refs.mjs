@@ -71,7 +71,7 @@ export function rewriteRefs(root, dryRun = false) {
   const moves = loadMoves(root);
   const files = [];
   for (const d of DIRS) if (existsSync(join(root, d))) walk(join(root, d), root, files);
-  for (const f of ["README.md", "PROJECT_BRAIN.md", "CLAUDE.md"]) if (existsSync(join(root, f))) files.push(join(root, f));
+  for (const f of ["README.md", "docs/PROJECT_BRAIN.md", "CLAUDE.md"]) if (existsSync(join(root, f))) files.push(join(root, f));
   let changed = 0, refs = 0;
   const approval = [];
   for (const file of files) {
