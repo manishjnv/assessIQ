@@ -684,10 +684,9 @@ jobs:
           E2E_API_BASE_URL: http://localhost:3000
           PHONE_FLOW_ADVISORY: "1"
         run: pnpm --filter @assessiq/web exec playwright test --project=mobile phone-first-question
-      # Z-88: phone smoke for /try, the invitation landing, sign-in and results. Advisory until it has one green run on main, then remove continue-on-error.
+      # Z-88: phone smoke for /try, the invitation landing, sign-in and results. Required (green on main, run 39554101909).
       - name: Phone smoke (Z-88)
         if: matrix.leg == 'phone'
-        continue-on-error: true
         env:
           PLAYWRIGHT_BASE_URL: http://localhost:4173
           E2E_API_BASE_URL: http://localhost:3000
