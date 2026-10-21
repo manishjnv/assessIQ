@@ -71,7 +71,7 @@ Resolved deploy plan:
 - AssessIQ stack runs on its own `assessiq-net` Docker network. Only `assessiq-frontend` exposes a host port: **9091** (chosen because nothing on the box uses 90xx; avoids 80/443 Caddy, 3000 ti-ui, 8000 ti-api, 8080-8300 accessbridge/ti-nginx, 8090 roadmap-web, 9090 accessbridge-nginx, 9200/9300 opensearch).
 - A single new server block is **appended** to `/opt/ti-platform/caddy/Caddyfile` (with timestamped backup before reload). Block proxies `assessiq.automateedge.cloud` → `172.17.0.1:9091`. **No edits to ti-platform's `docker-compose.yml`** — matches the existing roadmap/accessbridge pattern, strictly additive.
 - TLS at the origin: **Cloudflare Origin Certificate** (RSA 2048, 15-year), placed at `/opt/ti-platform/caddy/ssl/assessiq.automateedge.cloud.{pem,key}` (`chmod 0600` on the key). CF zone SSL/TLS mode set to **Full (Strict)**.
-- DNS: A record `assessiq.automateedge.cloud` → VPS IPv4 (`72.61.227.64`), **Proxied** in Cloudflare.
+- DNS: A record `assessiq.automateedge.cloud` → VPS IPv4 (`<ORIGIN_IP>`), **Proxied** in Cloudflare.
 
 The full block + apply procedure live in `docs/06-deployment.md` (rewritten in the same PR as this plan).
 

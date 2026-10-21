@@ -18,7 +18,7 @@
 | Gemini edits | Headless Gemini can edit files | Use `tools/gemini.sh` (read-only prefix, status check). |
 | Codex | Sandbox cannot run commands; stdin must be closed | Text-only; `</dev/null`. |
 | Big logs | Reading SESSION_STATE, ROADMAP and RCA in full costs about 490k tokens | Use `docs/NEXT.md` and grep. |
-| Docs ignored by git | `docs/` is in `.gitignore` but files are tracked | `git add -f <file>`. |
+| Private docs ignored by git | Only `docs/private/` and `docs/exam-content/` are ignored (Z-105). Other docs show in `git status` | Put private notes in `docs/private/`. Add other docs with `git add <file>`. |
 | Shared VPS | Other apps run on it | Additive deploys only; enumerate before touching shared config; ask the owner before editing Caddy. |
 
 ## S24 traps (2026-10-18)

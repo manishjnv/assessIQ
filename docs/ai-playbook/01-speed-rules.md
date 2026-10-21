@@ -13,7 +13,7 @@ Source of truth: the "Speed rules" section of `CLAUDE.md`. This page explains th
 5. **Batches of 3 to 4 rows.** Then push, watch CI until green, deploy with `tools/deploy.sh`, sweep. Never stack new work on a red CI. Give an ETA for the next push only.
 6. **Agent brief.** Every build agent: `git merge main` first when in a worktree; use the migration number and help-id range the orchestrator assigns; run `pnpm verify`; do not commit; report the worktree path and a diff under 200 words.
 7. **Plan by file ownership.** Rows that edit the same file go to one agent or run in order. Everything else runs at once.
-8. **Docs writes.** Build the text first, then write the file. Add docs with `git add -f <file>` (the `docs/` folder is ignored by `.gitignore` but its files are tracked). Never add a whole folder.
+8. **Docs writes.** Build the text first, then write the file. Docs are tracked: a new doc shows in `git status` and needs a plain `git add <file>` (only `docs/private/` and `docs/exam-content/` are ignored; Z-105). Add named files, never a whole folder.
 9. **Deploy is additive.** The VPS is shared. Use `tools/deploy.sh`. Never prune, never stop non-`assessiq-*` services.
 
 ## Definition of done (project rule 9)

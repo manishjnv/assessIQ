@@ -1850,7 +1850,7 @@ A second prevention: every revert commit must explicitly enumerate "what was rev
 class surfaced by the 2026-05-15 operational maturity audit before it produces an incident.**
 
 **Risk class:** The entire AssessIQ production system — Postgres, Redis, API, frontend, Caddy
-(shared), and the AI grading runtime — runs on a single VPS (`srv1150121.hstgr.cloud`). Any
+(shared), and the AI grading runtime — runs on a single VPS (`<VPS_HOST>`). Any
 VPS-level event (hardware failure, Hostinger datacenter issue, OOM kill cascade, disk exhaustion,
 botched `apt upgrade`, runaway `docker system prune` by a co-tenant) takes the system to zero
 with no automated failover.
@@ -1922,7 +1922,7 @@ with a dated note in `docs/06-deployment.md` § DR.
 
 ## 2026-05-19 — Confirmed live IP-spoof: origin reachable bypassing Cloudflare
 
-**Symptom:** During Phase-0 grounding for the tracked "trustProxy/CF-IP" follow-up, a benign probe proved the vuln live: `curl --resolve assessiq.automateedge.cloud:443:72.61.227.64 -H 'CF-Connecting-IP: 203.0.113.99' .../api/health` → HTTP 200. The origin IP `:443` serves the real app directly, bypassing Cloudflare (DNS-proxy only; no Authenticated Origin Pulls / CF-IP firewall). Any attacker knowing the origin IP (in docs, DNS history, Shodan, Hostinger hostname) can spoof `cf-connecting-ip` on every request → defeats all per-IP rate limits (email-OTP/TOTP/candidate brute-force), IP-bound continuation/OTP tokens, and poisons audit IP attribution.
+**Symptom:** During Phase-0 grounding for the tracked "trustProxy/CF-IP" follow-up, a benign probe proved the vuln live: `curl --resolve assessiq.automateedge.cloud:443:<ORIGIN_IP> -H 'CF-Connecting-IP: 203.0.113.99' .../api/health` → HTTP 200. The origin IP `:443` serves the real app directly, bypassing Cloudflare (DNS-proxy only; no Authenticated Origin Pulls / CF-IP firewall). Any attacker knowing the origin IP (in docs, DNS history, Shodan, Hostinger hostname) can spoof `cf-connecting-ip` on every request → defeats all per-IP rate limits (email-OTP/TOTP/candidate brute-force), IP-bound continuation/OTP tokens, and poisons audit IP attribution.
 
 **Cause:** `apps/api/src/server.ts` `trustProxy:true` + 13 inlined `(req.headers['cf-connecting-ip'] as string|undefined) ?? req.ip` sites trusted the CF header with zero proof the request traversed Cloudflare. Pre-existing codebase-wide; the rate-limiter's own `extractClientIp` fail-closed-on-*missing*-header never triggered because the attacker *supplies* the header.
 
@@ -1932,7 +1932,7 @@ with a dated note in `docs/06-deployment.md` § DR.
 
 ## 2026-05-20 — IP-spoof vuln CLOSED: network-layer origin lockdown (Cloudflare AOP via Caddy mTLS)
 
-**Symptom:** None in prod — completes the fix for the 2026-05-19 entry. The direct-to-origin spoof that returned HTTP 200 yesterday (`curl --resolve assessiq.automateedge.cloud:443:72.61.227.64 ...`) now returns curl HTTP `000` (TLS handshake rejected at Caddy).
+**Symptom:** None in prod — completes the fix for the 2026-05-19 entry. The direct-to-origin spoof that returned HTTP 200 yesterday (`curl --resolve assessiq.automateedge.cloud:443:<ORIGIN_IP> ...`) now returns curl HTTP `000` (TLS handshake rejected at Caddy).
 
 **Cause:** The 2026-05-19 fix shipped the app-layer half (`x-origin-verify` shared secret, app rate-limit rejects unverified at the rate-limit layer). The remaining residual: the origin :443 still accepted ANY TLS handshake, so a direct-origin attacker could still REACH the app on non-rate-limited routes (e.g. `/api/health` — observability poisoning, audit IP poisoning, and any future un-rate-limited endpoint).
 

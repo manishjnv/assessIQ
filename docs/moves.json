@@ -1,1 +1,74 @@
-[]
+[
+  {
+    "from": "docs/owner-review/PRIVATE_owner_decisions_memory_copy.md",
+    "to": "docs/private/owner-review/PRIVATE_owner_decisions_memory_copy.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private owner file"
+  },
+  {
+    "from": "docs/owner-review/PRIVATE_pricing_and_costs.md",
+    "to": "docs/private/owner-review/PRIVATE_pricing_and_costs.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private owner file"
+  },
+  {
+    "from": "docs/owner-review/PRIVATE_wave1_session1_prompt.md",
+    "to": "docs/private/owner-review/PRIVATE_wave1_session1_prompt.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private owner file"
+  },
+  {
+    "from": "docs/design/2026-10-01-product-review-competitive-strategy.md",
+    "to": "docs/private/design/2026-10-01-product-review-competitive-strategy.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private design file"
+  },
+  {
+    "from": "docs/design/2026-10-09-exam-packs-roadmap.md",
+    "to": "docs/private/design/2026-10-09-exam-packs-roadmap.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private design file"
+  },
+  {
+    "from": "docs/design/2026-10-09-org-logo-feature.md",
+    "to": "docs/private/design/2026-10-09-org-logo-feature.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private design file"
+  },
+  {
+    "from": "docs/design/2026-10-01-scoring-and-result-release-plan.md",
+    "to": "docs/private/design/2026-10-01-scoring-and-result-release-plan.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private design file"
+  },
+  {
+    "from": "docs/design/2026-10-01-scoring-release-implementation-spec.md",
+    "to": "docs/private/design/2026-10-01-scoring-release-implementation-spec.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private design file"
+  },
+  {
+    "from": "docs/design/ai_interview_question_generator_architecture.md",
+    "to": "docs/private/design/ai_interview_question_generator_architecture.md",
+    "date": "2026-10-21",
+    "reason": "Z-105 private design file"
+  },
+  {
+    "from": "docs/design/research-2026-10-01/",
+    "to": "docs/private/design/research-2026-10-01/",
+    "date": "2026-10-21",
+    "reason": "Z-105 private research set"
+  },
+  {
+    "from": "docs/owner-review/",
+    "to": "docs/private/owner-review-docx/",
+    "date": "2026-10-21",
+    "reason": "Z-105 owner decision documents (untracked), kept private"
+  },
+  {
+    "from": "docs/testing/Screenshot/",
+    "to": "docs/private/testing-Screenshot/",
+    "date": "2026-10-21",
+    "reason": "Z-105 phone screenshots from chat (untracked), kept private"
+  }
+]

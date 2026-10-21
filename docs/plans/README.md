@@ -58,5 +58,5 @@ Rules: a new plan goes in `docs/plans/`. When its status line turns DONE or LIVE
 | [SMALL_TASKS_N13_N18_RV16](archive/SMALL_TASKS_N13_N18_RV16.md) | LIVE or merged on `main`. Code HEAD: `38c76e3`. Range `62e01d8..38c76e3`, date 2026-10-03. |  |
 | [UI_KIT_V1_1_PORT](archive/UI_KIT_V1_1_PORT.md) | no status line: verify before use |  |
 | [assessiq-skill-plan](archive/assessiq-skill-plan.md) | ✅ complete (see §10). |  |
-| [global-competitiveness-roadmap](archive/global-competitiveness-roadmap.md) | SUPERSEDED 2026-10-01 by docs/design/2026-10-01-product-review-competitive-strategy.md |  |
+| [global-competitiveness-roadmap](archive/global-competitiveness-roadmap.md) | SUPERSEDED 2026-10-01 by docs/private/design/2026-10-01-product-review-competitive-strategy.md |  |
 | [grading-completion-fix-plan](archive/grading-completion-fix-plan.md) | DONE. Fixed in commit `defb9f9` (2026-05-28), live on prod. | RCA, module 07 grading completion |

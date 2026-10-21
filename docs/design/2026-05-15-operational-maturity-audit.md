@@ -1,6 +1,6 @@
 # Operational Maturity Audit — 2026-05-15
 
-**Scope:** Single-VPS Docker Compose deployment of AssessIQ on `srv1150121.hstgr.cloud`
+**Scope:** Single-VPS Docker Compose deployment of AssessIQ on `<VPS_HOST>`
 (shared host with ti-platform, accessbridge, roadmap). Phase 1 — sync-on-click AI grading,
 no API budget, first paying customer window.
 
@@ -229,7 +229,7 @@ trigger a manual backup to prove the end-to-end pipeline.
   to remote:assessiq-backups-prod/YYYY-MM-DD/...`
 - The rclone remote name `assessiq-backups-prod` appears only as a string in the doc; the rclone
   config on the VPS (`~/.config/rclone/rclone.conf`) is not committed to the repo.
-- SSH alias: `assessiq-vps` → `srv1150121.hstgr.cloud`. Shared host — obey CLAUDE.md rule #8
+- SSH alias: `assessiq-vps` → `<VPS_HOST>`. Shared host — obey CLAUDE.md rule #8
   (additive only, enumerate before touching anything, never touch non-`assessiq-*` services).
 
 **Steps:**

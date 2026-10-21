@@ -2,9 +2,9 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-21T07:10:01.033Z (2026-10-21 12:40:01 IST)
-- HEAD: `762a4117`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 3
+- Generated: 2026-10-21T07:42:33.540Z (2026-10-21 13:12:33 IST)
+- HEAD: `d9290ec1`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 24
 
 ## 1. Last session (SESSION_STATE, first block)
 

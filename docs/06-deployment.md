@@ -10,7 +10,7 @@ This page gives the procedures to deploy, roll back and operate AssessIQ on the 
 
 Complete these items before you run any procedure.
 
-- You have SSH access through the alias `assessiq-vps` (host `srv1150121.hstgr.cloud`).
+- You have SSH access through the alias `assessiq-vps` (host `<VPS_HOST>`).
 - `/srv/assessiq` is a git clone. Run `test -d /srv/assessiq/.git || echo "WARNING: not a git clone"` to check.
 - Every change is additive. You touch only AssessIQ paths and containers: `/srv/assessiq/`, `/var/log/assessiq/`, `/var/backups/assessiq/`, containers with the prefix `assessiq-`, and one server block in the ti-platform Caddyfile.
 - Before you touch `apt`, `docker`, `systemctl`, Caddy or a shared config, list what runs first: `docker ps`, `systemctl list-units --state=running --no-pager`, the Caddy config and `crontab -l`.
@@ -22,7 +22,7 @@ This block explains what runs on the host and where the files live. It has no st
 
 ### Target topology — actual
 
-The shared Hostinger VPS (`srv1150121.hstgr.cloud`, alias `assessiq-vps`) already runs three apps. AssessIQ is additive. Caddy (owned by ti-platform) is the only service bound to host ports 80/443. Everything else sends traffic upstream through it. Cloudflare orange-cloud proxies the public domain.
+The shared Hostinger VPS (`<VPS_HOST>`, alias `assessiq-vps`) already runs three apps. AssessIQ is additive. Caddy (owned by ti-platform) is the only service bound to host ports 80/443. Everything else sends traffic upstream through it. Cloudflare orange-cloud proxies the public domain.
 
 ```text
                     Internet
@@ -1532,7 +1532,7 @@ docker exec ti-platform-caddy-1 caddy reload   --config /etc/caddy/Caddyfile --a
 
 # 4-probe acceptance gate
 CF=$(curl -s -m 8 -o /dev/null -w "%{http_code}" https://assessiq.automateedge.cloud/api/health)        # need 200
-SP=$(curl -s -m 10 -k --resolve assessiq.automateedge.cloud:443:72.61.227.64 \
+SP=$(curl -s -m 10 -k --resolve assessiq.automateedge.cloud:443:<ORIGIN_IP> \
        -H "CF-Connecting-IP: 203.0.113.99" -o /dev/null -w "%{http_code}" \
        https://assessiq.automateedge.cloud/api/health)                                                   # need NOT 200
 N1=$(curl -s -m 8 -o /dev/null -w "%{http_code}" https://accessbridge.space)                            # need 200
@@ -1567,7 +1567,7 @@ fi
 
 **Prerequisites (dashboards; only the operator can do them; do them BEFORE the env flip):**
 
-1. **Cloudflare (assessiq.in zone; it already exists):** proxied A record `assessiq.in` → `72.61.227.64` (and `www` if used); SSL/TLS mode **Full (Strict)**.
+1. **Cloudflare (assessiq.in zone; it already exists):** proxied A record `assessiq.in` → `<ORIGIN_IP>` (and `www` if used); SSL/TLS mode **Full (Strict)**.
 2. **Cloudflare AOP (REQUIRED):** Zone → SSL/TLS → Origin Server → **Authenticated Origin Pulls** → switch the **Global** toggle ON ("Cloudflare will use a **shared** TLS client certificate"). ⚠️ Use **Global**, NOT **Zone-level**. Global presents the shared Origin-Pull cert of CF (`CN=origin-pull.cloudflare.net`), which is exactly what the box trusts through `cf-origin-pull-ca.pem`. The box reuses it as is, with no new CA. **Zone-level is the _custom-certificate_ path.** Leave it OFF and do NOT upload a cert there. If someone uploaded a custom cert, CF would present a cert that the origin does not trust, and every handshake would be rejected (the site would be down). Without Global AOP on, the Caddy `client_auth { mode require_and_verify }` rejects every assessiq.in handshake.
 3. **Cloudflare Transform Rule (REQUIRED; it must be a _Request Header_ rule):**
    - Go to the assessiq.in zone → **Rules → Transform Rules → Modify _Request_ Header** → match "All incoming requests" → `Set static x-origin-verify = <ORIGIN_VERIFY_SECRET>` → Deploy.
@@ -1737,7 +1737,7 @@ assessiq.automateedge.cloud {
 3. Back up the Caddyfile: `cp /opt/ti-platform/caddy/Caddyfile /opt/ti-platform/caddy/Caddyfile.bak.$(date -u +%Y%m%d-%H%M%S)`.
 4. Append the block above. Validate it: `docker exec ti-platform-caddy-1 caddy validate --config /etc/caddy/Caddyfile`.
 5. Reload (graceful, no drop): `docker exec ti-platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile`.
-6. In Cloudflare DNS, add an A record (proxied) `assessiq` → VPS IPv4 (`72.61.227.64`). Set the SSL/TLS mode for the zone to **Full (Strict)**.
+6. In Cloudflare DNS, add an A record (proxied) `assessiq` → VPS IPv4 (`<ORIGIN_IP>`). Set the SSL/TLS mode for the zone to **Full (Strict)**.
 7. Smoke test: `curl -I https://assessiq.automateedge.cloud/` → expect 200/301 from Caddy with `server: Caddy` and CF headers.
 
 If validation fails, do **not** reload. Caddy keeps the old config running. Investigate, fix and validate again.
@@ -1748,7 +1748,7 @@ If validation fails, do **not** reload. Caddy keeps the old config running. Inve
 
 | Record | Type | Name | Value | Proxy | TTL |
 | --- | --- | --- | --- | --- | --- |
-| public | A | `assessiq` | `72.61.227.64` (VPS IPv4) | **Proxied (orange)** | Auto |
+| public | A | `assessiq` | `<ORIGIN_IP>` (VPS IPv4) | **Proxied (orange)** | Auto |
 
 **Cloudflare zone settings** for `automateedge.cloud`:
 
@@ -2522,7 +2522,7 @@ Work in this deploy: `f9473d5` (RV27), `67919ce` (page dates), `e11cb5b` (PT1-6 
 **Verification:** with a browser user agent, `/`, `/pricing`, `/about` and `/privacy` contain `beacon.min.js`; `/admin/login`, `/admin/select-identity`, `/candidate/login`, `/take`, `/embed` do not. Live `/privacy` shows the Cloudflare text and no Clarity text. IndexNow HTTP 200 for 42 URLs. Marketing container healthy.
 **Sharp edges:** the rule lives in Cloudflare, not in the repo: add this check to every post-deploy sweep (fetch `/admin/login` as a browser and grep `beacon.min.js`). An immediate re-fetch right after a container restart once showed no beacon on marketing pages for a few seconds; a repeat fetch shows it. The API token is locked to the VPS IPv4 address: call Cloudflare only from the VPS with `curl -4`.
 **Rollback:** `DELETE /zones/d870db2cc7a45907c2d7b00561496f57/rulesets/f1fab0134a5b418db09f1a8fc2b861d7/rules/78e9610112b14b06b4c4ac8963d6faa0` (from the VPS), or delete the rule in the dashboard under Rules, Configuration Rules.
-**Token narrowed afterwards (owner request):** the Cloudflare account token used for this change (kept in the repo `.env`, gitignored) now has only Config Settings Read and Write on the zone `assessiq.in`, usable only from the VPS IP `72.61.227.64`, expiring 2027-10-17. Tested: config rules readable; DNS, SSL, R2, Workers, API tokens and Web Analytics denied. Because it cannot read Web Analytics or edit itself, a future change that needs more access starts in the Cloudflare dashboard. The R2 keys in `.env` are unchanged.
+**Token narrowed afterwards (owner request):** the Cloudflare account token used for this change (kept in the repo `.env`, gitignored) now has only Config Settings Read and Write on the zone `assessiq.in`, usable only from the VPS IP `<ORIGIN_IP>`, expiring 2027-10-17. Tested: config rules readable; DNS, SSL, R2, Workers, API tokens and Web Analytics denied. Because it cannot read Web Analytics or edit itself, a future change that needs more access starts in the Cloudflare dashboard. The R2 keys in `.env` are unchanged.
 
 ### Z-40 step 1 deploy (2026-10-17, HEAD `9b5b23b`): Microsoft Clarity removed, marketing only
 

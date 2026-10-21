@@ -1,6 +1,6 @@
 # Exam packs: question sources, normalised store, filters and platform changes (v2)
 
-**Status:** PLAN ONLY, 2026-10-17, revision 3 (owner decisions D1 to D7 recorded in § 0). No code, no migration. Feeds ROADMAP rows EXP-0..EXP-15 (§ P0-Z.3 and Z.4). Supersedes the sourcing and platform-gap parts of `docs/design/2026-10-09-exam-packs-roadmap.md`; that file stays for the exam list, the waves and owner decisions OD-X0..OD-X9.
+**Status:** PLAN ONLY, 2026-10-17, revision 3 (owner decisions D1 to D7 recorded in § 0). No code, no migration. Feeds ROADMAP rows EXP-0..EXP-15 (§ P0-Z.3 and Z.4). Supersedes the sourcing and platform-gap parts of `docs/private/design/2026-10-09-exam-packs-roadmap.md`; that file stays for the exam list, the waves and owner decisions OD-X0..OD-X9.
 **Owner request (2026-10-17):** plan how questions for competitive exams enter the system (online scraping or super-admin upload), how they are normalised into the database by difficulty, topic, year and other categories, and what the architecture needs in order to carry them. Then re-review for a better approach and validate the findings.
 **Method:** v1 used three read-only sweeps (architecture audit, exam-structure research, legal and tagging research). v2 re-checked the load-bearing claims in code and replaced three designs with simpler ones that reuse what exists (§ 2).
 

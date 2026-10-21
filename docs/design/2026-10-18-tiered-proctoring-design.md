@@ -1,7 +1,7 @@
 # Tiered webcam and ID checks (proctoring): design (Q9, Z-74)
 
 **Date:** 2026-10-19 (revision 2, S31). **Status:** design only. No code. The owner approved the tiered plan on 2026-10-18 (Q9: "build it for all free and paid customers"). The build needs the owner's approval of this revision, a lawyer check of the notice text, the retention numbers and the age rule, and one adversarial gate on the diff.
-**Source:** owner review sheet Q9; ROADMAP X5, OD5, FR11, Z-74; `docs/design/2026-10-01-product-review-competitive-strategy.md` § 10 and § 11; S30 design review (9 findings, all answered here).
+**Source:** owner review sheet Q9; ROADMAP X5, OD5, FR11, Z-74; `docs/private/design/2026-10-01-product-review-competitive-strategy.md` § 10 and § 11; S30 design review (9 findings, all answered here).
 **Old task or feature checked:** integrity v1 (fullscreen gate, copy block, tab-switch and focus-loss events in `06-attempt-engine`, the behaviour archetype in `09-scoring`), the earlier rule "live proctoring is out of scope", Z-72 (DPA), Z-70 (Free plan), `20-data-rights` (erasure, retention), `modules/00-core/src/aes-gcm.ts` (existing encryption helper), the worker scheduled jobs.
 
 > [!IMPORTANT]

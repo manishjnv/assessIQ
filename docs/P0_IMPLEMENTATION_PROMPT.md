@@ -206,7 +206,7 @@ You are implementing the **P0 tasks** for AssessIQ (repo `E:\code\AssessIQ`, pro
 
 - **Guide me through it:**
   - super-admin → **Create company** (<university name>), which needs fresh MFA;
-  - invite **Rajneesh (rajneesh.scorpio@gmail.com)** as company admin;
+  - invite **Rajneesh (email in the owner private notes)** as company admin;
   - license the Aptitude pack to that tenant (entitlement plus clone-on-grant) so it shows under "Licensed sets";
   - confirm the invite email arrives.
 - **Draft a short welcome email** for me to send him, as a greeting plus bullets: how to log in, create an assessment from the licensed pack, import students by CSV, and view or export results.
