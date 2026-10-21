@@ -182,4 +182,11 @@ describe('certificate PDF template logo', () => {
       renderCertificateHtml(buildCert(), QR, URL_, 'Acme College', 'data:image/svg+xml;base64,AAAA'),
     ).not.toContain('<img class="tenant-logo"');
   });
+
+  it('has no signature rule, but still shows the issuer name under the footer', () => {
+    const html = renderCertificateHtml(buildCert(), QR, URL_, 'Acme College');
+    expect(html).not.toContain('sign-line');
+    expect(html).toContain('<div class="sign-label">Acme College</div>');
+    expect(html).toContain('Issued via AssessIQ');
+  });
 });

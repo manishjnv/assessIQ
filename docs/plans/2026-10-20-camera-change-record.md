@@ -140,6 +140,23 @@ Shared Caddyfile, `assessiq.in` block only. Final lines:
 - Caddy: restore the saved copy of the Caddyfile, validate, reload.
 - Files: the daily job and erasure delete them; or remove the camera folder after the tables are empty.
 
+## 10a. Capacity (read-only facts, 2026-10-21)
+
+Read after the switch `CAMERA_ENFORCED=true` went live and both api and worker were recreated. Numbers are for the single host that runs AssessIQ.
+
+| Item | Value |
+| --- | --- |
+| Root disk | 96 GB total, 51 GB used (53%), 46 GB free |
+| Camera data folder | 0 bytes, 0 files |
+| Real photo size | not measured: no camera photo exists yet. Hard upload limit is 400 KB; the capture is a 640 by 480 JPEG, so a typical photo should be far smaller. Measure after the owner's first live test |
+| AssessIQ app folder | 127 MB |
+| AssessIQ log folder | 863 MB |
+| Other assessiq data folder | 28 KB (backups of edited server files) |
+| Container images, build cache | images 10.8 GB (7.1 GB reclaimable), build cache 25.3 GB (17.2 GB reclaimable). Shared host: do not prune blindly |
+| Camera storage cap | `CAMERA_STORAGE_MAX_BYTES`, default 5 GB; warning at 80%; uploads refused above the cap or when free disk is under 256 MB |
+
+Reading for the load test: free disk (46 GB) is about 9 times the 5 GB camera cap, so the disk is not the limit now. At 400 KB the cap holds about 12,800 photos; at 100 KB about 51,000. Measure one real photo, then compute photos per hour from the 60 second interval and the number of candidates.
+
 ## 11. Review gate
 
 One Sonnet-takeover gate on Batch A (upload, file access, consent, delete job, tenant isolation, erasure). Verdict revise.

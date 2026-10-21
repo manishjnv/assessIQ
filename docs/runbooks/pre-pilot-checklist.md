@@ -55,10 +55,11 @@ This how-to checks whether AssessIQ is ready for the pilot. Use it before you in
 4. Run the RV66 check on the `consent_events` table.
 5. Accept the risk of a weekly provider snapshot only, or add a daily off-site backup.
 6. Confirm `MFA_REQUIRED` is `false` on the VPS. Do not print the value in a shared place.
-7. At webcam build time, change the `Permissions-Policy` `camera=()` setting.
+7. Done 2026-10-21: the `Permissions-Policy` is `camera=(self)` on `/take` pages only (shared edge file edited with the owner's go). All other pages keep `camera=()`.
 8. Check the DMARC TXT record in Cloudflare DNS. Set up Google Postmaster Tools.
 9. Send the liability and DPA proposal to the lawyer. Ask for approval of the privacy and terms text.
 10. After 03:45 UTC on 2026-10-20, read one `user_purge.tick` line in the worker log. Then accept or stop the purge.
+11. Every pilot organisation admin ticks the camera notice box (Settings, Data privacy, Camera card) before the first real exam. Without it, candidates are blocked.
 
 ## Technical gates
 

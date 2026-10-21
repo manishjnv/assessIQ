@@ -59,9 +59,10 @@ describe("AttemptTimer", () => {
 });
 
 describe("AutosaveIndicator", () => {
-  it("renders 'Not saved yet' for status='idle'", () => {
+  it("renders 'No answers yet' for status='idle'", () => {
     render(<AutosaveIndicator status="idle" />);
-    expect(screen.getByText("Not saved yet")).toBeDefined();
+    expect(screen.getByText("No answers yet")).toBeDefined();
+    expect(screen.queryByText("Not saved yet")).toBeNull();
   });
 
   it("renders Saving… for status='saving' and applies the pulse class", () => {
