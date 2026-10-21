@@ -24,7 +24,7 @@
 - Haiku · C1 staff screens · reworked: Y (3 help ids renamed, is_school added to the tenant list, nav probe replaced after CI) · tokens: 206k
 - Haiku · D1 local smoke spec · reworked: N · tokens: 146k
 - Haiku · D2 runbook · reworked: N · tokens: 111k
-- Haiku · docs as-built update · reworked: N · tokens: see final report
+- Haiku · docs as-built update · reworked: N · tokens: 128k
 - codex:rescue: n/a — Codex down; Sonnet takeover gate on batch A, verdict REVISE, fixed or accepted as listed
 - Gemini (agy): n/a — no bulk digest needed; reads were targeted
 

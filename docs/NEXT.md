@@ -2,23 +2,24 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-20T20:44:28.955Z (2026-10-21 02:14:28 IST)
-- HEAD: `b1426b66`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 7
+- Generated: 2026-10-21T02:18:20.098Z (2026-10-21 07:48:20 IST)
+- HEAD: `dd287b3c`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 1
 
 ## 1. Last session (SESSION_STATE, first block)
 
-## Session — 2026-10-20 — S38: Session 4 pre-pilot readiness (exact meter, expiry warning, result sign-in link, ETA notice, sample quiz, load-test script)
+## Session — 2026-10-20/21 — S39: Wave 2 camera for real exams (Z-74, Z-82)
 
-**Headline:** Z-93 and Z-96 closed (exact meter + expiry-warning email), Z-15 (a) shipped (7-day one-time sign-in link in the result email), SP11 live, Z-84 report done, load-test script and checklist written (not run).
-**Commits:** `5afedc62` — feat: exact credit meter, expiry-warning email, result sign-in link, ETA notice, sample-quiz tool, load-test script · `57801b92` — docs close-out · `23267f7a` — SP11 wording for both release modes, help v2 rows, `retireResultLoginLinks` · `d6c998b5` — docs: withdraw rule on Z-15, GATE-8 check on Z-86
-**Tests:** pass (billing 12+7, auth 334+, notifications 308, help 116 + guards, admin-dashboard 262, `pnpm verify`); CI green on every commit; deployed twice, sweep 0 failures; migration 0228 applied (next 0229). Last deployed sha `23267f7a` (`d6c998b5` is docs only).
-**Recount:** pending 81, closed 204, total 285, 72% (was 84/201/285, 71%).
-**Owner answers applied (S38 part 2):** SP11 text changed (true for both modes) and help v2 live; withdraw rule = helper only, no withdraw action built, GATE-8 checks it; sample quiz: none of the 4 sources loaded; load test waits until after Wave 2.
-**Next:** Wave 2 (camera: Z-74, Z-82; needs your Caddy `camera=(self)` go and the lawyer question), or more Wave 1/4 rows. Before the load test: test-only token export, no real invite emails, source-IP plan, image-tag rollback step in deploy.
-**Open questions:** none blocking. Owner tasks: signed-in check of /admin and a take page, CSP console check (unlocks Z-77), speed check, AI evaluation bless and dry runs, legal defaults and lawyer question, rate card, host/IP in public CLAUDE.md, rescoring Q1-Q4, warranty wording, GIFT format.
-**Old task or feature checked:** Z-93, Z-96, Z-15, SP11, Z-84 (Rule B); the 2026-05-13 candidate magic-link decision is honoured (POST verify via SPA).
-**Change record:** `docs/plans/2026-10-20-session4-change-record.md`
+**Headline:** The camera feature is built and live behind the `CAMERA_ENFORCED` switch (still OFF): consent, photos, flagged short video, authenticated file view, reviewer page, school mode, daily delete job, erasure. Caddy `camera=(self)` is applied on take pages only. Z-74 and Z-82 closed in place.
+**Commits:** `737ccb13` — camera server side (Batch A, trailer `Adversarial-Review: sonnet-takeover revise-addressed`) · `6dbabbd4` — candidate and staff screens, help 0231 · `b1426b66` — nav probe fix (always-200 access route) · close-out docs commit follows (smoke spec, runbook, edge reference copies, docs).
+**Tests:** pass. Module 06 full file set (418+), camera routes 19, admin-dashboard 275, take pages 81, help 116, smoke spec 3 of 3 (local). `pnpm verify` green before every push. CI green on `b1426b66` (the first CI run of `6dbabbd4` failed on the nav probe; fixed). Deployed twice, sweep 0 failures. Migrations 0229, 0230, 0231 applied; next free 0232. Last deployed sha `b1426b66`.
+**Recount:** pending 79, closed 206, total 285, 72% (was 81/204/285, 72%).
+**Edge:** the shared Caddyfile was edited once with the owner's go. A copy of the old file is kept in the assessiq backups folder on the server. The camera header must be a site-level deferred header; a plain one loses to the shared snippet (RCA 2026-10-21). Repo reference copies match the live file.
+**Next:** the owner creates the school test organisation (Platform page, **School** switch), walks through `docs/runbooks/camera-school-test.md`, then decides on `CAMERA_ENFORCED=true`. After that Wave 3 (exam content) or Wave 5 (GATE-8, load test).
+**Open questions:** the real-exam invitation email has no camera line yet (design step 1, not built). Turn `CAMERA_ENFORCED` on? Add a retake consent test? Per-tenant storage quota, orphan-file sweep and a consent rate limit are accepted gaps (change record section 5). Owner tasks: Caddy header check done by Claude; still yours: school test walk-through, signed-in check of /admin and one take page, CSP console check, speed check, AI evaluation bless and dry runs, rate card, host and IP in the public CLAUDE.md.
+**Old task or feature checked:** Z-87 and Z-91 (the camera reuses the desktop rule and the readiness page), Z-39 (retake), Z-77 (CSP, `media-src` added) (Rule B).
+**Change record:** `docs/plans/2026-10-20-camera-change-record.md`
+**Optimization register rows touched:** TOK-6, GATE-4.
 
 
 ## 2. ROADMAP status board
@@ -91,8 +92,8 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 ## 5. Next free migration
 
-- Next free: `0232` (highest `modules/*/migrations` prefix + 1)
-- SESSION_STATE block names no next number; computed from files.
+- Next free: `0233` (highest `modules/*/migrations` prefix + 1)
+- SESSION_STATE names next free 0232; check before use.
 
 ## 6. Reading list reminder
 
