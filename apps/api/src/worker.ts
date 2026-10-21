@@ -50,7 +50,7 @@ import {
   processRefreshMvJob,
   ANALYTICS_REFRESH_MV_JOB_NAME,
 } from "@assessiq/analytics";
-import { runRetentionPurgeAllTenants } from "@assessiq/data-rights";
+import { runRetentionPurgeAllTenants, runAttemptRetentionAllTenants } from "@assessiq/data-rights";
 import { refillFreeMonthlyCredits, expireCredits, sendCreditLowBalanceNotices, sendCreditExpiryNotices } from "@assessiq/billing";
 import {
   AUTO_RELEASE_JOB_NAME,
@@ -98,6 +98,9 @@ const TENANT_PURGE_CRON = "30 3 * * *";
 // Dry run unless USER_PURGE_ENABLED=true (read from process.env here; worker-only flag, not in 00-core config).
 const USER_PURGE_JOB_NAME = "user-purge-cron";
 const USER_PURGE_CRON = "45 3 * * *";
+// FUT-11: nightly delete of attempt_events past each tenant's attempt_retention_days (NULL = keep forever, so opt-in). 04:00 UTC, non-AI.
+const ATTEMPT_RETENTION_JOB_NAME = "attempt-retention-cron";
+const ATTEMPT_RETENTION_CRON = "0 4 * * *";
 
 // RW-94: every 15 min, flip generation_attempts stuck 'running' (pure SQL, no AI call).
 const GEN_STALE_JOB_NAME = "generation-stale-sweep";
@@ -157,6 +160,8 @@ export const JOB_RETRY_POLICY: Record<
   [CAMERA_RETENTION_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
   // tenant-purge-cron: 1 attempt. Per-tenant errors are isolated inside the sweep; the job reruns tomorrow.
   [TENANT_PURGE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
+  // attempt-retention-cron: 1 attempt. Per-tenant errors are isolated; the job reruns tomorrow.
+  [ATTEMPT_RETENTION_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
   // user-purge-cron: 1 attempt. Per-tenant errors are isolated inside the sweep; the job reruns tomorrow.
   [USER_PURGE_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 60_000 } },
   // result.auto_release — attempts 1: the sweep re-runs every 15 s anyway, and a
@@ -359,6 +364,14 @@ async function processCameraRetentionTick(): Promise<{ tenants: number; deleted:
   return { tenants: results.length, deleted, held, failed };
 }
 
+async function processAttemptRetentionTick(): Promise<{ tenants: number; events: number; failed: number }> {
+  const reports = await runAttemptRetentionAllTenants();
+  const events = reports.reduce((n, r) => n + r.events, 0);
+  const failed = reports.filter((r) => r.error !== undefined).length;
+  if (events > 0 || failed > 0) log.info({ tenants: reports.length, events, failed }, "attempt-retention-cron tick");
+  return { tenants: reports.length, events, failed };
+}
+
 async function processTenantPurgeTick(): Promise<{ dryRun: boolean; candidates: number; purged: number; failed: number }> {
   const report = await purgeArchivedTenants({
     now: new Date(),
@@ -516,6 +529,19 @@ async function start(): Promise<void> {
     },
   );
 
+  const attemptRetentionPolicy = JOB_RETRY_POLICY[ATTEMPT_RETENTION_JOB_NAME]!;
+  await queue.add(
+    ATTEMPT_RETENTION_JOB_NAME,
+    {},
+    {
+      repeat: { pattern: ATTEMPT_RETENTION_CRON },
+      attempts: attemptRetentionPolicy.attempts,
+      backoff: attemptRetentionPolicy.backoff,
+      removeOnComplete: 10,
+      removeOnFail: 20,
+    },
+  );
+
   const cameraPolicy = JOB_RETRY_POLICY[CAMERA_RETENTION_JOB_NAME]!;
   await queue.add(
     CAMERA_RETENTION_JOB_NAME,
@@ -668,6 +694,8 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, processRetentionTick);
         case CAMERA_RETENTION_JOB_NAME:
           return runJobWithLogging(job, processCameraRetentionTick);
+        case ATTEMPT_RETENTION_JOB_NAME:
+          return runJobWithLogging(job, processAttemptRetentionTick);
         case TENANT_PURGE_JOB_NAME:
           return runJobWithLogging(job, processTenantPurgeTick);
         case USER_PURGE_JOB_NAME:

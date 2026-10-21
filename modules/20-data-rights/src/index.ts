@@ -12,4 +12,5 @@ export * from './types.js';
 export * from './erasure.js';
 export * from './export.js';
 export * from './retention.js';
+export * from './attempt-retention.js';
 export * from './erased-list.js';
