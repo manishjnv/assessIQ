@@ -125,6 +125,8 @@ Set `LOG_DIR=/var/log/assessiq` in `/srv/assessiq/.env`, so `00-core` activates 
 
 Four automated CI checks run in `.github/workflows/ci.yml` through `pnpm lint:deploy-procedure`. They run in the `docs-check` job. That job runs on every commit, including docs-only commits. Each check is independent. A violation in any one check exits 1 and blocks the PR. Exit 0 means all four checks are clean. Exit 2 means the lint itself hit an internal error (missing file, parse failure).
 
+The same `docs-check` job also runs the docs guards (Z-106, 2026-10-21): `pnpm lint:docs-privacy` (server IP, host name, amounts with a currency and private paths in tracked files; fails the job), `pnpm lint:docs-links` (dead internal links, with the known old ones in `docs/link-baseline.txt`; fails on a new one) and the docs tests in `tools/__tests__`. `tools/lint-docs.mjs` reports missing `Status:` and `Rows:` lines and the size caps as warnings until 2026-10-29, then it fails. The commit hook `.claude/hooks/precommit-gate.sh` runs the privacy check in warn mode only. Docs changes need no deploy.
+
 `score-goldens` runs in CI as the AI generation eval gate. Failures block the merge. The evidence is in the CI step log under "AI generation eval gate".
 
 Run locally:

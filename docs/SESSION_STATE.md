@@ -1,3 +1,31 @@
+# Session — 2026-10-21 — S42: docs tidy (Z-105 to Z-109)
+
+**Headline:** Docs are tracked again and 15 private items live in docs/private/. Guards run in CI. Old text is archived by script with a move trail. SESSION_STATE.md went from 1006604 to about 19000 bytes, ROADMAP.md from 732996 to about 418000 bytes. Z-106 and Z-107 are closed; Z-105, Z-108 and Z-109 wait for the owner's CLAUDE.md text. Recount: pending 92, closed 215, total 307, 70%.
+**Commits:** `d9290ec1` move trail tools · `477aac15` private docs moved, leaks fixed · `0563d6f8` docs guards · `924cd996` ROADMAP citations pinned · `c2218fc2` archive run · `3f923876` archive link fix (CI was red on c2218fc2, green here) · `7b0963a4` plans/design tidy, folds, DECISIONS, close-session. CI green on 7b0963a4. Tag `docs-layout-before-tidy-2026-10-21`.
+**Tests:** pass (the 8 docs tests, 36 tests; `pnpm verify`; doc-anchors; skill-mount; privacy 0 findings; links 0 new against the baseline of 167 old dead links).
+**Start-up read (CLAUDE.md + PROJECT_BRAIN.md + 01-architecture + NEXT + MEMORY.md):** 84816 to about 66000 bytes. Tracked md files in docs/: 134 before, 142 after (nothing deleted, archive files added); md files on disk outside docs/private/: 191 (13 more in docs/private/).
+**Next:** owner approves the CLAUDE.md text (host name and IP line 84, `git add -f` line 172, Phase 6 line 171), decides where the module SKILL.md files live (recommend: keep, 164 files and 342 references, 3 lints read them) and Z-110. Then move PROJECT_BRAIN.md into docs/ with `node tools/docs-move.mjs` and regenerate with `node tools/close-session.mjs`.
+**Open questions:** the KNOWN list in tools/check-docs-privacy.mjs exempts old vendor and liability amounts in 8 public docs (owner decides on a clean-up); the Caddy snippet comments still show the origin IP; about 250 untracked files under docs/testing/ (track or ignore); lint-docs becomes strict on 2026-10-29 and ROADMAP.md is still over its 250000-byte cap.
+**Old task or feature checked:** Z-73 (docs tests), Z-75 (stop tracking public docs: still open, owner decides in Z-110), RW-85 (docs lint date).
+**New tools:** docs-move, docs-where, docs-rewrite-refs, docs-archive, docs-plans-index, close-session, check-docs-privacy, check-docs-links (all in tools/; moves in docs/moves.json).
+
+---
+
+## Agent utilization
+- Opus: n/a — the main session ran on Sonnet 5.5 (~180k tokens): plan, review of every script and the hook, fixes after rework, commits, ROADMAP rows.
+- Sonnet · move trail tools · reworked: Y (moved files' own links not re-pointed; fixed in main) · tokens: 91032
+- Sonnet · docs guards (privacy, links, lint rules, hook warn) · reworked: N (KNOWN list flagged to owner) · tokens: 134323
+- Sonnet · docs-archive script · reworked: Y (archive links and 3 third-party values failed CI; fixed in 3f923876) · tokens: 102466
+- Sonnet · fold camera, time limit, cert records · reworked: N · tokens: 111766
+- Sonnet · fold wave1, session4, wave4 records · reworked: N · tokens: 111821
+- Sonnet · deploy history to archive · reworked: N · tokens: 89436
+- Sonnet · plans index and close-session · reworked: Y (index listed an untracked file; fixed in main) · tokens: 94398
+- Haiku · Status and Rows on 40 plan and design files · reworked: N (7 guesses listed for review) · tokens: 147357
+- Haiku trial: 1 run, 0 rework. Gemini (agy): n/a — file lists were small. Codex (exec): n/a. codex:rescue: n/a — no security path touched (hook is warn-only; guard scripts only).
+- Total subagent tokens: 882599.
+
+---
+
 # Session — 2026-10-21 — S41: small rows (session 6)
 
 **Headline:** Z-48, Z-11, Z-51 (b) and Z-88 closed; Z-38 minor and patch updates applied; Z-54 waits until 2026-10-29; Z-15 has only an owner decision left. Recount: pending 94, closed 212, total 306, 69%.

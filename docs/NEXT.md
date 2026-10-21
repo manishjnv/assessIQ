@@ -2,24 +2,22 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-21T08:59:06.169Z (2026-10-21 14:29:06 IST)
-- HEAD: `3f923876`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 76
+- Generated: 2026-10-21T09:14:53.590Z (2026-10-21 14:44:53 IST)
+- HEAD: `7b0963a4`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 10
 
 ## 1. Last session (SESSION_STATE, first block)
 
-## Session — 2026-10-21 — S41: small rows (session 6)
+## Session — 2026-10-21 — S42: docs tidy (Z-105 to Z-109)
 
-**Headline:** Z-48, Z-11, Z-51 (b) and Z-88 closed; Z-38 minor and patch updates applied; Z-54 waits until 2026-10-29; Z-15 has only an owner decision left. Recount: pending 94, closed 212, total 306, 69%.
-**Commits:** `dd287b3c` — feat: blueprint fields, deps, phone smoke, docs lint fixes (on main, CI green at `3ccdf443`). Marketing container rebuilt by hand.
-**Tests:** pass (`pnpm verify`, module 05 232, guard tests 53, docs lint strict 0). Phone smoke not run locally.
-**S42 follow-up:** Z-88 phone smoke fixed and required (`590e4cd1`, `33afde5b`, `be5210dc`; CI run 39554101909: 5 passed). Cause: real link on a phone shows the laptop message; CI step lacked base URLs. `phone-first-question` still fails (advisory, same cause). Recount 94/212/306.
-**S43 follow-up:** RW-79 phone first-question timing now uses a mock link and is required in CI (`005794e0`, `762a4117`; median 3798 ms against a 20000 ms budget, run 39559548191). No deploy needed (test and CI only). Counts unchanged.
-**Next:** one green CI run of the phone smoke, then remove `continue-on-error`; module 06 must read the blueprint fields (gated; Z-42); Z-54 on or after 2026-10-29.
-**Open questions:** label "marks per section" vs per question; Z-15 (g) default feedback level; Z-38 majors after the pilot.
-**Old task or feature checked:** Z-42, Z-89, Z-87, Z-104 (Rule B).
-**Process note:** the trailer amend landed on another session's HEAD commit `3ccdf443` (docs only); see change record.
-**Change record:** `docs/archive/2026-10-21-session6-change-record.md`
+**Headline:** Docs are tracked again and 15 private items live in docs/private/. Guards run in CI. Old text is archived by script with a move trail. SESSION_STATE.md went from 1006604 to about 19000 bytes, ROADMAP.md from 732996 to about 418000 bytes. Z-106 and Z-107 are closed; Z-105, Z-108 and Z-109 wait for the owner's CLAUDE.md text. Recount: pending 92, closed 215, total 307, 70%.
+**Commits:** `d9290ec1` move trail tools · `477aac15` private docs moved, leaks fixed · `0563d6f8` docs guards · `924cd996` ROADMAP citations pinned · `c2218fc2` archive run · `3f923876` archive link fix (CI was red on c2218fc2, green here) · `7b0963a4` plans/design tidy, folds, DECISIONS, close-session. CI green on 7b0963a4. Tag `docs-layout-before-tidy-2026-10-21`.
+**Tests:** pass (the 8 docs tests, 36 tests; `pnpm verify`; doc-anchors; skill-mount; privacy 0 findings; links 0 new against the baseline of 167 old dead links).
+**Start-up read (CLAUDE.md + PROJECT_BRAIN.md + 01-architecture + NEXT + MEMORY.md):** 84816 to about 66000 bytes. Tracked md files in docs/: 134 before, 142 after (nothing deleted, archive files added); md files on disk outside docs/private/: 191 (13 more in docs/private/).
+**Next:** owner approves the CLAUDE.md text (host name and IP line 84, `git add -f` line 172, Phase 6 line 171), decides where the module SKILL.md files live (recommend: keep, 164 files and 342 references, 3 lints read them) and Z-110. Then move PROJECT_BRAIN.md into docs/ with `node tools/docs-move.mjs` and regenerate with `node tools/close-session.mjs`.
+**Open questions:** the KNOWN list in tools/check-docs-privacy.mjs exempts old vendor and liability amounts in 8 public docs (owner decides on a clean-up); the Caddy snippet comments still show the origin IP; about 250 untracked files under docs/testing/ (track or ignore); lint-docs becomes strict on 2026-10-29 and ROADMAP.md is still over its 250000-byte cap.
+**Old task or feature checked:** Z-73 (docs tests), Z-75 (stop tracking public docs: still open, owner decides in Z-110), RW-85 (docs lint date).
+**New tools:** docs-move, docs-where, docs-rewrite-refs, docs-archive, docs-plans-index, close-session, check-docs-privacy, check-docs-links (all in tools/; moves in docs/moves.json).
 
 
 ## 2. ROADMAP status board
@@ -29,7 +27,7 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 
 **Legend:** ✅ = done, 🚧 = in progress, 💬 = waiting for owner, 🔲 = blocked, — = not started
 
-## 3. Open Z and EXP rows (39 total)
+## 3. Open Z and EXP rows (37 total)
 
 - `EXP-3` (EXP-3 (lane B catalog)) — Previous-year catalog without question text. — pending (after pilot; Claude; M)
 - `EXP-5` (EXP-5 (search and facets)) — Facets and full-text search in the question bank. — PARTIAL (S34 added the `has_passage` filter; Z-43 draws by outcome node still open) (S20, 2026-10-17, `c34a597`; migrati
@@ -61,11 +59,9 @@ Merged 2026-10-15 from the former root file `PENDING_TASKS`. Tick here per sessi
 - `Z-97` (Z-97 (SIGNUP-OPEN)) — Open public sign-up when the owner says. — pending (owner says when; Claude; S)
 - `Z-101` (Z-101 (GMAIL-FOLD)) — Email address folding: apply the dot rule to Gmail only, and fix the tester case. — pending (owner confirms the exact change; Claude; S)
 - `Z-103` (Z-103 (TIME-SUGGEST)) — Suggest the test time from the question count and difficulty. — pending (owner gives minutes per question; Claude; S)
-- `Z-105` (Z-105 (DOCS-PRIVATE)) — Move the private docs into one ignored folder and fix the leaks in tracked files. — pending (Claude; S; Haiku 5.5; owner approves the CLAUDE.md text)
-- `Z-106` (Z-106 (DOCS-GUARD)) — Make the docs rules work when a session forgets them. — pending (Claude; M; Sonnet writes, Opus reviews the hook)
-- `Z-107` (Z-107 (DOCS-ARCHIVE)) — Archive the old session blocks and the superseded roadmap sections by script. — pending (Claude; M; Haiku 5.5 runs it, Sonnet writes the script; do when no other session edits ROADMAP)
-- `Z-108` (Z-108 (DOCS-TIDY)) — Tidy the plan and design docs, and fold the change records into the feature docs. — pending (Claude; M; Sonnet; Opus reviews the rule files)
-- `Z-109` (Z-109 (CLOSE-CMD)) — One command for the session close-out. — pending (Claude; S; Sonnet)
+- `Z-105` (Z-105 (DOCS-PRIVATE)) — Move the private docs into one ignored folder and fix the leaks in tracked files. — pending (partial, S42 2026-10-21: 15 items moved to docs/private/ and the tracked-file leaks fixed in 477aac15, CI green
+- `Z-108` (Z-108 (DOCS-TIDY)) — Tidy the plan and design docs, and fold the change records into the feature docs. — pending (partial, S42 2026-10-21, 7b0963a4, CI green: 7 change records folded into module SKILL.md files and archived wi
+- `Z-109` (Z-109 (CLOSE-CMD)) — One command for the session close-out. — pending (partial, S42 2026-10-21, 7b0963a4: tools/close-session.mjs and tools/docs-plans-index.mjs built and tested; lef
 - `Z-110` (Z-110 (Z75-DECIDE)) — Decide what happens to Z-75 and run the history purge before the pilot. — pending (owner decides; Claude executes)
 - `Z-111` (Z-111 (MOCK-FEEDBACK)) — Mock attempts always show the expected answer; real exams keep the tenant level. — pending (Claude; S; Sonnet; Opus reviews the helper)
 - `Z-5` (Z-5 (SP9, SP10, Z-3)) — Owner live tests still open: — pending (owner)
