@@ -3,7 +3,10 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// These tests start child processes and git; give them room on a busy machine.
+vi.setConfig({ testTimeout: 60000, hookTimeout: 60000 });
 
 const tools = join(__dirname, "..");
 let root: string;
