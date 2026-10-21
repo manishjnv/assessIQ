@@ -30,3 +30,13 @@ Commit, deploy, document, handoff. The handoff is the top block of `docs/SESSION
 4. Give related rows to one agent. Use fewer, larger briefs.
 5. Give an ETA that includes the gate, the merge and the CI run.
 6. Agents run `pnpm verify` before they report.
+
+## Docs: update the existing file, do not create a new one (owner, 2026-10-21)
+
+1. Before you write a doc, find the file that already covers the feature: the module `SKILL.md`, the numbered doc (`docs/02-data-model.md`, `03-api-contract.md`, `04-auth-flows.md`, `06-deployment.md`, `08-ui-system.md`), a runbook in `docs/runbooks/`, or the design doc for the feature. Update that file.
+2. The aim is fewer files, not zero new files. Create a new file when it is really needed (a new feature, a new runbook, a new decision that fits nowhere). Do not create a new file for work of the same kind as an earlier file: a second change to a feature, a second session on a topic, another deploy note. Add to the earlier file instead. Say why in the handoff when you create a file.
+3. One change record for each feature, not for each session. A later session that changes the same feature adds a dated section to the same record.
+4. A change record or design draft that the work supersedes gets a one-line status at the top: `Status: current`, `as-built` or `superseded by <file>`.
+5. All documentation lives in `docs/`. Only the minimum required files stay outside it (`CLAUDE.md`, `README.md`, GitHub convention files, tool-required files). Do not add a new md file outside `docs/` without a reason in the handoff.
+6. Do not create a one-time prompt, plan or note file. Prompts go in the chat. Notes go in the handoff block of `docs/SESSION_STATE.md`.
+7. At close-out, list the docs you updated and any new file you created, with the reason, in the handoff.
