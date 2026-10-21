@@ -433,3 +433,10 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 - **Why.** Audit rows must hold ids, not free text; a question page needs to show the reason; disputes (EXP-12) need history. **Rejected:** one `review_note` column (loses history).
 - **Not included.** A UI, edit or delete of a note, candidate-raised disputes, re-scoring (none, bands untouched), notes on clones of a platform master (a tenant cannot read platform notes).
 
+
+## Translations live inside `content` (FUT-3, 2026-10-21)
+
+- **Rule.** The Hindi overlay (EXP-9) is stored inside the versioned `content` of `question_versions`, not in `questions.content_i18n` (migration 0194, line 82).
+- **Why.** Candidates read the version. A version is frozen when an attempt starts, so a translation stored in the version cannot change under a running attempt. A column on `questions` is outside that freeze.
+- **Rejected.** Keeping the overlay in `questions.content_i18n`. A separate translation table is rejected for the same reason.
+- **Not included.** Any code now. Apply the rule when EXP-9 starts. Moving the existing `content_i18n` data is part of EXP-9. Design: `docs/design/2026-10-21-future-ready-question-store.md` D9.
