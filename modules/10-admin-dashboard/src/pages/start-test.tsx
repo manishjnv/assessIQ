@@ -118,6 +118,9 @@ export function AdminStartTest(): React.ReactElement {
   const parsed = useMemo(() => parsePasted(pasted), [pasted]);
   const total = picked.size + parsed.entries.length;
   const minutesOk = minutes.trim() === "" || (Number.isInteger(Number(minutes)) && Number(minutes) >= 1 && Number(minutes) <= 600);
+  // Z-103: suggestion only; the time limit field stays the override.
+  const avg = set?.avg_minutes_per_question ?? 0;
+  const suggestedMinutes = blueprint === null && avg > 0 && count >= 1 ? Math.ceil(count * avg) : 0;
   const canSend = set !== null && total > 0 && name.trim() !== "" && opensAt !== "" && minutesOk && !busy;
 
   function chooseSet(s: AvailableSet) {
@@ -282,6 +285,14 @@ export function AdminStartTest(): React.ReactElement {
                     <Input id="st-minutes" type="number" min={1} max={600} step={1} value={minutes}
                       placeholder={set.level_minutes?.[level - 1] !== undefined ? String(set.level_minutes[level - 1]) : ""}
                       onChange={(e) => setMinutes(e.target.value)} />
+                    {suggestedMinutes > 0 && (
+                      <HelpTip helpId="admin.start_test.suggested_time">
+                        <div style={{ ...sans, marginTop: 4, display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", flexWrap: "wrap" }}>
+                          <span data-testid="st-suggested">Suggested time: {suggestedMinutes} min</span>
+                          <Button variant="outline" onClick={() => setMinutes(String(Math.min(600, suggestedMinutes)))}>Use suggested time</Button>
+                        </div>
+                      </HelpTip>
+                    )}
                     <div style={{ color: "var(--aiq-color-fg-muted)", marginTop: 4 }}>
                       Leave this empty to use the time of the difficulty you chose. A running attempt keeps the time it started with.
                     </div>

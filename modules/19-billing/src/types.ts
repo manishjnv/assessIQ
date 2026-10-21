@@ -182,6 +182,8 @@ export interface AvailableSet {
   level_count: number;
   /** Level time in minutes, one per level in position order (the default when an assessment sets no time). */
   level_minutes: number[];
+  /** Z-103: average suggested minutes per active question (2 decimals; 0 when none). Suggestion only. */
+  avg_minutes_per_question: number;
   cloned: boolean;            // already materialised into this tenant?
   cloned_pack_id: string | null;
   update_available: boolean;  // cloned AND a newer source version exists

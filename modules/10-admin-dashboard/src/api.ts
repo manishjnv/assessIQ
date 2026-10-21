@@ -1144,6 +1144,8 @@ export interface AvailableSet {
   level_count: number;
   /** Level time in minutes per level (position order). */
   level_minutes?: number[];
+  /** Suggested minutes per question for this set (0 or missing = no suggestion). */
+  avg_minutes_per_question?: number;
   cloned: boolean;
   cloned_pack_id: string | null;
   update_available: boolean;

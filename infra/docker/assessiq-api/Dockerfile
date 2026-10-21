@@ -70,10 +70,14 @@ RUN corepack enable
 #   executablePath). Without this the PDF endpoint 500s ("executable doesn't
 #   exist at /usr/bin/chromium"). fonts-liberation gives metric-compatible
 #   Arial/Times so the template's Helvetica/Georgia fallbacks render cleanly.
+# fonts-noto-core (Z-118): Noto Sans Devanagari and other scripts, so an organisation
+#   name in Hindi renders in the certificate PDF (Chromium) and the OG PNG (resvg,
+#   loadSystemFonts) instead of empty boxes.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     chromium \
     fonts-liberation \
+    fonts-noto-core \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production \

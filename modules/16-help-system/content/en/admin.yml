@@ -4428,6 +4428,18 @@ admin.start_test.time_limit:
     - **Running attempts.** A candidate who has started keeps the time they started with.
     - **Full mock.** A full mock sets its own section times. This box does not apply to it.
 
+admin.start_test.suggested_time:
+  audience: admin
+  short_text: "A time estimate from the number and type of questions. It is a suggestion only."
+  long_md: |
+    ## Suggested time
+
+    The estimate uses the number of questions you chose and the type and difficulty of the questions in the set.
+
+    - **Use suggested time.** The button copies the estimate into the time limit box.
+    - **Your choice.** You can change the number in the box. The suggestion does not apply by itself.
+    - **Full mock.** A full mock keeps the time of its blueprint. No suggestion shows.
+
 admin.assessments.time_limit:
   audience: admin
   short_text: "Time limit in minutes, 1 to 600. Blank uses the time of the difficulty."
