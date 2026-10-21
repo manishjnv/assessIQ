@@ -151,6 +151,8 @@ export interface CandidateAttemptView {
   sections?: CandidateSectionsView;
   /** Z-42 whole-test mode only: section names indexed by each question's section_index. Key absent otherwise. */
   section_names?: string[];
+  /** FUT-4 / FUT-7 read-only: per section, whether it is locked and its seconds per question. Key absent unless a section sets one. */
+  section_timing?: Array<{ locked: boolean; seconds_per_question: number | null }>;
   /** Test sections: counts per section for the final-submit dialog. Counts only, no content/ids. */
   sections_summary?: Array<{
     index: number;

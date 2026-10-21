@@ -1020,6 +1020,12 @@ async function loadAttemptForCandidate(
       wholeSections !== null && readWholeTestMinutes(assessment?.settings) !== null
         ? wholeSections.map((s) => s.name)
         : undefined;
+    // FUT-4 / FUT-7 (read-only): the take page needs the flags. Absent for assessments without them.
+    const timedSections = readSections(assessment?.settings);
+    const sectionTiming =
+      timedSections !== null && timedSections.some((s) => s.locked === true || s.seconds_per_question !== undefined)
+        ? timedSections.map((s) => ({ locked: s.locked === true, seconds_per_question: s.seconds_per_question ?? null }))
+        : undefined;
 
     return {
       attempt: effectiveAttempt,
@@ -1037,6 +1043,7 @@ async function loadAttemptForCandidate(
       ...(sectionsView !== undefined ? { sections: sectionsView } : {}),
       ...(sectionsSummary !== undefined ? { sections_summary: sectionsSummary } : {}),
       ...(sectionNames !== undefined ? { section_names: sectionNames } : {}),
+      ...(sectionTiming !== undefined ? { section_timing: sectionTiming } : {}),
     };
   });
 }

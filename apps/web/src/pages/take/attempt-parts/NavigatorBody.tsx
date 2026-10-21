@@ -3,7 +3,7 @@ import { QuestionNavigator, CandidateHelp } from "@assessiq/candidate-ui";
 
 export interface NavigatorBodyProps {
   navigatorItems: React.ComponentProps<typeof QuestionNavigator>["items"];
-  setCurrentQuestionId: Dispatch<SetStateAction<string | null>>;
+  setCurrentQuestionId: (questionId: string) => void;
   setNavOpen: Dispatch<SetStateAction<boolean>>;
 }
 

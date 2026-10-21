@@ -22,7 +22,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Navigate } from "react-router-dom";
-import { Button, Drawer, Icon, Spinner } from "@assessiq/ui-system";
+import { Button, Drawer, Icon, Modal, Spinner } from "@assessiq/ui-system";
 import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
@@ -35,6 +35,7 @@ import { KeyNav, KeyShortcutsToggle, useKeyShortcuts } from "./attempt-parts/Key
 import { SubmitConfirmModal } from "./attempt-parts/SubmitConfirmModal.js";
 import { useCameraCapture } from "./useCameraCapture.js";
 import { CameraIndicator, CameraLostOverlay } from "./CameraIndicator.js";
+import { QuestionCountdown } from "./attempt-parts/QuestionCountdown.js";
 export { isAnsweredValue } from "./attempt-parts/shared.js";
 
 export function AttemptPage(): React.JSX.Element {
@@ -65,6 +66,14 @@ export function AttemptPage(): React.JSX.Element {
   const [finishing, setFinishing] = useState(false);
   const [finishError, setFinishError] = useState<string | null>(null);
   const sectionQidsRef = useRef<string[]>([]);
+  // FUT-4 / FUT-7: question deadlines from the position call; questions whose time is up;
+  // a leave of a locked section waiting for the candidate's answer (target question id).
+  const [questionEnds, setQuestionEnds] = useState<Map<string, string>>(new Map());
+  const [timeUpIds, setTimeUpIds] = useState<Set<string>>(new Set());
+  const [pendingLeave, setPendingLeave] = useState<string | null>(null);
+  const markTimeUp = useCallback((qid: string): void => {
+    setTimeUpIds((prev) => (prev.has(qid) ? prev : new Set(prev).add(qid)));
+  }, []);
 
   // ── FUT-4 / FUT-7: tell the server where the candidate is ─────────────────
   // Sends the question viewed (starts its own timer, when its section has one). In a
@@ -84,7 +93,13 @@ export function AttemptPage(): React.JSX.Element {
         question_id: currentQuestionId,
         ...(sendSection ? { section_index: q.section_index } : {}),
       }),
-    ).catch(() => undefined);
+    )
+      .then((res) => {
+        const ends = res?.question_ends_at;
+        if (ends === null || ends === undefined) return;
+        setQuestionEnds((prev) => new Map(prev).set(currentQuestionId, ends));
+      })
+      .catch(() => undefined);
   }, [attemptId, currentQuestionId, readyView]);
 
   // Stable ref so callbacks can read the latest currentQuestionId without
@@ -166,7 +181,7 @@ export function AttemptPage(): React.JSX.Element {
 
   // ── Hooks (always called — args safe when not yet ready) ──────────────────
 
-  const autosave = useAutosave({ attemptId, locked });
+  const autosave = useAutosave({ attemptId, locked, onQuestionTimeUp: markTimeUp });
 
   const integrityCfg = pageState.tag === 'ready' ? pageState.view.integrity : undefined;
   const integrity = useIntegrityHooks({
@@ -481,13 +496,26 @@ export function AttemptPage(): React.JSX.Element {
       : unansweredCount;
   const flaggedCount = sorted.filter((q) => flags.get(q.question_id) ?? false).length;
 
+  // FUT-4: leaving a section marked `locked` asks first. Every other move goes straight through.
+  const requestQuestion = (qid: string): void => {
+    const from = currentQuestion?.section_index;
+    const to = sorted.find((q) => q.question_id === qid)?.section_index;
+    const timing = view.section_timing;
+    const leavesLocked =
+      from !== null && from !== undefined && to !== from && timing?.[from]?.locked === true;
+    if (leavesLocked) {
+      setPendingLeave(qid);
+      return;
+    }
+    setCurrentQuestionId(qid);
+  };
   const goPrev = (): void => {
     const prev = sorted[safeIdx - 1];
-    if (prev !== undefined) setCurrentQuestionId(prev.question_id);
+    if (prev !== undefined) requestQuestion(prev.question_id);
   };
   const goNext = (): void => {
     const next = sorted[safeIdx + 1];
-    if (next !== undefined) setCurrentQuestionId(next.question_id);
+    if (next !== undefined) requestQuestion(next.question_id);
   };
 
   // ── Navigator body (shared between desktop aside and mobile <Drawer>) ─────
@@ -497,7 +525,7 @@ export function AttemptPage(): React.JSX.Element {
   const navigatorBody = (
     <NavigatorBody
       navigatorItems={navigatorItems}
-      setCurrentQuestionId={setCurrentQuestionId}
+      setCurrentQuestionId={requestQuestion}
       setNavOpen={setNavOpen}
     />
   );
@@ -678,11 +706,32 @@ export function AttemptPage(): React.JSX.Element {
 
               {/* Type-switched answer area. The key resets local draft state
                   (numeric text box) when the question changes. */}
+              {/* FUT-7: countdown while the question has its own time; a plain message once it is up. */}
+              {!timeUpIds.has(currentQuestion.question_id) && questionEnds.get(currentQuestion.question_id) !== undefined && (
+                <QuestionCountdown
+                  key={`${currentQuestion.question_id}:${questionEnds.get(currentQuestion.question_id)}`}
+                  endsAt={questionEnds.get(currentQuestion.question_id)!}
+                  onExpire={() => {
+                    autosave.stopQuestion(currentQuestion.question_id);
+                    markTimeUp(currentQuestion.question_id);
+                  }}
+                />
+              )}
+              {timeUpIds.has(currentQuestion.question_id) && (
+                <p
+                  role="status"
+                  data-help-id="candidate.attempt.question_time_up"
+                  style={{ margin: '0 0 var(--aiq-space-sm)', fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-sm)', fontWeight: 600, color: 'var(--aiq-color-fg-primary)' }}
+                >
+                  Time is up for this question.
+                </p>
+              )}
+
               <AnswerArea
                 key={currentQuestion.question_id}
                 question={currentQuestion}
                 answer={answers.get(currentQuestion.question_id) ?? null}
-                disabled={locked}
+                disabled={locked || timeUpIds.has(currentQuestion.question_id)}
                 onAnswerChange={handleAnswerChange}
                 onBlur={handleAnswerBlur}
               />
@@ -727,7 +776,35 @@ export function AttemptPage(): React.JSX.Element {
       {/* ── BOTTOM BAR ──────────────────────────────────────────────────── */}
       {/* Key hints are desktop-only (hidden under the mobile viewport). */}
       <style>{'[data-viewport="mobile"] .aiq-attempt-kbd{display:none}'}</style>
-      <KeyNav onPrev={goPrev} onNext={goNext} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen} />
+      <KeyNav onPrev={goPrev} onNext={goNext} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen || pendingLeave !== null} />
+
+      {/* FUT-4: confirm before leaving a locked section. Leave moves on; Stay keeps the candidate here. */}
+      <Modal
+        open={pendingLeave !== null}
+        onClose={() => setPendingLeave(null)}
+        title="Leave this section?"
+      >
+        <div data-help-id="candidate.attempt.section_leave" style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
+          <p style={{ margin: '0 0 8px', color: 'var(--aiq-color-fg-primary)' }}>
+            You cannot return to this section. Leave it now?
+          </p>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--aiq-space-sm)' }}>
+          <Button variant="outline" onClick={() => setPendingLeave(null)}>
+            Stay
+          </Button>
+          <Button
+            variant="primary"
+            onClick={() => {
+              const target = pendingLeave;
+              setPendingLeave(null);
+              if (target !== null) setCurrentQuestionId(target);
+            }}
+          >
+            Leave
+          </Button>
+        </div>
+      </Modal>
       <footer className="aiq-attempt-bottom" style={BOTTOM_BAR}>
         {/* Z-7: Submit / Finish section sits at the far LEFT, away from Prev and Next.
             Test sections: before the last section the primary action is "Finish section"

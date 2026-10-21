@@ -3367,6 +3367,34 @@ admin.assessment.sections.edit:
       assessment while you were editing.
     - If every section has a question count, the assessment total becomes their sum.
 
+admin.assessment.sections.lock:
+  audience: admin
+  short_text: "Stop candidates from going back to this section once they leave it."
+  long_md: |
+    ## Lock this section after leaving it
+
+    Turn this on so a candidate cannot return to this section after they leave it.
+
+    - **Only with a whole-test time.** The switch shows only when the assessment has a
+      total time for the whole test.
+    - **No changes after leaving.** The candidate cannot change answers in this section
+      after they leave it.
+    - **Keep it off for a live assessment** until the take page countdown is ready.
+
+admin.assessment.sections.seconds_per_question:
+  audience: admin
+  short_text: "Time for each question in this section, in seconds, 10 to 3600. Blank sets no time per question."
+  long_md: |
+    ## Seconds per question
+
+    Set the time for each question in this section, in seconds (10 to 3600).
+    Leave the field blank to set no time per question.
+
+    - **Each question has its own time.** When the time for a question runs out, that
+      question closes.
+    - **Blank means no time per question.** The section then has only the whole-test time.
+    - **Keep it blank for a live assessment** until the take page countdown is ready.
+
 # ─── Attempt, activity and page-level help (added after the UI-key audit) ───
 
 admin.attempts.release_confirm:

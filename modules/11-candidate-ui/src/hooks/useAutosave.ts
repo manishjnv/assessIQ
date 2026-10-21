@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { saveAnswer, CandidateApiError } from "../api";
+
+/** FUT-7: the server refuses a save after the question's own time (409). That answer is final: no retry. */
+export function isQuestionTimeUpError(err: unknown): boolean {
+  if (!(err instanceof CandidateApiError) || err.status !== 409) return false;
+  const inner = err.apiError.details?.["code"];
+  return inner === "AE_QUESTION_TIME_UP" || err.apiError.code === "AE_QUESTION_TIME_UP";
+}
 import { writeBackup } from "../resilience/localStorage-backup";
 
 export type AutosaveStatus = "idle" | "saving" | "saved" | "error" | "offline";
@@ -8,6 +15,8 @@ export interface UseAutosaveArgs {
   attemptId: string;
   /** Read-only — bumped by parent when remaining time hits 0 to lock writes. */
   locked: boolean;
+  /** FUT-7: called once when the server says a question's time is up. */
+  onQuestionTimeUp?: (questionId: string) => void;
   /** Debounce window in ms. Default: 5000. */
   debounceMs?: number;
 }
@@ -25,6 +34,8 @@ export interface UseAutosaveResult {
   ) => void;
   /** Force an immediate save for `questionId` (used on field blur). */
   flushSave: (questionId: string) => Promise<void>;
+  /** FUT-7: stop all saves and retries for `questionId` for good (its time is up). */
+  stopQuestion: (questionId: string) => void;
 }
 
 interface QuestionState {
@@ -47,6 +58,7 @@ function retryDelayMs(attempt: number): number {
 export function useAutosave({
   attemptId,
   locked,
+  onQuestionTimeUp,
   debounceMs = 5000,
 }: UseAutosaveArgs): UseAutosaveResult {
   const [status, setStatus] = useState<AutosaveStatus>("idle");
@@ -56,6 +68,10 @@ export function useAutosave({
   // Per-question state lives in a ref so it doesn't trigger re-renders on every
   // timer/revision update.
   const questionsRef = useRef<Map<string, QuestionState>>(new Map());
+  // FUT-7: questions whose time is up. No save, retry or debounce runs for them again.
+  const closedRef = useRef<Set<string>>(new Set());
+  const onTimeUpRef = useRef(onQuestionTimeUp);
+  onTimeUpRef.current = onQuestionTimeUp;
 
   // Stable ref to locked so the save closure can read the current value without
   // re-creating callbacks on every locked change.
@@ -69,7 +85,7 @@ export function useAutosave({
   const runSave = useCallback(
     async (qid: string, skipRetryReset = false) => {
       const state = questionsRef.current.get(qid);
-      if (!state) return;
+      if (!state || closedRef.current.has(qid)) return;
 
       const { pendingAnswer, pendingOpts } = state;
 
@@ -108,6 +124,16 @@ export function useAutosave({
         setStatus("saved");
         setLastSavedAt(new Date().toISOString());
       } catch (err: unknown) {
+        if (isQuestionTimeUpError(err)) {
+          // Final: never retry, and no generic "save failed" for this question.
+          closedRef.current.add(qid);
+          if (state.retryTimer !== null) clearTimeout(state.retryTimer);
+          state.retryTimer = null;
+          setStatus("idle");
+          setRetryCount(0);
+          onTimeUpRef.current?.(qid);
+          return;
+        }
         if (err instanceof CandidateApiError) {
           const code = err.status ?? 0;
 
@@ -145,7 +171,7 @@ export function useAutosave({
           }
           state.retryTimer = setTimeout(() => {
             state.retryTimer = null;
-            if (!lockedRef.current) {
+            if (!lockedRef.current && !closedRef.current.has(qid)) {
               runSave(qid, true);
             }
           }, delay);
@@ -168,7 +194,7 @@ export function useAutosave({
       answer: unknown,
       opts: { editsCount?: number; timeSpentSeconds?: number } = {}
     ) => {
-      if (lockedRef.current) return;
+      if (lockedRef.current || closedRef.current.has(questionId)) return;
 
       let state = questionsRef.current.get(questionId);
       if (!state) {
@@ -202,7 +228,7 @@ export function useAutosave({
 
   const flushSave = useCallback(
     async (questionId: string): Promise<void> => {
-      if (lockedRef.current) return;
+      if (lockedRef.current || closedRef.current.has(questionId)) return;
 
       const state = questionsRef.current.get(questionId);
       if (!state) return;
@@ -251,5 +277,15 @@ export function useAutosave({
     };
   }, []);
 
-  return { status, lastSavedAt, retryCount, queueSave, flushSave };
+  const stopQuestion = useCallback((questionId: string) => {
+    closedRef.current.add(questionId);
+    const state = questionsRef.current.get(questionId);
+    if (!state) return;
+    if (state.timer !== null) clearTimeout(state.timer);
+    if (state.retryTimer !== null) clearTimeout(state.retryTimer);
+    state.timer = null;
+    state.retryTimer = null;
+  }, []);
+
+  return { status, lastSavedAt, retryCount, queueSave, flushSave, stopQuestion };
 }
