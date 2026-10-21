@@ -112,6 +112,38 @@ candidate.attempt.flag:
 
     Flagging does not change your score. It is a personal bookmark.
 
+candidate.attempt.question_timer:
+  audience: candidate
+  short_text: "This question has its own time limit. At zero, you cannot change the answer."
+  long_md: |
+    ## Question timer
+
+    Some sections give each question a fixed time. The countdown starts when you open the question.
+
+    When the time is up, the answer box closes. Your last saved answer stays as it is.
+
+    The countdown does not move you to the next question. You must choose the next question yourself.
+
+candidate.attempt.question_time_up:
+  audience: candidate
+  short_text: "The time for this question has ended. Your last saved answer stays."
+  long_md: |
+    ## Time is up for this question
+
+    The time for this question has ended. You cannot change the answer to it.
+
+    Your last saved answer stays and is scored. You can still open other questions in this section, if the section allows it.
+
+candidate.attempt.section_leave:
+  audience: candidate
+  short_text: "This section is locked. Once you leave it, you cannot come back to it."
+  long_md: |
+    ## Leaving a locked section
+
+    Some sections are locked. When you leave one, it closes for good.
+
+    Choose Stay to keep working in this section. Choose Leave to move on. You cannot return after you leave.
+
 candidate.attempt.kql.editor:
   audience: candidate
   short_text: "Type your KQL query in this box. It is saved as you work and scored later by an AssessIQ grader."

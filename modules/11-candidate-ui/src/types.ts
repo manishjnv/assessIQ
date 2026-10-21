@@ -75,9 +75,16 @@ export interface CandidateAttemptViewWire {
   sections_summary?: SectionSummaryWire[];
   /** Whole-test timer (Z-42): section names by index; lets the page group the flat question list. */
   section_names?: string[];
+  /** FUT-4 / FUT-7 read-only: per section, locked flag and seconds per question; absent for older assessments. */
+  section_timing?: SectionTimingWire[];
   /** Logo L3a: organisation name + logo URL for the attempt top bar; absent on older servers. */
   company_name?: string;
   company_logo_url?: string | null;
+}
+
+export interface SectionTimingWire {
+  locked: boolean;
+  seconds_per_question: number | null;
 }
 
 export interface SectionSummaryWire {

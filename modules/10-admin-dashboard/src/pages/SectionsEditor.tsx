@@ -14,9 +14,16 @@ export interface SectionRow {
   minutes: string;
   calculator: boolean;
   categoryIds: string[];
+  /** Z-131: lock the section after the candidate leaves it (needs a whole-test time). Absent = off. */
+  locked?: boolean;
+  /** Z-131: seconds per question, text so the field can be empty. Blank = none. */
+  secondsPerQuestion?: string;
 }
 
 export const NEW_SECTION_ROW: SectionRow = { name: "", count: "", minutes: "", calculator: false, categoryIds: [] };
+
+/** Z-131: one edit here when the take page countdown ships (Z-130). Remove the line from the editor. */
+export const TIMER_LOCK_NOTE = "Do not turn these on for a live assessment until the take page countdown is shipped.";
 
 export interface SectionsSettings {
   sections: Array<{
@@ -25,6 +32,8 @@ export interface SectionsSettings {
     category_ids?: string[];
     minutes: number;
     calculator?: boolean;
+    locked?: boolean;
+    seconds_per_question?: number;
   }>;
 }
 
@@ -38,6 +47,8 @@ export function buildSections(
     const name = r.name.trim();
     const minutes = Number(r.minutes);
     const count = r.count.trim() === "" ? undefined : Number(r.count);
+    const secondsText = (r.secondsPerQuestion ?? "").trim();
+    const seconds = secondsText === "" ? undefined : Number(secondsText);
     if (name === "") return { error: `${label}: give it a name.` };
     if (!Number.isInteger(minutes) || minutes < 1 || minutes > 300) {
       return { error: `${label}: minutes must be a whole number from 1 to 300.` };
@@ -48,12 +59,17 @@ export function buildSections(
     if (count === undefined && r.categoryIds.length === 0) {
       return { error: `${label}: set the number of questions or pick at least one category.` };
     }
+    if (seconds !== undefined && (!Number.isInteger(seconds) || seconds < 10 || seconds > 3600)) {
+      return { error: `${label}: seconds per question must be a whole number from 10 to 3600.` };
+    }
     sections.push({
       name,
       minutes,
       ...(count !== undefined ? { question_count: count } : {}),
       ...(r.categoryIds.length > 0 ? { category_ids: r.categoryIds } : {}),
       ...(r.calculator ? { calculator: true } : {}),
+      ...(r.locked === true ? { locked: true } : {}),
+      ...(seconds !== undefined ? { seconds_per_question: seconds } : {}),
     });
   }
   const total = sections.every((s) => s.question_count !== undefined)
@@ -81,11 +97,14 @@ export function SectionsEditor({
   onChange,
   subjectSlug,
   setId,
+  wholeTestMinutes,
 }: {
   rows: SectionRow[];
   onChange: (rows: SectionRow[]) => void;
   subjectSlug?: string | null | undefined;
   setId?: string | null | undefined;
+  /** Z-131: the assessment's whole-test time. The lock switch shows only when it is set. */
+  wholeTestMinutes?: number | null | undefined;
 }): React.ReactElement {
   const [domains, setDomains] = useState<DomainItem[]>([]);
   const [domainId, setDomainId] = useState("");
@@ -221,6 +240,35 @@ export function SectionsEditor({
               />
               Calculator
             </label>
+            {wholeTestMinutes != null && (
+              <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-label={`Section ${i + 1} lock after leaving`}
+                  checked={r.locked === true}
+                  onChange={(e) => update(i, { locked: e.target.checked })}
+                />
+                <HelpTip helpId="admin.assessment.sections.lock">
+                  <span>Lock this section after leaving it</span>
+                </HelpTip>
+              </label>
+            )}
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+              <HelpTip helpId="admin.assessment.sections.seconds_per_question">
+                <span>Seconds per question</span>
+              </HelpTip>
+              <input
+                aria-label={`Section ${i + 1} seconds per question`}
+                type="number"
+                min={10}
+                max={3600}
+                placeholder="None"
+                value={r.secondsPerQuestion ?? ""}
+                onChange={(e) => update(i, { secondsPerQuestion: e.target.value })}
+                style={{ ...FIELD, width: 96 }}
+              />
+            </label>
             <button
               type="button"
               className="aiq-btn aiq-btn-sm aiq-btn-ghost"
@@ -251,6 +299,10 @@ export function SectionsEditor({
           )}
         </div>
       ))}
+
+      {rows.length > 0 && (
+        <p style={{ margin: "0 0 var(--aiq-space-sm)", color: "var(--aiq-color-fg-muted)" }}>{TIMER_LOCK_NOTE}</p>
+      )}
 
       {rows.length < 10 && (
         <button
