@@ -5514,6 +5514,14 @@ admin.tenant_settings.camera_reviewers:
     - **Remove a reviewer.** The person loses access at once.
     - **Platform staff.** AssessIQ staff can also open files to support you.
 
+admin.tenant_settings.attempt_retention_days:
+  audience: admin
+  short_text: "How many days to keep the activity log of finished tests (tab switches, focus changes, answer saves). Leave blank to keep it forever. Range 30 to 3650. Answers, scores and certificates are never deleted by this setting."
+  long_md: |
+    ## Keep attempt activity log for
+
+    How many days to keep the activity log of finished tests (tab switches, focus changes, answer saves). Leave blank to keep it forever. Range 30 to 3650. Answers, scores and certificates are never deleted by this setting.
+
 admin.camera.review_list:
   audience: admin
   short_text: "Attempts with a camera flag. Open one to review its photos and video."

@@ -8,8 +8,9 @@
 //
 // INVARIANT: no AI SDK import (CLAUDE.md rule #1).
 
-import { streamLogger } from '@assessiq/core';
+import { streamLogger, ValidationError } from '@assessiq/core';
 import { withTenant, listActiveTenantIds } from '@assessiq/tenancy';
+import { auditInTx } from '@assessiq/audit-log';
 import type { PoolClient } from 'pg';
 
 const log = streamLogger('app');
@@ -86,4 +87,57 @@ export async function runAttemptRetentionAllTenants(
     }
   }
   return reports;
+}
+
+// Z-132 — admin read and write of the window. NULL = keep forever (default).
+export const MIN_ATTEMPT_RETENTION_DAYS = 30;
+export const MAX_ATTEMPT_RETENTION_DAYS = 3650;
+
+export async function getAttemptRetentionDays(tenantId: string): Promise<number | null> {
+  return withTenant(tenantId, async (client: PoolClient) => {
+    const r = await client.query<{ d: number | null }>(
+      `SELECT attempt_retention_days AS d FROM tenant_settings WHERE tenant_id = $1`,
+      [tenantId],
+    );
+    return r.rows[0]?.d ?? null;
+  });
+}
+
+export async function updateAttemptRetentionDays(
+  adminUserId: string,
+  tenantId: string,
+  days: number | null,
+): Promise<{ attempt_retention_days: number | null; previous: number | null }> {
+  if (
+    days !== null &&
+    (!Number.isInteger(days) || days < MIN_ATTEMPT_RETENTION_DAYS || days > MAX_ATTEMPT_RETENTION_DAYS)
+  ) {
+    throw new ValidationError(
+      `attempt_retention_days must be a whole number between ${MIN_ATTEMPT_RETENTION_DAYS} and ${MAX_ATTEMPT_RETENTION_DAYS}, or empty`,
+      { details: { code: 'ATTEMPT_RETENTION_DAYS_OUT_OF_RANGE', received: days } },
+    );
+  }
+  return withTenant(tenantId, async (client: PoolClient) => {
+    const prev = await client.query<{ d: number | null }>(
+      `SELECT attempt_retention_days AS d FROM tenant_settings WHERE tenant_id = $1 FOR UPDATE`,
+      [tenantId],
+    );
+    if (prev.rows.length === 0) throw new Error(`tenant_settings not found for tenant ${tenantId}`);
+    const previous = prev.rows[0]!.d;
+    await client.query(
+      `UPDATE tenant_settings SET attempt_retention_days = $1, updated_at = now() WHERE tenant_id = $2`,
+      [days, tenantId],
+    );
+    await auditInTx(client, {
+      tenantId,
+      actorKind: 'user',
+      actorUserId: adminUserId,
+      action: 'tenant_settings.attempt_retention_days.updated',
+      entityType: 'tenant_settings',
+      entityId: tenantId,
+      before: { attempt_retention_days: previous },
+      after: { attempt_retention_days: days },
+    });
+    return { attempt_retention_days: days, previous };
+  });
 }

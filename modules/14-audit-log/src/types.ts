@@ -272,6 +272,7 @@ export const ACTION_CATALOG = [
   //   under 'user.pii.erased' by eraseCandidatePii (actorKind='system' for
   //   cron-triggered, 'user' for admin-triggered) so the forensic chain joins.
   'tenant_settings.retention_days.updated',
+  'tenant_settings.attempt_retention_days.updated', // Z-132
   'system.dsr.retention.run',
   // FR1 (2026-10-16) — the audit export and the archive mark are themselves audited.
   // audit.exported: one row per export.csv / export.jsonl call; after = { format, filters, limit, truncated }.

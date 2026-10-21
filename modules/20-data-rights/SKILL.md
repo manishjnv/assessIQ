@@ -469,3 +469,9 @@ The module now has 11 DB integration tests (commit `e5090b1`): erasure, export, 
 ## Erasure step 4d: camera data (Batch A, 2026-10-20)
 
 `eraseCandidatePii` unlinks the user's camera files from disk first (`deleteCameraFile` from `@assessiq/core`; ENOENT counts as gone). A failed unlink throws, the transaction rolls back and the erasure job retries. Then it deletes the user's `camera_files`, `camera_consents`, `camera_attempt_reviews` and `camera_reviewers` rows. The audit row carries `cameraFilesDeleted` and `cameraConsentsDeleted`. `camera_consents.ip_hash` is exempt in `erasure-coverage.test.ts` (keyed HMAC). Test: `camera-erasure.test.ts`.
+
+## FUT-11 (2026-10-22)
+`attempt-retention.ts` sweeps `attempt_events` per tenant using `tenant_settings.attempt_retention_days` (NULL = keep). Worker job `attempt-retention-cron`, 04:00 UTC. Deletes events only.
+
+## Z-132 admin field (2026-10-22)
+`getAttemptRetentionDays` and `updateAttemptRetentionDays(adminUserId, tenantId, days|null)` in `attempt-retention.ts`. Range 30 to 3650 or null (keep). Audit action `tenant_settings.attempt_retention_days.updated` in the same transaction. Route `PATCH /api/admin/tenant-settings/attempt-retention-days` (admin, fresh MFA); `GET /api/admin/tenant-settings` returns `attempt_retention_days`. UI: second field under the retention window, help key `admin.tenant_settings.attempt_retention_days` (migration 0239). Kept narrow on purpose: the column is not in 02-tenancy `SETTINGS_COLUMNS`, so the tenancy module is untouched. Not included: AI, answer deletion, a dry-run button.

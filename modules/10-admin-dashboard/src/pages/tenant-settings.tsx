@@ -67,6 +67,7 @@ const FEEDBACK_OPTIONS: ReadonlyArray<{ value: FeedbackLevel; label: string; hel
 
 interface TenantSettingsResponse {
   retention_days: number;
+  attempt_retention_days?: number | null;
   updated_at?: string;
   /** Absent on servers that predate the Result release setting. */
   result_release_mode?: ReleaseMode;
@@ -210,6 +211,10 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
 
   // retention_days: null means unknown (no value from any endpoint)
   const [retentionDays, setRetentionDays] = useState<number | null>(null);
+  // Z-132: blank = keep the attempt activity log forever
+  const [attemptRetInput, setAttemptRetInput] = useState("");
+  const [attemptRetSaving, setAttemptRetSaving] = useState(false);
+  const [attemptRetMsg, setAttemptRetMsg] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState<string>("");
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
 
@@ -456,6 +461,7 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
       const data = await adminApi<TenantSettingsResponse>("/admin/tenant-settings");
       setRetentionDays(data.retention_days);
       setInputValue(String(data.retention_days));
+      setAttemptRetInput(data.attempt_retention_days == null ? "" : String(data.attempt_retention_days));
       setUpdatedAt(data.updated_at ?? null);
       setLogoUrl(data.logo?.url ?? null);
       setReleaseMode(
@@ -487,6 +493,30 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
   };
 
   // ── Save ──────────────────────────────────────────────────────────────────
+
+  const handleSaveAttemptRetention = async (): Promise<void> => {
+    const trimmed = attemptRetInput.trim();
+    const parsed = trimmed === "" ? null : Number(trimmed);
+    if (parsed !== null && (!Number.isInteger(parsed) || parsed < 30 || parsed > 3650)) {
+      setAttemptRetMsg("Enter a whole number from 30 to 3650, or leave it blank.");
+      return;
+    }
+    setAttemptRetSaving(true);
+    setAttemptRetMsg(null);
+    try {
+      await adminApi("/admin/tenant-settings/attempt-retention-days", {
+        method: "PATCH",
+        body: JSON.stringify({ attempt_retention_days: parsed }),
+      });
+      setAttemptRetMsg("Saved.");
+    } catch (err) {
+      setAttemptRetMsg(
+        err instanceof AdminApiError ? err.apiError.message : "Could not save. Try again.",
+      );
+    } finally {
+      setAttemptRetSaving(false);
+    }
+  };
 
   const handleSave = async (): Promise<void> => {
     const parsed = parseInt(inputValue, 10);
@@ -1675,6 +1705,39 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
                   >
                     Save retention window
                   </Button>
+                </div>
+
+                {/* Z-132: attempt activity log window */}
+                <div style={{ maxWidth: 400, marginTop: 28 }} data-help-id="admin.tenant_settings.attempt_retention_days">
+                  <label
+                    htmlFor="attempt-retention-days-input"
+                    style={{ display: "block", fontFamily: "var(--aiq-font-sans)", fontSize: 13, fontWeight: 500, color: "var(--aiq-color-fg-primary)", marginBottom: 6 }}
+                  >
+                    Keep attempt activity log for (days)
+                  </label>
+                  <input
+                    id="attempt-retention-days-input"
+                    type="number"
+                    min={30}
+                    max={3650}
+                    step={1}
+                    value={attemptRetInput}
+                    placeholder="blank = keep forever"
+                    onChange={(e) => { setAttemptRetInput(e.target.value); setAttemptRetMsg(null); }}
+                    disabled={attemptRetSaving}
+                    style={{ display: "block", width: "100%", fontFamily: "var(--aiq-font-sans)", fontSize: 13, padding: "10px 12px", borderRadius: "var(--aiq-radius-md)", border: "1px solid var(--aiq-color-border-strong)", background: "var(--aiq-color-bg-raised)", color: "var(--aiq-color-fg-primary)", boxSizing: "border-box" }}
+                  />
+                  <p style={{ marginTop: 8, fontSize: 12, color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
+                    Removes the activity log (tab switches, answer saves) of finished tests after this many days. Answers, scores and certificates stay. Range 30–3650.
+                  </p>
+                  {attemptRetMsg && (
+                    <p role="status" style={{ fontSize: 13, marginTop: 6 }}>{attemptRetMsg}</p>
+                  )}
+                  <div style={{ marginTop: 12 }}>
+                    <Button onClick={() => void handleSaveAttemptRetention()} loading={attemptRetSaving}>
+                      Save activity log window
+                    </Button>
+                  </div>
                 </div>
               </>
             )}
