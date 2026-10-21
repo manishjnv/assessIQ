@@ -688,6 +688,9 @@ jobs:
       - name: Phone smoke (Z-88)
         if: matrix.leg == 'phone'
         continue-on-error: true
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:4173
+          E2E_API_BASE_URL: http://localhost:3000
         run: pnpm --filter @assessiq/web exec playwright test --project=mobile phone-smoke
 
       - name: Upload service logs on failure
