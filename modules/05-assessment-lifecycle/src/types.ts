@@ -254,6 +254,8 @@ export interface Assessment {
   level_label?: string | null;
   /** Optional — populated by findAssessmentByIdWithMeta (detail view only). */
   pack_name?: string | null;
+  /** Optional — the bound pack's subject slug (question_packs.domain), detail view only. Drives the sections editor's subject lock. */
+  pack_domain?: string | null;
   /**
    * Optional — the bound pack's domain as a human-readable NAME, resolved from
    * the tenant-scoped `domains` table (domains.name, e.g. "SOC", "Application

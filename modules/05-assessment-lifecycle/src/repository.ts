@@ -114,6 +114,7 @@ interface AssessmentRowWithMeta extends AssessmentRow {
   level_label: string | null;
   level_duration_minutes: number | null;
   pack_name: string | null;
+  pack_domain: string | null;
 }
 
 /** AssessmentRow extended with level_label + domain slug (list view). */
@@ -325,7 +326,8 @@ export async function findAssessmentByIdWithMeta(
     `SELECT a.${ASSESSMENT_COLUMNS.split(", ").join(", a.")},
             l.label   AS level_label,
             l.duration_minutes AS level_duration_minutes,
-            qp.name   AS pack_name
+            qp.name   AS pack_name,
+            qp.domain AS pack_domain
      FROM   assessments a
      LEFT JOIN levels         l  ON l.id  = a.level_id
      LEFT JOIN question_packs qp ON qp.id = a.pack_id
@@ -340,6 +342,7 @@ export async function findAssessmentByIdWithMeta(
     level_label: row.level_label,
     effective_duration_minutes: effectiveOrNull(row),
     pack_name: row.pack_name,
+    pack_domain: row.pack_domain,
   };
 }
 

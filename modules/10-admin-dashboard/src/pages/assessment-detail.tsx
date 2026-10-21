@@ -684,6 +684,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           settings={assessment.settings as Record<string, unknown> | null | undefined}
           hasAttempts={hasAttempts}
           isDraft={assessment.status === "draft"}
+          packDomain={assessment.pack_domain}
           onSaved={(settings, qc) =>
             setAssessment({
               ...assessment,

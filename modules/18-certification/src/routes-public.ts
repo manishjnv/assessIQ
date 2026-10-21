@@ -412,23 +412,50 @@ function renderOgSvg(cert: Certificate, status: CertStatus, logoDataUri?: string
   const meta = fitText(`${cert.level} · ${cert.tier}`, 32, 28, 0.55);
   // Issuing organisation, bottom-left under the credential ID. Omitted when unset.
   const org = orgName?.trim() ? fitText(orgName.trim(), 36, 26, 0.55) : null;
-  // Z-118: resvg does not fall back between listed fonts, so a Devanagari name needs the Devanagari font named.
-  const fam = (text: string, base: string): string => (/[\u0900-\u097F]/.test(text) ? 'Noto Sans Devanagari' : base);
   const orgSvg = org
     ? `
-  <text x="60" y="590" font-family="${fam(org.text, 'system-ui, sans-serif')}" font-size="${org.size}" fill="rgba(255,255,255,0.7)">${escSvg(org.text)}</text>`
+  ${textLine(org.text, 60, 590, org.size, 'system-ui, sans-serif', 0.55, 'fill="rgba(255,255,255,0.7)"')}`
     : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
   <rect width="1200" height="630" fill="${bgColor}"/>${logoSvg}
   <rect x="60" y="60" width="300" height="48" rx="24" fill="${badgeColor}"/>
   <text x="210" y="94" font-family="Newsreader, Georgia, serif" font-size="28" font-weight="700" fill="#fff" text-anchor="middle">${badgeText}</text>
-  <text x="60" y="230" font-family="${fam(name.text, 'Newsreader, Georgia, serif')}" font-size="${name.size}" font-weight="700" fill="#fff">${escSvg(name.text)}</text>
-  <text x="60" y="310" font-family="${fam(course.text, 'system-ui, sans-serif')}" font-size="${course.size}" fill="rgba(255,255,255,0.8)">${escSvg(course.text)}</text>
+  ${textLine(name.text, 60, 230, name.size, 'Newsreader, Georgia, serif', 0.6, 'font-weight="700" fill="#fff"')}
+  ${textLine(course.text, 60, 310, course.size, 'system-ui, sans-serif', 0.55, 'fill="rgba(255,255,255,0.8)"')}
   <text x="60" y="370" font-family="system-ui, sans-serif" font-size="${meta.size}" fill="rgba(255,255,255,0.6)">${escSvg(meta.text)}</text>
   <text x="60" y="540" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.5)">${escSvg(cert.credential_id)}</text>
   <text x="1140" y="540" font-family="system-ui, sans-serif" font-size="28" fill="rgba(255,255,255,0.5)" text-anchor="end">AssessIQ</text>${orgSvg}
 </svg>`;
+}
+
+// Z-118/Z-127: resvg does not fall back between listed fonts, so each script run
+// gets its own <text> with the font that holds its glyphs. Pure one-script lines
+// give one <text>, as before.
+const DEVANAGARI_FONT = 'Noto Sans Devanagari';
+
+function scriptRuns(text: string): Array<{ text: string; devanagari: boolean }> {
+  // Only Latin-or-other letters next to Devanagari need a split. Spaces, digits and punctuation do not.
+  if (!/\p{L}/u.test(text.replace(/[\u0900-\u097F]/g, ''))) {
+    return [{ text, devanagari: /[\u0900-\u097F]/.test(text) }];
+  }
+  return (text.match(/[\u0900-\u097F]+|[^ऀ-ॿ]+/g) ?? []).map((t) => ({
+    text: t,
+    devanagari: /[\u0900-\u097F]/.test(t),
+  }));
+}
+
+// Run x offsets reuse the fitText per-character em estimate (charEm * size per char).
+function textLine(text: string, x: number, y: number, size: number, base: string, charEm: number, attrs: string): string {
+  let dx = 0;
+  return scriptRuns(text)
+    .map((run) => {
+      const family = run.devanagari ? DEVANAGARI_FONT : base;
+      const el = `<text x="${x + dx}" y="${y}" font-family="${family}" font-size="${size}" ${attrs}>${escSvg(run.text)}</text>`;
+      dx += charEm * size * run.text.length;
+      return el;
+    })
+    .join('\n  ');
 }
 
 // ponytail: width is estimated from a per-character em factor, no font metrics.
