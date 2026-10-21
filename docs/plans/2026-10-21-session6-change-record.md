@@ -38,3 +38,13 @@ Make the phone step required at once (risk of a red CI on an unrun spec). Allow 
 
 - The adversarial hook blocked the push because two security-module `package.json` files changed (fastify patch). Sonnet takeover review: accept (manifests and lockfile only). The trailer went onto commit `3ccdf443` by mistake: another session had committed on the shared clone, so `git commit --amend` hit that session's HEAD commit, and the push also sent its docs commits. Content is docs-only and CI is green. Lesson: run `git log -1` right before an amend on the shared clone (the rule already says no amend).
 - The Z-48 row said Docs lint was green while the last 6 runs were red.
+
+
+## 2026-10-21 (S42): Z-88 phone smoke fixed
+
+- **What was wrong.** Two faults hid behind `continue-on-error`. (1) The invitation test used a REAL-exam link. On a phone the page correctly shows "open this link on a laptop or desktop" and no Begin button, so the test could not find Begin. (2) The CI step had no `PLAYWRIGHT_BASE_URL` or `E2E_API_BASE_URL`, so it ran against a dev server with no API. The first three tests passed only because they need no API. The test also hit the 30 s test timeout before its 60 s wait.
+- **Changes.** `apps/web/e2e/fixtures/factories.ts`: optional `deliveryMode` in `createAssessmentFromSet` and `provisionInvitations`. `apps/web/e2e/phone-smoke.spec.ts`: the landing test runs for a real link (message visible, no Begin) and a mock link (Begin visible); both keep the no-sideways-scroll check; 120 s test timeout. `.github/workflows/ci.yml`: env added to the step (`33afde5b`), then `continue-on-error` removed (`be5210dc`).
+- **Evidence.** Local run against the local stack: 5 passed. Main CI run 39554101909: phone smoke log "5 passed"; run 39554611895 (step now required): 5 passed, CI green.
+- **Verify.** `gh run view <id> --log`, look at the e2e (phone) job for "5 passed". Roll back: revert `be5210dc` to make the step advisory again.
+- **Not fixed (out of scope).** `phone-first-question` (RW-79, advisory) also uses a real link and still fails. Give it a mock link, or drop it as a gate; the owner decides.
+- **Rejected.** Weakening the test (drop the Begin check); changing the page (it is right for a phone user).

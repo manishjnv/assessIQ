@@ -2,25 +2,23 @@
 
 GENERATED FILE - do not edit. Run: node tools/next-brief.mjs
 
-- Generated: 2026-10-21T05:36:42.716Z (2026-10-21 11:06:42 IST)
-- HEAD: `3ccdf443`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
-- Dirty files (`git status --short` lines): 1
+- Generated: 2026-10-21T06:23:53.671Z (2026-10-21 11:53:53 IST)
+- HEAD: `be5210dc`. If HEAD differs from `git rev-parse --short HEAD`, regenerate.
+- Dirty files (`git status --short` lines): 3
 
 ## 1. Last session (SESSION_STATE, first block)
 
-## Session — 2026-10-21 — S40: future-ready question store (design only, no code)
+## Session — 2026-10-21 — S41: small rows (session 6)
 
-**Headline:** The owner decided ONE master question database, written by the platform super admin and read by licensed organisations. A design (v2.1) now covers it, validated by Fable 5.1 and Opus 5.5 reviews plus a market scan. Roadmap rows FUT-1 to FUT-11 are added and EXP-14 is revised. No code was written.
-**Commits (docs only, not pushed):** `eff07ff0` design v2.1 and rows FUT-1..11 · `686c1df5` hide answer keys from licensed admins · `d82908c9` break-glass key view · `53ff71f5` break-glass per assessment, 30 minutes, no copy · `d2ffb6df` option B (keys hidden in every licensed pack, one question set) · this handoff commit.
-**Tests:** n/a (docs only).
-**Design:** `docs/design/2026-10-21-future-ready-question-store.md` (decisions D1 to D12).
-**Owner decisions recorded:** one master database, no database per exam; licensed read first, one mode, no clone flag; keys hidden from licensed admins in every licensed pack (option B); break-glass view = one assessment, 30-minute window, fresh-MFA or email OTP, reason, two emails (open and close), no copy, watermark, audit row per reveal, super-admin kill switch. Compliance and review gates were left out on purpose (pre-launch).
-**Build order:** FUT-1 (immutable versions, `source_question_id` index, pin FKs) → FUT-8 (taxonomy by node) → EXP-14 (11-table licensed-read policy family, XL) → FUT-2 (key hiding and break-glass, L) → FUT-10 (close `assessiq_system` membership) and FUT-11 (attempt retention) before real customer data → FUT-3/4/5p2/6/7/9 when a real need appears.
-**Next:** build FUT-1 (one migration, Sonnet agent, Opus diff review, `pnpm verify`). Then FUT-8.
-**Open questions:** approval to retire the clone-on-grant code after EXP-14 (Rule A); cap values for break-glass (25 reveals was replaced by the assessment's question count; daily cap number not set); the `sample`/`secure` per-question flag stays a later option.
-**Not done:** the Z.7 pending count (86 becomes about 88 with FUT-8..11); no push; `docs/ai-playbook/01-speed-rules.md` was edited by another session and is not part of these commits.
-**Old task or feature checked:** EXP-14, EXP-19, EXP-20, Z-43, Z-89, Q12, R2 (Rule B).
-**Optimization register rows touched:** none.
+**Headline:** Z-48, Z-11, Z-51 (b) and Z-88 closed; Z-38 minor and patch updates applied; Z-54 waits until 2026-10-29; Z-15 has only an owner decision left. Recount: pending 94, closed 212, total 306, 69%.
+**Commits:** `dd287b3c` — feat: blueprint fields, deps, phone smoke, docs lint fixes (on main, CI green at `3ccdf443`). Marketing container rebuilt by hand.
+**Tests:** pass (`pnpm verify`, module 05 232, guard tests 53, docs lint strict 0). Phone smoke not run locally.
+**S42 follow-up:** Z-88 phone smoke fixed and required (`590e4cd1`, `33afde5b`, `be5210dc`; CI run 39554101909: 5 passed). Cause: real link on a phone shows the laptop message; CI step lacked base URLs. `phone-first-question` still fails (advisory, same cause). Recount 94/212/306.
+**Next:** one green CI run of the phone smoke, then remove `continue-on-error`; module 06 must read the blueprint fields (gated; Z-42); Z-54 on or after 2026-10-29.
+**Open questions:** label "marks per section" vs per question; Z-15 (g) default feedback level; Z-38 majors after the pilot.
+**Old task or feature checked:** Z-42, Z-89, Z-87, Z-104 (Rule B).
+**Process note:** the trailer amend landed on another session's HEAD commit `3ccdf443` (docs only); see change record.
+**Change record:** `docs/plans/2026-10-21-session6-change-record.md`
 
 
 ## 2. ROADMAP status board

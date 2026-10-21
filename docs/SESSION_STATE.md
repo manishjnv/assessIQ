@@ -3,6 +3,7 @@
 **Headline:** Z-48, Z-11, Z-51 (b) and Z-88 closed; Z-38 minor and patch updates applied; Z-54 waits until 2026-10-29; Z-15 has only an owner decision left. Recount: pending 94, closed 212, total 306, 69%.
 **Commits:** `dd287b3c` — feat: blueprint fields, deps, phone smoke, docs lint fixes (on main, CI green at `3ccdf443`). Marketing container rebuilt by hand.
 **Tests:** pass (`pnpm verify`, module 05 232, guard tests 53, docs lint strict 0). Phone smoke not run locally.
+**S42 follow-up:** Z-88 phone smoke fixed and required (`590e4cd1`, `33afde5b`, `be5210dc`; CI run 39554101909: 5 passed). Cause: real link on a phone shows the laptop message; CI step lacked base URLs. `phone-first-question` still fails (advisory, same cause). Recount 94/212/306.
 **Next:** one green CI run of the phone smoke, then remove `continue-on-error`; module 06 must read the blueprint fields (gated; Z-42); Z-54 on or after 2026-10-29.
 **Open questions:** label "marks per section" vs per question; Z-15 (g) default feedback level; Z-38 majors after the pilot.
 **Old task or feature checked:** Z-42, Z-89, Z-87, Z-104 (Rule B).
