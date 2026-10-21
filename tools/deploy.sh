@@ -58,6 +58,15 @@ else
   CODESHA="$(git log -1 --format=%H -- . ':!docs' ':!*.md' ':!.vale')"
   if [ -n "$CODESHA" ] && [ "$CODESHA" != "$SHA" ]; then
     cci="$(gh run list --workflow CI --commit "$CODESHA" --json status,conclusion -q '.[0] | if .conclusion == "" then .status else .conclusion end' 2>/dev/null)"
+    if [ -z "$cci" ]; then
+      # No run on the code commit (a trailer commit was pushed with it): accept a green run on a later commit with an identical tree.
+      ctree="$(git rev-parse "$CODESHA^{tree}")"
+      for c in $(git rev-list "$CODESHA..HEAD"); do
+        [ "$(git rev-parse "$c^{tree}")" = "$ctree" ] || continue
+        tci="$(gh run list --workflow CI --commit "$c" --json status,conclusion -q '.[0] | if .conclusion == "" then .status else .conclusion end' 2>/dev/null)"
+        if [ "$tci" = success ]; then cci=success; echo "CI for ${CODESHA:0:7} taken from ${c:0:7} (identical tree)"; break; fi
+      done
+    fi
     [ "$cci" = success ] || fail "CI for last code commit ${CODESHA:0:7} is '${cci:-no run found}' (needs success)"
   fi
   echo "CI checked: HEAD=${SHA:0:7} last-code-commit=${CODESHA:0:7}"
