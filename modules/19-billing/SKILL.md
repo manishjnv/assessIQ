@@ -127,6 +127,14 @@ registerBillingRoutes(app: FastifyInstance, deps: BillingRouteDeps): Promise<voi
 // → GET /api/billing/usage
 ```
 
+## Suggested test time (Z-103, 2026-10-21)
+
+- **Where the numbers live:** `modules/19-billing/src/suggested-time.ts`, the table `MINUTES_PER_QUESTION`. Edit the numbers there; nothing else holds them.
+- **Minutes per question:** mcq, multi_select, numeric, ordering: easy 0.75, medium 1.25, hard 1.75. subjective: 5. kql, log_analysis: 6. scenario, structured_case: 10. An unknown type counts as medium mcq (1.25).
+- **Difficulty split:** `questions.difficulty_est` 1-2 easy, 3 medium, 4-5 hard, null medium. The function `band()` in the same file holds the split. This split is an assumption (the code has no easy/medium/hard labels); the owner can change it.
+- **How it reaches the form:** `GET /api/billing/available-sets` adds `avg_minutes_per_question` for each set (the average over its active questions). The Start a test form shows `ceil(question count x average)` as a suggestion with a "Use suggested time" button. The Z-102 limit stays the override; a full mock keeps its blueprint time.
+- **Not included:** any automatic change to existing assessments or tests.
+
 ## Routes
 
 > **FU-A1 (2026-10-06): this section listed only one route; two more shipped with B1/B2.**
