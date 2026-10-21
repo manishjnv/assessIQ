@@ -5,7 +5,7 @@ import * as tenancyRepo from "../../../02-tenancy/src/repository.js";
 import type { PoolClient } from "pg";
 import * as repo from "../repository.js";
 import { generateInvitationToken, DEFAULT_INVITATION_TTL_HOURS } from "../tokens.js";
-import { sendInvitationEmail } from "../email.js";
+import { resolveCameraRequired, sendInvitationEmail } from "../email.js";
 import type { SendAssessmentInvitationInput } from "../email.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { Assessment, AssessmentInvitation, AssessmentStatus, BulkResendResult, ListInvitationsInput, PaginatedInvitations, InviteUsersResult } from "../types.js";
@@ -399,6 +399,11 @@ export async function inviteUsers(
 ): Promise<InviteUsersResult> {
   log.info({ tenantId, assessmentId, userCount: userIds.length }, "inviteUsers");
 
+  // Resolved ONCE per batch, BEFORE the transaction opens. The resolver opens its own tenant connection, so calling it per
+  // invitee inside the open transaction would hold one pooled connection and wait for a second (pool deadlock under load).
+  // The rule only depends on the test type being real, so the real-mode answer is enough for every invitee.
+  const realCameraRequired = await resolveCameraRequired(tenantId, "real");
+
   return withTenant(tenantId, async (client) => {
     // Fetch tenant name once — single DB hit on the same client (RLS + tx
     // consistency), held for all invitees in this batch.
@@ -495,6 +500,7 @@ export async function inviteUsers(
           expiresAt: reissued.invitation.expires_at,
           tenantName,
           deliveryMode: mode,
+          cameraRequired: mode === "real" && realCameraRequired,
         });
         invited.push(reissued.invitation);
         continue;
@@ -532,6 +538,7 @@ export async function inviteUsers(
         expiresAt,
         tenantName,
         deliveryMode: mode,
+        cameraRequired: mode === "real" && realCameraRequired,
       });
 
       // Audit one row per invitation issued. Per-invitation granularity beats

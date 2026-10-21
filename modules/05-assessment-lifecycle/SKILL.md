@@ -320,3 +320,11 @@ Tests:
 - Rule: true only when `deliveryMode` is `real` and the injected resolver says yes. Mock, no tenant, no resolver or a resolver error give false; the email still goes out.
 - How: module 05 cannot import module 06 (`lint:cross-module-deps`), so `setCameraRequiredResolver(isCameraRequired)` is called at boot in `apps/api/src/server.ts` and `worker.ts`. It is a module-level slot, not threaded through each service call (less wiring; one process, one resolver).
 - Not included: a privacy notice link in the email; per-request override.
+
+## Assessment time limit (2026-10-21)
+
+- **What.** `assessments.duration_minutes` (migration `0233_assessment_time_limit.sql`; NULL = level time, else 1 to 600; `assertDurationMinutes`). `createAssessment`, `createAssessmentFromSet` and the draft `updateAssessment` accept it. `updateAssessmentDuration(tenantId, id, minutes | null, actor)` (route `PATCH /api/admin/assessments/:id/time-limit`) changes only this field in any status and writes one `assessment.updated` audit row with the old and new value in the same transaction. The read model adds `effective_duration_minutes` (detail and list joins) through `effectiveDurationMinutes` from module 00. `resolveInvitationToken` adds `level.effective_duration_minutes` next to the level's own `duration_minutes`.
+- **Why.** Owner decision 2026-10-21: a manual time per assessment, no automatic suggestion.
+- **Considered and rejected.** Automatic time from question count and difficulty. Per-section times. Opening the main `PATCH` after publish.
+- **Not included.** Automatic or suggested time, per-question time, extra time for one candidate.
+- **Downstream.** Module 06 reads the effective time at start. Module 10 has the field on Start a test and a Time limit card. Module 19 `available-sets` adds `level_minutes`.

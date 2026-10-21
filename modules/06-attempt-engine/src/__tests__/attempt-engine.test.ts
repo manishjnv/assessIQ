@@ -592,7 +592,7 @@ describe("HTTP routes — consent invariant (R4 review fixes)", () => {
       assessment: { id: assessmentId, tenant_id: tenantA, name: "Active Assessment" },
       invitation: { id: randomUUID() },
       candidate: { id: candidate, name: label },
-      level: { duration_minutes: 15 },
+      level: { duration_minutes: 15, effective_duration_minutes: 15 },
     };
     routeCtx.session = { userId: candidate, tenantId: tenantA };
     return { candidate, assessmentId };

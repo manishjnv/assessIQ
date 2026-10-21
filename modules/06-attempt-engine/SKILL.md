@@ -319,3 +319,9 @@ Routes and bodies: `docs/03-api-contract.md` section "Real-exam camera routes". 
 - `routes.camera.admin.ts`: reviewer guard `requireCameraReviewer` (super admin, or tenant admin named in `camera_reviewers`), file streaming with the audit row committed first, reviewer and settings routes, the super-admin school flag.
 - Worker: `camera-retention-cron` at 03:00 UTC calls `runCameraRetentionAll`, then `diskGuard`.
 - **Why.** The server decides everything: policy is re-resolved on every upload and the client sends no time or path. **Rejected.** A route-only gate; streaming inside the DB tx; a users-module dependency for names (a lookup is injected from `apps/api`). **Not included.** Embed uploads, candidate and staff screens, any AI on files. **Tests.** `src/__tests__/camera-routes.test.ts`.
+
+## Assessment time limit (2026-10-21)
+
+- **What.** The time of a new attempt is `effectiveDurationMinutes(assessment.duration_minutes, level.duration_minutes) * 60` in `startAttempt` (a section or whole-test blueprint time still wins, as before). The result is copied into `attempts.duration_seconds` and `ends_at` at start, so a later admin edit never changes a running attempt (test `time-limit.test.ts`). `/take/start` reads `resolved.level.effective_duration_minutes` for the preview of a new attempt (a resumed attempt shows its own `duration_seconds`). `GET /api/me/assessments` uses `COALESCE(a.duration_minutes, l.duration_minutes)`.
+- **Why.** Owner decision 2026-10-21 (manual time per assessment).
+- **Not included.** Automatic time, per-question time, extra time for one candidate, a time change for a running attempt.

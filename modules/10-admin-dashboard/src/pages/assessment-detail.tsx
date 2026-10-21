@@ -49,6 +49,7 @@ import { NegativeMarksCard } from "../components/NegativeMarksCard.js";
 import { PassMarkCard } from "../components/PassMarkCard.js";
 import { TestTypeCard } from "../components/TestTypeCard.js";
 import { RetakeCard } from "../components/RetakeCard.js";
+import { TimeLimitCard } from "../components/TimeLimitCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
@@ -663,6 +664,19 @@ export function AdminAssessmentDetail(): React.ReactElement {
           initialScoreCounts={assessment.settings?.score_counts ?? "latest"}
           isDraft={assessment.status === "draft"}
         />
+        {/* Sectioned and whole-test assessments take their time from the section minutes, so the card is hidden there. */}
+        {!(
+          (Array.isArray((assessment.settings as { sections?: unknown } | undefined)?.sections) &&
+            ((assessment.settings as { sections: unknown[] }).sections.length > 0)) ||
+          typeof (assessment.settings as { whole_test_minutes?: unknown } | undefined)?.whole_test_minutes === "number"
+        ) && (
+          <TimeLimitCard
+            key={`tl-${assessment.id}`}
+            assessmentId={assessment.id}
+            initial={assessment.duration_minutes ?? null}
+            effective={assessment.effective_duration_minutes ?? null}
+          />
+        )}
         <IntegrityCard key={assessment.id} assessmentId={assessment.id} initial={assessment.settings?.integrity} />
         <SectionsCard
           key={`sec-${assessment.id}`}

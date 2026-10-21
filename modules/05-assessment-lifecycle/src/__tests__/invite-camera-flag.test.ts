@@ -33,6 +33,15 @@ describe("camera flag passed to the sender", () => {
     expect(flag(sent.reminder)).toBe(false);
     expect(fn).not.toHaveBeenCalled();
   });
+  it("a value already resolved by the caller (bulk invite, once per batch) is used and the resolver is not asked again", async () => {
+    const fn = vi.fn(async () => false);
+    setCameraRequiredResolver(fn);
+    await sendInvitationEmail({ ...inv, deliveryMode: "real", cameraRequired: true });
+    expect(flag(sent.invite)).toBe(true);
+    await sendInvitationEmail({ ...inv, deliveryMode: "real", cameraRequired: false });
+    expect(flag(sent.invite)).toBe(false);
+    expect(fn).not.toHaveBeenCalled();
+  });
   it("resolver missing, resolver error or mode missing -> false", async () => {
     await sendInvitationEmail({ ...inv, deliveryMode: "real" });
     expect(flag(sent.invite)).toBe(false);

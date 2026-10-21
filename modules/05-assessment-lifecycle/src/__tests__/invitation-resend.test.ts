@@ -21,7 +21,7 @@ import { createHash, randomUUID } from "node:crypto";
 const { sendInvitationEmail } = vi.hoisted(() => ({
   sendInvitationEmail: vi.fn(),
 }));
-vi.mock("../email.js", () => ({ sendInvitationEmail }));
+vi.mock("../email.js", () => ({ sendInvitationEmail, resolveCameraRequired: vi.fn(async () => false) }));
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { AppError, ConflictError, NotFoundError } from "@assessiq/core";

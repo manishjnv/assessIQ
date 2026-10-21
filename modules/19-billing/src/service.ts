@@ -1051,6 +1051,7 @@ export async function listAvailableSetsForTenant(tenantId: string): Promise<Avai
         source_version: s.version,
         question_count: s.question_count,
         level_count: s.level_count,
+        level_minutes: s.level_minutes,
         cloned: clone !== undefined,
         cloned_pack_id: clone?.id ?? null,
         update_available:

@@ -26,7 +26,7 @@ vi.mock("../components/AdminShell.js", () => ({
 import { AdminStartTest, START_TEST_HELP_PAGE, START_TEST_MOCK_HELP, parsePasted } from "../pages/start-test.js";
 import { AdminApiError } from "../api.js";
 
-const SET = { source_pack_id: "p1", name: "SOC Basics", domain: "soc", source_version: 1, question_count: 30, level_count: 2, cloned: true, cloned_pack_id: "c1", update_available: false };
+const SET = { source_pack_id: "p1", name: "SOC Basics", domain: "soc", source_version: 1, question_count: 30, level_count: 2, level_minutes: [45, 60], cloned: true, cloned_pack_id: "c1", update_available: false };
 
 function setup(blueprints: unknown[] = []) {
   api.listExamBlueprintsApi.mockResolvedValue({ items: blueprints });
@@ -80,6 +80,33 @@ describe("AdminStartTest", () => {
     expect(api.createAssessmentFromSet.mock.invocationCallOrder[0]!).toBeLessThan(api.publishAssessmentApi.mock.invocationCallOrder[0]!);
     expect(api.inviteAssessmentUsers.mock.invocationCallOrder[0]!).toBeLessThan(api.importCandidates.mock.invocationCallOrder[0]!);
     expect(screen.getByText(/b@x.com: Already invited/)).toBeTruthy();
+  });
+
+  it("sends the time limit when typed, nothing when empty, and shows the level time as placeholder", async () => {
+    setup();
+    await screen.findByText(/Asha/);
+    fireEvent.click(screen.getByRole("radio"));
+    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+    const box = screen.getByLabelText(/Time limit \(minutes\)/) as HTMLInputElement;
+    expect(box.placeholder).toBe("45");
+    fireEvent.change(box, { target: { value: "20" } });
+    fireEvent.click(send());
+    await screen.findByTestId("start-test-result");
+    expect(api.createAssessmentFromSet.mock.calls[0]![0].duration_minutes).toBe(20);
+  });
+
+  it("leaves duration_minutes out when the time limit is empty and blocks a value over 600", async () => {
+    setup();
+    await screen.findByText(/Asha/);
+    fireEvent.click(screen.getByRole("radio"));
+    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+    const box = screen.getByLabelText(/Time limit \(minutes\)/);
+    fireEvent.change(box, { target: { value: "601" } });
+    expect((send() as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(box, { target: { value: "" } });
+    fireEvent.click(send());
+    await screen.findByTestId("start-test-result");
+    expect("duration_minutes" in api.createAssessmentFromSet.mock.calls[0]![0]).toBe(false);
   });
 
   it("shows the failed step and the assessment link when publish fails", async () => {

@@ -1142,6 +1142,8 @@ export interface AvailableSet {
   source_version: number;
   question_count: number;
   level_count: number;
+  /** Level time in minutes per level (position order). */
+  level_minutes?: number[];
   cloned: boolean;
   cloned_pack_id: string | null;
   update_available: boolean;
@@ -1194,6 +1196,8 @@ export interface CreateAssessmentFromSetRequest {
   question_count: number;
   /** Z-16: integer 1..100; omit to use the level default. */
   passing_score_pct?: number;
+  /** Optional time limit, integer 1..600; omit to use the level time. */
+  duration_minutes?: number;
   /** Z-89: 'real' (default) or 'mock'. */
   delivery_mode?: "real" | "mock";
   opens_at: string;

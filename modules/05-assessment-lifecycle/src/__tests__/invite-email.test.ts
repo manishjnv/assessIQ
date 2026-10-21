@@ -128,6 +128,8 @@ const { mockSendInvitationEmail } = vi.hoisted(() => ({
 
 vi.mock('../email.js', () => ({
   sendInvitationEmail: mockSendInvitationEmail,
+  // bulk invite resolves the camera rule once per batch (before its transaction)
+  resolveCameraRequired: vi.fn(async () => false),
 }));
 
 // ---------------------------------------------------------------------------
@@ -176,6 +178,7 @@ describe('inviteUsers — tenantId pass-through to email', () => {
       question_count: 5,
       passing_score_pct: 60,
       max_attempts: null,
+      duration_minutes: null,
       delivery_mode: 'real',
       tenant_id: tenantId,
       pack_version: 1,

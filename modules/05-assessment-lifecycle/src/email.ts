@@ -27,6 +27,8 @@ export interface SendAssessmentInvitationInput {
   tenantId?: string;
   /** From the invitation row. Decides the camera line; absent = no line. */
   deliveryMode?: "real" | "mock";
+  /** Already resolved by the caller. Bulk invites set it once per batch so no send opens a second pooled connection inside an open transaction. */
+  cameraRequired?: boolean;
 }
 
 type CameraRequiredFor = (tenantId: string, deliveryMode: "mock" | "real") => Promise<boolean>;
@@ -70,7 +72,7 @@ export async function sendInvitationEmail(
     expiresAt: input.expiresAt,
     tenantName: input.tenantName,
     ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
-    cameraRequired: await resolveCameraRequired(input.tenantId, input.deliveryMode),
+    cameraRequired: input.cameraRequired ?? (await resolveCameraRequired(input.tenantId, input.deliveryMode)),
   });
 }
 

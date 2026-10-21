@@ -15,7 +15,7 @@ import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { ValidationError } from "@assessiq/core";
 // The invitation email goes through the notifications queue; the gate tests only need to count sends.
 const { sendInvitationEmail } = vi.hoisted(() => ({ sendInvitationEmail: vi.fn() }));
-vi.mock("../email.js", () => ({ sendInvitationEmail }));
+vi.mock("../email.js", () => ({ sendInvitationEmail, resolveCameraRequired: vi.fn(async () => false) }));
 
 import { createAssessment, getAssessment, publishAssessment, inviteUsers, resendInvitation } from "../service.js";
 import { AL_ERROR_CODES } from "../types.js";

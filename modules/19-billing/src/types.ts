@@ -180,6 +180,8 @@ export interface AvailableSet {
   source_version: number;     // current platform pack version
   question_count: number;     // active questions in the platform set
   level_count: number;
+  /** Level time in minutes, one per level in position order (the default when an assessment sets no time). */
+  level_minutes: number[];
   cloned: boolean;            // already materialised into this tenant?
   cloned_pack_id: string | null;
   update_available: boolean;  // cloned AND a newer source version exists
