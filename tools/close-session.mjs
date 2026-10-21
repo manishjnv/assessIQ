@@ -2,7 +2,6 @@
 // Z-109: one command for session close-out. NEVER commits or pushes.
 // Usage: node tools/close-session.mjs [--root <dir>] [--dry-run]
 // Prints OK / WARN / FAIL per step and continues. Exit 1 when any step is FAIL.
-// Env AIQ_DOCS_BACKUP_DIR: backup folder for the docs-backup step (default: <home>\Backups).
 import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join, relative, resolve, sep } from "node:path";
@@ -76,12 +75,12 @@ function repeatKey(file) {
 function fileCount() {
   if (!existsSync(join(root, "docs"))) return { res: "OK", note: "skipped (no docs/ folder)", lines: [] };
   const now = Date.now();
-  const entries = mdFiles(join(root, "docs")).map((p) => ({
-    r: relative(root, p).split(sep).join("/"),
-    file: basename(p),
-    key: repeatKey(basename(p)),
-    fresh: now - created(p) <= DAY_MS,
-  }));
+  // docs/archive/ and docs/private/ never count as new files and never match a repeat name.
+  const entries = mdFiles(join(root, "docs")).map((p) => {
+    const r = relative(root, p).split(sep).join("/");
+    const quiet = /^docs\/(archive|private)\//.test(r);
+    return { r, file: basename(p), key: quiet ? null : repeatKey(basename(p)), fresh: !quiet && now - created(p) <= DAY_MS };
+  });
   const N = entries.length;
   const prev = existsSync(COUNT) ? Number.parseInt(readFileSync(COUNT, "utf8"), 10) : Number.NaN;
   const k = Number.isFinite(prev) ? N - prev : 0;
@@ -132,10 +131,8 @@ function fileCount() {
 }
 
 const node = (script, ...args) => ({ cmd: `node tools/${script}${args.length ? " " + args.join(" ") : ""}`, script, args });
-const backupArgs = ["--root", root, ...(process.env.AIQ_DOCS_BACKUP_DIR ? ["--dest", process.env.AIQ_DOCS_BACKUP_DIR] : [])];
 // status: fn(result) -> "OK" | "WARN" | "FAIL"
 const steps = [
-  { name: "docs-backup", ...node("docs-backup.mjs", ...backupArgs), note: (r) => r.stdout.trim().split(/\r?\n/).pop() ?? "" },
   { name: "next-brief", ...node("next-brief.mjs") },
   { name: "routing-report", ...node("routing-report.mjs") },
   { name: "roadmap-recount", ...node("roadmap-recount.mjs"), judge: (r) => (r.status !== 0 ? "WARN" : "OK"), note: (r) => r.stdout.split(/\r?\n/).filter(Boolean).pop() ?? "" },

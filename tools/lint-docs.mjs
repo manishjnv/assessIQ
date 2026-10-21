@@ -135,8 +135,7 @@ const gitOut = (...a) => {
       if (same.length) guard(`same kind "${kind(p)}" exists, extend ${same[same.length - 1]} instead`, p);
     }
   }
-  // ROADMAP cap raised 250000 -> 300000 on 2026-10-21 (S43): after the archive passes it is 273 KB; the rest is open-row evidence that needs owner-level judgment to cut.
-  for (const [p, cap] of [['docs/SESSION_STATE.md', 150000], ['docs/ROADMAP.md', 300000]]) {
+  for (const [p, cap] of [['docs/SESSION_STATE.md', 150000], ['docs/ROADMAP.md', 250000]]) {
     if (existsSync(p) && statSync(p).size > cap) guard(`file over ${cap} bytes`, p);
   }
 }

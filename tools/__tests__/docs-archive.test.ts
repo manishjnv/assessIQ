@@ -206,3 +206,69 @@ describe("docs-archive shrink, recount history, sections", () => {
     expect([...names.map(get), hist()]).toEqual(snap);
   });
 });
+
+describe("docs-archive passes A (z7-history) and B (long-open-cells)", () => {
+  const month = new Date().toISOString().slice(0, 7);
+  const sent = "First sentence of the history. ".repeat(40);
+  const long = `${sent}tail **bold \`code`;
+  const r = (id: string, status: string, ctx: string) => `| ${id} | src | Title ${id} | ${ctx} | ${status} | evidence ${id} | me |`;
+  const bullets = [
+    "- S9 recount update (x): Pending = 1 = 1. Closed = 2 = 2. Total = 3.",
+    "- S8 recount update (x): n8.",
+    "- S7 recount update (x): n7.",
+    "- S6 recount update (x): n6.",
+    "- S3 (2026-10-17): narrative three.",
+    "- Keep this plain note.",
+  ];
+  const rm3 = roadmap
+    .replace(row("Z-2", "pending"), r("Z-2", "pending", long))
+    .replace(row("Z-5", "waiting"), r("Z-5", "waiting", long))
+    .replace(row("Z-9", "open"), r("Z-9", "open", long))
+    .replace(row("Z-8", "✅ tail open"), r("Z-8", "✅ tail open", long))
+    .replace("### Z.7 Counts\n\n| Z.2 | 3 |\n", `### Z.7 Counts\n\n| Z.2 | 3 |\n\n${bullets.join("\n")}\n`);
+  const open = () => get(`docs/archive/ROADMAP-open-row-detail-${month}.md`);
+  const hist = () => get(`docs/archive/ROADMAP-history-${month}.md`);
+  beforeEach(() => put("docs/ROADMAP.md", rm3));
+
+  it("cuts long cells of open Z.3/Z.6 rows only, keeps recount, Z.2 untouched", async () => {
+    const base = await recountOf();
+    run("--limit", "700");
+    expect(await recountOf()).toBe(base);
+    const r3 = get("docs/ROADMAP.md");
+    const z5 = r3.split("\n").find((x) => x.startsWith("| Z-5 "))!;
+    const c = z5.split(" | ");
+    expect(c).toHaveLength(7);
+    expect(c[3].length).toBeLessThanOrEqual(700);
+    expect(c[3]).toMatch(/First sentence of the history\. … \[rest: docs\/archive\/ROADMAP-open-row-detail-\d{4}-\d{2}\.md § Z-5\]$/);
+    expect(c[4]).toBe("waiting");
+    expect(r3).toContain(r("Z-2", "pending", long)); // Z.2 untouched
+    expect(r3.split("\n").find((x) => x.startsWith("| Z-8 "))).not.toContain("[rest:"); // closed row: stub only
+    expect(r3.split("\n").find((x) => x.startsWith("| Z-9 "))).toContain("[rest:");
+    expect(open()).toContain("### Z-5");
+    expect(open()).toContain(`- cell 3 (Context): ${long}`);
+  });
+
+  it("moves old Z.7 bullets verbatim, keeps newest 3 recount updates", () => {
+    run();
+    const r3 = get("docs/ROADMAP.md");
+    expect(r3).toContain("- S9 recount update");
+    expect(r3).toContain("- S7 recount update");
+    expect(r3).not.toContain("- S6 recount update");
+    expect(r3).not.toContain("narrative three");
+    expect(r3).toContain("- Keep this plain note.");
+    expect(r3).toContain("- Older Z.7 notes: docs/archive/ROADMAP-history-");
+    expect(hist()).toContain("## Z.7 history (moved, pass A)");
+    expect(hist()).toContain("- S3 (2026-10-17): narrative three.");
+  });
+
+  it("is idempotent on a second run", () => {
+    run();
+    const names = ["docs/ROADMAP.md", "docs/moves.json"];
+    const snap = [...names.map(get), open(), hist()];
+    const out = run();
+    expect([...names.map(get), open(), hist()]).toEqual(snap);
+    expect(out).toContain("0 cell(s) cut");
+    const pairs = JSON.parse(get("docs/moves.json")).map((e: { from: string; to: string }) => `${e.from}>${e.to}`);
+    expect(new Set(pairs).size).toBe(pairs.length);
+  });
+});
