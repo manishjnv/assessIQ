@@ -400,7 +400,7 @@ export async function publishPack(adminCookie: string, packId: string): Promise<
  */
 export async function createAssessmentFromSet(
   adminCookie: string,
-  opts: { name: string; sourcePackId: string; levelPosition?: number; questionCount?: number; settings?: unknown },
+  opts: { name: string; sourcePackId: string; levelPosition?: number; questionCount?: number; settings?: unknown; deliveryMode?: 'real' | 'mock' },
 ): Promise<TestAssessment & { pack_id: string }> {
   return apiFetchJson<TestAssessment & { pack_id: string }>('/api/admin/assessments/from-set', {
     method: 'POST',
@@ -413,6 +413,7 @@ export async function createAssessmentFromSet(
       opens_at: new Date(Date.now() - 60_000).toISOString(),
       closes_at: new Date(Date.now() + 7 * 24 * 3600_000).toISOString(),
       ...(opts.settings !== undefined ? { settings: opts.settings } : {}),
+      ...(opts.deliveryMode !== undefined ? { delivery_mode: opts.deliveryMode } : {}),
     },
     expectedStatus: 201,
     label: 'createAssessmentFromSet',
@@ -705,6 +706,7 @@ export async function provisionInvitations(opts: {
   count: number;
   makeQuestions: (superCookie: string, packId: string, levelId: string) => Promise<unknown>;
   questionCount: number;
+  deliveryMode?: 'real' | 'mock';
 }): Promise<ProvisionedInvitations> {
   const ts = Date.now();
   const superAdmin = await mintSuperAdminSession();
@@ -717,6 +719,7 @@ export async function provisionInvitations(opts: {
     name: `E2E Test ${opts.label} ${ts}`,
     sourcePackId: pack.id,
     questionCount: opts.questionCount,
+    ...(opts.deliveryMode !== undefined ? { deliveryMode: opts.deliveryMode } : {}),
   });
   await publishAssessment(admin.cookie, created.id);
   const emails: string[] = [];

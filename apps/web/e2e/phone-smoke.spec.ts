@@ -40,26 +40,37 @@ test.describe('phone smoke: pages that stay phone-usable (Z-88)', () => {
     await expectNoSideScroll(page);
   });
 
-  test.describe('invitation landing', () => {
-    let inv: factories.ProvisionedInvitations;
+  // A real exam link on a phone shows "open on a laptop or desktop" and no Begin button.
+  // A mock link on a phone shows the normal start screen with Begin.
+  for (const mode of ['real', 'mock'] as const) {
+    test.describe(`invitation landing (${mode})`, () => {
+      let inv: factories.ProvisionedInvitations;
 
-    test.beforeAll(async () => {
-      test.setTimeout(240_000); // waits for the worker to activate the assessment (60 s cron)
-      inv = await factories.provisionInvitations({
-        label: 'phone-smoke',
-        count: 1,
-        questionCount: 1,
-        makeQuestions: async (sa, packId, levelId) => {
-          await factories.createMcqQuestion(sa, packId, levelId, 'E2E phone smoke: pick the correct option.');
-        },
+      test.beforeAll(async () => {
+        test.setTimeout(240_000); // waits for the worker to activate the assessment (60 s cron)
+        inv = await factories.provisionInvitations({
+          label: `phone-smoke-${mode}`,
+          count: 1,
+          questionCount: 1,
+          deliveryMode: mode,
+          makeQuestions: async (sa, packId, levelId) => {
+            await factories.createMcqQuestion(sa, packId, levelId, 'E2E phone smoke: pick the correct option.');
+          },
+        });
+      });
+      test.afterAll(async () => { await inv?.cleanup(); });
+
+      test(`/take/<token> (${mode}) on a phone`, async ({ page }) => {
+        test.setTimeout(120_000);
+        await page.goto(inv.paths[0]!);
+        if (mode === 'real') {
+          await expect(page.getByText(/open this link on a laptop or desktop/i).first()).toBeVisible({ timeout: 60_000 });
+          await expect(page.getByRole('button', { name: /^Begin/ })).toHaveCount(0);
+        } else {
+          await expect(page.getByRole('button', { name: /^Begin/ })).toBeVisible({ timeout: 60_000 });
+        }
+        await expectNoSideScroll(page);
       });
     });
-    test.afterAll(async () => { await inv?.cleanup(); });
-
-    test('/take/<token> shows Begin and fits the phone width', async ({ page }) => {
-      await page.goto(inv.paths[0]!);
-      await expect(page.getByRole('button', { name: /^Begin/ })).toBeVisible({ timeout: 60_000 });
-      await expectNoSideScroll(page);
-    });
-  });
+  }
 });
