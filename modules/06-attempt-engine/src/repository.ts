@@ -1118,6 +1118,15 @@ export async function listPoolWithCategory(
   return r.rows;
 }
 
+/** Z-123: ids of questions linked to taxonomy node `nodeId` or a descendant (question_taxonomy; same predicate as Z-43). */
+export async function listQuestionIdsUnderNode(client: PoolClient, nodeId: string): Promise<Set<string>> {
+  const r = await client.query<{ id: string }>(
+    `SELECT q.id FROM questions q WHERE ${taxonomyDrawPredicate("q", "$1", "$2", "$3")}`,
+    nodeScopeArgs({ nodeId }),
+  );
+  return new Set(r.rows.map((x) => x.id));
+}
+
 /** attempts.section_progress (migration 0132); null = still in section 0. */
 export async function getSectionProgress(
   client: PoolClient,

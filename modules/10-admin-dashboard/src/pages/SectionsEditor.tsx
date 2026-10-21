@@ -3,7 +3,7 @@
 // calculator. Output goes to settings.sections (validated server-side, module 05).
 // Categories are optional: pick the domain they come from, then tick per section.
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { HelpTip } from "@assessiq/help-system/components";
 import { listDomainsApi, listCategoriesApi } from "../api.js";
 import type { DomainItem, CategoryItem } from "../api.js";
@@ -71,16 +71,29 @@ const FIELD: React.CSSProperties = {
   background: "var(--aiq-color-bg-raised)",
 };
 
+/**
+ * `subjectSlug` undefined: the old free picker (any active subject). A string: the chosen set's
+ * subject, preselected and locked. null: no set chosen, so no categories are offered.
+ * `setId`: the chosen set. Ticked categories are cleared when it changes (create form only).
+ */
 export function SectionsEditor({
   rows,
   onChange,
+  subjectSlug,
+  setId,
 }: {
   rows: SectionRow[];
   onChange: (rows: SectionRow[]) => void;
+  subjectSlug?: string | null;
+  setId?: string | null;
 }): React.ReactElement {
   const [domains, setDomains] = useState<DomainItem[]>([]);
   const [domainId, setDomainId] = useState("");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const lockedMode = subjectSlug !== undefined;
+  const lockedDomain = lockedMode && subjectSlug !== null ? domains.find((d) => d.slug === subjectSlug) : undefined;
+  // Locked: the set's subject. Free: the picker value. No set: no subject at all.
+  const effectiveDomainId = lockedMode ? (lockedDomain?.id ?? "") : domainId;
 
   useEffect(() => {
     void listDomainsApi()
@@ -88,14 +101,25 @@ export function SectionsEditor({
       .catch(() => setDomains([]));
   }, []);
   useEffect(() => {
-    if (domainId === "") {
+    if (effectiveDomainId === "") {
       setCategories([]);
       return;
     }
-    void listCategoriesApi(domainId)
+    void listCategoriesApi(effectiveDomainId)
       .then((c) => setCategories(c.items.filter((x) => x.status === "active")))
       .catch(() => setCategories([]));
-  }, [domainId]);
+  }, [effectiveDomainId]);
+
+  // A new set may have another subject: drop the ticks made for the old one. Skipped on mount,
+  // so a saved section keeps its categories when the editor opens.
+  const lastSetId = useRef(setId);
+  useEffect(() => {
+    if (lastSetId.current === setId) return;
+    lastSetId.current = setId;
+    if (rows.some((r) => r.categoryIds.length > 0)) {
+      onChange(rows.map((r) => ({ ...r, categoryIds: [] })));
+    }
+  }, [setId]);
 
   const update = (i: number, patch: Partial<SectionRow>): void =>
     onChange(rows.map((r, k) => (k === i ? { ...r, ...patch } : r)));
@@ -119,22 +143,36 @@ export function SectionsEditor({
         With no sections the assessment runs as one timed block.
       </p>
 
-      {rows.length > 0 && domains.length > 0 && (
-        <label style={{ display: "block", marginBottom: "var(--aiq-space-sm)" }}>
-          Categories from{" "}
-          <select
-            aria-label="Subject for category choices"
-            style={FIELD}
-            value={domainId}
-            onChange={(e) => setDomainId(e.target.value)}
-          >
-            <option value="">— none (use question counts only) —</option>
-            {domains.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
-          </select>
-        </label>
-      )}
+      {lockedMode
+        ? rows.length > 0 && lockedDomain !== undefined && categories.length > 0 && (
+          <label style={{ display: "block", marginBottom: "var(--aiq-space-sm)" }}>
+            Categories from{" "}
+            <select
+              aria-label="Subject for category choices"
+              style={FIELD}
+              value={lockedDomain.id}
+              disabled
+            >
+              <option value={lockedDomain.id}>{lockedDomain.name}</option>
+            </select>
+          </label>
+        )
+        : rows.length > 0 && domains.length > 0 && (
+          <label style={{ display: "block", marginBottom: "var(--aiq-space-sm)" }}>
+            Categories from{" "}
+            <select
+              aria-label="Subject for category choices"
+              style={FIELD}
+              value={domainId}
+              onChange={(e) => setDomainId(e.target.value)}
+            >
+              <option value="">— none (use question counts only) —</option>
+              {domains.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
 
       {rows.map((r, i) => (
         <div

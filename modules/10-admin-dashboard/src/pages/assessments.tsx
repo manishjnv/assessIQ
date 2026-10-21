@@ -692,7 +692,12 @@ export function AdminAssessments(): React.ReactElement {
               )}
 
               {createMode === "from-set" && (
-                <SectionsEditor rows={sectionRows} onChange={setSectionRows} />
+                <SectionsEditor
+                  rows={sectionRows}
+                  onChange={setSectionRows}
+                  subjectSlug={pendingFromSet === null ? null : pendingFromSet.domain}
+                  setId={pendingFromSet?.source_pack_id ?? null}
+                />
               )}
 
               {/* Integrity v1 — candidate runner switches */}

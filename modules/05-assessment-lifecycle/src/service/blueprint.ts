@@ -154,6 +154,84 @@ export async function assertBlueprintFKOwnership(
 }
 
 /**
+ * Z-122 / Z-123: settings.sections guard (writes only; old assessments are not re-checked).
+ * Every section category_id must be a category of THIS tenant whose domain slug equals the pack's
+ * subject (question_packs.domain). A section node_id must be a node visible to this tenant (RLS).
+ * Runs inside the caller's tenant-scoped client, so a foreign-tenant id finds no row.
+ */
+export async function assertSectionCategoriesMatchPack(
+  client: PoolClient,
+  tenantId: string,
+  packId: string,
+  settings: unknown,
+): Promise<void> {
+  const raw = (settings as { sections?: unknown } | null | undefined)?.sections;
+  if (!Array.isArray(raw) || raw.length === 0) return;
+  const sections = raw as Array<{ name?: string; category_ids?: string[]; node_id?: string }>;
+  if (!sections.some((s) => s.category_ids !== undefined || s.node_id !== undefined)) return;
+  const pack = await client.query<{ domain: string }>(
+    `SELECT domain FROM question_packs WHERE id = $1 AND tenant_id = $2`,
+    [packId, tenantId],
+  );
+  if (pack.rows.length === 0) return; // createAssessment reports the missing set itself
+  const subject = pack.rows[0]!.domain;
+  const bad = (s: { name?: string }, what: string): ValidationError =>
+    new ValidationError(`Section "${s.name ?? ""}": ${what}`, {
+      details: { code: "INVALID_PARAM", param: "settings.sections" },
+    });
+  for (const s of sections) {
+    const ids = [...new Set(s.category_ids ?? [])];
+    if (ids.length > 0) {
+      const ok = await client.query<{ id: string }>(
+        `SELECT c.id FROM categories c JOIN domains d ON d.id = c.domain_id
+          WHERE c.id = ANY($1::uuid[]) AND c.tenant_id = $2 AND d.tenant_id = $2 AND d.slug = $3`,
+        [ids, tenantId, subject],
+      );
+      if (ok.rows.length !== ids.length) throw bad(s, "a category is not from this pack's subject");
+    }
+    if (s.node_id !== undefined) {
+      const n = await client.query(`SELECT 1 FROM taxonomy_nodes WHERE id = $1`, [s.node_id]);
+      if (n.rows.length === 0) throw bad(s, "the topic node does not exist or is not visible to this organisation");
+    }
+  }
+}
+
+/**
+ * Z-122: publish pre-flight. Counts each section's pool with the SAME filter the draw uses
+ * (06 startAttempt: node_id by taxonomy descendants, else category_ids, else the whole pool).
+ * Each section is counted on its own; overlap between sections and passage grouping are not modelled.
+ */
+export async function assertSectionPoolsFillable(
+  client: PoolClient,
+  packId: string,
+  levelId: string,
+  settings: unknown,
+): Promise<void> {
+  const raw = (settings as { sections?: unknown } | null | undefined)?.sections;
+  if (!Array.isArray(raw)) return;
+  for (const s of raw as Array<{ name?: string; category_ids?: string[]; node_id?: string; question_count?: number }>) {
+    if (s.question_count === undefined) continue;
+    const base = `SELECT count(*) AS n FROM questions q WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'`;
+    const r =
+      s.node_id !== undefined
+        ? await client.query<{ n: string }>(
+            `${base} AND ${taxonomyDrawPredicate("q", "$3", "$4", "$5")}`,
+            [packId, levelId, ...nodeScopeArgs({ nodeId: s.node_id })],
+          )
+        : s.category_ids !== undefined
+          ? await client.query<{ n: string }>(`${base} AND q.category_id = ANY($3::uuid[])`, [packId, levelId, s.category_ids])
+          : await client.query<{ n: string }>(base, [packId, levelId]);
+    const available = parseInt(r.rows[0]?.n ?? "0", 10);
+    if (available < s.question_count) {
+      throw new ValidationError(
+        `Section "${s.name ?? ""}" has too few questions: ${available} available, ${s.question_count} needed`,
+        { details: { code: AL_ERROR_CODES.POOL_TOO_SMALL, section: s.name, available, required: s.question_count } },
+      );
+    }
+  }
+}
+
+/**
  * RW-55 — resolve node_id criteria to the tenant's (domain_id, category_id).
  * Runs inside the caller's tenant-scoped client (RLS applies to categories).
  * Returns the stored (resolved) shape; node_id is kept for traceability only.

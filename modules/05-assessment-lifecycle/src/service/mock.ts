@@ -1,8 +1,6 @@
 // EXP-6: "Start a full mock" — a DRAFT assessment built from a platform exam blueprint through the
 // existing createAssessment path (all of its guards run: pack published, level in pack, opens_at, tenant RLS).
-// Section subject nodes are NOT used by the draw today: a section draws from the pack/level pool by
-// question_count (module 06 startAttempt), so the pool must be built for the exam. Rewrite of the draw
-// by node is EXP-5 follow-up work, not done here.
+// Z-123: each section carries the blueprint subject node (node_id); module 06 draws it by taxonomy descendants.
 import { getExamBlueprint } from "../../../04-question-bank/src/exam-blueprints.js";
 import type { Assessment, AssessmentSection } from "../types.js";
 import { createAssessment } from "./assessments.js";
@@ -33,6 +31,7 @@ export async function createMockFromBlueprint(
   const sections: AssessmentSection[] = bp.sections.map((s) => ({
     name: s.name,
     question_count: s.question_count,
+    ...(s.subject_node_id !== null ? { node_id: s.subject_node_id } : {}), // Z-123: the draw filters by this node
     ...(sectional ? { minutes: s.minutes as number } : {}),
     marks_per_question: s.marks_per_question,
     negative_marks_per_question: s.negative_marks_per_question,

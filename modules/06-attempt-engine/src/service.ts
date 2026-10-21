@@ -452,9 +452,15 @@ export async function startAttempt(
       chosen = [];
       sectionOf = [];
       for (const [si, s] of sections.entries()) {
-        const cats = s.category_ids !== undefined ? new Set(s.category_ids) : null;
+        // Z-123: a node_id section draws by taxonomy descendants (imported questions have no category_id).
+        const underNode = s.node_id !== undefined ? await repo.listQuestionIdsUnderNode(client, s.node_id) : null;
+        const cats = underNode === null && s.category_ids !== undefined ? new Set(s.category_ids) : null;
         const cand = pool.filter(
-          (q) => !used.has(q.id) && (cats === null || (q.category_id !== null && cats.has(q.category_id))),
+          (q) =>
+            !used.has(q.id) &&
+            (underNode !== null
+              ? underNode.has(q.id)
+              : cats === null || (q.category_id !== null && cats.has(q.category_id))),
         );
         if (assessment.randomize) shuffleInPlace(cand);
         const n = s.question_count ?? cand.length;
