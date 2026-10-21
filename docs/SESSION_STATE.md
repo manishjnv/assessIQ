@@ -1,3 +1,38 @@
+# Session — 2026-10-21 — S40: future-ready question store (design only, no code)
+
+**Headline:** The owner decided ONE master question database, written by the platform super admin and read by licensed organisations. A design (v2.1) now covers it, validated by Fable 5.1 and Opus 5.5 reviews plus a market scan. Roadmap rows FUT-1 to FUT-11 are added and EXP-14 is revised. No code was written.
+**Commits (docs only, not pushed):** `eff07ff0` design v2.1 and rows FUT-1..11 · `686c1df5` hide answer keys from licensed admins · `d82908c9` break-glass key view · `53ff71f5` break-glass per assessment, 30 minutes, no copy · `d2ffb6df` option B (keys hidden in every licensed pack, one question set) · this handoff commit.
+**Tests:** n/a (docs only).
+**Design:** `docs/design/2026-10-21-future-ready-question-store.md` (decisions D1 to D12).
+**Owner decisions recorded:** one master database, no database per exam; licensed read first, one mode, no clone flag; keys hidden from licensed admins in every licensed pack (option B); break-glass view = one assessment, 30-minute window, fresh-MFA or email OTP, reason, two emails (open and close), no copy, watermark, audit row per reveal, super-admin kill switch. Compliance and review gates were left out on purpose (pre-launch).
+**Build order:** FUT-1 (immutable versions, `source_question_id` index, pin FKs) → FUT-8 (taxonomy by node) → EXP-14 (11-table licensed-read policy family, XL) → FUT-2 (key hiding and break-glass, L) → FUT-10 (close `assessiq_system` membership) and FUT-11 (attempt retention) before real customer data → FUT-3/4/5p2/6/7/9 when a real need appears.
+**Next:** build FUT-1 (one migration, Sonnet agent, Opus diff review, `pnpm verify`). Then FUT-8.
+**Open questions:** approval to retire the clone-on-grant code after EXP-14 (Rule A); cap values for break-glass (25 reveals was replaced by the assessment's question count; daily cap number not set); the `sample`/`secure` per-question flag stays a later option.
+**Not done:** the Z.7 pending count (86 becomes about 88 with FUT-8..11); no push; `docs/ai-playbook/01-speed-rules.md` was edited by another session and is not part of these commits.
+**Old task or feature checked:** EXP-14, EXP-19, EXP-20, Z-43, Z-89, Q12, R2 (Rule B).
+**Optimization register rows touched:** none.
+
+---
+
+## Agent utilization
+- Opus: n/a — the main session ran Sonnet 5.5; two Opus 5.5 agents did independent reviews (below).
+- Sonnet: main session (draft design, merge, roadmap edits, commits) · market research agent · 86,873 tokens.
+- Haiku: n/a — no bulk sweep needed.
+- codex:rescue: n/a — owner set no gates for this design-only session.
+- Fable 5.1: 4 read-only runs · architecture review 230,491 · re-review of 14 ideas 140,996 · design validation 225,866 · final best-in-class review 140,112 · total 737,465.
+- Opus 5.5 agent: 2 read-only runs · architecture review 122,869 · design validation 144,987 · total 267,856.
+- Routing lines:
+  - Fable · architecture review · reworked: N · tokens: 230491
+  - Opus · architecture review · reworked: N · tokens: 122869
+  - Sonnet · market research · reworked: N (sources were mixed quality; findings used as support only) · tokens: 86873
+  - Fable · re-review of 14 ideas · reworked: N · tokens: 140996
+  - Fable · design validation · reworked: N (design v1 revised into v2) · tokens: 225866
+  - Opus · design validation · reworked: N (design v1 revised into v2) · tokens: 144987
+  - Fable · final best-in-class review · reworked: N (design v2 amended to v2.1) · tokens: 140112
+- Total subagent tokens: about 1.09M. Main session figure is an estimate (about 90k).
+
+---
+
 # Session — 2026-10-20/21 — S39: Wave 2 camera for real exams (Z-74, Z-82), camera follow-up, optional time limit per assessment
 
 **Headline:** The camera feature is built and live, and the `CAMERA_ENFORCED` switch is ON in production (owner decision 2026-10-21; server `.env` backup kept; api and worker both recreated, sweep 0 failures). Z-104 CERT-POLISH is done and deployed: no empty signature line, larger social preview text, "No answers yet" at the start (error and offline keep "Not saved yet"), Congratulations box checked (one small fix), tier rule confirmed (75% Completion, 90% Distinction). Caddy `camera=(self)` is applied on take pages only. Follow-up shipped: camera line in the invitation and reminder emails, own limit and idempotence on the consent route, retake consent test. New: the organisation admin can set an optional time limit per assessment (empty = the difficulty's time). Z-74 and Z-82 closed in place.
