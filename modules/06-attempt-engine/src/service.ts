@@ -1587,6 +1587,24 @@ export async function submitAttempt(
   });
 }
 
+/**
+ * GATE-8 A3-2: an admin ended the candidate's attempt (invitation revoke). Same submit-and-grade as a
+ * candidate submit, inside the caller's transaction: answers already saved are scored (MCQ) and an MCQ-only
+ * attempt is finalised, so the marks earned are kept. The invitation row stays as the caller set it (expired).
+ * No-op when the attempt is not in_progress.
+ */
+export async function submitAttemptForRevokeInTx(
+  client: PoolClient,
+  tenantId: string,
+  attemptId: string,
+): Promise<void> {
+  const attempt = await repo.findAttemptByIdForUpdate(client, attemptId);
+  if (attempt === null || attempt.status !== "in_progress") return;
+  await repo.updateAttemptStatus(client, attemptId, { status: "submitted", submittedAt: new Date() });
+  await emitAttemptEventAfterCommit(client, tenantId, attemptId, "attempt.submitted");
+  await scoreMcqAndFinalizeSafely(client, tenantId, attemptId);
+}
+
 // ===========================================================================
 // getAnswers — admin/owner read (used by the candidate result page placeholder)
 // ===========================================================================

@@ -35,6 +35,7 @@ import {
   resolveInvitationToken,
   revokeInvitation,
 } from "../service.js";
+import { setRevokeAttemptSubmitter } from "../service/revoke-submitter.js";
 import { registerAssessmentLifecycleRoutes } from "../routes.js";
 import { DEFAULT_INVITATION_TTL_HOURS } from "../tokens.js";
 import { AL_ERROR_CODES } from "../types.js";
@@ -152,6 +153,12 @@ async function rejection(p: Promise<unknown>): Promise<AppError> {
 // ---------------------------------------------------------------------------
 // Setup / teardown
 // ---------------------------------------------------------------------------
+
+// The real submit-and-grade step lives in module 06 (injected by apps/api; tested in attempt-engine.test.ts).
+// Here a stub that only flips the status proves module 05 submits the running attempt and does not discard it.
+setRevokeAttemptSubmitter(async (client, _tenantId, attemptId) => {
+  await client.query(`UPDATE attempts SET status = 'submitted', submitted_at = now() WHERE id = $1`, [attemptId]);
+});
 
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine")
@@ -332,7 +339,7 @@ describe("resendInvitation", () => {
     expect(sendInvitationEmail).not.toHaveBeenCalled();
   });
 
-  it("A3-2: revoking cancels the in-progress attempt and audits its id; a finished attempt stays", async () => {
+  it("A3-2: revoking SUBMITS the in-progress attempt (not cancelled) and audits its id; a finished attempt stays", async () => {
     const a = await newAssessment("Revoke running");
     const running = await inviteOne(a);
     await startAttemptFor(a, running.userId);
@@ -344,11 +351,26 @@ describe("resendInvitation", () => {
 
     const st = async (u: string) =>
       (await sql(`SELECT status FROM attempts WHERE assessment_id = $1 AND user_id = $2`, [a, u]))[0].status;
-    expect(await st(running.userId)).toBe("cancelled");
+    expect(await st(running.userId)).toBe("submitted"); // submitted for grading, never discarded
     expect(await st(done.userId)).toBe("submitted");
     const rows = await auditRows(running.invitationId, "assessment.invite");
     const row = rows[rows.length - 1]!; // the revoke row is the newest (the first row is the invite itself)
-    expect((row.after["cancelled_attempt_ids"] as string[]).length).toBe(1);
+    expect((row.after["submitted_attempt_ids"] as string[]).length).toBe(1);
+  });
+
+  it("A3-2: a revoke with a running attempt fails closed (and rolls back) when no submit step is registered", async () => {
+    const a = await newAssessment("Revoke no submitter");
+    const running = await inviteOne(a);
+    await startAttemptFor(a, running.userId);
+    setRevokeAttemptSubmitter(undefined);
+    try {
+      await expect(revokeInvitation(tenantA, running.invitationId, adminA)).rejects.toThrow(/not registered/);
+    } finally {
+      setRevokeAttemptSubmitter(async (client, _t, attemptId) => {
+        await client.query(`UPDATE attempts SET status = 'submitted', submitted_at = now() WHERE id = $1`, [attemptId]);
+      });
+    }
+    expect((await invRow(running.invitationId)).status).not.toBe("expired"); // rolled back: invitation untouched
   });
 
   it("409 ASSESSMENT_NOT_ACTIVE when the assessment is closed; 404 for an unknown / other-tenant / malformed id", async () => {

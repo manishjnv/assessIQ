@@ -381,4 +381,6 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 
 ## S50 additions (2026-10-22)
 - A section may name `pack_id` (EXP-23). It must be a published pack of the tenant (checked at create and PATCH). Publish and reopen check the entitlement of every section pack. The freeze adds the section packs' questions at the same level position and stores `assessment_frozen_pool.pack_id` (NULL = old pool = the assessment pack). A pack with no level at that position fails the fill check.
-- `revokeInvitation` also cancels the candidate's `in_progress` attempt in the same transaction (GATE-8 A3-2); the audit row carries `cancelled_attempt_ids`. The frozen pool also stores `node_ids` (FUT-8).
+- `revokeInvitation` also ends the candidate's `in_progress` attempt in the same transaction (GATE-8 A3-2; see the 2026-10-22 update below: it submits and grades it); the audit row carries `submitted_attempt_ids`. The frozen pool also stores `node_ids` (FUT-8).
+
+- Update 2026-10-22: `revokeInvitation` SUBMITS and GRADES a running attempt (not cancelled): module 06's `submitAttemptForRevokeInTx` is injected at boot with `setRevokeAttemptSubmitter` (`service/revoke-submitter.ts`); no submitter registered = the revoke fails and rolls back. Audit `after.submitted_attempt_ids`.

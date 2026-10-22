@@ -28,6 +28,7 @@ export {
   getAttemptIntegritySummary,
   listAttemptsOnOlderVersions,
   submitAttempt,
+  submitAttemptForRevokeInTx,
   listAnswersForAttempt,
 } from "./service.js";
 

@@ -51,6 +51,7 @@ import {
   toggleFlag,
   recordEvent,
   submitAttempt,
+  submitAttemptForRevokeInTx,
   sweepStaleTimersForTenant,
 } from "../service.js";
 import * as repo from "../repository.js";
@@ -1200,6 +1201,35 @@ describe("submitAttempt", () => {
       );
       expect(result.rows[0]!.status).toBe("submitted");
     });
+  });
+});
+
+describe("submitAttemptForRevokeInTx (GATE-8 A3-2: revoke submits and grades, marks kept)", () => {
+  it("submits an in_progress attempt, keeps the saved answer's marks, and finalises an MCQ-only attempt", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Crevoke"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 3);
+    const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId });
+    const view = await getAttemptForCandidate(tenantA, attempt.id, candidate);
+    const qid = view.questions[0]!.question_id;
+    // The fixture's correct option is original index 0; options are shuffled per attempt (option_order[display] = original).
+    const ord = await withSuperClient((c) => c.query<{ option_order: number[] | null }>(`SELECT option_order FROM attempt_questions WHERE attempt_id = $1 AND question_id = $2`, [attempt.id, qid]));
+    const correctDisplay = ord.rows[0]!.option_order === null ? 0 : ord.rows[0]!.option_order!.indexOf(0);
+    await saveAnswer(tenantA, candidate, { attemptId: attempt.id, questionId: qid, answer: correctDisplay, client_revision: 0 });
+
+    await withTenant(tenantA, (client) => submitAttemptForRevokeInTx(client, tenantA, attempt.id));
+
+    await withSuperClient(async (c) => {
+      const st = await c.query<{ status: string; submitted_at: Date | null }>(`SELECT status, submitted_at FROM attempts WHERE id = $1`, [attempt.id]);
+      expect(st.rows[0]!.status).toBe("graded"); // MCQ-only fixture: finalised in the same transaction
+      expect(st.rows[0]!.submitted_at).not.toBeNull();
+      const g = await c.query<{ earned: string }>(`SELECT score_earned::text AS earned FROM gradings WHERE attempt_id = $1 AND question_id = $2`, [attempt.id, qid]);
+      expect(g.rows.length).toBeGreaterThan(0);
+      expect(Number(g.rows[0]!.earned)).toBeGreaterThan(0); // the marks of the saved answer are kept
+    });
+
+    // second call is a no-op on a finished attempt
+    await withTenant(tenantA, (client) => submitAttemptForRevokeInTx(client, tenantA, attempt.id));
   });
 });
 

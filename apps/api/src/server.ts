@@ -23,8 +23,8 @@ import { registerAdminSuperEvaluationsRoutes } from './routes/admin-super-evalua
 import { registerAdminTenantSettingsRoutes } from './routes/admin-tenant-settings.js';
 import { registerPublicTenantLogoRoutes } from './routes/public-tenant-logo.js';
 import { registerQuestionBankRoutes } from '@assessiq/question-bank';
-import { registerAssessmentLifecycleRoutes, setCameraRequiredResolver } from '@assessiq/assessment-lifecycle';
-import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes, registerCameraCandidateRoutes, registerCameraAdminRoutes, listDeclinedCameraInvitationIds, isCameraRequired } from '@assessiq/attempt-engine';
+import { registerAssessmentLifecycleRoutes, setCameraRequiredResolver, setRevokeAttemptSubmitter } from '@assessiq/assessment-lifecycle';
+import { registerAttemptCandidateRoutes, registerAttemptTakeRoutes, registerAttemptAdminRoutes, registerCameraCandidateRoutes, registerCameraAdminRoutes, listDeclinedCameraInvitationIds, isCameraRequired, submitAttemptForRevokeInTx } from '@assessiq/attempt-engine';
 import { registerGradingRoutes } from '@assessiq/ai-grading';
 import {
   registerHelpPublicRoutes,
@@ -211,6 +211,7 @@ export async function buildServer() {
   });
   // Invitation email camera line: same rule as the take flow (module 06), injected because module 05 cannot import it.
   setCameraRequiredResolver(isCameraRequired);
+  setRevokeAttemptSubmitter(submitAttemptForRevokeInTx); // GATE-8 A3-2: a revoke submits and grades the running attempt
 
   // Attempt-engine candidate routes — registers /api/me/assessments and
   // /api/me/attempts/* under the candidate authChain. Admin-side attempt

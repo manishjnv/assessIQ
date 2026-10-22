@@ -4,6 +4,7 @@ import { auditInTx } from "@assessiq/audit-log";
 import * as tenancyRepo from "../../../02-tenancy/src/repository.js";
 import type { PoolClient } from "pg";
 import * as repo from "../repository.js";
+import { requireRevokeAttemptSubmitter } from "./revoke-submitter.js";
 import { generateInvitationToken, DEFAULT_INVITATION_TTL_HOURS } from "../tokens.js";
 import { resolveCameraRequired, sendInvitationEmail } from "../email.js";
 import type { SendAssessmentInvitationInput } from "../email.js";
@@ -659,8 +660,11 @@ export async function revokeInvitation(
     }
 
     await repo.updateInvitationStatus(client, invitationId, "expired");
-    // A3-2: a revoke also ends a running attempt (save/submit refuse a non in_progress attempt).
-    const cancelledAttempts = await repo.cancelInProgressAttempts(client, invitation.assessment_id, invitation.user_id);
+    // A3-2: a revoke also ends a running attempt: it is SUBMITTED and GRADED (marks kept), not discarded.
+    // Save and submit refuse a non in_progress attempt afterwards. The submit step is injected by apps/api.
+    const runningAttempts = await repo.listInProgressAttemptIds(client, invitation.assessment_id, invitation.user_id);
+    const submitRunning = runningAttempts.length > 0 ? requireRevokeAttemptSubmitter() : undefined;
+    for (const attemptId of runningAttempts) await submitRunning!(client, tenantId, attemptId);
 
     // Reuse assessment.invite with after.kind=revoke — same minimal-catalog
     // pattern as reopenAssessment. before.status records what was revoked
@@ -678,7 +682,7 @@ export async function revokeInvitation(
         status: "expired",
         assessment_id: invitation.assessment_id,
         user_id: invitation.user_id,
-        cancelled_attempt_ids: cancelledAttempts,
+        submitted_attempt_ids: runningAttempts,
       },
     });
   });

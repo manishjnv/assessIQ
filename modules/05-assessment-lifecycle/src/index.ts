@@ -63,6 +63,8 @@ export {
 export type { ReminderSweepResult } from "./reminders.js";
 // Invitation and reminder email: camera line wiring (module 06 rule injected at boot).
 export { setCameraRequiredResolver } from "./email.js";
+// Revoke ends a running attempt by submitting and grading it: the submit step is injected by apps/api.
+export { setRevokeAttemptSubmitter } from "./service/revoke-submitter.js";
 
 export { processBoundariesForTenant, listTenantsWithDueBoundaries } from "./boundaries.js";
 export type { BoundaryRunResult } from "./boundaries.js";
