@@ -53,9 +53,11 @@ async function freezeAssessmentPool(
   await client.query(
     `INSERT INTO assessment_frozen_pool
        (tenant_id, assessment_id, question_id, question_version,
-        level_id, domain_id, category_id, type, points)
+        level_id, domain_id, category_id, type, points, node_ids)
      SELECT $1, $2, q.id, MAX(qv.version)::int,
-            q.level_id, q.domain_id, q.category_id, q.type, q.points
+            q.level_id, q.domain_id, q.category_id, q.type, q.points,
+            -- FUT-8: taxonomy node ids frozen with the question ('{}' = none visible: old path applies)
+            COALESCE((SELECT array_agg(qt.node_id) FROM question_taxonomy qt WHERE qt.question_id = q.id), '{}')
        FROM questions q
        JOIN question_versions qv ON qv.question_id = q.id
       WHERE q.pack_id = $3 AND q.level_id = $4 AND q.status = 'active'

@@ -108,12 +108,19 @@ export async function buildAssessmentResultsCsv(
     }>(
       `SELECT DISTINCT ON (g.attempt_id, g.question_id)
               g.attempt_id, g.score_earned::text AS earned, g.score_max::text AS max,
-              c.name AS category, aq.section_index
+              COALESCE(c.name, nl.label) AS category, aq.section_index
          FROM gradings g
          JOIN attempts at ON at.id = g.attempt_id AND at.assessment_id = $1
          LEFT JOIN attempt_questions aq ON aq.attempt_id = g.attempt_id AND aq.question_id = g.question_id
-         JOIN questions q ON q.id = g.question_id
+         LEFT JOIN questions q ON q.id = g.question_id
          LEFT JOIN categories c ON c.id = q.category_id
+         LEFT JOIN LATERAL (
+              -- FUT-8: taxonomy node label (frozen node_ids first, else live link); used when the tenant category is not readable
+              SELECT tn.label FROM taxonomy_nodes tn
+               WHERE tn.id = ANY(COALESCE(NULLIF((SELECT fp.node_ids FROM assessment_frozen_pool fp
+                                                   WHERE fp.assessment_id = $1 AND fp.question_id = g.question_id), '{}'),
+                                          ARRAY(SELECT qt.node_id FROM question_taxonomy qt WHERE qt.question_id = g.question_id)))
+               ORDER BY tn.position, tn.label LIMIT 1) nl ON true
         ORDER BY g.attempt_id, g.question_id,
                  g.graded_at DESC, (g.grader = 'admin_override') DESC`,
       [assessmentId],
@@ -121,11 +128,18 @@ export async function buildAssessmentResultsCsv(
     // Categories present in the assessment's questions (served + graded).
     // LEFT JOIN: a question row never drops out of the list; a null name (no category) is skipped below.
     const cats = await client.query<{ name: string | null }>(
-      `SELECT DISTINCT c.name
+      `SELECT DISTINCT COALESCE(c.name, nl.label) AS name
          FROM attempt_questions aq
          JOIN attempts at ON at.id = aq.attempt_id AND at.assessment_id = $1
-         JOIN questions q ON q.id = aq.question_id
-         LEFT JOIN categories c ON c.id = q.category_id`,
+         LEFT JOIN questions q ON q.id = aq.question_id
+         LEFT JOIN categories c ON c.id = q.category_id
+         LEFT JOIN LATERAL (
+              -- FUT-8: taxonomy node label (frozen node_ids first, else live link); used when the tenant category is not readable
+              SELECT tn.label FROM taxonomy_nodes tn
+               WHERE tn.id = ANY(COALESCE(NULLIF((SELECT fp.node_ids FROM assessment_frozen_pool fp
+                                                   WHERE fp.assessment_id = $1 AND fp.question_id = aq.question_id), '{}'),
+                                          ARRAY(SELECT qt.node_id FROM question_taxonomy qt WHERE qt.question_id = aq.question_id)))
+               ORDER BY tn.position, tn.label LIMIT 1) nl ON true`,
       [assessmentId],
     );
     const catNames = new Set(cats.rows.map((r) => r.name).filter((n): n is string => n !== null));

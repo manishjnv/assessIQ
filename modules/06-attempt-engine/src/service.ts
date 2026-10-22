@@ -558,7 +558,7 @@ export async function startAttempt(
       sectionOf = [];
       for (const [si, s] of sections.entries()) {
         // Z-123: a node_id section draws by taxonomy descendants (imported questions have no category_id).
-        const underNode = s.node_id !== undefined ? await repo.listQuestionIdsUnderNode(client, s.node_id) : null;
+        const underNode = s.node_id !== undefined ? await repo.listQuestionIdsUnderNode(client, s.node_id, useFrozen ? input.assessmentId : undefined) : null;
         const cats = underNode === null && s.category_ids !== undefined ? new Set(s.category_ids) : null;
         const cand = pool.filter(
           (q) =>

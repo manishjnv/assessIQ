@@ -36,15 +36,20 @@ export function nodeScopeArgs(s: NodeScope): [string, number | null, number | nu
  */
 export function taxonomyDrawPredicate(alias: string, nodeP: string, minP: string, maxP: string): string {
   return `${alias}.id IN (
-      WITH RECURSIVE sub(id, d) AS (
+      SELECT qt.question_id FROM question_taxonomy qt WHERE qt.node_id IN (${taxonomyDescendantsSql(nodeP)}))
+    AND (${minP}::int IS NULL OR ${alias}.difficulty_est >= ${minP}::int)
+    AND (${maxP}::int IS NULL OR ${alias}.difficulty_est <= ${maxP}::int)`;
+}
+
+/** FUT-8: SQL set of ids "node $n and all descendants" (taxonomy_nodes, shared NULL-tenant rows included). */
+export function taxonomyDescendantsSql(nodeP: string): string {
+  return `WITH RECURSIVE sub(id, d) AS (
         SELECT id, 0 FROM taxonomy_nodes WHERE id = ${nodeP}::uuid
         UNION ALL
         SELECT c.id, sub.d + 1 FROM taxonomy_nodes c JOIN sub ON c.parent_id = sub.id
          WHERE sub.d < ${TAXONOMY_DRAW_MAX_DEPTH}
       )
-      SELECT qt.question_id FROM question_taxonomy qt WHERE qt.node_id IN (SELECT id FROM sub))
-    AND (${minP}::int IS NULL OR ${alias}.difficulty_est >= ${minP}::int)
-    AND (${maxP}::int IS NULL OR ${alias}.difficulty_est <= ${maxP}::int)`;
+      SELECT id FROM sub`;
 }
 
 /** Framework 1 ('legacy-domains', NULL tenant). Visible under RLS; throws if 0169 data is absent. */

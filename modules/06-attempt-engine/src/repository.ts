@@ -17,7 +17,7 @@
 
 import type { PassageFact } from "./passages.js";
 import type { PoolClient } from "pg";
-import { nodeScopeArgs, taxonomyDrawPredicate, type NodeScope } from "../../04-question-bank/src/taxonomy-nodes.js";
+import { nodeScopeArgs, taxonomyDescendantsSql, taxonomyDrawPredicate, type NodeScope } from "../../04-question-bank/src/taxonomy-nodes.js";
 import type {
   Attempt,
   AttemptAnswer,
@@ -1070,9 +1070,15 @@ export async function listFrozenPoolForCriterion(
     const r = await client.query<{ id: string; version: number }>(
       `SELECT fp.question_id AS id, fp.question_version AS version
          FROM assessment_frozen_pool fp
-         JOIN questions q ON q.id = fp.question_id
+         LEFT JOIN questions q ON q.id = fp.question_id
         WHERE fp.assessment_id = $1 AND fp.type = $2
-          AND ${taxonomyDrawPredicate("q", "$3", "$4", "$5")}
+          AND (
+            ${taxonomyDrawPredicate("q", "$3", "$4", "$5")}
+            -- FUT-8: nodes frozen with the pool row (works when the live link is not readable)
+            OR (fp.node_ids && ARRAY(${taxonomyDescendantsSql("$3")})
+                AND ($4::int IS NULL OR q.difficulty_est >= $4::int)
+                AND ($5::int IS NULL OR q.difficulty_est <= $5::int))
+          )
         ORDER BY fp.question_id ASC`,
       [assessmentId, type, ...nodeScopeArgs(node)],
     );
@@ -1118,13 +1124,29 @@ export async function listPoolWithCategory(
   return r.rows;
 }
 
-/** Z-123: ids of questions linked to taxonomy node `nodeId` or a descendant (question_taxonomy; same predicate as Z-43). */
-export async function listQuestionIdsUnderNode(client: PoolClient, nodeId: string): Promise<Set<string>> {
+/**
+ * Z-123: ids of questions linked to taxonomy node `nodeId` or a descendant (question_taxonomy; same predicate as Z-43).
+ * FUT-8: with `assessmentId`, also the frozen-pool rows whose frozen node_ids fall under the node.
+ */
+export async function listQuestionIdsUnderNode(
+  client: PoolClient,
+  nodeId: string,
+  assessmentId?: string,
+): Promise<Set<string>> {
   const r = await client.query<{ id: string }>(
     `SELECT q.id FROM questions q WHERE ${taxonomyDrawPredicate("q", "$1", "$2", "$3")}`,
     nodeScopeArgs({ nodeId }),
   );
-  return new Set(r.rows.map((x) => x.id));
+  const ids = new Set(r.rows.map((x) => x.id));
+  if (assessmentId !== undefined) {
+    const f = await client.query<{ id: string }>(
+      `SELECT fp.question_id AS id FROM assessment_frozen_pool fp
+        WHERE fp.assessment_id = $2 AND fp.node_ids && ARRAY(${taxonomyDescendantsSql("$1")})`,
+      [nodeId, assessmentId],
+    );
+    for (const x of f.rows) ids.add(x.id);
+  }
+  return ids;
 }
 
 /**
