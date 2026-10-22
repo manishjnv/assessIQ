@@ -15,7 +15,7 @@
 
 import { randomBytes } from "node:crypto";
 import { uuidv7 } from "@assessiq/core";
-import { ValidationError, AuthnError } from "@assessiq/core";
+import { ValidationError, AuthnError, ConflictError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import * as argon2 from "argon2";
 import { authenticator as _authenticatorBase } from "@otplib/preset-default";
@@ -159,6 +159,11 @@ async function enrollStart(
   tenantId: string,
   email: string,
 ): Promise<EnrollStartOutput> {
+  // GATE-8 A1-1: a pre-MFA session must never replace an existing authenticator.
+  // Re-enrolment needs an admin TOTP reset first (it clears totp_enrolled_at).
+  if ((await getEnrollmentStatus(userId, tenantId)).enrolled) {
+    throw new ConflictError("totp already enrolled");
+  }
   // 20-byte secret per RFC 4226 §4.
   const secretBytes = randomBytes(20);
 
@@ -189,6 +194,9 @@ async function enrollConfirm(
   tenantId: string,
   code: string,
 ): Promise<{ recoveryCodes: string[] }> {
+  if ((await getEnrollmentStatus(userId, tenantId)).enrolled) {
+    throw new ConflictError("totp already enrolled");
+  }
   const redis = getRedis();
 
   // Read the staged envelope.
@@ -229,14 +237,17 @@ async function enrollConfirm(
   const { plaintexts, hashes } = await generateRecoveryCodes();
 
   await withTenant(tenantId, async (client) => {
-    await client.query(
+    // GATE-8 A1-1: the WHERE makes the check atomic (a parallel confirm cannot overwrite an enrolled secret).
+    const up = await client.query(
       `INSERT INTO user_credentials (user_id, tenant_id, totp_secret_enc, totp_enrolled_at)
        VALUES ($1, $2, $3, now())
        ON CONFLICT (user_id) DO UPDATE
          SET totp_secret_enc  = EXCLUDED.totp_secret_enc,
-             totp_enrolled_at = now()`,
+             totp_enrolled_at = now()
+         WHERE user_credentials.totp_enrolled_at IS NULL`,
       [userId, tenantId, envelope],
     );
+    if ((up.rowCount ?? 0) === 0) throw new ConflictError("totp already enrolled");
 
     // Delete any existing recovery codes, then insert fresh ones.
     await client.query(

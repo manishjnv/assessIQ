@@ -567,6 +567,20 @@ it("getEnrollmentStatus returns enrolled:true after enrollConfirm", async () => 
   expect(after.enrolled).toBe(true);
 });
 
+// GATE-8 A1-1: an enrolled user cannot enrol again (a pre-MFA session must not replace the authenticator).
+it("enrollStart and enrollConfirm refuse an already enrolled user and keep the old secret", async () => {
+  const id = randomUUID();
+  await withSuperClient((c) =>
+    c.query(`INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, 'A11 User', 'admin')`, [id, tenantId, "a11@example.com"]),
+  );
+  const { secretBase32 } = await totp.enrollStart(id, tenantId, "a11@example.com");
+  await totp.enrollConfirm(id, tenantId, authenticator.generate(secretBase32));
+  await expect(totp.enrollStart(id, tenantId, "a11@example.com")).rejects.toThrow(/already enrolled/);
+  await expect(totp.enrollConfirm(id, tenantId, "123456")).rejects.toThrow(/already enrolled/);
+  const row = await withSuperClient((c) => c.query(`SELECT totp_secret_enc FROM user_credentials WHERE user_id = $1`, [id]));
+  expect(row.rows).toHaveLength(1);
+});
+
 // ---------------------------------------------------------------------------
 // RW-45 — audit rows written in the same tx, no secrets, old codes dead
 // ---------------------------------------------------------------------------
