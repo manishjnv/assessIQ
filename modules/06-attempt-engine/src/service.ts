@@ -38,7 +38,6 @@ import {
   attemptsAllowed,
   streamLogger,
   uuidv7,
-  effectiveDurationMinutes,
 } from "@assessiq/core";
 import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import type { PoolClient } from "pg";
@@ -80,7 +79,7 @@ import {
   buildSectionsSummary,
   readSections,
   readWholeTestMinutes,
-  readBlueprintWholeMinutes,
+  plannedDurationSeconds,
   readBlueprintMarks,
   resolveSection,
   sectionDeadline,
@@ -700,20 +699,13 @@ export async function startAttempt(
 
     // g. Compute timer.
     const startedAt = new Date();
-    // Sectioned: the whole test is the sum of the section minutes (the level's
-    // duration is not used); each section's own deadline is derived from it later.
-    const wholeMinutes = sections !== null ? readWholeTestMinutes(assessment.settings) : null;
-    // S42: a blueprint test (never sectioned) may carry its own whole-test timer; it wins over duration_minutes.
-    const blueprintMinutes = sections === null ? readBlueprintWholeMinutes(assessment.settings) : null;
+    // Z-134: one shared helper decides the length (also used by the candidate list and the take preview).
     const blueprintMarks = sections === null ? readBlueprintMarks(assessment.settings) : null;
-    const durationSeconds =
-      wholeMinutes !== null
-        ? wholeMinutes * 60
-        : blueprintMinutes !== null
-          ? blueprintMinutes * 60
-          : sections !== null
-            ? totalSectionSeconds(sections)
-            : effectiveDurationMinutes(assessment.duration_minutes, level.duration_minutes) * 60;
+    const durationSeconds = plannedDurationSeconds(
+      assessment.settings,
+      assessment.duration_minutes,
+      level.duration_minutes,
+    );
     const endsAt = new Date(startedAt.getTime() + durationSeconds * 1000);
 
     // h. Insert attempt row.

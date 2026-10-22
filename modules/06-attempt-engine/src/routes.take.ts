@@ -59,6 +59,7 @@ import { isCameraRequired, recordCameraConsent } from "./camera/gate.js";
 import { hashCameraIp } from "./camera/hash.js";
 import { CAMERA_NOTICE_VERSION } from "./camera/constants.js";
 import { evaluateReadiness, parseReadinessSignals } from "./readiness.js";
+import { plannedDurationSeconds } from "./sections.js";
 
 const log = streamLogger("app");
 
@@ -267,7 +268,13 @@ export async function registerAttemptTakeRoutes(
       }
       const cameraRequired = await isCameraRequired(resolved.assessment.tenant_id, pv.deliveryMode);
       const durationSeconds =
-        pv.existing?.duration_seconds ?? resolved.level.effective_duration_minutes * 60;
+        // Z-134: the same length startAttempt sets (blueprint / section / level time).
+        pv.existing?.duration_seconds ??
+        plannedDurationSeconds(
+          resolved.assessment.settings,
+          resolved.assessment.duration_minutes,
+          resolved.level.duration_minutes,
+        );
       const assessmentShape = {
         id: resolved.assessment.id,
         name: resolved.assessment.name,

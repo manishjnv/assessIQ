@@ -797,6 +797,21 @@ describe("HTTP routes — consent invariant (R4 review fixes)", () => {
     expect(item).not.toHaveProperty("duration_minutes");
   });
 
+  it("GET /api/me/assessments (Z-134): shows the blueprint whole-test time, the same as startAttempt", async () => {
+    const { assessmentId } = await setup("Wire");
+    const app = await buildApp();
+    await withSuperClient((c) =>
+      c.query(
+        `UPDATE assessments SET opens_at = now() - interval '1 minute',
+           settings = '{"blueprint":{"whole_test_minutes":7}}'::jsonb WHERE id = $1`,
+        [assessmentId],
+      ),
+    );
+    const after = await app.inject({ method: "GET", url: "/api/me/assessments" });
+    const item = after.json().items.find((i: { id: string }) => i.id === assessmentId);
+    expect(item.duration_seconds).toBe(7 * 60);
+  });
+
   it("GET /api/me/assessments (FU-C10): hides an invitation past its own expiry even while the assessment is open", async () => {
     const { assessmentId } = await setup("Expired");
     const app = await buildApp();

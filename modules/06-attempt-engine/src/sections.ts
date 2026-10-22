@@ -10,6 +10,7 @@
 
 import { AssessmentSectionsSchema, sectionTimingProblem } from "../../05-assessment-lifecycle/src/types.js";
 import type { AssessmentSection } from "../../05-assessment-lifecycle/src/types.js";
+import { effectiveDurationMinutes } from "@assessiq/core";
 
 export type { AssessmentSection };
 
@@ -46,6 +47,26 @@ export function readBlueprintWholeMinutes(settings: unknown): number | null {
 export function readBlueprintMarks(settings: unknown): number | null {
   const v = (settings as { blueprint?: { marks_per_question?: unknown } } | null | undefined)?.blueprint?.marks_per_question;
   return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 1000 ? v : null;
+}
+
+/**
+ * Z-134: the attempt length in seconds that startAttempt sets. The list, the take preview and startAttempt all call
+ * this one function. Sectioned: whole_test_minutes, else the section minutes. Blueprint (no sections): its
+ * whole_test_minutes. Otherwise the assessment time, falling back to the level time.
+ */
+export function plannedDurationSeconds(
+  settings: unknown,
+  durationMinutes: number | null | undefined,
+  levelMinutes: number,
+): number {
+  const sections = readSections(settings);
+  if (sections !== null) {
+    const whole = readWholeTestMinutes(settings);
+    return whole !== null ? whole * 60 : totalSectionSeconds(sections);
+  }
+  const blueprint = readBlueprintWholeMinutes(settings);
+  if (blueprint !== null) return blueprint * 60;
+  return effectiveDurationMinutes(durationMinutes, levelMinutes) * 60;
 }
 
 /** Whole-test length in seconds = sum of the section minutes (per-section timing only). */
