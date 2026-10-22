@@ -62,8 +62,29 @@ export function foldSignupEmail(email: string): string {
   return `${local}@${domain}`;
 }
 
-/** email_key column value: HMAC of the folded address. */
+/**
+ * True when the address, or a dot/plus alias that folds to it, is on the owner's tester list
+ * (SIGNUP_FOLD_EXEMPT_EMAILS, Z-101). Empty list = nobody is exempt.
+ */
+export function isFoldExemptEmail(email: string): boolean {
+  const folded = foldSignupEmail(email);
+  return (config.SIGNUP_FOLD_EXEMPT_EMAILS ?? "")
+    .split(",")
+    .map((e) => e.trim())
+    .filter((e) => e.length > 0)
+    .some((e) => foldSignupEmail(e) === folded);
+}
+
+/**
+ * email_key column value: HMAC of the folded address. An exempt tester address uses its raw
+ * lower-cased form instead, so every dot or plus variant is its own mailbox. This is the ONE
+ * helper for the key: create (01-auth signup, self-serve) and every lookup call it.
+ */
 export function signupEmailKey(email: string): string {
+  if (isFoldExemptEmail(email)) {
+    log.info({ foldExemption: true }, "signup: fold exemption used");
+    return signupHmac("email-key", normalizeSignupEmail(email));
+  }
   return signupHmac("email-key", foldSignupEmail(email));
 }
 

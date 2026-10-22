@@ -209,6 +209,11 @@ const ConfigSchema = z
     // Example: "manishjnvk@gmail.com,backup@example.com"
     SUPER_ADMIN_EMAILS: z.string().default("manishjnvk@gmail.com"),
 
+    // SIGNUP_FOLD_EXEMPT_EMAILS (Z-101): comma-separated tester addresses that skip the
+    // Gmail dot/plus fold for the one-organisation-per-mailbox sign-up key, so each dot
+    // or plus variant counts as its own mailbox. Empty = no exemption. Owner-only (VPS .env).
+    SIGNUP_FOLD_EXEMPT_EMAILS: z.string().default(""),
+
     // ── Role-aware IP rate-limit tiers (window fixed at 60s) ────────────────
     // All vars are optional with safe defaults — zero-config deploy works.
     // Override in .env to tune without a rebuild.

@@ -56,6 +56,7 @@ export {
   signupEmailKey,
   foldSignupEmail,
   normalizeSignupEmail,
+  isFoldExemptEmail,
   normalizeOrgName,
   isValidOrgName,
   isValidAdminName,

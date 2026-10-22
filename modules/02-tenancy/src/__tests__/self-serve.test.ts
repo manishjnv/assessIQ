@@ -6,7 +6,7 @@
  * failing cross-module step rolling everything back, slug rules, and the RLS / grant rules of
  * tenant_legal_acceptances and signup_claims.
  */
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, afterEach } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
 import { Client } from "pg";
 import { randomUUID } from "node:crypto";
@@ -17,6 +17,7 @@ import { withTenant } from "../with-tenant.js";
 import {
   createSelfServeTenant,
   foldSignupEmail,
+  isFoldExemptEmail,
   isValidAdminName,
   isValidOrgName,
   signupEmailKey,
@@ -28,7 +29,7 @@ import {
 
 let container: StartedTestContainer;
 let db: Client;
-const mutableConfig = config as { SUPER_ADMIN_EMAILS: string };
+const mutableConfig = config as { SUPER_ADMIN_EMAILS: string; SIGNUP_FOLD_EXEMPT_EMAILS: string };
 const ORIGINAL_SUPER = config.SUPER_ADMIN_EMAILS;
 
 const base = (over: Partial<Parameters<typeof createSelfServeTenant>[0]> = {}): Parameters<typeof createSelfServeTenant>[0] => ({
@@ -102,6 +103,36 @@ describe("pure helpers", () => {
     expect(isValidAdminName("Al")).toBe(true);
     expect(isValidAdminName("A")).toBe(false);
     expect(isValidAdminName("Bad <b>")).toBe(false);
+  });
+});
+
+
+describe("fold exemption for tester addresses (Z-101)", () => {
+  const ORIGINAL_EXEMPT = mutableConfig.SIGNUP_FOLD_EXEMPT_EMAILS;
+  afterEach(() => { mutableConfig.SIGNUP_FOLD_EXEMPT_EMAILS = ORIGINAL_EXEMPT; });
+
+  it("empty list: no exemption, a Gmail dot variant is still the same mailbox", () => {
+    mutableConfig.SIGNUP_FOLD_EXEMPT_EMAILS = "";
+    expect(isFoldExemptEmail("aastest3@gmail.com")).toBe(false);
+    expect(signupEmailKey("aas.test3@gmail.com")).toBe(signupEmailKey("aastest3@gmail.com"));
+  });
+
+  it("a listed address and its dot, plus and googlemail variants are exempt with separate keys", () => {
+    mutableConfig.SIGNUP_FOLD_EXEMPT_EMAILS = " , AASTest3@Gmail.com ,";
+    const variants = ["aastest3@gmail.com", "aas.test3@gmail.com", "a.a.s.test3@gmail.com", "aastest3+x@gmail.com", "aastest3@googlemail.com"];
+    for (const v of variants) expect(isFoldExemptEmail(v)).toBe(true);
+    const keys = new Set(variants.map((v) => signupEmailKey(v)));
+    expect(keys.size).toBe(variants.length);
+    // create and lookup use the same helper, so the key is stable for one address
+    expect(signupEmailKey("aas.test3@gmail.com")).toBe(signupEmailKey(" AAS.test3@gmail.com "));
+  });
+
+  it("a normal Gmail dot variant and other domains are unaffected", () => {
+    mutableConfig.SIGNUP_FOLD_EXEMPT_EMAILS = "aastest3@gmail.com";
+    expect(isFoldExemptEmail("someone.else@gmail.com")).toBe(false);
+    expect(signupEmailKey("some.one@gmail.com")).toBe(signupEmailKey("someone@gmail.com"));
+    expect(isFoldExemptEmail("aastest3@corp.example")).toBe(false);
+    expect(signupEmailKey("a.b@corp.example")).not.toBe(signupEmailKey("ab@corp.example"));
   });
 });
 
