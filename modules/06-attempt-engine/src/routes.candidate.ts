@@ -49,6 +49,7 @@ import { getCandidateProgress } from "./progress.js";
 import { getCandidateFeedback } from "./feedback.js";
 import { AE_ERROR_CODES } from "./types.js";
 import type { RecordEventInput, SaveAnswerInput, ToggleFlagInput } from "./types.js";
+import { plannedDurationSeconds } from "./sections.js";
 
 // ---------------------------------------------------------------------------
 // Plugin registrar
@@ -93,7 +94,9 @@ export async function registerAttemptCandidateRoutes(
         interface Row {
           id: string;
           name: string;
-          duration_seconds: number;
+          settings: unknown;
+          duration_minutes: number | null;
+          level_duration_minutes: number;
           question_count: number;
           opens_at: Date | null;
           closes_at: Date | null;
@@ -102,7 +105,9 @@ export async function registerAttemptCandidateRoutes(
           `SELECT
              a.id                        AS id,
              a.name                      AS name,
-             (COALESCE(a.duration_minutes, l.duration_minutes) * 60) AS duration_seconds,
+             a.settings                  AS settings,
+             a.duration_minutes          AS duration_minutes,
+             l.duration_minutes          AS level_duration_minutes,
              a.question_count            AS question_count,
              a.opens_at                  AS opens_at,
              a.closes_at                 AS closes_at
@@ -122,7 +127,8 @@ export async function registerAttemptCandidateRoutes(
           items: result.rows.map((r) => ({
             id: r.id,
             name: r.name,
-            duration_seconds: r.duration_seconds,
+            // Z-134: same length startAttempt sets (blueprint / section / level time).
+            duration_seconds: plannedDurationSeconds(r.settings, r.duration_minutes, r.level_duration_minutes),
             question_count: r.question_count,
             opens_at: r.opens_at?.toISOString() ?? null,
             closes_at: r.closes_at?.toISOString() ?? null,

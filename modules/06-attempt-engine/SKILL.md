@@ -461,3 +461,4 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - **Not included.** Free movement and section tabs are not involved (a blueprint test has no sections). No migration. No AI call.
 - **Tests.** `src/__tests__/whole-test-timer.test.ts`, describe "S42 blueprint timer and marks".
 
+- **Z-134 (planned time, one helper).** `plannedDurationSeconds(settings, duration_minutes, level_minutes)` in `src/sections.ts` is the only rule for the attempt length. `startAttempt`, `GET /api/me/assessments` (`duration_seconds`) and the take preview now call it, so all three show the same seconds. Precedence: sectioned `whole_test_minutes`, else section minutes; blueprint `whole_test_minutes`; else assessment time, then level time. Tests: `sections-timing.test.ts`, `attempt-engine.test.ts` (Z-134 case).

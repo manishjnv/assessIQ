@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readSections, readWholeTestMinutes, resolveSection, totalSectionSeconds } from "../sections.js";
+import { plannedDurationSeconds, readSections, readWholeTestMinutes, resolveSection, totalSectionSeconds } from "../sections.js";
 
 const S = [
   { name: "A", question_count: 1, minutes: 20 },
@@ -45,5 +45,30 @@ describe("section timing (pure)", () => {
     expect(readWholeTestMinutes({ whole_test_minutes: 0 })).toBeNull();
     expect(readWholeTestMinutes({ whole_test_minutes: "60" })).toBeNull();
     expect(readWholeTestMinutes({})).toBeNull();
+  });
+});
+
+describe("plannedDurationSeconds (Z-134 precedence)", () => {
+  const sectioned = { sections: S };
+  it("sectioned: whole_test_minutes wins, else the section minutes", () => {
+    const bare = [{ name: "A", question_count: 1 }, { name: "B", question_count: 1 }];
+    expect(plannedDurationSeconds({ sections: bare, whole_test_minutes: 60 }, 30, 25)).toBe(60 * 60);
+    expect(plannedDurationSeconds(sectioned, 30, 25)).toBe(50 * 60);
+  });
+  it("sectioned: blueprint minutes never apply", () => {
+    expect(plannedDurationSeconds({ ...sectioned, blueprint: { whole_test_minutes: 9 } }, 30, 25)).toBe(50 * 60);
+  });
+  it("mixed sections (minutes + whole timer) are not sections: falls back like startAttempt", () => {
+    expect(plannedDurationSeconds({ ...sectioned, whole_test_minutes: 60 }, 30, 25)).toBe(30 * 60);
+  });
+  it("blueprint without sections: its whole_test_minutes beats assessment and level time", () => {
+    expect(plannedDurationSeconds({ blueprint: { whole_test_minutes: 9 } }, 30, 25)).toBe(9 * 60);
+  });
+  it("no blueprint or section fields: assessment time, then level time (today's value)", () => {
+    expect(plannedDurationSeconds({}, 30, 25)).toBe(30 * 60);
+    expect(plannedDurationSeconds({}, null, 25)).toBe(25 * 60);
+    expect(plannedDurationSeconds(null, undefined, 25)).toBe(25 * 60);
+    expect(plannedDurationSeconds({ blueprint: { whole_test_minutes: 0 } }, null, 25)).toBe(25 * 60);
+    expect(plannedDurationSeconds({ whole_test_minutes: 60 }, 30, 25)).toBe(30 * 60); // no sections: ignored
   });
 });
