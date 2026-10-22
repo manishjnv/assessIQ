@@ -164,6 +164,9 @@ export const retentionDaysBody = z.object({
 export const attemptRetentionDaysBody = z.object({
   attempt_retention_days: z.number({ invalid_type_error: 'attempt_retention_days must be a number or null' }).nullable(),
 });
+export const accentBody = z.object({
+  primary: z.string({ invalid_type_error: 'primary must be a hex string or null' }).max(16).nullable(),
+});
 export const runNowQuery = z
   .object({ dryRun: z.string().max(10).optional(), maxPerTenant: z.string().max(10).optional() })
   .passthrough();

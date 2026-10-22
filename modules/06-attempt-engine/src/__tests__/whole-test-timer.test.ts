@@ -13,6 +13,7 @@ import { setPoolForTesting, closePool, withTenant } from "@assessiq/tenancy";
 import { scoreMcqForAttempt, getSectionScoresForAttempt } from "@assessiq/scoring";
 import { startAttempt, recordTakeConsent, getAttemptForCandidate, saveAnswer, finishSection, toggleFlag } from "../service.js";
 import { AE_ERROR_CODES } from "../types.js";
+import { AssessmentBlueprintSchema } from "../../../05-assessment-lifecycle/src/types.js";
 
 let container: StartedTestContainer;
 let url: string;
@@ -236,5 +237,50 @@ describe("Z-42 marks per question", () => {
     expect(attempt.duration_seconds).toBe(3600);
     const v = await getAttemptForCandidate(tenant, attempt.id, userId);
     expect("section_names" in v).toBe(false);
+  });
+});
+
+// S42: blueprint whole_test_minutes / marks_per_question (settings.blueprint, no sections).
+const BP = (extra: object) => ({
+  blueprint: { domain_id: domain, level: "L1", criteria: [{ category_id: catX, type: "mcq", count: 2 }, { category_id: catY, type: "mcq", count: 2 }], ...extra },
+});
+
+describe("S42 blueprint timer and marks", () => {
+  it("fields set: blueprint minutes win over duration_minutes; marks frozen, penalty untouched", async () => {
+    const { assessmentId, userId } = await setup(BP({ whole_test_minutes: 5, marks_per_question: 2 }));
+    await sup((c) => c.query(`UPDATE assessments SET duration_minutes = 90 WHERE id = $1`, [assessmentId]));
+    const attempt = await startAttempt(tenant, { assessmentId, userId });
+    expect(attempt.duration_seconds).toBe(300);
+    expect(await frozen(attempt.id)).toEqual([...qids].sort().map((q) => ({ q, points: 2, neg: 0 })));
+  });
+
+  it("fields empty: same timer (duration_minutes, else level time) and bank points as before", async () => {
+    const a = await setup(BP({}));
+    const att = await startAttempt(tenant, { assessmentId: a.assessmentId, userId: a.userId });
+    expect(att.duration_seconds).toBe(3600);
+    expect(await frozen(att.id)).toEqual([...qids].sort().map((q) => ({ q, points: 1, neg: 0 })));
+    const b = await setup(BP({}));
+    await sup((c) => c.query(`UPDATE assessments SET duration_minutes = 45 WHERE id = $1`, [b.assessmentId]));
+    expect((await startAttempt(tenant, { assessmentId: b.assessmentId, userId: b.userId })).duration_seconds).toBe(2700);
+  });
+
+  it("attempt already running keeps its frozen time and marks after a settings edit", async () => {
+    const { assessmentId, userId } = await setup(BP({ whole_test_minutes: 5, marks_per_question: 2 }));
+    const attempt = await startAttempt(tenant, { assessmentId, userId });
+    await sup((c) => c.query(
+      `UPDATE assessments SET settings = jsonb_set(jsonb_set(settings, '{blueprint,whole_test_minutes}', '9'), '{blueprint,marks_per_question}', '7') WHERE id = $1`,
+      [assessmentId],
+    ));
+    const row = await sup((c) => c.query<{ s: string }>(`SELECT extract(epoch FROM ends_at - started_at)::text s FROM attempts WHERE id = $1`, [attempt.id]));
+    expect(Math.round(Number(row.rows[0]?.s))).toBe(300);
+    expect((await frozen(attempt.id)).every((r) => r.points === 2)).toBe(true);
+  });
+
+  it("marks_per_question 0 and 2.5 are rejected by the schema; 1 and 2 pass", () => {
+    const base = { domain_id: domain, level: "L1", criteria: [{ category_id: catX, type: "mcq", count: 2 }] };
+    expect(AssessmentBlueprintSchema.safeParse({ ...base, marks_per_question: 0 }).success).toBe(false);
+    expect(AssessmentBlueprintSchema.safeParse({ ...base, marks_per_question: 2.5 }).success).toBe(false);
+    expect(AssessmentBlueprintSchema.safeParse({ ...base, marks_per_question: 1 }).success).toBe(true);
+    expect(AssessmentBlueprintSchema.safeParse({ ...base, marks_per_question: 2 }).success).toBe(true);
   });
 });

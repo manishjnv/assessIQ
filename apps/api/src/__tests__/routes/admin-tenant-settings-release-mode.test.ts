@@ -62,6 +62,7 @@ vi.mock('@assessiq/tenancy', () => ({
   findTenantSettings: (...a: unknown[]) => mockFindSettings(...a),
   assertTenantActive: (...a: unknown[]) => mockAssertActive(...a),
   renameTenant: vi.fn(),
+  setTenantAccent: vi.fn(),
   createTenant: vi.fn(),
   activateTenant: vi.fn(),
   suspendTenant: vi.fn(),
@@ -135,6 +136,7 @@ describe('GET /api/admin/tenant-settings', () => {
       retention_days: 730,
       attempt_retention_days: null,
       company_name: 'Acme University',
+      accent: null,
       logo: null,
     });
     expect(mockWithTenant).toHaveBeenCalledWith('tenant-a-uuid', expect.any(Function));

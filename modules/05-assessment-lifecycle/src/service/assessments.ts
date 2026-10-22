@@ -338,6 +338,8 @@ export function assertDurationMinutes(v: unknown): asserts v is number | null {
  * A sectioned test or a whole-test timer takes its time from the section minutes (06 startAttempt), so a time limit on it
  * would be shown but never used. Refuse it instead of letting the screen and the clock disagree.
  */
+// S42: settings.blueprint.whole_test_minutes is NOT refused here: a blueprint test keeps duration_minutes, but the
+// blueprint timer wins at start (06 startAttempt), so duration_minutes is ignored once the blueprint sets minutes.
 export function assertDurationAllowedFor(settings: unknown, v: number | null | undefined): void {
   if (v === null || v === undefined) return;
   const s = settings as { sections?: unknown; whole_test_minutes?: unknown } | null | undefined;

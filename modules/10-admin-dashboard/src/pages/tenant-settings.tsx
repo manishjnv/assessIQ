@@ -22,7 +22,7 @@
 // sequential fetches, no extra dependencies.
 
 import React, { useEffect, useState, type CSSProperties } from "react";
-import { Button, Card, Chip, Spinner, Table, ConfirmDialog, TenantLogo, formatDateTime } from "@assessiq/ui-system";
+import { Button, Card, Chip, Spinner, Table, ConfirmDialog, TenantLogo, formatDateTime, accentContrast, ACCENT_MIN_CONTRAST } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { CameraSettingsCard } from "../components/CameraSettingsCard.js";
 import { MfaStepUp } from "../components/mfa-step-up.js";
@@ -76,6 +76,8 @@ interface TenantSettingsResponse {
   /** Absent on servers that predate the Distinction-on-certificates setting (Z-50). */
   certificate_show_distinction?: boolean;
   /** Current organisation logo, or null/absent when none is set. */
+  /** Org accent colour (#rrggbb) or null. */
+  accent?: string | null;
   logo?: { url: string; width: number; height: number; byte_size: number } | null;
 }
 
@@ -231,6 +233,16 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
   const [logoError, setLogoError] = useState<string | null>(null);
   const [logoMfa, setLogoMfa] = useState<"upload" | "remove" | null>(null);
   const [showLogoRemove, setShowLogoRemove] = useState(false);
+
+  // ── Organisation accent colour (Z-119) ────────────────────────────────────
+  const [accentInput, setAccentInput] = useState("");
+  const [accentBusy, setAccentBusy] = useState(false);
+  const [accentMsg, setAccentMsg] = useState<string | null>(null);
+  const [accentError, setAccentError] = useState<string | null>(null);
+  const [accentMfa, setAccentMfa] = useState(false);
+  const accentRatio = accentContrast(accentInput);
+  const accentTooLight = accentRatio !== null && accentRatio < ACCENT_MIN_CONTRAST;
+  const accentValid = accentInput === "" || (accentRatio !== null && !accentTooLight);
 
   // ── Result release mode ───────────────────────────────────────────────────
   // releaseMode = what the server has (null: unknown — older API or load
@@ -392,6 +404,25 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
     }
   };
 
+  const handleSaveAccent = async (): Promise<void> => {
+    if (!accentValid) return;
+    setAccentBusy(true);
+    setAccentError(null);
+    setAccentMsg(null);
+    try {
+      const primary = accentInput === "" ? null : accentInput.toLowerCase();
+      await adminApi("/admin/tenant-settings/accent", { method: "PATCH", body: JSON.stringify({ primary }) });
+      setAccentMfa(false);
+      setAccentMsg(primary === null ? "Colour cleared. The default colour is used." : "Colour saved.");
+      window.dispatchEvent(new CustomEvent("aiq:accent", { detail: primary }));
+    } catch (err) {
+      if (isFreshMfaError(err)) setAccentMfa(true);
+      else setAccentError(err instanceof AdminApiError ? err.apiError.message : "Could not save the colour. Try again.");
+    } finally {
+      setAccentBusy(false);
+    }
+  };
+
   const handleRemoveLogo = async (): Promise<void> => {
     setShowLogoRemove(false);
     setLogoBusy(true);
@@ -464,6 +495,7 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
       setAttemptRetInput(data.attempt_retention_days == null ? "" : String(data.attempt_retention_days));
       setUpdatedAt(data.updated_at ?? null);
       setLogoUrl(data.logo?.url ?? null);
+      setAccentInput(data.accent ?? "");
       setReleaseMode(
         data.result_release_mode === "auto" || data.result_release_mode === "manual"
           ? data.result_release_mode
@@ -1102,6 +1134,68 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
                     Remove logo
                   </Button>
                 </span>
+              </div>
+            )}
+          </Card>
+
+          {/* Z-119: org accent colour */}
+          <Card padding="lg" data-help-id="admin.tenant_settings.accent_colour">
+            <h3 style={{ fontFamily: "var(--aiq-font-serif)", fontSize: 18, fontWeight: 400, margin: "0 0 6px" }}>
+              Organisation colour.
+            </h3>
+            <p style={{ fontSize: 13, color: "var(--aiq-color-fg-secondary)", margin: "0 0 12px", lineHeight: 1.5 }}>
+              Buttons and links use this colour. Text must stay readable on white (contrast 4.5 to 1 or more). Leave blank for the default colour.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+              <input
+                type="color"
+                aria-label="Pick colour"
+                value={accentRatio !== null ? accentInput.toLowerCase() : "#3b4cca"}
+                onChange={(e) => { setAccentInput(e.target.value); setAccentMsg(null); setAccentError(null); }}
+              />
+              <input
+                type="text"
+                aria-label="Colour code"
+                value={accentInput}
+                placeholder="#3b4cca"
+                maxLength={7}
+                onChange={(e) => { setAccentInput(e.target.value.trim()); setAccentMsg(null); setAccentError(null); }}
+                style={{ width: 120, fontFamily: "var(--aiq-font-mono)", fontSize: 13, padding: "8px 10px", borderRadius: "var(--aiq-radius-md)", border: "1px solid var(--aiq-color-border-strong)", background: "var(--aiq-color-bg-raised)", color: "var(--aiq-color-fg-primary)" }}
+              />
+              {accentRatio !== null && (
+                <span
+                  data-testid="accent-preview"
+                  style={{ background: accentInput, color: "#fff", padding: "8px 16px", borderRadius: "var(--aiq-radius-md)", fontSize: 13 }}
+                >
+                  Preview button
+                </span>
+              )}
+            </div>
+            <p role="status" data-testid="accent-contrast" style={{ marginTop: 8, fontSize: 13 }}>
+              {accentInput === ""
+                ? "Default colour."
+                : accentRatio === null
+                  ? "Enter a colour like #3b4cca."
+                  : accentTooLight
+                    ? `Too light: contrast ${accentRatio.toFixed(1)} to 1. Choose a darker colour (minimum ${ACCENT_MIN_CONTRAST} to 1).`
+                    : `Readable: contrast ${accentRatio.toFixed(1)} to 1.`}
+            </p>
+            {accentMsg && <p role="status" style={{ fontSize: 13 }}>{accentMsg}</p>}
+            {accentError && <div role="alert" style={{ fontSize: 13, color: "var(--aiq-color-danger, #dc2626)" }}>{accentError}</div>}
+            {accentMfa ? (
+              <div style={{ marginTop: 16, maxWidth: 520 }}>
+                <MfaStepUp
+                  prompt="Changing the colour needs a fresh authenticator check. Enter your 6-digit code to continue."
+                  confirmLabel="Verify & continue"
+                  onVerified={() => { setAccentMfa(false); void handleSaveAccent(); }}
+                  onCancel={() => setAccentMfa(false)}
+                />
+              </div>
+            ) : (
+              <div style={{ marginTop: 16 }}>
+                <Button onClick={() => void handleSaveAccent()} loading={accentBusy} disabled={!accentValid}>
+                  Save colour
+                </Button>
               </div>
             )}
           </Card>

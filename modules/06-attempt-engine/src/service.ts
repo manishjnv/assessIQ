@@ -80,6 +80,8 @@ import {
   buildSectionsSummary,
   readSections,
   readWholeTestMinutes,
+  readBlueprintWholeMinutes,
+  readBlueprintMarks,
   resolveSection,
   sectionDeadline,
   totalSectionSeconds,
@@ -701,12 +703,17 @@ export async function startAttempt(
     // Sectioned: the whole test is the sum of the section minutes (the level's
     // duration is not used); each section's own deadline is derived from it later.
     const wholeMinutes = sections !== null ? readWholeTestMinutes(assessment.settings) : null;
+    // S42: a blueprint test (never sectioned) may carry its own whole-test timer; it wins over duration_minutes.
+    const blueprintMinutes = sections === null ? readBlueprintWholeMinutes(assessment.settings) : null;
+    const blueprintMarks = sections === null ? readBlueprintMarks(assessment.settings) : null;
     const durationSeconds =
       wholeMinutes !== null
         ? wholeMinutes * 60
-        : sections !== null
-          ? totalSectionSeconds(sections)
-          : effectiveDurationMinutes(assessment.duration_minutes, level.duration_minutes) * 60;
+        : blueprintMinutes !== null
+          ? blueprintMinutes * 60
+          : sections !== null
+            ? totalSectionSeconds(sections)
+            : effectiveDurationMinutes(assessment.duration_minutes, level.duration_minutes) * 60;
     const endsAt = new Date(startedAt.getTime() + durationSeconds * 1000);
 
     // h. Insert attempt row.
@@ -776,6 +783,8 @@ export async function startAttempt(
             negativeOverride: sections[sectionOf[i] as number]!.negative_marks_per_question ?? 0,
           }
         : {}),
+      // S42: blueprint marks per question, frozen here; the penalty stays the question's own / assessment default.
+      ...(blueprintMarks !== null ? { pointsOverride: blueprintMarks } : {}),
     }));
     await repo.insertAttemptQuestions(client, attempt.id, aqRows, readNegativeMarksDefault(assessment.settings));
     await repo.insertEmptyAttemptAnswers(client, attempt.id, chosen.map((q) => q.id));

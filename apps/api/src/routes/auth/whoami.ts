@@ -76,12 +76,13 @@ export async function registerWhoamiRoutes(app: FastifyInstance): Promise<void> 
             role: sess.role,
           },
           tenant: tenant === null
-            ? { id: sess.tenantId, slug: null, name: null, logo_url: null }
+            ? { id: sess.tenantId, slug: null, name: null, logo_url: null, accent: null }
             : {
                 id: tenant.id,
                 slug: tenant.slug,
                 name: tenant.name,
                 logo_url: logo === null ? null : tenantLogoUrl(tenant.id, logo.sha256),
+                accent: tenant.branding?.primary ?? null,
               },
           mfaStatus,
           totpEnrolled: enrollStatus.enrolled,

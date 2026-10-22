@@ -4423,25 +4423,29 @@ admin.question.editor.negative_marks:
 
 admin.assessments.blueprint.whole_test_minutes:
   audience: admin
-  short_text: "Total test time in minutes, 1 to 600. Blank sets no whole-test time."
+  version: 2
+  short_text: "One timer for the whole test, 1 to 600 minutes. It replaces the time limit. Blank keeps the usual time."
   long_md: |
     ## Whole-test minutes
 
     Set the total time for the whole test, in whole minutes (1 to 600). The value is saved with the blueprint.
 
-    - **Blank.** No whole-test time is set.
-    - **Not yet applied.** The test timer does not use this value for a blueprint test yet.
+    - **Set.** The candidate gets this one timer. It wins over the time limit of the test and the time of the difficulty.
+    - **Blank.** The usual time applies: the time limit of the test, else the time of the difficulty.
+    - **Frozen.** A test that is already running keeps its time. A change affects only new tests.
 
 admin.assessments.blueprint.marks_per_question:
   audience: admin
-  short_text: "Marks for each question in this blueprint, 0 to 1000. Blank keeps each question's points."
+  version: 2
+  short_text: "Whole marks for each question in this blueprint, 1 to 1000. Blank keeps each question's points."
   long_md: |
-    ## Marks per section
+    ## Marks per question
 
-    Set the marks for each question drawn by this blueprint, from 0 to 1000. The value is saved with the blueprint.
+    Set the marks for each question drawn by this blueprint, as a whole number from 1 to 1000.
 
+    - **Set.** Every question drawn by this blueprint is worth this many marks. The question's own points are not used.
     - **Blank.** Each question keeps its own points.
-    - **Not yet applied.** Scoring does not use this value for a blueprint test yet.
+    - **Frozen.** A test that is already running keeps its marks. A change affects only new tests.
 
 admin.start_test.time_limit:
   audience: admin
@@ -5521,6 +5525,14 @@ admin.tenant_settings.attempt_retention_days:
     ## Keep attempt activity log for
 
     How many days to keep the activity log of finished tests (tab switches, focus changes, answer saves). Leave blank to keep it forever. Range 30 to 3650. Answers, scores and certificates are never deleted by this setting.
+
+admin.tenant_settings.accent_colour:
+  audience: admin
+  short_text: "Colour for buttons and links. It must be readable on white (contrast 4.5 to 1 or more). Blank = default."
+  long_md: |
+    ## Organisation colour
+
+    Pick the colour for buttons and links in your admin and candidate screens. The colour must be readable as text on white, with a contrast of at least 4.5 to 1. The page shows the contrast and a preview button before you save. Leave the field blank to use the default colour. Changing the colour needs a fresh authenticator check.
 
 admin.camera.review_list:
   audience: admin

@@ -21,6 +21,7 @@ export {
   updateCertificateShowDistinction,
   getCertificateShowDistinction,
   renameTenant,
+  setTenantAccent,
   normalizeTenantName,
   createTenant,
   activateTenant,
@@ -55,8 +56,8 @@ export {
   signupHmac,
   signupEmailKey,
   foldSignupEmail,
-  normalizeSignupEmail,
   isFoldExemptEmail,
+  normalizeSignupEmail,
   normalizeOrgName,
   isValidOrgName,
   isValidAdminName,
@@ -84,3 +85,4 @@ export type {
   ResultFeedbackLevel,
 } from "./types.js";
 export { RESULT_FEEDBACK_LEVELS } from "./types.js";
+export { validateAccent, contrastOnWhite, ACCENT_MIN_CONTRAST } from "./accent.js";

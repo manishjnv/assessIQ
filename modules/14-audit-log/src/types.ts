@@ -236,6 +236,8 @@ export const ACTION_CATALOG = [
   // the Platform page "Edit company" modal. Display-only change; no isolation /
   // RLS impact. Distinct from tenant.settings.updated (settings JSON, not name).
   'tenant.renamed',
+  // Z-119: org accent colour set or cleared (tenants.branding.primary)
+  'tenant.branding.updated',
   // Phase A — user lifecycle controls.
   // user.disabled / user.reenabled: tenant-admin (or super-admin override) pauses / restores a user.
   // user.invitation_cancelled: pending invite explicitly cancelled before acceptance.
