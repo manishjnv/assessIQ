@@ -220,7 +220,7 @@ export interface Question {
 export type ReviewState = "in_review" | "verified" | "disputed" | "needs_fix";
 export type QuestionOrigin =
   | "original_human" | "ai_original" | "ai_seeded" | "derived_from_source"
-  | "scraped_raw" | "tenant_upload" | "licensed";
+  | "scraped_raw" | "tenant_upload" | "licensed" | "template_generated";
 export type RightsStatus =
   | "original" | "derived_from_source" | "scraped_raw" | "licensed" | "metadata_only" | "withdrawn";
 

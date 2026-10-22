@@ -29,6 +29,8 @@ const UploadBody = z.object({
   pack_name: z.string().min(1).max(200).optional(),
   /** EXP-17: default source reference for every row that has no source_ref cell of its own. */
   source_ref: z.string().max(500).optional(),
+  /** EXP-21: hash duplicate classes only (no trigram scan). Multipart sends the string "true". */
+  skip_trigram: z.union([z.boolean(), z.enum(["true", "false"]).transform((v) => v === "true")]).default(false),
 });
 const MultipartFields = UploadBody.omit({ content_base64: true });
 const PatchBody = z.object({
@@ -49,7 +51,7 @@ const TenantExtra = z.object({
   rights_status: z.enum(TENANT_UPLOAD_RIGHTS),
 });
 
-type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; sourceRef?: string | undefined; data: Buffer };
+type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; sourceRef?: string | undefined; skipTrigram?: boolean | undefined; data: Buffer };
 
 /** Reads a JSON-base64 or multipart upload. `extra` carries the tenant-only fields (warranty, rights). */
 async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra: Record<string, unknown> }> {
@@ -72,17 +74,17 @@ async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra:
       return typeof f?.value === "string" ? f.value : undefined;
     };
     const f = parse(MultipartFields, {
-      file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"), source_ref: text("source_ref"),
+      file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"), source_ref: text("source_ref"), skip_trigram: text("skip_trigram"),
     }, "body");
     return {
-      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, sourceRef: f.source_ref, data },
+      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, sourceRef: f.source_ref, skipTrigram: f.skip_trigram, data },
       extra: { content_warranty: text("content_warranty") === "true" ? true : undefined, rights_status: text("rights_status") },
     };
   }
   const raw = (req.body ?? {}) as Record<string, unknown>;
   const body = parse(UploadBody, raw, "body");
   return {
-    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, sourceRef: body.source_ref, data: Buffer.from(body.content_base64, "base64") },
+    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, sourceRef: body.source_ref, skipTrigram: body.skip_trigram, data: Buffer.from(body.content_base64, "base64") },
     extra: { content_warranty: raw["content_warranty"], rights_status: raw["rights_status"] },
   };
 }
@@ -99,7 +101,7 @@ async function stageAndReply(req: FastifyRequest, reply: FastifyReply, u: Upload
   }
   const report = await stageImport(req.session!.tenantId, req.session!.userId, {
     fileName: u.fileName, fileSha256: sha256Hex(u.data), format: u.format,
-    domain: u.domain, packName: u.packName ?? u.fileName.replace(/\.[^.]+$/, ""),
+    domain: u.domain, packName: u.packName ?? u.fileName.replace(/\.[^.]+$/, ""), skipTrigram: u.skipTrigram === true,
   }, parsed, tenantUpload);
   return reply.code(201).send(report);
 }

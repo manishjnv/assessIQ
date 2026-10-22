@@ -103,7 +103,7 @@ import { registerExamBlueprintRoutes } from "./exam-blueprints.js";
 // List filters (GET /api/admin/questions and /facets) — exported for unit testing
 // ---------------------------------------------------------------------------
 
-const ORIGINS = ["original_human", "ai_original", "ai_seeded", "derived_from_source", "scraped_raw", "tenant_upload", "licensed"] as const;
+const ORIGINS = ["original_human", "ai_original", "ai_seeded", "derived_from_source", "scraped_raw", "tenant_upload", "licensed", "template_generated"] as const;
 const RIGHTS = ["original", "derived_from_source", "scraped_raw", "licensed", "metadata_only", "withdrawn"] as const;
 const REVIEW_STATES = ["in_review", "verified", "disputed", "needs_fix", "none"] as const;
 

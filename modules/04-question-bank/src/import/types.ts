@@ -29,6 +29,8 @@ export interface ImportFileMeta {
   /** Target domain slug (must exist in the tenant). */
   domain: string;
   packName: string;
+  /** EXP-21: skip the trigram (similar) class; hash classes only. Default false. */
+  skipTrigram?: boolean;
 }
 
 export interface NormalizedRow {
@@ -46,7 +48,7 @@ export interface NormalizedRow {
 export type DupClass = "exact" | "normalised" | "similar";
 
 export interface RowMeta {
-  origin: "original_human" | "ai_original" | "ai_seeded" | "derived_from_source" | "scraped_raw" | "tenant_upload" | "licensed";
+  origin: "original_human" | "ai_original" | "ai_seeded" | "derived_from_source" | "scraped_raw" | "tenant_upload" | "licensed" | "template_generated";
   rightsStatus: "original" | "derived_from_source" | "scraped_raw" | "licensed" | "metadata_only";
   sourceRef: string | null;
   sourceUrl: string | null;

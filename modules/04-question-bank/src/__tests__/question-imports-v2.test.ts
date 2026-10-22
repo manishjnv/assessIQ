@@ -11,7 +11,7 @@ import { csvCell, sha256Hex } from "@assessiq/core";
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { parseImportFile } from "../import/parse.js";
-import { stageImport, fixImportRow, previewImport } from "../import/staging.js";
+import { stageImport, fixImportRow, previewImport, getImportReport } from "../import/staging.js";
 import { commitImport } from "../import/commit.js";
 
 let container: StartedTestContainer;
@@ -191,5 +191,33 @@ describe("EXP-4 import v2", () => {
     expect(r.checksRun).toEqual(["exact", "normalised", "similar"]);
     expect(r.rows[0]).toMatchObject({ decision: "ok", dupClass: "similar" });
     expect(r.duplicateClasses.similar).toBe(1);
+  });
+
+  it("EXP-21: skipTrigram runs no similar class; default still does", async () => {
+    const near = buildCsv([mcq(1, { question: "Unique exam question number 1 about percentage?", options: JSON.stringify(["p", "q"]) })]);
+    const m = { ...meta(near), fileSha256: sha256Hex(Buffer.concat([near, Buffer.from("skip")])) };
+    const skipped = await stageImport(tA, uA, { ...m, skipTrigram: true }, await parseImportFile("csv", near));
+    expect(skipped.checksRun).toEqual(["exact", "normalised"]);
+    expect(skipped.rows[0]).toMatchObject({ decision: "ok", dupClass: null });
+    expect((await getImportReport(tA, skipped.importId)).checksRun).toEqual(["exact", "normalised"]); // flag is stored
+    const dflt = await stage(near);
+    expect(dflt.checksRun).toEqual(["exact", "normalised", "similar"]);
+    expect(dflt.rows[0]).toMatchObject({ dupClass: "similar" });
+  });
+
+  it("EXP-21: template_generated origin imports; old rows with null hashes are still exact duplicates", async () => {
+    const gen = buildCsv([mcq(300, { origin: "template_generated" })]);
+    const r = await stage(gen);
+    expect(r.rows[0]).toMatchObject({ decision: "ok" });
+    const res = await commitImport(tA, uA, r.importId, { mode: "skip-errors" });
+    const o = await sup(async (c) => {
+      const row = (await c.query(`SELECT s.origin FROM question_source s JOIN questions q ON q.id = s.question_id
+         WHERE q.pack_id = $1`, [res.packId])).rows[0];
+      await c.query(`UPDATE question_source SET content_hash = NULL, normalised_text_hash = NULL`); // simulate pre-0194 rows
+      return row.origin;
+    });
+    expect(o).toBe("template_generated");
+    const again = await stage(buildCsv([mcq(300), mcq(1)]));
+    expect(again.rows.map((x) => [x.decision, x.dupClass])).toEqual([["duplicate", "exact"], ["duplicate", "exact"]]);
   });
 });

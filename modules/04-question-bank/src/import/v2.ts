@@ -15,7 +15,7 @@ export const V2_COLUMNS = [
 /** 'withdrawn' is a takedown state set by the withdraw route; it is never importable. */
 export const IMPORT_RIGHTS = ["original", "derived_from_source", "scraped_raw", "licensed", "metadata_only"] as const;
 /** question_source.origin CHECK values minus 'tenant_upload' (EXP-17: set by the tenant upload route, never by a cell). */
-export const IMPORT_ORIGINS = ["original_human", "ai_original", "ai_seeded", "derived_from_source", "scraped_raw", "licensed"] as const;
+export const IMPORT_ORIGINS = ["original_human", "ai_original", "ai_seeded", "derived_from_source", "scraped_raw", "licensed", "template_generated"] as const;
 type Rights = (typeof IMPORT_RIGHTS)[number];
 
 /** Default origin when the origin cell is blank. */

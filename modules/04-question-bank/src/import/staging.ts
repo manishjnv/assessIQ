@@ -167,11 +167,11 @@ export function decide(
 // DB helpers
 // ---------------------------------------------------------------------------
 
-interface ImportRow { id: string; domain: string; status: ImportStatus; format: ImportFormat; upload_rights_status: TenantUploadRights | null }
+interface ImportRow { id: string; domain: string; status: ImportStatus; format: ImportFormat; upload_rights_status: TenantUploadRights | null; skip_trigram: boolean }
 
 async function loadImport(client: PoolClient, importId: string, lock = false): Promise<ImportRow> {
   const r = await client.query<ImportRow>(
-    `SELECT id, domain, status, format, upload_rights_status FROM question_imports WHERE id = $1${lock ? " FOR UPDATE" : ""}`,
+    `SELECT id, domain, status, format, upload_rights_status, skip_trigram FROM question_imports WHERE id = $1${lock ? " FOR UPDATE" : ""}`,
     [importId],
   );
   const row = r.rows[0];
@@ -252,7 +252,7 @@ export async function buildReport(client: PoolClient, importId: string): Promise
   }));
   const dc = (c: DupClass): number => rows.filter((x) => x.dupClass === c).length;
   const checksRun: DupClass[] = ["exact", "normalised"];
-  if (await trigramAvailable(client)) checksRun.push("similar");
+  if (!imp.skip_trigram && (await trigramAvailable(client))) checksRun.push("similar");
   const n = (d: ImportDecision): number => rows.filter((x) => x.decision === d).length;
   return {
     importId, status: imp.status,
@@ -289,7 +289,7 @@ function validateTenantAware(
 
 /** Validate and duplicate-check every row (reads only). Shared by stageImport and previewImport. */
 async function evaluateRows(
-  client: PoolClient, domain: string, format: ImportFormat, parsed: ParseResult, rights?: TenantUploadRights,
+  client: PoolClient, domain: string, format: ImportFormat, parsed: ParseResult, rights?: TenantUploadRights, skipTrigram = false,
 ) {
   const taxonomy = await loadTaxonomyIndex(client);
   const checked = parsed.rows.map((p: ParsedRow) => {
@@ -305,7 +305,7 @@ async function evaluateRows(
   checked.sort((a, b) => a.row - b.row);
   applyPassageGroups(checked);
   const stems = checked.flatMap((c) => { const stem = stemOf(c.normalized); return stem === null ? [] : [{ row: c.row, stem }]; });
-  const similarRows = await similarRowNumbers(client, domain, stems);
+  const similarRows = skipTrigram ? new Set<number>() : await similarRowNumbers(client, domain, stems);
   for (const c of checked) c.similar = similarRows.has(c.row);
   const existing = await existingHashes(client, domain);
   const verdicts = decide(checked, existing.exact, existing.norm);
@@ -339,14 +339,14 @@ export async function stageImport(
     );
     if (prior.rows[0] !== undefined) return buildReport(client, prior.rows[0].id);
 
-    const { checked, decisions } = await evaluateRows(client, domain, meta.format, parsed, tenantUpload?.rightsStatus);
+    const { checked, decisions } = await evaluateRows(client, domain, meta.format, parsed, tenantUpload?.rightsStatus, meta.skipTrigram === true);
 
     const ins = await client.query<{ id: string }>(
       `INSERT INTO question_imports (tenant_id, created_by, file_name, file_sha256, format, domain, pack_name,
-                                     upload_rights_status, warranty_accepted_by, warranty_accepted_at)
+                                     upload_rights_status, warranty_accepted_by, warranty_accepted_at, skip_trigram)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text, CASE WHEN $8::text IS NULL THEN NULL ELSE $2::uuid END,
-               CASE WHEN $8::text IS NULL THEN NULL ELSE now() END) RETURNING id`,
-      [tenantId, actorUserId, meta.fileName, meta.fileSha256, meta.format, domain, meta.packName, tenantUpload?.rightsStatus ?? null],
+               CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9) RETURNING id`,
+      [tenantId, actorUserId, meta.fileName, meta.fileSha256, meta.format, domain, meta.packName, tenantUpload?.rightsStatus ?? null, meta.skipTrigram === true],
     );
     const importId = ins.rows[0]!.id;
     if (checked.length > 0) {
@@ -405,14 +405,14 @@ export async function previewImport(tenantId: string, meta: ImportFileMeta, pars
     if (dom.rowCount === 0) {
       throw new ValidationError(`domain '${domain}' does not exist`, { details: { code: "IMPORT_DOMAIN_NOT_FOUND" } });
     }
-    const { checked, verdicts } = await evaluateRows(client, domain, meta.format, parsed);
+    const { checked, verdicts } = await evaluateRows(client, domain, meta.format, parsed, undefined, meta.skipTrigram === true);
     const fileOnly = decide(checked, new Set(), new Set());
     const rows = checked.map((c, i): PreviewRow => ({
       row: c.row, decision: verdicts[i]!.decision, dupClass: verdicts[i]!.dup, errors: c.errors, raw: c.raw, normalized: c.normalized,
       dupScope: verdicts[i]!.decision !== "duplicate" ? null : fileOnly[i]!.decision === "duplicate" ? "file" : "existing",
     }));
     const checksRun: DupClass[] = ["exact", "normalised"];
-    if (await trigramAvailable(client)) checksRun.push("similar");
+    if (meta.skipTrigram !== true && (await trigramAvailable(client))) checksRun.push("similar");
     return { rows, checksRun };
   });
 }
@@ -479,7 +479,7 @@ export async function fixImportRow(
     views.forEach((v, i) => { items[i]!.normalized = v.normalized; });
     const edited = items.find((it) => it.rec.row_number === rowNumber)!;
     const stem = stemOf(edited.normalized);
-    if (stem !== null) edited.similar = (await similarRowNumbers(client, imp.domain, [{ row: rowNumber, stem }])).has(rowNumber);
+    if (stem !== null && !imp.skip_trigram) edited.similar = (await similarRowNumbers(client, imp.domain, [{ row: rowNumber, stem }])).has(rowNumber);
     const existing = await existingHashes(client, imp.domain);
     const verdicts = decide(items, existing.exact, existing.norm);
     for (let i = 0; i < items.length; i++) {
