@@ -33,6 +33,21 @@ export function readWholeTestMinutes(settings: unknown): number | null {
   return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 600 ? v : null;
 }
 
+/**
+ * Z-42 (S42): settings.blueprint.whole_test_minutes, a whole number 1..600, else null. A blueprint test has no
+ * sections, so this is its only whole-test timer; it wins over assessments.duration_minutes and the level time.
+ */
+export function readBlueprintWholeMinutes(settings: unknown): number | null {
+  const v = (settings as { blueprint?: { whole_test_minutes?: unknown } } | null | undefined)?.blueprint?.whole_test_minutes;
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 600 ? v : null;
+}
+
+/** Z-42 (S42): settings.blueprint.marks_per_question, a whole number 1..1000, else null (each question keeps its points). */
+export function readBlueprintMarks(settings: unknown): number | null {
+  const v = (settings as { blueprint?: { marks_per_question?: unknown } } | null | undefined)?.blueprint?.marks_per_question;
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 1000 ? v : null;
+}
+
 /** Whole-test length in seconds = sum of the section minutes (per-section timing only). */
 export function totalSectionSeconds(sections: readonly AssessmentSection[], from = 0): number {
   return sections.slice(from).reduce((n, s) => n + (s.minutes ?? 0) * 60, 0);

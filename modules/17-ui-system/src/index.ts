@@ -37,6 +37,7 @@ export { useViewportSync } from "./hooks/useViewportSync.js";
 export { useApi } from "./hooks/useApi.js";
 export type { UseApiOptions, UseApiResult } from "./hooks/useApi.js";
 
+export { accentContrast, accentBranding, ACCENT_MIN_CONTRAST } from "./accent.js";
 export { ThemeProvider } from "./theme/ThemeProvider.js";
 export type { ThemeProviderProps, TenantBranding, ThemeMode, DensityMode } from "./theme/ThemeProvider.js";
 

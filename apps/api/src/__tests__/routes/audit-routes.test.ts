@@ -72,6 +72,7 @@ vi.mock('@assessiq/tenancy', () => ({
   findTenantSettings: vi.fn(),
   assertTenantActive: vi.fn(),
   renameTenant: vi.fn(),
+  setTenantAccent: vi.fn(),
   createTenant: vi.fn(),
   activateTenant: vi.fn(),
   suspendTenant: vi.fn(),

@@ -346,3 +346,25 @@ export async function deleteLogo(client: PoolClient): Promise<boolean> {
   const r = await client.query(`DELETE FROM tenant_logos`);
   return (r.rowCount ?? 0) > 0;
 }
+
+/** Z-119: set or clear branding.primary; returns the previous value, or undefined when the tenant row is missing. */
+export async function updateBrandingPrimary(
+  client: PoolClient,
+  tenantId: string,
+  hex: string | null,
+): Promise<string | null | undefined> {
+  const cur = await client.query<{ primary: string | null }>(
+    `SELECT branding->>'primary' AS "primary" FROM tenants WHERE id = $1 FOR UPDATE`,
+    [tenantId],
+  );
+  if (cur.rows[0] === undefined) return undefined;
+  await client.query(
+    `UPDATE tenants
+        SET branding = CASE WHEN $1::text IS NULL THEN COALESCE(branding, '{}'::jsonb) - 'primary'
+                            ELSE jsonb_set(COALESCE(branding, '{}'::jsonb), '{primary}', to_jsonb($1::text)) END,
+            updated_at = now()
+      WHERE id = $2`,
+    [hex, tenantId],
+  );
+  return cur.rows[0].primary;
+}

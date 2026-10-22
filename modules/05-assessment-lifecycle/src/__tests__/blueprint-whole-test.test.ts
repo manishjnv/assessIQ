@@ -28,6 +28,8 @@ describe("blueprint whole-test fields (Z-51)", () => {
     ["whole_test_minutes 1.5", { whole_test_minutes: 1.5 }],
     ["whole_test_minutes as text", { whole_test_minutes: "60" }],
     ["marks_per_question negative", { marks_per_question: -1 }],
+    ["marks_per_question 0", { marks_per_question: 0 }],
+    ["marks_per_question 2.5", { marks_per_question: 2.5 }],
     ["marks_per_question 1001", { marks_per_question: 1001 }],
   ])("rejects %s", (_n, extra) => {
     expect(AssessmentBlueprintSchema.safeParse({ ...base, ...extra }).success).toBe(false);

@@ -17,6 +17,8 @@ export interface SessionInfo {
     id: string;
     slug: string | null;
     name?: string | null;
+    /** Org accent colour (#rrggbb) or null (Z-119). */
+    accent?: string | null;
   };
   mfaStatus: 'verified' | 'pending' | 'n/a';
   /** True if the user has completed TOTP enrollment. Absent for API-key sessions. */
@@ -97,6 +99,18 @@ export async function fetchWhoami(force = false): Promise<SessionInfo | null> {
       inFlight = null;
     });
   return inFlight;
+}
+
+/** Cached whoami only: subscribes, never fetches (public pages must not add a whoami probe). */
+export function useCachedSession(): SessionInfo | null {
+  const [session, setSession] = useState<SessionInfo | null>(cached ?? null);
+  useEffect(() => {
+    subscribers.add(setSession);
+    return () => {
+      subscribers.delete(setSession);
+    };
+  }, []);
+  return session;
 }
 
 export function clearSessionCache(): void {

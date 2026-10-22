@@ -12,6 +12,7 @@
 //   PATCH /api/admin/tenant-settings/result-feedback-level — body { level }  (RW-80)
 //   PATCH /api/admin/tenant-settings/retention-days   — body { retention_days }
 //   PATCH /api/admin/tenant                           — body { name }  (rename own company)
+//   PATCH /api/admin/tenant-settings/accent           — body { primary: '#rrggbb' | null }  (Z-119)
 //   PUT   /api/admin/tenant-settings/logo             — multipart `file` or JSON { content_base64 }  (Logo L1)
 //   DELETE /api/admin/tenant-settings/logo            — 204, also when no logo
 //   POST  /api/admin/retention/run-now                — query ?dryRun=true
@@ -36,6 +37,7 @@ import {
   updateResultFeedbackLevel,
   updateCertificateShowDistinction,
   renameTenant,
+  setTenantAccent,
   assertTenantActive,
   findTenantSettings,
   getTenantById,
@@ -49,7 +51,7 @@ import { readLogoUpload } from './_logo-upload.js';
 import { runRetentionPurgeForTenant, listErasedCandidates, getAttemptRetentionDays, updateAttemptRetentionDays } from '@assessiq/data-rights';
 import { parseBody, parseQuery } from './_validate.js';
 import { authChain } from '../middleware/auth-chain.js';
-import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, resultFeedbackLevelBody, certificateShowDistinctionBody, retentionDaysBody, attemptRetentionDaysBody, runNowQuery } from './_schemas.js';
+import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, resultFeedbackLevelBody, certificateShowDistinctionBody, retentionDaysBody, attemptRetentionDaysBody, accentBody, runNowQuery } from './_schemas.js';
 
 // ---------------------------------------------------------------------------
 // Auth chain — tenant admin only, fresh MFA within 15 minutes.
@@ -131,8 +133,22 @@ export async function registerAdminTenantSettingsRoutes(
       retention_days: settings.retention_days,
       attempt_retention_days: await getAttemptRetentionDays(session.tenantId),
       company_name: tenant.name,
+      accent: tenant.branding?.primary ?? null,
       logo: logo === null ? null : { ...logo, url: tenantLogoUrl(session.tenantId, logo.sha256) },
     });
+  });
+
+  // PATCH /api/admin/tenant-settings/accent (Z-119)
+  // Body { primary: '#rrggbb' | null }. Hex only; contrast on white must be >= 4.5:1.
+  // Tenant + actor come from the session only. null clears (default theme).
+  // 200: { primary, previous }   400: ACCENT_INVALID_HEX | ACCENT_LOW_CONTRAST
+  // 403: caller not 'admin' or fresh MFA expired   409: TENANT_NOT_ACTIVE
+  app.patch('/api/admin/tenant-settings/accent', { preHandler: adminFreshMfa }, async (req, reply) => {
+    const session = req.session!;
+    const body = parseBody(accentBody, req.body, { code: 'MISSING_ACCENT' });
+    await assertTenantActive(session.tenantId);
+    const result = await setTenantAccent(session.userId, session.tenantId, body.primary);
+    return reply.code(200).send(result);
   });
 
   // PUT /api/admin/tenant-settings/logo - replace the caller's OWN tenant logo (Logo L1).

@@ -1,6 +1,7 @@
 import { NotFoundError, ConflictError, ValidationError, streamLogger, uuidv7 } from "@assessiq/core";
 import { withTenant, withSystemRole } from "./with-tenant.js";
 import * as repo from "./repository.js";
+import { validateAccent } from "./accent.js";
 import type { Tenant, TenantSettings, ResultFeedbackLevel } from "./types.js";
 import { RESULT_FEEDBACK_LEVELS } from "./types.js";
 import { auditInTx } from "@assessiq/audit-log";
@@ -1091,6 +1092,42 @@ export async function listTenantsForSuperAdmin(
 export async function isPrivacyDisclosed(tenantId: string): Promise<boolean> {
   const row = await withTenant(tenantId, (client) => repo.findPrivacyDisclosed(client, tenantId));
   return row?.privacy_disclosed === true;
+}
+
+// ---------------------------------------------------------------------------
+// Org accent colour (Z-119). Tenant + actor come from the session only.
+// null clears it (default theme). UPDATE + audit row share one tx.
+// ---------------------------------------------------------------------------
+export async function setTenantAccent(
+  actorUserId: string,
+  tenantId: string,
+  raw: string | null,
+): Promise<{ primary: string | null; previous: string | null }> {
+  let hex: string | null = null;
+  if (raw !== null) {
+    const v = validateAccent(raw);
+    if (!v.ok) throw new ValidationError(v.message, { details: { code: v.code } });
+    hex = v.hex;
+  }
+  return withTenant(tenantId, async (client) => {
+    const previous = await repo.updateBrandingPrimary(client, tenantId, hex);
+    if (previous === undefined) {
+      throw new NotFoundError(`tenant not found: ${tenantId}`, { details: { code: "TENANT_NOT_FOUND", tenantId } });
+    }
+    if (previous !== hex) {
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId,
+        action: "tenant.branding.updated",
+        entityType: "tenant",
+        entityId: tenantId,
+        before: { primary: previous },
+        after: { primary: hex },
+      });
+    }
+    return { primary: hex, previous };
+  });
 }
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,11 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
-import { ThemeProvider, TENANT_FIXTURES } from '@assessiq/ui-system';
+import { ThemeProvider, TENANT_FIXTURES, accentBranding } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
 import { AdminSelectIdentity } from './pages/admin/select-identity';
 import { CandidateLogin } from './pages/candidate/CandidateLogin';
 import { RequireSession } from './lib/RequireSession';
+import { useCachedSession } from './lib/session';
 import { Expired } from './pages/take/Expired';
 import { ErrorPage as TakeError } from './pages/take/ErrorPage';
 import { TakeRoot } from './pages/take/TakeRoot';
@@ -72,7 +73,22 @@ const TryCertificatePage = lazy(() => import('./pages/try/TryCertificate').then(
 
 const tenant = TENANT_FIXTURES['default'];
 
+/** Z-119: real org accent from whoami (or the admin settings save event); default theme when absent or below 4.5:1. */
+function useOrgBranding() {
+  const session = useCachedSession();
+  const [saved, setSaved] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    const on = (e: Event): void => setSaved((e as CustomEvent<string | null>).detail);
+    window.addEventListener('aiq:accent', on);
+    return () => window.removeEventListener('aiq:accent', on);
+  }, []);
+  const tenantId = session?.tenant.id;
+  useEffect(() => setSaved(undefined), [tenantId]);
+  return accentBranding(saved !== undefined ? saved : session?.tenant.accent) ?? tenant?.branding;
+}
+
 export function App(): React.JSX.Element {
+  const branding = useOrgBranding();
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       {/* theme="light" pinned per docs/10-branding-guideline.md § 0 + § 1 —
@@ -86,7 +102,7 @@ export function App(): React.JSX.Element {
       <ThemeProvider
         theme="light"
         density="cozy"
-        {...(tenant?.branding ? { branding: tenant.branding } : {})}
+        {...(branding ? { branding } : {})}
       >
         <ErrorBoundary>
         <Suspense fallback={null}>

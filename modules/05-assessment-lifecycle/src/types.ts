@@ -98,7 +98,8 @@ export const AssessmentBlueprintSchema = z
     // Z-51 (option b): marks for each question drawn by this blueprint. Absent = each question keeps its own points.
     marks_per_question: z
       .number()
-      .min(0, "marks_per_question must be at least 0")
+      .int("marks_per_question must be a whole number")
+      .min(1, "marks_per_question must be at least 1")
       .max(1000, "marks_per_question must be at most 1000")
       .optional(),
   })
