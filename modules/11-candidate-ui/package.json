@@ -20,7 +20,7 @@
   "peerDependencies": {
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-router-dom": "^6.27.0"
+    "react-router-dom": "^6.30.6"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.3",
