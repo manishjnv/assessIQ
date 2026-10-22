@@ -46,7 +46,7 @@ function mockApi(accent: string | null): void {
   });
 }
 const accentCalls = (): unknown[][] => adminApi.mock.calls.filter((c) => c[0] === PATH);
-const codeInput = (): HTMLInputElement => screen.getByLabelText("Colour code") as HTMLInputElement;
+const codeInput = (): HTMLInputElement => screen.getByLabelText("Accent hex value") as HTMLInputElement;
 
 afterEach(() => {
   cleanup();
@@ -59,7 +59,7 @@ describe("TenantSettings - Organisation colour", () => {
     const seen: unknown[] = [];
     window.addEventListener("aiq:accent", (e) => seen.push((e as CustomEvent).detail), { once: true });
     render(<TenantSettings embedded />);
-    await screen.findByLabelText("Colour code");
+    await screen.findByLabelText("Accent hex value");
     fireEvent.change(codeInput(), { target: { value: "#3B4CCA" } });
     expect(screen.getByTestId("accent-preview")).toBeTruthy();
     expect(screen.getByTestId("accent-contrast").textContent).toContain("Readable");
@@ -72,7 +72,7 @@ describe("TenantSettings - Organisation colour", () => {
   it("A2 light colour: 'Too light' message, Save disabled, no API call", async () => {
     mockApi(null);
     render(<TenantSettings embedded />);
-    await screen.findByLabelText("Colour code");
+    await screen.findByLabelText("Accent hex value");
     fireEvent.change(codeInput(), { target: { value: "#5eead4" } });
     expect(screen.getByTestId("accent-contrast").textContent).toContain("Too light");
     const btn = screen.getByRole("button", { name: "Save colour" }) as HTMLButtonElement;
