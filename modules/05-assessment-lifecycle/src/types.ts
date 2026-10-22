@@ -164,6 +164,8 @@ export const AssessmentSectionSchema = z
     question_count: z.number().int().min(1).max(500).optional(),
     /** Z-123: draw this section from a taxonomy node and its descendants (question_taxonomy). Wins over category_ids. */
     node_id: z.string().uuid().optional(),
+    /** EXP-23: draw this section from another question set (default: the assessment's own set). Must be visible to the tenant and published; publish checks the entitlement of every section set. */
+    pack_id: z.string().uuid().optional(),
     /** Per-section timer. Absent only when settings.whole_test_minutes sets ONE timer for the whole test (Z-42). */
     minutes: z.number().int().min(1, "minutes must be at least 1").max(300, "minutes must be at most 300").optional(),
     /** Z-42: every question of this section scores this many marks (frozen into attempt_questions at start). */

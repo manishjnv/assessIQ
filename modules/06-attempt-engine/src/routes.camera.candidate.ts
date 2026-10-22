@@ -208,9 +208,16 @@ export async function registerCameraCandidateRoutes(
       const rel = buildCameraRelativePath(tenantId, attemptId, fileId, kind);
       await writeFileAtomic(rel, body);
       const takenAt = new Date(); // server clock only
+      let overLimit = false;
       try {
-        await withTenant(tenantId, (client) =>
-          insertCameraFile(client, {
+        await withTenant(tenantId, async (client) => {
+          // A3-7: recount under a per-attempt advisory lock so parallel uploads cannot pass the cap together.
+          await client.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [attemptId]);
+          if ((await countFilesForAttempt(client, attemptId, kind)) >= (kind === "photo" ? MAX_PHOTOS_PER_ATTEMPT : MAX_VIDEOS_PER_ATTEMPT)) {
+            overLimit = true;
+            return;
+          }
+          await insertCameraFile(client, {
             id: fileId,
             tenantId,
             attemptId,
@@ -222,11 +229,15 @@ export async function registerCameraCandidateRoutes(
             expiresAt: computeExpiresAt(kind, takenAt, policy),
             flagged: kind === "video",
             flagReason: reason,
-          }),
-        );
+          });
+        });
       } catch (err) {
         await deleteFile(rel).catch(() => undefined);
         throw err;
+      }
+      if (overLimit) {
+        await deleteFile(rel).catch(() => undefined);
+        return fail(reply, 429, "CAMERA_LIMIT", "The camera upload limit for this attempt is reached.");
       }
       return reply.code(201).send({ id: fileId });
     }

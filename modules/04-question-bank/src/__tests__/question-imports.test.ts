@@ -138,6 +138,48 @@ describe("commit", () => {
   });
 });
 
+describe("EXP-23 append to an existing pack", () => {
+  const stageTo = async (tenant: string, user: string, data: Buffer, targetPackId: string, targetLevelPosition?: number) =>
+    stageImport(tenant, user, { ...meta(data), packName: "Appended", targetPackId, ...(targetLevelPosition !== undefined ? { targetLevelPosition } : {}) }, await parseImportFile("csv", data));
+
+  it("questions land in the target pack (no new pack), levels map by the row level, a missing level fails", async () => {
+    const first = await stage(tA, uA, csv('subjective,Policy,5,1,Append base question.,,,'));
+    const base = await commitImport(tA, uA, first.importId, { mode: "skip-errors" });
+    const second = await stageTo(tA, uA, csv('subjective,Policy,5,1,Append added question.,,,'), base.packId);
+    const res = await commitImport(tA, uA, second.importId, { mode: "skip-errors" });
+    expect(res.packId).toBe(base.packId);
+    const st = await sup(async (c) => ({
+      packs: (await c.query(`SELECT count(*)::int AS n FROM question_packs WHERE tenant_id=$1 AND name='Appended'`, [tA])).rows[0].n,
+      qs: (await c.query(`SELECT count(*)::int AS n FROM questions WHERE pack_id=$1`, [base.packId])).rows[0].n,
+      imp: (await c.query(`SELECT target_pack_id, committed_pack_id FROM question_imports WHERE id=$1`, [second.importId])).rows[0],
+    }));
+    expect(st.packs).toBe(0);
+    expect(st.qs).toBe(2);
+    expect(st.imp).toEqual({ target_pack_id: base.packId, committed_pack_id: base.packId });
+    // a forced level position the pack does not have is refused at commit
+    const third = await stageTo(tA, uA, csv('subjective,Policy,5,1,Append third question.,,,'), base.packId, 9);
+    await expect(commitImport(tA, uA, third.importId, { mode: "skip-errors" })).rejects.toMatchObject({ details: { code: "IMPORT_TARGET_LEVEL_NOT_FOUND" } });
+  });
+
+  it("a pack of another tenant, an unknown pack, and an archived pack are refused at staging", async () => {
+    await sup((c) => c.query(`INSERT INTO domains (tenant_id, slug, name) VALUES ($1,'soc','SOC')`, [tB]));
+    const foreign = await sup(async (c) => {
+      const id = randomUUID();
+      await c.query(`INSERT INTO question_packs (id, tenant_id, slug, name, domain, status, created_by) VALUES ($1,$2,'foreign-p','F','soc','draft',$3)`, [id, tB, uB]);
+      return id;
+    });
+    const data = csv('subjective,Policy,5,1,Append refused question.,,,');
+    await expect(stageTo(tA, uA, data, foreign)).rejects.toMatchObject({ details: { code: "PACK_NOT_FOUND" } });
+    await expect(stageTo(tA, uA, data, randomUUID())).rejects.toMatchObject({ details: { code: "PACK_NOT_FOUND" } });
+    const archived = await sup(async (c) => {
+      const id = randomUUID();
+      await c.query(`INSERT INTO question_packs (id, tenant_id, slug, name, domain, status, created_by) VALUES ($1,$2,'arch-p','A','soc','archived',$3)`, [id, tA, uA]);
+      return id;
+    });
+    await expect(stageTo(tA, uA, data, archived)).rejects.toMatchObject({ details: { code: "QUESTION_PACK_ARCHIVED" } });
+  });
+});
+
 describe("routes", () => {
   it("403 for a tenant admin on every route", async () => {
     const app = await buildApp(tA, uA);

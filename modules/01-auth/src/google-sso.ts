@@ -484,6 +484,7 @@ export async function mintForIdentity(
     tenantId: user.tenant_id,
     role: user.role,
     totpVerified: user.role === "candidate" || !config.MFA_REQUIRED,
+    totpFresh: false, // GATE-8 A1-3: the MFA-off bypass is not a real TOTP check
     ip,
     ua,
   });

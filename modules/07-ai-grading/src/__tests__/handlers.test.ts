@@ -1740,4 +1740,23 @@ describe("P4 least-AI: tenant ai_grading_scope + tier metrics", () => {
 
     expect(recordAiAnswerEvaluated).not.toHaveBeenCalled();
   });
+
+  it("10.5 accepting rule and reuse proposals does not meter an AI answer (A4-5)", async () => {
+    for (const model of ["rule", "reuse"] as const) {
+      const { attemptId, questionId } = await seedSingleTypeAttempt(
+        "subjective",
+        { question: "Explain the kill chain model." },
+        VALID_RUBRIC,
+        { response: "The kill chain model describes the stages of a cyberattack..." },
+      );
+      vi.mocked(recordAiAnswerEvaluated).mockClear();
+      await handleAdminAccept({
+        tenantId: TENANT_ID,
+        userId: ADMIN_ID,
+        attemptId,
+        proposals: [makeProposal(attemptId, questionId, { model, source: model, score_earned: 0 })],
+      });
+      expect(recordAiAnswerEvaluated).not.toHaveBeenCalled();
+    }
+  });
 });

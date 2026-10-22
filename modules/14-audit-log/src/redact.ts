@@ -69,6 +69,11 @@ const SENSITIVE_FIELD_PATTERNS: RegExp[] = [
   /^feedback_?text$/i,         // free-text feedback (codex:rescue V6)
   /^comment_?text$/i,          // free-text comment (codex:rescue V6)
   /^notes_?text$/i,            // free-text notes (codex:rescue V6)
+  // GATE-8 A4-3: extra PII keys. `reason`/`note` are NOT redacted: it would drop forensic data from the append-only log
+  // for good (owner decision pending, ROADMAP Z-137).
+  /^emails$/i,
+  /^address$/i,
+  /^dob$/i,
   /^ip$/i,
   /_ip$/i,                     // client_ip, request_ip, source_ip, recipient_ip
   /^ip_?address$/i,
@@ -91,7 +96,8 @@ export function redactPayload(
   depth = 0,
 ): unknown {
   // Guard against deeply nested objects (max 8 levels — audit payloads are shallow).
-  if (depth > 8) return value;
+  // A4-7: fail closed. Returning the subtree would leak everything below the cap.
+  if (depth > 8) return '[REDACTED]';
 
   if (value === null || typeof value !== 'object') return value;
 

@@ -26,7 +26,7 @@ async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
 }
 
 const COLS = ["type", "topic", "points", "level", "question", "options", "correct", "rationale",
-  "exam_stage", "subject_path", "difficulty", "difficulty_scale", "rights_status", "language", "source_ref", "origin", "source_url"];
+  "exam_stage", "subject_path", "difficulty", "difficulty_scale", "rights_status", "language", "source_ref", "origin", "source_url", "seed_ref"];
 type Cells = Partial<Record<(typeof COLS)[number], string>>;
 const buildCsv = (rows: Cells[]): Buffer =>
   Buffer.from([COLS, ...rows.map((r) => COLS.map((c) => r[c] ?? ""))].map((r) => r.map(csvCell).join(",")).join("\r\n"), "utf8");
@@ -206,7 +206,7 @@ describe("EXP-4 import v2", () => {
   });
 
   it("EXP-21: template_generated origin imports; old rows with null hashes are still exact duplicates", async () => {
-    const gen = buildCsv([mcq(300, { origin: "template_generated" })]);
+    const gen = buildCsv([mcq(300, { origin: "template_generated", seed_ref: "pct@1:seed=0:gen=1.0" })]);
     const r = await stage(gen);
     expect(r.rows[0]).toMatchObject({ decision: "ok" });
     const res = await commitImport(tA, uA, r.importId, { mode: "skip-errors" });

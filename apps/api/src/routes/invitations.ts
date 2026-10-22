@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { config, RateLimitError, ValidationError } from '@assessiq/core';
-import { consumeRateLimit, extractClientIp, isRateLimited } from '@assessiq/auth';
+import { consumeRateLimit, extractClientIp, isRateLimited, sessions } from '@assessiq/auth';
 import { inviteUser, acceptInvitation } from '@assessiq/users';
 import { authChain } from '../middleware/auth-chain.js';
 import { assertCandidateTotalCap } from '@assessiq/billing';
@@ -80,6 +80,8 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
     '/api/invitations/accept',
     {
       config: { skipAuth: true },
+      // GATE-8 A1-5: candidateEntry swaps in the per-route per-IP entry bucket (a campus lab shares one IP).
+      preHandler: authChain({ requireSession: false, candidateEntry: true }),
       schema: {
         body: {
           type: 'object',
@@ -120,6 +122,15 @@ export async function registerInvitationRoutes(app: FastifyInstance): Promise<vo
           });
         }
         throw err;
+      }
+
+      // GATE-8 A1-5: session-fixation hygiene (as verify-link). Drop any session cookie the caller
+      // sent, only after a successful redemption so a failed attempt cannot log a user out.
+      const priorSessionToken = req.cookies?.[config.SESSION_COOKIE_NAME];
+      if (typeof priorSessionToken === 'string' && priorSessionToken.length > 0 && priorSessionToken !== result.sessionToken) {
+        sessions.destroy(priorSessionToken).catch((err: unknown) => {
+          req.log.warn({ err }, 'invitations.accept: prior session destroy failed (non-fatal)');
+        });
       }
 
       // codex:rescue HIGH (2026-05-01): keep the bearer cookie-only.

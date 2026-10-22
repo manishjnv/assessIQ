@@ -11,6 +11,7 @@ import { commitImport } from "./import/commit.js";
 import { buildTemplate } from "./import/templates.js";
 import { exportPackQti } from "./import/export.js";
 import { withdrawQuestion } from "./service/questions.js";
+import { withdrawBySeedRefPrefix } from "./import/seed-withdraw.js";
 import { listOrgUploads, withdrawImport } from "./import/org-uploads.js";
 
 const uuid = z.string().uuid();
@@ -30,9 +31,16 @@ const UploadBody = z.object({
   /** EXP-17: default source reference for every row that has no source_ref cell of its own. */
   source_ref: z.string().max(500).optional(),
   /** EXP-21: hash duplicate classes only (no trigram scan). Multipart sends the string "true". */
+  /** EXP-23: append to this existing pack. target_level_position puts every row in that level. */
+  target_pack_id: uuid.optional(),
+  target_level_position: z.coerce.number().int().min(1).max(1000).optional(),
   skip_trigram: z.union([z.boolean(), z.enum(["true", "false"]).transform((v) => v === "true")]).default(false),
 });
 const MultipartFields = UploadBody.omit({ content_base64: true });
+const SeedWithdrawBody = z.object({
+  seed_ref_prefix: z.string().min(3).max(200),
+  dry_run: z.boolean().default(false),
+});
 const PatchBody = z.object({
   values: z.record(z.string().max(20_000)).optional(),
   skip: z.boolean().optional(),
@@ -51,7 +59,7 @@ const TenantExtra = z.object({
   rights_status: z.enum(TENANT_UPLOAD_RIGHTS),
 });
 
-type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; sourceRef?: string | undefined; skipTrigram?: boolean | undefined; data: Buffer };
+type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; sourceRef?: string | undefined; skipTrigram?: boolean | undefined; targetPackId?: string | undefined; targetLevelPosition?: number | undefined; data: Buffer };
 
 /** Reads a JSON-base64 or multipart upload. `extra` carries the tenant-only fields (warranty, rights). */
 async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra: Record<string, unknown> }> {
@@ -75,16 +83,17 @@ async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra:
     };
     const f = parse(MultipartFields, {
       file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"), source_ref: text("source_ref"), skip_trigram: text("skip_trigram"),
+      target_pack_id: text("target_pack_id"), target_level_position: text("target_level_position"),
     }, "body");
     return {
-      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, sourceRef: f.source_ref, skipTrigram: f.skip_trigram, data },
+      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, sourceRef: f.source_ref, skipTrigram: f.skip_trigram, targetPackId: f.target_pack_id, targetLevelPosition: f.target_level_position, data },
       extra: { content_warranty: text("content_warranty") === "true" ? true : undefined, rights_status: text("rights_status") },
     };
   }
   const raw = (req.body ?? {}) as Record<string, unknown>;
   const body = parse(UploadBody, raw, "body");
   return {
-    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, sourceRef: body.source_ref, skipTrigram: body.skip_trigram, data: Buffer.from(body.content_base64, "base64") },
+    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, sourceRef: body.source_ref, skipTrigram: body.skip_trigram, targetPackId: body.target_pack_id, targetLevelPosition: body.target_level_position, data: Buffer.from(body.content_base64, "base64") },
     extra: { content_warranty: raw["content_warranty"], rights_status: raw["rights_status"] },
   };
 }
@@ -102,6 +111,8 @@ async function stageAndReply(req: FastifyRequest, reply: FastifyReply, u: Upload
   const report = await stageImport(req.session!.tenantId, req.session!.userId, {
     fileName: u.fileName, fileSha256: sha256Hex(u.data), format: u.format,
     domain: u.domain, packName: u.packName ?? u.fileName.replace(/\.[^.]+$/, ""), skipTrigram: u.skipTrigram === true,
+    ...(u.targetPackId !== undefined ? { targetPackId: u.targetPackId } : {}),
+    ...(u.targetLevelPosition !== undefined ? { targetLevelPosition: u.targetLevelPosition } : {}),
   }, parsed, tenantUpload);
   return reply.code(201).send(report);
 }
@@ -147,6 +158,7 @@ export function registerImportRoutes(
   preHandler: preHandlerHookHandler[] | preHandlerHookHandler,
   tenantPreHandler: preHandlerHookHandler[] | preHandlerHookHandler,
   orgUploadGuard: preHandlerHookHandler[] | preHandlerHookHandler = tenantPreHandler,
+  freshMfaPreHandler: preHandlerHookHandler[] | preHandlerHookHandler = preHandler,
 ): void {
   // EXP-17: upload, template, list, row edit and commit use orgUploadGuard (admin chain + the 'question_upload' plan gate).
   // Read, discard and withdraw stay on the plain admin chain (gate finding 2, S34).
@@ -205,5 +217,11 @@ export function registerImportRoutes(
   app.post(`/api/admin/super/questions/:id/withdraw`, { preHandler }, async (req) => {
     const { id } = parse(IdParams, req.params, "id");
     return withdrawQuestion(req.session!.tenantId, req.session!.userId, id);
+  });
+
+  // EXP-22: bulk takedown of template_generated questions by seed_ref prefix. Super admin, fresh MFA; dry_run only counts.
+  app.post(`/api/admin/super/questions/withdraw-by-seed-prefix`, { preHandler: freshMfaPreHandler }, async (req) => {
+    const b = parse(SeedWithdrawBody, req.body, "body");
+    return withdrawBySeedRefPrefix(req.session!.tenantId, req.session!.userId, req.session!.role, b.seed_ref_prefix, b.dry_run);
   });
 }

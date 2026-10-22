@@ -374,6 +374,7 @@ async function verifyWork(input: VerifySignupInput, deps: VerifySignupDeps): Pro
       tenantId: created.tenantId,
       role: "admin",
       totpVerified: !config.MFA_REQUIRED,
+      totpFresh: false, // GATE-8 A1-3: the MFA-off bypass is not a real TOTP check
       ip,
       ua: input.ua,
     }));

@@ -150,3 +150,17 @@ describe('redactPayload — PII patterns (D7 forward protection)', () => {
     expect(out['band']).toBe('distinction');
   });
 });
+
+describe('GATE-8 A4-3 / A4-7', () => {
+  it('redacts emails, address, dob keys (reason and note are kept: owner decision pending)', () => {
+    const out = obj({ emails: ['a@b.c'], address: 'x', dob: '2000-01-01' });
+    for (const k of Object.keys(out)) expect(out[k]).toBe('[REDACTED]');
+  });
+
+  it('fails closed past the depth cap instead of returning the subtree', () => {
+    let deep: Record<string, unknown> = { leaf: 'plain-secret-text' };
+    for (let i = 0; i < 12; i++) deep = { n: deep };
+    expect(JSON.stringify(redactPayload(deep))).not.toContain('plain-secret-text');
+  });
+});
+

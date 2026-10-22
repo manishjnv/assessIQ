@@ -6,7 +6,7 @@ import { parseBody, parseParams, tenantIdParams } from '../_validate.js';
 import { assertTenantActive } from '@assessiq/tenancy';
 import { revokeEntitlement, type EntitlementScopeType } from '@assessiq/billing';
 import { entitlementScopeBody } from '../_schemas.js';
-import { superAdminOnly } from './_shared.js';
+import { superAdminFreshMfa } from './_shared.js';
 
 export async function registerAdminSuperEntitlementRevokeRoute(app: FastifyInstance): Promise<void> {
   // ──────────────────────────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ export async function registerAdminSuperEntitlementRevokeRoute(app: FastifyInsta
   // ──────────────────────────────────────────────────────────────────────────
   app.delete(
     '/api/admin/super/tenants/:tenantId/entitlements',
-    { preHandler: superAdminOnly },
+    { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const { tenantId } = parseParams(tenantIdParams, req.params);
       // Write-block guard: reject mutations on suspended/archived tenants.

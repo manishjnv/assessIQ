@@ -77,6 +77,27 @@ const same = (n: Node, name: string): boolean => {
 };
 
 // ---------------------------------------------------------------------------
+// seed_ref format (EXP-22)
+// ---------------------------------------------------------------------------
+
+const SEED_REF_RE = /^([a-z0-9_.-]{1,64})@([0-9][0-9A-Za-z.-]{0,15}):seed=(0|[1-9][0-9]{0,15}):gen=([0-9A-Za-z._-]{1,32})$/;
+
+/** Template-generated rows only: `<template_id>@<version>:seed=<n>:gen=<generator_version>`. Returns an error message, or null when valid. */
+export function seedRefError(seedRef: string): string | null {
+  if (seedRef === "") return "seed_ref is required for origin template_generated (format <template_id>@<version>:seed=<n>:gen=<generator_version>)";
+  return SEED_REF_RE.test(seedRef) ? null
+    : `seed_ref '${seedRef}' must look like <template_id>@<version>:seed=<n>:gen=<generator_version>`;
+}
+
+/** Prefix for withdraw-by-prefix: at least 3 characters and it must name a template (contain '@'). */
+export function seedRefPrefixError(prefix: string): string | null {
+  if (prefix.length < 3 || prefix.length > 200) return "seed_ref_prefix must be 3 to 200 characters";
+  if (!prefix.includes("@")) return "seed_ref_prefix must contain '@' (start with <template_id>@)";
+  if (prefix.startsWith("@")) return "seed_ref_prefix must start with a template id";
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Row parsing
 // ---------------------------------------------------------------------------
 
@@ -102,6 +123,11 @@ export function parseV2(
     if ((IMPORT_ORIGINS as readonly string[]).includes(ot)) origin = ot as RowMeta["origin"];
     else err("origin", `origin '${c("origin")}' is not allowed (${IMPORT_ORIGINS.join(", ")})`);
     if (rights === "scraped_raw" && origin !== "scraped_raw") err("origin", "rights_status scraped_raw needs origin scraped_raw");
+  }
+
+  if (origin === "template_generated") {
+    const m = seedRefError(c("seed_ref"));
+    if (m !== null) err("seed_ref", m);
   }
 
   let difficultyEst: number | null = null;

@@ -326,7 +326,7 @@ export async function updateAttemptStatus(
 ): Promise<Attempt> {
   if (patch.submittedAt !== undefined) {
     const result = await client.query<AttemptRow>(
-      `UPDATE attempts SET status = $1, submitted_at = $2 WHERE id = $3
+      `UPDATE attempts SET status = $1, submitted_at = $2 WHERE id = $3 AND status = 'in_progress'
        RETURNING ${ATTEMPT_COLUMNS}`,
       [patch.status, patch.submittedAt, id],
     );
@@ -337,7 +337,7 @@ export async function updateAttemptStatus(
     return mapAttemptRow(row);
   }
   const result = await client.query<AttemptRow>(
-    `UPDATE attempts SET status = $1 WHERE id = $2
+    `UPDATE attempts SET status = $1 WHERE id = $2 AND status = 'in_progress'
      RETURNING ${ATTEMPT_COLUMNS}`,
     [patch.status, id],
   );
@@ -1103,17 +1103,19 @@ export async function listFrozenPoolForCriterion(
 export async function listPoolWithCategory(
   client: PoolClient,
   input: { assessmentId: string; packId: string; levelId: string; useFrozen: boolean },
-): Promise<Array<{ id: string; version: number; category_id: string | null }>> {
+): Promise<Array<{ id: string; version: number; category_id: string | null; pack_id: string | null }>> {
   if (input.useFrozen) {
-    const r = await client.query<{ id: string; version: number; category_id: string | null }>(
-      `SELECT question_id AS id, question_version AS version, category_id
+    // EXP-23: pack_id is frozen with the pool row (NULL = frozen before EXP-23 = the assessment pack).
+    const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string | null }>(
+      `SELECT question_id AS id, question_version AS version, category_id, pack_id
          FROM assessment_frozen_pool WHERE assessment_id = $1 ORDER BY question_id ASC`,
       [input.assessmentId],
     );
     return r.rows;
   }
-  const r = await client.query<{ id: string; version: number; category_id: string | null }>(
-    `SELECT q.id, MAX(qv.version)::int AS version, q.category_id
+  // Unfrozen (legacy) assessments only ever drew from the assessment pack; a section with its own pack_id finds nothing here (fail closed).
+  const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string }>(
+    `SELECT q.id, MAX(qv.version)::int AS version, q.category_id, q.pack_id
        FROM questions q
        JOIN question_versions qv ON qv.question_id = q.id
       WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'

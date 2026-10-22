@@ -232,6 +232,18 @@ describe("getCandidateFeedback", () => {
     for (const i of r.items) expect(i.explanation).toBeNull();
   });
 
+  it("A3-6: expected answer is hidden while a retake is left, shown once none is left", async () => {
+    await setLevel("with_expected_answer");
+    const s = await seed();
+    const [asm] = (await sup((c) => c.query(`SELECT assessment_id FROM attempts WHERE id = $1`, [s.attemptId]))).rows;
+    await sup((c) => c.query(`UPDATE assessments SET max_attempts = 2 WHERE id = $1`, [asm.assessment_id]));
+    const open = await getCandidateFeedback(tenant, s.userId, s.attemptId);
+    for (const i of open.items) expect(i.expected_answer).toBeNull();
+    await sup((c) => c.query(`UPDATE assessments SET max_attempts = 1 WHERE id = $1`, [asm.assessment_id]));
+    const closed = await getCandidateFeedback(tenant, s.userId, s.attemptId);
+    expect(byKey(s, closed.items).mcq.expected_answer).toBe("10.0.0.1");
+  });
+
   it("with_ai_justification -> explanation only on the AI-graded row, never the stripped marker text", async () => {
     await setLevel("with_ai_justification");
     const s = await seed();

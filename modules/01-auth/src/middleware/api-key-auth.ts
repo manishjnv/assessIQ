@@ -1,5 +1,6 @@
-import { AuthnError } from "@assessiq/core";
+import { AuthnError, RateLimitError, config } from "@assessiq/core";
 import { apiKeys } from "../api-keys.js";
+import { consumeRateLimit, extractRateLimitClientIp, isRateLimited } from "./rate-limit.js";
 import type { AuthHook } from "./types.js";
 
 // Reads `Authorization: Bearer aiq_live_<...>`, looks up the API key via
@@ -11,6 +12,10 @@ import type { AuthHook } from "./types.js";
 // middleware is registered AFTER sessionLoader).
 
 const PREFIX = "Bearer aiq_live_";
+// aiq_live_ + 43 base62 chars (api-keys.ts). A cheap shape check keeps junk off the DB.
+const KEY_SHAPE = /^Bearer aiq_live_[0-9A-Za-z]{43}$/;
+// GATE-8 A2-4: failed lookups per IP per minute before the DB lookup is refused.
+const FAIL_MAX = 20;
 
 export const apiKeyAuthMiddleware: AuthHook = async (req, _reply) => {
   if (req.session !== undefined) return; // session takes precedence
@@ -25,8 +30,27 @@ export const apiKeyAuthMiddleware: AuthHook = async (req, _reply) => {
     throw new AuthnError("invalid api key prefix");
   }
 
+  if (!KEY_SHAPE.test(value)) throw new AuthnError("invalid api key");
+
+  // Per-IP failure brake BEFORE the system-role lookup (the system pool is tiny). Fail closed
+  // in production when the client IP is unknown, like rateLimitMiddleware.
+  const ip = extractRateLimitClientIp(req);
+  if (ip === null && config.NODE_ENV === "production") {
+    throw new RateLimitError("missing client IP for rate limit");
+  }
+  const failKey = ip === null ? null : `aiq:rl:apikey-fail:${ip}`;
+  if (failKey !== null && (await isRateLimited(failKey, FAIL_MAX))) {
+    throw new RateLimitError("too many invalid api keys");
+  }
+
   const plaintext = value.slice("Bearer ".length);
-  const record = await apiKeys.authenticate(plaintext);
+  let record;
+  try {
+    record = await apiKeys.authenticate(plaintext);
+  } catch (err) {
+    if (failKey !== null && err instanceof AuthnError) await consumeRateLimit(failKey, FAIL_MAX, 60);
+    throw err;
+  }
   req.apiKey = {
     id: record.id,
     tenantId: record.tenantId,

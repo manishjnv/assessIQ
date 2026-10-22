@@ -58,6 +58,7 @@ import {
   AE_ERROR_CODES,
   EVENT_PAYLOAD_SCHEMAS,
   KNOWN_EVENT_TYPES,
+  SERVER_ONLY_EVENT_TYPES,
   TERMINAL_ATTEMPT_STATUSES,
   checkAnswerForSave,
 } from "./types.js";
@@ -563,6 +564,7 @@ export async function startAttempt(
         const cand = pool.filter(
           (q) =>
             !used.has(q.id) &&
+            (q.pack_id ?? assessment.pack_id) === (s.pack_id ?? assessment.pack_id) && // EXP-23: a section draws only from its own pack (NULL = old pool = the assessment pack)
             (underNode !== null
               ? underNode.has(q.id)
               : cats === null || (q.category_id !== null && cats.has(q.category_id))),
@@ -953,7 +955,9 @@ async function loadAttemptForCandidate(
     if (
       attempt.status === "in_progress" &&
       attempt.ends_at !== null &&
-      attempt.ends_at.getTime() <= now.getTime()
+      attempt.ends_at.getTime() <= now.getTime() &&
+      // A3-3: re-read under FOR UPDATE; a parallel submit may have finalised it.
+      (await repo.findAttemptByIdForUpdate(client, attempt.id))?.status === "in_progress"
     ) {
       effectiveAttempt = await repo.updateAttemptStatus(client, attempt.id, {
         status: "auto_submitted",
@@ -1454,7 +1458,7 @@ export async function recordEvent(
   input: RecordEventInput,
 ): Promise<AttemptEvent | null> {
   // Validate event_type before touching the DB.
-  if (!KNOWN_EVENT_TYPES.has(input.event_type as EventType)) {
+  if (!KNOWN_EVENT_TYPES.has(input.event_type as EventType) || SERVER_ONLY_EVENT_TYPES.has(input.event_type)) {
     throw new ValidationError(`Unknown event_type: ${input.event_type}`, {
       details: { code: AE_ERROR_CODES.UNKNOWN_EVENT_TYPE, event_type: input.event_type },
     });
@@ -1544,7 +1548,7 @@ export async function submitAttempt(
   log.info({ tenantId, userId, attemptId }, "submitAttempt");
 
   return withTenant(tenantId, async (client) => {
-    const attempt = await repo.findAttemptById(client, attemptId);
+    const attempt = await repo.findAttemptByIdForUpdate(client, attemptId);
     if (attempt === null) {
       throw new NotFoundError(`Attempt not found: ${attemptId}`, {
         details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND },

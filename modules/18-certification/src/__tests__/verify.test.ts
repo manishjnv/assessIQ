@@ -347,6 +347,34 @@ describe('GET /verify/:credentialId — rate limit', () => {
   });
 });
 
+describe('og.svg / og.png share the per-IP rate limit (A6-2)', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) => fn({} as PoolClient));
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(buildCert());
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  it('returns 429 on both og routes once the IP is over the limit', async () => {
+    const headers = { 'x-forwarded-for': '203.0.113.77' };
+    for (let i = 0; i < 60; i++) {
+      await app.inject({ method: 'GET', url: `/verify/${CREDENTIAL_ID}`, headers });
+    }
+    for (const ext of ['svg', 'png']) {
+      const res = await app.inject({ method: 'GET', url: `/verify/${CREDENTIAL_ID}/og.${ext}`, headers });
+      expect(res.statusCode).toBe(429);
+    }
+  });
+});
+
 // ---------------------------------------------------------------------------
 // 7. OG image — 200 + image/svg+xml + 1200×630 viewBox
 // ---------------------------------------------------------------------------

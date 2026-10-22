@@ -10,7 +10,7 @@
  */
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { NotFoundError, ValidationError } from "@assessiq/core";
+import { AuthnError, NotFoundError, ValidationError } from "@assessiq/core";
 import type { Audience } from "./types.js";
 import { getHelpForPage, getHelpKey } from "./service.js";
 
@@ -30,6 +30,13 @@ export interface HelpAuthDeps {
   }) => Array<(req: unknown, reply: unknown) => Promise<void> | void>;
 }
 
+// GATE-8 A1-9: an API key passes the chain with no session; answer 401, not a TypeError 500.
+function sessionTenantId(req: unknown): string {
+  const tenantId = (req as { session?: { tenantId: string } }).session?.tenantId;
+  if (tenantId === undefined) throw new AuthnError("session required");
+  return tenantId;
+}
+
 export async function registerHelpAuthRoutes(
   app: FastifyInstance,
   deps: HelpAuthDeps,
@@ -44,7 +51,7 @@ export async function registerHelpAuthRoutes(
     "/api/help",
     { preHandler: anyRole },
     async (req) => {
-      const tenantId = (req as { session?: { tenantId: string } }).session!.tenantId;
+      const tenantId = sessionTenantId(req);
       const q = req.query as Record<string, string | undefined>;
 
       const page = q["page"];
@@ -82,7 +89,7 @@ export async function registerHelpAuthRoutes(
     "/api/help/:key",
     { preHandler: anyRole },
     async (req) => {
-      const tenantId = (req as { session?: { tenantId: string } }).session!.tenantId;
+      const tenantId = sessionTenantId(req);
       const { key } = req.params as { key: string };
       const q = req.query as Record<string, string | undefined>;
       const locale = q["locale"] ?? DEFAULT_LOCALE;

@@ -222,6 +222,23 @@ it("sessions.create writes Postgres row, Redis session key, and per-user index w
 // Test 2 — sessions.get returns null for unknown token
 // ---------------------------------------------------------------------------
 
+it("sessions.create with totpFresh=false leaves lastTotpAt null; markTotpVerified sets it (GATE-8 A1-3)", async () => {
+  const created = await sessions.create({
+    userId: userA,
+    tenantId: tenantA,
+    role: "admin",
+    totpVerified: true,
+    totpFresh: false,
+    ip: "10.0.0.1",
+    ua: "vitest/1",
+  });
+  const before = await sessions.get(created.token);
+  expect(before!.totpVerified).toBe(true);
+  expect(before!.lastTotpAt).toBeNull();
+  const after = await sessions.markTotpVerified(created.token);
+  expect(after!.lastTotpAt).not.toBeNull();
+});
+
 it("sessions.get returns null for unknown token", async () => {
   const result = await sessions.get("totally-unknown-token-value-that-does-not-exist");
   expect(result).toBeNull();

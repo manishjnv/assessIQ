@@ -1059,6 +1059,24 @@ export async function hasStartedAttempt(
 }
 
 /**
+ * A3-2: end the candidate's unfinished attempt(s) when an admin revokes the invitation.
+ * Reads/writes 06's table like hasStartedAttempt. Returns the cancelled attempt ids.
+ */
+export async function cancelInProgressAttempts(
+  client: PoolClient,
+  assessmentId: string,
+  userId: string,
+): Promise<string[]> {
+  const r = await client.query<{ id: string }>(
+    `UPDATE attempts SET status = 'cancelled'
+      WHERE assessment_id = $1 AND user_id = $2 AND status = 'in_progress'
+      RETURNING id`,
+    [assessmentId, userId],
+  );
+  return r.rows.map((x) => x.id);
+}
+
+/**
  * Z-39: attempts the candidate has used on this assessment, and whether one is
  * still unfinished ('draft' / 'in_progress'). Reads 06's table like
  * hasStartedAttempt does.

@@ -56,7 +56,7 @@ const logIngestBodySchema = {
             type: 'object',
             additionalProperties: {
               anyOf: [
-                { type: 'string' },
+                { type: 'string', maxLength: 500 },
                 { type: 'number' },
                 { type: 'boolean' },
                 { type: 'null' },
@@ -82,6 +82,7 @@ export async function registerLogIngestRoutes(app: FastifyInstance): Promise<voi
     '/api/_log',
     {
       config: { skipAuth: true },
+      bodyLimit: 16 * 1024, // A5-4: tiny body cap on an anonymous route
       schema: { body: logIngestBodySchema },
     },
     async (req, reply) => {
@@ -104,7 +105,8 @@ export async function registerLogIngestRoutes(app: FastifyInstance): Promise<voi
         const { level, msg, ts, fields } = entry;
         frontendLog[level](
           {
-            ...(fields ?? {}),
+            // A6-6: client fields live under `client` so they cannot forge tenantId/userId/requestId.
+            client: fields ?? {},
             clientTs: ts,
             ip,
             ua,

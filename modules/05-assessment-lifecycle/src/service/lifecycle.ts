@@ -13,6 +13,7 @@ import {
   listUnverifiedPoolQuestions,
   listUnverifiedFrozenQuestions,
   questionsNotVerifiedError,
+  sectionPackIds,
 } from "./_shared.js";
 import { assertSectionPoolsFillable, countActiveQuestionsForCriterion, criterionNodeScope } from "./blueprint.js";
 
@@ -49,21 +50,28 @@ async function freezeAssessmentPool(
   assessmentId: string,
   packId: string,
   levelId: string,
+  /** EXP-23: extra section packs; their questions at the same level position are frozen too. */
+  extraPackIds: string[] = [],
 ): Promise<number> {
   await client.query(
     `INSERT INTO assessment_frozen_pool
        (tenant_id, assessment_id, question_id, question_version,
-        level_id, domain_id, category_id, type, points, node_ids)
+        level_id, domain_id, category_id, type, points, node_ids, pack_id)
      SELECT $1, $2, q.id, MAX(qv.version)::int,
             q.level_id, q.domain_id, q.category_id, q.type, q.points,
             -- FUT-8: taxonomy node ids frozen with the question ('{}' = none visible: old path applies)
-            COALESCE((SELECT array_agg(qt.node_id) FROM question_taxonomy qt WHERE qt.question_id = q.id), '{}')
+            COALESCE((SELECT array_agg(qt.node_id) FROM question_taxonomy qt WHERE qt.question_id = q.id), '{}'),
+            q.pack_id -- EXP-23
        FROM questions q
        JOIN question_versions qv ON qv.question_id = q.id
-      WHERE q.pack_id = $3 AND q.level_id = $4 AND q.status = 'active'
-      GROUP BY q.id, q.level_id, q.domain_id, q.category_id, q.type, q.points
+      WHERE ((q.pack_id = $3 AND q.level_id = $4)
+          OR (q.pack_id = ANY($5::uuid[]) AND q.level_id IN (
+                SELECT l.id FROM levels l WHERE l.pack_id = ANY($5::uuid[])
+                   AND l.position = (SELECT position FROM levels WHERE id = $4))))
+        AND q.status = 'active'
+      GROUP BY q.id, q.level_id, q.domain_id, q.category_id, q.type, q.points, q.pack_id
      ON CONFLICT (assessment_id, question_id) DO NOTHING`,
-    [tenantId, assessmentId, packId, levelId],
+    [tenantId, assessmentId, packId, levelId, extraPackIds],
   );
 
   const sized = await client.query<{ count: string }>(
@@ -102,6 +110,9 @@ export async function publishAssessment(
     // assessment's pack is not entitled (internal tier bypasses). Fail-fast
     // before pool work. See modules/19-billing assertPublishEntitled + spec B2.
     await assertPublishEntitled(client, tenantId, assessment.pack_id);
+    // EXP-23: every section pack needs the same entitlement (same NOT_ENTITLED error).
+    const extraPacks = sectionPackIds(assessment.settings, assessment.pack_id);
+    for (const pid of extraPacks) await assertPublishEntitled(client, tenantId, pid);
 
     // c. Pool-size pre-flight
     //    Blueprint path (C2): per-criterion check.
@@ -182,6 +193,7 @@ export async function publishAssessment(
       id,
       assessment.pack_id,
       assessment.level_id,
+      extraPacks,
     );
 
     // c3. Race close: the check (c2) and the freeze are separate statements. c2 share-locked the
@@ -485,6 +497,8 @@ export async function reopenAssessment(
     // if the assessment's pack is not entitled (internal tier bypasses).
     // See modules/19-billing assertPublishEntitled + spec B2.
     await assertPublishEntitled(client, tenantId, assessment.pack_id);
+    const extraPacks = sectionPackIds(assessment.settings, assessment.pack_id);
+    for (const pid of extraPacks) await assertPublishEntitled(client, tenantId, pid);
 
     const updated = await repo.updateAssessmentRow(client, id, { status: "published" });
 
@@ -499,6 +513,7 @@ export async function reopenAssessment(
       id,
       assessment.pack_id,
       assessment.level_id,
+      extraPacks,
     );
 
     // Reuse assessment.published with after.kind=reopen — same pattern as

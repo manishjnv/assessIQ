@@ -80,3 +80,17 @@ describe("validateRow", () => {
     expect(validateRow(4, { ...good, type: "nope" }).errors[0]).toMatchObject({ column: "type" });
   });
 });
+
+describe("xlsx zip bomb budget (A6-1)", () => {
+  it("rejects a zip whose entries inflate beyond the budget, passes under it", async () => {
+    const { default: JSZip } = await import("jszip");
+    const { assertXlsxInflateBudget } = await import("../import/parse.js");
+    const zip = new JSZip();
+    zip.file("a.xml", "A".repeat(200_000));
+    zip.file("b.xml", "B".repeat(200_000));
+    const buf = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+    expect(buf.byteLength).toBeLessThan(5_000);
+    await expect(assertXlsxInflateBudget(buf, 300_000)).rejects.toMatchObject({ details: { code: "IMPORT_TOO_LARGE" } });
+    await expect(assertXlsxInflateBudget(buf, 500_000)).resolves.toBeUndefined();
+  });
+});

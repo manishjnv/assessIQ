@@ -34,7 +34,7 @@ import { createCompanyBody, listTenantsQuery, renameTenantBody, setAiModeBody, s
 export async function registerAdminSuperTenantRoutes(app: FastifyInstance): Promise<void> {
   // PUT/DELETE /api/admin/super/tenants/:tenantId/logo (Logo L1) - same semantics as the
   // tenant-admin route, target tenant taken from the URL. 413 LOGO_TOO_LARGE, 400 LOGO_BAD_*.
-  app.put('/api/admin/super/tenants/:tenantId/logo', { preHandler: superAdminOnly }, async (req, reply) => {
+  app.put('/api/admin/super/tenants/:tenantId/logo', { preHandler: superAdminFreshMfa }, async (req, reply) => {
     const { tenantId } = parseParams(tenantIdParams, req.params);
     const data = await readLogoUpload(req);
     await assertTenantActive(tenantId);
@@ -42,7 +42,7 @@ export async function registerAdminSuperTenantRoutes(app: FastifyInstance): Prom
     return reply.code(200).send({ logo: { ...meta, url: tenantLogoUrl(tenantId, meta.sha256) } });
   });
 
-  app.delete('/api/admin/super/tenants/:tenantId/logo', { preHandler: superAdminOnly }, async (req, reply) => {
+  app.delete('/api/admin/super/tenants/:tenantId/logo', { preHandler: superAdminFreshMfa }, async (req, reply) => {
     const { tenantId } = parseParams(tenantIdParams, req.params);
     await assertTenantActive(tenantId);
     await removeTenantLogo(tenantId, req.session!.userId);
@@ -81,7 +81,7 @@ export async function registerAdminSuperTenantRoutes(app: FastifyInstance): Prom
   // ──────────────────────────────────────────────────────────────────────────
   app.patch(
     '/api/admin/super/tenants/:tenantId/ai-generate-mode',
-    { preHandler: superAdminOnly },
+    { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const { tenantId } = parseParams(tenantIdParams, req.params);
       // Write-block guard: reject mutations on suspended/archived tenants.
@@ -122,7 +122,7 @@ export async function registerAdminSuperTenantRoutes(app: FastifyInstance): Prom
 
   app.patch(
     '/api/admin/super/tenants/:tenantId/ai-grading-scope',
-    { preHandler: superAdminOnly },
+    { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const { tenantId } = parseParams(tenantIdParams, req.params);
       await assertTenantActive(tenantId);

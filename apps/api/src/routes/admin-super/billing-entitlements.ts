@@ -20,7 +20,7 @@ import {
   type UpdateTenantPlanPatch,
   type EntitlementScopeType,
 } from '@assessiq/billing';
-import { superAdminOnly } from './_shared.js';
+import { superAdminOnly, superAdminFreshMfa } from './_shared.js';
 
 export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Promise<void> {
   // ──────────────────────────────────────────────────────────────────────────
@@ -91,13 +91,8 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
   // ──────────────────────────────────────────────────────────────────────────
   app.patch(
     '/api/admin/super/tenants/:tenantId/plan',
-    // Gate parity: superAdminOnly (session-MFA), intentionally the SAME gate
-    // as PATCH .../ai-generate-mode above — both are super-admin per-tenant
-    // config mutations (soft, reversible, auditInTx-atomic). Fresh-MFA
-    // (superAdminFreshMfa) is reserved for tenant CREATION (POST /companies),
-    // not config edits. Do not "upgrade" this to fresh-MFA without changing
-    // ai-generate-mode too — they must stay consistent.
-    { preHandler: superAdminOnly },
+    // GATE-8 A1-2: cross-tenant mutation, fresh TOTP (15 min) required.
+    { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const { tenantId } = parseParams(tenantIdParams, req.params);
       // Write-block guard: reject mutations on suspended/archived tenants.
@@ -128,7 +123,7 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
   // ──────────────────────────────────────────────────────────────────────────
   app.post(
     '/api/admin/super/tenants/:tenantId/credits',
-    { preHandler: superAdminOnly },
+    { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const { tenantId } = parseParams(tenantIdParams, req.params);
       await assertTenantActive(tenantId);
@@ -228,7 +223,7 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
   // ──────────────────────────────────────────────────────────────────────────
   app.post(
     '/api/admin/super/tenants/:tenantId/entitlements',
-    { preHandler: superAdminOnly },
+    { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const { tenantId } = parseParams(tenantIdParams, req.params);
       // Write-block guard: reject mutations on suspended/archived tenants.

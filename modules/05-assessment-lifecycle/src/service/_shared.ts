@@ -216,3 +216,51 @@ export async function listActiveQuestionsForPreview(
   return result.rows;
 }
 
+
+/**
+ * EXP-23: distinct section pack ids that differ from the assessment pack (empty = every section uses the
+ * assessment pack, the behaviour before EXP-23). Reads raw settings, so it never throws.
+ */
+export function sectionPackIds(settings: unknown, assessmentPackId: string): string[] {
+  const raw = (settings as { sections?: unknown } | null | undefined)?.sections;
+  if (!Array.isArray(raw)) return [];
+  const ids = new Set<string>();
+  for (const s of raw as Array<{ pack_id?: unknown }>) {
+    if (typeof s?.pack_id === "string" && s.pack_id !== assessmentPackId) ids.add(s.pack_id);
+  }
+  return [...ids];
+}
+
+/**
+ * EXP-23: the level of `packId` that sits at the same position as `levelId` (a section pack has its own
+ * levels; the assessment level fixes the position). Null = the pack has no level at that position.
+ */
+export async function levelAtSamePosition(client: PoolClient, packId: string, levelId: string): Promise<string | null> {
+  const r = await client.query<{ id: string }>(
+    `SELECT l.id FROM levels l WHERE l.pack_id = $1 AND l.position = (SELECT position FROM levels WHERE id = $2)`,
+    [packId, levelId],
+  );
+  return r.rows[0]?.id ?? null;
+}
+
+/**
+ * EXP-23 write guard: every section pack_id must be a published question set of THIS tenant (RLS plus the
+ * explicit tenant filter). Another tenant's pack, or a missing one, gives the same error.
+ */
+export async function assertSectionPacksUsable(client: PoolClient, tenantId: string, assessmentPackId: string, settings: unknown): Promise<void> {
+  const ids = sectionPackIds(settings, assessmentPackId);
+  if (ids.length === 0) return;
+  const r = await client.query<{ id: string; status: string }>(
+    `SELECT id, status FROM question_packs WHERE id = ANY($1::uuid[]) AND tenant_id = $2`,
+    [ids, tenantId],
+  );
+  const found = new Map(r.rows.map((x) => [x.id, x.status]));
+  for (const id of ids) {
+    const st = found.get(id);
+    if (st === undefined || st !== "published") {
+      throw new ValidationError("A section question set does not exist, is not published, or is not visible to this organisation", {
+        details: { code: "INVALID_PARAM", param: "settings.sections.pack_id", pack_id: id },
+      });
+    }
+  }
+}

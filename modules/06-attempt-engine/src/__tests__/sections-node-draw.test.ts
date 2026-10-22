@@ -97,12 +97,12 @@ function assessment(sections: unknown[]) {
   };
 }
 
-async function run(sections: unknown[], pool: Array<{ id: string; version: number; category_id: string | null }>, under: string[]) {
+async function run(sections: unknown[], pool: Array<{ id: string; version: number; category_id: string | null; pack_id?: string }>, under: string[]) {
   const { withTenant } = await import("@assessiq/tenancy");
   const alRepo = await import("../../../05-assessment-lifecycle/src/repository.js");
   const repo = await import("../repository.js");
   (alRepo.findAssessmentById as ReturnType<typeof vi.fn>).mockResolvedValue(assessment(sections));
-  (repo.listPoolWithCategory as ReturnType<typeof vi.fn>).mockResolvedValue(pool);
+  (repo.listPoolWithCategory as ReturnType<typeof vi.fn>).mockResolvedValue(pool.map((q) => ({ pack_id: "p", ...q })));
   (repo.listQuestionIdsUnderNode as ReturnType<typeof vi.fn>).mockResolvedValue(new Set(under));
   (withTenant as ReturnType<typeof vi.fn>).mockImplementation(async (_t: string, fn: (c: unknown) => Promise<unknown>) => fn({}));
   const { startAttempt } = await import("../service.js");
@@ -154,5 +154,35 @@ describe("Z-123 section draw by node", () => {
     await expect(
       run([{ name: "Quant", node_id: NODE, question_count: 2, minutes: 10 }], [{ id: "x", version: 1, category_id: null }], ["x"]),
     ).rejects.toMatchObject({ details: { section: "Quant" } });
+  });
+});
+
+const P2 = "11111111-1111-4111-8111-111111111111";
+
+describe("EXP-23 section pack", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("a two-pack assessment: each section draws only from its own pack; a section without pack_id uses the assessment pack", async () => {
+    const pool = [
+      { id: "a1", version: 1, category_id: null }, // assessment pack "p"
+      { id: "a2", version: 1, category_id: null },
+      { id: "b1", version: 1, category_id: null, pack_id: P2 },
+      { id: "b2", version: 1, category_id: null, pack_id: P2 },
+    ];
+    const { ids } = await run(
+      [
+        { name: "Own", question_count: 2, minutes: 10 },
+        { name: "Other", pack_id: P2, question_count: 2, minutes: 10 },
+      ],
+      pool,
+      [],
+    );
+    expect(ids.slice(0, 2).sort()).toEqual(["a1", "a2"]);
+    expect(ids.slice(2).sort()).toEqual(["b1", "b2"]);
+  });
+
+  it("a section pack with too few questions fails POOL_TOO_SMALL (other packs do not fill it)", async () => {
+    const pool = [{ id: "a1", version: 1, category_id: null }, { id: "a2", version: 1, category_id: null }];
+    await expect(run([{ name: "Other", pack_id: P2, question_count: 1, minutes: 10 }], pool, [])).rejects.toMatchObject({ details: { section: "Other" } });
   });
 });

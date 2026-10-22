@@ -4,6 +4,8 @@ import React, { useEffect, useState } from "react";
 import { Card } from "@assessiq/ui-system";
 import { AdminApiError, getTenantCredits, grantTenantCredits, type CreditGrantRow, type CreditBurnTotals } from "../../api.js";
 import { META_LABEL, formatDate } from "./shared.js";
+import { useMfaGuard } from "../../components/useMfaGuard.js";
+import { isMfaError } from "../../lib/evaluation.js";
 
 const FIELD = {
   fontFamily: "var(--aiq-font-sans)",
@@ -25,6 +27,8 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // GATE-8 A1-2: a stale TOTP opens the step-up and retries the save.
+  const { guard, stepUp } = useMfaGuard("Enter your authenticator code to change this organisation.");
 
   const load = (): void => {
     getTenantCredits(tenantId)
@@ -44,6 +48,7 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
     setSaving(true);
     setError(null);
     setDone(null);
+    await guard(async () => {
     try {
       const res = await grantTenantCredits(tenantId, {
         credits: n,
@@ -57,13 +62,17 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
       setNote("");
       load();
     } catch (err) {
+      if (isMfaError(err)) throw err;
       setError(err instanceof AdminApiError ? err.apiError.message : "Save failed. Try again.");
     } finally {
       setSaving(false);
     }
+    }, setError);
   };
 
   return (
+    <>
+    {stepUp}
     <Card>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
         <span style={{ ...META_LABEL, fontSize: "var(--aiq-text-xs)" }}>Credits</span>
@@ -97,5 +106,6 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
         </button>
       </div>
     </Card>
+    </>
   );
 }

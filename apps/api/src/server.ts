@@ -42,6 +42,8 @@ import { registerAnalyticsRoutes } from '@assessiq/analytics';
 import { registerEmbedAdminRoutes } from './routes/embed-admin.js';
 import { EMBED_COOKIE_NAME } from '@assessiq/embed-sdk';
 import { authChain } from './middleware/auth-chain.js';
+import { logPath } from './log-url.js';
+import { checkAppDbRoleMembership } from './startup-checks.js';
 import { config } from '@assessiq/core';
 import { registerVerifyRoutes, registerCertificationRoutes } from '@assessiq/certification';
 import { registerBillingRoutes } from '@assessiq/billing';
@@ -145,7 +147,7 @@ export async function buildServer() {
     requestLog.info(
       {
         method: req.method,
-        url: req.url,
+        url: logPath(req.url),
         route: req.routeOptions?.url,
         status: reply.statusCode,
         latencyMs: Math.round(reply.elapsedTime),
@@ -192,6 +194,8 @@ export async function buildServer() {
   await registerQuestionBankRoutes(app, {
     adminOnly: authChain({ roles: ['admin'] }),
     superAdminOnly: authChain({ roles: ['super_admin'] }),
+    // EXP-22: bulk takedown by seed_ref prefix needs fresh MFA (same 15 min as the other super mutations).
+    superAdminFreshMfa: authChain({ roles: ['super_admin'], freshMfaWithinMinutes: 15 }),
     // EXP-17: organisation question upload is a Pro feature (no-op until PLAN_TIERS_ENFORCED).
     orgUploadGuard: [...authChain({ roles: ['admin'] }), requireTier('question_upload')],
   });
@@ -332,7 +336,9 @@ export async function buildServer() {
   await registerHelpPublicRoutes(app, {
     rateLimit: rateLimitMiddleware() as unknown as NonNullable<NonNullable<Parameters<typeof registerHelpPublicRoutes>[1]>['rateLimit']>,
   });
-  await registerHelpTrackRoutes(app);
+  await registerHelpTrackRoutes(app, {
+    rateLimit: rateLimitMiddleware() as unknown as NonNullable<NonNullable<Parameters<typeof registerHelpTrackRoutes>[1]>['rateLimit']>,
+  });
   // Cast through `unknown` to satisfy strictFunctionTypes parameter
   // contravariance: apps/api's authChain returns FastifyHook[] (req:
   // FastifyRequest), but the library's DI shape uses (req: unknown) to
@@ -363,6 +369,7 @@ if (isCliEntry) {
   const port = Number(process.env['PORT'] ?? 3000);
   await app.listen({ host: '0.0.0.0', port });
   appLog.info({ port }, 'assessiq-api listening');
+  void checkAppDbRoleMembership(); // GATE-8 A2-3: log-only, never blocks boot
   // RW-94: clear runs the previous process left 'running'. Fire-and-forget; never blocks listen.
   void import('@assessiq/question-bank')
     .then((m) => m.sweepStaleGenerationAttempts())

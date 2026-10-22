@@ -618,6 +618,29 @@ describe("I3 invalid: recordEvent after terminal -> AE_WRITES_LOCKED", () => {
   });
 });
 
+describe("A3-3: status writers never overwrite a non in_progress attempt", () => {
+  it("updateAttemptStatus on a graded attempt changes nothing; parallel submits leave one final state", async () => {
+    const { candidateId, attemptId } = await seedAndStart(tenantA, adminA);
+    await Promise.all([
+      submitAttempt(tenantA, candidateId, attemptId),
+      submitAttempt(tenantA, candidateId, attemptId),
+    ]);
+    const finalStatus = async (): Promise<string> =>
+      (await withTenant(tenantA, (c) => repo.findAttemptById(c, attemptId)))!.status;
+    const settled = await finalStatus();
+    expect(TERMINAL_ATTEMPT_STATUSES.has(settled as never)).toBe(true);
+
+    await withTenant(tenantA, (c) => c.query(`UPDATE attempts SET status = 'graded' WHERE id = $1`, [attemptId]));
+    await expect(
+      withTenant(tenantA, (c) => repo.updateAttemptStatus(c, attemptId, { status: "submitted", submittedAt: new Date() })),
+    ).rejects.toThrow(/no row/);
+    expect(await finalStatus()).toBe("graded");
+    // a late submit returns the final state and does not move it back
+    await submitAttempt(tenantA, candidateId, attemptId);
+    expect(await finalStatus()).toBe("graded");
+  });
+});
+
 describe("I4 invalid: toggleFlag after terminal -> AE_WRITES_LOCKED", () => {
   it("submitted attempt rejects toggleFlag with WRITES_LOCKED", async () => {
     const { candidateId, attemptId, firstQid } = await seedAndStart(tenantA, adminA);

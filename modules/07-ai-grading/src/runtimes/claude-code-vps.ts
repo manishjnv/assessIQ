@@ -81,7 +81,7 @@ const MCP_SUBMIT_BAND = "mcp__assessiq__submit_band";
 // RCA 2026-05-09: Skill and ToolSearch were burning wall-clock before
 // submit_questions by exploring the codebase. Banned here so the model
 // must reason directly from the prompt data already provided.
-const DISALLOWED_TOOLS = "Bash,Write,Edit,Read,Glob,Grep,Skill,ToolSearch";
+const DISALLOWED_TOOLS = "Bash,Write,Edit,Read,Glob,Grep,Skill,ToolSearch,WebFetch,WebSearch,Agent,Task,NotebookEdit";
 
 const STAGE_TIMEOUT_MS = 120_000;
 const GENERATION_BASE_TIMEOUT_MS = 90_000;

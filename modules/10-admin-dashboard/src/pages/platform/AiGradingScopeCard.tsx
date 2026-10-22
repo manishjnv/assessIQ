@@ -6,11 +6,15 @@ import { Card, Chip } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminApiError, getTenantAiGradingScope, updateTenantAiGradingScope, type AiGradingScope } from "../../api.js";
 import { META_LABEL } from "./shared.js";
+import { useMfaGuard } from "../../components/useMfaGuard.js";
+import { isMfaError } from "../../lib/evaluation.js";
 
 export function AiGradingScopeCard({ tenantId, readOnly }: { tenantId: string; readOnly: boolean }): React.ReactElement {
   const [scope, setScope] = useState<AiGradingScope | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // GATE-8 A1-2: a stale TOTP opens the step-up and retries the save.
+  const { guard, stepUp } = useMfaGuard("Enter your authenticator code to change this organisation.");
 
   useEffect(() => {
     let live = true;
@@ -23,17 +27,22 @@ export function AiGradingScopeCard({ tenantId, readOnly }: { tenantId: string; r
   const change = async (next: AiGradingScope): Promise<void> => {
     setSaving(true);
     setError(null);
+    await guard(async () => {
     try {
       const r = await updateTenantAiGradingScope(tenantId, next);
       setScope(r.ai_grading_scope);
     } catch (err) {
+      if (isMfaError(err)) throw err;
       setError(err instanceof AdminApiError ? err.apiError.message : "Save failed. Try again.");
     } finally {
       setSaving(false);
     }
+    }, setError);
   };
 
   return (
+    <>
+    {stepUp}
     <Card>
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)", padding: "var(--aiq-space-lg)" }}>
         <HelpTip helpId="admin.platform.tenant.ai_grading_scope">
@@ -55,5 +64,6 @@ export function AiGradingScopeCard({ tenantId, readOnly }: { tenantId: string; r
         {error !== null && <Chip>{error}</Chip>}
       </div>
     </Card>
+    </>
   );
 }

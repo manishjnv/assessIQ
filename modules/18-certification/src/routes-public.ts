@@ -666,6 +666,11 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
     async (req, reply) => {
       const rawId = req.params.credentialId;
 
+      // A6-2: same per-IP limiter as the HTML route.
+      if (!checkRateLimit(extractClientIp(req))) {
+        return reply.code(429).send({ error: 'Too Many Requests' });
+      }
+
       if (!CREDENTIAL_ID_REGEX.test(rawId.toUpperCase())) {
         return reply.code(404).send({ error: 'Not Found' });
       }
@@ -705,6 +710,11 @@ export async function registerVerifyRoutes(app: FastifyInstance): Promise<void> 
     '/verify/:credentialId/og.png',
     async (req, reply) => {
       const rawId = req.params.credentialId;
+
+      // A6-2: same per-IP limiter as the HTML route.
+      if (!checkRateLimit(extractClientIp(req))) {
+        return reply.code(429).send({ error: 'Too Many Requests' });
+      }
 
       if (!CREDENTIAL_ID_REGEX.test(rawId.toUpperCase())) {
         return reply.code(404).send({ error: 'Not Found' });

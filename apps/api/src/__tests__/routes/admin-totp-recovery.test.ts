@@ -20,6 +20,7 @@ const mockVerify = vi.fn();
 const mockRegen = vi.fn();
 const mockReset = vi.fn();
 const mockGetUser = vi.fn();
+const mockEnrolled = vi.fn();
 
 vi.mock('@assessiq/auth', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@assessiq/auth');
@@ -83,6 +84,7 @@ vi.mock('@assessiq/auth', async () => {
       verify: (...a: unknown[]) => mockVerify(...a),
       regenerateRecoveryCodes: (...a: unknown[]) => mockRegen(...a),
       adminResetTotp: (...a: unknown[]) => mockReset(...a),
+      getEnrollmentStatus: (...a: unknown[]) => mockEnrolled(...a),
     },
     sessions: {
       ...(actual.sessions as Record<string, unknown>),
@@ -172,7 +174,10 @@ describe('RW-45 routes', () => {
   let app: FastifyInstance;
   beforeAll(async () => { app = await buildServer(); });
   afterAll(async () => { await app.close(); });
-  beforeEach(() => { for (const m of [mockVerify, mockRegen, mockReset, mockGetUser, mockNotice]) m.mockReset(); });
+  beforeEach(() => {
+    for (const m of [mockVerify, mockRegen, mockReset, mockGetUser, mockNotice, mockEnrolled]) m.mockReset();
+    mockEnrolled.mockResolvedValue({ enrolled: true });
+  });
 
   const regen = (headers: Record<string, string>, body: unknown) =>
     app.inject({ method: 'POST', url: '/api/auth/totp/recovery-codes/regenerate', headers: { ...headers, ...J }, payload: JSON.stringify(body) });
@@ -227,6 +232,12 @@ describe('RW-45 routes', () => {
       expect(mockNotice).toHaveBeenCalledTimes(1);
       expect(mockNotice.mock.invocationCallOrder[0]).toBeGreaterThan(mockReset.mock.invocationCallOrder[0]!);
       expect(mockNotice.mock.calls[0]![0]).toEqual({ to: 'a@x.test', recipientName: 'Asha', actorRole: 'super_admin', tenantId: T });
+    });
+    it('401 for a stale TOTP (GATE-8 A1-2: cross-tenant reset needs fresh MFA)', async () => {
+      mockGetUser.mockResolvedValue({ id: U });
+      const res = await reset({ ...SUPER, 'x-test-session-totp-stale': 'true' }, { reason: 'x' });
+      expect(res.statusCode).toBe(401);
+      expect(mockReset).not.toHaveBeenCalled();
     });
     it('403 for a tenant admin', async () => {
       const res = await reset(ADMIN, { reason: 'x' });
@@ -292,6 +303,21 @@ describe('RW-45 routes', () => {
     });
     it('401 with MFA off and a 20-minute-old TOTP', async () => {
       const res = await tenantReset({ ...ADMIN, 'x-test-mfa-off': 'true', 'x-test-session-totp-stale': 'true' }, { reason: 'x' });
+      expect(res.statusCode).toBe(401);
+      expect(mockReset).not.toHaveBeenCalled();
+    });
+    // GATE-8 A1-3: with MFA off a session never carries a real TOTP time (lastTotpAt null, totpVerified true).
+    const MFA_OFF_BYPASS = { ...ADMIN, 'x-test-session-totp-verified': 'true', 'x-test-mfa-off': 'true', 'x-test-session-totp-stale': 'true' };
+    it('MFA-off bypass session: allowed only while neither actor nor target has TOTP enrolled', async () => {
+      mockEnrolled.mockResolvedValue({ enrolled: false });
+      mockGetUser.mockResolvedValue({ id: TARGET, email: 'b@x.test', name: 'B', role: 'admin' });
+      mockReset.mockResolvedValue(undefined);
+      expect((await tenantReset(MFA_OFF_BYPASS, { reason: 'x' })).statusCode).toBe(204);
+    });
+    it('MFA-off bypass session: 401 when the target has TOTP enrolled', async () => {
+      mockEnrolled.mockImplementation(async (userId: string) => ({ enrolled: userId === TARGET }));
+      mockGetUser.mockResolvedValue({ id: TARGET, email: 'b@x.test', name: 'B', role: 'admin' });
+      const res = await tenantReset(MFA_OFF_BYPASS, { reason: 'x' });
       expect(res.statusCode).toBe(401);
       expect(mockReset).not.toHaveBeenCalled();
     });

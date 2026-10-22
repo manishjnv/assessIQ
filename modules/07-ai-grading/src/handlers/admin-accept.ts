@@ -327,7 +327,8 @@ async function acceptProposals(
     // insert. Idempotent on re-accept; any db error rolls the accept back
     // (same revenue-leak rule as recordGradedAttempt in 09 finalize).
     // P4: a manual placeholder (model "none") never ran an AI; do not meter it.
-    if (proposal.model !== "none") {
+    // A4-5: rule/reuse proposals (blank answer, reused grade) ran no AI either.
+    if (proposal.model !== "none" && proposal.model !== "rule" && proposal.model !== "reuse") {
       await recordAiAnswerEvaluated(client, tenantId, proposal.attempt_id, proposal.question_id);
     }
 

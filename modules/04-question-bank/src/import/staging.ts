@@ -148,12 +148,20 @@ export function decide(
   rows: DecideRow[],
   existingHashes: ReadonlySet<string>,
   existingNorm: ReadonlySet<string> = new Set(),
+  existingSeedRefs: ReadonlySet<string> = new Set(),
 ): { decision: ImportDecision; dup: DupClass | null }[] {
   const seen = new Set<string>();
   const seenNorm = new Set<string>();
+  const seenSeed = new Set<string>();
   return rows.map((r) => {
     if (r.errors.length > 0 || r.normalized === null) return { decision: "error", dup: null };
     if (r.skipped) return { decision: "skip", dup: null };
+    // EXP-22: a template_generated seed_ref is unique per tenant (partial unique index, migration 0246).
+    const m = r.normalized.meta;
+    if (m?.origin === "template_generated" && m.seedRef) {
+      if (existingSeedRefs.has(m.seedRef) || seenSeed.has(m.seedRef)) return { decision: "duplicate", dup: "exact" };
+      seenSeed.add(m.seedRef);
+    }
     if (r.hash !== null && (existingHashes.has(r.hash) || seen.has(r.hash))) return { decision: "duplicate", dup: "exact" };
     const nh = normHashOf(r.normalized);
     if (existingNorm.has(nh) || seenNorm.has(nh)) return { decision: "duplicate", dup: "normalised" };
@@ -166,6 +174,16 @@ export function decide(
 // ---------------------------------------------------------------------------
 // DB helpers
 // ---------------------------------------------------------------------------
+
+/** EXP-23: the append target must be visible to the tenant (RLS), not archived, and in the import's domain. */
+export async function assertAppendTarget(client: PoolClient, tenantId: string, packId: string, domain: string): Promise<void> {
+  // explicit tenant filter on top of RLS: a shared platform pack is never an append target
+  const pack = await client.query<{ status: string; domain: string }>(`SELECT status, domain FROM question_packs WHERE id = $1 AND tenant_id = $2`, [packId, tenantId]);
+  const p = pack.rows[0];
+  if (p === undefined) throw new NotFoundError("target question set not found", { details: { code: "PACK_NOT_FOUND" } });
+  if (p.status === "archived") throw new ConflictError("target question set is archived", { details: { code: "QUESTION_PACK_ARCHIVED" } });
+  if (p.domain !== domain) throw new ValidationError("target question set is in another domain", { details: { code: "IMPORT_TARGET_DOMAIN_MISMATCH" } });
+}
 
 interface ImportRow { id: string; domain: string; status: ImportStatus; format: ImportFormat; upload_rights_status: TenantUploadRights | null; skip_trigram: boolean }
 
@@ -202,6 +220,14 @@ async function existingHashes(client: PoolClient, domain: string): Promise<{ exa
     if (x.normalised_text_hash) norm.add(x.normalised_text_hash);
   }
   return { exact, norm };
+}
+
+/** EXP-22: seed_refs of the tenant's template_generated questions (any status: the unique index counts withdrawn ones too). */
+async function existingSeedRefs(client: PoolClient): Promise<Set<string>> {
+  const r = await client.query<{ seed_ref: string }>(
+    `SELECT seed_ref FROM question_source WHERE origin = 'template_generated' AND seed_ref IS NOT NULL`,
+  );
+  return new Set(r.rows.map((x) => x.seed_ref));
 }
 
 /** The trigram class runs only when pg_trgm is installed. No migration creates it (EXP-4 rule). */
@@ -308,7 +334,7 @@ async function evaluateRows(
   const similarRows = skipTrigram ? new Set<number>() : await similarRowNumbers(client, domain, stems);
   for (const c of checked) c.similar = similarRows.has(c.row);
   const existing = await existingHashes(client, domain);
-  const verdicts = decide(checked, existing.exact, existing.norm);
+  const verdicts = decide(checked, existing.exact, existing.norm, await existingSeedRefs(client));
   const decisions = verdicts.map((v) => v.decision);
   checked.forEach((c, i) => { if (c.normalized?.meta) c.normalized.meta.dupClass = verdicts[i]!.dup; });
   return { checked, verdicts, decisions };
@@ -332,6 +358,7 @@ export async function stageImport(
     if (dom.rowCount === 0) {
       throw new ValidationError(`domain '${domain}' does not exist`, { details: { code: "IMPORT_DOMAIN_NOT_FOUND" } });
     }
+    if (meta.targetPackId !== undefined) await assertAppendTarget(client, tenantId, meta.targetPackId, domain);
     // Same file already staged -> return it.
     const prior = await client.query<{ id: string }>(
       `SELECT id FROM question_imports WHERE file_sha256 = $1 AND status = 'staged'`,
@@ -343,10 +370,12 @@ export async function stageImport(
 
     const ins = await client.query<{ id: string }>(
       `INSERT INTO question_imports (tenant_id, created_by, file_name, file_sha256, format, domain, pack_name,
-                                     upload_rights_status, warranty_accepted_by, warranty_accepted_at, skip_trigram)
+                                     upload_rights_status, warranty_accepted_by, warranty_accepted_at, skip_trigram,
+                                     target_pack_id, target_level_position)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text, CASE WHEN $8::text IS NULL THEN NULL ELSE $2::uuid END,
-               CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9) RETURNING id`,
-      [tenantId, actorUserId, meta.fileName, meta.fileSha256, meta.format, domain, meta.packName, tenantUpload?.rightsStatus ?? null, meta.skipTrigram === true],
+               CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10, $11) RETURNING id`,
+      [tenantId, actorUserId, meta.fileName, meta.fileSha256, meta.format, domain, meta.packName, tenantUpload?.rightsStatus ?? null, meta.skipTrigram === true,
+       meta.targetPackId ?? null, meta.targetLevelPosition ?? null],
     );
     const importId = ins.rows[0]!.id;
     if (checked.length > 0) {
@@ -481,7 +510,7 @@ export async function fixImportRow(
     const stem = stemOf(edited.normalized);
     if (stem !== null && !imp.skip_trigram) edited.similar = (await similarRowNumbers(client, imp.domain, [{ row: rowNumber, stem }])).has(rowNumber);
     const existing = await existingHashes(client, imp.domain);
-    const verdicts = decide(items, existing.exact, existing.norm);
+    const verdicts = decide(items, existing.exact, existing.norm, await existingSeedRefs(client));
     for (let i = 0; i < items.length; i++) {
       const it = items[i]!;
       const dup = verdicts[i]!.dup;

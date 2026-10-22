@@ -49,11 +49,25 @@ export async function registerAdminUserTotpResetRoute(app: FastifyInstance): Pro
       // The middleware skips freshMfaWithinMinutes for non-super roles when MFA_REQUIRED=false,
       // so enforce the step-up here for every config. Same error text as the middleware, so the
       // UI step-up (useMfaGuard) handles it; a caller with no TOTP must enrol first (account security page).
-      if (!(session.totpVerified && session.lastTotpAt !== null && Date.now() - Date.parse(session.lastTotpAt) <= 15 * 60 * 1000)) {
-        throw new AuthnError('fresh totp required', { details: { code: 'FRESH_TOTP_REQUIRED' } });
-      }
+      // GATE-8 A1-3: lastTotpAt is set only by a real TOTP check, so when MFA_REQUIRED=false a login
+      // never counts. The step-up is demanded when the actor or the target has TOTP enrolled; two
+      // non-enrolled users have nothing to protect, so that case stays open (no regression).
       const { userId } = parseParams(userIdParams, req.params);
       const { reason } = parseBody(resetBody, req.body);
+      const fresh = session.totpVerified && session.lastTotpAt !== null && Date.now() - Date.parse(session.lastTotpAt) <= 15 * 60 * 1000;
+      if (!fresh) {
+        let nobodyEnrolled = false;
+        if (session.totpVerified) {
+          const [actorEnrolled, targetEnrolled] = await Promise.all([
+            totp.getEnrollmentStatus(session.userId, session.tenantId),
+            totp.getEnrollmentStatus(userId, session.tenantId),
+          ]);
+          nobodyEnrolled = !actorEnrolled.enrolled && !targetEnrolled.enrolled;
+        }
+        if (!nobodyEnrolled) {
+          throw new AuthnError('fresh totp required', { details: { code: 'FRESH_TOTP_REQUIRED' } });
+        }
+      }
       if (userId === session.userId) {
         throw new ConflictError('cannot reset your own TOTP', { details: { code: 'SELF_RESET_FORBIDDEN' } });
       }

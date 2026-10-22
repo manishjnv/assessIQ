@@ -1108,6 +1108,18 @@ describe("recordEvent", () => {
     expect(caught).toMatchObject({ details: { code: AE_ERROR_CODES.UNKNOWN_EVENT_TYPE } });
   });
 
+  it("A3-4: server-only event types are refused from a client like an unknown type", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Ce4"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 3);
+    const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId });
+    for (const event_type of ["answer_save", "time_milestone", "multi_tab_conflict", "event_volume_capped"]) {
+      await expect(recordEvent(tenantA, candidate, { attemptId: attempt.id, event_type, payload: {} })).rejects.toMatchObject({
+        details: { code: AE_ERROR_CODES.UNKNOWN_EVENT_TYPE },
+      });
+    }
+  });
+
   it("validates payload shape per Zod schema", async () => {
     const candidate = randomUUID();
     await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Ce2"));

@@ -49,6 +49,11 @@ export interface CreateSessionInput {
   tenantId: string;
   role: Role;
   totpVerified: boolean;
+  /**
+   * GATE-8 A1-3: false when totpVerified is only the MFA_REQUIRED=false bypass, so
+   * lastTotpAt stays null. Only markTotpVerified (a real code) then sets it. Default true.
+   */
+  totpFresh?: boolean;
   ip: string;
   ua: string;
   /**
@@ -117,7 +122,7 @@ async function createSession(input: CreateSessionInput): Promise<CreateSessionOu
   const created = nowIso();
   const ttl = input.ttlSeconds ?? SESSION_TTL_SEC;
   const expires = new Date(Date.now() + ttl * 1000).toISOString();
-  const lastTotpAt = input.totpVerified ? created : null;
+  const lastTotpAt = input.totpVerified && input.totpFresh !== false ? created : null;
 
   const session: Session = {
     id,

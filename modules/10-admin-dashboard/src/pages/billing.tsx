@@ -37,6 +37,8 @@ import { useAdminSession } from "../session.js";
 import { updateTenantAiGenerateMode, getCompanyUsage, getGlobalAiGenerateMode, type AiGenerateMode, type CompanyUsage } from "../api.js";
 import { usageMessage } from "../components/UsageBanner.js";
 import { TenantSettings } from "./tenant-settings.js";
+import { useMfaGuard } from "../components/useMfaGuard.js";
+import { isMfaError } from "../lib/evaluation.js";
 
 // ── Shared style objects ──────────────────────────────────────────────────────
 
@@ -101,6 +103,8 @@ export function AdminBilling(): React.ReactElement {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastAuditId, setLastAuditId] = useState<string | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
+  // GATE-8 A1-2: a stale TOTP opens the step-up and retries the save.
+  const { guard, stepUp } = useMfaGuard("Enter your authenticator code to change this organisation.");
 
   // A2 — "Your plan & usage" card state (all admins)
   const [companyUsage, setCompanyUsage] = useState<CompanyUsage | null>(null);
@@ -130,6 +134,7 @@ export function AdminBilling(): React.ReactElement {
 
   return (
     <AdminShell breadcrumbs={["Settings"]} helpPage="admin.settings.billing">
+      {stepUp}
       <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xl)" }}>
 
         {/* Z-23: the tab strip in AdminShell picks the tab (?tab=). Both panels stay
@@ -236,6 +241,7 @@ export function AdminBilling(): React.ReactElement {
                       onClick={async () => {
                         setSaving(true);
                         setSaveError(null);
+                        await guard(async () => {
                         try {
                           const res = await updateTenantAiGenerateMode(tenantId, selectedMode);
                           setLastAuditId(res.auditId);
@@ -243,12 +249,14 @@ export function AdminBilling(): React.ReactElement {
                           setConfirmPending(false);
                           setTimeout(() => setToastVisible(false), 8_000);
                         } catch (err) {
+                          if (isMfaError(err)) throw err;
                           const msg = err instanceof Error ? err.message : "Save failed";
                           setSaveError(msg);
                           setConfirmPending(false);
                         } finally {
                           setSaving(false);
                         }
+                        }, setSaveError);
                       }}
                     >
                       {saving ? "Saving…" : "Confirm"}

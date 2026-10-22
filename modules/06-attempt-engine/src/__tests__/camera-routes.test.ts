@@ -581,6 +581,16 @@ describe("staff camera routes", () => {
     expect((await app.inject({ method: "GET", url: "/api/admin/camera/reviewers" })).statusCode).toBe(403);
   });
 
+  it("A3-5: an admin cannot add themselves as reviewer; a super admin can", async () => {
+    const app = await buildApp();
+    const self = randomUUID();
+    await insertUser(self, T, "admin", "Self Adder");
+    as(self, T, "admin");
+    expect((await app.inject({ method: "POST", url: "/api/admin/camera/reviewers", payload: { userId: self } })).statusCode).toBe(403);
+    as(self, T, "super_admin");
+    expect((await app.inject({ method: "POST", url: "/api/admin/camera/reviewers", payload: { userId: self } })).statusCode).toBe(201);
+  });
+
   it("settings: GET shape, PATCH school only, confirm-notice; school flag is super admin only", async () => {
     const app = await buildApp();
     as(admin, T, "admin");

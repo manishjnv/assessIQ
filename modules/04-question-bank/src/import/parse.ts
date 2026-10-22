@@ -1,6 +1,7 @@
 // RW-58: CSV + XLSX reader. Both produce the same ParsedRow[]; malformed rows become
 // RowError entries. Only file-level problems (unreadable file, no `type` header) throw.
 import ExcelJS from "exceljs";
+import JSZip from "jszip";
 import { ValidationError } from "@assessiq/core";
 import { IMPORT_MAX_BYTES, IMPORT_MAX_ROWS } from "./limits.js";
 import { parseGift } from "./adapters/gift.js";
@@ -46,7 +47,48 @@ function cellText(v: ExcelJS.CellValue): string {
   return String(v);
 }
 
+/** Total uncompressed bytes an .xlsx may inflate to (same budget as the QTI path). */
+export const XLSX_MAX_UNZIPPED_TOTAL = 4 * IMPORT_MAX_BYTES;
+
+/**
+ * A6-1: counts inflated bytes of every zip entry through a stream and stops mid-inflate once the
+ * total passes `max`, so a zip bomb never reaches ExcelJS (which inflates fully into memory).
+ */
+export async function assertXlsxInflateBudget(data: Buffer, max: number = XLSX_MAX_UNZIPPED_TOTAL): Promise<void> {
+  const tooBig = (): ValidationError => new ValidationError("Workbook is too large when unzipped", { details: { code: "IMPORT_TOO_LARGE" } });
+  let zip: JSZip;
+  try { zip = await JSZip.loadAsync(data); } catch {
+    throw new ValidationError("File is not a readable .xlsx workbook", { details: { code: "IMPORT_XLSX_UNREADABLE" } });
+  }
+  let left = max;
+  for (const f of Object.values(zip.files)) {
+    if (f.dir) continue;
+    await new Promise<void>((resolve, reject) => {
+      let done = false;
+      // internalStream exists at runtime (documented) but is missing from the shipped types.
+      const s = (f as unknown as {
+        internalStream(t: "uint8array"): {
+          on(ev: "data", cb: (c: Uint8Array) => void): unknown;
+          on(ev: "error", cb: (e: Error) => void): unknown;
+          on(ev: "end", cb: () => void): unknown;
+          pause(): unknown;
+          resume(): unknown;
+        };
+      }).internalStream("uint8array");
+      s.on("data", (c: Uint8Array) => {
+        if (done) return;
+        left -= c.byteLength;
+        if (left < 0) { done = true; s.pause(); reject(tooBig()); }
+      });
+      s.on("error", () => { if (!done) { done = true; reject(new ValidationError("File is not a readable .xlsx workbook", { details: { code: "IMPORT_XLSX_UNREADABLE" } })); } });
+      s.on("end", () => { if (!done) { done = true; resolve(); } });
+      s.resume();
+    });
+  }
+}
+
 async function readXlsx(data: Buffer): Promise<string[][]> {
+  await assertXlsxInflateBudget(data);
   const wb = new ExcelJS.Workbook();
   try {
     await wb.xlsx.load(data as unknown as ArrayBuffer);

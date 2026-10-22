@@ -8,6 +8,8 @@ import { HelpTip } from "@assessiq/help-system/components";
 import { META_LABEL, formatDate } from "./shared.js";
 import { AiGradingScopeCard } from "./AiGradingScopeCard.js";
 import { CreditsCard } from "./CreditsCard.js";
+import { useMfaGuard } from "../../components/useMfaGuard.js";
+import { isMfaError } from "../../lib/evaluation.js";
 
 // ── Billing drawer ────────────────────────────────────────────────────────────
 
@@ -138,11 +140,15 @@ export function BillingDrawer({
 
   const isInternalTier = editTier === "internal";
 
+  // GATE-8 A1-2: these cross-tenant mutations need a fresh TOTP; a stale one opens the step-up and retries.
+  const { guard, stepUp } = useMfaGuard("Enter your authenticator code to change this organisation.");
+
   const handleGrantEntitlement = async (): Promise<void> => {
     if (!grantScopeId.trim()) return;
     setGrantSaving(true);
     setGrantError(null);
     setGrantToastAuditId(null);
+    await guard(async () => {
     try {
       const res = await grantTenantEntitlement(tenant.id, { scopeType: grantScopeType, scopeId: grantScopeId.trim() });
       setGrantToastAuditId(res.auditId);
@@ -150,28 +156,34 @@ export function BillingDrawer({
       setTimeout(() => setGrantToastAuditId(null), 8_000);
       fetchEntitlements();
     } catch (err) {
+      if (isMfaError(err)) throw err;
       setGrantError(err instanceof AdminApiError ? err.apiError.message : "Grant failed — please try again.");
     } finally {
       setGrantSaving(false);
     }
+    }, setGrantError);
   };
 
   const handleRevokeEntitlement = async (ent: TenantEntitlement): Promise<void> => {
     setRevokeSaving(ent.id);
     setRevokeError(null);
+    await guard(async () => {
     try {
       await revokeTenantEntitlement(tenant.id, { scopeType: ent.scope_type, scopeId: ent.scope_id });
       fetchEntitlements();
     } catch (err) {
+      if (isMfaError(err)) throw err;
       setRevokeError(err instanceof AdminApiError ? err.apiError.message : "Revoke failed — please try again.");
     } finally {
       setRevokeSaving(null);
     }
+    }, setRevokeError);
   };
 
   const handleSavePlan = async (): Promise<void> => {
     setPlanSaving(true);
     setPlanError(null);
+    await guard(async () => {
     try {
       const includedCredits = isInternalTier ? null : parseInt(editCredits, 10);
       const res = await updateTenantPlan(tenant.id, {
@@ -184,6 +196,7 @@ export function BillingDrawer({
       setTimeout(() => setPlanToast(false), 8_000);
       onPlanUpdated();
     } catch (err) {
+      if (isMfaError(err)) throw err;
       if (err instanceof AdminApiError) {
         const code = err.apiError.details?.code as string | undefined;
         setPlanError(
@@ -200,9 +213,12 @@ export function BillingDrawer({
     } finally {
       setPlanSaving(false);
     }
+    }, setPlanError);
   };
 
   return (
+    <>
+    {stepUp}
     <div
       style={{
         // lint-fixed-allow: drawer
@@ -817,6 +833,7 @@ export function BillingDrawer({
         )}
       </div>
     </div>
+    </>
   );
 }
 

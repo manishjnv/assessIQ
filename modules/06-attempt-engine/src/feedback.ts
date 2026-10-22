@@ -13,7 +13,7 @@
  * AI text. The plain-words line is a deterministic text transform: no AI call.
  */
 
-import { ConflictError, NotFoundError } from "@assessiq/core";
+import { ConflictError, NotFoundError, attemptsAllowed } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import type { ResultFeedbackLevel } from "@assessiq/tenancy";
 import { isQuestionType, QUESTION_TYPE_REGISTRY } from "@assessiq/question-types";
@@ -260,7 +260,7 @@ export async function getCandidateFeedback(
     const lvl = await client.query<{ result_feedback_level: ResultFeedbackLevel }>(
       `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
     );
-    const asm = await client.query<{ delivery_mode: string }>(`SELECT delivery_mode FROM assessments WHERE id = $1`, [
+    const asm = await client.query<{ delivery_mode: string; max_attempts: number | null }>(`SELECT delivery_mode, max_attempts FROM assessments WHERE id = $1`, [
       attempt.assessment_id,
     ]);
     // Z-111: a mock attempt on a mock assessment shows the expected answer at least.
@@ -270,6 +270,20 @@ export async function getCandidateFeedback(
     });
     const rank = FEEDBACK_LEVEL_RANK[level];
     if (rank === 0) return { level, items: [] };
+
+    // A3-6: on a real exam with a retake left, the answer key stays hidden (the retake draws from the same pool).
+    let retakeLeft = false;
+    if (rank >= 2 && attempt.delivery_mode !== "mock" && asm.rows[0]?.delivery_mode !== "mock") {
+      const inv = await client.query<{ extra: number }>(
+        `SELECT COALESCE(max(extra_attempts), 0)::int AS extra FROM assessment_invitations WHERE assessment_id = $1 AND user_id = $2`,
+        [attempt.assessment_id, userId],
+      );
+      const used = await client.query<{ n: number }>(
+        `SELECT count(*)::int AS n FROM attempts WHERE assessment_id = $1 AND user_id = $2`,
+        [attempt.assessment_id, userId],
+      );
+      retakeLeft = (used.rows[0]?.n ?? 0) < attemptsAllowed(asm.rows[0]?.max_attempts, inv.rows[0]?.extra ?? 0);
+    }
 
     const rows = (await client.query<Row>(ITEMS_SQL, [attemptId])).rows
       // Not final -> never shown.
@@ -296,7 +310,7 @@ export async function getCandidateFeedback(
         outcome: outcomeOf(r.status, earned, max),
         score_earned: earned,
         score_max: max,
-        expected_answer: rank >= 2 && def?.scoring === "deterministic" ? renderExpectedAnswer(r.type, r.content) : null,
+        expected_answer: rank >= 2 && !retakeLeft && def?.scoring === "deterministic" ? renderExpectedAnswer(r.type, r.content) : null,
         explanation:
           rank >= 3 && def?.scoring === "ai" ? plainWords(r.grader === "admin_override" ? null : r.ai_justification, r.reasoning_band, r.error_class) : null,
         study: { unit: st?.unit ?? null, subject: st?.subject ?? null, topic: r.topic },

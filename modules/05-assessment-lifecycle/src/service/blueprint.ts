@@ -8,6 +8,7 @@ import {
   type NodeScope,
 } from "../../../04-question-bank/src/taxonomy-nodes.js";
 import { AL_ERROR_CODES } from "../types.js";
+import { levelAtSamePosition } from "./_shared.js";
 import type { AssessmentBlueprint, ResolvedBlueprint } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -167,20 +168,26 @@ export async function assertSectionCategoriesMatchPack(
 ): Promise<void> {
   const raw = (settings as { sections?: unknown } | null | undefined)?.sections;
   if (!Array.isArray(raw) || raw.length === 0) return;
-  const sections = raw as Array<{ name?: string; category_ids?: string[]; node_id?: string }>;
+  const sections = raw as Array<{ name?: string; category_ids?: string[]; node_id?: string; pack_id?: string }>;
   if (!sections.some((s) => s.category_ids !== undefined || s.node_id !== undefined)) return;
-  const pack = await client.query<{ domain: string }>(
-    `SELECT domain FROM question_packs WHERE id = $1 AND tenant_id = $2`,
-    [packId, tenantId],
-  );
-  if (pack.rows.length === 0) return; // createAssessment reports the missing set itself
-  const subject = pack.rows[0]!.domain;
+  const subjects = new Map<string, string>(); // EXP-23: pack id -> subject (domain slug)
+  const subjectOf = async (pid: string): Promise<string | null> => {
+    if (!subjects.has(pid)) {
+      const pr = await client.query<{ domain: string }>(`SELECT domain FROM question_packs WHERE id = $1 AND tenant_id = $2`, [pid, tenantId]);
+      if (pr.rows.length === 0) return null;
+      subjects.set(pid, pr.rows[0]!.domain);
+    }
+    return subjects.get(pid)!;
+  };
+  if ((await subjectOf(packId)) === null) return; // createAssessment reports the missing set itself
   const bad = (s: { name?: string }, what: string): ValidationError =>
     new ValidationError(`Section "${s.name ?? ""}": ${what}`, {
       details: { code: "INVALID_PARAM", param: "settings.sections" },
     });
   for (const s of sections) {
     const ids = [...new Set(s.category_ids ?? [])];
+    const subject = await subjectOf(s.pack_id ?? packId);
+    if (subject === null) throw bad(s, "the section question set does not exist or is not visible to this organisation");
     if (ids.length > 0) {
       const ok = await client.query<{ id: string }>(
         `SELECT c.id FROM categories c JOIN domains d ON d.id = c.domain_id
@@ -209,18 +216,27 @@ export async function assertSectionPoolsFillable(
 ): Promise<void> {
   const raw = (settings as { sections?: unknown } | null | undefined)?.sections;
   if (!Array.isArray(raw)) return;
-  for (const s of raw as Array<{ name?: string; category_ids?: string[]; node_id?: string; question_count?: number }>) {
+  for (const s of raw as Array<{ name?: string; category_ids?: string[]; node_id?: string; question_count?: number; pack_id?: string }>) {
     if (s.question_count === undefined) continue;
+    // EXP-23: a section with its own pack counts that pack's level at the assessment level's position.
+    const sPack = s.pack_id ?? packId;
+    const sLevel = sPack === packId ? levelId : await levelAtSamePosition(client, sPack, levelId);
     const base = `SELECT count(*) AS n FROM questions q WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'`;
+    if (sLevel === null) {
+      throw new ValidationError(
+        `Section "${s.name ?? ""}" has too few questions: 0 available, ${s.question_count} needed`,
+        { details: { code: AL_ERROR_CODES.POOL_TOO_SMALL, section: s.name, available: 0, required: s.question_count } },
+      );
+    }
     const r =
       s.node_id !== undefined
         ? await client.query<{ n: string }>(
             `${base} AND ${taxonomyDrawPredicate("q", "$3", "$4", "$5")}`,
-            [packId, levelId, ...nodeScopeArgs({ nodeId: s.node_id })],
+            [sPack, sLevel, ...nodeScopeArgs({ nodeId: s.node_id })],
           )
         : s.category_ids !== undefined
-          ? await client.query<{ n: string }>(`${base} AND q.category_id = ANY($3::uuid[])`, [packId, levelId, s.category_ids])
-          : await client.query<{ n: string }>(base, [packId, levelId]);
+          ? await client.query<{ n: string }>(`${base} AND q.category_id = ANY($3::uuid[])`, [sPack, sLevel, s.category_ids])
+          : await client.query<{ n: string }>(base, [sPack, sLevel]);
     const available = parseInt(r.rows[0]?.n ?? "0", 10);
     if (available < s.question_count) {
       throw new ValidationError(

@@ -10,16 +10,20 @@
  * out of the sample (long-run rate ≈ 10%). See service.ts for sampler details.
  */
 
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import { ValidationError } from "@assessiq/core";
 import { shouldSampleHelpEvent, recordHelpEvent } from "./service.js";
 
 const HELP_KEY_RE = /^[a-z0-9_]+(\.[a-z0-9_]+)*$/;
 const VALID_EVENTS = new Set(["tooltip.shown", "drawer.opened", "feedback"]);
 
-export async function registerHelpTrackRoutes(app: FastifyInstance): Promise<void> {
-  // No preHandler — anonymous candidate UI may emit without a session.
-  app.post("/api/help/track", async (req, reply) => {
+export interface HelpTrackDeps {
+  rateLimit?: preHandlerHookHandler | preHandlerHookHandler[];
+}
+
+export async function registerHelpTrackRoutes(app: FastifyInstance, deps: HelpTrackDeps = {}): Promise<void> {
+  // No auth preHandler — anonymous candidate UI may emit without a session. A6-3: apps/api injects the IP rate limiter.
+  app.post("/api/help/track", { ...(deps.rateLimit !== undefined ? { preHandler: deps.rateLimit } : {}) }, async (req, reply) => {
     const body = req.body as {
       event?: unknown;
       key?: unknown;

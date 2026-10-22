@@ -332,6 +332,25 @@ describe("resendInvitation", () => {
     expect(sendInvitationEmail).not.toHaveBeenCalled();
   });
 
+  it("A3-2: revoking cancels the in-progress attempt and audits its id; a finished attempt stays", async () => {
+    const a = await newAssessment("Revoke running");
+    const running = await inviteOne(a);
+    await startAttemptFor(a, running.userId);
+    const done = await inviteOne(a);
+    await startAttemptFor(a, done.userId, "submitted");
+
+    await revokeInvitation(tenantA, running.invitationId, adminA);
+    await revokeInvitation(tenantA, done.invitationId, adminA);
+
+    const st = async (u: string) =>
+      (await sql(`SELECT status FROM attempts WHERE assessment_id = $1 AND user_id = $2`, [a, u]))[0].status;
+    expect(await st(running.userId)).toBe("cancelled");
+    expect(await st(done.userId)).toBe("submitted");
+    const rows = await auditRows(running.invitationId, "assessment.invite");
+    const row = rows[rows.length - 1]!; // the revoke row is the newest (the first row is the invite itself)
+    expect((row.after["cancelled_attempt_ids"] as string[]).length).toBe(1);
+  });
+
   it("409 ASSESSMENT_NOT_ACTIVE when the assessment is closed; 404 for an unknown / other-tenant / malformed id", async () => {
     const a = await newAssessment("Resend closed");
     const { invitationId } = await inviteOne(a);

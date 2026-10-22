@@ -10,7 +10,7 @@ import { assertRemindersSettings } from "../reminders.js";
 import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema, AssessmentSectionsSchema, sectionTimingProblem } from "../types.js";
 import type { Assessment, ResolvedBlueprint, AssessmentSettings, CreateAssessmentInput, CreateAssessmentFromSetInput, ListAssessmentsInput, PaginatedAssessments, UpdateAssessmentPatch } from "../types.js";
 import type { InvitationCounts } from "../repository.js";
-import { log, assertPageSize } from "./_shared.js";
+import { log, assertPageSize, assertSectionPacksUsable } from "./_shared.js";
 import { assertSectionCategoriesMatchPack, assertBlueprintFKOwnership, resolveBlueprint, resolveBlueprintPackLevel } from "./blueprint.js";
 
 // ===========================================================================
@@ -213,6 +213,7 @@ export async function createAssessment(
     }
 
     // Z-122: section categories must belong to this pack's subject (create and from-set both land here).
+    await assertSectionPacksUsable(client, tenantId, resolvedInput.pack_id, mergedSettings); // EXP-23
     await assertSectionCategoriesMatchPack(client, tenantId, resolvedInput.pack_id, mergedSettings);
 
     // c. Level must exist (RLS scopes through pack FK)
@@ -743,6 +744,7 @@ export async function updateAssessment(
 
     // Z-122: a patch that sets sections is checked against the assessment's pack.
     if (patch.settings !== undefined) {
+      await assertSectionPacksUsable(client, tenantId, resolvedBlueprintOverride?.packId ?? current.pack_id, patch.settings); // EXP-23
       await assertSectionCategoriesMatchPack(client, tenantId, resolvedBlueprintOverride?.packId ?? current.pack_id, patch.settings);
     }
 

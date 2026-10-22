@@ -31,6 +31,10 @@ export interface ImportFileMeta {
   packName: string;
   /** EXP-21: skip the trigram (similar) class; hash classes only. Default false. */
   skipTrigram?: boolean;
+  /** EXP-23: append to this existing pack (same tenant, not archived, same domain) instead of creating one. */
+  targetPackId?: string;
+  /** EXP-23: put every row in this level position of the target pack. Default: each row's own level. */
+  targetLevelPosition?: number;
 }
 
 export interface NormalizedRow {

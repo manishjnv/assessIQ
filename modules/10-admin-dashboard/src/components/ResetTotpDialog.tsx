@@ -3,7 +3,7 @@
 
 import React, { useState } from "react";
 import { ConfirmDialog } from "@assessiq/ui-system";
-import { AdminApiError, resetUserTotpApi, superResetUserTotpApi } from "../api.js";
+import { resetUserTotpApi, superResetUserTotpApi } from "../api.js";
 import { useMfaGuard } from "./useMfaGuard.js";
 
 export interface ResetTotpTarget {
@@ -44,17 +44,12 @@ export function ResetTotpDialog({
       setBusy(false);
       return;
     }
-    try {
-      await superResetUserTotpApi(tenantId, user.id, reason.trim());
-      onDone();
-    } catch (err) {
-      setError(
-        err instanceof AdminApiError
-          ? err.apiError.message
-          : "Could not reset two-factor. Try again.",
-      );
-      setBusy(false);
-    }
+    // GATE-8 A1-2: the cross-tenant route also needs a fresh code.
+    await guard(
+      async () => { await superResetUserTotpApi(tenantId, user.id, reason.trim()); onDone(); },
+      (message) => setError(message),
+    );
+    setBusy(false);
   };
 
   return (

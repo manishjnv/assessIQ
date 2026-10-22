@@ -249,7 +249,11 @@ export async function registerCameraAdminRoutes(app: FastifyInstance, opts: Regi
 
   app.post("/api/admin/camera/reviewers", { preHandler: adminOnly }, async (req, reply) => {
     const body = parseOr400(reviewerBody, req.body, "body");
-    const { tenantId, userId } = req.session!;
+    const { tenantId, userId, role } = req.session!;
+    // A3-5: another person must grant the reviewer role; only a super admin may add themselves.
+    if (body.userId === userId && role !== "super_admin") {
+      throw new AuthzError("Another administrator must add you as a camera reviewer.");
+    }
     if (users !== undefined && (await users.get(tenantId, body.userId)) === null) throw new NotFoundError("user not found in this organisation");
     await withTenant(tenantId, async (c) => {
       // Without a users lookup (module tests) the FK-free table still needs a tenant check: the user row is RLS-scoped.

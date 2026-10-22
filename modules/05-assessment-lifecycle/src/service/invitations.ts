@@ -659,6 +659,8 @@ export async function revokeInvitation(
     }
 
     await repo.updateInvitationStatus(client, invitationId, "expired");
+    // A3-2: a revoke also ends a running attempt (save/submit refuse a non in_progress attempt).
+    const cancelledAttempts = await repo.cancelInProgressAttempts(client, invitation.assessment_id, invitation.user_id);
 
     // Reuse assessment.invite with after.kind=revoke — same minimal-catalog
     // pattern as reopenAssessment. before.status records what was revoked
@@ -676,6 +678,7 @@ export async function revokeInvitation(
         status: "expired",
         assessment_id: invitation.assessment_id,
         user_id: invitation.user_id,
+        cancelled_attempt_ids: cancelledAttempts,
       },
     });
   });

@@ -256,6 +256,14 @@ export const EVENT_PAYLOAD_SCHEMAS = {
 
 export type EventType = keyof typeof EVENT_PAYLOAD_SCHEMAS;
 
+/** A3-4: server-written event types; a client POST of these is refused like an unknown type. */
+export const SERVER_ONLY_EVENT_TYPES: ReadonlySet<string> = new Set([
+  "answer_save",
+  "time_milestone",
+  "multi_tab_conflict",
+  "event_volume_capped",
+]);
+
 export const KNOWN_EVENT_TYPES: ReadonlySet<EventType> = new Set(
   Object.keys(EVENT_PAYLOAD_SCHEMAS) as EventType[],
 );

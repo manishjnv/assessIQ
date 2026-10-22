@@ -7,7 +7,7 @@ import { totp } from '@assessiq/auth';
 import { assertTenantActive } from '@assessiq/tenancy';
 import { getUser } from '@assessiq/users';
 import { parseBody, parseParams, requiredString, tenantIdParams, userIdParams, z } from '../_validate.js';
-import { superAdminOnly } from './_shared.js';
+import { superAdminFreshMfa } from './_shared.js';
 import { notifyTotpReset } from '../admin-users-totp-reset.js';
 
 const resetBody = z.object({ reason: requiredString('reason is required', { max: 500, code: 'INVALID_REASON' }) });
@@ -21,7 +21,7 @@ export async function registerAdminSuperUserTotpResetRoute(app: FastifyInstance)
   // 204 on success. Secret, recovery codes cleared; auth.totp.reset audited in the same tx.
   app.post(
     '/api/admin/super/tenants/:tenantId/users/:userId/totp/reset',
-    { preHandler: superAdminOnly },
+    { preHandler: superAdminFreshMfa },
     async (req, reply) => {
       const { tenantId, userId } = parseParams(params, req.params);
       const { reason } = parseBody(resetBody, req.body);
