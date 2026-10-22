@@ -23,7 +23,7 @@
 //    Assessments, Reports, Users, Attempts, Grading all in sidebar).
 
 import React from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Card, Icon } from "@assessiq/ui-system";
 import type { IconName } from "@assessiq/ui-system";
 import { HelpProvider, useHelpContext } from "@assessiq/help-system/components";

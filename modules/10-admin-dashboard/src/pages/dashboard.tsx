@@ -19,7 +19,7 @@
 //    not the length of the capped queue list.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Chip, StatCard, Table, formatDateTime, formatDayLine } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import type { QueueRow as BaseQueueRow } from "@assessiq/ai-grading";

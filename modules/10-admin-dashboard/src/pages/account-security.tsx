@@ -5,7 +5,7 @@
 // asks for a current code, then shows the new codes once.
 
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Button, Card, Chip } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { PageHeader } from "../components/PageHeader.js";

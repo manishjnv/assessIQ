@@ -28,7 +28,7 @@
 
 import { planTierLabel } from "../lib/labels.js";
 import React, { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { Card, Chip, Icon, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { openAdminGuide } from "../components/AdminHelp.js";

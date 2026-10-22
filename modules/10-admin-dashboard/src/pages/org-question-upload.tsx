@@ -3,7 +3,7 @@
 // Imported questions are private to the organisation and start In review. The list below can withdraw a whole upload.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Chip, ConfirmDialog, Table, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { QUESTION_TYPES } from "@assessiq/question-types";

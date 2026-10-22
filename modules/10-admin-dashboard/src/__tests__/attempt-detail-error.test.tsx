@@ -18,7 +18,7 @@ import React from "react";
 // Module mocks — must be hoisted before imports that use them.
 // ---------------------------------------------------------------------------
 
-vi.mock("react-router-dom", () => ({
+vi.mock("react-router", () => ({
   useParams: () => ({ id: "attempt-abc123" }),
   useNavigate: () => vi.fn(),
 }));

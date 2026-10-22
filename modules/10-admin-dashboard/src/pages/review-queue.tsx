@@ -7,7 +7,7 @@
 // INVARIANTS: no claude/anthropic imports or copy. The server decides which questions an admin sees.
 
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Chip, Table, formatDateTime } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";

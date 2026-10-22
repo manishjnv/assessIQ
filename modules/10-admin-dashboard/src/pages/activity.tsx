@@ -24,7 +24,7 @@
 //  - Error state: per-section inline error text.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { StatCard,
   ActivityHeatmap,
   StackedBarChart,

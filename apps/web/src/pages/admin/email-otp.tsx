@@ -16,7 +16,7 @@
 // same layout idiom as login.tsx and select-identity.tsx.
 
 import { useState, type CSSProperties, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Button, Chip, Logo, Field } from '@assessiq/ui-system';
 import { api, ApiCallError } from '../../lib/api.js';
 

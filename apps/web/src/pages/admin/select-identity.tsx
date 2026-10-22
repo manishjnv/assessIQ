@@ -13,7 +13,7 @@
 //      /admin/login with a "session expired" message.
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
 import { api, ApiCallError } from '../../lib/api.js';
 

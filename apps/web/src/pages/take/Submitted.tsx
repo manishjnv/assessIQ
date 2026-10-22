@@ -29,7 +29,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react';
 import { DEVICE_BLOCKED_MESSAGE, collectDeviceSignals, collectReadinessSignals } from './readiness.js';
-import { useParams, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { useParams, useLocation, useNavigate, Navigate } from 'react-router';
 import { Chip, Card, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import {
   AFTER_SUBMIT_TEXT,

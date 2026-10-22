@@ -22,7 +22,7 @@
 // INVARIANT: no claude/anthropic imports.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { Chip, Spinner, StatCard } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";

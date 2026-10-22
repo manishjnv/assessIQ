@@ -3,7 +3,7 @@
 // Nothing is saved to a question set until the admin commits; the commit makes a DRAFT set.
 
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Chip, ConfirmDialog, Modal, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { QUESTION_TYPES } from "@assessiq/question-types";

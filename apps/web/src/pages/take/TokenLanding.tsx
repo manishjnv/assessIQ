@@ -22,7 +22,7 @@
 //     is the old name and must not appear in new code.
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router';
 import { Button, Chip, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import { takePreview, takeStart, takeCameraConsent, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
 import { TakeRightPane } from './TakeRightPane.js';

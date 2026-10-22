@@ -22,7 +22,7 @@
 //  - Fresh-MFA failures open the inline step-up and retry (useMfaGuard).
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router";
 import { Chip, Modal, Spinner, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { AttemptGradingPanel } from "../components/AttemptGradingPanel.js";

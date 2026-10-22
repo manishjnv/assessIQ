@@ -26,7 +26,7 @@
 // aiq.height to the host frame via ResizeObserver. It also posts aiq.ready
 // on mount so the host SDK can confirm the load.
 
-import { Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router';
 import { HelpProvider } from '@assessiq/help-system/components';
 import { useEmbedMode } from '../../lib/useEmbedMode';
 import { EmbedLayout } from '../../lib/EmbedLayout';

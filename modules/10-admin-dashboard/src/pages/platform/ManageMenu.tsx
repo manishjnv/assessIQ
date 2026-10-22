@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Button } from "@assessiq/ui-system";
 import { type TenantListItem } from "../../api.js";
 import { type LifecycleAction } from "./shared.js";

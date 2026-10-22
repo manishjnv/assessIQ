@@ -25,7 +25,7 @@
 //    docs/10-branding-guideline.md § 0 step 4.
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
 import { readAuthScopeOnce, authScopeCopy, type AuthScopeBannerCopy } from '../../lib/authScope';
 

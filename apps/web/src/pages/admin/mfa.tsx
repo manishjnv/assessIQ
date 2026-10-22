@@ -32,7 +32,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { Button, Card, Chip } from '@assessiq/ui-system';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router';
 import QRCode from 'qrcode';
 import { api, ApiCallError } from '../../lib/api';
 import { fetchWhoami, useSession } from '../../lib/session';

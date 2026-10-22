@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import { Icon, TenantLogo, useApi } from '@assessiq/ui-system';
 import { createApiClient } from '@assessiq/http-client';
 import { CandidateSessionBanner } from './CandidateSessionBanner.js';

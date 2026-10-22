@@ -2,7 +2,7 @@
 // Synthetic data only. fetch is stubbed; nothing leaves the test.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router";
 import React from "react";
 
 vi.mock("../components/AdminShell.js", () => ({

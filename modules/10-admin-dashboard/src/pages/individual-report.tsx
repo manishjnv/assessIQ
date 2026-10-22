@@ -6,7 +6,7 @@
 // Consumes: GET /api/admin/reports/individual/:userId
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { Chip, Spinner, Sparkline, formatDate } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { ArchetypeRadar } from "../components/ArchetypeRadar.js";

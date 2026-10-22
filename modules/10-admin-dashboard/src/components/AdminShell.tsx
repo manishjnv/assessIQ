@@ -14,7 +14,7 @@
 //  - No claude/anthropic imports.
 
 import React, { Fragment, useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router";
 import { Button, Icon, Modal, Sidebar, NavItem, SidebarSection, TenantLogo, useViewport } from "@assessiq/ui-system";
 import { HelpProvider } from "@assessiq/help-system/components";
 import { useAdminSession, adminLogout } from "../session.js";

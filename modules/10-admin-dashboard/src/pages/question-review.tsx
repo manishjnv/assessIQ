@@ -23,7 +23,7 @@
 //  - Source links render only for https URLs.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { ConfirmDialog, Modal, formatDateTime } from "@assessiq/ui-system";
 import { questionTypeLabel } from "../lib/labels.js";
 import { HelpTip } from "@assessiq/help-system/components";

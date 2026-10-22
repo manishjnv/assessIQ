@@ -28,7 +28,7 @@
 //    promoted to the typed Spinner component.
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router';
 import { Card, Chip, Spinner } from '@assessiq/ui-system';
 import { api, ApiCallError } from '../lib/api';
 import { fetchWhoami } from '../lib/session';

@@ -9,7 +9,7 @@
 // The h1 "This invitation has expired." satisfies that regex.
 
 import { type CSSProperties } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Button, Chip, Logo } from '@assessiq/ui-system';
 import { TakeRightPane } from './TakeRightPane.js';
 

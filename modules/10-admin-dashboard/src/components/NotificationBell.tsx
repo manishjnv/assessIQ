@@ -6,7 +6,7 @@
 // Uses the ui-system "bell" icon (lucide-react is not a dependency of this package).
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Icon, formatRelative } from "@assessiq/ui-system";
 import { adminApi } from "../api.js";
 

@@ -17,8 +17,8 @@ const { apiMock, nav } = vi.hoisted(() => ({
   nav: { search: '' },
 }));
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...(actual as object),
     useSearchParams: () => [new URLSearchParams(nav.search), vi.fn()],

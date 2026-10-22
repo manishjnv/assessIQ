@@ -23,7 +23,7 @@ import React from "react";
 // Hoisted module mocks
 // ---------------------------------------------------------------------------
 
-vi.mock("react-router-dom", () => ({
+vi.mock("react-router", () => ({
   useParams: () => ({ tenantId: "tenant-x" }),
   useNavigate: () => vi.fn(),
 }));

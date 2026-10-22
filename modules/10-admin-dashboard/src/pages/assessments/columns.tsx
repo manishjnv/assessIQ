@@ -1,5 +1,5 @@
 import React from "react";
-import type { NavigateFunction } from "react-router-dom";
+import type { NavigateFunction } from "react-router";
 import { Chip, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { assessmentStatusDisplay } from "../../lib/labels.js";

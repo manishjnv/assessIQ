@@ -1,7 +1,7 @@
 // EXP-17: organisation question upload page. Synthetic data only.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import React from "react";
 
 const upload = vi.fn();

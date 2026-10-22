@@ -16,7 +16,7 @@
 //   - audit rows carry is_override:true server-side
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import {
   AdminApiError,
   listTenantUsersAsSuperApi,

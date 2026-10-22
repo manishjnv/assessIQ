@@ -4,7 +4,7 @@
 // (that prefix is routed to the API at the edge).
 
 import { useEffect, type CSSProperties } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 
 const FIELDS: [string, string][] = [
   ['Credential ID', 'SAMPLE-0000-0000'],

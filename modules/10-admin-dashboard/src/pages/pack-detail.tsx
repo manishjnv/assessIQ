@@ -19,7 +19,7 @@
 
 import { packStatusDisplay } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router";
 import { Chip, ConfirmDialog, Modal, formatDate } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";

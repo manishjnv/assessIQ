@@ -5,7 +5,7 @@ import React from "react";
 
 const generate = vi.fn();
 
-vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("react-router", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("../api.js", () => ({
   AdminApiError: class AdminApiError extends Error {},
   adminApi: vi.fn(async () => ({ items: [] })),

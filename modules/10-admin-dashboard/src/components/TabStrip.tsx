@@ -6,7 +6,7 @@
 // Kit Tabs look: underline on the active tab, 13 px labels, tokens only.
 
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 export interface TabStripItem {
   id: string;

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Link } from 'react-router';
 import { ThemeProvider, TENANT_FIXTURES, accentBranding } from '@assessiq/ui-system';
 import { AdminLogin } from './pages/admin/login';
 import { AdminSelectIdentity } from './pages/admin/select-identity';
@@ -90,7 +90,7 @@ function useOrgBranding() {
 export function App(): React.JSX.Element {
   const branding = useOrgBranding();
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter>
       {/* theme="light" pinned per docs/10-branding-guideline.md § 0 + § 1 —
           AssessIQ_UI_Template/screens/* ship light-mode tokens only; the
           canonical visual identity is "white-on-white surfaces" with the
