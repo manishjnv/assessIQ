@@ -1,8 +1,10 @@
 Subject: Your AssessIQ sign-in code
 
-Your AssessIQ sign-in code is: {{code}}
+Your sign-in code is: {{code}}
 
-This code expires in {{expires_minutes}} minutes.
+It works for {{expires_minutes}} minutes.
+
+Do not share this code with anyone.
 
 If you did not ask for this code, ignore this email.
 

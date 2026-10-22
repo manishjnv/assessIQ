@@ -71,7 +71,7 @@
     "page_title": "Two-factor authentication enrolled",
     "brand_wordmark": "AssessIQ",
     "greeting": "Hi {{recipientName}},",
-    "security_warning": "If this was not you, contact your administrator now."
+    "security_warning": "If you did not do this, tell your administrator now."
   },
   "totp_reset_notice": {
     "page_title": "Two-factor sign-in reset",

@@ -165,3 +165,54 @@ describe('outcome fills contrast', () => {
     expect(ratio('#0a0a0b', OUTCOME_COLORS.fail.bg)).toBeGreaterThanOrEqual(4.5);
   });
 });
+
+describe('Z-37 approved copy (6 templates)', () => {
+  const cases: Array<{ name: Parameters<typeof renderTemplate>[0]; vars: Record<string, unknown>; subject: string; sentence: string }> = [
+    {
+      name: 'invitation_reminder',
+      vars: { candidateName: 'Priya Sharma', assessmentName: 'SOC Analyst L1', invitationLink: 'https://assessiq.test/i/abc', expiresAt: '2026-07-01T00:00:00Z', tenantName: 'Acme University' },
+      subject: 'Reminder: start SOC Analyst L1 before 2026-07-01T00:00:00Z',
+      sentence: 'Please start before 2026-07-01T00:00:00Z. After that, the link stops working.',
+    },
+    {
+      name: 'attempt_ready_for_review_admin',
+      vars: { candidateName: 'Priya Sharma', assessmentName: 'SOC Analyst L1', tenantName: 'Acme University', attemptId: '6f1c2b3a-0000-4000-8000-000000000001', reviewLink: 'https://assessiq.test/admin/review/1' },
+      subject: 'Priya Sharma finished SOC Analyst L1: ready for review',
+      sentence: 'The answers are ready for you to review.',
+    },
+    {
+      name: 'totp_enrolled',
+      vars: { recipientName: 'Bob', enrolledAt: '2026-05-10T12:00:00Z', tenantName: 'Acme University' },
+      subject: 'Two-factor sign-in is now on',
+      sentence: 'From now on, you need a code from your app each time you sign in.',
+    },
+    {
+      name: 'totp_reset_notice',
+      vars: { recipientName: 'Bob', resetAt: '2026-05-10T12:00:00Z', resetBy: 'an administrator' },
+      subject: 'Your two-factor sign-in was reset',
+      sentence: 'If you did not ask for this reset, tell your administrator now.',
+    },
+    {
+      name: 'evaluation_queue_alert',
+      vars: { count: 6, oldestAgeHours: 30.5, queueLink: 'https://assessiq.test/admin/platform/evaluations' },
+      subject: 'Grading queue: 6 waiting over 24 hours',
+      sentence: '6 attempts have waited more than 24 hours for grading.',
+    },
+    {
+      name: 'admin_email_otp',
+      vars: { code: '123456', expires_minutes: 10 },
+      subject: 'Your AssessIQ sign-in code',
+      sentence: 'It works for 10 minutes.',
+    },
+  ];
+
+  for (const c of cases) {
+    it(`${c.name}: approved subject and sentence render, no placeholder left`, () => {
+      const r = renderTemplate(c.name, c.vars);
+      expect(r.subject).toBe(c.subject);
+      expect(r.text).toContain(c.sentence);
+      expect(r.text).not.toContain('{{');
+      expect(r.html).not.toContain('{{');
+    });
+  }
+});
