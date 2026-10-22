@@ -1155,7 +1155,7 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
               />
               <input
                 type="text"
-                aria-label="Colour code"
+                aria-label="Accent hex value"
                 value={accentInput}
                 placeholder="#3b4cca"
                 maxLength={7}
