@@ -378,3 +378,7 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 - **Why.** The blueprint fields were stored but ignored (Z-51 option b). **Rejected:** refusing `duration_minutes` next to blueprint minutes (it would break assessments that already hold both); scaling points per section (marks are one value for the whole blueprint). **Not included:** admin UI changes beyond the help text; negative marks for blueprint tests (the question's own penalty or the assessment default stays). **Downstream:** module 09 reads the frozen points unchanged; help keys v2 (migration 0240).
 - **Tests.** `src/__tests__/blueprint-whole-test.test.ts` (0 and 2.5 refused); 06 `whole-test-timer.test.ts` (set, empty, running attempt).
 
+
+## S50 additions (2026-10-22)
+- A section may name `pack_id` (EXP-23). It must be a published pack of the tenant (checked at create and PATCH). Publish and reopen check the entitlement of every section pack. The freeze adds the section packs' questions at the same level position and stores `assessment_frozen_pool.pack_id` (NULL = old pool = the assessment pack). A pack with no level at that position fails the fill check.
+- `revokeInvitation` also cancels the candidate's `in_progress` attempt in the same transaction (GATE-8 A3-2); the audit row carries `cancelled_attempt_ids`. The frozen pool also stores `node_ids` (FUT-8).

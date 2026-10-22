@@ -462,3 +462,7 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - **Tests.** `src/__tests__/whole-test-timer.test.ts`, describe "S42 blueprint timer and marks".
 
 - **Z-134 (planned time, one helper).** `plannedDurationSeconds(settings, duration_minutes, level_minutes)` in `src/sections.ts` is the only rule for the attempt length. `startAttempt`, `GET /api/me/assessments` (`duration_seconds`) and the take preview now call it, so all three show the same seconds. Precedence: sectioned `whole_test_minutes`, else section minutes; blueprint `whole_test_minutes`; else assessment time, then level time. Tests: `sections-timing.test.ts`, `attempt-engine.test.ts` (Z-134 case).
+
+## S50 additions (2026-10-22)
+- A section draws only from its own pack (`pack_id` or the assessment pack; frozen NULL = assessment pack). Node draws also match the frozen `node_ids` (FUT-8).
+- Status writers: `submitAttempt` and the read-time auto-submit take `FOR UPDATE`; `updateAttemptStatus` only moves an `in_progress` attempt (GATE-8 A3-3). `/event` refuses server-only types (`SERVER_ONLY_EVENT_TYPES`). Candidate feedback hides `expected_answer` while a retake is left on a real exam. A tenant admin cannot add themselves as a camera reviewer (a super_admin can).

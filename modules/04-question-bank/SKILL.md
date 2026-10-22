@@ -440,3 +440,7 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 - **Why.** Candidates read the version. A version is frozen when an attempt starts, so a translation stored in the version cannot change under a running attempt. A column on `questions` is outside that freeze.
 - **Rejected.** Keeping the overlay in `questions.content_i18n`. A separate translation table is rejected for the same reason.
 - **Not included.** Any code now. Apply the rule when EXP-9 starts. Moving the existing `content_i18n` data is part of EXP-9. Design: `docs/design/2026-10-21-future-ready-question-store.md` D9.
+
+## S50 additions (2026-10-22)
+- Import options: `skip_trigram` (EXP-21, hash classes only), `target_pack_id` and `target_level_position` (EXP-23: append to an existing pack of the same tenant and domain; no pack is created; the pack version is NOT bumped, as with a manual add). Origin `template_generated` (EXP-21) needs a `seed_ref` `<template_id>@<version>:seed=<n>:gen=<generator_version>` (EXP-22); a repeated `seed_ref` is a `duplicate` of class `exact`. Super-admin withdraw by `seed_ref` prefix: `import/seed-withdraw.ts`.
+- xlsx imports run an inflate budget (`assertXlsxInflateBudget`, 4 x `IMPORT_MAX_BYTES`) before ExcelJS reads the workbook (GATE-8 A6-1).
