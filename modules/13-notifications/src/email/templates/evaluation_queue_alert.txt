@@ -2,7 +2,7 @@ Subject: Grading queue: {{count}} waiting over 24 hours
 
 Hello,
 
-Attempts waiting over 24 hours for grading: {{count}}. The oldest has waited {{oldestAgeHours}} hours.
+{{count}} attempts have waited more than 24 hours for grading. The oldest has waited {{oldestAgeHours}} hours.
 
 Open the grading queue:
 {{queueLink}}

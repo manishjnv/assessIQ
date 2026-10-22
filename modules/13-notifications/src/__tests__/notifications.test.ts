@@ -1479,7 +1479,7 @@ describe('i18n resolver (email/i18n.ts)', () => {
       enrolledAt: '2026-05-10T12:00:00Z',
     });
     expect(html).toContain(
-      'If this was not you, contact your administrator now.',
+      'If you did not do this, tell your administrator now.',
     );
   });
 

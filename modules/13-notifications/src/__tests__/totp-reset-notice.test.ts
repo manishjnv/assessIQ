@@ -14,7 +14,7 @@ describe('totp_reset_notice', () => {
       expect(body).toContain('Asha');
       expect(body).toContain('an administrator');
       expect(body).toContain('16 Oct 2026 10:00:00 GMT');
-      expect(body).toContain('set up two-factor authentication again');
+      expect(body).toContain('set up two-factor sign-in again');
       expect(body).not.toContain('{{');
     }
   });

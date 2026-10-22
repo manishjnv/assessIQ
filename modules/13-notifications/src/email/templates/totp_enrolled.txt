@@ -1,10 +1,12 @@
-Subject: You turned on two-factor authentication
+Subject: Two-factor sign-in is now on
 
 Hi {{recipientName}},
 
-You turned on two-factor authentication for your AssessIQ account{{#if tenantName}} at {{tenantName}}{{/if}} on {{enrolledAt}}.
+You turned on two-factor sign-in for your AssessIQ account{{#if tenantName}} at {{tenantName}}{{/if}} on {{enrolledAt}}.
 
-If this was not you, contact your administrator now.
+From now on, you need a code from your app each time you sign in.
+
+If you did not do this, tell your administrator now.
 
 — The AssessIQ team
 {{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

@@ -1,13 +1,13 @@
-Subject: {{candidateName}} completed {{assessmentName}} and is ready for review
+Subject: {{candidateName}} finished {{assessmentName}}: ready for review
 
 Hello,
 
-{{candidateName}} completed {{assessmentName}} at {{tenantName}}.
-
-Reference: {{attemptId}}
+{{candidateName}} finished {{assessmentName}} at {{tenantName}}. The answers are ready for you to review.
 
 Review the attempt:
 {{reviewLink}}
+
+Reference: {{attemptId}}
 
 — The AssessIQ team
 {{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}
