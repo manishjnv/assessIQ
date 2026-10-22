@@ -18,4 +18,18 @@ describe("accent helpers (Z-119)", () => {
     expect(accentBranding("#767676")).toBeDefined();
     expect(accentBranding("#777777")).toBeUndefined();
   });
+
+  it("OLD stored values: a non-hex value in tenants.branding.primary never reaches the theme (CSS)", () => {
+    const old = [
+      "oklch(0.52 0.18 258)",            // the fixture style: not #rrggbb
+      "#3b4cca;background:url(//x)",     // injection tail
+      "#3b4cca\n",                       // trailing newline
+      "red",
+      "var(--x)",
+      "#abc",
+      5 as unknown as string,
+      "",
+    ];
+    for (const v of old) expect(accentBranding(v)).toBeUndefined();
+  });
 });
