@@ -190,7 +190,7 @@ describe('Z-37 approved copy (6 templates)', () => {
       name: 'totp_reset_notice',
       vars: { recipientName: 'Bob', resetAt: '2026-05-10T12:00:00Z', resetBy: 'an administrator' },
       subject: 'Your two-factor sign-in was reset',
-      sentence: 'If you did not ask for this reset, tell your administrator now.',
+      sentence: 'Sign in as usual. AssessIQ will ask you to set up two-factor sign-in again.',
     },
     {
       name: 'evaluation_queue_alert',

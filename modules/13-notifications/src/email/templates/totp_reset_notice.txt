@@ -6,8 +6,6 @@ Hi {{recipientName}},
 
 Sign in as usual. AssessIQ will ask you to set up two-factor sign-in again.
 
-If you did not ask for this reset, tell your administrator now.
-
 {{_t_security_warning}}
 
 — The AssessIQ team
