@@ -8,7 +8,7 @@
  * the embed flag is static for the lifetime of the attempt).
  */
 import { useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 
 export function useEmbedMode(): boolean {
   const [searchParams] = useSearchParams();

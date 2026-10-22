@@ -5,7 +5,7 @@ import React from "react";
 
 const regenerate = vi.fn();
 
-vi.mock("react-router-dom", () => ({
+vi.mock("react-router", () => ({
   Link: ({ to, children }: { to: string; children: React.ReactNode }) =>
     React.createElement("a", { href: to }, children),
   useNavigate: () => vi.fn(),

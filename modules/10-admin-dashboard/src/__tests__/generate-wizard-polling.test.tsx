@@ -11,7 +11,7 @@ const att = (status: string, extra: object = {}) => ({
 });
 const cat = (id: string, name: string) => ({ id, domain_id: "d1", slug: id, name, description: null, relevance_score: 1, default_selected: true, supported_types: ["mcq"], default_question_count: 2, status: "active" });
 
-vi.mock("react-router-dom", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("react-router", () => ({ useNavigate: () => vi.fn() }));
 vi.mock("../api.js", () => ({
   AdminApiError: class AdminApiError extends Error { status = 0; },
   adminApi: vi.fn(async () => ({ items: [] })),

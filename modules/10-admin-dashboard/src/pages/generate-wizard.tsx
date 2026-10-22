@@ -25,7 +25,7 @@
 import { difficultyLabel, questionTypeLabel } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
 import { FrameworkTreePicker } from "../components/FrameworkTreePicker.js";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Spinner, Chip } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { isQuestionType, RUBRIC_REQUIRED_IDS, getQuestionType, type QuestionType } from "@assessiq/question-types";

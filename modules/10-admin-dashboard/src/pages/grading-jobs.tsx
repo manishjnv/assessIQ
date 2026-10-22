@@ -25,7 +25,7 @@
 //   - No new @assessiq/ui-system primitives — Card, Icon, StatCard, Chip, Spinner.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { Card, Chip, Icon, Spinner, StatCard, formatDateTime } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
 import { openAdminGuide } from "../components/AdminHelp.js";

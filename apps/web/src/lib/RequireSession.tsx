@@ -1,4 +1,4 @@
-import { Link, Navigate, useLocation } from 'react-router-dom';
+import { Link, Navigate, useLocation } from 'react-router';
 import { useSession } from './session';
 import type { ReactNode } from 'react';
 

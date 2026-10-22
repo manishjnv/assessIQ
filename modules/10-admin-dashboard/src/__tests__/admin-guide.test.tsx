@@ -2,7 +2,7 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 
 const entries = new Map<string, { shortText: string; longMd: string }>([
   ["admin.guide.step_01", { shortText: "Find your licensed sets", longMd: "Click **Question bank** in the sidebar." }],

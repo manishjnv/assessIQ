@@ -6,7 +6,7 @@ import React from "react";
 const reset = vi.fn();
 const sessionRole = vi.hoisted(() => ({ role: "admin" as string }));
 
-vi.mock("react-router-dom", () => ({ useParams: () => ({}), useNavigate: () => vi.fn() }));
+vi.mock("react-router", () => ({ useParams: () => ({}), useNavigate: () => vi.fn() }));
 vi.mock("../api.js", () => ({
   adminApi: vi.fn().mockResolvedValue({
     items: [

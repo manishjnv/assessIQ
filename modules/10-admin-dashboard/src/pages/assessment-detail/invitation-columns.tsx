@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Chip, formatDate, formatDateTime } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { invitationExpiry, invitationStatusColor, invitationStatusLabel, type Invitation } from "./shared.js";

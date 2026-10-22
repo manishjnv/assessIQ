@@ -10,7 +10,7 @@
 // answers live only in this tab's memory; the page says so.
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { Link } from 'react-router-dom';
+import { Link } from 'react-router';
 import { Button, Card, Chip, Logo, Modal, ScoreRing } from '@assessiq/ui-system';
 import { AttemptTimer, AutosaveIndicator, QuestionNavigator } from '@assessiq/candidate-ui';
 import type { AutosaveStatus, NavigatorItem } from '@assessiq/candidate-ui';

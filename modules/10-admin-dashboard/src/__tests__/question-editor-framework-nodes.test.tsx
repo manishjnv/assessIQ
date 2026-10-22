@@ -6,7 +6,7 @@ import React from "react";
 const put = vi.fn();
 let role = "super_admin";
 
-vi.mock("react-router-dom", () => ({
+vi.mock("react-router", () => ({
   useParams: () => ({ id: "q1" }),
   useSearchParams: () => [new URLSearchParams()],
   useNavigate: () => vi.fn(),

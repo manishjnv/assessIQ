@@ -21,7 +21,7 @@
 //   - No Monaco / KQL editor (Phase 2 deferred, decision #11).
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate, Navigate } from "react-router-dom";
+import { useParams, useNavigate, Navigate } from "react-router";
 import { Button, Drawer, Icon, Modal, Spinner } from "@assessiq/ui-system";
 import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } from "@assessiq/candidate-ui";

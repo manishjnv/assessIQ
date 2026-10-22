@@ -12,7 +12,7 @@
 //  - Errors show a fixed fallback text; raw API messages are not rendered.
 
 import React, { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { HelpTip } from "@assessiq/help-system/components";
 import { adminApi } from "../api.js";
 import {

@@ -8,7 +8,7 @@
 // Tabs: All | Submitted | Awaiting evaluation | Graded | Released.
 
 import React, { useEffect, useState, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { Chip, EmptyState, Table, ErasedChip } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";

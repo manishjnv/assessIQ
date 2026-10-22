@@ -1,6 +1,6 @@
 import React from "react";
 import type { Dispatch, SetStateAction } from "react";
-import type { NavigateFunction } from "react-router-dom";
+import type { NavigateFunction } from "react-router";
 import { Chip, formatRelative } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { questionTypeLabel, questionStatusLabel } from "../../lib/labels.js";

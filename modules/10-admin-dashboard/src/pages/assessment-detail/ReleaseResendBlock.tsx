@@ -1,6 +1,6 @@
 import React from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Chip, Modal } from "@assessiq/ui-system";
 import { type Assessment, type ReleaseAllResponse, RESEND_ALL_CAP, SKIP_REASON } from "./shared.js";
 

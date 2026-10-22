@@ -37,7 +37,7 @@
 // the email lookup under RLS (anti-enumeration), so the page never guesses one.
 
 import { type CSSProperties, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router';
 import { Button, Chip, Field, Logo } from '@assessiq/ui-system';
 import { api, ApiCallError } from '../../lib/api';
 import { readAuthScopeOnce, authScopeCopy, type AuthScopeBannerCopy } from '../../lib/authScope';

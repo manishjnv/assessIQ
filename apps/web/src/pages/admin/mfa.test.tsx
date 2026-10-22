@@ -16,7 +16,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import React from 'react';
-import { useNavigate, type NavigateFunction } from 'react-router-dom';
+import { useNavigate, type NavigateFunction } from 'react-router';
 
 import { api } from '../../lib/api';
 import { useSession, fetchWhoami } from '../../lib/session';
@@ -28,8 +28,8 @@ import { AdminMfa } from './mfa';
 
 vi.mock('../../lib/api');
 vi.mock('../../lib/session');
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom');
+vi.mock('react-router', async () => {
+  const actual = await vi.importActual('react-router');
   return {
     ...(actual as object),
     useNavigate: vi.fn(),

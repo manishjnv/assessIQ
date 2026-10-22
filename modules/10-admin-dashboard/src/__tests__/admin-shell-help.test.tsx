@@ -3,7 +3,7 @@
 
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, act } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter } from "react-router";
 import { ThemeProvider } from "@assessiq/ui-system";
 import React from "react";
 

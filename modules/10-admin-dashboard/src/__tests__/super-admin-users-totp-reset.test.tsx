@@ -5,7 +5,7 @@ import React from "react";
 
 const reset = vi.fn();
 
-vi.mock("react-router-dom", () => ({ useParams: () => ({ tenantId: "t-1" }), useNavigate: () => vi.fn() }));
+vi.mock("react-router", () => ({ useParams: () => ({ tenantId: "t-1" }), useNavigate: () => vi.fn() }));
 vi.mock("../api.js", () => ({
   adminApi: vi.fn(),
   AdminApiError: class AdminApiError extends Error {},

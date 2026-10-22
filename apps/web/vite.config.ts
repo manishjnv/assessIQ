@@ -43,7 +43,7 @@ export default defineConfig({
         // re-download when admin-dashboard or candidate-ui chunks change.
         codeSplitting: {
           groups: [
-            { name: "vendor-react", test: /node_modules[\\/](react|react-dom|react-router-dom|react-router|scheduler)[\\/]/ },
+            { name: "vendor-react", test: /node_modules[\\/](react|react-dom|react-router|scheduler)[\\/]/ },
           ],
         },
       },

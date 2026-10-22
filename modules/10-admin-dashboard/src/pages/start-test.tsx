@@ -5,7 +5,7 @@
 // The six-screen path (assessments / assessment-detail) stays untouched.
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Button, Card, Chip, FieldHelp, Input, Label, PageHeader, Spinner } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { csvCell } from "@assessiq/core/escape";
