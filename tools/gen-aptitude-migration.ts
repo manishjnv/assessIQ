@@ -1,7 +1,7 @@
 /**
  * tools/gen-aptitude-migration.ts
  *
- * Generates docs/exam-content/0109_seed_platform_aptitude_pack.sql (gitignored, local only)
+ * Generates docs/exam-content/Aptitude/0109_seed_platform_aptitude_pack.sql (gitignored, local only)
  * from an aptitude-question JSON file. The SQL is idempotent (safe to re-run).
  * It holds question text + answer keys, so it must never be committed (public repo):
  * apply it on the VPS by hand, or load questions via POST /api/admin/questions/import.
@@ -275,7 +275,7 @@ if (isMain) {
       : path.resolve(
           path.dirname(fileURLToPath(import.meta.url)),
           // ponytail: exam content stays out of git (public repo) — docs/ is gitignored.
-          "../docs/exam-content/0109_seed_platform_aptitude_pack.sql",
+          "../docs/exam-content/Aptitude/0109_seed_platform_aptitude_pack.sql",
         );
   const raw = readFileSync(input, "utf8");
   const sql = generateAptitudeSql(JSON.parse(raw) as AptitudeInput, {

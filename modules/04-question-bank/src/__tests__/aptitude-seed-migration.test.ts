@@ -31,7 +31,7 @@ import {
 const HERE = dirname(fileURLToPath(import.meta.url)) + sep;
 const MODULES = join(HERE, "..", "..", "..");
 // Real content lives outside git (public repo) — present only on a machine that holds docs/exam-content/.
-const REAL_0109 = join(MODULES, "..", "docs", "exam-content", "0109_seed_platform_aptitude_pack.sql");
+const REAL_0109 = join(MODULES, "..", "docs", "exam-content", "Aptitude", "0109_seed_platform_aptitude_pack.sql");
 
 let container: StartedTestContainer;
 let baseUrl: (db: string) => string;

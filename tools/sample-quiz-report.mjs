@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // tools/sample-quiz-report.mjs (Z-84, SAMPLE-1)
 //
-// Unpacks the sample quiz zips in docs/Sample-Quiz into a scratch folder OUTSIDE the repo,
+// Unpacks the sample quiz zips in docs/exam-content/Aptitude/Sample-Quiz into a scratch folder OUTSIDE the repo,
 // parses each source, normalises the questions to the importer shape (stem, options, answer
 // key, difficulty, topic, source reference, rights status) and writes:
-//   (a) a count-and-quality report (console + docs/plans/2026-10-20-sample-quiz-report.md)
-//   (b) one normalised JSON per source into docs/Sample-Quiz/normalised/ (gitignored)
+//   (a) a count-and-quality report (console + docs/exam-content/Aptitude/2026-10-20-sample-quiz-report.md)
+//   (b) one normalised JSON per source into docs/exam-content/Aptitude/Sample-Quiz/normalised/ (gitignored)
 //
 // Usage:
 //   node tools/sample-quiz-report.mjs <scratch-dir> [--zips <dir>] [--out <dir>] [--report <file>]
@@ -26,9 +26,9 @@ const flag = (name, dflt) => {
   const i = argv.indexOf(`--${name}`);
   return i >= 0 && argv[i + 1] ? argv[i + 1] : dflt;
 };
-const ZIPS = resolve(REPO, flag("zips", "docs/Sample-Quiz"));
-const OUT = resolve(REPO, flag("out", "docs/Sample-Quiz/normalised"));
-const REPORT = resolve(REPO, flag("report", "docs/plans/2026-10-20-sample-quiz-report.md"));
+const ZIPS = resolve(REPO, flag("zips", "docs/exam-content/Aptitude/Sample-Quiz"));
+const OUT = resolve(REPO, flag("out", "docs/exam-content/Aptitude/Sample-Quiz/normalised"));
+const REPORT = resolve(REPO, flag("report", "docs/exam-content/Aptitude/2026-10-20-sample-quiz-report.md"));
 const TODAY = "2026-10-20";
 
 if (!scratchArg) {
