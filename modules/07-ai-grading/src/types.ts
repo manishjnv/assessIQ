@@ -12,7 +12,7 @@ import { z } from "zod";
 import { QUESTION_TYPES, QUESTION_TYPE_REGISTRY, type QuestionType as RegistryQuestionType } from "@assessiq/question-types";
 
 // ---------------------------------------------------------------------------
-// AnchorFinding — Stage 1 output (claude-haiku-4-5 via grade-anchors skill)
+// AnchorFinding — Stage 1 output (claude-haiku-5-5 via grade-anchors skill)
 // ---------------------------------------------------------------------------
 
 export const AnchorFindingSchema = z.object({
@@ -24,7 +24,7 @@ export const AnchorFindingSchema = z.object({
 export type AnchorFinding = z.infer<typeof AnchorFindingSchema>;
 
 // ---------------------------------------------------------------------------
-// BandFinding — Stage 2 output (claude-sonnet-4-6 via grade-band skill)
+// BandFinding — Stage 2 output (claude-sonnet-5-5 via grade-band skill)
 // ---------------------------------------------------------------------------
 
 export const BandFindingSchema = z.object({
@@ -154,7 +154,7 @@ export interface SkillVersion {
   short: string;
   /** Frontmatter `version:` value, e.g. `v1`. */
   label: string;
-  /** Frontmatter `model:` value, e.g. `claude-haiku-4-5`. */
+  /** Frontmatter `model:` value, e.g. `claude-haiku-5-5`. */
   model: string;
 }
 

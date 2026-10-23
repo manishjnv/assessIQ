@@ -145,3 +145,27 @@ describe("key failover", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("model choice", () => {
+  it("uses tool_choice auto for a model that rejects forced tool calls, and sends the effort", async () => {
+    process.env["AI_API_MODEL_GRADE_ANCHORS"] = "claude-sonnet-5-5";
+    process.env["AI_API_EFFORT"] = "low";
+    try {
+      fetchMock
+        .mockResolvedValueOnce(apiReply("submit_anchors", { findings: [{ anchor_id: "a1", hit: true }, { anchor_id: "a2", hit: false }] }))
+        .mockResolvedValueOnce(apiReply("submit_band", { reasoning_band: 2, ai_justification: "ok" }));
+      await gradeSubjective(INPUT);
+      const first = JSON.parse((fetchMock.mock.calls[0] as [string, { body: string }])[1].body);
+      expect(first.model).toBe("claude-sonnet-5-5");
+      expect(first.tool_choice).toEqual({ type: "auto" });
+      expect(first.output_config).toEqual({ effort: "low" });
+      const second = JSON.parse((fetchMock.mock.calls[1] as [string, { body: string }])[1].body);
+      expect(second.model).toBe("claude-haiku-4-5"); // frontmatter model, no override for the band stage
+      expect(second.tool_choice).toEqual({ type: "tool", name: "submit_band" });
+      expect(second.output_config).toBeUndefined(); // 4.x model: no effort sent
+    } finally {
+      delete process.env["AI_API_MODEL_GRADE_ANCHORS"];
+      delete process.env["AI_API_EFFORT"];
+    }
+  });
+});

@@ -674,7 +674,7 @@ export async function generateQuestions(
     timeoutMs:
       GENERATION_BASE_TIMEOUT_MS +
       input.count * GENERATION_PER_ITEM_TIMEOUT_MS,
-    model: "claude-sonnet-4-6",
+    model: "claude-sonnet-5-5",
   });
 
   const raw = parseToolInput(events, TOOL_SUBMIT_QUESTIONS);
@@ -846,7 +846,7 @@ export async function generateQuestionsByType(
     timeoutMs:
       GENERATION_BASE_TIMEOUT_MS +
       input.count * GENERATION_PER_ITEM_TIMEOUT_MS,
-    model: "claude-sonnet-4-6",
+    model: "claude-sonnet-5-5",
   });
 
   const raw = parseToolInput(events, TOOL_SUBMIT_QUESTIONS);
@@ -1037,7 +1037,7 @@ export async function generateRubricDraft(
     attemptId: "rubric-generation",
     questionId: input.questionId,
     timeoutMs: RUBRIC_TIMEOUT_MS,
-    model: "claude-sonnet-4-6",
+    model: "claude-sonnet-5-5",
   });
 
   const raw = parseToolInput(events, TOOL_SUBMIT_RUBRIC);
@@ -1272,7 +1272,20 @@ function leaseLostError(opts: RunSkillOpts): AppError {
   );
 }
 
+/**
+ * Owner rule 2026-10-23: all AI use runs on the latest Haiku, Sonnet or Opus. A stage that names no
+ * model gets the `model:` of its skill frontmatter (grade-anchors, grade-band, grade-escalate), so the
+ * Max-plan runs no longer fall back to the CLI default.
+ */
 function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
+  if (opts.model) return runSkillWithModel(opts);
+  return skillSha(opts.skill).then(
+    (s) => runSkillWithModel(s.model && s.model !== "unspecified" ? { ...opts, model: s.model } : opts),
+    () => runSkillWithModel(opts),
+  );
+}
+
+function runSkillWithModel(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
   // RW-64: never spawn for a run that already lost its lease.
   if (opts.signal?.aborted) return Promise.reject(leaseLostError(opts));
   const prompt =

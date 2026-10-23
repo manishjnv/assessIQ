@@ -109,7 +109,7 @@ export function takeApiUsage(): ApiUsageTotals {
 // ---------------------------------------------------------------------------
 
 function modelFor(skill: string, skillModel: string): string {
-  // Per-stage override, then the skill frontmatter model. Example: AI_API_MODEL_GRADE_BAND=<model id>.
+  // Per-stage override, then the skill frontmatter model. Example: AI_API_MODEL_GRADE_BAND=claude-sonnet-5-5.
   const env = process.env[`AI_API_MODEL_${skill.toUpperCase().replace(/-/g, "_")}`];
   return env && env.trim() ? env.trim() : skillModel;
 }
@@ -127,6 +127,22 @@ function apiKeys(): string[] {
 /** Credit exhausted, bad or revoked key, or a rate or spend limit on this key. */
 function isKeyProblem(status: number, message: string): boolean {
   return status === 401 || status === 402 || status === 403 || status === 429 || (status === 400 && /credit balance/i.test(message));
+}
+
+/**
+ * Models that reject a forced tool call with a 400 (Sonnet 5.5, Opus 5.x, Fable and Mythos).
+ * For these the request uses tool_choice auto: the user message already says to answer only by
+ * calling the tool, and the reply is validated by the same parsers as before.
+ */
+function rejectsForcedToolChoice(model: string): boolean {
+  return /sonnet-5-5|opus-5|fable|mythos/.test(model);
+}
+
+/** Optional effort level for the 5.x models (env AI_API_EFFORT: low, medium, high, xhigh or max). */
+function effortFor(model: string): "low" | "medium" | "high" | "xhigh" | "max" | undefined {
+  const e = (process.env["AI_API_EFFORT"] ?? "").trim();
+  if (!/(haiku|sonnet|opus|fable|mythos)-5/.test(model)) return undefined; // major version 5 only: 4.x models do not all accept effort
+  return e === "low" || e === "medium" || e === "high" || e === "xhigh" || e === "max" ? e : undefined;
 }
 
 /** Test hook: start again on the first key. */
@@ -172,7 +188,8 @@ async function runStage(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
         // The skill text repeats on every call: cache it.
         system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         tools: [{ name: toolName, description: tool.description, input_schema: tool.input_schema }],
-        tool_choice: { type: "tool", name: toolName },
+        tool_choice: rejectsForcedToolChoice(model) ? { type: "auto" } : { type: "tool", name: toolName },
+        ...(effortFor(model) ? { output_config: { effort: effortFor(model) } } : {}),
         messages: [{ role: "user", content: user }],
       }),
     });
