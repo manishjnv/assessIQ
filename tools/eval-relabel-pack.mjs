@@ -30,7 +30,12 @@ for (const r of runs) {
   }
 }
 ok.sort((a, b) => h(a).localeCompare(h(b)));
-const picked = [...miss, ...ok.slice(0, miss.length)].sort((a, b) => h("shuffle" + a).localeCompare(h("shuffle" + b)));
+let picked = [...miss, ...ok.slice(0, miss.length)].sort((a, b) => h("shuffle" + a).localeCompare(h("shuffle" + b)));
+// SLICE=<band>: instead, every case whose LABEL is that band (misses and matches together), shuffled. Still blind.
+if (process.env.SLICE) {
+  const want = Number(process.env.SLICE);
+  picked = [...miss, ...ok].filter((id) => find(id, "expected")?.band === want).sort((a, b) => h("shuffle" + a).localeCompare(h("shuffle" + b)));
+}
 
 const out = [];
 const key = {};
@@ -53,4 +58,4 @@ picked.forEach((id, i) => {
 });
 console.log(out.join(""));
 console.log("\n=====KEY=====");
-console.log(JSON.stringify({ misses: miss.length, matches: picked.length - miss.length, key }));
+console.log(JSON.stringify({ items: picked.length, key }));
