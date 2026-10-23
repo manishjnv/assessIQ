@@ -379,9 +379,10 @@ export async function gradeWithRunner(
       const sha = await skillSha(SKILL_ESCALATE);
       escalateSha = { short: sha.short, label: sha.label, model: sha.model };
 
-      // High-stakes: the two models must agree exactly; any difference -> manual review.
-      if (Math.abs(stage2Band - stage3Band) >= (input.high_stakes === true ? 1 : 2)) {
-        // ≥2-band disagreement: surface to admin, don't auto-pick.
+      // Z-165 (owner default 2026-10-23): the two models must agree exactly; any difference -> the admin sees
+      // both verdicts. Before, a 1-band difference let Stage 3 win silently (high-stakes was the only strict case).
+      if (stage2Band !== stage3Band) {
+        // Disagreement: surface to admin, don't auto-pick.
         // The admin sees both verdicts; escalation_chosen_stage='manual'.
         escalationStage = "manual";
         // Keep Stage 2 band as the proposal's primary band; admin chooses.

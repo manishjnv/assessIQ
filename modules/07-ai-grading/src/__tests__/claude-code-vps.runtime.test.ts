@@ -234,7 +234,7 @@ describe("gradeSubjective — stage model", () => {
 // ---------------------------------------------------------------------------
 
 describe("gradeSubjective — Stage 3 auto-escalation close agreement", () => {
-  it("Stage 3 wins when |stage2Band - stage3Band| < 2; escalation_chosen_stage='3'", async () => {
+  it("Z-165: a 1-band difference goes to the admin (manual), Stage 2 band kept, escalate SHA recorded", async () => {
     mockSpawn.mockImplementation((_cmd: string, args: readonly string[]) => {
       const skill = skillFromArgs(args);
       if (skill === "grade-anchors") {
@@ -245,7 +245,7 @@ describe("gradeSubjective — Stage 3 auto-escalation close agreement", () => {
         return makeFakeProc([toolUseEvent("submit_band", bandPayload(2, true))]);
       }
       if (skill === "grade-escalate") {
-        // Stage 3: band=3 — |2-3|=1 < 2, Stage 3 wins
+        // Stage 3: band=3 — they differ by 1: the admin sees both (before Z-165 Stage 3 won silently)
         return makeFakeProc([toolUseEvent("submit_band", bandPayload(3, false))]);
       }
       throw new Error(`Unexpected skill: ${skill}`);
@@ -253,8 +253,8 @@ describe("gradeSubjective — Stage 3 auto-escalation close agreement", () => {
 
     const proposal = await gradeSubjective(BASE_INPUT);
 
-    expect(proposal.band.reasoning_band).toBe(3); // Stage 3 verdict adopted
-    expect(proposal.escalation_chosen_stage).toBe("3");
+    expect(proposal.band.reasoning_band).toBe(2); // Stage 2 band stays the primary band
+    expect(proposal.escalation_chosen_stage).toBe("manual");
     // Escalate SHA slot populated
     expect(proposal.prompt_version_sha).toBe(
       `anchors:${CANNED_SHORT};band:${CANNED_SHORT};escalate:${CANNED_SHORT}`,
@@ -319,7 +319,7 @@ describe("gradeSubjective — force_escalate=true", () => {
       }
       if (skill === "grade-escalate") {
         escalateCalled = true;
-        // Stage 3: band=3 — |2-3|=1 < 2, Stage 3 wins
+        // Stage 3: band=3 — a 1-band difference goes to the admin (Z-165)
         return makeFakeProc([toolUseEvent("submit_band", bandPayload(3, false))]);
       }
       throw new Error(`Unexpected skill: ${skill}`);
@@ -328,8 +328,8 @@ describe("gradeSubjective — force_escalate=true", () => {
     const proposal = await gradeSubjective({ ...BASE_INPUT, force_escalate: true });
 
     expect(escalateCalled).toBe(true);
-    expect(proposal.band.reasoning_band).toBe(3);
-    expect(proposal.escalation_chosen_stage).toBe("3");
+    expect(proposal.band.reasoning_band).toBe(2);
+    expect(proposal.escalation_chosen_stage).toBe("manual");
   });
 
   it("force_escalate=true with ≥2 band gap → manual reconciliation", async () => {
@@ -683,8 +683,15 @@ describe("gradeSubjective - high_stakes", () => {
     expect(p.escalation_chosen_stage).toBe("2");
   });
 
-  it("regression: not high_stakes, 1-band difference (forced) -> Stage 3 still wins", async () => {
+  it("Z-165: not high_stakes, 1-band difference (forced) -> manual too (same rule for every test)", async () => {
     mockStages(2, 3);
+    const p = await gradeSubjective({ ...BASE_INPUT, force_escalate: true });
+    expect(p.escalation_chosen_stage).toBe("manual");
+    expect(p.band.reasoning_band).toBe(2);
+  });
+
+  it("Z-165: when Stage 3 agrees with Stage 2 the stage stays '3' (same band)", async () => {
+    mockStages(3, 3);
     const p = await gradeSubjective({ ...BASE_INPUT, force_escalate: true });
     expect(p.escalation_chosen_stage).toBe("3");
     expect(p.band.reasoning_band).toBe(3);
