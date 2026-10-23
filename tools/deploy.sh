@@ -78,7 +78,13 @@ step 2 "VPS preflight"
 R "test -d $DIR/.git" || fail "$DIR is not a git clone (or ssh failed)"
 dirty="$(R "cd $DIR && git status --porcelain --untracked-files=no")" || fail "git status failed"
 [ -z "$dirty" ] || fail "VPS has tracked-file changes: $dirty"
-ok
+# Z-164 E17: a recreate of assessiq-api kills a running eval (it runs inside that container) and wastes its AI spend.
+# Count only; the pattern [c]li.ts keeps grep from matching itself. Never kill the eval from here (no pkill -f).
+evals="$(R "docker exec assessiq-api sh -c \"ps -eo args | grep '[c]li.ts run' | wc -l\" 2>/dev/null || echo 0")" || fail "cannot check for a running eval"
+evals="$(printf '%s' "$evals" | tr -d '[:space:]')"
+case "$evals" in ''|*[!0-9]*) fail "cannot read the running-eval count: '$evals'" ;; esac
+[ "$evals" -eq 0 ] || fail "an eval is running in assessiq-api ($evals process): a deploy would kill it. Wait for it to end, then deploy again"
+ok "no eval running"
 
 # (3) pull
 step 3 "pull"
