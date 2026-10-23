@@ -186,6 +186,19 @@ export function coerceSubmitAnchorsPayload(raw: unknown): unknown {
 export async function gradeSubjective(
   input: GradingInput,
 ): Promise<GradingProposal> {
+  return gradeWithRunner(input, runSkill);
+}
+
+/**
+ * The three-stage orchestration (anchors, band, escalation, score, provenance),
+ * with the stage runner as a parameter. The CLI runtime passes `runSkill`; the
+ * API runtime (anthropic-api.ts) passes a runner that returns the same
+ * stream-json-shaped events, so both modes share one scoring path.
+ */
+export async function gradeWithRunner(
+  input: GradingInput,
+  runSkill: (opts: RunSkillOpts) => Promise<StreamJsonEvent[]>,
+): Promise<GradingProposal> {
   const rubric = input.rubric as Rubric;
   if (!rubric || !Array.isArray(rubric.anchors)) {
     throw new AppError(
@@ -1222,7 +1235,7 @@ export async function generateAnswerGuidanceDraft(
 // runSkill — single `claude -p` subprocess, returns parsed stream-json events
 // ---------------------------------------------------------------------------
 
-interface RunSkillOpts {
+export interface RunSkillOpts {
   skill: string;
   promptVars: object;
   /** RW-92: optional instruction block appended after the JSON inputs. */

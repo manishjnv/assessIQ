@@ -463,6 +463,13 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0 })
 
   console.log(`\n[run] done — ${passed} passed, ${failed} failed`);
   console.log(`[run] output: ${runDir}`);
+  if (mode === "anthropic-api") {
+    // Token counts only (no answer text): the real cost per case comes from these.
+    const { takeApiUsage } = await import("../src/runtimes/anthropic-api.js");
+    const usage = takeApiUsage();
+    console.log(`[run] api usage: ${JSON.stringify(usage)}`);
+    writeFileSync(join(runDir, "usage.json"), JSON.stringify(usage, null, 2));
+  }
   if (abortedReason) process.exit(2); // partial run: do not compare or bless it
 }
 

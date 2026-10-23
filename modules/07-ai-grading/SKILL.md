@@ -378,3 +378,8 @@ Read-only review. No code changed or deleted. Earlier reviews: `docs/plans/archi
 
 ## S51 additions (2026-10-23)
 - `ci/lint-no-ambient-claude.ts` grew pattern 8 (`child_process` outside `CHILD_PROCESS_ALLOW_LIST`), dynamic-import and string-literal spawn detection, banned `jobs/` and `cron/` paths, and `.js .mjs .cjs .sh` scanning. The health probe `execFileP('claude', ['--version'])` is the only allowed `claude` call outside the runtime.
+
+## anthropic-api runtime (2026-10-23, Z-163)
+
+`runtimes/anthropic-api.ts` grades through the Messages API (plain fetch, forced tool call, cached skill system prompt) and reuses `gradeWithRunner` from `claude-code-vps.ts`. Token counts per call are logged and totalled (`takeApiUsage`). Production mode stays `claude-code-vps`. See `docs/05-ai-pipeline.md` section 2026-10-23.
+

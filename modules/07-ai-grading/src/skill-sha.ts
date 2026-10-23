@@ -84,3 +84,10 @@ export async function skillSha(name: string): Promise<ParsedSkill> {
 
   return { sha256, short, label, model };
 }
+
+/** SKILL.md text without the frontmatter block: the system prompt for the API runtime. */
+export async function readSkillBody(name: string): Promise<string> {
+  const text = (await readFile(skillPath(name), "utf8")).replace(/^﻿/, "");
+  return text.replace(FM_BLOCK_RE, "").replace(/^\s+/, "");
+}
+
