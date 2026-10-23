@@ -324,12 +324,14 @@ interface RunOptions {
   only: string[];
   /** Pause between cases, so a Max usage limit is not hit in one burst. */
   delayMs: number;
+  /** api mode: stop when input + output tokens so far pass this number. 0 = no cap. */
+  budgetTokens: number;
 }
 
 /** Abort the run after this many cases in a row that end in an error (usage limit, auth, config). */
 const MAX_CONSECUTIVE_ERRORS = 3;
 
-async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0 }): Promise<void> {
+async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, budgetTokens: 0 }): Promise<void> {
   const { gradeSubjective } = await import("../src/runtime-selector.js");
   // E2: sha of all three grading skills at run start (Stage 3 rarely runs, so the
   // per-result prompt_version_sha often has escalate "-"). Throws if a skill is missing.
@@ -361,6 +363,8 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0 })
   let failed = 0;
   let consecutiveErrors = 0;
   let abortedReason: string | null = null;
+  const peekUsage =
+    mode === "anthropic-api" ? (await import("../src/runtimes/anthropic-api.js")).peekApiUsage : null;
 
   // Prompt version tracking — populated from first successful result
   let promptVersionShas: Record<string, string> = {};
@@ -440,6 +444,14 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0 })
       console.error(`[run] ABORTED — ${abortedReason}`);
       console.error('[run] A usage limit shows as "subprocess exited with code 1". Check the Claude login quota on the host before a re-run.');
       break;
+    }
+    if (peekUsage && opts.budgetTokens > 0) {
+      const u = peekUsage();
+      if (u.input_tokens + u.output_tokens > opts.budgetTokens) {
+        abortedReason = `token budget ${opts.budgetTokens} passed (${u.input_tokens} in, ${u.output_tokens} out)`;
+        console.error(`[run] ABORTED — ${abortedReason}`);
+        break;
+      }
     }
     if (opts.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, opts.delayMs));
   }
@@ -788,7 +800,7 @@ const subcommand = rawArgs[0];
 if (!subcommand || subcommand === "--help" || subcommand === "-h") {
   console.log(
     `Usage:
-  pnpm tsx modules/07-ai-grading/eval/cli.ts run     --mode <claude-code-vps|anthropic-api> [--only aiq-log,aiq-scen] [--delay-ms 2000]
+  pnpm tsx modules/07-ai-grading/eval/cli.ts run     --mode <claude-code-vps|anthropic-api> [--only aiq-log,aiq-scen] [--delay-ms 2000] [--budget-tokens 300000]
   pnpm tsx modules/07-ai-grading/eval/cli.ts compare --run <ISO> [--baseline <YYYY-MM-DD>]
   pnpm tsx modules/07-ai-grading/eval/cli.ts bless   --run <ISO>
   pnpm tsx modules/07-ai-grading/eval/cli.ts harvest-overrides --since <YYYY-MM-DD>   (needs DATABASE_URL)`,
@@ -804,6 +816,7 @@ switch (subcommand) {
         mode: { type: "string" },
         only: { type: "string" },
         "delay-ms": { type: "string" },
+        "budget-tokens": { type: "string" },
       },
       strict: true,
     });
@@ -818,7 +831,12 @@ switch (subcommand) {
       console.error("[error] --delay-ms must be a number >= 0");
       process.exit(1);
     }
-    await cmdRun(mode, { only, delayMs });
+    const budgetTokens = Number(values["budget-tokens"] ?? "0");
+    if (!Number.isFinite(budgetTokens) || budgetTokens < 0) {
+      console.error("[error] --budget-tokens must be a number >= 0");
+      process.exit(1);
+    }
+    await cmdRun(mode, { only, delayMs, budgetTokens });
     break;
   }
 

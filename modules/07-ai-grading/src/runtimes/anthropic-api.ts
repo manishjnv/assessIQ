@@ -92,6 +92,11 @@ function emptyTotals(): ApiUsageTotals {
   return { calls: 0, input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, by_model: {} };
 }
 
+/** Token counts so far, without resetting (the eval budget check). */
+export function peekApiUsage(): ApiUsageTotals {
+  return totals;
+}
+
 /** Returns the token counts since the last call and resets them. */
 export function takeApiUsage(): ApiUsageTotals {
   const out = totals;
@@ -109,12 +114,32 @@ function modelFor(skill: string, skillModel: string): string {
   return env && env.trim() ? env.trim() : skillModel;
 }
 
+// Keys: the config key, then an optional fallback (set by the eval script only). When a key fails on
+// credit or auth, the runtime moves to the next key and stays on it for the rest of the process.
+let activeKey = 0;
+
+function apiKeys(): string[] {
+  return [config.ANTHROPIC_API_KEY, process.env["ANTHROPIC_API_KEY_FALLBACK"]].filter(
+    (k): k is string => typeof k === "string" && k.trim().length > 0,
+  );
+}
+
+/** Credit exhausted, bad or revoked key, or a rate or spend limit on this key. */
+function isKeyProblem(status: number, message: string): boolean {
+  return status === 401 || status === 402 || status === 403 || status === 429 || (status === 400 && /credit balance/i.test(message));
+}
+
+/** Test hook: start again on the first key. */
+export function resetApiKeyFailover(): void {
+  activeKey = 0;
+}
+
 async function runStage(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
   if (opts.signal?.aborted) {
     throw new AppError("grading lease lost before the API call", AI_GRADING_ERROR_CODES.LEASE_LOST, 409);
   }
-  const apiKey = config.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  const keys = apiKeys();
+  if (keys.length === 0) {
     throw new AppError("ANTHROPIC_API_KEY is not set", AI_GRADING_ERROR_CODES.RUNTIME_FAILURE, 503);
   }
   const toolName = (opts.allowedTools[0] ?? "").replace(/^mcp__assessiq__/, "");
@@ -136,12 +161,11 @@ async function runStage(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
   const signal = opts.signal ? AbortSignal.any([opts.signal, timeout]) : timeout;
   const startedAt = Date.now();
 
-  let res: Response;
-  try {
-    res = await fetch(API_URL, {
+  const send = (key: string): Promise<Response> =>
+    fetch(API_URL, {
       method: "POST",
       signal,
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": API_VERSION },
+      headers: { "content-type": "application/json", "x-api-key": key, "anthropic-version": API_VERSION },
       body: JSON.stringify({
         model,
         max_tokens: MAX_OUTPUT_TOKENS,
@@ -152,23 +176,36 @@ async function runStage(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
         messages: [{ role: "user", content: user }],
       }),
     });
-  } catch (err) {
-    if (opts.signal?.aborted) {
-      throw new AppError("grading lease lost during the API call", AI_GRADING_ERROR_CODES.LEASE_LOST, 409);
-    }
-    throw new AppError(`API request failed: ${(err as Error).name}`, AI_GRADING_ERROR_CODES.RUNTIME_FAILURE, 503, {
-      details: { skill: opts.skill, attemptId: opts.attemptId },
-    });
-  }
 
-  if (!res.ok) {
-    // Status and error type only: never log or return request content.
-    let errType = "unknown";
+  let res: Response;
+  for (;;) {
     try {
-      const body = (await res.json()) as { error?: { type?: string } };
-      errType = body.error?.type ?? errType;
+      res = await send(keys[Math.min(activeKey, keys.length - 1)] as string);
+    } catch (err) {
+      if (opts.signal?.aborted) {
+        throw new AppError("grading lease lost during the API call", AI_GRADING_ERROR_CODES.LEASE_LOST, 409);
+      }
+      throw new AppError(`API request failed: ${(err as Error).name}`, AI_GRADING_ERROR_CODES.RUNTIME_FAILURE, 503, {
+        details: { skill: opts.skill, attemptId: opts.attemptId },
+      });
+    }
+    if (res.ok) break;
+
+    // Status and error type only in logs and errors: never request content. The message text is
+    // read only to recognise "credit balance too low".
+    let errType = "unknown";
+    let errMessage = "";
+    try {
+      const errBody = (await res.json()) as { error?: { type?: string; message?: string } };
+      errType = errBody.error?.type ?? errType;
+      errMessage = errBody.error?.message ?? "";
     } catch {
       // body not JSON
+    }
+    if (activeKey < keys.length - 1 && isKeyProblem(res.status, errMessage)) {
+      activeKey += 1;
+      log.warn({ skill: opts.skill, status: res.status, errType, nowUsingKey: activeKey + 1 }, "anthropic_api.key_failover");
+      continue;
     }
     throw new AppError(`API returned ${res.status} (${errType})`, AI_GRADING_ERROR_CODES.RUNTIME_FAILURE, 503, {
       details: { skill: opts.skill, attemptId: opts.attemptId, status: res.status, errType },

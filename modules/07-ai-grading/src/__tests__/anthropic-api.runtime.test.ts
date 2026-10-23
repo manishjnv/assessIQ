@@ -19,7 +19,7 @@ vi.mock("../skill-sha.js", () => ({
   readSkillBody: vi.fn(() => Promise.resolve("SKILL BODY: grade carefully.")),
 }));
 
-import { gradeSubjective, takeApiUsage } from "../runtimes/anthropic-api.js";
+import { gradeSubjective, takeApiUsage, resetApiKeyFailover } from "../runtimes/anthropic-api.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 import type { GradingInput } from "../types.js";
 import { AppError } from "@assessiq/core";
@@ -49,8 +49,17 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   takeApiUsage();
+  resetApiKeyFailover();
+  delete process.env["ANTHROPIC_API_KEY_FALLBACK"];
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  delete process.env["ANTHROPIC_API_KEY_FALLBACK"];
+});
+
+const creditError = (): Response =>
+  new Response(JSON.stringify({ error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API." } }), { status: 400 });
+const keyUsed = (call: number): string => (fetchMock.mock.calls[call] as [string, { headers: Record<string, string> }])[1].headers["x-api-key"] as string;
 
 describe("anthropic-api runtime", () => {
   it("grades in two stages, sends a forced tool call with a cached system prompt, and counts tokens", async () => {
@@ -103,5 +112,36 @@ describe("anthropic-api runtime", () => {
     const err = await gradeSubjective({ ...INPUT, signal: ctrl.signal }).catch((e: unknown) => e);
     expect((err as AppError).code).toBe(AI_GRADING_ERROR_CODES.LEASE_LOST);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("key failover", () => {
+  it("moves to the fallback key on a credit error and stays on it", async () => {
+    process.env["ANTHROPIC_API_KEY_FALLBACK"] = "fallback-key-not-real";
+    fetchMock
+      .mockResolvedValueOnce(creditError()) // stage 1 on key 1
+      .mockResolvedValueOnce(apiReply("submit_anchors", { findings: [{ anchor_id: "a1", hit: true }, { anchor_id: "a2", hit: false }] })) // retry on key 2
+      .mockResolvedValueOnce(apiReply("submit_band", { reasoning_band: 2, ai_justification: "ok" })); // stage 2 stays on key 2
+    const proposal = await gradeSubjective(INPUT);
+    expect(proposal.band.reasoning_band).toBe(2);
+    expect(keyUsed(0)).toBe("test-key-not-real");
+    expect(keyUsed(1)).toBe("fallback-key-not-real");
+    expect(keyUsed(2)).toBe("fallback-key-not-real");
+  });
+
+  it("does not switch keys on a server error", async () => {
+    process.env["ANTHROPIC_API_KEY_FALLBACK"] = "fallback-key-not-real";
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ error: { type: "api_error" } }), { status: 500 }));
+    const err = await gradeSubjective(INPUT).catch((e: unknown) => e);
+    expect((err as AppError).message).toBe("API returned 500 (api_error)");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails when both keys are out of credit", async () => {
+    process.env["ANTHROPIC_API_KEY_FALLBACK"] = "fallback-key-not-real";
+    fetchMock.mockResolvedValueOnce(creditError()).mockResolvedValueOnce(creditError());
+    const err = await gradeSubjective(INPUT).catch((e: unknown) => e);
+    expect((err as AppError).code).toBe(AI_GRADING_ERROR_CODES.RUNTIME_FAILURE);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });
