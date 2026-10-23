@@ -35,6 +35,7 @@ import {
   agreementByGroup,
   anchorF1,
   bandStats,
+  targetChecks,
   blessBlockers,
   checkRunValidity,
   coverageOf,
@@ -676,6 +677,10 @@ async function cmdCompare(runId: string, baselineDate?: string, excludeFile?: st
   console.log(`  band         expected  graded   over  under`);
   for (const d of stats.distribution) {
     console.log(`    ${d.band}          ${String(d.expected).padStart(5)}   ${String(d.actual).padStart(5)}  ${String(stats.over[d.band]).padStart(5)}  ${String(stats.under[d.band]).padStart(5)}`);
+  }
+  console.log("  target (Z-165 B1):");
+  for (const c of targetChecks(judged.filter((a) => expectedMap.has(a.id)).map((a) => ({ expected: expectedMap.get(a.id)!.band, actual: a.error ? null : a.band, stage: a.escalation_stage })))) {
+    console.log(`    ${c.pass ? "PASS" : "FAIL"}  ${c.name}: ${c.value ?? "n/a"} (${c.target})`);
   }
   for (const by of ["level", "type"] as const) {
     const g = agreementByGroup(rows, by);

@@ -434,3 +434,51 @@ function round3(n: number): number {
 function round4(n: number): number {
   return Math.round(n * 10000) / 10000;
 }
+
+// ---------------------------------------------------------------------------
+// Z-165 B1 — the "95 percent" definition (owner default, 2026-10-24)
+// ---------------------------------------------------------------------------
+
+export interface TargetCheck {
+  name: string;
+  value: number | null;
+  target: string;
+  pass: boolean;
+}
+
+/** Wilson score lower bound (95%) of k successes in n trials, as a percent. */
+export function wilsonLowerPct(k: number, n: number): number {
+  if (n === 0) return 0;
+  const z = 1.96;
+  const p = k / n;
+  const d = 1 + (z * z) / n;
+  const centre = p + (z * z) / (2 * n);
+  const margin = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
+  return round2(((centre - margin) / d) * 100);
+}
+
+/**
+ * Pass or fail for each part of the agreed target. The "agreed" subset is every graded case that did not
+ * go to the admin as manual (Stage 3 differed from Stage 2): the admin sees the others first.
+ */
+export function targetChecks(
+  rows: Array<{ expected: number; actual: number | null; stage?: string | null | undefined }>,
+): TargetCheck[] {
+  const n = rows.length;
+  const graded = rows.filter((r): r is { expected: number; actual: number; stage?: string | null } => r.actual !== null);
+  const exact = graded.filter((r) => r.actual === r.expected).length;
+  const stats = bandStats(rows);
+  const bias = graded.length > 0 ? graded.reduce((s, r) => s + (r.actual - r.expected), 0) / graded.length : null;
+  const agreed = graded.filter((r) => r.stage !== "manual");
+  const agreedExact = agreed.filter((r) => r.actual === r.expected).length;
+  const coverage = n > 0 ? (agreed.length / n) * 100 : 0;
+  const agreedPct = agreed.length > 0 ? (agreedExact / agreed.length) * 100 : null;
+  return [
+    { name: "exact, lower 95% bound", value: wilsonLowerPct(exact, n), target: ">= 85", pass: wilsonLowerPct(exact, n) >= 85 },
+    { name: "within one band %", value: stats.withinOnePct, target: ">= 99", pass: stats.withinOnePct >= 99 },
+    { name: "signed bias (bands)", value: bias === null ? null : round2(bias), target: "within +-0.05", pass: bias !== null && Math.abs(bias) <= 0.05 },
+    { name: "kappa (quadratic)", value: stats.kappaQw, target: ">= 0.90", pass: stats.kappaQw !== null && stats.kappaQw >= 0.9 },
+    { name: "agreed subset exact %", value: agreedPct === null ? null : round2(agreedPct), target: ">= 95", pass: agreedPct !== null && agreedPct >= 95 },
+    { name: "agreed subset coverage %", value: round2(coverage), target: ">= 70", pass: coverage >= 70 },
+  ];
+}

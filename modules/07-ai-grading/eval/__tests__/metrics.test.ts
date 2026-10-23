@@ -23,6 +23,8 @@ import {
   questionKey,
   runSummary,
   runWarnings,
+  targetChecks,
+  wilsonLowerPct,
   type EvalActual,
   type EvalExpected,
 } from "../metrics.js";
@@ -233,5 +235,28 @@ describe("E9 and E18", () => {
   });
   it("gives no rupee figures when the cost is unknown (CLI mode)", () => {
     expect(runSummary([act("a", 1)], mapOf(exp("a", 1)), null).rupeesPerCase).toBeNull();
+  });
+});
+
+describe("targetChecks (Z-165 B1)", () => {
+  it("passes a perfect run of 100 and flags a one-sided bias", () => {
+    const perfect = Array.from({ length: 100 }, (_, i) => ({ expected: i % 5, actual: i % 5 }));
+    expect(targetChecks(perfect).every((c) => c.pass)).toBe(true);
+    const low = Array.from({ length: 100 }, (_, i) => ({ expected: (i % 4) + 1, actual: i % 4 === 0 ? 0 : (i % 4) + 1 }));
+    const checks = targetChecks(low);
+    expect(checks.find((c) => c.name.startsWith("signed bias"))!.pass).toBe(false);
+  });
+  it("coverage counts manual rows out of the agreed subset", () => {
+    const rows = [
+      { expected: 3, actual: 3, stage: "2" },
+      { expected: 3, actual: 4, stage: "manual" },
+    ];
+    const cov = targetChecks(rows).find((c) => c.name === "agreed subset coverage %")!;
+    expect(cov.value).toBe(50);
+    expect(cov.pass).toBe(false);
+  });
+  it("wilson bound is below the point estimate", () => {
+    expect(wilsonLowerPct(114, 150)).toBeLessThan(76);
+    expect(wilsonLowerPct(0, 0)).toBe(0);
   });
 });
