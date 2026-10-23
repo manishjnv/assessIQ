@@ -17,8 +17,8 @@
 # CLI shipping a glibc prebuilt binary) which fails on musl/alpine. Runtime stays
 # nginx:alpine (static files only — no native deps at serve time). astro-og-canvas
 # uses canvaskit-wasm (WASM), so OG generation works on any base.
-ARG NODE_VERSION=22
-ARG NGINX_VERSION=1.27-alpine
+ARG NODE_VERSION=22@sha256:63538dfe497cc29dfafdda25ada09b46db68a3f4cc205abf1f5d6bf0913f3384
+ARG NGINX_VERSION=1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
 
 # ─── Stage 1: builder — astro build → /app/dist ──────────────────────────────
 FROM node:${NODE_VERSION} AS builder

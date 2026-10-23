@@ -25,7 +25,7 @@
 # run on musl without a compatibility shim. The Debian slim base ships glibc
 # and is the standard choice when the container needs to exec host-installed
 # glibc binaries via a bind-mount. Image size delta: ~40MB vs Alpine.
-ARG NODE_VERSION=22-slim
+ARG NODE_VERSION=22-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 
 # ─── Stage 0: manifests — extract only package.json files (auto-picks up new members) ─
 # Rebuilds on any source edit, but is cheap; its OUTPUT (the manifests) is

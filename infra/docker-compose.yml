@@ -34,7 +34,7 @@ services:
   assessiq-postgres:
     <<: *svc-defaults
     mem_limit: 1g
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50
     container_name: assessiq-postgres
     networks: [assessiq-net]
     environment:
@@ -54,7 +54,7 @@ services:
   assessiq-redis:
     <<: *svc-defaults
     mem_limit: 256m
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:3880c8fe83f3b27f028661bfbbfc98e833c1fe30718501b598966e04a48f8c34
     container_name: assessiq-redis
     networks: [assessiq-net]
     command: ["redis-server", "--appendonly", "yes", "--save", "60 1000"]
