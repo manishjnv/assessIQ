@@ -4,6 +4,7 @@ import { ConflictError, NotFoundError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import * as repo from "../repository.js";
 import { withdrawInTx } from "../service/questions.js";
+import { getUploadPlanView, type UploadPlanView } from "./plan-limits.js";
 import { assertRoleFitsTenant, asRetryableDeadlock } from "../service/review.js";
 
 export interface OrgUploadItem {
@@ -18,17 +19,21 @@ export interface OrgUploadItem {
   committed_pack_id: string | null;
   question_count: number;
   withdrawn_count: number;
+  /** Generated at commit (ORG-xxxxxxxx-YYYYMMDD-XXXXXX); null while staged. */
+  licence_id: string | null;
+  source_note: string | null;
 }
 
 /** The caller tenant's own uploads (imports with an uploader rights_status), newest first. Discarded ones are hidden. */
-export async function listOrgUploads(tenantId: string, role: string | undefined): Promise<{ items: OrgUploadItem[] }> {
+export async function listOrgUploads(tenantId: string, role: string | undefined): Promise<{ items: OrgUploadItem[] } & UploadPlanView> {
   return withTenant(tenantId, async (client) => {
     await assertRoleFitsTenant(client, { tenantId, userId: "", role: role ?? "" });
     const r = await client.query<OrgUploadItem>(
       `SELECT i.id, i.file_name, i.format, i.status, i.row_count, i.error_count,
               i.upload_rights_status AS rights_status, i.created_at, i.committed_pack_id,
               COUNT(s.id)::int AS question_count,
-              COUNT(s.id) FILTER (WHERE s.rights_status = 'withdrawn')::int AS withdrawn_count
+              COUNT(s.id) FILTER (WHERE s.rights_status = 'withdrawn')::int AS withdrawn_count,
+              MAX(s.licence_id) AS licence_id, i.source_note
          FROM question_imports i
          LEFT JOIN question_source s ON s.import_id = i.id AND s.tenant_id = i.tenant_id
         WHERE i.upload_rights_status IS NOT NULL AND i.status <> 'discarded'
@@ -36,7 +41,7 @@ export async function listOrgUploads(tenantId: string, role: string | undefined)
         ORDER BY i.created_at DESC
         LIMIT 100`,
     );
-    return { items: r.rows };
+    return { items: r.rows, ...(await getUploadPlanView(client, tenantId)) };
   });
 }
 

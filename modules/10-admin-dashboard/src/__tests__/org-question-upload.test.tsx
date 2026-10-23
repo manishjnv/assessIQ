@@ -10,6 +10,8 @@ const list = vi.fn();
 const withdraw = vi.fn();
 
 vi.mock("../api.js", () => ({
+  listTenantPacksApi: () => Promise.resolve({ packs: [] }),
+  getPackLevelsApi: () => Promise.resolve({ levels: [] }),
   adminApi: vi.fn(),
   AdminApiError: class AdminApiError extends Error {
     status: number;

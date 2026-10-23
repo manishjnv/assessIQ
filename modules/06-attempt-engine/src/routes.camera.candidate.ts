@@ -40,7 +40,7 @@ import {
   insertCameraFile,
   markUploadRefused,
 } from "./camera/repository.js";
-import { buildCameraRelativePath, deleteFile, diskGuard, writeFileAtomic } from "./camera/storage.js";
+import { buildCameraRelativePath, deleteFile, tenantDiskGuard, writeFileAtomic } from "./camera/storage.js";
 
 const log = streamLogger("app");
 
@@ -181,7 +181,7 @@ export async function registerCameraCandidateRoutes(
       }
 
       // 5. Disk guard.
-      const guard = await diskGuard({ incomingBytes: body.length });
+      const guard = await tenantDiskGuard({ tenantId, incomingBytes: body.length });
       if (guard.full) {
         await withTenant(tenantId, async (client) => {
           await markUploadRefused(client, tenantId, attemptId);
@@ -195,12 +195,12 @@ export async function registerCameraCandidateRoutes(
             after: { kind, usedBytes: guard.usedBytes, maxBytes: guard.maxBytes },
           });
         });
-        log.warn({ attemptId, usedBytes: guard.usedBytes, maxBytes: guard.maxBytes }, "camera upload refused: storage full");
+        log.warn({ tenantId, attemptId, usedBytes: guard.usedBytes, maxBytes: guard.maxBytes }, "camera upload refused: storage full");
         return fail(reply, 507, "CAMERA_STORAGE_FULL", "The camera could not be saved because storage is full. The organiser has been flagged.");
       }
       if (guard.warn && Date.now() - lastWarnAt > WARN_EVERY_MS) {
         lastWarnAt = Date.now();
-        log.warn({ usedBytes: guard.usedBytes, maxBytes: guard.maxBytes }, "camera storage is at 80 percent or more of its cap");
+        log.warn({ usedBytes: guard.usedBytes, maxBytes: guard.maxBytes }, "camera storage of this organisation is at 80 percent or more of its cap");
       }
 
       // 6. Write the file, then the row. A DB failure removes the file again.

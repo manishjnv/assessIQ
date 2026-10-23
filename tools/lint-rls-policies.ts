@@ -30,6 +30,13 @@
  * helper tables added by Phase 2+ work — those need to be added to one of
  * the above categories before the linter starts protecting them).
  *
+ * 2026-10-23 A2-5 (GATE-8): rules 1-3 are now checked PER TABLE across ALL
+ * migrations in order (CREATE TABLE, ENABLE ROW LEVEL SECURITY, CREATE POLICY
+ * ... FOR <verb|ALL>, DROP POLICY). Every tenant-bearing or JOIN-listed table
+ * needs RLS enabled and a policy covering SELECT, INSERT, UPDATE and DELETE
+ * (a policy with no FOR clause is FOR ALL), except the verbs listed with a
+ * reason in NO_WRITE_VERB_ALLOWLIST. getPool().query() is also a pool hit.
+ *
  * Usage:
  *   pnpm tsx tools/lint-rls-policies.ts            # scan repo
  *   pnpm tsx tools/lint-rls-policies.ts --self-test # CI self-validation
@@ -135,114 +142,179 @@ async function findMigrationFiles(dir: string): Promise<string[]> {
 // Violation record
 // ---------------------------------------------------------------------------
 
+type Verb = "select" | "insert" | "update" | "delete";
+const VERBS: readonly Verb[] = ["select", "insert", "update", "delete"];
+
 interface Violation {
   file: string;
   tableName: string;
   missing: (
-    | "tenant_isolation"
-    | "tenant_isolation_insert"
+    | "rls_not_enabled"
+    | "policy_select"
+    | "policy_insert"
+    | "policy_update"
+    | "policy_delete"
     | "exists_clause_with_current_setting"
+    | "stale_allowlist_entry"
   )[];
 }
 
+/**
+ * A1 (GATE-8 A2-5): tables whose UPDATE and/or DELETE have no policy ON PURPOSE.
+ * Without a policy RLS denies the verb for assessiq_app, which is what
+ * append-only or never-deleted tables want. Each entry: table -> verbs left
+ * uncovered + one-line reason. Built from running this lint on the repo and
+ * grepping modules/*\/src and apps/api/src for the verb on that table. NEVER
+ * add a table the app writes with that verb (the write would fail closed).
+ */
+const NO_WRITE_VERB_ALLOWLIST: Readonly<Record<string, { verbs: readonly Verb[]; reason: string }>> = {
+  audit_log: { verbs: ["update", "delete"], reason: "append-only by design (14-audit-log invariant); the app never updates or deletes rows" },
+  affected_attempt_reviews: { verbs: ["delete"], reason: "EXP-12 manual review marks are upserted (INSERT, UPDATE); the app never deletes them" },
+  certificates: { verbs: ["delete"], reason: "certificates are revoked (UPDATE), never deleted; no DELETE in modules/18-certification" },
+  email_log: { verbs: ["delete"], reason: "append-only send log; the only write besides INSERT is UPDATE (status, erasure)" },
+  webhook_deliveries: { verbs: ["delete"], reason: "delivery history kept; the app only inserts and updates status" },
+  tenant_plans: { verbs: ["update", "delete"], reason: "UPDATE runs only under withSystemRole (billing updateTenantPlan, two-role tx by A1 design); never deleted" },
+  billing_events: { verbs: ["update", "delete"], reason: "append-only billing ledger; the app only inserts" },
+  tenant_entitlements: { verbs: ["update", "delete"], reason: "revoke is UPDATE under withSystemRole (billing revokeEntitlement); never deleted" },
+  consent_events: { verbs: ["update", "delete"], reason: "append-only consent log (20-data-rights); the app only inserts" },
+  question_review_notes: { verbs: ["update", "delete"], reason: "insert-only review notes; the app never edits or deletes them" },
+  credit_grants: { verbs: ["delete"], reason: "remaining is decremented by UPDATE; grants are never deleted" },
+  credit_burns: { verbs: ["update", "delete"], reason: "append-only credit burn ledger; the app only inserts" },
+  tenant_candidate_counted: { verbs: ["update", "delete"], reason: "insert-only marker (ON CONFLICT DO NOTHING); never updated or deleted" },
+  tenant_legal_acceptances: { verbs: ["update", "delete"], reason: "append-only acceptance record; the app only inserts" },
+  credit_lowbalance_notices: { verbs: ["update", "delete"], reason: "insert-only dedupe marker (ON CONFLICT DO NOTHING)" },
+  credit_expiry_notices: { verbs: ["update", "delete"], reason: "insert-only dedupe marker (ON CONFLICT DO NOTHING)" },
+  camera_files: { verbs: ["update"], reason: "rows are inserted and deleted (retention, erasure); never updated" },
+  camera_reviewers: { verbs: ["update"], reason: "rows are inserted (ON CONFLICT DO NOTHING) and deleted; never updated" },
+};
+
 // ---------------------------------------------------------------------------
-// Core validator — operates on a file path + its content string
+// Cross-migration analysis (per table, per verb, in migration order)
 // ---------------------------------------------------------------------------
 
-function validateSqlContent(
-  filePath: string,
-  content: string
-): Violation[] {
-  const lower = content.toLowerCase();
-  const violations: Violation[] = [];
+interface TableState {
+  tenantBearing: boolean;
+  rlsEnabled: boolean;
+  file: string;
+  /** policy name -> verb ("all" covers every verb) + body text */
+  policies: Map<string, { verb: Verb | "all"; body: string }>;
+}
 
-  // Check what policies exist in this file (case-insensitive substring matches).
-  // Both standard and JOIN-based variants name the policies identically; the
-  // body differs (direct `tenant_id =` predicate vs `EXISTS (...)`). The
-  // EXISTS check below distinguishes them.
-  const hasIsolation = lower.includes("create policy tenant_isolation");
-  const hasInsert = lower.includes("create policy tenant_isolation_insert");
+const NAME = String.raw`(?:"?\w+"?\.)?"?(\w+)"?`;
+const EVENT_RE = new RegExp(
+  [
+    String.raw`create\s+table(?:\s+if\s+not\s+exists)?\s+${NAME}\s*\(([\s\S]*?)\)\s*;`, // 1,2
+    String.raw`alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?${NAME}\s+enable\s+row\s+level\s+security`, // 3
+    String.raw`alter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?${NAME}\s+add\s+column\s+(?:if\s+not\s+exists\s+)?tenant_id\b`, // 4
+    String.raw`create\s+policy\s+"?(\w+)"?\s+on\s+${NAME}([^;]*);`, // 5,6,7
+    String.raw`drop\s+policy\s+(?:if\s+exists\s+)?"?(\w+)"?\s+on\s+${NAME}`, // 8,9
+    String.raw`drop\s+table\s+(?:if\s+exists\s+)?${NAME}`, // 10
+  ].join("|"),
+  "gi",
+);
 
-  // For the JOIN-based variant we additionally require that at least one
-  // EXISTS sub-select in the file references `current_setting('app.current_tenant'`
-  // so the policy isn't a no-op (e.g. `USING (true)` would smuggle through
-  // the name check).
-  const hasExistsCurrentSetting =
-    /exists\s*\([\s\S]*?current_setting\s*\(\s*'app\.current_tenant'/i.test(
-      content,
-    );
+function stripSqlComments(sql: string): string {
+  return sql.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/--[^\n]*/g, "");
+}
 
-  // Find every CREATE TABLE block.
-  // Regex captures: (1) optional schema-qualified table name, (2) column body
-  const createTableRe =
-    /create\s+table(?:\s+if\s+not\s+exists)?\s+(?:"?[\w]+"?\."?)?("?)([\w]+)\1\s*\(([\s\S]*?)\);/gi;
-
-  let match: RegExpExecArray | null;
-  while ((match = createTableRe.exec(content)) !== null) {
-    // Capture groups [2] (table name) and [3] (column body) are guaranteed
-    // non-undefined when the regex matches; assert to satisfy
-    // noUncheckedIndexedAccess.
-    const rawTableName = match[2]!.toLowerCase();
-    const columnBody = match[3]!.toLowerCase();
-    const hasTenantIdColumn = columnBody.includes("tenant_id");
-
-    // Special case: `tenants` AND `tenant_grading_budgets` — the row's
-    // PK *is* the tenant discriminator (no separate `tenant_id` column;
-    // the policy compares `id` or PK against `app.current_tenant`).
-    // tenant_grading_budgets ships in modules/07-ai-grading/migrations/0041
-    // with PK = tenant_id and a `tenant_id = current_setting(...)` policy
-    // — the same shape as tenants but with a different PK name.
-    if (rawTableName === "tenants") {
-      if (!hasIsolation) {
-        violations.push({
-          file: filePath,
-          tableName: rawTableName,
-          missing: ["tenant_isolation"],
+/** Feed migration files IN ORDER; returns the final per-table state. */
+function analyseMigrations(files: ReadonlyArray<{ file: string; content: string }>): Map<string, TableState> {
+  const tables = new Map<string, TableState>();
+  for (const { file, content } of files) {
+    const sql = stripSqlComments(content);
+    EVENT_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = EVENT_RE.exec(sql)) !== null) {
+      const get = (t: string): TableState => {
+        let st = tables.get(t);
+        if (!st) {
+          st = { tenantBearing: false, rlsEnabled: false, file, policies: new Map() };
+          tables.set(t, st);
+        }
+        return st;
+      };
+      if (m[1] !== undefined) {
+        const st = get(m[1].toLowerCase());
+        st.file = file;
+        if (/\btenant_id\b/i.test(m[2]!)) st.tenantBearing = true;
+      } else if (m[3] !== undefined) {
+        get(m[3].toLowerCase()).rlsEnabled = true;
+      } else if (m[4] !== undefined) {
+        get(m[4].toLowerCase()).tenantBearing = true;
+      } else if (m[5] !== undefined) {
+        const rest = m[7] ?? "";
+        const v = /^\s*(?:as\s+\w+\s+)?for\s+(select|insert|update|delete|all)\b/i.exec(rest);
+        get(m[6]!.toLowerCase()).policies.set(m[5].toLowerCase(), {
+          verb: (v ? v[1]!.toLowerCase() : "all") as Verb | "all",
+          body: rest,
         });
+      } else if (m[8] !== undefined) {
+        tables.get(m[9]!.toLowerCase())?.policies.delete(m[8].toLowerCase());
+      } else if (m[10] !== undefined) {
+        tables.delete(m[10].toLowerCase());
       }
-      // tenant_isolation_insert is not required for the tenants table itself.
-      continue;
     }
-
-    // JOIN-based variant — child table that derives tenancy through a parent FK.
-    // The table itself has NO tenant_id column. Require both policies AND an
-    // EXISTS clause that references the app.current_tenant GUC.
-    if (JOIN_RLS_TABLES.has(rawTableName)) {
-      const missing: Violation["missing"] = [];
-      if (!hasIsolation) missing.push("tenant_isolation");
-      if (!hasInsert) missing.push("tenant_isolation_insert");
-      if ((hasIsolation || hasInsert) && !hasExistsCurrentSetting) {
-        // Policies are named correctly but their body is suspicious — no
-        // EXISTS-with-current_setting means the policy is structurally unable
-        // to enforce tenancy through the FK chain. Reject as if missing.
-        missing.push("exists_clause_with_current_setting");
-      }
-      if (missing.length > 0) {
-        violations.push({
-          file: filePath,
-          tableName: rawTableName,
-          missing,
-        });
-      }
-      continue;
-    }
-
-    // Standard variant — table has its own tenant_id column. Require both policies.
-    if (hasTenantIdColumn) {
-      const missing: Violation["missing"] = [];
-      if (!hasIsolation) missing.push("tenant_isolation");
-      if (!hasInsert) missing.push("tenant_isolation_insert");
-      if (missing.length > 0) {
-        violations.push({ file: filePath, tableName: rawTableName, missing });
-      }
-      continue;
-    }
-
-    // Table has no tenant_id column AND is not in JOIN_RLS_TABLES — leave
-    // alone. (Junction tables not yet onboarded, helper tables, etc.)
   }
+  return tables;
+}
 
-  return violations;
+function covers(st: TableState, verb: Verb): boolean {
+  for (const p of st.policies.values()) if (p.verb === verb || p.verb === "all") return true;
+  return false;
+}
+
+function checkTables(
+  tables: Map<string, TableState>,
+  allow: Readonly<Record<string, { verbs: readonly Verb[]; reason: string }>> = NO_WRITE_VERB_ALLOWLIST,
+): Violation[] {
+  const out: Violation[] = [];
+  for (const [name, st] of tables) {
+    const isJoin = JOIN_RLS_TABLES.has(name);
+    if (name !== "tenants" && !st.tenantBearing && !isJoin) continue;
+    const missing: Violation["missing"] = [];
+    if (!st.rlsEnabled) missing.push("rls_not_enabled");
+    // tenants: its own id is the discriminator; only a read policy is required.
+    const need: readonly Verb[] = name === "tenants" ? ["select"] : VERBS;
+    const skip = allow[name]?.verbs ?? [];
+    for (const v of need) {
+      if (!covers(st, v) && !skip.includes(v)) missing.push(`policy_${v}` as Violation["missing"][number]);
+    }
+    if (isJoin && st.policies.size > 0) {
+      const ok = [...st.policies.values()].some((p) =>
+        /exists\s*\([\s\S]*?current_setting\s*\(\s*'app\.current_tenant'/i.test(p.body),
+      );
+      if (!ok) missing.push("exists_clause_with_current_setting");
+    }
+    if (missing.length > 0) out.push({ file: st.file, tableName: name, missing });
+  }
+  return out;
+}
+
+/** A listed verb that is now covered by a policy (or whose table is gone) is stale: remove the entry. */
+function staleAllowlist(
+  tables: Map<string, TableState>,
+  allow: Readonly<Record<string, { verbs: readonly Verb[]; reason: string }>> = NO_WRITE_VERB_ALLOWLIST,
+): Violation[] {
+  const out: Violation[] = [];
+  for (const [name, a] of Object.entries(allow)) {
+    const st = tables.get(name);
+    if (!st || a.verbs.some((v) => covers(st, v))) {
+      out.push({ file: st?.file ?? "tools/lint-rls-policies.ts", tableName: name, missing: ["stale_allowlist_entry"] });
+    }
+  }
+  return out;
+}
+
+/** Back-compat helper for single-file fixtures. */
+function validateSqlContent(filePath: string, content: string): Violation[] {
+  return checkTables(analyseMigrations([{ file: filePath, content }]));
+}
+
+/** Migration order: numeric prefix of the file name, then name. */
+function migrationOrder(a: string, b: string): number {
+  const na = parseInt(path.basename(a), 10);
+  const nb = parseInt(path.basename(b), 10);
+  return na - nb || path.basename(a).localeCompare(path.basename(b));
 }
 
 // ---------------------------------------------------------------------------
@@ -261,6 +333,10 @@ const POOL_CONNECT_HOME = "modules/02-tenancy/src/with-tenant.ts";
 const POOL_NEW_HOME = "modules/02-tenancy/src/";
 // new Pool()/new Client() is exempt in test files: they build throwaway test containers.
 const POOL_NEW_EXEMPT_RE = /(?:^|\/)__tests__\/|^tools\/test-support\/|\.test\.ts$/;
+// A4/A2-5: a query straight on the pool has no tenant context (RLS fails closed). Multi-line safe.
+const POOL_QUERY_RE = /getPool\(\)\s*\.query\s*(?:<[^()]*?>)?\s*\(/g;
+const POOL_QUERY_MSG =
+  "getPool().query() runs without tenant context; use withTenant/withSystemRole, or list the file in tools/pool-connect.allowlist.txt (one entry per hit)";
 const POOL_MARKER = "// pool-connect-ok:";
 // FUT-10: only withSystemRole (with-tenant.ts) may switch to the BYPASSRLS role.
 const SYSTEM_ROLE_RE = /SET\s+(?:LOCAL\s+|SESSION\s+)?ROLE\s+assessiq_system/i;
@@ -293,6 +369,18 @@ function scanPoolText(rel: string, text: string): PoolHit[] {
       out.push({ file: rel, loc, msg: POOL_NEW_MSG, marked });
     }
   });
+  // Pool-level query: whole-text scan, so a call split over two lines is caught. The allowlist entry is the control (no marker).
+  const lineOf = (idx: number) => text.slice(0, idx).split("\n").length;
+  if (rel !== POOL_CONNECT_HOME) {
+    for (const m of text.matchAll(POOL_QUERY_RE)) {
+      out.push({ file: rel, loc: `${rel}:${lineOf(m.index!)}`, msg: POOL_QUERY_MSG, marked: true });
+    }
+    for (const a of aliases) {
+      for (const m of text.matchAll(new RegExp(String.raw`\b${a}\s*\.query\s*(?:<[^()]*?>)?\s*\(`, "g"))) {
+        out.push({ file: rel, loc: `${rel}:${lineOf(m.index!)}`, msg: POOL_QUERY_MSG, marked: true });
+      }
+    }
+  }
   return out;
 }
 
@@ -391,6 +479,16 @@ CREATE POLICY tenant_isolation_insert
   ON public.assessments
   FOR INSERT
   WITH CHECK (tenant_id = current_setting('app.current_tenant')::uuid);
+
+CREATE POLICY tenant_isolation_update
+  ON public.assessments
+  FOR UPDATE
+  USING (tenant_id = current_setting('app.current_tenant')::uuid);
+
+CREATE POLICY tenant_isolation_delete
+  ON public.assessments
+  FOR DELETE
+  USING (tenant_id = current_setting('app.current_tenant')::uuid);
 `;
 
   // --- Fixture 2: invalid migration — missing insert policy ---
@@ -500,7 +598,7 @@ CREATE POLICY tenant_isolation_insert ON public.questions
     process.stdout.write("  PASS: valid fixture — 0 violations (expected)\n");
   }
 
-  if (v2.length !== 1 || !v2[0]!.missing.includes("tenant_isolation_insert")) {
+  if (v2.length !== 1 || !v2[0]!.missing.includes("policy_insert")) {
     process.stderr.write(
       `FAIL: invalid fixture should have 1 violation (missing tenant_isolation_insert), got ${JSON.stringify(v2)}\n`
     );
@@ -533,8 +631,8 @@ CREATE POLICY tenant_isolation_insert ON public.questions
 
   if (
     v5.length !== 1 ||
-    !v5[0]!.missing.includes("tenant_isolation") ||
-    !v5[0]!.missing.includes("tenant_isolation_insert")
+    !v5[0]!.missing.includes("policy_select") ||
+    !v5[0]!.missing.includes("policy_insert")
   ) {
     process.stderr.write(
       `FAIL: child-missing-rls fixture should have 1 violation (both policies missing on \`levels\`), got ${JSON.stringify(v5)}\n`
@@ -558,6 +656,44 @@ CREATE POLICY tenant_isolation_insert ON public.questions
     process.stdout.write(
       "  PASS: child-noop-policy fixture — exists_clause_with_current_setting flagged (expected)\n"
     );
+  }
+
+  // --- A2-5: per-table, per-verb, cross-file fixtures ---
+  const tbl = (n: string, extra = "") => `CREATE TABLE ${n} (id uuid PRIMARY KEY, tenant_id uuid NOT NULL${extra});\n`;
+  const rls = (n: string) => `ALTER TABLE ${n} ENABLE ROW LEVEL SECURITY;\n`;
+  const pol = (n: string, verb: string, name = `p_${verb}`) =>
+    `CREATE POLICY ${name} ON ${n} FOR ${verb} USING (tenant_id = current_setting('app.current_tenant')::uuid);\n`;
+  const full = (n: string) => tbl(n) + rls(n) + ["SELECT", "INSERT", "UPDATE", "DELETE"].map((v) => pol(n, v)).join("");
+  const miss = (sql: string) => validateSqlContent("<f>", sql).map((v) => `${v.tableName}:${v.missing.join("+")}`).join(",");
+  const rlsCases: Array<[string, boolean]> = [
+    ["all four verbs ok", miss(full("a")) === ""],
+    ["FOR ALL (no FOR clause) covers every verb", miss(tbl("a") + rls("a") + "CREATE POLICY tenant_isolation ON a USING (true);") === ""],
+    ["table A policies do not satisfy table B", miss(full("a") + tbl("b") + rls("b")) === "b:policy_select+policy_insert+policy_update+policy_delete"],
+    ["missing ENABLE ROW LEVEL SECURITY", miss(tbl("a") + ["SELECT", "INSERT", "UPDATE", "DELETE"].map((v) => pol("a", v)).join("")) === "a:rls_not_enabled"],
+    ["missing DELETE", miss(tbl("a") + rls("a") + pol("a", "SELECT") + pol("a", "INSERT") + pol("a", "UPDATE")) === "a:policy_delete"],
+    ["missing UPDATE", miss(tbl("a") + rls("a") + pol("a", "SELECT") + pol("a", "INSERT") + pol("a", "DELETE")) === "a:policy_update"],
+    ["DROP POLICY removes coverage", miss(full("a") + "DROP POLICY IF EXISTS p_delete ON a;") === "a:policy_delete"],
+    ["DROP then CREATE restores coverage", miss(full("a") + "DROP POLICY p_delete ON a;" + pol("a", "DELETE", "p_delete2")) === ""],
+    ["later migration adds the missing verb", checkTables(analyseMigrations([{ file: "1", content: tbl("a") + rls("a") + pol("a", "SELECT") + pol("a", "INSERT") + pol("a", "UPDATE") }, { file: "2", content: pol("a", "DELETE") }])).length === 0],
+    ["allowlisted verb passes", checkTables(analyseMigrations([{ file: "1", content: tbl("a") + rls("a") + pol("a", "SELECT") + pol("a", "INSERT") }]), { a: { verbs: ["update", "delete"], reason: "r" } }).length === 0],
+    ["allowlist does not cover other verbs", checkTables(analyseMigrations([{ file: "1", content: tbl("a") + rls("a") + pol("a", "SELECT") }]), { a: { verbs: ["update", "delete"], reason: "r" } }).map((v) => v.missing.join()).join() === "policy_insert"],
+    ["stale allowlist entry fails", staleAllowlist(analyseMigrations([{ file: "1", content: full("a") }]), { a: { verbs: ["delete"], reason: "r" } }).some((v) => v.missing.includes("stale_allowlist_entry"))],
+    ["table without tenant_id is ignored", miss("CREATE TABLE g (id uuid PRIMARY KEY);") === ""],
+    ["ALTER ADD COLUMN tenant_id makes it tenant-bearing", miss("CREATE TABLE g (id uuid PRIMARY KEY);\nALTER TABLE g ADD COLUMN IF NOT EXISTS tenant_id uuid;") !== ""],
+    ["policy text in a comment does not count", miss(tbl("a") + rls("a") + "-- CREATE POLICY x ON a FOR SELECT USING (true);\n") === "a:policy_select+policy_insert+policy_update+policy_delete"],
+    ["getPool().query flagged", scanPoolText("modules/x/src/a.ts", "await getPool().query('x');").length === 1],
+    ["getPool() then .query on next line flagged", scanPoolText("modules/x/src/a.ts", "getPool()\n  .query(\n 'x')").map((h) => h.loc).join() === "modules/x/src/a.ts:1"],
+    ["getPool().query<T>( flagged", scanPoolText("modules/x/src/a.ts", "getPool().query<{ a: 1 }>('x')").length === 1],
+    ["aliased pool .query flagged", scanPoolText("modules/x/src/a.ts", "const p = getPool();\np.query('x')").length === 1],
+    ["getPool().query allowed in with-tenant.ts", scanPoolText("modules/02-tenancy/src/with-tenant.ts", "getPool().query('x')").length === 0],
+    ["getPool().query listed in allowlist passes", checkPoolConnect(scanPoolText("modules/x/src/a.ts", "getPool().query('x')"), ["modules/x/src/a.ts"]).length === 0],
+  ];
+  for (const [name, ok] of rlsCases) {
+    if (ok) process.stdout.write(`  PASS: rls fixture — ${name} (expected)\n`);
+    else {
+      process.stderr.write(`FAIL: rls fixture — ${name}\n`);
+      passed = false;
+    }
   }
 
   // --- pool.connect() allowlist check ---
@@ -618,29 +754,12 @@ async function main(): Promise<void> {
     return; // runSelfTest calls process.exit, but keep TS happy
   }
 
-  const files = await findMigrationFiles(REPO_ROOT);
-  const allViolations: Violation[] = [];
-  let tenantBearingTables = 0;
-  let joinBasedTables = 0;
-
-  for (const file of files) {
-    const content = await fsp.readFile(file, "utf8");
-    const violations = validateSqlContent(file, content);
-    allViolations.push(...violations);
-
-    // Count tenant-bearing and JOIN-based tables across all files
-    const createTableRe =
-      /create\s+table(?:\s+if\s+not\s+exists)?\s+(?:"?[\w]+"?\."?)?("?)([\w]+)\1\s*\(([\s\S]*?)\);/gi;
-    let m: RegExpExecArray | null;
-    while ((m = createTableRe.exec(content)) !== null) {
-      const name = m[2]!.toLowerCase();
-      if (m[3]!.toLowerCase().includes("tenant_id")) {
-        tenantBearingTables++;
-      } else if (JOIN_RLS_TABLES.has(name)) {
-        joinBasedTables++;
-      }
-    }
-  }
+  const files = (await findMigrationFiles(REPO_ROOT)).sort(migrationOrder);
+  const loaded = await Promise.all(files.map(async (file) => ({ file, content: await fsp.readFile(file, "utf8") })));
+  const tables = analyseMigrations(loaded);
+  const allViolations = [...checkTables(tables), ...staleAllowlist(tables)];
+  const tenantBearingTables = [...tables.values()].filter((t) => t.tenantBearing).length;
+  const joinBasedTables = [...tables.keys()].filter((n) => JOIN_RLS_TABLES.has(n)).length;
 
   const poolErrors = await scanPoolConnect();
 

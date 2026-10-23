@@ -444,3 +444,6 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 ## S50 additions (2026-10-22)
 - Import options: `skip_trigram` (EXP-21, hash classes only), `target_pack_id` and `target_level_position` (EXP-23: append to an existing pack of the same tenant and domain; no pack is created; the pack version is NOT bumped, as with a manual add). Origin `template_generated` (EXP-21) needs a `seed_ref` `<template_id>@<version>:seed=<n>:gen=<generator_version>` (EXP-22); a repeated `seed_ref` is a `duplicate` of class `exact`. Super-admin withdraw by `seed_ref` prefix: `import/seed-withdraw.ts`.
 - xlsx imports run an inflate budget (`assertXlsxInflateBudget`, 4 x `IMPORT_MAX_BYTES`) before ExcelJS reads the workbook (GATE-8 A6-1).
+
+## S51 additions (2026-10-23)
+- Organisation upload (EXP-17): csv and xlsx only, generated licence id on `question_source.licence_id`, optional `source_note`, plan limits from `plan-limits.ts` (`assertUploadWithinPlan`, per-tenant advisory lock at commit, only while `PLAN_TIERS_ENFORCED`). Module 04 now depends on `@assessiq/billing`.

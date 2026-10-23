@@ -4,6 +4,7 @@ import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import * as repo from "../repository.js";
 import { assertAppendTarget } from "./staging.js";
+import { assertUploadWithinPlan, lockTenantUploads, newLicenceId } from "./plan-limits.js";
 import { generateSlugFromName } from "../service/_shared.js";
 import type { CommitResult, NormalizedRow } from "./types.js";
 import type { QuestionType } from "@assessiq/question-types";
@@ -15,8 +16,8 @@ export async function commitImport(
   _opts: { mode: "skip-errors" },
 ): Promise<CommitResult> {
   return withTenant(tenantId, async (client) => {
-    const imp = (await client.query<{ status: string; domain: string; pack_name: string; file_sha256: string; target_pack_id: string | null; target_level_position: number | null }>(
-      `SELECT status, domain, pack_name, file_sha256, target_pack_id, target_level_position FROM question_imports WHERE id = $1 FOR UPDATE`, [importId],
+    const imp = (await client.query<{ status: string; domain: string; pack_name: string; file_sha256: string; target_pack_id: string | null; target_level_position: number | null; upload_rights_status: string | null }>(
+      `SELECT status, domain, pack_name, file_sha256, target_pack_id, target_level_position, upload_rights_status FROM question_imports WHERE id = $1 FOR UPDATE`, [importId],
     )).rows[0];
     if (imp === undefined) throw new NotFoundError("question import not found", { details: { code: "IMPORT_NOT_FOUND" } });
     if (imp.status !== "staged") {
@@ -28,6 +29,15 @@ export async function commitImport(
     const ok = okRows.map((r) => r.normalized);
     if (ok.length === 0) {
       throw new ValidationError("import has no valid rows to commit", { details: { code: "IMPORT_NO_OK_ROWS" } });
+    }
+
+    // EXP-17: organisation upload. One licence id per upload, generated here and never read from the client.
+    // The per-tenant lock + re-check make two parallel commits unable to both pass the plan limits.
+    let licenceId: string | null = null;
+    if (imp.upload_rights_status !== null) {
+      await lockTenantUploads(client, tenantId);
+      await assertUploadWithinPlan(client, tenantId, ok.length);
+      licenceId = newLicenceId(tenantId);
     }
 
     // EXP-23: append to an existing pack (re-checked here: it may have been archived since staging).
@@ -81,7 +91,7 @@ export async function commitImport(
         ...(m ? {
           origin: m.origin, rightsStatus: m.rightsStatus, difficultyEst: m.difficultyEst, languagePrimary: m.language,
           sourceExtra: {
-            sourceRef: m.sourceRef, sourceUrl: m.sourceUrl, seedRef: m.seedRef, importId, uploadedBy: actorUserId,
+            sourceRef: m.sourceRef, sourceUrl: m.sourceUrl, seedRef: m.seedRef, importId, uploadedBy: actorUserId, licenceId,
             sourceDifficultyRaw: m.sourceDifficultyRaw, contentHash: okRows[i]!.content_hash,
             normalisedTextHash: m.normalisedHash, pyqYear: m.pyqYear, pyqShift: m.pyqShift,
           },

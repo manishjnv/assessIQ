@@ -3,6 +3,7 @@
  * Real services and real schema; only token resolution, session minting and the rate-limit
  * store are stubbed (same pattern as attempt-engine.test.ts). No AI, no image processing.
  */
+import { getTenantUsage } from "../camera/storage.js";
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import Fastify from "fastify";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
@@ -58,8 +59,8 @@ let admin: string; // tenant admin, not a reviewer
 let reviewer: string; // tenant admin named as camera reviewer
 let superUser: string;
 let reviewerB: string;
-const cfg = config as unknown as { CAMERA_ENFORCED: boolean; CAMERA_STORAGE_DIR: string; CAMERA_STORAGE_MAX_BYTES: number };
-const prev = { dir: cfg.CAMERA_STORAGE_DIR, enforced: cfg.CAMERA_ENFORCED, max: cfg.CAMERA_STORAGE_MAX_BYTES };
+const cfg = config as unknown as { CAMERA_ENFORCED: boolean; CAMERA_STORAGE_DIR: string; CAMERA_STORAGE_MAX_BYTES: number; CAMERA_TENANT_STORAGE_MAX_BYTES: number };
+const prev = { dir: cfg.CAMERA_STORAGE_DIR, enforced: cfg.CAMERA_ENFORCED, max: cfg.CAMERA_STORAGE_MAX_BYTES, tmax: cfg.CAMERA_TENANT_STORAGE_MAX_BYTES };
 
 async function sup<R = Record<string, unknown>>(q: string, p: unknown[] = []): Promise<R[]> {
   const c = new Client({ connectionString: url });
@@ -114,6 +115,7 @@ afterAll(async () => {
   cfg.CAMERA_STORAGE_DIR = prev.dir;
   cfg.CAMERA_ENFORCED = prev.enforced;
   cfg.CAMERA_STORAGE_MAX_BYTES = prev.max;
+  cfg.CAMERA_TENANT_STORAGE_MAX_BYTES = prev.tmax;
   await rm(dir, { recursive: true, force: true });
   await closePool();
   if (container !== undefined) await container.stop();
@@ -122,6 +124,7 @@ afterAll(async () => {
 beforeEach(async () => {
   cfg.CAMERA_ENFORCED = true;
   cfg.CAMERA_STORAGE_MAX_BYTES = prev.max;
+  cfg.CAMERA_TENANT_STORAGE_MAX_BYTES = prev.tmax;
   routeCtx.rl = { allowed: true, retryAfterSeconds: 30 };
   routeCtx.rlCalls = [];
   // Non-school, notice confirmed: a real exam needs the camera.
@@ -477,13 +480,28 @@ describe("candidate camera routes", () => {
   it("storage full -> 507, upload_refused flagged, audit row, nothing stored", async () => {
     const app = await buildApp();
     const ex = await startedAttempt(app, "Full");
-    cfg.CAMERA_STORAGE_MAX_BYTES = 10;
+    cfg.CAMERA_TENANT_STORAGE_MAX_BYTES = 10;
     const r = await upload(app, ex.attemptId, "photo", JPEG);
     expect(r.statusCode).toBe(507);
     expect(r.json().error.code).toBe("CAMERA_STORAGE_FULL");
     expect((await sup<{ upload_refused: boolean }>(`SELECT upload_refused FROM camera_attempt_reviews WHERE attempt_id = $1`, [ex.attemptId]))[0]?.upload_refused).toBe(true);
     expect((await audit("camera.upload.refused")).some((a) => a.entity_id === ex.attemptId)).toBe(true);
     expect((await sup(`SELECT 1 FROM camera_files WHERE attempt_id = $1`, [ex.attemptId])).length).toBe(0);
+  });
+  it("a tenant at its own cap is refused, while another tenant's bytes never count against it (GATE-8 A2-6)", async () => {
+    const app = await buildApp();
+    const ex = await startedAttempt(app, "Quota");
+    const before = await getTenantUsage(T); // earlier tests left files for this tenant
+    cfg.CAMERA_TENANT_STORAGE_MAX_BYTES = before + JPEG.length + 100;
+    expect((await upload(app, ex.attemptId, "photo", JPEG)).statusCode).toBe(201);
+    // The count is per tenant: A sees its own bytes, B sees none of them.
+    expect(await getTenantUsage(T)).toBe(before + JPEG.length);
+    expect(await getTenantUsage(TB)).toBe(0);
+    // Tenant A's own bytes now leave no room for one more file.
+    cfg.CAMERA_TENANT_STORAGE_MAX_BYTES = before + JPEG.length + 1;
+    const r = await upload(app, ex.attemptId, "photo", JPEG);
+    expect(r.statusCode).toBe(507);
+    expect(r.json().error.code).toBe("CAMERA_STORAGE_FULL");
   });
 });
 

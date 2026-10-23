@@ -214,29 +214,31 @@ async function refreshSession(token: string): Promise<Session | null> {
 }
 
 // Promotes a pre-MFA session to TOTP-verified after `/api/auth/totp/verify`.
-// Does NOT extend the TTL — refreshSession handles lifetime separately.
-async function markTotpVerified(token: string): Promise<Session | null> {
+// GATE-8 A1-4: ROTATES the token. A pre-MFA token captured before the victim
+// completed TOTP must not become a full session, so a NEW session (new id and
+// token, same user/role/ip/ua, same remaining lifetime) is minted with
+// totpVerified=true and the old one is destroyed. Callers MUST set the cookie
+// to the returned `token`. Does NOT extend the TTL.
+async function markTotpVerified(token: string): Promise<(Session & { token: string }) | null> {
   const tokenHash = sha256Hex(token);
-  const session = await getSession(token);
-  if (session === null) return null;
+  const old = await getSession(token);
+  if (old === null) return null;
 
-  const now = nowIso();
-  session.totpVerified = true;
-  session.lastTotpAt = now;
+  const ttl = await getRedis().ttl(SESSION_KEY(tokenHash));
+  if (ttl <= 0) return null; // expired between get and ttl
 
-  const redis = getRedis();
-  const ttl = await redis.ttl(SESSION_KEY(tokenHash));
-  if (ttl <= 0) return null; // expired between get and set
-  await redis.set(SESSION_KEY(tokenHash), JSON.stringify(session), "EX", ttl);
-
-  await withTenant(session.tenantId, async (client) => {
-    await client.query(
-      `UPDATE sessions SET totp_verified = true, last_totp_at = $1 WHERE token_hash = $2`,
-      [now, tokenHash],
-    );
+  const fresh = await createSession({
+    userId: old.userId,
+    tenantId: old.tenantId,
+    role: old.role,
+    totpVerified: true,
+    ip: old.ip,
+    ua: old.ua,
+    ttlSeconds: ttl,
   });
-
-  return session;
+  await destroyByHash(old.userId, tokenHash, old.tenantId);
+  const session = await getSession(fresh.token);
+  return session === null ? null : { ...session, token: fresh.token };
 }
 
 async function destroyByToken(token: string): Promise<void> {

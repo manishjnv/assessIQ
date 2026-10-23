@@ -9,6 +9,7 @@ import type {
   DryRunReport, DryRunRow, DupClass, ImportDecision, ImportFileMeta, ImportFormat, ImportStatus, NormalizedRow, ParsedRow,
   ParseResult, RowError,
 } from "./types.js";
+import { assertUploadWithinPlan } from "./plan-limits.js";
 import { loadTaxonomyIndex, normalisedTextHash, normaliseText, parseV2, type TaxonomyIndex } from "./v2.js";
 
 // ---------------------------------------------------------------------------
@@ -350,7 +351,7 @@ export async function stageImport(
   meta: ImportFileMeta,
   parsed: ParseResult,
   /** EXP-17: organisation upload. Forces origin 'tenant_upload' and the uploader's rights_status on every row. */
-  tenantUpload?: { rightsStatus: TenantUploadRights },
+  tenantUpload?: { rightsStatus: TenantUploadRights; sourceNote?: string | undefined },
 ): Promise<DryRunReport> {
   return withTenant(tenantId, async (client) => {
     const domain = meta.domain.trim().toLowerCase();
@@ -359,6 +360,8 @@ export async function stageImport(
       throw new ValidationError(`domain '${domain}' does not exist`, { details: { code: "IMPORT_DOMAIN_NOT_FOUND" } });
     }
     if (meta.targetPackId !== undefined) await assertAppendTarget(client, tenantId, meta.targetPackId, domain);
+    // EXP-17: plan limits for an organisation upload (no-op while PLAN_TIERS_ENFORCED is off).
+    if (tenantUpload) await assertUploadWithinPlan(client, tenantId, parsed.rows.length);
     // Same file already staged -> return it.
     const prior = await client.query<{ id: string }>(
       `SELECT id FROM question_imports WHERE file_sha256 = $1 AND status = 'staged'`,
@@ -371,11 +374,11 @@ export async function stageImport(
     const ins = await client.query<{ id: string }>(
       `INSERT INTO question_imports (tenant_id, created_by, file_name, file_sha256, format, domain, pack_name,
                                      upload_rights_status, warranty_accepted_by, warranty_accepted_at, skip_trigram,
-                                     target_pack_id, target_level_position)
+                                     target_pack_id, target_level_position, source_note)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text, CASE WHEN $8::text IS NULL THEN NULL ELSE $2::uuid END,
-               CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10, $11) RETURNING id`,
+               CASE WHEN $8::text IS NULL THEN NULL ELSE now() END, $9, $10, $11, $12) RETURNING id`,
       [tenantId, actorUserId, meta.fileName, meta.fileSha256, meta.format, domain, meta.packName, tenantUpload?.rightsStatus ?? null, meta.skipTrigram === true,
-       meta.targetPackId ?? null, meta.targetLevelPosition ?? null],
+       meta.targetPackId ?? null, meta.targetLevelPosition ?? null, tenantUpload?.sourceNote?.trim() || null],
     );
     const importId = ins.rows[0]!.id;
     if (checked.length > 0) {

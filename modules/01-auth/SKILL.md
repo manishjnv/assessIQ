@@ -383,3 +383,6 @@ No audit row is emitted when `request-link` receives an email that does not matc
 - **Considered and rejected.** Reusing the admin sign-in code key space. A Redis-only claim. Forcing a work email. An audit row for each request. Binding the code to the folded address key (it is bound to the exact address).
 - **Not included.** Making the admin sign-in code verify atomic (FU-OTP-ATOMIC). The sign-up page. The 30-day purge of platform `email_log` rows.
 - **Downstream.** 02-tenancy (`createSelfServeTenant`, `signup_claims`), 13-notifications (templates `signup_code`, `signup_existing_account`, option `redactLogBody`), 14-audit-log (actions `signup.completed`, `signup.rejected`), 19-billing (`provisionSelfServePlan`), 00-core config (`SIGNUP_ENABLED`, `TURNSTILE_SECRET`, `TURNSTILE_SITE_KEY`, `SIGNUP_TURNSTILE_HOSTNAMES`).
+
+## S51 additions (2026-10-23)
+- `markTotpVerified` ROTATES the session token (returns the new session with its `token`); every caller must set the new cookie. Login mints (Google callback, select, email verify) destroy the prior cookie's session. Known bug (allowlisted by the RLS lint): the `api_keys.last_used_at` update has no tenant context and updates 0 rows.

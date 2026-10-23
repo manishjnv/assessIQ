@@ -27,6 +27,8 @@ export {
   DEFAULT_FREE_CREDITS,
   DEFAULT_INVITE_LIMIT,
   getInviteLimit,
+  getUploadLimits,
+  type UploadLimits,
   recordGradedAttempt,
   // FU-A2 / FU-A4 / FU-A9 exports
   recordAiAnswerEvaluated,

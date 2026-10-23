@@ -20,6 +20,8 @@ function toRows(sections: SectionsSettingsValue | undefined): SectionRow[] {
     // Z-131: keys stay absent unless set, so an untouched section round-trips unchanged.
     ...(s.locked === true ? { locked: true } : {}),
     ...(s.seconds_per_question !== undefined ? { secondsPerQuestion: String(s.seconds_per_question) } : {}),
+    // EXP-36: a section with no pack_id keeps the assessment's set and round-trips without the key.
+    ...(s.pack_id ? { packId: s.pack_id } : {}),
   }));
 }
 
@@ -140,6 +142,7 @@ export function SectionsCard({
             onChange={setRows}
             subjectSlug={packDomain ?? undefined}
             wholeTestMinutes={typeof settings?.["whole_test_minutes"] === "number" ? (settings["whole_test_minutes"] as number) : null}
+            withPackPicker
           />
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
             <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={busy} onClick={() => void save()}>

@@ -8,6 +8,8 @@ import React from "react";
 const { adminApi } = vi.hoisted(() => ({ adminApi: vi.fn() }));
 
 vi.mock("../api.js", () => ({
+  listTenantPacksApi: () => Promise.resolve({ packs: [] }),
+  getPackLevelsApi: () => Promise.resolve({ levels: [] }),
   adminApi: (...a: unknown[]) => adminApi(...a),
   listDomainsApi: () => Promise.resolve({ items: [] }),
   listCategoriesApi: () => Promise.resolve({ items: [] }),

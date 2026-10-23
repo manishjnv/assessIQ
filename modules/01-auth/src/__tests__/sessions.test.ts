@@ -442,15 +442,24 @@ it("sessions.markTotpVerified sets totpVerified=true, lastTotpAt, updates Postgr
     ua: "totp-verify-test/1",
   });
 
-  const tokenHash = sha256Hex(created.token);
+  const oldHash = sha256Hex(created.token);
   const redis = getRedis();
 
   // Capture TTL before markTotpVerified.
-  const ttlBefore = await redis.ttl(`aiq:sess:${tokenHash}`);
+  const ttlBefore = await redis.ttl(`aiq:sess:${oldHash}`);
   expect(ttlBefore).toBeGreaterThan(0);
 
   const updated = await sessions.markTotpVerified(created.token);
   expect(updated).not.toBeNull();
+  // GATE-8 A1-4: token rotated; the old one is dead everywhere.
+  expect(updated!.token).not.toBe(created.token);
+  expect(updated!.id).not.toBe(created.id);
+  expect(await sessions.get(created.token)).toBeNull();
+  expect(await redis.exists(`aiq:sess:${oldHash}`)).toBe(0);
+  const tokenHash = sha256Hex(updated!.token);
+  const oldRow = await withSuperClient((c) => c.query(`SELECT 1 FROM sessions WHERE token_hash = $1`, [oldHash]));
+  expect(oldRow.rows).toHaveLength(0);
+  expect((await sessions.get(updated!.token))!.totpVerified).toBe(true);
 
   // Returned session has totpVerified=true and lastTotpAt set.
   expect(updated!.totpVerified).toBe(true);
@@ -723,4 +732,15 @@ it("multi-tenant RLS isolation: tenant B context sees zero rows from tenant A se
   });
 
   expect(rows).toHaveLength(0);
+});
+
+it("a pre-MFA token captured before TOTP promotion cannot be used after (GATE-8 A1-4)", async () => {
+  const pre = await sessions.create({
+    userId: userA, tenantId: tenantA, role: "admin", totpVerified: false, ip: "127.0.0.1", ua: "thief/1",
+  });
+  const promoted = await sessions.markTotpVerified(pre.token);
+  expect(promoted).not.toBeNull();
+  expect(await sessions.get(pre.token)).toBeNull();
+  expect(await sessions.refresh(pre.token)).toBeNull();
+  expect((await sessions.get(promoted!.token))!.totpVerified).toBe(true);
 });

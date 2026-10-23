@@ -29,8 +29,9 @@ import { questionTypeLabel } from "../lib/labels.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
 import { adminApi, AdminApiError } from "../api.js";
-import { getAffectedAttemptsApi, getReviewNotesApi, postQuestionReviewApi } from "../api/review.js";
-import type { AffectedAttemptsResponse, ReviewAction, ReviewNotesResponse } from "../api/review.js";
+import { getReviewNotesApi, postQuestionReviewApi } from "../api/review.js";
+import type { ReviewAction, ReviewNotesResponse } from "../api/review.js";
+import { AffectedAttemptsPanel } from "./affected-attempts-panel.js";
 import { questionPrompt } from "./pack-detail/shared.js";
 
 type ReviewState = "in_review" | "verified" | "disputed" | "needs_fix";
@@ -197,8 +198,6 @@ function QuestionHistory({ itemId, reloadKey }: { itemId: string; reloadKey: num
   const [notesError, setNotesError] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [attemptsOpen, setAttemptsOpen] = useState(false);
-  const [attempts, setAttempts] = useState<AffectedAttemptsResponse | null>(null);
-  const [attemptsError, setAttemptsError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -210,22 +209,6 @@ function QuestionHistory({ itemId, reloadKey }: { itemId: string; reloadKey: num
       });
     return () => { cancelled = true; };
   }, [itemId, reloadKey]);
-
-  useEffect(() => {
-    setAttempts(null);
-    setAttemptsError(null);
-  }, [itemId, reloadKey]);
-
-  useEffect(() => {
-    if (!attemptsOpen || attempts !== null || attemptsError !== null) return;
-    let cancelled = false;
-    getAffectedAttemptsApi(itemId)
-      .then((r) => { if (!cancelled) setAttempts(r); })
-      .catch((err: unknown) => {
-        if (!cancelled) setAttemptsError(err instanceof AdminApiError ? err.apiError.message : "Could not load the attempts. Try again.");
-      });
-    return () => { cancelled = true; };
-  }, [attemptsOpen, attempts, attemptsError, itemId, reloadKey]);
 
   const latest = notes?.latest ?? null;
   const panelId = `affected-attempts-${itemId}`;
@@ -293,41 +276,7 @@ function QuestionHistory({ itemId, reloadKey }: { itemId: string; reloadKey: num
         </div>
       ) : null}
 
-      {attemptsOpen ? (
-        <section
-          id={panelId}
-          aria-label="Attempts on an older version"
-          style={{ border: "1px dashed var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)", padding: "var(--aiq-space-md)" }}
-        >
-          {attemptsError ? <p role="alert" style={{ ...BODY_STYLE, margin: 0, color: "var(--aiq-color-danger)" }}>{attemptsError}</p> : null}
-          {!attemptsError && attempts === null ? <p role="status" style={{ ...BODY_STYLE, margin: 0 }}>Loading the attempts.</p> : null}
-          {attempts !== null ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <p role="status" aria-live="polite" style={{ ...BODY_STYLE, margin: 0 }}>
-                {attempts.total === 0
-                  ? "No attempt used an older version of this question."
-                  : `${attempts.total} ${attempts.total === 1 ? "attempt" : "attempts"} used an older version of this question. The current version is ${attempts.current_version}.`}
-              </p>
-              {attempts.items.length > 0 ? (
-                <>
-                  <ul style={{ ...BODY_STYLE, margin: 0, paddingLeft: 22 }}>
-                    {attempts.items.slice(0, 5).map((a) => (
-                      <li key={a.attempt_id}>
-                        <span style={{ fontFamily: "var(--aiq-font-mono)" }}>{a.attempt_id}</span>
-                        {` · version ${a.question_version}`}
-                      </li>
-                    ))}
-                  </ul>
-                  {attempts.total > 5 ? <div style={LABEL_STYLE}>{`Showing the first 5 of ${attempts.total}.`}</div> : null}
-                </>
-              ) : null}
-              <p style={{ ...BODY_STYLE, margin: 0, color: "var(--aiq-color-fg-secondary)" }}>
-                Marks are not changed. A correction creates a new version; attempts keep the version they used.
-              </p>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+      {attemptsOpen ? <AffectedAttemptsPanel id={panelId} questionId={itemId} reloadKey={reloadKey} /> : null}
     </div>
   );
 }

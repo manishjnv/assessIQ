@@ -39,8 +39,8 @@ const ATTEMPTS = {
   current_version: 2,
   total: 7,
   items: [
-    { attempt_id: "att-a1", assessment_id: "as-1", assessment_name: "Mock A", candidate_user_id: "c-1", status: "graded", question_version: 1, submitted_at: "2026-10-10T09:00:00Z" },
-    { attempt_id: "att-a2", assessment_id: "as-1", assessment_name: "Mock A", candidate_user_id: "c-2", status: "graded", question_version: 1, submitted_at: "2026-10-11T09:00:00Z" },
+    { attempt_id: "att-a1", assessment_id: "as-1", assessment_name: "Mock A", candidate_user_id: "c-1", status: "graded", question_version: 1, submitted_at: "2026-10-10T09:00:00Z", released: false, question_id: "q-1", current_version: 2, score_earned: 1, score_max: 1, review: null },
+    { attempt_id: "att-a2", assessment_id: "as-1", assessment_name: "Mock A", candidate_user_id: "c-2", status: "graded", question_version: 1, submitted_at: "2026-10-11T09:00:00Z", released: false, question_id: "q-1", current_version: 2, score_earned: 1, score_max: 1, review: null },
   ],
 };
 
@@ -114,10 +114,10 @@ describe("Pack review page: notes, disputes and attempts on an older version", (
     await screen.findByText("Option B is wrong.");
 
     fireEvent.click(screen.getByRole("button", { name: "Attempts on an older version" }));
-    expect(await screen.findByText(/7 attempts used an older version of this question/)).toBeTruthy();
+    expect(await screen.findByText(/7 attempts used an older version/)).toBeTruthy();
     expect(screen.getByText("att-a1")).toBeTruthy();
     expect(screen.getByText("att-a2")).toBeTruthy();
-    expect(screen.getByText("Marks are not changed. A correction creates a new version; attempts keep the version they used.")).toBeTruthy();
+    expect(screen.getByText("A corrected key does not change any mark. Review each attempt by hand. Automatic rescoring is not available.")).toBeTruthy();
     expect(calls("/api/admin/questions/q-1/affected-attempts")).toHaveLength(1);
   });
 

@@ -1013,6 +1013,21 @@ describe("saveAnswer", () => {
     expect(r2.client_revision).toBeGreaterThan(r1.client_revision);
   });
 
+  it("an answer over 20,000 characters is refused with ANSWER_TOO_LONG; 20,000 is saved (GATE-8 A4-6)", async () => {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Clong"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 3);
+    const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId });
+    const view = await getAttemptForCandidate(tenantA, attempt.id, candidate);
+    const qid = view.questions[0]!.question_id;
+    await expect(
+      saveAnswer(tenantA, candidate, { attemptId: attempt.id, questionId: qid, answer: { response: "x".repeat(20001) }, client_revision: 0 }),
+    ).rejects.toMatchObject({ details: { code: "ANSWER_TOO_LONG", limit: 20000 } });
+    await expect(
+      saveAnswer(tenantA, candidate, { attemptId: attempt.id, questionId: qid, answer: { response: "x".repeat(20000) }, client_revision: 0 }),
+    ).resolves.toBeDefined();
+  });
+
   it("scenario question: a wrong answer shape is rejected, the canonical shape is saved (N15)", async () => {
     const candidate = randomUUID();
     await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Cscen"));

@@ -9,6 +9,7 @@ import type { ColumnDef } from "@assessiq/ui-system";
 import { QUESTION_TYPES } from "@assessiq/question-types";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
+import { ImportTargetPicker, NO_IMPORT_TARGET, type ImportTarget } from "../components/ImportTargetPicker.js";
 import { AdminApiError, generateRubricApi, listDomainsApi, listQuestionsApi, saveRubricApi } from "../api.js";
 import { RUBRIC_REQUIRED_IDS, type QuestionType } from "@assessiq/question-types";
 import type { DomainItem, QuestionListItem } from "../api.js";
@@ -48,6 +49,7 @@ export function AdminQuestionImport(): React.ReactElement {
   const [textFormat, setTextFormat] = useState<"gift" | "aiken">("gift");
   const [domain, setDomain] = useState("");
   const [packName, setPackName] = useState("");
+  const [target, setTarget] = useState<ImportTarget>(NO_IMPORT_TARGET);
   const [file, setFile] = useState<File | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [busy, setBusy] = useState(false);
@@ -86,7 +88,10 @@ export function AdminQuestionImport(): React.ReactElement {
     const format = formatOfFile(file.name, textFormat);
     const r = await run(() => uploadImportApi({
       file_name: file.name, format, file, domain,
-      ...(packName.trim() ? { pack_name: packName.trim() } : {}),
+      ...(target.packId === "" && packName.trim() ? { pack_name: packName.trim() } : {}),
+      // EXP-36: append to an existing set (server errors show as given).
+      ...(target.packId !== "" ? { target_pack_id: target.packId } : {}),
+      ...(target.packId !== "" && target.levelPosition !== null ? { target_level_position: target.levelPosition } : {}),
     }), "Could not read this file.");
     if (r) setReport(r);
   }
@@ -285,8 +290,10 @@ export function AdminQuestionImport(): React.ReactElement {
                 <div style={fieldStyle}>
                   <label htmlFor="qi-name" style={labelStyle}>Question set name</label>
                   <input id="qi-name" className="aiq-input" type="text" placeholder="Optional. The file name is used if empty."
-                    value={packName} onChange={(e) => setPackName(e.target.value)} />
+                    value={packName} disabled={target.packId !== ""} onChange={(e) => setPackName(e.target.value)} />
                 </div>
+                <ImportTargetPicker domain={domain} value={target} onChange={setTarget}
+                  helpId="admin.question_import.target_pack" idPrefix="qi-target" />
                 <div style={fieldStyle}>
                   <label htmlFor="qi-file" style={labelStyle}>File (up to 4 MB) *</label>
                   <input id="qi-file" type="file" accept=".csv,.xlsx,.txt,.gift,.aiken,.xml,.zip" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />

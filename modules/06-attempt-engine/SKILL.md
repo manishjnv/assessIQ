@@ -468,3 +468,6 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - Status writers: `submitAttempt` and the read-time auto-submit take `FOR UPDATE`; `updateAttemptStatus` only moves an `in_progress` attempt (GATE-8 A3-3). `/event` refuses server-only types (`SERVER_ONLY_EVENT_TYPES`). Candidate feedback hides `expected_answer` while a retake is left on a real exam. A tenant admin cannot add themselves as a camera reviewer (a super_admin can).
 
 - Update 2026-10-22: `submitAttemptForRevokeInTx(client, tenantId, attemptId)` is the admin-ended submit (invitation revoke): same submit, MCQ scoring and finalise as a candidate submit, inside the caller's transaction; the invitation row is left as the caller set it.
+
+## S51 additions (2026-10-23)
+- Affected attempts: `listAttemptsOnOlderVersions(tenantId, questionId, {reviewed})` and `setAffectedAttemptReview` (table `affected_attempt_reviews`, marks only, no score change). Camera upload uses `tenantDiskGuard` (per-tenant cap `CAMERA_TENANT_STORAGE_MAX_BYTES`). `saveAnswer` refuses a text answer over `MAX_ANSWER_CHARS` (20,000).

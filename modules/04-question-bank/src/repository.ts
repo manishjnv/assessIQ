@@ -980,6 +980,8 @@ export interface QuestionSourceExtra {
   seedRef?: string | null;
   importId?: string | null;
   uploadedBy?: string | null;
+  /** EXP-17: generated licence id of an organisation upload. */
+  licenceId?: string | null;
   sourceDifficultyRaw?: string | null;
   contentHash?: string | null;
   normalisedTextHash?: string | null;
@@ -1003,13 +1005,13 @@ export async function insertQuestionSource(
   await client.query(
     `INSERT INTO question_source (tenant_id, question_id, origin, rights_status, source_ref, source_url, seed_ref,
                                   import_id, uploaded_by, source_difficulty_raw, content_hash, normalised_text_hash,
-                                  pyq_year, pyq_shift)
+                                  pyq_year, pyq_shift, licence_id)
      SELECT tenant_id, $1::uuid, $3::text, $4::text, $5::text, $6::text, $7::text, $8::uuid, $9::uuid, $10::text, $11::text,
-            $12::text, $13::int, $14::text FROM question_packs WHERE id = $2
+            $12::text, $13::int, $14::text, $15::text FROM question_packs WHERE id = $2
      ON CONFLICT (question_id) DO NOTHING`,
     [questionId, packId, origin, rightsStatus, x.sourceRef ?? null, x.sourceUrl ?? null, x.seedRef ?? null,
       x.importId ?? null, x.uploadedBy ?? null, x.sourceDifficultyRaw ?? null, x.contentHash ?? null,
-      x.normalisedTextHash ?? null, x.pyqYear ?? null, x.pyqShift ?? null],
+      x.normalisedTextHash ?? null, x.pyqYear ?? null, x.pyqShift ?? null, x.licenceId ?? null],
   );
 }
 

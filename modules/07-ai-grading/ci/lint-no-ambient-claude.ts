@@ -20,6 +20,19 @@
  *   6. Candidate routes (/take/*, /me/*, /embed/*) transitively touching the runtime.
  *   7. apps/worker/** entrypoints transitively touching the runtime.
  *
+ * 2026-10-23 A4-4 (GATE-8) tightening, all static:
+ *   - pattern 1b: `claude` named as a command in ANY string literal (aliases,
+ *     `const bin`, `sh -c`, `npx`), and in .sh scripts.
+ *   - pattern 8: any child_process import outside CHILD_PROCESS_ALLOW_LIST.
+ *   - dynamic `import("@assessiq/ai-grading")`, relative imports into the
+ *     grading module, and handleAdminGrade/Rerun/Generate count as runtime hits.
+ *   - banned paths now include any `jobs/` and `cron/` directory; a timer or
+ *     scheduler next to a grading symbol fails anywhere outside the module.
+ *   - tools/ and apps/ also scan .js .mjs .cjs .sh. `__tests__` stay skipped:
+ *     tests never run in production and mocking the runtime would false-positive.
+ *   Limits (regex, not AST): a command built from pieces ("cla"+"ude"), read
+ *   from env/config, or a runtime import through a computed specifier is not seen.
+ *
  * ALLOW-LIST (positive list — only places where `claude` spawn or runtime
  * imports are legitimate):
  *
@@ -141,6 +154,8 @@ const SKIP_DIRS = new Set([
   "AccessIQ_UI_Template",
   "__tests__",            // tests are allowed to mock spawns; keeps signal high
   "examples",             // sample-pack JSON, not runtime code
+  "fixtures",             // test fixtures (A4-4: may hold sample scripts)
+  "__fixtures__",
 ]);
 
 /**
@@ -149,6 +164,14 @@ const SKIP_DIRS = new Set([
  * contain the literal word "claude".
  */
 const SCAN_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts"]);
+
+/**
+ * A4-4 (d): under tools/ and apps/ also scan plain JS and shell scripts, which
+ * can spawn `claude` just as well as TypeScript. modules/ and infra/ stay
+ * TypeScript only (no scripts there today).
+ */
+const SCRIPT_EXTENSIONS = new Set([".js", ".mjs", ".cjs", ".sh"]);
+const SCRIPT_ROOTS = new Set(["tools", "apps"]);
 
 async function findFiles(rootRel: string): Promise<string[]> {
   const root = path.join(REPO_ROOT, rootRel);
@@ -170,7 +193,7 @@ async function findFiles(rootRel: string): Promise<string[]> {
       }
       if (!entry.isFile()) continue;
       const ext = path.extname(entry.name);
-      if (!SCAN_EXTENSIONS.has(ext)) continue;
+      if (!SCAN_EXTENSIONS.has(ext) && !(SCRIPT_ROOTS.has(rootRel) && SCRIPT_EXTENSIONS.has(ext))) continue;
       out.push(full);
     }
   }
@@ -205,6 +228,50 @@ const RE_SPAWN_CLAUDE =
   /(?:^|[^\w])(spawn|exec|execFile|fork|spawnSync|execSync|execFileSync)\s*\(\s*["'`][^"'`]*claude/;
 
 /**
+ * Pattern 1b (A4-4 a) — `claude` named as a command in ANY string literal, so
+ * aliased or promisified wrappers (`execFileP('claude', ...)`), a variable
+ * (`const bin = "claude"; spawn(bin, ...)`), shell strings
+ * (`spawn("sh", ["-c", "claude -p x"])`) and runners (`spawn("npx", ["claude"])`)
+ * cannot hide. Matches the literal CONTENT: optional runner prefix, optional
+ * path, `claude` (or claude.cmd/.exe), then end / space / shell punctuation.
+ * `claude-sonnet`, `.claude/`, `x/claude-code` do not match. Over-approximates
+ * on purpose (prose like "ask claude to" in a string also hits): a visible
+ * failure is cheaper than a silent bypass.
+ */
+const RE_CLAUDE_CMD_IN_STRING =
+  /(?:^|[\s;&|(){}]|\$\()(?:(?:npx|bunx|sudo|nohup|exec|env)\s+(?:-\S+\s+)*)?(?:[^\s"'`]*[\\/])?claude(?:\.cmd|\.exe)?(?=$|[\s;&|)])|@anthropic-ai\/claude-code\b/;
+
+/** Pulls string and template literal contents out of comment-stripped code. */
+const RE_STRING_LITERAL = /"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g;
+
+function hasClaudeCommandLiteral(code: string): boolean {
+  for (const m of code.matchAll(RE_STRING_LITERAL)) {
+    if (RE_CLAUDE_CMD_IN_STRING.test(m[1] ?? m[2] ?? m[3] ?? "")) return true;
+  }
+  return false;
+}
+
+/** Shell scripts: `claude` as a command word on a non-comment line. */
+function hasClaudeCommandInShell(src: string): boolean {
+  return src
+    .split(/\r?\n/)
+    .some((l) => !/^\s*#/.test(l) && RE_CLAUDE_CMD_IN_STRING.test(l));
+}
+
+/** The health probe file and its one allowed call shape (`'claude', ['--version']`). */
+const HEALTH_PROBE_FILE = "apps/api/src/routes/health.ts";
+const RE_VERSION_PROBE_CALL = /["']claude["']\s*,\s*\[\s*["']--version["']\s*\]/g;
+
+/**
+ * Pattern 8 (A4-4) — any `child_process` (or spawn-library) import. Only files
+ * on CHILD_PROCESS_ALLOW_LIST may have one. A file that imports it AND names a
+ * grading-runtime symbol fails even when listed (never allow-list a file that
+ * can reach a grading runtime).
+ */
+const RE_CHILD_PROCESS_IMPORT =
+  /(?:from\s+|require\s*\(\s*|import\s*\(\s*|import\s+[\w$]+\s*=\s*require\s*\(\s*)["'](?:node:)?(?:child_process|execa|cross-spawn|shelljs|zx)["']|\bprocess\.binding\s*\(\s*["']spawn_sync["']/;
+
+/**
  * Pattern 2 — Agent SDK import. Matches any ESM/CJS import of the
  * `@anthropic-ai/claude-agent-sdk` package.
  */
@@ -226,7 +293,7 @@ const RE_AGENT_SDK_IMPORT =
  * reason to reach into the grading runtime, even for types.
  */
 const RE_GRADING_RUNTIME_IMPORT =
-  /(?:from\s+["'](?:[^"']*\/modules\/07-ai-grading\/runtimes\/[^"']+|@assessiq\/ai-grading)["']|\brunClaudeCodeGrading\b|\bgradeSubjective\b|\bgenerateQuestions\b|\bgenerateRubricDraft\b|\bgenerateAnswerGuidanceDraft\b)/;
+  /(?:(?:from|import|require)\s*\(?\s*["'](?:[^"']*\/)?(?:07-ai-grading|ai-grading)(?:\/[^"']*)?["']|(?:from|import|require)\s*\(?\s*["']@assessiq\/ai-grading(?:\/[^"']*)?["']|\brunClaudeCodeGrading\b|\bgradeSubjective\b|\bgenerateQuestions(?:ByType)?\b|\bgenerateRubricDraft\b|\bgenerateAnswerGuidanceDraft\b|\bhandleAdmin(?:Grade|Rerun|Generate)\b)/;
 
 /**
  * Banned-path globs for patterns 3-7. A file matching ANY of these AND
@@ -254,7 +321,47 @@ const BANNED_PATH_PATTERNS: ReadonlyArray<{ name: string; matches: (rel: string)
     name: "webhook handlers (D2 pattern 5)",
     matches: (rel) => /\/(webhooks?|hooks)\//.test(rel),
   },
+  // A4-4 (c): D2 pattern 3 (cron / interval callbacks). Scheduled jobs live in
+  // apps/api/src/jobs/; any cron or jobs directory is banned wholesale.
+  {
+    name: "scheduled jobs and cron (D2 pattern 3)",
+    matches: (rel) => /(?:^|\/)(?:cron|jobs)\//.test(rel),
+  },
 ];
+
+/**
+ * D2 pattern 3, direct form: a timer / scheduler in the same file as a grading
+ * runtime symbol, anywhere outside the grading module itself (its handlers
+ * legitimately hold lease heartbeats).
+ */
+const RE_SCHEDULER = /\bsetInterval\s*\(|\bnode-cron\b|\bcron\.schedule\s*\(|\bnew\s+CronJob\b|\bnode-schedule\b/;
+
+/** `import type {..} from ".."` is erased at build time: it cannot reach a runtime (browser UIs poll with setInterval). */
+const RE_TYPE_ONLY_IMPORT = /import\s+type\s+[^;]*?from\s+["'][^"']+["'];?/g;
+
+/**
+ * Files allowed to import child_process (or a spawn library). Each entry was
+ * read (A4-4, 2026-10-23): fixed binaries only (git, pnpm, node, tar, vale),
+ * never `claude`, and none names a grading-runtime symbol (re-checked by the
+ * lint on every run, see RE_CHILD_PROCESS_IMPORT).
+ */
+const CHILD_PROCESS_ALLOW_LIST: ReadonlyMap<string, string> = new Map([
+  ["apps/api/src/routes/health.ts", "readiness probe: execFile('claude', ['--version']), no model call, no quota (benign, the spawn lint polices 'claude' separately)"],
+  ["apps/marketing/scripts/page-dates.mjs", "build script: git log for page dates"],
+  ["apps/web/e2e/lighthouse-authed.mjs", "dev script: runs pnpm exec lhci"],
+  ["tools/check-docs-links.mjs", "dev script: git ls-files"],
+  ["tools/check-docs-privacy.mjs", "dev script: git diff / ls-files"],
+  ["tools/close-session.mjs", "dev script: runs the other tools with node"],
+  ["tools/docs-move.mjs", "dev script: git -C"],
+  ["tools/docs-plans-index.mjs", "dev script: git ls-files"],
+  ["tools/generate-help-seed.ts", "dev script: git"],
+  ["tools/lint-docs.mjs", "dev script: vale, markdownlint-cli2, git"],
+  ["tools/lint-question-type-registry.ts", "dev script: git ls-files"],
+  ["tools/next-brief.mjs", "dev script: git"],
+  ["tools/sample-quiz-report.mjs", "dev script: git check-ignore, tar"],
+  ["tools/verify-stamp.mjs", "dev script: git"],
+  ["tools/verify.mjs", "dev script: runs lint and typecheck"],
+]);
 
 // ---------------------------------------------------------------------------
 // Comment stripper (RW-65)
@@ -365,7 +472,7 @@ function stripComments(src: string): string {
 
 interface Violation {
   file: string;
-  rule: 1 | 2 | 3456 | 7;
+  rule: 1 | 2 | 3456 | 7 | 8;
   message: string;
 }
 
@@ -384,11 +491,20 @@ function validateFile(
   // Skip self / docs / mock fixtures
   if (SELF_AND_DOC_PATHS.has(normalised)) return [];
 
+  const isShell = normalised.endsWith(".sh");
   // RW-65: match on code only; comments never produce hits.
-  content = stripComments(content);
+  content = isShell ? content : stripComments(content);
+
+  // The one benign `claude` spawn outside the allow-list: the readiness probe
+  // (`--version`, no model call). Anything else in that file still counts.
+  const claudeCode =
+    normalised === HEALTH_PROBE_FILE ? content.replace(RE_VERSION_PROBE_CALL, "") : content;
 
   // Pattern 1 — claude CLI spawn outside allow-list
-  if (RE_SPAWN_CLAUDE.test(content) && !CLAUDE_SPAWN_ALLOW_LIST.has(normalised)) {
+  const spawnsClaude =
+    RE_SPAWN_CLAUDE.test(claudeCode) ||
+    (isShell ? hasClaudeCommandInShell(claudeCode) : hasClaudeCommandLiteral(claudeCode));
+  if (spawnsClaude && !CLAUDE_SPAWN_ALLOW_LIST.has(normalised)) {
     violations.push({
       file: relPath,
       rule: 1,
@@ -407,6 +523,39 @@ function validateFile(
       message:
         "D2 pattern 2: import of @anthropic-ai/claude-agent-sdk is " +
         "forbidden outside modules/07-ai-grading/src/runtimes/anthropic-api.ts.",
+    });
+  }
+
+  // Pattern 8 — child_process outside the explicit allow-list, and never together
+  // with a grading-runtime symbol (outside the two spawn sites).
+  if (RE_CHILD_PROCESS_IMPORT.test(content) && !CLAUDE_SPAWN_ALLOW_LIST.has(normalised)) {
+    if (!CHILD_PROCESS_ALLOW_LIST.has(normalised)) {
+      violations.push({
+        file: relPath,
+        rule: 8,
+        message:
+          "D2 pattern 8: child_process import outside the allow-list. If the use is legitimate " +
+          "(fixed binary, no claude, no grading runtime) add the file with a reason to CHILD_PROCESS_ALLOW_LIST.",
+      });
+    } else if (RE_GRADING_RUNTIME_IMPORT.test(content)) {
+      violations.push({
+        file: relPath,
+        rule: 8,
+        message: "D2 pattern 8: a file that imports child_process must not name a grading-runtime symbol.",
+      });
+    }
+  }
+
+  // Pattern 3 (direct form) — timer / scheduler together with a grading symbol.
+  if (
+    RE_SCHEDULER.test(content) &&
+    RE_GRADING_RUNTIME_IMPORT.test(content.replace(RE_TYPE_ONLY_IMPORT, "")) &&
+    !normalised.startsWith("modules/07-ai-grading/src/")
+  ) {
+    violations.push({
+      file: relPath,
+      rule: 3456,
+      message: "D2 pattern 3: setInterval / cron next to a grading-runtime symbol. Grading is admin-click-only.",
     });
   }
 
@@ -565,14 +714,53 @@ export const x = 1;`, 0],
 spawn("claude", []);`, 1],
   ];
 
+  const extraResults: Array<{ fixture: string; actual: Violation[]; expectViolations: number }> = [];
+  // --- A4-4 bypass fixtures: path, content, expected violation count ---
+  const bypass: Array<[string, string, string, number]> = [
+    ["aliased execFileP('claude')", "apps/api/src/x.ts", `const r = await execFileP('claude', ['--version']);`, 1],
+    ["const bin = claude; spawn(bin)", "apps/api/src/x.ts", `const bin = "claude";\nspawn(bin, ["-p", "x"]);`, 1],
+    ["spawn sh -c claude", "apps/api/src/x.ts", `spawn("sh", ["-c", "claude -p hi"]);`, 1],
+    ["spawn npx claude", "apps/api/src/x.ts", `spawn("npx", ["claude"]);`, 1],
+    ["absolute path in array", "apps/api/src/x.ts", `run(["/usr/local/bin/claude", "-p"]);`, 1],
+    ["claude after &&", "apps/api/src/x.ts", "const c = `cd /srv && claude -p x`;", 1],
+    ["npx @anthropic-ai/claude-code", "apps/api/src/x.ts", `const p = "@anthropic-ai/claude-code";`, 1],
+    ["claude in a .mjs script", "tools/x.mjs", `execFileSync("claude", ["-p"]);`, 1],
+    ["claude command in a .sh script", "tools/x.sh", `#!/bin/sh\nclaude -p "hello"\n`, 1],
+    ["claude after a pipe in .sh", "tools/x.sh", `echo hi | claude -p\n`, 1],
+    [".sh comment about claude is fine", "tools/x.sh", `# runs claude later\ngit status\n`, 0],
+    [".sh .claude/ path is fine", "tools/x.sh", `cd .claude/worktrees && ls\n`, 0],
+    ["model name claude-sonnet is fine", "modules/04-question-bank/src/x.ts", `const m = "claude-sonnet-5";`, 0],
+    [".claude/ path string is fine", "modules/04-question-bank/src/x.ts", `const d = "C:/x/.claude/worktrees";`, 0],
+    ["health --version probe is the one allowed shape", "apps/api/src/routes/health.ts", `import { execFile } from 'node:child_process';\nexecFileP('claude', ['--version']);`, 0],
+    ["health file with another claude call fails", "apps/api/src/routes/health.ts", `import { execFile } from 'node:child_process';\nexecFileP('claude', ['-p', 'x']);`, 1],
+    ["child_process import outside allow-list", "apps/api/src/x.ts", `import { execFile } from "node:child_process";`, 1],
+    ["child_process require", "apps/api/src/x.js", `const cp = require("child_process");`, 1],
+    ["dynamic child_process import", "apps/api/src/x.ts", `const cp = await import("node:child_process");`, 1],
+    ["child_process allow-listed tools script", "tools/verify.mjs", `import { spawnSync } from "node:child_process";`, 0],
+    ["allow-listed child_process file naming a grading symbol", "tools/verify.mjs", `import { spawnSync } from "node:child_process";\ngradeSubjective();`, 1],
+    ["dynamic import of ai-grading in a webhook", "apps/api/src/routes/webhooks/x.ts", `const m = await import("@assessiq/ai-grading");`, 1],
+    ["relative runtime import in a candidate route", "apps/api/src/routes/take/x.ts", `import { x } from "../../../../modules/07-ai-grading/src/runtimes/claude-code-vps.js";`, 1],
+    ["handleAdminGrade in a worker", "apps/worker/src/x.ts", `handleAdminGrade(input);`, 1],
+    ["handleAdminRerun in a job", "apps/api/src/jobs/x.ts", `await handleAdminRerun(input);`, 1],
+    ["handleAdminGenerate in a cron dir", "modules/05-assessment-lifecycle/src/cron/x.ts", `handleAdminGenerate(input);`, 1],
+    ["generateQuestionsByType in a job", "apps/api/src/jobs/x.ts", `generateQuestionsByType(i);`, 1],
+    ["clean job file", "apps/api/src/jobs/ok.ts", `import { withSystemRole } from "@assessiq/tenancy";\nsetInterval(() => run(), 1000);`, 0],
+    ["setInterval next to a grading symbol anywhere", "apps/api/src/x.ts", `setInterval(() => gradeSubjective(i), 1000);`, 1],
+    ["setInterval with a type-only grading import is fine", "modules/10-admin-dashboard/src/p.tsx", `import type { Row } from "@assessiq/ai-grading";\nsetInterval(() => f(), 1000);`, 0],
+  ];
+  for (const [fixture, filePath, content, expectViolations] of bypass) {
+    extraResults.push({ fixture: `a4-4 ${fixture}`, actual: validateFile(filePath, content), expectViolations });
+  }
+
   const results = [
+    ...extraResults,
     ...extra.map(([fixture, content, expectViolations]) => ({
       fixture,
       actual: validateFile(T, content),
       expectViolations,
     })),
     { fixture: "ok", actual: validateFile(okFile.path, okFile.content), expectViolations: 0 },
-    { fixture: "spawn-violation", actual: validateFile(spawnViolation.path, spawnViolation.content), expectViolations: 1 },
+    { fixture: "spawn-violation", actual: validateFile(spawnViolation.path, spawnViolation.content), expectViolations: 2 /* pattern 1 + pattern 8 */ },
     { fixture: "spawn-allowed", actual: validateFile(spawnAllowed.path, spawnAllowed.content), expectViolations: 0 },
     { fixture: "sdk-violation", actual: validateFile(sdkViolation.path, sdkViolation.content), expectViolations: 1 },
     { fixture: "sdk-allowed", actual: validateFile(sdkAllowed.path, sdkAllowed.content), expectViolations: 0 },
@@ -649,7 +837,7 @@ async function main(): Promise<void> {
   }
 
   process.stdout.write(
-    `lint-no-ambient-claude: OK (${allFiles.length} TS files scanned across ${SCAN_ROOTS.join(", ")}; allow-list: 2 spawn sites + 1 SDK import site)\n`,
+    `lint-no-ambient-claude: OK (${allFiles.length} TS/JS/shell files scanned across ${SCAN_ROOTS.join(", ")}; allow-list: 2 spawn sites + 1 SDK import site)\n`,
   );
   process.exit(0);
 }

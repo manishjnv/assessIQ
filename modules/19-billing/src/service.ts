@@ -88,6 +88,30 @@ export async function getInviteLimit(client: PoolClient, tenantId: string): Prom
   return r.rows[0]!.max_invited_per_assessment ?? null;
 }
 
+/** EXP-17: effective organisation-upload limits. null = unlimited, 0 = upload not allowed. */
+export interface UploadLimits { perUpload: number | null; perMonth: number | null; total: number | null }
+
+/**
+ * Per-tenant override (tenant_plans.upload_*_override) wins; else the tier row of plan_tier_limits.
+ * No plan row = 'free'; a tier with no limits row = all 0 (fail closed). Read-only; plan data is written
+ * only by the operator / super-admin, never by a tenant admin (no UPDATE policy on tenant_plans).
+ */
+export async function getUploadLimits(client: PoolClient, tenantId: string): Promise<UploadLimits> {
+  const r = await client.query<{ per_upload: number | null; per_month: number | null; total: number | null; has_row: boolean }>(
+    `SELECT COALESCE(p.upload_max_per_upload_override, l.upload_max_per_upload) AS per_upload,
+            COALESCE(p.upload_per_month_override, l.upload_per_month) AS per_month,
+            COALESCE(p.upload_max_total_override, l.upload_max_total) AS total,
+            l.tier IS NOT NULL AS has_row
+       FROM (SELECT $1::uuid AS tenant_id) t
+       LEFT JOIN tenant_plans p ON p.tenant_id = t.tenant_id
+       LEFT JOIN plan_tier_limits l ON l.tier = COALESCE(p.tier, 'free')`,
+    [tenantId],
+  );
+  const row = r.rows[0];
+  if (row === undefined || !row.has_row) return { perUpload: 0, perMonth: 0, total: 0 };
+  return { perUpload: row.per_upload, perMonth: row.per_month, total: row.total };
+}
+
 /**
  * FU-A9 (2026-10-06): AI-evaluated answers included per month, from the tier
  * table in docs/plans/PRICING_TIERS_2026-10-06.md (Starter 20, Growth 500,

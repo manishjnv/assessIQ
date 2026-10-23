@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { config, AuthnError, ValidationError } from '@assessiq/core';
 import {
   startGoogleSso,
@@ -11,10 +11,24 @@ import {
   requestEmailOtp,
   verifyEmailOtp,
   extractClientIp,
+  sessions,
 } from '@assessiq/auth';
 import { authChain, publicAuthChain, publicCredentialAuthChain } from '../../middleware/auth-chain.js';
 import { parseBody, tryParse } from '../_validate.js';
 import { emailRequestBody, emailVerifyBody, selectIdentityBody } from '../_schemas.js';
+
+// GATE-8 A1-4: a login mint must not leave the browser's previous session alive
+// (a planted or stale cookie). Called AFTER the new session is minted; a
+// destroy failure never blocks the login (same stance as candidate verify-link).
+async function destroyPriorSession(req: FastifyRequest): Promise<void> {
+  const prior = req.cookies?.[config.SESSION_COOKIE_NAME];
+  if (typeof prior !== 'string' || prior.length === 0) return;
+  try {
+    await sessions.destroy(prior);
+  } catch (err: unknown) {
+    req.log.warn({ err }, 'login: prior session destroy failed (non-fatal)');
+  }
+}
 
 // Google OIDC routes. Library handles RS256 JWKS verify, state+nonce CSRF,
 // cross-tenant identity resolution, pre-MFA session mint. Route layer wires
@@ -128,6 +142,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
 
       if (out.kind === 'session') {
         // Single identity (or super_admin) — mint session cookie + redirect.
+        await destroyPriorSession(req);
         reply.setCookie(config.SESSION_COOKIE_NAME, out.sessionToken, {
           httpOnly: true,
           secure: config.NODE_ENV === 'production',
@@ -236,6 +251,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
       reply.clearCookie(COOKIE_CONTINUATION_NAME, { path: '/' });
 
       // Set the session cookie (same flags as the cb route).
+      await destroyPriorSession(req);
       reply.setCookie(config.SESSION_COOKIE_NAME, out.sessionToken, {
         httpOnly: true,
         secure: config.NODE_ENV === 'production',
@@ -342,6 +358,7 @@ export async function registerGoogleSsoRoutes(app: FastifyInstance): Promise<voi
 
       if (out.kind === 'session') {
         // Single identity minted — set session cookie (same flags as cb route + /select).
+        await destroyPriorSession(req);
         reply.setCookie(config.SESSION_COOKIE_NAME, out.sessionToken, {
           httpOnly: true,
           secure: config.NODE_ENV === 'production',

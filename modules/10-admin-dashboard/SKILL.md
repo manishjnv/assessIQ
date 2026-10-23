@@ -207,3 +207,6 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 
 ## EXP-37 (2026-10-23)
 - Invite dialog note "This setup supports up to {limit} students for one assessment." (help id `admin.assessments.invite_limit`); plan view line "Students per assessment". Both read `invite_limit` from `GET /api/billing/usage`.
+
+## S51 additions (2026-10-23)
+- Billing drawer: "Students per assessment" field with Unlimited (EXP-38). Import screens: `ImportTargetPicker` (add to an existing question set and level). Sections editor: per-section question-set picker (`withPackPicker`). Question review: `affected-attempts-panel.tsx` (EXP-12 manual review).

@@ -46,6 +46,10 @@ export interface ImportUploadInput {
   file: File | Blob;
   domain: string;
   pack_name?: string;
+  /** EXP-36: append to this existing set instead of creating one. */
+  target_pack_id?: string;
+  /** EXP-36: the level position every row goes to (needs target_pack_id). Omitted = the file's level column. */
+  target_level_position?: number;
 }
 
 export const IMPORT_MAX_BYTES = 4 * 1024 * 1024;
@@ -56,6 +60,8 @@ export async function uploadImportApi(input: ImportUploadInput): Promise<ImportR
   form.append("format", input.format);
   form.append("domain", input.domain);
   if (input.pack_name) form.append("pack_name", input.pack_name);
+  if (input.target_pack_id) form.append("target_pack_id", input.target_pack_id);
+  if (input.target_level_position !== undefined) form.append("target_level_position", String(input.target_level_position));
   form.append("file_name", input.file_name);
   form.append("file", input.file, input.file_name);
   const res = await fetch("/api/admin/super/question-imports", { method: "POST", body: form, credentials: "include" });
@@ -122,6 +128,10 @@ export interface OrgUploadInput {
   pack_name?: string;
   source_ref?: string;
   rights_status: OrgRightsStatus;
+  /** EXP-36: append to this existing set instead of creating one. */
+  target_pack_id?: string;
+  /** EXP-36: the level position every row goes to (needs target_pack_id). */
+  target_level_position?: number;
 }
 
 export interface OrgUploadItem {
@@ -147,6 +157,8 @@ export async function uploadOrgImportApi(input: OrgUploadInput): Promise<ImportR
   form.append("domain", input.domain);
   if (input.pack_name) form.append("pack_name", input.pack_name);
   if (input.source_ref) form.append("source_ref", input.source_ref);
+  if (input.target_pack_id) form.append("target_pack_id", input.target_pack_id);
+  if (input.target_level_position !== undefined) form.append("target_level_position", String(input.target_level_position));
   form.append("rights_status", input.rights_status);
   form.append("content_warranty", "true");
   form.append("file_name", input.file_name);

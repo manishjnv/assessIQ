@@ -289,6 +289,23 @@ describe('AssessIQ auth routes — security-critical', () => {
       expect(sessCookie!).not.toMatch(/SameSite=None/i);
     });
 
+    it('destroys the prior session cookie after minting the new one (GATE-8 A1-4)', async () => {
+      vi.mocked(auth.sessions.destroy).mockClear();
+      vi.mocked(auth.handleGoogleCallback).mockResolvedValue({
+        kind: 'session',
+        sessionToken: 'sess-token-new',
+        user: { id: 'u_1', email: 'a@x.com', tenantId: 't_1', role: 'admin' },
+        redirectTo: '/admin/mfa',
+      });
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/auth/google/cb?code=abc&state=xyz',
+        headers: { cookie: 'aiq_sess=planted-old-token' },
+      });
+      expect(res.statusCode).toBe(302);
+      expect(auth.sessions.destroy).toHaveBeenCalledWith('planted-old-token');
+    });
+
     it('returns 400 on missing code or state', async () => {
       const res = await app.inject({ method: 'GET', url: '/api/auth/google/cb' });
       expect(res.statusCode).toBe(400);
@@ -342,6 +359,25 @@ describe('AssessIQ auth routes — security-critical', () => {
         payload: JSON.stringify({ code: '123456' }),
       });
       expect(res.statusCode).toBe(204);
+    });
+
+    it('sets a NEW session cookie on promotion (token rotation, GATE-8 A1-4)', async () => {
+      vi.mocked(auth.totp.verify).mockResolvedValue(true);
+      vi.mocked(auth.sessions.markTotpVerified).mockResolvedValueOnce({ token: 'rotated-token' } as never);
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/auth/totp/verify',
+        headers: { ...ADMIN_PRE_MFA_HEADERS, cookie: 'aiq_sess=old-pre-mfa', 'content-type': 'application/json' },
+        payload: JSON.stringify({ code: '123456' }),
+      });
+      expect(res.statusCode).toBe(204);
+      expect(auth.sessions.markTotpVerified).toHaveBeenCalledWith('old-pre-mfa');
+      const sc = res.headers['set-cookie'];
+      const cookies = Array.isArray(sc) ? sc : [sc as string];
+      const sess = cookies.find((c) => c.startsWith('aiq_sess='));
+      expect(sess).toMatch(/^aiq_sess=rotated-token/);
+      expect(sess).toMatch(/HttpOnly/i);
+      expect(sess).toMatch(/SameSite=Lax/i);
     });
 
     it('returns 401 INVALID_CODE on wrong code', async () => {

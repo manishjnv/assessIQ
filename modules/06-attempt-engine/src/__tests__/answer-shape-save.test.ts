@@ -3,7 +3,7 @@
  * Pure logic — no DB / testcontainer.
  */
 import { describe, it, expect } from "vitest";
-import { checkAnswerForSave } from "../types.js";
+import { checkAnswerForSave, answerTextLength, MAX_ANSWER_CHARS } from "../types.js";
 
 describe("checkAnswerForSave", () => {
   it("accepts the canonical scenario shape and removes unknown keys", () => {
@@ -29,5 +29,18 @@ describe("checkAnswerForSave", () => {
     for (const t of ["mcq", "subjective", "kql", "log_analysis", "numeric", "multi_select", "ordering", null]) {
       expect(checkAnswerForSave(t, scenarioShaped)).toEqual({ ok: true, answer: scenarioShaped });
     }
+  });
+});
+
+describe("answerTextLength (GATE-8 A4-6)", () => {
+  it("counts every string in the answer and ignores numbers", () => {
+    expect(answerTextLength({ response: "abc" })).toBe(3);
+    expect(answerTextLength({ steps: [{ stepIndex: 0, response: "ab" }, { stepIndex: 1, response: "cd" }] })).toBe(4);
+    expect(answerTextLength({ selected: 2, order: [1, 0] })).toBe(0);
+    expect(answerTextLength(null)).toBe(0);
+  });
+  it("detects an answer over the cap", () => {
+    expect(answerTextLength({ response: "x".repeat(MAX_ANSWER_CHARS) })).toBe(MAX_ANSWER_CHARS);
+    expect(answerTextLength({ response: "x".repeat(MAX_ANSWER_CHARS + 1) })).toBeGreaterThan(MAX_ANSWER_CHARS);
   });
 });

@@ -922,11 +922,15 @@ export interface TenantBillingDetail {
   cycle_window_start?: string | null;
   ai_answers_used?: number;
   ai_answers_included?: number | null;
+  /** EXP-37/38: invited students allowed per assessment; null = unlimited. */
+  max_invited_per_assessment?: number | null;
 }
 
 export interface UpdateTenantPlanRequest {
   tier?: string;
   includedCredits?: number | null;
+  /** EXP-38: integer 1 to 1000000, or null = unlimited. Omitted = keep. */
+  maxInvitedPerAssessment?: number | null;
 }
 
 export interface UpdateTenantPlanResponse {
@@ -1280,6 +1284,24 @@ export interface PlatformPackOption {
 export async function listPlatformPublishedPacks(): Promise<{ packs: PlatformPackOption[] }> {
   const data = await adminApi<{ items: PlatformPackOption[] }>("/admin/packs?pageSize=200");
   return { packs: (data.items ?? []).filter((p) => p.status === "published") };
+}
+
+/** A question set of the signed-in organisation, for the import and section pack pickers (EXP-36). */
+export interface TenantPackOption {
+  id: string;
+  name: string;
+  /** Subject slug, the same value the import form sends as `domain`. */
+  domain: string;
+  status: "draft" | "published" | "archived";
+}
+
+/**
+ * GET /api/admin/packs — every question set of the signed-in organisation (all statuses; callers filter).
+ * Reuses the existing list route (no new endpoint).
+ */
+export async function listTenantPacksApi(): Promise<{ packs: TenantPackOption[] }> {
+  const data = await adminApi<{ items: TenantPackOption[] }>("/admin/packs?pageSize=200");
+  return { packs: data.items ?? [] };
 }
 
 // ---------------------------------------------------------------------------

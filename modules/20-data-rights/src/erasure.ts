@@ -208,6 +208,12 @@ export async function eraseCandidatePii(
       [userId],
     );
     const evaluationNotesCleared: number = notesRes.rowCount ?? 0;
+    // EXP-12: a staff note on a manual review of one of this candidate's attempts may name the candidate.
+    await client.query(
+      `UPDATE affected_attempt_reviews SET note = NULL
+        WHERE note IS NOT NULL AND attempt_id IN (SELECT id FROM attempts WHERE user_id = $1)`,
+      [userId],
+    );
 
     // ── 4d. Camera data (Batch A) ────────────────────────────────────────────
     // Disk files first. A failed unlink throws (never silent): the tx rolls back and the job retries.

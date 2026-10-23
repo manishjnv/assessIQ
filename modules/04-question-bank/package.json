@@ -15,6 +15,7 @@
   "dependencies": {
     "@assessiq/ai-grading": "workspace:*",
     "@assessiq/audit-log": "workspace:*",
+    "@assessiq/billing": "workspace:*",
     "@assessiq/auth": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/question-types": "workspace:*",

@@ -40,6 +40,7 @@ import {
   uuidv7,
 } from "@assessiq/core";
 import { withTenant, withSystemRole } from "@assessiq/tenancy";
+import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
 import { scoreMcqAndFinalizeSafely } from "@assessiq/scoring";
 import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
@@ -61,6 +62,8 @@ import {
   SERVER_ONLY_EVENT_TYPES,
   TERMINAL_ATTEMPT_STATUSES,
   checkAnswerForSave,
+  answerTextLength,
+  MAX_ANSWER_CHARS,
 } from "./types.js";
 import type {
   Attempt,
@@ -1076,14 +1079,22 @@ export async function getAttemptIntegritySummary(
 // listAttemptsOnOlderVersions — EXP-12, read only, no rescoring
 // ===========================================================================
 
+export type AffectedReviewOutcome = "no_change_needed" | "needs_follow_up";
+
 export interface AffectedAttemptItem {
   attempt_id: string;
   assessment_id: string;
   assessment_name: string;
   candidate_user_id: string;
   status: string;
+  released: boolean;
+  question_id: string;
   question_version: number;
+  current_version: number;
+  score_earned: number | null;
+  score_max: number | null;
   submitted_at: string | null;
+  review: { outcome: AffectedReviewOutcome; note: string | null; reviewed_by_name: string | null; reviewed_at: string } | null;
 }
 
 export interface AffectedAttempts {
@@ -1096,10 +1107,11 @@ export interface AffectedAttempts {
 const AFFECTED_ATTEMPTS_CAP = 200;
 const FINISHED_STATUSES = ["submitted", "auto_submitted", "pending_admin_grading", "graded", "released"];
 
-/** Finished attempts that froze an older version of the question (an answer-key correction made a newer one). */
+/** Finished attempts that froze an older version of the question (an answer-key correction made a newer one). Read only. */
 export async function listAttemptsOnOlderVersions(
   tenantId: string,
   questionId: string,
+  filter: { reviewed?: "yes" | "no" } = {},
 ): Promise<AffectedAttempts> {
   return withTenant(tenantId, async (client) => {
     await client.query("SET TRANSACTION READ ONLY");
@@ -1110,11 +1122,14 @@ export async function listAttemptsOnOlderVersions(
         details: { code: "QUESTION_NOT_FOUND" },
       });
     }
+    const reviewedSql =
+      filter.reviewed === "yes" ? "AND r.id IS NOT NULL" : filter.reviewed === "no" ? "AND r.id IS NULL" : "";
     const from = `
       FROM attempt_questions aq
       JOIN attempts a ON a.id = aq.attempt_id
       JOIN assessments s ON s.id = a.assessment_id
-      WHERE aq.question_id = $1 AND aq.question_version < $2 AND a.status = ANY($3::text[])`;
+      LEFT JOIN affected_attempt_reviews r ON r.attempt_id = a.id AND r.question_id = aq.question_id
+      WHERE aq.question_id = $1 AND aq.question_version < $2 AND a.status = ANY($3::text[]) ${reviewedSql}`;
     const params = [questionId, q.version, FINISHED_STATUSES];
     const total = await client.query<{ n: number }>(`SELECT count(*)::int AS n ${from}`, params);
     const rows = await client.query<{
@@ -1125,10 +1140,26 @@ export async function listAttemptsOnOlderVersions(
       status: string;
       question_version: number;
       submitted_at: Date | null;
+      score_earned: string | null;
+      score_max: string | null;
+      r_outcome: AffectedReviewOutcome | null;
+      r_note: string | null;
+      r_at: Date | null;
+      r_by_name: string | null;
     }>(
       `SELECT a.id AS attempt_id, a.assessment_id, s.name AS assessment_name, a.user_id AS candidate_user_id,
-              a.status, aq.question_version, a.submitted_at
-       ${from}
+              a.status, aq.question_version, a.submitted_at,
+              g.score_earned, g.score_max,
+              r.outcome AS r_outcome, r.note AS r_note, r.reviewed_at AS r_at, ru.name AS r_by_name
+       FROM attempt_questions aq
+       JOIN attempts a ON a.id = aq.attempt_id
+       JOIN assessments s ON s.id = a.assessment_id
+       LEFT JOIN affected_attempt_reviews r ON r.attempt_id = a.id AND r.question_id = aq.question_id
+       LEFT JOIN users ru ON ru.id = r.reviewed_by
+       LEFT JOIN LATERAL (SELECT score_earned, score_max FROM gradings
+                          WHERE attempt_id = a.id AND question_id = aq.question_id
+                          ORDER BY graded_at DESC, id LIMIT 1) g ON true
+       WHERE aq.question_id = $1 AND aq.question_version < $2 AND a.status = ANY($3::text[]) ${reviewedSql}
        ORDER BY a.submitted_at DESC NULLS LAST, a.id
        LIMIT ${AFFECTED_ATTEMPTS_CAP}`,
       params,
@@ -1137,8 +1168,79 @@ export async function listAttemptsOnOlderVersions(
       question_id: questionId,
       current_version: q.version,
       total: total.rows[0]!.n,
-      items: rows.rows.map((r) => ({ ...r, submitted_at: r.submitted_at?.toISOString() ?? null })),
+      items: rows.rows.map((r) => ({
+        attempt_id: r.attempt_id,
+        assessment_id: r.assessment_id,
+        assessment_name: r.assessment_name,
+        candidate_user_id: r.candidate_user_id,
+        status: r.status,
+        released: r.status === "released",
+        question_id: questionId,
+        question_version: r.question_version,
+        current_version: q.version,
+        score_earned: r.score_earned === null ? null : Number(r.score_earned),
+        score_max: r.score_max === null ? null : Number(r.score_max),
+        submitted_at: r.submitted_at?.toISOString() ?? null,
+        review:
+          r.r_outcome === null
+            ? null
+            : { outcome: r.r_outcome, note: r.r_note, reviewed_by_name: r.r_by_name, reviewed_at: r.r_at!.toISOString() },
+      })),
     };
+  });
+}
+
+/**
+ * EXP-12 wave 1: an admin marks one affected attempt as reviewed by hand. Writes ONLY affected_attempt_reviews
+ * and one audit row (ids + outcome, never the note). No mark, status, certificate or report is touched.
+ */
+export async function setAffectedAttemptReview(
+  tenantId: string,
+  adminUserId: string,
+  questionId: string,
+  attemptId: string,
+  input: { outcome: AffectedReviewOutcome; note?: string | null },
+): Promise<{ outcome: AffectedReviewOutcome; reviewed_at: string }> {
+  return withTenant(tenantId, async (client) => {
+    const q = await qbRepo.findQuestionById(client, questionId);
+    if (q === null) {
+      throw new NotFoundError(`Question not found: ${questionId}`, { details: { code: "QUESTION_NOT_FOUND" } });
+    }
+    // RLS scopes attempts to the tenant, so a foreign attempt reads as no row.
+    const aq = await client.query<{ question_version: number }>(
+      `SELECT aq.question_version FROM attempt_questions aq JOIN attempts a ON a.id = aq.attempt_id
+       WHERE aq.attempt_id = $1 AND aq.question_id = $2 AND a.status = ANY($3::text[])`,
+      [attemptId, questionId, FINISHED_STATUSES],
+    );
+    if (aq.rows.length === 0) {
+      throw new NotFoundError("Affected attempt not found", { details: { code: "AFFECTED_ATTEMPT_NOT_FOUND" } });
+    }
+    const used = aq.rows[0]!.question_version;
+    if (used >= q.version) {
+      throw new ConflictError("The attempt used the current version of this question", {
+        details: { code: "ATTEMPT_NOT_ON_OLDER_VERSION" },
+      });
+    }
+    const res = await client.query<{ reviewed_at: Date }>(
+      `INSERT INTO affected_attempt_reviews
+         (tenant_id, question_id, attempt_id, question_version_used, current_version, outcome, note, reviewed_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (tenant_id, question_id, attempt_id) DO UPDATE SET
+         question_version_used = EXCLUDED.question_version_used, current_version = EXCLUDED.current_version,
+         outcome = EXCLUDED.outcome, note = EXCLUDED.note, reviewed_by = EXCLUDED.reviewed_by, reviewed_at = now()
+       RETURNING reviewed_at`,
+      [tenantId, questionId, attemptId, used, q.version, input.outcome, input.note ?? null, adminUserId],
+    );
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: adminUserId,
+      action: "question.affected_attempt.reviewed",
+      entityType: "attempt",
+      entityId: attemptId,
+      after: { question_id: questionId, outcome: input.outcome, question_version_used: used, current_version: q.version },
+    });
+    return { outcome: input.outcome, reviewed_at: res.rows[0]!.reviewed_at.toISOString() };
   });
 }
 
@@ -1210,6 +1312,12 @@ export async function saveAnswer(
     if (!checked.ok) {
       throw new ValidationError(`answer does not have the shape of a ${savedType ?? "scenario"} answer`, {
         details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "answer" },
+      });
+    }
+
+    if (answerTextLength(checked.answer) > MAX_ANSWER_CHARS) {
+      throw new ValidationError(`answer is longer than ${MAX_ANSWER_CHARS} characters`, {
+        details: { code: "ANSWER_TOO_LONG", param: "answer", limit: MAX_ANSWER_CHARS },
       });
     }
 

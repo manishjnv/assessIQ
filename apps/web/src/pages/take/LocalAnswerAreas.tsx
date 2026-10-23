@@ -77,6 +77,7 @@ export function SubjectiveAnswerArea({
       <textarea
         value={text}
         disabled={disabled}
+        maxLength={20000} // GATE-8 A4-6: the server refuses more than 20,000 characters
         onChange={(e) => onAnswerChange({ response: e.target.value })}
         onBlur={onBlur}
         aria-label="Your answer"
@@ -177,6 +178,7 @@ export function KqlAnswerArea({
       <textarea
         value={text}
         disabled={disabled}
+        maxLength={20000}
         onChange={(e) => onAnswerChange({ query: e.target.value })}
         onBlur={onBlur}
         aria-label="KQL query"
@@ -400,6 +402,7 @@ export function LogAnalysisAnswerArea({
         <textarea
           value={explanation}
           disabled={disabled}
+          maxLength={20000}
           onChange={(e) => emitAnswer(displayFindings, e.target.value)}
           onBlur={onBlur}
           aria-label="Explanation"
@@ -547,6 +550,7 @@ export function ScenarioAnswerArea({
           <textarea
             value={getResponse(idx)}
             disabled={disabled}
+            maxLength={20000}
             onChange={(e) => updateStep(idx, e.target.value)}
             onBlur={onBlur}
             aria-label={`Step ${idx + 1} response`}

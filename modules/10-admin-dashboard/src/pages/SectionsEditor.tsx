@@ -5,8 +5,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import { HelpTip } from "@assessiq/help-system/components";
-import { listDomainsApi, listCategoriesApi } from "../api.js";
-import type { DomainItem, CategoryItem } from "../api.js";
+import { listDomainsApi, listCategoriesApi, listTenantPacksApi } from "../api.js";
+import type { DomainItem, CategoryItem, TenantPackOption } from "../api.js";
 
 export interface SectionRow {
   name: string;
@@ -18,6 +18,8 @@ export interface SectionRow {
   locked?: boolean;
   /** Z-131: seconds per question, text so the field can be empty. Blank = none. */
   secondsPerQuestion?: string;
+  /** EXP-36: the section's own question set. Absent = the assessment's set (no pack_id sent). */
+  packId?: string;
 }
 
 export const NEW_SECTION_ROW: SectionRow = { name: "", count: "", minutes: "", calculator: false, categoryIds: [] };
@@ -34,6 +36,8 @@ export interface SectionsSettings {
     calculator?: boolean;
     locked?: boolean;
     seconds_per_question?: number;
+    /** EXP-36: a published set of this organisation. Absent = the assessment's own set. */
+    pack_id?: string;
   }>;
 }
 
@@ -70,6 +74,7 @@ export function buildSections(
       ...(r.calculator ? { calculator: true } : {}),
       ...(r.locked === true ? { locked: true } : {}),
       ...(seconds !== undefined ? { seconds_per_question: seconds } : {}),
+      ...(r.packId ? { pack_id: r.packId } : {}),
     });
   }
   const total = sections.every((s) => s.question_count !== undefined)
@@ -98,6 +103,7 @@ export function SectionsEditor({
   subjectSlug,
   setId,
   wholeTestMinutes,
+  withPackPicker = false,
 }: {
   rows: SectionRow[];
   onChange: (rows: SectionRow[]) => void;
@@ -105,8 +111,12 @@ export function SectionsEditor({
   setId?: string | null | undefined;
   /** Z-131: the assessment's whole-test time. The lock switch shows only when it is set. */
   wholeTestMinutes?: number | null | undefined;
+  /** EXP-36: show the per-section "Question set for this section" picker (the assessment detail page). */
+  withPackPicker?: boolean | undefined;
 }): React.ReactElement {
   const [domains, setDomains] = useState<DomainItem[]>([]);
+  const [publishedPacks, setPublishedPacks] = useState<TenantPackOption[]>([]);
+  const [packsLoaded, setPacksLoaded] = useState(false);
   const [domainId, setDomainId] = useState("");
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const lockedMode = subjectSlug !== undefined;
@@ -119,6 +129,13 @@ export function SectionsEditor({
       .then((d) => setDomains(d.items.filter((x) => x.status === "active")))
       .catch(() => setDomains([]));
   }, []);
+  useEffect(() => {
+    if (!withPackPicker) return;
+    void listTenantPacksApi()
+      .then((r) => setPublishedPacks(r.packs.filter((p) => p.status === "published")))
+      .catch(() => setPublishedPacks([]))
+      .finally(() => setPacksLoaded(true));
+  }, [withPackPicker]);
   useEffect(() => {
     if (effectiveDomainId === "") {
       setCategories([]);
@@ -277,6 +294,27 @@ export function SectionsEditor({
               Remove
             </button>
           </div>
+          {withPackPicker && (
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", marginTop: "var(--aiq-space-xs)" }}>
+              <HelpTip helpId="admin.assessment.sections.pack">
+                <span>Question set for this section</span>
+              </HelpTip>
+              <select
+                aria-label={`Section ${i + 1} question set`}
+                style={FIELD}
+                value={r.packId ?? ""}
+                onChange={(e) => update(i, { packId: e.target.value })}
+              >
+                <option value="">The assessment&apos;s own set (default)</option>
+                {publishedPacks.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+                {packsLoaded && r.packId && !publishedPacks.some((p) => p.id === r.packId) && (
+                  <option value={r.packId}>Saved set (not in the list)</option>
+                )}
+              </select>
+            </label>
+          )}
           {categories.length > 0 && (
             <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap", marginTop: "var(--aiq-space-xs)" }}>
               {categories.map((c) => (

@@ -27,10 +27,12 @@ const REGISTRY = [
   'email_log.body_text',
   'email_log.body_html',
   'attempts.evaluation_note',
+  'affected_attempt_reviews.note',
 ];
 
 // Personal-looking columns deliberately NOT erased. One-line reason each.
 const EXEMPT: Record<string, string> = {
+  'question_imports.source_note': 'EXP-17 free-text note by organisation staff about where an uploaded question set came from; about content, not about a candidate',
   'question_review_notes.note': 'staff note about a question (Z-52 gap 6); append-only like audit_log, author is a plain uuid, holds no candidate personal data',
   'exam_blueprints.name': 'exam title from the platform blueprint table (EXP-6); platform reference data, no personal data',
   'exam_blueprints.source_note': 'note naming the official exam notice the blueprint was checked against (EXP-6); no personal data',

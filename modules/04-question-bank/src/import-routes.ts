@@ -30,6 +30,8 @@ const UploadBody = z.object({
   pack_name: z.string().min(1).max(200).optional(),
   /** EXP-17: default source reference for every row that has no source_ref cell of its own. */
   source_ref: z.string().max(500).optional(),
+  /** EXP-17: optional free-text note on where an organisation upload comes from (not the per-row source_ref). Ignored on platform imports. */
+  source_note: z.string().max(500).optional(),
   /** EXP-21: hash duplicate classes only (no trigram scan). Multipart sends the string "true". */
   /** EXP-23: append to this existing pack. target_level_position puts every row in that level. */
   target_pack_id: uuid.optional(),
@@ -54,12 +56,15 @@ function parse<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, v: unknown, what:
   return r.data;
 }
 
+// EXP-17 (owner 2026-10-22): organisation uploads accept spreadsheets only. Platform imports are unchanged.
+const ORG_UPLOAD_FORMATS: readonly string[] = ["csv", "xlsx"];
+
 const TenantExtra = z.object({
   content_warranty: z.literal(true, { errorMap: () => ({ message: "content_warranty must be true: you must hold the rights to this content" }) }),
   rights_status: z.enum(TENANT_UPLOAD_RIGHTS),
 });
 
-type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; sourceRef?: string | undefined; skipTrigram?: boolean | undefined; targetPackId?: string | undefined; targetLevelPosition?: number | undefined; data: Buffer };
+type Upload = { fileName: string; format: z.infer<typeof Format>; domain: string; packName: string | undefined; sourceRef?: string | undefined; sourceNote?: string | undefined; skipTrigram?: boolean | undefined; targetPackId?: string | undefined; targetLevelPosition?: number | undefined; data: Buffer };
 
 /** Reads a JSON-base64 or multipart upload. `extra` carries the tenant-only fields (warranty, rights). */
 async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra: Record<string, unknown> }> {
@@ -82,23 +87,23 @@ async function readUpload(req: FastifyRequest): Promise<{ upload: Upload; extra:
       return typeof f?.value === "string" ? f.value : undefined;
     };
     const f = parse(MultipartFields, {
-      file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"), source_ref: text("source_ref"), skip_trigram: text("skip_trigram"),
+      file_name: text("file_name") ?? part.filename, format: text("format"), domain: text("domain"), pack_name: text("pack_name"), source_ref: text("source_ref"), source_note: text("source_note"), skip_trigram: text("skip_trigram"),
       target_pack_id: text("target_pack_id"), target_level_position: text("target_level_position"),
     }, "body");
     return {
-      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, sourceRef: f.source_ref, skipTrigram: f.skip_trigram, targetPackId: f.target_pack_id, targetLevelPosition: f.target_level_position, data },
+      upload: { fileName: f.file_name, format: f.format, domain: f.domain, packName: f.pack_name, sourceRef: f.source_ref, sourceNote: f.source_note, skipTrigram: f.skip_trigram, targetPackId: f.target_pack_id, targetLevelPosition: f.target_level_position, data },
       extra: { content_warranty: text("content_warranty") === "true" ? true : undefined, rights_status: text("rights_status") },
     };
   }
   const raw = (req.body ?? {}) as Record<string, unknown>;
   const body = parse(UploadBody, raw, "body");
   return {
-    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, sourceRef: body.source_ref, skipTrigram: body.skip_trigram, targetPackId: body.target_pack_id, targetLevelPosition: body.target_level_position, data: Buffer.from(body.content_base64, "base64") },
+    upload: { fileName: body.file_name, format: body.format, domain: body.domain, packName: body.pack_name, sourceRef: body.source_ref, sourceNote: body.source_note, skipTrigram: body.skip_trigram, targetPackId: body.target_pack_id, targetLevelPosition: body.target_level_position, data: Buffer.from(body.content_base64, "base64") },
     extra: { content_warranty: raw["content_warranty"], rights_status: raw["rights_status"] },
   };
 }
 
-async function stageAndReply(req: FastifyRequest, reply: FastifyReply, u: Upload, tenantUpload?: { rightsStatus: TenantUploadRights }) {
+async function stageAndReply(req: FastifyRequest, reply: FastifyReply, u: Upload, tenantUpload?: { rightsStatus: TenantUploadRights; sourceNote?: string | undefined }) {
   const parsed = await parseImportFile(u.format, u.data);
   const ref = u.sourceRef?.trim();
   if (ref) {
@@ -169,7 +174,10 @@ export function registerImportRoutes(
   app.post("/api/admin/question-imports", { preHandler: orgUploadGuard, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {
     const { upload, extra } = await readUpload(req);
     const w = parse(TenantExtra, extra, "body");
-    return stageAndReply(req, reply, upload, { rightsStatus: w.rights_status });
+    if (!ORG_UPLOAD_FORMATS.includes(upload.format)) {
+      throw new ValidationError("Organisation uploads accept csv and xlsx files only.", { details: { code: "IMPORT_FORMAT_NOT_ALLOWED_FOR_ORG", allowed: ORG_UPLOAD_FORMATS } });
+    }
+    return stageAndReply(req, reply, upload, { rightsStatus: w.rights_status, sourceNote: upload.sourceNote });
   });
 
   app.post("/api/admin/super/question-imports", { preHandler, bodyLimit: 4 * 1024 * 1024 }, async (req, reply) => {

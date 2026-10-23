@@ -375,3 +375,6 @@ Read-only review. No code changed or deleted. Earlier reviews: `docs/plans/archi
 **Not included.** SP6 calibration examples and the random audit.
 
 **Downstream impact.** Only a super admin sets the scope (`PATCH /api/admin/super/tenants/:tenantId/ai-grading-scope`, audit `tenant_settings.ai_grading_scope.updated`). API facts: `docs/03-api-contract.md`. Load-bearing path: a `codex:rescue` sign-off is required before push.
+
+## S51 additions (2026-10-23)
+- `ci/lint-no-ambient-claude.ts` grew pattern 8 (`child_process` outside `CHILD_PROCESS_ALLOW_LIST`), dynamic-import and string-literal spawn detection, banned `jobs/` and `cron/` paths, and `.js .mjs .cjs .sh` scanning. The health probe `execFileP('claude', ['--version'])` is the only allowed `claude` call outside the runtime.

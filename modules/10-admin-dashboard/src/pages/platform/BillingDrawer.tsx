@@ -38,6 +38,9 @@ export function BillingDrawer({
   // Plan editor state
   const [editTier, setEditTier] = useState<string>("free");
   const [editCredits, setEditCredits] = useState<string>("250");
+  // EXP-38: students per assessment. Unlimited = null on the server; the internal tier is always unlimited.
+  const [editInvite, setEditInvite] = useState<string>("");
+  const [editInviteUnlimited, setEditInviteUnlimited] = useState<boolean>(false);
   const [planConfirmPending, setPlanConfirmPending] = useState(false);
   const [planSaving, setPlanSaving] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
@@ -104,6 +107,9 @@ export function BillingDrawer({
         setDetail(d);
         setEditTier(d.tier);
         setEditCredits(d.included_credits !== null ? String(d.included_credits) : "");
+        const inviteLimit = d.max_invited_per_assessment;
+        setEditInvite(typeof inviteLimit === "number" ? String(inviteLimit) : "");
+        setEditInviteUnlimited(inviteLimit === null);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -139,6 +145,17 @@ export function BillingDrawer({
   }, []);
 
   const isInternalTier = editTier === "internal";
+  const inviteIsUnlimited = isInternalTier || editInviteUnlimited;
+
+  // EXP-38: the typed limit must be a whole number 1 to 1000000, unless unlimited. Null = valid.
+  const inviteLimitError = (): string | null => {
+    if (inviteIsUnlimited) return null;
+    const text = editInvite.trim();
+    const n = Number(text);
+    return /^[0-9]+$/.test(text) && Number.isInteger(n) && n >= 1 && n <= 1000000
+      ? null
+      : "Students per assessment must be a whole number from 1 to 1000000, or Unlimited.";
+  };
 
   // GATE-8 A1-2: these cross-tenant mutations need a fresh TOTP; a stale one opens the step-up and retries.
   const { guard, stepUp } = useMfaGuard("Enter your authenticator code to change this organisation.");
@@ -189,6 +206,7 @@ export function BillingDrawer({
       const res = await updateTenantPlan(tenant.id, {
         tier: editTier,
         includedCredits,
+        maxInvitedPerAssessment: inviteIsUnlimited ? null : Number(editInvite.trim()),
       });
       setPlanAuditId(res.auditId);
       setPlanToast(true);
@@ -335,6 +353,13 @@ export function BillingDrawer({
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 14, fontWeight: 600, margin: "4px 0 0", textTransform: "capitalize" }}>
                     {planTierLabel(detail.tier)}
                   </p>
+                  {detail.max_invited_per_assessment !== undefined && (
+                    <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, margin: "2px 0 0", color: "var(--aiq-color-fg-muted)" }}>
+                      {detail.max_invited_per_assessment === null
+                        ? "Unlimited students per assessment"
+                        : `${detail.max_invited_per_assessment} students per assessment`}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p style={{ ...META_LABEL, display: "block", fontSize: "var(--aiq-text-xs)" }}>Included credits</p>
@@ -509,6 +534,54 @@ export function BillingDrawer({
                   />
                 </div>
 
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <HelpTip helpId="admin.platform.billing.invite_limit">
+                    <label
+                      htmlFor={`invite-limit-input-${tenant.id}`}
+                      style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
+                    >
+                      Students per assessment {isInternalTier && "(internal tier is unlimited)"}
+                    </label>
+                  </HelpTip>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <input
+                      id={`invite-limit-input-${tenant.id}`}
+                      type="number"
+                      min={1}
+                      max={1000000}
+                      step={1}
+                      value={inviteIsUnlimited ? "" : editInvite}
+                      disabled={inviteIsUnlimited}
+                      onChange={(e) => { setEditInvite(e.target.value); setPlanError(null); }}
+                      placeholder={inviteIsUnlimited ? "Unlimited" : "e.g. 150"}
+                      style={{
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontSize: 13,
+                        padding: "6px 10px",
+                        borderRadius: "var(--aiq-radius-md)",
+                        border: "1px solid var(--aiq-color-border)",
+                        background: inviteIsUnlimited ? "var(--aiq-color-bg-sunken)" : "var(--aiq-color-bg-raised)",
+                        color: "var(--aiq-color-fg-primary)",
+                        width: "100%",
+                        opacity: inviteIsUnlimited ? 0.5 : 1,
+                      }}
+                    />
+                    <label
+                      htmlFor={`invite-unlimited-${tenant.id}`}
+                      style={{ display: "flex", alignItems: "center", gap: 4, fontFamily: "var(--aiq-font-sans)", fontSize: 12, whiteSpace: "nowrap" }}
+                    >
+                      <input
+                        id={`invite-unlimited-${tenant.id}`}
+                        type="checkbox"
+                        checked={inviteIsUnlimited}
+                        disabled={isInternalTier}
+                        onChange={(e) => { setEditInviteUnlimited(e.target.checked); setPlanError(null); }}
+                      />
+                      Unlimited
+                    </label>
+                  </div>
+                </div>
+
                 {planError !== null && (
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: 0 }}>
                     {planError}
@@ -535,7 +608,8 @@ export function BillingDrawer({
                   >
                     <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, margin: 0 }}>
                       Update plan to <strong>{editTier}</strong>
-                      {!isInternalTier ? ` / ${editCredits} credits` : " (unlimited)"}?
+                      {!isInternalTier ? ` / ${editCredits} credits` : " (unlimited)"}
+                      {inviteIsUnlimited ? " / unlimited students per assessment" : ` / ${editInvite} students per assessment`}?
                       This change is audit-logged.
                     </p>
                     <div style={{ display: "flex", gap: 8 }}>
@@ -562,7 +636,12 @@ export function BillingDrawer({
                     type="button"
                     className="aiq-btn aiq-btn-primary aiq-btn-sm"
                     disabled={isReadOnly}
-                    onClick={() => { setPlanConfirmPending(true); setPlanError(null); }}
+                    onClick={() => {
+                      const inviteError = inviteLimitError();
+                      if (inviteError !== null) { setPlanError(inviteError); return; }
+                      setPlanConfirmPending(true);
+                      setPlanError(null);
+                    }}
                   >
                     Save
                   </button>

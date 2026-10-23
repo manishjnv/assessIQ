@@ -27,6 +27,7 @@ export {
   recordEvent,
   getAttemptIntegritySummary,
   listAttemptsOnOlderVersions,
+  setAffectedAttemptReview,
   submitAttempt,
   submitAttemptForRevokeInTx,
   listAnswersForAttempt,

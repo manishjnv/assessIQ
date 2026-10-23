@@ -173,6 +173,11 @@ const ConfigSchema = z
     CAMERA_STORAGE_DIR: z.preprocess((v) => (v === "" ? undefined : v), z.string().min(1).default("/var/lib/assessiq/camera")),
     // Total camera storage cap in bytes (default 5 GiB). Uploads are refused above it.
     CAMERA_STORAGE_MAX_BYTES: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().positive().default(5368709120)),
+    // GATE-8 A2-6: camera cap for ONE organisation (default 1 GiB). The 5 GiB total above is the
+    // whole-disk budget; 1 GiB lets about five organisations fill their share and stops one
+    // organisation from taking all of it. The upload path checks only this per-tenant cap (own rows,
+    // under RLS) plus a cached free-disk check.
+    CAMERA_TENANT_STORAGE_MAX_BYTES: z.preprocess((v) => (v === "" ? undefined : v), z.coerce.number().int().positive().default(1073741824)),
     // Z-71: self-serve organisation sign-up. Owner switch, default OFF. The public
     // sign-up routes also need PLAN_TIERS_ENFORCED=true, both Turnstile keys and Redis;
     // they answer 404 when any of these is missing (checked on every request).

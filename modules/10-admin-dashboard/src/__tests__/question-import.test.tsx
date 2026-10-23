@@ -12,6 +12,8 @@ const saveRubric = vi.fn();
 let role = "super_admin";
 
 vi.mock("../api.js", () => ({
+  listTenantPacksApi: () => Promise.resolve({ packs: [] }),
+  getPackLevelsApi: () => Promise.resolve({ levels: [] }),
   adminApi: vi.fn(),
   AdminApiError: class AdminApiError extends Error {
     status: number;

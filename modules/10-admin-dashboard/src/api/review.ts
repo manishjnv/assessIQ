@@ -8,7 +8,8 @@
 //   GET  /admin/review-queue?state=&page=&pageSize=        -> ReviewQueueResponse
 //   GET  /admin/questions/:id/review-notes                 -> ReviewNotesResponse (newest first)
 //   POST /admin/questions/:id/review  { action, note? }    -> action: verify | needs_fix | dispute | withdraw
-//   GET  /admin/questions/:id/affected-attempts            -> AffectedAttemptsResponse (read only)
+//   GET  /admin/questions/:id/affected-attempts            -> AffectedAttemptsResponse (read only; ?reviewed=yes|no)
+//   PUT  /admin/questions/:id/affected-attempts/:attemptId/review -> manual review mark (note only)
 
 import { adminApi } from "../api.js";
 
@@ -76,14 +77,22 @@ export interface ReviewNotesResponse {
   items: ReviewNoteItem[];
 }
 
+export type AffectedReviewOutcome = "no_change_needed" | "needs_follow_up";
+
 export interface AffectedAttemptItem {
   attempt_id: string;
   assessment_id: string;
   assessment_name: string;
   candidate_user_id: string;
   status: string;
+  released: boolean;
+  question_id: string;
   question_version: number;
+  current_version: number;
+  score_earned: number | null;
+  score_max: number | null;
   submitted_at: string | null;
+  review: { outcome: AffectedReviewOutcome; note: string | null; reviewed_by_name: string | null; reviewed_at: string } | null;
 }
 
 export interface AffectedAttemptsResponse {
@@ -113,6 +122,18 @@ export async function postQuestionReviewApi(questionId: string, action: ReviewAc
   });
 }
 
-export async function getAffectedAttemptsApi(questionId: string): Promise<AffectedAttemptsResponse> {
-  return adminApi<AffectedAttemptsResponse>(`/admin/questions/${encodeURIComponent(questionId)}/affected-attempts`);
+export async function getAffectedAttemptsApi(questionId: string, reviewed?: "yes" | "no"): Promise<AffectedAttemptsResponse> {
+  const qs = reviewed ? `?reviewed=${reviewed}` : "";
+  return adminApi<AffectedAttemptsResponse>(`/admin/questions/${encodeURIComponent(questionId)}/affected-attempts${qs}`);
+}
+
+export async function putAffectedAttemptReviewApi(
+  questionId: string,
+  attemptId: string,
+  body: { outcome: AffectedReviewOutcome; note?: string },
+): Promise<{ outcome: AffectedReviewOutcome; reviewed_at: string }> {
+  return adminApi(`/admin/questions/${encodeURIComponent(questionId)}/affected-attempts/${encodeURIComponent(attemptId)}/review`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
 }

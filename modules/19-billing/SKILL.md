@@ -410,3 +410,6 @@ Rows: Z-96, Z-93, Z-15 (a), SP11, Z-84. Code commit `5afedc62` (CI green, deploy
 
 ## EXP-37 (2026-10-23)
 - `tenant_plans.max_invited_per_assessment` (default 150, NULL unlimited, internal unlimited). `getInviteLimit(client, tenantId)` returns it (null = unlimited; a missing plan row = `DEFAULT_INVITE_LIMIT` 150). The usage summary carries `invite_limit`; the super-admin plan edit takes `maxInvitedPerAssessment` (audited).
+
+## S51 additions (2026-10-23)
+- `getUploadLimits(client, tenantId)` returns `{perUpload, perMonth, total}` (override first, then the `plan_tier_limits` row; null unlimited, 0 not allowed; a missing plan row counts as free). `plan_tier_limits` is platform data, app-role read-only.

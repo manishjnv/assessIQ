@@ -371,6 +371,22 @@ export function checkAnswerForSave(
   return r.ok ? r : { ok: false };
 }
 
+/**
+ * GATE-8 A4-6: a candidate answer is capped at 20,000 characters of text in total
+ * (every string inside the answer JSON). The grading CLI gets the prompt as argv and
+ * fails with E2BIG far above this; before this cap a save was unbounded.
+ */
+export const MAX_ANSWER_CHARS = 20000;
+
+/** Total characters of all strings inside an answer (depth-limited walk; numbers, booleans and null count 0). */
+export function answerTextLength(answer: unknown, depth = 0): number {
+  if (typeof answer === "string") return answer.length;
+  if (depth > 8 || answer === null || typeof answer !== "object") return 0;
+  let n = 0;
+  for (const v of Array.isArray(answer) ? answer : Object.values(answer as Record<string, unknown>)) n += answerTextLength(v, depth + 1);
+  return n;
+}
+
 export type McqAnswerPayload = z.infer<typeof McqAnswerPayloadSchema>;
 export type LogAnalysisAnswerPayload = z.infer<typeof LogAnalysisAnswerPayloadSchema>;
 export type ScenarioAnswerPayload = z.infer<typeof ScenarioAnswerPayloadSchema>;

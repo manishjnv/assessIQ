@@ -3,6 +3,7 @@
 // Imported questions are private to the organisation and start In review. The list below can withdraw a whole upload.
 
 import React, { useCallback, useEffect, useState } from "react";
+import { ImportTargetPicker, NO_IMPORT_TARGET, type ImportTarget } from "../components/ImportTargetPicker.js";
 import { Link } from "react-router";
 import { Chip, ConfirmDialog, Table, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
@@ -51,6 +52,7 @@ export function OrgQuestionUpload(): React.ReactElement {
   const [tplFormat, setTplFormat] = useState<TemplateFormat>("csv");
   const [domain, setDomain] = useState("");
   const [packName, setPackName] = useState("");
+  const [target, setTarget] = useState<ImportTarget>(NO_IMPORT_TARGET);
   const [sourceRef, setSourceRef] = useState("");
   const [rights, setRights] = useState<OrgRightsStatus | "">("");
   const [warranty, setWarranty] = useState(false);
@@ -101,8 +103,11 @@ export function OrgQuestionUpload(): React.ReactElement {
     if (!warranty) { setError("Tick the rights confirmation to continue."); return; }
     const r = await run(() => uploadOrgImportApi({
       file_name: file.name, format, file, domain, rights_status: rights,
-      ...(packName.trim() ? { pack_name: packName.trim() } : {}),
+      ...(target.packId === "" && packName.trim() ? { pack_name: packName.trim() } : {}),
       ...(sourceRef.trim() ? { source_ref: sourceRef.trim() } : {}),
+      // EXP-36: append to an existing set (server errors show as given).
+      ...(target.packId !== "" ? { target_pack_id: target.packId } : {}),
+      ...(target.packId !== "" && target.levelPosition !== null ? { target_level_position: target.levelPosition } : {}),
     }), "Could not read this file.");
     if (r) setReport(r);
   }
@@ -242,8 +247,10 @@ export function OrgQuestionUpload(): React.ReactElement {
                 <div style={fieldStyle}>
                   <label htmlFor="ou-name" style={labelStyle}>Question set name</label>
                   <input id="ou-name" className="aiq-input" type="text" placeholder="Optional. The file name is used if empty."
-                    value={packName} onChange={(e) => setPackName(e.target.value)} maxLength={200} />
+                    value={packName} disabled={target.packId !== ""} onChange={(e) => setPackName(e.target.value)} maxLength={200} />
                 </div>
+                <ImportTargetPicker domain={domain} value={target} onChange={setTarget}
+                  helpId="admin.org_upload.target_pack" idPrefix="ou-target" />
                 <div style={fieldStyle} data-help-id="admin.org_upload.source_ref">
                   <label htmlFor="ou-source" style={labelStyle}>Source reference</label>
                   <input id="ou-source" className="aiq-input" type="text" placeholder="Optional. A book, course or document name."

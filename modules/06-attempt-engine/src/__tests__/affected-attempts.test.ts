@@ -15,14 +15,14 @@ import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { startAttempt as rawStartAttempt, recordTakeConsent, submitAttempt } from "../service.js";
-import { listAttemptsOnOlderVersions } from "../service.js";
+import { listAttemptsOnOlderVersions, setAffectedAttemptReview } from "../service.js";
 import { createPack, addLevel, createQuestion, publishPack, updateQuestion } from "../../../04-question-bank/src/service.js";
 import {
   createAssessment,
   publishAssessment,
   inviteUsers,
 } from "../../../05-assessment-lifecycle/src/service.js";
-import { NotFoundError } from "@assessiq/core";
+import { NotFoundError, ConflictError } from "@assessiq/core";
 
 const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const AE_MODULE_ROOT = join(THIS_DIR, "..", "..");
@@ -192,8 +192,11 @@ describe("EXP-12 affected attempts", () => {
       status: "graded", // MCQ-only attempt is auto-scored at submit
       question_version: before.current_version,
     });
+    expect(res.items[0]).toMatchObject({ released: false, question_id: qid, current_version: res.current_version, review: null });
+    expect(res.items[0]!.score_max).toBe(5); // the MCQ grading row for this question
     expect(Object.keys(res.items[0]!).sort()).toEqual(
-      ["assessment_id", "assessment_name", "attempt_id", "candidate_user_id", "question_version", "status", "submitted_at"],
+      ["assessment_id", "assessment_name", "attempt_id", "candidate_user_id", "current_version", "question_id", "question_version",
+       "released", "review", "score_earned", "score_max", "status", "submitted_at"],
     );
 
     // Tenant B cannot see tenant A's question: 404, not an empty 200.
@@ -225,5 +228,47 @@ describe("EXP-12 affected attempts", () => {
     expect(res.items).toHaveLength(200);
     const times = res.items.map((x) => Date.parse(x.submitted_at!));
     expect([...times].sort((x, y) => y - x)).toEqual(times);
+  });
+
+  it("review mark: upsert, unique per attempt, filter, audit without note, nothing else changes, tenant and version guards", async () => {
+    const s = await setup();
+    const a = await start(tenantA, { userId: s.candidate, assessmentId: s.assessmentId });
+    const qid = (await questionsOf(a.id))[0]!;
+    await submitAttempt(tenantA, s.candidate, a.id);
+    await sup((c) => c.query(`UPDATE attempt_questions aq SET question_version = q.version FROM questions q WHERE q.id = aq.question_id`));
+
+    // Current version: 409. Foreign attempt / unknown attempt: 404.
+    await expect(setAffectedAttemptReview(tenantA, adminA, qid, a.id, { outcome: "no_change_needed" })).rejects.toBeInstanceOf(ConflictError);
+    await correctKey(qid);
+    await expect(setAffectedAttemptReview(tenantA, adminA, qid, randomUUID(), { outcome: "no_change_needed" })).rejects.toBeInstanceOf(NotFoundError);
+    await expect(setAffectedAttemptReview(tenantB, adminB, qid, a.id, { outcome: "no_change_needed" })).rejects.toBeInstanceOf(NotFoundError);
+
+    const snap = async () => sup(async (c) => ({
+      attempt: (await c.query(`SELECT status, submitted_at FROM attempts WHERE id = $1`, [a.id])).rows,
+      gradings: (await c.query(`SELECT * FROM gradings WHERE attempt_id = $1 ORDER BY id`, [a.id])).rows,
+      certs: (await c.query(`SELECT * FROM certificates WHERE tenant_id = $1 ORDER BY id`, [tenantA])).rows,
+    }));
+    const before = await snap();
+
+    const secret = "SECRET-NOTE-TEXT";
+    await setAffectedAttemptReview(tenantA, adminA, qid, a.id, { outcome: "needs_follow_up", note: secret });
+    await setAffectedAttemptReview(tenantA, adminA, qid, a.id, { outcome: "no_change_needed", note: null }); // upsert
+    expect(await snap()).toEqual(before);
+
+    const rows = await sup((c) => c.query(`SELECT outcome, note FROM affected_attempt_reviews WHERE attempt_id = $1`, [a.id]));
+    expect(rows.rows).toEqual([{ outcome: "no_change_needed", note: null }]); // one row per attempt
+
+    const audit = await sup((c) => c.query(`SELECT * FROM audit_log WHERE action = 'question.affected_attempt.reviewed' AND entity_id = $1`, [a.id]));
+    expect(audit.rows).toHaveLength(2);
+    expect(JSON.stringify(audit.rows)).not.toContain(secret);
+
+    await setAffectedAttemptReview(tenantA, adminA, qid, a.id, { outcome: "needs_follow_up", note: "see owner" });
+    const yes = await listAttemptsOnOlderVersions(tenantA, qid, { reviewed: "yes" });
+    expect(yes.total).toBe(1);
+    expect(yes.items[0]!.review).toMatchObject({ outcome: "needs_follow_up", note: "see owner", reviewed_by_name: "Admin" });
+    expect((await listAttemptsOnOlderVersions(tenantA, qid, { reviewed: "no" })).total).toBe(0);
+    // Tenant B cannot read tenant A's reviews (RLS), even by direct SQL as the app role.
+    const leak = await (await import("../../../02-tenancy/src/index.js")).withTenant(tenantB, (c) => c.query(`SELECT 1 FROM affected_attempt_reviews`));
+    expect(leak.rows).toHaveLength(0);
   });
 });

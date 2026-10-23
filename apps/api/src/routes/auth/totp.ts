@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply } from 'fastify';
 import { AppError, AuthnError, config, streamLogger, ValidationError } from '@assessiq/core';
 import { totp, sessions } from '@assessiq/auth';
 import { getUser } from '@assessiq/users';
@@ -44,11 +44,23 @@ function mapLockout(err: unknown): never {
   throw err as Error;
 }
 
+// GATE-8 A1-4: promotion ROTATES the session token (markTotpVerified mints a
+// new session and destroys the old). The new cookie uses the same flags as the
+// login mint (google.ts), so the pre-MFA token a thief may hold dies here.
 async function promoteSessionToVerified(
   cookieToken: string | undefined,
+  reply: FastifyReply,
 ): Promise<void> {
   if (typeof cookieToken !== 'string' || cookieToken.length === 0) return;
-  await sessions.markTotpVerified(cookieToken);
+  const out = await sessions.markTotpVerified(cookieToken);
+  if (out === null || out === undefined) return;
+  reply.setCookie(config.SESSION_COOKIE_NAME, out.token, {
+    httpOnly: true,
+    secure: config.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 8 * 3600,
+  });
 }
 
 export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
@@ -107,12 +119,12 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
         credentialEndpoint: true,
       }),
     },
-    async (req) => {
+    async (req, reply) => {
       const sess = req.session!;
       const { code } = req.body as { code: string };
       try {
         const out = await totp.enrollConfirm(sess.userId, sess.tenantId, code);
-        await promoteSessionToVerified(req.cookies?.[config.SESSION_COOKIE_NAME]);
+        await promoteSessionToVerified(req.cookies?.[config.SESSION_COOKIE_NAME], reply);
         // FU-B21: best-effort receipt email; a failure never changes the response.
         try {
           const user = await getUser(sess.tenantId, sess.userId);
@@ -173,7 +185,7 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
       if (!ok) {
         throw new AppError('invalid totp code', 'INVALID_CODE', 401);
       }
-      await promoteSessionToVerified(req.cookies?.[config.SESSION_COOKIE_NAME]);
+      await promoteSessionToVerified(req.cookies?.[config.SESSION_COOKIE_NAME], reply);
       return reply.code(204).send();
     },
   );
@@ -212,7 +224,7 @@ export async function registerTotpRoutes(app: FastifyInstance): Promise<void> {
       if (!ok) {
         throw new AppError('invalid recovery code', 'INVALID_RECOVERY_CODE', 401);
       }
-      await promoteSessionToVerified(req.cookies?.[config.SESSION_COOKIE_NAME]);
+      await promoteSessionToVerified(req.cookies?.[config.SESSION_COOKIE_NAME], reply);
       return reply.code(204).send();
     },
   );

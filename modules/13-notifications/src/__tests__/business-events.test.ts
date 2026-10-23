@@ -39,6 +39,14 @@ describe('business webhook events', () => {
     },
   );
 
+  it('payload carries no name or email (GATE-8 A6-5: erasure has nothing to scrub in webhook_deliveries)', async () => {
+    await emitAttemptEventAfterCommit(client, 't1', 'a1', 'result.released');
+    await hooks[0]!();
+    const arg = emitWebhook.mock.calls[0]![0] as { payload: Record<string, unknown> };
+    expect(Object.keys(arg.payload).filter((k) => /name|email|mail/i.test(k))).toEqual([]);
+    expect(JSON.stringify(arg.payload)).not.toMatch(/@/);
+  });
+
   it('delivery failure does not throw', async () => {
     emitWebhook.mockRejectedValue(new Error('redis down'));
     await emitAttemptEventAfterCommit(client, 't1', 'a1', 'attempt.graded');
