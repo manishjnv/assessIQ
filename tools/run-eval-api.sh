@@ -4,12 +4,14 @@
 # on claude-code-vps. The keys go over ssh stdin only: not in argv, not on disk, not printed.
 #   5th arg "cal" = a test copy of the live skills with the band calibration reworded (live skills untouched).
 #   "cal2" = "cal" plus the grade-anchors hit rule reworded (less strict on terse but clear answers).
-# Usage (Git Bash, repo root):  bash tools/run-eval-api.sh [20|5] [id-prefixes] [delay-ms] [budget-tokens] [new|old]
+# Usage (Git Bash, repo root):  bash tools/run-eval-api.sh [20|5] [id-prefixes] [delay-ms] [budget-usd] [new|old|cal|cal2] [budget-tokens]
 #   5th arg "old" grades with the pre-fence skills from /srv/assessiq-skills-backup-20261023, loaded into a temp
 #   HOME inside the container (the live skills are not touched). Default "new" = the live skills.
 #   20 = start with the key on .env line 46, 5 = start with line 49. The other key is the fallback:
 #   the runtime switches to it when the first key is out of credit (credit, auth or limit error).
-#   Default prefixes aiq-log-L1-1-0 = a 9-case smoke, capped at 150000 tokens (the run stops past the cap).
+#   Default prefixes aiq-log-L1-1-0 = a 9-case smoke. 4th arg = the USD cap (Z-164 E9); empty = the harness default:
+#   US$10 when the prefixes select every case (the full 151-case run, for example "aiq-"), US$1 for any regular test. The run stops past the cap,
+#   keeps the partial results and exits 2 (such a run is never compared or blessed). 6th arg = an optional second cap in tokens.
 # Optional env from your shell, forwarded to the run: AI_API_MODEL_GRADE_ANCHORS, AI_API_MODEL_GRADE_BAND,
 #   AI_API_MODEL_GRADE_ESCALATE (model ids, e.g. claude-haiku-5-5), AI_API_EFFORT (low|medium|high).
 # Result: runs/<id>/ plus usage.json (token counts per model). Log: /tmp/eval-api.log in the container.
@@ -17,8 +19,9 @@ set -euo pipefail
 case "${1:-20}" in 20) L1=46; L2=49 ;; 5) L1=49; L2=46 ;; *) echo "first arg must be 20 or 5"; exit 2 ;; esac
 ONLY="${2:-aiq-log-L1-1-0}"
 DELAY="${3:-500}"
-BUDGET="${4:-150000}"
+USD="${4:-}"
 SK="${5:-new}"
+TOKENS="${6:-0}"
 TAG="$(date +%H%M%S)"
 HOMEDIR=/home/node
 if [ "$SK" = "cal" ] || [ "$SK" = "cal2" ]; then
@@ -74,7 +77,7 @@ ${AI_API_MODEL_GRADE_ESCALATE:+export AI_API_MODEL_GRADE_ESCALATE=$AI_API_MODEL_
 ${AI_API_EFFORT:+export AI_API_EFFORT=$AI_API_EFFORT}
 export HOME=$HOMEDIR   # skills under \$HOME/.claude/skills
 cd /app
-nohup node_modules/.bin/tsx modules/07-ai-grading/eval/cli.ts run --mode anthropic-api --only "$ONLY" --delay-ms "$DELAY" --budget-tokens "$BUDGET" > /tmp/eval-api-$SK-$TAG.log 2>&1 < /dev/null &
+nohup node_modules/.bin/tsx modules/07-ai-grading/eval/cli.ts run --mode anthropic-api --only "$ONLY" --delay-ms "$DELAY" ${USD:+--budget-usd $USD} --budget-tokens "$TOKENS" > /tmp/eval-api-$SK-$TAG.log 2>&1 < /dev/null &
 echo "eval started (api mode, only=$ONLY); log: /tmp/eval-api-$SK-$TAG.log inside the container"
 EOS
 } | ssh assessiq-vps 'docker exec -i assessiq-api sh -s'

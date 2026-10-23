@@ -383,3 +383,9 @@ Read-only review. No code changed or deleted. Earlier reviews: `docs/plans/archi
 
 `runtimes/anthropic-api.ts` grades through the Messages API (plain fetch, forced tool call, cached skill system prompt) and reuses `gradeWithRunner` from `claude-code-vps.ts`. Token counts per call are logged and totalled (`takeApiUsage`). Production mode stays `claude-code-vps`. See `docs/05-ai-pipeline.md` section 2026-10-23.
 
+## D6 budget gate and eval hardening (2026-10-23, Z-163 and Z-164)
+
+- `src/grading-budget.ts`: the `anthropic-api` runtime calls `assertBudget(tenant_id)` before a grading (lazy month rollover, HTTP 429 `AIG_BUDGET_EXHAUSTED` when `monthly_budget_usd > 0` and spent) and `recordUsage` after it (also after a failure). `GradingInput.tenant_id` is optional: the handlers set it, the eval harness does not. Budget 0 or no row means unlimited. The CLI runtime never reads the budget. Migration `0257`.
+- `src/runtimes/anthropic-api.ts`: 8000 output tokens; `max_tokens` and `refusal` stop reasons fail; 429, 529 and 5xx retry with a wait; the fallback key is used only on credit or auth errors; `usage.by_model` keeps cache tokens; `apiUsageCostUsd` gives the US$ spent.
+- `src/runtimes/claude-code-vps.ts`: `coerceSubmitAnchorsPayload` drops a null `evidence_quote` (the skill example uses null for a miss).
+- `eval/metrics.ts`, `eval/cli.ts`, `eval/tuning-set.txt`: see `eval/README.md` and `docs/05-ai-pipeline.md`.

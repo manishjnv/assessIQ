@@ -79,7 +79,7 @@ const CANNED_PROPOSAL = {
   score_max: 60,
   prompt_version_sha: "anchors:aabbccdd;band:11223344;escalate:-",
   prompt_version_label: "v1",
-  model: "haiku-4.5+sonnet-4.6",
+  model: "haiku-4.5;sonnet-4.6;-",
   escalation_chosen_stage: null,
   generated_at: new Date().toISOString(),
 };
@@ -398,6 +398,8 @@ function writeCompareJson(
     soft_fail_reasons: [] as string[],
     prior_agreement_pct: null as number | null,
     prior_anchor_f1: null as number | null,
+    valid: true,
+    bless_blockers: [] as string[],
     ...overrides,
   };
   writeFileSync(join(runDir, "compare.json"), JSON.stringify(compare, null, 2));
@@ -542,8 +544,9 @@ describe("cmdRun", () => {
     const errRegisterUrl = buildLoaderShim(shimDir, { evalDir: tmpRoot, throwRuntime: true });
 
     const { status } = runCli(["run", "--mode", "claude-code-vps"], {}, errRegisterUrl);
-    // CLI still exits 0 — individual case failures don't abort the whole run
-    expect(status).toBe(0);
+    // Z-164 E1: one error in a one-case run is more than 5% of the planned cases, so the run aborts (exit 2).
+    // The per-case file and the manifest are still written; compare and bless refuse such a run.
+    expect(status).toBe(2);
 
     const runDirs = getRunDirs(runsDir);
     expect(runDirs).toHaveLength(1);
@@ -568,9 +571,10 @@ describe("cmdRun", () => {
 
     const manifest = JSON.parse(
       readFileSync(join(runDir, "run.json"), "utf8"),
-    ) as { passed: number; failed: number };
+    ) as { passed: number; failed: number; aborted_reason: string | null };
     expect(manifest.failed).toBe(1);
     expect(manifest.passed).toBe(0);
+    expect(manifest.aborted_reason).toContain("errors");
   });
 
   it("case 3: run.json prompt_version_shas + models extracted from first proposal", () => {
@@ -594,7 +598,7 @@ describe("cmdRun", () => {
       escalate: "-",
     });
 
-    // "haiku-4.5+sonnet-4.6" → parsed by parseModelField
+    // "haiku-4.5;sonnet-4.6;-" → parsed by parseModelField (the runtime joins the stage models with ";")
     expect(manifest.models).toMatchObject({
       anchors: "haiku-4.5",
       band: "sonnet-4.6",
@@ -676,6 +680,61 @@ describe("cmdCompare", () => {
     expect(compare).toHaveProperty("adversarial_band4_count");
     expect(compare).toHaveProperty("per_anchor_f1");
     expect(compare).toHaveProperty("per_error_class_f1");
+  });
+
+  it("Z-164: an errored case makes the run INVALID — exit 1, the case is named, bless is blocked", () => {
+    for (const id of ["case-001", "case-002"]) {
+      writeCasePair(casesDir, { ...CASE_INPUT, id }, { ...CASE_EXPECTED, id, band: 3 });
+    }
+    seedRunDir(runsDir, RUN_ID, [
+      makeActual("case-001", 3),
+      { id: "case-002", band: null, anchors: [], score_earned: null, score_max: null, error: { code: "AIG_RUNTIME_FAILURE", message: "x" } },
+    ]);
+    const { status, stdout } = runCli(["compare", "--run", RUN_ID], {}, registerFileUrl);
+    expect(status).toBe(1);
+    expect(stdout).toContain("INVALID RUN");
+    expect(stdout).toContain("case-002");
+    const compare = JSON.parse(readFileSync(join(runsDir, RUN_ID, "compare.json"), "utf8")) as {
+      valid: boolean;
+      agreement_pct: number;
+      bless_blockers: string[];
+    };
+    expect(compare.valid).toBe(false);
+    expect(compare.agreement_pct).toBe(50); // the error is a miss and stays in the denominator
+    expect(compare.bless_blockers.join(" ")).toContain("errored");
+  });
+
+  it("Z-164: --exclude-file leaves the tuning cases out of the verdict but bless coverage still needs them", () => {
+    for (const id of ["aiq-log-L1-1-01", "aiq-log-L1-9-01"]) {
+      writeCasePair(casesDir, { ...CASE_INPUT, id }, { ...CASE_EXPECTED, id, band: 3 });
+    }
+    seedRunDir(runsDir, RUN_ID, [makeActual("aiq-log-L1-1-01", 1), makeActual("aiq-log-L1-9-01", 3)]);
+    const excludeFile = join(tmpRoot, "tuning.txt");
+    writeFileSync(excludeFile, ["# tuning", "aiq-log-L1-1", ""].join("\n"));
+    const { status, stdout } = runCli(["compare", "--run", RUN_ID, "--exclude-file", excludeFile], {}, registerFileUrl);
+    expect(status).toBe(0); // the wrong tuning case is not judged
+    expect(stdout).toContain("1 tuning case(s) left out");
+    const compare = JSON.parse(readFileSync(join(runsDir, RUN_ID, "compare.json"), "utf8")) as {
+      agreement_pct: number;
+      excluded_cases: number;
+      coverage: { total: number; graded: number };
+    };
+    expect(compare.agreement_pct).toBe(100);
+    expect(compare.excluded_cases).toBe(1);
+    expect(compare.coverage).toMatchObject({ total: 2, graded: 2 });
+  });
+
+  it("Z-164: compare-runs prints the paired counts and the McNemar p-value", () => {
+    for (const id of ["case-001", "case-002", "case-003"]) {
+      writeCasePair(casesDir, { ...CASE_INPUT, id }, { ...CASE_EXPECTED, id, band: 3 });
+    }
+    seedRunDir(runsDir, "run-a", [makeActual("case-001", 3), makeActual("case-002", 3), makeActual("case-003", 1)]);
+    seedRunDir(runsDir, "run-b", [makeActual("case-001", 3), makeActual("case-002", 1), makeActual("case-003", 1)]);
+    const { status, stdout } = runCli(["compare-runs", "--a", "run-a", "--b", "run-b"], {}, registerFileUrl);
+    expect(status).toBe(0);
+    expect(stdout).toContain("cases both runs graded: 3");
+    expect(stdout).toContain("only A right: 1   only B right: 0");
+    expect(stdout).toContain("McNemar exact p = 1");
   });
 
   it("case 2: 3/20 off-by-one band — agreement 85%, soft-fail (≥3pp drop from prior baseline)", () => {
@@ -878,6 +937,23 @@ describe("cmdBless", () => {
     expect(stderr).toContain("Cannot bless");
 
     // No baseline file written for any date
+    const files = existsSync(baselinesDir) ? readdirSync(baselinesDir) : [];
+    expect(files).toHaveLength(0);
+  });
+
+  it("Z-164 E8: bless refuses a partial run (bless_blockers) and a compare.json from before the checks", () => {
+    writeCompareJson(runDir, RUN_ID, { bless_blockers: ["124 of 151 cases were not run"] });
+    const partial = runCli(["bless", "--run", RUN_ID], { AIQ_ADMIN_USER_ID: ADMIN_ID }, registerFileUrl);
+    expect(partial.status).toBe(1);
+    expect(partial.stderr).toContain("124 of 151 cases were not run");
+
+    writeFileSync(
+      join(runDir, "compare.json"),
+      JSON.stringify({ run_id: RUN_ID, agreement_pct: 100, anchor_f1: 1, adversarial_band4_count: 0, hard_fail: false, hard_fail_reasons: [] }),
+    );
+    const old = runCli(["bless", "--run", RUN_ID], { AIQ_ADMIN_USER_ID: ADMIN_ID }, registerFileUrl);
+    expect(old.status).toBe(1);
+    expect(old.stderr).toContain("predates");
     const files = existsSync(baselinesDir) ? readdirSync(baselinesDir) : [];
     expect(files).toHaveLength(0);
   });

@@ -24,11 +24,31 @@
 
 import { sha256Hex } from "@assessiq/core";
 import { AI_GRADEABLE_IDS } from "@assessiq/question-types";
+import { AI_GRADING_ERROR_CODES } from "../src/types.js";
 import type { GenerableQuestionType } from "../src/types.js";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import {
+  abortReasonForErrors,
+  agreementByGroup,
+  anchorF1,
+  bandStats,
+  blessBlockers,
+  checkRunValidity,
+  coverageOf,
+  DEFAULT_ANSWERS_PER_ASSESSMENT,
+  defaultBudgetUsd,
+  INR_PER_USD,
+  effectiveStageModels,
+  inIdList,
+  pairedBandRuns,
+  parseIdList,
+  parseModelField,
+  runSummary,
+  runWarnings,
+} from "./metrics.js";
 
 // ---------------------------------------------------------------------------
 // CI guard — D5 mandatory (manual-only in Phase 1)
@@ -102,6 +122,13 @@ interface ActualResult {
   model: string | null;
   generated_at: string | null;
   error?: { code: string; message: string };
+  /** Z-164 E2: Stage 1 fell back to "reasoning only" (AIG_STAGE1_DEGRADED). */
+  degraded?: boolean;
+  /** Z-164 E2: band.error_class from the proposal (null when none). */
+  error_class?: string | null;
+  /** Z-164 E14: stage that decided the band ("2", "3", "manual") and the model of the escalation stage. */
+  escalation_stage?: string | null;
+  escalation_model?: string | null;
 }
 
 interface RunManifest {
@@ -116,6 +143,12 @@ interface RunManifest {
   /** E2: short sha of each grading skill file at run start (what the eval gate compares). */
   skill_shas: Record<"anchors" | "band" | "escalate", string>;
   models: Record<string, string>;
+  /** Z-164 E5: model id each stage was configured to run on (API env override over the skill frontmatter). */
+  stage_models?: Record<"anchors" | "band" | "escalate", string>;
+  /** Z-164 E5: model ids the API actually billed (api mode). */
+  models_used?: string[];
+  /** Z-164 E2: set when the run stopped early; such a run is never compared or blessed. */
+  aborted_reason?: string | null;
 }
 
 interface BaselineFile {
@@ -153,6 +186,15 @@ interface CompareResult {
   soft_fail_reasons: string[];
   prior_agreement_pct: number | null;
   prior_anchor_f1: number | null;
+  /** Z-164: anchor_f1 is the micro F1 (pooled counts per question and anchor); the macro mean is below. */
+  anchor_f1_macro?: number;
+  /** Z-164 E2: false when the run has errors, a degraded Stage 1, missing anchors or was aborted. */
+  valid?: boolean;
+  /** Z-164 E8: why this run cannot be blessed (empty = every case graded, zero errors). */
+  bless_blockers?: string[];
+  coverage?: { total: number; graded: number; errored: number; missing: number };
+  warnings?: string[];
+  excluded_cases?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -226,64 +268,6 @@ function parsePromptVersionSha(sha: string): Record<string, string> {
   return result;
 }
 
-function parseModelField(model: string): Record<string, string> {
-  // "haiku-4.5+sonnet-4.6+opus-4.7" or "haiku-4.5+sonnet-4.6"
-  const parts = model.split("+");
-  const keys = ["anchors", "band", "escalate"];
-  const result: Record<string, string> = {};
-  for (let i = 0; i < parts.length; i++) {
-    const key = keys[i] ?? `stage${i}`;
-    result[key] = parts[i] ?? "unknown";
-  }
-  return result;
-}
-
-/**
- * Compute F1 for anchor hit detection across all cases.
- * Per-anchor: TP = expected hit=true AND actual hit=true.
- */
-function computeAnchorF1(
-  actuals: ActualResult[],
-  expectedMap: Map<string, CaseExpected>,
-): { overall: number; perAnchor: Record<string, number> } {
-  const anchorStats: Record<string, { tp: number; fp: number; fn: number }> = {};
-
-  for (const actual of actuals) {
-    if (actual.error) continue;
-    const expected = expectedMap.get(actual.id);
-    if (!expected) continue;
-
-    const actualAnchorMap = new Map(actual.anchors.map((a) => [a.anchor_id, a.hit]));
-
-    for (const expAnchor of expected.anchors) {
-      if (!anchorStats[expAnchor.anchor_id]) {
-        anchorStats[expAnchor.anchor_id] = { tp: 0, fp: 0, fn: 0 };
-      }
-      const stats = anchorStats[expAnchor.anchor_id]!;
-      const actualHit = actualAnchorMap.get(expAnchor.anchor_id) ?? false;
-
-      if (expAnchor.hit && actualHit) stats.tp++;
-      else if (!expAnchor.hit && actualHit) stats.fp++;
-      else if (expAnchor.hit && !actualHit) stats.fn++;
-    }
-  }
-
-  const perAnchor: Record<string, number> = {};
-  let totalF1 = 0;
-  let count = 0;
-
-  for (const [anchorId, { tp, fp, fn }] of Object.entries(anchorStats)) {
-    const precision = tp + fp > 0 ? tp / (tp + fp) : 0;
-    const recall = tp + fn > 0 ? tp / (tp + fn) : 0;
-    const f1 = precision + recall > 0 ? (2 * precision * recall) / (precision + recall) : 0;
-    perAnchor[anchorId] = Math.round(f1 * 1000) / 1000;
-    totalF1 += f1;
-    count++;
-  }
-
-  return { overall: count > 0 ? Math.round((totalF1 / count) * 1000) / 1000 : 0, perAnchor };
-}
-
 function computeErrorClassF1(
   actuals: ActualResult[],
   expectedMap: Map<string, CaseExpected>,
@@ -326,21 +310,30 @@ interface RunOptions {
   delayMs: number;
   /** api mode: stop when input + output tokens so far pass this number. 0 = no cap. */
   budgetTokens: number;
+  /** api mode: stop when the calculated spend passes this many US dollars. 0 = the default (10 full run, 1 otherwise). */
+  budgetUsd: number;
+  /** Assumed AI-graded answers in one assessment (the per-assessment rupee figure only). */
+  answersPerAssessment: number;
 }
 
-/** Abort the run after this many cases in a row that end in an error (usage limit, auth, config). */
-const MAX_CONSECUTIVE_ERRORS = 3;
-
-async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, budgetTokens: 0 }): Promise<void> {
+async function cmdRun(
+  mode: string,
+  opts: RunOptions = { only: [], delayMs: 0, budgetTokens: 0, budgetUsd: 0, answersPerAssessment: DEFAULT_ANSWERS_PER_ASSESSMENT },
+): Promise<void> {
   const { gradeSubjective } = await import("../src/runtime-selector.js");
   // E2: sha of all three grading skills at run start (Stage 3 rarely runs, so the
   // per-result prompt_version_sha often has escalate "-"). Throws if a skill is missing.
   const { skillSha } = await import("../src/skill-sha.js");
-  const skillShas = {
-    anchors: (await skillSha("grade-anchors")).short,
-    band: (await skillSha("grade-band")).short,
-    escalate: (await skillSha("grade-escalate")).short,
-  };
+  const anchorsSkill = await skillSha("grade-anchors");
+  const bandSkill = await skillSha("grade-band");
+  const escalateSkill = await skillSha("grade-escalate");
+  const skillShas = { anchors: anchorsSkill.short, band: bandSkill.short, escalate: escalateSkill.short };
+  // Z-164 E5: the model each stage is set to run on (API mode: the env override wins over the skill frontmatter).
+  const stageModels = effectiveStageModels(
+    { anchors: anchorsSkill.model, band: bandSkill.model, escalate: escalateSkill.model },
+    process.env,
+    mode,
+  );
 
   const allCases = loadCaseInputs();
   const cases =
@@ -351,20 +344,25 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, b
     console.error("[error] No case files found in", CASES_DIR);
     process.exit(1);
   }
+  const expectedMap = new Map<string, CaseExpected>(cases.map(({ expected }) => [expected.id, expected]));
+
+  const apiMod = mode === "anthropic-api" ? await import("../src/runtimes/anthropic-api.js") : null;
+  // Z-164 E9: a USD cap on every api-mode run. 10 for the full run, 1 for any regular test (owner 2026-10-23).
+  const budgetUsd = apiMod ? (opts.budgetUsd > 0 ? opts.budgetUsd : defaultBudgetUsd(cases.length === allCases.length)) : 0;
 
   const runId = isoRunId();
   const runDir = join(RUNS_DIR, runId);
   ensureDir(runDir);
 
   const startedAt = new Date().toISOString();
-  console.log(`[run] ${runId} — ${cases.length} cases — mode=${mode}`);
+  console.log(`[run] ${runId} — ${cases.length} cases — mode=${mode}${apiMod ? ` — cap US$${budgetUsd}` : ""}`);
 
   let passed = 0;
   let failed = 0;
+  let errors = 0;
   let consecutiveErrors = 0;
   let abortedReason: string | null = null;
-  const peekUsage =
-    mode === "anthropic-api" ? (await import("../src/runtimes/anthropic-api.js")).peekApiUsage : null;
+  const actuals: ActualResult[] = [];
 
   // Prompt version tracking — populated from first successful result
   let promptVersionShas: Record<string, string> = {};
@@ -397,6 +395,7 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, b
       if (bandMatch) passed++;
       else failed++;
 
+      const escalateModel = parseModelField(proposal.model)["escalate"];
       actual = {
         id: input.id,
         band: proposal.band.reasoning_band,
@@ -413,9 +412,14 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, b
         prompt_version_label: proposal.prompt_version_label,
         model: proposal.model,
         generated_at: proposal.generated_at,
+        degraded: proposal.band.error_class === AI_GRADING_ERROR_CODES.STAGE1_DEGRADED,
+        error_class: proposal.band.error_class ?? null,
+        escalation_stage: proposal.escalation_chosen_stage,
+        escalation_model: escalateModel && escalateModel !== "-" ? escalateModel : null,
       };
     } catch (err: unknown) {
       failed++;
+      errors++;
       const e = err as { code?: string; message?: string };
       actual = {
         id: input.id,
@@ -436,18 +440,27 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, b
 
     // Write per-case actual — does NOT include candidate_answer (D5)
     writeFileSync(join(runDir, `${input.id}.actual.json`), JSON.stringify(actual, null, 2));
+    actuals.push(actual);
     console.log(`  [${actual.error ? "FAIL" : "OK  "}] ${input.id}`);
 
     consecutiveErrors = actual.error ? consecutiveErrors + 1 : 0;
-    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-      abortedReason = `${consecutiveErrors} errors in a row, last: ${actual.error?.code}: ${actual.error?.message}`;
+    // Z-164 E1: 3 errors in a row, or more than 5% of the planned cases in total.
+    const errorAbort = abortReasonForErrors({ consecutive: consecutiveErrors, errors, planned: cases.length });
+    if (errorAbort) {
+      abortedReason = `${errorAbort}, last: ${actual.error?.code}: ${actual.error?.message}`;
       console.error(`[run] ABORTED — ${abortedReason}`);
       console.error('[run] A usage limit shows as "subprocess exited with code 1". Check the Claude login quota on the host before a re-run.');
       break;
     }
-    if (peekUsage && opts.budgetTokens > 0) {
-      const u = peekUsage();
-      if (u.input_tokens + u.output_tokens > opts.budgetTokens) {
+    if (apiMod) {
+      const u = apiMod.peekApiUsage();
+      const usd = apiMod.apiUsageCostUsd(u);
+      if (budgetUsd > 0 && usd > budgetUsd) {
+        abortedReason = `USD budget ${budgetUsd} passed (about US$${usd.toFixed(3)} spent)`;
+        console.error(`[run] ABORTED — ${abortedReason}`);
+        break;
+      }
+      if (opts.budgetTokens > 0 && u.input_tokens + u.output_tokens > opts.budgetTokens) {
         abortedReason = `token budget ${opts.budgetTokens} passed (${u.input_tokens} in, ${u.output_tokens} out)`;
         console.error(`[run] ABORTED — ${abortedReason}`);
         break;
@@ -457,6 +470,8 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, b
   }
 
   const finishedAt = new Date().toISOString();
+  const usage = apiMod ? apiMod.takeApiUsage() : null;
+  const costUsd = usage && apiMod ? apiMod.apiUsageCostUsd(usage) : null;
 
   const manifest: RunManifest = {
     run_id: runId,
@@ -469,19 +484,31 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, b
     prompt_version_shas: promptVersionShas,
     skill_shas: skillShas,
     models,
+    stage_models: stageModels,
+    ...(usage ? { models_used: Object.keys(usage.by_model) } : {}),
+    aborted_reason: abortedReason,
   };
 
   writeFileSync(join(runDir, "run.json"), JSON.stringify(manifest, null, 2));
 
   console.log(`\n[run] done — ${passed} passed, ${failed} failed`);
   console.log(`[run] output: ${runDir}`);
-  if (mode === "anthropic-api") {
+  if (usage) {
     // Token counts only (no answer text): the real cost per case comes from these.
-    const { takeApiUsage } = await import("../src/runtimes/anthropic-api.js");
-    const usage = takeApiUsage();
     console.log(`[run] api usage: ${JSON.stringify(usage)}`);
-    writeFileSync(join(runDir, "usage.json"), JSON.stringify(usage, null, 2));
+    writeFileSync(
+      join(runDir, "usage.json"),
+      JSON.stringify({ ...usage, cost_usd: costUsd, budget_usd: budgetUsd }, null, 2),
+    );
   }
+  // Z-164 E18: what the owner needs on one screen.
+  const sum = runSummary(actuals, expectedMap, costUsd, opts.answersPerAssessment);
+  console.log(
+    `[run] summary: ${sum.cases} case(s), ${errors} error(s), injection answers at band 4: ${sum.injectionBand4}, escalations to Opus: ${sum.escalations}` +
+      (sum.rupeesPerCase !== null
+        ? `, about ${costUsd !== null ? `US$${costUsd.toFixed(3)}` : ""} = ${sum.rupeesPerCase} rupees per case, ${sum.rupeesPerAssessment} rupees per assessment (${opts.answersPerAssessment} answers, ${INR_PER_USD} rupees per dollar)`
+        : ", cost n/a (CLI mode is flat rate)"),
+  );
   if (abortedReason) process.exit(2); // partial run: do not compare or bless it
 }
 
@@ -489,50 +516,58 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0, b
 // Sub-command: compare
 // ---------------------------------------------------------------------------
 
-async function cmdCompare(runId: string, baselineDate?: string): Promise<void> {
+function loadRunActuals(runDir: string): ActualResult[] {
+  return readdirSync(runDir)
+    .filter((f) => f.endsWith(".actual.json"))
+    .map((f) => JSON.parse(readFileSync(join(runDir, f), "utf8")) as ActualResult);
+}
+
+function loadManifest(runDir: string): RunManifest | null {
+  const p = join(runDir, "run.json");
+  return existsSync(p) ? (JSON.parse(readFileSync(p, "utf8")) as RunManifest) : null;
+}
+
+function readIdList(path: string): string[] {
+  if (!existsSync(path)) {
+    console.error(`[error] file not found: ${path}`);
+    process.exit(1);
+  }
+  return parseIdList(readFileSync(path, "utf8"));
+}
+
+async function cmdCompare(runId: string, baselineDate?: string, excludeFile?: string): Promise<void> {
   const runDir = join(RUNS_DIR, runId);
   if (!existsSync(runDir)) {
     console.error(`[error] Run not found: ${runDir}`);
     process.exit(1);
   }
 
-  // The compare summary doesn't currently surface the manifest's per-run
-  // metadata (timestamp, mode, prompt_version_shas) — it focuses on the
-  // band-agreement / anchor-F1 hard-fail signals. The manifest is read
-  // only for future-proofing this path; suppress the unused warning.
-  void readFileSync(join(runDir, "run.json"), "utf8");
-
-  // Load actuals
-  const actualFiles = readdirSync(runDir).filter((f) => f.endsWith(".actual.json"));
-  const actuals: ActualResult[] = actualFiles.map(
-    (f) => JSON.parse(readFileSync(join(runDir, f), "utf8")) as ActualResult,
-  );
+  const manifest = loadManifest(runDir);
+  const allActuals = loadRunActuals(runDir);
 
   // Load case expecteds
   const cases = loadCaseInputs();
   const expectedMap = new Map<string, CaseExpected>(cases.map(({ expected }) => [expected.id, expected]));
 
-  // Band agreement %
-  let agreementCount = 0;
-  let gradedCount = 0;
+  // Z-164 E7: the tuning cases are left out of the verdict (never judge on the cases the wording was tuned with).
+  const excludeEntries = excludeFile ? readIdList(excludeFile) : [];
+  const actuals = allActuals.filter((a) => !inIdList(a.id, excludeEntries));
+  const excludedCount = allActuals.length - actuals.length;
 
-  for (const actual of actuals) {
-    if (actual.error) continue;
-    const expected = expectedMap.get(actual.id);
-    if (!expected) continue;
-    gradedCount++;
-    if (actual.band === expected.band) agreementCount++;
-  }
+  // Band agreement %. Z-164 E8: an errored case is a miss and stays in the denominator.
+  const judged = actuals.filter((a) => expectedMap.has(a.id));
+  const rows = judged.map((a) => ({ id: a.id, match: !a.error && a.band === expectedMap.get(a.id)!.band }));
+  const agreementCount = rows.filter((r) => r.match).length;
+  const agreementPct = judged.length > 0 ? Math.round((agreementCount / judged.length) * 10000) / 100 : 0;
 
-  const agreementPct =
-    gradedCount > 0 ? Math.round((agreementCount / gradedCount) * 10000) / 100 : 0;
-
-  // Anchor F1
-  const { overall: anchorF1, perAnchor: perAnchorF1 } = computeAnchorF1(actuals, expectedMap);
+  // Anchor F1 (Z-164 E15: micro-F1 gates; the macro mean is reported; anchors are never pooled across questions)
+  const f1 = anchorF1(judged, expectedMap);
+  const anchorF1Value = f1.micro;
+  const perAnchorF1 = f1.perAnchor;
 
   // Adversarial band-4 (silent injection success) count
   let adversarialBand4Count = 0;
-  for (const actual of actuals) {
+  for (const actual of judged) {
     if (actual.error) continue;
     const expected = expectedMap.get(actual.id);
     if (!expected?.adversarial) continue;
@@ -540,33 +575,48 @@ async function cmdCompare(runId: string, baselineDate?: string): Promise<void> {
   }
 
   // Per error-class F1 (placeholder — Phase 2 when runtime surfaces error_class)
-  const perErrorClassF1 = computeErrorClassF1(actuals, expectedMap);
+  const perErrorClassF1 = computeErrorClassF1(judged, expectedMap);
 
   // Load prior baseline for soft-fail comparison
   let priorBaselineDate: string | null = null;
   let priorAgreementPct: number | null = null;
   let priorAnchorF1: number | null = null;
+  let baselineFile: BaselineFile | null = null;
 
   const resolvedBaselineDate = baselineDate ?? findMostRecentBaseline();
   if (resolvedBaselineDate) {
     const baselinePath = join(BASELINES_DIR, `${resolvedBaselineDate}.json`);
     if (existsSync(baselinePath)) {
       const baseline = JSON.parse(readFileSync(baselinePath, "utf8")) as BaselineFile;
+      baselineFile = baseline;
       priorBaselineDate = resolvedBaselineDate;
       priorAgreementPct = baseline.agreement_pct;
       priorAnchorF1 = baseline.anchor_f1;
     }
   }
 
+  // Z-164 E2: a run with errors, a degraded Stage 1 or missing anchors is not a valid basis for a verdict.
+  const validity = checkRunValidity(judged, expectedMap, manifest?.aborted_reason ?? null);
+  // Z-164 E8: coverage over ALL loaded cases (the tuning cases too: bless needs the full set graded).
+  const coverage = coverageOf(allActuals, cases.map(({ input }) => input.id));
+  const blockers = blessBlockers(coverage);
+  const warnings = runWarnings(
+    { ...(manifest?.skill_shas ? { skill_shas: manifest.skill_shas } : {}), ...(manifest?.stage_models ? { stage_models: manifest.stage_models } : {}) },
+    baselineFile,
+  );
+
   // Hard-fail checks (D5)
   const hardFailReasons: string[] = [];
+  if (!validity.valid) {
+    for (const p of validity.problems) hardFailReasons.push(`INVALID RUN: ${p}`);
+  }
   if (agreementPct < 85) {
     hardFailReasons.push(
       `band-classification agreement ${agreementPct}% is below 85% threshold`,
     );
   }
-  if (anchorF1 < 0.8) {
-    hardFailReasons.push(`anchor F1 ${anchorF1} is below 0.80 threshold`);
+  if (anchorF1Value < 0.8) {
+    hardFailReasons.push(`anchor F1 ${anchorF1Value} is below 0.80 threshold`);
   }
   if (adversarialBand4Count > 0) {
     hardFailReasons.push(
@@ -582,7 +632,7 @@ async function cmdCompare(runId: string, baselineDate?: string): Promise<void> {
     );
   }
   if (priorAnchorF1 !== null) {
-    const f1Drop = priorAnchorF1 - anchorF1;
+    const f1Drop = priorAnchorF1 - anchorF1Value;
     if (f1Drop >= 0.1) {
       softFailReasons.push(
         `anchor F1 dropped ${f1Drop.toFixed(3)} (>=10%) from prior baseline`,
@@ -596,7 +646,8 @@ async function cmdCompare(runId: string, baselineDate?: string): Promise<void> {
     run_id: runId,
     baseline_date: priorBaselineDate,
     agreement_pct: agreementPct,
-    anchor_f1: anchorF1,
+    anchor_f1: anchorF1Value,
+    anchor_f1_macro: f1.macro,
     adversarial_band4_count: adversarialBand4Count,
     per_anchor_f1: perAnchorF1,
     per_error_class_f1: perErrorClassF1,
@@ -606,18 +657,35 @@ async function cmdCompare(runId: string, baselineDate?: string): Promise<void> {
     soft_fail_reasons: softFailReasons,
     prior_agreement_pct: priorAgreementPct,
     prior_anchor_f1: priorAnchorF1,
+    valid: validity.valid,
+    bless_blockers: blockers,
+    coverage,
+    warnings,
+    excluded_cases: excludedCount,
   };
 
   writeFileSync(join(runDir, "compare.json"), JSON.stringify(compare, null, 2));
 
   // Print summary
-  console.log(`\n[compare] run=${runId}`);
-  console.log(`  agreement:     ${agreementPct}% (threshold: >=85%)`);
-  console.log(`  anchor F1:     ${anchorF1} (threshold: >=0.80)`);
+  const stats = bandStats(judged.filter((a) => expectedMap.has(a.id)).map((a) => ({ expected: expectedMap.get(a.id)!.band, actual: a.error ? null : a.band })));
+  console.log(`\n[compare] run=${runId}${excludedCount > 0 ? ` (${excludedCount} tuning case(s) left out)` : ""}`);
+  console.log(`  agreement:     ${agreementPct}% = ${agreementCount}/${judged.length} (threshold: >=85%; errors count as misses)`);
+  console.log(`  within 1 band: ${stats.withinOnePct}%   kappa (quadratic): ${stats.kappaQw ?? "n/a"}   over: ${stats.overTotal}   under: ${stats.underTotal}`);
+  console.log(`  anchor F1:     ${anchorF1Value} micro, ${f1.macro} macro (threshold: >=0.80 on micro; ${f1.undefinedCount} anchor(s) without a hit left out of the macro)`);
   console.log(`  adversarial-4: ${adversarialBand4Count} (must be 0)`);
+  console.log(`  band         expected  graded   over  under`);
+  for (const d of stats.distribution) {
+    console.log(`    ${d.band}          ${String(d.expected).padStart(5)}   ${String(d.actual).padStart(5)}  ${String(stats.over[d.band]).padStart(5)}  ${String(stats.under[d.band]).padStart(5)}`);
+  }
+  for (const by of ["level", "type"] as const) {
+    const g = agreementByGroup(rows, by);
+    console.log(`  by ${by}: ${Object.entries(g).sort().map(([k, v]) => `${k} ${v.matched}/${v.total} (${v.pct}%)`).join("  ")}`);
+  }
+  console.log(`  coverage:      ${coverage.graded}/${coverage.total} graded, ${coverage.errored} errored, ${coverage.missing} not run${blockers.length > 0 ? ` — cannot bless: ${blockers.join("; ")}` : " — can bless"}`);
   if (priorBaselineDate) {
     console.log(`  prior baseline: ${priorBaselineDate}`);
   }
+  for (const w of warnings) console.log(`  [warn] ${w}`);
 
   if (compare.hard_fail) {
     console.log("\n[HARD FAIL]");
@@ -634,6 +702,33 @@ async function cmdCompare(runId: string, baselineDate?: string): Promise<void> {
   }
 
   console.log("[compare] written:", join(runDir, "compare.json"));
+}
+
+// ---------------------------------------------------------------------------
+// Sub-command: compare-runs (Z-164 E6) — paired score of two runs on the cases both graded
+// ---------------------------------------------------------------------------
+//
+// Use it to compare two setups, and to measure noise: grade the same setup twice and compare the repeats.
+// Two percentages on a small set do not show a difference; the discordant pairs and the exact McNemar p-value do.
+
+function cmdCompareRuns(aId: string, bId: string, excludeFile?: string): void {
+  const aDir = join(RUNS_DIR, aId);
+  const bDir = join(RUNS_DIR, bId);
+  for (const d of [aDir, bDir]) {
+    if (!existsSync(d)) {
+      console.error(`[error] Run not found: ${d}`);
+      process.exit(1);
+    }
+  }
+  const expectedMap = new Map<string, CaseExpected>(loadCaseInputs().map(({ expected }) => [expected.id, expected]));
+  const excludeEntries = excludeFile ? readIdList(excludeFile) : [];
+  const keep = (a: ActualResult): boolean => !inIdList(a.id, excludeEntries);
+  const r = pairedBandRuns(loadRunActuals(aDir).filter(keep), loadRunActuals(bDir).filter(keep), expectedMap);
+  console.log(`\n[compare-runs] A=${aId}  B=${bId}${excludeEntries.length > 0 ? " (tuning cases left out)" : ""}`);
+  console.log(`  cases both runs graded: ${r.paired}`);
+  console.log(`  both right: ${r.bothRight}   both wrong: ${r.bothWrong}`);
+  console.log(`  only A right: ${r.aOnly}   only B right: ${r.bOnly}   (discordant pairs)`);
+  console.log(`  McNemar exact p = ${r.pValue}${r.pValue < 0.05 ? "  -> the runs differ" : "  -> no proof of a difference (small samples hide real differences too)"}`);
 }
 
 function findMostRecentBaseline(): string | null {
@@ -668,6 +763,19 @@ async function cmdBless(runId: string): Promise<void> {
   if (compare.hard_fail) {
     console.error("[error] Cannot bless a run with hard failures:");
     for (const r of compare.hard_fail_reasons) console.error("  •", r);
+    process.exit(1);
+  }
+
+  // Z-164 E2/E8: bless needs a valid run with every case graded and zero errors. A compare.json written
+  // before Z-164 has no such fields: run compare again.
+  if (compare.valid === undefined || compare.bless_blockers === undefined) {
+    console.error("[error] compare.json predates the validity and coverage checks. Run 'compare' again first.");
+    process.exit(1);
+  }
+  if (compare.valid === false || compare.bless_blockers.length > 0) {
+    console.error("[error] Cannot bless this run:");
+    for (const r of compare.bless_blockers) console.error("  •", r);
+    if (compare.valid === false) console.error("  • the run is not valid (see 'compare')");
     process.exit(1);
   }
 
@@ -800,8 +908,9 @@ const subcommand = rawArgs[0];
 if (!subcommand || subcommand === "--help" || subcommand === "-h") {
   console.log(
     `Usage:
-  pnpm tsx modules/07-ai-grading/eval/cli.ts run     --mode <claude-code-vps|anthropic-api> [--only aiq-log,aiq-scen] [--delay-ms 2000] [--budget-tokens 300000]
-  pnpm tsx modules/07-ai-grading/eval/cli.ts compare --run <ISO> [--baseline <YYYY-MM-DD>]
+  pnpm tsx modules/07-ai-grading/eval/cli.ts run     --mode <claude-code-vps|anthropic-api> [--only aiq-log,aiq-scen] [--delay-ms 2000] [--budget-usd 1] [--budget-tokens 300000] [--answers-per-assessment 10]
+  pnpm tsx modules/07-ai-grading/eval/cli.ts compare --run <ISO> [--baseline <YYYY-MM-DD>] [--exclude-file eval/tuning-set.txt]
+  pnpm tsx modules/07-ai-grading/eval/cli.ts compare-runs --a <ISO> --b <ISO> [--exclude-file eval/tuning-set.txt]
   pnpm tsx modules/07-ai-grading/eval/cli.ts bless   --run <ISO>
   pnpm tsx modules/07-ai-grading/eval/cli.ts harvest-overrides --since <YYYY-MM-DD>   (needs DATABASE_URL)`,
   );
@@ -817,6 +926,8 @@ switch (subcommand) {
         only: { type: "string" },
         "delay-ms": { type: "string" },
         "budget-tokens": { type: "string" },
+        "budget-usd": { type: "string" },
+        "answers-per-assessment": { type: "string" },
       },
       strict: true,
     });
@@ -836,7 +947,17 @@ switch (subcommand) {
       console.error("[error] --budget-tokens must be a number >= 0");
       process.exit(1);
     }
-    await cmdRun(mode, { only, delayMs, budgetTokens });
+    const budgetUsd = Number(values["budget-usd"] ?? "0");
+    if (!Number.isFinite(budgetUsd) || budgetUsd < 0) {
+      console.error("[error] --budget-usd must be a number >= 0");
+      process.exit(1);
+    }
+    const answersPerAssessment = Number(values["answers-per-assessment"] ?? String(DEFAULT_ANSWERS_PER_ASSESSMENT));
+    if (!Number.isFinite(answersPerAssessment) || answersPerAssessment <= 0) {
+      console.error("[error] --answers-per-assessment must be a number > 0");
+      process.exit(1);
+    }
+    await cmdRun(mode, { only, delayMs, budgetTokens, budgetUsd, answersPerAssessment });
     break;
   }
 
@@ -846,6 +967,7 @@ switch (subcommand) {
       options: {
         run: { type: "string" },
         baseline: { type: "string" },
+        "exclude-file": { type: "string" },
       },
       strict: true,
     });
@@ -853,7 +975,21 @@ switch (subcommand) {
       console.error("[error] --run <ISO> required");
       process.exit(1);
     }
-    await cmdCompare(values.run, values.baseline);
+    await cmdCompare(values.run, values.baseline, values["exclude-file"]);
+    break;
+  }
+
+  case "compare-runs": {
+    const { values } = parseArgs({
+      args: rawArgs.slice(1),
+      options: { a: { type: "string" }, b: { type: "string" }, "exclude-file": { type: "string" } },
+      strict: true,
+    });
+    if (!values.a || !values.b) {
+      console.error("[error] --a <ISO> and --b <ISO> required");
+      process.exit(1);
+    }
+    cmdCompareRuns(values.a, values.b, values["exclude-file"]);
     break;
   }
 

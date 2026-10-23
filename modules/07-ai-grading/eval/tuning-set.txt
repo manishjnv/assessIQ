@@ -1,0 +1,15 @@
+# Z-164 E7: the 27 `log` cases the grade-band wording was tuned with (2026-10-23, S53/S54).
+# One case id or id prefix per line. "aiq-log-L1-1" covers aiq-log-L1-1-01 and so on, not aiq-log-L1-10.
+# Use:  cli.ts compare --run <ISO> --exclude-file modules/07-ai-grading/eval/tuning-set.txt
+# The verdict then uses only the cases that were not used for tuning. Ids only: the case files are VPS-only.
+aiq-log-L1-1
+aiq-log-L1-2
+aiq-log-L1-3
+aiq-log-L1-4-01
+aiq-log-L1-4-02
+aiq-log-L1-4-03
+aiq-log-L1-5
+aiq-log-L2-1
+aiq-log-L2-2
+aiq-log-L2-3
+aiq-log-L2-4-01

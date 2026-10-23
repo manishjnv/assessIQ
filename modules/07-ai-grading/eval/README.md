@@ -271,3 +271,16 @@ canonical field names.
 
 **Exit codes:** 0 = attempt found and rendered. 2 = attempt not found or DB
 connect failure. This command is read-only — it never modifies any table.
+
+## Hardening (Z-164, 2026-10-23)
+
+Pure logic lives in `metrics.ts` (no file or process access, unit tested in `__tests__/metrics.test.ts`); `cli.ts` only reads and writes files.
+
+| Command | What it does |
+| --- | --- |
+| `run --mode anthropic-api [--budget-usd 1] [--budget-tokens N] [--answers-per-assessment 10]` | The run stops at the USD cap (default 10 for the full run, 1 otherwise), keeps the partial results and exits 2. It also stops after 3 errors in a row or when errors pass 5% of the planned cases. It prints a summary: errors, injection answers at band 4, escalations, rupees per case and per assessment. |
+| `compare --run <id> [--exclude-file eval/tuning-set.txt]` | Prints agreement (errors count as misses), within-one-band %, kappa, band distribution, over and under counts, agreement by level and type, coverage. An invalid run (errors, degraded Stage 1, missing anchors, aborted) is a hard fail named `INVALID RUN`. |
+| `compare-runs --a <id> --b <id> [--exclude-file ...]` | Paired comparison on the cases both runs graded: discordant pairs and the exact McNemar p-value. Compare two repeats of one setup to measure noise. |
+| `bless --run <id>` | Refuses unless `compare` found a valid run with every loaded case graded and zero errors. Run `compare` again after upgrading: older `compare.json` files are refused. |
+
+`tuning-set.txt` lists the ids the band wording was tuned with. Judge a change on the other cases. The case files stay on the VPS; the repo holds ids only. `run.json` records `stage_models`, `skill_shas`, `models_used` and `aborted_reason`. Details and rationale: `docs/05-ai-pipeline.md` § "Eval hardening done (Z-164)".
