@@ -70,6 +70,10 @@ services:
     mem_limit: 2g
     image: assessiq/api:${IMAGE_TAG:-latest}
     container_name: assessiq-api
+    # A5-2 (Z-138): the container still runs as root (it reads the Max OAuth login). Cut what root can do:
+    # no setuid escalation, and no raw sockets, device nodes, file caps, chroot or audit writes (the app uses none).
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [NET_RAW, MKNOD, SETFCAP, SYS_CHROOT, AUDIT_WRITE]
     build:
       context: ..
       dockerfile: ./infra/docker/assessiq-api/Dockerfile
@@ -168,6 +172,10 @@ services:
     mem_limit: 1g
     image: assessiq/api:${IMAGE_TAG:-latest}
     container_name: assessiq-worker
+    # A5-2 (Z-138): the container still runs as root (it reads the Max OAuth login). Cut what root can do:
+    # no setuid escalation, and no raw sockets, device nodes, file caps, chroot or audit writes (the app uses none).
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [NET_RAW, MKNOD, SETFCAP, SYS_CHROOT, AUDIT_WRITE]
     # Same image as assessiq-api; second entrypoint runs the BullMQ scheduler.
     # tsx is in the apps/api devDependency closure (carried into the runtime
     # image by the deps stage's tree copy). No separate compile needed —

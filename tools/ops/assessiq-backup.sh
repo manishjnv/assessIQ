@@ -15,9 +15,10 @@ alert() {
   local smtp
   smtp=$(grep -E '^SMTP_URL=' /srv/assessiq/.env | cut -d= -f2- | tr -d '"' || true)
   [ -n "$smtp" ] || return 0
+  # A5-6: the SMTP URL holds the password; pass it by config stream, never in curl argv (visible in ps).
   printf 'From: AssessIQ Backup <connect@assessiq.in>\r\nTo: connect@assessiq.in\r\nSubject: [AssessIQ] DB backup FAILED on %s\r\n\r\n%s\r\nSee %s on the VPS.\r\n' \
     "$(hostname)" "$1" "$LOG" |
-    curl -sS --max-time 30 --url "$smtp" --ssl-reqd \
+    curl -sS --max-time 30 --config <(printf 'url = "%s"\n' "$smtp") --ssl-reqd \
       --mail-from connect@assessiq.in --mail-rcpt connect@assessiq.in -T - >/dev/null 2>&1 || true
 }
 trap 'rc=$?; echo "$(date -u +%FT%TZ) FAIL rc=$rc line=$LINENO" >> "$LOG"; rm -f "$OUT.tmp"; alert "Backup script failed (exit $rc at line $LINENO)."' ERR
