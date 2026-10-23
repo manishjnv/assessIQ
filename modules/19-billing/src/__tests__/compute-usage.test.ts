@@ -13,7 +13,7 @@
 //   - green/amber/red threshold boundaries (exact spec values)
 
 import { describe, it, expect } from 'vitest';
-import { computeUsage } from '../service.js';
+import { computeUsage, creditAwareRemaining } from '../service.js';
 
 // ---------------------------------------------------------------------------
 // Unlimited (internal tier — NULL included_credits)
@@ -194,5 +194,21 @@ describe('cycleWindowStart (FU-A2)', () => {
   it('never moves before the anchor', () => {
     const anchor = new Date('2026-12-01T00:00:00Z');
     expect(cycleWindowStart(anchor, new Date('2026-10-06T00:00:00Z'))).toEqual(anchor);
+  });
+});
+
+// EXP-39: one number for credits left. With a credit ledger, Remaining is the real balance.
+describe('creditAwareRemaining (EXP-39)', () => {
+  it('uses the credit balance when the tenant has a ledger', () => {
+    expect(creditAwareRemaining(230, { unlimited: false, has_grants: true, balance: 181 })).toBe(181);
+  });
+  it('a ledger with a zero balance shows 0, not the plan number', () => {
+    expect(creditAwareRemaining(230, { unlimited: false, has_grants: true, balance: 0 })).toBe(0);
+  });
+  it('keeps the plan meter value when there is no ledger yet', () => {
+    expect(creditAwareRemaining(230, { unlimited: false, has_grants: false, balance: 0 })).toBe(230);
+  });
+  it('unlimited tenants keep null (Unlimited)', () => {
+    expect(creditAwareRemaining(null, { unlimited: true, has_grants: true, balance: 5 })).toBeNull();
   });
 });

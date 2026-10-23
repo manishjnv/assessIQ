@@ -209,6 +209,18 @@ export async function provisionDefaultPlanInTx(
 }
 
 /**
+ * EXP-39: "Remaining" shows the real credit balance when the tenant has a credit ledger (any grant row) and is
+ * not unlimited; otherwise the plan-meter value (included minus used, or null = unlimited) stays.
+ */
+export function creditAwareRemaining(
+  planRemaining: number | null,
+  credits: { unlimited: boolean; has_grants: boolean; balance: number },
+): number | null {
+  if (credits.unlimited || !credits.has_grants) return planRemaining;
+  return credits.balance;
+}
+
+/**
  * Compute remaining/overage/status from plan data and usage count.
  *
  * PURE — no DB calls. Unit-testable without Docker.
@@ -282,6 +294,7 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
     );
 
     const aiIncluded = plan?.ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier];
+    const credits = await readCreditBalance(c, tenantId, meters.ai_used, plan !== null && includedCredits === null);
     return {
       tier,
       tier_limits: TIER_LIMITS[tier],
@@ -289,7 +302,9 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
       invite_limit: plan === null ? DEFAULT_INVITE_LIMIT : (plan.max_invited_per_assessment ?? null),
       included_credits: includedCredits,
       used,
-      remaining,
+      // EXP-39: one number for credits left. With a credit ledger, Remaining is the real balance (the same
+      // number as the Credits card); the plan meter (included, used, overage, status) is unchanged.
+      remaining: creditAwareRemaining(remaining, credits),
       overage,
       status,
       cycle_window_start:
@@ -297,7 +312,7 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
       ai_answers_used: meters.ai_used,
       ai_answers_included: aiIncluded,
       ai_answers_remaining: aiIncluded === null ? null : aiIncluded - meters.ai_used,
-      credits: await readCreditBalance(c, tenantId, meters.ai_used, plan !== null && includedCredits === null),
+      credits,
     } satisfies BillingUsage;
   });
 }
@@ -359,6 +374,7 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
 
     const tier = plan.tier as PlanTier;
     const { remaining, overage, status } = computeUsage(tier, plan.included_credits, used);
+    const ledger = await readCreditBalance(client, tenantId, meters.ai_used, plan.included_credits === null);
 
     return {
       tenant_id: tenantId,
@@ -371,7 +387,7 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
       cycle_window_start:
         meters.cycle_window_start instanceof Date ? meters.cycle_window_start.toISOString() : null,
       used,
-      remaining,
+      remaining: creditAwareRemaining(remaining, ledger), // EXP-39
       overage,
       usage_status: status,
       ai_answers_used: meters.ai_used,

@@ -15,6 +15,8 @@
 const BASE64_32_BYTES = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; // 32 zero-bytes
 
 process.env.NODE_ENV ??= "test";
+// No code default any more (A5-8). Tests use the same address migration 016 seeds as the platform super admin.
+process.env.SUPER_ADMIN_EMAILS ??= "manishjnvk@gmail.com";
 process.env.DATABASE_URL ??= "postgres://test:test@localhost:5432/aiq_test";
 process.env.REDIS_URL ??= "redis://localhost:6379";
 process.env.ASSESSIQ_MASTER_KEY ??= BASE64_32_BYTES;

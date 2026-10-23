@@ -241,7 +241,14 @@ describe("test-only session minters are never on in production", () => {
     ORIGIN_VERIFY_SECRET: "x".repeat(32),
     EMAIL_VERIFIED_DOMAINS: "automateedge.cloud",
     SYSTEM_DATABASE_URL: "postgres://assessiq_system:pw@localhost:5432/aiq",
+    SUPER_ADMIN_EMAILS: "owner@example.test",
   };
+
+  it("production without SUPER_ADMIN_EMAILS fails loud (GATE-8 A5-8)", () => {
+    const { SUPER_ADMIN_EMAILS: _omit, ...noList } = PROD;
+    expect(() => loadConfig(noList)).toThrow(/SUPER_ADMIN_EMAILS/);
+    expect(() => loadConfig({ ...PROD, SUPER_ADMIN_EMAILS: "  " })).toThrow(/SUPER_ADMIN_EMAILS/);
+  });
 
   it("production without SYSTEM_DATABASE_URL fails loud (FUT-10)", () => {
     const { SYSTEM_DATABASE_URL: _omit, ...noSys } = PROD;
@@ -311,6 +318,7 @@ describe("EMAIL_FROM production check (RW-37)", () => {
     ORIGIN_VERIFY_SECRET: "x".repeat(32),
     SYSTEM_DATABASE_URL: "postgres://assessiq_system:pw@localhost:5432/aiq",
     EMAIL_FROM: "AssessIQ <connect@assessiq.in>",
+    SUPER_ADMIN_EMAILS: "owner@example.test",
   };
 
   it("production + domain present parses and lowercases the list", () => {

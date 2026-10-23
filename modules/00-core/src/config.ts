@@ -211,8 +211,10 @@ const ConfigSchema = z
     // SUPER_ADMIN_EMAILS: comma-separated list of email addresses allowed to
     // log in as super_admin. Gate 2 of the 4-gate platform login. Case-insensitive
     // after normalizeEmail() is applied to both sides.
-    // Example: "manishjnvk@gmail.com,backup@example.com"
-    SUPER_ADMIN_EMAILS: z.string().default("manishjnvk@gmail.com"),
+    // No default: the list lives only in the server environment (owner decision 2026-10-23,
+    // GATE-8 A5-8). An empty list means nobody can sign in as super_admin. REQUIRED in
+    // production (superRefine below). Example: "owner@example.com,backup@example.com"
+    SUPER_ADMIN_EMAILS: z.string().default(""),
 
     // SIGNUP_FOLD_EXEMPT_EMAILS (Z-101): comma-separated tester addresses that skip the
     // Gmail dot/plus fold for the one-organisation-per-mailbox sign-up key, so each dot
@@ -328,6 +330,13 @@ const ConfigSchema = z
       .default("off"),
   })
   .superRefine((data, ctx) => {
+    if (data.NODE_ENV === "production" && data.SUPER_ADMIN_EMAILS.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "NODE_ENV=production requires SUPER_ADMIN_EMAILS (the super-admin allowlist has no code default; GATE-8 A5-8).",
+        path: ["SUPER_ADMIN_EMAILS"],
+      });
+    }
     if (data.NODE_ENV === "production" && data.SYSTEM_DATABASE_URL === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
