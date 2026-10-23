@@ -1,0 +1,22 @@
+# Z-165 split v1 (frozen 2026-10-23 night, S55). QUESTION ids, not case ids: variants of one question stay together.
+# DEV = the questions below (about one third, stratified by type and level). SEALED = every other question: judge it ONCE, never iterate on it.
+# Make a new split only as a new file (split-v2.txt); never edit this one. Ids only: the case files are VPS-only.
+# Use: --exclude-file is for the tuning set; for this split use the DEV list below as the only cases to tune on.
+aiq-log-L1-3
+aiq-log-L1-5
+aiq-log-L2-1
+aiq-log-L2-2
+aiq-log-L3-1
+aiq-log-L3-4
+aiq-scen-L1-q1
+aiq-scen-L1-q5
+aiq-scen-L2-q1
+aiq-scen-L2-q2
+aiq-scen-L3-q1
+aiq-scen-L3-q5
+aiq-subj-L1-q4
+aiq-subj-L1-q5
+aiq-subj-L2-q1
+aiq-subj-L2-q3
+aiq-subj-L3-q3
+aiq-subj-L3-q5

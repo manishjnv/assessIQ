@@ -4,7 +4,7 @@
 # on claude-code-vps. The keys go over ssh stdin only: not in argv, not on disk, not printed.
 #   5th arg "cal" = a test copy of the live skills with the band calibration reworded (live skills untouched).
 #   "cal2" = "cal" plus the grade-anchors hit rule reworded (less strict on terse but clear answers).
-# Usage (Git Bash, repo root):  bash tools/run-eval-api.sh [20|5] [id-prefixes] [delay-ms] [budget-usd] [new|old|cal|cal2] [budget-tokens]
+# Usage (Git Bash, repo root):  bash tools/run-eval-api.sh [20|5] [id-prefixes] [delay-ms] [budget-usd] [new|old|cal|cal2|v2] [budget-tokens]
 #   5th arg "old" grades with the pre-fence skills from /srv/assessiq-skills-backup-20261023, loaded into a temp
 #   HOME inside the container (the live skills are not touched). Default "new" = the live skills.
 #   20 = start with the key on .env line 46, 5 = start with line 49. The other key is the fallback:
@@ -55,6 +55,26 @@ JS
 node /tmp/cal2.js
 PREP2
   fi
+fi
+if [ "$SK" = "v2" ]; then
+  # Z-165 prompt candidate v2: a test copy of the LIVE skills with the grade-band calibration replaced by a boundary
+  # rule (name the missing element or give the next band up) and one band table. Live skills are not touched.
+  HOMEDIR=/tmp/eval-home-v2
+  ssh assessiq-vps 'docker exec -i assessiq-api sh -s' <<'PREPV2'
+rm -rf /tmp/eval-home-v2 && mkdir -p /tmp/eval-home-v2/.claude/skills
+cp -r /home/node/.claude/skills/grade-anchors /home/node/.claude/skills/grade-band /home/node/.claude/skills/grade-escalate /tmp/eval-home-v2/.claude/skills/
+cat > /tmp/v2.js <<'JS'
+const fs = require("fs");
+const p = "/tmp/eval-home-v2/.claude/skills/grade-band/SKILL.md";
+const t = fs.readFileSync(p, "utf8");
+const re = /\*\*Calibration\*\*: grade against the band table above[\s\S]*?"so what\."/;
+if (!re.test(t)) { console.error("calibration paragraph not found"); process.exit(1); }
+const v2 = '**Calibration**: grade against the band table above, not against a quota. If `rubric.reasoning_bands` is present it defines what each band means for this question and the table above is guidance; do not ask for an element the question does not ask for. Give band 4 when all anchors are present, the causal chain is correct and the escalation or decision path is correct; do not hold back a 4 because it is the top band. **Boundary rule:** for any band below 4, quote in `ai_justification` the specific element that is missing or wrong (a fact, a step in the causal chain, or an escalation or decision the question asks for). If you cannot name one concrete element that the question or rubric asks for and the answer lacks or gets wrong, give the next band up. A style point, a missing nicety or a vague "could be more precise" is not a gap. Give band 3 only for a named minor causal gap or an imprecise escalation. Band 2 is the median when the candidate has the facts but not the "so what."';
+fs.writeFileSync(p, t.replace(re, () => v2));
+console.log("v2 calibration patched");
+JS
+node /tmp/v2.js
+PREPV2
 fi
 if [ "$SK" = "old" ]; then
   HOMEDIR=/tmp/eval-home-old

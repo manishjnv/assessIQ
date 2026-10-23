@@ -389,3 +389,8 @@ Read-only review. No code changed or deleted. Earlier reviews: `docs/plans/archi
 - `src/runtimes/anthropic-api.ts`: 8000 output tokens; `max_tokens` and `refusal` stop reasons fail; 429, 529 and 5xx retry with a wait; the fallback key is used only on credit or auth errors; `usage.by_model` keeps cache tokens; `apiUsageCostUsd` gives the US$ spent.
 - `src/runtimes/claude-code-vps.ts`: `coerceSubmitAnchorsPayload` drops a null `evidence_quote` (the skill example uses null for a miss).
 - `eval/metrics.ts`, `eval/cli.ts`, `eval/tuning-set.txt`: see `eval/README.md` and `docs/05-ai-pipeline.md`.
+
+## Z-165 accuracy work (2026-10-23, S55)
+
+- A Stage 3 band that differs from Stage 2 by any amount sets `escalation_chosen_stage='manual'` (the admin sees both; Stage 2 stays the primary band). Before, a 1-band difference let Stage 3 win silently. Stage 3 only runs when Stage 2 sets `needs_escalation` or the admin forces it; there is no confidence field.
+- Eval tools: `tools/eval-analysis.mjs`, `tools/eval-floor.mjs`, `tools/eval-relabel-pack.mjs` (read-only, run in the API container over ssh), `eval/split-v1.txt` (frozen dev/sealed split by question id), `tools/run-eval-api.sh ... v2` (prompt candidate on a /tmp copy). Findings and numbers: `docs/05-ai-pipeline.md` "Z-165 measured results".
