@@ -4,6 +4,9 @@
 #   claude-haiku-4-5[-date] -> claude-haiku-5-5 ; claude-sonnet-4-6 -> claude-sonnet-5-5 ; claude-opus-4-7 -> claude-opus-5-5
 # Makes a backup copy first, then writes in place (truncate-write keeps the inode). Prints what changed.
 # Rollback: cp -a /srv/assessiq-skills-backup-20261023b/. /srv/assessiq/prompts/skills/
+# WARNING (2026-10-23): do NOT run yet. The band stage on the 5.5 models scored 20/26 with a reworded calibration and 16/26
+# with the current text, against 23/27 for the Max-plan default model (docs/05-ai-pipeline.md, "Eval A/B 2026-10-23").
+# Run it only after the band calibration is fixed and an eval on the same cases reaches at least 23/27.
 # Usage (Git Bash, repo root):  bash tools/set-skill-models.sh
 set -euo pipefail
 ssh assessiq-vps '[ -d /srv/assessiq-skills-backup-20261023b ] || cp -a /srv/assessiq/prompts/skills /srv/assessiq-skills-backup-20261023b; echo backup-ok'

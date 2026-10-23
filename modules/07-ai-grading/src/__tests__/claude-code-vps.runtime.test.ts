@@ -216,19 +216,15 @@ describe("gradeSubjective — happy path Stage 1+2", () => {
 });
 
 describe("gradeSubjective — stage model", () => {
-  it("passes the skill frontmatter model to every stage as --model (no CLI default)", async () => {
+  it("passes no --model for the grading stages (Claude Code default; see eval A/B 2026-10-23)", async () => {
     mockSpawn.mockImplementation((_cmd: string, args: readonly string[]) => {
       const skill = skillFromArgs(args);
       if (skill === "grade-anchors") return makeFakeProc([toolUseEvent("submit_anchors", STAGE1_ANCHORS_PAYLOAD)]);
       return makeFakeProc([toolUseEvent("submit_band", bandPayload(3, false))]);
     });
     await gradeSubjective(BASE_INPUT);
-    expect(mockSpawn.mock.calls).toHaveLength(2);
     for (const call of mockSpawn.mock.calls) {
-      const args = call[1] as readonly string[];
-      const i = args.indexOf("--model");
-      expect(i).toBeGreaterThan(-1);
-      expect(args[i + 1]).toBe("claude-haiku-4-5"); // the mocked skillSha model
+      expect((call[1] as readonly string[]).includes("--model")).toBe(false);
     }
   });
 });

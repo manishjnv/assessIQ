@@ -1273,19 +1273,12 @@ function leaseLostError(opts: RunSkillOpts): AppError {
 }
 
 /**
- * Owner rule 2026-10-23: all AI use runs on the latest Haiku, Sonnet or Opus. A stage that names no
- * model gets the `model:` of its skill frontmatter (grade-anchors, grade-band, grade-escalate), so the
- * Max-plan runs no longer fall back to the CLI default.
+ * Stages that name no model run on the Claude Code default (the Max-plan baseline scored 23/27 on the
+ * eval, 2026-10-23). Passing the skill frontmatter model with --model was tried and reverted until an
+ * eval shows a better setting: see docs/05-ai-pipeline.md "Eval A/B 2026-10-23". Generation callers
+ * still pass an explicit model.
  */
 function runSkill(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
-  if (opts.model) return runSkillWithModel(opts);
-  return skillSha(opts.skill).then(
-    (s) => runSkillWithModel(s.model && s.model !== "unspecified" ? { ...opts, model: s.model } : opts),
-    () => runSkillWithModel(opts),
-  );
-}
-
-function runSkillWithModel(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
   // RW-64: never spawn for a run that already lost its lease.
   if (opts.signal?.aborted) return Promise.reject(leaseLostError(opts));
   const prompt =
