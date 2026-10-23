@@ -320,3 +320,6 @@ The full record is in `modules/19-billing/SKILL.md` § "2026-10-20 — Wave 4 sm
 - **Result sign-in link (Z-15 a).** New `src/email/result-login-token.ts` (`mintResultLoginToken` export) and `result-released.ts`. The result email button is a one-time link: 7 days, token in the URL fragment. Minting retires older tokens that live longer than 1 hour. `retireResultLoginLinks` is the retire step; any future "withdraw result" action must call it in the same transaction. The mail uses `redactLogBody: true`, so the token is not stored in `email_log` or queue data. Why 13 and not 01-auth: 01-auth already depends on 13, so the mint function in 01-auth would be a cycle. The consume side is in `modules/01-auth/src/candidate-login.ts`.
 - **Not included.** A per-admin retry when one admin send fails and another works. Revoking links on a withdrawn result (no such action exists yet).
 - **Verify.** `cd modules/13-notifications && npx vitest run`.
+
+## EXP-37 (2026-10-23)
+- `invite-limit-notice.ts`: `notifyInviteLimitBlocked` tells the platform super admins (in-app notice per active super_admin of the platform tenant, written with `withSystemRole`; email template `invite_limit_blocked` to `SUPER_ADMIN_EMAILS`); once per (tenant, assessment, UTC day) by a Redis key; never throws.

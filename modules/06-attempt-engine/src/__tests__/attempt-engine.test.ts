@@ -297,6 +297,7 @@ beforeAll(async () => {
       "0078_tenant_plans.sql",
       "0079_billing_events.sql", // submit now finalises MCQ-only attempts (records billing)
       "0081_tenant_entitlements.sql",
+      "0249_tenant_plans_max_invited_per_assessment.sql", // EXP-37: inviteUsers reads the plan limit
     ]);
     // Deterministic MCQ scoring at submit writes gradings + attempt_scores.
     // 0100: finalizeAttemptIfComplete (SP1) clears the review-cache columns on the flip.

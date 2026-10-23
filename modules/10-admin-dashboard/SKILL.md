@@ -204,3 +204,6 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 - Files load only on a View click, through an authenticated blob fetch. See `docs/08-ui-system.md`, "Camera screens".
 - Nav probe: `components/AdminShell.tsx` shows "Camera review" only when `GET /api/admin/camera/access` returns `reviewer: true`. That route always answers 200.
 - Never probe with a reviewer-only route. A 403 shows as a console error on every admin page, and it breaks the signed-in smoke specs in CI.
+
+## EXP-37 (2026-10-23)
+- Invite dialog note "This setup supports up to {limit} students for one assessment." (help id `admin.assessments.invite_limit`); plan view line "Students per assessment". Both read `invite_limit` from `GET /api/billing/usage`.

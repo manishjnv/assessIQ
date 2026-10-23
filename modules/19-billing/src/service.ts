@@ -79,9 +79,13 @@ export const DEFAULT_INVITE_LIMIT = 150;
  * Runs on the caller's tenant client (RLS select policy). A missing plan row gives the platform default.
  */
 export async function getInviteLimit(client: PoolClient, tenantId: string): Promise<number | null> {
-  const plan = await getPlan(client, tenantId);
-  if (plan === null) return DEFAULT_INVITE_LIMIT;
-  return plan.max_invited_per_assessment ?? null;
+  // One narrow column on purpose: it keeps the invite path independent of the other plan columns.
+  const r = await client.query<{ max_invited_per_assessment: number | null }>(
+    `SELECT max_invited_per_assessment FROM tenant_plans WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  if (r.rows.length === 0) return DEFAULT_INVITE_LIMIT;
+  return r.rows[0]!.max_invited_per_assessment ?? null;
 }
 
 /**

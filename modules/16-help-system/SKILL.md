@@ -191,3 +191,5 @@ Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the
 - Admin: `admin.tenant_settings.camera`, `admin.tenant_settings.camera_notice`, `admin.tenant_settings.camera_reviewers`, `admin.camera.review_list`, `admin.camera.review_files`, `admin.platform.tenants.school`.
 - The seeded global count goes from 575 to 585 (`help-system.test.ts`).
 - An id must start with the page's `helpPage` prefix. Otherwise the help does not load. The reviewer page uses `admin.camera`.
+
+- 2026-10-23: migration 0250 `admin.assessments.invite_limit` (global seed count 600).

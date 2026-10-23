@@ -82,6 +82,7 @@ beforeAll(async () => {
       "0078_tenant_plans.sql",
       "0079_billing_events.sql",
       "0081_tenant_entitlements.sql",
+      "0249_tenant_plans_max_invited_per_assessment.sql", // EXP-37: inviteUsers reads the plan limit
     ]);
     await applyDir(c, join(MODULES_ROOT, "07-ai-grading", "migrations"), [
       "0040_gradings.sql",

@@ -384,3 +384,6 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 - `revokeInvitation` also ends the candidate's `in_progress` attempt in the same transaction (GATE-8 A3-2; see the 2026-10-22 update below: it submits and grades it); the audit row carries `submitted_attempt_ids`. The frozen pool also stores `node_ids` (FUT-8).
 
 - Update 2026-10-22: `revokeInvitation` SUBMITS and GRADES a running attempt (not cancelled): module 06's `submitAttemptForRevokeInTx` is injected at boot with `setRevokeAttemptSubmitter` (`service/revoke-submitter.ts`); no submitter registered = the revoke fails and rolls back. Audit `after.submitted_attempt_ids`.
+
+## EXP-37 (2026-10-23)
+- `assertInviteCapacity` (`service/_shared.ts`) refuses with 409 `INVITE_LIMIT_EXCEEDED` when the active invitations (pending, viewed, started) of one assessment plus the new ones pass the plan limit. Called by `inviteUsers` (once per batch, before any insert or mail), resend of a revoked invitation, and reopen for retake. A per-assessment advisory lock serialises concurrent invites. A refusal writes the audit action `assessment.invite_limit_blocked` and calls `notifyInviteLimitBlocked` (module 13, best effort, once per assessment per day).
