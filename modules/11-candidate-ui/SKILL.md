@@ -303,3 +303,5 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - Consent comes before Start. "Allow camera and start" waits for the general consent checkbox.
 - A retake needs a fresh consent. The server refuses the start without one.
 - Screens and components: `docs/08-ui-system.md`, "Camera screens".
+
+- **Withheld questions (A3-1, 2026-10-23).** A question with `withheld: true` has no content. `apps/web/src/pages/take/Attempt.tsx` shows "Loading question…" and swaps in the `question` that `recordPosition` returns (api.ts). Why: stops reading locked or timed questions early in the browser tools.

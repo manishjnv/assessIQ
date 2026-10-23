@@ -61,6 +61,7 @@ sweepStaleTimersForTenant(tenantId, now?): Promise<{ autoSubmitted, attemptIds }
 
 - **Keys.** Section `locked` (free movement only) and `seconds_per_question` (10 to 3600). Schema: `modules/05-assessment-lifecycle/src/types.ts`. Enforcement: `service.ts` (`assertFreeMovementSection`, `assertQuestionTimeOpen`, `recordPosition`). State: optional `entered` and `questions` keys in `attempts.section_progress`; every writer (`saveAnswer`, `toggleFlag`, `recordPosition`, `finishSection`) takes the row lock.
 - **Why.** Free-movement exams (Z-42) need a "no going back" block and a per-question limit. Server-side, so the client cannot skip it.
+- **Withheld content (A3-1).** `getAttemptForCandidate` replaces unreadable questions with a stub (`withheld: true`, no content). `recordPosition` returns the content (`question`) when `withheldQuestionIds` no longer lists it. Rule: timed question = readable after its first position call; locked block (free movement) = readable only while inside it.
 - **Limits.** Soft question clock (see `docs/03-api-contract.md`, `POST /api/me/attempts/:id/position`); a block that was only viewed is not closed; the take page shows no countdown yet (Z-130); no admin screen (Z-131); every save in a sectioned test reads the assessment up to 3 times.
 - **Not included.** Auto-advance, a migration.
 
