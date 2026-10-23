@@ -319,7 +319,17 @@ function computeErrorClassF1(
 // Sub-command: run
 // ---------------------------------------------------------------------------
 
-async function cmdRun(mode: string): Promise<void> {
+interface RunOptions {
+  /** Comma list of case-id prefixes to run, for example "aiq-log,aiq-scen". Empty = all cases. */
+  only: string[];
+  /** Pause between cases, so a Max usage limit is not hit in one burst. */
+  delayMs: number;
+}
+
+/** Abort the run after this many cases in a row that end in an error (usage limit, auth, config). */
+const MAX_CONSECUTIVE_ERRORS = 3;
+
+async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0 }): Promise<void> {
   const { gradeSubjective } = await import("../src/runtime-selector.js");
   // E2: sha of all three grading skills at run start (Stage 3 rarely runs, so the
   // per-result prompt_version_sha often has escalate "-"). Throws if a skill is missing.
@@ -330,7 +340,11 @@ async function cmdRun(mode: string): Promise<void> {
     escalate: (await skillSha("grade-escalate")).short,
   };
 
-  const cases = loadCaseInputs();
+  const allCases = loadCaseInputs();
+  const cases =
+    opts.only.length === 0
+      ? allCases
+      : allCases.filter((c) => opts.only.some((prefix) => c.input.id.startsWith(prefix)));
   if (cases.length === 0) {
     console.error("[error] No case files found in", CASES_DIR);
     process.exit(1);
@@ -345,6 +359,8 @@ async function cmdRun(mode: string): Promise<void> {
 
   let passed = 0;
   let failed = 0;
+  let consecutiveErrors = 0;
+  let abortedReason: string | null = null;
 
   // Prompt version tracking — populated from first successful result
   let promptVersionShas: Record<string, string> = {};
@@ -417,6 +433,15 @@ async function cmdRun(mode: string): Promise<void> {
     // Write per-case actual — does NOT include candidate_answer (D5)
     writeFileSync(join(runDir, `${input.id}.actual.json`), JSON.stringify(actual, null, 2));
     console.log(`  [${actual.error ? "FAIL" : "OK  "}] ${input.id}`);
+
+    consecutiveErrors = actual.error ? consecutiveErrors + 1 : 0;
+    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+      abortedReason = `${consecutiveErrors} errors in a row, last: ${actual.error?.code}: ${actual.error?.message}`;
+      console.error(`[run] ABORTED — ${abortedReason}`);
+      console.error('[run] A usage limit shows as "claude subprocess exited with code 1". Test with: claude -p "say ok"');
+      break;
+    }
+    if (opts.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, opts.delayMs));
   }
 
   const finishedAt = new Date().toISOString();
@@ -438,6 +463,7 @@ async function cmdRun(mode: string): Promise<void> {
 
   console.log(`\n[run] done — ${passed} passed, ${failed} failed`);
   console.log(`[run] output: ${runDir}`);
+  if (abortedReason) process.exit(2); // partial run: do not compare or bless it
 }
 
 // ---------------------------------------------------------------------------
@@ -755,7 +781,7 @@ const subcommand = rawArgs[0];
 if (!subcommand || subcommand === "--help" || subcommand === "-h") {
   console.log(
     `Usage:
-  pnpm tsx modules/07-ai-grading/eval/cli.ts run     --mode <claude-code-vps|anthropic-api>
+  pnpm tsx modules/07-ai-grading/eval/cli.ts run     --mode <claude-code-vps|anthropic-api> [--only aiq-log,aiq-scen] [--delay-ms 2000]
   pnpm tsx modules/07-ai-grading/eval/cli.ts compare --run <ISO> [--baseline <YYYY-MM-DD>]
   pnpm tsx modules/07-ai-grading/eval/cli.ts bless   --run <ISO>
   pnpm tsx modules/07-ai-grading/eval/cli.ts harvest-overrides --since <YYYY-MM-DD>   (needs DATABASE_URL)`,
@@ -769,6 +795,8 @@ switch (subcommand) {
       args: rawArgs.slice(1),
       options: {
         mode: { type: "string" },
+        only: { type: "string" },
+        "delay-ms": { type: "string" },
       },
       strict: true,
     });
@@ -777,7 +805,13 @@ switch (subcommand) {
       console.error('[error] --mode must be "claude-code-vps" or "anthropic-api"');
       process.exit(1);
     }
-    await cmdRun(mode);
+    const only = (values.only ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+    const delayMs = Number(values["delay-ms"] ?? "0");
+    if (!Number.isFinite(delayMs) || delayMs < 0) {
+      console.error("[error] --delay-ms must be a number >= 0");
+      process.exit(1);
+    }
+    await cmdRun(mode, { only, delayMs });
     break;
   }
 
