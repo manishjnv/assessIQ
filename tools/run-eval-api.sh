@@ -3,8 +3,9 @@
 # Only this one process gets AI_PIPELINE_MODE=anthropic-api and the keys; the container stays
 # on claude-code-vps. The keys go over ssh stdin only: not in argv, not on disk, not printed.
 #   5th arg "cal" = a test copy of the live skills with the band calibration reworded (live skills untouched).
+#   "v3" = v2 boundary rule plus a completeness-check band-4 criterion (Z-165 iteration 2).
 #   "cal2" = "cal" plus the grade-anchors hit rule reworded (less strict on terse but clear answers).
-# Usage (Git Bash, repo root):  bash tools/run-eval-api.sh [20|5] [id-prefixes] [delay-ms] [budget-usd] [new|old|cal|cal2|v2] [budget-tokens]
+# Usage (Git Bash, repo root):  bash tools/run-eval-api.sh [20|5] [id-prefixes] [delay-ms] [budget-usd] [new|old|cal|cal2|v2|v3] [budget-tokens]
 #   5th arg "old" grades with the pre-fence skills from /srv/assessiq-skills-backup-20261023, loaded into a temp
 #   HOME inside the container (the live skills are not touched). Default "new" = the live skills.
 #   20 = start with the key on .env line 46, 5 = start with line 49. The other key is the fallback:
@@ -75,6 +76,28 @@ console.log("v2 calibration patched");
 JS
 node /tmp/v2.js
 PREPV2
+fi
+if [ "$SK" = "v3" ]; then
+  # Z-165 prompt candidate v3 (iteration 2): v2 boundary rule plus a band-4 criterion that is a completeness check,
+  # not a conjunction of three separate conditions. Test copy of the LIVE skills; live skills are not touched.
+  HOMEDIR=/tmp/eval-home-v3
+  ssh assessiq-vps 'docker exec -i assessiq-api sh -s' <<'PREPV3'
+rm -rf /tmp/eval-home-v3 && mkdir -p /tmp/eval-home-v3/.claude/skills
+cp -r /home/node/.claude/skills/grade-anchors /home/node/.claude/skills/grade-band /home/node/.claude/skills/grade-escalate /tmp/eval-home-v3/.claude/skills/
+cat > /tmp/v3.js <<'JS'
+const fs = require("fs");
+const p = "/tmp/eval-home-v3/.claude/skills/grade-band/SKILL.md";
+let t = fs.readFileSync(p, "utf8");
+const rows = /\| 4 \| All anchors present[^\n]*\n\| 3 \|[^\n]*\n/;
+const cal = /\*\*Calibration\*\*: grade against the band table above[\s\S]*?"so what\."/;
+if (!rows.test(t) || !cal.test(t)) { console.error("band rows or calibration not found"); process.exit(1); }
+t = t.replace(rows, () => '| 4 | The answer correctly covers every anchor and every part the question asks for, and its decision or escalation path is sound. Brevity, order and wording do not lower it: a complete, correct answer is a 4. |\n| 3 | Correct, but one or two parts the question asks for are missing, thin or imprecise. You can name them. |\n');
+t = t.replace(cal, () => '**Calibration**: grade against the band table above, not against a quota. If `rubric.reasoning_bands` is present it defines what each band means for this question; do not ask for an element the question does not ask for. Method: (1) list the parts the question asks for; (2) check each one against the answer; (3) if every part is covered correctly, give band 4, even when the answer is short or plain; (4) otherwise quote in `ai_justification` each part that is missing or wrong. If you cannot quote one concrete missing or wrong part, give the next band up. A style point or a vague "could be more precise" is not a gap. Band 2 is the median when the candidate has the facts but not the "so what."');
+fs.writeFileSync(p, t);
+console.log("v3 band table and calibration patched");
+JS
+node /tmp/v3.js
+PREPV3
 fi
 if [ "$SK" = "old" ]; then
   HOMEDIR=/tmp/eval-home-old
