@@ -33,7 +33,16 @@ const log = streamLogger("grading");
 const API_URL = "https://api.anthropic.com/v1/messages";
 const API_VERSION = "2023-06-01";
 const STAGE_TIMEOUT_MS = 120_000;
-const MAX_OUTPUT_TOKENS = 1500;
+// Thinking tokens count inside max_tokens (the 5.5 models think by default). 1500 cut replies short
+// (owner 2026-10-23); a reply that still hits the cap is an error, never a partial tool input.
+const MAX_OUTPUT_TOKENS = 8000;
+const MAX_RETRIES = 4;
+const MAX_RETRY_WAIT_MS = 30_000;
+let retryBaseMs = 1000;
+/** Test hook: shorten the backoff so the retry tests do not wait. */
+export function setRetryBaseMsForTests(ms: number): void {
+  retryBaseMs = ms;
+}
 
 // Tool schemas mirror AnchorFindingSchema and BandFindingSchema in ../types.ts.
 const TOOLS: Record<string, { description: string; input_schema: Record<string, unknown> }> = {
@@ -84,7 +93,15 @@ export interface ApiUsageTotals {
   output_tokens: number;
   cache_read_input_tokens: number;
   cache_creation_input_tokens: number;
-  by_model: Record<string, { calls: number; input_tokens: number; output_tokens: number }>;
+  by_model: Record<
+    string,
+    { calls: number; input_tokens: number; output_tokens: number; cache_read_input_tokens: number; cache_creation_input_tokens: number }
+  >;
+}
+
+/** US$ spent so far, from the token counts (cache write 1.25x and read 0.1x of the input price). */
+export function apiUsageCostUsd(u: ApiUsageTotals): number {
+  return Object.entries(u.by_model).reduce((sum, [model, m]) => sum + callCostUsd(model, m), 0);
 }
 
 let totals: ApiUsageTotals = emptyTotals();
@@ -125,9 +142,23 @@ function apiKeys(): string[] {
   );
 }
 
-/** Credit exhausted, bad or revoked key, or a rate or spend limit on this key. */
+/**
+ * Credit exhausted or a bad or revoked key: move to the fallback key. A rate limit (429) is NOT a key
+ * problem: the other key would only hide it, and the call is retried with a wait instead.
+ */
 function isKeyProblem(status: number, message: string): boolean {
-  return status === 401 || status === 402 || status === 403 || status === 429 || (status === 400 && /credit balance/i.test(message));
+  return status === 401 || status === 402 || status === 403 || (status === 400 && /credit balance/i.test(message));
+}
+
+/** Rate limit, overload and server errors are worth another try after a wait. */
+function isRetryable(status: number): boolean {
+  return status === 429 || status === 529 || status >= 500;
+}
+
+function retryWaitMs(attempt: number, retryAfter: string | null): number {
+  const fromHeader = retryAfter !== null ? Number(retryAfter) * 1000 : NaN;
+  const wait = Number.isFinite(fromHeader) && fromHeader > 0 ? fromHeader : retryBaseMs * 2 ** attempt;
+  return Math.min(wait, MAX_RETRY_WAIT_MS);
 }
 
 /**
@@ -196,6 +227,7 @@ async function runStage(opts: RunSkillOpts, meter?: UsageMeter): Promise<StreamJ
     });
 
   let res: Response;
+  let retries = 0;
   for (;;) {
     try {
       res = await send(keys[Math.min(activeKey, keys.length - 1)] as string);
@@ -225,6 +257,16 @@ async function runStage(opts: RunSkillOpts, meter?: UsageMeter): Promise<StreamJ
       log.warn({ skill: opts.skill, status: res.status, errType, nowUsingKey: activeKey + 1 }, "anthropic_api.key_failover");
       continue;
     }
+    if (isRetryable(res.status) && retries < MAX_RETRIES) {
+      const waitMs = retryWaitMs(retries, res.headers.get("retry-after"));
+      retries += 1;
+      log.warn({ skill: opts.skill, status: res.status, errType, retry: retries, waitMs }, "anthropic_api.retry");
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      if (opts.signal?.aborted) {
+        throw new AppError("grading lease lost while waiting to retry", AI_GRADING_ERROR_CODES.LEASE_LOST, 409);
+      }
+      continue;
+    }
     throw new AppError(`API returned ${res.status} (${errType})`, AI_GRADING_ERROR_CODES.RUNTIME_FAILURE, 503, {
       details: { skill: opts.skill, attemptId: opts.attemptId, status: res.status, errType },
     });
@@ -232,6 +274,7 @@ async function runStage(opts: RunSkillOpts, meter?: UsageMeter): Promise<StreamJ
 
   const body = (await res.json()) as {
     content?: Array<{ type: string; name?: string; input?: unknown }>;
+    stop_reason?: string;
     usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
   };
 
@@ -246,10 +289,18 @@ async function runStage(opts: RunSkillOpts, meter?: UsageMeter): Promise<StreamJ
     meter.inputTokens += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
     meter.outputTokens += u.output_tokens ?? 0;
   }
-  const m = (totals.by_model[model] ??= { calls: 0, input_tokens: 0, output_tokens: 0 });
+  const m = (totals.by_model[model] ??= {
+    calls: 0,
+    input_tokens: 0,
+    output_tokens: 0,
+    cache_read_input_tokens: 0,
+    cache_creation_input_tokens: 0,
+  });
   m.calls += 1;
   m.input_tokens += u.input_tokens ?? 0;
   m.output_tokens += u.output_tokens ?? 0;
+  m.cache_read_input_tokens += u.cache_read_input_tokens ?? 0;
+  m.cache_creation_input_tokens += u.cache_creation_input_tokens ?? 0;
   log.info(
     {
       skill: opts.skill,
@@ -263,7 +314,24 @@ async function runStage(opts: RunSkillOpts, meter?: UsageMeter): Promise<StreamJ
     "anthropic_api.call",
   );
 
-  const toolUse = (body.content ?? []).filter((c) => c.type === "tool_use" && c.name === toolName);
+  // A reply cut at the token cap or refused holds no complete tool input: fail, never use a partial one.
+  if (body.stop_reason === "max_tokens" || body.stop_reason === "refusal") {
+    throw new AppError(`API reply stopped early (${body.stop_reason})`, AI_GRADING_ERROR_CODES.RUNTIME_FAILURE, 503, {
+      details: { skill: opts.skill, attemptId: opts.attemptId, stopReason: body.stop_reason },
+    });
+  }
+
+  const matching = (body.content ?? []).filter((c) => c.type === "tool_use" && c.name === toolName);
+  if (matching.length === 0) {
+    throw new AppError(`API reply has no ${toolName} tool call`, AI_GRADING_ERROR_CODES.SCHEMA_VIOLATION, 503, {
+      details: { skill: opts.skill, attemptId: opts.attemptId, blocks: (body.content ?? []).map((c) => c.type) },
+    });
+  }
+  if (matching.length > 1) {
+    // Use the first block, always: the choice must not depend on how the parser treats a list.
+    log.warn({ skill: opts.skill, toolName, toolUseBlocks: matching.length, used: 0 }, "anthropic_api.multiple_tool_use");
+  }
+  const toolUse = [matching[0] as (typeof matching)[number]];
   return [
     { type: "system", subtype: "init", claude_code_version: "anthropic-api" },
     { type: "assistant", message: { content: toolUse.map((c) => ({ type: "tool_use", name: toolName, input: c.input })) } },
