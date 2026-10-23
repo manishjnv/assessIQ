@@ -7,7 +7,7 @@
 // Spec source: modules/01-auth/SKILL.md § Decisions captured § 6.
 
 import { uuidv7, nowIso, AuthnError, AuthzError } from "@assessiq/core";
-import { withTenant, withSystemRole, getPool } from "@assessiq/tenancy";
+import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { sha256Hex, randomTokenBase62 } from "./crypto-util.js";
 
@@ -197,7 +197,21 @@ async function authenticate(plaintextKey: string): Promise<ApiKeyRecord> {
        LIMIT 1`,
         [keyHash],
       );
-      return result.rows[0];
+      const found = result.rows[0];
+      // last_used_at is an audit-visibility field, not a security invariant. It is written here, in the same
+      // system-role transaction as the lookup (api_keys has RLS: a tenant-less update from the app pool matched
+      // 0 rows and never wrote anything, found by the S51 RLS lint). At most once a minute per key; a failed
+      // update is rolled back to a savepoint and never fails the authentication.
+      if (found !== undefined && (found.last_used_at === null || Date.now() - Date.parse(found.last_used_at) > 60_000)) {
+        await client.query("SAVEPOINT api_key_last_used");
+        try {
+          await client.query(`UPDATE api_keys SET last_used_at = now() WHERE id = $1`, [found.id]);
+          await client.query("RELEASE SAVEPOINT api_key_last_used");
+        } catch {
+          await client.query("ROLLBACK TO SAVEPOINT api_key_last_used");
+        }
+      }
+      return found;
     },
   );
 
@@ -205,21 +219,7 @@ async function authenticate(plaintextKey: string): Promise<ApiKeyRecord> {
     throw new AuthnError("invalid, revoked, or expired api key");
   }
 
-  const record = rowToRecord(row);
-
-  // Fire-and-forget last_used_at update. The auth path must not block or fail
-  // because of a stat-update. Errors are intentionally swallowed.
-  getPool()
-    .query(
-      `UPDATE api_keys SET last_used_at = now() WHERE id = $1`,
-      [record.id],
-    )
-    .catch(() => {
-      // Intentionally swallowed: last_used_at is an audit-visibility field,
-      // not a security invariant. A dropped update is acceptable.
-    });
-
-  return record;
+  return rowToRecord(row);
 }
 
 function requireScope(record: ApiKeyRecord, required: ApiKeyScope): void {

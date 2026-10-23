@@ -169,6 +169,18 @@ it("authenticate(plaintext) succeeds and returns the same record", async () => {
   expect(found.status).toBe("active");
 });
 
+// S51: last_used_at is really written (the old tenant-less update matched 0 rows under RLS), at most once a minute.
+it("authenticate writes last_used_at once; a second call inside a minute leaves it unchanged", async () => {
+  const { record, plaintextKey } = await apiKeys.create(tenantA, { name: "Last used", scopes: ["users:read"], createdBy: userA });
+  const read = () => withSuperClient(async (c) => (await c.query<{ t: Date | null }>(`SELECT last_used_at AS t FROM api_keys WHERE id = $1`, [record.id])).rows[0]!.t);
+  expect(await read()).toBeNull();
+  await apiKeys.authenticate(plaintextKey);
+  const first = await read();
+  expect(first).not.toBeNull();
+  await apiKeys.authenticate(plaintextKey);
+  expect((await read())!.getTime()).toBe(first!.getTime());
+});
+
 // ---------------------------------------------------------------------------
 // Test 3 — authenticate: wrong key throws AuthnError
 // ---------------------------------------------------------------------------
