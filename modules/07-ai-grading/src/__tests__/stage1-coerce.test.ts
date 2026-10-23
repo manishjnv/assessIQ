@@ -48,6 +48,10 @@ describe("coerceSubmitAnchorsPayload — drift repair", () => {
     expect(parseable(drifted)).toBe(true);
   });
 
+  it("drops a null evidence_quote (skill example uses null for a miss)", () => {
+    expect(parseable({ findings: [{ anchor_id: "a1", hit: false, evidence_quote: null, confidence: 0.9 }] })).toBe(true);
+  });
+
   it('coerces hit emitted as string "true"/"false" to boolean', () => {
     const drifted = {
       findings: [

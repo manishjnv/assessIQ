@@ -3,6 +3,7 @@
 # Only this one process gets AI_PIPELINE_MODE=anthropic-api and the keys; the container stays
 # on claude-code-vps. The keys go over ssh stdin only: not in argv, not on disk, not printed.
 #   5th arg "cal" = a test copy of the live skills with the band calibration reworded (live skills untouched).
+#   "cal2" = "cal" plus the grade-anchors hit rule reworded (less strict on terse but clear answers).
 # Usage (Git Bash, repo root):  bash tools/run-eval-api.sh [20|5] [id-prefixes] [delay-ms] [budget-tokens] [new|old]
 #   5th arg "old" grades with the pre-fence skills from /srv/assessiq-skills-backup-20261023, loaded into a temp
 #   HOME inside the container (the live skills are not touched). Default "new" = the live skills.
@@ -20,7 +21,7 @@ BUDGET="${4:-150000}"
 SK="${5:-new}"
 TAG="$(date +%H%M%S)"
 HOMEDIR=/home/node
-if [ "$SK" = "cal" ]; then
+if [ "$SK" = "cal" ] || [ "$SK" = "cal2" ]; then
   # Test copy of the live skills with the band calibration reworded (live skills untouched).
   HOMEDIR=/tmp/eval-home-cal
   ssh assessiq-vps 'docker exec -i assessiq-api sh -s' <<'PREP'
@@ -37,6 +38,20 @@ console.log("calibration patched");
 JS
 node /tmp/cal.js
 PREP
+  if [ "$SK" = "cal2" ]; then
+  ssh assessiq-vps 'docker exec -i assessiq-api sh -s' <<'PREP2'
+cat > /tmp/cal2.js <<'JS'
+const fs = require("fs");
+const p = "/tmp/eval-home-cal/.claude/skills/grade-anchors/SKILL.md";
+const t = fs.readFileSync(p, "utf8");
+const re = /- \*\*Hit\*\* requires[\s\S]*?→ miss\./;
+if (!re.test(t)) { console.error("hit rule not found"); process.exit(1); }
+fs.writeFileSync(p, t.replace(re, '- **Hit** when the answer states the concept in its own words, even briefly. A short but clear statement of the concept is a hit. Mark a miss when the concept is absent, or appears only as a bare keyword list with no statement about it (for example "lateral, movement, T1021").'));
+console.log("anchors hit rule patched");
+JS
+node /tmp/cal2.js
+PREP2
+  fi
 fi
 if [ "$SK" = "old" ]; then
   HOMEDIR=/tmp/eval-home-old

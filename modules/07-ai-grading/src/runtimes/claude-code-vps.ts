@@ -162,6 +162,8 @@ export function coerceSubmitAnchorsPayload(raw: unknown): unknown {
     if (typeof out.anchor_id === "number") {
       out.anchor_id = String(out.anchor_id);
     }
+    // The skill example shows "evidence_quote": null for a miss; the schema wants a string or nothing.
+    if (out.evidence_quote === null) delete out.evidence_quote;
     if (typeof out.hit === "string") {
       const s = out.hit.toLowerCase().trim();
       if (s === "true") out.hit = true;
