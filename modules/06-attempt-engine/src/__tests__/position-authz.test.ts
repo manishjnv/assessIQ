@@ -98,7 +98,8 @@ describe("recordPosition authorisation", () => {
   it("the owner can record a position on an in-progress attempt (control)", async () => {
     const attemptId = await startOwnAttempt();
     const res = await recordPosition(tenant, owner, attemptId, { question_id: qids[0] as string });
-    expect(res).toEqual({ question_ends_at: null });
+    expect(res.question_ends_at).toBeNull();
+    expect(res.question?.question_id).toBe(qids[0]); // A3-1: unsectioned test returns the content
   });
 
   it("refuses another user's attempt", async () => {

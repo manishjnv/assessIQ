@@ -67,6 +67,7 @@ import {
 } from "./types.js";
 import type {
   Attempt,
+  FrozenQuestion,
   AttemptAnswer,
   AttemptEvent,
   AttemptIntegritySummary,
@@ -282,6 +283,42 @@ async function questionDeadline(
     });
   }
   return new Date(new Date(started).getTime() + seconds * 1000);
+}
+
+/**
+ * A3-1: ids of in-progress questions the candidate may not read yet. A timed question is
+ * withheld until its position call starts the clock; in a free-movement test a locked block is
+ * readable only while the candidate is inside it (never before entry, never after leaving).
+ * Assessments without a locked or timed section return an empty set with no extra query.
+ */
+async function withheldQuestionIds(
+  client: PoolClient,
+  attempt: Attempt,
+  questions: FrozenQuestion[],
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (attempt.status !== "in_progress") return out;
+  const assessment = await alRepo.findAssessmentById(client, attempt.assessment_id);
+  const sections = readSections(assessment?.settings);
+  if (sections === null || !sections.some((s) => s.locked === true || s.seconds_per_question !== undefined)) return out;
+  const stored = await repo.getSectionProgress(client, attempt.id);
+  const free = readWholeTestMinutes(assessment?.settings) !== null;
+  for (const q of questions) {
+    const i = q.section_index ?? null;
+    const s = i === null ? undefined : sections[i];
+    if (i === null || s === undefined) continue;
+    const unviewed = s.seconds_per_question !== undefined && stored?.questions?.[q.question_id] === undefined;
+    const outsideLocked =
+      free && s.locked === true && !(stored?.entered?.[String(i)] !== undefined && stored.current === i);
+    if (unviewed || outsideLocked) out.add(q.question_id);
+  }
+  return out;
+}
+
+/** A3-1: what a candidate gets for a question they may not read yet: ids and shape only. */
+function withheldStub(q: FrozenQuestion): FrozenQuestion {
+  const { passage: _passage, ...rest } = q;
+  return { ...rest, topic: "", answer_guidance: "", content: null, withheld: true };
 }
 
 /** FUT-7: a save or flag on a question whose own time is up is rejected; the answer already saved stands. */
@@ -1035,9 +1072,12 @@ async function loadAttemptForCandidate(
         ? timedSections.map((s) => ({ locked: s.locked === true, seconds_per_question: s.seconds_per_question ?? null }))
         : undefined;
 
+    const withheld = await withheldQuestionIds(client, effectiveAttempt, visibleQuestions);
     return {
       attempt: effectiveAttempt,
-      questions: displayQuestions(visibleQuestions, orders),
+      questions: displayQuestions(visibleQuestions, orders).map((q) =>
+        withheld.has(q.question_id) ? withheldStub(q) : q,
+      ),
       answers: displayAnswers(
         visibleAnswers,
         orders,
@@ -1504,7 +1544,7 @@ export async function recordPosition(
   userId: string,
   attemptId: string,
   input: { section_index?: number; question_id?: string },
-): Promise<{ question_ends_at: string | null }> {
+): Promise<{ question_ends_at: string | null; question?: FrozenQuestion }> {
   return withTenant(tenantId, async (client) => {
     const attempt = await repo.findAttemptByIdForUpdate(client, attemptId);
     if (attempt === null) {
@@ -1552,7 +1592,20 @@ export async function recordPosition(
         questionEndsAt = await questionDeadline(client, attempt, input.question_id, aq.section_index, now);
       }
     }
-    return { question_ends_at: questionEndsAt?.toISOString() ?? null };
+    // A3-1: the content of the viewed question, only when the rules above now allow it. In a
+    // sectioned test the question must sit in the running section (never a later one).
+    let question: FrozenQuestion | undefined;
+    if (input.question_id !== undefined) {
+      const all = await repo.listFrozenQuestionsForAttempt(client, attemptId);
+      const q = all.find((x) => x.question_id === input.question_id);
+      const st = q?.section_index == null ? null : await sectionStateFor(client, attempt, now);
+      const inRunningSection = st === null || (st.pos !== null && st.pos.current === q?.section_index);
+      if (q !== undefined && inRunningSection && !(await withheldQuestionIds(client, attempt, all)).has(q.question_id)) {
+        const orders = await repo.listOptionOrders(client, attemptId);
+        question = displayQuestions([q], orders)[0];
+      }
+    }
+    return { question_ends_at: questionEndsAt?.toISOString() ?? null, ...(question !== undefined ? { question } : {}) };
   });
 }
 

@@ -60,6 +60,8 @@ export interface FrozenQuestionWire {
   section_index?: number | null;
   /** EXP-8: shared passage (plain text). Shown above the question; absent when the question has none. */
   passage?: { id: string; title: string | null; body: string };
+  /** A3-1: stub; content is not sent yet. The position call returns it. */
+  withheld?: true;
 }
 
 export interface CandidateAttemptViewWire {

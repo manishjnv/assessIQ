@@ -12,6 +12,7 @@ import type {
   AttemptAnswerWire,
   AttemptResultWire,
   CandidateAttemptViewWire,
+  FrozenQuestionWire,
   CandidateEventInput,
   InvitedAssessmentWire,
   MyResultsResponseWire,
@@ -183,8 +184,8 @@ export async function finishSection(attemptId: string): Promise<{ section_index:
 export async function recordPosition(
   attemptId: string,
   input: { section_index?: number; question_id?: string },
-): Promise<{ question_ends_at: string | null }> {
-  return call<{ question_ends_at: string | null }>(
+): Promise<{ question_ends_at: string | null; question?: FrozenQuestionWire }> {
+  return call<{ question_ends_at: string | null; question?: FrozenQuestionWire }>(
     `/me/attempts/${encodeURIComponent(attemptId)}/position`,
     { method: "POST", body: JSON.stringify(input) },
   );

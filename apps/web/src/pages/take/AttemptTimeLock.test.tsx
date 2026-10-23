@@ -137,3 +137,25 @@ describe('Attempt runner: question timer and locked sections', () => {
     expect(screen.queryByText(/Time left for this question/)).toBeNull();
   });
 });
+
+describe('Attempt runner: withheld questions (A3-1)', () => {
+  it('shows Loading question for a stub, then the text once the position call returns it', async () => {
+    const view = freeView(LOCKED) as { questions: Array<Record<string, unknown>> };
+    view.questions[0] = { ...mkQ(0, 0), topic: '', content: null, withheld: true };
+    currentView = view;
+    recordPosition.mockResolvedValue({ question_ends_at: null, question: mkQ(0, 0) });
+    renderAttempt();
+    expect(await screen.findByText('Question text 0?')).toBeTruthy();
+    expect(screen.queryByText('Loading question…')).toBeNull();
+  });
+
+  it('keeps Loading question while the position call has not answered', async () => {
+    const view = freeView(LOCKED) as { questions: Array<Record<string, unknown>> };
+    view.questions[0] = { ...mkQ(0, 0), topic: '', content: null, withheld: true };
+    currentView = view;
+    recordPosition.mockReturnValue(new Promise(() => {}));
+    renderAttempt();
+    expect(await screen.findByText('Loading question…')).toBeTruthy();
+    expect(screen.queryByText('Question text 0?')).toBeNull();
+  });
+});

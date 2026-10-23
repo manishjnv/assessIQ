@@ -95,6 +95,18 @@ export function AttemptPage(): React.JSX.Element {
       }),
     )
       .then((res) => {
+        // A3-1: the server sends a withheld question's content here, once the candidate may read it.
+        const fresh = res?.question;
+        if (fresh !== undefined) {
+          setPageState((prev) =>
+            prev.tag === 'ready' && prev.view.questions.some((x) => x.question_id === fresh.question_id && x.withheld)
+              ? {
+                  tag: 'ready',
+                  view: { ...prev.view, questions: prev.view.questions.map((x) => (x.question_id === fresh.question_id ? fresh : x)) },
+                }
+              : prev,
+          );
+        }
         const ends = res?.question_ends_at;
         if (ends === null || ends === undefined) return;
         setQuestionEnds((prev) => new Map(prev).set(currentQuestionId, ends));
@@ -639,7 +651,9 @@ export function AttemptPage(): React.JSX.Element {
             </div>
           )}
 
-          {currentQuestion !== null ? (
+          {currentQuestion !== null && currentQuestion.withheld ? (
+            <p role="status" data-testid="attempt-question-loading">Loading question…</p>
+          ) : currentQuestion !== null ? (
             <>
               {/* EXP-8: shared passage, plain text like the stem. Open by default; the candidate may fold it. */}
               {currentQuestion.passage !== undefined && (
