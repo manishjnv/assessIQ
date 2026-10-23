@@ -87,9 +87,11 @@ async function cloneDb(name: string): Promise<void> {
   await withClient("postgres", (c) => c.query(`CREATE DATABASE ${name} TEMPLATE tpl`));
 }
 
-const fixture = JSON.parse(
-  await readFile(join(HERE, "fixtures", "aptitude-sample.json"), "utf8"),
-) as AptitudeInput;
+// The sample pack holds answer keys, so it is not in git (history purge Z-110). The fixture suites
+// run only on a machine that has the file locally.
+const FIXTURE_PATH = join(HERE, "fixtures", "aptitude-sample.json");
+const HAS_FIXTURE = await access(FIXTURE_PATH).then(() => true, () => false);
+const fixture = (HAS_FIXTURE ? JSON.parse(await readFile(FIXTURE_PATH, "utf8")) : {}) as AptitudeInput;
 
 beforeAll(async () => {
   container = await new GenericContainer("postgres:16-alpine")
@@ -154,9 +156,9 @@ const FINGERPRINT = `
    (SELECT md5(string_agg(x::text, '|' ORDER BY x.id)) FROM questions x JOIN question_packs p ON p.id=x.pack_id WHERE p.slug='${PACK_SLUG}') AS qs,
    (SELECT count(*) FROM question_versions v JOIN questions x ON x.id=v.question_id JOIN question_packs p ON p.id=x.pack_id WHERE p.slug='${PACK_SLUG}') AS qv`;
 
-describe("0109 aptitude seed — draft mode (fixture)", () => {
+describe.skipIf(!HAS_FIXTURE)("0109 aptitude seed — draft mode (fixture)", () => {
   const DB = "draft_db";
-  const sql = generateAptitudeSql(fixture);
+  const sql = HAS_FIXTURE ? generateAptitudeSql(fixture) : "";
 
   beforeAll(async () => {
     await cloneDb(DB);
@@ -247,7 +249,7 @@ describe("0109 aptitude seed — draft mode (fixture)", () => {
   });
 });
 
-describe("0109 aptitude seed — skips cleanly without a platform user", () => {
+describe.skipIf(!HAS_FIXTURE)("0109 aptitude seed — skips cleanly without a platform user", () => {
   it("is a NOTICE-only no-op when no platform admin exists", async () => {
     await cloneDb("nouser_db");
     await apply("nouser_db", `UPDATE users SET status='disabled' WHERE tenant_id='${platformId}'`);
@@ -256,7 +258,7 @@ describe("0109 aptitude seed — skips cleanly without a platform user", () => {
   }, 60_000);
 });
 
-describe("0109 aptitude seed — publish mode (fixture)", () => {
+describe.skipIf(!HAS_FIXTURE)("0109 aptitude seed — publish mode (fixture)", () => {
   const DB = "pub_db";
 
   beforeAll(async () => {
