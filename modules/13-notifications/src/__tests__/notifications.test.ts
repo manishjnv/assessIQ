@@ -409,6 +409,7 @@ describe('email template rendering', () => {
       }},
       { name: 'credit_low_balance' as const, vars: { remaining: 150, level: 10, usageLink: 'https://x.com/admin/settings?tab=plan' }},
       { name: 'credit_expiring' as const, vars: { remaining: 150, expiresOn: '19 November 2026', usageLink: 'https://x.com/admin/settings?tab=plan' }},
+      { name: 'invite_limit_blocked' as const, vars: { orgName: 'Org One', adminName: 'Ada Admin', adminEmail: 'ada@org.test', assessmentName: 'Big Exam', tried: 151, limit: 150, orgLink: 'https://x.com/admin/platform' }},
     ] as const;
 
     for (const { name, vars } of templates) {

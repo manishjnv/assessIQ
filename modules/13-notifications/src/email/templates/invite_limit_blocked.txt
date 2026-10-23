@@ -1,0 +1,19 @@
+Subject: Invite blocked: {{orgName}} tried {{tried}} students (limit {{limit}})
+
+Hello,
+
+An organisation tried to invite more students than its plan allows for one assessment.
+
+Organisation: {{orgName}}
+Admin: {{adminName}} ({{adminEmail}})
+Assessment: {{assessmentName}}
+Students they tried to reach: {{tried}}
+Limit: {{limit}}
+
+No invitation was sent. To raise the limit for this organisation, edit its plan.
+
+Open the organisation:
+{{orgLink}}
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

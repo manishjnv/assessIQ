@@ -424,6 +424,11 @@ export function AdminBilling(): React.ReactElement {
                           </p>
                         </div>
                       </div>
+                      {companyUsage.invite_limit !== undefined && (
+                        <p style={{ ...BODY_SM, fontWeight: 600, margin: 0 }}>
+                          Students per assessment: {companyUsage.invite_limit ?? "no limit"}
+                        </p>
+                      )}
                       {companyUsage.tiers_enforced === false && (
                         <p data-help-id="admin.settings.billing.limits.enforced" style={MUTED_SM}>
                           Plan limits are shown for information and are not enforced yet.

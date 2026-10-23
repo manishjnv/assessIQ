@@ -12,6 +12,8 @@ export interface TenantPlanRow {
   status: 'active' | 'suspended';
   /** PT-4: per-tenant override of AI answers included; null = tier default. */
   ai_answers_included_override?: number | null;
+  /** EXP-37: most active invitations per assessment; null = unlimited. */
+  max_invited_per_assessment?: number | null;
 }
 
 /**
@@ -36,6 +38,8 @@ export interface BillingUsage {
   /** PT-4: the limits for this tier, and whether they are enforced now. */
   tier_limits: TierLimitsView;
   tiers_enforced: boolean;
+  /** EXP-37: most invited students one assessment may hold; null = unlimited. */
+  invite_limit: number | null;
   included_credits: number | null;
   used: number;
   remaining: number | null;  // null => unlimited
@@ -118,6 +122,8 @@ export interface TenantBillingDetail {
   /** FU-A4: AI-evaluated answers in the current window. */
   ai_answers_used: number;
   ai_answers_included: number | null;
+  /** EXP-37: invited students allowed per assessment; null = unlimited. */
+  max_invited_per_assessment: number | null;
   recent_events: BillingEventRow[];
 }
 
@@ -127,6 +133,8 @@ export interface UpdateTenantPlanPatch {
   includedCredits?: number | null;
   /** PT-4: null clears the override (tier default applies). */
   aiAnswersIncludedOverride?: number | null;
+  /** EXP-37: positive integer, or null = unlimited. Omitted = keep (see updateTenantPlan for tier moves). */
+  maxInvitedPerAssessment?: number | null;
 }
 
 /** Return shape of updateTenantPlan. */
@@ -135,6 +143,7 @@ export interface UpdateTenantPlanResult {
   tier: PlanTier;
   included_credits: number | null;
   previous: { tier: PlanTier; included_credits: number | null };
+  max_invited_per_assessment: number | null;
   updatedAt: string;
   auditId: string;
 }

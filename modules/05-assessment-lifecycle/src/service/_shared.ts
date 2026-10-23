@@ -1,5 +1,6 @@
 import { streamLogger, ValidationError, ConflictError, config, DEFAULT_MAX_PAGE_SIZE } from "@assessiq/core";
 import type { PoolClient } from "pg";
+import { getInviteLimit } from "@assessiq/billing";
 import { AL_ERROR_CODES } from "../types.js";
 
 export const log = streamLogger("app");
@@ -262,5 +263,36 @@ export async function assertSectionPacksUsable(client: PoolClient, tenantId: str
         details: { code: "INVALID_PARAM", param: "settings.sections.pack_id", pack_id: id },
       });
     }
+  }
+}
+
+/**
+ * EXP-37: refuse when `adding` NEW active invitations would take one assessment past the plan limit.
+ * Active = status pending, viewed or started (submitted, expired and revoked do not count).
+ * Call it on the invite transaction's client BEFORE anything is inserted or mailed. A per-assessment
+ * advisory lock (held to commit) serialises concurrent invites for the same assessment, so two
+ * parallel calls at the boundary cannot both pass. Limit null (unlimited) returns at once.
+ */
+export async function assertInviteCapacity(
+  client: PoolClient,
+  tenantId: string,
+  assessmentId: string,
+  adding: number,
+): Promise<void> {
+  if (adding <= 0) return;
+  const limit = await getInviteLimit(client, tenantId);
+  if (limit === null) return;
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended('invite_limit:' || $1::text, 0))", [assessmentId]);
+  const res = await client.query<{ n: string }>(
+    `SELECT count(*) AS n FROM assessment_invitations
+      WHERE assessment_id = $1 AND status IN ('pending', 'viewed', 'started')`,
+    [assessmentId],
+  );
+  const active = parseInt(res.rows[0]?.n ?? "0", 10);
+  if (active + adding > limit) {
+    throw new ConflictError(
+      `This setup supports up to ${String(limit)} students for one assessment. Split the group into two assessments at different times, or contact support to raise the limit.`,
+      { details: { code: AL_ERROR_CODES.INVITE_LIMIT_EXCEEDED, limit, active, adding, assessment_id: assessmentId } },
+    );
   }
 }

@@ -100,7 +100,7 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
       // Guard against a missing/null PATCH body (empty PATCH → no-op revalidate,
       // never a TypeError 500). Mirrors the ai-generate-mode `body?.` idiom.
       const body = parseBody(updatePlanBody, req.body, {
-        code: { tier: 'INVALID_TIER', includedCredits: 'INVALID_CREDITS', aiAnswersIncludedOverride: 'INVALID_AI_ANSWERS_OVERRIDE' },
+        code: { tier: 'INVALID_TIER', includedCredits: 'INVALID_CREDITS', aiAnswersIncludedOverride: 'INVALID_AI_ANSWERS_OVERRIDE', maxInvitedPerAssessment: 'INVALID_MAX_INVITED' },
       });
 
       // Domain validation is fully delegated to updateTenantPlan.
@@ -108,6 +108,8 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
       if (body.tier !== undefined) patch.tier = body.tier as PlanTier;
       if (body.includedCredits !== undefined) patch.includedCredits = body.includedCredits;
       if (body.aiAnswersIncludedOverride !== undefined) patch.aiAnswersIncludedOverride = body.aiAnswersIncludedOverride;
+
+      if (body.maxInvitedPerAssessment !== undefined) patch.maxInvitedPerAssessment = body.maxInvitedPerAssessment;
 
       const result = await updateTenantPlan(req.session!.userId, tenantId, patch);
       return reply.code(200).send(result);

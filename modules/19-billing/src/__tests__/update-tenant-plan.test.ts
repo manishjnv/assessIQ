@@ -319,3 +319,59 @@ describe('updateTenantPlan — (e) unknown tenant → NotFoundError', () => {
     },
   );
 });
+
+// ---------------------------------------------------------------------------
+// (f) EXP-37 — max_invited_per_assessment on the plan edit
+// ---------------------------------------------------------------------------
+
+describe('updateTenantPlan — (f) invited-students limit', () => {
+  const limitOf = () =>
+    withSuperClient(async (c) =>
+      (await c.query<{ m: number | null }>(`SELECT max_invited_per_assessment AS m FROM tenant_plans WHERE tenant_id = $1`, [TENANT_ID])).rows[0]!.m,
+    );
+  const reset = (tier: string, credits: number | null, limit: number | null) =>
+    withSuperClient((c) =>
+      c.query(`UPDATE tenant_plans SET tier = $2, included_credits = $3, max_invited_per_assessment = $4 WHERE tenant_id = $1`, [TENANT_ID, tier, credits, limit]),
+    );
+
+  it.skipIf(!dockerAvailable)('super admin raises, clears and rejects bad values; the audit row carries the change', async () => {
+    await reset('pro', 100, 150);
+    const raised = await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { maxInvitedPerAssessment: 400 });
+    expect(raised.max_invited_per_assessment).toBe(400);
+    expect(await limitOf()).toBe(400);
+    const audit = await withSuperClient(async (c) =>
+      (await c.query<{ after: Record<string, unknown> }>(`SELECT after FROM audit_log WHERE id = $1`, [raised.auditId])).rows[0]!.after,
+    );
+    expect(audit).toMatchObject({ max_invited_per_assessment: 400, previous_max_invited_per_assessment: 150 });
+
+    await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { includedCredits: 50 }); // other edits keep it
+    expect(await limitOf()).toBe(400);
+    await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { maxInvitedPerAssessment: null });
+    expect(await limitOf()).toBeNull();
+
+    for (const bad of [0, -3, 2.5, 2_000_000]) {
+      await expect(updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { maxInvitedPerAssessment: bad })).rejects.toBeInstanceOf(ValidationError);
+    }
+    expect(await limitOf()).toBeNull();
+  });
+
+  it.skipIf(!dockerAvailable)('moving to internal sets NULL; moving away restores 150 only when unlimited and not given', async () => {
+    await reset('pro', 100, 150);
+    await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { tier: 'internal' });
+    expect(await limitOf()).toBeNull();
+
+    await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { tier: 'pro', includedCredits: 100 });
+    expect(await limitOf()).toBe(150);
+
+    await reset('internal', null, null);
+    await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { tier: 'pro', includedCredits: 100, maxInvitedPerAssessment: 60 });
+    expect(await limitOf()).toBe(60);
+
+    await reset('internal', null, null);
+    await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { tier: 'pro', includedCredits: 100, maxInvitedPerAssessment: null });
+    expect(await limitOf()).toBeNull(); // explicit null wins
+
+    await reset('internal', null, null);
+    await expect(updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { maxInvitedPerAssessment: 10 })).rejects.toBeInstanceOf(ValidationError);
+  });
+});

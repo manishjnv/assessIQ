@@ -10,7 +10,8 @@ import { resolveCameraRequired, sendInvitationEmail } from "../email.js";
 import type { SendAssessmentInvitationInput } from "../email.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { Assessment, AssessmentInvitation, AssessmentStatus, BulkResendResult, ListInvitationsInput, PaginatedInvitations, InviteUsersResult } from "../types.js";
-import { log, BULK_RESEND_MAX, BULK_RESEND_RECENT_MINUTES, PUBLIC_URL, assertPageSize, assertPoolVerifiedForInvites } from "./_shared.js";
+import { log, BULK_RESEND_MAX, BULK_RESEND_RECENT_MINUTES, PUBLIC_URL, assertPageSize, assertPoolVerifiedForInvites, assertInviteCapacity } from "./_shared.js";
+import { notifyInviteLimitBlocked } from "@assessiq/notifications";
 
 // ===========================================================================
 // INVITATION OPERATIONS
@@ -78,6 +79,68 @@ async function candidateHasStarted(
 ): Promise<boolean> {
   if (inv.status === "started" || inv.status === "submitted") return true;
   return repo.hasStartedAttempt(client, inv.assessment_id, inv.user_id);
+}
+
+/**
+ * EXP-37: how many NEW active invitations inviteUsers would create for this list. Read-only mirror of the
+ * loop's own rules (same skips, same dead-link test), so the limit is checked BEFORE any email goes out.
+ * A lapsed-by-time pending link is still counted as active, so reviving it adds nothing; only an
+ * admin-revoked ('expired') invitation, or no invitation at all, adds one.
+ */
+async function countInvitesToCreate(client: PoolClient, assessmentId: string, userIds: readonly string[]): Promise<number> {
+  let adding = 0;
+  for (const userId of new Set(userIds)) {
+    const user = await repo.findUserForInvitation(client, userId);
+    if (user === null || user.role !== "candidate" || user.status !== "active" || user.erased) continue;
+    const existing = await repo.findInvitationByAssessmentAndUser(client, assessmentId, userId);
+    if (existing === null) {
+      adding++;
+    } else if (existing.status === "expired" && !(await candidateHasStarted(client, existing))) {
+      adding++;
+    }
+  }
+  return adding;
+}
+
+/**
+ * EXP-37: after an INVITE_LIMIT_EXCEEDED refusal (the invite transaction is already rolled back), write the
+ * audit row every time and tell the super admins (throttled once per assessment per day inside the notice).
+ * Best-effort: nothing here may throw or change the error the admin sees. Ids and counts only in the audit row.
+ */
+async function recordInviteLimitBlocked(err: unknown, tenantId: string, actorUserId: string): Promise<void> {
+  if (!(err instanceof ConflictError) || err.details?.["code"] !== AL_ERROR_CODES.INVITE_LIMIT_EXCEEDED) return;
+  const d = err.details as { limit: number; active: number; adding: number; assessment_id: string };
+  let facts: { orgName: string; adminName: string; adminEmail: string; assessmentName: string } | null = null;
+  try {
+    facts = await withTenant(tenantId, async (client) => {
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId,
+        action: "assessment.invite_limit_blocked",
+        entityType: "assessment",
+        entityId: d.assessment_id,
+        after: { assessment_id: d.assessment_id, limit: d.limit, active: d.active, adding: d.adding },
+      });
+      const tenant = await tenancyRepo.findTenantById(client, tenantId);
+      const assessment = await repo.findAssessmentById(client, d.assessment_id);
+      const admin = await repo.findUserForInvitation(client, actorUserId);
+      return {
+        orgName: tenant?.name ?? "Unknown organisation",
+        adminName: admin?.name ?? "An admin",
+        adminEmail: admin?.email ?? "unknown",
+        assessmentName: assessment?.name ?? "an assessment",
+      };
+    });
+  } catch (auditErr) {
+    log.error({ err: auditErr, tenantId }, "invite limit blocked: audit write failed");
+  }
+  if (facts === null) return;
+  try {
+    await notifyInviteLimitBlocked({ tenantId, assessmentId: d.assessment_id, tried: d.active + d.adding, limit: d.limit, ...facts });
+  } catch (noticeErr) {
+    log.error({ err: noticeErr, tenantId }, "invite limit blocked: notice failed");
+  }
 }
 
 function invitationNotFound(invitationId: string): NotFoundError {
@@ -208,6 +271,19 @@ async function reissueForResend(
 ): Promise<{ invitation: AssessmentInvitation; email: SendAssessmentInvitationInput }> {
   if (!UUID_RE.test(invitationId)) throw invitationNotFound(invitationId);
 
+  try {
+    return await reissueForResendTx(tenantId, invitationId, actorUserId);
+  } catch (err) {
+    await recordInviteLimitBlocked(err, tenantId, actorUserId);
+    throw err;
+  }
+}
+
+async function reissueForResendTx(
+  tenantId: string,
+  invitationId: string,
+  actorUserId: string,
+): Promise<{ invitation: AssessmentInvitation; email: SendAssessmentInvitationInput }> {
   return withTenant(tenantId, async (client) => {
     // Resolve the email's tenant name FIRST so a bad tenant row fails before
     // any token is rotated.
@@ -226,6 +302,9 @@ async function reissueForResend(
     await assertPoolVerifiedForInvites(client, assessment, "resend the invitation"); // EXP-18
 
     if (await candidateHasStarted(client, invitation)) throw alreadyStartedError();
+
+    // EXP-37: resending a revoked invitation brings it back to life, so it counts again.
+    if (invitation.status === "expired") await assertInviteCapacity(client, tenantId, invitation.assessment_id, 1);
 
     const user = await repo.findUserForInvitation(client, invitation.user_id);
     if (user === null || user.role !== "candidate" || user.status !== "active") {
@@ -405,6 +484,22 @@ export async function inviteUsers(
   // The rule only depends on the test type being real, so the real-mode answer is enough for every invitee.
   const realCameraRequired = await resolveCameraRequired(tenantId, "real");
 
+  try {
+    return await inviteUsersTx(tenantId, assessmentId, userIds, invitedByUserId, deliveryMode, realCameraRequired);
+  } catch (err) {
+    await recordInviteLimitBlocked(err, tenantId, invitedByUserId);
+    throw err;
+  }
+}
+
+async function inviteUsersTx(
+  tenantId: string,
+  assessmentId: string,
+  userIds: readonly string[],
+  invitedByUserId: string,
+  deliveryMode: "real" | "mock" | undefined,
+  realCameraRequired: boolean,
+): Promise<InviteUsersResult> {
   return withTenant(tenantId, async (client) => {
     // Fetch tenant name once — single DB hit on the same client (RLS + tx
     // consistency), held for all invitees in this batch.
@@ -427,6 +522,10 @@ export async function inviteUsers(
 
     // EXP-18: no invitation while the pool holds a question that is in_review, disputed or needs_fix.
     await assertPoolVerifiedForInvites(client, assessment);
+
+    // EXP-37: plan limit of invited students per assessment, checked once for the whole batch before any
+    // insert or email (a refusal rolls the transaction back; mail already sent could not be recalled).
+    await assertInviteCapacity(client, tenantId, assessmentId, await countInvitesToCreate(client, assessmentId, userIds));
 
     const invited: AssessmentInvitation[] = [];
     const skipped: Array<{ userId: string; reason: string }> = [];
@@ -797,6 +896,9 @@ export async function reopenInvitationForRetake(
       );
     }
 
+    // EXP-37: a re-opened (submitted) invitation is active again, so it counts again.
+    await assertInviteCapacity(client, tenantId, current.assessment_id, 1);
+
     const user = await repo.findUserForInvitation(client, current.user_id);
     if (user === null || user.role !== "candidate" || user.status !== "active") {
       throw new ConflictError("This candidate's account is disabled, so the invitation can't be re-opened.", {
@@ -840,6 +942,9 @@ export async function reopenInvitationForRetake(
       tenantName,
     };
     return { invitation: updated, email: mail };
+  }).catch(async (err: unknown) => {
+    await recordInviteLimitBlocked(err, tenantId, actorUserId);
+    throw err;
   });
   await sendAfterCommit(email, invitation.id);
   return invitation;

@@ -21,6 +21,7 @@ const { adminApi } = vi.hoisted(() => ({ adminApi: vi.fn() }));
 vi.mock("../api.js", () => ({
   adminApi: (...a: unknown[]) => adminApi(...a),
   getCompanyEntitlements: () => Promise.resolve({ entitlements: [] }),
+  getCompanyUsage: () => Promise.resolve({}),
   cancelAssessmentApi: vi.fn(),
   deleteAssessmentApi: vi.fn(),
   AdminApiError: class AdminApiError extends Error {

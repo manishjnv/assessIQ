@@ -35,6 +35,14 @@ export const grantCreditsBody = z.object({
 });
 
 export const updatePlanBody = z.object({
+  // EXP-37: invited students allowed per assessment; null = unlimited.
+  maxInvitedPerAssessment: z
+    .number({ invalid_type_error: 'maxInvitedPerAssessment must be a number or null' })
+    .int('maxInvitedPerAssessment must be a whole number')
+    .min(1, 'maxInvitedPerAssessment must be 1 or more')
+    .max(1_000_000, 'maxInvitedPerAssessment must be 1000000 or less')
+    .nullable()
+    .optional(),
   tier: z.string({ invalid_type_error: 'tier must be a string' }).max(32, 'tier must be 32 characters or fewer').optional(),
   includedCredits: z
     .number({ invalid_type_error: 'includedCredits must be a number or null' })

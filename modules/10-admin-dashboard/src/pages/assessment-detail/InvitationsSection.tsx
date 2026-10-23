@@ -22,6 +22,8 @@ export interface InvitationsSectionProps {
   selectedUserIds: Set<string>;
   toggleUser: (userId: string) => void;
   inviteError: string | null;
+  /** EXP-37: max students per assessment; null = no limit note. */
+  inviteLimit: number | null;
   /** Z-89: test type for this batch (default = the assessment's own). */
   inviteMode: "real" | "mock";
   setInviteMode: Dispatch<SetStateAction<"real" | "mock">>;
@@ -51,7 +53,7 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
   const {
     id, resultsSort, setResultsSort, showInviteForm, setShowInviteForm, setInviteError,
     setSelectedUserIds, fetchData, handleInvite, uninvitedUsers, selectedUserIds, toggleUser,
-    inviteError, inviteMode, setInviteMode, defaultInviteMode, inviting, resendable, resendResult, resendError, setResendError,
+    inviteError, inviteLimit, inviteMode, setInviteMode, defaultInviteMode, inviting, resendable, resendResult, resendError, setResendError,
     setShowResendAll, resendingAll, resendingId, invitations, invitationColumns,
     sortedInvitations, sortBy, setSortBy, sortDir, setSortDir, invPage, invPaging,
     invTotal, goToInvPage,
@@ -201,6 +203,26 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
               >
                 Select candidates to invite. Users already invited are not shown.
               </p>
+              {inviteLimit !== null && (
+                <p
+                  data-testid="invite-limit-note"
+                  style={{
+                    fontFamily: "var(--aiq-font-sans)",
+                    fontSize: "var(--aiq-text-sm)",
+                    color: "var(--aiq-color-fg-secondary)",
+                    margin: "0 0 var(--aiq-space-sm)",
+                    display: "flex",
+                    gap: "var(--aiq-space-xs)",
+                    alignItems: "center",
+                  }}
+                >
+                  <HelpTip helpId="admin.assessments.invite_limit">
+                    <span data-help-id="admin.assessments.invite_limit">
+                      This setup supports up to {inviteLimit} students for one assessment.
+                    </span>
+                  </HelpTip>
+                </p>
+              )}
               <div
                 style={{
                   maxHeight: 240,

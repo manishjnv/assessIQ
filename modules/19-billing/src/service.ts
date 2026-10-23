@@ -71,6 +71,19 @@ const log = streamLogger('billing');
 /** Default credit allowance for newly-provisioned free-tier tenants. */
 export const DEFAULT_FREE_CREDITS = 250;
 
+/** EXP-37: platform default of invited students per assessment (column default; fallback when a tenant has no plan row). */
+export const DEFAULT_INVITE_LIMIT = 150;
+
+/**
+ * EXP-37: invited-student limit for one assessment of this tenant. null = unlimited.
+ * Runs on the caller's tenant client (RLS select policy). A missing plan row gives the platform default.
+ */
+export async function getInviteLimit(client: PoolClient, tenantId: string): Promise<number | null> {
+  const plan = await getPlan(client, tenantId);
+  if (plan === null) return DEFAULT_INVITE_LIMIT;
+  return plan.max_invited_per_assessment ?? null;
+}
+
 /**
  * FU-A9 (2026-10-06): AI-evaluated answers included per month, from the tier
  * table in docs/plans/PRICING_TIERS_2026-10-06.md (Starter 20, Growth 500,
@@ -245,6 +258,7 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
       tier,
       tier_limits: TIER_LIMITS[tier],
       tiers_enforced: config.PLAN_TIERS_ENFORCED,
+      invite_limit: plan === null ? DEFAULT_INVITE_LIMIT : (plan.max_invited_per_assessment ?? null),
       included_credits: includedCredits,
       used,
       remaining,
@@ -334,6 +348,7 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
       usage_status: status,
       ai_answers_used: meters.ai_used,
       ai_answers_included: plan.ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier],
+      max_invited_per_assessment: plan.max_invited_per_assessment ?? null,
       recent_events: recentEvents,
     };
   });
@@ -1170,7 +1185,30 @@ export async function updateTenantPlan(
         { details: { code: 'INVALID_AI_ANSWERS_OVERRIDE', received: nextOverride } },
       );
     }
-    const { updated_at } = await updateTenantPlanRow(client, tenantId, nextTier, nextCredits, nextOverride);
+    // EXP-37: invited-per-assessment limit. Explicit value wins; else a move to internal clears it
+    // (unlimited); a move away from internal restores the platform default if it is still unlimited.
+    const prevInviteLimit = planRow.max_invited_per_assessment ?? null;
+    let nextInviteLimit: number | null = prevInviteLimit;
+    if ('maxInvitedPerAssessment' in patch) {
+      nextInviteLimit = patch.maxInvitedPerAssessment ?? null;
+      if (nextInviteLimit !== null && (!Number.isInteger(nextInviteLimit) || nextInviteLimit < 1 || nextInviteLimit > 1_000_000)) {
+        throw new ValidationError(
+          `maxInvitedPerAssessment must be null or an integer from 1 to 1000000`,
+          { details: { code: 'INVALID_MAX_INVITED', received: nextInviteLimit } },
+        );
+      }
+      if (nextTier === 'internal' && nextInviteLimit !== null) {
+        throw new ValidationError(
+          `internal tier requires maxInvitedPerAssessment to be null (unlimited)`,
+          { details: { code: 'INTERNAL_REQUIRES_NULL_MAX_INVITED' } },
+        );
+      }
+    } else if (nextTier === 'internal') {
+      nextInviteLimit = null;
+    } else if (prevTier === 'internal' && prevInviteLimit === null) {
+      nextInviteLimit = DEFAULT_INVITE_LIMIT;
+    }
+    const { updated_at } = await updateTenantPlanRow(client, tenantId, nextTier, nextCredits, nextOverride, nextInviteLimit);
 
     // Phase B — app role + tenant GUC: put auditInTx in exactly the context
     // its contract (audit.ts) and the reviewed updateAiGenerateMode precedent
@@ -1194,6 +1232,8 @@ export async function updateTenantPlan(
         previous_included_credits: prevCredits,
         ai_answers_included_override: nextOverride,
         previous_ai_answers_override: planRow.ai_answers_included_override ?? null,
+        max_invited_per_assessment: nextInviteLimit,
+        previous_max_invited_per_assessment: prevInviteLimit,
       },
     });
 
@@ -1202,6 +1242,7 @@ export async function updateTenantPlan(
       tier: nextTier,
       included_credits: nextCredits,
       previous: { tier: prevTier, included_credits: prevCredits },
+      max_invited_per_assessment: nextInviteLimit,
       updatedAt: updated_at instanceof Date ? updated_at.toISOString() : String(updated_at),
       auditId: auditRow.id,
     };

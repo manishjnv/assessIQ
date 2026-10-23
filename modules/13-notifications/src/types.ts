@@ -40,6 +40,8 @@ export const EmailTemplateNameSchema = z.enum([
   'credit_low_balance',
   // Z-96: a credit grant with credits left expires within 30 days. Counts, date and link only.
   'credit_expiring',
+  // EXP-37: an organisation admin tried to invite more students than the plan limit. Internal mail to the platform admins.
+  'invite_limit_blocked',
 ]);
 
 export type EmailTemplateName = z.infer<typeof EmailTemplateNameSchema>;
@@ -186,6 +188,17 @@ export const CreditLowBalanceVarsSchema = z.object({
   level: z.union([z.literal(20), z.literal(10)]),
   usageLink: z.string().url(),
 });
+// EXP-37: invite_limit_blocked. Internal mail to the platform admins; names and the admin email are allowed here.
+export const InviteLimitBlockedVarsSchema = z.object({
+  orgName: z.string().min(1),
+  adminName: z.string().min(1),
+  adminEmail: z.string().min(1),
+  assessmentName: z.string().min(1),
+  tried: z.number().int().min(0),
+  limit: z.number().int().min(1),
+  orgLink: z.string().url(),
+});
+export type InviteLimitBlockedVars = z.infer<typeof InviteLimitBlockedVarsSchema>;
 export type CreditLowBalanceVars = z.infer<typeof CreditLowBalanceVarsSchema>;
 // Z-96: expiry warning, sent once per grant 30 days before it expires. expiresOn is a plain date text.
 export const CreditExpiringVarsSchema = z.object({
@@ -216,6 +229,7 @@ export type TemplateVarsMap = {
   signup_existing_account: SignupExistingAccountVars;
   credit_low_balance: CreditLowBalanceVars;
   credit_expiring: CreditExpiringVars;
+  invite_limit_blocked: InviteLimitBlockedVars;
 };
 
 // ---------------------------------------------------------------------------

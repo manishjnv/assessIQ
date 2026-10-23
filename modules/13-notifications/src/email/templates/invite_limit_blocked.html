@@ -1,0 +1,21 @@
+<!-- Composes kit partials. EXP-37: internal mail to the platform admins when an invite hits the per-assessment student limit. Names and the admin email are allowed in this internal mail. -->
+{{#> email-shell preheader=(concat orgName " tried to invite " tried " students (limit " limit ").")}}
+
+  {{> email-header}}
+
+  {{#> email-body}}
+
+    {{> email-lede-short
+      eyebrow="STUDENT LIMIT"
+      title=_t_heading
+      body=(concat orgName " tried to invite " tried " students to " assessmentName ". The limit is " limit ". Admin: " adminName " (" adminEmail "). No invitation was sent. To raise the limit, edit the plan of this organisation.")}}
+
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px">
+      <tr><td>{{> email-cta label=_t_cta href=orgLink width_px=220}}</td></tr>
+    </table>
+
+  {{/email-body}}
+
+  {{> email-footer-transactional reason="You receive this because you are a platform administrator of AssessIQ."}}
+
+{{/email-shell}}

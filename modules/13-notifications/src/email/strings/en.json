@@ -101,6 +101,12 @@
     "heading": "Your credits expire soon.",
     "cta": "See your credits"
   },
+  "invite_limit_blocked": {
+    "page_title": "An invite was blocked by the student limit",
+    "brand_wordmark": "AssessIQ",
+    "heading": "An invite was blocked by the student limit.",
+    "cta": "Open the organisation"
+  },
   "signup_existing_account": {
     "page_title": "You already have an AssessIQ account",
     "brand_wordmark": "AssessIQ",

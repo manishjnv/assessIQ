@@ -1033,6 +1033,8 @@ export interface CompanyUsage {
     overage_hard_cap_ratio: number | null;
   };
   tiers_enforced?: boolean;
+  /** EXP-37: max invited students per assessment; null or absent = no limit shown. */
+  invite_limit?: number | null;
   /** Z-93: credit ledger view; absent on an older API. */
   credits?: {
     unlimited: boolean;

@@ -533,7 +533,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
   // -------------------------------------------------------------------------
   // Coverage assertion: service.ts contains exactly N auditInTx call-sites.
   // -------------------------------------------------------------------------
-  it("service.ts contains exactly 17 auditInTx call-sites (one per wired admin-mutating function)", async () => {
+  it("service.ts contains exactly 18 auditInTx call-sites (one per wired admin-mutating function)", async () => {
     // service.ts is a barrel; the code lives in src/service/*.ts (RW-53 split).
     const serviceDir = join(AL_MODULE_ROOT, "src", "service");
     const files = [join(AL_MODULE_ROOT, "src", "service.ts"), ...(await readdir(serviceDir)).filter((n) => n.endsWith(".ts")).map((n) => join(serviceDir, n))];
@@ -545,7 +545,7 @@ describe("G3.D audit writes — 05-assessment-lifecycle", () => {
     // audit point shared by resendInvitation, resendInvitations and the
     // re-invite branch of inviteUsers (2026-10-01), plus updateAssessmentIntegrity (2026-10-02) and updateAssessmentGrading (high_stakes, batch 5).
     // 13 since S14 (48368b4): S7/N5 bulk resend writes one audit row per bulk action (invitations.ts).
-    // 15 since Z-39 (retake): grantExtraAttempt and reopenInvitationForRetake write one audit row each (invitations.ts). 16 since Q44 (clearEmptyDrafts, lifecycle.ts). 17 since the assessment time limit (updateAssessmentDuration, assessments.ts).
-    expect(matches.length).toBe(17);
+    // 15 since Z-39 (retake): grantExtraAttempt and reopenInvitationForRetake write one audit row each (invitations.ts). 16 since Q44 (clearEmptyDrafts, lifecycle.ts). 17 since the assessment time limit (updateAssessmentDuration, assessments.ts). 18 since EXP-37 (recordInviteLimitBlocked, invitations.ts).
+    expect(matches.length).toBe(18);
   });
 });

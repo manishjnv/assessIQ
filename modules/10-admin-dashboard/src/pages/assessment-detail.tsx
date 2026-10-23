@@ -54,7 +54,7 @@ import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
 import { InvitationsSection } from "./assessment-detail/InvitationsSection.js";
-import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
+import { adminApi, AdminApiError, getCompanyEntitlements, getCompanyUsage, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
 import { type Assessment, type Invitation, INV_PAGE_SIZE, type InvitationsResponse, type ResendAllResponse, type UserItem, type UsersResponse, type ReleaseAllResponse, type SortDir, sortRows, assessmentStatusVariant } from "./assessment-detail/shared.js";
 
@@ -73,6 +73,8 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  // EXP-37: students-per-assessment limit from the usage summary (null = no limit shown).
+  const [inviteLimit, setInviteLimit] = useState<number | null>(null);
   // Z-89: test type for this batch. Starts at the assessment's own default each time the form opens.
   const [inviteMode, setInviteMode] = useState<"real" | "mock">("real");
 
@@ -190,6 +192,12 @@ export function AdminAssessmentDetail(): React.ReactElement {
   useEffect(() => {
     void fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    getCompanyUsage()
+      .then((u) => setInviteLimit(typeof u?.invite_limit === "number" ? u.invite_limit : null))
+      .catch(() => setInviteLimit(null));
+  }, []);
 
   async function handlePublish() {
     if (!id) return;
@@ -733,6 +741,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           selectedUserIds={selectedUserIds}
           toggleUser={toggleUser}
           inviteError={inviteError}
+          inviteLimit={inviteLimit}
           inviteMode={inviteMode}
           setInviteMode={setInviteMode}
           defaultInviteMode={assessment.delivery_mode ?? "real"}

@@ -83,6 +83,8 @@ export const ACTION_CATALOG = [
   'assessment.invitation.reopened',
   // S7/N5 — one row per bulk "resend to everyone who hasn't started" call.
   'assessment.invitations.bulk_resent',
+  // EXP-37: an invite was refused by the per-assessment student limit; after = { assessment_id, limit, active, adding }. Ids and counts only.
+  'assessment.invite_limit_blocked',
   // Attempt
   'attempt.started',
   'attempt.submitted',

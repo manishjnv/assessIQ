@@ -69,4 +69,25 @@ describe("AdminBilling plan limits", () => {
     expect(screen.getByText("Billed per credit")).toBeTruthy();
     expect(screen.queryByText(/not enforced yet/)).toBeNull();
   });
+
+  it("EXP-37 shows the students per assessment line, or no limit when null", async () => {
+    getCompanyUsage.mockResolvedValue({
+      ...base,
+      tier_limits: { licensed_packs: null, per_drive_candidates: null, overage_hard_cap_ratio: null },
+      tiers_enforced: true,
+      invite_limit: 150,
+    });
+    const { unmount } = render(<AdminBilling />);
+    await waitFor(() => expect(screen.getByText("Students per assessment: 150")).toBeTruthy());
+    unmount();
+
+    getCompanyUsage.mockResolvedValue({
+      ...base,
+      tier_limits: { licensed_packs: null, per_drive_candidates: null, overage_hard_cap_ratio: null },
+      tiers_enforced: true,
+      invite_limit: null,
+    });
+    render(<AdminBilling />);
+    await waitFor(() => expect(screen.getByText("Students per assessment: no limit")).toBeTruthy());
+  });
 });

@@ -487,6 +487,8 @@ export interface PreviewQuestionSet {
 
 export const AL_ERROR_CODES = {
   ASSESSMENT_NOT_FOUND: "ASSESSMENT_NOT_FOUND",
+  // EXP-37: the plan's limit of invited students per assessment would be exceeded.
+  INVITE_LIMIT_EXCEEDED: "INVITE_LIMIT_EXCEEDED",
   INVITATION_NOT_FOUND: "INVITATION_NOT_FOUND",
   INVALID_STATE_TRANSITION: "INVALID_STATE_TRANSITION",
   POOL_TOO_SMALL: "POOL_TOO_SMALL",

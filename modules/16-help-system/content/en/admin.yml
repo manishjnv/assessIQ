@@ -2505,6 +2505,19 @@ admin.tenant_settings.result_release_mode:
     You may be asked for a fresh authenticator code when you save. Each
     change is recorded in the audit log.
 
+admin.assessments.invite_limit:
+  audience: admin
+  short_text: "The most students you can invite to one assessment. Your plan sets it. To invite more, split them into two assessments."
+  long_md: |
+    ## Students per assessment
+
+    Your plan sets the most students you can invite to one assessment. The default limit is 150 students. The limit keeps each assessment manageable for the platform and your reviewers.
+
+    If you need to invite more students, do one of these:
+
+    1. Split the students into two assessments. Run them at different times.
+    2. Contact support to ask for a higher limit.
+
 admin.assessments.invite.import_csv:
   audience: admin
   short_text: "Upload a CSV of names and emails to add candidates and invite them to this assessment in one go."

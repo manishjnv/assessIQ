@@ -52,6 +52,7 @@ import {
   SignupExistingAccountVarsSchema,
   CreditLowBalanceVarsSchema,
   CreditExpiringVarsSchema,
+  InviteLimitBlockedVarsSchema,
 } from '../types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -85,6 +86,7 @@ const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   signup_existing_account: SignupExistingAccountVarsSchema,
   credit_low_balance: CreditLowBalanceVarsSchema,
   credit_expiring: CreditExpiringVarsSchema,
+  invite_limit_blocked: InviteLimitBlockedVarsSchema,
 };
 
 // ---------------------------------------------------------------------------
