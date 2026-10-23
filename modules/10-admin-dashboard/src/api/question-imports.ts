@@ -127,6 +127,8 @@ export interface OrgUploadInput {
   domain: string;
   pack_name?: string;
   source_ref?: string;
+  /** EXP-17: optional free-text note, max 500 characters. Sent only when not empty. */
+  source_note?: string;
   rights_status: OrgRightsStatus;
   /** EXP-36: append to this existing set instead of creating one. */
   target_pack_id?: string;
@@ -146,6 +148,29 @@ export interface OrgUploadItem {
   committed_pack_id: string | null;
   question_count: number;
   withdrawn_count: number;
+  /** Generated at commit (ORG-...); null while the upload is only checked. */
+  licence_id: string | null;
+  source_note: string | null;
+}
+
+/** EXP-17 plan limits. null = no limit, 0 = not allowed. */
+export interface OrgUploadLimits {
+  perUpload: number | null;
+  perMonth: number | null;
+  total: number | null;
+}
+
+export interface OrgUploadUsage {
+  uploads_this_month: number;
+  questions_total: number;
+}
+
+/** The list response. The plan fields are missing on an older API; the page then hides the plan panel. */
+export interface OrgUploadListResponse {
+  items: OrgUploadItem[];
+  tiers_enforced?: boolean;
+  limits?: OrgUploadLimits;
+  usage?: OrgUploadUsage;
 }
 
 const ORG_BASE = "/api/admin/question-imports";
@@ -157,6 +182,7 @@ export async function uploadOrgImportApi(input: OrgUploadInput): Promise<ImportR
   form.append("domain", input.domain);
   if (input.pack_name) form.append("pack_name", input.pack_name);
   if (input.source_ref) form.append("source_ref", input.source_ref);
+  if (input.source_note) form.append("source_note", input.source_note);
   if (input.target_pack_id) form.append("target_pack_id", input.target_pack_id);
   if (input.target_level_position !== undefined) form.append("target_level_position", String(input.target_level_position));
   form.append("rights_status", input.rights_status);
@@ -180,8 +206,8 @@ export async function discardOrgImportApi(id: string): Promise<unknown> {
   return adminApi<unknown>(`/admin/question-imports/${encodeURIComponent(id)}/discard`, { method: "POST" });
 }
 
-export async function listOrgUploadsApi(): Promise<{ items: OrgUploadItem[] }> {
-  return adminApi<{ items: OrgUploadItem[] }>("/admin/question-imports");
+export async function listOrgUploadsApi(): Promise<OrgUploadListResponse> {
+  return adminApi<OrgUploadListResponse>("/admin/question-imports");
 }
 
 export async function withdrawOrgUploadApi(id: string): Promise<{ importId: string; withdrawn: number }> {

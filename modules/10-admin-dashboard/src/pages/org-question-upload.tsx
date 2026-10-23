@@ -16,7 +16,9 @@ import {
   IMPORT_MAX_BYTES, commitOrgImportApi, discardOrgImportApi, downloadOrgImportTemplate, isTierLocked,
   listOrgUploadsApi, uploadOrgImportApi, withdrawOrgUploadApi,
 } from "../api/question-imports.js";
-import type { ImportReport, ImportRow, OrgRightsStatus, OrgUploadItem, TemplateFormat } from "../api/question-imports.js";
+import type {
+  ImportReport, ImportRow, OrgRightsStatus, OrgUploadItem, OrgUploadLimits, OrgUploadUsage, TemplateFormat,
+} from "../api/question-imports.js";
 import { importDecisionLabel, questionTypeLabel } from "../lib/labels.js";
 
 /** The exact words the admin confirms. The server stores who confirmed and when. */
@@ -30,6 +32,11 @@ const RIGHTS: { value: OrgRightsStatus; label: string }[] = [
 ];
 const RIGHTS_LABEL: Record<string, string> = { original: "Original", derived_from_source: "Based on a source", licensed: "Licensed" };
 const STATUS_LABEL: Record<string, string> = { staged: "Not saved", committed: "Added" };
+/** EXP-17: the source note limit (server: max 500). */
+const SOURCE_NOTE_MAX = 500;
+/** EXP-17: plan data for the panel. Missing on an older API, so the panel stays hidden. */
+interface PlanView { tiers_enforced?: boolean | undefined; limits: OrgUploadLimits; usage?: OrgUploadUsage | undefined }
+const limitText = (n: number | null): string => (n === null ? "no limit" : String(n));
 
 const msg = (err: unknown, fallback: string): string => (err instanceof AdminApiError ? err.apiError.message : fallback);
 const errorStyle: React.CSSProperties = { color: "var(--aiq-color-danger)", fontSize: "var(--aiq-text-sm)" };
@@ -54,6 +61,8 @@ export function OrgQuestionUpload(): React.ReactElement {
   const [packName, setPackName] = useState("");
   const [target, setTarget] = useState<ImportTarget>(NO_IMPORT_TARGET);
   const [sourceRef, setSourceRef] = useState("");
+  const [sourceNote, setSourceNote] = useState("");
+  const [plan, setPlan] = useState<PlanView | null>(null);
   const [rights, setRights] = useState<OrgRightsStatus | "">("");
   const [warranty, setWarranty] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -66,7 +75,9 @@ export function OrgQuestionUpload(): React.ReactElement {
 
   const refresh = useCallback(async (): Promise<void> => {
     try {
-      setUploads((await listOrgUploadsApi()).items);
+      const r = await listOrgUploadsApi();
+      setUploads(r.items);
+      setPlan(r.limits ? { tiers_enforced: r.tiers_enforced, limits: r.limits, usage: r.usage } : null);
     } catch (err) {
       if (isTierLocked(err)) setLocked(true);
       else setError(msg(err, "Could not load your uploads."));
@@ -105,6 +116,7 @@ export function OrgQuestionUpload(): React.ReactElement {
       file_name: file.name, format, file, domain, rights_status: rights,
       ...(target.packId === "" && packName.trim() ? { pack_name: packName.trim() } : {}),
       ...(sourceRef.trim() ? { source_ref: sourceRef.trim() } : {}),
+      ...(sourceNote.trim() ? { source_note: sourceNote.trim() } : {}),
       // EXP-36: append to an existing set (server errors show as given).
       ...(target.packId !== "" ? { target_pack_id: target.packId } : {}),
       ...(target.packId !== "" && target.levelPosition !== null ? { target_level_position: target.levelPosition } : {}),
@@ -157,6 +169,19 @@ export function OrgQuestionUpload(): React.ReactElement {
     { key: "created_at", label: "Date", render: (u) => formatDate(u.created_at) },
     { key: "status", label: "State", render: (u) => <Chip>{STATUS_LABEL[u.status] ?? u.status}</Chip> },
     { key: "rights", label: "Rights", render: (u) => (u.rights_status ? RIGHTS_LABEL[u.rights_status] ?? u.rights_status : "") },
+    {
+      key: "licence_id", label: "Licence",
+      render: (u) => <span data-help-id="admin.org_upload.licence_id">{u.licence_id ?? "After commit"}</span>,
+    },
+    {
+      key: "source_note", label: "Source note",
+      render: (u) => (
+        <span title={u.source_note ?? undefined}
+          style={{ display: "inline-block", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", verticalAlign: "bottom" }}>
+          {u.source_note ?? ""}
+        </span>
+      ),
+    },
     {
       key: "questions", label: "Questions",
       render: (u) => <span className="num">{u.question_count}{u.withdrawn_count > 0 ? ` (${u.withdrawn_count} withdrawn)` : ""}</span>,
@@ -256,6 +281,14 @@ export function OrgQuestionUpload(): React.ReactElement {
                   <input id="ou-source" className="aiq-input" type="text" placeholder="Optional. A book, course or document name."
                     value={sourceRef} onChange={(e) => setSourceRef(e.target.value)} maxLength={500} />
                 </div>
+                <div style={fieldStyle} data-help-id="admin.org_upload.source_note">
+                  <label htmlFor="ou-note" style={labelStyle}>Source note</label>
+                  <input id="ou-note" className="aiq-input" type="text" placeholder="Optional. Where these questions came from."
+                    value={sourceNote} onChange={(e) => setSourceNote(e.target.value)} maxLength={SOURCE_NOTE_MAX} aria-describedby="ou-note-count" />
+                  <span id="ou-note-count" style={{ fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>
+                    {sourceNote.length} of {SOURCE_NOTE_MAX} characters
+                  </span>
+                </div>
                 <div style={fieldStyle} data-help-id="admin.org_upload.rights">
                   <label htmlFor="ou-rights" style={labelStyle}>Rights *</label>
                   <select id="ou-rights" className="aiq-input" value={rights} onChange={(e) => setRights(e.target.value as OrgRightsStatus | "")} required>
@@ -302,6 +335,25 @@ export function OrgQuestionUpload(): React.ReactElement {
         {!locked && (
           <section aria-labelledby="ou-list">
             <h2 id="ou-list" style={h2Style}>Your uploads.</h2>
+            {plan && (
+              <div className="aiq-card" data-help-id="admin.org_upload.limits" aria-labelledby="ou-plan"
+                style={{ padding: "var(--aiq-space-lg)", marginBottom: "var(--aiq-space-md)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
+                <h3 id="ou-plan" style={{ margin: 0, fontSize: "var(--aiq-text-base)", fontWeight: 600 }}>Your plan limits</h3>
+                {[plan.limits.perUpload, plan.limits.perMonth, plan.limits.total].includes(0) && (
+                  <p style={{ margin: 0 }}>Your plan does not include organisation uploads.</p>
+                )}
+                <p style={{ margin: 0 }}>Questions per upload: {limitText(plan.limits.perUpload)}</p>
+                {plan.usage && (
+                  <p style={{ margin: 0 }}>Uploads this month: {plan.usage.uploads_this_month} of {limitText(plan.limits.perMonth)}</p>
+                )}
+                {plan.usage && (
+                  <p style={{ margin: 0 }}>Questions in total: {plan.usage.questions_total} of {limitText(plan.limits.total)}</p>
+                )}
+                {plan.tiers_enforced === false && (
+                  <p style={{ margin: 0 }}>Plan limits are shown for information and are not enforced yet.</p>
+                )}
+              </div>
+            )}
             <div className="aiq-card" data-density="compact" style={{ padding: 0, overflow: "hidden" }}>
               <Table columns={uploadColumns} data={uploads} emptyMessage="You have not uploaded any questions yet." />
             </div>
