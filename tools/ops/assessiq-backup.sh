@@ -9,7 +9,10 @@ DEST=/var/backups/assessiq
 LOG=/var/log/assessiq/backup.log
 KEEP_DAYS=14
 TS=$(date -u +%Y%m%dT%H%M%SZ)
-OUT="$DEST/assessiq-$TS.dump"
+OUT="$DEST/assessiq-$TS.dump.age"
+# A5-7: dumps are encrypted with an age PUBLIC key. The private key is offline (owner); a thief of the files or of the
+# Hostinger weekly image cannot read them. Missing key file = hard fail (never write a plain dump).
+RECIPIENT=/etc/assessiq-backup-age.pub
 
 alert() {
   local smtp
@@ -21,25 +24,28 @@ alert() {
     curl -sS --max-time 30 --config <(printf 'url = "%s"\n' "$smtp") --ssl-reqd \
       --mail-from connect@assessiq.in --mail-rcpt connect@assessiq.in -T - >/dev/null 2>&1 || true
 }
-trap 'rc=$?; echo "$(date -u +%FT%TZ) FAIL rc=$rc line=$LINENO" >> "$LOG"; rm -f "$OUT.tmp"; alert "Backup script failed (exit $rc at line $LINENO)."' ERR
+trap 'rc=$?; echo "$(date -u +%FT%TZ) FAIL rc=$rc line=$LINENO" >> "$LOG"; rm -f "$OUT.tmp" "$OUT.plain" "$OUT.age.tmp"; alert "Backup script failed (exit $rc at line $LINENO)."' ERR
 
+[ -s "$RECIPIENT" ] || { echo "$(date -u +%FT%TZ) FAIL no age public key at $RECIPIENT" >> "$LOG"; alert "Backup refused: no age public key at $RECIPIENT."; exit 3; }
 mkdir -p "$DEST"
 chmod 700 "$DEST"
 
-docker exec assessiq-postgres pg_dump -U assessiq -d assessiq -Fc > "$OUT.tmp"
+docker exec assessiq-postgres pg_dump -U assessiq -d assessiq -Fc > "$OUT.plain"
 # Integrity check: the archive must list cleanly before we keep it.
-docker exec -i assessiq-postgres pg_restore -l < "$OUT.tmp" > /dev/null
+docker exec -i assessiq-postgres pg_restore -l < "$OUT.plain" > /dev/null
+age -R "$RECIPIENT" -o "$OUT.tmp" "$OUT.plain"
+rm -f "$OUT.plain"
 mv "$OUT.tmp" "$OUT"
 chmod 600 "$OUT"
 
-find "$DEST" -maxdepth 1 -type f -name 'assessiq-*.dump' -mtime +"$KEEP_DAYS" -delete
+find "$DEST" -maxdepth 1 -type f -name 'assessiq-*.dump*' -mtime +"$KEEP_DAYS" -delete
 
 # AI prompt skills: gitignored since 2026-10-01 (public repo), so this host copy
 # is the source of truth — keep a daily tarball alongside the DB dump.
 if [ -d /srv/assessiq/prompts/skills ]; then
-  tar -czf "$DEST/prompts-skills-$TS.tgz" -C /srv/assessiq/prompts skills
-  chmod 600 "$DEST/prompts-skills-$TS.tgz"
-  find "$DEST" -maxdepth 1 -type f -name 'prompts-skills-*.tgz' -mtime +"$KEEP_DAYS" -delete
+  tar -czf - -C /srv/assessiq/prompts skills | age -R "$RECIPIENT" -o "$DEST/prompts-skills-$TS.tgz.age"
+  chmod 600 "$DEST/prompts-skills-$TS.tgz.age"
+  find "$DEST" -maxdepth 1 -type f -name 'prompts-skills-*.tgz*' -mtime +"$KEEP_DAYS" -delete
 else
   echo "$(date -u +%FT%TZ) WARN prompts/skills missing" >> "$LOG"
   alert "prompts/skills directory is missing on the VPS — AI grading/generation prompts unavailable."
