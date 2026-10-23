@@ -438,7 +438,7 @@ async function cmdRun(mode: string, opts: RunOptions = { only: [], delayMs: 0 })
     if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
       abortedReason = `${consecutiveErrors} errors in a row, last: ${actual.error?.code}: ${actual.error?.message}`;
       console.error(`[run] ABORTED — ${abortedReason}`);
-      console.error('[run] A usage limit shows as "claude subprocess exited with code 1". Test with: claude -p "say ok"');
+      console.error('[run] A usage limit shows as "subprocess exited with code 1". Check the Claude login quota on the host before a re-run.');
       break;
     }
     if (opts.delayMs > 0) await new Promise((resolve) => setTimeout(resolve, opts.delayMs));
