@@ -357,6 +357,42 @@ export async function findTenantBudget(
   return row !== undefined ? mapBudgetRow(row) : null;
 }
 
+/**
+ * D6 gate read: start a new month first (used reset to 0) when period_start is in an earlier month,
+ * then return the row. Lazy rollover: no BullMQ job needed. RLS limits both statements to the tenant.
+ */
+export async function rollAndFindBudget(client: PoolClient): Promise<TenantGradingBudget | null> {
+  await client.query(
+    `UPDATE tenant_grading_budgets
+        SET used_usd = 0, used_input_tokens = 0, used_output_tokens = 0,
+            period_start = date_trunc('month', now())::date, alerted_at = NULL, updated_at = now()
+      WHERE period_start < date_trunc('month', now())::date`,
+  );
+  return findTenantBudget(client);
+}
+
+/** D6 ledger write: add real cost and tokens; creates the row (budget 0 = unlimited) on first use. */
+export async function addBudgetUsage(
+  client: PoolClient,
+  m: { usd: number; inputTokens: number; outputTokens: number },
+): Promise<void> {
+  await client.query(
+    `INSERT INTO tenant_grading_budgets (tenant_id, used_usd, used_input_tokens, used_output_tokens, period_start)
+     VALUES (current_setting('app.current_tenant', true)::uuid, $1::numeric, $2::bigint, $3::bigint, date_trunc('month', now())::date)
+     ON CONFLICT (tenant_id) DO UPDATE SET
+       used_usd = tenant_grading_budgets.used_usd + EXCLUDED.used_usd,
+       used_input_tokens = tenant_grading_budgets.used_input_tokens + EXCLUDED.used_input_tokens,
+       used_output_tokens = tenant_grading_budgets.used_output_tokens + EXCLUDED.used_output_tokens,
+       alerted_at = CASE
+         WHEN tenant_grading_budgets.alerted_at IS NULL AND tenant_grading_budgets.monthly_budget_usd > 0
+           AND tenant_grading_budgets.used_usd + EXCLUDED.used_usd
+               >= tenant_grading_budgets.monthly_budget_usd * tenant_grading_budgets.alert_threshold_pct / 100
+         THEN now() ELSE tenant_grading_budgets.alerted_at END,
+       updated_at = now()`,
+    [m.usd, m.inputTokens, m.outputTokens],
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Evaluation status (Phase II — platform evaluation queue)
 // ---------------------------------------------------------------------------

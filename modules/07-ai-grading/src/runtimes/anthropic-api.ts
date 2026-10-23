@@ -17,7 +17,7 @@
 //     only SDK slot reserved for this file).
 //   - Skills are the same VPS files; their sha256 is recorded on every grading row.
 //   - Not shipped to production: AI_PIPELINE_MODE stays claude-code-vps until the owner
-//     decides. D6 per-tenant budget gating belongs to the production switch-over (row Z-163).
+//     decides. D6 per-tenant budget gate: grading-budget.ts (checked before a grading, counted after).
 
 import { AppError, config, streamLogger } from "@assessiq/core";
 
@@ -26,6 +26,7 @@ import type { GradingInput, GradingProposal } from "../types.js";
 import { skillSha, readSkillBody } from "../skill-sha.js";
 import type { StreamJsonEvent } from "../stream-json-parser.js";
 import { gradeWithRunner, type RunSkillOpts } from "./claude-code-vps.js";
+import { assertBudget, callCostUsd, recordUsage, type UsageMeter } from "../grading-budget.js";
 
 const log = streamLogger("grading");
 
@@ -150,7 +151,7 @@ export function resetApiKeyFailover(): void {
   activeKey = 0;
 }
 
-async function runStage(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
+async function runStage(opts: RunSkillOpts, meter?: UsageMeter): Promise<StreamJsonEvent[]> {
   if (opts.signal?.aborted) {
     throw new AppError("grading lease lost before the API call", AI_GRADING_ERROR_CODES.LEASE_LOST, 409);
   }
@@ -240,6 +241,11 @@ async function runStage(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
   totals.output_tokens += u.output_tokens ?? 0;
   totals.cache_read_input_tokens += u.cache_read_input_tokens ?? 0;
   totals.cache_creation_input_tokens += u.cache_creation_input_tokens ?? 0;
+  if (meter) {
+    meter.usd += callCostUsd(model, u);
+    meter.inputTokens += (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+    meter.outputTokens += u.output_tokens ?? 0;
+  }
   const m = (totals.by_model[model] ??= { calls: 0, input_tokens: 0, output_tokens: 0 });
   m.calls += 1;
   m.input_tokens += u.input_tokens ?? 0;
@@ -265,5 +271,18 @@ async function runStage(opts: RunSkillOpts): Promise<StreamJsonEvent[]> {
 }
 
 export async function gradeSubjective(input: GradingInput): Promise<GradingProposal> {
-  return gradeWithRunner(input, runStage);
+  const tenantId = input.tenant_id;
+  if (tenantId === undefined) return gradeWithRunner(input, (o) => runStage(o)); // eval harness: no tenant
+  await assertBudget(tenantId);
+  const meter: UsageMeter = { usd: 0, inputTokens: 0, outputTokens: 0 };
+  try {
+    return await gradeWithRunner(input, (o) => runStage(o, meter));
+  } finally {
+    // A failed grading still spent tokens: count them. A ledger failure must not hide the grading result.
+    if (meter.inputTokens > 0 || meter.outputTokens > 0) {
+      await recordUsage(tenantId, meter).catch((err: unknown) =>
+        log.error({ tenantId, err: (err as Error).name }, "grading_budget.record_failed"),
+      );
+    }
+  }
 }

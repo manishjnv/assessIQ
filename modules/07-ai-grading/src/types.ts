@@ -137,6 +137,8 @@ export interface GradingInput {
    * with Stage 2 exactly; any band difference or Stage-3 failure routes to review.
    */
   high_stakes?: boolean;
+  /** D6: company id. The anthropic-api runtime checks and counts the tenant budget when set (the handlers always set it; the eval harness does not). */
+  tenant_id?: string;
   /** RW-64: aborted when the single-flight lease is lost; the runtime kills the CLI. */
   signal?: AbortSignal | undefined;
 }

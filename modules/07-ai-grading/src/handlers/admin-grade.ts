@@ -503,6 +503,7 @@ export async function handleAdminGrade(
           rubric: effectiveRubric,
           answer,
           ...(highStakes ? { high_stakes: true } : {}),
+          tenant_id: tenantId,
           signal: slot.signal,
         });
         proposals.push(proposal);

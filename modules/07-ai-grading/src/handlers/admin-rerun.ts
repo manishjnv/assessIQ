@@ -265,6 +265,7 @@ export async function handleAdminRerun(
           answer,
           ...(input.forceEscalate === true ? { force_escalate: true } : {}),
           ...(highStakes ? { high_stakes: true } : {}),
+          tenant_id: tenantId,
           signal: slot.signal,
         };
         // FU-A11: re-read the pause flag right before EACH AI call (see admin-grade).
