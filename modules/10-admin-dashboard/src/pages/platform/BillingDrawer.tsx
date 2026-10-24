@@ -15,7 +15,7 @@ import { isMfaError } from "../../lib/evaluation.js";
 
 const TIER_OPTIONS = [
   { value: "free", label: "free" },
-  { value: "pro", label: "pro" },
+  { value: "pro", label: "pro (shown as Paid)" },
   { value: "enterprise", label: "enterprise" },
   { value: "internal", label: "internal" },
 ];

@@ -813,8 +813,8 @@ export async function getCompanyEntitlements(tenantId: string): Promise<TenantEn
 /** Display names shown in the UI. DB values stay free/pro/enterprise/internal
  * (no schema change) — this is purely a presentation mapping (FU-A3). */
 export const TIER_DISPLAY_NAMES: Record<PlanTier, string> = {
-  free: 'Starter',
-  pro: 'Growth',
+  free: 'Free',
+  pro: 'Paid', // EXP-40: two public plans, Free and Paid (code tier stays pro)
   enterprise: 'Enterprise',
   internal: 'Internal',
 };

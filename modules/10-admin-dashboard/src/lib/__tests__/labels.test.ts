@@ -16,7 +16,7 @@ describe("labels glossary", () => {
     expect(L.questionTypeLabel("mcq")).toBe("Multiple choice");
     expect(L.questionTypeLabel("log_analysis")).toBe("Log analysis");
     expect(L.questionTypeLabel("structured_case")).toBe("Structured case");
-    expect(L.planTierLabel("pro")).toBe("Pro");
+    expect(L.planTierLabel("pro")).toBe("Paid");
     expect(L.certificateTierLabel("honors")).toBe("Honours");
     expect(L.audienceLabel("all")).toBe("Everyone");
     expect(L.roleLabel("super_admin")).toBe("Platform admin");

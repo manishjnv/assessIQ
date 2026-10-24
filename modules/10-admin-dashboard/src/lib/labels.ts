@@ -85,7 +85,7 @@ export const questionTypeLabel = labeler({
 });
 
 /** Plan tier of an organisation (billing). */
-export const planTierLabel = labeler({ free: "Free", pro: "Pro", enterprise: "Enterprise", internal: "Internal" });
+export const planTierLabel = labeler({ free: "Free", pro: "Paid", enterprise: "Enterprise", internal: "Internal" });
 
 /** Certificate tier. */
 export const certificateTierLabel = labeler({ completion: "Completion", distinction: "Distinction", honors: "Honours" });
