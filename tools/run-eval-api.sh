@@ -168,6 +168,31 @@ JS
 node /tmp/v6.js
 PREPV6
 fi
+if [ "$SK" = "v7" ]; then
+  # Z-165 candidate v7 (S57): the LIVE skills (v3) with ONLY the band 3 and band 2 rows plus one calibration sentence changed:
+  # a missing part alone does not make a 2; band 2 = covers only some parts or lists facts without connecting them.
+  # Written from the split-v3 failures (7 band-3 answers graded 2); judge ONLY on split-v4 (ids v4-). Bands 0, 1, 4 untouched.
+  HOMEDIR=/tmp/eval-home-v7
+  ssh assessiq-vps 'docker exec -i assessiq-api sh -s' <<'PREPV7'
+rm -rf /tmp/eval-home-v7 && mkdir -p /tmp/eval-home-v7/.claude/skills
+cp -r /home/node/.claude/skills/grade-anchors /home/node/.claude/skills/grade-band /home/node/.claude/skills/grade-escalate /tmp/eval-home-v7/.claude/skills/
+cat > /tmp/v7.js <<'JS'
+const fs = require("fs");
+const p = "/tmp/eval-home-v7/.claude/skills/grade-band/SKILL.md";
+let t = fs.readFileSync(p, "utf8");
+const r3 = /\| 3 \|[^\n]*\n/, r2 = /\| 2 \|[^\n]*\n/;
+if (!r3.test(t) || !r2.test(t)) { console.error("band 2 or 3 row not found"); process.exit(1); }
+t = t.replace(r3, () => "| 3 | The main findings or most steps are correct and connected by reasoning, but one or two parts the question asks for are missing, thin or imprecise. You can name them. Missing a part, or an anchor that Stage 1 did not find, does NOT by itself make it a 2. |\n");
+t = t.replace(r2, () => "| 2 | Covers only some of the parts, or mostly lists facts or steps without connecting them (little reasoning), so that more than one or two parts are missing or the logic is thin. |\n");
+const k = 'A style point or a vague "could be more precise" is not a gap.';
+if (!t.includes(k)) { console.error("calibration sentence not found"); process.exit(1); }
+t = t.replace(k, () => k + " If the main findings are right and the reasoning connects them, one or two missing parts give band 3, not band 2.");
+fs.writeFileSync(p, t);
+console.log("v7 patched");
+JS
+node /tmp/v7.js
+PREPV7
+fi
 if [ "$SK" = "old" ]; then
   HOMEDIR=/tmp/eval-home-old
   ssh assessiq-vps 'tar -C /srv/assessiq-skills-backup-20261023 -cf - grade-anchors grade-band grade-escalate' | ssh assessiq-vps "docker exec -i assessiq-api sh -c \"mkdir -p $HOMEDIR/.claude/skills && tar -C $HOMEDIR/.claude/skills -xf -\""
