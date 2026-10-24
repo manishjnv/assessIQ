@@ -34,8 +34,10 @@ import { AdminShell } from "../components/AdminShell.js";
 import { openAdminGuide } from "../components/AdminHelp.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { useAdminSession } from "../session.js";
-import { updateTenantAiGenerateMode, getCompanyUsage, getGlobalAiGenerateMode, type AiGenerateMode, type CompanyUsage } from "../api.js";
+import { updateTenantAiGenerateMode, getGlobalAiGenerateMode, type AiGenerateMode } from "../api.js";
 import { usageMessage } from "../components/UsageBanner.js";
+import { ledgerNumbers } from "../components/CreditPill.js";
+import { useCompanyUsage } from "../hooks/useCompanyUsage.js";
 import { TenantSettings } from "./tenant-settings.js";
 import { useMfaGuard } from "../components/useMfaGuard.js";
 import { isMfaError } from "../lib/evaluation.js";
@@ -107,7 +109,7 @@ export function AdminBilling(): React.ReactElement {
   const { guard, stepUp } = useMfaGuard("Enter your authenticator code to change this organisation.");
 
   // A2 — "Your plan & usage" card state (all admins)
-  const [companyUsage, setCompanyUsage] = useState<CompanyUsage | null>(null);
+  const { usage: companyUsage } = useCompanyUsage();
 
   // FU-D27 (2026-10-06): real platform default, read from the server instead
   // of a hardcoded string. Falls back to "omnibus" (the config schema default)
@@ -123,14 +125,6 @@ export function AdminBilling(): React.ReactElement {
         // default, so the UI stays correct in the common case.
       });
   }, [isSuperAdmin]);
-
-  useEffect(() => {
-    void getCompanyUsage()
-      .then(setCompanyUsage)
-      .catch(() => {
-        // Fail-silent — card just stays hidden
-      });
-  }, []);
 
   return (
     <AdminShell breadcrumbs={["Settings"]} helpPage="admin.settings.billing">
@@ -350,9 +344,12 @@ export function AdminBilling(): React.ReactElement {
                   <div>
                     <p style={MUTED_SM}>Remaining</p>
                     <p style={{ ...BODY_SM, fontWeight: 600 }}>
-                      {companyUsage.remaining !== null
-                        ? companyUsage.remaining
-                        : "Unlimited"}
+                      {/* Z-149: with a ledger, the same "available / total" as the top-bar pill; the plan meter stays for the warning level. */}
+                      {ledgerNumbers(companyUsage) !== null
+                        ? `${ledgerNumbers(companyUsage)!.available} / ${ledgerNumbers(companyUsage)!.total}`
+                        : companyUsage.remaining !== null
+                          ? companyUsage.remaining
+                          : "Unlimited"}
                     </p>
                   </div>
                   {companyUsage.overage > 0 && (

@@ -4588,13 +4588,14 @@ admin.assessments.blueprint.marks_per_question:
 
 admin.start_test.time_limit:
   audience: admin
+  version: 2
   short_text: "Time limit for this test in minutes, 1 to 600. Blank uses the time of the difficulty."
   long_md: |
     ## Time limit
 
     Set how many minutes a candidate has for this test, from 1 to 600.
 
-    - **Blank.** The test uses the time of the difficulty you chose. The grey number in the box shows it.
+    - **Blank.** The time limit comes from the question set, or from the minutes you enter above. The grey number in the box shows it.
     - **A number.** The test uses this time instead.
     - **Running attempts.** A candidate who has started keeps the time they started with.
     - **Full mock.** A full mock sets its own section times. This box does not apply to it.
@@ -4613,17 +4614,54 @@ admin.start_test.suggested_time:
 
 admin.assessments.time_limit:
   audience: admin
+  version: 2
   short_text: "Time limit in minutes, 1 to 600. Blank uses the time of the difficulty."
   long_md: |
     ## Time limit
 
     Set how many minutes a candidate has for this assessment, from 1 to 600.
 
-    - **Blank.** The assessment uses the time of its difficulty level.
+    - **Blank.** The time limit comes from the question set, or from the minutes you enter above.
     - **A number.** The assessment uses this time instead.
     - **Any status.** You can change it after publish. It applies to attempts that start later.
     - **Running attempts.** A candidate who has started keeps the time they started with.
     - **Sections.** An assessment with section times uses those section times.
+
+admin.shell.credit_pill:
+  audience: admin
+  short_text: "The number shows your available credits and the credits granted this month."
+  long_md: |
+    ## Credit pill
+
+    The number at the top of the page shows your credits.
+
+    - **Available.** The credits you can use now.
+    - **Granted this month.** The credits added to your plan this month.
+    - **Held.** Credits held for invited students are not available.
+    - **Details.** Click the number to open Plan and usage.
+
+admin.assessments.send_test_now:
+  audience: admin
+  short_text: "The fast way: pick a question set, choose the test type, invite students and publish in one step."
+  long_md: |
+    ## Send a test now
+
+    Use this when one question set is enough for the test.
+
+    - **One step.** Pick a question set, choose the test type, invite students and publish.
+    - **Result.** The test goes live for the students you invite.
+    - **More settings.** Use the other button to set everything before you publish.
+
+admin.assessments.new_advanced:
+  audience: admin
+  short_text: "Build an assessment with all settings. It stays a draft until you publish."
+  long_md: |
+    ## Build with all settings
+
+    Use this to set every part of the assessment yourself.
+
+    - **All settings.** Set the question set, the test type, the time limit and the invitations.
+    - **Draft.** The assessment stays a draft until you publish it.
 
 admin.assessments.settings.negative_marks_default:
   audience: admin

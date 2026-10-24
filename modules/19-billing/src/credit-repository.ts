@@ -137,6 +137,7 @@ export async function readCreditBalance(
   tenantId: string,
   aiAnswers: number,
   unlimited: boolean,
+  usedThisMonth: number,
 ): Promise<CreditBalance> {
   const g = await client.query<GrantRow>(
     `SELECT id, source, credits, remaining, granted_at, expires_at, invoice_ref, note
@@ -149,8 +150,20 @@ export async function readCreditBalance(
   const live = g.rows.filter((r) => r.remaining > 0);
   const balance = live.reduce((a, r) => a + r.remaining, 0);
   const { held, heldInvites } = await countHeldCredits(client, tenantId);
+  // Z-149: denominator of "available / total". Unexpired grants that still hold credits, plus this UTC month's free
+  // grant even when spent. Older free grants are zeroed at refill (remaining = 0), so they drop out.
+  const tg = await client.query<{ total: string }>(
+    `SELECT COALESCE(SUM(credits), 0) AS total FROM credit_grants
+      WHERE tenant_id = $1 AND expires_at > now()
+        AND (remaining > 0
+             OR (source = 'free_monthly'
+                 AND date_trunc('month', granted_at AT TIME ZONE 'UTC') = date_trunc('month', now() AT TIME ZONE 'UTC')))`,
+    [tenantId],
+  );
   return {
     unlimited,
+    total_granted: parseInt(tg.rows[0]?.total ?? '0', 10),
+    used_this_month: usedThisMonth,
     has_grants: anyRow.rows.length > 0,
     balance,
     held,

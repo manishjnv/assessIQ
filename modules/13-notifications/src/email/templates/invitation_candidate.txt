@@ -7,6 +7,8 @@ Hi {{candidateName}},
 Start your assessment:
 {{invitationLink}}
 
+{{_t_device_check}} {{check_url}}
+
 {{#if cameraRequired}}{{_t_camera_note}} {{_t_camera_check}}
 {{invitationLink}}
 {{_t_camera_consent}}

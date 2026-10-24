@@ -294,7 +294,7 @@ export async function getUsage(tenantId: string): Promise<BillingUsage> {
     );
 
     const aiIncluded = plan?.ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier];
-    const credits = await readCreditBalance(c, tenantId, meters.ai_used, plan !== null && includedCredits === null);
+    const credits = await readCreditBalance(c, tenantId, meters.ai_used, plan !== null && includedCredits === null, used);
     return {
       tier,
       tier_limits: TIER_LIMITS[tier],
@@ -374,7 +374,7 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
 
     const tier = plan.tier as PlanTier;
     const { remaining, overage, status } = computeUsage(tier, plan.included_credits, used);
-    const ledger = await readCreditBalance(client, tenantId, meters.ai_used, plan.included_credits === null);
+    const ledger = await readCreditBalance(client, tenantId, meters.ai_used, plan.included_credits === null, used);
 
     return {
       tenant_id: tenantId,

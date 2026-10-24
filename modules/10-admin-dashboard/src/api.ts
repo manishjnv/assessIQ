@@ -1052,6 +1052,9 @@ export interface CompanyUsage {
     held?: number;
     held_invites?: number;
     available?: number;
+    /** Z-149: denominator of available / total; used_this_month = the real burn of the cycle. */
+    total_granted?: number;
+    used_this_month?: number;
   };
 }
 

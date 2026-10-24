@@ -27,7 +27,7 @@ import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
 
 import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
-import { getAllTenantUsage } from '../service.js';
+import { getAllTenantUsage, getUsage } from '../service.js';
 import { insertBillingEvent } from '../repository.js';
 
 // ---------------------------------------------------------------------------
@@ -262,4 +262,23 @@ describe('getAllTenantUsage', () => {
       expect(internalRow?.remaining).toBeNull();
     },
   );
+
+  it.skipIf(!dockerAvailable)('used equals the ledger burn (Z-149), same as the tenant banner', async () => {
+    const tid = randomUUID();
+    await withSuperClient(async (client) => {
+      await client.query(`INSERT INTO tenants (id, slug, name, status) VALUES ($1, $2, 'Ledger Usage Tenant', 'active')`, [tid, `tenant-ledger-usage-${randomUUID().slice(0, 6)}`]);
+      await client.query(`INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, 'pro', 1000)`, [tid]);
+      const uid = randomUUID();
+      await client.query(`INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1, $2, $3, 'A', 'admin')`, [uid, tid, `a-${uid}@test.com`]);
+      const { packId, levelId } = await seedPackAndLevel(client, tid, uid);
+      const asm = await seedAssessment(client, tid, packId, levelId, uid);
+      for (const [credits, type] of [[10, 'mock'], [20, 'real']] as const) {
+        const att = await seedAttempt(client, tid, uid, asm);
+        await client.query(`INSERT INTO credit_burns (tenant_id, attempt_id, credits, shortfall, test_type) VALUES ($1, $2, $3, 0, $4)`, [tid, att, credits, type]);
+      }
+    });
+    const row = (await getAllTenantUsage()).find((r) => r.tenant_id === tid);
+    expect(row?.used).toBe(30);
+    expect((await getUsage(tid)).credits.used_this_month).toBe(30);
+  });
 });

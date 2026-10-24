@@ -68,6 +68,7 @@ const AttemptPage = lazy(() => import('./pages/take/Attempt').then(m => ({ defau
 const Submitted = lazy(() => import('./pages/take/Submitted').then(m => ({ default: m.Submitted })));
 const TokenLanding = lazy(() => import('./pages/take/TokenLanding').then(m => ({ default: m.TokenLanding })));
 
+const CheckPage = lazy(() => import('./pages/check/Check').then(m => ({ default: m.CheckPage })));
 const TryPage = lazy(() => import('./pages/try/Try').then(m => ({ default: m.TryPage })));
 const TryCertificatePage = lazy(() => import('./pages/try/TryCertificate').then(m => ({ default: m.TryCertificatePage })));
 
@@ -245,6 +246,9 @@ export function App(): React.JSX.Element {
             <Route path="attempt/:id/submitted" element={<Submitted />} />
             <Route path=":token" element={<TokenLanding />} />
           </Route>
+
+          {/* Z-154: public device check (no token, no session). Needs /check in the Caddy @app matcher. */}
+          <Route path="/check" element={<CheckPage />} />
 
           {/* Public demo (no RequireSession, no API calls). Needs /try + /try/* in the Caddy @app matcher. */}
           <Route path="/try" element={<TryPage />} />

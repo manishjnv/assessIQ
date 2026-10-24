@@ -79,6 +79,10 @@ export interface CreditBalance {
   held_invites: number;
   /** Z-147: balance - held, never below 0. */
   available: number;
+  /** Z-149: sum of credits of unexpired grants with remaining > 0, or this UTC month's free grant. */
+  total_granted: number;
+  /** Z-149: the USED_SQL value (real burn of the cycle). */
+  used_this_month: number;
   next_expiry: string | null;
   grants: CreditGrantView[];
   burn_by_type: { mock: number; real: number; real_camera: number };

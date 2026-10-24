@@ -22,7 +22,7 @@ vi.mock("../components/AdminShell.js", () => ({
 }));
 vi.mock("../components/UsageBanner.js", () => ({ UsageBanner: () => null }));
 vi.mock("../session.js", () => ({ useAdminSession: () => ({ session: { user: { email: "a@b.c", role: "admin" } } }) }));
-vi.mock("@assessiq/help-system/components", () => ({ HelpTip: () => null }));
+vi.mock("@assessiq/help-system/components", () => ({ HelpTip: ({ children }: { children?: unknown }) => children ?? null }));
 vi.mock("../pages/assessments/FromSetPicker.js", () => ({ FromSetPicker: () => null }));
 vi.mock("../pages/assessments/BlueprintBuilder.js", () => ({ BlueprintBuilder: () => null }));
 vi.mock("../pages/assessments/PreviewAdequacy.js", () => ({ PreviewAdequacy: () => null }));

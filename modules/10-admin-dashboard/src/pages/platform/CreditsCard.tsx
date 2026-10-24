@@ -17,7 +17,7 @@ const FIELD = {
   color: "var(--aiq-color-fg-primary)",
 } as const;
 
-export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly: boolean }): React.ReactElement {
+export function CreditsCard({ tenantId, readOnly, onGranted }: { tenantId: string; readOnly: boolean; onGranted?: () => void }): React.ReactElement {
   const [grants, setGrants] = useState<CreditGrantRow[]>([]);
   const [burns, setBurns] = useState<CreditBurnTotals>({ mock: 0, real: 0, real_camera: 0 });
   const [credits, setCredits] = useState("");
@@ -27,6 +27,8 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
+  // Z-149: a grant below one mock test (10 credits) needs a second click.
+  const [confirmLow, setConfirmLow] = useState(false);
   // GATE-8 A1-2: a stale TOTP opens the step-up and retries the save.
   const { guard, stepUp } = useMfaGuard("Enter your authenticator code to change this organisation.");
 
@@ -45,6 +47,8 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
   const submit = async (): Promise<void> => {
     const n = parseInt(credits, 10);
     if (!Number.isInteger(n) || n < 1) { setError("Enter a whole number of credits, 1 or more."); return; }
+    if (n < 10 && !confirmLow) { setConfirmLow(true); return; }
+    setConfirmLow(false);
     setSaving(true);
     setError(null);
     setDone(null);
@@ -61,6 +65,7 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
       setInvoiceRef("");
       setNote("");
       load();
+      onGranted?.();
     } catch (err) {
       if (isMfaError(err)) throw err;
       setError(err instanceof AdminApiError ? err.apiError.message : "Save failed. Try again.");
@@ -83,7 +88,7 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <input aria-label="Credits to add" type="number" min={1} value={credits} placeholder="Credits" disabled={readOnly}
-            onChange={(e) => setCredits(e.target.value)} style={FIELD} />
+            onChange={(e) => { setCredits(e.target.value); setConfirmLow(false); }} style={FIELD} />
           <select aria-label="Grant source" value={source} disabled={readOnly}
             onChange={(e) => setSource(e.target.value as "purchase" | "bonus" | "pilot")} style={FIELD}>
             <option value="purchase">purchase</option>
@@ -95,6 +100,14 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
           <input aria-label="Note" value={note} placeholder="Note" disabled={readOnly}
             onChange={(e) => setNote(e.target.value)} style={FIELD} />
         </div>
+        <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, margin: 0, color: "var(--aiq-color-fg-muted)" }}>
+          1 mock = 10 credits, 1 real = 20, 1 real with camera = 30.
+        </p>
+        {confirmLow && (
+          <p role="alert" style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, margin: 0, color: "var(--aiq-color-warning, #d97706)" }}>
+            This is less than one mock test (10 credits). Click again to add it anyway.
+          </p>
+        )}
         {error !== null && (
           <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: 0 }}>{error}</p>
         )}
@@ -102,7 +115,7 @@ export function CreditsCard({ tenantId, readOnly }: { tenantId: string; readOnly
           <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-success, #16a34a)", margin: 0 }}>{done}</p>
         )}
         <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={readOnly || saving} onClick={() => void submit()}>
-          {saving ? "Saving…" : "Add credits"}
+          {saving ? "Saving…" : confirmLow ? "Add anyway" : "Add credits"}
         </button>
       </div>
     </Card>

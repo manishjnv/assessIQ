@@ -391,3 +391,22 @@ describe('Z-147 held credits (computed live)', () => {
     expect((await getUsage(tenantId)).credits.available).toBe(0);
   });
 });
+
+describe('Z-149 total_granted and used_this_month', () => {
+  it.skipIf(!dockerAvailable)('ignores a zeroed old free grant, counts a spent current-month grant', async () => {
+    const { tenantId, asmId } = await seedTenant('free', 250);
+    // old free grant zeroed at refill: must not inflate the total
+    const old = await addGrant(tenantId, 'free_monthly', FREE_MONTHLY_CREDITS, `now() + interval '300 days'`, `now() - interval '40 days'`);
+    await sup((c) => c.query(`UPDATE credit_grants SET remaining = 0 WHERE id = $1`, [old]));
+    // current-month free grant, fully spent by a burn
+    const cur = await addGrant(tenantId, 'free_monthly', FREE_MONTHLY_CREDITS, `now() + interval '300 days'`, `date_trunc('month', now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`);
+    await sup((c) => c.query(`UPDATE credit_grants SET remaining = 0 WHERE id = $1`, [cur]));
+    await addGrant(tenantId, 'purchase', 100, `now() + interval '300 days'`);
+    const a = await seedAttempt(tenantId, asmId, 'real');
+    await withTenant(tenantId, (c) => recordGradedAttempt(c, tenantId, a));
+    const u = (await getUsage(tenantId)).credits;
+    expect(u.total_granted).toBe(FREE_MONTHLY_CREDITS + 100);
+    expect(u.balance).toBe(100 - BURN.real);
+    expect(u.used_this_month).toBe(BURN.real);
+  });
+});

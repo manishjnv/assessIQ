@@ -41,6 +41,7 @@ import { Chip, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
+import { useCompanyUsage } from "../hooks/useCompanyUsage.js";
 import { ExtraAttemptDialog } from "../components/ExtraAttemptDialog.js";
 import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
 import { IntegrityCard } from "../components/IntegrityCard.js";
@@ -57,7 +58,7 @@ import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
 import { InvitationsSection } from "./assessment-detail/InvitationsSection.js";
-import { adminApi, AdminApiError, getCompanyEntitlements, getCompanyUsage, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
+import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import type { TenantEntitlement } from "../api.js";
 import { type Assessment, type Invitation, INV_PAGE_SIZE, type InvitationsResponse, type ResendAllResponse, type UserItem, type UsersResponse, type ReleaseAllResponse, type SortDir, sortRows, assessmentStatusVariant } from "./assessment-detail/shared.js";
 
@@ -199,14 +200,15 @@ export function AdminAssessmentDetail(): React.ReactElement {
     void fetchData();
   }, [fetchData]);
 
+  const { usage: companyUsage, failed: usageFailed } = useCompanyUsage();
   useEffect(() => {
-    getCompanyUsage()
-      .then((u) => {
-        setInviteLimit(typeof u?.invite_limit === "number" ? u.invite_limit : null);
-        setCreditsAvailable(u?.credits && !u.credits.unlimited && typeof u.credits.available === "number" ? u.credits.available : null);
-      })
-      .catch(() => setInviteLimit(null));
-  }, []);
+    if (companyUsage === null) {
+      if (usageFailed) setInviteLimit(null);
+      return;
+    }
+    setInviteLimit(typeof companyUsage.invite_limit === "number" ? companyUsage.invite_limit : null);
+    setCreditsAvailable(companyUsage.credits && !companyUsage.credits.unlimited && typeof companyUsage.credits.available === "number" ? companyUsage.credits.available : null);
+  }, [companyUsage, usageFailed]);
 
   async function handlePublish() {
     if (!id) return;

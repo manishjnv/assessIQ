@@ -20,6 +20,7 @@ import { HelpProvider } from "@assessiq/help-system/components";
 import { useAdminSession, adminLogout } from "../session.js";
 import { NotificationBell } from "./NotificationBell.js";
 import { AdminHelp } from "./AdminHelp.js";
+import { CreditPill } from "./CreditPill.js";
 import { MyAccountCard } from "./MyAccountCard.js";
 import { RegenerateCodesModal } from "./RegenerateCodesModal.js";
 import { TabStrip } from "./TabStrip.js";
@@ -531,6 +532,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
           </div>
           {/* Right: help and notifications. */}
           <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-md)", justifySelf: "end" }}>
+            <CreditPill />
             <AdminHelp />
             <NotificationBell />
             {/* Account identity and Sign out live in the sidebar account card only (one place). */}

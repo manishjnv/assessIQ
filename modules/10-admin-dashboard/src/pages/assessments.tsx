@@ -11,7 +11,7 @@
 // guard (no localStorage / sessionStorage for filter state — shareable links,
 // no cross-tenant leak risk).
 //
-// "+ New Assessment" opens an inline form (consistent with question-bank.tsx).
+// "New assessment (advanced)" opens an inline form (consistent with question-bank.tsx).
 //
 // Phase 2 Slice A — Blueprint Builder (C5):
 //   The "Use Blueprint" toggle switches the form to blueprint mode.
@@ -30,11 +30,12 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import { Chip, EmptyState, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { AdminShell } from "../components/AdminShell.js";
-import { adminApi, AdminApiError, getCompanyEntitlements, getCompanyUsage, createAssessmentFromSet } from "../api.js";
+import { adminApi, AdminApiError, getCompanyEntitlements, createAssessmentFromSet } from "../api.js";
 import type { TenantEntitlement, CompanyUsage } from "../api.js";
 import { HelpTip } from "@assessiq/help-system/components";
 import { DangerConfirmModal } from "../components/DangerConfirmModal.js";
 import { UsageBanner } from "../components/UsageBanner.js";
+import { useCompanyUsage } from "../hooks/useCompanyUsage.js";
 import { SectionsEditor, buildSections } from "./SectionsEditor.js";
 import type { SectionRow } from "./SectionsEditor.js";
 import { useAdminSession } from "../session.js";
@@ -64,6 +65,7 @@ export function AdminAssessments(): React.ReactElement {
   const isSuperAdmin = session?.user.role === "super_admin";
 
   const [items, setItems] = useState<AssessmentListItem[]>([]);
+  const [serverTotal, setServerTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,6 +156,7 @@ export function AdminAssessments(): React.ReactElement {
       const merged = pages.flatMap((p) => p.items);
       if (pages.length > 1) merged.sort((a, b) => b.created_at.localeCompare(a.created_at));
       setItems(merged);
+      setServerTotal(pages.reduce((sum, p) => sum + p.total, 0));
     } catch (err) {
       setError(
         err instanceof AdminApiError
@@ -171,13 +174,13 @@ export function AdminAssessments(): React.ReactElement {
 
   // D3 — load entitlements + usage on mount to determine domain picker filtering.
   // Fail-open: any error leaves entitledDomains=null (show all).
+  const { usage: sharedUsage, failed: usageFailed } = useCompanyUsage();
   useEffect(() => {
+    if (sharedUsage === null && !usageFailed) return; // wait for the shared usage read (Z-149)
     void (async () => {
       try {
-        const [usageData, entsData] = await Promise.all([
-          getCompanyUsage().catch(() => null as CompanyUsage | null),
-          getCompanyEntitlements().catch(() => null as { entitlements: TenantEntitlement[] } | null),
-        ]);
+        const usageData: CompanyUsage | null = sharedUsage;
+        const entsData = await getCompanyEntitlements().catch(() => null as { entitlements: TenantEntitlement[] } | null);
 
         // Internal/unlimited tenants bypass filtering
         if (usageData !== null && (usageData.tier === 'internal' || usageData.status === 'unlimited')) {
@@ -198,7 +201,7 @@ export function AdminAssessments(): React.ReactElement {
         // Fail-open: leave entitledDomains=null so the server's B2 gate still applies
       }
     })();
-  }, []);
+  }, [sharedUsage, usageFailed]);
 
   function handleStatusChange(val: string) {
     setSearchParams(
@@ -406,7 +409,7 @@ export function AdminAssessments(): React.ReactElement {
         {/* Page header — count chip + serif h1 + lede + action */}
         <div>
           <div style={{ marginBottom: 12 }}>
-            <Chip leftIcon="grid">{items.length} assessment{items.length !== 1 ? "s" : ""}</Chip>
+            <Chip leftIcon="grid">{serverTotal > items.length ? `showing ${items.length} of ${serverTotal}` : `${items.length} assessment${items.length !== 1 ? "s" : ""}`}</Chip>
           </div>
           <div
             style={{
@@ -433,18 +436,24 @@ export function AdminAssessments(): React.ReactElement {
                 Assessment cycles — set dates, invite candidates, track completion.
               </p>
             </div>
-            <Link to="/admin/start-test" className="aiq-btn aiq-btn-outline" style={{ alignSelf: "center" }}>Start a test</Link>
-            <button
-              type="button"
-              className="aiq-btn aiq-btn-primary"
-              onClick={() => {
-                setShowNewForm((v) => !v);
-                setCreateError(null);
-                setCreatedAssessmentId(null);
-              }}
-            >
-              {showNewForm ? "Cancel" : "+ New Assessment"}
-            </button>
+            <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap", alignSelf: "center" }}>
+              <HelpTip helpId="admin.assessments.send_test_now">
+                <Link to="/admin/start-test" className="aiq-btn aiq-btn-primary">Send a test now</Link>
+              </HelpTip>
+              <HelpTip helpId="admin.assessments.new_advanced">
+                <button
+                  type="button"
+                  className="aiq-btn aiq-btn-outline"
+                  onClick={() => {
+                    setShowNewForm((v) => !v);
+                    setCreateError(null);
+                    setCreatedAssessmentId(null);
+                  }}
+                >
+                  {showNewForm ? "Cancel" : "New assessment (advanced)"}
+                </button>
+              </HelpTip>
+            </div>
           </div>
         </div>
 

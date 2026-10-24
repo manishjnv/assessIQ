@@ -16,9 +16,11 @@
 //   - No new @assessiq/ui-system primitives (uses existing Chip/Icon).
 //   - Fail-silent on fetch error (never break the page).
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Chip, Icon } from "@assessiq/ui-system";
-import { getCompanyUsage, type CompanyUsage } from "../api.js";
+import type { CompanyUsage } from "../api.js";
+import { useCompanyUsage } from "../hooks/useCompanyUsage.js";
+import { creditLevel, ledgerNumbers } from "./CreditPill.js";
 
 // ---------------------------------------------------------------------------
 // Shared helper — exported so billing.tsx card can reuse it
@@ -67,33 +69,28 @@ export function usageMessage(
 // ---------------------------------------------------------------------------
 
 export function UsageBanner(): React.ReactElement | null {
-  const [usage, setUsage] = useState<CompanyUsage | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void getCompanyUsage()
-      .then((u) => {
-        if (!cancelled) setUsage(u);
-      })
-      .catch(() => {
-        // Fail-silent — never break the page
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  // Z-156: shown only when credits are low or out (warning icon). Fail-silent on a failed read.
+  const { usage } = useCompanyUsage();
   if (usage === null) return null;
 
-  const msg = usageMessage(usage);
+  // With a ledger the banner follows the pill (available / total_granted); without one, the plan meter decides.
+  const ledger = ledgerNumbers(usage);
+  const level = ledger !== null ? creditLevel(ledger) : usage.status === "over" ? "zero" : usage.status === "warn" ? "low" : "normal";
+  if (level === "normal") return null;
+  const planMsg = usageMessage(usage);
+  const msg =
+    ledger !== null
+      ? {
+          text:
+            level === "zero"
+              ? "You are out of credits. Contact your platform operator to add more."
+              : `Only ${ledger.available} of ${ledger.total} credits are left. Contact your platform operator to add more.`,
+          color: level === "zero" ? "var(--aiq-color-danger, #dc2626)" : "var(--aiq-color-warning, #d97706)",
+        }
+      : planMsg;
   if (msg === null) return null;
-
-  const iconName =
-    usage.status === "over"
-      ? "bell"
-      : usage.status === "warn"
-        ? "bell"
-        : "sparkle";
+  const out = level === "zero";
+  const iconName = "flag";
 
   return (
     <div
@@ -105,11 +102,9 @@ export function UsageBanner(): React.ReactElement | null {
         padding: "10px var(--aiq-space-lg)",
         borderRadius: "var(--aiq-radius-md)",
         background:
-          usage.status === "over"
+          out
             ? "var(--aiq-color-danger-soft, rgba(220,38,38,0.08))"
-            : usage.status === "warn"
-              ? "var(--aiq-color-warning-soft, rgba(217,119,6,0.08))"
-              : "var(--aiq-color-bg-raised)",
+            : "var(--aiq-color-warning-soft, rgba(217,119,6,0.08))",
         border: `1px solid ${msg.color}`,
         marginBottom: "var(--aiq-space-sm)",
       }}
@@ -125,16 +120,11 @@ export function UsageBanner(): React.ReactElement | null {
       >
         {msg.text}
       </span>
-      {usage.status !== "ok" && (
-        <span style={{ marginLeft: "auto" }}>
-          <Chip
-            variant={usage.status === "over" ? "warn" : "default"}
-            style={{ fontSize: 11 }}
-          >
-            {usage.status === "over" ? "Over limit" : "Near limit"}
-          </Chip>
-        </span>
-      )}
+      <span style={{ marginLeft: "auto" }}>
+        <Chip variant={out ? "warn" : "default"} style={{ fontSize: 11 }}>
+          {out ? "Out of credits" : "Running low"}
+        </Chip>
+      </span>
     </div>
   );
 }

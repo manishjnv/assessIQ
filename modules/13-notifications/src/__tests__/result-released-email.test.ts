@@ -19,6 +19,7 @@ vi.mock("../email/index.js", () => ({
 import { config } from "@assessiq/core";
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
 import { sendResultReleasedEmail } from "../email/result-released.js";
+import { renderTemplate } from "../email/render.js";
 
 
 let container: StartedTestContainer;
@@ -234,6 +235,20 @@ describe("sendResultReleasedEmail", () => {
     const { attemptId } = await seed({ earned: 42, max: 60, passing: 60, feedbackLevel: "with_ai_justification" });
     await sendResultReleasedEmail({ tenantId: tenant, attemptId });
     expect(lastCall().vars["feedbackLevel"]).toBe("none");
+  });
+
+  it("Z-159: a Real attempt email has no feedback sentence at any level", async () => {
+    for (const lvl of ["none", "right_wrong", "with_expected_answer", "with_ai_justification"]) {
+      sendEmailMock.mockClear();
+      const { attemptId } = await seed({ earned: 42, max: 60, passing: 60, attemptMode: "real", feedbackLevel: lvl });
+      await sendResultReleasedEmail({ tenantId: tenant, attemptId });
+      const call = lastCall();
+      expect(call.vars["feedbackLevel"]).toBe("none");
+      const rendered = renderTemplate("result_released", call.vars as never);
+      for (const out of [rendered.html, rendered.text]) {
+        expect(out).not.toContain("Sign in to read your feedback");
+      }
+    }
   });
 
   it("Z-145: the tenant level no longer matters (unset assessment level, Mock attempt: none)", async () => {

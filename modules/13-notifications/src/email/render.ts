@@ -341,6 +341,8 @@ function augmentContext(name: EmailTemplateName, p: any, opts: RenderOptions): R
   const box = logo !== null ? logoBox(logo.width, logo.height) : null;
   return {
     ...(name === 'invitation_admin' ? { roleLabel: INVITE_ROLE_LABEL[p.role] ?? p.role } : {}),
+    // Z-154: standalone device check link, built from the same public base URL as the invitation link.
+    ...(name === 'invitation_candidate' ? { check_url: new URL('/check', config.ASSESSIQ_BASE_URL).toString() } : {}),
     ...(orgName !== '' ? { org_name: orgName } : {}),
     ...(logo !== null ? { logo_url: logo.url } : {}),
     ...(box !== null ? { logo_w: box.w, logo_h: box.h } : {}),

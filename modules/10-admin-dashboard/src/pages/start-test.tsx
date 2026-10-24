@@ -10,8 +10,9 @@ import { Button, Card, Chip, FieldHelp, Input, Label, PageHeader, Spinner } from
 import { HelpTip } from "@assessiq/help-system/components";
 import { csvCell } from "@assessiq/core/escape";
 import { AdminShell } from "../components/AdminShell.js";
+import { useCompanyUsage } from "../hooks/useCompanyUsage.js";
 import {
-  AdminApiError, createAssessmentFromSet, createFullMockApi, getAvailableSets, getCompanyUsage, getPackLevelsApi, importCandidates,
+  AdminApiError, createAssessmentFromSet, createFullMockApi, getAvailableSets, getPackLevelsApi, importCandidates,
   importLicensedSet, inviteAssessmentUsers, listCandidates, listExamBlueprintsApi, precheckInvitesApi, publishAssessmentApi,
 } from "../api.js";
 import type { AvailableSet, CandidateOption, ExamBlueprintSummary } from "../api.js";
@@ -95,10 +96,8 @@ export function AdminStartTest(): React.ReactElement {
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<{ step: string; message: string; id: string | null; cameraPath: string | null; partial?: boolean; refusal?: CreditsRefusal | null } | null>(null);
   // Z-147: free credits (balance minus held); null = unlimited or unknown, so no cost line.
-  const [available, setAvailable] = useState<number | null>(null);
-  useEffect(() => {
-    getCompanyUsage().then((u) => setAvailable(u.credits && !u.credits.unlimited && typeof u.credits.available === "number" ? u.credits.available : null)).catch(() => setAvailable(null));
-  }, []);
+  const { usage: sharedUsage } = useCompanyUsage();
+  const available = sharedUsage?.credits && !sharedUsage.credits.unlimited && typeof sharedUsage.credits.available === "number" ? sharedUsage.credits.available : null;
   const [done, setDone] = useState<Done | null>(null);
   const [blueprints, setBlueprints] = useState<ExamBlueprintSummary[] | null>(null);
   const [mockOpen, setMockOpen] = useState(false);
@@ -440,7 +439,7 @@ export function AdminStartTest(): React.ReactElement {
                 <Input id="st-closes" type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} />
               </div>
             </div>
-            <FieldHelp>Candidates can start between these two times. The time limit comes from the difficulty you chose.</FieldHelp>
+            <FieldHelp>Candidates can start between these two times. The time limit comes from the question set, or from the minutes you enter above.</FieldHelp>
 
             {steps.map((s) => <div key={s} style={sans}>✓ {s}</div>)}
             {busy && <Spinner />}

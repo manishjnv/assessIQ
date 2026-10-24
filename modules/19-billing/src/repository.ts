@@ -246,9 +246,7 @@ export async function getAllTenantUsageRaw(
     ai_used: number;
   }>(
     `SELECT p.tenant_id, p.tier, p.included_credits,
-            (SELECT COUNT(*)::int * ${U} FROM billing_events b
-              WHERE b.tenant_id = p.tenant_id AND b.event_type = 'assessment_graded'
-                AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS used,
+            ${USED_SQL} AS used,
             (SELECT COUNT(*)::int FROM billing_events b
               WHERE b.tenant_id = p.tenant_id AND b.event_type = 'ai_answer_evaluated'
                 AND b.occurred_at >= ${CYCLE_WINDOW_START_SQL}) AS ai_used

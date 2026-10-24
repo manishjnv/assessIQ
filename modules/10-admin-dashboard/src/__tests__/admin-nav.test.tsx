@@ -10,7 +10,6 @@ afterEach(cleanup);
 // Every tenant-admin URL that existed before Z-23 (App.tsx routes) -> [group, tab].
 const OLD_URLS: Array<[string, string, string]> = [
   ["/admin", "home", "home"],
-  ["/admin/start-test", "assessments", "start-test"],
   ["/admin/assessments", "assessments", "assessments"],
   ["/admin/assessments/abc", "assessments", "assessments"],
   ["/admin/attempts", "assessments", "attempts"],
@@ -60,7 +59,7 @@ describe("resolveActiveNav", () => {
       "Home", "Assessments", "Question bank", "Reports", "People", "Integrations", "Settings",
     ]);
     expect(NAV_GROUPS.find((g) => g.id === "assessments")?.tabs.map((t) => t.label)).toEqual([
-      "Assessments", "Start a test", "Attempts", "Grading status", "Certificates",
+      "Assessments", "Attempts", "Grading status", "Certificates",
     ]);
     expect(NAV_GROUPS.find((g) => g.id === "settings")?.tabs.map((t) => t.label)).toEqual([
       "Organisation", "Results", "Data privacy", "Plan and usage",

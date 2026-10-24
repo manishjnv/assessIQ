@@ -649,7 +649,7 @@ export function BillingDrawer({
               </div>
             </Card>
             <AiGradingScopeCard tenantId={tenant.id} readOnly={isReadOnly} />
-            <CreditsCard tenantId={tenant.id} readOnly={isReadOnly} />
+            <CreditsCard tenantId={tenant.id} readOnly={isReadOnly} onGranted={() => { void getTenantBillingDetail(tenant.id).then(setDetail).catch(() => undefined); }} />
             {/* Entitlements subsection — B1 */}
             <Card>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-lg)" }}>
