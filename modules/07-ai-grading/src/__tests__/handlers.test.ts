@@ -1002,7 +1002,7 @@ describe("handleAdminQueue", () => {
     const capped = await handleAdminQueue({ tenantId: TENANT_ID, filters: { limit: 1 } });
     expect(capped.items).toHaveLength(1);
     expect(capped.counts.in_queue - before.in_queue).toBe(2);
-    expect(capped.counts.awaiting_evaluation - before.awaiting_evaluation).toBe(3);
+    expect(capped.counts.awaiting_release - before.awaiting_release).toBe(1);
     expect(capped.counts.ready_to_publish - before.ready_to_publish).toBe(1);
 
     const all = await handleAdminQueue({ tenantId: TENANT_ID });
@@ -1012,10 +1012,10 @@ describe("handleAdminQueue", () => {
     // empty, and the per-assessment rows add up to the tenant totals.
     expect(typeof capped.counts.oldest_waiting_submitted_at).toBe("string");
     expect(new Date(capped.counts.oldest_waiting_submitted_at!).getTime()).not.toBeNaN();
-    const sum = (k: "in_queue" | "awaiting_evaluation" | "ready_to_publish") =>
+    const sum = (k: "in_queue" | "awaiting_release" | "ready_to_publish") =>
       capped.counts.by_assessment.reduce((n, r) => n + r[k], 0);
     expect(sum("in_queue")).toBe(capped.counts.in_queue);
-    expect(sum("awaiting_evaluation")).toBe(capped.counts.awaiting_evaluation);
+    expect(sum("awaiting_release")).toBe(capped.counts.awaiting_release);
     expect(sum("ready_to_publish")).toBe(capped.counts.ready_to_publish);
     expect(capped.counts.by_assessment.every((r) => typeof r.assessment_name === "string")).toBe(true);
 
@@ -1758,5 +1758,27 @@ describe("P4 least-AI: tenant ai_grading_scope + tier metrics", () => {
       });
       expect(recordAiAnswerEvaluated).not.toHaveBeenCalled();
     }
+  });
+  it("5.4 Z-150 cards are disjoint: one attempt moves submit -> graded -> released -> published", async () => {
+    const before = (await handleAdminQueue({ tenantId: TENANT_ID })).counts;
+    let attemptId = "";
+    await withSuperClient(async (client) => {
+      const { packId, levelId, questionIds } = await seedPackWithSubjectiveQuestions(client, TENANT_ID, ADMIN_ID, 1);
+      const candidateId = randomUUID();
+      await insertCandidateUser(client, candidateId, TENANT_ID, `q54-${randomUUID().slice(0,8)}@test.local`);
+      ({ attemptId } = await seedSubmittedAttempt(client, TENANT_ID, ADMIN_ID, candidateId, packId, levelId, questionIds));
+    });
+    const delta = async () => {
+      const c = (await handleAdminQueue({ tenantId: TENANT_ID })).counts;
+      return [c.in_queue - before.in_queue, c.awaiting_release - before.awaiting_release, c.ready_to_publish - before.ready_to_publish];
+    };
+    const step = (sql: string) => withSuperClient(async (client) => { await client.query(sql, [attemptId]); });
+    expect(await delta()).toEqual([1, 0, 0]);
+    await step(`UPDATE attempts SET status = 'graded' WHERE id = $1`);
+    expect(await delta()).toEqual([0, 1, 0]);
+    await step(`UPDATE attempts SET evaluation_released_at = now() WHERE id = $1`);
+    expect(await delta()).toEqual([0, 0, 1]);
+    await step(`UPDATE attempts SET status = 'released' WHERE id = $1`);
+    expect(await delta()).toEqual([0, 0, 0]);
   });
 });

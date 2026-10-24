@@ -59,7 +59,7 @@ function Loc(): React.ReactElement {
 
 describe("Z-22 #2 — New assessment opens the create form", () => {
   it("dashboard button navigates to /admin/assessments?new=1", async () => {
-    mockApi.mockResolvedValue({ items: [], counts: { in_queue: 0, awaiting_evaluation: 0, ready_to_publish: 0 } });
+    mockApi.mockResolvedValue({ items: [], counts: { in_queue: 0, awaiting_release: 0, ready_to_publish: 0 } });
     render(
       <MemoryRouter initialEntries={["/admin"]}>
         <Routes>

@@ -644,8 +644,8 @@ export async function listGradingQueue(
 export interface QueueCounts {
   /** Same predicate as listGradingQueue: not evaluated yet. */
   in_queue: number;
-  /** in_queue + evaluated but not yet released to the tenant (see deriveEvaluationStatus). */
-  awaiting_evaluation: number;
+  /** Z-150: status 'graded' AND evaluation_released_at IS NULL (graded, not yet released to the tenant). Disjoint from in_queue. */
+  awaiting_release: number;
   /** status 'graded' AND evaluation released: the tenant can publish. */
   ready_to_publish: number;
   /** FU-C1: submitted_at of the oldest attempt still in the queue (ISO), null when the queue is empty. */
@@ -658,7 +658,7 @@ export interface QueueCountsByAssessment {
   assessment_id: string;
   assessment_name: string;
   in_queue: number;
-  awaiting_evaluation: number;
+  awaiting_release: number;
   ready_to_publish: number;
 }
 
@@ -675,13 +675,13 @@ export async function countGradingQueue(client: PoolClient): Promise<QueueCounts
   // scan of the partial index). Read-only; no AI call path.
   const result = await client.query<{
     in_queue: number;
-    awaiting_evaluation: number;
+    awaiting_release: number;
     ready_to_publish: number;
     oldest_waiting_submitted_at: Date | null;
   }>(
     `SELECT
        COUNT(*) FILTER (WHERE a.status <> 'graded')::int                                        AS in_queue,
-       COUNT(*) FILTER (WHERE a.status <> 'graded' OR a.evaluation_released_at IS NULL)::int     AS awaiting_evaluation,
+       COUNT(*) FILTER (WHERE a.status = 'graded' AND a.evaluation_released_at IS NULL)::int      AS awaiting_release,
        COUNT(*) FILTER (WHERE a.status = 'graded' AND a.evaluation_released_at IS NOT NULL)::int AS ready_to_publish,
        MIN(a.submitted_at) FILTER (WHERE a.status <> 'graded')                                   AS oldest_waiting_submitted_at
      FROM attempts a
@@ -694,7 +694,7 @@ export async function countGradingQueue(client: PoolClient): Promise<QueueCounts
        asmnt.id   AS assessment_id,
        asmnt.name AS assessment_name,
        COUNT(*) FILTER (WHERE a.status <> 'graded')::int                                        AS in_queue,
-       COUNT(*) FILTER (WHERE a.status <> 'graded' OR a.evaluation_released_at IS NULL)::int     AS awaiting_evaluation,
+       COUNT(*) FILTER (WHERE a.status = 'graded' AND a.evaluation_released_at IS NULL)::int      AS awaiting_release,
        COUNT(*) FILTER (WHERE a.status = 'graded' AND a.evaluation_released_at IS NOT NULL)::int AS ready_to_publish
      FROM attempts a
      JOIN assessments asmnt ON asmnt.id = a.assessment_id
@@ -705,7 +705,7 @@ export async function countGradingQueue(client: PoolClient): Promise<QueueCounts
   const r = result.rows[0];
   return {
     in_queue: r?.in_queue ?? 0,
-    awaiting_evaluation: r?.awaiting_evaluation ?? 0,
+    awaiting_release: r?.awaiting_release ?? 0,
     ready_to_publish: r?.ready_to_publish ?? 0,
     oldest_waiting_submitted_at:
       r?.oldest_waiting_submitted_at instanceof Date

@@ -7,7 +7,7 @@ vi.mock("@assessiq/tenancy", () => ({
 }));
 vi.mock("../repository.js", () => ({
   listGradingQueue: async () => [],
-  countGradingQueue: async () => ({ in_queue: 0, awaiting_evaluation: 0, ready_to_publish: 0, by_assessment: [] }),
+  countGradingQueue: async () => ({ in_queue: 0, awaiting_release: 0, ready_to_publish: 0, by_assessment: [] }),
 }));
 
 import { handleAdminQueue } from "../handlers/admin-queue.js";

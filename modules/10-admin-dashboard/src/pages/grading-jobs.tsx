@@ -86,13 +86,13 @@ interface QueueCountsByAssessment {
   assessment_id: string;
   assessment_name: string;
   in_queue: number;
-  awaiting_evaluation: number;
+  awaiting_release: number;
   ready_to_publish: number;
 }
 
 interface QueueCounts {
   in_queue: number;
-  awaiting_evaluation: number;
+  awaiting_release: number;
   ready_to_publish: number;
   oldest_waiting_submitted_at?: string | null;
   by_assessment?: QueueCountsByAssessment[];
@@ -157,18 +157,23 @@ export function AdminGradingJobs(): React.ReactElement {
           </p>
         )}
 
-        {error && <div><Chip>{error}</Chip></div>}
+        {error && (
+          <div role="alert">
+            <Chip>Could not load the counts.</Chip>{" "}
+            <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => void load()}>Retry</button>
+          </div>
+        )}
 
         {loading && counts === null ? (
           <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-3xl) 0" }}>
             <Spinner aria-label="Loading grading status" />
           </div>
-        ) : counts !== null && (
+        ) : counts !== null && !error && (
           <>
             {/* Counts — same numbers as the dashboard cards */}
             <div data-help-id="admin.grading.jobs.counts" style={{ display: "flex", gap: "var(--aiq-space-md)", flexWrap: "wrap" }}>
               <StatCard label="In queue" value={counts.in_queue} />
-              <StatCard label="Awaiting grading" value={counts.awaiting_evaluation} />
+              <StatCard label="Awaiting grading" value={counts.awaiting_release} />
               <StatCard label="Ready to release" value={counts.ready_to_publish} />
             </div>
 
@@ -222,7 +227,7 @@ export function AdminGradingJobs(): React.ReactElement {
                           {r.assessment_name}
                         </button>
                         <span style={NUM}>{r.in_queue}</span>
-                        <span style={NUM}>{r.awaiting_evaluation}</span>
+                        <span style={NUM}>{r.awaiting_release}</span>
                         <span style={NUM}>{r.ready_to_publish}</span>
                       </React.Fragment>
                     ))}

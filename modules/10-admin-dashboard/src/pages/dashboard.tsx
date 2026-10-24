@@ -37,7 +37,7 @@ type QueueRow = BaseQueueRow & { evaluation_status?: EvaluationStatus };
 
 interface QueueCounts {
   in_queue: number;
-  awaiting_evaluation: number;
+  awaiting_release: number;
   ready_to_publish: number;
 }
 
@@ -111,7 +111,7 @@ export function AdminDashboard(): React.ReactElement {
   // Server totals, not the length of the capped list. Fallback to the list only
   // while an older API (no `counts`) is still running during a deploy.
   const totalCount = counts?.in_queue ?? queueItems.length;
-  const awaitingCount = counts?.awaiting_evaluation ?? queueItems.filter((r) => evalOf(r) === "awaiting_evaluation").length;
+  const awaitingCount = counts?.awaiting_release ?? 0; // Z-150: the list holds only in-queue rows
   const readyCount = counts?.ready_to_publish ?? queueItems.filter((r) => evalOf(r) === "ready_to_publish").length;
 
   const displayName =
@@ -241,7 +241,7 @@ export function AdminDashboard(): React.ReactElement {
         <RunAssessmentChecklist />
 
         {/* KPI row — 3 cards derived from queue status counts */}
-        <div
+        {!error && <div
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(3, 1fr)",
@@ -251,7 +251,7 @@ export function AdminDashboard(): React.ReactElement {
           <StatCard label="In queue" value={totalCount} />
           <StatCard label="Awaiting grading" value={awaitingCount} />
           <StatCard label="Ready to release" value={readyCount} />
-        </div>
+        </div>}
 
         {/* Grading queue */}
         <section>
@@ -296,11 +296,12 @@ export function AdminDashboard(): React.ReactElement {
                 fontSize: "var(--aiq-text-sm)",
               }}
             >
-              {error}
+              Could not load the counts.{" "}
+              <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" onClick={() => void fetchQueue()}>Retry</button>
             </div>
           )}
 
-          <div className="aiq-card" style={{ padding: 0, overflow: "hidden" }}>
+          {!error && <div className="aiq-card" style={{ padding: 0, overflow: "hidden" }}>
             <div className="aiq-admin-table-scroll">
               <Table<QueueRow>
                 data={sortedRows}
@@ -312,7 +313,7 @@ export function AdminDashboard(): React.ReactElement {
                 emptyMessage="No results."
               />
             </div>
-          </div>
+          </div>}
         </section>
       </div>
     </AdminShell>
