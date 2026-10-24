@@ -39,7 +39,7 @@ import { SectionsEditor, buildSections } from "./SectionsEditor.js";
 import type { SectionRow } from "./SectionsEditor.js";
 import { useAdminSession } from "../session.js";
 import { type AssessmentListItem, type AssessmentsResponse, type BlueprintLevel, type BlueprintCriterion, type SortDir, sortRows, STATUS_TABS, normalizeStatusTab, statusesForTab, isEmptyDraftCandidate } from "./assessments/shared.js";
-import { TestTypeChooser, fromTestType, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
+import { TestTypeChooser, fromTestType, feedbackSetting, type FeedbackLevel, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
 import { getCameraSettingsApi } from "../api/camera.js";
 import { buildAssessmentColumns } from "./assessments/columns.js";
 import { BlueprintBuilder } from "./assessments/BlueprintBuilder.js";
@@ -90,6 +90,8 @@ export function AdminAssessments(): React.ReactElement {
   // Z-89: default test type of the new assessment (the invite form can still override per batch).
   // Z-143: the card chooser value (Mock / Real / Real + camera). Default Real.
   const [testType, setTestType] = useState<TestType>("real");
+  // Z-145: per-question feedback, Mock only (Real and Real + camera send nothing).
+  const [feedbackLevel, setFeedbackLevel] = useState<FeedbackLevel>("none");
   const [cameraSettings, setCameraSettings] = useState<ChooserCameraSettings | null>(null);
   useEffect(() => {
     getCameraSettingsApi().then(setCameraSettings).catch(() => setCameraSettings(null));
@@ -262,6 +264,7 @@ export function AdminAssessments(): React.ReactElement {
           fullscreen: deliveryMode === "real" || integrityFullscreen,
           block_copy_paste: deliveryMode === "real" || integrityBlockCopy,
         },
+        ...feedbackSetting(testType, feedbackLevel),
       };
 
       // ── From-set (clone-on-use) ───────────────────────────────────────────
@@ -706,6 +709,8 @@ export function AdminAssessments(): React.ReactElement {
                   integrity={{ fullscreen: integrityFullscreen, blockCopyPaste: integrityBlockCopy }}
                   onIntegrityChange={(n) => { setIntegrityFullscreen(n.fullscreen); setIntegrityBlockCopy(n.blockCopyPaste); }}
                   cameraSettings={cameraSettings}
+                  feedbackLevel={feedbackLevel}
+                  onFeedbackLevelChange={setFeedbackLevel}
                 />
               </div>
 

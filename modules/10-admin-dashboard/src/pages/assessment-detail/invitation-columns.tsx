@@ -2,10 +2,13 @@ import React from "react";
 import { Link } from "react-router";
 import { Chip, formatDate, formatDateTime } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
+import { HeldChip } from "../../components/CreditHold.js";
 import { invitationExpiry, invitationStatusColor, invitationStatusLabel, type Invitation } from "./shared.js";
 
 export interface InvitationColumnsDeps {
   nowMs: number;
+  /** Z-147: the assessment is published/active, so open invitations hold credits (a "Held" chip). */
+  creditsHeld?: boolean;
   resendingId: string | null;
   resendingAll: boolean;
   onResend: (inv: Invitation) => void | Promise<void>;
@@ -14,7 +17,7 @@ export interface InvitationColumnsDeps {
   onGrantExtra: (inv: Invitation) => void | Promise<void>;
 }
 
-export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onResend, onReopen, onGrantExtra }: InvitationColumnsDeps): ColumnDef<Invitation>[] {
+export function buildInvitationColumns({ nowMs, creditsHeld = false, resendingId, resendingAll, onResend, onReopen, onGrantExtra }: InvitationColumnsDeps): ColumnDef<Invitation>[] {
   return [
     {
       key: "user_name",
@@ -64,6 +67,9 @@ export function buildInvitationColumns({ nowMs, resendingId, resendingAll, onRes
             >
               {invitationStatusLabel(row.status)}
             </span>
+            {creditsHeld && (row.status === "started" || ((row.status === "pending" || row.status === "viewed") && expiry?.lapsed !== true)) && (
+              <HeldChip />
+            )}
             {row.delivery_mode === "mock" && (
               <Chip variant="default">Mock</Chip>
             )}

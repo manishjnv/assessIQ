@@ -57,6 +57,7 @@ import {
   previewAssessment,
   listInvitations,
   inviteUsers,
+  precheckInvites,
   revokeInvitation,
   resendInvitation,
   resendInvitations,
@@ -634,6 +635,35 @@ export async function registerAssessmentLifecycleRoutes(
     },
   );
 
+  // POST /api/admin/assessments/precheck-invites  -- Z-152 (static segment: registered before any /:id route)
+  // Body: { candidates: int 1..200, delivery_mode: "real"|"mock", camera_required?: boolean }.
+  // Read-only: runs the plan-cap and credit checks (Z-147) for N new invitations, inserts nothing.
+  // 200 { ok: true }. 409 CREDITS_INSUFFICIENT {need, available, canInvite, cost} or INVITE_LIMIT_EXCEEDED.
+  app.post(
+    "/api/admin/assessments/precheck-invites",
+    { preHandler: adminOnly },
+    async (req) => {
+      const { tenantId, userId, role } = req.session!;
+      const b = (req.body ?? {}) as { candidates?: unknown; delivery_mode?: unknown; camera_required?: unknown };
+      if (!Number.isInteger(b.candidates) || (b.candidates as number) < 1 || (b.candidates as number) > 200) {
+        throw new ValidationError("candidates must be a whole number from 1 to 200", { details: { code: "INVALID_PARAM", param: "candidates" } });
+      }
+      if (b.delivery_mode !== "real" && b.delivery_mode !== "mock") {
+        throw new ValidationError("delivery_mode must be real or mock", { details: { code: "INVALID_PARAM", param: "delivery_mode" } });
+      }
+      if (b.camera_required !== undefined && typeof b.camera_required !== "boolean") {
+        throw new ValidationError("camera_required must be a boolean", { details: { code: "INVALID_PARAM", param: "camera_required" } });
+      }
+      await precheckInvites(
+        tenantId,
+        { candidates: b.candidates as number, deliveryMode: b.delivery_mode, cameraRequired: b.delivery_mode === "real" && b.camera_required === true },
+        userId,
+        role === "super_admin",
+      );
+      return { ok: true };
+    },
+  );
+
   // POST /api/admin/assessments/:id/invite
   // Body: { user_ids: string[] }. Z-142: the invitation takes the assessment's mode; a delivery_mode in the body is ignored.
   app.post(
@@ -651,7 +681,7 @@ export async function registerAssessmentLifecycleRoutes(
         });
       }
 
-      const result = await inviteUsers(tenantId, id, body.user_ids as string[], userId);
+      const result = await inviteUsers(tenantId, id, body.user_ids as string[], userId, req.session!.role === "super_admin");
       return reply.code(201).send(result);
     },
   );
@@ -710,7 +740,7 @@ export async function registerAssessmentLifecycleRoutes(
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return resendInvitation(tenantId, id, userId);
+      return resendInvitation(tenantId, id, userId, req.session!.role === "super_admin");
     },
   );
 
@@ -744,7 +774,7 @@ export async function registerAssessmentLifecycleRoutes(
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      return reopenInvitationForRetake(tenantId, id, userId);
+      return reopenInvitationForRetake(tenantId, id, userId, req.session!.role === "super_admin");
     },
   );
 }

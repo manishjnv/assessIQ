@@ -10,7 +10,8 @@ import { resolveCameraRequired, sendInvitationEmail } from "../email.js";
 import type { SendAssessmentInvitationInput } from "../email.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { Assessment, AssessmentInvitation, AssessmentStatus, BulkResendResult, ListInvitationsInput, PaginatedInvitations, InviteUsersResult } from "../types.js";
-import { log, BULK_RESEND_MAX, BULK_RESEND_RECENT_MINUTES, PUBLIC_URL, assertPageSize, assertPoolVerifiedForInvites, assertInviteCapacity } from "./_shared.js";
+import { inviteCost } from "@assessiq/billing";
+import { log, BULK_RESEND_MAX, BULK_RESEND_RECENT_MINUTES, PUBLIC_URL, assertPageSize, assertPoolVerifiedForInvites, assertInviteCapacity, assertCreditsAvailable } from "./_shared.js";
 import { notifyInviteLimitBlocked } from "@assessiq/notifications";
 
 // ===========================================================================
@@ -265,11 +266,12 @@ async function reissueForResend(
   tenantId: string,
   invitationId: string,
   actorUserId: string,
+  skipCreditCheck = false,
 ): Promise<{ invitation: AssessmentInvitation; email: SendAssessmentInvitationInput }> {
   if (!UUID_RE.test(invitationId)) throw invitationNotFound(invitationId);
 
   try {
-    return await reissueForResendTx(tenantId, invitationId, actorUserId);
+    return await reissueForResendTx(tenantId, invitationId, actorUserId, skipCreditCheck);
   } catch (err) {
     await recordInviteLimitBlocked(err, tenantId, actorUserId);
     throw err;
@@ -280,6 +282,7 @@ async function reissueForResendTx(
   tenantId: string,
   invitationId: string,
   actorUserId: string,
+  skipCreditCheck = false,
 ): Promise<{ invitation: AssessmentInvitation; email: SendAssessmentInvitationInput }> {
   return withTenant(tenantId, async (client) => {
     // Resolve the email's tenant name FIRST so a bad tenant row fails before
@@ -301,7 +304,11 @@ async function reissueForResendTx(
     if (await candidateHasStarted(client, invitation)) throw alreadyStartedError();
 
     // EXP-37: resending a revoked invitation brings it back to life, so it counts again.
-    if (invitation.status === "expired") await assertInviteCapacity(client, tenantId, invitation.assessment_id, 1);
+    // Z-147: credits first (lock order: credit_hold, then invite_limit), both before any write.
+    if (invitation.status === "expired") {
+      await assertCreditsAvailable(client, tenantId, 1, inviteCost(assessment), skipCreditCheck);
+      await assertInviteCapacity(client, tenantId, invitation.assessment_id, 1);
+    }
 
     const user = await repo.findUserForInvitation(client, invitation.user_id);
     if (user === null || user.role !== "candidate" || user.status !== "active") {
@@ -375,12 +382,14 @@ export async function resendInvitation(
   tenantId: string,
   invitationId: string,
   actorUserId: string,
+  skipCreditCheck = false,
 ): Promise<AssessmentInvitation> {
   log.info({ tenantId, invitationId }, "resendInvitation");
   const { invitation, email } = await reissueForResend(
     tenantId,
     invitationId,
     actorUserId,
+    skipCreditCheck,
   );
   await sendAfterCommit(email, invitation.id);
   return invitation;
@@ -472,6 +481,7 @@ export async function inviteUsers(
   assessmentId: string,
   userIds: readonly string[],
   invitedByUserId: string,
+  skipCreditCheck = false,
 ): Promise<InviteUsersResult> {
   log.info({ tenantId, assessmentId, userCount: userIds.length }, "inviteUsers");
 
@@ -481,9 +491,40 @@ export async function inviteUsers(
   const realCameraRequired = await resolveCameraRequired(tenantId, "real", assessmentId);
 
   try {
-    return await inviteUsersTx(tenantId, assessmentId, userIds, invitedByUserId, realCameraRequired);
+    return await inviteUsersTx(tenantId, assessmentId, userIds, invitedByUserId, realCameraRequired, skipCreditCheck);
   } catch (err) {
     await recordInviteLimitBlocked(err, tenantId, invitedByUserId);
+    throw err;
+  }
+}
+
+/**
+ * Z-152: read-only pre-check of the plan cap and the credits for `candidates` new invitations, BEFORE import
+ * creates users or Start a test publishes. Same two asserts (credits first) as inviteUsers, nothing inserted;
+ * the locks are released when this short transaction ends, and inviteUsers re-checks as the final guard.
+ * With `assessmentId` the type and the active count come from that assessment (RLS: another tenant's id is a 404);
+ * without it (Start a test, assessment not created yet) the type comes from the caller and nothing is active yet.
+ */
+export async function precheckInvites(
+  tenantId: string,
+  input: { assessmentId?: string; candidates: number; deliveryMode?: "real" | "mock"; cameraRequired?: boolean },
+  actorUserId: string,
+  skipCreditCheck = false,
+): Promise<void> {
+  const assessmentId = input.assessmentId ?? null;
+  try {
+    await withTenant(tenantId, async (client) => {
+      let type = { delivery_mode: input.deliveryMode ?? "real", camera_required: input.cameraRequired ?? false };
+      if (assessmentId !== null) {
+        const a = await repo.findAssessmentById(client, assessmentId);
+        if (a === null) throw assessmentNotFound(assessmentId);
+        type = a;
+      }
+      await assertCreditsAvailable(client, tenantId, input.candidates, inviteCost(type), skipCreditCheck);
+      await assertInviteCapacity(client, tenantId, assessmentId, input.candidates);
+    });
+  } catch (err) {
+    if (assessmentId !== null) await recordInviteLimitBlocked(err, tenantId, actorUserId);
     throw err;
   }
 }
@@ -494,6 +535,7 @@ async function inviteUsersTx(
   userIds: readonly string[],
   invitedByUserId: string,
   realCameraRequired: boolean,
+  skipCreditCheck: boolean,
 ): Promise<InviteUsersResult> {
   return withTenant(tenantId, async (client) => {
     // Fetch tenant name once — single DB hit on the same client (RLS + tx
@@ -520,7 +562,10 @@ async function inviteUsersTx(
 
     // EXP-37: plan limit of invited students per assessment, checked once for the whole batch before any
     // insert or email (a refusal rolls the transaction back; mail already sent could not be recalled).
-    await assertInviteCapacity(client, tenantId, assessmentId, await countInvitesToCreate(client, assessmentId, userIds));
+    // Z-147: credits first (lock order: credit_hold, then invite_limit). Same count feeds both checks.
+    const toCreate = await countInvitesToCreate(client, assessmentId, userIds);
+    await assertCreditsAvailable(client, tenantId, toCreate, inviteCost(assessment), skipCreditCheck);
+    await assertInviteCapacity(client, tenantId, assessmentId, toCreate);
 
     // Z-144: a camera test needs the switch on, the school camera on and the notice confirmed.
     if (assessment.delivery_mode === "real" && assessment.camera_required) {
@@ -871,6 +916,7 @@ export async function reopenInvitationForRetake(
   tenantId: string,
   invitationId: string,
   actorUserId: string,
+  skipCreditCheck = false,
 ): Promise<AssessmentInvitation> {
   if (!UUID_RE.test(invitationId)) throw invitationNotFound(invitationId);
 
@@ -899,6 +945,8 @@ export async function reopenInvitationForRetake(
     }
 
     // EXP-37: a re-opened (submitted) invitation is active again, so it counts again.
+    // Z-147: a re-opened invitation holds credits again (lock order: credit_hold, then invite_limit).
+    await assertCreditsAvailable(client, tenantId, 1, inviteCost(assessment), skipCreditCheck);
     await assertInviteCapacity(client, tenantId, current.assessment_id, 1);
 
     const user = await repo.findUserForInvitation(client, current.user_id);

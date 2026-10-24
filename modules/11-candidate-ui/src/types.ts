@@ -255,7 +255,7 @@ export interface AttemptResultReleasedWire {
   sections?: ResultSectionWire[];
   /** Z-39: attempt n of m and whether another try is open. Absent on older servers. */
   retake?: ResultRetakeWire;
-  /** Z-44: tenant feedback level for the plain feedback sentence. Absent on older servers: no sentence. */
+  /** Z-44/Z-145: assessment feedback level for the plain feedback sentence. Absent on older servers: no sentence. */
   feedback_level?: FeedbackLevelWire;
   /** Logo L3a: organisation name and logo URL for the Submitted page; absent on older servers. */
   tenant_name?: string;
@@ -291,12 +291,12 @@ export interface MyResultItemWire {
   negative_marking?: ResultNegativeMarkingWire;
   /** Z-12: true until the candidate opens this result. */
   is_new?: boolean;
+  /** Z-145: this attempt's feedback level (none for Real and embed). Absent or "none": no review section. */
+  feedback_level?: FeedbackLevelWire;
 }
 
 export interface MyResultsResponseWire {
   items: MyResultItemWire[];
-  /** Tenant per-question feedback level (RW-80). Absent or "none": no review section. */
-  feedback_level?: FeedbackLevelWire;
 }
 
 // Event types the candidate UI emits. Matches the closed catalog in

@@ -32,7 +32,7 @@ export { listAssessments, getInvitationCounts, getAssessment, getAssessmentDetai
 export { createMockFromBlueprint, type CreateMockInput } from "./service/mock.js";
 export { publishAssessment, closeAssessment, cancelAssessment, deleteAssessment, clearEmptyDrafts, reopenAssessment } from "./service/lifecycle.js";
 export { type ResolvedInvitation, resolveInvitationToken, markInvitationViewedByToken } from "./service/invitation-token.js";
-export { resendInvitation, resendInvitations, inviteUsers, listInvitations, revokeInvitation, grantExtraAttempt, reopenInvitationForRetake } from "./service/invitations.js";
+export { resendInvitation, resendInvitations, inviteUsers, precheckInvites, listInvitations, revokeInvitation, grantExtraAttempt, reopenInvitationForRetake } from "./service/invitations.js";
 export { previewAssessment } from "./service/preview.js";
 // NOTE: @assessiq/question-bank exposes only its service surface from its
 // package barrel. The repository functions (findPackById, findLevelById) are

@@ -129,7 +129,7 @@ export const ResultReleasedVarsSchema = z.object({
   resultText: z.enum(['Passed', 'Not passed']),
   /** Pass mark in percent, from attempt_scores.pass_mark_pct. Rows and lines that show it are hidden when absent. */
   passMarkPct: z.number().int().min(1).max(100).optional(),
-  /** Z-44: tenant_settings.result_feedback_level; picks the shared feedback sentence for a fail. */
+  /** Z-44/Z-145: assessments.settings.feedback_level via effectiveLevel; picks the shared feedback sentence for a fail. */
   feedbackLevel: z.enum(['none', 'right_wrong', 'with_expected_answer', 'with_ai_justification']).optional(),
   /** Candidate portal sign-in link: `${ASSESSIQ_BASE_URL}/candidate/login?tenant=<slug>`. */
   portalLink: z.string().url(),

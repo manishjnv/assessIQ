@@ -2,8 +2,7 @@ import { NotFoundError, ConflictError, ValidationError, streamLogger, uuidv7 } f
 import { withTenant, withSystemRole } from "./with-tenant.js";
 import * as repo from "./repository.js";
 import { validateAccent } from "./accent.js";
-import type { Tenant, TenantSettings, ResultFeedbackLevel } from "./types.js";
-import { RESULT_FEEDBACK_LEVELS } from "./types.js";
+import type { Tenant, TenantSettings } from "./types.js";
 import { auditInTx } from "@assessiq/audit-log";
 import { validateLogo } from "./logo.js";
 import type { TenantLogoMeta } from "./repository.js";
@@ -792,85 +791,6 @@ export async function updateResultReleaseMode(
       previous,
       result_release_auto_since: updatedRow.result_release_auto_since,
       updatedAt: updatedRow.updated_at,
-      auditId: auditRow.id,
-    };
-  });
-}
-
-// ---------------------------------------------------------------------------
-// result_feedback_level (RW-80) — per-question feedback on a released result.
-// ---------------------------------------------------------------------------
-
-export interface UpdateResultFeedbackLevelResult {
-  tenantId: string;
-  result_feedback_level: ResultFeedbackLevel;
-  previous: ResultFeedbackLevel;
-  updatedAt: Date;
-  /** null on an idempotent no-op (nothing changed, nothing audited). */
-  auditId: string | null;
-}
-
-/** Read `tenant_settings.result_feedback_level` (default 'none' when no row). */
-export async function getResultFeedbackLevel(tenantId: string): Promise<ResultFeedbackLevel> {
-  return await withTenant(tenantId, async (client) => {
-    // Narrow read: does not depend on unrelated columns (retention_days is module 20).
-    const r = await client.query<{ result_feedback_level: ResultFeedbackLevel }>(
-      `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
-    );
-    return r.rows[0]?.result_feedback_level ?? "none";
-  });
-}
-
-export async function updateResultFeedbackLevel(
-  adminUserId: string,
-  targetTenantId: string,
-  newLevel: unknown,
-): Promise<UpdateResultFeedbackLevelResult> {
-  if (!RESULT_FEEDBACK_LEVELS.includes(newLevel as ResultFeedbackLevel)) {
-    throw new ValidationError("level must be one of none, right_wrong, with_expected_answer, with_ai_justification", {
-      details: { code: "INVALID_RESULT_FEEDBACK_LEVEL", received: newLevel },
-    });
-  }
-  const level = newLevel as ResultFeedbackLevel;
-  log.info({ targetTenantId, level }, "updateResultFeedbackLevel");
-
-  return await withTenant(targetTenantId, async (client) => {
-    const currentRes = await client.query<{ result_feedback_level: ResultFeedbackLevel; updated_at: Date }>(
-      `SELECT result_feedback_level, updated_at FROM tenant_settings LIMIT 1 FOR UPDATE`,
-    );
-    const current = currentRes.rows[0];
-    if (current === undefined) {
-      throw new NotFoundError(`tenant_settings not found for tenant ${targetTenantId}`);
-    }
-    const previous = current.result_feedback_level;
-    if (previous === level) {
-      return { tenantId: targetTenantId, result_feedback_level: previous, previous, updatedAt: current.updated_at, auditId: null };
-    }
-    const upd = await client.query<{ result_feedback_level: ResultFeedbackLevel; updated_at: Date }>(
-      `UPDATE tenant_settings SET result_feedback_level = $1::text, updated_at = now()
-        WHERE tenant_id = $2
-        RETURNING result_feedback_level, updated_at`,
-      [level, targetTenantId],
-    );
-    const row = upd.rows[0];
-    if (row === undefined) {
-      throw new NotFoundError(`tenant_settings row missing after UPDATE for tenant ${targetTenantId}`);
-    }
-    const auditRow = await auditInTx(client, {
-      tenantId: targetTenantId,
-      actorKind: "user",
-      actorUserId: adminUserId,
-      action: "tenant.settings.updated",
-      entityType: "tenant_settings",
-      entityId: targetTenantId,
-      before: { result_feedback_level: previous },
-      after: { result_feedback_level: row.result_feedback_level },
-    });
-    return {
-      tenantId: targetTenantId,
-      result_feedback_level: row.result_feedback_level,
-      previous,
-      updatedAt: row.updated_at,
       auditId: auditRow.id,
     };
   });

@@ -5,12 +5,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Fastify from 'fastify';
-import { AppError } from '@assessiq/core';
+import { AppError, ConflictError } from '@assessiq/core';
 
 const importCandidates = vi.fn();
 const parseCandidateCsv = vi.fn();
 const getAssessment = vi.fn();
 const inviteUsers = vi.fn();
+const precheckInvites = vi.fn();
 
 vi.mock('../../middleware/auth-chain.js', () => ({
   authChain: () => async (req: { session?: unknown }) => {
@@ -24,6 +25,7 @@ vi.mock('@assessiq/users', () => ({
 vi.mock('@assessiq/assessment-lifecycle', () => ({
   getAssessment: (...a: unknown[]) => getAssessment(...a),
   inviteUsers: (...a: unknown[]) => inviteUsers(...a),
+  precheckInvites: (...a: unknown[]) => precheckInvites(...a),
 }));
 vi.mock('@assessiq/auth', () => ({ logLifecycleEvent: vi.fn() }));
 vi.mock('@assessiq/audit-log', () => ({ audit: vi.fn() }));
@@ -99,13 +101,24 @@ describe('POST /api/admin/users/import', () => {
     });
     inviteUsers.mockResolvedValue({ invited: [{}], skipped: [{ userId: 'u2', reason: 'INVITATION_EXISTS' }] });
     const res = await post(await build(), { csv: 'x', assessment_id: 'a1' });
-    expect(inviteUsers).toHaveBeenCalledWith('t1', 'a1', ['u1', 'u2'], 'admin1');
+    expect(inviteUsers).toHaveBeenCalledWith('t1', 'a1', ['u1', 'u2'], 'admin1', false);
     expect(res.json()).toEqual({
       created: 1,
       existing: 1,
       invited: 1,
       skipped: [{ row: 3, email: 'b@x.com', reason: 'INVITATION_EXISTS' }],
     });
+  });
+
+  it('Z-152: a refused pre-check (credits or cap) creates no users and sends no mail', async () => {
+    getAssessment.mockResolvedValue({ status: 'published' });
+    parseCandidateCsv.mockReturnValue({ valid: new Array(5).fill({}), skipped: [], totalRows: 5 });
+    precheckInvites.mockRejectedValue(new ConflictError('You need 50 credits.', { details: { code: 'CREDITS_INSUFFICIENT', need: 50, available: 20, canInvite: 2, cost: 10 } }));
+    const res = await post(await build(), { csv: 'x', assessment_id: 'a1' });
+    expect(res.statusCode).toBe(409);
+    expect(precheckInvites).toHaveBeenCalledWith('t1', { assessmentId: 'a1', candidates: 5 }, 'admin1', false);
+    expect(importCandidates).not.toHaveBeenCalled();
+    expect(inviteUsers).not.toHaveBeenCalled();
   });
 
   it('adds a warning when more than 150 invites are queued', async () => {

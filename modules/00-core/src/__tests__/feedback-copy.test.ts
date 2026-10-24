@@ -12,20 +12,18 @@ describe("feedbackSentence (Z-44)", () => {
   });
 });
 
-describe("effectiveLevel (Z-111)", () => {
-  const mock = { isMockAttempt: true, assessmentIsMock: true };
-  it("mock attempt on a mock assessment shows the expected answer even when the tenant level is none", () => {
-    expect(effectiveLevel("none", mock)).toBe("with_expected_answer");
+describe("effectiveLevel (Z-145, Z-148)", () => {
+  const levels = ["none", "right_wrong", "with_expected_answer", "with_ai_justification"] as const;
+  it("a Mock attempt that is not embed gets the assessment level", () => {
+    for (const l of levels) expect(effectiveLevel(l, { isMockAttempt: true, isEmbed: false })).toBe(l);
   });
-  it("real attempt follows the tenant level", () => {
-    expect(effectiveLevel("none", { isMockAttempt: false, assessmentIsMock: true })).toBe("none");
-    expect(effectiveLevel("right_wrong", { isMockAttempt: false, assessmentIsMock: false })).toBe("right_wrong");
+  it("a Real attempt gets none at every level", () => {
+    for (const l of levels) {
+      expect(effectiveLevel(l, { isMockAttempt: false, isEmbed: false })).toBe("none");
+      expect(effectiveLevel(l, { isMockAttempt: false, isEmbed: true })).toBe("none");
+    }
   });
-  it("mock attempt on a non-mock assessment follows the tenant level", () => {
-    expect(effectiveLevel("none", { isMockAttempt: true, assessmentIsMock: false })).toBe("none");
-  });
-  it("a tenant level already higher than expected answer stays higher", () => {
-    expect(effectiveLevel("with_ai_justification", mock)).toBe("with_ai_justification");
-    expect(effectiveLevel("with_expected_answer", mock)).toBe("with_expected_answer");
+  it("an embed attempt gets none even when Mock", () => {
+    for (const l of levels) expect(effectiveLevel(l, { isMockAttempt: true, isEmbed: true })).toBe("none");
   });
 });

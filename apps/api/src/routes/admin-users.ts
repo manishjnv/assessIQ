@@ -11,7 +11,7 @@ import {
   importCandidates,
   parseCandidateCsv,
 } from '@assessiq/users';
-import { getAssessment, inviteUsers } from '@assessiq/assessment-lifecycle';
+import { getAssessment, inviteUsers, precheckInvites } from '@assessiq/assessment-lifecycle';
 import { logLifecycleEvent, sessions } from '@assessiq/auth';
 import { audit } from '@assessiq/audit-log';
 import { eraseCandidatePii, exportCandidateData } from '@assessiq/data-rights';
@@ -158,7 +158,8 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
     '/api/admin/users/import',
     { preHandler: adminOnly },
     async (req, reply) => {
-      const { tenantId, userId } = req.session!;
+      const { tenantId, userId, role } = req.session!;
+      const isSuper = role === 'super_admin';
       const body = parseBody(importUsersBody, req.body, { code: 'INVALID_PARAM' });
       const assessmentId = body.assessment_id;
       // Fail BEFORE creating users if the assessment can't take invitations
@@ -181,6 +182,9 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
         }
         // PT-4: Starter credit hard cap + candidates-per-drive cap (no-op until PLAN_TIERS_ENFORCED).
         await assertInviteWithinTier(tenantId, assessmentId, validRows);
+        // Z-152: the 150 cap and the credit check (Z-147) BEFORE any user is created. Counts every valid row
+        // (existing invitees included), so it can only be stricter than the final in-transaction guard in inviteUsers.
+        if (validRows > 0) await precheckInvites(tenantId, { assessmentId, candidates: validRows }, userId, isSuper);
       }
 
       // Free plan total candidate cap: enforced per new user inside importCandidates' transaction
@@ -195,6 +199,7 @@ export async function registerAdminUserRoutes(app: FastifyInstance): Promise<voi
           assessmentId,
           imp.candidates.map((c) => c.userId),
           userId,
+          isSuper,
         );
         invited = res.invited.length;
         const byId = new Map(imp.candidates.map((c) => [c.userId, c]));

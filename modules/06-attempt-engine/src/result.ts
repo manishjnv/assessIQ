@@ -25,12 +25,11 @@
 import type { PoolClient } from "pg";
 import { NotFoundError, attemptsAllowed, config, isPass, isUuid, streamLogger } from "@assessiq/core";
 import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from "@assessiq/tenancy";
-import type { ResultFeedbackLevel } from "@assessiq/tenancy";
 import { DETERMINISTIC_IDS } from "@assessiq/question-types";
 import { getSectionScoresForAttempt, type SectionScore } from "@assessiq/scoring";
 import * as repo from "./repository.js";
 import { AE_ERROR_CODES } from "./types.js";
-import { effectiveLevel } from "@assessiq/core/feedback-copy";
+import { effectiveLevel, toFeedbackLevel, type FeedbackLevel } from "@assessiq/core/feedback-copy";
 
 const log = streamLogger("app");
 
@@ -101,8 +100,8 @@ export interface ReleasedResult {
   released_at: string;
   certificate: CandidateCertificateRef | null;
   negative_marking: NegativeMarkingSummary;
-  /** Z-44: tenant_settings.result_feedback_level (the only source). Drives the feedback sentence on the page. */
-  feedback_level: ResultFeedbackLevel;
+  /** Z-145: the assessment's feedback level, applied by effectiveLevel (Mock, non-embed only). Drives the feedback sentence on the page. */
+  feedback_level: FeedbackLevel;
   /** EXP-6: marks per section (earned/max, plus passed_cutoff for a qualifying section with a cutoff). Absent when the assessment has no sections. */
   sections?: SectionScore[];
   /** Z-39: which attempt this is and whether the candidate may start another. */
@@ -146,6 +145,8 @@ export interface ResultListItem {
   negative_marking: NegativeMarkingSummary;
   /** Z-12: false once the candidate opened the result (attempts.seen_at set). */
   is_new: boolean;
+  /** Z-145: effective per-question feedback level for this attempt (none for Real and embed). */
+  feedback_level: FeedbackLevel;
 }
 
 // ---------------------------------------------------------------------------
@@ -320,8 +321,8 @@ interface ReleasedRow {
 interface RetakeRow {
   assessment_id: string;
   assessment_status: string;
-  /** Z-111: the assessment's default delivery mode ('mock' = a mock assessment). */
-  assessment_delivery_mode: string;
+  /** Z-145: assessments.settings.feedback_level (null = none). */
+  feedback_level: string | null;
   max_attempts: number | null;
   attempt_number: number;
   latest_attempt_number: number;
@@ -334,14 +335,6 @@ export const RELEASED_AT_SQL = `COALESCE(
     WHERE al.entity_type = 'attempt' AND al.entity_id = a.id AND al.action = 'grading.released'
     ORDER BY al.at DESC LIMIT 1),
   s.computed_at)`;
-
-/** The tenant's per-question feedback level (RW-80). One reader for the list and the single result. */
-async function loadFeedbackLevel(client: PoolClient): Promise<ResultFeedbackLevel> {
-  const lvl = await client.query<{ result_feedback_level: ResultFeedbackLevel }>(
-    `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
-  );
-  return lvl.rows[0]?.result_feedback_level ?? "none";
-}
 
 export async function getCandidateResult(
   tenantId: string,
@@ -372,7 +365,7 @@ async function loadCandidateResult(
         `SELECT asm.name AS assessment_name,
                 asm.id AS assessment_id,
                 asm.status AS assessment_status,
-                asm.delivery_mode AS assessment_delivery_mode,
+                asm.settings->>'feedback_level' AS feedback_level,
                 asm.max_attempts,
                 a.attempt_number,
                 (SELECT max(t.attempt_number) FROM attempts t
@@ -411,10 +404,9 @@ async function loadCandidateResult(
             r.attempt_number === r.latest_attempt_number &&
             r.attempt_number < allowed,
         };
-        // Z-111: a mock attempt on a mock assessment shows the expected answer at least.
-        const feedbackLevel = effectiveLevel(await loadFeedbackLevel(client), {
+        const feedbackLevel = effectiveLevel(toFeedbackLevel(r.feedback_level), {
           isMockAttempt: attempt.delivery_mode === "mock",
-          assessmentIsMock: r.assessment_delivery_mode === "mock",
+          isEmbed: attempt.embed_origin,
         });
         return {
           status: "released",
@@ -455,11 +447,9 @@ async function loadCandidateResult(
 export async function listCandidateResults(
   tenantId: string,
   userId: string,
-): Promise<{ items: ResultListItem[]; feedback_level: string }> {
+): Promise<{ items: ResultListItem[] }> {
   return withTenant(tenantId, async (client) => {
-    // RW-80: lets the portal hide the per-question review section without an extra call.
-    const feedbackLevel = await loadFeedbackLevel(client);
-    const res = await client.query<ReleasedRow & { attempt_id: string; is_new: boolean; delivery_mode: string }>(
+    const res = await client.query<ReleasedRow & { attempt_id: string; is_new: boolean; delivery_mode: string; embed_origin: boolean; feedback_level: string | null }>(
       `SELECT a.id AS attempt_id,
               asm.name AS assessment_name,
               s.total_earned::text AS total_earned,
@@ -468,6 +458,8 @@ export async function listCandidateResults(
               ${RELEASED_AT_SQL} AS released_at,
               (a.seen_at IS NULL) AS is_new,
               a.delivery_mode,
+              a.embed_origin,
+              asm.settings->>'feedback_level' AS feedback_level,
               c.credential_id
          FROM attempts a
          JOIN assessments asm ON asm.id = a.assessment_id
@@ -480,7 +472,6 @@ export async function listCandidateResults(
     );
     const negMarking = await loadNegativeMarking(client, res.rows.map((r) => r.attempt_id));
     return {
-      feedback_level: feedbackLevel,
       items: res.rows.map((r) => {
         const earned = parseFloat(r.total_earned);
         const max = parseFloat(r.total_max);
@@ -498,6 +489,10 @@ export async function listCandidateResults(
           certificate: certificateRef(r.credential_id),
           negative_marking: negMarking.get(r.attempt_id) ?? NO_NEGATIVE_MARKING,
           is_new: r.is_new,
+          feedback_level: effectiveLevel(toFeedbackLevel(r.feedback_level), {
+            isMockAttempt: r.delivery_mode === "mock",
+            isEmbed: r.embed_origin,
+          }),
         };
       }),
     };

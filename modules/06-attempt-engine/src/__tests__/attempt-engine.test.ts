@@ -1441,3 +1441,60 @@ describe("Z-146 burn at submit", () => {
     expect(await burns(attempt.id)).toHaveLength(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Z-148: embed starts follow the assessment type; camera off; integrity forced on
+// ---------------------------------------------------------------------------
+
+describe("Z-148 embed starts", () => {
+  async function embedStart(patch: string) {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Cembed"));
+    const { assessmentId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 2);
+    await withSuperClient((c) => c.query(`UPDATE assessments SET ${patch} WHERE id = $1`, [assessmentId]));
+    const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId, embedOrigin: true });
+    return { candidate, attempt };
+  }
+  const row = (attemptId: string) =>
+    withSuperClient((c) => c.query<{ delivery_mode: string; camera_enabled: boolean }>(`SELECT delivery_mode, camera_enabled FROM attempts WHERE id = $1`, [attemptId]).then((r) => r.rows[0]!));
+  const burned = (attemptId: string) =>
+    withSuperClient((c) => c.query<{ credits: number }>(`SELECT credits FROM credit_burns WHERE attempt_id = $1`, [attemptId]).then((r) => r.rows.map((x) => x.credits)));
+
+  beforeAll(async () => {
+    await withSuperClient(async (c) => {
+      await c.query(`UPDATE tenant_plans SET included_credits = 100000 WHERE tenant_id = $1`, [tenantA]);
+      await c.query(`INSERT INTO credit_grants (tenant_id, source, credits, remaining, expires_at) VALUES ($1, 'bonus', 100000, 100000, now() + interval '300 days')`, [tenantA]);
+    });
+  });
+  afterAll(async () => {
+    await withSuperClient(async (c) => {
+      await c.query(`DELETE FROM credit_burns WHERE tenant_id = $1`, [tenantA]);
+      await c.query(`DELETE FROM credit_grants WHERE tenant_id = $1`, [tenantA]);
+      await c.query(`UPDATE tenant_plans SET included_credits = NULL WHERE tenant_id = $1`, [tenantA]);
+    });
+  });
+
+  it("a Mock assessment started by embed is a mock attempt, camera off, burns 10", async () => {
+    const { candidate, attempt } = await embedStart(`delivery_mode = 'mock'`);
+    expect(await row(attempt.id)).toEqual({ delivery_mode: "mock", camera_enabled: false });
+    await submitAttempt(tenantA, candidate, attempt.id);
+    expect(await burned(attempt.id)).toEqual([10]);
+  });
+
+  it("a Real + camera assessment started by embed is a real attempt, camera off, burns 20", async () => {
+    const { candidate, attempt } = await embedStart(`delivery_mode = 'real', camera_required = true`);
+    expect(await row(attempt.id)).toEqual({ delivery_mode: "real", camera_enabled: false });
+    await submitAttempt(tenantA, candidate, attempt.id);
+    expect(await burned(attempt.id)).toEqual([20]);
+  });
+
+  it("the runner view of an embed Mock attempt forces both integrity flags on; a standalone Mock follows the settings", async () => {
+    const off = `delivery_mode = 'mock', settings = '{"integrity":{"fullscreen":false,"block_copy_paste":false}}'::jsonb`;
+    const { candidate, attempt } = await embedStart(off);
+    const view = await getAttemptForCandidate(tenantA, attempt.id, candidate);
+    expect(view.integrity).toEqual({ fullscreen: true, block_copy_paste: true });
+    await withSuperClient((c) => c.query(`UPDATE attempts SET embed_origin = false WHERE id = $1`, [attempt.id]));
+    const plain = await getAttemptForCandidate(tenantA, attempt.id, candidate);
+    expect(plain.integrity).toEqual({ fullscreen: false, block_copy_paste: false });
+  });
+});

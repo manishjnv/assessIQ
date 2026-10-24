@@ -24,6 +24,26 @@ export function testTypeLabel(t: TestType): string {
   return t === "mock" ? "Mock" : t === "real" ? "Real" : "Real + camera";
 }
 
+/** Z-145: per-question feedback a candidate sees after a Mock test. Real and Real + camera always show the score only. */
+export type FeedbackLevel = "none" | "right_wrong" | "with_expected_answer" | "with_ai_justification";
+
+export const FEEDBACK_OPTIONS: ReadonlyArray<{ value: FeedbackLevel; label: string; helpId: string }> = [
+  { value: "none", label: "No question details", helpId: "admin.assessments.test_type.feedback_level.none" },
+  { value: "right_wrong", label: "Right or wrong", helpId: "admin.assessments.test_type.feedback_level.right_wrong" },
+  { value: "with_expected_answer", label: "With the expected answer", helpId: "admin.assessments.test_type.feedback_level.with_expected_answer" },
+  { value: "with_ai_justification", label: "Also a short reason for written answers", helpId: "admin.assessments.test_type.feedback_level.with_ai_justification" },
+];
+
+/** The settings.feedback_level to send: the chosen level for Mock, nothing for Real and Real + camera. */
+export function feedbackSetting(t: TestType, level: FeedbackLevel): { feedback_level: FeedbackLevel } | Record<string, never> {
+  return t === "mock" ? { feedback_level: level } : {};
+}
+
+/** Read a stored settings.feedback_level; anything unknown reads as none. */
+export function toFeedbackLevel(v: unknown): FeedbackLevel {
+  return FEEDBACK_OPTIONS.some((o) => o.value === v) ? (v as FeedbackLevel) : "none";
+}
+
 export interface ChooserCameraSettings {
   isSchool: boolean;
   cameraEnabled: boolean;
@@ -39,7 +59,10 @@ export interface TestTypeChooserProps {
   cameraSettings?: ChooserCameraSettings | null;
   /** After publish: only the chosen card, no controls, with a "Locked after publish" chip. */
   readOnly?: boolean;
-  /** Slot inside the Mock card for the feedback radios (Z-145). */
+  /** Z-145: the four Per-question feedback radios in the Mock card. Shown when both props are given; active only for Mock. */
+  feedbackLevel?: FeedbackLevel;
+  onFeedbackLevelChange?: (next: FeedbackLevel) => void;
+  /** Extra content inside the Mock card, after the radios. */
   mockFeedbackSlot?: React.ReactNode;
 }
 
@@ -105,9 +128,10 @@ function Row({ label, value, locked }: { label: string; value: string; locked?: 
 }
 
 export function TestTypeChooser({
-  value, onChange, integrity, onIntegrityChange, cameraSettings = null, readOnly = false, mockFeedbackSlot,
+  value, onChange, integrity, onIntegrityChange, cameraSettings = null, readOnly = false, feedbackLevel, onFeedbackLevelChange, mockFeedbackSlot,
 }: TestTypeChooserProps): React.ReactElement {
   const labelId = useId();
+  const fbName = `${labelId}-feedback`;
   const refs = useRef<Partial<Record<TestType, HTMLDivElement | null>>>({});
 
   let cameraOffText: string | null = null;
@@ -226,7 +250,33 @@ export function TestTypeChooser({
                       Block copy and paste
                     </label>
                   </HelpTip>
-                  {/* Z-145: feedback radios go here. */}
+                  {feedbackLevel !== undefined && onFeedbackLevelChange !== undefined && (
+                    <fieldset
+                      data-testid="feedback-level"
+                      style={{ border: 0, margin: "var(--aiq-space-xs) 0 0", padding: 0, display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}
+                    >
+                      <legend style={{ padding: 0, fontWeight: 500 }}>
+                        <HelpTip helpId="admin.assessments.test_type.feedback_level">
+                          <span>Per-question feedback</span>
+                        </HelpTip>
+                      </legend>
+                      {FEEDBACK_OPTIONS.map((o) => (
+                        <HelpTip key={o.value} helpId={o.helpId}>
+                          <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+                            <input
+                              type="radio"
+                              name={fbName}
+                              value={o.value}
+                              checked={feedbackLevel === o.value}
+                              disabled={!mockActive}
+                              onChange={() => onFeedbackLevelChange(o.value)}
+                            />
+                            {o.label}
+                          </label>
+                        </HelpTip>
+                      ))}
+                    </fieldset>
+                  )}
                   {mockFeedbackSlot}
                 </div>
               )}

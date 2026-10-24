@@ -35,44 +35,12 @@ import { shortId } from "../lib/labels.js";
 /** How finished results reach candidates (spec 2026-10-01 SP2). Default: manual. */
 type ReleaseMode = "manual" | "auto";
 
-/** Per-question feedback a candidate sees on a released result (RW-80). Default: none. */
-type FeedbackLevel = "none" | "right_wrong" | "with_expected_answer" | "with_ai_justification";
-
-const FEEDBACK_OPTIONS: ReadonlyArray<{ value: FeedbackLevel; label: string; help: string; helpId: string }> = [
-  {
-    value: "none",
-    label: "No question details (default)",
-    help: "Candidates see only their score.",
-    helpId: "admin.tenant_settings.result_feedback_level.none",
-  },
-  {
-    value: "right_wrong",
-    label: "Right or wrong",
-    help: "Candidates see if each answer was right, wrong or partly right, and what to study.",
-    helpId: "admin.tenant_settings.result_feedback_level.right_wrong",
-  },
-  {
-    value: "with_expected_answer",
-    label: "Right or wrong, with the expected answer",
-    help: "Adds the correct answer for questions that are marked by rule, such as multiple choice.",
-    helpId: "admin.tenant_settings.result_feedback_level.with_expected_answer",
-  },
-  {
-    value: "with_ai_justification",
-    label: "Also a short reason for written answers",
-    help: "Adds a short plain-words note for written answers that were graded with AI.",
-    helpId: "admin.tenant_settings.result_feedback_level.with_ai_justification",
-  },
-];
-
 interface TenantSettingsResponse {
   retention_days: number;
   attempt_retention_days?: number | null;
   updated_at?: string;
   /** Absent on servers that predate the Result release setting. */
   result_release_mode?: ReleaseMode;
-  /** Absent on servers that predate the Per-question feedback setting. */
-  result_feedback_level?: FeedbackLevel;
   /** Absent on servers that predate the Distinction-on-certificates setting (Z-50). */
   certificate_show_distinction?: boolean;
   /** Current organisation logo, or null/absent when none is set. */
@@ -255,16 +223,6 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
   const [releaseMfa, setReleaseMfa] = useState(false);
   const selectedRelease = releaseChoice ?? releaseMode;
   const releaseDirty = selectedRelease !== null && selectedRelease !== releaseMode;
-
-  // ── Per-question feedback level (RW-80) ───────────────────────────────────
-  const [feedbackLevel, setFeedbackLevel] = useState<FeedbackLevel | null>(null);
-  const [feedbackChoice, setFeedbackChoice] = useState<FeedbackLevel | null>(null);
-  const [feedbackSaving, setFeedbackSaving] = useState(false);
-  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
-  const [feedbackError, setFeedbackError] = useState<string | null>(null);
-  const [feedbackMfa, setFeedbackMfa] = useState(false);
-  const selectedFeedback = feedbackChoice ?? feedbackLevel;
-  const feedbackDirty = selectedFeedback !== null && selectedFeedback !== feedbackLevel;
 
   // ── Distinction on certificates (Z-50) ────────────────────────────────────
   const [certShowDistinction, setCertShowDistinction] = useState(false);
@@ -502,11 +460,6 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
           : null,
       );
       setCertShowDistinction(data.certificate_show_distinction === true);
-      setFeedbackLevel(
-        FEEDBACK_OPTIONS.some((o) => o.value === data.result_feedback_level)
-          ? (data.result_feedback_level as FeedbackLevel)
-          : null,
-      );
     } catch (primaryErr) {
       const is404 =
         primaryErr instanceof AdminApiError && primaryErr.status === 404;
@@ -627,42 +580,6 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
       }
     } finally {
       setReleaseSaving(false);
-    }
-  };
-
-  // ── Save per-question feedback level (same fresh-MFA flow as the release mode) ──
-
-  const handleSaveFeedback = async (): Promise<void> => {
-    if (selectedFeedback === null) return;
-    setFeedbackSaving(true);
-    setFeedbackError(null);
-    setFeedbackSuccess(null);
-    try {
-      await adminApi("/admin/tenant-settings/result-feedback-level", {
-        method: "PATCH",
-        body: JSON.stringify({ level: selectedFeedback }),
-      });
-      setFeedbackLevel(selectedFeedback);
-      setFeedbackChoice(null);
-      setFeedbackMfa(false);
-      setFeedbackSuccess("Question details setting saved.");
-      setTimeout(() => setFeedbackSuccess(null), 4000);
-    } catch (err) {
-      if (
-        err instanceof AdminApiError &&
-        (err.status === 401 ||
-          (err.status === 403 && err.apiError.details?.code === "MFA_REQUIRED"))
-      ) {
-        setFeedbackMfa(true);
-      } else {
-        setFeedbackError(
-          err instanceof AdminApiError
-            ? err.apiError.message
-            : "Unexpected error — please try again.",
-        );
-      }
-    } finally {
-      setFeedbackSaving(false);
     }
   };
 
@@ -1360,175 +1277,6 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
                       disabled={!releaseDirty}
                     >
                       Save result release
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-          </Card>
-        </section>
-
-        {/* ── Per-question feedback section (RW-80) ───────────────────────── */}
-        <section
-          aria-labelledby="result-feedback-heading"
-          data-help-id="admin.tenant_settings.result_feedback_level"
-          style={{ marginTop: "var(--aiq-space-xl)" }}
-        >
-          <div
-            style={{
-              paddingBottom: 16,
-              borderBottom: "1px solid var(--aiq-color-border)",
-              marginBottom: 24,
-            }}
-          >
-            <h2
-              id="result-feedback-heading"
-              style={{
-                fontFamily: "var(--aiq-font-serif)",
-                fontSize: 22,
-                fontWeight: 400,
-                margin: 0,
-                letterSpacing: "-0.015em",
-              }}
-            >
-              Per-question feedback.
-            </h2>
-          </div>
-          <Card padding="lg">
-            {loadingSettings ? (
-              <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-xl) 0" }}>
-                <Spinner aria-label="Loading question details setting" />
-              </div>
-            ) : (
-              <>
-                <fieldset
-                  disabled={feedbackSaving}
-                  style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}
-                >
-                  <legend
-                    style={{
-                      padding: 0,
-                      marginBottom: 12,
-                      fontFamily: "var(--aiq-font-sans)",
-                      fontSize: 13,
-                      fontWeight: 500,
-                      color: "var(--aiq-color-fg-primary)",
-                    }}
-                  >
-                    What do candidates see for each question after a result is released?
-                  </legend>
-                  <div style={{ display: "grid", gap: 12, maxWidth: 520 }}>
-                    {FEEDBACK_OPTIONS.map((opt) => {
-                      const selected = selectedFeedback === opt.value;
-                      return (
-                        <label
-                          key={opt.value}
-                          data-help-id={opt.helpId}
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: 12,
-                            padding: "14px 16px",
-                            borderRadius: "var(--aiq-radius-md)",
-                            border: `1px solid ${selected ? "var(--aiq-color-accent)" : "var(--aiq-color-border-strong)"}`,
-                            background: selected ? "var(--aiq-color-accent-soft)" : "transparent",
-                            cursor: "pointer",
-                          }}
-                        >
-                          <input
-                            type="radio"
-                            name="result-feedback-level"
-                            value={opt.value}
-                            checked={selected}
-                            onChange={() => {
-                              setFeedbackChoice(opt.value);
-                              setFeedbackError(null);
-                              setFeedbackSuccess(null);
-                              setFeedbackMfa(false);
-                            }}
-                            style={{ marginTop: 3, accentColor: "var(--aiq-color-accent)" }}
-                          />
-                          <span>
-                            <span
-                              style={{
-                                display: "block",
-                                fontFamily: "var(--aiq-font-sans)",
-                                fontSize: 13,
-                                fontWeight: 500,
-                                color: "var(--aiq-color-fg-primary)",
-                              }}
-                            >
-                              {opt.label}
-                            </span>
-                            <span
-                              style={{
-                                display: "block",
-                                marginTop: 2,
-                                fontSize: 12,
-                                lineHeight: 1.5,
-                                color: "var(--aiq-color-fg-secondary)",
-                              }}
-                            >
-                              {opt.help}
-                            </span>
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </fieldset>
-
-                <p
-                  style={{
-                    margin: "12px 0 0",
-                    fontSize: 12,
-                    lineHeight: 1.5,
-                    color: "var(--aiq-color-fg-secondary)",
-                    maxWidth: 520,
-                  }}
-                >
-                  Candidates only see these details for results you have released.
-                </p>
-
-                {feedbackSuccess && (
-                  <div style={{ marginTop: 16 }}>
-                    <Chip variant="success">{feedbackSuccess}</Chip>
-                  </div>
-                )}
-                {feedbackError && (
-                  <div
-                    role="alert"
-                    style={{
-                      marginTop: 16,
-                      fontSize: 13,
-                      color: "var(--aiq-color-danger, #dc2626)",
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {feedbackError}
-                  </div>
-                )}
-
-                {feedbackMfa ? (
-                  <div style={{ marginTop: 20, maxWidth: 520 }}>
-                    <MfaStepUp
-                      prompt="Changing what candidates see needs a fresh authenticator check. Enter your 6-digit code to continue."
-                      confirmLabel="Verify & save"
-                      onVerified={() => {
-                        setFeedbackMfa(false);
-                        void handleSaveFeedback();
-                      }}
-                      onCancel={() => setFeedbackMfa(false)}
-                    />
-                  </div>
-                ) : (
-                  <div style={{ marginTop: 20 }}>
-                    <Button
-                      onClick={() => void handleSaveFeedback()}
-                      loading={feedbackSaving}
-                      disabled={!feedbackDirty}
-                    >
-                      Save question details
                     </Button>
                   </div>
                 )}

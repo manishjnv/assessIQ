@@ -386,6 +386,83 @@ admin.assessments.test_type.real_camera:
     - **Cost.** 30 credits for each submitted test.
     - **Before publish.** Your organisation must confirm the camera notice in Settings.
 
+admin.assessments.test_type.feedback_level:
+  audience: admin
+  short_text: "Choose what students see about each question after the result is released. Mock tests only."
+  long_md: |
+    ## Per-question feedback
+
+    - **Mock tests only.** Real tests always show the score only.
+    - **When.** The choice applies after you release the result.
+    - **Options.** Pick one option below. The default is no question details.
+
+admin.assessments.test_type.feedback_level.none:
+  audience: admin
+  short_text: "No question details. Students see only the score."
+  long_md: |
+    ## No question details
+
+    - **Default.** Students see only the score.
+    - **Question list.** Students do not see any question details.
+
+admin.assessments.test_type.feedback_level.right_wrong:
+  audience: admin
+  short_text: "Shows if each answer was right or wrong, with the student answer and what to study."
+  long_md: |
+    ## Right or wrong
+
+    - **Result.** Students see if each answer was right or wrong.
+    - **Own answer.** Students see the answer they gave.
+    - **Study.** Students see what to study next.
+
+admin.assessments.test_type.feedback_level.with_expected_answer:
+  audience: admin
+  short_text: "Also shows the expected answer for questions with a fixed correct answer."
+  long_md: |
+    ## Expected answer
+
+    - **Includes.** Everything in right or wrong.
+    - **Expected answer.** Shown for questions that have one fixed correct answer.
+    - **Written answers.** No expected answer shows for written questions.
+
+admin.assessments.test_type.feedback_level.with_ai_justification:
+  audience: admin
+  short_text: "Also shows a short, plain-words reason for written answers."
+  long_md: |
+    ## AI reason
+
+    - **Includes.** Everything in expected answer.
+    - **Reason.** A short reason in plain words for each written answer.
+
+admin.assessments.invite.held:
+  audience: admin
+  short_text: "Credits are held for this student until they submit the test."
+  long_md: |
+    ## Held credits
+
+    - **Held.** The credits for this invitation are reserved for this student.
+    - **Used on submit.** The credits are used when the student submits the test.
+    - **Released.** The hold ends if the student never takes the test, the link expires, or you revoke the invitation.
+
+admin.assessments.invite.credit_cost:
+  audience: admin
+  short_text: "The credits these invitations need, and the credits you have available."
+  long_md: |
+    ## Credit cost
+
+    - **Needed.** The credits these invitations need.
+    - **Available.** Your credits, minus credits held for open invitations.
+
+admin.start_test.credit_cost:
+  audience: admin
+  short_text: "The credits this test needs, and the credits you have available."
+  long_md: |
+    ## Credit cost
+
+    - **Needed.** The credits this test needs for the candidates you choose.
+    - **Available.** Your credits, minus credits held for open invitations.
+    - **Used on submit.** Credits are used when each candidate submits the test.
+
 admin.assessments.create.submit:
   audience: admin
   short_text: "Create this assessment as a Draft. You then Publish it to open candidate invitations."

@@ -133,6 +133,7 @@ export async function createAssessment(
   // The input pack_id / level_id / question_count are overridden with the
   // blueprint-resolved values so the no-blueprint INSERT path below is unchanged.
   assertIntegritySettings(input.settings);
+  assertFeedbackLevel(input.settings);
   assertRemindersSettings(input.settings);
   assertSectionsSettings(input.settings);
   if (input.passing_score_pct !== undefined) assertPassMark(input.passing_score_pct);
@@ -393,6 +394,15 @@ export function assertScoreCounts(settings: AssessmentSettings | undefined): voi
   if (raw === undefined || raw === "latest" || raw === "best") return;
   throw new ValidationError("settings.score_counts must be 'latest' or 'best'", {
     details: { code: "INVALID_PARAM", param: "settings.score_counts" },
+  });
+}
+
+/** Z-145: settings.feedback_level is one of the four levels when present. */
+export function assertFeedbackLevel(settings: AssessmentSettings | undefined): void {
+  const raw = (settings as Record<string, unknown> | undefined)?.["feedback_level"];
+  if (raw === undefined || raw === "none" || raw === "right_wrong" || raw === "with_expected_answer" || raw === "with_ai_justification") return;
+  throw new ValidationError("settings.feedback_level must be none, right_wrong, with_expected_answer or with_ai_justification", {
+    details: { code: "INVALID_PARAM", param: "settings.feedback_level" },
   });
 }
 
@@ -693,6 +703,7 @@ export async function updateAssessment(
   // The category-level FK guard is performed inside the main withTenant below
   // (needs the tenant-scoped client).
   assertIntegritySettings(patch.settings);
+  assertFeedbackLevel(patch.settings);
   assertRemindersSettings(patch.settings);
   assertSectionsSettings(patch.settings);
   if (patch.passing_score_pct !== undefined) assertPassMark(patch.passing_score_pct);

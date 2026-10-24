@@ -80,9 +80,9 @@ export {
 } from './service.js';
 
 // Z-146: burn at submit (attempt engine); idempotent, recordGradedAttempt keeps it as backup.
-export { burnCredits } from './credit-repository.js';
+export { burnCredits, countHeldCredits, readCreditHoldState } from './credit-repository.js';
 export type { GrantCreditsInput } from './service.js';
-export { BURN, FREE_MONTHLY_CREDITS, GRANT_VALIDITY_MONTHS, LOW_BALANCE_THRESHOLD_RATIO, LOW_BALANCE_LEVELS } from './burn-rates.js';
+export { BURN, inviteCost, FREE_MONTHLY_CREDITS, GRANT_VALIDITY_MONTHS, LOW_BALANCE_THRESHOLD_RATIO, LOW_BALANCE_LEVELS } from './burn-rates.js';
 
 export type { TierFeature } from './service.js';
 

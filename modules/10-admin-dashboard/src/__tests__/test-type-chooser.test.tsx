@@ -1,6 +1,6 @@
 // Z-143 TestTypeChooser: keyboard, ARIA, disabled states, readOnly, axe.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, within } from "@testing-library/react";
 import React, { useState } from "react";
 import { axe } from "vitest-axe";
 
@@ -8,7 +8,7 @@ vi.mock("@assessiq/help-system/components", () => ({
   HelpTip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-import { TestTypeChooser, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
+import { TestTypeChooser, feedbackSetting, type FeedbackLevel, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
 
 const ON: ChooserCameraSettings = { isSchool: false, cameraEnabled: true, cameraEnforced: true };
 
@@ -98,5 +98,45 @@ describe("TestTypeChooser", () => {
     cleanup();
     const b = render(<main><Harness initial="mock" readOnly /></main>);
     expect((await axe(b.container)).violations).toEqual([]);
+  });
+});
+
+// Z-145: Per-question feedback radios live in the Mock card and are active only for Mock.
+function FeedbackHarness({ initial = "real", onLevel }: { initial?: TestType; onLevel?: (l: FeedbackLevel) => void }) {
+  const [v, setV] = useState<TestType>(initial);
+  const [i, setI] = useState({ fullscreen: false, blockCopyPaste: false });
+  const [f, setF] = useState<FeedbackLevel>("none");
+  return (
+    <TestTypeChooser value={v} onChange={setV} integrity={i} onIntegrityChange={setI} cameraSettings={ON}
+      feedbackLevel={f} onFeedbackLevelChange={(l) => { setF(l); onLevel?.(l); }} />
+  );
+}
+const fb = () => within(screen.getByTestId("feedback-level")).getAllByRole("radio") as HTMLInputElement[];
+
+describe("TestTypeChooser feedback radios (Z-145)", () => {
+  it("shows the four options in order, default 'No question details', all disabled unless Mock is selected", () => {
+    render(<FeedbackHarness />);
+    expect(fb().map((r) => r.parentElement!.textContent)).toEqual([
+      "No question details", "Right or wrong", "With the expected answer", "Also a short reason for written answers",
+    ]);
+    expect(fb()[0]!.checked).toBe(true);
+    expect(fb().every((r) => r.disabled)).toBe(true);
+    fireEvent.click(screen.getByTestId("test-type-card-real_camera"));
+    expect(fb().every((r) => r.disabled)).toBe(true);
+  });
+
+  it("Mock enables the radios and a choice is reported", () => {
+    const seen: FeedbackLevel[] = [];
+    render(<FeedbackHarness initial="mock" onLevel={(l) => seen.push(l)} />);
+    expect(fb().every((r) => !r.disabled)).toBe(true);
+    fireEvent.click(fb()[2]!);
+    expect(seen).toEqual(["with_expected_answer"]);
+    expect(fb()[2]!.checked).toBe(true);
+  });
+
+  it("feedbackSetting sends the level for Mock only", () => {
+    expect(feedbackSetting("mock", "right_wrong")).toEqual({ feedback_level: "right_wrong" });
+    expect(feedbackSetting("real", "right_wrong")).toEqual({});
+    expect(feedbackSetting("real_camera", "with_ai_justification")).toEqual({});
   });
 });

@@ -24,7 +24,7 @@
  */
 
 import { config, isPass, streamLogger } from '@assessiq/core';
-import { effectiveLevel } from '@assessiq/core/feedback-copy';
+import { effectiveLevel, toFeedbackLevel } from '@assessiq/core/feedback-copy';
 import { withTenant } from '@assessiq/tenancy';
 import { sendEmail } from './index.js';
 import { mintResultLoginToken } from './result-login-token.js';
@@ -45,10 +45,10 @@ interface ReleasedAttemptRow {
   total_max: string | null;
   pass_mark_pct: number | null;
   credential_id: string | null;
-  result_feedback_level: 'none' | 'right_wrong' | 'with_expected_answer' | 'with_ai_justification' | null;
-  /** Z-121: effectiveLevel inputs, the same ones the result page uses (Z-111). */
+  /** Z-145: assessments.settings.feedback_level (null = none). */
+  feedback_level: 'none' | 'right_wrong' | 'with_expected_answer' | 'with_ai_justification' | null;
+  /** Z-121/Z-145: effectiveLevel input, the same one the result page uses. */
   attempt_delivery_mode: string | null;
-  assessment_delivery_mode: string | null;
 }
 
 /** 42 -> "42", 42.5 -> "42.5", 42.456 -> "42.46" (NUMERIC(…,2) values). */
@@ -77,9 +77,8 @@ export async function sendResultReleasedEmail(input: {
                 s.total_max::text    AS total_max,
                 s.pass_mark_pct,
                 c.credential_id,
-                (SELECT ts.result_feedback_level FROM tenant_settings ts WHERE ts.tenant_id = a.tenant_id) AS result_feedback_level,
-                a.delivery_mode   AS attempt_delivery_mode,
-                asm.delivery_mode AS assessment_delivery_mode
+                asm.settings->>'feedback_level' AS feedback_level,
+                a.delivery_mode   AS attempt_delivery_mode
            FROM attempts a
            JOIN users u        ON u.id   = a.user_id
            JOIN assessments asm ON asm.id = a.assessment_id
@@ -148,10 +147,10 @@ export async function sendResultReleasedEmail(input: {
         scoreText: `${fmt(earned)} / ${fmt(max)} (${percent}%)`,
         resultText: passed ? 'Passed' : 'Not passed',
         ...(passMark !== null ? { passMarkPct: passMark } : {}),
-        // Z-121: a mock attempt on a mock assessment gets the same raised level the result page shows (Z-111).
-        feedbackLevel: effectiveLevel(row.result_feedback_level ?? 'none', {
+        // Z-145: the same level the result page shows (Mock, non-embed only). An unknown stored value reads as none.
+        feedbackLevel: effectiveLevel(toFeedbackLevel(row.feedback_level), {
           isMockAttempt: row.attempt_delivery_mode === 'mock',
-          assessmentIsMock: row.assessment_delivery_mode === 'mock',
+          isEmbed: row.embed_origin,
         }),
         portalLink: buttonLink,
         ...(row.credential_id !== null

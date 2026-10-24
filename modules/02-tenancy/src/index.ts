@@ -16,8 +16,6 @@ export {
   getAiGradingScope,
   updateRetentionDays,
   updateResultReleaseMode,
-  updateResultFeedbackLevel,
-  getResultFeedbackLevel,
   updateCertificateShowDistinction,
   getCertificateShowDistinction,
   renameTenant,
@@ -41,7 +39,6 @@ export type {
   UpdateRetentionDaysResult,
   UpdateResultReleaseModeResult,
   ResultReleaseMode,
-  UpdateResultFeedbackLevelResult,
   UpdateCertificateShowDistinctionResult,
   RenameTenantResult,
   CreateTenantInput,
@@ -82,7 +79,5 @@ export type {
   TenantBranding,
   TenantAuthMethods,
   TenantStatus,
-  ResultFeedbackLevel,
 } from "./types.js";
-export { RESULT_FEEDBACK_LEVELS } from "./types.js";
 export { validateAccent, contrastOnWhite, ACCENT_MIN_CONTRAST } from "./accent.js";

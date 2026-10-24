@@ -59,7 +59,6 @@ function ResultCard({ attemptId, isNew, children }: { attemptId: string; isNew: 
 export function MyResults(): React.ReactElement {
   const [items, setItems] = useState<MyResultItemWire[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [feedbackLevel, setFeedbackLevel] = useState<string>('none');
 
   useEffect(() => {
     let cancelled = false;
@@ -67,7 +66,6 @@ export function MyResults(): React.ReactElement {
       .then((res) => {
         if (!cancelled) {
           setItems(res.items);
-          setFeedbackLevel(res.feedback_level ?? 'none');
         }
       })
       .catch(() => {
@@ -177,10 +175,10 @@ export function MyResults(): React.ReactElement {
                   certificate={r.certificate}
                   negativeMarking={r.negative_marking}
                   assessmentName={r.assessment_name}
-                  feedbackOn={feedbackLevel !== 'none'}
-                  feedbackLevel={feedbackLevel}
+                  feedbackOn={(r.feedback_level ?? 'none') !== 'none'}
+                  feedbackLevel={r.feedback_level ?? 'none'}
                 />
-                {feedbackLevel !== 'none' && <AttemptFeedback attemptId={r.attempt_id} />}
+                {(r.feedback_level ?? 'none') !== 'none' && <AttemptFeedback attemptId={r.attempt_id} />}
               </Card>
             </ResultCard>
           ))}

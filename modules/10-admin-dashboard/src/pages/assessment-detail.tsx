@@ -48,9 +48,10 @@ import { SectionsCard } from "../components/SectionsCard.js";
 import { HighStakesCard } from "../components/HighStakesCard.js";
 import { NegativeMarksCard } from "../components/NegativeMarksCard.js";
 import { PassMarkCard } from "../components/PassMarkCard.js";
-import { TestTypeChooser, fromTestType, toTestType, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
+import { TestTypeChooser, fromTestType, toTestType, toFeedbackLevel, type FeedbackLevel, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
 import { getCameraSettingsApi } from "../api/camera.js";
 import { RetakeCard } from "../components/RetakeCard.js";
+import { INVITE_COST, creditsRefusal, type CreditsRefusal } from "../components/CreditHold.js";
 import { TimeLimitCard } from "../components/TimeLimitCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
@@ -78,6 +79,9 @@ export function AdminAssessmentDetail(): React.ReactElement {
   // EXP-37: students-per-assessment limit from the usage summary (null = no limit shown).
   const [inviteLimit, setInviteLimit] = useState<number | null>(null);
   const [inviteErrorPath, setInviteErrorPath] = useState<string | null>(null);
+  // Z-147: the credits refusal (Buy credits / Invite N now) and the free credits for the cost line.
+  const [inviteRefusal, setInviteRefusal] = useState<CreditsRefusal | null>(null);
+  const [creditsAvailable, setCreditsAvailable] = useState<number | null>(null);
 
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
@@ -197,7 +201,10 @@ export function AdminAssessmentDetail(): React.ReactElement {
 
   useEffect(() => {
     getCompanyUsage()
-      .then((u) => setInviteLimit(typeof u?.invite_limit === "number" ? u.invite_limit : null))
+      .then((u) => {
+        setInviteLimit(typeof u?.invite_limit === "number" ? u.invite_limit : null);
+        setCreditsAvailable(u?.credits && !u.credits.unlimited && typeof u.credits.available === "number" ? u.credits.available : null);
+      })
       .catch(() => setInviteLimit(null));
   }, []);
 
@@ -288,6 +295,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
     setInviting(true);
     setInviteError(null);
     setInviteErrorPath(null);
+    setInviteRefusal(null);
     try {
       await adminApi(`/admin/assessments/${id}/invite`, {
         method: "POST",
@@ -297,8 +305,11 @@ export function AdminAssessmentDetail(): React.ReactElement {
       setShowInviteForm(false);
       await fetchData();
     } catch (err) {
+      const refusal = creditsRefusal(err);
+      setInviteRefusal(refusal);
       setInviteError(
-        err instanceof AdminApiError
+        refusal !== null ? null
+          : err instanceof AdminApiError
           ? err.apiError.message
           : "Failed to send invitations.",
       );
@@ -420,7 +431,8 @@ export function AdminAssessmentDetail(): React.ReactElement {
   // One clock reading per render so every row's "Expires … / Expired" agrees.
   const nowMs = Date.now();
 
-  const invitationColumns: ColumnDef<Invitation>[] = buildInvitationColumns({ nowMs, resendingId, resendingAll, onResend: handleResendOne, onReopen: handleReopenOne, onGrantExtra: handleGrantExtra });
+  const creditsHeld = assessment?.status === "published" || assessment?.status === "active";
+  const invitationColumns: ColumnDef<Invitation>[] = buildInvitationColumns({ nowMs, creditsHeld, resendingId, resendingAll, onResend: handleResendOne, onReopen: handleReopenOne, onGrantExtra: handleGrantExtra });
 
   // MUST be computed before the early returns below — a hook after a conditional
   // return changes the hook order between the loading and loaded renders, which
@@ -665,6 +677,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           assessmentId={assessment.id}
           initial={toTestType(assessment.delivery_mode, assessment.camera_required)}
           initialIntegrity={assessment.settings?.integrity}
+          initialFeedback={toFeedbackLevel((assessment.settings as { feedback_level?: unknown } | null | undefined)?.feedback_level)}
           isDraft={assessment.status === "draft"}
         />
         <PassMarkCard
@@ -751,6 +764,13 @@ export function AdminAssessmentDetail(): React.ReactElement {
           inviteError={inviteError}
           inviteLimit={inviteLimit}
           inviteErrorPath={inviteErrorPath}
+          creditCost={assessment ? INVITE_COST[toTestType(assessment.delivery_mode, assessment.camera_required)] : 0}
+          creditsAvailable={creditsAvailable}
+          inviteRefusal={inviteRefusal}
+          onInviteNow={(n) => {
+            setSelectedUserIds((prev) => new Set([...prev].slice(0, n)));
+            setInviteRefusal(null);
+          }}
           inviting={inviting}
           resendable={resendable}
           resendResult={resendResult}
@@ -817,11 +837,12 @@ export function AdminAssessmentDetail(): React.ReactElement {
 // Z-143: the test type cards on the detail page. Editable while draft (the server rejects a
 // patch after publish), read-only with a "Locked after publish" chip afterwards.
 function TestTypeEditor({
-  assessmentId, initial, initialIntegrity, isDraft,
+  assessmentId, initial, initialIntegrity, initialFeedback, isDraft,
 }: {
   assessmentId: string;
   initial: TestType;
   initialIntegrity: { fullscreen?: boolean; block_copy_paste?: boolean } | undefined;
+  initialFeedback: FeedbackLevel;
   isDraft: boolean;
 }): React.ReactElement {
   const [value, setValue] = useState<TestType>(initial);
@@ -829,6 +850,7 @@ function TestTypeEditor({
     fullscreen: initialIntegrity?.fullscreen === true,
     blockCopyPaste: initialIntegrity?.block_copy_paste === true,
   });
+  const [feedback, setFeedback] = useState<FeedbackLevel>(initialFeedback); // Z-145
   const [cameraSettings, setCameraSettings] = useState<ChooserCameraSettings | null>(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -847,7 +869,12 @@ function TestTypeEditor({
       });
       // Real needs the switches on first; Mock saves its type first.
       if (!mock) await adminApi(`/admin/assessments/${assessmentId}/integrity`, { method: "PATCH", body: integrityBody });
-      await adminApi(`/admin/assessments/${assessmentId}`, { method: "PATCH", body: JSON.stringify(fromTestType(value)) });
+      // Z-145: PATCH replaces settings, so merge feedback_level into the fresh settings (Mock sets it, Real removes it).
+      const fresh = await adminApi<{ settings?: Record<string, unknown> | null }>(`/admin/assessments/${assessmentId}`);
+      const { feedback_level: _old, ...rest } = fresh.settings ?? {};
+      void _old;
+      const settings = { ...rest, ...(mock ? { feedback_level: feedback } : {}) };
+      await adminApi(`/admin/assessments/${assessmentId}`, { method: "PATCH", body: JSON.stringify({ ...fromTestType(value), settings }) });
       if (mock) await adminApi(`/admin/assessments/${assessmentId}/integrity`, { method: "PATCH", body: integrityBody });
       setMsg({ ok: true, text: "Saved." });
     } catch (err) {
@@ -866,6 +893,8 @@ function TestTypeEditor({
         onIntegrityChange={setIntegrity}
         cameraSettings={cameraSettings}
         readOnly={!isDraft}
+        feedbackLevel={feedback}
+        onFeedbackLevelChange={setFeedback}
       />
       {isDraft && (
         <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>

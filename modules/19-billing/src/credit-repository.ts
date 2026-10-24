@@ -87,6 +87,50 @@ export async function burnCredits(client: PoolClient, tenantId: string, attemptI
   );
 }
 
+/**
+ * Z-147: credits held by invitations that can still lead to a submitted attempt, computed live (no table).
+ * Counted: started invitations, and pending/viewed ones whose link has not lapsed, on published/active
+ * assessments. Submitted and expired (revoked) rows never count, so revoke, lapse, cancel and submit release.
+ * Cost per invite = BURN of the assessment's type. Runs under withTenant; the explicit tenant filter is a second guard.
+ */
+export async function countHeldCredits(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ held: number; heldInvites: number }> {
+  const r = await client.query<{ held: string; n: string }>(
+    `SELECT COALESCE(SUM(CASE WHEN a.delivery_mode = 'mock' THEN $2::int
+                              WHEN a.camera_required THEN $4::int ELSE $3::int END), 0) AS held,
+            count(*) AS n
+       FROM assessment_invitations i JOIN assessments a ON a.id = i.assessment_id
+      WHERE a.tenant_id = $1 AND a.status IN ('published', 'active')
+        AND (i.status = 'started' OR (i.status IN ('pending', 'viewed') AND i.expires_at > now()))`,
+    [tenantId, BURN.mock, BURN.real, BURN.real_camera],
+  );
+  return { held: parseInt(r.rows[0]?.held ?? '0', 10), heldInvites: parseInt(r.rows[0]?.n ?? '0', 10) };
+}
+
+/**
+ * Z-147: what an invite check needs. `unlimited` = no plan row or included_credits NULL (these tenants never burn,
+ * see burnCredits). Call it AFTER taking the credit_hold lock so balance and held are read as one consistent view.
+ */
+export async function readCreditHoldState(
+  client: PoolClient,
+  tenantId: string,
+): Promise<{ unlimited: boolean; available: number }> {
+  const p = await client.query<{ included_credits: number | null }>(
+    `SELECT included_credits FROM tenant_plans WHERE tenant_id = $1`,
+    [tenantId],
+  );
+  if (p.rows[0] === undefined || p.rows[0].included_credits === null) return { unlimited: true, available: 0 };
+  const b = await client.query<{ balance: string }>(
+    `SELECT COALESCE(SUM(remaining), 0) AS balance FROM credit_grants
+      WHERE tenant_id = $1 AND remaining > 0 AND expires_at > now()`,
+    [tenantId],
+  );
+  const { held } = await countHeldCredits(client, tenantId);
+  return { unlimited: false, available: Math.max(0, parseInt(b.rows[0]?.balance ?? '0', 10) - held) };
+}
+
 /** Ledger view for one tenant (under withTenant: RLS limits rows to the tenant). */
 export async function readCreditBalance(
   client: PoolClient,
@@ -103,10 +147,15 @@ export async function readCreditBalance(
   );
   const anyRow = await client.query(`SELECT 1 FROM credit_grants WHERE tenant_id = $1 LIMIT 1`, [tenantId]);
   const live = g.rows.filter((r) => r.remaining > 0);
+  const balance = live.reduce((a, r) => a + r.remaining, 0);
+  const { held, heldInvites } = await countHeldCredits(client, tenantId);
   return {
     unlimited,
     has_grants: anyRow.rows.length > 0,
-    balance: live.reduce((a, r) => a + r.remaining, 0),
+    balance,
+    held,
+    held_invites: heldInvites,
+    available: Math.max(0, balance - held),
     next_expiry: live[0] ? iso(live[0].expires_at) : null,
     grants: g.rows.map(toView),
     burn_by_type: await burnTotals(client, tenantId),

@@ -47,14 +47,14 @@ const ITEM = {
 
 describe('AttemptFeedback on MyResults', () => {
   it('is not rendered when the level is none (or absent)', async () => {
-    mockList.mockResolvedValue({ items: [RESULT], feedback_level: 'none' });
+    mockList.mockResolvedValue({ items: [{ ...RESULT, feedback_level: 'none' as const }] });
     render(<MyResults />);
     await screen.findByText('Aptitude Test');
     expect(screen.queryByRole('button', { name: 'Review your answers' })).toBeNull();
   });
 
   it('fetches only on expand, renders rows with the study line, no expected column when none has one', async () => {
-    mockList.mockResolvedValue({ items: [RESULT], feedback_level: 'right_wrong' });
+    mockList.mockResolvedValue({ items: [{ ...RESULT, feedback_level: 'right_wrong' as const }] });
     mockFeedback.mockResolvedValue({ level: 'right_wrong', items: [ITEM] });
     render(<MyResults />);
     const btn = await screen.findByRole('button', { name: 'Review your answers' });
@@ -69,7 +69,7 @@ describe('AttemptFeedback on MyResults', () => {
   });
 
   it('shows the expected answer and the explanation when present', async () => {
-    mockList.mockResolvedValue({ items: [RESULT], feedback_level: 'with_ai_justification' });
+    mockList.mockResolvedValue({ items: [{ ...RESULT, feedback_level: 'with_ai_justification' as const }] });
     mockFeedback.mockResolvedValue({
       level: 'with_ai_justification',
       items: [{ ...ITEM, expected_answer: '10.0.0.1', explanation: 'Good answer: names the control.' }],
@@ -81,7 +81,7 @@ describe('AttemptFeedback on MyResults', () => {
   });
 
   it('shows an error with Retry, then the empty state', async () => {
-    mockList.mockResolvedValue({ items: [RESULT], feedback_level: 'right_wrong' });
+    mockList.mockResolvedValue({ items: [{ ...RESULT, feedback_level: 'right_wrong' as const }] });
     mockFeedback.mockRejectedValueOnce(new Error('boom')).mockResolvedValueOnce({ level: 'right_wrong', items: [] });
     render(<MyResults />);
     fireEvent.click(await screen.findByRole('button', { name: 'Review your answers' }));

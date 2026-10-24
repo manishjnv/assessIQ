@@ -88,9 +88,10 @@ interface Opts {
   embed?: boolean;
   name?: string;
   cert?: { credentialId: string; revoked?: boolean };
-  /** Z-121: attempts.delivery_mode and assessments.delivery_mode (default real). */
+  /** Z-121: attempts.delivery_mode (default real). */
   attemptMode?: 'real' | 'mock';
-  assessmentMode?: 'real' | 'mock';
+  /** Z-145: assessments.settings.feedback_level (default absent = none). */
+  feedbackLevel?: string;
 }
 
 async function seed(o: Opts = {}): Promise<{ attemptId: string; email: string }> {
@@ -110,8 +111,8 @@ async function seed(o: Opts = {}): Promise<{ attemptId: string; email: string }>
       [level, pack, o.passing ?? 60],
     );
     await c.query(
-      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by, delivery_mode) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',1,$5,$6)`,
-      [assessment, tenant, pack, level, admin, o.assessmentMode ?? 'real'],
+      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by, settings) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',1,$5,$6::jsonb)`,
+      [assessment, tenant, pack, level, admin, JSON.stringify(o.feedbackLevel === undefined ? {} : { feedback_level: o.feedbackLevel })],
     );
     await c.query(
       `INSERT INTO users (id, tenant_id, email, name, role, status, erased_at) VALUES ($1,$2,$3,$4,'candidate','active',$5)`,
@@ -221,34 +222,26 @@ describe("sendResultReleasedEmail", () => {
     expect(lastCall().vars["certificateLink"]).toBeUndefined();
   });
 
-  it("Z-121: a mock attempt on a mock assessment gets the raised level (tenant none -> with_expected_answer)", async () => {
-    await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'none' WHERE tenant_id = $1`, [tenant]));
-    const { attemptId } = await seed({ earned: 42, max: 60, passing: 60, attemptMode: "mock", assessmentMode: "mock" });
-    await sendResultReleasedEmail({ tenantId: tenant, attemptId });
-    expect(lastCall().vars["feedbackLevel"]).toBe("with_expected_answer");
+  it("Z-145: a Mock attempt gets the assessment level at every level", async () => {
+    for (const lvl of ["none", "right_wrong", "with_expected_answer", "with_ai_justification"]) {
+      const { attemptId } = await seed({ earned: 42, max: 60, passing: 60, attemptMode: "mock", feedbackLevel: lvl });
+      await sendResultReleasedEmail({ tenantId: tenant, attemptId });
+      expect(lastCall().vars["feedbackLevel"]).toBe(lvl);
+    }
   });
 
-  it("Z-121: a mock attempt on a mock assessment keeps a higher tenant level (tenant with_ai_justification)", async () => {
-    await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'with_ai_justification' WHERE tenant_id = $1`, [tenant]));
-    const { attemptId } = await seed({ earned: 42, max: 60, passing: 60, attemptMode: "mock", assessmentMode: "mock" });
-    await sendResultReleasedEmail({ tenantId: tenant, attemptId });
-    expect(lastCall().vars["feedbackLevel"]).toBe("with_ai_justification");
-    await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'none' WHERE tenant_id = $1`, [tenant]));
-  });
-
-  it("Z-121: a real attempt on a real assessment keeps the tenant level (tenant right_wrong)", async () => {
-    await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'right_wrong' WHERE tenant_id = $1`, [tenant]));
-    const { attemptId } = await seed({ earned: 42, max: 60, passing: 60 });
-    await sendResultReleasedEmail({ tenantId: tenant, attemptId });
-    expect(lastCall().vars["feedbackLevel"]).toBe("right_wrong");
-    await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'none' WHERE tenant_id = $1`, [tenant]));
-  });
-
-  it("Z-121: a mock attempt on a real assessment keeps the tenant level (tenant none)", async () => {
-    await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'none' WHERE tenant_id = $1`, [tenant]));
-    const { attemptId } = await seed({ earned: 42, max: 60, passing: 60, attemptMode: "mock", assessmentMode: "real" });
+  it("Z-145: a Real attempt gets none even when the assessment has a level", async () => {
+    const { attemptId } = await seed({ earned: 42, max: 60, passing: 60, feedbackLevel: "with_ai_justification" });
     await sendResultReleasedEmail({ tenantId: tenant, attemptId });
     expect(lastCall().vars["feedbackLevel"]).toBe("none");
+  });
+
+  it("Z-145: the tenant level no longer matters (unset assessment level, Mock attempt: none)", async () => {
+    await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'with_ai_justification' WHERE tenant_id = $1`, [tenant]));
+    const { attemptId } = await seed({ earned: 42, max: 60, passing: 60, attemptMode: "mock" });
+    await sendResultReleasedEmail({ tenantId: tenant, attemptId });
+    expect(lastCall().vars["feedbackLevel"]).toBe("none");
+    await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'none' WHERE tenant_id = $1`, [tenant]));
   });
 
   it("falls back to a Hello greeting (no name var) when the candidate has no name", async () => {

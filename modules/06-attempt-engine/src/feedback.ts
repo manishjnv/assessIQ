@@ -1,7 +1,7 @@
 /**
  * Per-question feedback on a RELEASED result (RW-80) - GET /api/me/attempts/:id/feedback.
  *
- * Gated by tenant_settings.result_feedback_level (default 'none'):
+ * Gated by assessments.settings.feedback_level (Z-145; Mock, non-embed attempts only; default 'none'):
  *   none                  - no items
  *   right_wrong           - outcome + the candidate's own answer + "what to study"
  *   with_expected_answer  - adds the expected answer for DETERMINISTIC types only
@@ -13,13 +13,12 @@
  * AI text. The plain-words line is a deterministic text transform: no AI call.
  */
 
-import { ConflictError, NotFoundError, attemptsAllowed } from "@assessiq/core";
+import { ConflictError, NotFoundError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
-import type { ResultFeedbackLevel } from "@assessiq/tenancy";
 import { isQuestionType, QUESTION_TYPE_REGISTRY } from "@assessiq/question-types";
 import * as repo from "./repository.js";
 import { AE_ERROR_CODES } from "./types.js";
-import { effectiveLevel, FEEDBACK_LEVEL_RANK } from "@assessiq/core/feedback-copy";
+import { effectiveLevel, FEEDBACK_LEVEL_RANK, toFeedbackLevel, type FeedbackLevel } from "@assessiq/core/feedback-copy";
 
 export type FeedbackOutcome = "correct" | "incorrect" | "partial";
 
@@ -38,7 +37,7 @@ export interface FeedbackItem {
 }
 
 export interface CandidateFeedback {
-  level: ResultFeedbackLevel;
+  level: FeedbackLevel;
   items: FeedbackItem[];
 }
 
@@ -257,33 +256,17 @@ export async function getCandidateFeedback(
     if (attempt.status !== "released" || score.rows.length === 0) {
       throw new ConflictError("The result is not ready yet.", { details: { code: "RESULT_NOT_READY" } });
     }
-    const lvl = await client.query<{ result_feedback_level: ResultFeedbackLevel }>(
-      `SELECT result_feedback_level FROM tenant_settings LIMIT 1`,
+    const asm = await client.query<{ feedback_level: FeedbackLevel | null }>(
+      `SELECT settings->>'feedback_level' AS feedback_level FROM assessments WHERE id = $1`,
+      [attempt.assessment_id],
     );
-    const asm = await client.query<{ delivery_mode: string; max_attempts: number | null }>(`SELECT delivery_mode, max_attempts FROM assessments WHERE id = $1`, [
-      attempt.assessment_id,
-    ]);
-    // Z-111: a mock attempt on a mock assessment shows the expected answer at least.
-    const level = effectiveLevel(lvl.rows[0]?.result_feedback_level ?? "none", {
+    // Z-145/Z-148: only a Mock attempt that is not embed gets the assessment's own level.
+    const level = effectiveLevel(toFeedbackLevel(asm.rows[0]?.feedback_level), {
       isMockAttempt: attempt.delivery_mode === "mock",
-      assessmentIsMock: asm.rows[0]?.delivery_mode === "mock",
+      isEmbed: attempt.embed_origin,
     });
     const rank = FEEDBACK_LEVEL_RANK[level];
     if (rank === 0) return { level, items: [] };
-
-    // A3-6: on a real exam with a retake left, the answer key stays hidden (the retake draws from the same pool).
-    let retakeLeft = false;
-    if (rank >= 2 && attempt.delivery_mode !== "mock" && asm.rows[0]?.delivery_mode !== "mock") {
-      const inv = await client.query<{ extra: number }>(
-        `SELECT COALESCE(max(extra_attempts), 0)::int AS extra FROM assessment_invitations WHERE assessment_id = $1 AND user_id = $2`,
-        [attempt.assessment_id, userId],
-      );
-      const used = await client.query<{ n: number }>(
-        `SELECT count(*)::int AS n FROM attempts WHERE assessment_id = $1 AND user_id = $2`,
-        [attempt.assessment_id, userId],
-      );
-      retakeLeft = (used.rows[0]?.n ?? 0) < attemptsAllowed(asm.rows[0]?.max_attempts, inv.rows[0]?.extra ?? 0);
-    }
 
     const rows = (await client.query<Row>(ITEMS_SQL, [attemptId])).rows
       // Not final -> never shown.
@@ -310,7 +293,7 @@ export async function getCandidateFeedback(
         outcome: outcomeOf(r.status, earned, max),
         score_earned: earned,
         score_max: max,
-        expected_answer: rank >= 2 && !retakeLeft && def?.scoring === "deterministic" ? renderExpectedAnswer(r.type, r.content) : null,
+        expected_answer: rank >= 2 && def?.scoring === "deterministic" ? renderExpectedAnswer(r.type, r.content) : null,
         explanation:
           rank >= 3 && def?.scoring === "ai" ? plainWords(r.grader === "admin_override" ? null : r.ai_justification, r.reasoning_band, r.error_class) : null,
         study: { unit: st?.unit ?? null, subject: st?.subject ?? null, topic: r.topic },

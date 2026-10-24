@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { Chip, Table } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
+import { CreditCostLine, CreditsRefusalBlock, type CreditsRefusal } from "../../components/CreditHold.js";
 import { CandidateCsvImport } from "../../components/CandidateCsvImport.js";
 import { EmailQueuePanel } from "../../components/EmailQueuePanel.js";
 import { type Invitation, INV_PAGE_SIZE, type ResendAllResponse, RESEND_SKIP_REASON, type UserItem, type SortDir } from "./shared.js";
@@ -26,6 +27,11 @@ export interface InvitationsSectionProps {
   inviteLimit: number | null;
   /** Camera notice link target when the invite fails with CAMERA_NOTICE_REQUIRED (Z-153). */
   inviteErrorPath: string | null;
+  /** Z-147: credits one invitation holds, free credits (null = unlimited), and the CREDITS_INSUFFICIENT refusal. */
+  creditCost?: number;
+  creditsAvailable?: number | null;
+  inviteRefusal?: CreditsRefusal | null;
+  onInviteNow?: (n: number) => void;
   inviting: boolean;
   resendable: number;
   resendResult: ResendAllResponse | null;
@@ -51,7 +57,7 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
   const {
     id, resultsSort, setResultsSort, showInviteForm, setShowInviteForm, setInviteError,
     setSelectedUserIds, fetchData, handleInvite, uninvitedUsers, selectedUserIds, toggleUser,
-    inviteError, inviteErrorPath, inviteLimit, inviting, resendable, resendResult, resendError, setResendError,
+    inviteError, inviteErrorPath, inviteLimit, creditCost = 0, creditsAvailable = null, inviteRefusal = null, onInviteNow, inviting, resendable, resendResult, resendError, setResendError,
     setShowResendAll, resendingAll, resendingId, invitations, invitationColumns,
     sortedInvitations, sortBy, setSortBy, sortDir, setSortDir, invPage, invPaging,
     invTotal, goToInvPage,
@@ -254,6 +260,8 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
                   {inviteErrorPath !== null && <> <Link to={inviteErrorPath}>Open camera settings</Link></>}
                 </div>
               )}
+              {inviteRefusal !== null && <CreditsRefusalBlock refusal={inviteRefusal} onInviteNow={onInviteNow} />}
+              <CreditCostLine count={selectedUserIds.size} cost={creditCost} available={creditsAvailable} helpId="admin.assessments.invite.credit_cost" />
               <button
                 type="submit"
                 className="aiq-btn aiq-btn-primary"

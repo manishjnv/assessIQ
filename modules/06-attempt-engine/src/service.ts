@@ -393,8 +393,9 @@ export async function startAttempt(
     let invitationId: string | undefined;
     let extraAttempts = 0;
     // Z-89: the attempt's test type comes from the INVITATION row, read here under the row lock.
-    // It is never read from the request. Embed attempts have no invitation and stay 'real'.
-    let deliveryMode: "real" | "mock" = "real";
+    // It is never read from the request. Z-148: an embed attempt has no invitation, so it follows the assessment's own type
+    // (the host cannot pick one); camera stays off for embed (cameraRequired is only set by the standalone gate below).
+    let deliveryMode: "real" | "mock" = assessment.delivery_mode;
     let cameraRequired = false; // Batch A: set by the camera gate below; links the consent once the attempt row exists
     if (!input.embedOrigin) {
       const invitation = await repo.findInvitationForCandidate(
@@ -1090,8 +1091,9 @@ async function loadAttemptForCandidate(
       remaining_seconds: computeRemainingSeconds(effectiveAttempt, now),
       // Z-142: Real and Real + camera are fixed on whatever the settings say; Mock follows the two admin checkboxes.
       integrity: {
-        fullscreen: attempt.delivery_mode === "real" || integ?.fullscreen === true,
-        block_copy_paste: attempt.delivery_mode === "real" || integ?.block_copy_paste === true,
+        // Z-148: both stay on for every embed attempt, Mock included.
+        fullscreen: attempt.delivery_mode === "real" || attempt.embed_origin || integ?.fullscreen === true,
+        block_copy_paste: attempt.delivery_mode === "real" || attempt.embed_origin || integ?.block_copy_paste === true,
       },
       ...(sectionsView !== undefined ? { sections: sectionsView } : {}),
       ...(sectionsSummary !== undefined ? { sections_summary: sectionsSummary } : {}),

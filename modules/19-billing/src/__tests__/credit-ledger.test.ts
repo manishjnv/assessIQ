@@ -27,6 +27,7 @@ const MIGRATION_0225 = [
 import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
 import { recordGradedAttempt, grantCredits, refillFreeMonthlyCredits, getCreditBalance, sendCreditLowBalanceNotices, sendCreditExpiryNotices, getUsage } from '../service.js';
 import { BURN, FREE_MONTHLY_CREDITS } from '../burn-rates.js';
+import { countHeldCredits } from '../credit-repository.js';
 
 function isDockerAvailable(): boolean {
   try {
@@ -321,5 +322,72 @@ describe('expiry-warning notices', () => {
     expect(await auditCount(tenantId)).toBe(1);
     const n = await sup((c) => c.query(`SELECT grant_id FROM credit_expiry_notices WHERE tenant_id = $1`, [tenantId]));
     expect(n.rows.map((r) => r.grant_id)).toEqual([near]);
+  });
+});
+
+describe('Z-147 held credits (computed live)', () => {
+  /** One invitation straight into the table. */
+  async function addInvitation(asmId: string, tenantId: string, adminId: string, status: string, expiresSql = `now() + interval '7 days'`): Promise<string> {
+    const userId = randomUUID();
+    const id = randomUUID();
+    await sup(async (c) => {
+      await c.query(`INSERT INTO users (id, tenant_id, email, name, role) VALUES ($1,$2,$3,'C','candidate')`, [userId, tenantId, `h-${userId}@test.com`]);
+      await c.query(
+        `INSERT INTO assessment_invitations (id, assessment_id, user_id, token_hash, expires_at, status, invited_by) VALUES ($1,$2,$3,$4,${expiresSql},$5,$6)`,
+        [id, asmId, userId, randomUUID() + randomUUID(), status, adminId],
+      );
+    });
+    return id;
+  }
+  const held = (tenantId: string) => withTenant(tenantId, (c) => countHeldCredits(c, tenantId));
+
+  it.skipIf(!dockerAvailable)('counts pending, viewed and started by the assessment type; submitted, revoked and lapsed never count', async () => {
+    const { tenantId, adminId, asmId } = await seedTenant('pro', 1000);
+    await sup((c) => c.query(`UPDATE assessments SET delivery_mode = 'real', camera_required = false WHERE id = $1`, [asmId]));
+    await addInvitation(asmId, tenantId, adminId, 'pending');
+    await addInvitation(asmId, tenantId, adminId, 'viewed');
+    await addInvitation(asmId, tenantId, adminId, 'started');
+    await addInvitation(asmId, tenantId, adminId, 'submitted');
+    await addInvitation(asmId, tenantId, adminId, 'expired'); // revoked
+    await addInvitation(asmId, tenantId, adminId, 'pending', `now() - interval '1 day'`); // lapsed by time
+    expect(await held(tenantId)).toEqual({ held: 3 * BURN.real, heldInvites: 3 });
+    await sup((c) => c.query(`UPDATE assessments SET delivery_mode = 'mock' WHERE id = $1`, [asmId]));
+    expect((await held(tenantId)).held).toBe(3 * BURN.mock);
+    await sup((c) => c.query(`UPDATE assessments SET delivery_mode = 'real', camera_required = true WHERE id = $1`, [asmId]));
+    expect((await held(tenantId)).held).toBe(3 * BURN.real_camera);
+  });
+
+  it.skipIf(!dockerAvailable)('revoke, cancel, close and submit release the hold; a reopen holds again', async () => {
+    const { tenantId, adminId, asmId } = await seedTenant('pro', 1000);
+    const a = await addInvitation(asmId, tenantId, adminId, 'pending');
+    const b = await addInvitation(asmId, tenantId, adminId, 'started');
+    expect((await held(tenantId)).held).toBe(2 * BURN.real);
+    await sup((c) => c.query(`UPDATE assessment_invitations SET status = 'expired' WHERE id = $1`, [a])); // revoke
+    expect((await held(tenantId)).held).toBe(BURN.real);
+    await sup((c) => c.query(`UPDATE assessment_invitations SET status = 'submitted' WHERE id = $1`, [b])); // submit
+    expect((await held(tenantId)).held).toBe(0);
+    await sup((c) => c.query(`UPDATE assessment_invitations SET status = 'pending' WHERE id = $1`, [b])); // reopen
+    expect((await held(tenantId)).held).toBe(BURN.real);
+    await sup((c) => c.query(`UPDATE assessments SET status = 'cancelled' WHERE id = $1`, [asmId]));
+    expect((await held(tenantId)).held).toBe(0);
+  });
+
+  it.skipIf(!dockerAvailable)("never counts another tenant's invitations (RLS plus tenant filter)", async () => {
+    const t1 = await seedTenant('pro', 1000);
+    const t2 = await seedTenant('pro', 1000);
+    await addInvitation(t1.asmId, t1.tenantId, t1.adminId, 'pending');
+    expect((await held(t2.tenantId)).held).toBe(0);
+    expect((await withTenant(t2.tenantId, (c) => countHeldCredits(c, t1.tenantId))).held).toBe(0);
+  });
+
+  it.skipIf(!dockerAvailable)('getUsage adds credits.held, held_invites and available (balance minus held, never below 0)', async () => {
+    const { tenantId, adminId, asmId } = await seedTenant('pro', 1000);
+    await addGrant(tenantId, 'purchase', 50, `now() + interval '300 days'`);
+    await addInvitation(asmId, tenantId, adminId, 'pending');
+    await addInvitation(asmId, tenantId, adminId, 'viewed');
+    const u = await getUsage(tenantId);
+    expect(u.credits).toMatchObject({ balance: 50, held: 2 * BURN.real, held_invites: 2, available: 10 });
+    await addInvitation(asmId, tenantId, adminId, 'started');
+    expect((await getUsage(tenantId)).credits.available).toBe(0);
   });
 });

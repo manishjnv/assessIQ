@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   getAvailableSets: vi.fn(), listCandidates: vi.fn(), createAssessmentFromSet: vi.fn(),
   publishAssessmentApi: vi.fn(), inviteAssessmentUsers: vi.fn(), importCandidates: vi.fn(),
   listExamBlueprintsApi: vi.fn(), createFullMockApi: vi.fn(), getPackLevelsApi: vi.fn(), importLicensedSet: vi.fn(),
+  getCompanyUsage: vi.fn().mockResolvedValue({ credits: { unlimited: true, available: 0 } }), precheckInvitesApi: vi.fn().mockResolvedValue({ ok: true }),
 }));
 vi.mock("../api.js", () => ({
   ...api,

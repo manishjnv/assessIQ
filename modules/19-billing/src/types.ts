@@ -74,6 +74,11 @@ export interface CreditBalance {
   /** True when at least one grant row exists (decides whether the ledger or the legacy meter applies). */
   has_grants: boolean;
   balance: number;
+  /** Z-147: credits held by open invitations (computed live) and how many invitations hold them. */
+  held: number;
+  held_invites: number;
+  /** Z-147: balance - held, never below 0. */
+  available: number;
   next_expiry: string | null;
   grants: CreditGrantView[];
   burn_by_type: { mock: number; real: number; real_camera: number };

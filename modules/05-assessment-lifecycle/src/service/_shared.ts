@@ -1,6 +1,6 @@
 import { streamLogger, ValidationError, ConflictError, config, DEFAULT_MAX_PAGE_SIZE } from "@assessiq/core";
 import type { PoolClient } from "pg";
-import { getInviteLimit } from "@assessiq/billing";
+import { getInviteLimit, readCreditHoldState } from "@assessiq/billing";
 import { AL_ERROR_CODES } from "../types.js";
 
 export const log = streamLogger("app");
@@ -276,23 +276,57 @@ export async function assertSectionPacksUsable(client: PoolClient, tenantId: str
 export async function assertInviteCapacity(
   client: PoolClient,
   tenantId: string,
-  assessmentId: string,
+  assessmentId: string | null,
   adding: number,
 ): Promise<void> {
   if (adding <= 0) return;
   const limit = await getInviteLimit(client, tenantId);
   if (limit === null) return;
-  await client.query("SELECT pg_advisory_xact_lock(hashtextextended('invite_limit:' || $1::text, 0))", [assessmentId]);
-  const res = await client.query<{ n: string }>(
-    `SELECT count(*) AS n FROM assessment_invitations
-      WHERE assessment_id = $1 AND status IN ('pending', 'viewed', 'started')`,
-    [assessmentId],
-  );
-  const active = parseInt(res.rows[0]?.n ?? "0", 10);
+  // Z-152: null = an assessment that does not exist yet (Start a test pre-check): nothing active, nothing to lock.
+  let active = 0;
+  if (assessmentId !== null) {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended('invite_limit:' || $1::text, 0))", [assessmentId]);
+    const res = await client.query<{ n: string }>(
+      `SELECT count(*) AS n FROM assessment_invitations
+        WHERE assessment_id = $1 AND status IN ('pending', 'viewed', 'started')`,
+      [assessmentId],
+    );
+    active = parseInt(res.rows[0]?.n ?? "0", 10);
+  }
   if (active + adding > limit) {
     throw new ConflictError(
       `This setup supports up to ${String(limit)} students for one assessment. Split the group into two assessments at different times, or contact support to raise the limit.`,
       { details: { code: AL_ERROR_CODES.INVITE_LIMIT_EXCEEDED, limit, active, adding, assessment_id: assessmentId } },
     );
   }
+}
+
+/**
+ * Z-147: refuse when `adding` invitations at `cost` credits each exceed the free credits
+ * (ledger balance minus credits held by open invitations, computed live).
+ * Call BEFORE any insert or email. LOCK ORDER (never reverse): this function's per-tenant
+ * `credit_hold` advisory lock FIRST, then assertInviteCapacity's per-assessment `invite_limit` lock.
+ * The lock is held to commit, so two parallel batches of one tenant (even on different assessments)
+ * cannot both pass at the boundary. `skipCreditCheck` (super admin) returns before any query; tenants
+ * with unlimited credits (included_credits NULL, or no plan row) pass after the lock and one read.
+ */
+export async function assertCreditsAvailable(
+  client: PoolClient,
+  tenantId: string,
+  adding: number,
+  cost: number,
+  skipCreditCheck = false,
+): Promise<void> {
+  if (adding <= 0 || skipCreditCheck) return;
+  await client.query("SELECT pg_advisory_xact_lock(hashtextextended('credit_hold:' || $1::text, 0))", [tenantId]);
+  const state = await readCreditHoldState(client, tenantId);
+  if (state.unlimited) return;
+  const need = adding * cost;
+  if (need <= state.available) return;
+  const available = state.available;
+  const canInvite = Math.floor(available / cost);
+  throw new ConflictError(
+    `You need ${String(need)} credits. You have ${String(available)} available. Buy credits${canInvite > 0 ? ` or invite up to ${String(canInvite)} student(s) now` : ""}.`,
+    { details: { code: AL_ERROR_CODES.CREDITS_INSUFFICIENT, need, available, canInvite, cost } },
+  );
 }

@@ -106,8 +106,10 @@ afterAll(async () => {
 }, 30_000);
 
 
+// Z-145: the level lives on the assessment (settings.feedback_level); seed() writes the current value.
+let currentLevel = "none";
 async function setLevel(level: string): Promise<void> {
-  await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = $2 WHERE tenant_id = $1`, [tenant, level]));
+  currentLevel = level;
 }
 
 const JUSTIFICATION = [
@@ -123,16 +125,16 @@ const EXPLANATION = "Partial answer: The answer names the key control . It misse
 
 interface Seeded { attemptId: string; userId: string; qs: Record<string, string> }
 
-async function seed(status = "released"): Promise<Seeded> {
+async function seed(status = "released", opts: { mode?: "real" | "mock"; embed?: boolean } = {}): Promise<Seeded> {
   const pack = randomUUID(); const level = randomUUID(); const assessmentId = randomUUID();
   const userId = randomUUID(); const attemptId = randomUUID();
   const qs: Record<string, string> = {};
   await sup(async (c) => {
     await c.query(`INSERT INTO question_packs (id, tenant_id, slug, name, domain, status, created_by) VALUES ($1,$2,$3,'P','soc','published',$4)`, [pack, tenant, `p-${randomUUID().slice(0, 8)}`, admin]);
     await c.query(`INSERT INTO levels (id, pack_id, position, label, duration_minutes, default_question_count, passing_score_pct) VALUES ($1,$2,1,'L1',60,1,60)`, [level, pack]);
-    await c.query(`INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',4,$5)`, [assessmentId, tenant, pack, level, admin]);
+    await c.query(`INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by, settings) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',4,$5,$6::jsonb)`, [assessmentId, tenant, pack, level, admin, JSON.stringify({ feedback_level: currentLevel })]);
     await c.query(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,$3,'Riya','candidate','active')`, [userId, tenant, `r-${userId.slice(0, 6)}@x.test`]);
-    await c.query(`INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds) VALUES ($1,$2,$3,$4,$5, now() - interval '20 minutes', now() + interval '40 minutes', now(), 3600)`, [attemptId, tenant, assessmentId, userId, status]);
+    await c.query(`INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, delivery_mode, embed_origin) VALUES ($1,$2,$3,$4,$5, now() - interval '20 minutes', now() + interval '40 minutes', now(), 3600, $6, $7)`, [attemptId, tenant, assessmentId, userId, status, opts.mode ?? "mock", opts.embed === true]);
 
     const defs: Array<{ key: string; type: string; content: unknown; answer: unknown; grader: string; status: string; earned: number; band?: number; just?: string }> = [
       { key: "mcq", type: "mcq", content: { question: "Which is private?", options: ["8.8.8.8", "10.0.0.1", "1.1.1.1", "9.9.9.9"], correct: 1, rationale: "SECRETRATIONALE" }, answer: { selected: 1 }, grader: "deterministic", status: "correct", earned: 10 },
@@ -232,16 +234,19 @@ describe("getCandidateFeedback", () => {
     for (const i of r.items) expect(i.explanation).toBeNull();
   });
 
-  it("A3-6: expected answer is hidden while a retake is left, shown once none is left", async () => {
-    await setLevel("with_expected_answer");
-    const s = await seed();
-    const [asm] = (await sup((c) => c.query(`SELECT assessment_id FROM attempts WHERE id = $1`, [s.attemptId]))).rows;
-    await sup((c) => c.query(`UPDATE assessments SET max_attempts = 2 WHERE id = $1`, [asm.assessment_id]));
-    const open = await getCandidateFeedback(tenant, s.userId, s.attemptId);
-    for (const i of open.items) expect(i.expected_answer).toBeNull();
-    await sup((c) => c.query(`UPDATE assessments SET max_attempts = 1 WHERE id = $1`, [asm.assessment_id]));
-    const closed = await getCandidateFeedback(tenant, s.userId, s.attemptId);
-    expect(byKey(s, closed.items).mcq.expected_answer).toBe("10.0.0.1");
+  it("Z-145: every level x Mock/Real x embed true/false", async () => {
+    for (const level of ["none", "right_wrong", "with_expected_answer", "with_ai_justification"]) {
+      await setLevel(level);
+      for (const mode of ["mock", "real"] as const) {
+        for (const embed of [false, true]) {
+          const s = await seed("released", { mode, embed });
+          const r = await getCandidateFeedback(tenant, s.userId, s.attemptId);
+          const want = mode === "mock" && !embed ? level : "none";
+          expect(r.level).toBe(want);
+          expect(r.items.length).toBe(want === "none" ? 0 : 4);
+        }
+      }
+    }
   });
 
   it("with_ai_justification -> explanation only on the AI-graded row, never the stripped marker text", async () => {

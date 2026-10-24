@@ -1,8 +1,8 @@
 /**
- * Z-111 call-site proof (testcontainers Postgres). getCandidateFeedback (feedback.ts) and the
- * released branch of getCandidateResult (result.ts) must pass the attempt's and the
- * assessment's delivery_mode into effectiveLevel. A mock attempt on a mock assessment raises
- * the tenant level to with_expected_answer; every other case keeps the tenant level.
+ * Z-145/Z-148 call-site proof (testcontainers Postgres). getCandidateFeedback (feedback.ts), the
+ * released branch of getCandidateResult and listCandidateResults (result.ts) read the assessment's
+ * settings.feedback_level and pass the attempt's delivery_mode and embed_origin into effectiveLevel.
+ * Only a Mock attempt that is not embed gets the level; every other case gets none.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { GenericContainer, Wait, type StartedTestContainer } from "testcontainers";
@@ -14,7 +14,7 @@ import { randomUUID } from "node:crypto";
 
 import { setPoolForTesting, closePool } from "@assessiq/tenancy";
 import { getCandidateFeedback } from "../feedback.js";
-import { getCandidateResult } from "../result.js";
+import { getCandidateResult, listCandidateResults } from "../result.js";
 
 const THIS_DIR = dirname(fileURLToPath(import.meta.url)) + sep;
 const MODULES_ROOT = join(THIS_DIR, "..", "..", "..");
@@ -98,20 +98,20 @@ afterAll(async () => {
 interface Seeded { attemptId: string; userId: string; assessmentId: string }
 
 /** A released attempt with a score row. `assessmentRow: false` deletes the assessment row (FK off, seed only). */
-async function seed(opts: { attemptMode: "real" | "mock"; assessmentMode?: "real" | "mock"; assessmentRow?: boolean }): Promise<Seeded> {
+async function seed(opts: { attemptMode: "real" | "mock"; level?: string; embed?: boolean; assessmentRow?: boolean }): Promise<Seeded> {
   const pack = randomUUID(); const level = randomUUID(); const assessmentId = randomUUID();
   const userId = randomUUID(); const attemptId = randomUUID();
   await sup(async (c) => {
     await c.query(`INSERT INTO question_packs (id, tenant_id, slug, name, domain, status, created_by) VALUES ($1,$2,$3,'P','soc','published',$4)`, [pack, tenant, `p-${randomUUID().slice(0, 8)}`, admin]);
     await c.query(`INSERT INTO levels (id, pack_id, position, label, duration_minutes, default_question_count, passing_score_pct) VALUES ($1,$2,1,'L1',60,1,60)`, [level, pack]);
     await c.query(
-      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by, delivery_mode) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',4,$5,$6)`,
-      [assessmentId, tenant, pack, level, admin, opts.assessmentMode ?? "real"],
+      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by, settings) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',4,$5,$6::jsonb)`,
+      [assessmentId, tenant, pack, level, admin, JSON.stringify(opts.level === undefined ? {} : { feedback_level: opts.level })],
     );
     await c.query(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,$3,'Riya','candidate','active')`, [userId, tenant, `r-${userId.slice(0, 6)}@x.test`]);
     await c.query(
-      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, delivery_mode) VALUES ($1,$2,$3,$4,'released', now() - interval '20 minutes', now() + interval '40 minutes', now(), 3600, $5)`,
-      [attemptId, tenant, assessmentId, userId, opts.attemptMode],
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, delivery_mode, embed_origin) VALUES ($1,$2,$3,$4,'released', now() - interval '20 minutes', now() + interval '40 minutes', now(), 3600, $5, $6)`,
+      [attemptId, tenant, assessmentId, userId, opts.attemptMode, opts.embed === true],
     );
     await c.query(`INSERT INTO attempt_scores (attempt_id, tenant_id, total_earned, total_max, auto_pct, pending_review, pass_mark_pct) VALUES ($1,$2,21,40,52.5,false,60)`, [attemptId, tenant]);
     if (opts.assessmentRow === false) {
@@ -124,9 +124,7 @@ async function seed(opts: { attemptMode: "real" | "mock"; assessmentMode?: "real
   return { attemptId, userId, assessmentId };
 }
 
-async function setLevel(level: string): Promise<void> {
-  await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = $2 WHERE tenant_id = $1`, [tenant, level]));
-}
+const LEVELS = ["none", "right_wrong", "with_expected_answer", "with_ai_justification"] as const;
 
 describe.each([
   ["getCandidateFeedback", async (s: Seeded) => (await getCandidateFeedback(tenant, s.userId, s.attemptId)).level],
@@ -135,30 +133,34 @@ describe.each([
     if (view.status !== "released") throw new Error(`expected released, got ${view.status}`);
     return view.feedback_level;
   }],
-])("Z-111 call sites: %s", (_name, levelOf) => {
-  it("mock attempt on a mock assessment with tenant none shows expected answers", async () => {
-    await setLevel("none");
-    const s = await seed({ attemptMode: "mock", assessmentMode: "mock" });
-    expect(await levelOf(s)).toBe("with_expected_answer");
-  });
-
-  it("real attempt on a real assessment keeps the tenant level", async () => {
-    await setLevel("right_wrong");
-    const s = await seed({ attemptMode: "real", assessmentMode: "real" });
-    expect(await levelOf(s)).toBe("right_wrong");
-  });
-
-  it("mock attempt on a real assessment keeps the tenant level", async () => {
-    await setLevel("none");
-    const s = await seed({ attemptMode: "mock", assessmentMode: "real" });
-    expect(await levelOf(s)).toBe("none");
+  ["listCandidateResults", async (s: Seeded) => {
+    const list = await listCandidateResults(tenant, s.userId);
+    return list.items.find((i) => i.attempt_id === s.attemptId)?.feedback_level;
+  }],
+])("Z-145 call sites: %s", (_name, levelOf) => {
+  for (const level of LEVELS) {
+    it(`Mock, not embed, level ${level}: the candidate gets ${level}`, async () => {
+      expect(await levelOf(await seed({ attemptMode: "mock", level }))).toBe(level);
+    });
+    it(`Real, level ${level}: none`, async () => {
+      expect(await levelOf(await seed({ attemptMode: "real", level }))).toBe("none");
+    });
+    it(`Mock embed, level ${level}: none`, async () => {
+      expect(await levelOf(await seed({ attemptMode: "mock", level, embed: true }))).toBe("none");
+    });
+    it(`Real embed, level ${level}: none`, async () => {
+      expect(await levelOf(await seed({ attemptMode: "real", level, embed: true }))).toBe("none");
+    });
+  }
+  it("Mock with no feedback_level key or an unknown value: none", async () => {
+    expect(await levelOf(await seed({ attemptMode: "mock" }))).toBe("none");
+    expect(await levelOf(await seed({ attemptMode: "mock", level: "bogus" }))).toBe("none");
   });
 });
 
-describe("Z-111 call sites: missing assessment row", () => {
-  it("getCandidateFeedback keeps the tenant level when the assessment row is missing", async () => {
-    await setLevel("none");
-    const s = await seed({ attemptMode: "mock", assessmentRow: false });
+describe("Z-145 call sites: missing assessment row", () => {
+  it("getCandidateFeedback gives none when the assessment row is missing", async () => {
+    const s = await seed({ attemptMode: "mock", level: "right_wrong", assessmentRow: false });
     expect((await getCandidateFeedback(tenant, s.userId, s.attemptId)).level).toBe("none");
   });
 });

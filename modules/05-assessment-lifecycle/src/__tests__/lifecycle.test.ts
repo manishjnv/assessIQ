@@ -1483,6 +1483,17 @@ describe("Z-142/Z-144: test-type cards", () => {
     }
   });
 
+  it("Z-145: settings.feedback_level is stored, validated on create and PATCH, frozen after publish", async () => {
+    const a = await mk({ delivery_mode: "mock", settings: { feedback_level: "right_wrong" } });
+    expect((a.settings as Record<string, unknown>)["feedback_level"]).toBe("right_wrong");
+    const up = await updateAssessment(tenantA, a.id, { settings: { feedback_level: "with_ai_justification" } } as never, adminA);
+    expect((up.settings as Record<string, unknown>)["feedback_level"]).toBe("with_ai_justification");
+    expect(await codeOf(mk({ settings: { feedback_level: "everything" } }))).toEqual({ status: 400, code: "INVALID_PARAM" });
+    expect(await codeOf(updateAssessment(tenantA, a.id, { settings: { feedback_level: 3 } } as never, adminA))).toEqual({ status: 400, code: "INVALID_PARAM" });
+    await publishAssessment(tenantA, a.id, adminA);
+    expect(await codeOf(updateAssessment(tenantA, a.id, { settings: { feedback_level: "none" } } as never, adminA))).toEqual({ status: 409, code: AL_ERROR_CODES.ASSESSMENT_NOT_DRAFT });
+  });
+
   it("publish of a camera test needs the current notice (409 CAMERA_NOTICE_REQUIRED + settingsPath); a Real test publishes with no notice", async () => {
     await tenantSettings(`UPDATE tenant_settings SET camera_notice_confirmed_version = NULL WHERE tenant_id = $1`);
     const plain = await mk();

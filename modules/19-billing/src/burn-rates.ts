@@ -9,6 +9,11 @@ export type TestType = 'mock' | 'real' | 'real_camera';
 // Z-95 scale: 10x of the first ledger (2026-10-20)
 export const BURN: Record<TestType, number> = { mock: 10, real: 20, real_camera: 30 };
 
+/** Z-147: credits one invitation holds (and one submit burns), from the assessment's locked type. */
+export function inviteCost(a: { delivery_mode: 'real' | 'mock'; camera_required: boolean }): number {
+  return BURN[a.delivery_mode === 'mock' ? 'mock' : a.camera_required ? 'real_camera' : 'real'];
+}
+
 /** Old billing_events meter counts 1 per graded attempt; reported x this so it matches the x10 credit scale. */
 export const LEGACY_METER_UNITS_PER_ATTEMPT = 10;
 

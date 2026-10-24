@@ -145,6 +145,9 @@ interface Opts {
   releasedAt?: string;
   cert?: string;
   userId?: string;
+  /** Z-145: assessments.settings.feedback_level and attempts.delivery_mode. */
+  feedbackLevel?: string;
+  mode?: "real" | "mock";
 }
 
 async function seed(o: Opts = {}): Promise<Seeded> {
@@ -167,8 +170,8 @@ async function seed(o: Opts = {}): Promise<Seeded> {
       [level, pack, o.passing ?? 60],
     );
     await c.query(
-      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',$5,$6)`,
-      [assessmentId, tid, pack, level, Math.max(1, types.length), adm],
+      `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by, settings) VALUES ($1,$2,$3,$4,1,'SOC Analyst L1','active',$5,$6,$7::jsonb)`,
+      [assessmentId, tid, pack, level, Math.max(1, types.length), adm, JSON.stringify(o.feedbackLevel === undefined ? {} : { feedback_level: o.feedbackLevel })],
     );
     if (o.userId === undefined) {
       await c.query(
@@ -177,9 +180,9 @@ async function seed(o: Opts = {}): Promise<Seeded> {
       );
     }
     await c.query(
-      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, embed_origin)
-       VALUES ($1,$2,$3,$4,$5, now() - interval '20 minutes', now() + interval '40 minutes', ${o.status === "in_progress" ? "NULL" : "now()"}, 3600, $6)`,
-      [attemptId, tid, assessmentId, userId, o.status ?? "submitted", o.embed === true],
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, embed_origin, delivery_mode)
+       VALUES ($1,$2,$3,$4,$5, now() - interval '20 minutes', now() + interval '40 minutes', ${o.status === "in_progress" ? "NULL" : "now()"}, 3600, $6, $7)`,
+      [attemptId, tid, assessmentId, userId, o.status ?? "submitted", o.embed === true, o.mode ?? "real"],
     );
     let pos = 1;
     for (const type of types) {
@@ -336,20 +339,16 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
       negative_marking: { enabled: false, penalty_total: 0 }, // EX-1: no deterministic question carries a penalty
       // Z-39: default assessment = one attempt, so no retake is offered.
       retake: { assessment_id: expect.any(String), attempt_number: 1, attempts_allowed: 1, can_retake: false },
-      feedback_level: "none", // Z-44: tenant default
+      feedback_level: "none", // Z-145: Real attempt
     });
   });
 
-  it("Z-44: feedback_level in the single result follows tenant_settings.result_feedback_level", async () => {
-    const s = await seed({ status: "released", earned: 42, max: 60, passing: 60, releasedAt: "2026-10-01T10:00:00.000Z" });
-    try {
-      for (const level of ["right_wrong", "with_expected_answer", "with_ai_justification", "none"] as const) {
-        await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = $2 WHERE tenant_id = $1`, [tenant, level]));
-        const v = await getCandidateResult(tenant, s.userId, s.attemptId);
-        expect(v).toMatchObject({ status: "released", feedback_level: level });
-      }
-    } finally {
-      await sup((c) => c.query(`UPDATE tenant_settings SET result_feedback_level = 'none' WHERE tenant_id = $1`, [tenant]));
+  it("Z-145: feedback_level follows the assessment for a Mock attempt only", async () => {
+    for (const level of ["right_wrong", "with_expected_answer", "with_ai_justification", "none"] as const) {
+      const mock = await seed({ status: "released", earned: 42, max: 60, passing: 60, releasedAt: "2026-10-01T10:00:00.000Z", feedbackLevel: level, mode: "mock" });
+      expect(await getCandidateResult(tenant, mock.userId, mock.attemptId)).toMatchObject({ status: "released", feedback_level: level });
+      const real = await seed({ status: "released", earned: 42, max: 60, passing: 60, releasedAt: "2026-10-01T10:00:00.000Z", feedbackLevel: level });
+      expect(await getCandidateResult(tenant, real.userId, real.attemptId)).toMatchObject({ status: "released", feedback_level: "none" });
     }
   });
 
@@ -461,7 +460,7 @@ describe("listCandidateResults", () => {
     expect(items.map((i) => i.attempt_id)).not.toContain(other.attemptId);
     expect(items.map((i) => i.total_earned)).not.toContain(59); // the provisional 'graded' score never appears
     expect(Object.keys(items[0]!).sort()).toEqual( // nothing per-question, no bands / justifications
-      ["assessment_name", "attempt_id", "certificate", "delivery_mode", "is_new", "negative_marking", "pass_mark_pct", "passed", "percent", "released_at", "total_earned", "total_max"],
+      ["assessment_name", "attempt_id", "certificate", "delivery_mode", "feedback_level", "is_new", "negative_marking", "pass_mark_pct", "passed", "percent", "released_at", "total_earned", "total_max"],
     );
   });
 
@@ -485,7 +484,7 @@ describe("listCandidateResults", () => {
 
   it("a candidate with nothing released gets an empty list", async () => {
     const s = await seed({ status: "graded", earned: 50 });
-    expect(await listCandidateResults(tenant, s.userId)).toEqual({ items: [], feedback_level: "none" });
+    expect(await listCandidateResults(tenant, s.userId)).toEqual({ items: [] });
   });
 });
 

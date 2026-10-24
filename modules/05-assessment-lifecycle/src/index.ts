@@ -36,6 +36,7 @@ export {
   clearEmptyDrafts,
   reopenAssessment,
   inviteUsers,
+  precheckInvites,
   listInvitations,
   revokeInvitation,
   resendInvitation,

@@ -1,6 +1,6 @@
 // Z-44: the ONE plain sentence that says what per-question feedback a candidate can read.
 // Pure (no node imports): used by the result email (13), the Submitted page and the
-// result page (11). The level comes only from tenant_settings.result_feedback_level.
+// result page (11). The level comes only from assessments.settings.feedback_level (Z-145).
 
 export type FeedbackLevel = "none" | "right_wrong" | "with_expected_answer" | "with_ai_justification";
 
@@ -19,6 +19,11 @@ export function feedbackSentence(level: string | null | undefined): string | nul
     : null;
 }
 
+/** A stored value to a level; anything unknown or missing reads as "none" (never guess). */
+export function toFeedbackLevel(v: unknown): FeedbackLevel {
+  return v === "right_wrong" || v === "with_expected_answer" || v === "with_ai_justification" ? v : "none";
+}
+
 /** Rank of each level: a higher number shows more. Used by effectiveLevel and the feedback query. */
 export const FEEDBACK_LEVEL_RANK: Record<FeedbackLevel, number> = {
   none: 0,
@@ -28,17 +33,12 @@ export const FEEDBACK_LEVEL_RANK: Record<FeedbackLevel, number> = {
 };
 
 /**
- * Z-111: the level a candidate sees. A mock attempt on an assessment whose default
- * delivery mode is mock shows the expected answer at least. Other attempts keep the
- * tenant level. This stops a candidate who saw the answers in a mock from using them
- * on a real exam from the same pool.
+ * Z-145/Z-148: the level a candidate sees. Only a Mock attempt that is not an embed
+ * attempt gets the assessment's own level. A Real attempt or any embed attempt gets none.
  */
 export function effectiveLevel(
-  tenantLevel: FeedbackLevel,
-  ctx: { isMockAttempt: boolean; assessmentIsMock: boolean },
+  level: FeedbackLevel,
+  ctx: { isMockAttempt: boolean; isEmbed: boolean },
 ): FeedbackLevel {
-  if (!ctx.isMockAttempt || !ctx.assessmentIsMock) return tenantLevel;
-  return FEEDBACK_LEVEL_RANK[tenantLevel] >= FEEDBACK_LEVEL_RANK.with_expected_answer
-    ? tenantLevel
-    : "with_expected_answer";
+  return ctx.isMockAttempt && !ctx.isEmbed ? level : "none";
 }

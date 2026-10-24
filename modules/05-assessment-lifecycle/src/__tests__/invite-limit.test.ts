@@ -62,6 +62,8 @@ async function makeOrg(slug: string, tier: "free" | "internal", limit: number | 
   await sql(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1, $2, $3, 'Admin Person', 'admin', 'active')`, [adminId, tenantId, `admin-${slug}@example.com`]);
   await sql(`INSERT INTO tenant_plans (tenant_id, tier, included_credits) VALUES ($1, $2, $3)`, [tenantId, tier, tier === "internal" ? null : 2500]);
   if (limit !== "default") await sql(`UPDATE tenant_plans SET max_invited_per_assessment = $2 WHERE tenant_id = $1`, [tenantId, limit]);
+  // Z-147: a finite-credit tenant needs free credits to invite; these tests are about the student cap, so give plenty.
+  if (tier !== "internal") await sql(`INSERT INTO credit_grants (tenant_id, source, credits, remaining, expires_at) VALUES ($1, 'purchase', 100000, 100000, now() + interval '300 days')`, [tenantId]);
   if (tier !== "internal") await sql(`INSERT INTO tenant_entitlements (tenant_id, scope_type, scope_id) VALUES ($1, 'domain', 'soc')`, [tenantId]);
   const pack = await createPack(tenantId, { slug: `p-${slug}`, name: `Pack ${slug}`, domain: "soc" }, adminId);
   const level = await addLevel(tenantId, pack.id, { position: 1, label: "L1", duration_minutes: 30, default_question_count: 3 }, adminId);

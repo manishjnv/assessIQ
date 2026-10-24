@@ -211,6 +211,8 @@ export const AssessmentSettingsSchema = z
     integrity: AssessmentIntegritySettingsSchema.optional(),
     reminders: AssessmentRemindersSettingsSchema.optional(),
     high_stakes: z.boolean().optional(),
+    /** Z-145: per-question feedback for a Mock attempt (Real and embed always get none). Absent = none. */
+    feedback_level: z.enum(["none", "right_wrong", "with_expected_answer", "with_ai_justification"]).optional(),
     /** Z-39: which attempt counts when a candidate retakes. Absent = latest. */
     score_counts: z.enum(["latest", "best"]).optional(),
     sections: AssessmentSectionsSchema.optional(),
@@ -497,6 +499,8 @@ export const AL_ERROR_CODES = {
   ASSESSMENT_NOT_FOUND: "ASSESSMENT_NOT_FOUND",
   // EXP-37: the plan's limit of invited students per assessment would be exceeded.
   INVITE_LIMIT_EXCEEDED: "INVITE_LIMIT_EXCEEDED",
+  // Z-147: not enough free credits (balance minus held by open invitations) for this batch.
+  CREDITS_INSUFFICIENT: "CREDITS_INSUFFICIENT",
   INVITATION_NOT_FOUND: "INVITATION_NOT_FOUND",
   INVALID_STATE_TRANSITION: "INVALID_STATE_TRANSITION",
   POOL_TOO_SMALL: "POOL_TOO_SMALL",

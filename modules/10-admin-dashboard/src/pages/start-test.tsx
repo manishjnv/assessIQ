@@ -11,13 +11,14 @@ import { HelpTip } from "@assessiq/help-system/components";
 import { csvCell } from "@assessiq/core/escape";
 import { AdminShell } from "../components/AdminShell.js";
 import {
-  AdminApiError, createAssessmentFromSet, createFullMockApi, getAvailableSets, getPackLevelsApi, importCandidates,
-  importLicensedSet, inviteAssessmentUsers, listCandidates, listExamBlueprintsApi, publishAssessmentApi,
+  AdminApiError, createAssessmentFromSet, createFullMockApi, getAvailableSets, getCompanyUsage, getPackLevelsApi, importCandidates,
+  importLicensedSet, inviteAssessmentUsers, listCandidates, listExamBlueprintsApi, precheckInvitesApi, publishAssessmentApi,
 } from "../api.js";
 import type { AvailableSet, CandidateOption, ExamBlueprintSummary } from "../api.js";
 import { formatDate } from "../lib/format.js";
 import { inviteSkipReasonLabel } from "../lib/labels.js";
-import { TestTypeChooser, fromTestType, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
+import { TestTypeChooser, fromTestType, feedbackSetting, type FeedbackLevel, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
+import { CreditCostLine, CreditsRefusalBlock, INVITE_COST, creditsRefusal, type CreditsRefusal } from "../components/CreditHold.js";
 import { getCameraSettingsApi } from "../api/camera.js";
 import { cameraNoticeSettingsPath } from "../lib/camera-errors.js";
 
@@ -92,7 +93,12 @@ export function AdminStartTest(): React.ReactElement {
   const [closesAt, setClosesAt] = useState(() => toLocalInput(new Date(Date.now() + 7 * 86400000)));
   const [steps, setSteps] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<{ step: string; message: string; id: string | null; cameraPath: string | null } | null>(null);
+  const [failure, setFailure] = useState<{ step: string; message: string; id: string | null; cameraPath: string | null; partial?: boolean; refusal?: CreditsRefusal | null } | null>(null);
+  // Z-147: free credits (balance minus held); null = unlimited or unknown, so no cost line.
+  const [available, setAvailable] = useState<number | null>(null);
+  useEffect(() => {
+    getCompanyUsage().then((u) => setAvailable(u.credits && !u.credits.unlimited && typeof u.credits.available === "number" ? u.credits.available : null)).catch(() => setAvailable(null));
+  }, []);
   const [done, setDone] = useState<Done | null>(null);
   const [blueprints, setBlueprints] = useState<ExamBlueprintSummary[] | null>(null);
   const [mockOpen, setMockOpen] = useState(false);
@@ -100,6 +106,7 @@ export function AdminStartTest(): React.ReactElement {
   // Z-142 (7): test type and camera for the new test (the page had no type input before).
   const [testType, setTestType] = useState<TestType>("real");
   const [integrity, setIntegrity] = useState({ fullscreen: false, blockCopyPaste: false });
+  const [feedbackLevel, setFeedbackLevel] = useState<FeedbackLevel>("none"); // Z-145: Mock only
   const [cameraSettings, setCameraSettings] = useState<ChooserCameraSettings | null>(null);
   useEffect(() => {
     getCameraSettingsApi().then(setCameraSettings).catch(() => setCameraSettings(null));
@@ -141,6 +148,14 @@ export function AdminStartTest(): React.ReactElement {
     setName(`${s.name} — ${formatDate(new Date())}`);
   }
 
+  /** Z-147 "Invite N now": keep the first N people (chosen first, then pasted) and clear the refusal. */
+  function trimTo(n: number) {
+    const keep = [...picked].slice(0, n);
+    setPicked(new Set(keep));
+    setPasted(parsed.entries.slice(0, Math.max(0, n - keep.length)).map((e) => (e.name ? `${e.email}, ${e.name}` : e.email)).join("\n"));
+    setFailure(null);
+  }
+
   function reset() {
     setDone(null); setFailure(null); setSteps([]); setPicked(new Set()); setPasted(""); setSetId("");
     setBlueprintId(""); setMockOpen(false);
@@ -153,6 +168,10 @@ export function AdminStartTest(): React.ReactElement {
     let step = "Create the assessment";
     const mark = (s: string) => setSteps((p) => [...p, s]);
     try {
+      // Z-152: plan cap and credits BEFORE anything is created or published.
+      step = "Check the credits";
+      await precheckInvitesApi({ candidates: Math.min(total, 200), ...fromTestType(testType) });
+      step = "Create the assessment";
       let mockNote: string | undefined;
       if (blueprint !== null) {
         step = "Copy the question set into your organisation";
@@ -187,7 +206,7 @@ export function AdminStartTest(): React.ReactElement {
           settings: { integrity: {
             fullscreen: testType !== "mock" || integrity.fullscreen,
             block_copy_paste: testType !== "mock" || integrity.blockCopyPaste,
-          } },
+          }, ...feedbackSetting(testType, feedbackLevel) },
         };
         id = (await createAssessmentFromSet(body)).id;
         mark("Assessment created");
@@ -210,7 +229,15 @@ export function AdminStartTest(): React.ReactElement {
       if (parsed.entries.length > 0) {
         step = "Invite the pasted email addresses";
         const csv = "name,email\n" + parsed.entries.map((e) => `${csvCell(e.name || e.email.split("@")[0]!)},${csvCell(e.email)}`).join("\n");
-        const r = await importCandidates(csv, id);
+        let r: Awaited<ReturnType<typeof importCandidates>>;
+        try {
+          r = await importCandidates(csv, id);
+        } catch (e) {
+          // Z-152: the assessment is published (and the chosen list invited); say what exists.
+          const why = e instanceof AdminApiError ? e.apiError.message : "Something went wrong.";
+          setFailure({ step, id, message: `Published and invited ${invited}; the pasted list was refused: ${why}`, cameraPath: null, partial: true, refusal: creditsRefusal(e) });
+          return;
+        }
         invited += r.invited; created += r.created; warning = r.warning;
         for (const k of r.skipped) skipped.push({ who: k.email, reason: inviteSkipReasonLabel(k.reason) });
         mark(`Invited ${r.invited} pasted address${r.invited === 1 ? "" : "es"}`);
@@ -221,7 +248,7 @@ export function AdminStartTest(): React.ReactElement {
       const message = e instanceof AdminApiError ? e.apiError.message
         : e instanceof StepError ? e.message
         : "Something went wrong.";
-      setFailure({ step, id, message, cameraPath: cameraNoticeSettingsPath(e) });
+      setFailure({ step, id, message, cameraPath: cameraNoticeSettingsPath(e), refusal: creditsRefusal(e) });
     } finally {
       setBusy(false);
     }
@@ -321,6 +348,8 @@ export function AdminStartTest(): React.ReactElement {
                   integrity={integrity}
                   onIntegrityChange={setIntegrity}
                   cameraSettings={cameraSettings}
+                  feedbackLevel={feedbackLevel}
+                  onFeedbackLevelChange={setFeedbackLevel}
                 />
                 <div>
                   <Label htmlFor="st-name">Test name</Label>
@@ -415,13 +444,17 @@ export function AdminStartTest(): React.ReactElement {
 
             {steps.map((s) => <div key={s} style={sans}>✓ {s}</div>)}
             {busy && <Spinner />}
-            {failure !== null && (
+            {failure !== null && !(failure.refusal && failure.id === null) && (
               <div role="alert" style={{ ...sans, color: "var(--aiq-color-danger)" }}>
-                Step failed: {failure.step}. {failure.message}
+                {failure.partial ? failure.message : <>Step failed: {failure.step}. {failure.message}</>}
                 {failure.cameraPath !== null && <> <Link to={failure.cameraPath}>Open camera settings</Link></>}
                 {failure.id !== null && <> The assessment exists. <Link to={`/admin/assessments/${failure.id}`}>Open it to finish there.</Link></>}
               </div>
             )}
+            {failure?.refusal && (
+              <CreditsRefusalBlock refusal={failure.refusal} onInviteNow={failure.id === null ? trimTo : undefined} />
+            )}
+            <CreditCostLine count={total} cost={INVITE_COST[testType]} available={available} helpId="admin.start_test.credit_cost" />
             <div>
               <HelpTip helpId="admin.start_test.send">
                 <Button disabled={!canSend} onClick={() => void send()}>Send invitations</Button>

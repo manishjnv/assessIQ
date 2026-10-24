@@ -1048,6 +1048,10 @@ export interface CompanyUsage {
     grants: CreditGrantRow[];
     burn_by_type: CreditBurnTotals;
     ai_answers: number;
+    /** Z-147: credits held by open invitations; available = balance - held. Absent on an older API. */
+    held?: number;
+    held_invites?: number;
+    available?: number;
   };
 }
 
@@ -1648,6 +1652,18 @@ export async function inviteAssessmentUsers(
     method: "POST",
     body: JSON.stringify({ user_ids: userIds }),
   });
+}
+
+/**
+ * POST /api/admin/assessments/precheck-invites (Z-152) - plan cap and credit check for N new invitations, before
+ * Start a test creates anything. Resolves when allowed; throws AdminApiError 409 CREDITS_INSUFFICIENT / INVITE_LIMIT_EXCEEDED.
+ */
+export async function precheckInvitesApi(body: {
+  candidates: number;
+  delivery_mode: "real" | "mock";
+  camera_required: boolean;
+}): Promise<{ ok: true }> {
+  return adminApi("/admin/assessments/precheck-invites", { method: "POST", body: JSON.stringify(body) });
 }
 
 /** POST /api/admin/users/import — create-or-find candidates by email and invite them. */

@@ -8,12 +8,13 @@ const api = vi.hoisted(() => ({
   getAvailableSets: vi.fn(), listCandidates: vi.fn(), createAssessmentFromSet: vi.fn(),
   publishAssessmentApi: vi.fn(), inviteAssessmentUsers: vi.fn(), importCandidates: vi.fn(),
   listExamBlueprintsApi: vi.fn(), createFullMockApi: vi.fn(), getPackLevelsApi: vi.fn(), importLicensedSet: vi.fn(),
+  getCompanyUsage: vi.fn(), precheckInvitesApi: vi.fn(),
 }));
 vi.mock("../api.js", () => ({
   ...api,
   AdminApiError: class AdminApiError extends Error {
-    apiError: { code: string; message: string };
-    constructor(_s: number, e: { code: string; message: string }) { super(e.message); this.apiError = e; }
+    apiError: { code: string; message: string; details?: Record<string, unknown> };
+    constructor(_s: number, e: { code: string; message: string; details?: Record<string, unknown> }) { super(e.message); this.apiError = e; }
   },
 }));
 vi.mock("../api/camera.js", () => ({
@@ -35,6 +36,8 @@ function setup(blueprints: unknown[] = []) {
   api.listExamBlueprintsApi.mockResolvedValue({ items: blueprints });
   api.getAvailableSets.mockResolvedValue({ sets: [SET] });
   api.listCandidates.mockResolvedValue({ items: [{ id: "u1", email: "a@x.com", name: "Asha", status: "active" }, { id: "u2", email: "z@x.com", name: "Zed", status: "suspended" }] });
+  api.getCompanyUsage.mockResolvedValue({ credits: { unlimited: false, available: 100 } });
+  api.precheckInvitesApi.mockResolvedValue({ ok: true });
   api.createAssessmentFromSet.mockResolvedValue({ id: "as1" });
   api.publishAssessmentApi.mockResolvedValue({});
   api.inviteAssessmentUsers.mockResolvedValue({ invited: 1, skipped: [] });
@@ -194,5 +197,60 @@ describe("full mock on Start a test (EXP-6 / Z-42 tail)", () => {
       expect(id.startsWith(`${START_TEST_HELP_PAGE}.`)).toBe(true);
       expect(id.includes("-")).toBe(false);
     }
+  });
+});
+
+describe("Z-147 / Z-152 credits on Start a test", () => {
+  const REFUSAL = { code: "CREDITS_INSUFFICIENT", message: "You need 40 credits. You have 25 available. Buy credits or invite up to 1 student(s) now.", details: { code: "CREDITS_INSUFFICIENT", need: 40, available: 25, canInvite: 1, cost: 20 } };
+
+  async function pick(n: 1 | 2) {
+    await screen.findByText(/Asha/);
+    fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
+    if (n === 2) fireEvent.change(screen.getByLabelText(/Or paste/), { target: { value: "b@x.com, Bo" } });
+  }
+
+  it("shows N x cost = X credits and what is available before send", async () => {
+    setup();
+    await pick(2);
+    const line = await screen.findByTestId("credit-cost-line");
+    expect(line.textContent).toBe("2 students x 20 = 40 credits, you have 100 available");
+  });
+
+  it("calls the pre-check before create and stops there when it is refused", async () => {
+    setup();
+    api.precheckInvitesApi.mockRejectedValue(new AdminApiError(409, REFUSAL));
+    await pick(2);
+    fireEvent.click(send());
+    const box = await screen.findByTestId("credits-refusal");
+    expect(box.textContent).toContain("You need 40 credits");
+    expect(api.precheckInvitesApi).toHaveBeenCalledWith({ candidates: 2, delivery_mode: "real", camera_required: false });
+    expect(api.createAssessmentFromSet).not.toHaveBeenCalled();
+    expect(api.publishAssessmentApi).not.toHaveBeenCalled();
+    expect(api.inviteAssessmentUsers).not.toHaveBeenCalled();
+    expect(api.importCandidates).not.toHaveBeenCalled();
+    expect(screen.getByRole("link", { name: "Buy credits" }).getAttribute("href")).toBe("/contact");
+  });
+
+  it("Invite N now trims the selection and clears the refusal", async () => {
+    setup();
+    api.precheckInvitesApi.mockRejectedValue(new AdminApiError(409, REFUSAL));
+    await pick(2);
+    fireEvent.click(send());
+    fireEvent.click(await screen.findByRole("button", { name: "Invite 1 now" }));
+    expect(screen.queryByTestId("credits-refusal")).toBeNull();
+    expect((screen.getByLabelText(/Or paste/) as HTMLTextAreaElement).value).toBe("");
+    expect(screen.getByTestId("credit-cost-line").textContent).toContain("1 student x 20 = 20 credits");
+  });
+
+  it("reports a refused pasted list after the chosen list was invited, with the assessment link", async () => {
+    setup();
+    api.importCandidates.mockRejectedValue(new AdminApiError(409, { code: "CREDITS_INSUFFICIENT", message: "No credits left." }));
+    await pick(2);
+    fireEvent.click(send());
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Published and invited 1; the pasted list was refused: No credits left.");
+    expect(screen.getByRole("link", { name: /Open it/ }).getAttribute("href")).toBe("/admin/assessments/as1");
+    expect(api.publishAssessmentApi).toHaveBeenCalledWith("as1");
   });
 });
