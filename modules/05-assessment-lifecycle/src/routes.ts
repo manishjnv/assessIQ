@@ -41,6 +41,7 @@ import {
   createAssessment,
   createAssessmentFromSet,
   createMockFromBlueprint,
+  createDrill,
   importLicensedSet,
   resyncLicensedSet,
   getAssessmentDetail,
@@ -287,6 +288,50 @@ export async function registerAssessmentLifecycleRoutes(
       return reply.code(201).send(result);
     },
   );
+
+  // POST /api/admin/drills  (EXP-11)
+  // Topic drill: a DRAFT mock with one section per chosen Subject-map node, optional difficulty range, one timer.
+  const DrillBody = z
+    .object({
+      pack_id: z.string().uuid(),
+      level_id: z.string().uuid(),
+      node_ids: z.array(z.string().uuid()).min(1).max(10),
+      question_count: z.number().int().min(1).max(500),
+      difficulty_min: z.number().int().min(1).max(5).optional(),
+      difficulty_max: z.number().int().min(1).max(5).optional(),
+      minutes: z.number().int().min(1).max(600).optional(),
+      opens_at: z.string().min(1),
+      closes_at: z.string().min(1).nullable().optional(),
+      name: z.string().trim().min(1).max(200).optional(),
+    })
+    .strict()
+    .refine((b) => b.difficulty_min === undefined || b.difficulty_max === undefined || b.difficulty_min <= b.difficulty_max, {
+      message: "difficulty_min must not be above difficulty_max",
+    });
+  app.post("/api/admin/drills", { preHandler: adminOnly }, async (req, reply) => {
+    const body = DrillBody.safeParse(req.body);
+    if (!body.success) {
+      throw new ValidationError("invalid body", { details: { code: "INVALID_PARAM", issues: body.error.issues } });
+    }
+    const b = body.data;
+    const result = await createDrill(
+      req.session!.tenantId,
+      {
+        pack_id: b.pack_id,
+        level_id: b.level_id,
+        node_ids: b.node_ids,
+        question_count: b.question_count,
+        ...(b.difficulty_min !== undefined ? { difficulty_min: b.difficulty_min } : {}),
+        ...(b.difficulty_max !== undefined ? { difficulty_max: b.difficulty_max } : {}),
+        ...(b.minutes !== undefined ? { minutes: b.minutes } : {}),
+        opens_at: parseDate(b.opens_at, "opens_at"),
+        ...(b.closes_at != null ? { closes_at: parseDate(b.closes_at, "closes_at") } : {}),
+        ...(b.name !== undefined ? { name: b.name } : {}),
+      },
+      req.session!.userId,
+    );
+    return reply.code(201).send(result);
+  });
 
   // POST /api/admin/assessments/from-set
   // Step 2 — clone-on-use: create an assessment from a licensed PLATFORM-library
