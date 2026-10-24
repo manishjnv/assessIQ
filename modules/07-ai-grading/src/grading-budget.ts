@@ -40,6 +40,21 @@ export interface CallUsage {
   cache_creation_input_tokens?: number;
 }
 
+export interface CachedUsage {
+  usd: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+/** Z-163: read the usage of a cached proposal. Anything that is not a clean non-negative record is dropped (null). */
+export function parseCachedUsage(v: unknown): CachedUsage | null {
+  if (v === null || typeof v !== "object") return null;
+  const { usd, input_tokens, output_tokens } = v as Record<string, unknown>;
+  const ok = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n) && n >= 0;
+  if (!ok(usd) || !ok(input_tokens) || !ok(output_tokens)) return null;
+  return { usd, input_tokens: Math.round(input_tokens), output_tokens: Math.round(output_tokens) };
+}
+
 export function callCostUsd(model: string, u: CallUsage): number {
   const hit = PRICES.find(([p]) => model.startsWith(p));
   const [pin, pout] = hit ? [hit[1], hit[2]] : FALLBACK;

@@ -12,7 +12,7 @@ vi.mock("../repository.js", () => ({
   addBudgetUsage: vi.fn(() => Promise.resolve()),
 }));
 
-import { assertBudget, callCostUsd, recordUsage } from "../grading-budget.js";
+import { assertBudget, callCostUsd, parseCachedUsage, recordUsage } from "../grading-budget.js";
 import { addBudgetUsage, rollAndFindBudget } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
 
@@ -65,5 +65,19 @@ describe("recordUsage", () => {
   it("writes the cost and token counts to the ledger", async () => {
     await recordUsage("t1", { usd: 0.008, inputTokens: 3000, outputTokens: 400 });
     expect(addBudgetUsage).toHaveBeenCalledWith({}, { usd: 0.008, inputTokens: 3000, outputTokens: 400 });
+  });
+});
+
+describe("parseCachedUsage (Z-163 per-row cost)", () => {
+  it("accepts a clean record and rounds tokens", () => {
+    expect(parseCachedUsage({ usd: 0.0085, input_tokens: 2800.4, output_tokens: 300 })).toEqual({ usd: 0.0085, input_tokens: 2800, output_tokens: 300 });
+  });
+  it("drops anything that is not a clean non-negative record", () => {
+    expect(parseCachedUsage(undefined)).toBeNull();
+    expect(parseCachedUsage(null)).toBeNull();
+    expect(parseCachedUsage("x")).toBeNull();
+    expect(parseCachedUsage({ usd: -1, input_tokens: 1, output_tokens: 1 })).toBeNull();
+    expect(parseCachedUsage({ usd: 1, input_tokens: "5", output_tokens: 1 })).toBeNull();
+    expect(parseCachedUsage({ usd: Number.NaN, input_tokens: 1, output_tokens: 1 })).toBeNull();
   });
 });

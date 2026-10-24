@@ -26,6 +26,7 @@ import {
   isProposalNewerThanGradings,
 } from "../repository.js";
 import { AI_GRADING_ERROR_CODES } from "../types.js";
+import { parseCachedUsage, type CachedUsage } from "../grading-budget.js";
 import { AppError, streamLogger } from "@assessiq/core";
 import type { AnchorFinding, GradingProposal, GradingsRow } from "../types.js";
 import type { PoolClient } from "pg";
@@ -195,7 +196,7 @@ async function acceptProposals(
   const attemptStatus = lock.rows[0]?.status;
   // RW-41: provenance comes from the server-side proposals cache, never from the
   // client-supplied proposal body.
-  const cachedProvenance = new Map<string, { cli_version: string | null; stage_inputs: unknown }>();
+  const cachedProvenance = new Map<string, { cli_version: string | null; stage_inputs: unknown; usage: CachedUsage | null }>();
   const cache = lock.rows[0]?.ai_proposals;
   if (Array.isArray(cache)) {
     for (const e of cache as Array<Record<string, unknown> | null>) {
@@ -203,6 +204,7 @@ async function acceptProposals(
         cachedProvenance.set(e.question_id, {
           cli_version: typeof e.cli_version === "string" ? e.cli_version : null,
           stage_inputs: e.stage_inputs ?? null,
+          usage: parseCachedUsage(e.usage),
         });
       }
     }
@@ -320,6 +322,7 @@ async function acceptProposals(
       override_reason: null,
       cli_version: cachedProvenance.get(proposal.question_id)?.cli_version ?? null,
       stage_inputs: cachedProvenance.get(proposal.question_id)?.stage_inputs ?? null,
+      usage: cachedProvenance.get(proposal.question_id)?.usage ?? null,
     });
 
     // FU-A4 (2026-10-06): second billing meter, one row per accepted AI

@@ -344,7 +344,9 @@ export async function gradeSubjective(input: GradingInput): Promise<GradingPropo
   await assertBudget(tenantId);
   const meter: UsageMeter = { usd: 0, inputTokens: 0, outputTokens: 0 };
   try {
-    return await gradeWithRunner(input, (o) => runStage(o, meter));
+    const proposal = await gradeWithRunner(input, (o) => runStage(o, meter));
+    // Z-163: carry the real cost on the proposal; the accept path stores it on the gradings row.
+    return { ...proposal, usage: { usd: meter.usd, input_tokens: meter.inputTokens, output_tokens: meter.outputTokens } };
   } finally {
     // A failed grading still spent tokens: count them. A ledger failure must not hide the grading result.
     if (meter.inputTokens > 0 || meter.outputTokens > 0) {

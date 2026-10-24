@@ -72,6 +72,15 @@ export const GradingProposalSchema = z.object({
   reused_from_grading_id: z.string().uuid().optional(),
   /** RW-41: claude CLI version that produced the proposal (claude-code-vps only). */
   cli_version: z.string().max(200).nullable().optional(),
+  /** Z-163: real cost and tokens of the AI calls (anthropic-api runtime only). Read back from the server-side cache at accept. */
+  usage: z
+    .object({
+      usd: z.number().nonnegative(),
+      input_tokens: z.number().int().nonnegative(),
+      output_tokens: z.number().int().nonnegative(),
+    })
+    .nullable()
+    .optional(),
   /** RW-41: raw tool inputs per stage as submitted by the model. */
   stage_inputs: z
     .object({
