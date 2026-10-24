@@ -235,6 +235,8 @@ export async function insertAttempt(
     attemptNumber: number;
     /** Z-89: copied from the invitation by startAttempt, never from a request. */
     deliveryMode?: "real" | "mock";
+    /** Z-144: the RESOLVED camera policy at start (drives the 30-credit burn). Embed writes false. */
+    cameraEnabled?: boolean;
     /** Z-91: stored check result for the attempt (real: passed; mock: optional). */
     readiness?: unknown;
   },
@@ -249,8 +251,8 @@ export async function insertAttempt(
   try {
     result = await client.query<AttemptRow>(
     `INSERT INTO attempts
-       (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, embed_origin, attempt_number, delivery_mode, readiness)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb)
+       (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, embed_origin, attempt_number, delivery_mode, readiness, camera_enabled)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13)
      RETURNING ${ATTEMPT_COLUMNS}`,
     [
       input.id,
@@ -265,6 +267,7 @@ export async function insertAttempt(
       input.attemptNumber,
       input.deliveryMode ?? "real",
       input.readiness === undefined ? null : JSON.stringify(input.readiness),
+      input.cameraEnabled ?? false,
     ],
   );
   } catch (err) {

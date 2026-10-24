@@ -86,6 +86,7 @@ export async function resolveInvitationToken(
       a_max_attempts: number | null;
       a_duration_minutes: number | null;
       a_delivery_mode: string;
+      a_camera_required: boolean;
       inv_extra_attempts: number;
       attempts_used: number;
       a_randomize: boolean;
@@ -129,6 +130,7 @@ export async function resolveInvitationToken(
          a.max_attempts     AS a_max_attempts,
          a.duration_minutes AS a_duration_minutes,
          a.delivery_mode    AS a_delivery_mode,
+         a.camera_required  AS a_camera_required,
          ai.extra_attempts  AS inv_extra_attempts,
          (SELECT count(*)::int FROM attempts t
            WHERE t.assessment_id = ai.assessment_id AND t.user_id = ai.user_id
@@ -191,6 +193,7 @@ export async function resolveInvitationToken(
         max_attempts: row.a_max_attempts,
         duration_minutes: row.a_duration_minutes,
         delivery_mode: row.a_delivery_mode === "mock" ? "mock" : "real",
+        camera_required: row.a_camera_required === true,
         randomize: row.a_randomize,
         opens_at: row.a_opens_at,
         closes_at: row.a_closes_at,

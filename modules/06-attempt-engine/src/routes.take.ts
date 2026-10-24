@@ -266,7 +266,7 @@ export async function registerAttemptTakeRoutes(
         }
         throw err;
       }
-      const cameraRequired = await isCameraRequired(resolved.assessment.tenant_id, pv.deliveryMode);
+      const cameraRequired = await isCameraRequired(resolved.assessment.tenant_id, pv.deliveryMode, resolved.assessment.id);
       const durationSeconds =
         // Z-134: the same length startAttempt sets (blueprint / section / level time).
         pv.existing?.duration_seconds ??
@@ -498,6 +498,7 @@ export async function registerAttemptTakeRoutes(
         invitationId: resolved.invitation.id,
         userId: resolved.candidate.id,
         deliveryMode: resolved.invitation.delivery_mode,
+        assessmentId: resolved.assessment.id,
         decision,
         ipHash: hashCameraIp(extractClientIp(req)),
         deviceType: mobile ? "mobile" : "desktop",

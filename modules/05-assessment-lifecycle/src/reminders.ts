@@ -157,6 +157,7 @@ interface Claimed {
   deadline: Date;
   link: string;
   deliveryMode: "real" | "mock";
+  assessmentId: string;
 }
 
 /** Claim ONE invitation in its tenant's transaction; null when it is no longer eligible. */
@@ -201,6 +202,7 @@ async function claim(c: Candidate): Promise<Claimed | null> {
       deadline,
       link: `${config.ASSESSIQ_BASE_URL}/take/${plaintext}`,
       deliveryMode: row.delivery_mode === "mock" ? "mock" : "real", // the invitation row, never the request
+      assessmentId: row.assessment_id,
     };
   });
 }
@@ -240,6 +242,7 @@ export async function sweepInvitationReminders(): Promise<ReminderSweepResult> {
         tenantName: claimed.tenantName,
         tenantId: c.tenant_id,
         deliveryMode: claimed.deliveryMode,
+        assessmentId: claimed.assessmentId,
       });
       result.sent += 1;
     } catch (err) {

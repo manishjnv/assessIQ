@@ -22,6 +22,7 @@ const base = {
   noticeConfirmedVersion: null,
   requiredNoticeVersion: "v2",
   storage: { usedBytes: 10, maxBytes: 100, warn: false },
+  cameraEnforced: true,
 };
 
 beforeEach(() => {
@@ -61,11 +62,19 @@ describe("CameraSettingsCard", () => {
     await waitFor(() => expect(api.patchCameraSettingsApi).toHaveBeenCalledWith({ photosEnabled: true }));
   });
 
-  it("not a school: no switches, one line about real tests", async () => {
+  it("not a school: no switches, one line about the notice and the camera", async () => {
     api.getCameraSettingsApi.mockResolvedValue({ ...base, isSchool: false, noticeConfirmedVersion: "v2" });
     render(<CameraSettingsCard />);
-    expect(await screen.findByText(/on for every real test/)).toBeTruthy();
+    expect(await screen.findByText("Confirm the camera notice to publish tests with the camera.")).toBeTruthy();
     expect(screen.queryByRole("switch", { name: "Photos" })).toBeNull();
+  });
+
+  it("normal organisation sees the notice confirm button", async () => {
+    api.getCameraSettingsApi.mockResolvedValue({ ...base, isSchool: false, noticeConfirmedVersion: null });
+    render(<CameraSettingsCard />);
+    const box = (await screen.findByRole("checkbox")) as HTMLInputElement;
+    expect(box.disabled).toBe(false);
+    expect(screen.getByText("I have the consent and notice my candidates need for camera use.")).toBeTruthy();
   });
 
   it("shows the storage warning banner when storage is nearly full", async () => {

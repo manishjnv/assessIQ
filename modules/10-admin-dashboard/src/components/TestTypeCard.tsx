@@ -1,22 +1,30 @@
-// AssessIQ — "Test type" card on the assessment detail page (Z-89).
-// Edits assessments.delivery_mode: the default for new invitations ('real' or 'mock').
-// Draft only (the server rejects a patch on a published assessment). The admin can still
-// pick the type per invitation batch in the invite form.
+// AssessIQ — "Test type" card on the assessment detail page (Z-89, Z-142 camera).
+// Edits assessments.delivery_mode ('real' or 'mock') and assessments.camera_required.
+// Draft only (the server rejects a patch on a published assessment). Temporary: the card
+// chooser (Z-143) replaces this in the next batch.
 
 import React, { useState } from "react";
 import { HelpTip } from "@assessiq/help-system/components";
 import { adminApi, AdminApiError } from "../api.js";
 
+function typeLabel(mode: "real" | "mock", camera: boolean): string {
+  if (mode === "mock") return "Mock";
+  return camera ? "Real + camera" : "Real";
+}
+
 export function TestTypeCard({
   assessmentId,
   initial,
+  initialCameraRequired,
   isDraft,
 }: {
   assessmentId: string;
   initial: "real" | "mock";
+  initialCameraRequired: boolean;
   isDraft: boolean;
 }): React.ReactElement {
   const [value, setValue] = useState<"real" | "mock">(initial);
+  const [cameraRequired, setCameraRequired] = useState(initial === "real" && initialCameraRequired);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -26,7 +34,7 @@ export function TestTypeCard({
     try {
       await adminApi(`/admin/assessments/${assessmentId}`, {
         method: "PATCH",
-        body: JSON.stringify({ delivery_mode: value }),
+        body: JSON.stringify({ delivery_mode: value, camera_required: value === "real" && cameraRequired }),
       });
       setMsg({ ok: true, text: "Saved." });
     } catch (err) {
@@ -58,33 +66,50 @@ export function TestTypeCard({
           Test type
         </h2>
       </HelpTip>
-      <label htmlFor="assessment-test-type" style={{ color: "var(--aiq-color-fg-muted)" }}>
-        The type new invitations start with. You can still change it for each batch when you invite.
-      </label>
-      <select
-        id="assessment-test-type"
-        className="aiq-input"
-        style={{ maxWidth: 280 }}
-        value={value}
-        disabled={!isDraft}
-        onChange={(e) => setValue(e.target.value === "mock" ? "mock" : "real")}
-      >
-        <option value="real">Real exam (laptop or desktop only)</option>
-        <option value="mock">Mock test (any device, no certificate)</option>
-      </select>
       {isDraft ? (
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
-          <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={busy} onClick={() => void save()}>
-            {busy ? "Saving…" : "Save test type"}
-          </button>
-          {msg && (
-            <span role={msg.ok ? "status" : "alert"} style={{ color: msg.ok ? "var(--aiq-color-success)" : "var(--aiq-color-danger)" }}>
-              {msg.text}
-            </span>
-          )}
-        </div>
+        <>
+          <label htmlFor="assessment-test-type" style={{ color: "var(--aiq-color-fg-muted)" }}>
+            The type of this test. It cannot change after you publish.
+          </label>
+          <select
+            id="assessment-test-type"
+            className="aiq-input"
+            style={{ maxWidth: 280 }}
+            value={value}
+            onChange={(e) => {
+              const next = e.target.value === "mock" ? "mock" : "real";
+              setValue(next);
+              if (next === "mock") setCameraRequired(false);
+            }}
+          >
+            <option value="real">Real exam (laptop or desktop only)</option>
+            <option value="mock">Mock test (any device, no certificate)</option>
+          </select>
+          <label style={{ display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}>
+            <input
+              type="checkbox"
+              checked={value === "real" && cameraRequired}
+              disabled={value === "mock"}
+              onChange={(e) => setCameraRequired(e.target.checked)}
+            />
+            Camera required
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)" }}>
+            <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={busy} onClick={() => void save()}>
+              {busy ? "Saving…" : "Save test type"}
+            </button>
+            {msg && (
+              <span role={msg.ok ? "status" : "alert"} style={{ color: msg.ok ? "var(--aiq-color-success)" : "var(--aiq-color-danger)" }}>
+                {msg.text}
+              </span>
+            )}
+          </div>
+        </>
       ) : (
-        <div style={{ color: "var(--aiq-color-fg-muted)" }}>Locked: this can only change while the assessment is a draft.</div>
+        <>
+          <div>Type: {typeLabel(value, value === "real" && cameraRequired)}</div>
+          <div style={{ color: "var(--aiq-color-fg-muted)" }}>Locked: this can only change while the assessment is a draft.</div>
+        </>
       )}
     </div>
   );

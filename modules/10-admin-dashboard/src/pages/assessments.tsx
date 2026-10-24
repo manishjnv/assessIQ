@@ -87,6 +87,8 @@ export function AdminAssessments(): React.ReactElement {
   const [bpMarksPerQuestion, setBpMarksPerQuestion] = useState("");
   // Z-89: default test type of the new assessment (the invite form can still override per batch).
   const [deliveryMode, setDeliveryMode] = useState<"real" | "mock">("real");
+  // Z-142 (7): camera for a real test. Only sent as true when the type is Real.
+  const [cameraRequired, setCameraRequired] = useState(false);
   const [creating, setCreating] = useState(false);
   // Integrity v1: written to settings.integrity on create (both default off).
   const [integrityFullscreen, setIntegrityFullscreen] = useState(false);
@@ -248,7 +250,11 @@ export function AdminAssessments(): React.ReactElement {
       const closesAtIso = newForm.closes_at ? new Date(newForm.closes_at).toISOString() : undefined;
       const integritySettings = {
         // High-stakes is set on the detail page (HighStakesCard), not at create (RW-17).
-        integrity: { fullscreen: integrityFullscreen, block_copy_paste: integrityBlockCopy },
+        // Z-142: a Real test is fixed on (the server refuses false); only Mock follows the checkboxes.
+        integrity: {
+          fullscreen: deliveryMode === "real" || integrityFullscreen,
+          block_copy_paste: deliveryMode === "real" || integrityBlockCopy,
+        },
       };
 
       // ── From-set (clone-on-use) ───────────────────────────────────────────
@@ -267,6 +273,7 @@ export function AdminAssessments(): React.ReactElement {
           ...(closesAtIso ? { closes_at: closesAtIso } : {}),
           ...(passMarkNum !== null ? { passing_score_pct: passMarkNum } : {}),
           delivery_mode: deliveryMode,
+          camera_required: deliveryMode === "real" && cameraRequired,
           settings: { ...integritySettings, ...(builtSections?.settings ?? {}) },
         });
         navigate(`/admin/assessments/${created.id}`);
@@ -279,6 +286,7 @@ export function AdminAssessments(): React.ReactElement {
       if (closesAtIso) body.closes_at = closesAtIso;
       if (passMarkNum !== null) body.passing_score_pct = passMarkNum;
       body.delivery_mode = deliveryMode;
+      body.camera_required = deliveryMode === "real" && cameraRequired;
 
       if (pendingBlueprint !== null) {
         // Blueprint mode: send settings.blueprint; backend resolves pack/level/question_count
@@ -616,11 +624,27 @@ export function AdminAssessments(): React.ReactElement {
                     id="new-assessment-test-type"
                     className="aiq-input"
                     value={deliveryMode}
-                    onChange={(e) => setDeliveryMode(e.target.value === "mock" ? "mock" : "real")}
+                    onChange={(e) => {
+                      const next = e.target.value === "mock" ? "mock" : "real";
+                      setDeliveryMode(next);
+                      if (next === "mock") setCameraRequired(false);
+                    }}
                   >
                     <option value="real">Real exam</option>
                     <option value="mock">Mock test</option>
                   </select>
+                  <label
+                    data-help-id="admin.assessment.invite.test_type"
+                    style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={deliveryMode === "real" && cameraRequired}
+                      disabled={deliveryMode === "mock"}
+                      onChange={(e) => setCameraRequired(e.target.checked)}
+                    />
+                    Camera required
+                  </label>
                 </div>
               </div>
 

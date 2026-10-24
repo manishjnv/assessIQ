@@ -109,7 +109,7 @@ export type CameraCheckState = 'idle' | 'checking' | 'ok' | 'fail';
 
 // Camera check (real exams only). Not sent to the server: the server checks only the signals above.
 export const CAMERA_MESSAGES = {
-  denied: 'Camera access is blocked. Allow the camera in your browser settings, then press Retry.',
+  denied: 'Your browser blocked the camera. Allow the camera for this page, then reload.',
   missing: 'No camera was found. Connect a camera and press Retry.',
   busy: 'Your camera is in use by another app. Close it and press Retry.',
   other: 'The camera could not start. Press Retry.',

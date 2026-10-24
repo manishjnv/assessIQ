@@ -8,21 +8,22 @@ vi.mock("@assessiq/notifications", () => ({
 }));
 import { sendInvitationEmail, sendReminderEmail, setCameraRequiredResolver } from "../email.js";
 
-const inv = { to: "a@x.test", candidateName: "A", assessmentName: "T", invitationLink: "https://x.test/take/t", expiresAt: new Date(), tenantName: "O", tenantId: "t1" };
-const rem = { to: "a@x.test", candidateName: "A", assessmentName: "T", invitationLink: "https://x.test/take/t", deadline: new Date(), tenantName: "O", tenantId: "t1" };
+const inv = { to: "a@x.test", candidateName: "A", assessmentName: "T", invitationLink: "https://x.test/take/t", expiresAt: new Date(), tenantName: "O", tenantId: "t1", assessmentId: "a1" };
+const rem = { to: "a@x.test", candidateName: "A", assessmentName: "T", invitationLink: "https://x.test/take/t", deadline: new Date(), tenantName: "O", tenantId: "t1", assessmentId: "a1" };
 const flag = (m: ReturnType<typeof vi.fn>) => (m.mock.calls.at(-1) as unknown as [{ cameraRequired: boolean }])[0].cameraRequired;
 
 beforeEach(() => { vi.clearAllMocks(); setCameraRequiredResolver(undefined); });
 
 describe("camera flag passed to the sender", () => {
-  it("real + resolver true -> true (invite and reminder), and the resolver gets tenant and mode", async () => {
+  it("real + resolver true -> true (invite and reminder), and the resolver gets tenant, mode and assessment", async () => {
     const fn = vi.fn(async () => true);
     setCameraRequiredResolver(fn);
     await sendInvitationEmail({ ...inv, deliveryMode: "real" });
     await sendReminderEmail({ ...rem, deliveryMode: "real" });
     expect(flag(sent.invite)).toBe(true);
     expect(flag(sent.reminder)).toBe(true);
-    expect(fn).toHaveBeenCalledWith("t1", "real");
+    expect(fn).toHaveBeenNthCalledWith(1, "t1", "real", "a1");
+    expect(fn).toHaveBeenNthCalledWith(2, "t1", "real", "a1");
   });
   it("mock -> false and the resolver is not asked", async () => {
     const fn = vi.fn(async () => true);
@@ -39,6 +40,14 @@ describe("camera flag passed to the sender", () => {
     await sendInvitationEmail({ ...inv, deliveryMode: "real", cameraRequired: true });
     expect(flag(sent.invite)).toBe(true);
     await sendInvitationEmail({ ...inv, deliveryMode: "real", cameraRequired: false });
+    expect(flag(sent.invite)).toBe(false);
+    expect(fn).not.toHaveBeenCalled();
+  });
+  it("no assessment id -> false and the resolver is not asked (the camera is per assessment)", async () => {
+    const fn = vi.fn(async () => true);
+    setCameraRequiredResolver(fn);
+    const { assessmentId: _a, ...noAssessment } = inv;
+    await sendInvitationEmail({ ...noAssessment, deliveryMode: "real" });
     expect(flag(sent.invite)).toBe(false);
     expect(fn).not.toHaveBeenCalled();
   });

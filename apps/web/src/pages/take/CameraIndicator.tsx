@@ -61,7 +61,7 @@ export function CameraLostOverlay({ state, onRetry }: { state: CameraState; onRe
         </h2>
         <p id="aiq-camera-lost-text" style={{ margin: '0 0 var(--aiq-space-md)' }}>
           {denied
-            ? 'Camera access is blocked. Allow the camera in your browser settings, then press Retry.'
+            ? 'Your browser blocked the camera. Allow the camera for this page, then reload.'
             : 'Turn your camera back on to continue. Your time keeps running.'}
         </p>
         <Button variant="primary" size="lg" onClick={onRetry}>Retry</Button>

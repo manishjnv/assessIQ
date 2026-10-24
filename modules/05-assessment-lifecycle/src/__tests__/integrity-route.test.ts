@@ -35,12 +35,13 @@ async function withSuperClient<T>(fn: (c: Client) => Promise<T>): Promise<T> {
 const sql = (text: string, params: unknown[] = []) =>
   withSuperClient((c) => c.query(text, params)).then((r) => r.rows);
 
-async function newAssessment(settings: Record<string, unknown>, status = "draft"): Promise<string> {
+// Z-142: only Mock may turn an integrity switch off, so the older cases below run on a mock assessment.
+async function newAssessment(settings: Record<string, unknown>, status = "draft", mode: "real" | "mock" = "mock"): Promise<string> {
   const id = randomUUID();
   await sql(
-    `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, randomize, opens_at, settings, created_by)
-     VALUES ($1, $2, $3, $4, 1, 'Integrity test', $5, 3, false, now() + interval '1 hour', $6::jsonb, $7)`,
-    [id, tenants.A, packId, levelId, status, JSON.stringify(settings), admins.A],
+    `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, randomize, opens_at, settings, created_by, delivery_mode)
+     VALUES ($1, $2, $3, $4, 1, 'Integrity test', $5, 3, false, now() + interval '1 hour', $6::jsonb, $7, $8)`,
+    [id, tenants.A, packId, levelId, status, JSON.stringify(settings), admins.A, mode],
   );
   return id;
 }
@@ -182,6 +183,18 @@ describe("PATCH /api/admin/assessments/:id/integrity", () => {
     }
     const [row] = await sql(`SELECT settings FROM assessments WHERE id = $1`, [id]);
     expect(row.settings).toEqual({ integrity: { fullscreen: true } });
+  });
+
+  it("Real: false is refused with 409 INTEGRITY_FIXED (even after publish); true is accepted", async () => {
+    const id = await newAssessment({}, "published", "real");
+    for (const body of [{ fullscreen: false, block_copy_paste: true }, { fullscreen: true, block_copy_paste: false }]) {
+      const res = await patch(id, body);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.details.code).toBe("INTEGRITY_FIXED");
+    }
+    const [row] = await sql(`SELECT settings FROM assessments WHERE id = $1`, [id]);
+    expect(row.settings).toEqual({});
+    expect((await patch(id, { fullscreen: true, block_copy_paste: true })).statusCode).toBe(200);
   });
 
   it("another tenant gets 404 and nothing changes", async () => {

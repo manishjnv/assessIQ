@@ -170,7 +170,8 @@ async function buildApp() {
   return app;
 }
 
-async function newExam(label: string, mode: "real" | "mock" = "real") {
+// Z-144: the card decides the camera. Default = Real + camera; pass cameraCard=false for a plain Real test.
+async function newExam(label: string, mode: "real" | "mock" = "real", cameraCard: boolean = mode === "real") {
   const candidate = randomUUID();
   await insertUser(candidate, T, "candidate", label);
   const pack = await createPack(T, { slug: `p-${randomUUID().slice(0, 8)}`, name: "P", domain: "soc" }, admin);
@@ -180,11 +181,10 @@ async function newExam(label: string, mode: "real" | "mock" = "real") {
   }
   await publishPack(T, pack.id, admin);
   await sup(`UPDATE questions SET status = 'active', review_state = 'verified' WHERE pack_id = $1`, [pack.id]);
-  const a = await createAssessment(T, { pack_id: pack.id, level_id: level.id, name: "Camera test", question_count: 2, opens_at: new Date(Date.now() + 60_000) }, admin);
+  const a = await createAssessment(T, { pack_id: pack.id, level_id: level.id, name: "Camera test", question_count: 2, opens_at: new Date(Date.now() + 60_000), delivery_mode: mode, camera_required: cameraCard }, admin);
   await publishAssessment(T, a.id, admin);
   await sup(`UPDATE assessments SET status = 'active' WHERE id = $1`, [a.id]);
   await inviteUsers(T, a.id, [candidate], admin);
-  await sup(`UPDATE assessment_invitations SET delivery_mode = $2 WHERE assessment_id = $1`, [a.id, mode]);
   const invitationId = (await sup<{ id: string }>(`SELECT id FROM assessment_invitations WHERE assessment_id = $1`, [a.id]))[0]!.id;
   routeCtx.resolved = {
     already_submitted: false,
@@ -297,9 +297,9 @@ describe("consent endpoint and start gate", () => {
     expect((await takeStart(app)).statusCode).toBe(201);
 
     cfg.CAMERA_ENFORCED = true;
+    await newExam("School off");
     await sup(`UPDATE tenants SET is_school = true WHERE id = $1`, [T]);
     await sup(`UPDATE tenant_settings SET camera_enabled = false WHERE tenant_id = $1`, [T]);
-    await newExam("School off");
     expect((await takeStart(app)).statusCode).toBe(201);
   });
 
@@ -309,6 +309,34 @@ describe("consent endpoint and start gate", () => {
     const { assessmentId } = await newExam("EmbedBase");
     const a = await rawStartAttempt(T, { userId: candidate, assessmentId, embedOrigin: true, gate: { mobile: false } });
     expect(a.id).toBeTruthy();
+    // Z-144: the embed attempt of a camera test runs without a camera, so camera_enabled stays false (burn 20, not 30).
+    expect((await sup<{ camera_enabled: boolean }>(`SELECT camera_enabled FROM attempts WHERE id = $1`, [a.id]))[0]!.camera_enabled).toBe(false);
+  });
+
+  it("Z-144: a camera test writes attempts.camera_enabled=true; a Real test with the card off needs no consent and writes false", async () => {
+    const app = await buildApp();
+    await newExam("CardOn");
+    expect((await consent(app)).statusCode).toBe(200);
+    const on = await takeStart(app);
+    expect(on.statusCode).toBe(201);
+    expect((await sup<{ camera_enabled: boolean }>(`SELECT camera_enabled FROM attempts WHERE id = $1`, [on.json().attempt_id]))[0]!.camera_enabled).toBe(true);
+
+    await newExam("CardOff", "real", false);
+    const pv = await app.inject({ method: "POST", url: "/take/start", payload: { token: TOKEN, preview: true } });
+    expect(pv.json().assessment.camera_required).toBe(false);
+    expect((await consent(app)).json().error.code).toBe("CAMERA_NOT_REQUIRED");
+    const off = await takeStart(app);
+    expect(off.statusCode).toBe(201);
+    expect((await sup<{ camera_enabled: boolean }>(`SELECT camera_enabled FROM attempts WHERE id = $1`, [off.json().attempt_id]))[0]!.camera_enabled).toBe(false);
+  });
+
+  it("Z-144: GET /api/admin/camera/settings reports cameraEnforced", async () => {
+    const app = await buildApp();
+    routeCtx.session = { userId: admin, tenantId: T, role: "admin" };
+    const on = await app.inject({ method: "GET", url: "/api/admin/camera/settings" });
+    expect(on.json().cameraEnforced).toBe(true);
+    cfg.CAMERA_ENFORCED = false;
+    expect((await app.inject({ method: "GET", url: "/api/admin/camera/settings" })).json().cameraEnforced).toBe(false);
   });
 });
 

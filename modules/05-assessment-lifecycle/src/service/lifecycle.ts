@@ -1,5 +1,5 @@
 import { NotFoundError, ValidationError } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, assertCameraTestAllowed } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { assertPublishEntitled } from "@assessiq/billing";
 import type { PoolClient } from "pg";
@@ -113,6 +113,11 @@ export async function publishAssessment(
     // EXP-23: every section pack needs the same entitlement (same NOT_ENTITLED error).
     const extraPacks = sectionPackIds(assessment.settings, assessment.pack_id);
     for (const pid of extraPacks) await assertPublishEntitled(client, tenantId, pid);
+
+    // Z-144: a camera test needs the switch on, the school camera on and the camera notice confirmed.
+    if (assessment.delivery_mode === "real" && assessment.camera_required) {
+      await assertCameraTestAllowed(client, tenantId, { requireNotice: true });
+    }
 
     // c. Pool-size pre-flight
     //    Blueprint path (C2): per-criterion check.

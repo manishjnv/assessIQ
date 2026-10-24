@@ -5,6 +5,8 @@ import { adminApi, AdminApiError } from "../api.js";
 
 export interface CameraSettings {
   isSchool: boolean;
+  /** Platform switch: false = camera tests are temporarily off (CAMERA_TEMPORARILY_OFF). */
+  cameraEnforced: boolean;
   cameraEnabled: boolean;
   photosEnabled: boolean;
   noticeConfirmedVersion: string | null;

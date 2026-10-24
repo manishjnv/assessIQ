@@ -373,7 +373,7 @@ describe('TokenLanding camera consent (Z-82)', () => {
     await waitFor(() => expect(screen.getAllByText('Pass').length).toBe(4));
     fireEvent.click(screen.getByRole('button', { name: 'Check camera' }));
     await screen.findByText(
-      'Camera access is blocked. Allow the camera in your browser settings, then press Retry.',
+      'Your browser blocked the camera. Allow the camera for this page, then reload.',
     );
     expect(screen.queryByText('This test uses your camera')).toBeNull();
   });

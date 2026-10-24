@@ -48,7 +48,7 @@ import type {
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, duration_minutes, delivery_mode, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
+const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, duration_minutes, delivery_mode, camera_required, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
 
 const INVITATION_COLUMNS = `id, assessment_id, user_id, token_hash, expires_at, status, invited_by, created_at, extra_attempts, delivery_mode`;
 
@@ -70,6 +70,7 @@ interface AssessmentRow {
   max_attempts: number | null;
   duration_minutes: number | null;
   delivery_mode: string;
+  camera_required: boolean;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -150,6 +151,7 @@ function mapAssessmentRow(row: AssessmentRow): Assessment {
     max_attempts: row.max_attempts,
     duration_minutes: row.duration_minutes,
     delivery_mode: row.delivery_mode === "mock" ? "mock" : "real",
+    camera_required: row.camera_required === true,
     randomize: row.randomize,
     opens_at: row.opens_at,
     closes_at: row.closes_at,
@@ -493,6 +495,7 @@ export async function insertAssessment(
     maxAttempts?: number | null;
     durationMinutes?: number | null;
     deliveryMode?: "real" | "mock";
+    cameraRequired?: boolean;
     randomize: boolean;
     opensAt?: Date | null;
     closesAt?: Date | null;
@@ -506,8 +509,8 @@ export async function insertAssessment(
   const result = await client.query<AssessmentRow>(
     `INSERT INTO assessments
        (id, tenant_id, pack_id, level_id, pack_version, name, description,
-        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct, max_attempts, delivery_mode, duration_minutes)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17)
+        question_count, randomize, opens_at, closes_at, settings, created_by, passing_score_pct, max_attempts, delivery_mode, duration_minutes, camera_required)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb, $13, $14, $15, $16, $17, $18)
      RETURNING ${ASSESSMENT_COLUMNS}`,
     [
       input.id,
@@ -527,6 +530,7 @@ export async function insertAssessment(
       input.maxAttempts ?? null,
       input.deliveryMode ?? "real",
       input.durationMinutes ?? null,
+      input.cameraRequired ?? false,
     ],
   );
   const row = result.rows[0];
@@ -547,6 +551,7 @@ export async function updateAssessmentRow(
     maxAttempts?: number | null;
     durationMinutes?: number | null;
     deliveryMode?: "real" | "mock";
+    cameraRequired?: boolean;
     randomize?: boolean;
     opensAt?: Date | null;
     closesAt?: Date | null;
@@ -599,6 +604,11 @@ export async function updateAssessmentRow(
   if (patch.deliveryMode !== undefined) {
     sets.push(`delivery_mode = $${i}`);
     values.push(patch.deliveryMode);
+    i++;
+  }
+  if (patch.cameraRequired !== undefined) {
+    sets.push(`camera_required = $${i}`);
+    values.push(patch.cameraRequired);
     i++;
   }
   if (patch.randomize !== undefined) {
@@ -1023,16 +1033,14 @@ export async function reissueInvitation(
   id: string,
   tokenHash: string,
   expiresAt: Date,
-  /** Z-89: a re-invite may switch the test type (the candidate never started). null = keep. */
-  deliveryMode: "real" | "mock" | null = null,
 ): Promise<AssessmentInvitation | null> {
   const result = await client.query<InvitationRow>(
     `UPDATE assessment_invitations
         SET token_hash = $1, expires_at = $2, status = 'pending', last_resent_at = now(),
-            reminded_at = NULL, delivery_mode = COALESCE($4, delivery_mode)
+            reminded_at = NULL
       WHERE id = $3 AND status IN ('pending', 'viewed', 'expired')
       RETURNING ${INVITATION_COLUMNS}`,
-    [tokenHash, expiresAt, id, deliveryMode],
+    [tokenHash, expiresAt, id],
   );
   const row = result.rows[0];
   return row !== undefined ? mapInvitationRow(row) : null;

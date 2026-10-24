@@ -1,5 +1,5 @@
-import { NotFoundError, ValidationError, ConflictError, uuidv7, MAX_ATTEMPTS_LIMIT } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { AppError, NotFoundError, ValidationError, ConflictError, uuidv7, MAX_ATTEMPTS_LIMIT } from "@assessiq/core";
+import { withTenant, assertCameraTestAllowed } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { assertLicensedForSourcePack } from "@assessiq/billing";
 import * as repo from "../repository.js";
@@ -140,6 +140,7 @@ export async function createAssessment(
   if (input.duration_minutes !== undefined) assertDurationMinutes(input.duration_minutes);
   assertDurationAllowedFor(input.settings, input.duration_minutes);
   if (input.delivery_mode !== undefined) assertDeliveryMode(input.delivery_mode);
+  assertTypeCard(input.delivery_mode ?? "real", input.camera_required, input.settings);
   assertScoreCounts(input.settings);
   let resolvedInput = input;
   let mergedSettings: AssessmentSettings = input.settings ?? {};
@@ -232,6 +233,9 @@ export async function createAssessment(
       );
     }
 
+    // Z-142: a camera test needs the switch on and the school camera on (the notice is checked at publish).
+    if (input.camera_required === true) await assertCameraTestAllowed(client, tenantId, { requireNotice: false });
+
     // e+f. Insert assessment; pack_version is snapshotted from the current pack version
     const assessment = await repo.insertAssessment(client, {
       id,
@@ -247,6 +251,7 @@ export async function createAssessment(
       maxAttempts: input.max_attempts ?? null,
       durationMinutes: input.duration_minutes ?? null,
       deliveryMode: input.delivery_mode ?? "real",
+      cameraRequired: input.camera_required ?? false,
       randomize: resolvedInput.randomize ?? true,
       opensAt: resolvedInput.opens_at ?? null,
       closesAt: resolvedInput.closes_at ?? null,
@@ -271,6 +276,7 @@ export async function createAssessment(
         max_attempts: assessment.max_attempts,
         duration_minutes: assessment.duration_minutes,
         delivery_mode: assessment.delivery_mode,
+        camera_required: assessment.camera_required,
         randomize: assessment.randomize,
         status: assessment.status,
         has_blueprint: rawBlueprint !== undefined,
@@ -311,6 +317,35 @@ export function assertDeliveryMode(v: unknown): asserts v is "real" | "mock" {
     throw new ValidationError("delivery_mode must be 'real' or 'mock'", {
       details: { code: "INVALID_PARAM", param: "delivery_mode" },
     });
+  }
+}
+
+/** Z-142: Real and Real + camera fix both integrity switches on; only Mock may turn one off. */
+function integrityHasOff(integrity: unknown): boolean {
+  const i = (integrity ?? {}) as Record<string, unknown>;
+  return i["fullscreen"] === false || i["block_copy_paste"] === false;
+}
+
+export function integrityFixedError(): ConflictError {
+  return new ConflictError("Real tests always require full screen and block copy and paste.", {
+    details: { code: "INTEGRITY_FIXED" },
+  });
+}
+
+/** Z-142: the type-card rules that need no database. mode = the effective delivery_mode. */
+export function assertTypeCard(mode: "real" | "mock", cameraRequired: unknown, settings: unknown): void {
+  if (cameraRequired !== undefined && typeof cameraRequired !== "boolean") {
+    throw new ValidationError("camera_required must be true or false", {
+      details: { code: "INVALID_PARAM", param: "camera_required" },
+    });
+  }
+  if (mode === "mock" && cameraRequired === true) {
+    throw new AppError("A camera test must be a Real test.", "INVALID_PARAM", 422, {
+      details: { code: "INVALID_PARAM", param: "camera_required" },
+    });
+  }
+  if (mode === "real" && integrityHasOff((settings as Record<string, unknown> | undefined)?.["integrity"])) {
+    throw integrityFixedError();
   }
 }
 
@@ -438,6 +473,7 @@ export async function createAssessmentFromSet(
   if (input.max_attempts !== undefined) createInput.max_attempts = input.max_attempts;
   if (input.duration_minutes !== undefined) createInput.duration_minutes = input.duration_minutes;
   if (input.delivery_mode !== undefined) createInput.delivery_mode = input.delivery_mode;
+  if (input.camera_required !== undefined) createInput.camera_required = input.camera_required;
   if (input.settings !== undefined) {
     // from-set resolves pack/level from the CLONED set. A blueprint would
     // override that and is a super_admin-only authoring capability (enforced at
@@ -535,6 +571,7 @@ export async function updateAssessmentIntegrity(
         details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
       });
     }
+    if (current.delivery_mode === "real" && integrityHasOff(integrity)) throw integrityFixedError();
     const updated = await repo.setIntegrityRow(client, id, integrity);
     const prev = (current.settings as Record<string, unknown> | undefined)?.["integrity"] ?? null;
     await auditInTx(client, {
@@ -663,6 +700,7 @@ export async function updateAssessment(
   if (patch.duration_minutes !== undefined) assertDurationMinutes(patch.duration_minutes);
   if (patch.delivery_mode !== undefined) assertDeliveryMode(patch.delivery_mode);
   assertScoreCounts(patch.settings);
+  if (patch.camera_required !== undefined && typeof patch.camera_required !== "boolean") assertTypeCard("real", patch.camera_required, undefined);
   let resolvedBlueprintOverride: { packId: string; levelId: string; questionCount: number } | null = null;
   let validatedBlueprint: ResolvedBlueprint | null = null;
   const rawPatchBlueprint = (patch.settings as Record<string, unknown> | undefined)?.["blueprint"];
@@ -694,6 +732,15 @@ export async function updateAssessment(
         `Assessment '${id}' must be in 'draft' status to update (current: '${current.status}')`,
         { details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_DRAFT } },
       );
+    }
+
+    // Z-142: type-card rules on the values the row will hold after this patch.
+    if (patch.delivery_mode !== undefined || patch.camera_required !== undefined || patch.settings !== undefined) {
+      const mode = patch.delivery_mode ?? current.delivery_mode;
+      const camera = patch.camera_required ?? current.camera_required;
+      // Only values the caller sends are checked: stale stored switches are harmless, the runner forces them on for Real.
+      assertTypeCard(mode, camera, patch.settings);
+      if (patch.camera_required === true) await assertCameraTestAllowed(client, tenantId, { requireNotice: false });
     }
 
     // Slice A.2 — reject explicit opens_at: null patch (prevent clearing it).
@@ -759,6 +806,7 @@ export async function updateAssessment(
       repoPatch.durationMinutes = patch.duration_minutes;
     }
     if (patch.delivery_mode !== undefined) repoPatch.deliveryMode = patch.delivery_mode;
+    if (patch.camera_required !== undefined) repoPatch.cameraRequired = patch.camera_required;
     if (patch.randomize !== undefined) repoPatch.randomize = patch.randomize;
     if (patch.opens_at !== undefined) repoPatch.opensAt = patch.opens_at;
     if (patch.closes_at !== undefined) repoPatch.closesAt = patch.closes_at;
@@ -793,6 +841,7 @@ export async function updateAssessment(
         max_attempts: current.max_attempts,
         duration_minutes: current.duration_minutes,
         delivery_mode: current.delivery_mode,
+        camera_required: current.camera_required,
         randomize: current.randomize,
         opens_at: current.opens_at?.toISOString() ?? null,
         closes_at: current.closes_at?.toISOString() ?? null,
@@ -804,6 +853,7 @@ export async function updateAssessment(
         max_attempts: updated.max_attempts,
         duration_minutes: updated.duration_minutes,
         delivery_mode: updated.delivery_mode,
+        camera_required: updated.camera_required,
         randomize: updated.randomize,
         opens_at: updated.opens_at?.toISOString() ?? null,
         closes_at: updated.closes_at?.toISOString() ?? null,

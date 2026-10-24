@@ -180,6 +180,7 @@ describe('inviteUsers — tenantId pass-through to email', () => {
       max_attempts: null,
       duration_minutes: null,
       delivery_mode: 'real',
+      camera_required: false,
       tenant_id: tenantId,
       pack_version: 1,
       description: null,

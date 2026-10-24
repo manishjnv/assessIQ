@@ -1,9 +1,9 @@
 // Pure camera policy. No I/O, no AI. Rules (owner, 2026-10-19/20):
-//   mock exam -> no camera. Embed -> no camera (accepted gap). CAMERA_ENFORCED off -> no camera.
+//   mock exam -> no camera. Assessment camera_required false -> no camera. Embed -> no camera (accepted gap). CAMERA_ENFORCED off -> no camera.
 //   School: required = cameraEnabled, photos = photosEnabled, keep 7 days for both.
 //   Other real exam: required, photos on, keep 90 days (photo) / 7 days (video).
 
-import { PHOTO_KEEP_DAYS, SCHOOL_KEEP_DAYS, VIDEO_KEEP_DAYS, type CameraFileKind } from "./constants.js";
+import { CAMERA_NOTICE_VERSION, PHOTO_KEEP_DAYS, SCHOOL_KEEP_DAYS, VIDEO_KEEP_DAYS, type CameraFileKind } from "./constants.js";
 
 export interface CameraTenantPolicyInput {
   isSchool: boolean;
@@ -17,12 +17,14 @@ export interface CameraPolicy {
   photos: boolean;
   video: boolean;
   keepDays: { photo: number; video: number };
-  reason: "mock" | "embed" | "not_enforced" | "school_off" | "school" | "real";
+  reason: "mock" | "embed" | "not_required" | "not_enforced" | "school_off" | "school" | "real";
 }
 
 export function resolveCameraPolicy(input: {
   deliveryMode: "mock" | "real";
   isEmbed: boolean;
+  /** Z-144: assessments.camera_required (the Real + camera card). */
+  assessmentCamera: boolean;
   tenantCamera: CameraTenantPolicyInput;
   enforced: boolean;
 }): CameraPolicy {
@@ -34,6 +36,7 @@ export function resolveCameraPolicy(input: {
     reason,
   });
   if (input.deliveryMode !== "real") return none("mock");
+  if (!input.assessmentCamera) return none("not_required");
   if (input.isEmbed) return none("embed");
   if (!input.enforced) return none("not_enforced");
   const t = input.tenantCamera;
@@ -52,7 +55,7 @@ export function resolveCameraPolicy(input: {
 
 /** 'NOT_CONFIRMED' when a camera is required but the organisation has not confirmed the notice. */
 export function cameraSetupBlocker(policy: CameraPolicy, tenantCamera: CameraTenantPolicyInput): "NOT_CONFIRMED" | null {
-  return policy.required && tenantCamera.noticeConfirmedVersion === null ? "NOT_CONFIRMED" : null;
+  return policy.required && tenantCamera.noticeConfirmedVersion !== CAMERA_NOTICE_VERSION ? "NOT_CONFIRMED" : null;
 }
 
 export function computeExpiresAt(kind: CameraFileKind, takenAt: Date, policy: Pick<CameraPolicy, "keepDays">): Date {

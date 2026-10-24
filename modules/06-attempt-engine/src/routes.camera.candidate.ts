@@ -67,11 +67,12 @@ interface AttemptFacts {
   endsAt: Date | null;
   deliveryMode: "real" | "mock";
   embedOrigin: boolean;
+  assessmentId: string;
 }
 
 async function loadOwnedAttempt(client: PoolClient, attemptId: string, userId: string): Promise<AttemptFacts | null> {
-  const r = await client.query<{ user_id: string; status: string; ends_at: Date | null; delivery_mode: string; embed_origin: boolean }>(
-    `SELECT user_id, status, ends_at, delivery_mode, embed_origin FROM attempts WHERE id = $1`,
+  const r = await client.query<{ user_id: string; status: string; ends_at: Date | null; delivery_mode: string; embed_origin: boolean; assessment_id: string }>(
+    `SELECT user_id, status, ends_at, delivery_mode, embed_origin, assessment_id FROM attempts WHERE id = $1`,
     [attemptId],
   );
   const row = r.rows[0];
@@ -82,6 +83,7 @@ async function loadOwnedAttempt(client: PoolClient, attemptId: string, userId: s
     endsAt: row.ends_at,
     deliveryMode: row.delivery_mode === "mock" ? "mock" : "real",
     embedOrigin: row.embed_origin,
+    assessmentId: row.assessment_id,
   };
 }
 
@@ -111,7 +113,7 @@ export async function registerCameraCandidateRoutes(
       const out = await withTenant(tenantId, async (client) => {
         const a = await loadOwnedAttempt(client, p.data.attemptId, userId);
         if (a === null) return null;
-        return (await resolvePolicyInTx(client, tenantId, a.deliveryMode, a.embedOrigin)).policy;
+        return (await resolvePolicyInTx(client, tenantId, a.deliveryMode, a.embedOrigin, a.assessmentId)).policy;
       });
       if (out === null) return reply.code(404).send(NOT_FOUND);
       return {
@@ -144,7 +146,7 @@ export async function registerCameraCandidateRoutes(
         if (a.status !== "in_progress" || (a.endsAt !== null && Date.now() > a.endsAt.getTime() + END_GRACE_MS)) {
           return { code: 409 as const };
         }
-        const { policy } = await resolvePolicyInTx(client, tenantId, a.deliveryMode, a.embedOrigin);
+        const { policy } = await resolvePolicyInTx(client, tenantId, a.deliveryMode, a.embedOrigin, a.assessmentId);
         if (!policy.required) return { code: "not_required" as const };
         if (kind === "photo" && !policy.photos) return { code: "photos_off" as const };
         if (!(await hasAgreedConsentForAttempt(client, attemptId))) return { code: "no_consent" as const };

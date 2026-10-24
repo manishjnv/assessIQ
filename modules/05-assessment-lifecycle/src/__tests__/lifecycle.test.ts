@@ -70,7 +70,8 @@ import {
   publishPack,
 } from "../../../04-question-bank/src/service.js";
 
-import { ConflictError, NotFoundError, ValidationError } from "@assessiq/core";
+import { ConflictError, NotFoundError, ValidationError, config } from "@assessiq/core";
+import { CAMERA_NOTICE_VERSION } from "@assessiq/tenancy";
 
 // ---------------------------------------------------------------------------
 // Shared test state
@@ -1383,5 +1384,136 @@ describe("previewAssessment smoke test", () => {
     expect(preview.pool_size).toBe(5);
     expect(preview.questions).toHaveLength(5);
     expect(preview.frozen).toBe(true);
+  });
+});
+
+// ===========================================================================
+// Z-142 / Z-144: test-type cards (Mock, Real, Real + camera) on the assessment
+// ===========================================================================
+
+describe("Z-142/Z-144: test-type cards", () => {
+  const cfg = config as unknown as { CAMERA_ENFORCED: boolean };
+  const prevEnforced = cfg.CAMERA_ENFORCED;
+  const tenantSettings = (sql: string, params: unknown[] = []) =>
+    withSuperClient((c) => c.query(sql, [tenantA, ...params]));
+  const mk = async (extra: Record<string, unknown> = {}) => {
+    const { packId, levelId } = await buildPublishedPack(tenantA, adminA, 3);
+    return createAssessment(
+      tenantA,
+      { pack_id: packId, level_id: levelId, name: "Card", question_count: 3, opens_at: new Date(Date.now() + 60_000), ...extra } as never,
+      adminA,
+    );
+  };
+  const codeOf = (p: Promise<unknown>) => p.then(() => null, (e: { details?: { code?: string }; status?: number }) => ({ status: e.status, code: e.details?.code }));
+
+  beforeAll(() => { cfg.CAMERA_ENFORCED = true; });
+  afterAll(() => { cfg.CAMERA_ENFORCED = prevEnforced; });
+
+  it("returns camera_required on every shape; default is Real without camera", async () => {
+    const a = await mk();
+    expect(a).toMatchObject({ delivery_mode: "real", camera_required: false });
+    expect((await getAssessment(tenantA, a.id)).camera_required).toBe(false);
+    const m = await mk({ delivery_mode: "mock" });
+    expect(m).toMatchObject({ delivery_mode: "mock", camera_required: false });
+  });
+
+  it("camera_required with mock -> 422 INVALID_PARAM on create and on PATCH", async () => {
+    expect(await codeOf(mk({ delivery_mode: "mock", camera_required: true }))).toEqual({ status: 422, code: "INVALID_PARAM" });
+    const m = await mk({ delivery_mode: "mock" });
+    expect(await codeOf(updateAssessment(tenantA, m.id, { camera_required: true } as never, adminA))).toEqual({ status: 422, code: "INVALID_PARAM" });
+    const r = await mk({ camera_required: true });
+    expect(await codeOf(updateAssessment(tenantA, r.id, { delivery_mode: "mock" } as never, adminA))).toEqual({ status: 422, code: "INVALID_PARAM" });
+  });
+
+  it("Real + camera is stored, can switch while draft, and the audit row holds before and after", async () => {
+    const a = await mk({ camera_required: true });
+    expect(a).toMatchObject({ delivery_mode: "real", camera_required: true });
+    const off = await updateAssessment(tenantA, a.id, { camera_required: false } as never, adminA);
+    expect(off.camera_required).toBe(false);
+    const audit = await withSuperClient((c) =>
+      c.query(`SELECT before, after FROM audit_log WHERE entity_id = $1 AND action = 'assessment.updated'`, [a.id]),
+    );
+    expect(audit.rows[0]!.before).toMatchObject({ camera_required: true });
+    expect(audit.rows[0]!.after).toMatchObject({ camera_required: false });
+  });
+
+  it("CAMERA_ENFORCED off -> 409 CAMERA_TEMPORARILY_OFF on create and PATCH", async () => {
+    cfg.CAMERA_ENFORCED = false;
+    try {
+      expect(await codeOf(mk({ camera_required: true }))).toEqual({ status: 409, code: "CAMERA_TEMPORARILY_OFF" });
+      const a = await mk();
+      expect(await codeOf(updateAssessment(tenantA, a.id, { camera_required: true } as never, adminA))).toEqual({ status: 409, code: "CAMERA_TEMPORARILY_OFF" });
+    } finally {
+      cfg.CAMERA_ENFORCED = true;
+    }
+  });
+
+  it("a school with the camera off -> 409 CAMERA_OFF_FOR_SCHOOL; with it on the camera test is created", async () => {
+    await withSuperClient((c) => c.query(`UPDATE tenants SET is_school = true WHERE id = $1`, [tenantA]));
+    try {
+      await tenantSettings(`UPDATE tenant_settings SET camera_enabled = false WHERE tenant_id = $1`);
+      expect(await codeOf(mk({ camera_required: true }))).toEqual({ status: 409, code: "CAMERA_OFF_FOR_SCHOOL" });
+      await tenantSettings(`UPDATE tenant_settings SET camera_enabled = true WHERE tenant_id = $1`);
+      expect((await mk({ camera_required: true })).camera_required).toBe(true);
+    } finally {
+      await withSuperClient((c) => c.query(`UPDATE tenants SET is_school = false WHERE id = $1`, [tenantA]));
+      await tenantSettings(`UPDATE tenant_settings SET camera_enabled = false WHERE tenant_id = $1`);
+    }
+  });
+
+  it("Real keeps both integrity switches on: false -> 409 INTEGRITY_FIXED on create and PATCH; Mock may turn one off", async () => {
+    const bad = { integrity: { fullscreen: false, block_copy_paste: true } };
+    expect(await codeOf(mk({ settings: bad }))).toEqual({ status: 409, code: "INTEGRITY_FIXED" });
+    const r = await mk({ settings: { integrity: { fullscreen: true, block_copy_paste: true } } });
+    expect(await codeOf(updateAssessment(tenantA, r.id, { settings: bad } as never, adminA))).toEqual({ status: 409, code: "INTEGRITY_FIXED" });
+    const m = await mk({ delivery_mode: "mock", settings: bad });
+    expect(m.settings).toMatchObject(bad);
+    // Switching a mock draft with a switch off to Real is allowed: stored values are harmless (the runner forces them on),
+    // but sending a false switch together with the switch is refused.
+    expect(await codeOf(updateAssessment(tenantA, m.id, { delivery_mode: "real", settings: bad } as never, adminA))).toEqual({ status: 409, code: "INTEGRITY_FIXED" });
+    const sw = await updateAssessment(tenantA, m.id, { delivery_mode: "real" } as never, adminA);
+    expect(sw.delivery_mode).toBe("real");
+  });
+
+  it("type and camera are frozen after publish (ASSESSMENT_NOT_DRAFT)", async () => {
+    const a = await mk();
+    await publishAssessment(tenantA, a.id, adminA);
+    for (const patch of [{ delivery_mode: "mock" }, { camera_required: true }]) {
+      expect(await codeOf(updateAssessment(tenantA, a.id, patch as never, adminA))).toEqual({ status: 409, code: AL_ERROR_CODES.ASSESSMENT_NOT_DRAFT });
+    }
+  });
+
+  it("publish of a camera test needs the current notice (409 CAMERA_NOTICE_REQUIRED + settingsPath); a Real test publishes with no notice", async () => {
+    await tenantSettings(`UPDATE tenant_settings SET camera_notice_confirmed_version = NULL WHERE tenant_id = $1`);
+    const plain = await mk();
+    await publishAssessment(tenantA, plain.id, adminA); // no camera, no notice needed
+
+    const cam = await mk({ camera_required: true });
+    const err = await publishAssessment(tenantA, cam.id, adminA).then(() => null, (e) => e as { status: number; details?: Record<string, unknown> });
+    expect(err).toMatchObject({ status: 409, details: { code: "CAMERA_NOTICE_REQUIRED", settingsPath: "/admin/tenant-settings" } });
+
+    await tenantSettings(`UPDATE tenant_settings SET camera_notice_confirmed_version = 'an-old-version' WHERE tenant_id = $1`);
+    expect(await codeOf(publishAssessment(tenantA, cam.id, adminA))).toEqual({ status: 409, code: "CAMERA_NOTICE_REQUIRED" });
+
+    await tenantSettings(`UPDATE tenant_settings SET camera_notice_confirmed_version = $2 WHERE tenant_id = $1`, [CAMERA_NOTICE_VERSION]);
+    expect((await publishAssessment(tenantA, cam.id, adminA)).status).toBe("published");
+  });
+
+  it("invite: a camera test needs the notice (409); the invitation takes the assessment mode and ignores a delivery_mode argument", async () => {
+    await tenantSettings(`UPDATE tenant_settings SET camera_notice_confirmed_version = $2 WHERE tenant_id = $1`, [CAMERA_NOTICE_VERSION]);
+    const cam = await mk({ camera_required: true });
+    await publishAssessment(tenantA, cam.id, adminA);
+    const cand = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, cand, tenantA, `card-${cand.slice(0, 8)}@example.com`, "Card Candidate"));
+
+    // The notice is withdrawn after publish: the invite is refused.
+    await tenantSettings(`UPDATE tenant_settings SET camera_notice_confirmed_version = 'an-old-version' WHERE tenant_id = $1`);
+    expect(await codeOf(inviteUsers(tenantA, cam.id, [cand], adminA))).toEqual({ status: 409, code: "CAMERA_NOTICE_REQUIRED" });
+
+    await tenantSettings(`UPDATE tenant_settings SET camera_notice_confirmed_version = $2 WHERE tenant_id = $1`, [CAMERA_NOTICE_VERSION]);
+    // A 5th argument is no longer part of the signature; it is ignored at runtime.
+    const res = await (inviteUsers as unknown as (...a: unknown[]) => ReturnType<typeof inviteUsers>)(tenantA, cam.id, [cand], adminA, "mock");
+    expect(res.invited).toHaveLength(1);
+    expect(res.invited[0]!.delivery_mode).toBe("real");
   });
 });

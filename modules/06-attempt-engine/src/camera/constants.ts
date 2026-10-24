@@ -1,6 +1,7 @@
 // Real-exam camera constants (Batch A). Numbers only; no prices, no names.
 
-export const CAMERA_NOTICE_VERSION = "2026-10-20.v1";
+// Z-144: the value lives in 02-tenancy so module 05 can check the notice (05 cannot import 06).
+export { CAMERA_NOTICE_VERSION } from "@assessiq/tenancy";
 
 export const PHOTO_KEEP_DAYS = 90;
 export const VIDEO_KEEP_DAYS = 7;

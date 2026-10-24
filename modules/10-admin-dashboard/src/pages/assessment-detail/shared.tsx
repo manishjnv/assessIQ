@@ -31,6 +31,8 @@ export interface Assessment {
   effective_duration_minutes?: number | null;
   /** Z-89: default test type for new invitations. */
   delivery_mode?: "real" | "mock";
+  /** Z-142: real test with the camera (always false for mock). */
+  camera_required: boolean;
 }
 
 export interface Invitation {

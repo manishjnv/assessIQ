@@ -207,6 +207,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["max_attempts"] !== undefined) input.max_attempts = raw["max_attempts"] as number | null;
       if (raw["duration_minutes"] !== undefined) input.duration_minutes = raw["duration_minutes"] as number | null;
       if (raw["delivery_mode"] !== undefined) input.delivery_mode = raw["delivery_mode"] as "real" | "mock";
+      if (raw["camera_required"] !== undefined) input.camera_required = raw["camera_required"] as boolean;
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -247,6 +248,8 @@ export async function registerAssessmentLifecycleRoutes(
       opens_at: z.string().min(1),
       closes_at: z.string().min(1).nullable().optional(),
       name: z.string().trim().min(1).max(200).optional(),
+      delivery_mode: z.enum(["real", "mock"]).optional(),
+      camera_required: z.boolean().optional(),
     })
     .strict();
   app.post(
@@ -271,6 +274,8 @@ export async function registerAssessmentLifecycleRoutes(
           opens_at: parseDate(b.opens_at, "opens_at"),
           ...(b.closes_at != null ? { closes_at: parseDate(b.closes_at, "closes_at") } : {}),
           ...(b.name !== undefined ? { name: b.name } : {}),
+          ...(b.delivery_mode !== undefined ? { delivery_mode: b.delivery_mode } : {}),
+          ...(b.camera_required !== undefined ? { camera_required: b.camera_required } : {}),
         },
         req.session!.userId,
       );
@@ -317,6 +322,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["max_attempts"] !== undefined) input.max_attempts = raw["max_attempts"] as number | null;
       if (raw["duration_minutes"] !== undefined) input.duration_minutes = raw["duration_minutes"] as number | null;
       if (raw["delivery_mode"] !== undefined) input.delivery_mode = raw["delivery_mode"] as "real" | "mock";
+      if (raw["camera_required"] !== undefined) input.camera_required = raw["camera_required"] as boolean;
       if (raw["settings"] !== undefined) input.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -419,6 +425,7 @@ export async function registerAssessmentLifecycleRoutes(
       if (raw["max_attempts"] !== undefined) patch.max_attempts = raw["max_attempts"] as number | null;
       if (raw["duration_minutes"] !== undefined) patch.duration_minutes = raw["duration_minutes"] as number | null;
       if (raw["delivery_mode"] !== undefined) patch.delivery_mode = raw["delivery_mode"] as "real" | "mock";
+      if (raw["camera_required"] !== undefined) patch.camera_required = raw["camera_required"] as boolean;
       if (raw["settings"] !== undefined) patch.settings = raw["settings"] as AssessmentSettings;
 
       if (raw["opens_at"] !== undefined && raw["opens_at"] !== null) {
@@ -628,7 +635,7 @@ export async function registerAssessmentLifecycleRoutes(
   );
 
   // POST /api/admin/assessments/:id/invite
-  // Body: { user_ids: string[], delivery_mode?: 'real' | 'mock' }  (Z-89; default = the assessment's own mode)
+  // Body: { user_ids: string[] }. Z-142: the invitation takes the assessment's mode; a delivery_mode in the body is ignored.
   app.post(
     "/api/admin/assessments/:id/invite",
     { preHandler: adminOnly },
@@ -636,7 +643,7 @@ export async function registerAssessmentLifecycleRoutes(
       const tenantId = req.session!.tenantId;
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
-      const body = req.body as { user_ids?: unknown; delivery_mode?: unknown };
+      const body = req.body as { user_ids?: unknown };
 
       if (!Array.isArray(body?.user_ids) || body.user_ids.length === 0) {
         throw new ValidationError("user_ids must be a non-empty array of strings", {
@@ -644,19 +651,7 @@ export async function registerAssessmentLifecycleRoutes(
         });
       }
 
-      if (body.delivery_mode !== undefined && body.delivery_mode !== "real" && body.delivery_mode !== "mock") {
-        throw new ValidationError("delivery_mode must be 'real' or 'mock'", {
-          details: { code: "INVALID_PARAM", param: "delivery_mode" },
-        });
-      }
-
-      const result = await inviteUsers(
-        tenantId,
-        id,
-        body.user_ids as string[],
-        userId,
-        body.delivery_mode as "real" | "mock" | undefined,
-      );
+      const result = await inviteUsers(tenantId, id, body.user_ids as string[], userId);
       return reply.code(201).send(result);
     },
   );

@@ -59,7 +59,7 @@ describe("AdminStartTest", () => {
     expect((send() as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("radio"));
     expect((send() as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     expect((send() as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -67,7 +67,7 @@ describe("AdminStartTest", () => {
     setup();
     await screen.findByText(/Asha/);
     fireEvent.click(screen.getByRole("radio"));
-    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     fireEvent.change(screen.getByLabelText(/Or paste/), { target: { value: "b@x.com, Bo" } });
     fireEvent.click(send());
     await screen.findByTestId("start-test-result");
@@ -86,7 +86,7 @@ describe("AdminStartTest", () => {
     setup();
     await screen.findByText(/Asha/);
     fireEvent.click(screen.getByRole("radio"));
-    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     const box = screen.getByLabelText(/Time limit \(minutes\)/) as HTMLInputElement;
     expect(box.placeholder).toBe("45");
     fireEvent.change(box, { target: { value: "20" } });
@@ -99,7 +99,7 @@ describe("AdminStartTest", () => {
     setup();
     await screen.findByText(/Asha/);
     fireEvent.click(screen.getByRole("radio"));
-    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     const box = screen.getByLabelText(/Time limit \(minutes\)/);
     fireEvent.change(box, { target: { value: "601" } });
     expect((send() as HTMLButtonElement).disabled).toBe(true);
@@ -114,7 +114,7 @@ describe("AdminStartTest", () => {
     api.publishAssessmentApi.mockRejectedValue(new AdminApiError(403, { code: "NOT_ENTITLED", message: "Not entitled" }));
     await screen.findByText(/Asha/);
     fireEvent.click(screen.getByRole("radio"));
-    fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     fireEvent.click(send());
     const alert = await screen.findByRole("alert");
     expect(alert.textContent).toContain("Publish the assessment");
@@ -148,7 +148,7 @@ async function chooseMockFlow(blueprintName: RegExp) {
   fireEvent.click(screen.getByRole("button", { name: "Start a full mock" }));
   fireEvent.click(await screen.findByRole("radio", { name: blueprintName }));
   await screen.findByText(/Asha/);
-  fireEvent.click(screen.getAllByRole("checkbox")[0]!);
+  fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
 }
 
 describe("full mock on Start a test (EXP-6 / Z-42 tail)", () => {

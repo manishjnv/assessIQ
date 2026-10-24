@@ -17,6 +17,7 @@ import {
 import type { AvailableSet, CandidateOption, ExamBlueprintSummary } from "../api.js";
 import { formatDate } from "../lib/format.js";
 import { inviteSkipReasonLabel } from "../lib/labels.js";
+import { cameraNoticeSettingsPath } from "../lib/camera-errors.js";
 
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
 
@@ -89,11 +90,14 @@ export function AdminStartTest(): React.ReactElement {
   const [closesAt, setClosesAt] = useState(() => toLocalInput(new Date(Date.now() + 7 * 86400000)));
   const [steps, setSteps] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [failure, setFailure] = useState<{ step: string; message: string; id: string | null } | null>(null);
+  const [failure, setFailure] = useState<{ step: string; message: string; id: string | null; cameraPath: string | null } | null>(null);
   const [done, setDone] = useState<Done | null>(null);
   const [blueprints, setBlueprints] = useState<ExamBlueprintSummary[] | null>(null);
   const [mockOpen, setMockOpen] = useState(false);
   const [blueprintId, setBlueprintId] = useState("");
+  // Z-142 (7): test type and camera for the new test (the page had no type input before).
+  const [testType, setTestType] = useState<"real" | "mock">("real");
+  const [cameraRequired, setCameraRequired] = useState(false);
 
   useEffect(() => {
     getAvailableSets().then((d) => setSets(d.sets)).catch((e: unknown) => {
@@ -158,6 +162,8 @@ export function AdminStartTest(): React.ReactElement {
           opens_at: new Date(opensAt).toISOString(),
           ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
           name: name.trim(),
+          delivery_mode: testType,
+          camera_required: testType === "real" && cameraRequired,
         });
         id = mock.assessment.id;
         if (mock.warnings.length > 0) mockNote = mock.warnings.join(" ");
@@ -171,6 +177,8 @@ export function AdminStartTest(): React.ReactElement {
           opens_at: new Date(opensAt).toISOString(),
           ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
           ...(minutes.trim() !== "" ? { duration_minutes: Number(minutes) } : {}),
+          delivery_mode: testType,
+          camera_required: testType === "real" && cameraRequired,
         };
         id = (await createAssessmentFromSet(body)).id;
         mark("Assessment created");
@@ -204,7 +212,7 @@ export function AdminStartTest(): React.ReactElement {
       const message = e instanceof AdminApiError ? e.apiError.message
         : e instanceof StepError ? e.message
         : "Something went wrong.";
-      setFailure({ step, id, message });
+      setFailure({ step, id, message, cameraPath: cameraNoticeSettingsPath(e) });
     } finally {
       setBusy(false);
     }
@@ -298,6 +306,19 @@ export function AdminStartTest(): React.ReactElement {
                     </div>
                   </div>
                 )}
+                <div>
+                  <Label htmlFor="st-type">Test type</Label>
+                  <select id="st-type" className="aiq-input" value={testType}
+                    onChange={(e) => { const next = e.target.value === "mock" ? "mock" : "real"; setTestType(next); if (next === "mock") setCameraRequired(false); }}>
+                    <option value="real">Real exam</option>
+                    <option value="mock">Mock test</option>
+                  </select>
+                  <label data-help-id="admin.assessment.invite.test_type" style={{ ...sans, display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center", marginTop: 6 }}>
+                    <input type="checkbox" checked={testType === "real" && cameraRequired} disabled={testType === "mock"}
+                      onChange={(e) => setCameraRequired(e.target.checked)} />
+                    Camera required
+                  </label>
+                </div>
                 <div>
                   <Label htmlFor="st-name">Test name</Label>
                   <Input id="st-name" value={name} onChange={(e) => setName(e.target.value)} />
@@ -394,6 +415,7 @@ export function AdminStartTest(): React.ReactElement {
             {failure !== null && (
               <div role="alert" style={{ ...sans, color: "var(--aiq-color-danger)" }}>
                 Step failed: {failure.step}. {failure.message}
+                {failure.cameraPath !== null && <> <Link to={failure.cameraPath}>Open camera settings</Link></>}
                 {failure.id !== null && <> The assessment exists. <Link to={`/admin/assessments/${failure.id}`}>Open it to finish there.</Link></>}
               </div>
             )}

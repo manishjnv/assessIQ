@@ -35,7 +35,8 @@
 
 import { assessmentStatusDisplay } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router";
+import { Link, useParams, useNavigate } from "react-router";
+import { cameraNoticeSettingsPath } from "../lib/camera-errors.js";
 import { Chip, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
@@ -75,11 +76,11 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const [inviteError, setInviteError] = useState<string | null>(null);
   // EXP-37: students-per-assessment limit from the usage summary (null = no limit shown).
   const [inviteLimit, setInviteLimit] = useState<number | null>(null);
-  // Z-89: test type for this batch. Starts at the assessment's own default each time the form opens.
-  const [inviteMode, setInviteMode] = useState<"real" | "mock">("real");
+  const [inviteErrorPath, setInviteErrorPath] = useState<string | null>(null);
 
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [publishErrorPath, setPublishErrorPath] = useState<string | null>(null);
 
   // Resend: one row ("Resend" in the Action column) or everyone who hasn't
   // started (POST /invitations/resend, confirm dialog first). Both end in the
@@ -203,6 +204,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
     if (!id) return;
     setPublishing(true);
     setPublishError(null);
+    setPublishErrorPath(null);
     try {
       await adminApi(`/admin/assessments/${id}/publish`, { method: "POST" });
       await fetchData();
@@ -210,6 +212,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
       setPublishError(
         err instanceof AdminApiError ? err.apiError.message : "Failed to publish.",
       );
+      setPublishErrorPath(cameraNoticeSettingsPath(err));
     } finally {
       setPublishing(false);
     }
@@ -283,10 +286,11 @@ export function AdminAssessmentDetail(): React.ReactElement {
     }
     setInviting(true);
     setInviteError(null);
+    setInviteErrorPath(null);
     try {
       await adminApi(`/admin/assessments/${id}/invite`, {
         method: "POST",
-        body: JSON.stringify({ user_ids: Array.from(selectedUserIds), delivery_mode: inviteMode }),
+        body: JSON.stringify({ user_ids: Array.from(selectedUserIds) }),
       });
       setSelectedUserIds(new Set());
       setShowInviteForm(false);
@@ -297,6 +301,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           ? err.apiError.message
           : "Failed to send invitations.",
       );
+      setInviteErrorPath(cameraNoticeSettingsPath(err));
     } finally {
       setInviting(false);
     }
@@ -632,6 +637,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
             }}
           >
             {publishError}
+            {publishErrorPath !== null && <> <Link to={publishErrorPath}>Open camera settings</Link></>}
           </div>
         )}
 
@@ -657,6 +663,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           key={`tt-${assessment.id}`}
           assessmentId={assessment.id}
           initial={assessment.delivery_mode ?? "real"}
+          initialCameraRequired={assessment.camera_required === true}
           isDraft={assessment.status === "draft"}
         />
         <PassMarkCard
@@ -742,9 +749,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           toggleUser={toggleUser}
           inviteError={inviteError}
           inviteLimit={inviteLimit}
-          inviteMode={inviteMode}
-          setInviteMode={setInviteMode}
-          defaultInviteMode={assessment.delivery_mode ?? "real"}
+          inviteErrorPath={inviteErrorPath}
           inviting={inviting}
           resendable={resendable}
           resendResult={resendResult}

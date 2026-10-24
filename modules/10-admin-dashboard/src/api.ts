@@ -1208,6 +1208,8 @@ export interface CreateAssessmentFromSetRequest {
   duration_minutes?: number;
   /** Z-89: 'real' (default) or 'mock'. */
   delivery_mode?: "real" | "mock";
+  /** Z-142: a real test with the camera. Only true with delivery_mode 'real'. */
+  camera_required?: boolean;
   opens_at: string;
   closes_at?: string | null;
   randomize?: boolean;
@@ -1255,7 +1257,15 @@ export async function getPackLevelsApi(packId: string): Promise<{ levels: { id: 
 /** POST /api/admin/blueprints/:id/mock — a DRAFT full mock from an exam blueprint (module 05). */
 export async function createFullMockApi(
   blueprintId: string,
-  body: { pack_id: string; level_id: string; opens_at: string; closes_at?: string | null; name?: string },
+  body: {
+    pack_id: string;
+    level_id: string;
+    opens_at: string;
+    closes_at?: string | null;
+    name?: string;
+    delivery_mode?: "real" | "mock";
+    camera_required?: boolean;
+  },
 ): Promise<{ assessment: { id: string }; warnings: string[] }> {
   return adminApi<{ assessment: { id: string }; warnings: string[] }>(
     `/admin/blueprints/${blueprintId}/mock`,

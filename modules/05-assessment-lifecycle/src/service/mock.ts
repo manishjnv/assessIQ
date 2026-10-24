@@ -11,6 +11,8 @@ export interface CreateMockInput {
   opens_at: Date | null;
   closes_at?: Date | null;
   name?: string;
+  delivery_mode?: "real" | "mock";
+  camera_required?: boolean;
 }
 
 export async function createMockFromBlueprint(
@@ -47,6 +49,8 @@ export async function createMockFromBlueprint(
       level_id: input.level_id,
       name: input.name?.trim() || `${bp.name} full mock`,
       question_count: bp.total_questions,
+      ...(input.delivery_mode !== undefined ? { delivery_mode: input.delivery_mode } : {}),
+      ...(input.camera_required !== undefined ? { camera_required: input.camera_required } : {}),
       opens_at: input.opens_at,
       ...(input.closes_at !== undefined ? { closes_at: input.closes_at } : {}),
       settings: {

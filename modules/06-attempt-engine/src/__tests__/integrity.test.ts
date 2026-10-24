@@ -60,7 +60,7 @@ interface Seeded {
   attempt: string;
 }
 
-async function seed(slug: string, integrity: unknown): Promise<Seeded> {
+async function seed(slug: string, integrity: unknown, mode: "real" | "mock" = "real"): Promise<Seeded> {
   const tenant = randomUUID();
   const admin = randomUUID();
   const user = randomUUID();
@@ -88,8 +88,8 @@ async function seed(slug: string, integrity: unknown): Promise<Seeded> {
       [assessment, tenant, pack, level, JSON.stringify(integrity === undefined ? {} : { integrity }), admin],
     );
     await c.query(
-      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds) VALUES ($1,$2,$3,$4,'in_progress', now(), now() + interval '1 hour', 3600)`,
-      [attempt, tenant, assessment, user],
+      `INSERT INTO attempts (id, tenant_id, assessment_id, user_id, status, started_at, ends_at, duration_seconds, delivery_mode) VALUES ($1,$2,$3,$4,'in_progress', now(), now() + interval '1 hour', 3600, $5)`,
+      [attempt, tenant, assessment, user, mode],
     );
     const ev: Array<[string, unknown]> = [
       ["tab_blur", {}], ["tab_focus", {}], ["tab_blur", {}], ["tab_focus", {}],
@@ -142,7 +142,8 @@ afterAll(async () => {
 describe("getAttemptIntegritySummary + CandidateAttemptView.integrity", () => {
   it("counts events, is RLS-scoped, and reads the integrity switches", async () => {
     const a = await seed("int-a", { fullscreen: true, block_copy_paste: true });
-    const b = await seed("int-b", undefined);
+    const b = await seed("int-b", undefined, "mock");
+    const r = await seed("int-r", { fullscreen: false, block_copy_paste: false }, "real");
 
     expect(await getAttemptIntegritySummary(a.tenant, a.attempt)).toEqual({
       tab_switches: 2,
@@ -160,7 +161,9 @@ describe("getAttemptIntegritySummary + CandidateAttemptView.integrity", () => {
       fullscreen: true,
       block_copy_paste: true,
     });
-    // No settings.integrity -> both off.
+    // Z-142: a Real attempt always gets both switches on, whatever the settings say.
+    expect((await getAttemptForCandidate(r.tenant, r.attempt, r.user)).integrity).toEqual({ fullscreen: true, block_copy_paste: true });
+    // Mock with no settings.integrity -> both off.
     expect((await getAttemptForCandidate(b.tenant, b.attempt, b.user)).integrity).toEqual({
       fullscreen: false,
       block_copy_paste: false,

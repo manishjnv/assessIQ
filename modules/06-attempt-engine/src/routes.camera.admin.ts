@@ -10,7 +10,7 @@
 import { createReadStream, promises as fs } from "node:fs";
 import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
 import { z } from "zod";
-import { AuthzError, NotFoundError, ValidationError, streamLogger } from "@assessiq/core";
+import { AuthzError, NotFoundError, ValidationError, config, streamLogger } from "@assessiq/core";
 import { getCameraTenantSettings, confirmCameraNotice, setTenantIsSchool, updateCameraSettings, withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { CAMERA_NOTICE_VERSION, PHOTO_MIME, VIDEO_MIME } from "./camera/constants.js";
@@ -300,6 +300,8 @@ export async function registerCameraAdminRoutes(app: FastifyInstance, opts: Regi
       photosEnabled: s.photosEnabled,
       noticeConfirmedVersion: s.noticeConfirmedVersion,
       requiredNoticeVersion: CAMERA_NOTICE_VERSION,
+      // Z-144: Z-143 greys out the camera card when the switch is off.
+      cameraEnforced: config.CAMERA_ENFORCED,
       // The usage is system wide (one disk for every organisation).
       storage: { usedBytes: g.usedBytes, maxBytes: g.maxBytes, warn: g.warn },
     };

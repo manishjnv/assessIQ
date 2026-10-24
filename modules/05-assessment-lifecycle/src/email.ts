@@ -27,11 +27,13 @@ export interface SendAssessmentInvitationInput {
   tenantId?: string;
   /** From the invitation row. Decides the camera line; absent = no line. */
   deliveryMode?: "real" | "mock";
+  /** Z-144: the camera is per assessment, so the resolver needs the assessment. */
+  assessmentId?: string;
   /** Already resolved by the caller. Bulk invites set it once per batch so no send opens a second pooled connection inside an open transaction. */
   cameraRequired?: boolean;
 }
 
-type CameraRequiredFor = (tenantId: string, deliveryMode: "mock" | "real") => Promise<boolean>;
+type CameraRequiredFor = (tenantId: string, deliveryMode: "mock" | "real", assessmentId: string) => Promise<boolean>;
 let cameraRequiredFor: CameraRequiredFor | undefined;
 /**
  * Wired once at boot (apps/api server.ts and worker.ts) with module 06's isCameraRequired.
@@ -42,10 +44,10 @@ export function setCameraRequiredResolver(fn: CameraRequiredFor | undefined): vo
 }
 
 /** Same rule as the take flow. Mock, no tenant, no resolver or a resolver error all give false (the email still goes out). */
-export async function resolveCameraRequired(tenantId: string | undefined, deliveryMode: "real" | "mock" | undefined): Promise<boolean> {
-  if (deliveryMode !== "real" || tenantId === undefined || cameraRequiredFor === undefined) return false;
+export async function resolveCameraRequired(tenantId: string | undefined, deliveryMode: "real" | "mock" | undefined, assessmentId: string | undefined): Promise<boolean> {
+  if (deliveryMode !== "real" || tenantId === undefined || assessmentId === undefined || cameraRequiredFor === undefined) return false;
   try {
-    return await cameraRequiredFor(tenantId, deliveryMode);
+    return await cameraRequiredFor(tenantId, deliveryMode, assessmentId);
   } catch {
     return false;
   }
@@ -72,14 +74,14 @@ export async function sendInvitationEmail(
     expiresAt: input.expiresAt,
     tenantName: input.tenantName,
     ...(input.tenantId !== undefined ? { tenantId: input.tenantId } : {}),
-    cameraRequired: input.cameraRequired ?? (await resolveCameraRequired(input.tenantId, input.deliveryMode)),
+    cameraRequired: input.cameraRequired ?? (await resolveCameraRequired(input.tenantId, input.deliveryMode, input.assessmentId)),
   });
 }
 
 /** Reminder ("closes soon") email — same shim rationale as above; throws on failure. */
 export async function sendReminderEmail(
-  input: Omit<Parameters<typeof sendInvitationReminderEmail>[0], "cameraRequired"> & { deliveryMode?: "real" | "mock" },
+  input: Omit<Parameters<typeof sendInvitationReminderEmail>[0], "cameraRequired"> & { deliveryMode?: "real" | "mock"; assessmentId?: string },
 ): Promise<void> {
-  const { deliveryMode, ...rest } = input;
-  await sendInvitationReminderEmail({ ...rest, cameraRequired: await resolveCameraRequired(input.tenantId, deliveryMode) });
+  const { deliveryMode, assessmentId, ...rest } = input;
+  await sendInvitationReminderEmail({ ...rest, cameraRequired: await resolveCameraRequired(input.tenantId, deliveryMode, assessmentId) });
 }

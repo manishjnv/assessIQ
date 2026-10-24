@@ -252,6 +252,8 @@ export interface Assessment {
   effective_duration_minutes?: number | null;
   /** Z-89: default test type for invitations. 'real' = laptop/desktop only; 'mock' = any device, no certificate. */
   delivery_mode: "real" | "mock";
+  /** Z-142: Real + camera card. Only with delivery_mode real. Draft-only edit. */
+  camera_required: boolean;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -349,6 +351,8 @@ export interface CreateAssessmentInput {
   duration_minutes?: number | null;
   /** Z-89: 'real' (default) or 'mock'. */
   delivery_mode?: "real" | "mock";
+  /** Z-142: true = Real + camera; 422 with mock. */
+  camera_required?: boolean;
   randomize?: boolean;     // defaults true
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -375,6 +379,8 @@ export interface CreateAssessmentFromSetInput {
   duration_minutes?: number | null;
   /** Z-89: 'real' (default) or 'mock'. */
   delivery_mode?: "real" | "mock";
+  /** Z-142: true = Real + camera; 422 with mock. */
+  camera_required?: boolean;
   randomize?: boolean;
   opens_at?: Date | null;
   closes_at?: Date | null;
@@ -395,6 +401,8 @@ export interface UpdateAssessmentPatch {
   duration_minutes?: number | null;
   /** Z-89: 'real' (default) or 'mock'. */
   delivery_mode?: "real" | "mock";
+  /** Z-142: true = Real + camera; 422 with mock. */
+  camera_required?: boolean;
   randomize?: boolean;
   opens_at?: Date | null;
   closes_at?: Date | null;

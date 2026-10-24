@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { config } from "@assessiq/core";
+import { CAMERA_NOTICE_VERSION } from "../camera/constants.js";
 import {
   resolveCameraPolicy,
   cameraSetupBlocker,
@@ -26,11 +27,15 @@ const tc = (o: Partial<{ isSchool: boolean; cameraEnabled: boolean; photosEnable
   noticeConfirmedVersion: null,
   ...o,
 });
-const base = { deliveryMode: "real" as const, isEmbed: false, enforced: true, tenantCamera: tc() };
+const base = { deliveryMode: "real" as const, isEmbed: false, assessmentCamera: true, enforced: true, tenantCamera: tc() };
 
 describe("resolveCameraPolicy", () => {
   it("mock exam: not required", () => {
     expect(resolveCameraPolicy({ ...base, deliveryMode: "mock" })).toMatchObject({ required: false, reason: "mock" });
+  });
+  it("card without camera (assessmentCamera=false): not required for a real non-embed attempt", () => {
+    expect(resolveCameraPolicy({ ...base, assessmentCamera: false })).toMatchObject({ required: false, reason: "not_required" });
+    expect(resolveCameraPolicy({ ...base, assessmentCamera: false, tenantCamera: tc({ isSchool: true, cameraEnabled: true }) }).required).toBe(false);
   });
   it("embed: not required (accepted gap)", () => {
     expect(resolveCameraPolicy({ ...base, isEmbed: true })).toMatchObject({ required: false, reason: "embed" });
@@ -55,8 +60,10 @@ describe("cameraSetupBlocker and computeExpiresAt", () => {
   it("blocks only when required and the notice is not confirmed", () => {
     const req = resolveCameraPolicy(base);
     expect(cameraSetupBlocker(req, tc())).toBe("NOT_CONFIRMED");
-    expect(cameraSetupBlocker(req, tc({ noticeConfirmedVersion: "v" }))).toBeNull();
     expect(cameraSetupBlocker(resolveCameraPolicy({ ...base, deliveryMode: "mock" }), tc())).toBeNull();
+    // Z-144: compares the version, not null
+    expect(cameraSetupBlocker(req, tc({ noticeConfirmedVersion: "2020-old" }))).toBe("NOT_CONFIRMED");
+    expect(cameraSetupBlocker(req, tc({ noticeConfirmedVersion: CAMERA_NOTICE_VERSION }))).toBeNull();
   });
   it("adds the keep days", () => {
     const t = new Date("2026-01-01T00:00:00Z");

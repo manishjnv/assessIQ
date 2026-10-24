@@ -145,6 +145,12 @@ export function CameraSettingsCard(): React.ReactElement {
           </div>
         )}
 
+        {settings.cameraEnforced === false && (
+          <p role="status" style={{ margin: "12px 0 0", fontSize: 13, color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
+            Camera tests are temporarily off. Choose Real for new tests.
+          </p>
+        )}
+
         {/* School switches, or the non-school line */}
         {settings.isSchool ? (
           <>
@@ -179,7 +185,7 @@ export function CameraSettingsCard(): React.ReactElement {
           </>
         ) : (
           <p style={{ ...ROW, margin: 0, fontSize: 13, color: "var(--aiq-color-fg-secondary)", lineHeight: 1.5 }}>
-            The camera is on for every real test. It is not used in mock tests.
+            Confirm the camera notice to publish tests with the camera.
           </p>
         )}
 

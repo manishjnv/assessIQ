@@ -175,6 +175,11 @@ export function SuccessContent({
             <Chip variant="default">Mock test</Chip>
           </span>
         )}
+        {real && cameraRequired && (
+          <span style={{ marginLeft: 8 }}>
+            <Chip variant="default">Real test with camera</Chip>
+          </span>
+        )}
       </span>
       <h1 className="aiq-serif" style={SERIF_H1}>
         {resumed ? 'Pick up where you left off.' : 'Ready when you are.'}

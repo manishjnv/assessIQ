@@ -479,7 +479,7 @@ export async function startAttempt(
         // c4. Real-exam camera gate (Batch A). Same condition as above: request-facing starts only.
         //     CAMERA_ENFORCED=false, a mock test, an embed attempt (accepted gap) or a school with the
         //     camera off all resolve to required=false, so nothing changes for them.
-        const { policy, tenantCamera } = await resolvePolicyInTx(client, tenantId, deliveryMode, false);
+        const { policy, tenantCamera } = await resolvePolicyInTx(client, tenantId, deliveryMode, false, input.assessmentId);
         if (policy.required) {
           if (cameraSetupBlocker(policy, tenantCamera) !== null) {
             throw new AppError(
@@ -764,6 +764,7 @@ export async function startAttempt(
       embedOrigin: input.embedOrigin ?? false,
       attemptNumber: nextAttemptNumber,
       deliveryMode,
+      cameraEnabled: cameraRequired, // Z-144: the RESOLVED policy (embed, school off, switch off all give false)
       ...(input.readiness !== undefined ? { readiness: input.readiness } : {}),
     });
     if (attempt === null) {
@@ -1084,9 +1085,10 @@ async function loadAttemptForCandidate(
         new Set(questions.filter((q) => shuffleFieldOf(q.type) === "items").map((q) => q.question_id)),
       ),
       remaining_seconds: computeRemainingSeconds(effectiveAttempt, now),
+      // Z-142: Real and Real + camera are fixed on whatever the settings say; Mock follows the two admin checkboxes.
       integrity: {
-        fullscreen: integ?.fullscreen === true,
-        block_copy_paste: integ?.block_copy_paste === true,
+        fullscreen: attempt.delivery_mode === "real" || integ?.fullscreen === true,
+        block_copy_paste: attempt.delivery_mode === "real" || integ?.block_copy_paste === true,
       },
       ...(sectionsView !== undefined ? { sections: sectionsView } : {}),
       ...(sectionsSummary !== undefined ? { sections_summary: sectionsSummary } : {}),

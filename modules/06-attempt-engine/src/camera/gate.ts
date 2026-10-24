@@ -9,20 +9,28 @@ import { CAMERA_NOTICE_VERSION } from "./constants.js";
 import { insertConsent, latestConsentForInvitation } from "./repository.js";
 import { resolveCameraPolicy, type CameraPolicy, type CameraTenantPolicyInput } from "./policy.js";
 
-export async function loadTenantCameraInput(client: PoolClient, tenantId: string): Promise<CameraTenantPolicyInput> {
+/** One SELECT: the tenant row plus, when `assessmentId` is given, assessments.camera_required (Z-144). */
+export async function loadTenantCameraInput(
+  client: PoolClient,
+  tenantId: string,
+  assessmentId?: string,
+): Promise<CameraTenantPolicyInput & { assessmentCamera: boolean }> {
   const r = await client.query<{
+    assessment_camera: boolean;
     is_school: boolean;
     camera_enabled: boolean | null;
     camera_photos_enabled: boolean | null;
     camera_notice_confirmed_version: string | null;
   }>(
-    `SELECT t.is_school, s.camera_enabled, s.camera_photos_enabled, s.camera_notice_confirmed_version
+    `SELECT COALESCE((SELECT a.camera_required FROM assessments a WHERE a.id = $2::uuid), false) AS assessment_camera,
+            t.is_school, s.camera_enabled, s.camera_photos_enabled, s.camera_notice_confirmed_version
        FROM tenants t LEFT JOIN tenant_settings s ON s.tenant_id = t.id
       WHERE t.id = $1`,
-    [tenantId],
+    [tenantId, assessmentId ?? null],
   );
   const row = r.rows[0];
   return {
+    assessmentCamera: row?.assessment_camera ?? false,
     isSchool: row?.is_school ?? false,
     cameraEnabled: row?.camera_enabled ?? false,
     photosEnabled: row?.camera_photos_enabled ?? false,
@@ -36,15 +44,16 @@ export async function resolvePolicyInTx(
   tenantId: string,
   deliveryMode: "mock" | "real",
   isEmbed: boolean,
+  assessmentId: string,
 ): Promise<{ policy: CameraPolicy; tenantCamera: CameraTenantPolicyInput }> {
-  const tenantCamera = await loadTenantCameraInput(client, tenantId);
-  const policy = resolveCameraPolicy({ deliveryMode, isEmbed, tenantCamera, enforced: config.CAMERA_ENFORCED });
+  const { assessmentCamera, ...tenantCamera } = await loadTenantCameraInput(client, tenantId, assessmentId);
+  const policy = resolveCameraPolicy({ deliveryMode, isEmbed, assessmentCamera, tenantCamera, enforced: config.CAMERA_ENFORCED });
   return { policy, tenantCamera };
 }
 
 /** Is the camera required for a NEW attempt of this test type? Plain read for the take page. */
-export async function isCameraRequired(tenantId: string, deliveryMode: "mock" | "real"): Promise<boolean> {
-  return withTenant(tenantId, async (client) => (await resolvePolicyInTx(client, tenantId, deliveryMode, false)).policy.required);
+export async function isCameraRequired(tenantId: string, deliveryMode: "mock" | "real", assessmentId: string): Promise<boolean> {
+  return withTenant(tenantId, async (client) => (await resolvePolicyInTx(client, tenantId, deliveryMode, false, assessmentId)).policy.required);
 }
 
 /**
@@ -58,13 +67,14 @@ export async function recordCameraConsent(
     invitationId: string;
     userId: string;
     deliveryMode: "mock" | "real";
+    assessmentId: string;
     decision: "agreed" | "declined";
     ipHash: string;
     deviceType: "desktop" | "mobile";
   },
 ): Promise<void> {
   await withTenant(tenantId, async (client) => {
-    const { policy } = await resolvePolicyInTx(client, tenantId, i.deliveryMode, false);
+    const { policy } = await resolvePolicyInTx(client, tenantId, i.deliveryMode, false, i.assessmentId);
     if (!policy.required) {
       throw new AppError("The camera is not required for this test.", "CAMERA_NOT_REQUIRED", 409, {
         details: { code: "CAMERA_NOT_REQUIRED" },

@@ -1,5 +1,5 @@
 import { AppError, NotFoundError, ValidationError, ConflictError, uuidv7, UUID_RE, attemptsAllowed } from "@assessiq/core";
-import { withTenant } from "@assessiq/tenancy";
+import { withTenant, assertCameraTestAllowed } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import * as tenancyRepo from "../../../02-tenancy/src/repository.js";
 import type { PoolClient } from "pg";
@@ -202,8 +202,6 @@ async function reissueInvitationInTx(
     invitation: AssessmentInvitation;
     actorUserId: string;
     kind: "resend" | "reinvite";
-    /** Z-89: new test type on a re-invite; omitted = keep. */
-    deliveryMode?: "real" | "mock";
   },
 ): Promise<{ invitation: AssessmentInvitation; plaintext: string } | null> {
   const { plaintext, hash } = generateInvitationToken();
@@ -215,7 +213,6 @@ async function reissueInvitationInTx(
     args.invitation.id,
     hash,
     expiresAt,
-    args.deliveryMode ?? null,
   );
   if (updated === null) return null;
 
@@ -337,6 +334,7 @@ async function reissueForResendTx(
         expiresAt: reissued.invitation.expires_at,
         tenantName,
         deliveryMode: reissued.invitation.delivery_mode,
+        assessmentId: assessment.id,
       },
     };
   });
@@ -474,18 +472,16 @@ export async function inviteUsers(
   assessmentId: string,
   userIds: readonly string[],
   invitedByUserId: string,
-  /** Z-89: test type chosen by the admin; omitted = the assessment's own default. Validated by the route. */
-  deliveryMode?: "real" | "mock",
 ): Promise<InviteUsersResult> {
   log.info({ tenantId, assessmentId, userCount: userIds.length }, "inviteUsers");
 
   // Resolved ONCE per batch, BEFORE the transaction opens. The resolver opens its own tenant connection, so calling it per
   // invitee inside the open transaction would hold one pooled connection and wait for a second (pool deadlock under load).
-  // The rule only depends on the test type being real, so the real-mode answer is enough for every invitee.
-  const realCameraRequired = await resolveCameraRequired(tenantId, "real");
+  // Z-144: the camera follows the assessment card, so one answer per batch covers every invitee.
+  const realCameraRequired = await resolveCameraRequired(tenantId, "real", assessmentId);
 
   try {
-    return await inviteUsersTx(tenantId, assessmentId, userIds, invitedByUserId, deliveryMode, realCameraRequired);
+    return await inviteUsersTx(tenantId, assessmentId, userIds, invitedByUserId, realCameraRequired);
   } catch (err) {
     await recordInviteLimitBlocked(err, tenantId, invitedByUserId);
     throw err;
@@ -497,7 +493,6 @@ async function inviteUsersTx(
   assessmentId: string,
   userIds: readonly string[],
   invitedByUserId: string,
-  deliveryMode: "real" | "mock" | undefined,
   realCameraRequired: boolean,
 ): Promise<InviteUsersResult> {
   return withTenant(tenantId, async (client) => {
@@ -527,9 +522,15 @@ async function inviteUsersTx(
     // insert or email (a refusal rolls the transaction back; mail already sent could not be recalled).
     await assertInviteCapacity(client, tenantId, assessmentId, await countInvitesToCreate(client, assessmentId, userIds));
 
+    // Z-144: a camera test needs the switch on, the school camera on and the notice confirmed.
+    if (assessment.delivery_mode === "real" && assessment.camera_required) {
+      await assertCameraTestAllowed(client, tenantId, { requireNotice: true });
+    }
+
     const invited: AssessmentInvitation[] = [];
     const skipped: Array<{ userId: string; reason: string }> = [];
-    const mode: "real" | "mock" = deliveryMode ?? assessment.delivery_mode;
+    // Z-142: the invitation takes the assessment mode (one type per assessment, locked after draft).
+    const mode: "real" | "mock" = assessment.delivery_mode;
 
     // c. Process each userId
     for (const userId of userIds) {
@@ -584,7 +585,6 @@ async function inviteUsersTx(
           invitation: existing,
           actorUserId: invitedByUserId,
           kind: "reinvite",
-          deliveryMode: mode,
         });
         if (reissued === null) {
           // Lost a race with the candidate starting — treat as existing.
@@ -600,6 +600,7 @@ async function inviteUsersTx(
           expiresAt: reissued.invitation.expires_at,
           tenantName,
           deliveryMode: mode,
+          assessmentId,
           cameraRequired: mode === "real" && realCameraRequired,
         });
         invited.push(reissued.invitation);
@@ -638,6 +639,7 @@ async function inviteUsersTx(
         expiresAt,
         tenantName,
         deliveryMode: mode,
+        assessmentId,
         cameraRequired: mode === "real" && realCameraRequired,
       });
 
