@@ -16,6 +16,9 @@ vi.mock("../api.js", () => ({
     constructor(_s: number, e: { code: string; message: string }) { super(e.message); this.apiError = e; }
   },
 }));
+vi.mock("../api/camera.js", () => ({
+  getCameraSettingsApi: vi.fn().mockResolvedValue({ isSchool: false, cameraEnabled: true, cameraEnforced: true }),
+}));
 vi.mock("@assessiq/help-system/components", () => ({
   HelpTip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -57,7 +60,7 @@ describe("AdminStartTest", () => {
     await screen.findByText(/Asha/);
     expect(screen.queryByText(/Zed/)).toBeNull();
     expect((send() as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByRole("radio"));
+    fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
     expect((send() as HTMLButtonElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     expect((send() as HTMLButtonElement).disabled).toBe(false);
@@ -66,7 +69,7 @@ describe("AdminStartTest", () => {
   it("runs create, publish, invite, import in order with the right bodies", async () => {
     setup();
     await screen.findByText(/Asha/);
-    fireEvent.click(screen.getByRole("radio"));
+    fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     fireEvent.change(screen.getByLabelText(/Or paste/), { target: { value: "b@x.com, Bo" } });
     fireEvent.click(send());
@@ -85,7 +88,7 @@ describe("AdminStartTest", () => {
   it("sends the time limit when typed, nothing when empty, and shows the level time as placeholder", async () => {
     setup();
     await screen.findByText(/Asha/);
-    fireEvent.click(screen.getByRole("radio"));
+    fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     const box = screen.getByLabelText(/Time limit \(minutes\)/) as HTMLInputElement;
     expect(box.placeholder).toBe("45");
@@ -98,7 +101,7 @@ describe("AdminStartTest", () => {
   it("leaves duration_minutes out when the time limit is empty and blocks a value over 600", async () => {
     setup();
     await screen.findByText(/Asha/);
-    fireEvent.click(screen.getByRole("radio"));
+    fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     const box = screen.getByLabelText(/Time limit \(minutes\)/);
     fireEvent.change(box, { target: { value: "601" } });
@@ -113,7 +116,7 @@ describe("AdminStartTest", () => {
     setup();
     api.publishAssessmentApi.mockRejectedValue(new AdminApiError(403, { code: "NOT_ENTITLED", message: "Not entitled" }));
     await screen.findByText(/Asha/);
-    fireEvent.click(screen.getByRole("radio"));
+    fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
     fireEvent.click(send());
     const alert = await screen.findByRole("alert");

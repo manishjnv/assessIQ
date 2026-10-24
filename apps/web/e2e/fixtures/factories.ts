@@ -413,7 +413,8 @@ export async function createAssessmentFromSet(
       opens_at: new Date(Date.now() - 60_000).toISOString(),
       closes_at: new Date(Date.now() + 7 * 24 * 3600_000).toISOString(),
       ...(opts.settings !== undefined ? { settings: opts.settings } : {}),
-      ...(opts.deliveryMode !== undefined ? { delivery_mode: opts.deliveryMode } : {}),
+      // Z-142: a Real test forces full screen on the runner; these specs test the runner, so default to Mock.
+      delivery_mode: opts.deliveryMode ?? 'mock',
     },
     expectedStatus: 201,
     label: 'createAssessmentFromSet',

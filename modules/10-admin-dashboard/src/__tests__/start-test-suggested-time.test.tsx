@@ -13,6 +13,9 @@ vi.mock("../api.js", () => ({
   ...api,
   AdminApiError: class AdminApiError extends Error {},
 }));
+vi.mock("../api/camera.js", () => ({
+  getCameraSettingsApi: vi.fn().mockResolvedValue({ isSchool: false, cameraEnabled: true, cameraEnforced: true }),
+}));
 vi.mock("@assessiq/help-system/components", () => ({
   HelpTip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));

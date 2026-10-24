@@ -39,6 +39,8 @@ import { SectionsEditor, buildSections } from "./SectionsEditor.js";
 import type { SectionRow } from "./SectionsEditor.js";
 import { useAdminSession } from "../session.js";
 import { type AssessmentListItem, type AssessmentsResponse, type BlueprintLevel, type BlueprintCriterion, type SortDir, sortRows, STATUS_TABS, normalizeStatusTab, statusesForTab, isEmptyDraftCandidate } from "./assessments/shared.js";
+import { TestTypeChooser, fromTestType, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
+import { getCameraSettingsApi } from "../api/camera.js";
 import { buildAssessmentColumns } from "./assessments/columns.js";
 import { BlueprintBuilder } from "./assessments/BlueprintBuilder.js";
 import { PreviewAdequacy } from "./assessments/PreviewAdequacy.js";
@@ -86,9 +88,14 @@ export function AdminAssessments(): React.ReactElement {
   const [bpWholeMinutes, setBpWholeMinutes] = useState("");
   const [bpMarksPerQuestion, setBpMarksPerQuestion] = useState("");
   // Z-89: default test type of the new assessment (the invite form can still override per batch).
-  const [deliveryMode, setDeliveryMode] = useState<"real" | "mock">("real");
-  // Z-142 (7): camera for a real test. Only sent as true when the type is Real.
-  const [cameraRequired, setCameraRequired] = useState(false);
+  // Z-143: the card chooser value (Mock / Real / Real + camera). Default Real.
+  const [testType, setTestType] = useState<TestType>("real");
+  const [cameraSettings, setCameraSettings] = useState<ChooserCameraSettings | null>(null);
+  useEffect(() => {
+    getCameraSettingsApi().then(setCameraSettings).catch(() => setCameraSettings(null));
+  }, []);
+  const deliveryMode = fromTestType(testType).delivery_mode;
+  const cameraRequired = testType === "real_camera";
   const [creating, setCreating] = useState(false);
   // Integrity v1: written to settings.integrity on create (both default off).
   const [integrityFullscreen, setIntegrityFullscreen] = useState(false);
@@ -273,7 +280,7 @@ export function AdminAssessments(): React.ReactElement {
           ...(closesAtIso ? { closes_at: closesAtIso } : {}),
           ...(passMarkNum !== null ? { passing_score_pct: passMarkNum } : {}),
           delivery_mode: deliveryMode,
-          camera_required: deliveryMode === "real" && cameraRequired,
+          camera_required: cameraRequired,
           settings: { ...integritySettings, ...(builtSections?.settings ?? {}) },
         });
         navigate(`/admin/assessments/${created.id}`);
@@ -286,7 +293,7 @@ export function AdminAssessments(): React.ReactElement {
       if (closesAtIso) body.closes_at = closesAtIso;
       if (passMarkNum !== null) body.passing_score_pct = passMarkNum;
       body.delivery_mode = deliveryMode;
-      body.camera_required = deliveryMode === "real" && cameraRequired;
+      body.camera_required = cameraRequired;
 
       if (pendingBlueprint !== null) {
         // Blueprint mode: send settings.blueprint; backend resolves pack/level/question_count
@@ -613,39 +620,6 @@ export function AdminAssessments(): React.ReactElement {
                     onChange={(e) => setPassMark(e.target.value)}
                   />
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)" }}>
-                  <label
-                    htmlFor="new-assessment-test-type"
-                    style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", fontWeight: 500 }}
-                  >
-                    Test type
-                  </label>
-                  <select
-                    id="new-assessment-test-type"
-                    className="aiq-input"
-                    value={deliveryMode}
-                    onChange={(e) => {
-                      const next = e.target.value === "mock" ? "mock" : "real";
-                      setDeliveryMode(next);
-                      if (next === "mock") setCameraRequired(false);
-                    }}
-                  >
-                    <option value="real">Real exam</option>
-                    <option value="mock">Mock test</option>
-                  </select>
-                  <label
-                    data-help-id="admin.assessment.invite.test_type"
-                    style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={deliveryMode === "real" && cameraRequired}
-                      disabled={deliveryMode === "mock"}
-                      onChange={(e) => setCameraRequired(e.target.checked)}
-                    />
-                    Camera required
-                  </label>
-                </div>
               </div>
 
               {/* Source builder — "From a set" picker or the Blueprint builder */}
@@ -724,39 +698,16 @@ export function AdminAssessments(): React.ReactElement {
                 />
               )}
 
-              {/* Integrity v1 — candidate runner switches */}
-              <fieldset
-                style={{
-                  border: "1px solid var(--aiq-color-border)",
-                  borderRadius: "var(--aiq-radius-sm)",
-                  padding: "var(--aiq-space-sm) var(--aiq-space-md)",
-                  marginBottom: "var(--aiq-space-md)",
-                  fontFamily: "var(--aiq-font-sans)",
-                  fontSize: "var(--aiq-text-sm)",
-                }}
-              >
-                <legend style={{ fontWeight: 500 }}>Assessment integrity</legend>
-                <HelpTip helpId="admin.assessments.integrity.fullscreen">
-                  <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
-                    <input
-                      type="checkbox"
-                      checked={integrityFullscreen}
-                      onChange={(e) => setIntegrityFullscreen(e.target.checked)}
-                    />
-                    Require full screen
-                  </label>
-                </HelpTip>
-                <HelpTip helpId="admin.assessments.integrity.block_copy_paste">
-                  <label style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
-                    <input
-                      type="checkbox"
-                      checked={integrityBlockCopy}
-                      onChange={(e) => setIntegrityBlockCopy(e.target.checked)}
-                    />
-                    Block copy and paste
-                  </label>
-                </HelpTip>
-              </fieldset>
+              {/* Z-143: test type cards; the Mock card holds the integrity switches */}
+              <div style={{ marginBottom: "var(--aiq-space-md)" }}>
+                <TestTypeChooser
+                  value={testType}
+                  onChange={setTestType}
+                  integrity={{ fullscreen: integrityFullscreen, blockCopyPaste: integrityBlockCopy }}
+                  onIntegrityChange={(n) => { setIntegrityFullscreen(n.fullscreen); setIntegrityBlockCopy(n.blockCopyPaste); }}
+                  cameraSettings={cameraSettings}
+                />
+              </div>
 
               {createError && (
                 <div

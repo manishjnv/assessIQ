@@ -24,6 +24,8 @@ export interface AssessmentListItem {
   closes_at: string | null;
   created_at: string;
   invitations?: InvitationCounts;
+  delivery_mode?: "real" | "mock";
+  camera_required?: boolean;
 }
 
 export interface AssessmentsResponse {

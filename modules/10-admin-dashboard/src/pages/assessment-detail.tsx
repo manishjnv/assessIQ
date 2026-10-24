@@ -48,7 +48,8 @@ import { SectionsCard } from "../components/SectionsCard.js";
 import { HighStakesCard } from "../components/HighStakesCard.js";
 import { NegativeMarksCard } from "../components/NegativeMarksCard.js";
 import { PassMarkCard } from "../components/PassMarkCard.js";
-import { TestTypeCard } from "../components/TestTypeCard.js";
+import { TestTypeChooser, fromTestType, toTestType, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
+import { getCameraSettingsApi } from "../api/camera.js";
 import { RetakeCard } from "../components/RetakeCard.js";
 import { TimeLimitCard } from "../components/TimeLimitCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
@@ -659,11 +660,11 @@ export function AdminAssessmentDetail(): React.ReactElement {
           handleResendAll={handleResendAll}
         />
 
-        <TestTypeCard
+        <TestTypeEditor
           key={`tt-${assessment.id}`}
           assessmentId={assessment.id}
-          initial={assessment.delivery_mode ?? "real"}
-          initialCameraRequired={assessment.camera_required === true}
+          initial={toTestType(assessment.delivery_mode, assessment.camera_required)}
+          initialIntegrity={assessment.settings?.integrity}
           isDraft={assessment.status === "draft"}
         />
         <PassMarkCard
@@ -810,5 +811,74 @@ export function AdminAssessmentDetail(): React.ReactElement {
         }}
       />
     </AdminShell>
+  );
+}
+
+// Z-143: the test type cards on the detail page. Editable while draft (the server rejects a
+// patch after publish), read-only with a "Locked after publish" chip afterwards.
+function TestTypeEditor({
+  assessmentId, initial, initialIntegrity, isDraft,
+}: {
+  assessmentId: string;
+  initial: TestType;
+  initialIntegrity: { fullscreen?: boolean; block_copy_paste?: boolean } | undefined;
+  isDraft: boolean;
+}): React.ReactElement {
+  const [value, setValue] = useState<TestType>(initial);
+  const [integrity, setIntegrity] = useState({
+    fullscreen: initialIntegrity?.fullscreen === true,
+    blockCopyPaste: initialIntegrity?.block_copy_paste === true,
+  });
+  const [cameraSettings, setCameraSettings] = useState<ChooserCameraSettings | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    if (isDraft) getCameraSettingsApi().then(setCameraSettings).catch(() => setCameraSettings(null));
+  }, [isDraft]);
+
+  async function save(): Promise<void> {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const mock = value === "mock";
+      const integrityBody = JSON.stringify({
+        fullscreen: !mock || integrity.fullscreen,
+        block_copy_paste: !mock || integrity.blockCopyPaste,
+      });
+      // Real needs the switches on first; Mock saves its type first.
+      if (!mock) await adminApi(`/admin/assessments/${assessmentId}/integrity`, { method: "PATCH", body: integrityBody });
+      await adminApi(`/admin/assessments/${assessmentId}`, { method: "PATCH", body: JSON.stringify(fromTestType(value)) });
+      if (mock) await adminApi(`/admin/assessments/${assessmentId}/integrity`, { method: "PATCH", body: integrityBody });
+      setMsg({ ok: true, text: "Saved." });
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof AdminApiError ? err.apiError.message : "Could not save. Try again." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div data-help-id="admin.assessments.test_type" style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+      <TestTypeChooser
+        value={value}
+        onChange={setValue}
+        integrity={integrity}
+        onIntegrityChange={setIntegrity}
+        cameraSettings={cameraSettings}
+        readOnly={!isDraft}
+      />
+      {isDraft && (
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
+          <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={busy} onClick={() => void save()}>
+            {busy ? "Saving…" : "Save test type"}
+          </button>
+          {msg && (
+            <span role={msg.ok ? "status" : "alert"} style={{ color: msg.ok ? "var(--aiq-color-success)" : "var(--aiq-color-danger)" }}>
+              {msg.text}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

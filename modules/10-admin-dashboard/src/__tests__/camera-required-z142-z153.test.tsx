@@ -22,6 +22,9 @@ vi.mock("../api.js", () => ({
     }
   },
 }));
+vi.mock("../api/camera.js", () => ({
+  getCameraSettingsApi: vi.fn().mockResolvedValue({ isSchool: false, cameraEnabled: true, cameraEnforced: true }),
+}));
 vi.mock("@assessiq/help-system/components", () => ({
   HelpTip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -29,7 +32,6 @@ vi.mock("../components/AdminShell.js", () => ({
   AdminShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-import { TestTypeCard } from "../components/TestTypeCard.js";
 import { AdminStartTest } from "../pages/start-test.js";
 import { cameraNoticeSettingsPath } from "../lib/camera-errors.js";
 import { AdminApiError } from "../api.js";
@@ -37,34 +39,6 @@ import { AdminApiError } from "../api.js";
 const SET = { source_pack_id: "p1", name: "SOC Basics", domain: "soc", source_version: 1, question_count: 30, level_count: 2, level_minutes: [45, 60], cloned: true, cloned_pack_id: "c1", update_available: false };
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
-
-describe("TestTypeCard camera checkbox", () => {
-  it("is disabled while the type is Mock", () => {
-    render(<TestTypeCard assessmentId="a1" initial="mock" initialCameraRequired={false} isDraft />);
-    const box = screen.getByRole("checkbox", { name: "Camera required" }) as HTMLInputElement;
-    expect(box.disabled).toBe(true);
-    expect(box.checked).toBe(false);
-  });
-
-  it("is enabled for Real and PATCHes camera_required with delivery_mode", async () => {
-    api.adminApi.mockResolvedValue({});
-    render(<TestTypeCard assessmentId="a1" initial="real" initialCameraRequired={false} isDraft />);
-    const box = screen.getByRole("checkbox", { name: "Camera required" }) as HTMLInputElement;
-    expect(box.disabled).toBe(false);
-    fireEvent.click(box);
-    fireEvent.click(screen.getByRole("button", { name: "Save test type" }));
-    await waitFor(() => expect(api.adminApi).toHaveBeenCalledWith("/admin/assessments/a1", {
-      method: "PATCH",
-      body: JSON.stringify({ delivery_mode: "real", camera_required: true }),
-    }));
-  });
-
-  it("after publish shows the read-only type line", () => {
-    render(<TestTypeCard assessmentId="a1" initial="real" initialCameraRequired isDraft={false} />);
-    expect(screen.getByText("Type: Real + camera")).toBeTruthy();
-    expect(screen.queryByRole("checkbox")).toBeNull();
-  });
-});
 
 describe("camera notice link helper", () => {
   it("returns the settings path from a 409 CAMERA_NOTICE_REQUIRED and null for other errors", () => {
@@ -85,22 +59,18 @@ describe("Start a test camera wiring", () => {
     render(<MemoryRouter><AdminStartTest /></MemoryRouter>);
   }
 
-  it("Camera required is disabled for Mock and sends delivery_mode and camera_required", async () => {
+  it("the Real + camera card sends camera_required, Mock sends delivery_mode mock", async () => {
     setup();
     await screen.findByText(/Asha/);
-    fireEvent.click(screen.getByRole("radio"));
+    fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
-    const type = screen.getByLabelText("Test type") as HTMLSelectElement;
-    const camera = () => screen.getByRole("checkbox", { name: "Camera required" }) as HTMLInputElement;
-    fireEvent.change(type, { target: { value: "mock" } });
-    expect(camera().disabled).toBe(true);
-    fireEvent.change(type, { target: { value: "real" } });
-    fireEvent.click(camera());
+    fireEvent.click(screen.getByRole("radio", { name: "Real + camera" }));
     fireEvent.click(screen.getByRole("button", { name: "Send invitations" }));
     await waitFor(() => expect(api.createAssessmentFromSet).toHaveBeenCalled());
     const body = api.createAssessmentFromSet.mock.calls[0]![0];
     expect(body.delivery_mode).toBe("real");
     expect(body.camera_required).toBe(true);
+    expect(body.settings.integrity).toEqual({ fullscreen: true, block_copy_paste: true });
   });
 
   it("a 409 CAMERA_NOTICE_REQUIRED on publish shows the message and an Open camera settings link", async () => {

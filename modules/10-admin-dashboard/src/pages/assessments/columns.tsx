@@ -2,6 +2,7 @@ import React from "react";
 import type { NavigateFunction } from "react-router";
 import { Chip, formatDate } from "@assessiq/ui-system";
 import type { ColumnDef } from "@assessiq/ui-system";
+import { testTypeLabel, toTestType } from "../../components/TestTypeChooser.js";
 import { assessmentStatusDisplay } from "../../lib/labels.js";
 import { domainLabel } from "../../lib/domains.js";
 import { HelpTip } from "@assessiq/help-system/components";
@@ -66,6 +67,11 @@ export function buildAssessmentColumns({
           {row.domain ? domainLabel(row.domain) : "—"}
         </span>
       ),
+    },
+    {
+      key: "delivery_mode",
+      label: "Type",
+      render: (row: AssessmentListItem) => <Chip>{testTypeLabel(toTestType(row.delivery_mode, row.camera_required))}</Chip>,
     },
     {
       key: "status",

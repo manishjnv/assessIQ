@@ -17,6 +17,8 @@ import {
 import type { AvailableSet, CandidateOption, ExamBlueprintSummary } from "../api.js";
 import { formatDate } from "../lib/format.js";
 import { inviteSkipReasonLabel } from "../lib/labels.js";
+import { TestTypeChooser, fromTestType, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
+import { getCameraSettingsApi } from "../api/camera.js";
 import { cameraNoticeSettingsPath } from "../lib/camera-errors.js";
 
 const LEVELS = ["Beginner", "Intermediate", "Advanced"];
@@ -96,8 +98,12 @@ export function AdminStartTest(): React.ReactElement {
   const [mockOpen, setMockOpen] = useState(false);
   const [blueprintId, setBlueprintId] = useState("");
   // Z-142 (7): test type and camera for the new test (the page had no type input before).
-  const [testType, setTestType] = useState<"real" | "mock">("real");
-  const [cameraRequired, setCameraRequired] = useState(false);
+  const [testType, setTestType] = useState<TestType>("real");
+  const [integrity, setIntegrity] = useState({ fullscreen: false, blockCopyPaste: false });
+  const [cameraSettings, setCameraSettings] = useState<ChooserCameraSettings | null>(null);
+  useEffect(() => {
+    getCameraSettingsApi().then(setCameraSettings).catch(() => setCameraSettings(null));
+  }, []);
 
   useEffect(() => {
     getAvailableSets().then((d) => setSets(d.sets)).catch((e: unknown) => {
@@ -162,8 +168,7 @@ export function AdminStartTest(): React.ReactElement {
           opens_at: new Date(opensAt).toISOString(),
           ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
           name: name.trim(),
-          delivery_mode: testType,
-          camera_required: testType === "real" && cameraRequired,
+          ...fromTestType(testType),
         });
         id = mock.assessment.id;
         if (mock.warnings.length > 0) mockNote = mock.warnings.join(" ");
@@ -177,8 +182,12 @@ export function AdminStartTest(): React.ReactElement {
           opens_at: new Date(opensAt).toISOString(),
           ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
           ...(minutes.trim() !== "" ? { duration_minutes: Number(minutes) } : {}),
-          delivery_mode: testType,
-          camera_required: testType === "real" && cameraRequired,
+          ...fromTestType(testType),
+          // Z-143: Real is fixed on; Mock follows the two checkboxes in the Mock card.
+          settings: { integrity: {
+            fullscreen: testType !== "mock" || integrity.fullscreen,
+            block_copy_paste: testType !== "mock" || integrity.blockCopyPaste,
+          } },
         };
         id = (await createAssessmentFromSet(body)).id;
         mark("Assessment created");
@@ -306,19 +315,13 @@ export function AdminStartTest(): React.ReactElement {
                     </div>
                   </div>
                 )}
-                <div>
-                  <Label htmlFor="st-type">Test type</Label>
-                  <select id="st-type" className="aiq-input" value={testType}
-                    onChange={(e) => { const next = e.target.value === "mock" ? "mock" : "real"; setTestType(next); if (next === "mock") setCameraRequired(false); }}>
-                    <option value="real">Real exam</option>
-                    <option value="mock">Mock test</option>
-                  </select>
-                  <label data-help-id="admin.assessment.invite.test_type" style={{ ...sans, display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center", marginTop: 6 }}>
-                    <input type="checkbox" checked={testType === "real" && cameraRequired} disabled={testType === "mock"}
-                      onChange={(e) => setCameraRequired(e.target.checked)} />
-                    Camera required
-                  </label>
-                </div>
+                <TestTypeChooser
+                  value={testType}
+                  onChange={setTestType}
+                  integrity={integrity}
+                  onIntegrityChange={setIntegrity}
+                  cameraSettings={cameraSettings}
+                />
                 <div>
                   <Label htmlFor="st-name">Test name</Label>
                   <Input id="st-name" value={name} onChange={(e) => setName(e.target.value)} />
