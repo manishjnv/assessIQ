@@ -186,8 +186,8 @@ describe('monthly refill', () => {
     await refillFreeMonthlyCredits();
     expect(await remaining(prev)).toBe(0);
     const bal = await getCreditBalance(tenantId);
-    expect(FREE_MONTHLY_CREDITS).toBe(200);
-    expect(bal.balance).toBe(200);
+    expect(FREE_MONTHLY_CREDITS).toBe(250);
+    expect(bal.balance).toBe(250);
     const n = await sup((c) => c.query(`SELECT COUNT(*)::int AS n FROM credit_grants WHERE tenant_id = $1 AND source = 'free_monthly'`, [tenantId]));
     expect(n.rows[0].n).toBe(2);
   });
@@ -214,20 +214,21 @@ describe('0225 credit scale x10', () => {
       await c.query(`COMMENT ON TABLE credit_grants IS NULL`); // simulate a DB that has not run 0225 yet
       await c.query(sql);
       await c.query(sql);
+      await c.query(readFileSync(MIGRATION_0225.replace('0225_credit_scale_x10', '0260_free_grant_policy_250'), 'utf8')); // 0225 resets the insert limit to 200
     });
     const r = await sup((c) => c.query(`SELECT credits, remaining FROM credit_grants WHERE id = $1`, [id]));
     expect(r.rows[0]).toEqual({ credits: 200, remaining: 150 });
   });
 
-  it.skipIf(!dockerAvailable)('app role may insert a 200-credit free_monthly grant, not 201 or another source', async () => {
+  it.skipIf(!dockerAvailable)('app role may insert a 250-credit free_monthly grant, not 251 or another source', async () => {
     const { tenantId } = await seedTenant('free', 250);
     const ins = (source: string, n: number) =>
       withTenant(tenantId, (c) =>
         c.query(`INSERT INTO credit_grants (tenant_id, source, credits, remaining, expires_at) VALUES ($1,$2,$3,$3, now() + interval '30 days')`, [tenantId, source, n]),
       );
-    await expect(ins('free_monthly', 201)).rejects.toThrow();
+    await expect(ins('free_monthly', 251)).rejects.toThrow();
     await expect(ins('purchase', 10)).rejects.toThrow();
-    await expect(ins('free_monthly', 200)).resolves.toBeDefined();
+    await expect(ins('free_monthly', 250)).resolves.toBeDefined();
   });
 });
 
@@ -299,7 +300,7 @@ describe('expiry-warning notices', () => {
   it.skipIf(!dockerAvailable)('mails once inside 30 days, skips far, spent and free grants, and retries after a failed send', async () => {
     const { tenantId } = await seedTenant('pro', 1000);
     await addGrant(tenantId, 'purchase', 500, `now() + interval '200 days'`); // too far
-    await addGrant(tenantId, 'free_monthly', 200, `now() + interval '10 days'`); // free refills: skipped
+    await addGrant(tenantId, 'free_monthly', 250, `now() + interval '10 days'`); // free refills: skipped
     const spent = await addGrant(tenantId, 'bonus', 100, `now() + interval '10 days'`);
     await sup((c) => c.query(`UPDATE credit_grants SET remaining = 0 WHERE id = $1`, [spent]));
     const near = await addGrant(tenantId, 'purchase', 300, `now() + interval '20 days'`);

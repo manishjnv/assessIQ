@@ -13,7 +13,7 @@ export const BURN: Record<TestType, number> = { mock: 10, real: 20, real_camera:
 export const LEGACY_METER_UNITS_PER_ATTEMPT = 10;
 
 /** Free plan: the balance is SET to this number on the 1st of every month (no rollover). */
-export const FREE_MONTHLY_CREDITS = 200;
+export const FREE_MONTHLY_CREDITS = 250;
 
 /** A grant expires this many months after it is granted. */
 export const GRANT_VALIDITY_MONTHS = 12;
