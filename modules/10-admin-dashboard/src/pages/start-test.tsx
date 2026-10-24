@@ -12,12 +12,13 @@ import { csvCell } from "@assessiq/core/escape";
 import { AdminShell } from "../components/AdminShell.js";
 import { useCompanyUsage } from "../hooks/useCompanyUsage.js";
 import {
-  AdminApiError, createAssessmentFromSet, createFullMockApi, getAvailableSets, getPackLevelsApi, importCandidates,
+  AdminApiError, createAssessmentFromSet, createDrillApi, createFullMockApi, getAvailableSets, getPackLevelsApi, importCandidates,
   importLicensedSet, inviteAssessmentUsers, listCandidates, listExamBlueprintsApi, precheckInvitesApi, publishAssessmentApi,
 } from "../api.js";
 import type { AvailableSet, CandidateOption, ExamBlueprintSummary } from "../api.js";
 import { formatDate } from "../lib/format.js";
 import { inviteSkipReasonLabel } from "../lib/labels.js";
+import { FrameworkTreePicker } from "../components/FrameworkTreePicker.js";
 import { TestTypeChooser, fromTestType, feedbackSetting, type FeedbackLevel, type TestType, type ChooserCameraSettings } from "../components/TestTypeChooser.js";
 import { CreditCostLine, CreditsRefusalBlock, INVITE_COST, creditsRefusal, type CreditsRefusal } from "../components/CreditHold.js";
 import { getCameraSettingsApi } from "../api/camera.js";
@@ -102,6 +103,12 @@ export function AdminStartTest(): React.ReactElement {
   const [blueprints, setBlueprints] = useState<ExamBlueprintSummary[] | null>(null);
   const [mockOpen, setMockOpen] = useState(false);
   const [blueprintId, setBlueprintId] = useState("");
+  // EXP-35: what the mock covers (all sections, or the ticked subjects) and its size.
+  // EXP-11: topics chosen inside the Mock card (a topic mock). Empty = a normal draw from the whole set.
+  const [topicIds, setTopicIds] = useState<string[]>([]);
+  const [mockScope, setMockScope] = useState<"full" | "subjects">("full");
+  const [mockSubjects, setMockSubjects] = useState<number[]>([]);
+  const [mockSizePct, setMockSizePct] = useState(100);
   // Z-142 (7): test type and camera for the new test (the page had no type input before).
   const [testType, setTestType] = useState<TestType>("real");
   const [integrity, setIntegrity] = useState({ fullscreen: false, blockCopyPaste: false });
@@ -137,7 +144,7 @@ export function AdminStartTest(): React.ReactElement {
   // Z-103: suggestion only; the time limit field stays the override.
   const avg = set?.avg_minutes_per_question ?? 0;
   const suggestedMinutes = blueprint === null && avg > 0 && count >= 1 ? Math.ceil(count * avg) : 0;
-  const canSend = set !== null && total > 0 && name.trim() !== "" && opensAt !== "" && minutesOk && !busy;
+  const canSend = set !== null && total > 0 && name.trim() !== "" && opensAt !== "" && minutesOk && !busy && !(blueprint !== null && mockScope === "subjects" && mockSubjects.length === 0);
 
   function chooseSet(s: AvailableSet) {
     setSetId(s.source_pack_id);
@@ -157,7 +164,7 @@ export function AdminStartTest(): React.ReactElement {
 
   function reset() {
     setDone(null); setFailure(null); setSteps([]); setPicked(new Set()); setPasted(""); setSetId("");
-    setBlueprintId(""); setMockOpen(false);
+    setBlueprintId(""); setMockOpen(false); setMockScope("full"); setMockSubjects([]); setMockSizePct(100); setTopicIds([]);
   }
 
   async function send() {
@@ -187,10 +194,31 @@ export function AdminStartTest(): React.ReactElement {
           ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
           name: name.trim(),
           ...fromTestType(testType),
+          ...(mockScope === "subjects" ? { section_positions: [...mockSubjects].sort((a, b) => a - b) } : {}),
+          ...(mockSizePct < 100 ? { scale_percent: mockSizePct } : {}),
         });
         id = mock.assessment.id;
         if (mock.warnings.length > 0) mockNote = mock.warnings.join(" ");
         mark("Full mock created");
+      } else if (testType === "mock" && topicIds.length > 0) {
+        // EXP-11: topic mock. Same copy-and-level steps as the full mock, then one section per chosen topic.
+        step = "Copy the question set into your organisation";
+        const imported = await importLicensedSet(set.source_pack_id);
+        step = "Find the difficulty level";
+        const levelId = (await getPackLevelsApi(imported.cloned_pack_id)).levels.find((l) => l.order === level)?.id;
+        if (levelId === undefined) throw new StepError(`This question set has no difficulty ${level}.`);
+        step = "Create the topic mock";
+        id = (await createDrillApi({
+          pack_id: imported.cloned_pack_id,
+          level_id: levelId,
+          node_ids: topicIds,
+          question_count: Math.max(topicIds.length, Math.min(count, MAX_QUESTIONS)),
+          ...(minutes.trim() !== "" ? { minutes: Number(minutes) } : {}),
+          opens_at: new Date(opensAt).toISOString(),
+          ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
+          name: name.trim(),
+        })).assessment.id;
+        mark("Topic mock created");
       } else {
         const body = {
           source_pack_id: set.source_pack_id,
@@ -315,7 +343,7 @@ export function AdminStartTest(): React.ReactElement {
                     ))}
                   </select>
                 </div>
-                {blueprint === null && (
+                {blueprint === null && testType !== "mock" && (
                   <div>
                     <Label htmlFor="st-count">Number of questions</Label>
                     <Input id="st-count" type="number" min={1} max={Math.min(set.question_count, MAX_QUESTIONS)} value={count}
@@ -349,6 +377,20 @@ export function AdminStartTest(): React.ReactElement {
                   cameraSettings={cameraSettings}
                   feedbackLevel={feedbackLevel}
                   onFeedbackLevelChange={setFeedbackLevel}
+                  mockFeedbackSlot={blueprint === null ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)", marginTop: "var(--aiq-space-xs)" }}>
+                      <div>
+                        <Label htmlFor="st-count">Number of questions (at most {MAX_QUESTIONS})</Label>
+                        <Input id="st-count" type="number" min={1} max={Math.min(set.question_count, MAX_QUESTIONS)} value={count}
+                          onChange={(e) => setCount(Number(e.target.value))} />
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 500 }}>Topics (optional, up to 10)</div>
+                        <FrameworkTreePicker multiple kinds={["unit", "outcome"]} value={topicIds} helpId="admin.start_test.mock_topics"
+                          onChange={(ids) => setTopicIds(ids.slice(0, 10))} />
+                      </div>
+                    </div>
+                  ) : null}
                 />
                 <div>
                   <Label htmlFor="st-name">Test name</Label>
@@ -378,7 +420,7 @@ export function AdminStartTest(): React.ReactElement {
                 {(blueprints ?? []).map((b) => (
                   <label key={b.id} style={{ ...sans, display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center", cursor: "pointer" }}>
                     <input type="radio" name="blueprint" checked={blueprintId === b.id}
-                      onChange={() => { setBlueprintId(b.id); setName(`${b.name} — ${formatDate(new Date())}`); }} />
+                      onChange={() => { setBlueprintId(b.id); setName(`${b.name} — ${formatDate(new Date())}`); setMockScope("full"); setMockSubjects([]); setMockSizePct(100); }} />
                     <span>{b.name} · {b.total_questions} questions · {b.total_minutes} minutes</span>
                     {b.verification_status === "verified" ? <Chip variant="success">Verified</Chip> : <Chip>Unverified</Chip>}
                   </label>
@@ -386,6 +428,41 @@ export function AdminStartTest(): React.ReactElement {
                 {blueprint !== null && blueprint.verification_status !== "verified" && (
                   <HelpTip helpId={START_TEST_MOCK_HELP.unverified}>
                     <FieldHelp>This blueprint is not verified. Check its sections and marks against the official notice before a real test.</FieldHelp>
+                  </HelpTip>
+                )}
+                {blueprint !== null && (
+                  <HelpTip helpId="admin.start_test.mock_scope">
+                    <div style={stack}>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-md)" }}>
+                        <div>
+                          <Label htmlFor="st-mock-scope">What the mock covers</Label>
+                          <select id="st-mock-scope" className="aiq-input" value={mockScope} onChange={(e) => setMockScope(e.target.value as "full" | "subjects")}>
+                            <option value="full">Full test (all sections)</option>
+                            <option value="subjects">Chosen subjects only</option>
+                          </select>
+                        </div>
+                        <div>
+                          <Label htmlFor="st-mock-size">Size</Label>
+                          <select id="st-mock-size" className="aiq-input" value={mockSizePct} onChange={(e) => setMockSizePct(Number(e.target.value))}>
+                            {[100, 75, 50, 25].map((n) => <option key={n} value={n}>{n === 100 ? "Full size" : `${n}% of the questions`}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      {mockScope === "subjects" && (
+                        <div role="group" aria-label="Subjects" style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)" }}>
+                          {(blueprint.sections ?? []).map((s, i) => (
+                            <label key={i} style={{ ...sans, display: "flex", gap: 4, alignItems: "center" }}>
+                              <input type="checkbox" checked={mockSubjects.includes(i)}
+                                onChange={(e) => setMockSubjects((cur) => (e.target.checked ? [...cur, i] : cur.filter((x) => x !== i)))} />
+                              {s.name}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      {(mockScope === "subjects" || mockSizePct < 100) && (
+                        <FieldHelp>A shorter mock is a practice test: it has no cut-off. Marks per question stay the same. It costs the same credits as any mock.</FieldHelp>
+                      )}
+                    </div>
                   </HelpTip>
                 )}
                 <div>

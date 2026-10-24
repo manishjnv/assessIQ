@@ -1249,6 +1249,8 @@ export interface ExamBlueprintSummary {
   total_questions: number;
   total_minutes: number;
   verification_status: "verified" | "unverified";
+  /** The sections, in order (the server sends them; used for the "chosen subjects" mock scope). */
+  sections?: { name: string }[];
 }
 
 /** GET /api/admin/blueprints — every exam blueprint visible to this organisation. */
@@ -1256,9 +1258,24 @@ export async function listExamBlueprintsApi(): Promise<{ items: ExamBlueprintSum
   return adminApi<{ items: ExamBlueprintSummary[] }>('/admin/blueprints');
 }
 
-/** GET /api/admin/packs/:id — the pack with its ordered levels (`order` is 1-based). */
+/** GET /api/admin/packs/:id — the pack with its ordered levels (`order` is 1-based). The server sends `position`; `order` is its UI name. */
 export async function getPackLevelsApi(packId: string): Promise<{ levels: { id: string; order: number }[] }> {
-  return adminApi<{ levels: { id: string; order: number }[] }>(`/admin/packs/${packId}`);
+  const r = await adminApi<{ levels: { id: string; order?: number; position?: number }[] }>(`/admin/packs/${packId}`);
+  return { levels: r.levels.map((l) => ({ id: l.id, order: l.order ?? l.position ?? 0 })) };
+}
+
+/** POST /api/admin/drills — a DRAFT topic mock: one section per chosen Subject-map node (EXP-11, module 05). */
+export async function createDrillApi(body: {
+  pack_id: string;
+  level_id: string;
+  node_ids: string[];
+  question_count: number;
+  minutes?: number;
+  opens_at: string;
+  closes_at?: string | null;
+  name?: string;
+}): Promise<{ assessment: { id: string } }> {
+  return adminApi<{ assessment: { id: string } }>('/admin/drills', { method: 'POST', body: JSON.stringify(body) });
 }
 
 /** POST /api/admin/blueprints/:id/mock — a DRAFT full mock from an exam blueprint (module 05). */
@@ -1272,6 +1289,10 @@ export async function createFullMockApi(
     name?: string;
     delivery_mode?: "real" | "mock";
     camera_required?: boolean;
+    /** EXP-35: 0-based blueprint section positions (subjects). Absent = all sections. */
+    section_positions?: number[];
+    /** EXP-35: percent of the questions and time, 1 to 100. Absent = full size. */
+    scale_percent?: number;
   },
 ): Promise<{ assessment: { id: string }; warnings: string[] }> {
   return adminApi<{ assessment: { id: string }; warnings: string[] }>(

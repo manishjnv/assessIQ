@@ -23,6 +23,7 @@ vi.mock("../api.js", () => ({
     }
   },
 }));
+vi.mock("../components/FrameworkTreePicker.js", () => ({ FrameworkTreePicker: () => null }));
 vi.mock("../api/camera.js", () => ({
   getCameraSettingsApi: vi.fn().mockResolvedValue({ isSchool: false, cameraEnabled: true, cameraEnforced: true }),
 }));

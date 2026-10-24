@@ -8,7 +8,12 @@ const api = vi.hoisted(() => ({
   getAvailableSets: vi.fn(), listCandidates: vi.fn(), createAssessmentFromSet: vi.fn(),
   publishAssessmentApi: vi.fn(), inviteAssessmentUsers: vi.fn(), importCandidates: vi.fn(),
   listExamBlueprintsApi: vi.fn(), createFullMockApi: vi.fn(), getPackLevelsApi: vi.fn(), importLicensedSet: vi.fn(),
-  getCompanyUsage: vi.fn(), precheckInvitesApi: vi.fn(),
+  getCompanyUsage: vi.fn(), precheckInvitesApi: vi.fn(), createDrillApi: vi.fn(),
+}));
+vi.mock("../components/FrameworkTreePicker.js", () => ({
+  FrameworkTreePicker: ({ onChange }: { onChange: (ids: string[]) => void }) => (
+    <button type="button" onClick={() => onChange(["n1", "n2"])}>Pick topics</button>
+  ),
 }));
 vi.mock("../api.js", () => ({
   ...api,
@@ -137,7 +142,7 @@ describe("AdminStartTest", () => {
 });
 
 const BLUEPRINTS = [
-  { id: "bp-ssc", name: "SSC CGL Tier 1", edition: "2026", total_questions: 100, total_minutes: 60, verification_status: "verified" },
+  { id: "bp-ssc", name: "SSC CGL Tier 1", edition: "2026", total_questions: 100, total_minutes: 60, verification_status: "verified", sections: [{ name: "Reasoning" }, { name: "English" }] },
   { id: "bp-other", name: "IBPS PO Prelims", edition: "2026", total_questions: 100, total_minutes: 60, verification_status: "unverified" },
 ];
 
@@ -156,6 +161,39 @@ async function chooseMockFlow(blueprintName: RegExp) {
   await screen.findByText(/Asha/);
   fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
 }
+
+describe("topics and question count in the Mock card (EXP-11)", () => {
+  it("a Mock with topics creates a topic mock with the count and the topics", async () => {
+    setupMock();
+    await screen.findByText(/SOC Basics/);
+    fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
+    await screen.findByText(/Asha/);
+    fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /^Mock/ }));
+    fireEvent.change(screen.getByLabelText(/Number of questions/), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Pick topics" }));
+    api.createDrillApi.mockResolvedValue({ assessment: { id: "drill1" } });
+    fireEvent.click(send());
+    await screen.findByTestId("start-test-result");
+    expect(api.createDrillApi).toHaveBeenCalledWith(expect.objectContaining({ pack_id: "c-pack", level_id: "lv1", node_ids: ["n1", "n2"], question_count: 20 }));
+    expect(api.createAssessmentFromSet).not.toHaveBeenCalled();
+    expect(api.publishAssessmentApi).toHaveBeenCalledWith("drill1");
+  });
+});
+
+describe("mock scope on Start a test (EXP-35)", () => {
+  it("chosen subjects and a smaller size reach the create call; Send waits for a subject", async () => {
+    setupMock();
+    await chooseMockFlow(/SSC CGL Tier 1/);
+    fireEvent.change(await screen.findByLabelText("What the mock covers"), { target: { value: "subjects" } });
+    expect((screen.getByRole("button", { name: "Send invitations" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByLabelText("English"));
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "50" } });
+    fireEvent.click(send());
+    await screen.findByTestId("start-test-result");
+    expect(api.createFullMockApi).toHaveBeenCalledWith("bp-ssc", expect.objectContaining({ section_positions: [1], scale_percent: 50 }));
+  });
+});
 
 describe("full mock on Start a test (EXP-6 / Z-42 tail)", () => {
   it("offers the verified blueprint and marks the others unverified", async () => {
