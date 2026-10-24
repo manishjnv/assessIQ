@@ -305,3 +305,8 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 - Screens and components: `docs/08-ui-system.md`, "Camera screens".
 
 - **Withheld questions (A3-1, 2026-10-23).** A question with `withheld: true` has no content. `apps/web/src/pages/take/Attempt.tsx` shows "Loading question…" and swaps in the `question` that `recordPosition` returns (api.ts). Why: stops reading locked or timed questions early in the browser tools.
+
+
+## Per-item feedback level (Z-145; 2026-10-24)
+
+- `GET /api/me/results` returns `feedback_level` on each item (the level is per assessment now). `MyResults.tsx` reads the item value. The blocked-camera message reads "Your browser blocked the camera. Allow the camera for this page, then reload."

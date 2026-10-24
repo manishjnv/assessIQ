@@ -472,3 +472,11 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 
 ## S51 additions (2026-10-23)
 - Affected attempts: `listAttemptsOnOlderVersions(tenantId, questionId, {reviewed})` and `setAffectedAttemptReview` (table `affected_attempt_reviews`, marks only, no score change). Camera upload uses `tenantDiskGuard` (per-tenant cap `CAMERA_TENANT_STORAGE_MAX_BYTES`). `saveAnswer` refuses a text answer over `MAX_ANSWER_CHARS` (20,000).
+
+
+## Test-type cards, burn at submit, embed (Z-144, Z-146, Z-148; 2026-10-24)
+
+- **Camera.** `resolveCameraPolicy` takes `assessmentCamera` (`assessments.camera_required`); false gives `none("not_required")`. `insertAttempt` writes `attempts.camera_enabled` from the RESOLVED policy, so the 30-credit burn now happens. Embed writes false.
+- **Burn at submit.** `burnCredits` runs right after `scoreMcqAndFinalizeSafely` in the four submit paths (read auto-submit, `submitAttempt`, revoke-submit, timer sweep). It is idempotent; `recordGradedAttempt` stays as a backup. The sweep now marks the invitation `submitted`. If `burnCredits` throws, the submit transaction rolls back (same design as `recordGradedAttempt`).
+- **Embed.** An embed start follows the assessment type, camera off; the runner view forces full screen and block copy and paste on for Real and for every embed attempt. Feedback is `none` for embed.
+- **Feedback.** `effectiveLevel(level, {isMockAttempt, isEmbed})` reads the assessment's `settings.feedback_level`; Real and embed always get `none`. The A3-6 retake branch is gone.

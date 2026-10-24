@@ -210,3 +210,8 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 
 ## S51 additions (2026-10-23)
 - Billing drawer: "Students per assessment" field with Unlimited (EXP-38). Import screens: `ImportTargetPicker` (add to an existing question set and level). Sections editor: per-section question-set picker (`withPackPicker`). Question review: `affected-attempts-panel.tsx` (EXP-12 manual review).
+
+
+## Test-type cards UI (Z-143, Z-147, Z-149, Z-150, Z-151, Z-156; 2026-10-24)
+
+- `TestTypeChooser` replaces `TestTypeCard` and the per-page type inputs (create form, Start a test, draft detail). `CreditPill` (top bar) and the shared `useCompanyUsage` hook show `available / total_granted`. `CreditHold.tsx` holds the cost line, the refusal block ("Buy credits" to /contact, "Invite N now") and the Held chip. The Assessments header has "Send a test now" and "New assessment (advanced)"; the "Start a test" tab is removed. The grading cards use `awaiting_release` and show an error with Retry when a load fails. The organisation feedback card is removed from the settings page.

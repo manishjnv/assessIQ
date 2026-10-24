@@ -387,3 +387,11 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 
 ## EXP-37 (2026-10-23)
 - `assertInviteCapacity` (`service/_shared.ts`) refuses with 409 `INVITE_LIMIT_EXCEEDED` when the active invitations (pending, viewed, started) of one assessment plus the new ones pass the plan limit. Called by `inviteUsers` (once per batch, before any insert or mail), resend of a revoked invitation, and reopen for retake. A per-assessment advisory lock serialises concurrent invites. A refusal writes the audit action `assessment.invite_limit_blocked` and calls `notifyInviteLimitBlocked` (module 13, best effort, once per assessment per day).
+
+
+## Test-type cards (Z-142, Z-145, Z-147, Z-152; 2026-10-24)
+
+- **What.** `assessments.camera_required` (migration 0259) plus `delivery_mode` give the three cards: Mock, Real, Real + camera. `assertTypeCard` (service/assessments.ts) enforces: camera with mock gives 422 INVALID_PARAM; a Real assessment with an integrity switch off in a SENT body gives 409 INTEGRITY_FIXED; camera tests also need `assertCameraTestAllowed` (02-tenancy) on create and PATCH (switch on, school camera on) and with the notice confirmed on publish and invite. Type and camera change only while draft (ASSESSMENT_NOT_DRAFT). The invitation takes the assessment mode; the invite body no longer reads `delivery_mode`.
+- **Feedback.** `settings.feedback_level` is validated by `assertFeedbackLevel` (create, from-set, PATCH). Only a Mock attempt that is not embed shows it (06 and 13 read it).
+- **Credit hold.** `assertCreditsAvailable` (service/_shared.ts) runs before `assertInviteCapacity` in `inviteUsersTx`, the resend of a revoked row and the reopen. Lock order: per-tenant `credit_hold` advisory lock first, then per-assessment `invite_limit`. `precheckInvites` and `POST /api/admin/assessments/precheck-invites` run the same two asserts read-only (import and Start a test call it first).
+- **Why / rejected / not included.** See docs/plans/test-type-cards-plan.md. Not included: a rollback of a published assessment; a credit check on the resend of a pending invitation whose link already lapsed.

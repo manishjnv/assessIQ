@@ -323,3 +323,8 @@ The full record is in `modules/19-billing/SKILL.md` § "2026-10-20 — Wave 4 sm
 
 ## EXP-37 (2026-10-23)
 - `invite-limit-notice.ts`: `notifyInviteLimitBlocked` tells the platform super admins (in-app notice per active super_admin of the platform tenant, written with `withSystemRole`; email template `invite_limit_blocked` to `SUPER_ADMIN_EMAILS`); once per (tenant, assessment, UTC day) by a Redis key; never throws.
+
+
+## Result email level and device-check line (Z-145, Z-154; 2026-10-24)
+
+- The result-released email reads `assessments.settings.feedback_level` and applies `effectiveLevel` (Mock, not embed). The `invitation_candidate` email has one line linking to `/check` (built from `ASSESSIQ_BASE_URL`, string key `device_check`). The reminder email has no such line yet.
