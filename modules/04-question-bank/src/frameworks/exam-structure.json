@@ -57,6 +57,11 @@
           "code": "rrb-ntpc-cbt-1",
           "title": "RRB NTPC CBT 1",
           "kind": "stage"
+        },
+        {
+          "code": "rrb-group-d-cbt",
+          "title": "RRB Group D CBT",
+          "kind": "stage"
         }
       ]
     },
@@ -68,6 +73,11 @@
         {
           "code": "upsc-cse-prelims-gs-paper-1",
           "title": "UPSC CSE Prelims GS Paper 1",
+          "kind": "stage"
+        },
+        {
+          "code": "upsc-nda-written",
+          "title": "UPSC NDA Written",
           "kind": "stage"
         }
       ]
@@ -85,6 +95,35 @@
         {
           "code": "nta-neet-ug",
           "title": "NTA NEET UG",
+          "kind": "stage"
+        }
+      ]
+    },
+    {
+      "code": "campus",
+      "title": "Campus",
+      "kind": "board",
+      "children": [
+        {
+          "code": "campus-aptitude-stage-0",
+          "title": "Campus aptitude (Stage 0)",
+          "kind": "stage"
+        }
+      ]
+    },
+    {
+      "code": "sbi",
+      "title": "SBI",
+      "kind": "board",
+      "children": [
+        {
+          "code": "sbi-po-prelims",
+          "title": "SBI PO Prelims",
+          "kind": "stage"
+        },
+        {
+          "code": "sbi-clerk-prelims",
+          "title": "SBI Clerk Prelims",
           "kind": "stage"
         }
       ]

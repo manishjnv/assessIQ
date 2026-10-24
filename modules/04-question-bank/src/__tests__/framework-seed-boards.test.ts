@@ -70,14 +70,17 @@ describe("exam-structure and subject-map seeds", () => {
     expect([exam.version, subj.version]).toEqual(["draft-unverified", "draft-unverified"]);
     expect(exam.nodes.some(dupes) || subj.nodes.some(dupes)).toBe(false);
   });
-  it("exam-structure has 5 boards and 10 stages", () => {
-    expect(exam.nodes.map((n) => n.code)).toEqual(["ssc", "ibps", "rrb", "upsc", "nta"]);
-    expect(exam.nodes.reduce((a, b) => a + (b.children ?? []).length, 0)).toBe(10);
+  it("exam-structure has 7 boards and 15 stages (EXP-25a: campus stage 0, SBI, RRB Group D, NDA)", () => {
+    expect(exam.nodes.map((n) => n.code)).toEqual(["ssc", "ibps", "rrb", "upsc", "nta", "campus", "sbi"]);
+    expect(exam.nodes.reduce((a, b) => a + (b.children ?? []).length, 0)).toBe(15);
   });
-  it("subject-map has 4 subjects; only Quant > Arithmetic has outcomes", () => {
-    expect(subj.nodes.map((n) => n.code)).toEqual(["quant", "reasoning", "english", "general-awareness"]);
-    const withOutcomes = subj.nodes.flatMap((s) => s.children ?? []).filter((u) => (u.children ?? []).length > 0);
-    expect(withOutcomes.map((u) => u.code)).toEqual(["arithmetic"]);
-    expect(withOutcomes[0]!.children).toHaveLength(8);
+  it("subject-map has 5 subjects; the 15 pilot template outcomes exist (EXP-25a) and the new topics are present", () => {
+    expect(subj.nodes.map((n) => n.code)).toEqual(["quant", "reasoning", "english", "general-awareness", "technical-aptitude"]);
+    const units = subj.nodes.flatMap((s) => s.children ?? []);
+    const withOutcomes = units.filter((u) => (u.children ?? []).length > 0);
+    expect(withOutcomes.map((u) => u.code)).toEqual(["arithmetic", "algebra", "number-system", "progressions", "puzzles-and-series", "technical-basics"].filter((c) => c !== "technical-basics"));
+    expect(withOutcomes.find((u) => u.code === "arithmetic")!.children).toHaveLength(8);
+    expect(units.flatMap((u) => u.children ?? []).length).toBe(8 + 1 + 1 + 2 + 5);
+    for (const c of ["clocks", "calendars", "critical-reasoning", "progressions"]) expect(units.some((u) => u.code === c)).toBe(true);
   });
 });

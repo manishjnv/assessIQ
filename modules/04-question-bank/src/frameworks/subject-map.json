@@ -59,7 +59,14 @@
         {
           "code": "algebra",
           "title": "Algebra",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "linear-equations",
+              "title": "Linear equations",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "geometry",
@@ -84,7 +91,31 @@
         {
           "code": "number-system",
           "title": "Number system",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "divisibility-and-remainders",
+              "title": "Divisibility and remainders",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "progressions",
+          "title": "Progressions",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "arithmetic-progression",
+              "title": "Arithmetic progression",
+              "kind": "outcome"
+            },
+            {
+              "code": "geometric-progression",
+              "title": "Geometric progression",
+              "kind": "outcome"
+            }
+          ]
         }
       ]
     },
@@ -106,6 +137,48 @@
         {
           "code": "puzzles-and-series",
           "title": "Puzzles and series",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "number-series",
+              "title": "Number series",
+              "kind": "outcome"
+            },
+            {
+              "code": "coding-decoding",
+              "title": "Coding and decoding",
+              "kind": "outcome"
+            },
+            {
+              "code": "blood-relations",
+              "title": "Blood relations",
+              "kind": "outcome"
+            },
+            {
+              "code": "direction-sense",
+              "title": "Direction sense",
+              "kind": "outcome"
+            },
+            {
+              "code": "ranking-and-order",
+              "title": "Ranking and order",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "clocks",
+          "title": "Clocks",
+          "kind": "unit"
+        },
+        {
+          "code": "calendars",
+          "title": "Calendars",
+          "kind": "unit"
+        },
+        {
+          "code": "critical-reasoning",
+          "title": "Critical reasoning",
           "kind": "unit"
         }
       ]
@@ -170,6 +243,18 @@
         {
           "code": "current-affairs-static",
           "title": "Current affairs static",
+          "kind": "unit"
+        }
+      ]
+    },
+    {
+      "code": "technical-aptitude",
+      "title": "Technical aptitude",
+      "kind": "subject",
+      "children": [
+        {
+          "code": "technical-basics",
+          "title": "Technical basics",
           "kind": "unit"
         }
       ]
