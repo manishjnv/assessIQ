@@ -2,7 +2,7 @@
 // STUDENT-STYLE ANSWER TEXT, so save it OUTSIDE the repo and never commit or paste it:
 //   ssh assessiq-vps 'docker exec -i assessiq-api node - <runIds>' < tools/eval-relabel-pack.mjs > out.txt
 // out.txt = the pack (markdown, items P01..), then a line "=====KEY=====", then a JSON key (item -> case id).
-// The pack shows NO expected band and NO model band. Items: every miss plus the same number of random matches, shuffled.
+// IDS=<case ids> (+ IDS_RANDOM=n random matches) packs exactly those cases. The pack shows NO expected band and NO model band. Items: every miss plus the same number of random matches, shuffled.
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -35,6 +35,13 @@ let picked = [...miss, ...ok.slice(0, miss.length)].sort((a, b) => h("shuffle" +
 if (process.env.SLICE) {
   const want = Number(process.env.SLICE);
   picked = [...miss, ...ok].filter((id) => find(id, "expected")?.band === want).sort((a, b) => h("shuffle" + a).localeCompare(h("shuffle" + b)));
+}
+
+// IDS=<comma list of case ids>[,RANDOM=n via IDS_RANDOM]: pack exactly those cases plus IDS_RANDOM random matches (default 8), shuffled. Still blind.
+if (process.env.IDS) {
+  const want = process.env.IDS.split(",").map((x) => x.trim()).filter(Boolean);
+  const extra = ok.filter((id) => !want.includes(id)).slice(0, Number(process.env.IDS_RANDOM ?? 8));
+  picked = [...want, ...extra].sort((a, b) => h("shuffle" + a).localeCompare(h("shuffle" + b)));
 }
 
 const out = [];

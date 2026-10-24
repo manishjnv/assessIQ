@@ -444,6 +444,10 @@ export interface TargetCheck {
   value: number | null;
   target: string;
   pass: boolean;
+  /** Not measurable on this run (shown as N/A, never as a pass or a fail). */
+  na?: boolean;
+  /** Extra line shown under the check. */
+  note?: string | undefined;
 }
 
 /** Wilson score lower bound (95%) of k successes in n trials, as a percent. */
@@ -455,6 +459,18 @@ export function wilsonLowerPct(k: number, n: number): number {
   const centre = p + (z * z) / (2 * n);
   const margin = z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n));
   return round2(((centre - margin) / d) * 100);
+}
+
+/** Fewest hits out of n whose Wilson lower bound reaches `target` percent (null when even n/n is not enough). */
+export function requiredHits(n: number, target = 85): number | null {
+  for (let k = 0; k <= n; k++) if (wilsonLowerPct(k, n) >= target) return k;
+  return null;
+}
+
+/** Smallest number of cases at which an observed rate of `pct` percent reaches the Wilson bound `target` (null above `maxN`). */
+export function requiredCases(pct: number, target = 85, maxN = 5000): number | null {
+  for (let n = 10; n <= maxN; n++) if (wilsonLowerPct(Math.round((pct / 100) * n), n) >= target) return n;
+  return null;
 }
 
 /**
@@ -470,15 +486,21 @@ export function targetChecks(
   const stats = bandStats(rows);
   const bias = graded.length > 0 ? graded.reduce((s, r) => s + (r.actual - r.expected), 0) / graded.length : null;
   const agreed = graded.filter((r) => r.stage !== "manual");
+  // Parts 5 and 6 only mean something when Stage 3 ran on some answers: otherwise nothing is ever routed to manual.
+  const routingMeasurable = graded.some((r) => r.stage === "3" || r.stage === "manual");
+  const needHits = requiredHits(n);
+  const needCases = n > 0 ? requiredCases((exact / n) * 100) : null;
   const agreedExact = agreed.filter((r) => r.actual === r.expected).length;
   const coverage = n > 0 ? (agreed.length / n) * 100 : 0;
   const agreedPct = agreed.length > 0 ? (agreedExact / agreed.length) * 100 : null;
   return [
-    { name: "exact, lower 95% bound", value: wilsonLowerPct(exact, n), target: ">= 85", pass: wilsonLowerPct(exact, n) >= 85 },
+    { name: "exact, lower 95% bound", value: wilsonLowerPct(exact, n), target: ">= 85", pass: wilsonLowerPct(exact, n) >= 85,
+      note: `needs ${needHits ?? "more than n"}/${n} right; at ${n > 0 ? round2((exact / n) * 100) : 0}% right it needs about ${needCases ?? "more than 5000"} cases` },
     { name: "within one band %", value: stats.withinOnePct, target: ">= 99", pass: stats.withinOnePct >= 99 },
     { name: "signed bias (bands)", value: bias === null ? null : round2(bias), target: "within +-0.05", pass: bias !== null && Math.abs(bias) <= 0.05 },
     { name: "kappa (quadratic)", value: stats.kappaQw, target: ">= 0.90", pass: stats.kappaQw !== null && stats.kappaQw >= 0.9 },
-    { name: "agreed subset exact %", value: agreedPct === null ? null : round2(agreedPct), target: ">= 95", pass: agreedPct !== null && agreedPct >= 95 },
-    { name: "agreed subset coverage %", value: round2(coverage), target: ">= 70", pass: coverage >= 70 },
+    { name: "agreed subset exact %", value: agreedPct === null ? null : round2(agreedPct), target: ">= 95", pass: routingMeasurable && agreedPct !== null && agreedPct >= 95, na: !routingMeasurable,
+      note: routingMeasurable ? undefined : "not measurable: Stage 3 never ran, so nothing is routed to manual" },
+    { name: "agreed subset coverage %", value: round2(coverage), target: ">= 70", pass: routingMeasurable && coverage >= 70, na: !routingMeasurable },
   ];
 }

@@ -291,6 +291,6 @@ Pure logic lives in `metrics.ts` (no file or process access, unit tested in `__t
 | --- | --- |
 | `../../../tools/eval-analysis.mjs` | Read-only analysis of stored runs: confusion, bias, kappa, per level and type, per question, anchors of the misses, escalations; prints the frozen split. Run: `ssh assessiq-vps 'docker exec -i assessiq-api node - <runId>[,<runId>]' < tools/eval-analysis.mjs` |
 | `../../../tools/eval-floor.mjs` | Tests deterministic band rules from the anchor hits on the dev part (`SET=dev`) or once on the sealed part (`SET=sealed RULE=...`). Result so far: no rule helps. |
-| `../../../tools/eval-relabel-pack.mjs` | Builds a blind re-label pack (no expected band, no model band). `SLICE=4` = every answer labelled band 4. Save the output under `docs/relabel/` (gitignored), never in the repo. |
+| `../../../tools/eval-relabel-pack.mjs` | Builds a blind re-label pack (no expected band, no model band). `SLICE=4` = every answer labelled band 4. `IDS=<case ids>` (plus `IDS_RANDOM=n`, default 8) packs exactly those cases and some random matches. `compare` prints the part-1 sample size and N/A for parts 5-6 while Stage 3 never runs. Save the output under `docs/relabel/` (gitignored), never in the repo. |
 | `split-v1.txt` | Frozen dev question ids; the other questions are the sealed test, judged once. A new split is a new file. |
 | `tools/run-eval-api.sh ... v2` | Runs on a /tmp copy of the live skills with the boundary-rule calibration. Live skills are not touched. |

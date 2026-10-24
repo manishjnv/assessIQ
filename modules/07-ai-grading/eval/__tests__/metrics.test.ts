@@ -25,6 +25,8 @@ import {
   runWarnings,
   targetChecks,
   wilsonLowerPct,
+  requiredHits,
+  requiredCases,
   type EvalActual,
   type EvalExpected,
 } from "../metrics.js";
@@ -241,7 +243,7 @@ describe("E9 and E18", () => {
 describe("targetChecks (Z-165 B1)", () => {
   it("passes a perfect run of 100 and flags a one-sided bias", () => {
     const perfect = Array.from({ length: 100 }, (_, i) => ({ expected: i % 5, actual: i % 5 }));
-    expect(targetChecks(perfect).every((c) => c.pass)).toBe(true);
+    expect(targetChecks(perfect).filter((c) => !c.na).every((c) => c.pass)).toBe(true);
     const low = Array.from({ length: 100 }, (_, i) => ({ expected: (i % 4) + 1, actual: i % 4 === 0 ? 0 : (i % 4) + 1 }));
     const checks = targetChecks(low);
     expect(checks.find((c) => c.name.startsWith("signed bias"))!.pass).toBe(false);
@@ -258,5 +260,24 @@ describe("targetChecks (Z-165 B1)", () => {
   it("wilson bound is below the point estimate", () => {
     expect(wilsonLowerPct(114, 150)).toBeLessThan(76);
     expect(wilsonLowerPct(0, 0)).toBe(0);
+  });
+});
+
+describe("sample-size helpers and N/A routing (Z-165)", () => {
+  it("requiredHits agrees with wilsonLowerPct and is the smallest k", () => {
+    const k = requiredHits(150)!;
+    expect(wilsonLowerPct(k, 150)).toBeGreaterThanOrEqual(85);
+    expect(wilsonLowerPct(k - 1, 150)).toBeLessThan(85);
+    expect(k).toBe(137);
+  });
+  it("requiredCases is large for 87 percent and small for 95 percent", () => {
+    expect(requiredCases(87)!).toBeGreaterThan(1000);
+    expect(requiredCases(95)!).toBeLessThan(150);
+  });
+  it("parts 5 and 6 are N/A when Stage 3 never ran, measurable when it did", () => {
+    const none = targetChecks([{ expected: 3, actual: 3, stage: "2" }]);
+    expect(none.filter((c) => c.na).length).toBe(2);
+    const some = targetChecks([{ expected: 3, actual: 3, stage: "3" }]);
+    expect(some.filter((c) => c.na).length).toBe(0);
   });
 });

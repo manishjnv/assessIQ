@@ -680,7 +680,8 @@ async function cmdCompare(runId: string, baselineDate?: string, excludeFile?: st
   }
   console.log("  target (Z-165 B1):");
   for (const c of targetChecks(judged.filter((a) => expectedMap.has(a.id)).map((a) => ({ expected: expectedMap.get(a.id)!.band, actual: a.error ? null : a.band, stage: a.escalation_stage })))) {
-    console.log(`    ${c.pass ? "PASS" : "FAIL"}  ${c.name}: ${c.value ?? "n/a"} (${c.target})`);
+    console.log(`    ${c.na ? "N/A " : c.pass ? "PASS" : "FAIL"}  ${c.name}: ${c.value ?? "n/a"} (${c.target})`);
+    if (c.note) console.log(`          ${c.note}`);
   }
   for (const by of ["level", "type"] as const) {
     const g = agreementByGroup(rows, by);
