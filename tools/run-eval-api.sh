@@ -145,6 +145,29 @@ JS
 node /tmp/v5.js
 PREPV5
 fi
+if [ "$SK" = "v6" ]; then
+  # Z-165 candidate v6 (S57): the LIVE skills (v3) with ONLY the band 4 row and calibration step (3) changed:
+  # a small imprecision, thin detail or missing example inside a covered part does not lower band 4. Bands 0-3 untouched.
+  HOMEDIR=/tmp/eval-home-v6
+  ssh assessiq-vps 'docker exec -i assessiq-api sh -s' <<'PREPV6'
+rm -rf /tmp/eval-home-v6 && mkdir -p /tmp/eval-home-v6/.claude/skills
+cp -r /home/node/.claude/skills/grade-anchors /home/node/.claude/skills/grade-band /home/node/.claude/skills/grade-escalate /tmp/eval-home-v6/.claude/skills/
+cat > /tmp/v6.js <<'JS'
+const fs = require("fs");
+const p = "/tmp/eval-home-v6/.claude/skills/grade-band/SKILL.md";
+let t = fs.readFileSync(p, "utf8");
+const r4 = /\| 4 \|[^\n]*\n/;
+if (!r4.test(t)) { console.error("band 4 row not found"); process.exit(1); }
+t = t.replace(r4, () => "| 4 | The answer correctly covers every anchor and every part the question asks for, and its decision or escalation path is sound. Brevity, order and wording do not lower it. A small imprecision, a thin detail or a missing example inside a part that is otherwise covered correctly does NOT lower it. |\n");
+const k = "(3) if every part is covered correctly, give band 4, even when the answer is short or plain;";
+if (!t.includes(k)) { console.error("calibration step not found"); process.exit(1); }
+t = t.replace(k, () => "(3) if every part is covered correctly, give band 4, even when the answer is short or plain and even when a detail inside a part is thin or slightly imprecise;");
+fs.writeFileSync(p, t);
+console.log("v6 patched");
+JS
+node /tmp/v6.js
+PREPV6
+fi
 if [ "$SK" = "old" ]; then
   HOMEDIR=/tmp/eval-home-old
   ssh assessiq-vps 'tar -C /srv/assessiq-skills-backup-20261023 -cf - grade-anchors grade-band grade-escalate' | ssh assessiq-vps "docker exec -i assessiq-api sh -c \"mkdir -p $HOMEDIR/.claude/skills && tar -C $HOMEDIR/.claude/skills -xf -\""
@@ -164,6 +187,7 @@ ${AI_API_MODEL_GRADE_ANCHORS:+export AI_API_MODEL_GRADE_ANCHORS=$AI_API_MODEL_GR
 ${AI_API_MODEL_GRADE_BAND:+export AI_API_MODEL_GRADE_BAND=$AI_API_MODEL_GRADE_BAND}
 ${AI_API_MODEL_GRADE_ESCALATE:+export AI_API_MODEL_GRADE_ESCALATE=$AI_API_MODEL_GRADE_ESCALATE}
 ${AI_API_EFFORT:+export AI_API_EFFORT=$AI_API_EFFORT}
+${EVAL_FORCE_ESCALATE:+export EVAL_FORCE_ESCALATE=$EVAL_FORCE_ESCALATE}
 export HOME=$HOMEDIR   # skills under \$HOME/.claude/skills
 cd /app
 nohup node_modules/.bin/tsx modules/07-ai-grading/eval/cli.ts run --mode anthropic-api --only "$ONLY" --delay-ms "$DELAY" ${USD:+--budget-usd $USD} --budget-tokens "$TOKENS" > /tmp/eval-api-$SK-$TAG.log 2>&1 < /dev/null &

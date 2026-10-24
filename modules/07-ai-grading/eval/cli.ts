@@ -378,6 +378,8 @@ async function cmdRun(
       rubric: input.rubric,
       // D5 rule: do NOT write candidate_answer to run.json — it's passed as input only
       answer: input.answer ?? input.candidate_answer,
+      // S57 experiment: EVAL_FORCE_ESCALATE=1 sends every graded case through Stage 3 (Opus), to measure what Stage 3 would add.
+      ...(process.env.EVAL_FORCE_ESCALATE === "1" ? { force_escalate: true } : {}),
     };
 
     let actual: ActualResult;
