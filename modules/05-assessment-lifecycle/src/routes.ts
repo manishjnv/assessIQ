@@ -251,6 +251,8 @@ export async function registerAssessmentLifecycleRoutes(
       name: z.string().trim().min(1).max(200).optional(),
       delivery_mode: z.enum(["real", "mock"]).optional(),
       camera_required: z.boolean().optional(),
+      section_positions: z.array(z.number().int().min(0).max(50)).min(1).max(20).optional(),
+      scale_percent: z.number().int().min(1).max(100).optional(),
     })
     .strict();
   app.post(
@@ -277,6 +279,8 @@ export async function registerAssessmentLifecycleRoutes(
           ...(b.name !== undefined ? { name: b.name } : {}),
           ...(b.delivery_mode !== undefined ? { delivery_mode: b.delivery_mode } : {}),
           ...(b.camera_required !== undefined ? { camera_required: b.camera_required } : {}),
+          ...(b.section_positions !== undefined ? { section_positions: b.section_positions } : {}),
+          ...(b.scale_percent !== undefined ? { scale_percent: b.scale_percent } : {}),
         },
         req.session!.userId,
       );
