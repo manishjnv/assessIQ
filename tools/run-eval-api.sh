@@ -118,6 +118,33 @@ JS
 node /tmp/v4.js
 PREPV4
 fi
+if [ "$SK" = "v5" ]; then
+  # Z-165 candidate v5 (S57): the LIVE skills (v3) with band 4 tolerant of small imprecision inside a covered part,
+  # band 3 = a whole part missing or wrong, band 1 = any relevant correct element, band 0 = nothing relevant correct
+  # (raw paste back included). Written from the blind re-label of the 10 grader errors; judge ONLY on split-v2 (ids v2-).
+  HOMEDIR=/tmp/eval-home-v5
+  ssh assessiq-vps 'docker exec -i assessiq-api sh -s' <<'PREPV5'
+rm -rf /tmp/eval-home-v5 && mkdir -p /tmp/eval-home-v5/.claude/skills
+cp -r /home/node/.claude/skills/grade-anchors /home/node/.claude/skills/grade-band /home/node/.claude/skills/grade-escalate /tmp/eval-home-v5/.claude/skills/
+cat > /tmp/v5.js <<'JS'
+const fs = require("fs");
+const p = "/tmp/eval-home-v5/.claude/skills/grade-band/SKILL.md";
+let t = fs.readFileSync(p, "utf8");
+const r4 = /\| 4 \|[^\n]*\n/, r3 = /\| 3 \|[^\n]*\n/, r1 = /\| 1 \|[^\n]*\n/, r0 = /\| 0 \|[^\n]*\n/;
+for (const r of [r4, r3, r1, r0]) if (!r.test(t)) { console.error("band row not found", r); process.exit(1); }
+t = t.replace(r4, () => "| 4 | The answer correctly covers every anchor and every part the question asks for, and its decision or escalation path is sound. Brevity, order and wording do not lower it. A small imprecision, a thin detail or a missing example inside a part that is otherwise covered correctly does NOT lower it. |\n");
+t = t.replace(r3, () => "| 3 | Correct, but a whole part the question asks for is missing, wrong or only gestured at. You can name that part. |\n");
+t = t.replace(r1, () => "| 1 | Some relevant correct content (one correct fact, step or observation), but the rest is thin, wrong or shown without understanding. Any relevant correct element puts the answer at band 1 or higher. |\n");
+t = t.replace(r0, () => "| 0 | No answer, off-topic, or nothing relevant is correct (its main claims are wrong). Pasting the question or the raw logs back with no finding of the candidate's own is a 0. |\n");
+const k = "(3) if every part is covered correctly, give band 4, even when the answer is short or plain;";
+if (!t.includes(k)) { console.error("calibration step not found"); process.exit(1); }
+t = t.replace(k, () => "(3) if every part is covered correctly, give band 4, even when the answer is short or plain and even when a detail inside a part is thin or slightly imprecise;");
+fs.writeFileSync(p, t);
+console.log("v5 patched");
+JS
+node /tmp/v5.js
+PREPV5
+fi
 if [ "$SK" = "old" ]; then
   HOMEDIR=/tmp/eval-home-old
   ssh assessiq-vps 'tar -C /srv/assessiq-skills-backup-20261023 -cf - grade-anchors grade-band grade-escalate' | ssh assessiq-vps "docker exec -i assessiq-api sh -c \"mkdir -p $HOMEDIR/.claude/skills && tar -C $HOMEDIR/.claude/skills -xf -\""
