@@ -255,6 +255,7 @@ test.describe('Admin → Candidate full workflow', () => {
       sourcePackId: pack.id,
       levelPosition: 1,
       questionCount: 1,
+      deliveryMode: 'real', // this flow checks the certificate, which only a Real test issues
     });
 
     expect(assessment.id).toBeTruthy();

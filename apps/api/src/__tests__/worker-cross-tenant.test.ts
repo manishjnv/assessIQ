@@ -51,6 +51,7 @@ beforeAll(async () => {
     await applyDir(c, join(MODULES_ROOT, "04-question-bank", "migrations"));
     await applyDir(c, join(MODULES_ROOT, "05-assessment-lifecycle", "migrations"));
     await applyDir(c, join(MODULES_ROOT, "06-attempt-engine", "migrations"));
+    await applyDir(c, join(MODULES_ROOT, "19-billing", "migrations")); // Z-146: the sweep burns credits
   });
   setPoolForTesting(pgUrl);
 }, 120_000);
