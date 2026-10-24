@@ -89,8 +89,8 @@ services:
     # = 65, ~32 left for migrations / psql / backups. Overrides PG_POOL_MAX from .env.
     environment:
       PG_POOL_MAX: ${API_PG_POOL_MAX:-40}
-      # E2 eval gate: off | warn | enforce (see modules/07-ai-grading/eval/README.md)
-      AI_EVAL_GATE: ${AI_EVAL_GATE:-warn}
+      # E2 eval gate (off | warn | enforce) is read from ../.env through env_file; code default is warn.
+      # It was pinned here as ${AI_EVAL_GATE:-warn}, which ignored .env (S57 trap): do not pin it again.
       # RW-11: claude reads its global config from $CLAUDE_CONFIG_DIR/.claude.json,
       # i.e. inside the /root/.claude dir mount. Ends the single-file
       # /root/.claude.json bind that went stale when the host rewrote the file.
