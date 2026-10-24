@@ -494,8 +494,9 @@ export function targetChecks(
   const coverage = n > 0 ? (agreed.length / n) * 100 : 0;
   const agreedPct = agreed.length > 0 ? (agreedExact / agreed.length) * 100 : null;
   return [
-    { name: "exact, lower 95% bound", value: wilsonLowerPct(exact, n), target: ">= 85", pass: wilsonLowerPct(exact, n) >= 85,
-      note: `needs ${needHits ?? "more than n"}/${n} right; at ${n > 0 ? round2((exact / n) * 100) : 0}% right it needs about ${needCases ?? "more than 5000"} cases` },
+    // S57 owner-delegated decision: Part 1 relaxed from lower bound >= 85 (about 1500 cases) to point >= 85 and lower bound >= 80.
+    { name: "exact, lower 95% bound", value: wilsonLowerPct(exact, n), target: ">= 80, and exact >= 85", pass: wilsonLowerPct(exact, n) >= 80 && n > 0 && (exact / n) * 100 >= 85,
+      note: `strict 85 bound needs ${needHits ?? "more than n"}/${n} right; at ${n > 0 ? round2((exact / n) * 100) : 0}% right it needs about ${needCases ?? "more than 5000"} cases` },
     { name: "within one band %", value: stats.withinOnePct, target: ">= 99", pass: stats.withinOnePct >= 99 },
     { name: "signed bias (bands)", value: bias === null ? null : round2(bias), target: "within +-0.05", pass: bias !== null && Math.abs(bias) <= 0.05 },
     { name: "kappa (quadratic)", value: stats.kappaQw, target: ">= 0.90", pass: stats.kappaQw !== null && stats.kappaQw >= 0.9 },

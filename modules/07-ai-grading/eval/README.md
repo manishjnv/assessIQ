@@ -294,3 +294,7 @@ Pure logic lives in `metrics.ts` (no file or process access, unit tested in `__t
 | `../../../tools/eval-relabel-pack.mjs` | Builds a blind re-label pack (no expected band, no model band). `SLICE=4` = every answer labelled band 4. `IDS=<case ids>` (plus `IDS_RANDOM=n`, default 8) packs exactly those cases and some random matches. `compare` prints the part-1 sample size and N/A for parts 5-6 while Stage 3 never runs. Save the output under `docs/relabel/` (gitignored), never in the repo. |
 | `split-v1.txt` | Frozen dev question ids; the other questions are the sealed test, judged once. A new split is a new file. |
 | `tools/run-eval-api.sh ... v2` | Runs on a /tmp copy of the live skills with the boundary-rule calibration. Live skills are not touched. |
+
+### S57 (2026-10-24)
+
+`compare` Part 1 is now point estimate >= 85 AND Wilson lower bound >= 80 (was lower bound >= 85, about 1500 cases). `tools/run-eval-api.sh ... v4` runs a test copy of the live skills with one band 0 row change; smoke only, not proof (see `docs/05-ai-pipeline.md` "v4 candidate smoke").

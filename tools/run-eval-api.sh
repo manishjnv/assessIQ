@@ -99,6 +99,25 @@ JS
 node /tmp/v3.js
 PREPV3
 fi
+if [ "$SK" = "v4" ]; then
+  # Z-165 candidate v4: the LIVE skills (v3) plus one band 0 vs 1 boundary rule. Test copy; live skills are not touched.
+  HOMEDIR=/tmp/eval-home-v4
+  ssh assessiq-vps 'docker exec -i assessiq-api sh -s' <<'PREPV4'
+rm -rf /tmp/eval-home-v4 && mkdir -p /tmp/eval-home-v4/.claude/skills
+cp -r /home/node/.claude/skills/grade-anchors /home/node/.claude/skills/grade-band /home/node/.claude/skills/grade-escalate /tmp/eval-home-v4/.claude/skills/
+cat > /tmp/v4.js <<'JS'
+const fs = require("fs");
+const p = "/tmp/eval-home-v4/.claude/skills/grade-band/SKILL.md";
+let t = fs.readFileSync(p, "utf8");
+const row0 = /\| 0 \| Wrong direction or no answer\. \|/;
+if (!row0.test(t)) { console.error("band 0 row not found"); process.exit(1); }
+t = t.replace(row0, () => '| 0 | No answer, off-topic, or the direction is wrong (it names nothing relevant, or its main claim is incorrect). An answer that states even one relevant, correct fact about the question is not a 0: give it band 1 or higher. |');
+fs.writeFileSync(p, t);
+console.log("v4 band 0 row patched");
+JS
+node /tmp/v4.js
+PREPV4
+fi
 if [ "$SK" = "old" ]; then
   HOMEDIR=/tmp/eval-home-old
   ssh assessiq-vps 'tar -C /srv/assessiq-skills-backup-20261023 -cf - grade-anchors grade-band grade-escalate' | ssh assessiq-vps "docker exec -i assessiq-api sh -c \"mkdir -p $HOMEDIR/.claude/skills && tar -C $HOMEDIR/.claude/skills -xf -\""
