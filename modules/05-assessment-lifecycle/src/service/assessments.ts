@@ -7,7 +7,7 @@ import * as qbRepo from "../../../04-question-bank/src/repository.js";
 import { materializeSetForTenant, resyncSetForTenant } from "../../../04-question-bank/src/clone.js";
 import { assertValidWindow } from "../state-machine.js";
 import { assertRemindersSettings } from "../reminders.js";
-import { AL_ERROR_CODES, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema, AssessmentSectionsSchema, sectionTimingProblem } from "../types.js";
+import { AL_ERROR_CODES, MAX_QUESTIONS_PER_ASSESSMENT, AssessmentBlueprintSchema, AssessmentIntegritySettingsSchema, AssessmentSectionsSchema, sectionTimingProblem } from "../types.js";
 import type { Assessment, ResolvedBlueprint, AssessmentSettings, CreateAssessmentInput, CreateAssessmentFromSetInput, ListAssessmentsInput, PaginatedAssessments, UpdateAssessmentPatch } from "../types.js";
 import type { InvitationCounts } from "../repository.js";
 import { log, assertPageSize, assertSectionPacksUsable } from "./_shared.js";
@@ -136,6 +136,7 @@ export async function createAssessment(
   assertFeedbackLevel(input.settings);
   assertRemindersSettings(input.settings);
   assertSectionsSettings(input.settings);
+  assertQuestionLimit(input.question_count, input.settings);
   if (input.passing_score_pct !== undefined) assertPassMark(input.passing_score_pct);
   if (input.max_attempts !== undefined) assertMaxAttempts(input.max_attempts);
   if (input.duration_minutes !== undefined) assertDurationMinutes(input.duration_minutes);
@@ -416,6 +417,26 @@ export function assertIntegritySettings(settings: AssessmentSettings | undefined
       `settings.integrity is invalid: ${r.error.issues.map((i) => i.message).join("; ")}`,
       { details: { code: "INVALID_PARAM", param: "settings.integrity" } },
     );
+  }
+}
+
+/**
+ * Owner rule 2026-10-25: at most MAX_QUESTIONS_PER_ASSESSMENT (100) questions in any assessment, whatever the test type.
+ * Checks the declared question_count, the sum of the section counts and the sum of the blueprint criteria counts.
+ * A section with no question_count cannot be summed here; startAttempt re-checks the drawn total (module 06).
+ */
+export function assertQuestionLimit(questionCount: number | undefined, settings: AssessmentSettings | undefined): void {
+  const s = settings as Record<string, unknown> | undefined;
+  const sections = Array.isArray(s?.["sections"]) ? (s!["sections"] as Array<{ question_count?: unknown }>) : [];
+  const criteria = Array.isArray((s?.["blueprint"] as { criteria?: unknown } | undefined)?.criteria)
+    ? ((s!["blueprint"] as { criteria: Array<{ count?: unknown }> }).criteria)
+    : [];
+  const num = (v: unknown) => (typeof v === "number" ? v : 0);
+  const totals = [questionCount ?? 0, sections.reduce((n, x) => n + num(x.question_count), 0), criteria.reduce((n, x) => n + num(x.count), 0)];
+  if (Math.max(...totals) > MAX_QUESTIONS_PER_ASSESSMENT) {
+    throw new ValidationError(`An assessment can have at most ${MAX_QUESTIONS_PER_ASSESSMENT} questions.`, {
+      details: { code: AL_ERROR_CODES.QUESTION_LIMIT_EXCEEDED, max: MAX_QUESTIONS_PER_ASSESSMENT },
+    });
   }
 }
 
@@ -706,6 +727,7 @@ export async function updateAssessment(
   assertFeedbackLevel(patch.settings);
   assertRemindersSettings(patch.settings);
   assertSectionsSettings(patch.settings);
+  assertQuestionLimit(patch.question_count, patch.settings);
   if (patch.passing_score_pct !== undefined) assertPassMark(patch.passing_score_pct);
   if (patch.max_attempts !== undefined) assertMaxAttempts(patch.max_attempts);
   if (patch.duration_minutes !== undefined) assertDurationMinutes(patch.duration_minutes);

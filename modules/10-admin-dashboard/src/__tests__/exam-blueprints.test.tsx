@@ -89,6 +89,25 @@ describe("AdminExamBlueprints", () => {
     expect(screen.getByText("This blueprint is not verified.")).toBeTruthy();
   });
 
+  it("EXP-35: chosen subjects and a smaller size send section_positions and scale_percent", async () => {
+    setup();
+    await screen.findByRole("heading", { name: "Sample Exam" });
+    fireEvent.click(screen.getByRole("button", { name: "Start full mock" }));
+    await screen.findByRole("option", { name: "Sample Set" });
+    fireEvent.change(screen.getByLabelText("Question set"), { target: { value: "pk-1" } });
+    await screen.findByRole("option", { name: "Level 1" });
+    fireEvent.change(screen.getByLabelText("Level"), { target: { value: "lv-1" } });
+    fireEvent.change(screen.getByLabelText("Scope"), { target: { value: "subjects" } });
+    const create = screen.getByRole("button", { name: "Create draft mock" }) as HTMLButtonElement;
+    expect(create.disabled).toBe(true); // no subject ticked yet
+    fireEvent.click(screen.getByLabelText("Part B"));
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "50" } });
+    expect(create.disabled).toBe(false);
+    api.startFullMockApi.mockResolvedValue({ assessment: { id: "as-10" }, warnings: [] });
+    fireEvent.click(create);
+    await waitFor(() => expect(api.startFullMockApi).toHaveBeenCalledWith("bp-1", expect.objectContaining({ section_positions: [1], scale_percent: 50 })));
+  });
+
   it("shows the server message when the mock cannot be created", async () => {
     setup();
     await screen.findByRole("heading", { name: "Sample Exam" });

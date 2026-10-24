@@ -5549,6 +5549,18 @@ admin.blueprints.mock_form:
 
     The mock is created as a draft. Nothing is sent to candidates yet.
 
+admin.blueprints.mock_scope:
+  audience: admin
+  short_text: "Choose the full test, or only some subjects, and a smaller size."
+  long_md: |
+    ## What the mock covers
+
+    - **Full test.** All sections of the exam, at full size.
+    - **Chosen subjects only.** Tick the subjects you want. The mock has only those sections.
+    - **Size.** Use 75, 50 or 25 percent of the questions and of the time for each section.
+
+    A shorter mock is a practice test. It has no cut-off. Marks per question stay the same. It costs the same credits as any mock.
+
 admin.blueprints.start_mock:
   audience: admin
   short_text: "Create a draft full mock from this blueprint. Nothing is sent to candidates."

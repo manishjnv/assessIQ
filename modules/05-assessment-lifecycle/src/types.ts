@@ -57,6 +57,9 @@ export type BlueprintLevel = (typeof BLUEPRINT_LEVELS)[number];
 export const BLUEPRINT_QUESTION_TYPES = ["mcq", "scenario", "subjective", "kql", "log_analysis"] as const satisfies readonly Extract<QuestionType, string>[];
 export type BlueprintQuestionType = (typeof BLUEPRINT_QUESTION_TYPES)[number];
 
+/** Owner rule 2026-10-25: no assessment (mock, real or real with camera) may have more than this many questions. */
+export const MAX_QUESTIONS_PER_ASSESSMENT = 100;
+
 export const BlueprintCriterionSchema = z
   .object({
     category_id: z.string().uuid("category_id must be a UUID").optional(),
@@ -71,7 +74,7 @@ export const BlueprintCriterionSchema = z
         message: `type must be one of: ${BLUEPRINT_QUESTION_TYPES.join(", ")}`,
       }),
     }),
-    count: z.number().int().min(1, "count must be ≥ 1"),
+    count: z.number().int().min(1, "count must be ≥ 1").max(100, "count must be at most 100"),
   })
   .refine((c) => c.category_id !== undefined || c.node_id !== undefined, {
     message: "each criterion needs category_id or node_id",
@@ -161,7 +164,7 @@ export const AssessmentSectionSchema = z
   .object({
     name: z.string().trim().min(1, "section name is required").max(80),
     category_ids: z.array(z.string().uuid()).min(1).max(50).optional(),
-    question_count: z.number().int().min(1).max(500).optional(),
+    question_count: z.number().int().min(1).max(100).optional(),
     /** Z-123: draw this section from a taxonomy node and its descendants (question_taxonomy). Wins over category_ids. */
     node_id: z.string().uuid().optional(),
     /** EXP-23: draw this section from another question set (default: the assessment's own set). Must be visible to the tenant and published; publish checks the entitlement of every section set. */
@@ -534,6 +537,7 @@ export const AL_ERROR_CODES = {
   // Phase 2 Slice A — blueprint
   CROSS_TENANT_FK_REJECTED: "CROSS_TENANT_FK_REJECTED",
   BLUEPRINT_INVALID: "BLUEPRINT_INVALID",
+  QUESTION_LIMIT_EXCEEDED: "QUESTION_LIMIT_EXCEEDED",
   BLUEPRINT_NODE_UNRESOLVED: "BLUEPRINT_NODE_UNRESOLVED",
   BLUEPRINT_NODE_KIND_UNSUPPORTED: "BLUEPRINT_NODE_KIND_UNSUPPORTED",
   BLUEPRINT_NODE_MISMATCH: "BLUEPRINT_NODE_MISMATCH",

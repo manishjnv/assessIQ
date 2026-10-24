@@ -34,7 +34,7 @@ export const START_TEST_MOCK_HELP = {
 
 /** A step that stops with a message for the admin (not an API error). */
 class StepError extends Error {}
-const MAX_QUESTIONS = 200;
+const MAX_QUESTIONS = 100; // owner rule 2026-10-25: at most 100 questions in any assessment
 const EMAIL_RE = /^[^\s@,]+@[^\s@,]+\.[^\s@,]+$/;
 const sans: React.CSSProperties = { fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" };
 const stack: React.CSSProperties = { display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" };

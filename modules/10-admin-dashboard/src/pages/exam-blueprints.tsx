@@ -55,6 +55,9 @@ function MockForm({ blueprint }: { blueprint: ExamBlueprintFull }): React.ReactE
   const [levels, setLevels] = useState<{ id: string; order: number }[]>([]);
   const [levelId, setLevelId] = useState("");
   const [opensAt, setOpensAt] = useState(defaultOpensAt);
+  const [scope, setScope] = useState<"full" | "subjects">("full");
+  const [picked, setPicked] = useState<number[]>([]);
+  const [sizePct, setSizePct] = useState(100);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ id: string; warnings: string[] } | null>(null);
@@ -74,7 +77,7 @@ function MockForm({ blueprint }: { blueprint: ExamBlueprintFull }): React.ReactE
     return () => { live = false; };
   }, [packId]);
 
-  const canStart = packId !== "" && levelId !== "" && opensAt !== "" && !busy;
+  const canStart = packId !== "" && levelId !== "" && opensAt !== "" && !busy && (scope === "full" || picked.length > 0);
 
   async function start(e: React.FormEvent) {
     e.preventDefault();
@@ -86,6 +89,8 @@ function MockForm({ blueprint }: { blueprint: ExamBlueprintFull }): React.ReactE
         pack_id: packId,
         level_id: levelId,
         opens_at: new Date(opensAt).toISOString(),
+        ...(scope === "subjects" ? { section_positions: [...picked].sort((a, b) => a - b) } : {}),
+        ...(sizePct < 100 ? { scale_percent: sizePct } : {}),
       });
       setResult({ id: r.assessment.id, warnings: r.warnings });
     } catch (err) {
@@ -118,6 +123,43 @@ function MockForm({ blueprint }: { blueprint: ExamBlueprintFull }): React.ReactE
             <input type="datetime-local" style={fieldStyle} value={opensAt} onChange={(e) => setOpensAt(e.target.value)} required />
           </label>
         </div>
+      </HelpTip>
+      <HelpTip helpId="admin.blueprints.mock_scope">
+        <fieldset style={{ ...labelStyle, border: "none", padding: 0, margin: 0 }}>
+          <legend style={labelStyle}>What the mock covers</legend>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
+            <label style={labelStyle}>
+              Scope
+              <select style={fieldStyle} value={scope} onChange={(e) => setScope(e.target.value as "full" | "subjects")}>
+                <option value="full">Full test (all sections)</option>
+                <option value="subjects">Chosen subjects only</option>
+              </select>
+            </label>
+            <label style={labelStyle}>
+              Size
+              <select style={fieldStyle} value={sizePct} onChange={(e) => setSizePct(Number(e.target.value))}>
+                {[100, 75, 50, 25].map((n) => <option key={n} value={n}>{n === 100 ? "Full size" : `${n}% of the questions`}</option>)}
+              </select>
+            </label>
+          </div>
+          {scope === "subjects" && (
+            <div role="group" aria-label="Subjects" style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)" }}>
+              {blueprint.sections.map((s, i) => (
+                <label key={s.position} style={{ ...sans, display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}>
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(i)}
+                    onChange={(e) => setPicked((cur) => (e.target.checked ? [...cur, i] : cur.filter((x) => x !== i)))}
+                  />
+                  {s.name}
+                </label>
+              ))}
+            </div>
+          )}
+          {(scope === "subjects" || sizePct < 100) && (
+            <p style={muted}>A shorter mock is a practice test: it has no cut-off. Marks per question stay the same.</p>
+          )}
+        </fieldset>
       </HelpTip>
       <div>
         <HelpTip helpId="admin.blueprints.start_mock">

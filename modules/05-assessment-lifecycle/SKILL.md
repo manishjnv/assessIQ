@@ -395,3 +395,10 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 - **Feedback.** `settings.feedback_level` is validated by `assertFeedbackLevel` (create, from-set, PATCH). Only a Mock attempt that is not embed shows it (06 and 13 read it).
 - **Credit hold.** `assertCreditsAvailable` (service/_shared.ts) runs before `assertInviteCapacity` in `inviteUsersTx`, the resend of a revoked row and the reopen. Lock order: per-tenant `credit_hold` advisory lock first, then per-assessment `invite_limit`. `precheckInvites` and `POST /api/admin/assessments/precheck-invites` run the same two asserts read-only (import and Start a test call it first).
 - **Why / rejected / not included.** See docs/plans/test-type-cards-plan.md. Not included: a rollback of a published assessment; a credit check on the resend of a pending invitation whose link already lapsed.
+
+
+## Limits and scopes (S59, 2026-10-25)
+
+- **100-question cap.** `MAX_QUESTIONS_PER_ASSESSMENT` (`types.ts`) and `assertQuestionLimit` (`service/assessments.ts`, called from create and update). Module 06 keeps a copy of the number and re-checks at `startAttempt`. API detail: `docs/03-api-contract.md`.
+- **Mock scopes.** One engine, three scopes: full blueprint (`createMockFromBlueprint`), chosen subjects and smaller size (`section_positions`, `scale_percent`, EXP-35), chosen topics (`service/drill.ts`, `POST /api/admin/drills`, EXP-11). All are mocks and burn mock credits. The topic scope has no admin screen yet and no student entry.
+- **Section draw rules.** `allowed_types`, `difficulty_min`, `difficulty_max` (EXP-34, FUT-9), enforced in module 06.

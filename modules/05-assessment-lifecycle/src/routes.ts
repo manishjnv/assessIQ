@@ -296,7 +296,7 @@ export async function registerAssessmentLifecycleRoutes(
       pack_id: z.string().uuid(),
       level_id: z.string().uuid(),
       node_ids: z.array(z.string().uuid()).min(1).max(10),
-      question_count: z.number().int().min(1).max(500),
+      question_count: z.number().int().min(1).max(100),
       difficulty_min: z.number().int().min(1).max(5).optional(),
       difficulty_max: z.number().int().min(1).max(5).optional(),
       minutes: z.number().int().min(1).max(600).optional(),

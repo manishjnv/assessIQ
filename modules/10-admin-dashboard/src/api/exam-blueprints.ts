@@ -42,6 +42,10 @@ export interface FullMockInput {
   opens_at: string;
   closes_at?: string | null;
   name?: string;
+  /** EXP-35: 0-based blueprint section positions (subjects). Absent = all sections. */
+  section_positions?: number[];
+  /** EXP-35: scale every chosen section to this percent, 1 to 100. Absent = full size. */
+  scale_percent?: number;
 }
 
 /** POST /api/admin/blueprints/:id/mock — a DRAFT full mock. Nothing is sent to candidates. */

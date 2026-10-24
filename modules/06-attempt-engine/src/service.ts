@@ -47,6 +47,9 @@ import { burnCredits } from "@assessiq/billing";
 import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
 import * as alRepo from "../../05-assessment-lifecycle/src/repository.js";
 import { assertPoolVerifiedForInvites } from "@assessiq/assessment-lifecycle";
+
+// Same value as MAX_QUESTIONS_PER_ASSESSMENT in module 05 types.ts (kept local so test mocks of module 05 stay valid).
+const MAX_QUESTIONS_PER_ASSESSMENT = 100;
 import * as qbRepo from "../../04-question-bank/src/repository.js";
 import * as tenancyRepo from "../../02-tenancy/src/repository.js";
 import * as repo from "./repository.js";
@@ -742,6 +745,14 @@ export async function startAttempt(
           },
         );
       }
+    }
+
+    // Owner rule 2026-10-25: no attempt may carry more than 100 questions, whatever the test type (defence in depth
+    // for old assessments and for sections that set no question_count).
+    if (chosen.length > MAX_QUESTIONS_PER_ASSESSMENT) {
+      throw new ValidationError(`This test has more than ${MAX_QUESTIONS_PER_ASSESSMENT} questions. Ask your administrator.`, {
+        details: { code: "QUESTION_LIMIT_EXCEEDED", max: MAX_QUESTIONS_PER_ASSESSMENT, drawn: chosen.length },
+      });
     }
 
     // g. Compute timer.

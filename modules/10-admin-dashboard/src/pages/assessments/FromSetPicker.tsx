@@ -161,10 +161,10 @@ export function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElem
                     className="aiq-input"
                     type="number"
                     min={1}
-                    max={200}
+                    max={100}
                     value={questionCount}
                     onChange={(e) => {
-                      const v = Math.max(1, Math.min(200, parseInt(e.target.value, 10) || 1));
+                      const v = Math.max(1, Math.min(100, parseInt(e.target.value, 10) || 1));
                       setQuestionCount(v);
                     }}
                   />

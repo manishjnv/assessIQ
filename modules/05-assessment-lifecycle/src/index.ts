@@ -50,6 +50,7 @@ export {
 export type { ResolvedInvitation } from "./service.js";
 // EXP-18: review gate helper for module 06 startAttempt (QUESTIONS_NOT_VERIFIED).
 export { assertPoolVerifiedForInvites } from "./service/_shared.js";
+export { MAX_QUESTIONS_PER_ASSESSMENT } from "./types.js"; // owner rule 2026-10-25; module 06 keeps its own copy
 
 // ---------------------------------------------------------------------------
 // 2. Boundary advancement (cron-callable; BullMQ scheduling deferred)

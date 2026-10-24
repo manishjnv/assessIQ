@@ -3,7 +3,7 @@
 // whole-test timer. It goes through createAssessment (all guards run) and is scored by the normal fixed rules, so
 // the result already shows per-section (per-topic) accuracy. No AI. Student self-service entry is not built.
 import { ValidationError } from "@assessiq/core";
-import type { Assessment, AssessmentSection } from "../types.js";
+import { MAX_QUESTIONS_PER_ASSESSMENT, type Assessment, type AssessmentSection } from "../types.js";
 import { createAssessment } from "./assessments.js";
 
 export interface CreateDrillInput {
@@ -24,8 +24,8 @@ export interface CreateDrillInput {
 export function buildDrillSections(nodeIds: string[], count: number, diffMin?: number, diffMax?: number): AssessmentSection[] {
   const nodes = [...new Set(nodeIds)];
   if (nodes.length === 0 || nodes.length > 10) throw new ValidationError("pick 1 to 10 topics", { details: { code: "INVALID_PARAM", param: "node_ids" } });
-  if (!Number.isInteger(count) || count < nodes.length || count > 500) {
-    throw new ValidationError("question_count must be at least the number of topics and at most 500", { details: { code: "INVALID_PARAM", param: "question_count" } });
+  if (!Number.isInteger(count) || count < nodes.length || count > MAX_QUESTIONS_PER_ASSESSMENT) {
+    throw new ValidationError("question_count must be at least the number of topics and at most 100", { details: { code: "INVALID_PARAM", param: "question_count" } });
   }
   const base = Math.floor(count / nodes.length);
   const extra = count % nodes.length;
