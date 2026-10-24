@@ -173,6 +173,11 @@ export const AssessmentSectionSchema = z
     /** Z-42: marks lost for a wrong answer in this section (absolute, frozen at start). Only used with marks_per_question. */
     negative_marks_per_question: z.number().min(0).max(1000).optional(),
     calculator: z.boolean().optional(),
+    /** EXP-34: only questions of these types are drawn into this section. Absent = any type. */
+    allowed_types: z.array(z.enum(BLUEPRINT_QUESTION_TYPES)).min(1).max(5).optional(),
+    /** FUT-9: only questions with difficulty_est (1..5) in this range are drawn. Absent = any. */
+    difficulty_min: z.number().int().min(1).max(5).optional(),
+    difficulty_max: z.number().int().min(1).max(5).optional(),
     /** EXP-6: a qualifying section with a cutoff reports `passed_cutoff` in the result (marks, not percent). */
     qualifying: z.boolean().optional(),
     cutoff_marks: z.number().min(0).max(1_000_000).optional(),
@@ -184,6 +189,9 @@ export const AssessmentSectionSchema = z
   .strict()
   .refine((s) => s.category_ids !== undefined || s.question_count !== undefined, {
     message: "each section needs question_count and/or category_ids",
+  })
+  .refine((s) => s.difficulty_min === undefined || s.difficulty_max === undefined || s.difficulty_min <= s.difficulty_max, {
+    message: "difficulty_min must not be above difficulty_max",
   });
 export type AssessmentSection = z.infer<typeof AssessmentSectionSchema>;
 export const AssessmentSectionsSchema = z.array(AssessmentSectionSchema).min(1).max(10);

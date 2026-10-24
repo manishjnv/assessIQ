@@ -97,12 +97,12 @@ function assessment(sections: unknown[]) {
   };
 }
 
-async function run(sections: unknown[], pool: Array<{ id: string; version: number; category_id: string | null; pack_id?: string }>, under: string[]) {
+async function run(sections: unknown[], pool: Array<{ id: string; version: number; category_id: string | null; pack_id?: string; type?: string; difficulty_est?: number | null }>, under: string[]) {
   const { withTenant } = await import("@assessiq/tenancy");
   const alRepo = await import("../../../05-assessment-lifecycle/src/repository.js");
   const repo = await import("../repository.js");
   (alRepo.findAssessmentById as ReturnType<typeof vi.fn>).mockResolvedValue(assessment(sections));
-  (repo.listPoolWithCategory as ReturnType<typeof vi.fn>).mockResolvedValue(pool.map((q) => ({ pack_id: "p", ...q })));
+  (repo.listPoolWithCategory as ReturnType<typeof vi.fn>).mockResolvedValue(pool.map((q) => ({ pack_id: "p", type: "mcq", difficulty_est: null, ...q })));
   (repo.listQuestionIdsUnderNode as ReturnType<typeof vi.fn>).mockResolvedValue(new Set(under));
   (withTenant as ReturnType<typeof vi.fn>).mockImplementation(async (_t: string, fn: (c: unknown) => Promise<unknown>) => fn({}));
   const { startAttempt } = await import("../service.js");
@@ -184,5 +184,28 @@ describe("EXP-23 section pack", () => {
   it("a section pack with too few questions fails POOL_TOO_SMALL (other packs do not fill it)", async () => {
     const pool = [{ id: "a1", version: 1, category_id: null }, { id: "a2", version: 1, category_id: null }];
     await expect(run([{ name: "Other", pack_id: P2, question_count: 1, minutes: 10 }], pool, [])).rejects.toMatchObject({ details: { section: "Other" } });
+  });
+});
+
+describe("EXP-34 / FUT-9 section type and difficulty rules", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("allowed_types keeps only those types", async () => {
+    const pool = [
+      { id: "m1", version: 1, category_id: null },
+      { id: "s1", version: 1, category_id: null, type: "subjective" },
+    ];
+    const { ids } = await run([{ name: "S", question_count: 1, minutes: 10, allowed_types: ["subjective"] }], pool, []);
+    expect(ids).toEqual(["s1"]);
+  });
+
+  it("difficulty range keeps only questions inside it; unrated questions are skipped", async () => {
+    const pool = [
+      { id: "e", version: 1, category_id: null, difficulty_est: 1 },
+      { id: "h", version: 1, category_id: null, difficulty_est: 4 },
+      { id: "u", version: 1, category_id: null },
+    ];
+    const { ids } = await run([{ name: "H", question_count: 1, minutes: 10, difficulty_min: 3, difficulty_max: 5 }], pool, []);
+    expect(ids).toEqual(["h"]);
   });
 });

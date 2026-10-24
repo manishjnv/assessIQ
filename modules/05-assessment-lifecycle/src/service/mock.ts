@@ -38,6 +38,7 @@ export async function createMockFromBlueprint(
     marks_per_question: s.marks_per_question,
     negative_marks_per_question: s.negative_marks_per_question,
     ...(s.calculator_allowed ? { calculator: true } : {}),
+    allowed_types: s.allowed_types as AssessmentSection["allowed_types"], // EXP-34: the draw now enforces it
     ...(s.qualifying ? { qualifying: true } : {}),
     ...(s.qualifying && s.cutoff_marks !== null ? { cutoff_marks: s.cutoff_marks } : {}),
   }));

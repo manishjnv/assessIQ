@@ -1107,19 +1107,22 @@ export async function listFrozenPoolForCriterion(
 export async function listPoolWithCategory(
   client: PoolClient,
   input: { assessmentId: string; packId: string; levelId: string; useFrozen: boolean },
-): Promise<Array<{ id: string; version: number; category_id: string | null; pack_id: string | null }>> {
+): Promise<Array<{ id: string; version: number; category_id: string | null; pack_id: string | null; type: string; difficulty_est: number | null }>> {
   if (input.useFrozen) {
     // EXP-23: pack_id is frozen with the pool row (NULL = frozen before EXP-23 = the assessment pack).
-    const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string | null }>(
-      `SELECT question_id AS id, question_version AS version, category_id, pack_id
-         FROM assessment_frozen_pool WHERE assessment_id = $1 ORDER BY question_id ASC`,
+    // EXP-34/FUT-9: type is frozen with the row; difficulty_est is read live (it is not frozen).
+    const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string | null; type: string; difficulty_est: number | null }>(
+      `SELECT fp.question_id AS id, fp.question_version AS version, fp.category_id, fp.pack_id, fp.type, q.difficulty_est
+         FROM assessment_frozen_pool fp
+         LEFT JOIN questions q ON q.id = fp.question_id
+        WHERE fp.assessment_id = $1 ORDER BY fp.question_id ASC`,
       [input.assessmentId],
     );
     return r.rows;
   }
   // Unfrozen (legacy) assessments only ever drew from the assessment pack; a section with its own pack_id finds nothing here (fail closed).
-  const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string }>(
-    `SELECT q.id, MAX(qv.version)::int AS version, q.category_id, q.pack_id
+  const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string; type: string; difficulty_est: number | null }>(
+    `SELECT q.id, MAX(qv.version)::int AS version, q.category_id, q.pack_id, q.type, q.difficulty_est
        FROM questions q
        JOIN question_versions qv ON qv.question_id = q.id
       WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'
