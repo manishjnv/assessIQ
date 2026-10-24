@@ -95,7 +95,9 @@ All adversarial cases must have `"adversarial": true` in `.expected.json`. The h
 
 ## How to run
 
-Run from the VPS (requires `claude login` session — see `docs/06-deployment.md` § Eval harness auth):
+**Standard since S57 (2026-10-24): run every eval on the Messages API, with the latest tooling.** Use `bash tools/run-eval-api.sh <20|5> "<id-prefixes>" 500 <usd> <new|v2..v7>` from the repo root (it always uses `--mode anthropic-api`, the same mode as production, and the models in the skill frontmatter). Read the results with `compare`, `compare-runs` and `tools/eval-analysis.mjs`; bless only after a full run. Playbook and win rule: `docs/05-ai-pipeline.md` "S57 summary and eval playbook". The `claude-code-vps` commands below are the legacy Max-plan path; do not use them for new evals.
+
+Legacy (Max plan, requires `claude login` session — see `docs/06-deployment.md` § Eval harness auth):
 
 ```bash
 # Run against the golden case set
@@ -298,3 +300,7 @@ Pure logic lives in `metrics.ts` (no file or process access, unit tested in `__t
 ### S57 (2026-10-24)
 
 `compare` Part 1 is now point estimate >= 85 AND Wilson lower bound >= 80 (was lower bound >= 85, about 1500 cases). `tools/run-eval-api.sh ... v4` runs a test copy of the live skills with one band 0 row change; smoke only, not proof (see `docs/05-ai-pipeline.md` "v4 candidate smoke").
+
+### S57 candidate modes, switch and watch (2026-10-24)
+
+`tools/run-eval-api.sh ... <mode>` (5th argument): `new` = live skills; `old` = pre-fence backup; `cal`, `cal2`, `v2`, `v3` = earlier Z-165 candidates; `v4` = band 0 row; `v5` = wider band 4 plus broad band 1 (rejected); `v6` = band 4 row only; `v7` = band 3 and band 2 rows. All run on a /tmp copy; the live skills are never touched. `EVAL_FORCE_ESCALATE=1` sends every case through Stage 3 (Opus). Case ids `v2-`, `v3-`, `v4-` are the fresh sets (VPS only). `tools/real-answer-watch.sh` reads real admin overrides. Full playbook: `docs/05-ai-pipeline.md` section "S57 summary and eval playbook".
