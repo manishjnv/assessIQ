@@ -359,19 +359,20 @@ export async function updateAttemptStatus(
 export async function bulkAutoSubmitExpired(
   client: PoolClient,
   now: Date,
-): Promise<{ count: number; ids: string[] }> {
-  const result = await client.query<{ id: string }>(
+): Promise<{ count: number; ids: string[]; rows: Array<{ id: string; assessment_id: string; user_id: string }> }> {
+  const result = await client.query<{ id: string; assessment_id: string; user_id: string }>(
     `UPDATE attempts
      SET status = 'auto_submitted', submitted_at = $1
      WHERE status = 'in_progress'
        AND ends_at IS NOT NULL
        AND ends_at <= $1
-     RETURNING id`,
+     RETURNING id, assessment_id, user_id`,
     [now],
   );
   return {
     count: result.rowCount ?? 0,
     ids: result.rows.map((r) => r.id),
+    rows: result.rows,
   };
 }
 

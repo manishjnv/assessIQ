@@ -315,6 +315,7 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, [
       "0078_tenant_plans.sql",
       "0079_billing_events.sql", // submit now finalises MCQ-only attempts (records billing)
+      "0215_credit_ledger.sql", // Z-146: burn at submit
       "0081_tenant_entitlements.sql",
       "0249_tenant_plans_max_invited_per_assessment.sql", // EXP-37: inviteUsers reads the plan limit
     ]);

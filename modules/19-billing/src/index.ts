@@ -79,6 +79,8 @@ export {
   sendCreditExpiryNotices,
 } from './service.js';
 
+// Z-146: burn at submit (attempt engine); idempotent, recordGradedAttempt keeps it as backup.
+export { burnCredits } from './credit-repository.js';
 export type { GrantCreditsInput } from './service.js';
 export { BURN, FREE_MONTHLY_CREDITS, GRANT_VALIDITY_MONTHS, LOW_BALANCE_THRESHOLD_RATIO, LOW_BALANCE_LEVELS } from './burn-rates.js';
 

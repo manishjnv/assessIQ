@@ -43,6 +43,7 @@ import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
 import { scoreMcqAndFinalizeSafely } from "@assessiq/scoring";
+import { burnCredits } from "@assessiq/billing";
 import { emitAttemptEventAfterCommit } from "@assessiq/notifications";
 import * as alRepo from "../../05-assessment-lifecycle/src/repository.js";
 import { assertPoolVerifiedForInvites } from "@assessiq/assessment-lifecycle";
@@ -1017,6 +1018,8 @@ async function loadAttemptForCandidate(
       // Same deterministic MCQ scoring as submitAttempt (no AI). After the
       // event insert so archetype signals see the auto_submit milestone.
       await scoreMcqAndFinalizeSafely(client, tenantId, attempt.id);
+      // Z-146: charge at submit, outside the mcq_score savepoint (idempotent; plain SQL).
+      await burnCredits(client, tenantId, attempt.id);
     }
 
     const questions = await repo.listFrozenQuestionsForAttempt(client, attempt.id);
@@ -1745,6 +1748,8 @@ export async function submitAttempt(
     // mixed attempts just get their MCQ gradings rows. Nothing is returned to
     // the candidate about correctness.
     await scoreMcqAndFinalizeSafely(client, tenantId, attemptId);
+    // Z-146: charge at submit (idempotent).
+    await burnCredits(client, tenantId, attemptId);
 
     return { attempt: updated, status: "submitted" };
   });
@@ -1766,6 +1771,7 @@ export async function submitAttemptForRevokeInTx(
   await repo.updateAttemptStatus(client, attemptId, { status: "submitted", submittedAt: new Date() });
   await emitAttemptEventAfterCommit(client, tenantId, attemptId, "attempt.submitted");
   await scoreMcqAndFinalizeSafely(client, tenantId, attemptId);
+  await burnCredits(client, tenantId, attemptId); // Z-146
 }
 
 // ===========================================================================
@@ -1825,7 +1831,7 @@ export async function sweepStaleTimersForTenant(
   now: Date = new Date(),
 ): Promise<SweepResult> {
   return withTenant(tenantId, async (client) => {
-    const { count, ids } = await repo.bulkAutoSubmitExpired(client, now);
+    const { count, ids, rows } = await repo.bulkAutoSubmitExpired(client, now);
     if (count === 0) {
       return { autoSubmitted: 0, attemptIds: [] };
     }
@@ -1833,7 +1839,8 @@ export async function sweepStaleTimersForTenant(
     // Emit a time_milestone event per auto-submitted attempt so the
     // archetype computation in module 09 can distinguish auto-submit from
     // candidate submit.
-    for (const attemptId of ids) {
+    for (const { id: attemptId, assessment_id, user_id } of rows) {
+      await repo.markInvitationSubmitted(client, assessment_id, user_id);
       await repo.insertAttemptEvent(client, {
         attemptId,
         event_type: "time_milestone",
@@ -1846,6 +1853,7 @@ export async function sweepStaleTimersForTenant(
       // Same deterministic MCQ scoring as submitAttempt (no AI). After the
       // event insert so archetype signals see the auto_submit milestone.
       await scoreMcqAndFinalizeSafely(client, tenantId, attemptId);
+      await burnCredits(client, tenantId, attemptId); // Z-146
     }
 
     log.info(

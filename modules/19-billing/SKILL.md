@@ -35,7 +35,7 @@ plan mutation goes through assessiq_system (BYPASSRLS) in A2.
 
 ### `billing_events` (migration 0079)
 
-Append-only ledger. One row per graded attempt per tenant.
+Append-only ledger. One row per graded attempt per tenant (the billing_events meter).
 
 | Column | Type | Notes |
 |---|---|---|
@@ -223,8 +223,8 @@ WHERE p.tier='free' GROUP BY 1;
 
 ## Z-93 credit ledger (2026-10-20)
 
-- **What.** `credit_grants` (balance with expiry) and `credit_burns` (one row per graded attempt), migration 0215. Constants live only in `src/burn-rates.ts` (`BURN` mock 10, real 20, real with camera 30 after Z-95; `FREE_MONTHLY_CREDITS` 250 (200 before Z-160); 12 months validity; low-balance ratio 0.2). SQL is in `src/credit-repository.ts`.
-- **Burn.** `recordGradedAttempt` calls `burnCredits` in the same transaction as the `billing_events` row. The test type comes from `attempts.delivery_mode` and `attempts.camera_enabled`. Grants are locked `FOR UPDATE` and used oldest-expiry first, split across grants when needed. It never throws on a short balance: the missing part is stored as `credit_burns.shortfall`. A repeat call for the same attempt does nothing. Unlimited tenants (`included_credits` NULL) and tenants without a plan row are skipped. Mock attempts burn 10 and never touch certificates.
+- **What.** `credit_grants` (balance with expiry) and `credit_burns` (one row per submitted attempt; grading later adds nothing), migration 0215. Constants live only in `src/burn-rates.ts` (`BURN` mock 10, real 20, real with camera 30 after Z-95; `FREE_MONTHLY_CREDITS` 250 (200 before Z-160); 12 months validity; low-balance ratio 0.2). SQL is in `src/credit-repository.ts`.
+- **Burn.** The attempt engine calls `burnCredits` right after `scoreMcqAndFinalizeSafely` at submit (candidate submit, auto-submit on read, timer sweep, revoke-submit; Z-146), outside the mcq_score savepoint. `recordGradedAttempt` still calls it in the same transaction as the `billing_events` row as an idempotent backup. The test type comes from `attempts.delivery_mode` and `attempts.camera_enabled`. Grants are locked `FOR UPDATE` and used oldest-expiry first, split across grants when needed. It never throws on a short balance: the missing part is stored as `credit_burns.shortfall`. A repeat call for the same attempt does nothing. Unlimited tenants (`included_credits` NULL) and tenants without a plan row are skipped. Mock attempts burn 10 and never touch certificates.
 - **Grants.** `grantCredits` (super admin, route `POST /api/admin/super/tenants/:tenantId/credits`) writes under the system role, then audits as `billing.credits_granted` under the app role in the same transaction (same two-role pattern as `updateTenantPlan`). `provisionDefaultPlan` also inserts the free monthly grant for the current month.
 - **Jobs (worker, no AI).** `credit-free-refill` on `10 0 1 * *`: zero the free grants of earlier months, add 250 credits for this month (unique index = idempotent, no rollover). `credit-expire` on `20 2 * * *`: zero `remaining` of expired grants.
 - **Why.** Pay-per-credit plans need one balance with expiry and an audit trail. The old window counter stays for the existing usage banner.
@@ -280,7 +280,7 @@ Rows: Z-18, Z-70, Z-71, Z-72, Z-79, Z-80, Z-81, Z-83, Z-85, Z-87, Z-89, Z-90, Z-
 **Summary.** A credit ledger sits beside the old credit counter. Credits expire after 12 months, burn by test type and refill monthly on Free. The organisation admin picks Real exam or Mock test at invite. A separate Mock results dashboard exists. Public self-serve sign-up is built and closed. The 5-candidate Free cap is race-safe. The marketing site has `/dpa`, `/signup` and the terms and privacy edits.
 
 **1. Credit ledger and offline grants (Z-93, Z-79), migration 0215**
-- **What.** Tables `credit_grants` (source purchase, free_monthly, bonus or pilot; credits; remaining; expiry after 12 months) and `credit_burns` (one row per graded attempt, test type mock, real or real_camera, `shortfall` column when the balance is too low). Burn takes the oldest-expiring unexpired grant first and splits across grants. Burn amounts and the monthly Free amount are constants in `modules/19-billing/src/burn-rates.ts`.
+- **What.** Tables `credit_grants` (source purchase, free_monthly, bonus or pilot; credits; remaining; expiry after 12 months) and `credit_burns` (one row per submitted attempt; grading later adds nothing, test type mock, real or real_camera, `shortfall` column when the balance is too low). Burn takes the oldest-expiring unexpired grant first and splits across grants. Burn amounts and the monthly Free amount are constants in `modules/19-billing/src/burn-rates.ts`.
 - **Why.** Owner decision 2026-10-19: credits that expire, burn by test type and refill monthly on Free.
 - **Rules that must stay true.** Burn runs in the same transaction as the grade (`recordGradedAttempt`) and never throws on a low balance, because grading must not fail. A tenant with `included_credits` NULL is unlimited and never burns. A Free tenant with grants is capped by its ledger balance, but only while `PLAN_TIERS_ENFORCED` is true.
 - **Hardening after review.** The app role may insert only a `free_monthly` grant of at most 20 credits (200 after Z-95). A trigger lets `remaining` only decrease. One purchase invoice reference grants once. The backfill gives a Free tenant at most the monthly amount.
@@ -291,7 +291,7 @@ Rows: Z-18, Z-70, Z-71, Z-72, Z-79, Z-80, Z-81, Z-83, Z-85, Z-87, Z-89, Z-90, Z-
 - **Known limits.** The `burn_by_type` view counts all-time burns. A backfilled Free grant is replaced at the next refill.
 
 **2. Mock or Real test type, desktop-only rule, readiness check (Z-89, Z-87, Z-91), migrations 0216, 0217, 0219**
-- **What.** `delivery_mode` ('real' or 'mock') on `assessments`, `assessment_invitations` and `attempts`. `attempts.camera_enabled` (always false until Wave 2) and `attempts.readiness` (JSON). The admin sets the mode at invite. The server copies it to the attempt under the invitation row lock. A candidate request can never set it.
+- **What.** `delivery_mode` ('real' or 'mock') on `assessments`, `assessment_invitations` and `attempts`. `attempts.camera_enabled` (written at start from the resolved policy, Z-144) and `attempts.readiness` (JSON). The admin sets the mode at invite. The server copies it to the attempt under the invitation row lock. A candidate request can never set it.
 - **Device rule.** `modules/06-attempt-engine/src/device.ts` decides phone or tablet from `Sec-CH-UA-Mobile`, the user agent, or client-reported touch and screen signals. `readiness.ts` needs a screen of at least 1024 by 600, a recent Chrome, Edge, Firefox or Safari, and a network speed when one is reported.
 - **Where enforced.** `POST /take/start` and `POST /api/me/assessments/:id/start`, including a retake from the result page. The gate lives in `startAttempt` and applies when the request route passes `gate`. A mobile client on a real exam gets 403 `DEVICE_NOT_ALLOWED`. A missing or failing readiness check gets 422 `READINESS_FAILED`. Mock tests and the public `/try` demo are never blocked.
 - **Mock effects.** No certificate (guards in `09-scoring/release.ts` and in `18-certification` `issueCertificateOnRelease`). `countingAttemptSql` (00-core) counts real attempts only. Migration 0219 recreates `attempt_summary_mv` and `question_stats_mv` with `delivery_mode = 'real'`. A mock does not use up the real exam's retake allowance.

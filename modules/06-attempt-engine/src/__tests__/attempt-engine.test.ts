@@ -34,6 +34,19 @@ vi.mock("@assessiq/assessment-lifecycle", async (orig) => ({
   resolveInvitationToken: vi.fn(async () => routeCtx.resolved),
   markInvitationViewedByToken: vi.fn(async () => undefined),
 }));
+// Z-146: a switch that makes MCQ scoring fail inside its own savepoint (the burn must survive it).
+const scoringCtx = vi.hoisted(() => ({ fail: false }));
+vi.mock("@assessiq/scoring", async (orig) => {
+  const actual = await orig<typeof import("@assessiq/scoring")>();
+  return {
+    ...actual,
+    scoreMcqAndFinalizeSafely: vi.fn(async (client: import("pg").PoolClient, ...rest: [string, string]) => {
+      if (!scoringCtx.fail) return actual.scoreMcqAndFinalizeSafely(client, ...rest);
+      await client.query("SAVEPOINT forced_fail");
+      await client.query("ROLLBACK TO SAVEPOINT forced_fail"); // scoring "failed" and rolled back
+    }),
+  };
+});
 vi.mock("@assessiq/auth", async (orig) => ({
   ...(await orig<typeof import("@assessiq/auth")>()),
   mintCandidateSession: vi.fn(async () => ({ id: "sess-1", token: "sess-token" })),
@@ -296,6 +309,7 @@ beforeAll(async () => {
     await applyMigrationsFromDir(client, BILLING_MIGRATIONS_DIR, [
       "0078_tenant_plans.sql",
       "0079_billing_events.sql", // submit now finalises MCQ-only attempts (records billing)
+      "0215_credit_ledger.sql", // Z-146: burn at submit
       "0081_tenant_entitlements.sql",
       "0249_tenant_plans_max_invited_per_assessment.sql", // EXP-37: inviteUsers reads the plan limit
     ]);
@@ -1325,5 +1339,105 @@ describe("cross-tenant RLS", () => {
       const events = await repo.listAttemptEvents(client, attempt.id);
       expect(events).toHaveLength(0);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Z-146: burn credits when the student submits (all four paths), not at grading
+// ---------------------------------------------------------------------------
+
+describe("Z-146 burn at submit", () => {
+  const burns = (attemptId: string) =>
+    withSuperClient((c) => c.query<{ credits: number }>(`SELECT credits FROM credit_burns WHERE attempt_id = $1`, [attemptId]).then((r) => r.rows));
+
+  async function begin(extra?: (assessmentId: string, packId: string) => Promise<void>) {
+    const candidate = randomUUID();
+    await withSuperClient((c) => insertCandidateUser(c, candidate, tenantA, `c-${candidate}@x.com`, "Cburn"));
+    const { assessmentId, packId } = await buildActiveAssessmentWithInvite(tenantA, adminA, candidate, 3);
+    if (extra) await extra(assessmentId, packId);
+    const attempt = await startAttempt(tenantA, { userId: candidate, assessmentId });
+    return { candidate, assessmentId, attempt };
+  }
+
+  beforeAll(async () => {
+    await withSuperClient(async (c) => {
+      await c.query(`UPDATE tenant_plans SET included_credits = 100000 WHERE tenant_id = $1`, [tenantA]);
+      await c.query(`INSERT INTO credit_grants (tenant_id, source, credits, remaining, expires_at) VALUES ($1, 'bonus', 100000, 100000, now() + interval '300 days')`, [tenantA]);
+    });
+  });
+  afterAll(async () => {
+    scoringCtx.fail = false;
+    await withSuperClient(async (c) => {
+      await c.query(`DELETE FROM credit_burns WHERE tenant_id = $1`, [tenantA]);
+      await c.query(`DELETE FROM credit_grants WHERE tenant_id = $1`, [tenantA]);
+      await c.query(`UPDATE tenant_plans SET included_credits = NULL WHERE tenant_id = $1`, [tenantA]);
+    });
+  });
+
+  it("candidate submit burns one row; zero answers count; in-progress burns none; later recordGradedAttempt adds no second row", async () => {
+    const { candidate, attempt } = await begin();
+    expect(await burns(attempt.id)).toHaveLength(0); // started, not submitted
+    await submitAttempt(tenantA, candidate, attempt.id);
+    expect(await burns(attempt.id)).toHaveLength(1);
+    const { recordGradedAttempt } = await import("@assessiq/billing");
+    await withTenant(tenantA, (c) => recordGradedAttempt(c, tenantA, attempt.id));
+    expect(await burns(attempt.id)).toHaveLength(1);
+  });
+
+  it("read auto-submit burns one row", async () => {
+    const { candidate, attempt } = await begin();
+    await withSuperClient((c) => c.query(`UPDATE attempts SET ends_at = now() - interval '5 minutes' WHERE id = $1`, [attempt.id]));
+    await getAttemptForCandidate(tenantA, attempt.id, candidate);
+    expect(await burns(attempt.id)).toHaveLength(1);
+  });
+
+  it("timer sweep burns one row and marks the invitation submitted", async () => {
+    const { candidate, assessmentId, attempt } = await begin();
+    await withSuperClient((c) => c.query(`UPDATE attempts SET ends_at = now() - interval '5 minutes' WHERE id = $1`, [attempt.id]));
+    await sweepStaleTimersForTenant(tenantA);
+    expect(await burns(attempt.id)).toHaveLength(1);
+    const inv = await withSuperClient((c) =>
+      c.query<{ status: string }>(`SELECT status FROM assessment_invitations WHERE assessment_id = $1 AND user_id = $2`, [assessmentId, candidate]),
+    );
+    expect(inv.rows[0]!.status).toBe("submitted");
+  });
+
+  it("revoke-submit burns one row", async () => {
+    const { attempt } = await begin();
+    await withTenant(tenantA, (client) => submitAttemptForRevokeInTx(client, tenantA, attempt.id));
+    expect(await burns(attempt.id)).toHaveLength(1);
+  });
+
+  it("a scoring failure keeps the burn", async () => {
+    const { candidate, attempt } = await begin();
+    scoringCtx.fail = true;
+    try {
+      await submitAttempt(tenantA, candidate, attempt.id);
+    } finally {
+      scoringCtx.fail = false;
+    }
+    expect(await burns(attempt.id)).toHaveLength(1);
+  });
+
+  it("a mixed attempt (one subjective question) burns at submit while it stays submitted (not graded)", async () => {
+    const { candidate, attempt } = await begin(async (_a, packId) => {
+      // question_versions is immutable by trigger; the superuser fixture switches it off for one UPDATE.
+      await withSuperClient(async (c) => {
+        await c.query(`ALTER TABLE question_versions DISABLE TRIGGER USER`);
+        try {
+          await c.query(
+            `UPDATE question_versions SET type = 'subjective', content = '{"question":"Explain defence in depth"}'::jsonb
+              WHERE question_id = (SELECT id FROM questions WHERE pack_id = $1 ORDER BY id LIMIT 1)`,
+            [packId],
+          );
+        } finally {
+          await c.query(`ALTER TABLE question_versions ENABLE TRIGGER USER`);
+        }
+      });
+    });
+    await submitAttempt(tenantA, candidate, attempt.id);
+    const st = await withSuperClient((c) => c.query<{ status: string }>(`SELECT status FROM attempts WHERE id = $1`, [attempt.id]));
+    expect(st.rows[0]!.status).toBe("submitted");
+    expect(await burns(attempt.id)).toHaveLength(1);
   });
 });

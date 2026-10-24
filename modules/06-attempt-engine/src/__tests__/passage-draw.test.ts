@@ -101,7 +101,7 @@ beforeAll(async () => {
     await applyDir(c, join(MODULES_ROOT, "12-embed-sdk", "migrations"), ["0073_attempt_embed_origin.sql"]);
     await applyDir(c, join(MODULES_ROOT, "14-audit-log", "migrations"));
     await applyDir(c, join(MODULES_ROOT, "13-notifications", "migrations"));
-    await applyDir(c, join(MODULES_ROOT, "19-billing", "migrations"), ["0078_tenant_plans.sql", "0079_billing_events.sql", "0081_tenant_entitlements.sql", "0249_tenant_plans_max_invited_per_assessment.sql"]);
+    await applyDir(c, join(MODULES_ROOT, "19-billing", "migrations"), ["0078_tenant_plans.sql", "0079_billing_events.sql", "0215_credit_ledger.sql", "0081_tenant_entitlements.sql", "0249_tenant_plans_max_invited_per_assessment.sql"]);
     await applyDir(c, join(MODULES_ROOT, "07-ai-grading", "migrations"), ["0040_gradings.sql", "0100_attempts_ai_proposals_cache.sql"]);
     await applyDir(c, join(MODULES_ROOT, "09-scoring", "migrations"));
     await applyDir(c, join(MODULES_ROOT, "18-certification", "migrations"));
