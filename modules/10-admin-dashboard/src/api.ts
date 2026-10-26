@@ -1274,6 +1274,7 @@ export async function createDrillApi(body: {
   opens_at: string;
   closes_at?: string | null;
   name?: string;
+  settings?: { integrity?: { fullscreen: boolean; block_copy_paste: boolean }; feedback_level?: string };
 }): Promise<{ assessment: { id: string } }> {
   return adminApi<{ assessment: { id: string } }>('/admin/drills', { method: 'POST', body: JSON.stringify(body) });
 }

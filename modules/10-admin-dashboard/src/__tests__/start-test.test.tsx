@@ -83,7 +83,7 @@ describe("AdminStartTest", () => {
     fireEvent.click(send());
     await screen.findByTestId("start-test-result");
     const body = api.createAssessmentFromSet.mock.calls[0]![0];
-    expect(body).toMatchObject({ source_pack_id: "p1", level_position: 1, question_count: 10 });
+    expect(body).toMatchObject({ source_pack_id: "p1", level_position: 1, question_count: 30 });
     expect(new Date(body.opens_at).toISOString()).toBe(body.opens_at);
     expect(api.publishAssessmentApi).toHaveBeenCalledWith("as1");
     expect(api.inviteAssessmentUsers).toHaveBeenCalledWith("as1", ["u1"]);
@@ -178,6 +178,36 @@ describe("topics and question count in the Mock card (EXP-11)", () => {
     expect(api.createDrillApi).toHaveBeenCalledWith(expect.objectContaining({ pack_id: "c-pack", level_id: "lv1", node_ids: ["n1", "n2"], question_count: 20 }));
     expect(api.createAssessmentFromSet).not.toHaveBeenCalled();
     expect(api.publishAssessmentApi).toHaveBeenCalledWith("drill1");
+  });
+});
+
+async function topicMockSettings(act: () => void) {
+  setupMock();
+  await screen.findByText(/SOC Basics/);
+  fireEvent.click(screen.getByRole("radio", { name: /SOC Basics/ }));
+  await screen.findByText(/Asha/);
+  fireEvent.click(screen.getByRole("checkbox", { name: /Asha/ }));
+  fireEvent.click(screen.getByRole("radio", { name: /^Mock/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Pick topics" }));
+  act();
+  api.createDrillApi.mockResolvedValue({ assessment: { id: "drill1" } });
+  fireEvent.click(send());
+  await screen.findByTestId("start-test-result");
+  return api.createDrillApi.mock.calls[0]![0].settings;
+}
+
+describe("a topic mock reads the Mock card settings (single source with every other Mock)", () => {
+  it("full screen", async () => {
+    const s = await topicMockSettings(() => fireEvent.click(screen.getByLabelText("Require full screen")));
+    expect(s.integrity).toEqual({ fullscreen: true, block_copy_paste: false });
+  });
+  it("copy and paste block", async () => {
+    const s = await topicMockSettings(() => fireEvent.click(screen.getByLabelText("Block copy and paste")));
+    expect(s.integrity).toEqual({ fullscreen: false, block_copy_paste: true });
+  });
+  it("feedback level (Mock only)", async () => {
+    const s = await topicMockSettings(() => fireEvent.click(screen.getByLabelText("Right or wrong")));
+    expect(s.feedback_level).toBe("right_wrong");
   });
 });
 

@@ -81,7 +81,7 @@ export function AdminStartTest(): React.ReactElement {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [setId, setSetId] = useState("");
   const [level, setLevel] = useState(1);
-  const [count, setCount] = useState(10);
+  const [count, setCount] = useState(60); // owner 2026-10-25: default 60, the admin can change it (1 to 100) and the time limit
   const [minutes, setMinutes] = useState(""); // optional time limit; empty = level time
   const [name, setName] = useState("");
   const [search, setSearch] = useState("");
@@ -150,7 +150,7 @@ export function AdminStartTest(): React.ReactElement {
     setSetId(s.source_pack_id);
     setLevel(1);
     setMinutes("");
-    setCount(Math.min(10, s.question_count));
+    setCount(Math.min(60, s.question_count));
     setName(`${s.name} — ${formatDate(new Date())}`);
   }
 
@@ -177,6 +177,11 @@ export function AdminStartTest(): React.ReactElement {
       // Z-152: plan cap and credits BEFORE anything is created or published.
       step = "Check the credits";
       await precheckInvitesApi({ candidates: Math.min(total, 200), ...fromTestType(testType) });
+      // Z-143: Real is fixed on; Mock follows the two checkboxes in the Mock card. One value for every path (topic mock too).
+      const typeSettings = { integrity: {
+        fullscreen: testType !== "mock" || integrity.fullscreen,
+        block_copy_paste: testType !== "mock" || integrity.blockCopyPaste,
+      }, ...feedbackSetting(testType, feedbackLevel) };
       step = "Create the assessment";
       let mockNote: string | undefined;
       if (blueprint !== null) {
@@ -217,6 +222,7 @@ export function AdminStartTest(): React.ReactElement {
           opens_at: new Date(opensAt).toISOString(),
           ...(closesAt ? { closes_at: new Date(closesAt).toISOString() } : {}),
           name: name.trim(),
+          settings: typeSettings,
         })).assessment.id;
         mark("Topic mock created");
       } else {
@@ -230,10 +236,7 @@ export function AdminStartTest(): React.ReactElement {
           ...(minutes.trim() !== "" ? { duration_minutes: Number(minutes) } : {}),
           ...fromTestType(testType),
           // Z-143: Real is fixed on; Mock follows the two checkboxes in the Mock card.
-          settings: { integrity: {
-            fullscreen: testType !== "mock" || integrity.fullscreen,
-            block_copy_paste: testType !== "mock" || integrity.blockCopyPaste,
-          }, ...feedbackSetting(testType, feedbackLevel) },
+          settings: typeSettings,
         };
         id = (await createAssessmentFromSet(body)).id;
         mark("Assessment created");

@@ -18,6 +18,8 @@ export interface CreateDrillInput {
   opens_at: Date | null;
   closes_at?: Date | null;
   name?: string;
+  /** Type-card settings (integrity, feedback_level) from the Mock card; merged as given, createAssessment validates them. */
+  settings?: { integrity?: { fullscreen: boolean; block_copy_paste: boolean }; feedback_level?: "none" | "right_wrong" | "with_expected_answer" | "with_ai_justification" };
 }
 
 /** Split `count` over the nodes: even share, the remainder goes to the first nodes. Pure; throws on a bad shape. */
@@ -51,7 +53,7 @@ export async function createDrill(tenantId: string, input: CreateDrillInput, cre
       delivery_mode: "mock",
       opens_at: input.opens_at,
       ...(input.closes_at !== undefined ? { closes_at: input.closes_at } : {}),
-      settings: { sections, whole_test_minutes: Math.min(600, Math.max(1, minutes)), drill: true },
+      settings: { ...input.settings, sections, whole_test_minutes: Math.min(600, Math.max(1, minutes)), drill: true },
     },
     createdByUserId,
   );

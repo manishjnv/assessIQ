@@ -41,7 +41,7 @@ describe("suggested time", () => {
   it("shows ceil(count * avg) and the button fills the time limit, which stays editable", async () => {
     setup(SET);
     fireEvent.click(await screen.findByRole("radio"));
-    expect(screen.getByTestId("st-suggested").textContent).toBe("Suggested time: 13 min"); // 10 * 1.25 = 12.5
+    expect(screen.getByTestId("st-suggested").textContent).toBe("Suggested time: 38 min"); // default 60 is capped at the set size 30; 30 * 1.25 = 37.5
     fireEvent.change(screen.getByLabelText(/Number of questions/), { target: { value: "20" } });
     expect(screen.getByTestId("st-suggested").textContent).toBe("Suggested time: 25 min");
     fireEvent.click(screen.getByRole("button", { name: "Use suggested time" }));

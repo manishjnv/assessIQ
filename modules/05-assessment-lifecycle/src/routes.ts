@@ -303,6 +303,8 @@ export async function registerAssessmentLifecycleRoutes(
       opens_at: z.string().min(1),
       closes_at: z.string().min(1).nullable().optional(),
       name: z.string().trim().min(1).max(200).optional(),
+      // Type-card settings (integrity, feedback_level): same keys as createAssessment, validated there.
+      settings: z.object({ integrity: z.object({ fullscreen: z.boolean(), block_copy_paste: z.boolean() }).strict().optional(), feedback_level: z.enum(["none", "right_wrong", "with_expected_answer", "with_ai_justification"]).optional() }).strict().optional(),
     })
     .strict()
     .refine((b) => b.difficulty_min === undefined || b.difficulty_max === undefined || b.difficulty_min <= b.difficulty_max, {
@@ -327,6 +329,7 @@ export async function registerAssessmentLifecycleRoutes(
         opens_at: parseDate(b.opens_at, "opens_at"),
         ...(b.closes_at != null ? { closes_at: parseDate(b.closes_at, "closes_at") } : {}),
         ...(b.name !== undefined ? { name: b.name } : {}),
+        ...(b.settings !== undefined ? { settings: b.settings as NonNullable<Parameters<typeof createDrill>[1]["settings"]> } : {}),
       },
       req.session!.userId,
     );

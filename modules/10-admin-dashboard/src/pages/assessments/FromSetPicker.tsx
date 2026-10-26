@@ -3,6 +3,9 @@ import { Chip } from "@assessiq/ui-system";
 import { AdminApiError, getAvailableSets } from "../../api.js";
 import type { AvailableSet } from "../../api.js";
 
+/** Owner rule 2026-10-25: a new assessment starts with 60 questions; the admin can change the count (1 to 100) and the time. */
+export const DEFAULT_QUESTION_COUNT = 60;
+
 export interface FromSetSelection {
   source_pack_id: string;
   /** Subject (domain slug) of the chosen set. The section editor shows only this subject's categories. */
@@ -23,7 +26,7 @@ export function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElem
 
   const [selectedSourceId, setSelectedSourceId] = useState<string>("");
   const [levelPosition, setLevelPosition] = useState<number>(1);
-  const [questionCount, setQuestionCount] = useState<number>(10);
+  const [questionCount, setQuestionCount] = useState<number>(DEFAULT_QUESTION_COUNT);
 
   // Load licensed sets on mount (only mounts when "From a set" mode is active).
   useEffect(() => {
@@ -53,7 +56,7 @@ export function FromSetPicker({ onChange }: FromSetPickerProps): React.ReactElem
     if (!selectedSourceId || set === null) { onChange(null); return; }
     if (!Number.isInteger(levelPosition) || levelPosition < 1) { onChange(null); return; }
     if (!Number.isInteger(questionCount) || questionCount < 1) { onChange(null); return; }
-    onChange({ source_pack_id: selectedSourceId, domain: set.domain, level_position: levelPosition, question_count: questionCount });
+    onChange({ source_pack_id: selectedSourceId, domain: set.domain, level_position: levelPosition, question_count: Math.min(questionCount, set.question_count) }); // the default can be above a small set
   }, [sets, selectedSourceId, levelPosition, questionCount, onChange]);
 
   const selectedSet = sets?.find((s) => s.source_pack_id === selectedSourceId) ?? null;
