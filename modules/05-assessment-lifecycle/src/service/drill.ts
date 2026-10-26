@@ -76,7 +76,7 @@ export function buildDrillSections(nodeIds: string[], count: number, diffMin?: n
 /** Real topic names for the section titles. Runs under the tenant session (RLS shows platform and own nodes). */
 async function loadTopicNames(tenantId: string, ids: string[]): Promise<Map<string, string>> {
   const rows = await withTenant(tenantId, async (client) => (await client.query<{ id: string; name: string }>(
-    `SELECT id, name FROM taxonomy_nodes WHERE id = ANY($1::uuid[])`, [ids])).rows);
+    `SELECT id, label AS name FROM taxonomy_nodes WHERE id = ANY($1::uuid[])`, [ids])).rows);
   return new Map(rows.map((r) => [r.id, r.name]));
 }
 

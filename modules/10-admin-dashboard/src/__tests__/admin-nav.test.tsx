@@ -59,7 +59,7 @@ describe("resolveActiveNav", () => {
       "Home", "Assessments", "Question bank", "Reports", "People", "Integrations", "Settings",
     ]);
     expect(NAV_GROUPS.find((g) => g.id === "assessments")?.tabs.map((t) => t.label)).toEqual([
-      "Assessments", "Attempts", "Grading status", "Certificates",
+      "Assessments", "Create a test", "Attempts", "Grading status", "Certificates",
     ]);
     expect(NAV_GROUPS.find((g) => g.id === "settings")?.tabs.map((t) => t.label)).toEqual([
       "Organisation", "Results", "Data privacy", "Plan and usage",

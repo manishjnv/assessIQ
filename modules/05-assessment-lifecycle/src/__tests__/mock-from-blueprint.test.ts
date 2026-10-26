@@ -135,3 +135,111 @@ describe("POST /api/admin/blueprints/:id/mock", () => {
     expect((await app.inject({ method: "POST", url: `/api/admin/blueprints/not-a-uuid/mock`, payload: {} })).statusCode).toBe(400);
   });
 });
+
+// CT-2: two platform subject nodes with real labels (the blueprint seed leaves its subject nodes NULL on a fresh database).
+let nodeCache: Array<{ id: string; label: string }> | null = null;
+async function seedNodes(): Promise<Array<{ id: string; label: string }>> {
+  if (nodeCache !== null) return nodeCache;
+  nodeCache = await sup(async (c) => {
+    const fw = (await c.query<{ id: string }>(`INSERT INTO frameworks (tenant_id, slug, name) VALUES (NULL, 'ct2-test', 'CT2 test') RETURNING id`)).rows[0]!.id;
+    const out: Array<{ id: string; label: string }> = [];
+    for (const [code, label] of [["pct", "Percentages"], ["series", "Number series"]] as const) {
+      const id = (await c.query<{ id: string }>(
+        `INSERT INTO taxonomy_nodes (tenant_id, framework_id, kind, code, label) VALUES (NULL, $1, 'subject', $2, $3) RETURNING id`, [fw, code, label])).rows[0]!.id;
+      out.push({ id, label });
+    }
+    return out;
+  });
+  return nodeCache;
+}
+
+describe("POST /api/admin/tests (CT-2 Create a test)", () => {
+  async function app() {
+    const a = Fastify({ logger: false });
+    a.addHook("preHandler", async (req) => {
+      (req as unknown as { session: unknown }).session = { tenantId: tenant, userId: admin, role: "admin" };
+    });
+    a.setErrorHandler((e, _r, reply) => reply.code((e as { status?: number }).status ?? 500).send({ message: (e as Error).message }));
+    await registerAssessmentLifecycleRoutes(a, { adminOnly: [] });
+    await a.ready();
+    return a;
+  }
+  const base = () => ({ pack_id: pack, level_id: level, opens_at: opensAt.toISOString(), delivery_mode: "mock" });
+
+  it("pattern cover: a DRAFT with the pattern sections, the type-card settings and no invitation", async () => {
+    const a = await app();
+    const r = await a.inject({
+      method: "POST", url: "/api/admin/tests",
+      payload: { ...base(), cover: { kind: "pattern", blueprint_id: BP, section_positions: [0, 1], scale_percent: 50 }, settings: { integrity: { fullscreen: false, block_copy_paste: true }, feedback_level: "right_wrong" } },
+    });
+    expect(r.statusCode).toBe(201);
+    const { assessment } = r.json();
+    expect(assessment.status).toBe("draft");
+    expect(assessment.delivery_mode).toBe("mock");
+    expect(assessment.name).toBe("SSC CGL Tier 1 practice mock");
+    const st = assessment.settings;
+    expect(st.sections.map((x: { name: string }) => x.name)).toEqual(["Reasoning", "General Awareness"]);
+    expect(st.integrity).toEqual({ fullscreen: false, block_copy_paste: true });
+    expect(st.feedback_level).toBe("right_wrong");
+    expect(st.exam_blueprint).toMatchObject({ id: BP });
+    const inv = await sup(async (c) => (await c.query(`SELECT count(*)::int AS n FROM assessment_invitations WHERE assessment_id=$1`, [assessment.id])).rows[0].n);
+    expect(inv).toBe(0);
+  });
+
+  it("whole cover: count and time limit, no sections; a Real test cannot switch integrity off", async () => {
+    const a = await app();
+    const ok = await a.inject({ method: "POST", url: "/api/admin/tests", payload: { ...base(), name: "Plain", cover: { kind: "whole", question_count: 40 }, minutes: 50 } });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.json().assessment).toMatchObject({ name: "Plain", question_count: 40, duration_minutes: 50, status: "draft" });
+    expect(ok.json().assessment.settings.sections).toBeUndefined();
+    const real = await a.inject({
+      method: "POST", url: "/api/admin/tests",
+      payload: { ...base(), delivery_mode: "real", cover: { kind: "whole", question_count: 10 }, settings: { integrity: { fullscreen: false, block_copy_paste: false } } },
+    });
+    expect(real.statusCode).toBe(409); // the settings reach createAssessment on every cover
+  });
+
+  it("topics cover: uneven counts, real topic names, one timer, the total is the sum", async () => {
+    const a = await app();
+    const nodes = (await seedNodes()).map((n) => ({ id: n.id, name: n.label }));
+    expect(nodes).toHaveLength(2);
+    const r = await a.inject({
+      method: "POST", url: "/api/admin/tests",
+      payload: { ...base(), cover: { kind: "topics", topics: [{ node_id: nodes[0]!.id, count: 12 }, { node_id: nodes[1]!.id, count: 3 }] } },
+    });
+    expect(r.statusCode).toBe(201);
+    const { assessment } = r.json();
+    expect(assessment.question_count).toBe(15);
+    expect(assessment.settings.sections.map((x: { name: string; question_count: number }) => [x.name, x.question_count])).toEqual([[nodes[0]!.name, 12], [nodes[1]!.name, 3]]);
+    expect(assessment.settings.whole_test_minutes).toBe(23);
+    expect(assessment.settings.drill).toBe(true);
+  });
+
+  it("refuses a bad body, an unknown pattern and a topic total above 100", async () => {
+    const a = await app();
+    expect((await a.inject({ method: "POST", url: "/api/admin/tests", payload: base() })).statusCode).toBe(400); // no cover
+    expect((await a.inject({ method: "POST", url: "/api/admin/tests", payload: { ...base(), cover: { kind: "whole", question_count: 101 } } })).statusCode).toBe(400);
+    expect((await a.inject({ method: "POST", url: "/api/admin/tests", payload: { ...base(), cover: { kind: "pattern", blueprint_id: randomUUID() } } })).statusCode).toBe(404);
+    expect((await a.inject({ method: "POST", url: "/api/admin/tests", payload: { ...base(), cover: { kind: "topics", topics: [{ node_id: randomUUID(), count: 60 }, { node_id: randomUUID(), count: 41 }] } } })).statusCode).toBe(400);
+  });
+});
+
+describe("POST /api/admin/drills reads real topic names (CT-0 fix, S62)", () => {
+  it("names each section with the taxonomy node label (the CT-0 query used a column that does not exist)", async () => {
+    const a = Fastify({ logger: false });
+    a.addHook("preHandler", async (req) => {
+      (req as unknown as { session: unknown }).session = { tenantId: tenant, userId: admin, role: "admin" };
+    });
+    a.setErrorHandler((e, _r, reply) => reply.code((e as { status?: number }).status ?? 500).send({ message: (e as Error).message }));
+    await registerAssessmentLifecycleRoutes(a, { adminOnly: [] });
+    await a.ready();
+    const nodes = await seedNodes();
+    const body = { pack_id: pack, level_id: level, opens_at: opensAt.toISOString() };
+    const uneven = await a.inject({ method: "POST", url: "/api/admin/drills", payload: { ...body, topics: [{ node_id: nodes[0]!.id, count: 7 }, { node_id: nodes[1]!.id, count: 2 }] } });
+    expect(uneven.statusCode).toBe(201);
+    expect(uneven.json().assessment.settings.sections.map((x: { name: string; question_count: number }) => [x.name, x.question_count])).toEqual([[nodes[0]!.label, 7], [nodes[1]!.label, 2]]);
+    const even = await a.inject({ method: "POST", url: "/api/admin/drills", payload: { ...body, node_ids: [nodes[0]!.id], question_count: 5 } });
+    expect(even.statusCode).toBe(201);
+    expect(even.json().assessment.settings.sections[0].name).toBe(nodes[0]!.label);
+  });
+});

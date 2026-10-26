@@ -52,6 +52,7 @@ export const NAV_GROUPS: readonly NavGroup[] = [
     strip: true,
     tabs: [
       { id: "assessments", label: "Assessments", href: "/admin/assessments", under: ["/admin/assessments"] },
+      { id: "create-test", label: "Create a test", href: "/admin/create-test", under: ["/admin/create-test"] },
       { id: "attempts", label: "Attempts", href: "/admin/attempts", under: ["/admin/attempts"] },
       { id: "grading-status", label: "Grading status", href: "/admin/grading-jobs", under: ["/admin/grading-jobs"] },
       { id: "certificates", label: "Certificates", href: "/admin/certificates", under: ["/admin/certificates"] },

@@ -42,6 +42,7 @@ import {
   createAssessmentFromSet,
   createMockFromBlueprint,
   createDrill,
+  createTest,
   importLicensedSet,
   resyncLicensedSet,
   getAssessmentDetail,
@@ -288,6 +289,68 @@ export async function registerAssessmentLifecycleRoutes(
       return reply.code(201).send(result);
     },
   );
+
+  // POST /api/admin/tests  (CT-2)
+  // "Create a test": one call for every cover (whole set, chosen topics, exam pattern). Always a DRAFT.
+  const TestBody = z
+    .object({
+      pack_id: z.string().uuid(),
+      level_id: z.string().uuid(),
+      name: z.string().trim().min(1).max(200).optional(),
+      cover: z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("whole"), question_count: z.number().int().min(1).max(100) }).strict(),
+        z.object({
+          kind: z.literal("topics"),
+          topics: z.array(z.object({ node_id: z.string().uuid(), count: z.number().int().min(1).max(100) }).strict()).min(1).max(10),
+        }).strict(),
+        z.object({
+          kind: z.literal("pattern"),
+          blueprint_id: z.string().uuid(),
+          section_positions: z.array(z.number().int().min(0).max(50)).min(1).max(20).optional(),
+          scale_percent: z.number().int().min(1).max(100).optional(),
+        }).strict(),
+      ]),
+      minutes: z.number().int().min(1).max(600).optional(),
+      difficulty_min: z.number().int().min(1).max(5).optional(),
+      difficulty_max: z.number().int().min(1).max(5).optional(),
+      delivery_mode: z.enum(["real", "mock"]),
+      camera_required: z.boolean().optional(),
+      opens_at: z.string().min(1),
+      closes_at: z.string().min(1).nullable().optional(),
+      // Type-card settings (integrity, feedback_level): same keys as createAssessment, validated there.
+      settings: z.object({ integrity: z.object({ fullscreen: z.boolean(), block_copy_paste: z.boolean() }).strict().optional(), feedback_level: z.enum(["none", "right_wrong", "with_expected_answer", "with_ai_justification"]).optional() }).strict().optional(),
+    })
+    .strict()
+    .refine((b) => b.difficulty_min === undefined || b.difficulty_max === undefined || b.difficulty_min <= b.difficulty_max, {
+      message: "difficulty_min must not be above difficulty_max",
+    });
+  app.post("/api/admin/tests", { preHandler: adminOnly }, async (req, reply) => {
+    const body = TestBody.safeParse(req.body);
+    if (!body.success) {
+      throw new ValidationError("invalid body", { details: { code: "INVALID_PARAM", issues: body.error.issues } });
+    }
+    const b = body.data;
+    const result = await createTest(
+      req.session!.tenantId,
+      {
+        pack_id: b.pack_id,
+        level_id: b.level_id,
+        ...(b.name !== undefined ? { name: b.name } : {}),
+        cover: b.cover,
+        ...(b.minutes !== undefined ? { minutes: b.minutes } : {}),
+        ...(b.difficulty_min !== undefined ? { difficulty_min: b.difficulty_min } : {}),
+        ...(b.difficulty_max !== undefined ? { difficulty_max: b.difficulty_max } : {}),
+        delivery_mode: b.delivery_mode,
+        ...(b.camera_required !== undefined ? { camera_required: b.camera_required } : {}),
+        opens_at: parseDate(b.opens_at, "opens_at"),
+        ...(b.closes_at != null ? { closes_at: parseDate(b.closes_at, "closes_at") } : {}),
+        ...(b.settings !== undefined ? { settings: b.settings as NonNullable<Parameters<typeof createTest>[1]["settings"]> } : {}),
+        today: new Date().toISOString().slice(0, 10),
+      },
+      req.session!.userId,
+    );
+    return reply.code(201).send(result);
+  });
 
   // POST /api/admin/drills  (EXP-11)
   // Topic drill: a DRAFT mock with one section per chosen Subject-map node, optional difficulty range, one timer.

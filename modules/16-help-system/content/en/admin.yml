@@ -5933,3 +5933,93 @@ admin.review_queue.reports:
     A report does not change the question, the marks or the review state. Read the reports, then use **Open review** to mark the question disputed or needing a fix.
 
     Use the **Reported** tab to see only questions with reports.
+
+admin.create_test.page:
+  audience: admin
+  short_text: "One page to create any test and save it as a draft."
+  long_md: |
+    ## Create a test
+
+    Pick the exam and question set, choose what the test covers, set the type and save a draft.
+
+    A draft sends nothing and costs nothing. Open the assessment afterwards to check it and invite your students.
+
+admin.create_test.exam:
+  audience: admin
+  short_text: "Pick an exam pattern, or use a question set directly."
+  long_md: |
+    ## Exam
+
+    An exam pattern gives the sections, timing and marks of a real exam.
+
+    Choose **No exam pattern** to build a test from a question set only.
+
+admin.create_test.set:
+  audience: admin
+  short_text: "The question set the test draws from."
+  long_md: |
+    ## Question set
+
+    Only sets your organisation may use are listed. The set is copied into your organisation when you save the draft.
+
+admin.create_test.cover:
+  audience: admin
+  short_text: "Choose what the test covers."
+  long_md: |
+    ## What to cover
+
+    - **Whole set.** Questions come from the whole set with an equal share of each topic.
+    - **Chosen topics.** Pick topics and give each a number of questions.
+    - **Exam pattern.** Use the sections of the chosen exam, all of them or some, at full size or smaller.
+
+admin.create_test.topics:
+  audience: admin
+  short_text: "Pick topics and set the number of questions for each."
+  long_md: |
+    ## Chosen topics
+
+    Pick up to 10 topics. Each row has its own count. You can use one topic, fewer questions or uneven counts.
+
+    **Split evenly** shares the total equally. A test has at most 100 questions. If a topic has too few questions, saving stops and names the topic.
+
+admin.create_test.topic_picker:
+  audience: admin
+  short_text: "Tick the topics to include."
+  long_md: |
+    ## Topic list
+
+    Tick a topic to add a row. Untick it, or press Remove, to take it out.
+
+admin.create_test.type:
+  audience: admin
+  short_text: "Mock, Real or Real + camera."
+  long_md: |
+    ## Test type
+
+    The type sets the rules and the credit cost. Mock is for practice. Real is a graded test. Real + camera adds the camera.
+
+    The type cannot change after you publish.
+
+admin.create_test.time:
+  audience: admin
+  short_text: "The time limit for the whole test, in minutes."
+  long_md: |
+    ## Time limit
+
+    Leave it empty to use the time of the difficulty. A suggested time is shown from the average time per question. An exam pattern sets its own time.
+
+admin.create_test.name:
+  audience: admin
+  short_text: "The test name and the window when students can start."
+  long_md: |
+    ## Name and window
+
+    Students can start between **Opens** and **Closes**. You can change these later while the test is a draft.
+
+admin.create_test.save:
+  audience: admin
+  short_text: "Save the test as a draft. Nothing is sent."
+  long_md: |
+    ## Save as draft
+
+    This creates the assessment as a draft. It does not publish the test, invite anyone or charge credits. Open the assessment to finish and invite your students.

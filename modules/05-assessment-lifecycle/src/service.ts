@@ -30,6 +30,8 @@
 export { resolveBlueprintNodes } from "./service/blueprint.js";
 export { listAssessments, getInvitationCounts, getAssessment, getAssessmentDetail, createAssessment, assertIntegritySettings, assertSectionsSettings, createAssessmentFromSet, importLicensedSet, resyncLicensedSet, updateAssessmentIntegrity, updateAssessmentGrading, updateAssessmentDuration, updateAssessment, type InvitationCounts } from "./service/assessments.js";
 export { createMockFromBlueprint, type CreateMockInput } from "./service/mock.js";
+export { createTest, type CreateTestInput } from "./service/create-test.js";
+export { compileTestSpec, compilePatternSections, type TestCover, type CompiledTest } from "./service/compile-test.js";
 export { createDrill, buildDrillSections, buildTopicSections, type CreateDrillInput } from "./service/drill.js";
 export { publishAssessment, closeAssessment, cancelAssessment, deleteAssessment, clearEmptyDrafts, reopenAssessment } from "./service/lifecycle.js";
 export { type ResolvedInvitation, resolveInvitationToken, markInvitationViewedByToken } from "./service/invitation-token.js";

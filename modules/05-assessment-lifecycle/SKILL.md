@@ -410,3 +410,10 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 - `createDrill` takes `topics: [{ node_id, count }]` (uneven counts, one topic, fewer questions) and names sections with the real topic name read from `taxonomy_nodes` (`buildTopicSections`, pure). The even-split form stays.
 - `createMockFromBlueprint` refuses an archived pattern.
 - Not included: a scaled mock for a pattern above 100 questions (CT-2), `kind`, private patterns.
+
+## CT-2 compile function and POST /api/admin/tests (S62, 2026-10-26)
+
+- `service/compile-test.ts` `compileTestSpec` (pure) turns a cover (whole set, chosen topics, exam pattern) into question count, time limit and the `settings` keys `sections`, `whole_test_minutes`, `drill`, `exam_blueprint`. `compilePatternSections` is the one builder of pattern sections; `createMockFromBlueprint` (`mock.ts`) now calls it, and `createDrill` uses `buildTopicSections` (`drill.ts`), so a pattern or a topic list becomes sections in exactly one way.
+- `service/create-test.ts` `createTest` loads the pattern and topic labels, compiles, and calls `createAssessment` (all guards run) with the type-card settings and the type (`delivery_mode`, `camera_required`) on every cover. Result is a DRAFT. Route `POST /api/admin/tests` in `routes.ts`.
+- Topic section names come from `taxonomy_nodes.label` (RCA 2026-10-26: the CT-0 query used `name`, which does not exist).
+- Why one function: three client branches in Start a test built three different payloads and one of them (topic mock) skipped the type-card settings (RCA 2026-10-26). Rejected: a template table or DSL (owner, final). Not included: candidates, publish and invite (owner decision: finish on the assessment page), the Exam list from the exam grant (CT-4), a scaled mock above 100 questions.

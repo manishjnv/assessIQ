@@ -3,8 +3,9 @@
 // Z-123: each section carries the blueprint subject node (node_id); module 06 draws it by taxonomy descendants.
 import { getExamBlueprint } from "../../../04-question-bank/src/exam-blueprints.js";
 import { ValidationError } from "@assessiq/core";
-import type { Assessment, AssessmentSection } from "../types.js";
+import type { Assessment } from "../types.js";
 import { createAssessment } from "./assessments.js";
+import { compilePatternSections } from "./compile-test.js";
 
 export interface CreateMockInput {
   pack_id: string;
@@ -32,38 +33,9 @@ export async function createMockFromBlueprint(
     throw new ValidationError("This exam pattern is archived. Pick a current pattern.", { details: { code: "INVALID_PARAM", param: "blueprint_id" } });
   }
 
-  // Z-42: sections are all timed one by one, or the whole test has ONE timer (settings.whole_test_minutes)
-  // and the candidate moves freely. The blueprint forbids a mix. Marks and penalties are per section and
-  // are frozen into attempt_questions at attempt start (module 06), so no even split of the minutes.
-  const sectional = bp.sections.every((s) => s.sectional_timing);
-  // EXP-35: a short mock (section subset and/or scaled size). Marks per question stay; cutoffs and qualifying flags do not apply.
-  const picked = input.section_positions === undefined ? null : new Set(input.section_positions);
-  if (picked !== null && (picked.size === 0 || [...picked].some((i) => !Number.isInteger(i) || i < 0 || i >= bp.sections.length))) {
-    throw new ValidationError("section_positions must list valid blueprint sections", { details: { code: "INVALID_PARAM", param: "section_positions" } });
-  }
-  const pct = input.scale_percent ?? 100;
-  if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
-    throw new ValidationError("scale_percent must be a whole number from 1 to 100", { details: { code: "INVALID_PARAM", param: "scale_percent" } });
-  }
-  const isShort = picked !== null || pct < 100;
-  const scale = (n: number) => Math.max(1, Math.round((n * pct) / 100));
+  // CT-2: sections, size and timing come from the one shared pattern builder (compile-test.ts).
+  const { sections, total, wholeMinutes, isShort } = compilePatternSections(bp, { section_positions: input.section_positions, scale_percent: input.scale_percent });
   if (bp.verification_status !== "verified") warnings.push("This blueprint is not verified.");
-
-  const sections: AssessmentSection[] = bp.sections.filter((_, i) => picked === null || picked.has(i)).map((s) => ({
-    name: s.name,
-    question_count: isShort ? scale(s.question_count) : s.question_count,
-    ...(s.subject_node_id !== null ? { node_id: s.subject_node_id } : {}), // Z-123: the draw filters by this node
-    ...(sectional ? { minutes: isShort ? scale(s.minutes as number) : (s.minutes as number) } : {}),
-    marks_per_question: s.marks_per_question,
-    negative_marks_per_question: s.negative_marks_per_question,
-    ...(s.calculator_allowed ? { calculator: true } : {}),
-    allowed_types: s.allowed_types as AssessmentSection["allowed_types"], // EXP-34: the draw now enforces it
-    ...(!isShort && s.qualifying ? { qualifying: true } : {}),
-    ...(!isShort && s.qualifying && s.cutoff_marks !== null ? { cutoff_marks: s.cutoff_marks } : {}),
-  }));
-
-  const total = sections.reduce((n, s) => n + (s.question_count ?? 0), 0);
-  const wholeMinutes = isShort ? Math.min(600, Math.max(1, Math.ceil((bp.total_minutes * total) / bp.total_questions))) : bp.total_minutes;
   const assessment = await createAssessment(
     tenantId,
     {
@@ -77,7 +49,7 @@ export async function createMockFromBlueprint(
       ...(input.closes_at !== undefined ? { closes_at: input.closes_at } : {}),
       settings: {
         sections,
-        ...(sectional ? {} : { whole_test_minutes: wholeMinutes }),
+        ...(wholeMinutes === null ? {} : { whole_test_minutes: wholeMinutes }),
         exam_blueprint: { id: bp.id, edition: bp.edition, verification_status: bp.verification_status },
       },
     },
