@@ -39,6 +39,7 @@ import {
   recordEvent,
   submitAttempt,
 } from "./service.js";
+import { reportQuestion, REPORT_REASONS } from "./report.js";
 import {
   getCandidateResult,
   getSubmitExpectation,
@@ -276,6 +277,37 @@ export async function registerAttemptCandidateRoutes(
         flagged: body["flagged"],
       };
       return toggleFlag(tenantId, userId, input);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // POST /api/me/attempts/:id/report  (EXP-28: "Report a problem" on a question)
+  // -------------------------------------------------------------------------
+
+  app.post(
+    "/api/me/attempts/:id/report",
+    { preHandler: candidateOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const body = req.body as Record<string, unknown>;
+      const questionId = body["question_id"];
+      if (typeof questionId !== "string" || questionId.length === 0) {
+        throw new ValidationError("question_id is required", { details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "question_id" } });
+      }
+      const reason = body["reason"];
+      if (typeof reason !== "string" || !(REPORT_REASONS as readonly string[]).includes(reason)) {
+        throw new ValidationError("reason must be wrong_answer, unclear or other", { details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "reason" } });
+      }
+      const note = body["note"];
+      if (note !== undefined && note !== null && typeof note !== "string") {
+        throw new ValidationError("note must be text", { details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "note" } });
+      }
+      return reportQuestion(req.session!.tenantId, req.session!.userId, {
+        attemptId: id,
+        questionId,
+        reason: reason as (typeof REPORT_REASONS)[number],
+        note: (note as string | null | undefined) ?? null,
+      });
     },
   );
 

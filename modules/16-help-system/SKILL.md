@@ -193,3 +193,7 @@ Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the
 - An id must start with the page's `helpPage` prefix. Otherwise the help does not load. The reviewer page uses `admin.camera`.
 
 - 2026-10-23: migration 0250 `admin.assessments.invite_limit` (global seed count 600).
+
+## S62 help (2026-10-26)
+
+- Migration 0269 adds five keys: `admin.blueprints.upkeep`, `admin.blueprints.new_edition`, `admin.blueprints.archive`, `admin.review_queue.reports`, `candidate.attempt.report`. Fresh-DB seed count 634.

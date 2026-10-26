@@ -856,3 +856,14 @@ candidate.attempt.camera_lost:
     - **Press Retry.** The test continues when the camera works.
     - **The event is flagged.** Your test organiser decides what happens next. AssessIQ does not fail you automatically.
 
+candidate.attempt.report:
+  audience: candidate
+  short_text: "Tell us if this question looks wrong or unclear. Your test does not change."
+  long_md: |
+    ## Report a problem
+
+    Press **Report a problem** if the question or its answer options look wrong, or if you cannot understand them.
+
+    - Pick what is wrong and add a short note if you want.
+    - Keep answering. Reporting does not stop your test and does not change your marks.
+    - Your organiser and the AssessIQ team will check the question.

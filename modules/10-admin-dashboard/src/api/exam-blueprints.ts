@@ -26,6 +26,14 @@ export interface ExamBlueprintFull {
   qualifying: boolean;
   verification_status: "verified" | "unverified";
   source_note: string | null;
+  /** CT-0: per-pattern question cap, owner contact, archive flag, upkeep dates. */
+  max_questions: number;
+  owner_contact: string | null;
+  archived_at: string | null;
+  supersedes_id: string | null;
+  last_checked_at: string | null;
+  /** YYYY-MM-DD */
+  next_check_due: string;
   total_questions: number;
   total_marks: number;
   sections: BlueprintSection[];
@@ -57,4 +65,33 @@ export async function startFullMockApi(
     `/admin/blueprints/${encodeURIComponent(blueprintId)}/mock`,
     { method: "POST", body: JSON.stringify(body) },
   );
+}
+
+/** Body of POST / PUT /api/admin/blueprints (the same shape the server validates). */
+export interface BlueprintWriteBody {
+  stage_node_id: string | null;
+  edition: string;
+  name: string;
+  total_minutes: number;
+  qualifying: boolean;
+  verification_status: "verified" | "unverified";
+  source_note: string | null;
+  max_questions: number;
+  owner_contact: string | null;
+  sections: Array<Omit<BlueprintSection, "position">>;
+}
+
+/** CT-1: PUT a change. A verified edition is never edited: the server adds a NEW edition row and returns it. */
+export async function saveBlueprintEditionApi(id: string, body: BlueprintWriteBody): Promise<ExamBlueprintFull> {
+  return adminApi<ExamBlueprintFull>(`/admin/blueprints/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
+}
+
+/** CT-1: "Mark checked, no change" (POST /api/admin/blueprints/:id/checked). */
+export async function markBlueprintCheckedApi(id: string, note: string | null): Promise<ExamBlueprintFull> {
+  return adminApi<ExamBlueprintFull>(`/admin/blueprints/${encodeURIComponent(id)}/checked`, { method: "POST", body: JSON.stringify({ note }) });
+}
+
+/** CT-1: DELETE archives the pattern (the row and old assessments stay). */
+export async function archiveBlueprintApi(id: string): Promise<{ archived: true }> {
+  return adminApi<{ archived: true }>(`/admin/blueprints/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

@@ -310,3 +310,7 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 ## Per-item feedback level (Z-145; 2026-10-24)
 
 - `GET /api/me/results` returns `feedback_level` on each item (the level is per assessment now). `MyResults.tsx` reads the item value. The blocked-camera message reads "Your browser blocked the camera. Allow the camera for this page, then reload."
+
+## EXP-28 (S62, 2026-10-26)
+
+- `api.ts` `reportQuestion(attemptId, questionId, reason, note)` calls `POST /api/me/attempts/:id/report`. The button and modal are in `apps/web/src/pages/take/attempt-parts/ReportProblemModal.tsx` (help id `candidate.attempt.report`).

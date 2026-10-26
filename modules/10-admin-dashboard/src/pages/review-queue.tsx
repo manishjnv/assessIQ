@@ -19,13 +19,14 @@ import type { ReviewCounts, ReviewQueueItem, ReviewQueueState } from "../api/rev
 export const REVIEW_QUEUE_PAGE_SIZE = 25;
 const PREVIEW_MAX = 140;
 
-const FILTERS: ReadonlyArray<{ id: ReviewQueueState; label: string; count: (c: ReviewCounts) => number }> = [
+const FILTERS: ReadonlyArray<{ id: ReviewQueueState; label: string; count: (c: ReviewCounts, reported: number) => number }> = [
   { id: "open", label: "Needs review", count: (c) => c.in_review + c.disputed + c.needs_fix },
   { id: "in_review", label: "In review", count: (c) => c.in_review },
   { id: "disputed", label: "Disputed", count: (c) => c.disputed },
   { id: "needs_fix", label: "Needs fix", count: (c) => c.needs_fix },
   { id: "verified", label: "Verified", count: (c) => c.verified },
   { id: "none", label: "Not set", count: (c) => c.none },
+  { id: "reported", label: "Reported", count: (_c, reported) => reported }, // EXP-28: candidate reports
   { id: "all", label: "All", count: (c) => c.in_review + c.disputed + c.needs_fix + c.verified + c.none },
 ];
 
@@ -66,6 +67,7 @@ export function ReviewQueue(): React.ReactElement {
   const [filter, setFilter] = useState<ReviewQueueState>("open");
   const [page, setPage] = useState(1);
   const [counts, setCounts] = useState<ReviewCounts | null>(null);
+  const [reported, setReported] = useState(0);
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -78,6 +80,7 @@ export function ReviewQueue(): React.ReactElement {
       .then((r) => {
         if (cancelled) return;
         setCounts(r.counts);
+        setReported(r.reported ?? 0);
         setItems(r.items);
         setTotal(r.total);
         setError(null);
@@ -113,6 +116,16 @@ export function ReviewQueue(): React.ReactElement {
         <HelpTip helpId="admin.review_queue.latest_note">
           <span style={{ ...BODY_STYLE, color: r.latest_note ? undefined : "var(--aiq-color-fg-muted)" }}>
             {r.latest_note ? preview(r.latest_note.note) : "No note"}
+          </span>
+        </HelpTip>
+      ),
+    },
+    {
+      key: "report_count", label: "Reports",
+      render: (r) => (
+        <HelpTip helpId="admin.review_queue.reports">
+          <span style={{ ...BODY_STYLE, color: r.report_count > 0 ? undefined : "var(--aiq-color-fg-muted)" }}>
+            {r.report_count > 0 ? `${r.report_count} from candidates` : "None"}
           </span>
         </HelpTip>
       ),
@@ -157,7 +170,7 @@ export function ReviewQueue(): React.ReactElement {
                   className={`aiq-btn aiq-btn-sm ${filter === f.id ? "aiq-btn-primary" : "aiq-btn-outline"}`}
                   onClick={() => { setFilter(f.id); setPage(1); }}
                 >
-                  {f.label} ({f.count(counts)})
+                  {f.label} ({f.count(counts, reported)})
                 </button>
               ))}
             </div>

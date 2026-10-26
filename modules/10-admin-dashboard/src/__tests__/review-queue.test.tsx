@@ -17,7 +17,7 @@ const COUNTS = { in_review: 2, verified: 5, disputed: 1, needs_fix: 1, none: 3 }
 const ITEM = {
   id: "q-1", pack_id: "pack-1", pack_name: "Networks basics", type: "mcq", topic: "Ports", status: "active",
   version: 2, review_state: "in_review", origin: "platform", rights_status: "original",
-  updated_at: "2026-10-19T09:00:00Z",
+  updated_at: "2026-10-19T09:00:00Z", report_count: 0,
   latest_note: { note: "Check the port number in option B.", state: "needs_fix", created_at: "2026-10-18T09:00:00Z" },
 };
 const ITEM_2 = {
@@ -51,7 +51,7 @@ function renderPage(): void {
 
 describe("Review queue page", () => {
   it("loads the open state and shows each tab with its count", async () => {
-    stubFetch(() => ({ body: { counts: COUNTS, total: 2, items: [ITEM, ITEM_2] } }));
+    stubFetch(() => ({ body: { counts: COUNTS, reported: 2, total: 2, items: [ITEM, ITEM_2] } }));
     renderPage();
     await screen.findByText("Networks basics");
 
@@ -62,7 +62,7 @@ describe("Review queue page", () => {
 
     const labels = screen.getAllByRole("tab").map((t) => t.textContent);
     expect(labels).toEqual([
-      "Needs review (4)", "In review (2)", "Disputed (1)", "Needs fix (1)", "Verified (5)", "Not set (3)", "All (12)",
+      "Needs review (4)", "In review (2)", "Disputed (1)", "Needs fix (1)", "Verified (5)", "Not set (3)", "Reported (2)", "All (12)",
     ]);
     expect(screen.getByRole("tab", { name: /Needs review/ }).getAttribute("aria-selected")).toBe("true");
     expect(screen.getByText("Showing 1 to 2 of 2 questions.")).toBeTruthy();
@@ -116,5 +116,19 @@ describe("Review queue page", () => {
     renderPage();
     expect(await screen.findByText("Nothing waits for review.")).toBeTruthy();
     expect(screen.getByText("No questions match this filter.")).toBeTruthy();
+  });
+
+  it("EXP-28: the Reported tab asks for state=reported and each row shows its candidate report count", async () => {
+    stubFetch((url) => ({
+      body: url.searchParams.get("state") === "reported"
+        ? { counts: COUNTS, reported: 1, total: 1, items: [{ ...ITEM, report_count: 3 }] }
+        : { counts: COUNTS, reported: 1, total: 2, items: [ITEM, ITEM_2] },
+    }));
+    renderPage();
+    await screen.findByText("Networks basics");
+    expect(screen.getAllByText("None").length).toBeGreaterThan(0); // no reports yet on the open list
+    fireEvent.click(screen.getByRole("tab", { name: /Reported/ }));
+    await screen.findByText("3 from candidates");
+    await waitFor(() => expect(calls.some((c) => c.searchParams.get("state") === "reported")).toBe(true));
   });
 });

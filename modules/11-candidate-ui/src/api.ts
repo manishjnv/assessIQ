@@ -172,6 +172,19 @@ export async function toggleFlag(
   );
 }
 
+/** EXP-28: tell the platform a question looks wrong or unclear. Goes to the review queue only; the test is not changed. */
+export async function reportQuestion(
+  attemptId: string,
+  questionId: string,
+  reason: "wrong_answer" | "unclear" | "other",
+  note: string | null,
+): Promise<{ reported: true }> {
+  return call<{ reported: true }>(
+    `/me/attempts/${encodeURIComponent(attemptId)}/report`,
+    { method: "POST", body: JSON.stringify({ question_id: questionId, reason, note }) },
+  );
+}
+
 /** Test sections: move on to the next section now (the finished one stays closed). */
 export async function finishSection(attemptId: string): Promise<{ section_index: number }> {
   return call<{ section_index: number }>(

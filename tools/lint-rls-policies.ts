@@ -170,6 +170,7 @@ interface Violation {
 const NO_WRITE_VERB_ALLOWLIST: Readonly<Record<string, { verbs: readonly Verb[]; reason: string }>> = {
   audit_log: { verbs: ["update", "delete"], reason: "append-only by design (14-audit-log invariant); the app never updates or deletes rows" },
   affected_attempt_reviews: { verbs: ["delete"], reason: "EXP-12 manual review marks are upserted (INSERT, UPDATE); the app never deletes them" },
+  question_reports: { verbs: ["delete"], reason: "EXP-28 candidate reports are upserted (INSERT, UPDATE); the app never deletes them; they cascade with the attempt" },
   certificates: { verbs: ["delete"], reason: "certificates are revoked (UPDATE), never deleted; no DELETE in modules/18-certification" },
   email_log: { verbs: ["delete"], reason: "append-only send log; the only write besides INSERT is UPDATE (status, erasure)" },
   webhook_deliveries: { verbs: ["delete"], reason: "delivery history kept; the app only inserts and updates status" },

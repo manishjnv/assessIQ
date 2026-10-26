@@ -175,6 +175,11 @@ async function seedCandidate(t: Tenant, opts: { createdDaysAgo?: number } = {}):
     );
     // RW-89: identifying copies outside the main erasure path
     await c.query(`UPDATE attempts SET evaluation_note = 'sent back: Riya wrote too little' WHERE id = $1`, [c0.attemptId]);
+    // EXP-28: a free-text report the candidate wrote about a question
+    await c.query(
+      `INSERT INTO question_reports (tenant_id, attempt_id, question_id, user_id, reason, note) VALUES ($1,$2,$3,$4,'other','Riya says option B is wrong')`,
+      [t.id, c0.attemptId, randomUUID(), c0.userId],
+    );
     await c.query(
       `INSERT INTO candidate_login_tokens (tenant_id, user_id, token_hash, expires_at, requested_ip, requested_ua)
        VALUES ($1,$2,$3, now() + interval '15 minutes','10.9.8.7','Mozilla/5.0')`,
@@ -287,6 +292,9 @@ describe("eraseCandidatePii", () => {
     expect((await one<{ n: number }>(`SELECT count(*)::int n FROM email_log WHERE to_address = $1`, [cand.email]))?.n).toBe(0);
     expect((await one<{ e: string | null }>(`SELECT evaluation_note e FROM attempts WHERE id = $1`, [cand.attemptId]))?.e).toBeNull();
     expect((await one<{ e: string | null }>(`SELECT evaluation_note e FROM attempts WHERE id = $1`, [other.attemptId]))?.e).toContain("Riya");
+    // EXP-28: the erased candidate's report notes are cleared; another candidate's note stays
+    expect((await one<{ n: string | null }>(`SELECT note n FROM question_reports WHERE user_id = $1`, [cand.userId]))?.n).toBeNull();
+    expect((await one<{ n: string | null }>(`SELECT note n FROM question_reports WHERE user_id = $1`, [other.userId]))?.n).toContain("Riya");
 
     // sessions redacted
     const s = await one<{ ip: string | null; user_agent: string | null }>(`SELECT ip::text, user_agent FROM sessions WHERE user_id = $1`, [cand.userId]);

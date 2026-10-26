@@ -116,4 +116,19 @@ test.describe('candidate runner (mocked API)', () => {
     expect(body.answer).toEqual({ steps: [{ stepIndex: 0, response: 'Beta' }, { stepIndex: 1, response: '' }] });
     await page.screenshot({ path: testInfo.outputPath('scenario.png') });
   });
+
+  test('EXP-28: Report a problem sends the reason and note for the current question', async ({ page }) => {
+    await mockApi(page, [{
+      question_id: 'q1', position: 1, type: 'mcq',
+      content: { question: 'Pick one', options: ['A', 'B'] },
+    }]);
+    await page.goto('/take/attempt/att1');
+    await page.getByRole('button', { name: 'Report a problem' }).click();
+    await page.getByLabel('What is wrong?').selectOption('wrong_answer');
+    await page.getByLabel(/Tell us more/).fill('Option B is also right');
+    const sent = page.waitForRequest((r) => r.url().endsWith('/api/me/attempts/att1/report') && r.method() === 'POST');
+    await page.getByRole('button', { name: 'Send report' }).click();
+    expect((await sent).postDataJSON()).toEqual({ question_id: 'q1', reason: 'wrong_answer', note: 'Option B is also right' });
+    await expect(page.getByText(/Your test is not changed/)).toBeVisible();
+  });
 });

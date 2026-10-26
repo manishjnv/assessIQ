@@ -14,7 +14,7 @@
 import { adminApi } from "../api.js";
 
 /** The state filter of the review queue. `open` = in review, disputed or needs fix. */
-export type ReviewQueueState = "open" | "in_review" | "verified" | "disputed" | "needs_fix" | "none" | "all";
+export type ReviewQueueState = "open" | "in_review" | "verified" | "disputed" | "needs_fix" | "none" | "all" | "reported";
 
 /** A review state stored on a question. */
 export type ReviewStateValue = "in_review" | "verified" | "disputed" | "needs_fix";
@@ -48,11 +48,15 @@ export interface ReviewQueueItem {
   origin: string | null;
   rights_status: string | null;
   updated_at: string;
+  /** EXP-28: candidate reports on this question. */
+  report_count: number;
   latest_note: ReviewLatestNote | null;
 }
 
 export interface ReviewQueueResponse {
   counts: ReviewCounts;
+  /** EXP-28: questions with at least one candidate report. */
+  reported: number;
   total: number;
   items: ReviewQueueItem[];
 }

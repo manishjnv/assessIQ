@@ -28,6 +28,7 @@ import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } 
 import { isQuestionType } from "@assessiq/question-types";
 import { STEM_FIELD, type PageState, hasForbiddenSynonym, BOTTOM_BAR, QUESTION_TEXT, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
 import { AnswerArea } from "./attempt-parts/AnswerArea.js";
+import { ReportProblemModal } from "./attempt-parts/ReportProblemModal.js";
 import { NavigatorBody } from "./attempt-parts/NavigatorBody.js";
 import { AttemptTopBar } from "./attempt-parts/AttemptTopBar.js";
 import { FinishSectionModal } from "./attempt-parts/FinishSectionModal.js";
@@ -71,6 +72,7 @@ export function AttemptPage(): React.JSX.Element {
   const [questionEnds, setQuestionEnds] = useState<Map<string, string>>(new Map());
   const [timeUpIds, setTimeUpIds] = useState<Set<string>>(new Set());
   const [pendingLeave, setPendingLeave] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false); // EXP-28
   const markTimeUp = useCallback((qid: string): void => {
     setTimeUpIds((prev) => (prev.has(qid) ? prev : new Set(prev).add(qid)));
   }, []);
@@ -793,6 +795,14 @@ export function AttemptPage(): React.JSX.Element {
       <KeyNav onPrev={goPrev} onNext={goNext} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen || pendingLeave !== null} />
 
       {/* FUT-4: confirm before leaving a locked section. Leave moves on; Stay keeps the candidate here. */}
+      {currentQuestion !== null && (
+        <ReportProblemModal
+          attemptId={attemptId}
+          questionId={currentQuestion.question_id}
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+        />
+      )}
       <Modal
         open={pendingLeave !== null}
         onClose={() => setPendingLeave(null)}
@@ -873,6 +883,19 @@ export function AttemptPage(): React.JSX.Element {
           {currentQuestion !== null && (flags.get(currentQuestion.question_id) ?? false)
             ? 'Flagged'
             : 'Flag'}
+        </Button>
+
+        {/* EXP-28: report a problem with this question */}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="aiq-attempt-report-btn"
+          onClick={() => setReportOpen(true)}
+          disabled={currentQuestion === null}
+          data-help-id="candidate.attempt.report"
+          style={{ color: 'var(--aiq-color-fg-secondary)' }}
+        >
+          Report a problem
         </Button>
 
         {/* Spacer — hidden on mobile via .aiq-attempt-spacer CSS rule */}

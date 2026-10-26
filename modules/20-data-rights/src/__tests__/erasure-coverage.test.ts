@@ -28,6 +28,7 @@ const REGISTRY = [
   'email_log.body_html',
   'attempts.evaluation_note',
   'affected_attempt_reviews.note',
+  'question_reports.note',
 ];
 
 // Personal-looking columns deliberately NOT erased. One-line reason each.

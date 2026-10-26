@@ -487,3 +487,7 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - The section draw (`startAttempt`) filters type and difficulty through `passesSectionTypeAndDifficulty` (`@assessiq/question-types`), shared with the 05 publish pre-flight.
 - `listPoolWithCategory` reads `difficulty_est` from `assessment_frozen_pool` for a frozen pool (no join to `questions`). Old frozen rows were backfilled once in migration 0267. A published test no longer changes when a question's difficulty is edited.
 - Not changed: the blueprint-criterion node draw (`listFrozenPoolForCriterion`) still checks difficulty live in the `taxonomyDrawPredicate` branch.
+
+## EXP-28 report a question (S62, 2026-10-26)
+
+- `report.ts` `reportQuestion`: owner check, question must be in the attempt, 20 reports per attempt, upsert on `(attempt_id, question_id)`. Route `POST /api/me/attempts/:id/report` in `routes.candidate.ts`. No timer, section or status check: a result can also show a wrong key. Table `question_reports` (migration 0268) lives here because it has an FK to `attempts`.

@@ -49,6 +49,7 @@ export {
   getAttempt,
   saveAnswer,
   toggleFlag,
+  reportQuestion,
   finishSection,
   recordPosition,
   recordEvent,

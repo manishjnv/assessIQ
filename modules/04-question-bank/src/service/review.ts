@@ -25,7 +25,8 @@ import { getPlatformTenantId } from "../clone/helpers.js";
 
 export const REVIEW_ACTIONS = ["verify", "needs_fix", "dispute", "withdraw"] as const;
 export type ReviewAction = (typeof REVIEW_ACTIONS)[number];
-export const REVIEW_FILTERS = ["open", "all", "in_review", "verified", "disputed", "needs_fix", "none"] as const;
+// EXP-28: "reported" = at least one candidate report on the question (table question_reports, migration 0268).
+export const REVIEW_FILTERS = ["open", "all", "in_review", "verified", "disputed", "needs_fix", "none", "reported"] as const;
 export type ReviewFilter = (typeof REVIEW_FILTERS)[number];
 
 export interface ReviewActor {
@@ -334,6 +335,7 @@ const FILTER_SQL: Record<ReviewFilter, string> = {
   disputed: `q.review_state = 'disputed'`,
   needs_fix: `q.review_state = 'needs_fix'`,
   none: `q.review_state IS NULL`,
+  reported: `EXISTS (SELECT 1 FROM question_reports r WHERE r.question_id = q.id)`,
 };
 
 /** Questions of one pack for the review screen (answer key included, so the same authorisation as the actions). */
@@ -398,11 +400,15 @@ export interface ReviewQueueItem {
   origin: string | null;
   rights_status: string | null;
   updated_at: Date;
+  /** EXP-28: candidate reports on this question (this organisation only). */
+  report_count: number;
   latest_note: { note: string; state: string; created_at: Date } | null;
 }
 
 export interface ReviewQueue {
   counts: Record<"in_review" | "verified" | "disputed" | "needs_fix" | "none", number>;
+  /** EXP-28: questions of this tenant with at least one candidate report. */
+  reported: number;
   total: number;
   items: ReviewQueueItem[];
 }
@@ -438,13 +444,19 @@ export async function listReviewQueue(
       `SELECT count(*) AS n FROM questions q JOIN question_packs p ON p.id = q.pack_id WHERE ${live} AND ${FILTER_SQL[filter]}`,
       [actor.tenantId],
     )).rows[0]?.n ?? "0";
+    const reported = (await client.query<{ n: string }>(
+      `SELECT count(*) AS n FROM questions q JOIN question_packs p ON p.id = q.pack_id WHERE ${live} AND ${FILTER_SQL.reported}`,
+      [actor.tenantId],
+    )).rows[0]?.n ?? "0";
     const rows = await client.query<{
       id: string; pack_id: string; pack_name: string; type: string; topic: string; status: string; version: number;
       review_state: ReviewState | null; origin: string | null; rights_status: string | null; updated_at: Date;
+      report_count: string;
       n_note: string | null; n_state: string | null; n_created_at: Date | null;
     }>(
       `SELECT q.id, q.pack_id, p.name AS pack_name, q.type, q.topic, q.status, q.version, q.review_state,
               s.origin, s.rights_status, q.updated_at,
+              (SELECT count(*) FROM question_reports r WHERE r.question_id = q.id)::text AS report_count,
               ln.note AS n_note, ln.state AS n_state, ln.created_at AS n_created_at
          FROM questions q
          JOIN question_packs p ON p.id = q.pack_id
@@ -459,9 +471,11 @@ export async function listReviewQueue(
     );
     return {
       counts,
+      reported: parseInt(reported, 10),
       total: parseInt(total, 10),
-      items: rows.rows.map(({ n_note, n_state, n_created_at, ...rest }) => ({
+      items: rows.rows.map(({ n_note, n_state, n_created_at, report_count, ...rest }) => ({
         ...rest,
+        report_count: parseInt(report_count, 10),
         latest_note: n_note === null ? null : { note: n_note, state: n_state as string, created_at: n_created_at as Date },
       })),
     };

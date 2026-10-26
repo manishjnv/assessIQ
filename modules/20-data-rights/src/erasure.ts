@@ -215,6 +215,9 @@ export async function eraseCandidatePii(
       [userId],
     );
 
+    // EXP-28: the free-text note on a question report is personal data: clear it. The row keeps only the reason (no policy allows DELETE).
+    await client.query(`UPDATE question_reports SET note = NULL WHERE user_id = $1 AND note IS NOT NULL`, [userId]);
+
     // ── 4d. Camera data (Batch A) ────────────────────────────────────────────
     // Disk files first. A failed unlink throws (never silent): the tx rolls back and the job retries.
     // Rows stay until every file is gone; ENOENT counts as gone.

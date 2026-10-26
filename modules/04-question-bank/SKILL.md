@@ -447,3 +447,8 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 
 ## S51 additions (2026-10-23)
 - Organisation upload (EXP-17): csv and xlsx only, generated licence id on `question_source.licence_id`, optional `source_note`, plan limits from `plan-limits.ts` (`assertUploadWithinPlan`, per-tenant advisory lock at commit, only while `PLAN_TIERS_ENFORCED`). Module 04 now depends on `@assessiq/billing`.
+
+## EXP-28 review queue additions (S62, 2026-10-26)
+
+- `listReviewQueue` returns `reported` (questions with a candidate report) and `report_count` per item; the filter `reported` lists only those. Source: table `question_reports` (module 06, migration 0268), tenant-scoped by RLS, so an organisation sees its own candidates' reports. Platform master questions do not see the reports on tenant clones (not included; needs a system-role aggregate and an owner rule).
+- A report does not set `disputed` or `needs_fix`. The staff review actions stay the only way to change a state.
