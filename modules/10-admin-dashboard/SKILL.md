@@ -220,3 +220,8 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 
 - `/admin/exam-blueprints` (super admin) now shows upkeep dates, an owner and a cap on each pattern card, with Mark checked, New edition (the old edition stays; a verified edition is never edited) and Archive. A due notice shows at the top. Help ids `admin.blueprints.upkeep`, `.new_edition`, `.archive`. Built on the existing page (Rule B: no second pattern screen).
 - `/admin/review-queue` has a Reported tab and a Reports column (`admin.review_queue.reports`).
+
+## CT-2 and CT-3 (S62, 2026-10-26)
+
+- `pages/create-test.tsx` (`/admin/create-test`) is the one page to create a test: exam and set, cover (whole set, chosen topics with a count each, exam pattern), type and rules (TestTypeChooser), name and window, then Save as draft through `POST /api/admin/tests`. It links to the assessment page to invite. `?exam=<id>` preselects a pattern.
+- CT-3: Start a test is gone (route redirects). The super admin keeps the advanced criteria form on the Assessments page (Rule A). The exam patterns page links to Create a test instead of its own mock form.

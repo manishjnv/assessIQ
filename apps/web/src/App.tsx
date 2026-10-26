@@ -29,7 +29,6 @@ const AdminShell = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ d
 const AdminQuestionBank = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminQuestionBank })));
 const AdminPackDetail = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminPackDetail })));
 const AdminQuestionReview = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminQuestionReview })));
-const AdminStartTest = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminStartTest })));
 const AdminCreateTest = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminCreateTest })));
 const AdminAssessments = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminAssessments })));
 const AdminAssessmentDetail = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminAssessmentDetail })));
@@ -139,7 +138,7 @@ export function App(): React.JSX.Element {
           <Route path="/admin/question-bank/:id/review" element={<RequireSession role="admin"><AdminQuestionReview /></RequireSession>} />
           <Route path="/admin/question-bank/:id" element={<RequireSession role="admin"><AdminPackDetail /></RequireSession>} />
           {/* Assessments (Cycles) pages (session 2026-05-04) */}
-          <Route path="/admin/start-test" element={<RequireSession role="admin"><AdminStartTest /></RequireSession>} />
+          <Route path="/admin/start-test" element={<Navigate to="/admin/create-test" replace />} />
           <Route path="/admin/create-test" element={<RequireSession role="admin"><AdminCreateTest /></RequireSession>} />
           <Route path="/admin/assessments" element={<RequireSession role="admin"><AdminAssessments /></RequireSession>} />
           <Route path="/admin/assessments/:id" element={<RequireSession role="admin"><AdminAssessmentDetail /></RequireSession>} />

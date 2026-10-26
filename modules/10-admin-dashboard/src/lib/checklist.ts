@@ -85,7 +85,7 @@ export function allStepsDone(steps: ChecklistStep[]): boolean {
 /** Link target for each step. Without an assessment, the steps point to the list or Start a test. */
 export function stepHref(id: ChecklistStepId, assessmentId: string | null): string {
   if (assessmentId === null) {
-    return id === "assessment" ? "/admin/start-test" : "/admin/assessments";
+    return id === "assessment" ? "/admin/create-test" : "/admin/assessments";
   }
   switch (id) {
     case "assessment":

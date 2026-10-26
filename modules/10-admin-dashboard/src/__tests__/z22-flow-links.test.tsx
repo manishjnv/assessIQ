@@ -72,18 +72,17 @@ describe("Z-22 #2 — New assessment opens the create form", () => {
     expect((await screen.findByTestId("loc")).textContent).toBe("/admin/assessments?new=1");
   });
 
-  it("assessments page opens the form on ?new=1 and clears the param", async () => {
+  it("CT-3: a tenant admin on ?new=1 is sent to the Create a test page", async () => {
     mockApi.mockResolvedValue({ items: [], total: 0 });
     render(
       <MemoryRouter initialEntries={["/admin/assessments?new=1"]}>
         <Routes>
           <Route path="/admin/assessments" element={<><AdminAssessments /><Loc /></>} />
+          <Route path="/admin/create-test" element={<Loc />} />
         </Routes>
       </MemoryRouter>,
     );
-    // Open form shows the toggle as "Cancel"
-    expect(await screen.findByRole("button", { name: "Cancel" })).toBeDefined();
-    await waitFor(() => expect(screen.getByTestId("loc").textContent).toBe("/admin/assessments"));
+    await waitFor(() => expect(screen.getByTestId("loc").textContent).toBe("/admin/create-test"));
   });
 });
 

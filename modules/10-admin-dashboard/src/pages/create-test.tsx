@@ -53,7 +53,8 @@ export function AdminCreateTest(): React.ReactElement {
   const [sets, setSets] = useState<AvailableSet[] | null>(null);
   const [exams, setExams] = useState<ExamBlueprintSummary[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [examId, setExamId] = useState("");
+  // CT-3: the exam patterns page links here with ?exam=<pattern id>.
+  const [examId, setExamId] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("exam") ?? ""));
   const [setId, setSetId] = useState("");
   const [level, setLevel] = useState(1);
   const [cover, setCover] = useState<"whole" | "topics" | "pattern">("whole");

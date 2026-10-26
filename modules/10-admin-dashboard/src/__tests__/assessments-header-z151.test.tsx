@@ -1,6 +1,6 @@
 // AssessIQ — Z-151 header of the admin Assessments page.
 //
-//   H1  "Send a test now" is a primary link to /admin/start-test
+//   H1  "Create a test" is a primary link to /admin/start-test
 //   H2  "New assessment (advanced)" is an outline button (type=button) that
 //       is not a link
 //   H3  the count chip shows "N assessments" when the list is complete
@@ -66,7 +66,7 @@ function mockList(total: number, itemCount: number): void {
 }
 
 describe("Assessments header (Z-151)", () => {
-  it("shows Send a test now (primary link) and New assessment (advanced) (outline button)", async () => {
+  it("shows Create a test (primary link); the advanced criteria form button is for the super admin only", async () => {
     mockList(1, 1);
     render(
       <MemoryRouter>
@@ -74,13 +74,11 @@ describe("Assessments header (Z-151)", () => {
       </MemoryRouter>,
     );
 
-    const send = await screen.findByRole("link", { name: "Send a test now" });
-    expect(send.getAttribute("href")).toBe("/admin/start-test");
+    const send = await screen.findByRole("link", { name: "Create a test" });
+    expect(send.getAttribute("href")).toBe("/admin/create-test");
     expect(send.className).toContain("aiq-btn-primary");
 
-    const advanced = screen.getByRole("button", { name: "New assessment (advanced)" });
-    expect(advanced.getAttribute("type")).toBe("button");
-    expect(advanced.className).toContain("aiq-btn-outline");
+    expect(screen.queryByRole("button", { name: "New assessment (advanced)" })).toBeNull(); // CT-3: tenant admin
     expect(screen.queryByRole("link", { name: "Start a test" })).toBeNull();
   });
 

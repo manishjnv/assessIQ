@@ -3,9 +3,7 @@
 // /admin/exam-blueprints
 //
 // Lists every exam blueprint with its sections: questions, marks, negative marks, minutes and the
-// qualifying flag. "Start full mock" opens a small form (question set, level, opens at) and calls
-// POST /api/admin/blueprints/:id/mock. The new draft id and its warnings, or the server error, show
-// under the form. Nothing is sent to candidates.
+// qualifying flag. "Create a test" links to /admin/create-test?exam=<id> (CT-3: the old Start full mock form moved there).
 //
 // Fetches:
 //   GET  /api/admin/blueprints                 -> { items: ExamBlueprintFull[] }
@@ -18,13 +16,13 @@
 //   edited, so the server adds a new edition row) and "Archive" (DELETE archives; old assessments keep working).
 // INVARIANTS: no claude/anthropic copy; the monthly check is a person, never an AI call.
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { Chip, Spinner } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
-import { AdminApiError, getPackLevelsApi, listPlatformPublishedPacks } from "../api.js";
-import type { PlatformPackOption } from "../api.js";
-import { archiveBlueprintApi, listExamBlueprintsFullApi, markBlueprintCheckedApi, saveBlueprintEditionApi, startFullMockApi } from "../api/exam-blueprints.js";
+import { AdminApiError } from "../api.js";
+import { archiveBlueprintApi, listExamBlueprintsFullApi, markBlueprintCheckedApi, saveBlueprintEditionApi } from "../api/exam-blueprints.js";
 import type { BlueprintWriteBody, ExamBlueprintFull } from "../api/exam-blueprints.js";
 
 const wrap: React.CSSProperties = { padding: "var(--aiq-space-lg) var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" };
@@ -41,147 +39,8 @@ const labelStyle: React.CSSProperties = { display: "flex", flexDirection: "colum
 
 const HEADERS = ["Section", "Questions", "Marks per question", "Negative marks", "Minutes", "Qualifying"];
 
-/** Local "YYYY-MM-DDTHH:mm" for a datetime-local input, five minutes from now. */
-function defaultOpensAt(): string {
-  const d = new Date(Math.ceil(Date.now() / 300000) * 300000);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
 function errorText(e: unknown, fallback: string): string {
   return e instanceof AdminApiError ? e.apiError.message : fallback;
-}
-
-function MockForm({ blueprint }: { blueprint: ExamBlueprintFull }): React.ReactElement {
-  const [packs, setPacks] = useState<PlatformPackOption[] | null>(null);
-  const [packId, setPackId] = useState("");
-  const [levels, setLevels] = useState<{ id: string; order: number }[]>([]);
-  const [levelId, setLevelId] = useState("");
-  const [opensAt, setOpensAt] = useState(defaultOpensAt);
-  const [scope, setScope] = useState<"full" | "subjects">("full");
-  const [picked, setPicked] = useState<number[]>([]);
-  const [sizePct, setSizePct] = useState(100);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ id: string; warnings: string[] } | null>(null);
-  const firstField = useRef<HTMLSelectElement>(null);
-
-  useEffect(() => {
-    firstField.current?.focus();
-    listPlatformPublishedPacks().then((d) => setPacks(d.packs)).catch(() => setPacks([]));
-  }, []);
-
-  useEffect(() => {
-    setLevelId("");
-    setLevels([]);
-    if (packId === "") return;
-    let live = true;
-    getPackLevelsApi(packId).then((d) => { if (live) setLevels(d.levels); }).catch(() => { if (live) setLevels([]); });
-    return () => { live = false; };
-  }, [packId]);
-
-  const canStart = packId !== "" && levelId !== "" && opensAt !== "" && !busy && (scope === "full" || picked.length > 0);
-
-  async function start(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    setResult(null);
-    try {
-      const r = await startFullMockApi(blueprint.id, {
-        pack_id: packId,
-        level_id: levelId,
-        opens_at: new Date(opensAt).toISOString(),
-        ...(scope === "subjects" ? { section_positions: [...picked].sort((a, b) => a - b) } : {}),
-        ...(sizePct < 100 ? { scale_percent: sizePct } : {}),
-      });
-      setResult({ id: r.assessment.id, warnings: r.warnings });
-    } catch (err) {
-      setError(errorText(err, "The mock could not be created."));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form onSubmit={start} aria-label={`Start a full mock from ${blueprint.name}`} style={card}>
-      <HelpTip helpId="admin.blueprints.mock_form">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)", alignItems: "flex-end" }}>
-          <label style={labelStyle}>
-            Question set
-            <select ref={firstField} style={fieldStyle} value={packId} onChange={(e) => setPackId(e.target.value)} required>
-              <option value="">Choose a question set</option>
-              {(packs ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </label>
-          <label style={labelStyle}>
-            Level
-            <select style={fieldStyle} value={levelId} onChange={(e) => setLevelId(e.target.value)} disabled={levels.length === 0} required>
-              <option value="">Choose a level</option>
-              {levels.map((l) => <option key={l.id} value={l.id}>Level {l.order}</option>)}
-            </select>
-          </label>
-          <label style={labelStyle}>
-            Opens at
-            <input type="datetime-local" style={fieldStyle} value={opensAt} onChange={(e) => setOpensAt(e.target.value)} required />
-          </label>
-        </div>
-      </HelpTip>
-      <HelpTip helpId="admin.blueprints.mock_scope">
-        <fieldset style={{ ...labelStyle, border: "none", padding: 0, margin: 0 }}>
-          <legend style={labelStyle}>What the mock covers</legend>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
-            <label style={labelStyle}>
-              Scope
-              <select style={fieldStyle} value={scope} onChange={(e) => setScope(e.target.value as "full" | "subjects")}>
-                <option value="full">Full test (all sections)</option>
-                <option value="subjects">Chosen subjects only</option>
-              </select>
-            </label>
-            <label style={labelStyle}>
-              Size
-              <select style={fieldStyle} value={sizePct} onChange={(e) => setSizePct(Number(e.target.value))}>
-                {[100, 75, 50, 25].map((n) => <option key={n} value={n}>{n === 100 ? "Full size" : `${n}% of the questions`}</option>)}
-              </select>
-            </label>
-          </div>
-          {scope === "subjects" && (
-            <div role="group" aria-label="Subjects" style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)" }}>
-              {blueprint.sections.map((s, i) => (
-                <label key={s.position} style={{ ...sans, display: "flex", gap: "var(--aiq-space-xs)", alignItems: "center" }}>
-                  <input
-                    type="checkbox"
-                    checked={picked.includes(i)}
-                    onChange={(e) => setPicked((cur) => (e.target.checked ? [...cur, i] : cur.filter((x) => x !== i)))}
-                  />
-                  {s.name}
-                </label>
-              ))}
-            </div>
-          )}
-          {(scope === "subjects" || sizePct < 100) && (
-            <p style={muted}>A shorter mock is a practice test: it has no cut-off. Marks per question stay the same.</p>
-          )}
-        </fieldset>
-      </HelpTip>
-      <div>
-        <HelpTip helpId="admin.blueprints.start_mock">
-          <button type="submit" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={!canStart}>
-            {busy ? "Creating…" : "Create draft mock"}
-          </button>
-        </HelpTip>
-      </div>
-      {error !== null && <p role="alert" style={sans}>{error}</p>}
-      {result !== null && (
-        <div role="status" style={sans}>
-          <p>Draft mock created. Assessment ID: <code>{result.id}</code>. Nothing is sent to candidates yet.</p>
-          {result.warnings.length > 0 && (
-            <ul>{result.warnings.map((w) => <li key={w}>{w}</li>)}</ul>
-          )}
-        </div>
-      )}
-    </form>
-  );
 }
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
@@ -316,9 +175,7 @@ function UpkeepPanel({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: () =
 }
 
 function BlueprintCard({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: () => void }): React.ReactElement {
-  const [open, setOpen] = useState(false);
   const headId = `bp-${bp.id}`;
-  const formId = `mock-${bp.id}`;
   return (
     <section aria-labelledby={headId} style={card}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)", alignItems: "center", justifyContent: "space-between" }}>
@@ -330,15 +187,7 @@ function BlueprintCard({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: ()
           <HelpTip helpId="admin.blueprints.verification">
             <Chip>{bp.verification_status === "verified" ? "Verified" : "Unverified"}</Chip>
           </HelpTip>
-          <button
-            type="button"
-            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-            aria-expanded={open}
-            aria-controls={formId}
-            onClick={() => setOpen((v) => !v)}
-          >
-            Start full mock
-          </button>
+          <Link to={`/admin/create-test?exam=${encodeURIComponent(bp.id)}`} className="aiq-btn aiq-btn-ghost aiq-btn-sm">Create a test</Link>
         </div>
       </div>
       {bp.source_note !== null && <p style={muted}>{bp.source_note}</p>}
@@ -367,7 +216,6 @@ function BlueprintCard({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: ()
           </table>
         </HelpTip>
       </div>
-      {open && <div id={formId}><MockForm blueprint={bp} /></div>}
     </section>
   );
 }

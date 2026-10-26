@@ -1,4 +1,4 @@
-// EXP-6 tail: /admin/exam-blueprints — read-only list plus "Start full mock". Synthetic data only.
+// EXP-6 tail: /admin/exam-blueprints — list, upkeep and a Create a test link. Synthetic data only.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
@@ -78,54 +78,11 @@ describe("AdminExamBlueprints", () => {
     await screen.findByText("No exam blueprints yet.");
   });
 
-  it("starts a full mock from the chosen set and level, then shows the draft id", async () => {
+  it("CT-3: each pattern links to Create a test with the pattern preselected (the old Start full mock form is gone)", async () => {
     setup();
     await screen.findByRole("heading", { name: "Sample Exam" });
-    const toggle = screen.getByRole("button", { name: "Start full mock" });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(toggle);
-    expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    await screen.findByRole("option", { name: "Sample Set" });
-    fireEvent.change(screen.getByLabelText("Question set"), { target: { value: "pk-1" } });
-    await screen.findByRole("option", { name: "Level 1" });
-    fireEvent.change(screen.getByLabelText("Level"), { target: { value: "lv-1" } });
-    api.startFullMockApi.mockResolvedValue({ assessment: { id: "as-9" }, warnings: ["This blueprint is not verified."] });
-    fireEvent.click(screen.getByRole("button", { name: "Create draft mock" }));
-    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("as-9"));
-    expect(api.startFullMockApi).toHaveBeenCalledWith("bp-1", expect.objectContaining({ pack_id: "pk-1", level_id: "lv-1" }));
-    expect(screen.getByText("This blueprint is not verified.")).toBeTruthy();
-  });
-
-  it("EXP-35: chosen subjects and a smaller size send section_positions and scale_percent", async () => {
-    setup();
-    await screen.findByRole("heading", { name: "Sample Exam" });
-    fireEvent.click(screen.getByRole("button", { name: "Start full mock" }));
-    await screen.findByRole("option", { name: "Sample Set" });
-    fireEvent.change(screen.getByLabelText("Question set"), { target: { value: "pk-1" } });
-    await screen.findByRole("option", { name: "Level 1" });
-    fireEvent.change(screen.getByLabelText("Level"), { target: { value: "lv-1" } });
-    fireEvent.change(screen.getByLabelText("Scope"), { target: { value: "subjects" } });
-    const create = screen.getByRole("button", { name: "Create draft mock" }) as HTMLButtonElement;
-    expect(create.disabled).toBe(true); // no subject ticked yet
-    fireEvent.click(screen.getByLabelText("Part B"));
-    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "50" } });
-    expect(create.disabled).toBe(false);
-    api.startFullMockApi.mockResolvedValue({ assessment: { id: "as-10" }, warnings: [] });
-    fireEvent.click(create);
-    await waitFor(() => expect(api.startFullMockApi).toHaveBeenCalledWith("bp-1", expect.objectContaining({ section_positions: [1], scale_percent: 50 })));
-  });
-
-  it("shows the server message when the mock cannot be created", async () => {
-    setup();
-    await screen.findByRole("heading", { name: "Sample Exam" });
-    fireEvent.click(screen.getByRole("button", { name: "Start full mock" }));
-    await screen.findByRole("option", { name: "Sample Set" });
-    fireEvent.change(screen.getByLabelText("Question set"), { target: { value: "pk-1" } });
-    await screen.findByRole("option", { name: "Level 1" });
-    fireEvent.change(screen.getByLabelText("Level"), { target: { value: "lv-1" } });
-    api.startFullMockApi.mockRejectedValue(new AdminApiError(400, { code: "INVALID_PARAM", message: "opens_at is in the past" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create draft mock" }));
-    expect((await screen.findByRole("alert")).textContent).toBe("opens_at is in the past");
+    expect(screen.getByRole("link", { name: "Create a test" }).getAttribute("href")).toBe("/admin/create-test?exam=bp-1");
+    expect(screen.queryByRole("button", { name: "Start full mock" })).toBeNull();
   });
 
   it("CT-1: shows the upkeep dates and a due notice; Mark checked sends the note and reloads", async () => {

@@ -74,11 +74,13 @@ export function AdminAssessments(): React.ReactElement {
   // Open the create form once, then drop the param so a refresh does not reopen it.
   useEffect(() => {
     if (searchParams.get("new") !== "1") return;
+    // CT-3: a tenant admin creates tests on the Create a test page. The criteria form below is for the platform super admin.
+    if (!isSuperAdmin) { navigate("/admin/create-test", { replace: true }); return; }
     setShowNewForm(true);
     const next = new URLSearchParams(searchParams);
     next.delete("new");
     setSearchParams(next, { replace: true });
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, isSuperAdmin, navigate]);
   const [newForm, setNewForm] = useState<NewAssessmentForm>({
     name: "",
     opens_at: "",
@@ -438,9 +440,9 @@ export function AdminAssessments(): React.ReactElement {
             </div>
             <div style={{ display: "flex", gap: "var(--aiq-space-sm)", flexWrap: "wrap", alignSelf: "center" }}>
               <HelpTip helpId="admin.assessments.send_test_now">
-                <Link to="/admin/start-test" className="aiq-btn aiq-btn-primary">Send a test now</Link>
+                <Link to="/admin/create-test" className="aiq-btn aiq-btn-primary">Create a test</Link>
               </HelpTip>
-              <HelpTip helpId="admin.assessments.new_advanced">
+              {isSuperAdmin && <HelpTip helpId="admin.assessments.new_advanced">
                 <button
                   type="button"
                   className="aiq-btn aiq-btn-outline"
@@ -452,7 +454,7 @@ export function AdminAssessments(): React.ReactElement {
                 >
                   {showNewForm ? "Cancel" : "New assessment (advanced)"}
                 </button>
-              </HelpTip>
+              </HelpTip>}
             </div>
           </div>
         </div>

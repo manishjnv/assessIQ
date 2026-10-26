@@ -73,6 +73,18 @@ describe("Create a test", () => {
     expect(screen.getByRole("link", { name: /Open assessment/ }).getAttribute("href")).toBe("/admin/assessments/as1");
   });
 
+  it("Real + camera sends camera_required with integrity on (moved from Start a test, CT-3)", async () => {
+    await setup();
+    chooseSet();
+    await screen.findByLabelText(/Number of questions/);
+    fireEvent.click(screen.getByRole("radio", { name: "Real + camera" }));
+    fireEvent.click(save());
+    await waitFor(() => expect(api.createTestApi).toHaveBeenCalled());
+    const body = api.createTestApi.mock.calls[0]![0];
+    expect(body).toMatchObject({ delivery_mode: "real", camera_required: true });
+    expect(body.settings.integrity).toEqual({ fullscreen: true, block_copy_paste: true });
+  });
+
   it("Real forces the integrity settings on", async () => {
     await setup();
     chooseSet();

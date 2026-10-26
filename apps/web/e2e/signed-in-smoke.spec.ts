@@ -25,7 +25,7 @@ async function openAndCheck(page: Page, path: string, nav: string) {
 // Z-23: every admin URL that existed before the 7-group nav must still render. Detail routes
 // (/:id) need seeded ids and are covered by admin-workflow.spec.ts.
 const ADMIN_PATHS = [
-  '/admin', '/admin/start-test', '/admin/assessments', '/admin/attempts', '/admin/grading-jobs',
+  '/admin', '/admin/create-test', '/admin/assessments', '/admin/attempts', '/admin/grading-jobs',
   '/admin/certificates', '/admin/question-bank', '/admin/reports', '/admin/mock-results', '/admin/activity', '/admin/users',
   '/admin/audit-log', '/admin/integrations/webhooks', '/admin/integrations/embed', '/admin/settings',
   '/admin/settings?tab=results', '/admin/settings?tab=privacy', '/admin/settings?tab=plan',

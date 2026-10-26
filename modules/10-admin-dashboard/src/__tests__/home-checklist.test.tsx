@@ -139,7 +139,7 @@ describe("Z-24 checklist — failure and empty states", () => {
     renderCard();
     await waitFor(() => expect(screen.getAllByText(/\(to do\)/)).toHaveLength(6));
     const first = screen.getAllByRole("link")[0];
-    expect(first?.getAttribute("href")).toBe("/admin/start-test");
+    expect(first?.getAttribute("href")).toBe("/admin/create-test");
     // Only the assessment list call was needed; attempt counts are skipped.
     expect(mockApi.mock.calls.every((c) => String(c[0]).startsWith("/admin/assessments"))).toBe(true);
   });

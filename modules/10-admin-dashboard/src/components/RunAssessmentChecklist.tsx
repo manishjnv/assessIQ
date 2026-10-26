@@ -161,7 +161,7 @@ export function RunAssessmentChecklist(): React.ReactElement {
         <button
           type="button"
           className="aiq-btn aiq-btn-primary"
-          onClick={() => navigate("/admin/start-test")}
+          onClick={() => navigate("/admin/create-test")}
         >
           <HelpTip helpId="admin.dashboard.home.checklist.start_test"><span>Start a test</span></HelpTip>
         </button>

@@ -1,4 +1,4 @@
-// Z-143 smoke: the three test type cards on Start a test at 1280 / 820 / 375 px.
+// Z-143 smoke: the three test type cards on Create a test at 1280 / 820 / 375 px.
 // Picks each card, checks aria-checked, the column count and that the page does not scroll sideways.
 // Needs the local stack (local-stack.sh) for the admin session; the camera settings call is mocked.
 import { test, expect, type Page } from '@playwright/test';
@@ -14,7 +14,7 @@ async function openStartTest(page: Page) {
   ]);
   await page.route('**/api/admin/camera/settings', (r) =>
     r.fulfill({ json: { isSchool: false, cameraEnforced: true, cameraEnabled: true, photosEnabled: true, noticeConfirmedVersion: null, requiredNoticeVersion: 'v1', storage: { usedBytes: 0, maxBytes: 1, warn: false } } }));
-  await page.goto('/admin/start-test');
+  await page.goto('/admin/create-test');
   await expect(page.getByRole('radiogroup', { name: 'Test type' })).toBeVisible({ timeout: 20_000 });
 }
 
