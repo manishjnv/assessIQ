@@ -402,3 +402,11 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 - **100-question cap.** `MAX_QUESTIONS_PER_ASSESSMENT` (`types.ts`) and `assertQuestionLimit` (`service/assessments.ts`, called from create and update). Module 06 keeps a copy of the number and re-checks at `startAttempt`. API detail: `docs/03-api-contract.md`.
 - **Mock scopes.** One engine, three scopes: full blueprint (`createMockFromBlueprint`), chosen subjects and smaller size (`section_positions`, `scale_percent`, EXP-35), chosen topics (`service/drill.ts`, `POST /api/admin/drills`, EXP-11). All are mocks and burn mock credits. The topic scope is built into the Mock card (S59) and takes the card's `settings` (integrity, feedback_level) through `POST /api/admin/drills` (S60); no student entry (owner 2026-10-25). A topic with fewer active questions than its share is refused at publish (`assertSectionPoolsFillable`, POOL_TOO_SMALL).
 - **Section draw rules.** `allowed_types`, `difficulty_min`, `difficulty_max` (EXP-34, FUT-9), enforced in module 06.
+
+## CT-0 additions (S62, 2026-10-26)
+
+- Publish pre-flight (`assertSectionPoolsFillable`, `service/blueprint.ts`) now loads each section's candidate rows and applies `passesSectionTypeAndDifficulty` from `@assessiq/question-types`, the same function the 06 draw calls. Before, it counted topic and size only, so a section limited to one type could pass publish and run short for a student. Why shared and not copied: two copies drift (RCA 2026-10-26 publish vs draw).
+- `freezeAssessmentPool` copies `questions.difficulty_est` into `assessment_frozen_pool.difficulty_est` (migration 0267).
+- `createDrill` takes `topics: [{ node_id, count }]` (uneven counts, one topic, fewer questions) and names sections with the real topic name read from `taxonomy_nodes` (`buildTopicSections`, pure). The even-split form stays.
+- `createMockFromBlueprint` refuses an archived pattern.
+- Not included: a scaled mock for a pattern above 100 questions (CT-2), `kind`, private patterns.

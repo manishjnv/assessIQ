@@ -63,6 +63,11 @@ import {
   processEvaluationQueueAlertTick,
 } from "./jobs/evaluation-queue-alert.js";
 import {
+  BLUEPRINT_UPKEEP_JOB_NAME,
+  BLUEPRINT_UPKEEP_INTERVAL_MS,
+  processBlueprintUpkeepTick,
+} from "./jobs/blueprint-upkeep-reminder.js";
+import {
   INVITATION_REMINDERS_JOB_NAME,
   INVITATION_REMINDERS_INTERVAL_MS,
   processInvitationRemindersTick,
@@ -176,6 +181,8 @@ export const JOB_RETRY_POLICY: Record<
   // same hour would only repeat the count. A tick that sent nothing releases its Redis
   // gate itself (jobs/evaluation-queue-alert.ts), so the next hour retries the alert.
   [EVAL_QUEUE_ALERT_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
+  // blueprint.upkeep_reminder (CT-0) — attempts 1: daily; a tick that sent nothing releases its own claim.
+  [BLUEPRINT_UPKEEP_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
   // invitation.reminders — attempts 1: runs every 30 min anyway; each row is claimed
   // atomically (reminded_at IS NULL) and a failed email releases its own claim.
   [INVITATION_REMINDERS_JOB_NAME]: { attempts: 1, backoff: { type: "exponential", delay: 1000 } },
@@ -459,6 +466,7 @@ async function start(): Promise<void> {
       r.name === CAMERA_RETENTION_JOB_NAME ||
       r.name === AUTO_RELEASE_JOB_NAME ||
       r.name === EVAL_QUEUE_ALERT_JOB_NAME ||
+      r.name === BLUEPRINT_UPKEEP_JOB_NAME ||
       r.name === INVITATION_REMINDERS_JOB_NAME
     ) {
       await queue.removeRepeatableByKey(r.key);
@@ -649,6 +657,21 @@ async function start(): Promise<void> {
     },
   );
 
+  // CT-0 — exam-pattern upkeep reminder: daily, emails SUPER_ADMIN_EMAILS when a pattern is past its
+  // next check date (DB claim dedupe, 30 days per pattern). No AI; see jobs/blueprint-upkeep-reminder.ts.
+  const upkeepPolicy = JOB_RETRY_POLICY[BLUEPRINT_UPKEEP_JOB_NAME]!;
+  await queue.add(
+    BLUEPRINT_UPKEEP_JOB_NAME,
+    {},
+    {
+      repeat: { every: BLUEPRINT_UPKEEP_INTERVAL_MS },
+      attempts: upkeepPolicy.attempts,
+      backoff: upkeepPolicy.backoff,
+      removeOnComplete: 24,
+      removeOnFail: 24,
+    },
+  );
+
   // Invitation reminders: every 30 min, one "closes soon" email per un-started invitation
   // (opt-in per assessment; no AI; see jobs/invitation-reminders.ts).
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -733,6 +756,8 @@ async function start(): Promise<void> {
           return runJobWithLogging(job, () => processAutoReleaseTick());
         case EVAL_QUEUE_ALERT_JOB_NAME:
           return runJobWithLogging(job, () => processEvaluationQueueAlertTick(redis));
+        case BLUEPRINT_UPKEEP_JOB_NAME:
+          return runJobWithLogging(job, () => processBlueprintUpkeepTick());
         case INVITATION_REMINDERS_JOB_NAME:
           return runJobWithLogging(job, () => processInvitationRemindersTick());
         default:

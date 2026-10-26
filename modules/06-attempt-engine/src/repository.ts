@@ -1110,11 +1110,10 @@ export async function listPoolWithCategory(
 ): Promise<Array<{ id: string; version: number; category_id: string | null; pack_id: string | null; type: string; difficulty_est: number | null }>> {
   if (input.useFrozen) {
     // EXP-23: pack_id is frozen with the pool row (NULL = frozen before EXP-23 = the assessment pack).
-    // EXP-34/FUT-9: type is frozen with the row; difficulty_est is read live (it is not frozen).
+    // EXP-34/FUT-9: type and difficulty_est are both frozen with the row (CT-0, migration 0267).
     const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string | null; type: string; difficulty_est: number | null }>(
-      `SELECT fp.question_id AS id, fp.question_version AS version, fp.category_id, fp.pack_id, fp.type, q.difficulty_est
+      `SELECT fp.question_id AS id, fp.question_version AS version, fp.category_id, fp.pack_id, fp.type, fp.difficulty_est
          FROM assessment_frozen_pool fp
-         LEFT JOIN questions q ON q.id = fp.question_id
         WHERE fp.assessment_id = $1 ORDER BY fp.question_id ASC`,
       [input.assessmentId],
     );

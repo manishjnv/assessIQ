@@ -169,13 +169,17 @@ describe("super-admin writes", () => {
     expect(upd.json().sections).toHaveLength(1);
     expect(upd.json().sections[0]).toMatchObject({ qualifying: true, cutoff_marks: 3 });
 
-    expect((await app.inject({ method: "DELETE", url: `/api/admin/blueprints/${bp.id}` })).statusCode).toBe(200);
-    expect((await app.inject({ method: "GET", url: `/api/admin/blueprints/${bp.id}` })).statusCode).toBe(404);
-    expect((await app.inject({ method: "DELETE", url: `/api/admin/blueprints/${bp.id}` })).statusCode).toBe(404);
+    // CT-0: DELETE archives. The row stays (readable by id), leaves the list, and cannot be changed again.
+    expect((await app.inject({ method: "DELETE", url: `/api/admin/blueprints/${bp.id}` })).json()).toEqual({ archived: true });
+    expect((await app.inject({ method: "GET", url: `/api/admin/blueprints/${bp.id}` })).json().archived_at).not.toBeNull();
+    const listed = (await app.inject({ method: "GET", url: "/api/admin/blueprints" })).json().items as Array<{ id: string }>;
+    expect(listed.some((b) => b.id === bp.id)).toBe(false);
+    expect((await app.inject({ method: "PUT", url: `/api/admin/blueprints/${bp.id}`, payload: bodyOf() })).statusCode).toBe(400);
+    expect((await app.inject({ method: "DELETE", url: `/api/admin/blueprints/${randomUUID()}` })).statusCode).toBe(404);
 
     const actions = await sup(async (c) =>
       (await c.query(`SELECT action FROM audit_log WHERE entity_type='exam_blueprint' AND entity_id=$1 ORDER BY at`, [bp.id])).rows.map((r: { action: string }) => r.action));
-    expect(actions).toEqual(["exam_blueprint.created", "exam_blueprint.updated", "exam_blueprint.deleted"]);
+    expect(actions).toEqual(["exam_blueprint.created", "exam_blueprint.updated", "exam_blueprint.archived"]);
   });
 
   it("rejects a stage or subject id that is not a platform node of the right kind, and a duplicate stage + edition", async () => {
@@ -187,6 +191,44 @@ describe("super-admin writes", () => {
     expect(dup.statusCode).toBe(400);
     const subjAsStage = await sup(async (c) => (await c.query(`SELECT subject_node_id FROM exam_blueprint_sections LIMIT 1`)).rows[0].subject_node_id);
     expect((await app.inject({ method: "POST", url: "/api/admin/blueprints", payload: bodyOf({ stage_node_id: subjAsStage }) })).statusCode).toBe(400);
+  });
+});
+
+describe("CT-0 pattern hardening", () => {
+  it("a verified edition is never edited: a change needs a new label and adds a row that supersedes the old one", async () => {
+    const app = await buildApp(tP, userP, "super_admin");
+    const v1 = (await app.inject({ method: "POST", url: "/api/admin/blueprints", payload: bodyOf({ edition: "ed-2026", verification_status: "verified" }) })).json();
+    const same = await app.inject({ method: "PUT", url: `/api/admin/blueprints/${v1.id}`, payload: bodyOf({ edition: "ed-2026", verification_status: "verified", name: "Changed" }) });
+    expect(same.statusCode).toBe(400);
+    expect(same.json().message).toMatch(/never edited/);
+    const v2 = (await app.inject({ method: "PUT", url: `/api/admin/blueprints/${v1.id}`, payload: bodyOf({ edition: "ed-2027", verification_status: "verified", name: "Changed" }) })).json();
+    expect(v2.id).not.toBe(v1.id);
+    expect(v2).toMatchObject({ edition: "ed-2027", supersedes_id: v1.id, name: "Changed" });
+    const old = (await app.inject({ method: "GET", url: `/api/admin/blueprints/${v1.id}` })).json();
+    expect(old).toMatchObject({ edition: "ed-2026", name: "Test exam", total_questions: 20 });
+  });
+
+  it("the cap is per pattern: default 100, a higher cap only when the pattern sets it", async () => {
+    const app = await buildApp(tP, userP, "super_admin");
+    const big = { sections: [sectionBody({ question_count: 90 }), sectionBody({ question_count: 90 })] };
+    expect((await app.inject({ method: "POST", url: "/api/admin/blueprints", payload: bodyOf({ edition: "cap-1", ...big }) })).statusCode).toBe(400);
+    const ok = await app.inject({ method: "POST", url: "/api/admin/blueprints", payload: bodyOf({ edition: "cap-2", max_questions: 180, ...big }) });
+    expect(ok.statusCode).toBe(201);
+    expect(ok.json()).toMatchObject({ max_questions: 180, total_questions: 180 });
+  });
+
+  it("mark checked moves the next check date 30 days out and is audited; a tenant admin is refused", async () => {
+    const sa = await buildApp(tP, userP, "super_admin");
+    const bp = (await sa.inject({ method: "POST", url: "/api/admin/blueprints", payload: bodyOf({ edition: "chk-1", owner_contact: "sme@x.io" }) })).json();
+    expect(bp.last_checked_at).toBeNull();
+    await sup((c) => c.query(`UPDATE exam_blueprints SET next_check_due = CURRENT_DATE - 3 WHERE id = $1`, [bp.id]));
+    const done = (await sa.inject({ method: "POST", url: `/api/admin/blueprints/${bp.id}/checked`, payload: { note: "Checked against the 2026 notice" } })).json();
+    expect(done.last_checked_at).not.toBeNull();
+    expect(done.source_note).toBe("Checked against the 2026 notice");
+    const due = await sup(async (c) => (await c.query(`SELECT (next_check_due = CURRENT_DATE + 30) AS ok FROM exam_blueprints WHERE id = $1`, [bp.id])).rows[0].ok);
+    expect(due).toBe(true);
+    const ta = await buildApp(tA, userA, "admin");
+    expect((await ta.inject({ method: "POST", url: `/api/admin/blueprints/${bp.id}/checked`, payload: {} })).statusCode).toBe(403);
   });
 });
 

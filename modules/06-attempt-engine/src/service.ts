@@ -105,7 +105,7 @@ import {
   shuffleFieldOf,
   usableOrder,
 } from "./option-shuffle.js";
-import { QUESTION_TYPE_REGISTRY, isQuestionType } from "@assessiq/question-types";
+import { QUESTION_TYPE_REGISTRY, isQuestionType, passesSectionTypeAndDifficulty } from "@assessiq/question-types";
 
 const log = streamLogger("app");
 
@@ -610,9 +610,7 @@ export async function startAttempt(
           (q) =>
             !used.has(q.id) &&
             (q.pack_id ?? assessment.pack_id) === (s.pack_id ?? assessment.pack_id) && // EXP-23: a section draws only from its own pack (NULL = old pool = the assessment pack)
-            (s.allowed_types === undefined || s.allowed_types.includes(q.type as never)) && // EXP-34
-            (s.difficulty_min === undefined || (q.difficulty_est !== null && q.difficulty_est >= s.difficulty_min)) && // FUT-9
-            (s.difficulty_max === undefined || (q.difficulty_est !== null && q.difficulty_est <= s.difficulty_max)) &&
+            passesSectionTypeAndDifficulty(s, q) && // EXP-34 + FUT-9, shared with the publish pre-flight (CT-0)
             (underNode !== null
               ? underNode.has(q.id)
               : cats === null || (q.category_id !== null && cats.has(q.category_id))),

@@ -132,3 +132,19 @@ describe("EXP-23 section pack_id", () => {
     await expect(publishAssessment(tenant, a.id, admin)).rejects.toMatchObject({ details: { section: "Big", available: 2, required: 3 } });
   });
 });
+
+describe("CT-0 frozen difficulty and publish pre-flight", () => {
+  it("(f) difficulty_est is copied into the frozen pool row and a later live change does not reach it", async () => {
+    await sup((c) => c.query(`UPDATE questions SET difficulty_est = 3 WHERE pack_id = $1`, [pack1]));
+    const a = await mk([sec({})]);
+    await publishAssessment(tenant, a.id, admin);
+    await sup((c) => c.query(`UPDATE questions SET difficulty_est = 5 WHERE pack_id = $1`, [pack1]));
+    const rows = await sup(async (c) => (await c.query<{ d: number }>(`SELECT difficulty_est AS d FROM assessment_frozen_pool WHERE assessment_id = $1`, [a.id])).rows);
+    expect(rows.map((r) => r.d)).toEqual([3, 3]);
+  });
+
+  it("(g) publish refuses a section whose allowed type has no questions, even when the pool is big enough", async () => {
+    const a = await mk([sec({ allowed_types: ["subjective"] })]);
+    await expect(publishAssessment(tenant, a.id, admin)).rejects.toMatchObject({ details: { available: 0, required: 2 } });
+  });
+});

@@ -1,0 +1,11 @@
+Subject: Exam patterns due for a check: {{count}}
+
+Hello,
+
+{{count}} exam patterns are due for their monthly check. Compare each one with the official notice, then mark it checked or save a new edition.
+
+Open the exam patterns:
+{{listLink}}
+
+— The AssessIQ team
+{{_t_legal_entity}} · {{_t_legal_address}} · © {{copyright_year}}

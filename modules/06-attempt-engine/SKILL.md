@@ -481,3 +481,9 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - **Burn at submit.** `burnCredits` runs right after `scoreMcqAndFinalizeSafely` in the four submit paths (read auto-submit, `submitAttempt`, revoke-submit, timer sweep). It is idempotent; `recordGradedAttempt` stays as a backup. The sweep now marks the invitation `submitted`. If `burnCredits` throws, the submit transaction rolls back (same design as `recordGradedAttempt`).
 - **Embed.** An embed start follows the assessment type, camera off; the runner view forces full screen and block copy and paste on for Real and for every embed attempt. Feedback is `none` for embed.
 - **Feedback.** `effectiveLevel(level, {isMockAttempt, isEmbed})` reads the assessment's `settings.feedback_level`; Real and embed always get `none`. The A3-6 retake branch is gone.
+
+## CT-0 additions (S62, 2026-10-26)
+
+- The section draw (`startAttempt`) filters type and difficulty through `passesSectionTypeAndDifficulty` (`@assessiq/question-types`), shared with the 05 publish pre-flight.
+- `listPoolWithCategory` reads `difficulty_est` from `assessment_frozen_pool` for a frozen pool (no join to `questions`). Old frozen rows were backfilled once in migration 0267. A published test no longer changes when a question's difficulty is edited.
+- Not changed: the blueprint-criterion node draw (`listFrozenPoolForCriterion`) still checks difficulty live in the `taxonomyDrawPredicate` branch.

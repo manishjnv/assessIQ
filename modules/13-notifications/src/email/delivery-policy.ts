@@ -57,6 +57,7 @@ export const EMAIL_CLASS: Record<EmailTemplateName, EmailClass> = {
   credit_low_balance: 'bulk',
   credit_expiring: 'bulk',
   invite_limit_blocked: 'bulk',
+  pattern_review_due: 'bulk',
 };
 
 /** Class of a template id read back from job data; unknown ids are bulk. */

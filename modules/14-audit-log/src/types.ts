@@ -288,7 +288,9 @@ export const ACTION_CATALOG = [
   // EXP-6: exam blueprints (platform data, super admin).
   'exam_blueprint.created',
   'exam_blueprint.updated',
-  'exam_blueprint.deleted',
+  'exam_blueprint.deleted', // legacy: CT-0 archives instead (next line)
+  'exam_blueprint.archived',
+  'exam_blueprint.checked',
   // Z-71 self-serve sign-up. signup.completed: written in the create transaction, in the NEW
   // tenant's log; after = { plan, dpa_version, terms_version, admin_user_id }; NO plain email,
   // ip and user_agent NULL. signup.rejected: a LATER reject only (block list, super-admin

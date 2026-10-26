@@ -28,6 +28,9 @@ export async function createMockFromBlueprint(
 ): Promise<{ assessment: Assessment; warnings: string[] }> {
   const bp = await getExamBlueprint(tenantId, blueprintId);
   const warnings: string[] = [];
+  if (bp.archived_at !== null) {
+    throw new ValidationError("This exam pattern is archived. Pick a current pattern.", { details: { code: "INVALID_PARAM", param: "blueprint_id" } });
+  }
 
   // Z-42: sections are all timed one by one, or the whole test has ONE timer (settings.whole_test_minutes)
   // and the candidate moves freely. The blueprint forbids a mix. Marks and penalties are per section and

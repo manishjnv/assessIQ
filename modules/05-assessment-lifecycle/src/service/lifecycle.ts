@@ -56,12 +56,13 @@ async function freezeAssessmentPool(
   await client.query(
     `INSERT INTO assessment_frozen_pool
        (tenant_id, assessment_id, question_id, question_version,
-        level_id, domain_id, category_id, type, points, node_ids, pack_id)
+        level_id, domain_id, category_id, type, points, node_ids, pack_id, difficulty_est)
      SELECT $1, $2, q.id, MAX(qv.version)::int,
             q.level_id, q.domain_id, q.category_id, q.type, q.points,
             -- FUT-8: taxonomy node ids frozen with the question ('{}' = none visible: old path applies)
             COALESCE((SELECT array_agg(qt.node_id) FROM question_taxonomy qt WHERE qt.question_id = q.id), '{}'),
-            q.pack_id -- EXP-23
+            q.pack_id, -- EXP-23
+            q.difficulty_est -- CT-0: frozen with the row (migration 0267)
        FROM questions q
        JOIN question_versions qv ON qv.question_id = q.id
       WHERE ((q.pack_id = $3 AND q.level_id = $4)
@@ -69,7 +70,7 @@ async function freezeAssessmentPool(
                 SELECT l.id FROM levels l WHERE l.pack_id = ANY($5::uuid[])
                    AND l.position = (SELECT position FROM levels WHERE id = $4))))
         AND q.status = 'active'
-      GROUP BY q.id, q.level_id, q.domain_id, q.category_id, q.type, q.points, q.pack_id
+      GROUP BY q.id, q.level_id, q.domain_id, q.category_id, q.type, q.points, q.pack_id, q.difficulty_est
      ON CONFLICT (assessment_id, question_id) DO NOTHING`,
     [tenantId, assessmentId, packId, levelId, extraPackIds],
   );

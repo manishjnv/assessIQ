@@ -48,6 +48,7 @@ import {
   AdminEmailOtpVarsSchema,
   ResultReleasedVarsSchema,
   EvaluationQueueAlertVarsSchema,
+  PatternReviewDueVarsSchema,
   SignupCodeVarsSchema,
   SignupExistingAccountVarsSchema,
   CreditLowBalanceVarsSchema,
@@ -87,6 +88,7 @@ const TEMPLATE_VARS_SCHEMAS: Record<EmailTemplateName, z.ZodType<any>> = {
   credit_low_balance: CreditLowBalanceVarsSchema,
   credit_expiring: CreditExpiringVarsSchema,
   invite_limit_blocked: InviteLimitBlockedVarsSchema,
+  pattern_review_due: PatternReviewDueVarsSchema,
 };
 
 // ---------------------------------------------------------------------------

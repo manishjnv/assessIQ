@@ -8,7 +8,10 @@ import {
   type NodeScope,
 } from "../../../04-question-bank/src/taxonomy-nodes.js";
 import { AL_ERROR_CODES } from "../types.js";
+import { passesSectionTypeAndDifficulty } from "@assessiq/question-types";
 import { levelAtSamePosition } from "./_shared.js";
+
+interface PoolFact { type: string; difficulty_est: number | null }
 import type { AssessmentBlueprint, ResolvedBlueprint } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -216,12 +219,12 @@ export async function assertSectionPoolsFillable(
 ): Promise<void> {
   const raw = (settings as { sections?: unknown } | null | undefined)?.sections;
   if (!Array.isArray(raw)) return;
-  for (const s of raw as Array<{ name?: string; category_ids?: string[]; node_id?: string; question_count?: number; pack_id?: string }>) {
+  for (const s of raw as Array<{ name?: string; category_ids?: string[]; node_id?: string; question_count?: number; pack_id?: string; allowed_types?: string[]; difficulty_min?: number; difficulty_max?: number }>) {
     if (s.question_count === undefined) continue;
     // EXP-23: a section with its own pack counts that pack's level at the assessment level's position.
     const sPack = s.pack_id ?? packId;
     const sLevel = sPack === packId ? levelId : await levelAtSamePosition(client, sPack, levelId);
-    const base = `SELECT count(*) AS n FROM questions q WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'`;
+    const base = `SELECT q.type, q.difficulty_est FROM questions q WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'`;
     if (sLevel === null) {
       throw new ValidationError(
         `Section "${s.name ?? ""}" has too few questions: 0 available, ${s.question_count} needed`,
@@ -230,14 +233,15 @@ export async function assertSectionPoolsFillable(
     }
     const r =
       s.node_id !== undefined
-        ? await client.query<{ n: string }>(
+        ? await client.query<PoolFact>(
             `${base} AND ${taxonomyDrawPredicate("q", "$3", "$4", "$5")}`,
             [sPack, sLevel, ...nodeScopeArgs({ nodeId: s.node_id })],
           )
         : s.category_ids !== undefined
-          ? await client.query<{ n: string }>(`${base} AND q.category_id = ANY($3::uuid[])`, [sPack, sLevel, s.category_ids])
-          : await client.query<{ n: string }>(base, [sPack, sLevel]);
-    const available = parseInt(r.rows[0]?.n ?? "0", 10);
+          ? await client.query<PoolFact>(`${base} AND q.category_id = ANY($3::uuid[])`, [sPack, sLevel, s.category_ids])
+          : await client.query<PoolFact>(base, [sPack, sLevel]);
+    // CT-0: the same type and difficulty rule the draw applies (06 startAttempt), so publish cannot pass and the draw run short.
+    const available = r.rows.filter((q) => passesSectionTypeAndDifficulty(s, q)).length;
     if (available < s.question_count) {
       throw new ValidationError(
         `Section "${s.name ?? ""}" has too few questions: ${available} available, ${s.question_count} needed`,

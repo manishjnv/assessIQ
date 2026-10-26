@@ -128,7 +128,7 @@ describe('sign-off', () => {
   it('every .txt template ends its body with the single sign-off line', () => {
     const dir = join(__dirname, '../email/templates');
     const files = readdirSync(dir).filter((f) => f.endsWith('.txt'));
-    expect(files.length).toBe(18); // EXP-37 added invite_limit_blocked
+    expect(files.length).toBe(19); // CT-0 added pattern_review_due
     for (const f of files) {
       const t = readFileSync(join(dir, f), 'utf8').replaceAll('\r\n', '\n');
       expect(t, f).toContain('\n— The AssessIQ team\n');
@@ -142,7 +142,7 @@ describe('sign-off', () => {
     expect(partial.split('— The AssessIQ team').length - 1).toBe(1);
     const names = readdirSync(dir).filter((f) => f.endsWith('.txt')).map((f) => f.replace(/\.txt$/, ''));
     const signed = names.filter((n) => readFileSync(join(dir, `${n}.txt`), 'utf8').includes('— The AssessIQ team'));
-    expect(signed.length).toBe(18);
+    expect(signed.length).toBe(19);
     for (const n of signed) {
       expect(readFileSync(join(dir, `${n}.html`), 'utf8'), n).toContain('{{> email-footer-transactional');
     }
@@ -197,6 +197,12 @@ describe('Z-37 approved copy (6 templates)', () => {
       vars: { count: 6, oldestAgeHours: 30.5, queueLink: 'https://assessiq.test/admin/platform/evaluations' },
       subject: 'Grading queue: 6 waiting over 24 hours',
       sentence: '6 attempts have waited more than 24 hours for grading.',
+    },
+    {
+      name: 'pattern_review_due',
+      vars: { count: 2, listLink: 'https://assessiq.test/admin/exam-blueprints' },
+      subject: 'Exam patterns due for a check: 2',
+      sentence: '2 exam patterns are due for their monthly check.',
     },
     {
       name: 'admin_email_otp',

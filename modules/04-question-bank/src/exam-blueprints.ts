@@ -13,7 +13,7 @@ const SectionIn = z
   .object({
     name: z.string().trim().min(1).max(80),
     subject_node_id: z.string().uuid().nullable().default(null),
-    question_count: z.number().int().min(1).max(500),
+    question_count: z.number().int().min(1).max(500), // the real cap is the blueprint's max_questions (superRefine below)
     marks_per_question: z.number().min(0).max(1000),
     negative_marks_per_question: z.number().min(0).max(1000).default(0),
     minutes: z.number().int().min(1).max(300).nullable().default(null),
@@ -34,6 +34,10 @@ export const BlueprintBodySchema = z
     qualifying: z.boolean().default(false),
     verification_status: z.enum(["verified", "unverified"]),
     source_note: z.string().max(2000).nullable().default(null),
+    /** CT-0: per-pattern question cap (default 100). Higher only where the official pattern needs it (NEET UG 180). */
+    max_questions: z.number().int().min(1).max(500).default(100),
+    /** CT-0 upkeep: who owns the monthly check. */
+    owner_contact: z.string().trim().max(200).nullable().default(null),
     /** Optional cross-check: must equal the sum of the section question counts. */
     total_questions: z.number().int().min(1).optional(),
     sections: z.array(SectionIn).min(1).max(10), // 10 = module 05 sections limit
@@ -51,6 +55,7 @@ export const BlueprintBodySchema = z
     if (timed !== 0 && timed !== b.sections.length) bad("sectional_timing must be the same for every section");
     if (timed > 0 && b.sections.reduce((n, s) => n + (s.minutes ?? 0), 0) !== b.total_minutes) bad("section minutes must add up to total_minutes");
     const total = b.sections.reduce((n, s) => n + s.question_count, 0);
+    if (total > b.max_questions) bad(`the sections add up to ${total} questions, above the cap of ${b.max_questions}`);
     if (b.total_questions !== undefined && b.total_questions !== total) bad(`total_questions ${b.total_questions} does not match the section sum ${total}`);
   });
 export type BlueprintBody = z.infer<typeof BlueprintBodySchema>;
@@ -78,6 +83,12 @@ export interface ExamBlueprint {
   qualifying: boolean;
   verification_status: "verified" | "unverified";
   source_note: string | null;
+  max_questions: number;
+  owner_contact: string | null;
+  archived_at: string | null;
+  supersedes_id: string | null;
+  last_checked_at: string | null;
+  next_check_due: string;
   total_questions: number;
   total_marks: number;
   sections: ExamBlueprintSection[];
@@ -91,11 +102,13 @@ interface SectionRow extends Omit<ExamBlueprintSection, "marks_per_question" | "
   cutoff_marks: string | null;
 }
 
-const HEAD_COLS = `id, stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note`;
+const HEAD_COLS = `id, stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note,
+  max_questions, owner_contact, archived_at, supersedes_id, last_checked_at, next_check_due::text AS next_check_due`;
 
+/** A list hides archived patterns; a read by id still returns one (old assessments point at it). */
 async function load(client: PoolClient, id: string | null): Promise<ExamBlueprint[]> {
   const heads = (await client.query<HeadRow>(
-    `SELECT ${HEAD_COLS} FROM exam_blueprints WHERE ($1::uuid IS NULL OR id = $1) ORDER BY name, edition`, [id])).rows;
+    `SELECT ${HEAD_COLS} FROM exam_blueprints WHERE ($1::uuid IS NULL AND archived_at IS NULL) OR id = $1 ORDER BY name, edition`, [id])).rows;
   if (heads.length === 0) return [];
   const secs = (await client.query<SectionRow>(
     `SELECT blueprint_id, position, name, subject_node_id, question_count, marks_per_question::text, negative_marks_per_question::text,
@@ -178,21 +191,41 @@ export async function createExamBlueprint(tenantId: string, userId: string, b: B
       `SELECT 1 FROM exam_blueprints WHERE stage_node_id = $1 AND edition = $2`, [b.stage_node_id, b.edition])).rows;
     if (dup.length > 0) throw new ValidationError("a blueprint for this stage and edition exists", { details: { code: "DUPLICATE" } });
     const id = (await client.query<{ id: string }>(
-      `INSERT INTO exam_blueprints (stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-      [b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note])).rows[0]!.id;
+      `INSERT INTO exam_blueprints (stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note, max_questions, owner_contact)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact])).rows[0]!.id;
     await insertSections(client, id, b);
     const result = (await load(client, id))[0]!;
     return { result, audit: { tenantId, actorKind: "user", actorUserId: userId, action: "exam_blueprint.created", entityType: "exam_blueprint", entityId: id, after: { ...result } } };
   });
 }
 
-/** Full replace of the head and the sections (sections are re-inserted in order). */
+/**
+ * CT-0: a VERIFIED edition is never edited. A change creates a new edition (new row, `supersedes_id` = the old one); the
+ * old row and its sections stay, so assessments already made keep their copy and old results stay correct. The new
+ * edition needs a new label. An unverified (draft) pattern is still replaced in place.
+ */
 export async function updateExamBlueprint(tenantId: string, userId: string, id: string, b: BlueprintBody): Promise<ExamBlueprint> {
   return write(tenantId, "exam blueprint update", async (client) => {
     const before = (await load(client, id))[0];
     if (before === undefined) throw new NotFoundError("exam blueprint not found");
+    if (before.archived_at !== null) throw new ValidationError("an archived pattern cannot be changed", { details: { code: "ARCHIVED" } });
     await assertNodes(client, b);
+    if (before.verification_status === "verified") {
+      if (b.edition === before.edition) {
+        throw new ValidationError("a verified edition is never edited: give the new edition a new label", { details: { code: "EDITION_IMMUTABLE" } });
+      }
+      const dup = b.stage_node_id === null ? [] : (await client.query(
+        `SELECT 1 FROM exam_blueprints WHERE stage_node_id = $1 AND edition = $2`, [b.stage_node_id, b.edition])).rows;
+      if (dup.length > 0) throw new ValidationError("a blueprint for this stage and edition exists", { details: { code: "DUPLICATE" } });
+      const nid = (await client.query<{ id: string }>(
+        `INSERT INTO exam_blueprints (stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note, max_questions, owner_contact, supersedes_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+        [b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact, id])).rows[0]!.id;
+      await insertSections(client, nid, b);
+      const result = (await load(client, nid))[0]!;
+      return { result, audit: { tenantId, actorKind: "user", actorUserId: userId, action: "exam_blueprint.created", entityType: "exam_blueprint", entityId: nid, before: { ...before }, after: { ...result } } };
+    }
     if (b.stage_node_id !== null) {
       const dup = await client.query(
         `SELECT 1 FROM exam_blueprints WHERE stage_node_id = $1 AND edition = $2 AND id <> $3`, [b.stage_node_id, b.edition, id]);
@@ -200,8 +233,8 @@ export async function updateExamBlueprint(tenantId: string, userId: string, id: 
     }
     await client.query(
       `UPDATE exam_blueprints SET stage_node_id=$2, edition=$3, name=$4, total_minutes=$5, qualifying=$6,
-              verification_status=$7, source_note=$8, updated_at=now() WHERE id=$1`,
-      [id, b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note]);
+              verification_status=$7, source_note=$8, max_questions=$9, owner_contact=$10, updated_at=now() WHERE id=$1`,
+      [id, b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact]);
     await client.query(`DELETE FROM exam_blueprint_sections WHERE blueprint_id = $1`, [id]);
     await insertSections(client, id, b);
     const result = (await load(client, id))[0]!;
@@ -209,12 +242,27 @@ export async function updateExamBlueprint(tenantId: string, userId: string, id: 
   });
 }
 
-export async function deleteExamBlueprint(tenantId: string, userId: string, id: string): Promise<{ deleted: true }> {
-  return write(tenantId, "exam blueprint delete", async (client) => {
+/** CT-0: archive instead of delete. The row, its sections and every assessment that used it stay. */
+export async function archiveExamBlueprint(tenantId: string, userId: string, id: string): Promise<{ archived: true }> {
+  return write(tenantId, "exam blueprint archive", async (client) => {
     const before = (await load(client, id))[0];
     if (before === undefined) throw new NotFoundError("exam blueprint not found");
-    await client.query(`DELETE FROM exam_blueprints WHERE id = $1`, [id]);
-    return { result: { deleted: true as const }, audit: { tenantId, actorKind: "user", actorUserId: userId, action: "exam_blueprint.deleted", entityType: "exam_blueprint", entityId: id, before: { ...before } } };
+    await client.query(`UPDATE exam_blueprints SET archived_at = COALESCE(archived_at, now()), updated_at = now() WHERE id = $1`, [id]);
+    return { result: { archived: true as const }, audit: { tenantId, actorKind: "user", actorUserId: userId, action: "exam_blueprint.archived", entityType: "exam_blueprint", entityId: id, before: { ...before } } };
+  });
+}
+
+/** CT-0: "Mark checked, no change": the monthly check is done. Sets the dates; a note replaces the source note when given. */
+export async function markExamBlueprintChecked(tenantId: string, userId: string, id: string, note: string | null): Promise<ExamBlueprint> {
+  return write(tenantId, "exam blueprint checked", async (client) => {
+    const before = (await load(client, id))[0];
+    if (before === undefined) throw new NotFoundError("exam blueprint not found");
+    if (before.archived_at !== null) throw new ValidationError("an archived pattern cannot be checked", { details: { code: "ARCHIVED" } });
+    await client.query(
+      `UPDATE exam_blueprints SET last_checked_at = now(), next_check_due = CURRENT_DATE + 30, upkeep_reminded_at = NULL,
+              source_note = COALESCE($2, source_note), updated_at = now() WHERE id = $1`, [id, note]);
+    const result = (await load(client, id))[0]!;
+    return { result, audit: { tenantId, actorKind: "user", actorUserId: userId, action: "exam_blueprint.checked", entityType: "exam_blueprint", entityId: id, before: { ...before }, after: { ...result } } };
   });
 }
 
@@ -254,9 +302,17 @@ export function registerExamBlueprintRoutes(
     return updateExamBlueprint(req.session!.tenantId, req.session!.userId, id, parse(BlueprintBodySchema, req.body, "body"));
   });
 
+  // CT-0: DELETE archives (the row and old assessments stay). There is no hard delete route.
   app.delete("/api/admin/blueprints/:id", { preHandler: superPreHandler }, async (req) => {
     requireSuper(req);
     const { id } = parse(IdParams, req.params, "params");
-    return deleteExamBlueprint(req.session!.tenantId, req.session!.userId, id);
+    return archiveExamBlueprint(req.session!.tenantId, req.session!.userId, id);
+  });
+
+  app.post("/api/admin/blueprints/:id/checked", { preHandler: superPreHandler }, async (req) => {
+    requireSuper(req);
+    const { id } = parse(IdParams, req.params, "params");
+    const { note } = parse(z.object({ note: z.string().trim().min(1).max(2000).nullable().default(null) }).strict(), req.body ?? {}, "body");
+    return markExamBlueprintChecked(req.session!.tenantId, req.session!.userId, id, note);
   });
 }

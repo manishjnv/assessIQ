@@ -295,8 +295,10 @@ export async function registerAssessmentLifecycleRoutes(
     .object({
       pack_id: z.string().uuid(),
       level_id: z.string().uuid(),
-      node_ids: z.array(z.string().uuid()).min(1).max(10),
-      question_count: z.number().int().min(1).max(100),
+      // Either an even split (node_ids + question_count) or one count per topic (topics, CT-0).
+      node_ids: z.array(z.string().uuid()).min(1).max(10).optional(),
+      question_count: z.number().int().min(1).max(100).optional(),
+      topics: z.array(z.object({ node_id: z.string().uuid(), count: z.number().int().min(1).max(100) }).strict()).min(1).max(10).optional(),
       difficulty_min: z.number().int().min(1).max(5).optional(),
       difficulty_max: z.number().int().min(1).max(5).optional(),
       minutes: z.number().int().min(1).max(600).optional(),
@@ -309,6 +311,9 @@ export async function registerAssessmentLifecycleRoutes(
     .strict()
     .refine((b) => b.difficulty_min === undefined || b.difficulty_max === undefined || b.difficulty_min <= b.difficulty_max, {
       message: "difficulty_min must not be above difficulty_max",
+    })
+    .refine((b) => (b.topics !== undefined) !== (b.node_ids !== undefined && b.question_count !== undefined), {
+      message: "give topics, or node_ids with question_count",
     });
   app.post("/api/admin/drills", { preHandler: adminOnly }, async (req, reply) => {
     const body = DrillBody.safeParse(req.body);
@@ -321,8 +326,7 @@ export async function registerAssessmentLifecycleRoutes(
       {
         pack_id: b.pack_id,
         level_id: b.level_id,
-        node_ids: b.node_ids,
-        question_count: b.question_count,
+        ...(b.topics !== undefined ? { topics: b.topics } : { node_ids: b.node_ids!, question_count: b.question_count! }),
         ...(b.difficulty_min !== undefined ? { difficulty_min: b.difficulty_min } : {}),
         ...(b.difficulty_max !== undefined ? { difficulty_max: b.difficulty_max } : {}),
         ...(b.minutes !== undefined ? { minutes: b.minutes } : {}),
