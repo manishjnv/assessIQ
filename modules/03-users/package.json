@@ -18,6 +18,6 @@
     "@assessiq/core": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
     "@assessiq/notifications": "workspace:*",
-    "ioredis": "^5.4.0"
+    "ioredis": "^6.0.0"
   }
 }
