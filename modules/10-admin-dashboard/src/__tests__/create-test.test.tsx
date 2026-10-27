@@ -135,6 +135,18 @@ describe("Create a test", () => {
     expect(body.name).toContain("SSC CGL");
   });
 
+  it("pattern: a fixed number of questions is sent instead of a percent", async () => {
+    await setup();
+    fireEvent.change(screen.getByLabelText("Exam"), { target: { value: "bp1" } });
+    chooseSet();
+    await screen.findByRole("radio", { name: "Exam pattern" });
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Number of questions"), { target: { value: "12" } });
+    fireEvent.click(save());
+    await waitFor(() => expect(api.createTestApi).toHaveBeenCalled());
+    expect(api.createTestApi.mock.calls[0]![0].cover).toEqual({ kind: "pattern", blueprint_id: "bp1", question_count: 12 });
+  });
+
   it("a failed step shows the step and the server message", async () => {
     await setup();
     api.createTestApi.mockRejectedValue(new AdminApiError(422, { code: "POOL_TOO_SMALL", message: "Topic Series has too few questions" }));

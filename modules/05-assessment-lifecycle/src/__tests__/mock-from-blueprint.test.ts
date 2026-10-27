@@ -109,6 +109,16 @@ describe("createMockFromBlueprint", () => {
     await expect(createMockFromBlueprint(tenant, BP, { pack_id: pack, level_id: level, opens_at: opensAt, section_positions: [9] }, admin)).rejects.toMatchObject({ status: 400 });
   });
 
+  it("EXP-35 fixed count: total is exact, refused above the chosen sections or with a percent", async () => {
+    const { assessment } = await createMockFromBlueprint(tenant, BP, { pack_id: pack, level_id: level, opens_at: opensAt, question_count: 30 }, admin);
+    const secs = (assessment.settings as { sections: Array<Record<string, unknown>> }).sections;
+    expect(assessment.question_count).toBe(30);
+    expect(secs.reduce((n, x) => n + (x["question_count"] as number), 0)).toBe(30);
+    expect(assessment.name).toBe("SSC CGL Tier 1 practice mock");
+    await expect(createMockFromBlueprint(tenant, BP, { pack_id: pack, level_id: level, opens_at: opensAt, section_positions: [0], question_count: 100 }, admin)).rejects.toMatchObject({ status: 400 });
+    await expect(createMockFromBlueprint(tenant, BP, { pack_id: pack, level_id: level, opens_at: opensAt, question_count: 10, scale_percent: 50 }, admin)).rejects.toMatchObject({ status: 400 });
+  });
+
   it("each section keeps its own marks and negative marks", async () => {
     await sup((c) => c.query(`UPDATE exam_blueprint_sections SET negative_marks_per_question=0.25 WHERE blueprint_id=$1 AND position=1`, [BP]));
     const { assessment } = await createMockFromBlueprint(tenant, BP, { pack_id: pack, level_id: level, opens_at: opensAt }, admin);

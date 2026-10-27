@@ -62,7 +62,8 @@ export function AdminCreateTest(): React.ReactElement {
   const [rows, setRows] = useState<TopicRow[]>([]);
   const [scope, setScope] = useState<"full" | "subjects">("full");
   const [subjects, setSubjects] = useState<number[]>([]);
-  const [sizePct, setSizePct] = useState(100);
+  const [sizePct, setSizePct] = useState(100); // 0 = a fixed number of questions (EXP-35)
+  const [fixedCount, setFixedCount] = useState(20);
   const [minutes, setMinutes] = useState("");
   const [name, setName] = useState("");
   const [opensAt, setOpensAt] = useState(() => toLocalInput(new Date(Math.ceil(Date.now() / 300000) * 300000)));
@@ -139,7 +140,7 @@ export function AdminCreateTest(): React.ReactElement {
       const body: CreateTestCover =
         cover === "whole" ? { kind: "whole", question_count: count }
         : cover === "topics" ? { kind: "topics", topics: rows.map((r) => ({ node_id: r.id, count: r.count })) }
-        : { kind: "pattern", blueprint_id: examId, ...(scope === "subjects" ? { section_positions: [...subjects].sort((a, b) => a - b) } : {}), ...(sizePct < 100 ? { scale_percent: sizePct } : {}) };
+        : { kind: "pattern", blueprint_id: examId, ...(scope === "subjects" ? { section_positions: [...subjects].sort((a, b) => a - b) } : {}), ...(sizePct === 0 ? { question_count: fixedCount } : sizePct < 100 ? { scale_percent: sizePct } : {}) };
       // Same type-card settings helper as Start a test: Real is fixed on, Mock follows the two checkboxes.
       const settings = { integrity: {
         fullscreen: testType !== "mock" || integrity.fullscreen,
@@ -293,7 +294,9 @@ export function AdminCreateTest(): React.ReactElement {
                         <Label htmlFor="ct-size">Size</Label>
                         <select id="ct-size" className="aiq-input" value={sizePct} onChange={(e) => setSizePct(Number(e.target.value))}>
                           {[100, 75, 50, 25].map((n) => <option key={n} value={n}>{n === 100 ? "Full size" : `${n}% of the questions`}</option>)}
+                          <option value={0}>A fixed number of questions</option>
                         </select>
+                        {sizePct === 0 && <input type="number" aria-label="Number of questions" className="aiq-input" min={1} max={Math.min(MAX_QUESTIONS, exam.total_questions)} value={fixedCount} onChange={(e) => setFixedCount(Number(e.target.value))} />}
                       </div>
                     </div>
                     {scope === "subjects" && (

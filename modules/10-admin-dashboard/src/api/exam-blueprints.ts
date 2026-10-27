@@ -54,6 +54,8 @@ export interface FullMockInput {
   section_positions?: number[];
   /** EXP-35: scale every chosen section to this percent, 1 to 100. Absent = full size. */
   scale_percent?: number;
+  /** EXP-35: fixed total number of questions (1 to 100), instead of a percent. */
+  question_count?: number;
 }
 
 /** POST /api/admin/blueprints/:id/mock — a DRAFT full mock. Nothing is sent to candidates. */

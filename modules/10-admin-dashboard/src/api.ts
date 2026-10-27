@@ -1302,6 +1302,8 @@ export async function createFullMockApi(
     section_positions?: number[];
     /** EXP-35: percent of the questions and time, 1 to 100. Absent = full size. */
     scale_percent?: number;
+    /** EXP-35: fixed total number of questions (1 to 100), instead of a percent. */
+    question_count?: number;
   },
 ): Promise<{ assessment: { id: string }; warnings: string[] }> {
   return adminApi<{ assessment: { id: string }; warnings: string[] }>(

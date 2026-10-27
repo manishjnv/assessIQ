@@ -4,7 +4,7 @@ import { adminApi } from "../api.js";
 export type CreateTestCover =
   | { kind: "whole"; question_count: number }
   | { kind: "topics"; topics: Array<{ node_id: string; count: number }> }
-  | { kind: "pattern"; blueprint_id: string; section_positions?: number[]; scale_percent?: number };
+  | { kind: "pattern"; blueprint_id: string; section_positions?: number[]; scale_percent?: number; question_count?: number };
 
 export interface CreateTestBody {
   pack_id: string;

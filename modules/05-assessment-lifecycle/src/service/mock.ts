@@ -19,6 +19,8 @@ export interface CreateMockInput {
   section_positions?: number[];
   /** EXP-35: scale every chosen section's question count (and minutes) to this percent, 1..100. Absent = 100. */
   scale_percent?: number;
+  /** EXP-35: fixed total question count for a short mock (1..100, not above the chosen sections). Not with scale_percent. */
+  question_count?: number;
 }
 
 export async function createMockFromBlueprint(
@@ -34,7 +36,7 @@ export async function createMockFromBlueprint(
   }
 
   // CT-2: sections, size and timing come from the one shared pattern builder (compile-test.ts).
-  const { sections, total, wholeMinutes, isShort } = compilePatternSections(bp, { section_positions: input.section_positions, scale_percent: input.scale_percent });
+  const { sections, total, wholeMinutes, isShort } = compilePatternSections(bp, { section_positions: input.section_positions, scale_percent: input.scale_percent, question_count: input.question_count });
   if (bp.verification_status !== "verified") warnings.push("This blueprint is not verified.");
   const assessment = await createAssessment(
     tenantId,

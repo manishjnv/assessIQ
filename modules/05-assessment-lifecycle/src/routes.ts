@@ -255,6 +255,7 @@ export async function registerAssessmentLifecycleRoutes(
       camera_required: z.boolean().optional(),
       section_positions: z.array(z.number().int().min(0).max(50)).min(1).max(20).optional(),
       scale_percent: z.number().int().min(1).max(100).optional(),
+      question_count: z.number().int().min(1).max(100).optional(),
     })
     .strict();
   app.post(
@@ -283,6 +284,7 @@ export async function registerAssessmentLifecycleRoutes(
           ...(b.camera_required !== undefined ? { camera_required: b.camera_required } : {}),
           ...(b.section_positions !== undefined ? { section_positions: b.section_positions } : {}),
           ...(b.scale_percent !== undefined ? { scale_percent: b.scale_percent } : {}),
+          ...(b.question_count !== undefined ? { question_count: b.question_count } : {}),
         },
         req.session!.userId,
       );
@@ -308,6 +310,7 @@ export async function registerAssessmentLifecycleRoutes(
           blueprint_id: z.string().uuid(),
           section_positions: z.array(z.number().int().min(0).max(50)).min(1).max(20).optional(),
           scale_percent: z.number().int().min(1).max(100).optional(),
+          question_count: z.number().int().min(1).max(100).optional(),
         }).strict(),
       ]),
       minutes: z.number().int().min(1).max(600).optional(),

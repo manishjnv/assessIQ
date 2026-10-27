@@ -41,6 +41,18 @@ describe("CT-2 compileTestSpec", () => {
     expect(sectional.settings.sections?.map((s) => s.minutes)).toEqual([40, 20]);
   });
 
+  it("pattern: a fixed question count is shared by section size (largest remainder), minutes follow, bad counts are refused", () => {
+    const p = compilePatternSections(bp(), { question_count: 11 }); // 30:20 -> 6.6 + 4.4 -> 7 + 4
+    expect(p.sections.map((s) => s.question_count)).toEqual([7, 4]);
+    expect(p.total).toBe(11);
+    expect(p.isShort).toBe(true);
+    expect(p.wholeMinutes).toBe(14); // ceil(60 * 11 / 50)
+    expect(compilePatternSections(bp(), { question_count: 1 }).sections.map((s) => s.question_count)).toEqual([1]); // a section with 0 is dropped
+    expect(() => compilePatternSections(bp(), { question_count: 51 })).toThrow(/above/);
+    expect(() => compilePatternSections(bp(), { question_count: 0 })).toThrow();
+    expect(() => compilePatternSections(bp(), { question_count: 10, scale_percent: 50 })).toThrow(/not both/);
+  });
+
   it("pattern: a short mock scales counts, keeps marks, drops cut-offs; bad positions or percent are refused; an archived pattern is refused", () => {
     const p = compilePatternSections(bp(), { section_positions: [1], scale_percent: 50 });
     expect(p.sections.map((s) => [s.name, s.question_count, s.marks_per_question])).toEqual([["Part B", 10, 2]]);
