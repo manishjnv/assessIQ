@@ -126,6 +126,7 @@ export function ReviewQueue(): React.ReactElement {
         <HelpTip helpId="admin.review_queue.reports">
           <span style={{ ...BODY_STYLE, color: r.report_count > 0 ? undefined : "var(--aiq-color-fg-muted)" }}>
             {r.report_count > 0 ? `${r.report_count} from candidates` : "None"}
+            {r.all_orgs_report_count != null ? ` · ${r.all_orgs_report_count} in all organisations` : ""}
           </span>
         </HelpTip>
       ),

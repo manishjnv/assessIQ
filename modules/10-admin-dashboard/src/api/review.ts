@@ -50,6 +50,7 @@ export interface ReviewQueueItem {
   updated_at: string;
   /** EXP-28: candidate reports on this question. */
   report_count: number;
+  all_orgs_report_count?: number | null;
   latest_note: ReviewLatestNote | null;
 }
 

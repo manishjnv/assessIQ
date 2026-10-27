@@ -459,3 +459,11 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 - **Considered and rejected:** (a) auto-dispute at a fixed N; (b) auto-dispute with a per-organisation count; (c) auto-hide from new draws after N. All three give the attacker a switch. The reviewer queue (Reported tab, Reports column) is the control.
 - **Not included:** any threshold, any auto state change, any email on count.
 - **Revisit when:** there is real report data and the reviewer queue is too slow. Then add a reviewer alert (not a state change) at a count. Any state change stays human.
+
+## Z-166 report count across organisations (2026-10-28)
+
+- **What.** `listReviewQueue` for the platform tenant (super admin) adds `all_orgs_report_count` to each item: candidate reports on the master question plus every organisation copy (`questions.source_question_id` = master id), summed by `crossOrgReportCounts` (system role, read-only, one `unnest` query for the page). Organisation admins get `null`.
+- **Why.** Each organisation sees only its own reports, so one bad template looks small in every queue. The super admin needs the total to decide a fix at the master.
+- **Rejected.** A new route (the queue already is the super-admin screen); a per-organisation breakdown (owner asked for counts only, no organisation or candidate detail); auto-dispute at a threshold (stays OFF, see above).
+- **Not included.** Notes, reasons, tenant names, any write. Clones of clones are not followed (clones always point at the master).
+- **Downstream.** Web review-queue Reports cell shows `N in all organisations` under the existing `admin.review_queue.reports` help tip (no new help id). Real-DB test: `question-review-notes.test.ts`.

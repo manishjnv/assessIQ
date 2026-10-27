@@ -402,6 +402,8 @@ export interface ReviewQueueItem {
   updated_at: Date;
   /** EXP-28: candidate reports on this question (this organisation only). */
   report_count: number;
+  /** Z-166: reports on this master question summed over every organisation copy plus the master itself. Platform queue only (null elsewhere). Count only. */
+  all_orgs_report_count: number | null;
   latest_note: { note: string; state: string; created_at: Date } | null;
 }
 
@@ -427,8 +429,9 @@ export async function listReviewQueue(
   assertReviewRole(actor.role);
   const size = Math.min(Math.max(pageSize, 1), REVIEW_PAGE_MAX);
   const offset = Math.max(page - 1, 0) * size;
-  return withTenant(actor.tenantId, async (client) => {
-    await assertRoleFitsTenant(client, actor);
+  let isPlatform = false;
+  const queue = await withTenant(actor.tenantId, async (client) => {
+    isPlatform = await assertRoleFitsTenant(client, actor);
     const live = `p.tenant_id = $1 AND q.status <> 'archived'
                   AND NOT EXISTS (SELECT 1 FROM question_source w WHERE w.question_id = q.id AND w.rights_status = 'withdrawn')`;
     const counted = await client.query<{ s: string; n: string }>(
@@ -476,9 +479,34 @@ export async function listReviewQueue(
       items: rows.rows.map(({ n_note, n_state, n_created_at, report_count, ...rest }) => ({
         ...rest,
         report_count: parseInt(report_count, 10),
+        all_orgs_report_count: null as number | null,
         latest_note: n_note === null ? null : { note: n_note, state: n_state as string, created_at: n_created_at as Date },
       })),
     };
+  });
+  if (isPlatform && queue.items.length > 0) {
+    const totals = await crossOrgReportCounts(queue.items.map((i) => i.id));
+    for (const item of queue.items) item.all_orgs_report_count = totals.get(item.id) ?? 0;
+  }
+  return queue;
+}
+
+/**
+ * Z-166: candidate reports per master question, summed across organisations. Read-only, counts only: no
+ * candidate, organisation, note or reason leaves this query. Clones point at the master through
+ * questions.source_question_id (0084). Super-admin callers only (listReviewQueue checks the platform tenant).
+ */
+export async function crossOrgReportCounts(masterIds: string[]): Promise<Map<string, number>> {
+  return withSystemRoleDetached("question.report_count_all_orgs", async (client) => {
+    const r = await client.query<{ id: string; n: string }>(
+      `SELECT m.id, count(r.id)::text AS n
+         FROM unnest($1::uuid[]) AS m(id)
+         LEFT JOIN questions c ON c.id = m.id OR c.source_question_id = m.id
+         LEFT JOIN question_reports r ON r.question_id = c.id
+        GROUP BY m.id`,
+      [masterIds],
+    );
+    return new Map(r.rows.map((x) => [x.id, parseInt(x.n, 10)]));
   });
 }
 

@@ -13,7 +13,7 @@ import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { registerQuestionBankRoutes } from "../routes.js";
 import { createPack, addLevel, publishPack } from "../service/packs.js";
 import { createQuestion } from "../service/questions.js";
-import { reviewQuestion, getPackReview } from "../service/review.js";
+import { reviewQuestion, getPackReview, listReviewQueue } from "../service/review.js";
 import { materializeSetForTenant } from "../clone.js";
 
 const MCQ = { question: "What is 2 + 2?", options: ["3", "4", "5", "6"], correct: 1, rationale: "2 + 2 is 4" };
@@ -227,6 +227,33 @@ describe("Dispute (Z-52 gap 7)", () => {
     expect(a.rows[0]).toMatchObject({ actor_kind: "system", after: { review_state: "disputed", action: "disputed_propagated", clone_question_ids: [clone] } });
     expect(JSON.stringify(a.rows[0])).not.toMatch(/wrong key per exam body/);
     expect(await notes(clone)).toHaveLength(0); // the tenant cannot read platform notes
+  });
+});
+
+describe("Z-166 report count across organisations", () => {
+  it("sums reports over the master and its copies for a super admin only; counts only", async () => {
+    const master = await seed(tP, uP, ["verified"]);
+    const copyA = await seed(tA, uA, ["verified"]);
+    const copyB = await seed(tB, uB, ["verified"]);
+    const unrelated = await seed(tA, uA, ["verified"]);
+    await sup(async (c) => {
+      for (const copy of [copyA, copyB]) await c.query(`UPDATE questions SET source_question_id=$2 WHERE id=$1`, [copy.ids[0], master.ids[0]]);
+      // No FK targets needed for the count: skip FK triggers for these seed rows only.
+      await c.query(`SET session_replication_role = replica`);
+      const add = (t: string, q: string) => c.query(
+        `INSERT INTO question_reports (tenant_id, attempt_id, question_id, user_id, reason) VALUES ($1,$2,$3,$4,'unclear')`,
+        [t, randomUUID(), q, randomUUID()]);
+      await add(tA, copyA.ids[0]!); await add(tA, copyA.ids[0]!); await add(tB, copyB.ids[0]!); await add(tP, master.ids[0]!);
+      await add(tA, unrelated.ids[0]!);
+      await c.query(`SET session_replication_role = origin`);
+    });
+    const q = await listReviewQueue(actor(asSuper), "all", 1, 100);
+    const item = q.items.find((i) => i.id === master.ids[0]);
+    expect(item?.report_count).toBe(1);
+    expect(item?.all_orgs_report_count).toBe(4);
+    expect(Object.keys(item ?? {})).not.toContain("note");
+    const org = await listReviewQueue(actor(asA), "all", 1, 100);
+    expect(org.items.every((i) => i.all_orgs_report_count === null)).toBe(true);
   });
 });
 

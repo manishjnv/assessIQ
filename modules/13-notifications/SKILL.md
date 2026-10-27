@@ -328,3 +328,6 @@ The full record is in `modules/19-billing/SKILL.md` § "2026-10-20 — Wave 4 sm
 ## Result email level and device-check line (Z-145, Z-154; 2026-10-24)
 
 - The result-released email reads `assessments.settings.feedback_level` and applies `effectiveLevel` (Mock, not embed). The `invitation_candidate` email has one line linking to `/check` (built from `ASSESSIQ_BASE_URL`, string key `device_check`). The reminder email has no such line yet.
+
+## CT-0 (S62, 2026-10-26)
+- New template `pattern_review_due` (count and link) and sender `sendPatternReviewDueEmail`, used by the daily worker job `blueprint.upkeep_reminder`. 19 templates now. See docs/13-email-system.md.
