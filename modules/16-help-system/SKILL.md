@@ -197,3 +197,4 @@ Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the
 ## S62 help (2026-10-26)
 
 - Migration 0269 adds five keys: `admin.blueprints.upkeep`, `admin.blueprints.new_edition`, `admin.blueprints.archive`, `admin.review_queue.reports`, `candidate.attempt.report`. Fresh-DB seed count 634.
+- 2026-10-28: migration 0271 adds three keys `admin.platform.upload_override_per_upload`, `admin.platform.upload_override_per_month`, `admin.platform.upload_override_total` (EXP-17 super-admin upload limit overrides). Fresh-DB seed count 647 (the 634 above was before 0270 added 10).

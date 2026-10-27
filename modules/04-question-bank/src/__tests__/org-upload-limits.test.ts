@@ -22,6 +22,7 @@ vi.mock("@assessiq/core", async (orig) => {
 import { applyAllMigrations } from "../../../../tools/test-support/apply-all-migrations.js";
 import { setPoolForTesting, closePool } from "../../../02-tenancy/src/pool.js";
 import { registerQuestionBankRoutes } from "../routes.js";
+import { updateTenantPlan } from "@assessiq/billing";
 
 let container: StartedTestContainer;
 let url: string;
@@ -156,6 +157,16 @@ describe("EXP-17 plan limits (plan data)", () => {
     const view = (await app.inject({ method: "GET", url: "/api/admin/question-imports" })).json();
     expect(view.limits).toEqual({ perUpload: 2000, perMonth: 3, total: 77 });
     expect(view.usage).toEqual({ uploads_this_month: 0, questions_total: 0 });
+  });
+
+  it("EXP-17: a super-admin plan update (updateTenantPlan) sets overrides and the upload screen limits follow", async () => {
+    const { app, t, u } = await newTenant("pro");
+    await updateTenantPlan(u, t, { uploadMaxPerUploadOverride: 11, uploadPerMonthOverride: 2, uploadMaxTotalOverride: 99 });
+    let view = (await app.inject({ method: "GET", url: "/api/admin/question-imports" })).json();
+    expect(view.limits).toEqual({ perUpload: 11, perMonth: 2, total: 99 });
+    await updateTenantPlan(u, t, { uploadMaxPerUploadOverride: null });
+    view = (await app.inject({ method: "GET", url: "/api/admin/question-imports" })).json();
+    expect(view.limits).toEqual({ perUpload: 2000, perMonth: 2, total: 99 });
   });
 
   it("flag off: nothing is blocked (even Free), limits and usage are still returned", async () => {

@@ -924,6 +924,10 @@ export interface TenantBillingDetail {
   ai_answers_included?: number | null;
   /** EXP-37/38: invited students allowed per assessment; null = unlimited. */
   max_invited_per_assessment?: number | null;
+  /** EXP-17: organisation upload limit overrides; null = the plan default applies. Absent on an older API. */
+  upload_max_per_upload_override?: number | null;
+  upload_per_month_override?: number | null;
+  upload_max_total_override?: number | null;
 }
 
 export interface UpdateTenantPlanRequest {
@@ -931,6 +935,10 @@ export interface UpdateTenantPlanRequest {
   includedCredits?: number | null;
   /** EXP-38: integer 1 to 1000000, or null = unlimited. Omitted = keep. */
   maxInvitedPerAssessment?: number | null;
+  /** EXP-17: integer 0 to 1000000, or null = use the plan default. Omitted = keep. */
+  uploadMaxPerUploadOverride?: number | null;
+  uploadPerMonthOverride?: number | null;
+  uploadMaxTotalOverride?: number | null;
 }
 
 export interface UpdateTenantPlanResponse {

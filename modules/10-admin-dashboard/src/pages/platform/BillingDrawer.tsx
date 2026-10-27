@@ -41,6 +41,8 @@ export function BillingDrawer({
   // EXP-38: students per assessment. Unlimited = null on the server; the internal tier is always unlimited.
   const [editInvite, setEditInvite] = useState<string>("");
   const [editInviteUnlimited, setEditInviteUnlimited] = useState<boolean>(false);
+  // EXP-17: upload limit overrides as typed text; empty = use the plan default.
+  const [editUpload, setEditUpload] = useState({ perUpload: "", perMonth: "", total: "" });
   const [planConfirmPending, setPlanConfirmPending] = useState(false);
   const [planSaving, setPlanSaving] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
@@ -110,6 +112,12 @@ export function BillingDrawer({
         const inviteLimit = d.max_invited_per_assessment;
         setEditInvite(typeof inviteLimit === "number" ? String(inviteLimit) : "");
         setEditInviteUnlimited(inviteLimit === null);
+        const ov = (v: number | null | undefined): string => (typeof v === "number" ? String(v) : "");
+        setEditUpload({
+          perUpload: ov(d.upload_max_per_upload_override),
+          perMonth: ov(d.upload_per_month_override),
+          total: ov(d.upload_max_total_override),
+        });
       })
       .catch((err) => {
         if (cancelled) return;
@@ -156,6 +164,18 @@ export function BillingDrawer({
       ? null
       : "Students per assessment must be a whole number from 1 to 1000000, or Unlimited.";
   };
+
+  // EXP-17: an upload override is empty (plan default) or a whole number 0 to 1000000. Null = valid.
+  const uploadOverrideError = (): string | null => {
+    for (const text of [editUpload.perUpload, editUpload.perMonth, editUpload.total]) {
+      const t = text.trim();
+      if (t !== "" && !(/^[0-9]+$/.test(t) && Number(t) <= 1000000)) {
+        return "Upload limits must be empty or a whole number from 0 to 1000000.";
+      }
+    }
+    return null;
+  };
+  const uploadOrNull = (text: string): number | null => (text.trim() === "" ? null : Number(text.trim()));
 
   // GATE-8 A1-2: these cross-tenant mutations need a fresh TOTP; a stale one opens the step-up and retries.
   const { guard, stepUp } = useMfaGuard("Enter your authenticator code to change this organisation.");
@@ -207,6 +227,9 @@ export function BillingDrawer({
         tier: editTier,
         includedCredits,
         maxInvitedPerAssessment: inviteIsUnlimited ? null : Number(editInvite.trim()),
+        uploadMaxPerUploadOverride: uploadOrNull(editUpload.perUpload),
+        uploadPerMonthOverride: uploadOrNull(editUpload.perMonth),
+        uploadMaxTotalOverride: uploadOrNull(editUpload.total),
       });
       setPlanAuditId(res.auditId);
       setPlanToast(true);
@@ -582,6 +605,43 @@ export function BillingDrawer({
                   </div>
                 </div>
 
+                {([
+                  ["perUpload", "Questions per upload", "admin.platform.upload_override_per_upload"],
+                  ["perMonth", "Uploads per month", "admin.platform.upload_override_per_month"],
+                  ["total", "Total uploaded questions", "admin.platform.upload_override_total"],
+                ] as const).map(([field, label, helpId]) => (
+                  <div key={field} style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <HelpTip helpId={helpId}>
+                      <label
+                        htmlFor={`upload-${field}-input-${tenant.id}`}
+                        style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, fontWeight: 500 }}
+                      >
+                        {label}
+                      </label>
+                    </HelpTip>
+                    <input
+                      id={`upload-${field}-input-${tenant.id}`}
+                      type="number"
+                      min={0}
+                      max={1000000}
+                      step={1}
+                      value={editUpload[field]}
+                      onChange={(e) => { setEditUpload({ ...editUpload, [field]: e.target.value }); setPlanError(null); }}
+                      placeholder="Plan default"
+                      style={{
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontSize: 13,
+                        padding: "6px 10px",
+                        borderRadius: "var(--aiq-radius-md)",
+                        border: "1px solid var(--aiq-color-border)",
+                        background: "var(--aiq-color-bg-raised)",
+                        color: "var(--aiq-color-fg-primary)",
+                        width: "100%",
+                      }}
+                    />
+                  </div>
+                ))}
+
                 {planError !== null && (
                   <p style={{ fontFamily: "var(--aiq-font-sans)", fontSize: 12, color: "var(--aiq-color-danger, #dc2626)", margin: 0 }}>
                     {planError}
@@ -639,6 +699,8 @@ export function BillingDrawer({
                     onClick={() => {
                       const inviteError = inviteLimitError();
                       if (inviteError !== null) { setPlanError(inviteError); return; }
+                      const uploadError = uploadOverrideError();
+                      if (uploadError !== null) { setPlanError(uploadError); return; }
                       setPlanConfirmPending(true);
                       setPlanError(null);
                     }}

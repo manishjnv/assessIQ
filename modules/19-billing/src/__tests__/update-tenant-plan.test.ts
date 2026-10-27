@@ -28,9 +28,9 @@ import { applyAllMigrations } from '../../../../tools/test-support/apply-all-mig
 import { randomUUID } from 'node:crypto';
 import { execSync } from 'node:child_process';
 
-import { setPoolForTesting, closePool } from '@assessiq/tenancy';
+import { setPoolForTesting, closePool, withTenant } from '@assessiq/tenancy';
 import { ValidationError, NotFoundError } from '@assessiq/core';
-import { updateTenantPlan } from '../service.js';
+import { updateTenantPlan, getUploadLimits } from '../service.js';
 
 // ---------------------------------------------------------------------------
 // Path helpers
@@ -373,5 +373,63 @@ describe('updateTenantPlan — (f) invited-students limit', () => {
 
     await reset('internal', null, null);
     await expect(updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { maxInvitedPerAssessment: 10 })).rejects.toBeInstanceOf(ValidationError);
+  });
+});
+
+describe('updateTenantPlan — (g) organisation upload limit overrides (EXP-17)', () => {
+  const cols = () =>
+    withSuperClient(async (c) =>
+      (await c.query<{ a: number | null; b: number | null; c: number | null }>(
+        `SELECT upload_max_per_upload_override a, upload_per_month_override b, upload_max_total_override c FROM tenant_plans WHERE tenant_id = $1`,
+        [TENANT_ID],
+      )).rows[0]!,
+    );
+  const clear = () =>
+    withSuperClient((c) =>
+      c.query(`UPDATE tenant_plans SET tier = 'pro', included_credits = 100, upload_max_per_upload_override = NULL, upload_per_month_override = NULL, upload_max_total_override = NULL WHERE tenant_id = $1`, [TENANT_ID]),
+    );
+
+  it.skipIf(!dockerAvailable)('sets, keeps, clears; the real limits lookup and the audit row follow', async () => {
+    await clear();
+    const set = await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { uploadMaxPerUploadOverride: 123, uploadPerMonthOverride: 7, uploadMaxTotalOverride: 4567 });
+    expect(await cols()).toEqual({ a: 123, b: 7, c: 4567 });
+    // real DB: the lookup used by the organisation upload returns the overrides
+    const limits = await withTenant(TENANT_ID, (c) => getUploadLimits(c, TENANT_ID));
+    expect(limits).toEqual({ perUpload: 123, perMonth: 7, total: 4567 });
+    const audit = await withSuperClient(async (c) =>
+      (await c.query<{ after: Record<string, unknown> }>(`SELECT after FROM audit_log WHERE id = $1`, [set.auditId])).rows[0]!.after,
+    );
+    expect(audit).toMatchObject({
+      upload_max_per_upload_override: 123, upload_per_month_override: 7, upload_max_total_override: 4567,
+      previous_upload_max_per_upload_override: null, previous_upload_per_month_override: null, previous_upload_max_total_override: null,
+    });
+
+    // absent keeps; 0 is a valid value
+    const keep = await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { uploadPerMonthOverride: 0 });
+    expect(await cols()).toEqual({ a: 123, b: 0, c: 4567 });
+    const keepAudit = await withSuperClient(async (c) =>
+      (await c.query<{ after: Record<string, unknown> }>(`SELECT after FROM audit_log WHERE id = $1`, [keep.auditId])).rows[0]!.after,
+    );
+    expect(keepAudit).toMatchObject({ previous_upload_per_month_override: 7, upload_per_month_override: 0 });
+
+    // null clears one; the tier default (pro 2000) applies again
+    await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, { uploadMaxPerUploadOverride: null });
+    expect(await cols()).toEqual({ a: null, b: 0, c: 4567 });
+    expect((await withTenant(TENANT_ID, (c) => getUploadLimits(c, TENANT_ID))).perUpload).toBe(2000);
+  });
+
+  it.skipIf(!dockerAvailable)('rejects bad values with the field error code and changes nothing', async () => {
+    await clear();
+    const cases: Array<[Record<string, number>, string]> = [
+      [{ uploadMaxPerUploadOverride: -1 }, 'INVALID_UPLOAD_PER_UPLOAD_OVERRIDE'],
+      [{ uploadPerMonthOverride: 2.5 }, 'INVALID_UPLOAD_PER_MONTH_OVERRIDE'],
+      [{ uploadMaxTotalOverride: 1_000_001 }, 'INVALID_UPLOAD_MAX_TOTAL_OVERRIDE'],
+    ];
+    for (const [patch, code] of cases) {
+      const err = await updateTenantPlan(ACTOR_USER_ID, TENANT_ID, patch).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ValidationError);
+      expect((err as ValidationError).details).toMatchObject({ code });
+    }
+    expect(await cols()).toEqual({ a: null, b: null, c: null });
   });
 });

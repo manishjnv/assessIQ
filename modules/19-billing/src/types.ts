@@ -133,6 +133,10 @@ export interface TenantBillingDetail {
   ai_answers_included: number | null;
   /** EXP-37: invited students allowed per assessment; null = unlimited. */
   max_invited_per_assessment: number | null;
+  /** EXP-17: per-tenant upload limit overrides; null = the plan tier default applies. */
+  upload_max_per_upload_override: number | null;
+  upload_per_month_override: number | null;
+  upload_max_total_override: number | null;
   recent_events: BillingEventRow[];
 }
 
@@ -144,6 +148,10 @@ export interface UpdateTenantPlanPatch {
   aiAnswersIncludedOverride?: number | null;
   /** EXP-37: positive integer, or null = unlimited. Omitted = keep (see updateTenantPlan for tier moves). */
   maxInvitedPerAssessment?: number | null;
+  /** EXP-17: organisation-upload limit overrides. Omitted = keep, null = clear (plan default applies), 0..1000000. */
+  uploadMaxPerUploadOverride?: number | null;
+  uploadPerMonthOverride?: number | null;
+  uploadMaxTotalOverride?: number | null;
 }
 
 /** Return shape of updateTenantPlan. */

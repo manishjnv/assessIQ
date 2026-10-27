@@ -96,7 +96,18 @@ describe("BillingDrawer students per assessment (EXP-38)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(updateTenantPlan).toHaveBeenCalledTimes(1));
-    expect(updateTenantPlan).toHaveBeenCalledWith("t1", { tier: "pro", includedCredits: 250, maxInvitedPerAssessment: 300 });
+    expect(updateTenantPlan).toHaveBeenCalledWith("t1", { tier: "pro", includedCredits: 250, maxInvitedPerAssessment: 300, uploadMaxPerUploadOverride: null, uploadPerMonthOverride: null, uploadMaxTotalOverride: null });
+  });
+
+  it("EXP-17: typed upload limits are sent, an empty box is sent as null", async () => {
+    open();
+    await screen.findByText("150 students per assessment");
+    fireEvent.change(screen.getByLabelText("Questions per upload"), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText("Uploads per month"), { target: { value: "0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(updateTenantPlan).toHaveBeenCalledTimes(1));
+    expect(updateTenantPlan.mock.calls[0]?.[1]).toMatchObject({ uploadMaxPerUploadOverride: 500, uploadPerMonthOverride: 0, uploadMaxTotalOverride: null });
   });
 
   it("saves null when Unlimited is ticked", async () => {

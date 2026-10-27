@@ -393,6 +393,9 @@ export async function getTenantBillingDetail(tenantId: string): Promise<TenantBi
       ai_answers_used: meters.ai_used,
       ai_answers_included: plan.ai_answers_included_override ?? TIER_AI_ANSWERS_INCLUDED[tier],
       max_invited_per_assessment: plan.max_invited_per_assessment ?? null,
+      upload_max_per_upload_override: plan.upload_max_per_upload_override ?? null,
+      upload_per_month_override: plan.upload_per_month_override ?? null,
+      upload_max_total_override: plan.upload_max_total_override ?? null,
       recent_events: recentEvents,
     };
   });
@@ -1252,7 +1255,26 @@ export async function updateTenantPlan(
     } else if (prevTier === 'internal' && prevInviteLimit === null) {
       nextInviteLimit = DEFAULT_INVITE_LIMIT;
     }
-    const { updated_at } = await updateTenantPlanRow(client, tenantId, nextTier, nextCredits, nextOverride, nextInviteLimit);
+    // EXP-17: organisation-upload limit overrides. Absent = keep, null = clear, else integer 0..1000000.
+    const uploadOverride = (
+      key: 'uploadMaxPerUploadOverride' | 'uploadPerMonthOverride' | 'uploadMaxTotalOverride',
+      prev: number | null | undefined,
+      code: string,
+    ): number | null => {
+      const next = key in patch ? (patch[key] ?? null) : (prev ?? null);
+      if (next !== null && (!Number.isInteger(next) || next < 0 || next > 1_000_000)) {
+        throw new ValidationError(`${key} must be null or an integer from 0 to 1000000`, {
+          details: { code, received: next },
+        });
+      }
+      return next;
+    };
+    const nextUpload = {
+      perUpload: uploadOverride('uploadMaxPerUploadOverride', planRow.upload_max_per_upload_override, 'INVALID_UPLOAD_PER_UPLOAD_OVERRIDE'),
+      perMonth: uploadOverride('uploadPerMonthOverride', planRow.upload_per_month_override, 'INVALID_UPLOAD_PER_MONTH_OVERRIDE'),
+      total: uploadOverride('uploadMaxTotalOverride', planRow.upload_max_total_override, 'INVALID_UPLOAD_MAX_TOTAL_OVERRIDE'),
+    };
+    const { updated_at } = await updateTenantPlanRow(client, tenantId, nextTier, nextCredits, nextOverride, nextInviteLimit, nextUpload);
 
     // Phase B — app role + tenant GUC: put auditInTx in exactly the context
     // its contract (audit.ts) and the reviewed updateAiGenerateMode precedent
@@ -1278,6 +1300,12 @@ export async function updateTenantPlan(
         previous_ai_answers_override: planRow.ai_answers_included_override ?? null,
         max_invited_per_assessment: nextInviteLimit,
         previous_max_invited_per_assessment: prevInviteLimit,
+        upload_max_per_upload_override: nextUpload.perUpload,
+        upload_per_month_override: nextUpload.perMonth,
+        upload_max_total_override: nextUpload.total,
+        previous_upload_max_per_upload_override: planRow.upload_max_per_upload_override ?? null,
+        previous_upload_per_month_override: planRow.upload_per_month_override ?? null,
+        previous_upload_max_total_override: planRow.upload_max_total_override ?? null,
       },
     });
 

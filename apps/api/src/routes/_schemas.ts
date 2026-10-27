@@ -56,6 +56,30 @@ export const updatePlanBody = z.object({
     .max(1_000_000, 'aiAnswersIncludedOverride must be 1000000 or less')
     .nullable()
     .optional(),
+  // EXP-17: organisation-upload limit override (questions in one upload); null clears it (plan default applies).
+  uploadMaxPerUploadOverride: z
+    .number({ invalid_type_error: 'uploadMaxPerUploadOverride must be a number or null' })
+    .int('uploadMaxPerUploadOverride must be a whole number')
+    .min(0, 'uploadMaxPerUploadOverride must be 0 or more')
+    .max(1_000_000, 'uploadMaxPerUploadOverride must be 1000000 or less')
+    .nullable()
+    .optional(),
+  // EXP-17: organisation-upload limit override (uploads per month); null clears it (plan default applies).
+  uploadPerMonthOverride: z
+    .number({ invalid_type_error: 'uploadPerMonthOverride must be a number or null' })
+    .int('uploadPerMonthOverride must be a whole number')
+    .min(0, 'uploadPerMonthOverride must be 0 or more')
+    .max(1_000_000, 'uploadPerMonthOverride must be 1000000 or less')
+    .nullable()
+    .optional(),
+  // EXP-17: organisation-upload limit override (total questions); null clears it (plan default applies).
+  uploadMaxTotalOverride: z
+    .number({ invalid_type_error: 'uploadMaxTotalOverride must be a number or null' })
+    .int('uploadMaxTotalOverride must be a whole number')
+    .min(0, 'uploadMaxTotalOverride must be 0 or more')
+    .max(1_000_000, 'uploadMaxTotalOverride must be 1000000 or less')
+    .nullable()
+    .optional(),
 });
 
 // ---- admin-super domains -----------------------------------------

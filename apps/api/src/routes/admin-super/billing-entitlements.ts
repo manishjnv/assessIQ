@@ -100,7 +100,7 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
       // Guard against a missing/null PATCH body (empty PATCH → no-op revalidate,
       // never a TypeError 500). Mirrors the ai-generate-mode `body?.` idiom.
       const body = parseBody(updatePlanBody, req.body, {
-        code: { tier: 'INVALID_TIER', includedCredits: 'INVALID_CREDITS', aiAnswersIncludedOverride: 'INVALID_AI_ANSWERS_OVERRIDE', maxInvitedPerAssessment: 'INVALID_MAX_INVITED' },
+        code: { tier: 'INVALID_TIER', includedCredits: 'INVALID_CREDITS', aiAnswersIncludedOverride: 'INVALID_AI_ANSWERS_OVERRIDE', maxInvitedPerAssessment: 'INVALID_MAX_INVITED', uploadMaxPerUploadOverride: 'INVALID_UPLOAD_PER_UPLOAD_OVERRIDE', uploadPerMonthOverride: 'INVALID_UPLOAD_PER_MONTH_OVERRIDE', uploadMaxTotalOverride: 'INVALID_UPLOAD_MAX_TOTAL_OVERRIDE' },
       });
 
       // Domain validation is fully delegated to updateTenantPlan.
@@ -110,6 +110,9 @@ export async function registerAdminSuperBillingRoutes(app: FastifyInstance): Pro
       if (body.aiAnswersIncludedOverride !== undefined) patch.aiAnswersIncludedOverride = body.aiAnswersIncludedOverride;
 
       if (body.maxInvitedPerAssessment !== undefined) patch.maxInvitedPerAssessment = body.maxInvitedPerAssessment;
+      if (body.uploadMaxPerUploadOverride !== undefined) patch.uploadMaxPerUploadOverride = body.uploadMaxPerUploadOverride;
+      if (body.uploadPerMonthOverride !== undefined) patch.uploadPerMonthOverride = body.uploadPerMonthOverride;
+      if (body.uploadMaxTotalOverride !== undefined) patch.uploadMaxTotalOverride = body.uploadMaxTotalOverride;
 
       const result = await updateTenantPlan(req.session!.userId, tenantId, patch);
       return reply.code(200).send(result);

@@ -10442,3 +10442,66 @@ $$,
   1,
   'active'
 ) ON CONFLICT (tenant_id, key, locale, version) DO NOTHING;
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+VALUES (
+  gen_random_uuid(),
+  NULL,
+  'admin.platform.upload_override_per_upload',
+  'admin',
+  'en',
+  'Most questions in one upload for this organisation. Leave empty to use the plan default.',
+  $$## Questions per upload
+
+This sets the most questions one organisation upload file may hold.
+
+- **Empty box.** The limit of the plan tier applies.
+- **Number.** Type a whole number from 0 to 1000000. 0 means the organisation cannot upload.
+
+Only a platform admin can change this. Saving needs a fresh authenticator code and is written to the audit log.
+$$,
+  1,
+  'active'
+) ON CONFLICT (tenant_id, key, locale, version) DO NOTHING;
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+VALUES (
+  gen_random_uuid(),
+  NULL,
+  'admin.platform.upload_override_per_month',
+  'admin',
+  'en',
+  'Most uploads each month for this organisation. Leave empty to use the plan default.',
+  $$## Uploads per month
+
+This sets how many uploads the organisation may make in one month.
+
+- **Empty box.** The limit of the plan tier applies.
+- **Number.** Type a whole number from 0 to 1000000. 0 means the organisation cannot upload.
+
+Only a platform admin can change this. Saving needs a fresh authenticator code and is written to the audit log.
+$$,
+  1,
+  'active'
+) ON CONFLICT (tenant_id, key, locale, version) DO NOTHING;
+
+INSERT INTO help_content (id, tenant_id, key, audience, locale, short_text, long_md, version, status)
+VALUES (
+  gen_random_uuid(),
+  NULL,
+  'admin.platform.upload_override_total',
+  'admin',
+  'en',
+  'Most uploaded questions in total for this organisation. Leave empty to use the plan default.',
+  $$## Total uploaded questions
+
+This sets the most uploaded questions the organisation may keep in all.
+
+- **Empty box.** The limit of the plan tier applies.
+- **Number.** Type a whole number from 0 to 1000000. 0 means the organisation cannot upload.
+
+Only a platform admin can change this. Saving needs a fresh authenticator code and is written to the audit log.
+$$,
+  1,
+  'active'
+) ON CONFLICT (tenant_id, key, locale, version) DO NOTHING;

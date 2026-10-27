@@ -413,3 +413,11 @@ Rows: Z-96, Z-93, Z-15 (a), SP11, Z-84. Code commit `5afedc62` (CI green, deploy
 
 ## S51 additions (2026-10-23)
 - `getUploadLimits(client, tenantId)` returns `{perUpload, perMonth, total}` (override first, then the `plan_tier_limits` row; null unlimited, 0 not allowed; a missing plan row counts as free). `plan_tier_limits` is platform data, app-role read-only.
+
+## EXP-17 upload limit overrides (2026-10-28)
+
+- **What.** `PATCH /api/admin/super/tenants/:tenantId/plan` accepts `uploadMaxPerUploadOverride`, `uploadPerMonthOverride`, `uploadMaxTotalOverride` (integer 0 to 1000000, or null). Absent = keep, null = clear, so the plan tier row of `plan_tier_limits` applies again. Errors: `INVALID_UPLOAD_PER_UPLOAD_OVERRIDE`, `INVALID_UPLOAD_PER_MONTH_OVERRIDE`, `INVALID_UPLOAD_MAX_TOTAL_OVERRIDE`. The audit `after` of `tenant.plan_updated` holds the new and `previous_*` values. The billing detail returns the three raw override values. The billing drawer has three number inputs (empty = plan default), help ids `admin.platform.upload_override_*` (migration 0271).
+- **Why.** The columns on `tenant_plans` (migration 0252) were only writable by SQL. `getUploadLimits` already COALESCEs them, so the owner can now give one organisation a larger or smaller limit without a code change.
+- **Rejected.** A new endpoint (the plan-update flow already has the lock, audit and fresh-MFA gate). Tying the values to the tier change (they are independent per organisation).
+- **Not included.** Editing `plan_tier_limits` itself (still system role only). Any cap that links the overrides to the tier. No new column or table.
+- **Downstream.** Module 04 organisation upload reads the limits through `getUploadLimits`, so a saved override applies on the next upload screen load and stage/commit. `docs/03-api-contract.md` lists the new body fields.
