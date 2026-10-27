@@ -452,3 +452,10 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 
 - `listReviewQueue` returns `reported` (questions with a candidate report) and `report_count` per item; the filter `reported` lists only those. Source: table `question_reports` (module 06, migration 0268), tenant-scoped by RLS, so an organisation sees its own candidates' reports. Platform master questions do not see the reports on tenant clones (not included; needs a system-role aggregate and an owner rule).
 - A report does not set `disputed` or `needs_fix`. The staff review actions stay the only way to change a state.
+
+### Decision: auto-dispute from candidate reports is OFF (owner, 2026-10-26)
+- **Rule:** a candidate report (EXP-28) never changes marks, never changes the review state, and never moves a question to `disputed` by count. Only a human reviewer sets `disputed`.
+- **Why:** a platform master question is shared by many organisations. If N reports flipped it to `disputed`, a few accounts (or one group of candidates, or a hostile user) could block a good question for every organisation. Reports are cheap to create and hard to verify, so a count is a weak signal. Free sign-up and Mock tests make abuse easier, not harder. A false block hurts marks and tests that are already running.
+- **Considered and rejected:** (a) auto-dispute at a fixed N; (b) auto-dispute with a per-organisation count; (c) auto-hide from new draws after N. All three give the attacker a switch. The reviewer queue (Reported tab, Reports column) is the control.
+- **Not included:** any threshold, any auto state change, any email on count.
+- **Revisit when:** there is real report data and the reviewer queue is too slow. Then add a reviewer alert (not a state change) at a count. Any state change stays human.
