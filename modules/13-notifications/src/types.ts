@@ -44,6 +44,8 @@ export const EmailTemplateNameSchema = z.enum([
   'invite_limit_blocked',
   // CT-0: monthly reminder to the platform admins that exam patterns are due for a manual check. Counts + link only; no AI.
   'pattern_review_due',
+  // X3a: sent once when a certificate is first issued. Title, credential id and verify link only.
+  'credential_issued',
 ]);
 
 export type EmailTemplateName = z.infer<typeof EmailTemplateNameSchema>;
@@ -205,6 +207,14 @@ export const PatternReviewDueVarsSchema = z.object({
   count: z.number().int().min(1),
   listLink: z.string().url(),
 });
+// X3a: credential_issued. The holder's own mail: certificate title, credential id and the public verify link.
+export const CredentialIssuedVarsSchema = z.object({
+  recipientName: z.string().optional(),
+  courseTitle: z.string().min(1),
+  credentialId: z.string().min(1),
+  verifyLink: z.string().url(),
+});
+export type CredentialIssuedVars = z.infer<typeof CredentialIssuedVarsSchema>;
 export type PatternReviewDueVars = z.infer<typeof PatternReviewDueVarsSchema>;
 export type InviteLimitBlockedVars = z.infer<typeof InviteLimitBlockedVarsSchema>;
 export type CreditLowBalanceVars = z.infer<typeof CreditLowBalanceVarsSchema>;
@@ -239,6 +249,7 @@ export type TemplateVarsMap = {
   credit_expiring: CreditExpiringVars;
   invite_limit_blocked: InviteLimitBlockedVars;
   pattern_review_due: PatternReviewDueVars;
+  credential_issued: CredentialIssuedVars;
 };
 
 // ---------------------------------------------------------------------------

@@ -19,3 +19,18 @@ export async function certForDisplay<T extends { tier: Tier; tenant_id: string }
   if (cert.tier !== 'distinction') return cert;
   return applyDistinctionSetting(cert, await getCertificateShowDistinction(cert.tenant_id));
 }
+
+/** X3a: expiry state from the optional valid_until. Display-only; the signature never covers it. */
+export type ExpiryState =
+  | { kind: 'none' }
+  | { kind: 'expired'; date: string }
+  | { kind: 'until'; date: string };
+
+/** Pure. NULL (or an unreadable date) shows nothing. Date is YYYY-MM-DD (UTC). */
+export function expiryState(validUntil: string | null | undefined, now: Date = new Date()): ExpiryState {
+  if (validUntil === null || validUntil === undefined) return { kind: 'none' };
+  const t = Date.parse(validUntil);
+  if (Number.isNaN(t)) return { kind: 'none' };
+  const date = new Date(t).toISOString().slice(0, 10);
+  return t <= now.getTime() ? { kind: 'expired', date } : { kind: 'until', date };
+}

@@ -102,6 +102,9 @@ const CERTIFICATE_PROJECTION = `
        ELSE to_char(revoked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
   END AS revoked_at,
   revoke_reason,
+  CASE WHEN valid_until IS NULL THEN NULL
+       ELSE to_char(valid_until AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+  END AS valid_until,
   pdf_downloads,
   linkedin_shares,
   verification_views,
@@ -530,6 +533,9 @@ export async function listCertificatesAdmin(
             ELSE to_char(c.revoked_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
        END AS revoked_at,
        c.revoke_reason,
+       CASE WHEN c.valid_until IS NULL THEN NULL
+            ELSE to_char(c.valid_until AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
+       END AS valid_until,
        c.pdf_downloads,
        c.linkedin_shares,
        c.verification_views,

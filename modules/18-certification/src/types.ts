@@ -138,6 +138,9 @@ export interface Certificate {
   /** Reason for revocation. Null if not revoked. */
   revoke_reason: string | null;
 
+  /** X3a: optional expiry (ISO 8601). Null = never expires. Display-only; not in the signed payload. */
+  valid_until?: string | null;
+
   /** Counter: number of PDF downloads. Increment with UPDATE … = pdf_downloads + 1. */
   pdf_downloads: number;
 

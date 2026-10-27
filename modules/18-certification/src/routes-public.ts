@@ -42,7 +42,7 @@ import { ERASED_CANDIDATE_LABEL } from '@assessiq/core';
 import { extractClientIp } from '@assessiq/auth';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
-import { certForDisplay } from './display.js';
+import { certForDisplay, expiryState } from './display.js';
 import { loadLogoDataUri } from './logo.js';
 import { SAFE_LOGO_DATA_URI } from './logo-pattern.js';
 import {
@@ -213,6 +213,25 @@ function renderVerifyPage(data: VerifyPageData): string {
 
   const ogMeta = renderOgMeta(cert, status);
 
+  // X3a: optional expiry. Revoked wins (no expiry note); a tampered card shows none either.
+  const expiry = status === 'valid' ? expiryState(cert.valid_until) : ({ kind: 'none' } as const);
+  const expiredChip =
+    expiry.kind === 'expired'
+      ? ` <span class="badge cert-status--revoked cert-expired" data-help-id="public.verify.expired">Expired</span>`
+      : '';
+  const validUntilField =
+    expiry.kind === 'until'
+      ? `<div class="field">
+      <p class="label">Valid until</p>
+      <p class="value" data-help-id="public.verify.valid_until">${escHtml(expiry.date)}</p>
+    </div>`
+      : expiry.kind === 'expired'
+        ? `<div class="field">
+      <p class="label">Expired on</p>
+      <p class="value">${escHtml(expiry.date)}</p>
+    </div>`
+        : '';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -241,12 +260,17 @@ function renderVerifyPage(data: VerifyPageData): string {
     .credential-id { font-family: monospace; font-size: .9rem; background: #f3f4f6; padding: .25rem .5rem; border-radius: 4px; }
     .share-linkedin { display: inline-flex; align-items: center; gap: .5rem; margin-top: 1.5rem; padding: .625rem 1.25rem; border-radius: 6px; border: 1.5px solid #0a66c2; background: #fff; color: #0a66c2; font-size: .9rem; font-weight: 600; text-decoration: none; font-family: system-ui, sans-serif; cursor: pointer; }
     .share-linkedin:hover { background: #f0f6ff; }
+    .share-row { display: flex; flex-wrap: wrap; gap: .5rem; }
+    .share-row .share-linkedin { margin-top: 1.5rem; }
+    .share-whatsapp { border-color: #128c7e; color: #128c7e; }
+    .share-x { border-color: #111827; color: #111827; }
+    .cert-expired { margin-left: .5rem; }
     .share-linkedin--disabled { opacity: .4; cursor: not-allowed; border-color: #9ca3af; color: #9ca3af; }
   </style>
 </head>
 <body>
   <div class="card">
-    <span class="badge cert-status--${status}">${statusLabel}</span>
+    <span class="badge cert-status--${status}">${statusLabel}</span>${expiredChip}
     <div class="field">
       <p class="label">Credential ID</p>
       <p class="value credential-id">${escHtml(cert.credential_id)}</p>
@@ -278,6 +302,7 @@ function renderVerifyPage(data: VerifyPageData): string {
       <p class="label">Issued</p>
       <p class="value">${escHtml(cert.issued_at)}</p>
     </div>
+    ${validUntilField}
     ${
       status === 'revoked'
         ? `<div class="field">
@@ -286,7 +311,7 @@ function renderVerifyPage(data: VerifyPageData): string {
     </div>`
         : ''
     }
-    ${renderShareSection(cert, status)}
+    ${renderShareSection(cert, status, expiry.kind === 'expired')}
   </div>
 </body>
 </html>`;
@@ -531,7 +556,7 @@ function determineStatus(cert: Certificate): CertStatus {
 // No JS required — pure <a> / <button disabled> HTML. The share URL uses the
 // LinkedIn share-offsite pattern (no Company Page or API auth needed).
 
-function renderShareSection(cert: Certificate, status: CertStatus): string {
+function renderShareSection(cert: Certificate, status: CertStatus, expired = false): string {
   if (status === 'tampered') return '';
   const baseUrl = process.env['PUBLIC_BASE_URL'];
   if (!baseUrl || baseUrl.length === 0) return '';
@@ -548,18 +573,30 @@ function renderShareSection(cert: Certificate, status: CertStatus): string {
     `<rect x="2" y="9" width="4" height="12" rx="1"/>` +
     `<circle cx="4" cy="4" r="2"/></svg>`;
 
-  if (status === 'valid') {
+  if (status === 'valid' && !expired) {
+    // X3b: WhatsApp and X links sit next to LinkedIn, same style family.
+    const text = `I earned a certificate: ${cert.course_title}. Check it here: ${verifyUrl}`;
+    const waUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+    const xUrl =
+      `https://twitter.com/intent/tweet?text=${encodeURIComponent(`I earned a certificate: ${cert.course_title}`)}` +
+      `&url=${encodeURIComponent(verifyUrl)}`;
     return (
+      `<div class="share-row">` +
       `<a href="${escAttr(shareUrl)}" target="_blank" rel="noopener noreferrer" ` +
       `class="share-linkedin" data-help-id="public.verify.share_linkedin">` +
-      `${icon} Share on LinkedIn</a>`
+      `${icon} Share on LinkedIn</a>` +
+      `<a href="${escAttr(waUrl)}" target="_blank" rel="noopener noreferrer" ` +
+      `class="share-linkedin share-whatsapp" data-help-id="public.verify.share_whatsapp">Share on WhatsApp</a>` +
+      `<a href="${escAttr(xUrl)}" target="_blank" rel="noopener noreferrer" ` +
+      `class="share-linkedin share-x" data-help-id="public.verify.share_x">Share on X</a>` +
+      `</div>`
     );
   }
 
-  // revoked — disabled button with tooltip
+  // revoked or expired: disabled LinkedIn button with tooltip; WhatsApp and X are left out
   return (
     `<button disabled class="share-linkedin share-linkedin--disabled" ` +
-    `title="Revoked certificates can&#39;t be shared" ` +
+    `title="${expired && status === 'valid' ? 'Expired certificates can&#39;t be shared' : 'Revoked certificates can&#39;t be shared'}" ` +
     `data-help-id="public.verify.share_linkedin">` +
     `${icon} Share on LinkedIn</button>`
   );

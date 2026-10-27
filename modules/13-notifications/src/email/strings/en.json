@@ -108,6 +108,12 @@
     "heading": "Exam patterns are due for a check.",
     "cta": "Open the exam patterns"
   },
+  "credential_issued": {
+    "page_title": "Your certificate is ready",
+    "brand_wordmark": "AssessIQ",
+    "heading": "Your certificate is ready.",
+    "cta": "View your certificate"
+  },
   "invite_limit_blocked": {
     "page_title": "An invite was blocked by the student limit",
     "brand_wordmark": "AssessIQ",

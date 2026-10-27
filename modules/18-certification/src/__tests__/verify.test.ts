@@ -80,6 +80,7 @@ function buildCert(overrides: Partial<Certificate> = {}): Certificate {
     issued_at: '2026-05-11T12:00:00Z',
     revoked_at: null as string | null,
     revoke_reason: null as string | null,
+    valid_until: null as string | null,
     pdf_downloads: 0,
     linkedin_shares: 0,
     verification_views: 5,
@@ -745,5 +746,68 @@ describe('GET /verify/:credentialId — LinkedIn share button (no PUBLIC_BASE_UR
     expect(res.body).not.toContain('linkedin.com/sharing');
     // Page still renders the cert fields
     expect(res.body).toContain(CREDENTIAL_ID);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// X3a / X3b — valid_until display and the WhatsApp / X share links
+// ---------------------------------------------------------------------------
+
+describe('GET /verify/:credentialId — expiry and extra share links', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.stubEnv('PUBLIC_BASE_URL', 'https://assessiq.automateedge.cloud');
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) => fn({} as PoolClient));
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  async function get(cert: Certificate, ip: string): Promise<string> {
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(cert);
+    const res = await app.inject({ method: 'GET', url: `/verify/${CREDENTIAL_ID}`, headers: { 'x-forwarded-for': ip } });
+    expect(res.statusCode).toBe(200);
+    return res.body;
+  }
+
+  it('NULL valid_until shows nothing new and offers WhatsApp and X', async () => {
+    const body = await get(buildCert(), '10.0.2.1');
+    expect(body).not.toContain('public.verify.valid_until');
+    expect(body).not.toContain('public.verify.expired');
+    expect(body).toContain('wa.me/?text=');
+    expect(body).toContain('twitter.com/intent/tweet?text=');
+    expect(body).toContain('public.verify.share_whatsapp');
+    expect(body).toContain('public.verify.share_x');
+  });
+
+  it('future valid_until shows "Valid until <date>"', async () => {
+    const body = await get(buildCert({ valid_until: '2099-01-02T00:00:00Z' }), '10.0.2.2');
+    expect(body).toContain('Valid until');
+    expect(body).toContain('2099-01-02');
+    expect(body).not.toContain('public.verify.expired');
+  });
+
+  it('past valid_until shows Expired and hides all share links but the disabled button', async () => {
+    const body = await get(buildCert({ valid_until: '2020-01-02T00:00:00Z' }), '10.0.2.3');
+    expect(body).toContain('Expired</span>');
+    expect(body).toContain('share-linkedin--disabled');
+    expect(body).not.toContain('wa.me');
+    expect(body).not.toContain('twitter.com/intent');
+  });
+
+  it('revoked wins: no Expired note, no WhatsApp or X', async () => {
+    const body = await get(
+      buildCert({ valid_until: '2020-01-02T00:00:00Z', revoked_at: '2026-06-01T00:00:00Z', revoke_reason: 'x' }),
+      '10.0.2.4',
+    );
+    expect(body).not.toContain('public.verify.expired');
+    expect(body).not.toContain('wa.me');
+    expect(body).toContain('Revoked');
   });
 });

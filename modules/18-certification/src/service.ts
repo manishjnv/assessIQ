@@ -34,8 +34,9 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 
 import { auditInTx } from '@assessiq/audit-log';
-import { AppError, DISTINCTION_PCT, isPass, meetsPct } from '@assessiq/core';
-import { getCertificateShowDistinction, withTenant } from '@assessiq/tenancy';
+import { AppError, DISTINCTION_PCT, isPass, meetsPct, streamLogger } from '@assessiq/core';
+import { sendCredentialIssuedEmail } from '@assessiq/notifications';
+import { getCertificateShowDistinction, onCommit, withTenant } from '@assessiq/tenancy';
 
 import {
   DEFAULT_CREDENTIAL_PREFIX,
@@ -359,6 +360,22 @@ export async function issueCertificate(
       candidate_id: inserted.candidate_id,
       attempt_id: inserted.attempt_id,
     },
+  });
+
+  // X3a: credential email, only for a NEW certificate (not the idempotent or upgrade paths).
+  // After commit, so a rollback sends nothing. Fire-and-forget: a failure is logged, never thrown.
+  const issued = inserted;
+  onCommit(client, async () => {
+    try {
+      await sendCredentialIssuedEmail({
+        tenantId: issued.tenant_id,
+        candidateId: issued.candidate_id,
+        courseTitle: issued.course_title,
+        credentialId: issued.credential_id,
+      });
+    } catch (err) {
+      streamLogger('app').warn({ err, credentialId: issued.credential_id }, 'certification.issue_email_failed');
+    }
   });
 
   return inserted;

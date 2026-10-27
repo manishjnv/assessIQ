@@ -278,6 +278,34 @@ certs to any tenant session. Decision for Session 3.
 prevents read-modify-write race conditions. Non-critical: a lost increment is
 acceptable (analytics, not business logic). Do NOT read-then-write counters.
 
+## X3a / X3b - expiry date, credential email, share links (2026-10-28)
+
+**What.** Migration `0272_certificate_valid_until.sql` adds `certificates.valid_until timestamptz NULL`
+(NULL = never expires; every existing row stays NULL). The verify page shows "Valid until <date>" for a
+future date and an "Expired" chip (plus "Expired on <date>") for a past date. Revoked still wins. WhatsApp
+(`wa.me`) and X (`twitter.com/intent/tweet`) share links sit next to LinkedIn
+(help ids `public.verify.share_whatsapp`, `public.verify.share_x`, plus `public.verify.valid_until`,
+`public.verify.expired`; seed only, no help migration). A revoked or expired cert shows the disabled LinkedIn
+button and no WhatsApp or X link. A new `credential_issued` email (module 13 template, `sendCredentialIssuedEmail`)
+is sent once for a NEWLY inserted certificate: title, credential id, link `PUBLIC_BASE_URL/verify/<id>`.
+
+**Why.** Expiry lets an organisation show a credential as current or lapsed. Share links and the email
+make the credential easy to pass on. The email goes after commit (`onCommit`), so a rollback sends nothing,
+and a failure is logged and swallowed: issuance never fails because of it.
+
+**Rejected.**
+- Putting `valid_until` in the HMAC payload: crypto is out of scope and every signed row would need re-signing.
+- A new queue: the email uses the existing `email.send` job path (`sendEmail`).
+- A "Take this test" button: no public (no-login) start exists (starts need an invitation token or a session; embed needs a host-app JWT), so nothing is rendered.
+- Candidate nav link: `CandidateShell.tsx` already has Certificates (desktop and mobile), nothing added.
+
+**Not included.** No admin UI or API to SET `valid_until` yet (column and display only); no expiry job or
+reminder email; no email on a tier upgrade or the idempotent re-hit; the PDF does not show the expiry.
+
+**Downstream.** `Certificate` type gains `valid_until` (all projections: `CERTIFICATE_PROJECTION` and the admin
+list SELECT). Module 13 gains template `credential_issued`. Module 16 gains 4 seed keys (fresh-DB count 647 to 651).
+Tests: `src/__tests__/valid-until.test.ts` (real Postgres), `verify.test.ts`.
+
 ## Migration
 `modules/18-certification/migrations/0046_certification_init.sql`
 

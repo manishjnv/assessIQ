@@ -411,6 +411,7 @@ describe('email template rendering', () => {
       { name: 'credit_expiring' as const, vars: { remaining: 150, expiresOn: '19 November 2026', usageLink: 'https://x.com/admin/settings?tab=plan' }},
       { name: 'pattern_review_due' as const, vars: { count: 2, listLink: 'https://x.com/admin/exam-blueprints' }},
       { name: 'invite_limit_blocked' as const, vars: { orgName: 'Org One', adminName: 'Ada Admin', adminEmail: 'ada@org.test', assessmentName: 'Big Exam', tried: 151, limit: 150, orgLink: 'https://x.com/admin/platform' }},
+      { name: 'credential_issued' as const, vars: { recipientName: 'Asha', courseTitle: 'SOC Analyst L1', credentialId: 'AIQ-2026-10-ABC123', verifyLink: 'https://x.com/verify/AIQ-2026-10-ABC123' }},
     ] as const;
 
     for (const { name, vars } of templates) {

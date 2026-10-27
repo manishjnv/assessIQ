@@ -413,6 +413,48 @@ public.verify.share_linkedin:
     Only **active** (non-revoked) certificates can be shared. If this
     certificate has been revoked, the button is disabled.
 
+public.verify.share_whatsapp:
+  audience: all
+  short_text: "Send this verified credential to a friend or group on WhatsApp."
+  long_md: |
+    ## Share on WhatsApp
+
+    Opens WhatsApp with a short message and the public verification link
+    of this certificate. Anyone who opens the link can check that it is real.
+
+    Only **active** certificates can be shared. A revoked or expired certificate
+    has no WhatsApp link.
+
+public.verify.share_x:
+  audience: all
+  short_text: "Post this verified credential on X."
+  long_md: |
+    ## Share on X
+
+    Opens the X post box with a short message and the public verification link
+    of this certificate. You can change the text before you post.
+
+    Only **active** certificates can be shared. A revoked or expired certificate
+    has no X link.
+
+public.verify.valid_until:
+  audience: all
+  short_text: "The last day this certificate counts as valid."
+  long_md: |
+    ## Valid until
+
+    Some certificates have an end date. After this date the page shows
+    **Expired**. A certificate with no end date does not expire.
+
+public.verify.expired:
+  audience: all
+  short_text: "The end date of this certificate has passed."
+  long_md: |
+    ## Expired
+
+    The end date of this certificate has passed. The certificate was real when
+    it was issued, but it is no longer current. Sharing is switched off.
+
 candidate.profile.name_callout:
   audience: candidate
   short_text: "Certificate names are taken from your profile at issuance. Update your profile name before completing an assessment."

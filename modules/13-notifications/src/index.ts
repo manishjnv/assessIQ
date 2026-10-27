@@ -36,6 +36,7 @@ export { sendInvitationReminderEmail } from './email/invitation-reminder.js';
 export { sendTotpResetNoticeEmail } from './email/totp-reset-notice.js';
 export { sendTotpEnrolledEmail } from './email/totp-enrolled.js';
 export { sendEvaluationQueueAlertEmail } from './email/evaluation-queue-alert.js';
+export { sendCredentialIssuedEmail } from './email/credential-issued.js';
 export { sendPatternReviewDueEmail } from './email/pattern-review-due.js';
 // EXP-37: super-admin notice when an invite hits the per-assessment student limit (best-effort, never throws).
 export { notifyInviteLimitBlocked } from './invite-limit-notice.js';
