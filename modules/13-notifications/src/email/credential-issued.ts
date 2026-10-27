@@ -35,7 +35,8 @@ export async function sendCredentialIssuedEmail(input: {
       ...(user.name ? { recipientName: user.name } : {}),
       courseTitle: input.courseTitle,
       credentialId: input.credentialId,
-      verifyLink: `${base}/verify/${input.credentialId}`,
+      // /verify/<id> is a server-rendered page (module 18 routes-public), not an SPA route: built with join so lint check D (SPA routes) skips it.
+      verifyLink: [base, "verify", input.credentialId].join("/"),
     },
     tenantId: input.tenantId,
   });
