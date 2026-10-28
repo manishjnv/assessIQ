@@ -8,6 +8,7 @@ import { HelpTip } from "@assessiq/help-system/components";
 import { AdminApiError } from "../api.js";
 import { getAffectedAttemptsApi, putAffectedAttemptReviewApi } from "../api/review.js";
 import type { AffectedAttemptItem, AffectedAttemptsResponse, AffectedReviewOutcome } from "../api/review.js";
+import { shortId } from "../lib/labels.js";
 
 const BODY: React.CSSProperties = { fontSize: 14, color: "var(--aiq-color-fg-primary)" };
 const MUTED: React.CSSProperties = { fontSize: 12, color: "var(--aiq-color-fg-muted)" };
@@ -152,7 +153,7 @@ export function AffectedAttemptsPanel({ questionId, id, reloadKey = 0 }: { quest
                   {data.items.map((a) => (
                     <tr key={a.attempt_id}>
                       <td style={CELL}>{a.assessment_name}</td>
-                      <td style={{ ...CELL, fontFamily: "var(--aiq-font-mono)" }}>{a.attempt_id.slice(0, 8)}</td>
+                      <td style={{ ...CELL, fontFamily: "var(--aiq-font-mono)" }}>{shortId(a.attempt_id)}</td>
                       <td style={CELL}>{a.question_version}</td>
                       <td style={CELL}>{a.current_version}</td>
                       <td style={CELL}>{a.score_earned === null ? "Not marked" : `${a.score_earned} of ${a.score_max ?? "?"}`}</td>
