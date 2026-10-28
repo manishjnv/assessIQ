@@ -32,9 +32,9 @@ describe('/try demo', () => {
   it('full flow makes zero network requests', () => {
     renderTry();
     fireEvent.click(screen.getByText('Start the sample assessment'));
-    fireEvent.click(screen.getByLabelText('Question 4: unanswered')); // navigator
+    fireEvent.click(screen.getByLabelText('Question 4, unanswered')); // navigator
     fireEvent.click(screen.getByLabelText(/401/));
-    fireEvent.click(screen.getByLabelText('Question 2: unanswered'));
+    fireEvent.click(screen.getByLabelText('Question 2, unanswered'));
     fireEvent.change(screen.getByLabelText('Your answer (a number)'), { target: { value: '54' } });
     fireEvent.click(screen.getByText('Submit assessment'));
     expect(screen.getByText(/questions are unanswered/)).toBeTruthy();

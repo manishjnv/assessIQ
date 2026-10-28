@@ -934,3 +934,46 @@ candidate.attempt.clear:
 
     The question then shows as open in the progress bar and in the navigator.
     Clearing does not change your flag or your time. The change saves like any other answer.
+
+# ─── Question panel: filter, next open, collapse (Z-169) ───
+
+candidate.attempt.nav.filter:
+  audience: candidate
+  short_text: "Select Answered, Flagged or Open to show only those questions. Previous and Next then skip the rest."
+  long_md: |
+    ## Show only some questions
+
+    The three boxes at the top of the question panel show how many questions are answered,
+    flagged and open.
+
+    - **Select a box** to show only those questions. Previous, Next and the arrow keys then
+      move between those questions only.
+    - **Select the same box again**, or **Show all**, to see every question.
+    - The question you are on always stays visible.
+
+    This changes only what you see. It does not change your answers or your time.
+
+candidate.attempt.nav.next_open:
+  audience: candidate
+  short_text: "Go to the next question you have not answered. It starts again at the top after the last one."
+  long_md: |
+    ## Next unanswered
+
+    Use this to find a question you have not answered yet.
+
+    - The button goes to the next open question after the one you are on.
+    - After the last question it goes back to the first open one.
+    - The button is off when every question has an answer.
+
+candidate.attempt.nav.collapse:
+  audience: candidate
+  short_text: "Fold the question panel to a narrow list of numbers, or open it again. The key is the backslash."
+  long_md: |
+    ## Collapse the question panel
+
+    Use the arrow button on the panel to make more room for the question.
+
+    - The folded panel shows only the question numbers. Their colours still show which
+      questions are answered or flagged.
+    - Press the **\** key, or the **[** key, to fold or open the panel without the mouse.
+    - Your choice stays on this browser. It does not change your answers.

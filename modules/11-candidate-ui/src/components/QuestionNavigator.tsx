@@ -1,13 +1,14 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { Icon } from "@assessiq/ui-system";
 import { groupNavigatorItems, countAnswered } from "./navigatorGroups.js";
-
-type NavigatorFilter = "all" | "flagged" | "unanswered";
-const FILTERS: ReadonlyArray<readonly [NavigatorFilter, string]> = [
-  ["all", "All"],
-  ["flagged", "Flagged"],
-  ["unanswered", "Unanswered"],
-];
+import {
+  filterCounts,
+  isAnswered,
+  isFlagged,
+  matchesFilter,
+  neighbor,
+  type NavigatorFilter,
+} from "./navigatorFilter.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,19 +23,29 @@ export interface NavigatorItem {
   section?: { index: number; name: string };
   /** True when the question has an answer, even if status shows current/flagged. Falls back to status. */
   answered?: boolean;
+  /** True when the question is flagged, even if status shows current. Falls back to status. */
+  flagged?: boolean;
 }
 
 export interface QuestionNavigatorProps {
   items: NavigatorItem[];
   /** Called when the candidate clicks a square. */
   onSelect: (questionId: string) => void;
-  /** Optional layout override — default is responsive grid auto-fit, min 36px squares. */
+  /** Minimum square height in px (default 36). */
   squareSize?: number;
+  /** Z-169: controlled filter. Absent = the panel keeps its own. */
+  filter?: NavigatorFilter;
+  onFilterChange?: (filter: NavigatorFilter) => void;
+  /** Z-169: "Next unanswered". Absent = onSelect with the next open question. */
+  onNextOpen?: () => void;
+  /** Z-169: folded to a narrow column of numbers. The handle shows only with onToggleCollapsed. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
   "data-test-id"?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Style injection (once per page load, SSR-safe)
+// Style injection (once per page load, SSR-safe): focus ring, hover, reduced motion
 // ---------------------------------------------------------------------------
 
 const STYLE_ID = "aiq-question-navigator-style";
@@ -46,57 +57,72 @@ function injectStyles(): void {
   const el = document.createElement("style");
   el.id = STYLE_ID;
   el.textContent = `
-.aiq-question-navigator-square:hover:not([data-current="true"]) {
-  transform: translateY(-1px);
-}
-.aiq-question-navigator-square:focus-visible {
+.aiq-qnav-cell, .aiq-qnav-stat { transition: transform var(--aiq-motion-duration-fast, 120ms) var(--aiq-motion-easing-out, ease); }
+.aiq-qnav-cell:hover:not([data-current="true"]), .aiq-qnav-stat:hover { transform: translateY(-1px); }
+.aiq-qnav-cell:focus-visible, .aiq-qnav-stat:focus-visible, .aiq-qnav-btn:focus-visible {
   outline: 2px solid var(--aiq-color-accent);
   outline-offset: 2px;
+}
+.aiq-qnav-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) {
+  .aiq-qnav-cell, .aiq-qnav-stat { transition: none; }
+  .aiq-qnav-cell:hover:not([data-current="true"]), .aiq-qnav-stat:hover { transform: none; }
 }
 `.trim();
   document.head.appendChild(el);
 }
 
 // ---------------------------------------------------------------------------
-// Status → style map
+// Helpers
 // ---------------------------------------------------------------------------
 
-interface SquareStyles {
-  border: string;
-  background: string;
-  color: string;
-  fontWeight?: number | string;
+const SERIF = "var(--aiq-font-serif, Georgia, serif)";
+
+/** "Question 3, answered, flagged, current". */
+function cellName(item: NavigatorItem): string {
+  const parts = [`Question ${item.position}`, isAnswered(item) ? "answered" : "unanswered"];
+  if (isFlagged(item)) parts.push("flagged");
+  if (item.status === "current") parts.push("current");
+  return parts.join(", ");
 }
 
-const STATUS_LABEL: Record<NavigatorItem["status"], string> = {
-  unanswered: "unanswered",
-  answered: "answered",
-  flagged: "flagged",
-  current: "current",
-};
-
-const STATUS_STYLES: Record<NavigatorItem["status"], SquareStyles> = {
-  unanswered: {
-    border:     "1px solid var(--aiq-color-border)",
+function cellLook(item: NavigatorItem): CSSProperties {
+  if (item.status === "current") {
+    return {
+      border: "2px solid var(--aiq-color-accent)",
+      background: "var(--aiq-color-accent-soft)",
+      color: "var(--aiq-color-fg-primary)",
+      fontWeight: 600,
+    };
+  }
+  if (isAnswered(item)) {
+    return {
+      border: "1px solid var(--aiq-color-success)",
+      background: "var(--aiq-color-success-soft)",
+      color: "var(--aiq-color-fg-primary)",
+    };
+  }
+  return {
+    border: "1px solid var(--aiq-color-border)",
     background: "var(--aiq-color-bg-base)",
-    color:      "var(--aiq-color-fg-secondary)",
-  },
-  answered: {
-    border:     "1px solid var(--aiq-color-success)",
-    background: "var(--aiq-color-success-soft)",
-    color:      "var(--aiq-color-fg-primary)",
-  },
-  flagged: {
-    border:     "1px solid var(--aiq-color-warning)",
-    background: "var(--aiq-color-warning-soft)",
-    color:      "var(--aiq-color-fg-primary)",
-  },
-  current: {
-    border:      "2px solid var(--aiq-color-accent)",
-    background:  "var(--aiq-color-accent-soft)",
-    color:       "var(--aiq-color-fg-primary)",
-    fontWeight:  600,
-  },
+    color: "var(--aiq-color-fg-secondary)",
+  };
+}
+
+const STATS: ReadonlyArray<readonly ["answered" | "flagged" | "open", string]> = [
+  ["answered", "Answered"],
+  ["flagged", "Flagged"],
+  ["open", "Open"],
+];
+
+const ctrl: CSSProperties = {
+  padding: "var(--aiq-space-xs) var(--aiq-space-sm)",
+  border: "1px solid var(--aiq-color-border)",
+  borderRadius: "var(--aiq-radius-sm)",
+  background: "var(--aiq-color-bg-base)",
+  color: "var(--aiq-color-fg-primary)",
+  fontSize: "var(--aiq-text-sm)",
+  cursor: "pointer",
 };
 
 // ---------------------------------------------------------------------------
@@ -108,170 +134,250 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
     items,
     onSelect,
     squareSize = 36,
+    filter: filterProp,
+    onFilterChange,
+    onNextOpen,
+    collapsed = false,
+    onToggleCollapsed,
     "data-test-id": testId,
   } = props;
 
-  // Inject hover/focus CSS once on mount (SSR-safe: injectStyles guards on document).
   useEffect(() => {
     injectStyles();
   }, []);
 
-  const [filter, setFilter] = useState<NavigatorFilter>("all");
-  const counts = {
-    all: items.length,
-    flagged: items.filter((i) => i.status === "flagged").length,
-    unanswered: items.filter((i) => i.status === "unanswered").length,
+  const [ownFilter, setOwnFilter] = useState<NavigatorFilter>("all");
+  const filter = filterProp ?? ownFilter;
+  const setFilter = (f: NavigatorFilter): void => {
+    setOwnFilter(f);
+    onFilterChange?.(f);
   };
+
+  const counts = filterCounts(items);
   // The current square always stays visible so the candidate never loses their place.
-  const visible = filter === "all" ? items : items.filter((i) => i.status === filter || i.status === "current");
+  const visible = items.filter((i) => i.status === "current" || matchesFilter(i, filter));
+  const currentId = items.find((i) => i.status === "current")?.questionId ?? "";
+  const nextOpen = neighbor(items, currentId, 1, "open");
 
-  const jumpFlagged = (dir: 1 | -1) => {
-    const flagged = items.filter((i) => i.status === "flagged");
-    if (flagged.length === 0) return;
-    const cur = items.findIndex((i) => i.status === "current");
-    // Walk from the current square (or the list edge) in `dir`, wrapping around.
-    for (let step = 1; step <= items.length; step++) {
-      const idx = (((cur === -1 ? (dir === 1 ? -1 : items.length) : cur) + dir * step) % items.length + items.length) % items.length;
-      if (items[idx]!.status === "flagged") {
-        onSelect(items[idx]!.questionId);
-        return;
-      }
-    }
+  const goNextOpen = (): void => {
+    if (onNextOpen !== undefined) onNextOpen();
+    else if (nextOpen !== null) onSelect(nextOpen.questionId);
   };
 
-  const ctrl: CSSProperties = {
-    padding: "var(--aiq-space-xs) var(--aiq-space-sm)",
-    border: "1px solid var(--aiq-color-border)",
-    borderRadius: "var(--aiq-radius-sm)",
-    background: "var(--aiq-color-bg-base)",
-    color: "var(--aiq-color-fg-primary)",
-    fontSize: "var(--aiq-text-sm)",
-    cursor: "pointer",
+  const info =
+    filter === "all"
+      ? "Select a count to show and navigate only those questions."
+      : `Showing ${filter} only. Previous and Next skip the rest.`;
+
+  const handle =
+    onToggleCollapsed === undefined ? null : (
+      <button
+        type="button"
+        className="aiq-qnav-btn"
+        aria-label={collapsed ? "Expand question panel" : "Collapse question panel"}
+        aria-expanded={!collapsed}
+        data-help-id="candidate.attempt.nav.collapse"
+        onClick={onToggleCollapsed}
+        style={{ ...ctrl, minWidth: 36, minHeight: 36, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+      >
+        <Icon name={collapsed ? "arrowLeft" : "arrow"} size={14} />
+      </button>
+    );
+
+  const renderCell = (item: NavigatorItem) => {
+    const current = item.status === "current";
+    return (
+      <button
+        key={item.questionId}
+        type="button"
+        className="aiq-qnav-cell"
+        data-current={current ? "true" : undefined}
+        aria-label={cellName(item)}
+        aria-current={current ? "step" : undefined}
+        onClick={() => onSelect(item.questionId)}
+        style={{
+          ...cellLook(item),
+          width: "100%",
+          aspectRatio: collapsed ? undefined : "1",
+          minHeight: squareSize,
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxSizing: "border-box",
+          fontFamily: "var(--aiq-font-mono)",
+          fontSize: "var(--aiq-text-sm)",
+          borderRadius: 10,
+          cursor: "pointer",
+          padding: 0,
+          margin: 0,
+          lineHeight: 1,
+        }}
+      >
+        {item.position}
+        {isFlagged(item) && (
+          <span
+            aria-hidden="true"
+            data-flag-dot="true"
+            style={{
+              position: "absolute",
+              top: 4,
+              right: 4,
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: "var(--aiq-color-warning)",
+            }}
+          />
+        )}
+      </button>
+    );
   };
+
+  if (collapsed) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
+        {handle}
+        <nav
+          aria-label="Question navigator"
+          data-test-id={testId}
+          style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)", width: "100%" }}
+        >
+          {visible.map(renderCell)}
+        </nav>
+      </div>
+    );
+  }
+
+  const empty = filter !== "all" && counts[filter] === 0;
 
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-sm)" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--aiq-space-sm)" }}>
+        <div>
+          <div style={{ fontFamily: SERIF, fontSize: 20, fontWeight: 500, color: "var(--aiq-color-fg-primary)" }}>Questions</div>
+          <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 12, color: "var(--aiq-color-fg-secondary)" }}>
+            {counts.answered} / {counts.all} answered
+          </div>
+        </div>
+        {handle}
+      </div>
+
       <div
         role="group"
         aria-label="Filter questions"
-        style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-xs)", padding: "var(--aiq-space-md) var(--aiq-space-md) 0" }}
+        data-help-id="candidate.attempt.nav.filter"
+        style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--aiq-space-xs)" }}
       >
-        {FILTERS.map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={filter === key}
-            onClick={() => setFilter(key)}
-            style={{ ...ctrl, fontWeight: filter === key ? 600 : "normal", borderColor: filter === key ? "var(--aiq-color-accent)" : "var(--aiq-color-border)" }}
-          >
-            {label} ({counts[key]})
-          </button>
-        ))}
-        <button type="button" disabled={counts.flagged === 0} onClick={() => jumpFlagged(-1)} style={{ ...ctrl, opacity: counts.flagged === 0 ? 0.5 : 1 }}>
-          Previous flagged
-        </button>
-        <button type="button" disabled={counts.flagged === 0} onClick={() => jumpFlagged(1)} style={{ ...ctrl, opacity: counts.flagged === 0 ? 0.5 : 1 }}>
-          Next flagged
-        </button>
-      </div>
-      <p role="status" aria-live="polite" style={{ margin: 0, padding: "var(--aiq-space-xs) var(--aiq-space-md) 0", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>
-        Showing {visible.length} of {counts.all} questions. {counts.flagged} flagged, {counts.unanswered} unanswered.
-      </p>
-    <nav
-      aria-label="Question navigator"
-      data-test-id={testId}
-      style={{ padding: "var(--aiq-space-md)" }}
-    >
-      {groupNavigatorItems(visible).map((group) => {
-        const sec = group.section;
-        const all = sec === null ? [] : items.filter((i) => i.section?.index === sec.index);
-        return (
-        <div key={sec?.index ?? "flat"}>
-          {sec !== null && (
+        {STATS.map(([key, label]) => {
+          const pressed = filter === key;
+          const tone = key === "flagged" ? "warning" : "accent";
+          return (
             <button
+              key={key}
               type="button"
-              onClick={() => onSelect((all[0] ?? group.items[0]!).questionId)}
-              style={{ ...ctrl, width: "100%", textAlign: "left", fontWeight: 600, margin: "var(--aiq-space-sm) 0 var(--aiq-space-xs)" }}
+              className="aiq-qnav-stat"
+              aria-pressed={pressed}
+              aria-label={`${label} ${counts[key]}`}
+              onClick={() => setFilter(pressed ? "all" : key)}
+              style={{
+                minHeight: 44,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 2,
+                padding: "var(--aiq-space-xs)",
+                borderRadius: 10,
+                cursor: "pointer",
+                border: `1px solid ${pressed ? `var(--aiq-color-${tone})` : "var(--aiq-color-border)"}`,
+                background: pressed ? `var(--aiq-color-${tone}-soft)` : "var(--aiq-color-bg-base)",
+                color: "var(--aiq-color-fg-primary)",
+              }}
             >
-              {sec.name} ({countAnswered(all)}/{all.length} answered)
-            </button>
-          )}
-          <div
-            style={{
-              display:             "grid",
-              gridTemplateColumns: `repeat(auto-fill, minmax(${squareSize}px, 1fr))`,
-              gap:                 "var(--aiq-space-xs)",
-            }}
-          >
-      {group.items.map((item) => {
-        const isCurrent = item.status === "current";
-        const styles = STATUS_STYLES[item.status];
-
-        return (
-          <button
-            key={item.questionId}
-            type="button"
-            className="aiq-question-navigator-square"
-            data-current={isCurrent ? "true" : undefined}
-            aria-label={`Question ${item.position}: ${STATUS_LABEL[item.status]}`}
-            aria-current={isCurrent ? "step" : undefined}
-            onClick={() => onSelect(item.questionId)}
-            style={{
-              // Layout
-              width:         "100%",
-              aspectRatio:   "1",
-              position:      "relative",
-              display:       "flex",
-              alignItems:    "center",
-              justifyContent:"center",
-              // Sizing
-              boxSizing:     "border-box",
-              // Status-driven appearance
-              border:        styles.border,
-              background:    styles.background,
-              color:         styles.color,
-              fontWeight:    styles.fontWeight ?? "normal",
-              // Typography
-              fontFamily:    "var(--aiq-font-mono)",
-              fontSize:      "var(--aiq-text-sm)",
-              // Shape
-              borderRadius:  "var(--aiq-radius-sm)",
-              // Interaction
-              cursor:        "pointer",
-              // Motion
-              transition:    "transform var(--aiq-motion-duration-fast) var(--aiq-motion-easing-out)",
-              // Reset default button styles
-              padding:       0,
-              margin:        0,
-              lineHeight:    1,
-            }}
-          >
-            {item.position}
-
-            {/* Flag indicator — absolute top-right pip, only for flagged items */}
-            {item.status === "flagged" && (
-              <span
-                aria-hidden="true"
-                style={{
-                  position: "absolute",
-                  top:      2,
-                  right:    2,
-                  display:  "flex",
-                  color:    "var(--aiq-color-warning)",
-                  lineHeight: 1,
-                }}
-              >
-                <Icon name="flag" size={8} />
+              <span aria-hidden="true" style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 18, fontWeight: 600, lineHeight: 1 }}>
+                {counts[key]}
               </span>
-            )}
-          </button>
-        );
-      })}
-          </div>
-        </div>
-        );
-      })}
-    </nav>
+              <span aria-hidden="true" style={{ fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}>
+                {label}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <p role="status" aria-live="polite" style={{ margin: 0, fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>
+        {info}
+      </p>
+      {filter !== "all" && (
+        <button
+          type="button"
+          className="aiq-qnav-btn"
+          onClick={() => setFilter("all")}
+          style={{ alignSelf: "flex-start", background: "none", border: "none", padding: "var(--aiq-space-2xs) 0", color: "var(--aiq-color-accent)", textDecoration: "underline", fontSize: "var(--aiq-text-sm)", cursor: "pointer", minHeight: 36 }}
+        >
+          Show all
+        </button>
+      )}
+
+      <nav aria-label="Question navigator" data-test-id={testId}>
+        {empty && (
+          <p style={{ margin: "0 0 var(--aiq-space-sm)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-fg-secondary)" }}>Nothing here.</p>
+        )}
+        {groupNavigatorItems(visible).map((group) => {
+          const sec = group.section;
+          const all = sec === null ? [] : items.filter((i) => i.section?.index === sec.index);
+          return (
+            <div key={sec?.index ?? "flat"}>
+              {sec !== null && (
+                <button
+                  type="button"
+                  className="aiq-qnav-btn"
+                  onClick={() => onSelect((all[0] ?? group.items[0]!).questionId)}
+                  style={{ ...ctrl, width: "100%", textAlign: "left", fontWeight: 600, margin: "var(--aiq-space-sm) 0 var(--aiq-space-xs)" }}
+                >
+                  {sec.name} ({countAnswered(all)}/{all.length} answered)
+                </button>
+              )}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: "var(--aiq-space-xs)" }}>
+                {group.items.map(renderCell)}
+              </div>
+            </div>
+          );
+        })}
+      </nav>
+
+      <div
+        aria-label="Legend"
+        role="group"
+        style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-xs) var(--aiq-space-sm)", fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}
+      >
+        {[
+          { label: "Current", border: "2px solid var(--aiq-color-accent)", background: "var(--aiq-color-accent-soft)" },
+          { label: "Answered", border: "1px solid var(--aiq-color-success)", background: "var(--aiq-color-success-soft)" },
+          { label: "Flagged", border: "1px solid var(--aiq-color-warning)", background: "var(--aiq-color-warning)" },
+          { label: "Open", border: "1px solid var(--aiq-color-border)", background: "var(--aiq-color-bg-base)" },
+        ].map(({ label, border, background }) => (
+          <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span
+              aria-hidden="true"
+              style={{ width: 10, height: 10, borderRadius: label === "Flagged" ? "50%" : 3, border, background, boxSizing: "border-box", flexShrink: 0 }}
+            />
+            {label}
+          </span>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        className="aiq-qnav-btn"
+        disabled={nextOpen === null}
+        data-help-id="candidate.attempt.nav.next_open"
+        onClick={goNextOpen}
+        style={{ ...ctrl, minHeight: 40, fontWeight: 600, position: "sticky", bottom: 0, background: "var(--aiq-color-bg-raised, var(--aiq-color-bg-base))" }}
+      >
+        Next unanswered
+      </button>
     </div>
   );
 }

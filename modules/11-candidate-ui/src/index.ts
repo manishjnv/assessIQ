@@ -78,6 +78,12 @@ export {
   CandidateShell,
   CandidateSessionBanner,
   CandidateActivity,
+  neighbor,
+  filterSuffix,
+  filterCounts,
+  matchesFilter,
+  isAnswered,
+  isFlagged,
 } from "./components";
 export type {
   AttemptTimerProps,
@@ -87,6 +93,7 @@ export type {
   IntegrityBannerKind,
   QuestionNavigatorProps,
   NavigatorItem,
+  NavigatorFilter,
   CandidateHelpProps,
   CompletionModalProps,
   ResultSummaryProps,

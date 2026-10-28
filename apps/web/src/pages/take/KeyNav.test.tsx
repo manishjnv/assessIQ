@@ -69,7 +69,7 @@ describe('KeyNav shortcut switch', () => {
 });
 
 describe('KeyNav Z-168 keys', () => {
-  it('arrows move, A-D / 1-5 pick, F flags; ignored while typing or with a modifier', () => {
+  it('arrows move, A-D pick (1-5 do nothing), F flags; ignored while typing or with a modifier', () => {
     const p = vi.fn(), n = vi.fn(), pick = vi.fn(), flag = vi.fn();
     render(
       <>
@@ -86,7 +86,24 @@ describe('KeyNav Z-168 keys', () => {
     fireEvent.keyDown(screen.getByLabelText('answer'), { key: 'b' });
     expect(p).toHaveBeenCalledTimes(1);
     expect(n).toHaveBeenCalledTimes(1);
-    expect(pick.mock.calls).toEqual([[2], [4]]);
+    expect(pick.mock.calls).toEqual([[2]]);
     expect(flag).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('KeyNav Z-169 panel key', () => {
+  it('backslash and [ toggle the panel; ignored while typing or with a modifier', () => {
+    const t = vi.fn();
+    render(
+      <>
+        <KeyNav onPrev={vi.fn()} onNext={vi.fn()} onToggleNav={t} disabled={false} />
+        <textarea aria-label="answer" />
+      </>,
+    );
+    fireEvent.keyDown(document.body, { key: '\\' });
+    fireEvent.keyDown(document.body, { key: '[' });
+    fireEvent.keyDown(document.body, { key: '[', ctrlKey: true });
+    fireEvent.keyDown(screen.getByLabelText('answer'), { key: '[' });
+    expect(t).toHaveBeenCalledTimes(2);
   });
 });

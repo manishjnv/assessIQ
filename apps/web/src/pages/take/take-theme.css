@@ -21,7 +21,7 @@
   --aiq-color-bg-raised: #e8e4db;
   --aiq-color-bg-sunken: #dedad0;
   --aiq-color-border: #d4cec1;
-  --aiq-color-border-strong: #bab2a2;
+  --aiq-color-border-strong: #867e6d; /* Z-174: 3.4:1 on the page (WCAG 1.4.11) */
   --aiq-color-fg-primary: #23211d;
   --aiq-color-fg-secondary: #3e3a33;
   --aiq-color-fg-muted: #55504a;
@@ -43,11 +43,11 @@
   --aiq-color-bg-raised: #fafafa;
   --aiq-color-bg-sunken: #f3f3f4;
   --aiq-color-border: #e4e4e7;
-  --aiq-color-border-strong: #cdcdd1;
+  --aiq-color-border-strong: #85858d; /* Z-174: 3.7:1 */
   --aiq-color-fg-primary: #0a0a0b;
   --aiq-color-fg-secondary: #3f3f46;
   --aiq-color-fg-muted: #52525b;
-  --aiq-color-accent: oklch(0.58 0.17 258);
+  --aiq-color-accent: #2563b8; /* Z-174: AA on accent-soft, surface and as button fill with white ink */
   --aiq-color-accent-hover: oklch(0.52 0.19 258);
   --aiq-color-accent-soft: oklch(0.96 0.03 258);
   --aiq-color-success: oklch(0.5 0.13 150);
@@ -55,7 +55,7 @@
   --aiq-color-warning: oklch(0.72 0.15 70);
   --aiq-color-warning-soft: oklch(0.96 0.045 80);
   --aiq-take-warn-ink: oklch(0.47 0.11 65);
-  --aiq-color-danger: oklch(0.56 0.2 25);
+  --aiq-color-danger: #bd262c; /* Z-174: AA on danger-soft */
   --aiq-color-danger-soft: oklch(0.96 0.03 25);
   --aiq-take-accent-ink: #fff;
 }
@@ -65,7 +65,7 @@
   --aiq-color-bg-raised: #161618;
   --aiq-color-bg-sunken: #1d1d20;
   --aiq-color-border: #2a2a2e;
-  --aiq-color-border-strong: #3a3a3f;
+  --aiq-color-border-strong: #70707a; /* Z-174: 3.9:1 */
   --aiq-color-fg-primary: #f5f5f7;
   --aiq-color-fg-secondary: #b8b8c0;
   --aiq-color-fg-muted: #a2a2ab;
@@ -103,6 +103,9 @@ html.aiq-take-root body {
   grid-template-columns: minmax(0, 1fr) 320px;
 }
 .aiq-take-root .aiq-attempt-aside { min-height: 0; overflow: auto; }
+/* Z-169: folded question panel = a narrow column of numbers (desktop only; the mobile rule below comes later and wins). */
+.aiq-take-root .aiq-attempt-middle[data-nav-collapsed="true"] { grid-template-columns: minmax(0, 1fr) 72px; }
+.aiq-take-root .aiq-attempt-middle[data-nav-collapsed="true"] .aiq-attempt-aside { padding-left: var(--aiq-space-xs) !important; padding-right: var(--aiq-space-xs) !important; }
 
 /* ── Top bar ───────────────────────────────────────────────────────────── */
 .aiq-take-root .aiq-attempt-top {
@@ -131,6 +134,17 @@ html.aiq-take-root body {
   text-overflow: ellipsis;
   max-width: 200px;
 }
+/* Z-174: organisation mark (32 px, 8 px radius, border) and the timer bar under the top bar */
+.aiq-take-org { display: inline-flex; align-items: center; gap: 10px; min-width: 0; flex-shrink: 1; }
+.aiq-take-org-mark {
+  width: 32px; height: 32px; border-radius: 8px; flex: none; overflow: hidden;
+  border: 1px solid var(--aiq-color-border); background: var(--aiq-color-bg-raised);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-family: var(--aiq-font-mono); font-size: 11px; font-weight: 600; color: var(--aiq-color-fg-secondary);
+}
+.aiq-take-org-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.aiq-take-timerbar { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--aiq-color-border); pointer-events: none; }
+.aiq-take-timerbar > span { display: block; height: 100%; background: var(--aiq-color-accent); transition: width 5s linear; }
 .aiq-take-divider { width: 1px; height: 24px; background: var(--aiq-color-border); flex: none; }
 .aiq-take-avatar {
   width: 32px; height: 32px; border-radius: 50%; flex: none;
@@ -299,6 +313,7 @@ html.aiq-take-root body {
   background: var(--aiq-color-bg-base); color: var(--aiq-color-fg-primary); padding: 12px 14px;
   font-family: var(--aiq-font-sans); font-size: calc(15px * var(--aiq-take-fs, 1)); line-height: 1.65;
 }
+.aiq-take-field::placeholder, .aiq-take-textarea::placeholder { color: var(--aiq-color-fg-muted); opacity: 1; }
 .aiq-take-field:focus, .aiq-take-textarea:focus { outline: 2px solid var(--aiq-color-accent); outline-offset: 1px; }
 .aiq-take-field--mono { font-family: var(--aiq-font-mono); }
 .aiq-take-number { height: 48px; max-width: 240px; font-family: var(--aiq-font-mono); }
@@ -314,6 +329,10 @@ html.aiq-take-root body {
 /* Narrow screens: no horizontal scroll, navigator stays the drawer */
 @media (max-width: 900px) {
   .aiq-take-progress-right { display: none; }
+  .aiq-take-hide-900 { display: none !important; }
+}
+@media (max-width: 640px) {
+  .aiq-take-hide-640 { display: none !important; }
 }
 @media (max-width: 1239px) {
   .aiq-take-hide-narrow { display: none !important; }
@@ -331,6 +350,7 @@ html.aiq-take-root body {
   .aiq-take-opt { padding: 12px 14px; gap: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .aiq-take-timerbar > span { transition: none; }
   .aiq-take-stage, .aiq-take-pop { animation: none; }
 }
 

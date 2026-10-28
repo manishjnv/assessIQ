@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 
 // Z-167 / Z-168 smoke: new exam-engine look on the take page. API mocked, no backend.
 // Checks: mid-tone default, settings popover (theme, XL text), keys A and F, Clear response,
@@ -6,6 +7,8 @@ import { test, expect, type Page } from '@playwright/test';
 
 const LONG = 'Which of the following statements about distributed consensus under network partitions is correct? '.repeat(4);
 const PASSAGE = 'The committee reviewed the incident timeline in detail and recorded each decision point. '.repeat(40);
+
+const LOGO = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><rect width="120" height="40" fill="#2563b8"/></svg>');
 
 function view(): unknown {
   const q = (id: string, position: number, type: string, content: unknown, passage?: unknown) => ({
@@ -23,8 +26,10 @@ function view(): unknown {
     answers: qs.map((x) => ({ attempt_id: 'att1', question_id: x.question_id, answer: null, flagged: false, time_spent_seconds: 0, edits_count: 0, client_revision: 0, saved_at: null })),
     remaining_seconds: 3600,
     integrity: { fullscreen: false, block_copy_paste: false },
-    company_name: 'Acme College',
-    company_logo_url: null,
+    company_name: 'Acme College of Engineering and Applied Sciences',
+    company_logo_url: LOGO,
+    candidate_name: 'Asha Venkatasubramanian Iyer-Chandrasekharan',
+    assessment_name: 'Aptitude Mock Test 3: Quantitative, Logical and Verbal Reasoning (Full Length)',
   };
 }
 
@@ -67,3 +72,21 @@ test('mobile 390: XL text, long stem and passage, no horizontal scroll', async (
   expect(await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight + 1)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('mobile-xl.png') });
 });
+
+for (const width of [1440, 1024, 768, 390]) {
+  test(`top bar at ${width}: long name and title, no horizontal scroll, axe clean`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 800 });
+    await setup(page);
+    expect(await noHScroll(page)).toBe(true);
+    const org = page.locator('.aiq-take-org-mark');
+    const cand = page.getByTestId('take-candidate-meta');
+    const asm = page.getByTestId('take-assessment-meta');
+    // Handoff rules: avatar always; assessment and org from 901 px; candidate text from 641 px.
+    await expect(cand.locator('.aiq-take-avatar')).toBeVisible();
+    if (width > 900) { await expect(org).toBeVisible(); await expect(asm).toBeVisible(); } else { await expect(org).toBeHidden(); await expect(asm).toBeHidden(); }
+    await expect(cand.locator('.aiq-take-meta')).toBeVisible({ visible: width > 640 });
+    await page.screenshot({ path: testInfo.outputPath(`topbar-${width}.png`) });
+    const { violations } = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
+    expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([]);
+  });
+}

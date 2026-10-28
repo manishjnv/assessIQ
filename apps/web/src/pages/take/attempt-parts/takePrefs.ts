@@ -14,10 +14,12 @@ export interface TakePrefs {
   theme: TakeTheme;
   size: TakeTextSize;
   org: TakeOrgDisplay;
+  /** Z-169: question panel folded to a narrow number column. */
+  navCollapsed: boolean;
 }
 
 const STORE_KEY = "aiq.take.prefs";
-const DEFAULTS: TakePrefs = { theme: "mid", size: "M", org: "both" };
+const DEFAULTS: TakePrefs = { theme: "mid", size: "M", org: "both", navCollapsed: false };
 
 function read(): TakePrefs {
   try {
@@ -28,6 +30,7 @@ function read(): TakePrefs {
       theme: p.theme === "light" || p.theme === "dark" || p.theme === "mid" ? p.theme : DEFAULTS.theme,
       size: p.size === "S" || p.size === "M" || p.size === "L" || p.size === "XL" ? p.size : DEFAULTS.size,
       org: p.org === "both" || p.org === "logo" || p.org === "name" || p.org === "off" ? p.org : DEFAULTS.org,
+      navCollapsed: p.navCollapsed === true,
     };
   } catch {
     return DEFAULTS;

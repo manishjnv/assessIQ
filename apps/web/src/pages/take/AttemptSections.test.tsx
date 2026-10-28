@@ -36,7 +36,11 @@ const sectionView = (current: number, calculator: boolean, ids: number[], endsAt
   },
 });
 
-vi.mock('@assessiq/candidate-ui', () => ({
+vi.mock('@assessiq/candidate-ui', async () => {
+  const actual = await vi.importActual<typeof import('@assessiq/candidate-ui')>('@assessiq/candidate-ui');
+  return {
+  neighbor: actual.neighbor,
+  filterSuffix: actual.filterSuffix,
   AttemptTimer: (p: { endsAt: string }) => <span data-testid="timer">{p.endsAt}</span>,
   Calculator: () => <button type="button">Calculator</button>,
   AutosaveIndicator: () => null,
@@ -57,7 +61,8 @@ vi.mock('@assessiq/candidate-ui', () => ({
   clearBackup: vi.fn(),
   readBackup: () => null,
   CandidateApiError: class extends Error {},
-}));
+  };
+});
 
 import { AttemptPage } from './Attempt';
 

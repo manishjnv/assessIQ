@@ -25,8 +25,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Navigate } from "react-router";
 import { Button, Drawer, Icon, Modal, Spinner } from "@assessiq/ui-system";
-import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
-import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } from "@assessiq/candidate-ui";
+import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError, neighbor, filterSuffix } from "@assessiq/candidate-ui";
+import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire, NavigatorFilter } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
 import { STEM_FIELD, TYPE_LABEL, type PageState, hasForbiddenSynonym, BOTTOM_BAR, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
 import { AnswerArea } from "./attempt-parts/AnswerArea.js";
@@ -59,6 +59,8 @@ export function AttemptPage(): React.JSX.Element {
   const [flags, setFlags] = useState<Map<string, boolean>>(new Map());
   const [keysOn, setKeysOn] = useKeyShortcuts();
   const [prefs, setPrefs] = useTakePrefs();
+  // Z-169: the navigator filter also drives Previous, Next, the arrow keys and the footer label.
+  const [navFilter, setNavFilter] = useState<NavigatorFilter>('all');
   // Z-168: bumping this remounts the answer area, so a renderer's local draft clears with "Clear response".
   const [clearNonce, setClearNonce] = useState(0);
   const [locked, setLocked] = useState(false);
@@ -513,6 +515,7 @@ export function AttemptPage(): React.JSX.Element {
       position: sec !== undefined ? sorted.indexOf(q) + 1 : q.position,
       status,
       answered: isAnswered,
+      flagged: isFlagged,
       ...(sectionOfQuestion(q) !== undefined ? { section: sectionOfQuestion(q)! } : {}),
     };
   });
@@ -550,14 +553,17 @@ export function AttemptPage(): React.JSX.Element {
     }
     setCurrentQuestionId(qid);
   };
+  // Z-169: with a filter on, Previous and Next jump to the next match (wrapping); with "all" they step by one.
+  const curId = currentQuestion?.question_id ?? '';
+  const prevTarget = neighbor(navigatorItems, curId, -1, navFilter);
+  const nextTarget = neighbor(navigatorItems, curId, 1, navFilter);
   const goPrev = (): void => {
-    const prev = sorted[safeIdx - 1];
-    if (prev !== undefined) requestQuestion(prev.question_id);
+    if (prevTarget !== null) requestQuestion(prevTarget.questionId);
   };
   const goNext = (): void => {
-    const next = sorted[safeIdx + 1];
-    if (next !== undefined) requestQuestion(next.question_id);
+    if (nextTarget !== null) requestQuestion(nextTarget.questionId);
   };
+  const toggleNav = (): void => setPrefs({ navCollapsed: !prefs.navCollapsed });
 
   // ── Navigator body (shared between desktop aside and mobile <Drawer>) ─────
   // Same JSX rendered in both surfaces — same items, same onSelect, same per-
@@ -568,6 +574,20 @@ export function AttemptPage(): React.JSX.Element {
       navigatorItems={navigatorItems}
       setCurrentQuestionId={requestQuestion}
       setNavOpen={setNavOpen}
+      filter={navFilter}
+      onFilterChange={setNavFilter}
+      collapsed={prefs.navCollapsed}
+      onToggleCollapsed={toggleNav}
+    />
+  );
+  // The drawer is always full size: no collapse handle there.
+  const drawerBody = (
+    <NavigatorBody
+      navigatorItems={navigatorItems}
+      setCurrentQuestionId={requestQuestion}
+      setNavOpen={setNavOpen}
+      filter={navFilter}
+      onFilterChange={setNavFilter}
     />
   );
 
@@ -646,6 +666,7 @@ export function AttemptPage(): React.JSX.Element {
       {/* ── MIDDLE ROW (main pane + side panel) ─────────────────────────── */}
       <div
         className="aiq-attempt-middle"
+        data-nav-collapsed={prefs.navCollapsed ? 'true' : undefined}
         style={{
           display: 'grid',
           overflow: 'hidden',
@@ -703,7 +724,7 @@ export function AttemptPage(): React.JSX.Element {
                   <summary className="aiq-take-eyebrow" style={{ cursor: 'pointer', marginBottom: 8 }}>
                     {currentQuestion.passage.title ?? 'Passage'}
                   </summary>
-                  <p className="aiq-take-passage" style={{ margin: 0 }}>
+                  <p className="aiq-take-passage" style={{ margin: 0 }} tabIndex={0} aria-label={currentQuestion.passage.title ?? 'Passage'}>
                     {currentQuestion.passage.body}
                   </p>
                 </details>
@@ -799,7 +820,7 @@ export function AttemptPage(): React.JSX.Element {
         </main>
 
         {/* Side panel — hidden on mobile via .aiq-attempt-aside CSS rule;
-            the same {navigatorBody} also renders inside the Drawer below. */}
+            the Drawer below renders the same panel (without the collapse handle). */}
         <aside
           className="aiq-attempt-aside"
           style={{
@@ -811,7 +832,7 @@ export function AttemptPage(): React.JSX.Element {
             paddingRight: 'var(--aiq-space-md)',
           }}
         >
-          <div
+          {!prefs.navCollapsed && <div
             style={{
               fontFamily: 'var(--aiq-font-mono)',
               fontSize: 11,
@@ -823,7 +844,7 @@ export function AttemptPage(): React.JSX.Element {
             }}
           >
             Navigator
-          </div>
+          </div>}
           {navigatorBody}
         </aside>
       </div>
@@ -831,7 +852,7 @@ export function AttemptPage(): React.JSX.Element {
       {/* ── BOTTOM BAR ──────────────────────────────────────────────────── */}
       {/* Key hints are desktop-only (hidden under the mobile viewport). */}
       <style>{'[data-viewport="mobile"] .aiq-attempt-kbd{display:none}'}</style>
-      <KeyNav onPrev={goPrev} onNext={goNext} onPick={handlePick} onFlag={handleFlagToggle} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen || pendingLeave !== null} />
+      <KeyNav onPrev={goPrev} onNext={goNext} onPick={handlePick} onFlag={handleFlagToggle} onToggleNav={toggleNav} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen || pendingLeave !== null} />
 
       {/* FUT-4: confirm before leaving a locked section. Leave moves on; Stay keeps the candidate here. */}
       {currentQuestion !== null && (
@@ -942,26 +963,26 @@ export function AttemptPage(): React.JSX.Element {
           variant="outline"
           size="lg"
           className="aiq-attempt-prev-btn"
-          disabled={isFirst || locked}
+          disabled={locked || (navFilter === 'all' ? isFirst : prevTarget === null)}
           aria-keyshortcuts="P"
           onClick={goPrev}
         >
           <Icon name="arrowLeft" size={14} style={{ marginRight: 'var(--aiq-space-2xs)' }} />
-          Prev
+          Prev{filterSuffix(navFilter)}
           <kbd className="aiq-attempt-kbd" aria-hidden="true" style={KBD_HINT}>P</kbd>
         </Button>
 
         {/* Next (hidden on the last question) */}
-        {!isLast && (
+        {(navFilter !== 'all' || !isLast) && (
           <Button
             variant="outline"
             size="lg"
             className="aiq-attempt-next-btn"
-            disabled={locked}
+            disabled={locked || (navFilter !== 'all' && nextTarget === null)}
             aria-keyshortcuts="N"
             onClick={goNext}
           >
-            Next
+            Next{filterSuffix(navFilter)}
             <Icon name="arrow" size={14} style={{ marginLeft: 'var(--aiq-space-2xs)' }} />
             <kbd className="aiq-attempt-kbd" aria-hidden="true" style={KBD_HINT}>N</kbd>
           </Button>
@@ -1004,7 +1025,7 @@ export function AttemptPage(): React.JSX.Element {
         onClose={() => setNavOpen(false)}
         title="Navigator"
       >
-        {navigatorBody}
+        {drawerBody}
       </Drawer>
 
     </div>

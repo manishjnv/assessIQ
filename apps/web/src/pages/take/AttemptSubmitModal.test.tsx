@@ -27,7 +27,11 @@ let VIEW = {
   remaining_seconds: 600,
 };
 
-vi.mock('@assessiq/candidate-ui', () => ({
+vi.mock('@assessiq/candidate-ui', async () => {
+  const actual = await vi.importActual<typeof import('@assessiq/candidate-ui')>('@assessiq/candidate-ui');
+  return {
+  neighbor: actual.neighbor,
+  filterSuffix: actual.filterSuffix,
   AttemptTimer: () => null,
   AutosaveIndicator: () => null,
   IntegrityBanner: () => null,
@@ -43,7 +47,8 @@ vi.mock('@assessiq/candidate-ui', () => ({
   clearBackup: vi.fn(),
   readBackup: () => null,
   CandidateApiError: class extends Error {},
-}));
+  };
+});
 
 import { AttemptPage } from './Attempt';
 

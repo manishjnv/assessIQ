@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Chip, Icon, Logo, TenantLogo } from "@assessiq/ui-system";
+import { Chip, Icon, Logo } from "@assessiq/ui-system";
 import { AttemptTimer, Calculator, AutosaveIndicator, useAutosave } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire } from "@assessiq/candidate-ui";
 import { TOP_BAR } from "./shared.js";
@@ -106,7 +106,7 @@ function DisplaySettings(props: { prefs: TakePrefs; setPrefs: (p: Partial<TakePr
           <Segments label="Organization" value={prefs.org} options={[["both", "Logo + name"], ["logo", "Logo"], ["name", "Name"], ["off", "Off"]]} onPick={(org) => setPrefs({ org })} />
           <div className="aiq-take-pop-row" style={{ fontSize: 12, color: "var(--aiq-color-fg-muted)", lineHeight: 1.6 }}>
             <div className="aiq-take-eyebrow">Keyboard</div>
-            ← → or P N move · A–D answer · 1–5 rate · F flag
+            ← → or P N move · A–D answer · F flag · \ panel
           </div>
         </div>
       )}
@@ -139,6 +139,20 @@ function FullscreenToggle(): React.JSX.Element {
   );
 }
 
+/** Z-174: 32 px organisation mark. Logo (contain) or initials. Empty alt when the name sits beside it. */
+export function OrgBadge(props: { url: string | null; name: string; nameBeside: boolean }): React.JSX.Element {
+  const { url, name, nameBeside } = props;
+  return (
+    <span className="aiq-take-org-mark">
+      {url !== null && url !== "" ? (
+        <img src={url} alt={nameBeside ? "" : `${name} logo`} />
+      ) : (
+        <span {...(nameBeside ? { "aria-hidden": true } : { role: "img", "aria-label": name })}>{initials(name)}</span>
+      )}
+    </span>
+  );
+}
+
 export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const {
     sec, wholeTestSectionName, attempt, isLastSection, handleExpire,
@@ -154,35 +168,41 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const showLogo = prefs.org === "both" || prefs.org === "logo";
   const showName = prefs.org === "both" || prefs.org === "name";
   const hasOrg = companyLogoUrl !== null || companyName !== "";
+  // Z-174: whole-test timer bar = time left / planned total. Sectioned timers have no section total, so no bar.
+  const total = attempt.duration_seconds;
+  const timerFill =
+    sec === undefined && attempt.ends_at !== null && total !== null && total > 0
+      ? Math.max(0, Math.min(100, ((new Date(attempt.ends_at).getTime() - now) / 1000 / total) * 100))
+      : null;
   const candLabel = candidateName ?? `STU-${shortId(candidateId)}`;
   return (
   <header className="aiq-attempt-top" style={TOP_BAR}>
     <Logo />
     {hasOrg && prefs.org !== "off" && (
       <>
-        <span className="aiq-take-divider aiq-take-hide-narrower" aria-hidden="true" />
-        <span data-help-id="candidate.take.attempt.logo" style={{ display: "inline-flex", alignItems: "center", gap: 10, flexShrink: 1, minWidth: 0 }}>
-          {showLogo && (companyLogoUrl !== null || !showName) && <TenantLogo src={companyLogoUrl} name={companyName} height={28} />}
+        <span className="aiq-take-divider aiq-take-hide-900" aria-hidden="true" />
+        <span data-help-id="candidate.take.attempt.logo" className="aiq-take-org aiq-take-hide-900">
+          {showLogo && <OrgBadge url={companyLogoUrl} name={companyName} nameBeside={showName && companyName !== ""} />}
           {showName && companyName !== "" && (
             <span className="aiq-take-meta aiq-take-hide-narrow">
               <span className="aiq-take-eyebrow">ASSIGNED BY</span>
-              <span className="aiq-take-meta-val">{companyName}</span>
+              <span className="aiq-take-meta-val" title={companyName}>{companyName}</span>
             </span>
           )}
         </span>
       </>
     )}
-    <span className="aiq-take-divider aiq-take-hide-narrower" aria-hidden="true" />
-    <span className="aiq-take-meta aiq-take-hide-narrower">
+    <span className="aiq-take-divider aiq-take-hide-900" aria-hidden="true" />
+    <span className="aiq-take-meta aiq-take-hide-900" data-testid="take-assessment-meta">
       <span className="aiq-take-eyebrow">ASSESSMENT · #{shortId(assessmentId)}</span>
-      {assessmentName !== undefined && <span className="aiq-take-meta-val">{assessmentName}</span>}
+      {assessmentName !== undefined && <span className="aiq-take-meta-val" title={assessmentName}>{assessmentName}</span>}
     </span>
-    <span className="aiq-take-divider aiq-take-hide-narrow" aria-hidden="true" />
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0 }} className="aiq-take-hide-narrow">
+    <span className="aiq-take-divider aiq-take-hide-640" aria-hidden="true" />
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 10, minWidth: 0 }} data-testid="take-candidate-meta">
       <span className="aiq-take-avatar" aria-hidden="true">{initials(candLabel)}</span>
-      <span className="aiq-take-meta">
-        <span className="aiq-take-eyebrow">CANDIDATE{candidateName !== undefined ? ` · STU-${shortId(candidateId)}` : ""}</span>
-        <span className="aiq-take-meta-val">{candLabel}</span>
+      <span className="aiq-take-meta aiq-take-hide-640">
+        <span className="aiq-take-eyebrow aiq-take-hide-narrow">CANDIDATE{candidateName !== undefined ? ` · STU-${shortId(candidateId)}` : ""}</span>
+        <span className="aiq-take-meta-val" title={candLabel}>{candLabel}</span>
       </span>
     </span>
 
@@ -258,6 +278,11 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
     >
       <Icon name="grid" size={14} />
     </button>
+    {timerFill !== null && (
+      <span className="aiq-take-timerbar" aria-hidden="true" data-testid="take-timer-bar">
+        <span style={{ width: `${timerFill}%` }} />
+      </span>
+    )}
   </header>
   );
 }

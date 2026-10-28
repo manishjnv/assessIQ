@@ -980,11 +980,58 @@ export async function getAttemptForCandidate(
   tenantId: string,
   attemptId: string,
   userId: string,
-): Promise<CandidateAttemptView & { company_name: string; company_logo_url: string | null }> {
+): Promise<
+  CandidateAttemptView & {
+    company_name: string;
+    company_logo_url: string | null;
+    candidate_name?: string;
+    assessment_name?: string;
+  }
+> {
   const view = await loadAttemptForCandidate(tenantId, attemptId, userId);
   // Logo L3a: co-branding for the attempt top bar. Never throws (null on failure).
-  const branding = await getCompanyBranding(tenantId);
-  return { ...view, company_name: branding.name, company_logo_url: branding.logoUrl };
+  // Z-174: the candidate's own name and the assessment title for the same bar, read in parallel.
+  const [branding, names] = await Promise.all([
+    getCompanyBranding(tenantId),
+    loadAttemptDisplayNames(tenantId, attemptId, userId),
+  ]);
+  return { ...view, company_name: branding.name, company_logo_url: branding.logoUrl, ...names };
+}
+
+/**
+ * Z-174: `candidate_name` and `assessment_name` for the take-page top bar. Read-only, scoped to
+ * the caller's own attempt in their tenant (another user's or tenant's attempt yields nothing).
+ * A blank name, or one that looks like an email address, is left out so the bar shows the short
+ * id instead. Never throws: any failure yields `{}` and the candidate flow goes on.
+ */
+async function loadAttemptDisplayNames(
+  tenantId: string,
+  attemptId: string,
+  userId: string,
+): Promise<{ candidate_name?: string; assessment_name?: string }> {
+  try {
+    const row = await withTenant(tenantId, async (client) => {
+      const r = await client.query<{ candidate_name: string | null; assessment_name: string | null }>(
+        `SELECT u.name AS candidate_name, s.name AS assessment_name
+           FROM attempts a
+           JOIN users u ON u.id = a.user_id
+           JOIN assessments s ON s.id = a.assessment_id
+          WHERE a.id = $1 AND a.user_id = $2 AND a.tenant_id = $3`,
+        [attemptId, userId, tenantId],
+      );
+      return r.rows[0];
+    });
+    if (row === undefined) return {};
+    const cand = (row.candidate_name ?? "").trim();
+    const asm = (row.assessment_name ?? "").trim();
+    return {
+      ...(cand !== "" && !cand.includes("@") ? { candidate_name: cand } : {}),
+      ...(asm !== "" ? { assessment_name: asm } : {}),
+    };
+  } catch (err) {
+    log.warn({ err, tenantId, attemptId }, "attempt.display_names_failed");
+    return {};
+  }
 }
 
 async function loadAttemptForCandidate(

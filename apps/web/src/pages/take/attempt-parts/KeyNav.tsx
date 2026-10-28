@@ -37,8 +37,8 @@ export function KeyShortcutsToggle(props: { on: boolean; onChange: (on: boolean)
 }
 
 /**
- * Z-7: P = previous, N = next question. Z-168: also the arrow keys, A-D / 1-5 (pick an
- * option) and F (flag). Ignored while typing in a field, with a modifier key held, or
+ * Z-7: P = previous, N = next question. Z-168: also the arrow keys, A-D (pick an
+ * option) and F (flag). Z-169: backslash or [ toggles the question panel; 1-5 do nothing. Ignored while typing in a field, with a modifier key held, or
  * while a dialog is open (`disabled`). Arrows are left to a focused radio group.
  */
 export function KeyNav(props: {
@@ -46,11 +46,13 @@ export function KeyNav(props: {
   onNext: () => void;
   disabled: boolean;
   enabled?: boolean;
-  /** Z-168: option index 0-3 from A-D, or 0-4 from 1-5. */
+  /** Z-168: option index 0-3 from A-D. */
   onPick?: (index: number) => void;
   onFlag?: () => void;
+  /** Z-169: collapse or expand the question panel. */
+  onToggleNav?: () => void;
 }): null {
-  const { onPrev, onNext, disabled, enabled = true, onPick, onFlag } = props;
+  const { onPrev, onNext, disabled, enabled = true, onPick, onFlag, onToggleNav } = props;
   useEffect(() => {
     if (disabled || !enabled) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -70,10 +72,10 @@ export function KeyNav(props: {
       else if (k === "arrowright" && !onRadio) onNext();
       else if (k === "f" && onFlag !== undefined) onFlag();
       else if (onPick !== undefined && /^[a-d]$/.test(k)) onPick(k.charCodeAt(0) - 97);
-      else if (onPick !== undefined && /^[1-5]$/.test(k)) onPick(Number(k) - 1);
+      else if ((k === "\\" || k === "[") && onToggleNav !== undefined) onToggleNav();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [disabled, enabled, onPrev, onNext, onPick, onFlag]);
+  }, [disabled, enabled, onPrev, onNext, onPick, onFlag, onToggleNav]);
   return null;
 }
