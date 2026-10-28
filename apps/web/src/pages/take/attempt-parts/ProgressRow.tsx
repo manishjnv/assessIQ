@@ -27,11 +27,8 @@ export function ProgressRow(props: {
       <span style={SR_ONLY}>{`Question ${safeIdx + 1} of ${total}`}</span>
       <div
         className="aiq-take-segs"
-        role="progressbar"
+        role="group"
         aria-label="Progress"
-        aria-valuemin={0}
-        aria-valuemax={total}
-        aria-valuenow={answeredCount}
       >
         {items.map((it) => (
           <button
