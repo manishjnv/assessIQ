@@ -78,5 +78,10 @@ describe('Attempt navigator filter (Z-169)', () => {
     await screen.findByText('Question 2 of 4');
     fireEvent.click(screen.getByRole('button', { name: /^Prev flagged/ }));
     await screen.findByText('Question 4 of 4');
+    // Footer pill shows the filter and its x clears it (back to plain Prev and Next).
+    expect(screen.getByText(/FLAGGED ONLY · 2/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Clear filter/ }));
+    expect(screen.getByRole('button', { name: /^Prev$/ })).toBeTruthy();
+    expect(screen.queryByText(/FLAGGED ONLY/)).toBeNull();
   });
 });

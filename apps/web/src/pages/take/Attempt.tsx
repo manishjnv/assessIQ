@@ -950,6 +950,21 @@ export function AttemptPage(): React.JSX.Element {
           Report a problem
         </Button>
 
+        {/* Z-169: handoff footer filter pill. Shows while a navigator filter is on; the x clears it. */}
+        {navFilter !== 'all' && (
+          <button
+            type="button"
+            className="aiq-take-filter-pill"
+            data-filter={navFilter}
+            onClick={() => setNavFilter('all')}
+            data-help-id="candidate.attempt.nav.filter"
+          >
+            {navFilter.toUpperCase()} ONLY · {navFilter === 'flagged' ? flaggedCount : navFilter === 'answered' ? answeredCount : unansweredCount}
+            <span aria-hidden="true"> ×</span>
+            <span style={SR_ONLY}> Clear filter</span>
+          </button>
+        )}
+
         {/* Spacer — hidden on mobile via .aiq-attempt-spacer CSS rule */}
         <span className="aiq-attempt-spacer" style={{ flex: 1 }} />
 
