@@ -6062,3 +6062,107 @@ admin.platform.upload_override_total:
     - **Number.** Type a whole number from 0 to 1000000. 0 means the organisation cannot upload.
 
     Only a platform admin can change this. Saving needs a fresh authenticator code and is written to the audit log.
+
+# X6b question analytics (seed only, no migration).
+
+admin.question_analytics.page:
+  audience: admin
+  short_text: "How each question performed in this assessment. A flag is a hint and changes no marks."
+  long_md: |
+    ## Question analytics
+
+    Only results that candidates can see are counted. Use this page to find questions that may be wrong or unclear.
+
+admin.question_analytics.share:
+  audience: admin
+  short_text: "Share of candidates who answered the question correctly."
+  long_md: |
+    ## Correct
+
+    The share is correct answers divided by counted attempts. Answers that wait for review are not counted.
+
+admin.question_analytics.time:
+  audience: admin
+  short_text: "Average time candidates spent on the question, in seconds."
+  long_md: |
+    ## Average time
+
+    The time comes from the time candidates spent on the question screen.
+
+admin.question_analytics.split:
+  audience: admin
+  short_text: "For multiple-choice questions, how many candidates chose each option."
+  long_md: |
+    ## Answer split
+
+    A is the first option as written by the author. A wrong option that many candidates chose can show a wrong key or a confusing option.
+
+admin.question_analytics.flag:
+  audience: admin
+  short_text: "Shown when 20 or more candidates answered and fewer than 20% or more than 98% were correct."
+  long_md: |
+    ## Possibly bad question
+
+    This is a hint only. It does not change marks and does not change the review state of the question.
+
+admin.question_analytics.review_link:
+  audience: admin
+  short_text: "Open the review page of the question set for this question."
+  long_md: |
+    ## Open review
+
+    Use the review page to verify the question, mark it as needing a fix or dispute it.
+
+admin.assessments.question_analytics:
+  audience: admin
+  short_text: "See how each question performed in this assessment: attempts, share correct and average time."
+  long_md: |
+    ## Question analytics
+
+    Opens a read-only page for this assessment. Questions that may be wrong or unclear show a hint. The hint changes no marks.
+
+# X6a live monitor (seed only, no migration). Keys under admin.live_monitor.* and the link on the assessment page.
+admin.live_monitor.page:
+  audience: admin
+  short_text: "See who has started this test and who is still writing. The page refreshes every 15 seconds."
+  long_md: |
+    ## Live monitor
+
+    - **What.** Counts of invited, not started, in progress and submitted candidates.
+    - **Refresh.** The page asks for new numbers every 15 seconds. It stops while this tab is hidden and updates when you return.
+    - **Privacy.** The page shows names and times only. It does not show answers, marks or camera images.
+
+admin.live_monitor.counts:
+  audience: admin
+  short_text: "Invited, not started, in progress and submitted candidates for this assessment."
+  long_md: |
+    ## Counts
+
+    - **Invited.** Invitations that are not revoked.
+    - **Not started.** Invited candidates who have not opened the test.
+    - **In progress.** Candidates who are writing the test now.
+    - **Submitted.** Candidates who sent in the test, including tests closed by the timer.
+
+admin.live_monitor.list:
+  audience: admin
+  short_text: "The candidates who are writing the test now."
+  long_md: |
+    ## Candidates in progress
+
+    Each row is one candidate who started and has not submitted. The newest activity is first.
+
+admin.live_monitor.last_seen:
+  audience: admin
+  short_text: "When this candidate last saved an answer or sent a signal from the test page."
+  long_md: |
+    ## Last seen
+
+    The time is the latest of the start time, the last saved answer and the last event from the test page. A long time with no change can mean the candidate is idle or lost the connection. It is a hint only.
+
+admin.assessments.live_monitor:
+  audience: admin
+  short_text: "Open the live monitor to see who is writing this test now."
+  long_md: |
+    ## Live monitor
+
+    The live monitor shows counts of invited, not started, in progress and submitted candidates. It is read only.

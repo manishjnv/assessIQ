@@ -46,6 +46,8 @@ import { EXPORT_ROW_CAP } from './repository.js';
 import { buildAssessmentResultsCsv, RESULTS_SORTS } from './results-export.js';
 import { processRefreshMvJob } from './refresh-mv-job.js';
 import { getQuestionStats } from './question-stats.js';
+import { getAssessmentQuestionAnalytics } from './question-analytics.js';
+import { getLiveMonitor } from './live-monitor.js';
 import { registerActivityRoutes } from './activity/index.js';
 import { registerActivityCandidateRoutes } from './activity-candidate/index.js';
 import { registerMockRoutes } from './mock/index.js';
@@ -138,6 +140,22 @@ export async function registerAnalyticsRoutes(
       `attachment; filename="${filenameBase}-results-${new Date().toISOString().slice(0, 10)}.csv"`,
     );
     return reply.send(csv);
+  });
+
+  // X6a — GET /api/admin/assessments/:id/live-monitor (read-only counts + in-progress last seen)
+  app.get('/api/admin/assessments/:id/live-monitor', { preHandler }, async (req, reply) => {
+    const id = z.string().uuid().safeParse((req.params as { id: string }).id);
+    if (!id.success) throw new ValidationError('invalid assessment id');
+    const { tenantId } = sess(req);
+    return reply.send(await getLiveMonitor({ tenantId, assessmentId: id.data }));
+  });
+
+  // X6b — GET /api/admin/assessments/:id/question-analytics (read-only, per-question stats)
+  app.get('/api/admin/assessments/:id/question-analytics', { preHandler }, async (req, reply) => {
+    const id = z.string().uuid().safeParse((req.params as { id: string }).id);
+    if (!id.success) throw new ValidationError('invalid assessment id');
+    const { tenantId } = sess(req);
+    return reply.send({ items: await getAssessmentQuestionAnalytics({ tenantId, assessmentId: id.data }) });
   });
 
   // -------------------------------------------------------------------------

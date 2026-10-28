@@ -27,6 +27,15 @@ export {
 export { exportAttemptsCsv, exportAttemptsJsonl, exportTopicHeatmapCsv } from './service.js';
 
 export { getQuestionStats, type QuestionStatsResult } from './question-stats.js';
+export {
+  getAssessmentQuestionAnalytics,
+  flagQuestion,
+  FLAG_MIN_ATTEMPTS,
+  FLAG_LOW_SHARE,
+  FLAG_HIGH_SHARE,
+  type QuestionAnalyticsRow,
+} from './question-analytics.js';
+export { getLiveMonitor, type LiveMonitorResult } from './live-monitor.js';
 
 // ---------------------------------------------------------------------------
 // Route registrar

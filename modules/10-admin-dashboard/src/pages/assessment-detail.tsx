@@ -570,6 +570,13 @@ export function AdminAssessmentDetail(): React.ReactElement {
             >
               ← Back
             </button>
+            {assessment.status !== "draft" && (
+              <HelpTip helpId="admin.assessments.live_monitor">
+                <Link to={`/admin/assessments/${assessment.id}/live`} className="aiq-btn aiq-btn-outline">
+                  Live monitor
+                </Link>
+              </HelpTip>
+            )}
             {assessment.status !== "cancelled" && (
               <button
                 type="button"
@@ -655,6 +662,13 @@ export function AdminAssessmentDetail(): React.ReactElement {
             {publishErrorPath !== null && <> <Link to={publishErrorPath}>Open camera settings</Link></>}
           </div>
         )}
+
+        {/* X6b: per-question analytics (read only) */}
+        <div data-help-id="admin.assessments.question_analytics">
+          <Link to={`/admin/assessments/${assessment.id}/questions`} style={{ fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", color: "var(--aiq-color-accent)", textDecoration: "none" }}>
+            Question analytics →
+          </Link>
+        </div>
 
         {/* Link to attempts + bulk publish */}
         <ReleaseResendBlock

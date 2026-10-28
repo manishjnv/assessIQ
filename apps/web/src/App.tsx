@@ -45,6 +45,8 @@ const AdminPlatform = lazy(() => import('@assessiq/admin-dashboard').then(m => (
 const AdminQuestionImport = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminQuestionImport })));
 const AdminExamBlueprints = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminExamBlueprints })));
 const OrgQuestionUpload = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.OrgQuestionUpload })));
+const QuestionAnalytics = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.QuestionAnalytics })));
+const LiveMonitor = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.LiveMonitor })));
 const ReviewQueue = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.ReviewQueue })));
 const SuperAdminUsers = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.SuperAdminUsers })));
 const AdminAccountSecurity = lazy(() => import('@assessiq/admin-dashboard').then(m => ({ default: m.AdminAccountSecurity })));
@@ -142,6 +144,8 @@ export function App(): React.JSX.Element {
           <Route path="/admin/create-test" element={<RequireSession role="admin"><AdminCreateTest /></RequireSession>} />
           <Route path="/admin/assessments" element={<RequireSession role="admin"><AdminAssessments /></RequireSession>} />
           <Route path="/admin/assessments/:id" element={<RequireSession role="admin"><AdminAssessmentDetail /></RequireSession>} />
+          <Route path="/admin/assessments/:id/live" element={<RequireSession role="admin"><LiveMonitor /></RequireSession>} />
+          <Route path="/admin/assessments/:id/questions" element={<RequireSession role="admin"><QuestionAnalytics /></RequireSession>} />
           {/* Reports landing (session 2026-05-04) */}
           <Route path="/admin/reports" element={<RequireSession role="admin"><AdminReports /></RequireSession>} />
           {/* AI generation history — Phase B1: re-gated to super_admin */}

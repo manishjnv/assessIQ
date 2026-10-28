@@ -191,3 +191,12 @@ Migration `0189` adds the materialized view `question_stats_mv` (one row for eac
 - **Rejected.** Reading the real-only MVs (wrong data). A new mock MV (extra refresh job and a lint surface for a small, filterable data set; revisit if queries get slow).
 - **Leak fix.** The Activity readers (admin leaderboard, heatmap, feed; candidate leaderboard, stats, heatmap) now filter `delivery_mode = 'real'`. `activity-candidate/stats.ts` and `timeline.ts` MV reads are untouched.
 - **Not included.** Export (Free plan has none), candidate-started practice tracks (EXP-11), per-question drilldown, any scoring change.
+
+## X6a / X6b (2026-10-28) - live monitor and per-question analytics
+
+- **What:** `GET /api/admin/assessments/:id/live-monitor` (`live-monitor.ts`) gives counts of invited / not started / in progress / submitted and the in-progress attempts with last-seen time. `GET /api/admin/assessments/:id/question-analytics` (`question-analytics.ts`) gives, per question of one assessment, attempts, share correct, average time, the MCQ answer split and a "possibly bad question" flag. Pages: `/admin/assessments/:id/live` (polls every 15 s, pauses while the tab is hidden) and `/admin/assessments/:id/questions`. Both are linked from the assessment detail page.
+- **Why:** the old RW-60 stats (`question-stats.ts`, super admin, nightly MV) have no per-assessment grain, and an admin had no view of a running sitting. Both extend the older rows: they reuse the 0189 rules (newest grading wins, admin_override wins a tie, review_needed left out, tenant-released attempts only).
+- **Flag:** `FLAG_MIN_ATTEMPTS` 20, `FLAG_LOW_SHARE` 0.2, `FLAG_HIGH_SHARE` 0.98, all in `question-analytics.ts`. Display only. It never changes marks or review state; a flagged row links to the existing pack review page.
+- **Rejected:** websockets (polling is enough); a new table or migration (live queries on existing tables); reading `question_stats_mv` (wrong grain, nightly).
+- **Not included:** distractor split for multi-select, paging of more than 500 in-progress rows, NIRF/NAAC export, shortlist workflow, readiness heatmap (X6c, owner spec missing).
+- **Downstream:** none for other modules. Help keys `admin.live_monitor.*`, `admin.question_analytics.*`, `admin.assessments.live_monitor` and `.question_analytics` (seed only, count 663).
