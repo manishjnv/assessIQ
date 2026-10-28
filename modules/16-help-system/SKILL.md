@@ -198,3 +198,9 @@ Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the
 
 - Migration 0269 adds five keys: `admin.blueprints.upkeep`, `admin.blueprints.new_edition`, `admin.blueprints.archive`, `admin.review_queue.reports`, `candidate.attempt.report`. Fresh-DB seed count 634.
 - 2026-10-28: migration 0271 adds three keys `admin.platform.upload_override_per_upload`, `admin.platform.upload_override_per_month`, `admin.platform.upload_override_total` (EXP-17 super-admin upload limit overrides). Fresh-DB seed count 647 (the 634 above was before 0270 added 10).
+
+## S64 (2026-10-28): X3 help keys and migration 0273
+
+- Four new keys in `content/en/candidate.yml`: `public.verify.share_whatsapp`, `public.verify.share_x`, `public.verify.valid_until`, `public.verify.expired`. Fresh-DB help count is now 651 (was 647; `help-system.test.ts`).
+- **Why a migration.** The seed (`seeds/help_content.sql`, from `pnpm help:seed:regen`) only fills a fresh database. Production needs `migrations/0273_x3_credential_help.sql` (idempotent `INSERT ... WHERE NOT EXISTS`, same pattern as 0271). The build agent first shipped the seed only; the main session added 0273.
+- **Rule.** Any help-key change = YAML + `pnpm help:seed:regen` + a help migration. Never hand-edit the seed (S63 drift).

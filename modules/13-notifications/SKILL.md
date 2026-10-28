@@ -331,3 +331,13 @@ The full record is in `modules/19-billing/SKILL.md` § "2026-10-20 — Wave 4 sm
 
 ## CT-0 (S62, 2026-10-26)
 - New template `pattern_review_due` (count and link) and sender `sendPatternReviewDueEmail`, used by the daily worker job `blueprint.upkeep_reminder`. 19 templates now. See docs/13-email-system.md.
+
+## X3a credential email (`credential_issued`, S64, 2026-10-28)
+
+- **What.** New template `credential_issued` (html, txt, vars schema, `en.json` strings, bulk delivery class) and `sendCredentialIssuedEmail` in `src/email/credential-issued.ts`, exported from the index. Vars: recipient name (optional), course title, credential id, verify link.
+- **Why.** A candidate who earns a certificate had no message that it exists. Module 18 `issueCertificate` calls it through `onCommit` for a NEW certificate only (not the idempotent or tier-upgrade paths), so a rollback sends nothing.
+- **Rules.** Uses the existing `email.send` path (no new queue, no AI). A send failure is logged and swallowed: it never fails issuing. Skips an erased holder (tombstone) and skips when `PUBLIC_BASE_URL` is unset.
+- **Trap.** The verify link is `/verify/<id>`, a server-rendered page of module 18, not an SPA route. It is built with `[base, "verify", id].join("/")` so `tools/lint-deploy-procedure.ts` check D (SPA routes) does not flag it. Template tests count `.txt` templates (20) and signed templates (20); a new template changes both numbers (`email-result-copy.test.ts`).
+- **Rejected.** A new BullMQ queue; sending inside the issue transaction.
+- **Not included.** Email on tier upgrade, expiry reminder email, a template for revoke.
+- **Downstream.** Module 18 `service.ts`; module 16 holds no help for the email.
