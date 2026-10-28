@@ -14,7 +14,9 @@
 //
 // Anti-patterns explicitly refused (see contract):
 //   - No dangerouslySetInnerHTML on question content.
-//   - No localStorage for candidate session.
+//   - No localStorage for candidate session. (Z-167: display prefs — theme, text size,
+//     organisation display — are NOT a session: they hold no identity, token or answer.
+//     They live in localStorage under "aiq.take.prefs", like the key-shortcut switch.)
 //   - No attempt_events rendered to the candidate.
 //   - No --aiq-color-bg-elevated (renamed --aiq-color-bg-raised).
 //   - No import from **/AssessIQ_UI_Template/** (ESLint forbids).
@@ -26,7 +28,7 @@ import { Button, Drawer, Icon, Modal, Spinner } from "@assessiq/ui-system";
 import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
-import { STEM_FIELD, type PageState, hasForbiddenSynonym, BOTTOM_BAR, QUESTION_TEXT, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
+import { STEM_FIELD, TYPE_LABEL, type PageState, hasForbiddenSynonym, BOTTOM_BAR, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
 import { AnswerArea } from "./attempt-parts/AnswerArea.js";
 import { ReportProblemModal } from "./attempt-parts/ReportProblemModal.js";
 import { NavigatorBody } from "./attempt-parts/NavigatorBody.js";
@@ -37,6 +39,9 @@ import { SubmitConfirmModal } from "./attempt-parts/SubmitConfirmModal.js";
 import { useCameraCapture } from "./useCameraCapture.js";
 import { CameraIndicator, CameraLostOverlay } from "./CameraIndicator.js";
 import { QuestionCountdown } from "./attempt-parts/QuestionCountdown.js";
+import { ProgressRow } from "./attempt-parts/ProgressRow.js";
+import { useTakePrefs } from "./attempt-parts/takePrefs.js";
+import "./take-theme.css";
 export { isAnsweredValue } from "./attempt-parts/shared.js";
 
 export function AttemptPage(): React.JSX.Element {
@@ -53,6 +58,9 @@ export function AttemptPage(): React.JSX.Element {
   // flags: Map<questionId, boolean>
   const [flags, setFlags] = useState<Map<string, boolean>>(new Map());
   const [keysOn, setKeysOn] = useKeyShortcuts();
+  const [prefs, setPrefs] = useTakePrefs();
+  // Z-168: bumping this remounts the answer area, so a renderer's local draft clears with "Clear response".
+  const [clearNonce, setClearNonce] = useState(0);
   const [locked, setLocked] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   // Submit confirmation modal (replaces window.confirm / window.alert).
@@ -453,6 +461,25 @@ export function AttemptPage(): React.JSX.Element {
     });
   }
 
+  // Z-168: Clear response and the A-D / 1-5 keys go through handleAnswerChange (same autosave path).
+  function handleClear(): void {
+    if (!currentQuestion || locked) return;
+    handleAnswerChange(null);
+    setClearNonce((n) => n + 1);
+  }
+  function handlePick(i: number): void {
+    if (!currentQuestion || locked || timeUpIds.has(currentQuestion.question_id)) return;
+    const opts = (currentQuestion.content as { options?: unknown } | null)?.options;
+    if (!Array.isArray(opts) || i >= opts.length) return;
+    if (currentQuestion.type === 'mcq') {
+      handleAnswerChange({ selected: i });
+    } else if (currentQuestion.type === 'multi_select') {
+      const cur = (answers.get(currentQuestion.question_id) as { selected?: unknown } | null | undefined)?.selected;
+      const sel = Array.isArray(cur) ? cur.filter((x): x is number => typeof x === 'number') : [];
+      handleAnswerChange({ selected: sel.includes(i) ? sel.filter((x) => x !== i) : [...sel, i].sort((a, b) => a - b) });
+    }
+  }
+
   // ── Navigator items ───────────────────────────────────────────────────────
   // Whole-test timer: the API returns every question and no `sections`; group by the
   // per-question section_index when the server also sent the names. Else flat list.
@@ -564,11 +591,12 @@ export function AttemptPage(): React.JSX.Element {
   // ── Outer grid ────────────────────────────────────────────────────────────
   return (
     <div
-      className="aiq-screen aiq-attempt-shell"
+      className="aiq-screen aiq-attempt-shell aiq-take-root"
+      data-take-theme={prefs.theme}
       style={{
         display: 'grid',
-        gridTemplateRows: 'auto auto 1fr auto',
-        minHeight: '100vh',
+        gridTemplateRows: 'auto auto minmax(0, 1fr) auto',
+        height: '100dvh',
         background: 'var(--aiq-color-bg-base)',
       }}
     >
@@ -590,20 +618,22 @@ export function AttemptPage(): React.JSX.Element {
         setNavOpen={setNavOpen}
         companyName={view.company_name ?? ''}
         companyLogoUrl={view.company_logo_url ?? null}
+        prefs={prefs}
+        setPrefs={setPrefs}
+        candidateName={view.candidate_name}
+        candidateId={attempt.user_id}
+        assessmentName={view.assessment_name}
+        assessmentId={attempt.assessment_id}
       />
 
       {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}
       <section aria-label="Progress">
-        <div style={{ height: 2, background: 'var(--aiq-color-bg-raised)' }}>
-          <div
-            style={{
-              width: `${sorted.length > 0 ? ((safeIdx + 1) / sorted.length) * 100 : 0}%`,
-              height: '100%',
-              background: 'var(--aiq-color-accent)',
-              transition: 'width 300ms ease',
-            }}
-          />
-        </div>
+        <ProgressRow
+          items={navigatorItems}
+          safeIdx={safeIdx}
+          answeredCount={answeredCount}
+          onJump={requestQuestion}
+        />
         {camera.state === 'on' && (
           <div style={{ display: 'flex', justifyContent: 'flex-end', padding: 'var(--aiq-space-2xs) var(--aiq-space-2xl)' }}>
             <CameraIndicator state={camera.state} />
@@ -618,11 +648,11 @@ export function AttemptPage(): React.JSX.Element {
         className="aiq-attempt-middle"
         style={{
           display: 'grid',
-          overflow: 'auto',
+          overflow: 'hidden',
         }}
       >
-        {/* Main pane */}
-        <main style={{ minWidth: 0 }}>
+        {/* Main pane (scrolls on its own: the page itself never scrolls) */}
+        <main className="aiq-attempt-main" style={{ minWidth: 0 }}>
           <h1 style={SR_ONLY}>Assessment</h1>
           {/* Multi-tab warning */}
           {multiTabActive && (
@@ -656,30 +686,46 @@ export function AttemptPage(): React.JSX.Element {
           {currentQuestion !== null && currentQuestion.withheld ? (
             <p role="status" data-testid="attempt-question-loading">Loading question…</p>
           ) : currentQuestion !== null ? (
-            <>
+            <div
+              className="aiq-take-stage"
+              key={currentQuestion.question_id}
+              data-has-passage={currentQuestion.passage !== undefined ? 'true' : 'false'}
+            >
               {/* EXP-8: shared passage, plain text like the stem. Open by default; the candidate may fold it. */}
               {currentQuestion.passage !== undefined && (
                 <details
                   key={currentQuestion.passage.id}
                   open
                   data-testid="attempt-passage"
-                  style={{
-                    margin: '0 0 var(--aiq-space-md)',
-                    padding: 'var(--aiq-space-sm)',
-                    border: '1px solid var(--aiq-color-border)',
-                    borderRadius: 'var(--aiq-radius-md)',
-                    fontFamily: 'var(--aiq-font-sans)',
-                    fontSize: 'var(--aiq-text-sm)',
-                  }}
+                  className="aiq-take-passage-pane"
+                  style={{ margin: '0 0 var(--aiq-space-md)', fontFamily: 'var(--aiq-font-sans)' }}
                 >
-                  <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+                  <summary className="aiq-take-eyebrow" style={{ cursor: 'pointer', marginBottom: 8 }}>
                     {currentQuestion.passage.title ?? 'Passage'}
                   </summary>
-                  <p style={{ whiteSpace: 'pre-wrap', margin: 'var(--aiq-space-sm) 0 0' }}>
+                  <p className="aiq-take-passage" style={{ margin: 0 }}>
                     {currentQuestion.passage.body}
                   </p>
                 </details>
               )}
+
+              <div className="aiq-take-qpane" style={{ minWidth: 0 }}>
+              {/* Z-168: type chip + flag pill (the flag moved up from the footer; same handler and help id). */}
+              <div className="aiq-take-qhead">
+                <span className="aiq-take-type-chip">{TYPE_LABEL[currentQuestion.type] ?? currentQuestion.type}</span>
+                <button
+                  type="button"
+                  className="aiq-take-flag aiq-attempt-flag-btn"
+                  aria-pressed={flags.get(currentQuestion.question_id) ?? false}
+                  disabled={locked}
+                  onClick={handleFlagToggle}
+                  data-help-id="candidate.attempt.flag"
+                  aria-keyshortcuts="F"
+                >
+                  <Icon name="flag" size={14} />
+                  {flags.get(currentQuestion.question_id) ?? false ? 'Flagged' : 'Flag for review'}
+                </button>
+              </div>
 
               {/* Question text — canonical field names per type; no forbidden-synonym reads.
                    For scenario, title is the stem; intro is rendered inside ScenarioAnswerArea.
@@ -693,7 +739,7 @@ export function AttemptPage(): React.JSX.Element {
                 const text = typeof c[field] === 'string' ? (c[field] as string) : null;
                 if (text === null) return null;
                 return (
-                  <p className="aiq-serif aiq-attempt-q-text" style={QUESTION_TEXT}>
+                  <p className="aiq-serif aiq-attempt-q-text">
                     {text}
                   </p>
                 );
@@ -706,15 +752,7 @@ export function AttemptPage(): React.JSX.Element {
               {typeof currentQuestion.answer_guidance === 'string' &&
                 currentQuestion.answer_guidance.trim() !== '' && (
                   <p
-                    className="aiq-attempt-answer-guidance"
-                    style={{
-                      margin: '0 0 var(--aiq-space-sm)',
-                      paddingLeft: 'var(--aiq-space-sm)',
-                      borderLeft: '2px solid var(--aiq-color-border)',
-                      fontFamily: 'var(--aiq-font-sans)',
-                      fontSize: 'var(--aiq-text-sm)',
-                      color: 'var(--aiq-color-fg-muted)',
-                    }}
+                    className="aiq-attempt-answer-guidance aiq-take-hint"
                   >
                     {currentQuestion.answer_guidance}
                   </p>
@@ -744,14 +782,15 @@ export function AttemptPage(): React.JSX.Element {
               )}
 
               <AnswerArea
-                key={currentQuestion.question_id}
+                key={`${currentQuestion.question_id}:${clearNonce}`}
                 question={currentQuestion}
                 answer={answers.get(currentQuestion.question_id) ?? null}
                 disabled={locked || timeUpIds.has(currentQuestion.question_id)}
                 onAnswerChange={handleAnswerChange}
                 onBlur={handleAnswerBlur}
               />
-            </>
+              </div>
+            </div>
           ) : (
             <p style={{ color: 'var(--aiq-color-fg-muted)', fontFamily: 'var(--aiq-font-sans)' }}>
               No questions available.
@@ -792,7 +831,7 @@ export function AttemptPage(): React.JSX.Element {
       {/* ── BOTTOM BAR ──────────────────────────────────────────────────── */}
       {/* Key hints are desktop-only (hidden under the mobile viewport). */}
       <style>{'[data-viewport="mobile"] .aiq-attempt-kbd{display:none}'}</style>
-      <KeyNav onPrev={goPrev} onNext={goNext} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen || pendingLeave !== null} />
+      <KeyNav onPrev={goPrev} onNext={goNext} onPick={handlePick} onFlag={handleFlagToggle} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen || pendingLeave !== null} />
 
       {/* FUT-4: confirm before leaving a locked section. Leave moves on; Stay keeps the candidate here. */}
       {currentQuestion !== null && (
@@ -864,25 +903,17 @@ export function AttemptPage(): React.JSX.Element {
           </Button>
         )}
 
-        {/* Flag toggle */}
+        {/* Z-168: clear the answer of this question (same save path as any other change). */}
         <Button
           variant="ghost"
           size="sm"
-          className="aiq-attempt-flag-btn"
-          onClick={handleFlagToggle}
-          disabled={locked || currentQuestion === null}
-          data-help-id="candidate.attempt.flag"
-          style={{
-            color:
-              currentQuestion !== null && (flags.get(currentQuestion.question_id) ?? false)
-                ? 'var(--aiq-color-warning)'
-                : 'var(--aiq-color-fg-secondary)',
-          }}
+          className="aiq-attempt-clear-btn"
+          onClick={handleClear}
+          disabled={locked || currentQuestion === null || timeUpIds.has(currentQuestion.question_id) || !isAnsweredValue(answers.get(currentQuestion.question_id))}
+          data-help-id="candidate.attempt.clear"
+          style={{ color: 'var(--aiq-color-fg-secondary)' }}
         >
-          <Icon name="flag" size={14} style={{ marginRight: 'var(--aiq-space-2xs)' }} />
-          {currentQuestion !== null && (flags.get(currentQuestion.question_id) ?? false)
-            ? 'Flagged'
-            : 'Flag'}
+          Clear response
         </Button>
 
         {/* EXP-28: report a problem with this question */}

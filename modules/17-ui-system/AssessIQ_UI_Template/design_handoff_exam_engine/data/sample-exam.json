@@ -1,0 +1,330 @@
+{
+  "exam": {
+    "id": "EX-2841",
+    "title": "AWS Machine Learning Associate",
+    "durationSecs": 7200,
+    "passMarkPct": 70,
+    "lowTimeWarningSecs": 300,
+    "organization": {
+      "name": "Northwind University",
+      "short": "NU",
+      "logoUrl": null
+    },
+    "candidate": {
+      "id": "STU-10482",
+      "name": "Jordan Avery"
+    }
+  },
+  "questions": [
+    {
+      "id": "q1",
+      "type": "single",
+      "pill": "Choose one",
+      "t": "Which storage class is most cost-effective for data that is rarely read but must stay available within milliseconds?",
+      "o": [
+        "Standard",
+        "Standard-Infrequent Access",
+        "Glacier Deep Archive",
+        "Local instance storage"
+      ],
+      "ans": 1,
+      "ex": "Standard-Infrequent Access suits data that is read less often but still needs millisecond retrieval, at a lower storage price than Standard. Glacier classes need restore time, and instance storage is not durable."
+    },
+    {
+      "id": "q2",
+      "type": "multi",
+      "pill": "Choose all that apply",
+      "t": "Select all actions that help protect sensitive training data.",
+      "o": [
+        "Encrypt data at rest with KMS keys",
+        "Make the storage bucket publicly readable",
+        "Restrict access with least-privilege IAM roles",
+        "Log and audit every data access"
+      ],
+      "ans": [
+        true,
+        false,
+        true,
+        true
+      ],
+      "ex": "Encryption, least-privilege access and audit logging all protect sensitive data. A publicly readable bucket exposes it, so it is never a protective action."
+    },
+    {
+      "id": "q3",
+      "type": "grid",
+      "pill": "True or false",
+      "t": "Mark each statement as true or false.",
+      "s": [
+        "Accuracy alone is a reliable metric when classes are heavily imbalanced.",
+        "L2 regularization penalises large weights.",
+        "A confusion matrix can be built without ground-truth labels."
+      ],
+      "cols": [
+        "True",
+        "False"
+      ],
+      "ans": [
+        1,
+        0,
+        1
+      ],
+      "ex": "Accuracy can look high while minority-class performance is poor. L2 regularization penalises large weights. A confusion matrix compares predictions with true labels, so it needs them."
+    },
+    {
+      "id": "q4",
+      "type": "number",
+      "pill": "Integer answer",
+      "kind": "integer",
+      "t": "A dataset has 12,000 rows. If 20% are held out for testing, how many rows remain for training?",
+      "unit": "rows",
+      "ans": 9600,
+      "ex": "20% of 12,000 is 2,400 rows held out for testing. 12,000 minus 2,400 leaves 9,600 rows for training."
+    },
+    {
+      "id": "q5",
+      "type": "essay",
+      "pill": "Written response",
+      "t": "Explain in 100 to 200 words how you would detect and respond to data drift in a production model.",
+      "min": 100,
+      "max": 200,
+      "ex": "A strong answer compares live input distributions with the training baseline, sets a drift threshold, alerts on breaches, and then retrains or rolls back. It is marked by an examiner."
+    },
+    {
+      "id": "q6",
+      "type": "order",
+      "pill": "Put in order",
+      "t": "Arrange the machine learning pipeline steps in the correct order, first to last.",
+      "o": [
+        "Deploy the model",
+        "Collect and validate data",
+        "Train the model",
+        "Evaluate on held-out data"
+      ],
+      "ans": [
+        1,
+        2,
+        3,
+        0
+      ],
+      "ex": "Data is collected and validated first. The model is trained on it, evaluated on held-out data, and only then deployed."
+    },
+    {
+      "id": "q7",
+      "type": "single",
+      "pill": "Choose one",
+      "t": "Which encryption option gives you control over key rotation and access auditing?",
+      "o": [
+        "Default service keys only",
+        "Customer-managed keys in AWS KMS",
+        "No encryption",
+        "A shared password file"
+      ],
+      "ans": 1,
+      "ex": "Customer-managed keys in AWS KMS let you set rotation policies and audit key use. Default service keys do not give that control."
+    },
+    {
+      "id": "q8",
+      "type": "text",
+      "pill": "Short answer",
+      "t": "Name the AWS service that manages encryption keys.",
+      "max": 20,
+      "accept": [
+        "aws kms",
+        "kms",
+        "key management service",
+        "aws key management service"
+      ],
+      "ex": "AWS Key Management Service (AWS KMS) creates, stores and rotates the keys used to encrypt data."
+    },
+    {
+      "id": "q9",
+      "type": "grid",
+      "pill": "Classify",
+      "passage": "A retail analytics team keeps three years of transaction logs in object storage. Most dashboard queries touch only the last 30 days, while a nightly training job reads the full history. Security reviewers require that encryption keys are rotated on schedule and that every key use is logged.",
+      "t": "Classify each service by its main purpose.",
+      "s": [
+        "Amazon S3",
+        "Amazon EC2",
+        "AWS KMS"
+      ],
+      "cols": [
+        "Storage",
+        "Compute",
+        "Security"
+      ],
+      "ans": [
+        0,
+        1,
+        2
+      ],
+      "ex": "S3 stores objects, EC2 provides compute capacity, and KMS manages encryption keys."
+    },
+    {
+      "id": "q10",
+      "type": "single",
+      "pill": "Choose one",
+      "passage": "A retail analytics team keeps three years of transaction logs in object storage. Most dashboard queries touch only the last 30 days, while a nightly training job reads the full history. Security reviewers require that encryption keys are rotated on schedule and that every key use is logged.",
+      "t": "Which change would most reduce cost for the workload described above?",
+      "o": [
+        "Move logs older than 30 days to a colder storage class",
+        "Increase the compute size of the nightly job",
+        "Disable key rotation to save API calls",
+        "Copy all logs to a second bucket"
+      ],
+      "ans": 0,
+      "ex": "Logs older than 30 days are rarely queried, so a colder storage class cuts storage cost without affecting the dashboards. The other options raise cost or weaken security."
+    },
+    {
+      "id": "q11",
+      "type": "single",
+      "pill": "Rating scale",
+      "layout": "scale",
+      "ungraded": true,
+      "t": "I can explain model monitoring to my team without help.",
+      "o": [
+        "Strongly disagree",
+        "Disagree",
+        "Neutral",
+        "Agree",
+        "Strongly agree"
+      ],
+      "ex": "Self-report item. It is not scored."
+    },
+    {
+      "id": "q12",
+      "type": "grid",
+      "pill": "Match",
+      "t": "Match each metric to what it measures.",
+      "s": [
+        "Precision",
+        "Recall",
+        "Accuracy"
+      ],
+      "cols": [
+        "Share of predicted positives that are correct",
+        "Share of actual positives that are found",
+        "Share of all predictions that are correct"
+      ],
+      "ans": [
+        0,
+        1,
+        2
+      ],
+      "ex": "Precision looks at predicted positives, recall at actual positives, and accuracy at all predictions."
+    },
+    {
+      "id": "q13",
+      "type": "cloze",
+      "pill": "Fill in the blanks",
+      "t": "Amazon S3 offers ____ storage, while Amazon EBS provides ____ block storage for EC2 instances.",
+      "accept": [
+        [
+          "object"
+        ],
+        [
+          "persistent",
+          "durable"
+        ]
+      ],
+      "ex": "S3 is object storage. EBS volumes keep their data independently of the instance, so they are persistent block storage."
+    },
+    {
+      "id": "q14",
+      "type": "grid",
+      "pill": "Label the diagram",
+      "pre": true,
+      "passage": "[1] Source data  ->  [2] Feature store  ->  [3] Training job  ->  [4] Endpoint\n\nThe four boxes show the parts of a real-time machine learning pipeline, from left to right.",
+      "t": "Match each numbered box to its role in the pipeline.",
+      "s": [
+        "Box 1",
+        "Box 2",
+        "Box 3",
+        "Box 4"
+      ],
+      "cols": [
+        "Ingest",
+        "Transform",
+        "Train",
+        "Serve"
+      ],
+      "ans": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "ex": "Data enters at box 1 to be ingested, is transformed in the feature store, is trained in box 3, and is served from the endpoint."
+    },
+    {
+      "id": "q15",
+      "type": "single",
+      "pill": "Read the table",
+      "pre": true,
+      "passage": "Region      Q1     Q3\nNorth      120    180\nSouth      200    210\nEast        90    160\nWest       150    170\n\nValues are units sold, in thousands.",
+      "t": "Which region grew the most between Q1 and Q3?",
+      "o": [
+        "North",
+        "South",
+        "East",
+        "West"
+      ],
+      "ans": 2,
+      "ex": "East grew from 90 to 160, an increase of 70. North grew by 60, West by 20 and South by 10."
+    },
+    {
+      "id": "q16",
+      "type": "grid",
+      "pill": "Analytical reasoning",
+      "t": "Three analysts (Ana, Ben and Cho) each sit on a different floor, 1, 2 or 3. Cho is on floor 1. Ben sits on the floor directly above Ana. Match each analyst to a floor.",
+      "s": [
+        "Ana",
+        "Ben",
+        "Cho"
+      ],
+      "cols": [
+        "Floor 1",
+        "Floor 2",
+        "Floor 3"
+      ],
+      "ans": [
+        1,
+        2,
+        0
+      ],
+      "ex": "Cho is on floor 1, which leaves floors 2 and 3 for Ana and Ben. Ben is directly above Ana, so Ana is on floor 2 and Ben on floor 3."
+    },
+    {
+      "id": "q17",
+      "type": "grid",
+      "pill": "Yes or no",
+      "t": "Answer yes or no for each statement.",
+      "s": [
+        "Dropout acts as a regularizer during training.",
+        "Standardizing features is required before fitting a decision tree."
+      ],
+      "cols": [
+        "Yes",
+        "No"
+      ],
+      "ans": [
+        0,
+        1
+      ],
+      "ex": "Dropout randomly disables units during training, which reduces overfitting. Decision trees split on thresholds, so feature scaling is not required."
+    },
+    {
+      "id": "q18",
+      "type": "single",
+      "pill": "Assertion and reason",
+      "t": "Assertion (A): Accuracy can be misleading on imbalanced data. Reason (R): A model that always predicts the majority class can still score a high accuracy.",
+      "o": [
+        "A and R are true, and R explains A",
+        "A and R are true, but R does not explain A",
+        "A is true and R is false",
+        "A is false and R is true"
+      ],
+      "ans": 0,
+      "ex": "Both statements are true, and the reason explains the assertion: predicting only the majority class gives a high accuracy."
+    }
+  ]
+}

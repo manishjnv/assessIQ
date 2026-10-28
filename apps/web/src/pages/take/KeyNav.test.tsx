@@ -67,3 +67,26 @@ describe('KeyNav shortcut switch', () => {
     vi.restoreAllMocks();
   });
 });
+
+describe('KeyNav Z-168 keys', () => {
+  it('arrows move, A-D / 1-5 pick, F flags; ignored while typing or with a modifier', () => {
+    const p = vi.fn(), n = vi.fn(), pick = vi.fn(), flag = vi.fn();
+    render(
+      <>
+        <KeyNav onPrev={p} onNext={n} onPick={pick} onFlag={flag} disabled={false} />
+        <textarea aria-label="answer" />
+      </>,
+    );
+    fireEvent.keyDown(document.body, { key: 'ArrowLeft' });
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    fireEvent.keyDown(document.body, { key: 'c' });
+    fireEvent.keyDown(document.body, { key: '5' });
+    fireEvent.keyDown(document.body, { key: 'f' });
+    fireEvent.keyDown(document.body, { key: 'a', ctrlKey: true });
+    fireEvent.keyDown(screen.getByLabelText('answer'), { key: 'b' });
+    expect(p).toHaveBeenCalledTimes(1);
+    expect(n).toHaveBeenCalledTimes(1);
+    expect(pick.mock.calls).toEqual([[2], [4]]);
+    expect(flag).toHaveBeenCalledTimes(1);
+  });
+});

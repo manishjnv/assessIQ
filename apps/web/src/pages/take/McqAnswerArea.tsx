@@ -2,6 +2,8 @@
 // practice question on the pre-test landing (TokenLanding.tsx) so a candidate
 // rehearses with the exact same control.
 
+import "./take-theme.css";
+
 // mcq: { question, options: string[], correct: number, rationale? }
 interface McqContent {
   question: string;
@@ -32,90 +34,24 @@ export function McqAnswerArea({
     typeof answerObj?.selected === 'number' ? answerObj.selected : null;
 
   return (
-    <div role="radiogroup" aria-label="Answer options" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
+    <div role="radiogroup" aria-label="Answer options" className="aiq-take-opts">
       {options.map((text, idx) => {
         const isSelected = selected === idx;
         const letter = String.fromCharCode(65 + idx); // A, B, C, D
         return (
-          <label
-            key={idx}
-            style={{ display: 'block', cursor: disabled ? 'not-allowed' : 'pointer' }}
-          >
+          <label key={idx} className="aiq-take-opt" data-checked={isSelected} data-disabled={disabled}>
             <input
               type="radio"
+              className="aiq-take-visually-hidden-input"
               name={question.question_id}
               value={String(idx)}
               checked={isSelected}
               disabled={disabled}
               onChange={() => onAnswerChange({ selected: idx })}
-              style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
             />
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--aiq-space-md)',
-                padding: 'var(--aiq-space-md) var(--aiq-space-lg)',
-                background: isSelected ? 'var(--aiq-color-accent-soft)' : 'var(--aiq-color-bg-base)',
-                border: isSelected
-                  ? '1px solid var(--aiq-color-accent)'
-                  : '1px solid var(--aiq-color-border)',
-                borderRadius: 'var(--aiq-radius-md)',
-                cursor: disabled ? 'not-allowed' : 'pointer',
-                transition: 'border-color 150ms ease, background 150ms ease',
-                userSelect: 'none',
-              }}
-            >
-              {/* Radio circle */}
-              <span
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: '50%',
-                  border: `1.5px solid ${isSelected ? 'var(--aiq-color-accent)' : 'var(--aiq-color-border-strong)'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  transition: 'border-color 150ms ease',
-                }}
-              >
-                {isSelected && (
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
-                      background: 'var(--aiq-color-accent)',
-                    }}
-                  />
-                )}
-              </span>
-              {/* Letter label */}
-              <span
-                style={{
-                  fontFamily: 'var(--aiq-font-mono)',
-                  fontSize: 11,
-                  color: 'var(--aiq-color-fg-muted)',
-                  width: 14,
-                  flexShrink: 0,
-                }}
-              >
-                {letter}
-              </span>
-              {/* Option text */}
-              <span
-                style={{
-                  fontFamily: 'var(--aiq-font-sans)',
-                  fontSize: 'var(--aiq-text-lg)',
-                  color: 'var(--aiq-color-fg-primary)',
-                  lineHeight: 1.5,
-                  flex: 1,
-                }}
-              >
-                {text}
-              </span>
-            </div>
+            <span className="aiq-take-opt-badge" aria-hidden="true">{letter}</span>
+            <span className="aiq-take-opt-text">{text}</span>
+            <span className="aiq-take-radio" aria-hidden="true" />
           </label>
         );
       })}

@@ -76,12 +76,12 @@ test.describe('candidate runner (mocked API)', () => {
     const box = page.getByLabel('Your answer (a number)');
     await box.fill('42');
     await expect(box).toHaveValue('42');
-    await page.getByRole('button', { name: /Next/ }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(page.getByText('Question 2 of 2')).toBeVisible();
     await expect(page.getByText('Second number?')).toBeVisible();
     await expect(page.getByLabel('Your answer (a number)')).toHaveValue('');
 
-    await page.getByRole('button', { name: /Prev/ }).click();
+    await page.getByRole('button', { name: 'Prev', exact: true }).click();
     await expect(page.getByText('Question 1 of 2')).toBeVisible();
     await expect(page.getByLabel('Your answer (a number)')).toHaveValue('42');
     await page.screenshot({ path: testInfo.outputPath('numeric.png') });

@@ -1,0 +1,155 @@
+{
+  "$schema": "https://design-tokens.github.io/community-group/format/",
+  "name": "AssessIQ Design Tokens",
+  "version": "1.0.0",
+  "description": "Source of truth for AssessIQ design tokens — colors, type, spacing, radii, shadows, motion. Mirror of styles.css.",
+
+  "color": {
+    "light": {
+      "bg":            { "value": "#ffffff", "type": "color", "comment": "Page background" },
+      "surface":       { "value": "#fafafa", "type": "color", "comment": "Sidebars, hero band, side panels" },
+      "surface-2":     { "value": "#f3f3f4", "type": "color", "comment": "Progress track, chart backdrops" },
+      "border":        { "value": "#e4e4e7", "type": "color", "comment": "Default 1px border" },
+      "border-strong": { "value": "#cdcdd1", "type": "color", "comment": "Inputs, button outlines, hover" },
+      "text":          { "value": "#0a0a0b", "type": "color", "comment": "Primary text — near black" },
+      "text-muted":    { "value": "#3f3f46", "type": "color", "comment": "Secondary text, descriptions" },
+      "text-faint":    { "value": "#71717a", "type": "color", "comment": "Metadata, mono labels" },
+      "canvas":        { "value": "#f1efea", "type": "color", "comment": "Warm gray outer canvas (email + design canvas)" }
+    },
+    "dark": {
+      "bg":            { "value": "#0e0e10", "type": "color" },
+      "surface":       { "value": "#161618", "type": "color" },
+      "surface-2":     { "value": "#1d1d20", "type": "color" },
+      "border":        { "value": "#2a2a2e", "type": "color" },
+      "border-strong": { "value": "#3a3a3f", "type": "color" },
+      "text":          { "value": "#f5f5f7", "type": "color" },
+      "text-muted":    { "value": "#a0a0a8", "type": "color" },
+      "text-faint":    { "value": "#6a6a72", "type": "color" }
+    },
+    "accent": {
+      "default":       { "value": "oklch(0.58 0.17 258)", "fallback": "#1a73e8", "type": "color", "comment": "Primary CTAs, links, active state" },
+      "soft":          { "value": "oklch(0.96 0.03 258)", "fallback": "#eaf2fd", "type": "color", "comment": "Accent backgrounds (selected option, chip-accent)" },
+      "hover":         { "value": "oklch(0.52 0.19 258)", "fallback": "#155cba", "type": "color", "comment": "Primary button hover" }
+    },
+    "semantic": {
+      "success":       { "value": "oklch(0.65 0.15 150)", "fallback": "#1a9b5e", "type": "color", "comment": "Pass / completed" },
+      "warn":          { "value": "oklch(0.72 0.15 70)",  "fallback": "#d68b1a", "type": "color", "comment": "Flagged for review" },
+      "danger":        { "value": "oklch(0.62 0.20 25)",  "fallback": "#d23a2b", "type": "color", "comment": "Timer < 5min, errors" }
+    },
+    "chart": {
+      "1":             { "value": "#1a73e8", "type": "color" },
+      "2":             { "value": "#10b981", "type": "color" },
+      "3":             { "value": "#f59e0b", "type": "color" },
+      "4":             { "value": "#8b5cf6", "type": "color" },
+      "5":             { "value": "#ec4899", "type": "color" },
+      "6":             { "value": "#06b6d4", "type": "color" },
+      "7":             { "value": "#ef4444", "type": "color" },
+      "8":             { "value": "#6366f1", "type": "color" }
+    }
+  },
+
+  "font": {
+    "family": {
+      "serif": { "value": "'Newsreader', 'Source Serif Pro', Georgia, serif", "type": "fontFamily", "comment": "Display · headlines · numerics" },
+      "sans":  { "value": "'Geist', -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif", "type": "fontFamily", "comment": "Body · UI · buttons" },
+      "mono":  { "value": "'JetBrains Mono', 'SF Mono', Menlo, monospace", "type": "fontFamily", "comment": "Metadata · IDs · timestamps" }
+    },
+    "size": {
+      "display-h1":    { "value": "44px",  "type": "fontSize" },
+      "page-h1":       { "value": "36px",  "type": "fontSize" },
+      "section-h2":    { "value": "28px",  "type": "fontSize" },
+      "card-h3":       { "value": "22px",  "type": "fontSize" },
+      "body-lg":       { "value": "16px",  "type": "fontSize" },
+      "body":          { "value": "14px",  "type": "fontSize" },
+      "label":         { "value": "13px",  "type": "fontSize" },
+      "meta":          { "value": "11px",  "type": "fontSize" },
+      "meta-sm":       { "value": "10px",  "type": "fontSize" }
+    },
+    "weight": {
+      "regular":       { "value": 400, "type": "fontWeight" },
+      "medium":        { "value": 500, "type": "fontWeight" }
+    },
+    "lineHeight": {
+      "display":       { "value": 1.05, "type": "number" },
+      "heading":       { "value": 1.2,  "type": "number" },
+      "body":          { "value": 1.5,  "type": "number" }
+    },
+    "letterSpacing": {
+      "tight":         { "value": "-0.025em", "type": "string" },
+      "snug":          { "value": "-0.02em",  "type": "string" },
+      "body":          { "value": "-0.005em", "type": "string" },
+      "mono":          { "value": "0.04em",   "type": "string" },
+      "meta":          { "value": "0.08em",   "type": "string" }
+    }
+  },
+
+  "spacing": {
+    "0":  { "value": "0px",  "type": "dimension" },
+    "1":  { "value": "4px",  "type": "dimension" },
+    "2":  { "value": "8px",  "type": "dimension" },
+    "3":  { "value": "12px", "type": "dimension" },
+    "4":  { "value": "16px", "type": "dimension" },
+    "5":  { "value": "20px", "type": "dimension" },
+    "6":  { "value": "24px", "type": "dimension" },
+    "8":  { "value": "32px", "type": "dimension" },
+    "10": { "value": "40px", "type": "dimension" },
+    "12": { "value": "48px", "type": "dimension" },
+    "16": { "value": "64px", "type": "dimension" }
+  },
+
+  "radius": {
+    "sm":   { "value": "6px",   "type": "dimension", "comment": "Tiny chips, inputs in tables" },
+    "md":   { "value": "10px",  "type": "dimension", "comment": "Default — buttons (non-pill), inputs" },
+    "lg":   { "value": "16px",  "type": "dimension", "comment": "Cards, large surfaces" },
+    "pill": { "value": "999px", "type": "dimension", "comment": "Primary buttons, status chips" }
+  },
+
+  "shadow": {
+    "sm": { "value": "0 1px 2px rgba(0,0,0,0.04)", "type": "shadow", "comment": "Hairline lift" },
+    "md": { "value": "0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04)", "type": "shadow", "comment": "Card hover, search bar" },
+    "lg": { "value": "0 8px 32px rgba(0,0,0,0.08)", "type": "shadow", "comment": "Floating modal, hero card" }
+  },
+
+  "border": {
+    "width": {
+      "default": { "value": "1px", "type": "dimension" },
+      "focus":   { "value": "4px", "type": "dimension", "comment": "Focus-ring halo width (accent-soft)" }
+    },
+    "style": {
+      "solid":  { "value": "solid",  "type": "string" },
+      "dashed": { "value": "dashed", "type": "string", "comment": "Build-your-own placeholder" }
+    }
+  },
+
+  "motion": {
+    "duration": {
+      "fast":    { "value": "120ms", "type": "duration" },
+      "default": { "value": "200ms", "type": "duration" },
+      "slow":    { "value": "400ms", "type": "duration" },
+      "reveal":  { "value": "1600ms","type": "duration", "comment": "Count-up + score-ring reveal" }
+    },
+    "easing": {
+      "out":     { "value": "cubic-bezier(0.2, 0.7, 0.3, 1)",   "type": "cubicBezier" },
+      "in-out":  { "value": "cubic-bezier(0.65, 0, 0.35, 1)",   "type": "cubicBezier" },
+      "spring":  { "value": "cubic-bezier(0.34, 1.56, 0.64, 1)","type": "cubicBezier", "comment": "Rare — use only for celebratory reveals" }
+    }
+  },
+
+  "breakpoint": {
+    "sm":  { "value": "640px",  "type": "dimension" },
+    "md":  { "value": "768px",  "type": "dimension" },
+    "lg":  { "value": "1024px", "type": "dimension" },
+    "xl":  { "value": "1280px", "type": "dimension" },
+    "2xl": { "value": "1536px", "type": "dimension" }
+  },
+
+  "zIndex": {
+    "base":     { "value": 0,    "type": "number" },
+    "raised":   { "value": 10,   "type": "number" },
+    "sticky":   { "value": 100,  "type": "number" },
+    "overlay":  { "value": 1000, "type": "number" },
+    "modal":    { "value": 1100, "type": "number" },
+    "toast":    { "value": 1200, "type": "number" },
+    "tooltip":  { "value": 1300, "type": "number" }
+  }
+}

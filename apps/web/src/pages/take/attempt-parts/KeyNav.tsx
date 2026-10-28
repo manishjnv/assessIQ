@@ -37,11 +37,20 @@ export function KeyShortcutsToggle(props: { on: boolean; onChange: (on: boolean)
 }
 
 /**
- * Z-7: P = previous, N = next question. Ignored while typing in a field, with a
- * modifier key held, or while a dialog is open (`disabled`).
+ * Z-7: P = previous, N = next question. Z-168: also the arrow keys, A-D / 1-5 (pick an
+ * option) and F (flag). Ignored while typing in a field, with a modifier key held, or
+ * while a dialog is open (`disabled`). Arrows are left to a focused radio group.
  */
-export function KeyNav(props: { onPrev: () => void; onNext: () => void; disabled: boolean; enabled?: boolean }): null {
-  const { onPrev, onNext, disabled, enabled = true } = props;
+export function KeyNav(props: {
+  onPrev: () => void;
+  onNext: () => void;
+  disabled: boolean;
+  enabled?: boolean;
+  /** Z-168: option index 0-3 from A-D, or 0-4 from 1-5. */
+  onPick?: (index: number) => void;
+  onFlag?: () => void;
+}): null {
+  const { onPrev, onNext, disabled, enabled = true, onPick, onFlag } = props;
   useEffect(() => {
     if (disabled || !enabled) return;
     const onKey = (e: KeyboardEvent): void => {
@@ -53,12 +62,18 @@ export function KeyNav(props: { onPrev: () => void; onNext: () => void; disabled
           /^(TEXTAREA|SELECT)$/.test(t.tagName) ||
           (t.tagName === "INPUT" && !/^(radio|checkbox|button)$/.test((t as HTMLInputElement).type)));
       if (typing) return;
+      const onRadio = t !== null && t.tagName === "INPUT" && (t as HTMLInputElement).type === "radio";
       const k = e.key.toLowerCase();
       if (k === "p") onPrev();
       else if (k === "n") onNext();
+      else if (k === "arrowleft" && !onRadio) onPrev();
+      else if (k === "arrowright" && !onRadio) onNext();
+      else if (k === "f" && onFlag !== undefined) onFlag();
+      else if (onPick !== undefined && /^[a-d]$/.test(k)) onPick(k.charCodeAt(0) - 97);
+      else if (onPick !== undefined && /^[1-5]$/.test(k)) onPick(Number(k) - 1);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [disabled, enabled, onPrev, onNext]);
+  }, [disabled, enabled, onPrev, onNext, onPick, onFlag]);
   return null;
 }

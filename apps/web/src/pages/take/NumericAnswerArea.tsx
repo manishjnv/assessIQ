@@ -3,6 +3,7 @@
 // candidate view carries only { question, unit }.
 
 import { useState } from 'react';
+import "./take-theme.css";
 
 /** "12.5" / "1,250" / " -3 " -> number; anything else (or empty) -> null. */
 export function parseNumericInput(raw: string): number | null {
@@ -48,17 +49,7 @@ export function NumericAnswerArea({
             onAnswerChange(parseNumericInput(e.target.value)); // invalid/empty -> null (unanswered)
           }}
           onBlur={onBlur}
-          style={{
-            width: 220,
-            maxWidth: '100%',
-            padding: 'var(--aiq-space-md)',
-            fontFamily: 'var(--aiq-font-mono)',
-            fontSize: 'var(--aiq-answer-input-size)',
-            color: 'var(--aiq-color-fg-primary)',
-            background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
-            border: `1px solid ${invalid ? 'var(--aiq-color-danger, #c0392b)' : 'var(--aiq-color-border)'}`,
-            borderRadius: 'var(--aiq-radius-md)',
-          }}
+          className="aiq-take-field aiq-take-number"
         />
         {typeof unit === 'string' && unit !== '' && (
           <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-lg)', color: 'var(--aiq-color-fg-muted)' }}>

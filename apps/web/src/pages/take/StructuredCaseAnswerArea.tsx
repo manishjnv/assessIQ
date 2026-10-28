@@ -2,6 +2,8 @@
 // "one", checkboxes for "many"). Stored answer is { steps: { [stepId]: number[] } } in the order the
 // options are shown (this type is not shuffled). `correct` / `explanation` never reach here.
 
+import './take-theme.css';
+
 interface CaseStep {
   id: string;
   prompt: string;
@@ -72,7 +74,7 @@ export function StructuredCaseAnswerArea({
   return (
     <div data-help-id="candidate.attempt.structured_case" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-xl)' }}>
       {(context || log) && (
-      <div data-testid="sc-stem" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-md)', padding: 'var(--aiq-space-lg)', background: 'var(--aiq-color-bg-raised)', border: '1px solid var(--aiq-color-border)', borderRadius: 'var(--aiq-radius-md)' }}>
+      <div data-testid="sc-stem" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-md)', padding: 20, background: 'var(--aiq-color-bg-raised)', border: '1px solid var(--aiq-color-border)', borderRadius: 14 }}>
       {context && (
         <p style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 16, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)', margin: 0, whiteSpace: 'pre-wrap' }}>
           {context}
@@ -87,11 +89,11 @@ export function StructuredCaseAnswerArea({
             fontSize: 12,
             lineHeight: 1.6,
             color: 'var(--aiq-color-fg-primary)',
-            background: 'var(--aiq-color-bg-raised)',
+            background: 'var(--aiq-color-bg-base)',
             border: '1px solid var(--aiq-color-border)',
-            borderRadius: 'var(--aiq-radius-md)',
-            padding: 'var(--aiq-space-md)',
-            overflowX: 'auto',
+            borderRadius: 12,
+            padding: 16,
+            overflow: 'auto',
             whiteSpace: 'pre-wrap',
             wordBreak: 'break-all',
             margin: 0,
@@ -106,7 +108,7 @@ export function StructuredCaseAnswerArea({
         const chosen = picks[step.id] ?? [];
         const name = `sc-${question.question_id}-${step.id}`;
         return (
-          <fieldset key={step.id} style={{ border: 0, padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
+          <fieldset key={step.id} style={{ minWidth: 0, margin: 0, padding: 20, background: 'var(--aiq-color-bg-raised)', border: '1px solid var(--aiq-color-border)', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
             <legend style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-lg)', fontWeight: 600, color: 'var(--aiq-color-fg-primary)', marginBottom: 'var(--aiq-space-xs)' }}>
               Question {n + 1} of {steps.length}. {step.prompt}
               {(step.points !== undefined || step.negative_marks !== undefined) && (
@@ -125,29 +127,24 @@ export function StructuredCaseAnswerArea({
             {step.options.map((text, idx) => (
               <label
                 key={idx}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--aiq-space-md)',
-                  minHeight: 44,
-                  padding: 'var(--aiq-space-sm) var(--aiq-space-lg)',
-                  background: 'var(--aiq-color-bg-base)',
-                  border: `1px solid ${chosen.includes(idx) ? 'var(--aiq-color-accent)' : 'var(--aiq-color-border)'}`,
-                  borderRadius: 'var(--aiq-radius-md)',
-                  cursor: disabled ? 'not-allowed' : 'pointer',
-                  fontFamily: 'var(--aiq-font-sans)',
-                  fontSize: 'var(--aiq-answer-input-size)',
-                  color: 'var(--aiq-color-fg-primary)',
-                }}
+                className="aiq-take-opt"
+                data-checked={chosen.includes(idx)}
+                data-disabled={disabled}
+                style={{ position: 'relative' }}
               >
                 <input
                   type={step.select === 'many' ? 'checkbox' : 'radio'}
+                  className="aiq-take-visually-hidden-input"
                   name={name}
                   checked={chosen.includes(idx)}
                   disabled={disabled}
                   onChange={() => onAnswerChange(nextAnswer(answer, step.id, step.select, idx))}
                 />
-                <span>{text}</span>
+                <span className="aiq-take-opt-badge" aria-hidden="true">{String.fromCharCode(65 + idx)}</span>
+                <span className="aiq-take-opt-text">{text}</span>
+                <span className={step.select === 'many' ? 'aiq-take-check' : 'aiq-take-radio'} aria-hidden="true">
+                  {step.select === 'many' && chosen.includes(idx) ? '✓' : null}
+                </span>
               </label>
             ))}
           </fieldset>

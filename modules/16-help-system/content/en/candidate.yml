@@ -909,3 +909,28 @@ candidate.attempt.report:
     - Pick what is wrong and add a short note if you want.
     - Keep answering. Reporting does not stop your test and does not change your marks.
     - Your organiser and the AssessIQ team will check the question.
+
+candidate.attempt.display_settings:
+  audience: candidate
+  short_text: "Change the colour theme, the text size and the organisation display. Your choice stays in this browser."
+  long_md: |
+    ## Display settings
+
+    Use the sliders button in the top bar to open the settings.
+
+    - **Theme:** Mid-tone (default), Light or Dark.
+    - **Text size:** S, M, L or XL. This changes the question and answer text.
+    - **Organization:** show the logo and name, the logo only, the name only, or neither.
+
+    These settings change only how the page looks. They do not change your answers or your time.
+
+candidate.attempt.clear:
+  audience: candidate
+  short_text: "Remove your answer to this question. You can answer it again before you submit."
+  long_md: |
+    ## Clear response
+
+    Use this when you want to take back your answer to the current question.
+
+    The question then shows as open in the progress bar and in the navigator.
+    Clearing does not change your flag or your time. The change saves like any other answer.

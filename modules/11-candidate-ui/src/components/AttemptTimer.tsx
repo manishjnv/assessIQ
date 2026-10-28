@@ -60,8 +60,7 @@ type FgToken =
   | "var(--aiq-color-danger)";
 
 function colorForRemaining(seconds: number): FgToken {
-  if (seconds <= 60) return "var(--aiq-color-danger)";
-  if (seconds <= 300) return "var(--aiq-color-warning)";
+  if (seconds <= 300) return "var(--aiq-color-danger)"; // Z-167: low-time state under 5 minutes
   return "var(--aiq-color-fg-primary)";
 }
 
@@ -148,6 +147,7 @@ export const AttemptTimer: React.FC<AttemptTimerProps> = ({
       aria-live="polite"
       aria-label={`${displaySeconds} seconds remaining`}
       data-test-id={testId}
+      data-low={displaySeconds < 300 ? "true" : "false"}
       style={{
         display: "inline-flex",
         alignItems: "center",

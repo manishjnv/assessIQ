@@ -16,6 +16,19 @@ export const STEM_FIELD = {
   structured_case: 'title',
 } satisfies Record<QuestionType, 'title' | 'question'>;
 
+/** Z-168: short chip label above the stem. */
+export const TYPE_LABEL: Record<string, string> = {
+  mcq: 'Single choice',
+  multi_select: 'Multiple choice',
+  numeric: 'Number',
+  ordering: 'Order',
+  subjective: 'Essay',
+  kql: 'KQL query',
+  log_analysis: 'Log analysis',
+  scenario: 'Scenario',
+  structured_case: 'Structured case',
+};
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type PageState =

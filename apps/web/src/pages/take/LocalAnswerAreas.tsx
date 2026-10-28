@@ -1,6 +1,7 @@
 // Free-text / scenario answer areas, split out of Attempt.tsx so renderers.tsx
 // can import them without an import cycle (RW-54a step 7).
 
+import './take-theme.css';
 import { Button, Card } from '@assessiq/ui-system';
 import type { FrozenQuestionWire } from '@assessiq/candidate-ui';
 import type { QuestionType } from '@assessiq/question-types';
@@ -81,29 +82,17 @@ export function SubjectiveAnswerArea({
         onChange={(e) => onAnswerChange({ response: e.target.value })}
         onBlur={onBlur}
         aria-label="Your answer"
+        className="aiq-take-textarea"
         style={{
-          width: '100%',
-          minHeight: 200,
-          padding: 'var(--aiq-space-md)',
-          fontFamily: 'var(--aiq-font-sans)',
           // M2b: 15px desktop / 16px mobile via .aiq-attempt-shell CSS var.
           // 16px on mobile defeats iOS Safari's auto-zoom-on-focus.
           fontSize: 'var(--aiq-answer-input-size)',
-          lineHeight: 1.6,
-          color: 'var(--aiq-color-fg-primary)',
-          background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
-          border: '1px solid var(--aiq-color-border)',
-          borderRadius: 'var(--aiq-radius-md)',
-          resize: 'vertical',
-          boxSizing: 'border-box',
-          outline: 'none',
         }}
       />
       <div
         data-help-id="candidate.attempt.subjective.length"
         style={{
-          fontFamily: 'var(--aiq-font-mono)',
-          fontSize: 11,
+          fontSize: 13,
           color: 'var(--aiq-color-fg-muted)',
           textAlign: 'right',
         }}
@@ -156,7 +145,7 @@ export function KqlAnswerArea({
           color: 'var(--aiq-color-fg-secondary)',
           background: 'var(--aiq-color-bg-raised)',
           border: '1px solid var(--aiq-color-border)',
-          borderRadius: 'var(--aiq-radius-sm)',
+          borderRadius: 12,
         }}
       >
         Tip: KQL is easier on a desktop browser. You can answer here, but consider switching for syntax-heavy queries.
@@ -165,11 +154,13 @@ export function KqlAnswerArea({
         <div
           style={{
             fontFamily: 'var(--aiq-font-mono)',
-            fontSize: 12,
+            fontSize: 13,
             color: 'var(--aiq-color-fg-muted)',
-            padding: 'var(--aiq-space-xs) var(--aiq-space-sm)',
+            padding: '8px 12px',
             background: 'var(--aiq-color-bg-raised)',
-            borderRadius: 'var(--aiq-radius-sm)',
+            border: '1px solid var(--aiq-color-border)',
+            borderRadius: 12,
+            overflowWrap: 'anywhere',
           }}
         >
           Tables: {tables.join(', ')}
@@ -183,21 +174,11 @@ export function KqlAnswerArea({
         onBlur={onBlur}
         aria-label="KQL query"
         data-help-id="candidate.attempt.kql.editor"
+        className="aiq-take-textarea aiq-take-field--mono"
         style={{
-          width: '100%',
           minHeight: 200,
-          padding: 'var(--aiq-space-md)',
-          fontFamily: 'var(--aiq-font-mono)',
           // M2b: 13px mono desktop / 16px mono mobile via .aiq-attempt-shell CSS var.
           fontSize: 'var(--aiq-answer-mono-size)',
-          lineHeight: 1.6,
-          color: 'var(--aiq-color-fg-primary)',
-          background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
-          border: '1px solid var(--aiq-color-border)',
-          borderRadius: 'var(--aiq-radius-md)',
-          resize: 'vertical',
-          boxSizing: 'border-box',
-          outline: 'none',
         }}
       />
     </div>
@@ -279,9 +260,9 @@ export function LogAnalysisAnswerArea({
               color: 'var(--aiq-color-fg-primary)',
               background: 'var(--aiq-color-bg-raised)',
               border: '1px solid var(--aiq-color-border)',
-              borderRadius: 'var(--aiq-radius-md)',
-              padding: 'var(--aiq-space-md)',
-              overflowX: 'auto',
+              borderRadius: 14,
+              padding: 16,
+              overflow: 'auto',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-all',
               margin: 0,
@@ -319,7 +300,7 @@ export function LogAnalysisAnswerArea({
         <div
           style={{
             fontFamily: 'var(--aiq-font-sans)',
-            fontSize: 12,
+            fontSize: 13,
             color: 'var(--aiq-color-fg-muted)',
             marginBottom: 'var(--aiq-space-2xs)',
           }}
@@ -339,19 +320,13 @@ export function LogAnalysisAnswerArea({
               onBlur={onBlur}
               aria-label={`Finding ${idx + 1}`}
               placeholder={`Finding ${idx + 1}`}
+              className="aiq-take-field"
               style={{
                 flex: 1,
-                padding: 'var(--aiq-space-sm) var(--aiq-space-md)',
-                fontFamily: 'var(--aiq-font-sans)',
+                minWidth: 0,
                 // M2b: 14px desktop bumps to 15px desktop / 16px mobile via the
                 // .aiq-attempt-shell CSS var. Mobile 16px defeats iOS auto-zoom.
                 fontSize: 'var(--aiq-answer-input-size)',
-                color: 'var(--aiq-color-fg-primary)',
-                background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
-                border: '1px solid var(--aiq-color-border)',
-                borderRadius: 'var(--aiq-radius-md)',
-                boxSizing: 'border-box',
-                outline: 'none',
               }}
             />
             {!disabled && displayFindings.length > 1 && (
@@ -392,7 +367,7 @@ export function LogAnalysisAnswerArea({
         <div
           style={{
             fontFamily: 'var(--aiq-font-sans)',
-            fontSize: 12,
+            fontSize: 13,
             color: 'var(--aiq-color-fg-muted)',
             marginBottom: 'var(--aiq-space-2xs)',
           }}
@@ -406,21 +381,11 @@ export function LogAnalysisAnswerArea({
           onChange={(e) => emitAnswer(displayFindings, e.target.value)}
           onBlur={onBlur}
           aria-label="Explanation"
+          className="aiq-take-textarea"
           style={{
-            width: '100%',
             minHeight: 120,
-            padding: 'var(--aiq-space-md)',
-            fontFamily: 'var(--aiq-font-sans)',
             // M2b: 15px desktop / 16px mobile via the .aiq-attempt-shell CSS var.
             fontSize: 'var(--aiq-answer-input-size)',
-            lineHeight: 1.6,
-            color: 'var(--aiq-color-fg-primary)',
-            background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
-            border: '1px solid var(--aiq-color-border)',
-            borderRadius: 'var(--aiq-radius-md)',
-            resize: 'vertical',
-            boxSizing: 'border-box',
-            outline: 'none',
           }}
         />
       </div>
@@ -496,6 +461,11 @@ export function ScenarioAnswerArea({
             lineHeight: 1.6,
             color: 'var(--aiq-color-fg-secondary)',
             margin: 0,
+            padding: 20,
+            background: 'var(--aiq-color-bg-raised)',
+            border: '1px solid var(--aiq-color-border)',
+            borderRadius: 14,
+            overflowWrap: 'anywhere',
           }}
         >
           {intro}
@@ -532,17 +502,26 @@ export function ScenarioAnswerArea({
           {step.type === SINGLE_CHOICE_STEP && Array.isArray(step.options) ? (
             // The chosen option TEXT is saved as the step response (same string shape as
             // free-text steps; the AI grader reads it).
-            <div role="radiogroup" aria-label={`Step ${idx + 1} options`} style={{ display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}>
+            <div role="radiogroup" aria-label={`Step ${idx + 1} options`} className="aiq-take-opts">
               {step.options.map((opt, oi) => (
-                <label key={oi} style={{ display: 'flex', gap: 'var(--aiq-space-sm)', alignItems: 'flex-start', fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-answer-input-size)', color: 'var(--aiq-color-fg-primary)' }}>
+                <label
+                  key={oi}
+                  className="aiq-take-opt"
+                  data-checked={getResponse(idx) === opt}
+                  data-disabled={disabled}
+                  style={{ position: 'relative' }}
+                >
                   <input
                     type="radio"
+                    className="aiq-take-visually-hidden-input"
                     name={`scenario-step-${idx}`}
                     checked={getResponse(idx) === opt}
                     disabled={disabled}
                     onChange={() => { updateStep(idx, opt); onBlur(); }}
                   />
-                  <span>{opt}</span>
+                  <span className="aiq-take-opt-badge" aria-hidden="true">{String.fromCharCode(65 + oi)}</span>
+                  <span className="aiq-take-opt-text">{opt}</span>
+                  <span className="aiq-take-radio" aria-hidden="true" />
                 </label>
               ))}
             </div>
@@ -554,21 +533,11 @@ export function ScenarioAnswerArea({
             onChange={(e) => updateStep(idx, e.target.value)}
             onBlur={onBlur}
             aria-label={`Step ${idx + 1} response`}
+            className="aiq-take-textarea"
             style={{
-              width: '100%',
               minHeight: 100,
-              padding: 'var(--aiq-space-md)',
-              fontFamily: 'var(--aiq-font-sans)',
               // M2b: 15px desktop / 16px mobile via the .aiq-attempt-shell CSS var.
               fontSize: 'var(--aiq-answer-input-size)',
-              lineHeight: 1.6,
-              color: 'var(--aiq-color-fg-primary)',
-              background: disabled ? 'var(--aiq-color-bg-raised)' : 'var(--aiq-color-bg-base)',
-              border: '1px solid var(--aiq-color-border)',
-              borderRadius: 'var(--aiq-radius-md)',
-              resize: 'vertical',
-              boxSizing: 'border-box',
-              outline: 'none',
             }}
           />
           )}

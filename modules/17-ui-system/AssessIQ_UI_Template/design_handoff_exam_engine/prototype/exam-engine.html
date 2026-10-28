@@ -1,0 +1,953 @@
+<!doctype html>
+<html lang="en" data-theme="mid">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AssessIQ · Exam engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fff;--surface:#fafafa;--surface-2:#f3f3f4;--border:#e4e4e7;--border-strong:#cdcdd1;--text:#0a0a0b;--muted:#3f3f46;--faint:#52525b;--accent:oklch(.58 .17 258);--accent-hover:oklch(.52 .19 258);--accent-soft:oklch(.96 .03 258);--accent-ink:#fff;--ok:oklch(.5 .13 150);--ok-soft:oklch(.96 .04 150);--warn:oklch(.72 .15 70);--warn-ink:oklch(.47 .11 65);--warn-soft:oklch(.96 .045 80);--danger:oklch(.56 .2 25);--danger-soft:oklch(.96 .03 25);--shadow-lg:0 8px 32px rgba(0,0,0,.08);--serif:"Newsreader","Source Serif Pro",Georgia,serif;--sans:"Geist",-apple-system,"Helvetica Neue",Arial,sans-serif;--mono:"JetBrains Mono","SF Mono",Menlo,monospace;--ease:cubic-bezier(.2,.7,.3,1);--fs:1}
+[data-theme="mid"]{--bg:#efece5;--surface:#e8e4db;--surface-2:#dedad0;--border:#d4cec1;--border-strong:#bab2a2;--text:#23211d;--muted:#3e3a33;--faint:#55504a;--accent:oklch(.5 .13 258);--accent-hover:oklch(.45 .14 258);--accent-soft:oklch(.91 .03 258);--ok:oklch(.45 .11 150);--ok-soft:oklch(.92 .04 150);--warn-ink:oklch(.43 .1 65);--warn-soft:oklch(.92 .05 80);--danger:oklch(.5 .17 25);--danger-soft:oklch(.92 .04 25)}
+[data-theme="dark"]{--bg:#0e0e10;--surface:#161618;--surface-2:#1d1d20;--border:#2a2a2e;--border-strong:#3a3a3f;--text:#f5f5f7;--muted:#b8b8c0;--faint:#a2a2ab;--accent:oklch(.7 .16 258);--accent-hover:oklch(.78 .16 258);--accent-soft:oklch(.27 .07 258);--accent-ink:#0e0e10;--ok:oklch(.75 .15 150);--ok-soft:oklch(.25 .05 150);--warn:oklch(.78 .14 75);--warn-ink:oklch(.82 .12 75);--warn-soft:oklch(.26 .05 75);--danger:oklch(.72 .17 25);--danger-soft:oklch(.26 .06 25);--shadow-lg:0 8px 32px rgba(0,0,0,.6)}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font:400 14px/1.5 var(--sans);letter-spacing:-.005em;-webkit-font-smoothing:antialiased;overflow:hidden;transition:background .3s,color .3s}
+button,input,textarea,select{font:inherit;color:inherit}
+a{color:var(--accent)}a:hover{color:var(--accent-hover)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;opacity:0}
+.mono{font-family:var(--mono)}.spacer{flex:1}.row{display:flex;align-items:center;gap:12px}.wrap{flex-wrap:wrap}.muted{color:var(--muted);margin:0}
+.eyebrow{font:500 11px/1.4 var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}
+kbd{font:500 10.5px/1 var(--mono);min-width:20px;height:20px;padding:0 5px;border:1px solid var(--border-strong);border-bottom-width:2px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);background:var(--bg)}
+.shell{height:100vh;height:100dvh;display:grid;grid-template-rows:auto auto minmax(0,1fr);background:var(--bg)}
+/* top bar */
+.top{display:flex;align-items:center;gap:14px;height:60px;padding:0 clamp(14px,2vw,24px);border-bottom:1px solid var(--border);min-width:0}
+.brand{display:flex;align-items:center;gap:9px;font:500 17px var(--serif);letter-spacing:-.02em;flex:none}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--accent);position:relative}.dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid var(--accent);opacity:.3}
+.vr{width:1px;height:24px;background:var(--border);flex:none}
+.student{display:flex;align-items:center;gap:10px;min-width:0}
+.av{width:32px;height:32px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent);font:600 11.5px var(--mono);letter-spacing:.02em}
+.meta{display:flex;flex-direction:column;min-width:0;flex:0 1 auto}.meta .eyebrow{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.student{flex:0 1 auto}.meta .title{font-weight:500;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.saved{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);white-space:nowrap}.saved i{width:6px;height:6px;border-radius:50%;background:var(--ok);flex:none}.saved.pulse i{animation:pulse .9s var(--ease)}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in oklch,var(--ok) 55%,transparent)}100%{box-shadow:0 0 0 8px transparent}}
+.timer{flex:none;position:relative;overflow:hidden;display:flex;align-items:center;gap:10px;height:42px;padding:0 18px 0 16px;border-radius:999px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text);white-space:nowrap;transition:background .3s,color .3s,border-color .3s}
+.timer .tl{font:500 10.5px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.timer svg{color:var(--accent)}
+.timer #clock{font:600 18px var(--mono);letter-spacing:.01em;font-variant-numeric:tabular-nums}
+.tbar{position:absolute;left:14px;right:14px;bottom:5px;height:2px;border-radius:2px;background:var(--border)}.tbar b{display:block;height:100%;border-radius:2px;background:var(--accent);transition:width 1s linear}
+.timer.low{background:var(--danger-soft);border-color:var(--danger);color:var(--danger);animation:tpulse 2s ease-in-out infinite}.timer.low svg,.timer.low .tl{color:var(--danger)}.timer.low .tbar b{background:var(--danger)}
+@keyframes tpulse{50%{box-shadow:0 0 0 6px color-mix(in oklch,var(--danger) 22%,transparent)}}
+.org{display:flex;align-items:center;gap:10px;min-width:0;flex:none}
+.org-logo{width:32px;height:32px;border-radius:8px;flex:none;object-fit:contain;display:flex;align-items:center;justify-content:center;border:1px solid var(--border-strong);background:var(--bg);font:600 12px var(--serif);letter-spacing:-.01em;color:var(--text)}
+.org .meta{max-width:200px}
+.ib{width:36px;height:36px;border-radius:10px;border:1px solid transparent;background:transparent;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);transition:background .15s,color .15s;flex:none;padding:0}
+.ib:hover,.ib[aria-expanded="true"]{background:var(--surface-2);color:var(--text)}
+.ib svg{transition:transform .35s var(--ease)}
+.tools{position:relative;display:flex;gap:2px}
+.pop{position:absolute;top:calc(100% + 10px);right:0;width:340px;padding:18px;border:1px solid var(--border);border-radius:16px;background:var(--bg);box-shadow:var(--shadow-lg);z-index:60;display:flex;flex-direction:column;gap:16px;opacity:0;transform:translateY(-6px);pointer-events:none;visibility:hidden;transition:opacity .18s,transform .22s var(--ease),visibility 0s .22s}
+.pop.open{opacity:1;transform:none;pointer-events:auto;visibility:visible;transition:opacity .18s,transform .22s var(--ease)}
+.pop-sec{display:flex;flex-direction:column;gap:8px}
+.segc{display:flex;padding:3px;background:var(--surface-2);border-radius:999px;gap:2px}
+.segc button{flex:1;height:30px;padding:0 10px;border:0;border-radius:999px;background:transparent;font-size:12px;font-weight:500;color:var(--muted);cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.segc button:hover{color:var(--text)}
+.segc button[aria-pressed="true"]{background:var(--bg);color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.08),0 0 0 1px var(--border)}
+.sc{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:12.5px;color:var(--muted)}
+.sc li{display:flex;align-items:center;justify-content:space-between;gap:8px}.sc li span:last-child{display:flex;gap:4px;align-items:center}
+.link{background:none;border:0;padding:4px 0;color:var(--accent);font-size:12.5px;font-weight:500;cursor:pointer;text-align:left}
+/* buttons */
+.btn{min-height:40px;padding:0 18px;border-radius:999px;border:1px solid transparent;background:transparent;font-size:13px;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,color .15s,transform .1s;flex:none}
+.btn:active:not(:disabled){transform:scale(.98)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.primary{background:var(--accent);color:var(--accent-ink)}.btn.primary:hover:not(:disabled){background:var(--accent-hover)}
+.btn.outline{border-color:var(--border-strong)}.btn.outline:hover:not(:disabled){background:var(--surface)}
+.btn.ghost{color:var(--muted)}.btn.ghost:hover{background:var(--surface-2);color:var(--text)}
+.btn.lg{min-height:48px;padding:0 26px;font-size:14px}.btn.block{width:100%}
+.btn.icon{width:40px;padding:0;border-color:var(--border-strong);border-radius:10px}
+.btn.icon:hover:not(:disabled){background:var(--surface)}
+/* progress segments */
+.progress{display:flex;align-items:center;gap:16px;padding:9px clamp(14px,2vw,24px);border-bottom:1px solid var(--border);min-width:0}
+.pg-cur,.pg-ans{font:500 11.5px var(--mono);letter-spacing:.05em;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+.pg-cur b{font:600 14px var(--mono);color:var(--text)}.pg-cur .of{text-transform:uppercase}
+.segbar{flex:1;display:flex;gap:2px;height:6px;border-radius:999px;overflow:hidden;transition:height .2s var(--ease)}.segbar:hover{height:10px}
+.segbar button{flex:1;border:0;padding:0;background:var(--surface-2);cursor:pointer;transition:background .3s}
+.segbar .a{background:color-mix(in oklch,var(--accent) 38%,var(--surface-2))}.segbar .f{background:var(--warn)}.segbar .cur{background:var(--accent)}
+/* body */
+.body{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:0;transition:grid-template-columns .45s var(--ease)}
+[data-nav="closed"] .body{grid-template-columns:minmax(0,1fr) 88px}
+.stage{display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0;min-width:0}
+.scroll{overflow:auto;padding:clamp(28px,6vh,72px) clamp(20px,5vw,88px) 56px;overscroll-behavior:contain}
+.qwrap{max-width:860px;margin:0 auto}
+.qwrap.split{max-width:1600px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:clamp(28px,4vw,80px);align-items:start}
+.qwrap.in-next{animation:inN .38s var(--ease)}.qwrap.in-prev{animation:inP .38s var(--ease)}
+@keyframes inN{from{opacity:0;transform:translateY(14px)}}@keyframes inP{from{opacity:0;transform:translateY(-14px)}}
+.passage-pane{position:sticky;top:0;display:flex;flex-direction:column;gap:10px}
+.passage{padding:22px 24px;border:1px solid var(--border);border-radius:16px;background:var(--surface);font-size:calc(15px*var(--fs));line-height:1.7;white-space:pre-wrap;max-height:calc(100dvh - 280px);overflow:auto}
+.passage.mono{font-family:var(--mono);font-size:calc(13.5px*var(--fs))}
+.qhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.qnum{white-space:nowrap;font:500 11.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}.qnum b{color:var(--text);font-weight:600}
+.chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.chip.accent{background:var(--accent-soft);border-color:transparent;color:var(--accent)}.chip.ok{background:var(--ok-soft);border-color:transparent;color:var(--ok)}.chip.bad{background:var(--danger-soft);border-color:transparent;color:var(--danger)}.chip.flag{background:var(--warn-soft);border-color:transparent;color:var(--warn-ink)}
+.flagbtn{white-space:nowrap;flex:none;display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:999px;border:1px solid var(--border-strong);background:transparent;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;transition:all .2s}
+.flagbtn:hover{color:var(--text);background:var(--surface)}
+.flagbtn[aria-pressed="true"]{background:var(--warn-soft);border-color:var(--warn);color:var(--warn-ink)}
+.qtext{font:500 calc(clamp(22px,1.5vw + 12px,32px)*var(--fs))/1.3 var(--serif);letter-spacing:-.015em;margin:22px 0 8px;text-wrap:pretty}
+.qsub{font-size:13px;color:var(--faint);margin:0 0 26px}
+/* answer types */
+.answer,.answer-set{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:10px;min-width:0}
+.opt{position:relative;display:flex;align-items:center;gap:16px;min-height:62px;padding:14px 18px;border:1px solid var(--border);border-radius:14px;background:var(--bg);cursor:pointer;transition:border-color .15s,background .15s}
+.opt:hover{border-color:var(--border-strong);background:var(--surface)}
+.opt:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.opt:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.badge{width:30px;height:30px;flex:none;border-radius:8px;border:1px solid var(--border-strong);display:flex;align-items:center;justify-content:center;font:500 12px var(--mono);color:var(--muted);background:var(--bg);transition:all .15s}
+.opt:has(input:checked) .badge{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.txt{flex:1;font-size:calc(15.5px*var(--fs));line-height:1.45;min-width:0}
+.radio{width:20px;height:20px;flex:none;border-radius:50%;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;transition:border-color .15s}
+.opt:has(input:checked) .radio{border-color:var(--accent)}
+.opt:has(input:checked) .radio::after{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent);animation:dotin .2s var(--ease)}
+@keyframes dotin{from{transform:scale(0)}}
+.box{width:22px;height:22px;flex:none;border-radius:6px;border:1.5px solid var(--border-strong);display:flex;align-items:center;justify-content:center;color:var(--accent-ink);transition:all .15s}
+.box svg{opacity:0;transform:scale(.6);transition:all .15s}
+.opt:has(input:checked) .box{background:var(--accent);border-color:var(--accent)}.opt:has(input:checked) .box svg{opacity:1;transform:none}
+.grid{display:flex;flex-direction:column;gap:10px;min-width:0}
+.grow{border:1px solid var(--border);border-radius:14px;padding:16px 18px;margin:0;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 20px;min-width:0;transition:border-color .15s}
+.grow:has(input:checked){border-color:var(--border-strong)}
+.grow{display:block}.grow legend{float:left;width:100%;padding:0;font-size:calc(15.5px*var(--fs));line-height:1.45;margin-bottom:12px}.grow .segs{clear:both}
+.segs{display:flex;flex-wrap:wrap;gap:6px}
+.seg{position:relative;min-height:40px;min-width:88px;padding:8px 16px;border:1px solid var(--border-strong);border-radius:999px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:13px;font-weight:500;color:var(--muted);cursor:pointer;background:var(--bg);transition:all .15s;line-height:1.3}
+.seg:hover{background:var(--surface);color:var(--text)}
+.seg:has(input:checked){border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.seg:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px}
+.scale{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.scale .seg{min-height:68px;border-radius:14px}
+.blank-row{display:flex;flex-direction:column;gap:6px}
+.order{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.order li{display:flex;align-items:center;gap:14px;min-height:62px;padding:10px 12px 10px 16px;border:1px solid var(--border);border-radius:14px;background:var(--bg)}
+.mv{margin-left:auto;display:flex;gap:6px;flex:none}
+.label{font-size:12px;font-weight:500;color:var(--muted)}
+.input{width:100%;min-height:48px;padding:12px 16px;border-radius:12px;border:1px solid var(--border-strong);background:var(--bg);font-size:calc(15.5px*var(--fs));line-height:1.5;transition:border-color .15s,box-shadow .15s}
+.input:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.input.area{min-height:280px;resize:vertical;line-height:1.65}.input.num{max-width:240px;font-family:var(--mono)}
+.hint{font:500 11.5px var(--mono);color:var(--faint);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.hint.short{color:var(--warn-ink)}
+.unit{font-size:13px;color:var(--muted)}
+/* footer */
+.foot{display:flex;align-items:center;gap:10px;padding:12px clamp(20px,5vw,88px);padding-bottom:max(12px,env(safe-area-inset-bottom));border-top:1px solid var(--border);background:var(--bg)}
+.hints{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--faint);margin-left:8px}.hints .sep{width:1px;height:14px;background:var(--border);margin:0 6px}
+/* navigator */
+.nav{position:relative;border-left:1px solid var(--border);background:var(--surface);display:grid;grid-template-rows:56px minmax(0,1fr);min-height:0;overflow:visible;z-index:2}
+.nav-head{display:flex;align-items:center;gap:10px;padding:0 14px 0 26px;border-bottom:1px solid var(--border);min-width:0;transition:padding .45s var(--ease)}
+[data-nav="open"] .nav-head{padding-left:14px}
+.nav-title{font:500 16px var(--serif);letter-spacing:-.01em;white-space:nowrap;transition:opacity .2s}
+.nav-count{margin-left:auto;font:500 11px var(--mono);color:var(--muted);white-space:nowrap;transition:opacity .2s}
+[data-nav="closed"] .nav-title,[data-nav="closed"] .nav-count{opacity:0;pointer-events:none}
+
+.nav-main{position:relative;min-height:0;overflow:hidden}.nav-head{overflow:hidden}
+.nav-full{position:absolute;inset:0;width:320px;display:flex;flex-direction:column;gap:18px;padding:20px;overflow:auto;transition:opacity .25s .1s,transform .45s var(--ease)}
+[data-nav="closed"] .nav-full{opacity:0;transform:translateX(28px);pointer-events:none;visibility:hidden;transition:opacity .15s,transform .45s var(--ease),visibility 0s .45s}
+.nstats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.nstat{padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--bg);text-align:left;cursor:pointer;transition:border-color .15s,background .15s,transform .1s}
+.nstat:hover{border-color:var(--border-strong)}.nstat:active{transform:scale(.98)}
+.nstat[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}.nstat[aria-pressed="true"] b{color:var(--accent)}
+.nstat[data-v="flag"][aria-pressed="true"]{border-color:var(--warn);background:var(--warn-soft)}.nstat[data-v="flag"][aria-pressed="true"] b{color:var(--warn-ink)}
+.nnote{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--muted)}
+.fpill{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 6px 0 12px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font:500 10.5px var(--mono);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.fpill.flag{background:var(--warn-soft);color:var(--warn-ink)}
+.fpill button{width:22px;height:22px;border-radius:50%;border:0;background:transparent;color:inherit;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.fpill button:hover{background:color-mix(in oklch,currentColor 14%,transparent)}
+.nav-handle{position:absolute;left:-17px;top:50%;margin-top:-34px;z-index:5;width:34px;height:68px;border-radius:999px;border:1px solid var(--border-strong);background:var(--bg);color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 2px 12px rgba(0,0,0,.1);transition:border-color .2s,color .2s,box-shadow .2s}
+.nav-handle:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft),0 2px 12px rgba(0,0,0,.1)}
+.nav-handle svg{transition:transform .45s var(--ease)}[data-nav="closed"] .nav-handle svg{transform:scaleX(-1)}
+#navtoggle{display:none}.nstat b{display:block;font:500 26px/1 var(--serif);margin-top:8px;font-variant-numeric:lining-nums tabular-nums}
+.ngrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.qc,.rc{position:relative;border-radius:10px;border:1px solid var(--border-strong);background:var(--bg);font:500 12px var(--mono);color:var(--muted);cursor:pointer;padding:0;font-variant-numeric:tabular-nums}
+.qc{aspect-ratio:1;transition:background .2s,border-color .2s,color .2s}
+.qc:hover{border-color:var(--text);color:var(--text)}
+.qc.a,.rc.a{background:var(--accent-soft);border-color:transparent;color:var(--accent)}
+.qc.cur,.rc.cur{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.qc.f::after,.rc.f::after{content:"";position:absolute;top:-3px;right:-3px;width:10px;height:10px;border-radius:50%;background:var(--warn);border:2px solid var(--surface)}
+.legend{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:8px 14px;font-size:12px;color:var(--muted)}
+.legend li{display:flex;align-items:center;gap:6px}
+.sw{position:relative;width:12px;height:12px;border-radius:4px;border:1px solid var(--border-strong);background:var(--bg)}.sw.c{background:var(--accent);border-color:var(--accent)}.sw.a{background:var(--accent-soft);border-color:transparent}.sw.f::after{content:"";position:absolute;top:-3px;right:-3px;width:7px;height:7px;border-radius:50%;background:var(--warn)}
+.nempty{font-size:13px;color:var(--faint);text-align:center;padding:8px 0}
+.nav-full .btn{margin-top:auto}
+/* collapsed rail — current question always sits in the centre lens */
+.nav-rail{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0 16px;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .15s,visibility 0s .15s}
+[data-nav="closed"] .nav-rail{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .3s .2s}
+.rail-view{position:relative;flex:1;width:88px;overflow:hidden;-webkit-mask-image:linear-gradient(transparent,#000 20%,#000 80%,transparent);mask-image:linear-gradient(transparent,#000 20%,#000 80%,transparent)}
+.rail-track{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--border)}
+.lens{position:absolute;left:50%;top:50%;width:62px;height:62px;margin:-31px 0 0 -31px;border-radius:18px;border:1px solid color-mix(in oklch,var(--accent) 40%,transparent);background:var(--bg)}
+.rail-list{position:absolute;left:0;right:0;top:0;display:flex;flex-direction:column;align-items:center;gap:12px;will-change:transform}
+.rail-list.anim{transition:transform .55s var(--ease)}
+.rc{width:42px;height:42px;flex:none;transition:transform .5s var(--ease),opacity .5s,background .2s,color .2s,border-color .2s}
+.rc:hover{border-color:var(--text);color:var(--text)}
+.rc[data-d="1"]{opacity:.92;transform:scale(.94)}.rc[data-d="2"]{opacity:.62;transform:scale(.88)}.rc[data-d="3"]{opacity:.38;transform:scale(.82)}.rc[data-d="4"]{opacity:.2;transform:scale(.78)}
+.rc.cur{transform:scale(1.16);font-size:13px;box-shadow:0 6px 18px color-mix(in oklch,var(--accent) 32%,transparent)}
+.rail-pos{text-align:center;font:500 10.5px var(--mono);color:var(--muted);letter-spacing:.06em}.rail-pos b{display:block;font:500 22px/1.1 var(--serif);color:var(--text);letter-spacing:-.02em}
+.sheet-scrim{display:none}
+/* review */
+.rv{display:grid;grid-template-columns:minmax(0,1fr) 380px;min-height:0}
+.rv-main{overflow:auto;padding:clamp(28px,6vh,64px) clamp(20px,5vw,88px)}
+.rv-inner{max-width:1200px;margin:0 auto}
+.rv-side{border-left:1px solid var(--border);background:var(--surface);padding:32px 28px;display:flex;flex-direction:column;gap:20px;overflow:auto}
+.h1{font:500 clamp(30px,3vw,42px)/1.1 var(--serif);letter-spacing:-.02em;margin:10px 0 10px;text-wrap:balance}
+.h2{font:500 22px/1.25 var(--serif);letter-spacing:-.01em;margin:0}
+.lede{font-size:15px;max-width:600px}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:28px 0}
+.stat{border:1px solid var(--border);border-radius:14px;padding:18px 20px;background:var(--bg);text-align:left}.stat .n{display:block;margin-top:8px;font:500 32px/1 var(--serif);letter-spacing:-.02em;font-variant-numeric:lining-nums tabular-nums}.stat .n small{font:400 14px var(--sans);color:var(--faint);margin-left:4px}
+.tbl{border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-top:14px}
+.tr{display:grid;grid-template-columns:52px minmax(0,1fr) minmax(0,.7fr) 120px 64px;gap:16px;align-items:center;padding:14px 20px;border-top:1px solid var(--border);font-size:13.5px;cursor:pointer;transition:background .15s}
+.tr:hover{background:var(--surface)}.tr:first-child{border-top:0}
+.tr.head{cursor:default;background:var(--surface);font:500 10.5px var(--mono);text-transform:uppercase;letter-spacing:.07em;color:var(--muted);padding-top:11px;padding-bottom:11px}
+.tr .n{font:500 12px var(--mono);color:var(--faint)}.ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}.tr .ans{color:var(--muted)}
+.tr .edit{display:flex;align-items:center;gap:4px;justify-content:flex-end;color:var(--accent);font-size:12.5px;font-weight:500}
+.checks{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px;font-size:14px}
+.checks li{display:flex;gap:10px;align-items:flex-start}.checks .ci{width:20px;height:20px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;margin-top:1px}.ci.ok{background:var(--ok-soft);color:var(--ok)}.ci.w{background:var(--warn-soft);color:var(--warn-ink)}
+.notice{padding:14px 16px;border-radius:12px;background:var(--bg);border:1px solid var(--border);font-size:13px;line-height:1.55;color:var(--muted)}.notice b{color:var(--text);font-weight:500}
+.side-actions{margin-top:auto;display:flex;flex-direction:column;gap:10px}
+/* result + key */
+.res{overflow:auto;position:relative;min-height:0}
+.res-bg{position:absolute;left:0;right:0;top:0;height:560px;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:48px 48px;opacity:.55;-webkit-mask-image:radial-gradient(ellipse at 50% 0%,#000,transparent 70%);mask-image:radial-gradient(ellipse at 50% 0%,#000,transparent 70%);pointer-events:none}
+.res-inner{position:relative;max-width:980px;margin:0 auto;padding:clamp(40px,9vh,104px) clamp(20px,5vw,48px) 72px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:12px}
+.h1.big{font-size:clamp(42px,5vw,68px);margin:6px 0 4px}
+.score{display:grid;grid-template-columns:auto minmax(0,1fr);gap:44px;align-items:center;width:100%;margin-top:28px;padding:32px 36px;border:1px solid var(--border);border-radius:16px;background:var(--bg);text-align:left}
+.ring{position:relative;width:184px;height:184px}.ring svg{transform:rotate(-90deg);display:block}
+.trk{fill:none;stroke:var(--surface-2);stroke-width:6}.arc{fill:none;stroke:var(--accent);stroke-width:6;stroke-linecap:round}
+.ring-n{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}.ring-n .n{font:500 60px/1 var(--serif);letter-spacing:-.03em;font-variant-numeric:lining-nums tabular-nums}
+.meter{position:relative;height:8px;border-radius:999px;background:var(--surface-2);margin:10px 0 8px}.meter i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--accent);width:0;transition:width 1.6s var(--ease)}.meter .mk{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--text);border-radius:1px}
+.mlab{display:flex;justify-content:space-between;font:500 10.5px var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.rstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:22px}.rstats .stat{padding:14px 16px}.rstats .stat .n{font-size:26px}
+.fine{font-size:12.5px;color:var(--faint);max-width:560px;margin:14px 0 6px}
+.key-inner{position:relative;max-width:1080px;margin:0 auto;padding:clamp(32px,6vh,72px) clamp(20px,5vw,48px) 72px}
+.klist{display:flex;flex-direction:column;gap:12px;margin-top:22px}
+.kcard{border:1px solid var(--border);border-radius:16px;padding:22px 24px;display:flex;flex-direction:column;gap:14px;background:var(--bg)}
+.kq{margin:0;font:500 calc(18px*var(--fs))/1.4 var(--serif);letter-spacing:-.01em}
+.kgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.kcell{padding:12px 14px;border-radius:12px;background:var(--surface);display:flex;flex-direction:column;gap:4px;font-size:14px}.kcell.ok{background:var(--ok-soft)}.kcell.bad{background:var(--danger-soft)}
+.kex{margin:0;font-size:14px;line-height:1.6;color:var(--muted)}.kex b{color:var(--text);font-weight:500}
+.empty{padding:40px;text-align:center;color:var(--faint);border:1px dashed var(--border);border-radius:14px}
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(10,10,11,.36);z-index:80;display:flex;align-items:center;justify-content:center;padding:20px;animation:fade .2s}
+.dialog{width:min(480px,100%);background:var(--bg);border:1px solid var(--border);border-radius:16px;padding:28px;box-shadow:var(--shadow-lg);display:flex;flex-direction:column;gap:12px;animation:rise .28s var(--ease)}
+.dlg-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
+@keyframes fade{from{opacity:0}}@keyframes rise{from{opacity:0;transform:translateY(10px) scale(.98)}}
+/* responsive */
+@media (max-width:1240px){.qwrap.split{grid-template-columns:minmax(0,1fr)}.passage-pane{position:static}.passage{max-height:300px}.hints{display:none}}
+@media (max-width:1240px){.org .meta{display:none}.timer .tl{display:none}.student .meta .eyebrow{display:none}}
+@media (max-width:1080px){.saved{display:none}.top>.meta .eyebrow{display:none}}
+@media (max-width:1080px){.saved span{display:none}.rv{grid-template-columns:minmax(0,1fr) 320px}.tr{grid-template-columns:44px minmax(0,1fr) 110px 56px}.tr .ans{display:none}}
+@media (max-width:900px){
+.body,[data-nav="closed"] .body{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
+.stage{grid-row:1}.nav{grid-row:2;border-left:0;border-top:1px solid var(--border);grid-template-rows:none;grid-template-columns:auto minmax(0,1fr);height:68px;overflow:visible}
+.nav-head,[data-nav="open"] .nav-head{border:0;padding:0 2px 0 10px}.nav-title,.nav-count{display:none}
+#navtoggle{display:inline-flex}.nav-handle{display:none}.pg-ans{display:none}
+.nav-full{display:none}
+.nav-rail,[data-nav="closed"] .nav-rail{position:relative;inset:auto;opacity:1;visibility:visible;pointer-events:auto;flex-direction:row;padding:0 6px;gap:2px;height:68px}
+.nav-rail .ib svg{transform:rotate(-90deg)}
+.rail-view{width:auto;height:68px;-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+.rail-track{left:0;right:0;top:50%;bottom:auto;width:auto;height:1px}
+.lens{width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:16px}
+.rail-list{top:0;bottom:0;right:auto;flex-direction:row;gap:10px}
+.rc{width:40px;height:40px}.rail-pos{display:none}
+.shell.sheet .nav-full{display:flex;position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-height:78dvh;border-radius:20px 20px 0 0;border-top:1px solid var(--border);background:var(--bg);box-shadow:var(--shadow-lg);z-index:70;opacity:1;visibility:visible;transform:none;pointer-events:auto;padding-bottom:max(20px,env(safe-area-inset-bottom));animation:sheet .32s var(--ease)}
+.shell.sheet .sheet-scrim{display:block;position:fixed;inset:0;background:rgba(10,10,11,.32);z-index:65;animation:fade .2s}
+.ngrid{grid-template-columns:repeat(auto-fill,minmax(48px,1fr))}
+.meta,.vr{display:none}.student .meta{display:flex}.student .meta .eyebrow{display:none}
+.rv{display:block;overflow:auto}.rv-main{overflow:visible}.rv-side{border-left:0;border-top:1px solid var(--border)}
+.stats,.rstats{grid-template-columns:repeat(2,minmax(0,1fr))}
+.score{grid-template-columns:1fr;justify-items:center;padding:28px 22px}
+}
+@keyframes sheet{from{transform:translateY(40px);opacity:0}}
+@media (max-width:640px){.hide-sm{display:none}.student .meta{display:none}.top{gap:8px}.timer{padding:0 12px;height:38px}.timer svg{display:none}.timer #clock{font-size:15px}.org,.org+.vr{display:none}.foot{gap:8px}.foot .btn{padding:0 14px}.tr{grid-template-columns:36px minmax(0,1fr) auto;gap:10px;padding:12px 14px}.tr .edit{display:none}.opt{padding:12px 14px;gap:12px}.seg{flex:1 1 calc(50% - 6px);min-width:0}.segs{width:100%}.dlg-actions{flex-direction:column-reverse}.dlg-actions .btn{width:100%}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+const EXAM_SECS = 7200;
+const PASS_MARK = 70;
+const LOW_SECS = 300;
+
+const TYPE_LABEL = {
+  single: "Choose one", multi: "Choose all that apply", number: "Numeric answer",
+  text: "Short answer", essay: "Written response", order: "Put in order"
+};
+
+const PASSAGE_RETAIL = "A retail analytics team keeps three years of transaction logs in object storage. Most dashboard queries touch only the last 30 days, while a nightly training job reads the full history. Security reviewers require that encryption keys are rotated on schedule and that every key use is logged.";
+const PASSAGE_DIAGRAM = "[1] Source data  ->  [2] Feature store  ->  [3] Training job  ->  [4] Endpoint\n\nThe four boxes show the parts of a real-time machine learning pipeline, from left to right.";
+const PASSAGE_TABLE = "Region      Q1     Q3\nNorth      120    180\nSouth      200    210\nEast        90    160\nWest       150    170\n\nValues are units sold, in thousands.";
+
+const QUESTIONS = [
+  { type: "single", pill: "Choose one", t: "Which storage class is most cost-effective for data that is rarely read but must stay available within milliseconds?", o: ["Standard", "Standard-Infrequent Access", "Glacier Deep Archive", "Local instance storage"], ans: 1, ex: "Standard-Infrequent Access suits data that is read less often but still needs millisecond retrieval, at a lower storage price than Standard. Glacier classes need restore time, and instance storage is not durable." },
+  { type: "multi", pill: "Choose all that apply", t: "Select all actions that help protect sensitive training data.", o: ["Encrypt data at rest with KMS keys", "Make the storage bucket publicly readable", "Restrict access with least-privilege IAM roles", "Log and audit every data access"], ans: [true, false, true, true], ex: "Encryption, least-privilege access and audit logging all protect sensitive data. A publicly readable bucket exposes it, so it is never a protective action." },
+  { type: "grid", pill: "True or false", t: "Mark each statement as true or false.", s: ["Accuracy alone is a reliable metric when classes are heavily imbalanced.", "L2 regularization penalises large weights.", "A confusion matrix can be built without ground-truth labels."], cols: ["True", "False"], ans: [1, 0, 1], ex: "Accuracy can look high while minority-class performance is poor. L2 regularization penalises large weights. A confusion matrix compares predictions with true labels, so it needs them." },
+  { type: "number", pill: "Integer answer", kind: "integer", t: "A dataset has 12,000 rows. If 20% are held out for testing, how many rows remain for training?", unit: "rows", ans: 9600, ex: "20% of 12,000 is 2,400 rows held out for testing. 12,000 minus 2,400 leaves 9,600 rows for training." },
+  { type: "essay", pill: "Written response", t: "Explain in 100 to 200 words how you would detect and respond to data drift in a production model.", min: 100, max: 200, ex: "A strong answer compares live input distributions with the training baseline, sets a drift threshold, alerts on breaches, and then retrains or rolls back. It is marked by an examiner." },
+  { type: "order", pill: "Put in order", t: "Arrange the machine learning pipeline steps in the correct order, first to last.", o: ["Deploy the model", "Collect and validate data", "Train the model", "Evaluate on held-out data"], ans: [1, 2, 3, 0], ex: "Data is collected and validated first. The model is trained on it, evaluated on held-out data, and only then deployed." },
+  { type: "single", pill: "Choose one", t: "Which encryption option gives you control over key rotation and access auditing?", o: ["Default service keys only", "Customer-managed keys in AWS KMS", "No encryption", "A shared password file"], ans: 1, ex: "Customer-managed keys in AWS KMS let you set rotation policies and audit key use. Default service keys do not give that control." },
+  { type: "text", pill: "Short answer", t: "Name the AWS service that manages encryption keys.", max: 20, accept: ["aws kms", "kms", "key management service", "aws key management service"], ex: "AWS Key Management Service (AWS KMS) creates, stores and rotates the keys used to encrypt data." },
+  { type: "grid", pill: "Classify", passage: PASSAGE_RETAIL, t: "Classify each service by its main purpose.", s: ["Amazon S3", "Amazon EC2", "AWS KMS"], cols: ["Storage", "Compute", "Security"], ans: [0, 1, 2], ex: "S3 stores objects, EC2 provides compute capacity, and KMS manages encryption keys." },
+  { type: "single", pill: "Choose one", passage: PASSAGE_RETAIL, t: "Which change would most reduce cost for the workload described above?", o: ["Move logs older than 30 days to a colder storage class", "Increase the compute size of the nightly job", "Disable key rotation to save API calls", "Copy all logs to a second bucket"], ans: 0, ex: "Logs older than 30 days are rarely queried, so a colder storage class cuts storage cost without affecting the dashboards. The other options raise cost or weaken security." },
+  { type: "single", pill: "Rating scale", layout: "scale", ungraded: true, t: "I can explain model monitoring to my team without help.", o: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"], ex: "Self-report item. It is not scored." },
+  { type: "grid", pill: "Match", t: "Match each metric to what it measures.", s: ["Precision", "Recall", "Accuracy"], cols: ["Share of predicted positives that are correct", "Share of actual positives that are found", "Share of all predictions that are correct"], ans: [0, 1, 2], ex: "Precision looks at predicted positives, recall at actual positives, and accuracy at all predictions." },
+  { type: "cloze", pill: "Fill in the blanks", t: "Amazon S3 offers ____ storage, while Amazon EBS provides ____ block storage for EC2 instances.", accept: [["object"], ["persistent", "durable"]], ex: "S3 is object storage. EBS volumes keep their data independently of the instance, so they are persistent block storage." },
+  { type: "grid", pill: "Label the diagram", pre: true, passage: PASSAGE_DIAGRAM, t: "Match each numbered box to its role in the pipeline.", s: ["Box 1", "Box 2", "Box 3", "Box 4"], cols: ["Ingest", "Transform", "Train", "Serve"], ans: [0, 1, 2, 3], ex: "Data enters at box 1 to be ingested, is transformed in the feature store, is trained in box 3, and is served from the endpoint." },
+  { type: "single", pill: "Read the table", pre: true, passage: PASSAGE_TABLE, t: "Which region grew the most between Q1 and Q3?", o: ["North", "South", "East", "West"], ans: 2, ex: "East grew from 90 to 160, an increase of 70. North grew by 60, West by 20 and South by 10." },
+  { type: "grid", pill: "Analytical reasoning", t: "Three analysts (Ana, Ben and Cho) each sit on a different floor, 1, 2 or 3. Cho is on floor 1. Ben sits on the floor directly above Ana. Match each analyst to a floor.", s: ["Ana", "Ben", "Cho"], cols: ["Floor 1", "Floor 2", "Floor 3"], ans: [1, 2, 0], ex: "Cho is on floor 1, which leaves floors 2 and 3 for Ana and Ben. Ben is directly above Ana, so Ana is on floor 2 and Ben on floor 3." },
+  { type: "grid", pill: "Yes or no", t: "Answer yes or no for each statement.", s: ["Dropout acts as a regularizer during training.", "Standardizing features is required before fitting a decision tree."], cols: ["Yes", "No"], ans: [0, 1], ex: "Dropout randomly disables units during training, which reduces overfitting. Decision trees split on thresholds, so feature scaling is not required." },
+  { type: "single", pill: "Assertion and reason", t: "Assertion (A): Accuracy can be misleading on imbalanced data. Reason (R): A model that always predicts the majority class can still score a high accuracy.", o: ["A and R are true, and R explains A", "A and R are true, but R does not explain A", "A is true and R is false", "A is false and R is true"], ans: 0, ex: "Both statements are true, and the reason explains the assertion: predicting only the majority class gives a high accuracy." }
+];
+
+const GRADE_LABEL = { correct: "Correct", incorrect: "Incorrect", unanswered: "Not answered", manual: "Pending review", na: "Not scored" };
+const GRADE_CLS = { correct: "ok", incorrect: "bad", unanswered: "open", manual: "flag", na: "open" };
+
+const S = {
+  view: "q",
+  idx: 2,
+  answers: [
+    0,
+    [true, false, true, false],
+    [0, null, 1],
+    "9600",
+    "Monitor input feature distributions and prediction outputs against a training baseline. Raise an alert when the population stability index passes a threshold, then compare recent labelled samples.",
+    null,
+    1,
+    "AWS KMS",
+    [0, null, null],
+    -1,
+    3,
+    [null, null, null],
+    ["object", ""],
+    [0, 1, null, null],
+    0,
+    [0, null, null],
+    [0, null],
+    -1
+  ],
+  flags: [false, false, true, false, false, false, true, false, false, false, false, false, false, false, false, false, false, false],
+  secs: 3966,
+  keyF: "all",
+  theme: "light"
+};
+
+/* ---------- helpers ---------- */
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const pad = n => String(n).padStart(2, "0");
+const fmtClock = secs => pad(Math.floor(secs / 3600)) + ":" + pad(Math.floor((secs % 3600) / 60)) + ":" + pad(secs % 60);
+const wordCount = s => (String(s || "").trim() ? String(s).trim().split(/\s+/).length : 0);
+const norm = s => String(s ?? "").trim().toLowerCase();
+
+function emptyOf(q) {
+  switch (q.type) {
+    case "single": return -1;
+    case "multi": return q.o.map(() => false);
+    case "grid": return q.s.map(() => null);
+    case "cloze": return q.accept.map(() => "");
+    case "number": case "essay": case "text": return "";
+    case "order": return null;
+  }
+}
+
+function isAnswered(q, v) {
+  switch (q.type) {
+    case "single": return v >= 0;
+    case "multi": return Array.isArray(v) && v.some(Boolean);
+    case "grid": return Array.isArray(v) && v.every(x => x !== null);
+    case "cloze": return Array.isArray(v) && v.every(x => norm(x) !== "");
+    case "number": case "text": return norm(v) !== "";
+    case "essay": return wordCount(v) > 0;
+    case "order": return Array.isArray(v);
+  }
+}
+
+function gradeQ(q, v) {
+  if (q.ungraded) return "na";
+  if (q.type === "essay") return wordCount(v) > 0 ? "manual" : "unanswered";
+  switch (q.type) {
+    case "single": return v < 0 ? "unanswered" : (v === q.ans ? "correct" : "incorrect");
+    case "multi": return !v.some(Boolean) ? "unanswered" : (v.every((x, k) => x === q.ans[k]) ? "correct" : "incorrect");
+    case "grid": return v.every(x => x === null) ? "unanswered" : (v.every((x, j) => x === q.ans[j]) ? "correct" : "incorrect");
+    case "number": return norm(v) === "" ? "unanswered" : (Number(v) === q.ans ? "correct" : "incorrect");
+    case "text": return norm(v) === "" ? "unanswered" : (q.accept.includes(norm(v)) ? "correct" : "incorrect");
+    case "cloze": return v.every(x => norm(x) === "") ? "unanswered" : (v.every((x, k) => q.accept[k].includes(norm(x))) ? "correct" : "incorrect");
+    case "order": return !Array.isArray(v) ? "unanswered" : (v.every((x, k) => x === q.ans[k]) ? "correct" : "incorrect");
+  }
+}
+
+function summarize(q, v) {
+  if (q.type === "essay") return wordCount(v) > 0 ? wordCount(v) + " words" : "No answer";
+  if (q.type === "single" && q.layout === "scale") return v >= 0 ? q.o[v] : "No answer";
+  if (!isAnswered(q, v) && !(q.type === "grid" && Array.isArray(v) && v.some(x => x !== null))) return "No answer";
+  switch (q.type) {
+    case "single": return "ABCD"[v] + " · " + q.o[v];
+    case "multi": return v.map((on, k) => on ? "ABCD"[k] : null).filter(Boolean).join(", ") || "No answer";
+    case "grid": return v.map(k => k === null ? "–" : q.cols[k]).join(", ");
+    case "number": return v + " " + q.unit;
+    case "order": return v.map(k => "ABCD"[k]).join(" → ");
+    case "text": return String(v).length > 40 ? String(v).slice(0, 40) + "…" : String(v);
+    case "cloze": return v.map(x => x || "–").join(" · ");
+  }
+}
+
+function answerLabel(q) {
+  switch (q.type) {
+    case "single": return q.layout === "scale" ? "Not scored" : "ABCD"[q.ans] + " · " + q.o[q.ans];
+    case "multi": return q.ans.map((on, k) => on ? "ABCD"[k] : null).filter(Boolean).join(", ");
+    case "grid": return q.s.map((t, j) => t + ": " + q.cols[q.ans[j]]).join("; ");
+    case "number": return q.ans + " " + q.unit;
+    case "text": return q.accept[0];
+    case "cloze": return q.accept.map(a => a[0]).join(" · ");
+    case "order": return q.ans.map(k => "ABCD"[k]).join(" → ");
+    case "essay": return "Examiner-marked";
+  }
+}
+
+function computeAll() {
+  const grades = QUESTIONS.map((q, i) => gradeQ(q, S.answers[i]));
+  const isAns = QUESTIONS.map((q, i) => isAnswered(q, S.answers[i]));
+  const gradable = grades.filter(g => g === "correct" || g === "incorrect" || g === "unanswered").length;
+  const correctN = grades.filter(g => g === "correct").length;
+  const pending = grades.filter(g => g === "manual").length;
+  const pctScore = gradable ? Math.round(correctN / gradable * 100) : 0;
+  return {
+    grades, isAns, gradable, correctN, pending, pctScore,
+    passed: pctScore >= PASS_MARK,
+    answered: isAns.filter(Boolean).length,
+    flagged: S.flags.filter(Boolean).length
+  };
+}
+
+function optionsSingle(q, i, ans) {
+  return `<fieldset class="answer-set"><legend class="vh">Choose one answer for question ${i + 1}</legend>` +
+    q.o.map((text, k) => `
+      <label class="opt">
+        <input class="vh" type="radio" name="q${i}" data-act="pick" data-k="${k}" ${ans === k ? "checked" : ""}>
+        <span class="badge" aria-hidden="true">${"ABCD"[k]}</span>
+        <span class="txt">${esc(text)}</span>
+        <span class="radio" aria-hidden="true"></span>
+      </label>`).join("") + `</fieldset>`;
+}
+
+function optionsScale(q, i, ans) {
+  return `<fieldset class="answer-set"><legend class="vh">Rate your agreement for question ${i + 1}</legend><div class="scale">` +
+    q.o.map((text, k) => `
+      <label class="seg">
+        <input class="vh" type="radio" name="q${i}" data-act="pick" data-k="${k}" ${ans === k ? "checked" : ""}>
+        ${esc(text)}
+      </label>`).join("") + `</div></fieldset>`;
+}
+
+function optionsMulti(q, i, ans) {
+  return `<fieldset class="answer-set"><legend class="vh">Choose all answers that apply to question ${i + 1}</legend>` +
+    q.o.map((text, k) => `
+      <label class="opt">
+        <input class="vh" type="checkbox" data-act="toggle" data-k="${k}" ${ans[k] ? "checked" : ""}>
+        <span class="box" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+        <span class="badge" aria-hidden="true">${"ABCD"[k]}</span>
+        <span class="txt">${esc(text)}</span>
+      </label>`).join("") + `</fieldset>`;
+}
+
+function optionsGrid(q, i, ans) {
+  return `<div class="grid">` + q.s.map((text, j) => `
+    <fieldset class="grow">
+      <legend>${esc(text)}</legend>
+      <div class="segs" role="group" aria-label="${esc(text)}">
+        ${q.cols.map((label, k) => `
+          <label class="seg">
+            <input class="vh" type="radio" name="q${i}-${j}" data-act="grid" data-j="${j}" data-k="${k}" ${ans[j] === k ? "checked" : ""}>
+            ${esc(label)}
+          </label>`).join("")}
+      </div>
+    </fieldset>`).join("") + `</div>`;
+}
+
+function answerArea(q, i, ans) {
+  switch (q.type) {
+    case "single": return q.layout === "scale" ? optionsScale(q, i, ans) : optionsSingle(q, i, ans);
+    case "multi": return optionsMulti(q, i, ans);
+    case "grid": return optionsGrid(q, i, ans);
+    case "cloze": return `<div class="answer">` + q.accept.map((_, k) => `
+        <div class="blank-row">
+          <label class="label" for="blank-${k}">Blank ${k + 1}</label>
+          <input class="input" id="blank-${k}" type="text" data-act="blank" data-k="${k}" value="${esc(ans[k] ?? "")}">
+        </div>`).join("") + `</div>`;
+    case "number":
+      return `<div class="answer">
+        <label class="label" for="num-input">${q.kind === "decimal" ? "Decimal answer" : "Whole number"}</label>
+        <div class="row wrap">
+          <input class="input num" id="num-input" type="number" step="${q.kind === "decimal" ? "any" : "1"}" data-act="num" value="${esc(ans ?? "")}">
+          <span class="unit">${esc(q.unit || "")}</span>
+        </div></div>`;
+    case "text": {
+      const wc = wordCount(ans);
+      return `<div class="answer">
+        <label class="label" for="short-input">Your answer</label>
+        <input class="input" id="short-input" type="text" data-act="text" value="${esc(ans ?? "")}" aria-describedby="short-hint">
+        <div class="hint" id="short-hint"><span>Up to ${q.max} words</span><span id="wc">${wc} / ${q.max} words</span></div>
+      </div>`;
+    }
+    case "essay": {
+      const wc = wordCount(ans);
+      const below = wc > 0 && wc < q.min;
+      return `<div class="answer">
+        <label class="label" for="essay-input">Your response</label>
+        <textarea class="input area" id="essay-input" data-act="essay" aria-describedby="essay-hint">${esc(ans ?? "")}</textarea>
+        <div class="hint" id="essay-hint"><span>Between ${q.min} and ${q.max} words</span><span id="wc">${wc} words</span></div>
+        <span class="hint short" id="minnote" role="status">${below ? `Add ${q.min - wc} more words to meet the minimum of ${q.min}.` : ""}</span>
+      </div>`;
+    }
+    case "order": {
+      const order = Array.isArray(ans) ? ans : q.o.map((_, k) => k);
+      return `<div class="answer">
+        <span class="muted">Use the arrows to move each step. Step 1 comes first.</span>
+        <ol class="order">` + order.map((k, pos) => `
+          <li>
+            <span class="badge" aria-hidden="true">${pos + 1}</span>
+            <span class="txt">${esc(q.o[k])}</span>
+            <span class="mv">
+              <button class="btn icon" aria-label="Move ${esc(q.o[k])} up" data-act="up" data-k="${pos}" ${pos === 0 ? "disabled" : ""}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+              <button class="btn icon" aria-label="Move ${esc(q.o[k])} down" data-act="down" data-k="${pos}" ${pos === order.length - 1 ? "disabled" : ""}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg></button>
+            </span>
+          </li>`).join("") + `</ol></div>`;
+    }
+  }
+}
+
+/* ===== v2 engine ===== */
+const N = QUESTIONS.length;
+/* Organization that assigned the test. Set logo to an image URL to show a real logo. */
+const ORG = { name: "Northwind University", short: "NU", logo: null };
+const LS_KEY = "aiq-exam-engine-v2";
+Object.assign(S, { org: "both", nav: "open", fs: 1, sheet: false, nfilter: "all", rfilter: "all", pop: false, savedAt: Date.now() });
+try { const p = JSON.parse(localStorage.getItem(LS_KEY) || "null"); if (p && Array.isArray(p.answers) && p.answers.length === N) Object.assign(S, p); } catch (e) {}
+S.pop = false; S.sheet = false; S.savedAt = Date.now();
+if (!S.themeSet) S.theme = "mid"; /* mid-tone is the default for reduced eye strain */
+
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const narrow = matchMedia("(max-width:900px)");
+const p2 = n => String(n).padStart(2, "0");
+const P = {
+  chevL: '<path d="m15 18-6-6 6-6"/>', chevR: '<path d="m9 18 6-6-6-6"/>', chevU: '<path d="m18 15-6-6-6 6"/>', chevD: '<path d="m6 9 6 6 6-6"/>',
+  flag: '<path d="M4 21V4"/><path d="M4 4h13l-2 4 2 4H4"/>', clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  panel: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/><path d="m10 10-2 2 2 2"/>',
+  sliders: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>',
+  expand: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', shrink: '<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>',
+  check: '<path d="m4 12 5 5L20 6"/>', close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', alert: '<path d="M12 8v5"/><path d="M12 16.5v.01"/>', arrowR: '<path d="M5 12h14"/><path d="m13 5 7 7-7 7"/>',
+  grid: '<rect x="4" y="4" width="6" height="6" rx="1.5"/><rect x="14" y="4" width="6" height="6" rx="1.5"/><rect x="4" y="14" width="6" height="6" rx="1.5"/><rect x="14" y="14" width="6" height="6" rx="1.5"/>'
+};
+const ic = (n, s = 16, w = 1.6) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[n]}</svg>`;
+const stateCls = (c, i) => (c.isAns[i] ? " a" : "") + (S.flags[i] ? " f" : "") + (i === S.idx ? " cur" : "");
+const stateLabel = (c, i) => `Question ${i + 1}, ${c.isAns[i] ? "answered" : "not answered"}${S.flags[i] ? ", flagged" : ""}${i === S.idx ? ", current" : ""}`;
+
+const FL = { ans: "answered", open: "open", flag: "flagged" };
+const match = (c, i) => S.nfilter === "all" || (S.nfilter === "ans" && c.isAns[i]) || (S.nfilter === "open" && !c.isAns[i]) || (S.nfilter === "flag" && S.flags[i]);
+const filtered = c => QUESTIONS.map((_, i) => i).filter(i => match(c, i));
+function neighbor(d, c = computeAll()) {
+  if (S.nfilter === "all") { const j = S.idx + d; return j >= 0 && j < N ? j : -1; }
+  const l = filtered(c); const j = d > 0 ? l.find(i => i > S.idx) : l.reverse().find(i => i < S.idx);
+  return j === undefined ? -1 : j;
+}
+function step(d) { const j = neighbor(d); if (j >= 0) go(j); else if (d > 0 && S.nfilter === "all") { S.view = "review"; renderShell(); } }
+function persist() { try { localStorage.setItem(LS_KEY, JSON.stringify({ view: S.view, idx: S.idx, answers: S.answers, flags: S.flags, secs: S.secs, theme: S.theme, themeSet: S.themeSet, org: S.org, nav: S.nav, fs: S.fs, keyF: S.keyF })); } catch (e) {} }
+let saveT;
+function save() {
+  clearTimeout(saveT);
+  saveT = setTimeout(() => { persist(); S.savedAt = Date.now(); const s = $("#saved"); if (s) { s.classList.remove("pulse"); void s.offsetWidth; s.classList.add("pulse"); } tickSaved(); }, 250);
+}
+function tickSaved() {
+  const t = $("#savedtxt"); if (!t) return;
+  const s = Math.round((Date.now() - S.savedAt) / 1000);
+  t.textContent = s < 3 ? "Saved just now" : s < 60 ? `Saved ${s}s ago` : `Saved ${Math.floor(s / 60)} min ago`;
+}
+
+/* ---------- top ---------- */
+function popHTML() {
+  const seg = (act, opts, cur) => `<div class="segc" role="group">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" aria-pressed="${String(cur) === String(v)}">${l}</button>`).join("")}</div>`;
+  return `<div class="pop-sec"><span class="eyebrow">Theme</span>${seg("theme", [["mid", "Mid-tone"], ["light", "Light"], ["dark", "Dark"]], S.theme)}</div>
+  <div class="pop-sec"><span class="eyebrow">Text size</span>${seg("fs", [[0.92, "S"], [1, "M"], [1.12, "L"], [1.25, "XL"]], S.fs)}</div>
+  <div class="pop-sec"><span class="eyebrow">Organization</span>${seg("org", [["both", "Logo + name"], ["logo", "Logo"], ["name", "Name"], ["off", "Off"]], S.org)}</div>
+  <div class="pop-sec"><span class="eyebrow">Keyboard</span><ul class="sc">
+    <li><span>Previous / next</span><span><kbd>←</kbd><kbd>→</kbd></span></li>
+    <li><span>Choose an option</span><span><kbd>A</kbd>–<kbd>D</kbd></span></li>
+    <li><span>Rating scale</span><span><kbd>1</kbd>–<kbd>5</kbd></span></li>
+    <li><span>Flag for review</span><span><kbd>F</kbd></span></li>
+    <li><span>Toggle navigator</span><span><kbd>\\</kbd></span></li>
+  </ul></div>
+  <button class="link" data-act="reset">Reset demo answers</button>`;
+}
+function topHTML(c) {
+  const done = S.view === "result" || S.view === "key";
+  return `<header class="top">
+    <div class="brand"><span class="dot"></span><span>AssessIQ</span></div>
+    <span class="vr"></span>
+    ${S.org !== "off" ? `<div class="org org-${S.org}" title="Assigned by ${esc(ORG.name)}">${S.org !== "name" ? (ORG.logo ? `<img class="org-logo" src="${ORG.logo}" alt="">` : `<span class="org-logo" aria-hidden="true">${ORG.short}</span>`) : ""}${S.org !== "logo" ? `<div class="meta"><span class="eyebrow">Assigned by</span><span class="title">${esc(ORG.name)}</span></div>` : ""}</div><span class="vr"></span>` : ""}
+    <div class="meta"><span class="eyebrow">Assessment · #EX-2841</span><span class="title">AWS Machine Learning Associate</span></div>
+    <span class="vr"></span>
+    <div class="student" title="Signed in as Jordan Avery"><span class="av" aria-hidden="true">JA</span><div class="meta"><span class="eyebrow">Candidate · STU-10482</span><span class="title">Jordan Avery</span></div></div>
+    <span class="spacer"></span>
+    ${done ? `<span class="chip ok">${ic("check", 12, 2)} Submitted</span>` : `
+    <span class="saved" id="saved" role="status"><i></i><span id="savedtxt">Saved</span></span>
+    <div class="timer${S.secs < LOW_SECS ? " low" : ""}" id="timer" role="timer" aria-label="Time remaining">${ic("clock", 16, 1.8)}<span class="tl">Time left</span><span id="clock">${fmtClock(S.secs)}</span><i class="tbar"><b id="tbar" style="width:${S.secs / EXAM_SECS * 100}%"></b></i></div>`}
+    <div class="tools">
+      <button class="ib" data-act="pop" aria-expanded="${S.pop}" aria-label="Display settings" title="Display settings">${ic("sliders", 18)}</button>
+      <button class="ib" data-act="fullscreen" id="fsbtn" aria-label="Toggle full screen" title="Full screen">${ic(document.fullscreenElement ? "shrink" : "expand", 17)}</button>
+      <div class="pop${S.pop ? " open" : ""}" id="pop" role="dialog" aria-label="Display settings">${popHTML()}</div>
+    </div>
+    ${S.view === "q" ? `<button class="btn primary" data-act="finish">Finish<span class="hide-sm" style="margin-left:-4px">&nbsp;assessment</span></button>` : ""}
+  </header>`;
+}
+function syncPop() {
+  const p = $("#pop"); if (!p) return;
+  p.classList.toggle("open", S.pop); p.innerHTML = popHTML();
+  const b = $('[data-act="pop"]'); if (b) b.setAttribute("aria-expanded", S.pop);
+}
+const segbarHTML = c => `<div class="progress"><span class="pg-cur">${S.view === "q" ? `<span class="of">Question </span><b id="pg-cur">${p2(S.idx + 1)}</b> / ${N}` : `<span class="of">Review</span>`}</span><nav class="segbar" role="progressbar" aria-label="Questions answered" aria-valuemin="0" aria-valuemax="${N}" aria-valuenow="${c.answered}" id="segbar">${QUESTIONS.map((q, i) => `<button tabindex="-1" class="${stateCls(c, i).trim()}" data-act="go" data-i="${i}" title="Question ${i + 1}"></button>`).join("")}</nav><span class="pg-ans" id="pg-ans">${c.answered} answered · ${Math.round(c.answered / N * 100)}%</span></div>`;
+
+/* ---------- question ---------- */
+function qMainHTML() {
+  const i = S.idx, q = QUESTIONS[i];
+  const passage = q.passage ? `<aside class="passage-pane"><span class="eyebrow">${q.pre ? "Diagram · table" : "Passage"}</span><div class="passage${q.pre ? " mono" : ""}" tabindex="0" role="region" aria-label="Passage for question ${i + 1}">${esc(q.passage)}</div></aside>` : "";
+  const sub = q.ungraded ? "Self-report. This item is not scored." :
+    ({ multi: "Select every answer that applies.", grid: "Choose one option in each row.", order: "Step 1 comes first. Use the arrows to reorder.", essay: `Between ${q.min} and ${q.max} words. Marked by an examiner.`, cloze: "Type one word in each blank." }[q.type] || "");
+  return `<div class="qwrap${q.passage ? " split" : ""}" id="qwrap">${passage}<div class="qcol">
+    <div class="qhead"><span class="qnum">Question <b>${p2(i + 1)}</b> / ${N}</span><span class="chip accent">${esc(q.pill || TYPE_LABEL[q.type])}</span><span class="spacer"></span>
+      <button class="flagbtn" data-act="flag" aria-pressed="${S.flags[i]}">${ic("flag", 14)}<span>${S.flags[i] ? "Flagged" : "Flag for review"}</span></button></div>
+    <h1 class="qtext" id="qtitle">${esc(q.t)}</h1>
+    ${sub ? `<p class="qsub">${sub}</p>` : `<div style="height:18px"></div>`}
+    ${answerArea(q, i, S.answers[i])}
+  </div></div>`;
+}
+function qFootHTML() {
+  const c = computeAll(), hasPrev = neighbor(-1, c) >= 0, hasNext = neighbor(1, c) >= 0, last = !hasNext, i = S.idx;
+  const fl = S.nfilter !== "all" ? `<span class="fpill${S.nfilter === "flag" ? " flag" : ""}">${FL[S.nfilter]} only · ${filtered(c).length}<button data-act="nfilter" data-v="all" aria-label="Show all questions">${ic("close", 12, 2)}</button></span>` : "";
+  return `<button class="btn ghost" data-act="clear">Clear<span class="hide-sm" style="margin-left:-4px">&nbsp;response</span></button>${fl}
+  <div class="hints"><kbd>←</kbd><kbd>→</kbd><span>navigate</span><span class="sep"></span><kbd>A</kbd><span>–</span><kbd>D</kbd><span>answer</span><span class="sep"></span><kbd>F</kbd><span>flag</span></div>
+  <span class="spacer"></span>
+  <button class="btn outline" data-act="prev" ${hasPrev ? "" : "disabled"} aria-label="Previous question">${ic("chevL", 15)}<span class="hide-sm">Previous</span></button>
+  <button class="btn primary" data-act="${last ? "finish" : "next"}">${last ? "Review &amp; finish" : S.nfilter !== "all" ? "Next " + FL[S.nfilter].replace(/ed$/, "ed") : "Next"}${ic("chevR", 15)}</button>`;
+}
+function navHTML(c) {
+  return `<aside class="nav" id="nav" aria-label="Question navigator">
+    <button class="nav-handle" id="navhandle" data-act="nav" title="Toggle navigator ( \\ )">${ic("chevR", 17, 2)}</button>
+    <div class="nav-head">
+      <button class="ib" id="navtoggle" data-act="nav" aria-label="Toggle question navigator" title="Toggle navigator ( \\ )">${ic(narrow.matches ? "grid" : "panel", 18)}</button>
+      <span class="nav-title">Questions</span><span class="nav-count" id="navcount"></span>
+    </div>
+    <div class="nav-main">
+      <div class="nav-full" id="navfull">
+        <div class="nstats" role="group" aria-label="Show only">
+          <button class="nstat" data-act="nfilter" data-v="ans"><span class="eyebrow">Answered</span><b id="st-a"></b></button>
+          <button class="nstat" data-act="nfilter" data-v="flag"><span class="eyebrow">Flagged</span><b id="st-f"></b></button>
+          <button class="nstat" data-act="nfilter" data-v="open"><span class="eyebrow">Open</span><b id="st-o"></b></button>
+        </div>
+        <div class="nnote" id="nnote"><span id="nnote-t">Select a count to show and navigate only those questions.</span><button class="link" data-act="nfilter" data-v="all" id="nnote-all" hidden>Show all</button></div>
+        <div class="ngrid" id="ngrid">${QUESTIONS.map((q, i) => `<button class="qc" data-act="go" data-i="${i}">${i + 1}</button>`).join("")}</div>
+        <div class="nempty" id="nempty" hidden>Nothing here.</div>
+        <ul class="legend"><li><span class="sw c"></span>Current</li><li><span class="sw a"></span>Answered</li><li><span class="sw f"></span>Flagged</li><li><span class="sw"></span>Open</li></ul>
+        <button class="btn outline block" data-act="next-open">Next unanswered ${ic("arrowR", 14)}</button>
+      </div>
+      <div class="nav-rail" id="rail">
+        <button class="ib" data-act="prev" aria-label="Previous question">${ic("chevU", 18)}</button>
+        <div class="rail-view" id="railview"><span class="rail-track"></span><span class="lens"></span>
+          <div class="rail-list" id="raillist">${QUESTIONS.map((q, i) => `<button class="rc" data-act="go" data-i="${i}">${i + 1}</button>`).join("")}</div>
+        </div>
+        <button class="ib" data-act="next" aria-label="Next question">${ic("chevD", 18)}</button>
+        <div class="rail-pos"><b id="railcur"></b><span id="railof">of ${N}</span></div>
+      </div>
+    </div>
+  </aside>`;
+}
+
+/* ---------- review ---------- */
+function reviewHTML(c) {
+  const open = N - c.answered;
+  const keep = i => S.rfilter === "all" || (S.rfilter === "open" && !c.isAns[i]) || (S.rfilter === "flag" && S.flags[i]);
+  const rows = QUESTIONS.map((q, i) => keep(i) ? `<div class="tr" role="row" tabindex="0" data-act="go" data-i="${i}" aria-label="Edit question ${i + 1}">
+      <span class="n" role="cell">${p2(i + 1)}</span><span class="ell" role="cell">${esc(q.t)}</span><span class="ell ans" role="cell">${esc(summarize(q, S.answers[i]))}</span>
+      <span role="cell">${S.flags[i] ? `<span class="chip flag">Flagged</span>` : c.isAns[i] ? `<span class="chip ok">Answered</span>` : `<span class="chip">Open</span>`}</span>
+      <span class="edit" role="cell">Edit ${ic("chevR", 13)}</span></div>` : "").join("");
+  const f = (v, l, n) => `<button data-act="rfilter" data-v="${v}" aria-pressed="${S.rfilter === v}">${l} · ${n}</button>`;
+  return `<div class="rv"><main class="rv-main"><div class="rv-inner">
+    <span class="eyebrow">Review before submitting</span>
+    <h1 class="h1">Finish summary.</h1>
+    <p class="muted lede">Check each answer before you submit. Select a row to jump back and change it.</p>
+    <div class="stats">
+      <div class="stat"><span class="eyebrow">Answered</span><span class="n">${c.answered}<small>/ ${N}</small></span></div>
+      <div class="stat"><span class="eyebrow">Flagged</span><span class="n">${c.flagged}</span></div>
+      <div class="stat"><span class="eyebrow">Open</span><span class="n">${open}</span></div>
+      <div class="stat"><span class="eyebrow">Time left</span><span class="n" style="font-family:var(--mono);font-size:24px">${fmtClock(S.secs)}</span></div>
+    </div>
+    <div class="segc" role="group" aria-label="Filter" style="display:inline-flex">${f("all", "All", N)}${f("open", "Open", open)}${f("flag", "Flagged", c.flagged)}</div>
+    <div class="tbl" role="table" aria-label="All questions">
+      <div class="tr head" role="row"><span role="columnheader">No.</span><span role="columnheader">Question</span><span role="columnheader" class="ans">Your answer</span><span role="columnheader">Status</span><span role="columnheader"><span class="vh">Action</span></span></div>
+      ${rows || `<div class="empty" style="border:0">No questions in this group.</div>`}
+    </div>
+  </div></main>
+  <aside class="rv-side" aria-label="Submit">
+    <span class="eyebrow">Checklist</span>
+    <h2 class="h2">Before you submit</h2>
+    <ul class="checks">
+      <li><span class="ci ${open ? "w" : "ok"}">${ic(open ? "alert" : "check", 12, 2.2)}</span><span>${open ? `${open} question${open > 1 ? "s have" : " has"} no answer yet.` : `All ${N} questions have an answer.`}</span></li>
+      <li><span class="ci ${c.flagged ? "w" : "ok"}">${ic(c.flagged ? "alert" : "check", 12, 2.2)}</span><span>${c.flagged ? `${c.flagged} question${c.flagged > 1 ? "s are" : " is"} flagged for review.` : "No questions are flagged."}</span></li>
+      <li><span class="ci ok">${ic("check", 12, 2.2)}</span><span>Answers saved automatically.</span></li>
+    </ul>
+    <div class="notice"><b>Submitting ends the assessment.</b> You can't change answers afterwards.</div>
+    <div class="side-actions">
+      <button class="btn primary lg block" data-act="submit">Submit assessment</button>
+      <button class="btn outline block" data-act="back-q">${ic("chevL", 15)} Back to questions</button>
+    </div>
+  </aside></div>`;
+}
+
+/* ---------- result + key ---------- */
+const R = 76, CIRC = 2 * Math.PI * R;
+function resultHTML(c) {
+  const date = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return `<main class="res"><div class="res-bg"></div><div class="res-inner" role="status" aria-live="polite">
+    <span class="chip ${c.passed ? "ok" : "bad"}">${c.passed ? ic("check", 12, 2) + " Passed" : "Did not pass"}</span>
+    <span class="eyebrow">Submitted · ${date} · #EX-2841</span>
+    <h1 class="h1 big">${c.passed ? "You passed." : "Not this time."}</h1>
+    <p class="muted lede">${c.passed ? "You reached the pass mark. Review the answer key to see what you got right and where to improve." : `You scored below the ${PASS_MARK}% pass mark. The answer key explains every question so you can plan your next attempt.`}</p>
+    <div class="score">
+      <div class="ring" role="img" aria-label="Score ${c.pctScore} percent">
+        <svg width="184" height="184" viewBox="0 0 184 184"><circle cx="92" cy="92" r="${R}" class="trk"/><circle cx="92" cy="92" r="${R}" class="arc" id="arc" style="stroke-dasharray:${CIRC};stroke-dashoffset:${CIRC}"/></svg>
+        <div class="ring-n"><span class="n" id="scoreN">0</span><span class="eyebrow">% score</span></div>
+      </div>
+      <div>
+        <span class="eyebrow">Against the pass mark</span>
+        <div class="meter"><i id="meterI"></i><span class="mk" style="left:${PASS_MARK}%"></span></div>
+        <div class="mlab"><span>0</span><span>Pass ${PASS_MARK}%</span><span>100</span></div>
+        <div class="rstats">
+          <div class="stat"><span class="eyebrow">Correct</span><span class="n">${c.correctN}<small>/ ${c.gradable}</small></span></div>
+          <div class="stat"><span class="eyebrow">Pending</span><span class="n">${c.pending}</span></div>
+          <div class="stat"><span class="eyebrow">Flagged</span><span class="n">${c.flagged}</span></div>
+          <div class="stat"><span class="eyebrow">Time used</span><span class="n" style="font-family:var(--mono);font-size:20px">${fmtClock(EXAM_SECS - S.secs)}</span></div>
+        </div>
+      </div>
+    </div>
+    <p class="fine">Scores use auto-marked questions only. Written answers and self-report items are excluded until an examiner reviews them.</p>
+    <button class="btn primary lg" data-act="key">Review answer key ${ic("arrowR", 15)}</button>
+  </div></main>`;
+}
+function animateResult(c) {
+  setTimeout(() => {
+    const arc = $("#arc"), m = $("#meterI"), n = $("#scoreN"); if (!arc) return;
+    arc.style.transition = "stroke-dashoffset 1.6s cubic-bezier(.2,.7,.3,1)";
+    arc.style.strokeDashoffset = CIRC * (1 - c.pctScore / 100);
+    m.style.width = c.pctScore + "%";
+    const t0 = performance.now();
+    const step = t => { const p = Math.min(1, (t - t0) / 1600); n.textContent = Math.round(c.pctScore * (1 - Math.pow(1 - p, 3))); if (p < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }, 80);
+}
+function keyHTML(c) {
+  const all = QUESTIONS.map((q, i) => ({ n: i + 1, q, g: c.grades[i], yours: summarize(q, S.answers[i]), correct: answerLabel(q) }));
+  const keep = { all: () => true, ok: r => r.g === "correct", bad: r => r.g === "incorrect" || r.g === "unanswered", pend: r => r.g === "manual" || r.g === "na" };
+  const rows = all.filter(keep[S.keyF]);
+  const t = (f, l) => `<button data-act="keyf" data-f="${f}" aria-pressed="${S.keyF === f}">${l} · ${all.filter(keep[f]).length}</button>`;
+  return `<main class="res"><div class="key-inner">
+    <div class="row wrap" style="align-items:flex-end;gap:16px">
+      <div style="flex:1;min-width:260px"><span class="eyebrow">After submission</span><h1 class="h1">Answer key.</h1><p class="muted lede">Compare your answer with the correct one and read why.</p></div>
+      <button class="btn outline" data-act="result">${ic("chevL", 15)} Back to result</button>
+    </div>
+    <div class="segc" role="group" aria-label="Filter answers" style="display:inline-flex;margin-top:24px">${t("all", "All")}${t("ok", "Correct")}${t("bad", "Incorrect")}${t("pend", "Not scored")}</div>
+    <div class="klist">
+      ${rows.length ? rows.map(r => `<article class="kcard" aria-label="Question ${r.n}">
+        <div class="row between wrap" style="justify-content:space-between"><span class="eyebrow">Question ${p2(r.n)} · ${esc(r.q.pill || TYPE_LABEL[r.q.type])}</span><span class="chip ${GRADE_CLS[r.g]}">${GRADE_LABEL[r.g]}</span></div>
+        <p class="kq">${esc(r.q.t)}</p>
+        <div class="kgrid">
+          <div class="kcell ${r.g === "correct" ? "ok" : r.g === "incorrect" ? "bad" : ""}"><span class="eyebrow">Your answer</span><span>${esc(r.yours)}</span></div>
+          <div class="kcell"><span class="eyebrow">Correct answer</span><span>${esc(r.correct)}</span></div>
+        </div>
+        <p class="kex"><b>Why.</b> ${esc(r.q.ex)}</p>
+      </article>`).join("") : `<div class="empty">No questions in this group.</div>`}
+    </div>
+  </div></main>`;
+}
+
+/* ---------- render ---------- */
+function renderShell() {
+  const c = computeAll();
+  document.documentElement.dataset.theme = S.theme;
+  let body;
+  if (S.view === "q") body = `<div class="body"><main class="stage"><div class="scroll" id="scroll"></div><div class="foot" id="foot"></div></main>${navHTML(c)}<div class="sheet-scrim" data-act="nav"></div></div>`;
+  else if (S.view === "review") body = reviewHTML(c);
+  else if (S.view === "result") body = resultHTML(c);
+  else body = keyHTML(c);
+  $("#app").innerHTML = `<div class="shell${S.sheet ? " sheet" : ""}" id="shell" data-nav="${S.nav}" style="--fs:${S.fs}">${topHTML(c)}${S.view === "q" || S.view === "review" ? segbarHTML(c) : "<div></div>"}${body}</div><div id="modal"></div>`;
+  if (S.view === "q") { renderQ(0); updateChrome(false); requestAnimationFrame(() => positionRail(false)); }
+  if (S.view === "result") animateResult(c);
+  tickSaved();
+}
+function renderQ(dir, fk) {
+  const sc = $("#scroll"); if (!sc) return;
+  sc.innerHTML = qMainHTML(); $("#foot").innerHTML = qFootHTML();
+  if (dir) { $("#qwrap").classList.add(dir > 0 ? "in-next" : "in-prev"); sc.scrollTop = 0; }
+  if (fk) restoreFocus(fk);
+}
+function updateChrome(animate = true) {
+  const c = computeAll();
+  const set = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  $$(".segbar button").forEach((b, i) => b.className = stateCls(c, i).trim());
+  let shown = 0;
+  $$("#ngrid .qc").forEach((b, i) => {
+    b.className = "qc" + stateCls(c, i); b.setAttribute("aria-label", stateLabel(c, i));
+    const ok = match(c, i); b.hidden = !ok; if (ok) shown++;
+  });
+  const ne = $("#nempty"); if (ne) ne.hidden = shown > 0;
+  const seq = QUESTIONS.map((_, i) => i).filter(i => match(c, i) || i === S.idx), here = seq.indexOf(S.idx);
+  $$("#raillist .rc").forEach((b, i) => { const p = seq.indexOf(i); b.hidden = p < 0; b.className = "rc" + stateCls(c, i); b.dataset.d = p < 0 ? 4 : Math.min(Math.abs(p - here), 4); b.setAttribute("aria-label", stateLabel(c, i)); });
+  set("railof", S.nfilter === "all" ? `of ${N}` : `${match(c, S.idx) ? here + 1 + " of " : ""}${filtered(c).length} ${FL[S.nfilter]}`);
+  set("pg-cur", p2(S.idx + 1)); set("pg-ans", `${c.answered} answered · ${Math.round(c.answered / N * 100)}%`);
+  $$(".nstat").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === S.nfilter));
+  const na = $("#nnote-all"); if (na) { na.hidden = S.nfilter === "all"; set("nnote-t", S.nfilter === "all" ? "Select a count to show and navigate only those questions." : `Showing ${FL[S.nfilter]} only. Previous and Next skip the rest.`); }
+  const hd = $("#navhandle"); if (hd) { hd.setAttribute("aria-expanded", S.nav === "open"); hd.setAttribute("aria-label", S.nav === "open" ? "Collapse question navigator" : "Expand question navigator"); }
+  set("st-a", c.answered); set("st-f", c.flagged); set("st-o", N - c.answered); set("navcount", `${c.answered} / ${N} answered`); set("railcur", p2(S.idx + 1));
+  const nb = $("#navtoggle"); if (nb) nb.setAttribute("aria-expanded", narrow.matches ? S.sheet : S.nav === "open");
+  positionRail(animate);
+}
+function positionRail(animate = true) {
+  const view = $("#railview"), list = $("#raillist"); if (!view || !list) return;
+  const cell = list.children[S.idx]; if (!cell) return;
+  const h = narrow.matches, size = h ? view.clientWidth : view.clientHeight; if (!size) return;
+  const pos = h ? cell.offsetLeft + cell.offsetWidth / 2 : cell.offsetTop + cell.offsetHeight / 2;
+  list.classList.toggle("anim", animate);
+  list.style.transform = h ? `translateX(${size / 2 - pos}px)` : `translateY(${size / 2 - pos}px)`;
+}
+function focusKeyOf(el) { return el && el.dataset && el.dataset.act ? { act: el.dataset.act, k: el.dataset.k ?? null, j: el.dataset.j ?? null } : null; }
+function restoreFocus(key) {
+  let sel = `[data-act="${key.act}"]`;
+  if (key.k !== null) sel += `[data-k="${key.k}"]`;
+  if (key.j !== null) sel += `[data-j="${key.j}"]`;
+  const el = $("#scroll " + sel) || $(sel); if (el) el.focus({ preventScroll: true });
+}
+
+/* ---------- actions ---------- */
+function setAns(v) { S.answers[S.idx] = v; }
+function moveOrder(pos, dir) {
+  const q = QUESTIONS[S.idx];
+  const arr = (Array.isArray(S.answers[S.idx]) ? S.answers[S.idx] : q.o.map((_, k) => k)).slice();
+  const j = pos + dir; if (j < 0 || j >= arr.length) return;
+  [arr[pos], arr[j]] = [arr[j], arr[pos]]; S.answers[S.idx] = arr;
+}
+function refresh(fk) { renderQ(0, fk); updateChrome(); save(); }
+function go(i) {
+  i = Math.max(0, Math.min(N - 1, i));
+  if (S.view !== "q") { S.idx = i; S.view = "q"; S.sheet = false; renderShell(); persist(); return; }
+  if (i === S.idx) return;
+  const dir = Math.sign(i - S.idx); S.idx = i;
+  if (S.sheet) { S.sheet = false; $("#shell").classList.remove("sheet"); }
+  renderQ(dir); updateChrome(); persist();
+}
+function toggleNav() {
+  if (narrow.matches) { S.sheet = !S.sheet; $("#shell").classList.toggle("sheet", S.sheet); }
+  else { S.nav = S.nav === "open" ? "closed" : "open"; $("#shell").dataset.nav = S.nav; persist(); }
+  updateChrome(false);
+}
+function openModal() {
+  const c = computeAll(), open = N - c.answered;
+  const msg = (open ? `${open} question${open > 1 ? "s are" : " is"} still unanswered` : "Every question has an answer") + (c.flagged ? ` and ${c.flagged} ${c.flagged > 1 ? "are" : "is"} flagged` : "") + ". You won't be able to change answers after you submit.";
+  $("#modal").innerHTML = `<div class="scrim" data-act="scrim"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="mt" aria-describedby="md">
+    <span class="eyebrow">Final step</span><h2 class="h2" id="mt">Submit your assessment?</h2><p class="muted" id="md">${msg}</p>
+    <div class="dlg-actions"><button class="btn outline" data-act="cancel">Keep reviewing</button><button class="btn primary" data-act="confirm" id="confirmbtn">Submit now</button></div>
+  </div></div>`;
+  $("#confirmbtn").focus();
+}
+const closeModal = () => { $("#modal").innerHTML = ""; };
+function toggleFS() { if (document.fullscreenElement) document.exitFullscreen?.(); else document.documentElement.requestFullscreen?.().catch(() => {}); }
+
+/* ---------- events ---------- */
+document.addEventListener("click", e => {
+  if (S.pop && !e.target.closest(".tools")) { S.pop = false; syncPop(); }
+  const el = e.target.closest("[data-act]");
+  if (!el || el.tagName === "INPUT" || el.tagName === "TEXTAREA") return;
+  const a = el.dataset.act, fk = focusKeyOf(el);
+  switch (a) {
+    case "go": go(+el.dataset.i); break;
+    case "prev": step(-1); break;
+    case "next": step(1); break;
+    case "finish": S.view = "review"; S.pop = false; renderShell(); persist(); break;
+    case "back-q": S.view = "q"; renderShell(); persist(); break;
+    case "submit": openModal(); break;
+    case "confirm": closeModal(); S.view = "result"; renderShell(); persist(); break;
+    case "cancel": closeModal(); break;
+    case "scrim": if (e.target === el) closeModal(); break;
+    case "key": S.view = "key"; renderShell(); persist(); $(".res").scrollTop = 0; break;
+    case "result": S.view = "result"; renderShell(); break;
+    case "keyf": S.keyF = el.dataset.f; { const y = $(".res").scrollTop; renderShell(); $(".res").scrollTop = y; } break;
+    case "rfilter": S.rfilter = el.dataset.v; renderShell(); break;
+    case "nfilter": { S.nfilter = el.dataset.v === S.nfilter ? "all" : el.dataset.v; const c = computeAll(); if (S.nfilter !== "all" && !match(c, S.idx)) { const l = filtered(c); if (l.length) { go(l.find(i => i > S.idx) ?? l[0]); break; } } $("#foot").innerHTML = qFootHTML(); updateChrome(); break; }
+    case "next-open": { const c = computeAll(); for (let k = 1; k <= N; k++) { const j = (S.idx + k) % N; if (!c.isAns[j]) { go(j); break; } } break; }
+    case "clear": setAns(emptyOf(QUESTIONS[S.idx])); refresh(fk); break;
+    case "flag": S.flags[S.idx] = !S.flags[S.idx]; refresh(fk); break;
+    case "up": moveOrder(+el.dataset.k, -1); refresh({ act: "up", k: String(Math.max(0, +el.dataset.k - 1)), j: null }); break;
+    case "down": moveOrder(+el.dataset.k, 1); refresh({ act: "down", k: String(+el.dataset.k + 1), j: null }); break;
+    case "nav": toggleNav(); break;
+    case "pop": S.pop = !S.pop; syncPop(); break;
+    case "theme": S.theme = el.dataset.v; S.themeSet = true; document.documentElement.dataset.theme = S.theme; syncPop(); persist(); break;
+    case "org": S.org = el.dataset.v; persist(); S.pop = true; renderShell(); break;
+    case "fs": S.fs = +el.dataset.v; $("#shell").style.setProperty("--fs", S.fs); syncPop(); persist(); break;
+    case "fullscreen": toggleFS(); break;
+    case "reset": try { localStorage.removeItem(LS_KEY); } catch (er) {} location.reload(); break;
+  }
+});
+document.addEventListener("change", e => {
+  const el = e.target, a = el.dataset.act; if (!a) return;
+  const fk = focusKeyOf(el);
+  switch (a) {
+    case "pick": setAns(Number(el.dataset.k)); break;
+    case "toggle": { const arr = S.answers[S.idx].slice(); arr[+el.dataset.k] = el.checked; setAns(arr); break; }
+    case "grid": { const arr = S.answers[S.idx].slice(); arr[+el.dataset.j] = +el.dataset.k; setAns(arr); break; }
+    case "num": case "text": case "essay": case "blank": updateChrome(); save(); return;
+    default: return;
+  }
+  refresh(fk);
+});
+document.addEventListener("input", e => {
+  const el = e.target, a = el.dataset.act, q = QUESTIONS[S.idx];
+  if (a === "essay") {
+    setAns(el.value); const wc = wordCount(el.value);
+    $("#wc").textContent = wc + " words";
+    $("#minnote").textContent = wc > 0 && wc < q.min ? `Add ${q.min - wc} more words to meet the minimum of ${q.min}.` : "";
+  } else if (a === "text") { setAns(el.value); $("#wc").textContent = wordCount(el.value) + " / " + q.max + " words"; }
+  else if (a === "blank") { const arr = S.answers[S.idx].slice(); arr[+el.dataset.k] = el.value; setAns(arr); }
+  else if (a === "num") setAns(el.value);
+  else return;
+  updateChrome(); save();
+});
+document.addEventListener("keydown", e => {
+  if ($("#modal") && $("#modal").innerHTML) { if (e.key === "Escape") closeModal(); return; }
+  if (e.key === "Escape") { if (S.pop) { S.pop = false; syncPop(); } if (S.sheet) toggleNav(); return; }
+  const t = e.target;
+  if (e.key === "Enter" && t.classList && t.classList.contains("tr")) { t.click(); return; }
+  if (t.matches("input[type=text],input[type=number],textarea,select") || e.metaKey || e.ctrlKey || e.altKey || S.view !== "q") return;
+  if (t.type === "radio" && e.key.startsWith("Arrow")) return;
+  const k = e.key.toLowerCase(), q = QUESTIONS[S.idx];
+  if (k === "arrowright") { e.preventDefault(); step(1); }
+  else if (k === "arrowleft") { e.preventDefault(); step(-1); }
+  else if (k === "f") { S.flags[S.idx] = !S.flags[S.idx]; refresh(); }
+  else if (k === "\\" || k === "[") toggleNav();
+  else if (/^[a-d]$/.test(k) && (q.type === "single" && q.layout !== "scale" || q.type === "multi")) {
+    const n = k.charCodeAt(0) - 97; if (n >= q.o.length) return;
+    if (q.type === "single") setAns(n); else { const arr = S.answers[S.idx].slice(); arr[n] = !arr[n]; setAns(arr); }
+    refresh({ act: q.type === "single" ? "pick" : "toggle", k: String(n), j: null });
+  } else if (/^[1-5]$/.test(k) && q.layout === "scale") { const n = +k - 1; if (n < q.o.length) { setAns(n); refresh({ act: "pick", k: String(n), j: null }); } }
+});
+document.addEventListener("fullscreenchange", () => { const b = $("#fsbtn"); if (b) b.innerHTML = ic(document.fullscreenElement ? "shrink" : "expand", 17); });
+narrow.addEventListener("change", () => { S.sheet = false; renderShell(); });
+window.addEventListener("resize", () => positionRail(false));
+$("#app").addEventListener("transitionend", e => { if (e.target.classList && e.target.classList.contains("body")) positionRail(false); });
+
+/* ---------- timer ---------- */
+setInterval(() => {
+  tickSaved();
+  if ((S.view !== "q" && S.view !== "review") || S.secs <= 0) return;
+  S.secs -= 1;
+  const ck = $("#clock"); if (ck) { ck.textContent = fmtClock(S.secs); $("#timer").classList.toggle("low", S.secs < LOW_SECS); $("#tbar").style.width = S.secs / EXAM_SECS * 100 + "%"; }
+  if (S.secs % 5 === 0) persist();
+  if (S.secs === 0) { S.view = "result"; renderShell(); persist(); }
+}, 1000);
+
+renderShell();
+</script>
+</body>
+</html>

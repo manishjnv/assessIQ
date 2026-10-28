@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import "./take-theme.css";
 
 // Ordering question — "put these items in the right order". The candidate gets the
 // items in a per-attempt shuffled order (never the correct one). Stored answer is
@@ -62,8 +63,9 @@ export function OrderingAnswerArea({
   };
 
   const btn = (disabledNow: boolean): React.CSSProperties => ({
-    minWidth: 44,
-    minHeight: 44,
+    width: 40,
+    height: 40,
+    flex: 'none',
     border: '1px solid var(--aiq-color-border)',
     borderRadius: 'var(--aiq-radius-md)',
     background: 'var(--aiq-color-bg-base)',
@@ -83,24 +85,9 @@ export function OrderingAnswerArea({
         style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}
       >
         {order.map((itemIdx, pos) => (
-          <li
-            key={itemIdx}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--aiq-space-md)',
-              padding: 'var(--aiq-space-sm) var(--aiq-space-lg)',
-              background: 'var(--aiq-color-bg-base)',
-              border: '1px solid var(--aiq-color-border)',
-              borderRadius: 'var(--aiq-radius-md)',
-            }}
-          >
-            <span style={{ fontFamily: 'var(--aiq-font-mono)', fontSize: 12, color: 'var(--aiq-color-fg-muted)', width: 20 }}>
-              {pos + 1}.
-            </span>
-            <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-lg)', lineHeight: 1.5, color: 'var(--aiq-color-fg-primary)', flex: 1 }}>
-              {items[itemIdx]}
-            </span>
+          <li key={itemIdx} className="aiq-take-row-card">
+            <span className="aiq-take-opt-badge">{pos + 1}.</span>
+            <span className="aiq-take-opt-text">{items[itemIdx]}</span>
             <button
               type="button"
               data-move="-1"

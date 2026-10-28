@@ -1,0 +1,118 @@
+/* AssessIQ — CSS Variables
+ * ─────────────────────────
+ * Drop-in tokens for any project. Mirrors styles.css but with no app-specific
+ * atoms (.btn, .card, .chip). Pair with tokens.json for a single source of truth.
+ *
+ * Usage:
+ *   <link rel="stylesheet" href="css-variables.css" />
+ *   color: var(--accent);
+ *
+ * Switch theme by setting [data-theme="dark"] on <html>.
+ * Switch density by setting [data-density="compact|cozy|comfortable"] on <html>.
+ */
+
+:root {
+  /* ── Color: surface + text ──────────────────────────── */
+  --bg: #ffffff;
+  --surface: #fafafa;
+  --surface-2: #f3f3f4;
+  --border: #e4e4e7;
+  --border-strong: #cdcdd1;
+  --text: #0a0a0b;
+  --text-muted: #3f3f46;
+  --text-faint: #71717a;
+  --canvas: #f1efea;             /* warm gray outer canvas */
+
+  /* ── Color: accent (the ONE non-grayscale family) ───── */
+  --accent: oklch(0.58 0.17 258);          /* ~#1a73e8 */
+  --accent-soft: oklch(0.96 0.03 258);     /* ~#eaf2fd */
+  --accent-hover: oklch(0.52 0.19 258);    /* ~#155cba */
+
+  /* ── Color: semantic state ──────────────────────────── */
+  --success: oklch(0.65 0.15 150);
+  --warn:    oklch(0.72 0.15 70);
+  --danger:  oklch(0.62 0.20 25);
+
+  /* ── Color: chart palette (data viz only) ───────────── */
+  --chart-1: #1a73e8;
+  --chart-2: #10b981;
+  --chart-3: #f59e0b;
+  --chart-4: #8b5cf6;
+  --chart-5: #ec4899;
+  --chart-6: #06b6d4;
+  --chart-7: #ef4444;
+  --chart-8: #6366f1;
+
+  /* ── Type ───────────────────────────────────────────── */
+  --font-serif: "Newsreader", "Source Serif Pro", Georgia, serif;
+  --font-sans:  "Geist", -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono:  "JetBrains Mono", "SF Mono", Menlo, monospace;
+
+  --fs-display: 44px;
+  --fs-h1:      36px;
+  --fs-h2:      28px;
+  --fs-h3:      22px;
+  --fs-body-lg: 16px;
+  --fs-body:    14px;
+  --fs-label:   13px;
+  --fs-meta:    11px;
+  --fs-meta-sm: 10px;
+
+  /* ── Spacing — base unit changes with density ───────── */
+  --u: 4px;
+
+  /* ── Radii ──────────────────────────────────────────── */
+  --radius-sm:   6px;
+  --radius:     10px;
+  --radius-lg:  16px;
+  --radius-pill: 999px;
+
+  /* ── Shadows ────────────────────────────────────────── */
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+  --shadow:    0 1px 3px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.04);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.08);
+
+  /* ── Motion ─────────────────────────────────────────── */
+  --motion-fast:   120ms;
+  --motion:        200ms;
+  --motion-slow:   400ms;
+  --motion-reveal: 1600ms;
+  --ease-out:    cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* ── Z-index ────────────────────────────────────────── */
+  --z-base:    0;
+  --z-raised:  10;
+  --z-sticky:  100;
+  --z-overlay: 1000;
+  --z-modal:   1100;
+  --z-toast:   1200;
+  --z-tooltip: 1300;
+}
+
+[data-density="compact"]     { --u: 3px; }
+[data-density="cozy"]        { --u: 4px; }
+[data-density="comfortable"] { --u: 5px; }
+
+[data-theme="dark"] {
+  --bg: #0e0e10;
+  --surface: #161618;
+  --surface-2: #1d1d20;
+  --border: #2a2a2e;
+  --border-strong: #3a3a3f;
+  --text: #f5f5f7;
+  --text-muted: #a0a0a8;
+  --text-faint: #6a6a72;
+  --canvas: #161618;
+  --accent: oklch(0.7 0.16 258);
+  --accent-soft: oklch(0.25 0.08 258);
+  --accent-hover: oklch(0.78 0.16 258);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.4);
+  --shadow:    0 1px 3px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.3);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.6);
+}
+
+/* ── Utility classes consumers may want ───────────────── */
+.serif { font-family: var(--font-serif); letter-spacing: -0.02em; font-weight: 500; }
+.mono  { font-family: var(--font-mono);  letter-spacing: -0.01em; font-feature-settings: "ss02"; }
+.num   { font-family: var(--font-serif); font-variant-numeric: lining-nums tabular-nums; }

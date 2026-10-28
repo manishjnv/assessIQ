@@ -1,3 +1,5 @@
+import "./take-theme.css";
+
 // Multi-select question — "select all that apply". Stored answer is
 // { selected: number[] } in the DISPLAYED option order; the server translates
 // to original indexes when the options were shuffled. `correct` never reaches here.
@@ -24,46 +26,31 @@ export function MultiSelectAnswerArea({
   };
 
   return (
-    <fieldset
-      style={{ border: 0, padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 'var(--aiq-space-sm)' }}
-    >
-      <legend style={{ fontSize: 13, color: 'var(--aiq-color-fg-muted)', marginBottom: 'var(--aiq-space-sm)' }}>
+    <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
+      <legend style={{ fontSize: 13, color: 'var(--aiq-color-fg-muted)', margin: '0 0 10px', padding: 0 }}>
         Select all that apply
       </legend>
-      {options.map((text, idx) => {
-        const on = selected.includes(idx);
-        return (
-          <label
-            key={idx}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--aiq-space-md)',
-              padding: 'var(--aiq-space-md) var(--aiq-space-lg)',
-              background: on ? 'var(--aiq-color-accent-soft)' : 'var(--aiq-color-bg-base)',
-              border: `1px solid ${on ? 'var(--aiq-color-accent)' : 'var(--aiq-color-border)'}`,
-              borderRadius: 'var(--aiq-radius-md)',
-              cursor: disabled ? 'not-allowed' : 'pointer',
-            }}
-          >
-            <input
-              type="checkbox"
-              name={question.question_id}
-              value={String(idx)}
-              checked={on}
-              disabled={disabled}
-              onChange={() => toggle(idx)}
-              style={{ width: 18, height: 18, accentColor: 'var(--aiq-color-accent)', flexShrink: 0 }}
-            />
-            <span style={{ fontFamily: 'var(--aiq-font-mono)', fontSize: 11, color: 'var(--aiq-color-fg-muted)', width: 14 }}>
-              {String.fromCharCode(65 + idx)}
-            </span>
-            <span style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 'var(--aiq-text-lg)', lineHeight: 1.5, color: 'var(--aiq-color-fg-primary)', flex: 1 }}>
-              {text}
-            </span>
-          </label>
-        );
-      })}
+      <div className="aiq-take-opts">
+        {options.map((text, idx) => {
+          const on = selected.includes(idx);
+          return (
+            <label key={idx} className="aiq-take-opt" data-checked={on} data-disabled={disabled}>
+              <input
+                type="checkbox"
+                className="aiq-take-visually-hidden-input"
+                name={question.question_id}
+                value={String(idx)}
+                checked={on}
+                disabled={disabled}
+                onChange={() => toggle(idx)}
+              />
+              <span className="aiq-take-opt-badge" aria-hidden="true">{String.fromCharCode(65 + idx)}</span>
+              <span className="aiq-take-opt-text">{text}</span>
+              <span className="aiq-take-check" aria-hidden="true">{on ? '✓' : null}</span>
+            </label>
+          );
+        })}
+      </div>
     </fieldset>
   );
 }

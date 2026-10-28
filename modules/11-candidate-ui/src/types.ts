@@ -82,6 +82,9 @@ export interface CandidateAttemptViewWire {
   /** Logo L3a: organisation name + logo URL for the attempt top bar; absent on older servers. */
   company_name?: string;
   company_logo_url?: string | null;
+  /** Z-167: shown in the attempt top bar when the server sends them (not sent yet; the bar falls back to short ids). */
+  candidate_name?: string;
+  assessment_name?: string;
 }
 
 export interface SectionTimingWire {
