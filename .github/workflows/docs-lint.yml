@@ -43,7 +43,7 @@ jobs:
           reporter: github-check
           filter_mode: nofilter
           level: warning
-          fail_on_error: false # flip to true on 2026-10-29
+          fail_on_error: true # Z-54: flipped 2026-10-29 after 5 green runs
       - name: markdownlint
         uses: DavidAnson/markdownlint-cli2-action@v19
         continue-on-error: true # remove on 2026-10-29
