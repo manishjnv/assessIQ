@@ -385,6 +385,17 @@ describe('getCandidateActivityStats', () => {
     expect(result.avgScore.total).toBeGreaterThan(0);
   });
 
+  it('UAT 2026-10-29: the average reads live scores, not the nightly view (no refresh between)', async () => {
+    // The view still holds auto_pct 80 for attemptA1. Change the live score and do NOT refresh the view.
+    await withSuperClient((c) => c.query(`UPDATE attempt_scores SET auto_pct = 100 WHERE attempt_id = $1`, [F.attemptA1]));
+    try {
+      const r = await getCandidateActivityStats(F.tenantA, F.candidateA1, {});
+      expect(r.avgScore.total).toBe(85); // (100 + 70) / 2; the stale view would say 75
+    } finally {
+      await withSuperClient((c) => c.query(`UPDATE attempt_scores SET auto_pct = 80 WHERE attempt_id = $1`, [F.attemptA1]));
+    }
+  });
+
   it('cross-user isolation: candidateA1 stats do not include candidateA2 attempts', async () => {
     const resultA1 = await getCandidateActivityStats(F.tenantA, F.candidateA1, {});
     const resultA2 = await getCandidateActivityStats(F.tenantA, F.candidateA2, {});

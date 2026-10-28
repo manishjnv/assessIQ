@@ -239,9 +239,9 @@ function buildMetaRows(name: EmailTemplateName, p: any): MetaRow[] {
       ];
     case 'result_released': {
       const c = p.resultText === 'Passed' ? OUTCOME_COLORS.pass : OUTCOME_COLORS.fail;
-      const glyph = p.resultText === 'Passed' ? '✓' : '–';
+      const glyph = p.resultText === 'Passed' ? '✓ ' : ''; // UAT 2026-10-29: no stray dash before "Not passed"
       return [
-        { k: 'Result', v: `<strong>${glyph} ${escapeHtml(p.resultText)}</strong>`, bar: c.bar, bg: c.bg },
+        { k: 'Result', v: `<strong>${glyph}${escapeHtml(p.resultText)}</strong>`, bar: c.bar, bg: c.bg },
         { k: 'Score', v: `<strong>${escapeHtml(p.scoreText)}</strong>` },
         ...(typeof p.passMarkPct === 'number' ? [{ k: 'Pass mark', v: `${escapeHtml(String(p.passMarkPct))}%` }] : []),
         { k: 'Assessment', v: escapeHtml(p.assessmentName) },

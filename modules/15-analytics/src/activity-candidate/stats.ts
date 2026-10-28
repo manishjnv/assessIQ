@@ -158,15 +158,19 @@ export async function queryCandidateActivityStats(
     bucket_cnt: string;
     total_cnt: string;
   }>(
+    // UAT 2026-10-29: read the live tables, not attempt_summary_mv. The view refreshes once a night (02:00 UTC), so a
+    // result released today showed "Avg. score 0" until the next night. Same rule as the view: released attempts only (P1).
     `WITH filtered AS (
-       SELECT auto_pct
-       FROM attempt_summary_mv mv
-       WHERE mv.tenant_id = current_setting('app.current_tenant', true)::uuid
-         AND mv.user_id = $3
-         AND mv.attempt_status = 'released'
-         AND mv.submitted_at >= $1::timestamptz
-         AND mv.submitted_at <  $2::timestamptz + interval '1 day'
-         AND auto_pct IS NOT NULL
+       SELECT ats.auto_pct
+       FROM attempt_scores ats
+       JOIN attempts a ON a.id = ats.attempt_id
+       WHERE ats.tenant_id = current_setting('app.current_tenant', true)::uuid
+         AND a.tenant_id = current_setting('app.current_tenant', true)::uuid
+         AND a.user_id = $3
+         AND a.status = 'released'
+         AND a.submitted_at >= $1::timestamptz
+         AND a.submitted_at <  $2::timestamptz + interval '1 day'
+         AND ats.auto_pct IS NOT NULL
      ),
      quartile_bounds AS (
        SELECT

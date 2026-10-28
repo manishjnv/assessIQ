@@ -19,6 +19,13 @@ const base = {
 const fail = { ...base, resultText: 'Not passed' as const, scoreText: '20 / 60 (33.3%)' };
 
 describe('result_released copy', () => {
+  it('UAT 2026-10-29: "Not passed" has no dash or symbol before it; "Passed" keeps its tick', () => {
+    const f = renderTemplate('result_released', fail);
+    expect(f.html).toContain('<strong>Not passed</strong>');
+    expect(f.html).not.toContain('– Not passed');
+    expect(renderTemplate('result_released', base).html).toContain('<strong>✓ Passed</strong>');
+  });
+
   it('pass: subject says passed, outcome row first, then Score, Assessment, Organisation', () => {
     const r = renderTemplate('result_released', base);
     expect(r.subject).toBe('Your result for SOC Analyst L1: passed');

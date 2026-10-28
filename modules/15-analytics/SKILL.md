@@ -200,3 +200,11 @@ Migration `0189` adds the materialized view `question_stats_mv` (one row for eac
 - **Rejected:** websockets (polling is enough); a new table or migration (live queries on existing tables); reading `question_stats_mv` (wrong grain, nightly).
 - **Not included:** distractor split for multi-select, paging of more than 500 in-progress rows, NIRF/NAAC export, shortlist workflow, readiness heatmap (X6c, owner spec missing).
 - **Downstream:** none for other modules. Help keys `admin.live_monitor.*`, `admin.question_analytics.*`, `admin.assessments.live_monitor` and `.question_analytics` (seed only, count 663).
+
+## Candidate activity average reads live scores (UAT 2026-10-29)
+
+- **What.** `getCandidateActivityStats` (`src/activity-candidate/stats.ts`) now computes the average score and its quartile breakdown from `attempt_scores` joined to `attempts` (released attempts only), not from `attempt_summary_mv`.
+- **Why.** The view refreshes once a night (02:00 UTC). A result released at 9 pm showed "Avg. score 0" with an empty breakdown next to "Completed 1" until the next night (owner UAT, 14.jpg).
+- **Rejected.** A shorter refresh cadence (a heavier refresh for every tenant for one candidate screen). Showing a dash when the view is stale (hides a real score). Changing the admin analytics (they read cohorts and accept the lag).
+- **Not included.** The leaderboard, the timeline and the other candidate activity queries still read the view. The rule stays released-only (P1): no provisional scores.
+- **Downstream.** None for other modules. Test: `activity-candidate.test.ts` ("the average reads live scores, not the nightly view").
