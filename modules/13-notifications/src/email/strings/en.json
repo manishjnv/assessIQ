@@ -12,7 +12,10 @@
     "camera_check": "Check your camera early on the readiness page:",
     "camera_consent": "You will be asked to agree before the test starts.",
     "device_check": "Test your device before the exam:",
-    "device_check_cta": "Test your device"
+    "device_check_cta": "Test your device",
+    "signin_line": "See your results any time:",
+    "signin_link": "Sign in",
+    "org_code_label": "Your organisation code:"
   },
   "invitation_reminder": {
     "page_title": "Assessment reminder",

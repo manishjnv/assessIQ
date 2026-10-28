@@ -129,7 +129,7 @@ describe("TenantSettings — Distinction on certificates", () => {
     await renderLoaded();
     fireEvent.click(box());
     fireEvent.click(saveBtn());
-    const code = await screen.findByLabelText(/6-digit|authenticator|code/i);
+    const code = await screen.findByLabelText(/6-digit|authenticator code/i);
     fireEvent.change(code, { target: { value: "123456" } });
     fireEvent.click(screen.getByRole("button", { name: /Verify & save/ }));
     await screen.findByText("Certificate setting saved.");

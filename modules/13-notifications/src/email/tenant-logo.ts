@@ -13,7 +13,7 @@
  */
 
 import { config } from '@assessiq/core';
-import { getTenantLogoMeta, tenantLogoUrl } from '@assessiq/tenancy';
+import { getTenantById, getTenantLogoMeta, tenantLogoUrl } from '@assessiq/tenancy';
 import type { EmailTemplateName } from '../types.js';
 
 /** Candidate-facing templates that carry the tenant logo (admin/alert emails stay unbranded). */
@@ -64,3 +64,24 @@ export async function loadTenantLogo(tenantId: string): Promise<TenantLogoRef | 
 export function clearTenantLogoCache(): void {
   cache.clear();
 }
+
+const slugCache = new Map<string, { at: number; slug: string | null }>();
+
+/**
+ * Org code (the tenant slug) for the "sign in to see your results" line of the invitation (UAT 2026-10-29, Option A).
+ * Best-effort like the logo: any failure returns null and the email renders without that line.
+ */
+export async function loadTenantSlug(tenantId: string): Promise<string | null> {
+  const hit = slugCache.get(tenantId);
+  if (hit !== undefined && Date.now() - hit.at < CACHE_TTL_MS) return hit.slug;
+  let slug: string | null = null;
+  try {
+    const t = await getTenantById(tenantId);
+    slug = typeof t.slug === 'string' && t.slug.length > 0 ? t.slug : null;
+  } catch {
+    slug = null;
+  }
+  slugCache.set(tenantId, { at: Date.now(), slug });
+  return slug;
+}
+

@@ -6166,3 +6166,15 @@ admin.assessments.live_monitor:
     ## Live monitor
 
     The live monitor shows counts of invited, not started, in progress and submitted candidates. It is read only.
+
+admin.tenant_settings.org_code:
+  audience: admin
+  short_text: "The code students use to sign in and see their results."
+  long_md: |
+    ## Organisation code
+
+    Students sign in to see their results with this code and their email address.
+
+    - **Invitation emails** already carry the code and a sign-in link.
+    - **Student sign-in link.** Copy it and share it if a student asks. The link has the code in it, so the student types only the email.
+    - **Read only.** The code cannot be changed here. Old links keep working.

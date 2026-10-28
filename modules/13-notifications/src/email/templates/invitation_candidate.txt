@@ -13,6 +13,9 @@ Start your assessment:
 {{invitationLink}}
 {{_t_camera_consent}}
 
+{{/if}}{{#if signin_url}}{{_t_signin_line}} {{signin_url}}
+{{_t_org_code_label}} {{org_code}}
+
 {{/if}}Start before {{expiresAt}}. After that the invitation stops working.
 If you did not expect this email, you can ignore it.
 

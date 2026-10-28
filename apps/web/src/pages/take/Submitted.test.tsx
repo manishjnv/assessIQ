@@ -248,6 +248,20 @@ describe('Submitted — scoring + result release', () => {
     expect(getResult).toHaveBeenCalledTimes(1);
   });
 
+  it('UAT 2026-10-29 Option A: the See all your results link carries the org code; no code, no link', async () => {
+    getResult.mockResolvedValue({ ...RELEASED, tenant_name: 'Acme College', company_slug: 'acme-college' });
+    renderSubmitted(SOON_STATE);
+    await tick(0);
+    expect(screen.getByRole('link', { name: 'See all your results' }).getAttribute('href')).toBe(
+      '/candidate/login?tenant=acme-college',
+    );
+    cleanup();
+    getResult.mockResolvedValue({ ...RELEASED, tenant_name: 'Acme College', company_slug: null });
+    renderSubmitted(SOON_STATE);
+    await tick(0);
+    expect(screen.queryByRole('link', { name: 'See all your results' })).toBeNull();
+  });
+
   it('Logo L3a - released result shows the tenant logo; null shows the name only', async () => {
     getResult.mockResolvedValue({
       ...RELEASED,

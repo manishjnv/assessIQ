@@ -32,7 +32,7 @@ import { Redis } from 'ioredis';
 import { config, streamLogger, uuidv7 } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { renderTemplate } from './render.js';
-import { isCandidateBrandedTemplate, loadTenantLogo } from './tenant-logo.js';
+import { isCandidateBrandedTemplate, loadTenantLogo, loadTenantSlug } from './tenant-logo.js';
 import { resolveTransport } from './transport.js';
 import { buildFromHeader } from './from-header.js';
 import {
@@ -175,8 +175,13 @@ export async function sendEmail<T extends EmailTemplateName>(
       : tenantId !== undefined && tenantId.length > 0 && isCandidateBrandedTemplate(template)
         ? await loadTenantLogo(tenantId)
         : null;
+  const orgCode =
+    template === 'invitation_candidate' && tenantId !== undefined && tenantId.length > 0
+      ? await loadTenantSlug(tenantId)
+      : null;
   const rendered = renderTemplate(template, vars as Parameters<typeof renderTemplate<T>>[1], {
     logo,
+    ...(orgCode !== null ? { orgCode } : {}),
     ...(input.orgName !== undefined ? { orgName: input.orgName } : {}),
   });
 

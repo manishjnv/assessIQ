@@ -234,6 +234,7 @@ exports[`template snapshots — invitation_candidate > HTML renders to a stable 
                   </table>
               
               
+              
                   <p style="margin:32px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.55">
                     Start before <strong style="color:#3f3f46">2026-07-01T00:00:00Z</strong>. After that the invitation stops working. If you did not expect this email, you can safely ignore it.
                   </p>

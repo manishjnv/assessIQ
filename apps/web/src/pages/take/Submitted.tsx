@@ -59,6 +59,7 @@ interface Pending {
   turnaroundText: string | null;
   tenantName: string | null;
   accent: string | null;
+  slug: string | null;
   /** Logo L3a: tenant logo URL; null when none or when the server is older. */
   logoUrl: string | null;
   /** True only when the API says the tenant releases results manually. */
@@ -80,6 +81,7 @@ const UNKNOWN: Pending = {
   turnaroundText: null,
   tenantName: null,
   accent: null,
+  slug: null,
   logoUrl: null,
   manual: false,
 };
@@ -105,6 +107,7 @@ function toPending(src: unknown): Pending | null {
     tenantName: text(o['tenant_name']),
     logoUrl: text(o['company_logo_url']),
     accent: text(o['company_accent']),
+    slug: text(o['company_slug']),
     manual: o['release_mode'] === 'manual',
   };
 }
@@ -280,6 +283,12 @@ export function Submitted(): React.JSX.Element {
   // Logo L3a: co-brand above the status chip. No logo = organisation name only.
   const brandName =
     (state.tag === 'released' ? text(state.result.tenant_name) : state.info.tenantName) ?? '';
+  const brandSlug =
+    (state.tag === 'released'
+      ? text(state.result.company_slug)
+      : state.tag === 'scoring' || state.tag === 'email'
+        ? state.info.slug
+        : null) ?? null;
   const brandLogo =
     (state.tag === 'released' ? text(state.result.company_logo_url) : state.info.logoUrl) ?? null;
 
@@ -410,6 +419,13 @@ export function Submitted(): React.JSX.Element {
               </Card>
             )}
           </div>
+
+          {/* UAT 2026-10-29 (Option A): the link carries the org code, so the student never types it. */}
+          {brandSlug !== null && (
+            <p data-help-id="candidate.take.submitted.signin" style={{ margin: '0 0 20px', fontSize: 14 }}>
+              <a href={`/candidate/login?tenant=${encodeURIComponent(brandSlug)}`}>See all your results</a>
+            </p>
+          )}
 
           {/* Mono attempt-ID footer */}
           <div style={META_LABEL}>Reference · {attemptId}</div>

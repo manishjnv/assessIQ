@@ -977,3 +977,11 @@ candidate.attempt.nav.collapse:
       questions are answered or flagged.
     - Press the **\** key, or the **[** key, to fold or open the panel without the mouse.
     - Your choice stays on this browser. It does not change your answers.
+
+candidate.take.submitted.signin:
+  audience: candidate
+  short_text: "Sign in to see all your results. The link already has your organisation code."
+  long_md: |
+    ## See all your results
+
+    This link opens the sign-in page for your organisation. You only type your email address. We send you a sign-in link.

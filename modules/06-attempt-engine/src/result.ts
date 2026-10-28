@@ -40,7 +40,7 @@ const log = streamLogger("app");
  */
 export async function getCompanyBranding(
   tenantId: string,
-): Promise<{ name: string; logoUrl: string | null; accent: string | null }> {
+): Promise<{ name: string; logoUrl: string | null; accent: string | null; slug: string | null }> {
   try {
     const [tenant, meta] = await Promise.all([getTenantById(tenantId), getTenantLogoMeta(tenantId)]);
     return {
@@ -48,10 +48,12 @@ export async function getCompanyBranding(
       logoUrl: meta === null ? null : tenantLogoUrl(tenantId, meta.sha256),
       // UAT 2026-10-29: the org theme colour (hex) so buttons on candidate pages follow it. Null = AssessIQ default.
       accent: typeof tenant.branding?.primary === "string" ? tenant.branding.primary : null,
+      // Org code for the "see all your results" sign-in link (UAT 2026-10-29, Option A).
+      slug: typeof tenant.slug === "string" && tenant.slug !== "" ? tenant.slug : null,
     };
   } catch (err) {
     log.warn({ err, tenantId }, "result.company_branding_failed");
-    return { name: "", logoUrl: null, accent: null };
+    return { name: "", logoUrl: null, accent: null, slug: null };
   }
 }
 
@@ -114,6 +116,8 @@ export interface ReleasedResult {
   company_logo_url?: string | null;
   /** Org theme colour (hex) or null for the AssessIQ default. */
   company_accent?: string | null;
+  /** Org code (tenant slug) for the sign-in link on the Submitted page. */
+  company_slug?: string | null;
 }
 
 /** Z-39: 'Attempt n of m' plus the rule for the Try again button. can_retake is the whole rule (see loadCandidateResult). */
@@ -131,6 +135,8 @@ export interface PendingResult extends SubmitExpectation {
   company_logo_url?: string | null;
   /** Org theme colour (hex) or null for the AssessIQ default. */
   company_accent?: string | null;
+  /** Org code (tenant slug) for the sign-in link on the Submitted page. */
+  company_slug?: string | null;
 }
 
 export type CandidateResultView = ReleasedResult | PendingResult;
@@ -350,7 +356,7 @@ export async function getCandidateResult(
   const view = await loadCandidateResult(tenantId, userId, attemptId);
   const branding = await getCompanyBranding(tenantId);
   const tenantName = view.status === "pending" && view.tenant_name !== "" ? view.tenant_name : branding.name;
-  return { ...view, tenant_name: tenantName, company_logo_url: branding.logoUrl, company_accent: branding.accent };
+  return { ...view, tenant_name: tenantName, company_logo_url: branding.logoUrl, company_accent: branding.accent, company_slug: branding.slug };
 }
 
 async function loadCandidateResult(

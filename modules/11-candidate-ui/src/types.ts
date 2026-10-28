@@ -84,6 +84,8 @@ export interface CandidateAttemptViewWire {
   company_logo_url?: string | null;
   /** Org theme colour (hex); null/absent = AssessIQ default. */
   company_accent?: string | null;
+  /** Org code (tenant slug); absent on older servers. */
+  company_slug?: string | null;
   /** Z-167: shown in the attempt top bar when the server sends them (not sent yet; the bar falls back to short ids). */
   candidate_name?: string;
   assessment_name?: string;
@@ -142,6 +144,8 @@ export interface TakeStartResponseWire {
     company_logo_url?: string | null;
     /** Org theme colour (hex); null/absent = AssessIQ default. */
     company_accent?: string | null;
+    /** Org code (tenant slug); absent on older servers. */
+    company_slug?: string | null;
     /** Z-82: a real exam that needs the camera. Absent on older servers. */
     camera_required?: boolean;
     camera_notice_version?: string;
@@ -165,6 +169,8 @@ export interface TakePreviewResponseWire {
     company_logo_url?: string | null;
     /** Org theme colour (hex); null/absent = AssessIQ default. */
     company_accent?: string | null;
+    /** Org code (tenant slug); absent on older servers. */
+    company_slug?: string | null;
     /** Z-39: the attempt this page is about and how many the candidate may make. Absent on older servers. */
     attempt_number?: number;
     attempts_allowed?: number;
@@ -232,6 +238,8 @@ export interface AttemptResultPendingWire {
   company_logo_url?: string | null;
   /** Org theme colour (hex); null/absent = AssessIQ default. */
   company_accent?: string | null;
+  /** Org code (tenant slug); absent on older servers. */
+  company_slug?: string | null;
   /** Optional hint — see SubmitAttemptResponseWire.release_mode. */
   release_mode?: ReleaseMode;
 }
@@ -273,6 +281,8 @@ export interface AttemptResultReleasedWire {
   company_logo_url?: string | null;
   /** Org theme colour (hex); null/absent = AssessIQ default. */
   company_accent?: string | null;
+  /** Org code (tenant slug); absent on older servers. */
+  company_slug?: string | null;
 }
 
 /** Z-39: GET /api/me/attempts/:id/result `retake`. can_retake is the whole server-side rule. */

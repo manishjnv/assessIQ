@@ -34,6 +34,13 @@
     </p>
     {{/if}}
 
+    {{#if signin_url}}
+    <p style="margin:24px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:14px;color:#3f3f46;line-height:1.55">
+      {{_t_signin_line}} <a href="{{{signin_url}}}" target="_blank" rel="noopener noreferrer" style="color:#1a73e8">{{_t_signin_link}}</a><br>
+      {{_t_org_code_label}} <strong style="color:#18181b">{{org_code}}</strong>
+    </p>
+    {{/if}}
+
     <p style="margin:32px 0 0;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;font-size:13px;color:#71717a;line-height:1.55">
       Start before <strong style="color:#3f3f46">{{expiresAt}}</strong>. After that the invitation stops working. If you did not expect this email, you can safely ignore it.
     </p>

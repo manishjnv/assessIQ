@@ -341,3 +341,7 @@ The full record is in `modules/19-billing/SKILL.md` § "2026-10-20 — Wave 4 sm
 - **Rejected.** A new BullMQ queue; sending inside the issue transaction.
 - **Not included.** Email on tier upgrade, expiry reminder email, a template for revoke.
 - **Downstream.** Module 18 `service.ts`; module 16 holds no help for the email.
+
+## Invitation sign-in line (UAT 2026-10-29, Option A)
+
+`invitation_candidate` shows "See your results any time: Sign in" and "Your organisation code: <slug>" after the Start button when the render gets `opts.orgCode`. `sendEmail` loads the slug with `loadTenantSlug(tenantId)` (tenant-logo.ts, 60 s cache, never throws). The link is `<ASSESSIQ_BASE_URL>/candidate/login?tenant=<slug>`, written with triple braces because Handlebars would escape the `=`; the value is built with `URL` and `encodeURIComponent`, so it holds no quote or markup. Not in the reminder. No slug = the block is skipped. Test: `invitation-signin-line.test.ts`.

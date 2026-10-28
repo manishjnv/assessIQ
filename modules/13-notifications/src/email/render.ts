@@ -347,6 +347,13 @@ function augmentContext(name: EmailTemplateName, p: any, opts: RenderOptions): R
     ...(name === 'invitation_admin' ? { roleLabel: INVITE_ROLE_LABEL[p.role] ?? p.role } : {}),
     // Z-154: standalone device check link, built from the same public base URL as the invitation link.
     ...(name === 'invitation_candidate' ? { check_url: new URL('/check', config.ASSESSIQ_BASE_URL).toString() } : {}),
+    // UAT 2026-10-29 (Option A): the student sign-in link carries the org code, so the student never types it.
+    ...(name === 'invitation_candidate' && opts.orgCode !== undefined && opts.orgCode !== ''
+      ? {
+          org_code: opts.orgCode,
+          signin_url: new URL(`/candidate/login?tenant=${encodeURIComponent(opts.orgCode)}`, config.ASSESSIQ_BASE_URL).toString(),
+        }
+      : {}),
     ...(orgName !== '' ? { org_name: orgName } : {}),
     ...(logo !== null ? { logo_url: logo.url } : {}),
     ...(box !== null ? { logo_w: box.w, logo_h: box.h } : {}),
@@ -395,6 +402,8 @@ export interface RenderOptions {
   logo?: { url: string; width: number; height: number } | null | undefined;
   /** Organisation name for the header and the logo alt text. Defaults to vars.tenantName. */
   orgName?: string | undefined;
+  /** Org code (tenant slug) for the invitation's sign-in line; absent = no such line. */
+  orgCode?: string | undefined;
 }
 
 export interface RenderResult {

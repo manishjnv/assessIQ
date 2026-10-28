@@ -172,6 +172,39 @@ export interface TenantSettingsProps {
   tab?: "organisation" | "results" | "privacy";
 }
 
+/** UAT 2026-10-29: one read-only value with a Copy button (organisation code and student sign-in link). */
+function CopyRow(props: { label: string; value: string; id: string }): React.ReactElement {
+  const [done, setDone] = useState(false);
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label htmlFor={props.id} style={{ display: "block", fontFamily: "var(--aiq-font-sans)", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+        {props.label}
+      </label>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <input
+          id={props.id}
+          readOnly
+          value={props.value}
+          onFocus={(e) => e.currentTarget.select()}
+          style={{ flex: "1 1 280px", minWidth: 0, height: 36, padding: "0 12px", border: "1px solid var(--aiq-color-border)", borderRadius: 8, background: "var(--aiq-color-bg-raised)", color: "var(--aiq-color-fg-primary)", fontFamily: "var(--aiq-font-mono)", fontSize: 13 }}
+        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            void navigator.clipboard.writeText(props.value).then(() => {
+              setDone(true);
+              setTimeout(() => setDone(false), 2000);
+            });
+          }}
+        >
+          {done ? "Copied" : "Copy"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = {}): React.ReactElement {
   const [innerTab, setActiveTab] = useState<"company" | "results" | "privacy">("company");
   const activeTab = tab ? (tab === "organisation" ? "company" : tab) : innerTab;
@@ -839,6 +872,28 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
         </div>
 
         <div role="tabpanel" hidden={activeTab !== "company"}>
+        {/* ── Organisation code and student sign-in link (UAT 2026-10-29) ─── */}
+        {session?.tenant.slug && (
+          <section aria-labelledby="org-code-heading" data-help-id="admin.tenant_settings.org_code" style={{ marginBottom: "var(--aiq-space-xl)" }}>
+            <div style={{ paddingBottom: 16, borderBottom: "1px solid var(--aiq-color-border)", marginBottom: 24 }}>
+              <h2 id="org-code-heading" style={{ fontFamily: "var(--aiq-font-serif)", fontSize: 22, fontWeight: 400, margin: 0, letterSpacing: "-0.015em" }}>
+                Organisation code.
+              </h2>
+            </div>
+            <Card padding="lg">
+              <p style={{ margin: "0 0 16px", fontFamily: "var(--aiq-font-sans)", fontSize: 14, color: "var(--aiq-color-fg-secondary)", lineHeight: 1.55 }}>
+                Students sign in to see their results with this code. Invitation emails already carry it. Share the sign-in link below if a student asks.
+              </p>
+              <CopyRow id="org-code-value" label="Organisation code" value={session.tenant.slug} />
+              <CopyRow
+                id="org-signin-link"
+                label="Student sign-in link"
+                value={`${window.location.origin}/candidate/login?tenant=${encodeURIComponent(session.tenant.slug)}`}
+              />
+            </Card>
+          </section>
+        )}
+
         {/* ── Company name section ────────────────────────────────────────── */}
         <section aria-labelledby="company-name-heading" data-help-id="admin.tenant_settings.company_name">
           <div
