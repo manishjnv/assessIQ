@@ -20,6 +20,8 @@ export interface DrawerProps {
   title?: string;
   /** Width of the drawer panel. Default: 560px. */
   width?: number | string;
+  /** "bottom" = a sheet (Z-170): max 78dvh, 20px top radius, slides up over .32s. Default: "right". */
+  placement?: "right" | "bottom";
   /** Whether clicking the backdrop closes the drawer. Default: true. */
   closeOnBackdrop?: boolean;
   children: React.ReactNode;
@@ -31,11 +33,13 @@ export function Drawer({
   onClose,
   title,
   width = 560,
+  placement = "right",
   closeOnBackdrop = true,
   children,
   "data-test-id": testId,
 }: DrawerProps): React.ReactElement | null {
   const panelRef = useRef<HTMLDivElement>(null);
+  const bottom = placement === "bottom";
 
   useEffect(() => {
     if (!open) return;
@@ -83,9 +87,13 @@ export function Drawer({
         inset: 0,
         zIndex: "var(--aiq-z-modal)",
         display: "flex",
-        justifyContent: "flex-end",
+        justifyContent: bottom ? "center" : "flex-end",
+        alignItems: bottom ? "flex-end" : undefined,
       }}
     >
+      {bottom && (
+        <style>{"@keyframes aiq-sheet-up{from{transform:translateY(100%)}to{transform:none}}.aiq-sheet{animation:aiq-sheet-up .32s cubic-bezier(.2,.7,.3,1)}@media (prefers-reduced-motion:reduce){.aiq-sheet{animation:none}}"}</style>
+      )}
       {/* Backdrop */}
       <div
         aria-hidden="true"
@@ -99,13 +107,17 @@ export function Drawer({
       {/* Panel */}
       <div
         ref={panelRef}
+        className={bottom ? "aiq-sheet" : undefined}
         style={{
           position: "relative",
-          width,
+          width: bottom ? "100%" : width,
           maxWidth: "100vw",
-          height: "100%",
+          height: bottom ? "auto" : "100%",
+          maxHeight: bottom ? "78dvh" : undefined,
           background: "var(--aiq-color-bg-base)",
-          borderLeft: "1px solid var(--aiq-color-border)",
+          borderLeft: bottom ? undefined : "1px solid var(--aiq-color-border)",
+          borderTop: bottom ? "1px solid var(--aiq-color-border)" : undefined,
+          borderRadius: bottom ? "20px 20px 0 0" : undefined,
           display: "flex",
           flexDirection: "column",
           overflow: "hidden",
@@ -146,6 +158,8 @@ export function Drawer({
               color: "var(--aiq-color-fg-muted)",
               fontSize: 18,
               padding: 4,
+              minWidth: 40,
+              minHeight: 40,
               lineHeight: 1,
               marginLeft: "auto",
             }}

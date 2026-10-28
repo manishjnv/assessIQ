@@ -79,6 +79,7 @@ export {
   CandidateSessionBanner,
   CandidateActivity,
   neighbor,
+  NavCollapseHandle,
   filterSuffix,
   filterCounts,
   matchesFilter,

@@ -41,6 +41,7 @@ vi.mock('@assessiq/candidate-ui', async () => {
   return {
   neighbor: actual.neighbor,
   filterSuffix: actual.filterSuffix,
+  NavCollapseHandle: actual.NavCollapseHandle,
   AttemptTimer: (p: { endsAt: string }) => <span data-testid="timer">{p.endsAt}</span>,
   Calculator: () => <button type="button">Calculator</button>,
   AutosaveIndicator: () => null,

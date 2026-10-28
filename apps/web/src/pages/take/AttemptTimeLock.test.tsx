@@ -38,6 +38,7 @@ vi.mock('@assessiq/candidate-ui', async () => {
   return {
   neighbor: actual.neighbor,
   filterSuffix: actual.filterSuffix,
+  NavCollapseHandle: actual.NavCollapseHandle,
   AttemptTimer: () => null,
   Calculator: () => null,
   AutosaveIndicator: () => null,

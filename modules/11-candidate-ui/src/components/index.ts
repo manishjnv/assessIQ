@@ -12,6 +12,7 @@ export type { FullscreenGateProps } from "./FullscreenGate";
 
 export { QuestionNavigator } from "./QuestionNavigator";
 export type { QuestionNavigatorProps, NavigatorItem } from "./QuestionNavigator";
+export { NavCollapseHandle } from "./NavigatorRail";
 export { neighbor, filterSuffix, filterCounts, matchesFilter, isAnswered, isFlagged } from "./navigatorFilter";
 export type { NavigatorFilter } from "./navigatorFilter";
 

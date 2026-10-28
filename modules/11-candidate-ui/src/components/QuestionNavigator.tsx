@@ -1,6 +1,6 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import { Icon } from "@assessiq/ui-system";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { groupNavigatorItems, countAnswered } from "./navigatorGroups.js";
+import { NavigatorRail } from "./NavigatorRail.js";
 import {
   filterCounts,
   isAnswered,
@@ -38,9 +38,12 @@ export interface QuestionNavigatorProps {
   onFilterChange?: (filter: NavigatorFilter) => void;
   /** Z-169: "Next unanswered". Absent = onSelect with the next open question. */
   onNextOpen?: () => void;
-  /** Z-169: folded to a narrow column of numbers. The handle shows only with onToggleCollapsed. */
+  /** Z-169/Z-170: folded to the 88 px rail. The collapse pill is `NavCollapseHandle`, placed by the page. */
   collapsed?: boolean;
-  onToggleCollapsed?: () => void;
+  /** Z-170: "strip" = the 68 px horizontal strip of the mobile layout (same rail logic on the X axis). */
+  layout?: "panel" | "strip";
+  /** Strip only: the button that opens the full navigator sheet. */
+  trailing?: ReactNode;
   "data-test-id"?: string;
 }
 
@@ -138,7 +141,8 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
     onFilterChange,
     onNextOpen,
     collapsed = false,
-    onToggleCollapsed,
+    layout = "panel",
+    trailing,
     "data-test-id": testId,
   } = props;
 
@@ -169,22 +173,7 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
       ? "Select a count to show and navigate only those questions."
       : `Showing ${filter} only. Previous and Next skip the rest.`;
 
-  const handle =
-    onToggleCollapsed === undefined ? null : (
-      <button
-        type="button"
-        className="aiq-qnav-btn"
-        aria-label={collapsed ? "Expand question panel" : "Collapse question panel"}
-        aria-expanded={!collapsed}
-        data-help-id="candidate.attempt.nav.collapse"
-        onClick={onToggleCollapsed}
-        style={{ ...ctrl, minWidth: 36, minHeight: 36, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-      >
-        <Icon name={collapsed ? "arrowLeft" : "arrow"} size={14} />
-      </button>
-    );
-
-  const renderCell = (item: NavigatorItem) => {
+  const renderCell = (item: NavigatorItem, railStyle?: CSSProperties, distance?: number) => {
     const current = item.status === "current";
     return (
       <button
@@ -192,6 +181,7 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
         type="button"
         className="aiq-qnav-cell"
         data-current={current ? "true" : undefined}
+        data-rail-far={distance !== undefined && Math.abs(distance) >= 3 ? "true" : undefined}
         aria-label={cellName(item)}
         aria-current={current ? "step" : undefined}
         onClick={() => onSelect(item.questionId)}
@@ -212,6 +202,7 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
           padding: 0,
           margin: 0,
           lineHeight: 1,
+          ...railStyle,
         }}
       >
         {item.position}
@@ -234,18 +225,37 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
     );
   };
 
-  if (collapsed) {
+  if (collapsed || layout === "strip") {
+    const currentIndex = Math.max(0, visible.findIndex((i) => i.questionId === currentId));
+    const cur = visible[currentIndex];
+    const step = (dir: 1 | -1): void => {
+      const t = neighbor(items, currentId, dir, filter);
+      if (t !== null) onSelect(t.questionId);
+    };
+    const pad = (n: number): string => String(n).padStart(2, "0");
+    const footer =
+      cur === undefined ? undefined : (
+        <>
+          <div style={{ fontFamily: SERIF, fontSize: 22, color: "var(--aiq-color-fg-primary)" }}>
+            {filter === "all" ? pad(cur.position) : currentIndex + 1}
+          </div>
+          <div style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}>
+            {filter === "all" ? `of ${counts.all}` : `of ${visible.length} ${filter}`}
+          </div>
+        </>
+      );
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "var(--aiq-space-xs)" }}>
-        {handle}
-        <nav
-          aria-label="Question navigator"
-          data-test-id={testId}
-          style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-xs)", width: "100%" }}
-        >
-          {visible.map(renderCell)}
-        </nav>
-      </div>
+      <NavigatorRail
+        items={visible}
+        currentIndex={currentIndex}
+        axis={layout === "strip" ? "x" : "y"}
+        renderCell={renderCell}
+        onStep={step}
+        canStep={{ prev: neighbor(items, currentId, -1, filter) !== null, next: neighbor(items, currentId, 1, filter) !== null }}
+        label={layout === "strip" ? "Question strip" : "Question navigator"}
+        footer={footer}
+        trailing={trailing}
+      />
     );
   }
 
@@ -260,7 +270,6 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
             {counts.answered} / {counts.all} answered
           </div>
         </div>
-        {handle}
       </div>
 
       <div
@@ -340,7 +349,7 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
                 </button>
               )}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: "var(--aiq-space-xs)" }}>
-                {group.items.map(renderCell)}
+                {group.items.map((i) => renderCell(i))}
               </div>
             </div>
           );

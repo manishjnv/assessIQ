@@ -25,13 +25,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Navigate } from "react-router";
 import { Button, Drawer, Icon, Modal, Spinner } from "@assessiq/ui-system";
-import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError, neighbor, filterSuffix } from "@assessiq/candidate-ui";
+import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError, neighbor, filterSuffix, NavCollapseHandle } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire, NavigatorFilter } from "@assessiq/candidate-ui";
 import { isQuestionType } from "@assessiq/question-types";
 import { STEM_FIELD, TYPE_LABEL, type PageState, hasForbiddenSynonym, BOTTOM_BAR, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
 import { AnswerArea } from "./attempt-parts/AnswerArea.js";
 import { ReportProblemModal } from "./attempt-parts/ReportProblemModal.js";
 import { NavigatorBody } from "./attempt-parts/NavigatorBody.js";
+import { useMaxWidth } from "./attempt-parts/useMaxWidth.js";
 import { AttemptTopBar } from "./attempt-parts/AttemptTopBar.js";
 import { FinishSectionModal } from "./attempt-parts/FinishSectionModal.js";
 import { KeyNav, KeyShortcutsToggle, useKeyShortcuts } from "./attempt-parts/KeyNav.js";
@@ -72,6 +73,8 @@ export function AttemptPage(): React.JSX.Element {
   // Desktop never opens it (the aside is always visible); mobile toggles via
   // the .aiq-attempt-nav-toggle header button. Closes on item-select.
   const [navOpen, setNavOpen] = useState(false);
+  // Z-170: at 900 px and below the navigator is a 68 px strip above the footer plus a bottom sheet.
+  const stripMode = useMaxWidth(900);
   // Test sections: "Finish section" confirm dialog.
   const [finishOpen, setFinishOpen] = useState(false);
   const [finishing, setFinishing] = useState(false);
@@ -577,7 +580,27 @@ export function AttemptPage(): React.JSX.Element {
       filter={navFilter}
       onFilterChange={setNavFilter}
       collapsed={prefs.navCollapsed}
-      onToggleCollapsed={toggleNav}
+    />
+  );
+  const stripBody = (
+    <NavigatorBody
+      navigatorItems={navigatorItems}
+      setCurrentQuestionId={requestQuestion}
+      setNavOpen={setNavOpen}
+      filter={navFilter}
+      onFilterChange={setNavFilter}
+      layout="strip"
+      trailing={
+        <button
+          type="button"
+          className="aiq-qnav-btn aiq-take-strip-grid"
+          aria-label="Open all questions"
+          aria-haspopup="dialog"
+          onClick={() => setNavOpen(true)}
+        >
+          <Icon name="grid" size={18} />
+        </button>
+      }
     />
   );
   // The drawer is always full size: no collapse handle there.
@@ -825,28 +848,37 @@ export function AttemptPage(): React.JSX.Element {
           className="aiq-attempt-aside"
           style={{
             borderLeft: '1px solid var(--aiq-color-border)',
-            paddingLeft: 'var(--aiq-space-md)',
             background: 'var(--aiq-color-bg-raised)',
-            paddingTop: 'var(--aiq-space-lg)',
-            paddingBottom: 'var(--aiq-space-lg)',
-            paddingRight: 'var(--aiq-space-md)',
           }}
         >
-          {!prefs.navCollapsed && <div
+          {/* Z-170: the pill sits outside the scrolling area so it can straddle the border. */}
+          <NavCollapseHandle collapsed={prefs.navCollapsed} onToggle={toggleNav} />
+          <div
+            className="aiq-attempt-aside-scroll"
             style={{
-              fontFamily: 'var(--aiq-font-mono)',
-              fontSize: 11,
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              color: 'var(--aiq-color-fg-muted)',
-              marginBottom: 'var(--aiq-space-sm)',
               paddingLeft: 'var(--aiq-space-md)',
+              paddingTop: 'var(--aiq-space-lg)',
+              paddingBottom: 'var(--aiq-space-lg)',
+              paddingRight: 'var(--aiq-space-md)',
             }}
           >
-            Navigator
-          </div>}
-          {navigatorBody}
+            {!prefs.navCollapsed && <div
+              style={{
+                fontFamily: 'var(--aiq-font-mono)',
+                fontSize: 11,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--aiq-color-fg-muted)',
+                marginBottom: 'var(--aiq-space-sm)',
+                paddingLeft: 'var(--aiq-space-md)',
+              }}
+            >
+              Navigator
+            </div>}
+            {navigatorBody}
+          </div>
         </aside>
+        {stripMode && <div className="aiq-attempt-strip">{stripBody}</div>}
       </div>
 
       {/* ── BOTTOM BAR ──────────────────────────────────────────────────── */}
@@ -1039,6 +1071,7 @@ export function AttemptPage(): React.JSX.Element {
         open={navOpen}
         onClose={() => setNavOpen(false)}
         title="Navigator"
+        placement={stripMode ? "bottom" : "right"}
       >
         {drawerBody}
       </Drawer>

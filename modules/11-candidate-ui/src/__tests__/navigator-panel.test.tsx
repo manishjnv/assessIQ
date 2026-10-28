@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { QuestionNavigator, type NavigatorItem } from "../components/index.js";
+import { QuestionNavigator, NavCollapseHandle, type NavigatorItem } from "../components/index.js";
 
 afterEach(cleanup);
 
@@ -80,18 +80,46 @@ describe("QuestionNavigator panel (Z-169)", () => {
     expect((screen.getByRole("button", { name: "Next unanswered" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("collapse handle toggles and the folded column keeps the cell names", () => {
+  it("collapse pill toggles and its name and aria-expanded follow the state", () => {
     const toggle = vi.fn();
-    const { rerender } = render(<QuestionNavigator items={items} onSelect={() => {}} collapsed={false} onToggleCollapsed={toggle} />);
-    const handle = screen.getByRole("button", { name: "Collapse question panel" });
-    expect(handle.getAttribute("aria-expanded")).toBe("true");
-    fireEvent.click(handle);
+    const { rerender } = render(<NavCollapseHandle collapsed={false} onToggle={toggle} />);
+    const pill = screen.getByRole("button", { name: "Collapse question panel" });
+    expect(pill.getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(pill);
     expect(toggle).toHaveBeenCalledTimes(1);
-    rerender(<QuestionNavigator items={items} onSelect={() => {}} collapsed onToggleCollapsed={toggle} />);
+    rerender(<NavCollapseHandle collapsed onToggle={toggle} />);
     expect(screen.getByRole("button", { name: "Expand question panel" }).getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("the folded rail keeps the cell names, aria-current and a lens, and drops the panel parts", () => {
+    render(<QuestionNavigator items={items} onSelect={() => {}} collapsed />);
     expect(screen.queryByRole("button", { name: "Next unanswered" })).toBeNull();
     expect(screen.getByLabelText("Question 1, answered, flagged")).toBeTruthy();
+    const cur = screen.getByLabelText("Question 3, unanswered, current");
+    expect(cur.getAttribute("aria-current")).toBe("step");
     expect(screen.getByLabelText("Question navigator").querySelectorAll("button").length).toBe(6);
+    expect(document.querySelector('[data-rail-lens="true"]')).not.toBeNull();
+    expect(screen.getByText("03")).toBeTruthy();
+    expect(screen.getByText("of 6")).toBeTruthy();
+  });
+
+  it("rail chevrons step through the filtered sequence", () => {
+    const onSelect = vi.fn();
+    render(<QuestionNavigator items={items} onSelect={onSelect} collapsed filter="flagged" />);
+    // current q3 is outside the filter; next flagged after it is q5, previous is q1.
+    fireEvent.click(screen.getByRole("button", { name: "Next question" }));
+    expect(onSelect).toHaveBeenLastCalledWith("q5");
+    fireEvent.click(screen.getByRole("button", { name: "Previous question" }));
+    expect(onSelect).toHaveBeenLastCalledWith("q1");
+    expect(screen.getByText(/of 3 flagged/)).toBeTruthy();
+  });
+
+  it("the mobile strip is a horizontal rail with its own name and the sheet button slot", () => {
+    render(<QuestionNavigator items={items} onSelect={() => {}} layout="strip" trailing={<button type="button">Open all questions</button>} />);
+    expect(screen.getByLabelText("Question strip")).toBeTruthy();
+    expect(document.querySelector('[data-axis="x"]')).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Open all questions" })).toBeTruthy();
+    expect(screen.queryByText("of 6")).toBeNull(); // footer is vertical-rail only
   });
 
   it("renders inside a dialog container (mobile drawer)", () => {

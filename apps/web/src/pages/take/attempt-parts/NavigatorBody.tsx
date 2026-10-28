@@ -10,7 +10,9 @@ export interface NavigatorBodyProps {
   onFilterChange: (filter: NavigatorFilter) => void;
   /** Z-169: desktop aside only. The mobile drawer passes neither. */
   collapsed?: boolean;
-  onToggleCollapsed?: () => void;
+  /** Z-170: mobile strip. Renders the horizontal rail; `trailing` is the grid button that opens the sheet. */
+  layout?: 'panel' | 'strip';
+  trailing?: React.ReactNode;
 }
 
 export function NavigatorBody({
@@ -20,11 +22,12 @@ export function NavigatorBody({
   filter,
   onFilterChange,
   collapsed = false,
-  onToggleCollapsed,
+  layout = 'panel',
+  trailing,
 }: NavigatorBodyProps): React.JSX.Element {
   return (
     <>
-      {!collapsed && (
+      {!collapsed && layout === 'panel' && (
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 'var(--aiq-space-sm)' }}>
           <CandidateHelp />
         </div>
@@ -34,7 +37,8 @@ export function NavigatorBody({
         filter={filter}
         onFilterChange={onFilterChange}
         collapsed={collapsed}
-        {...(onToggleCollapsed !== undefined ? { onToggleCollapsed } : {})}
+        layout={layout}
+        trailing={trailing}
         onSelect={(qid) => {
           setCurrentQuestionId(qid);
           setNavOpen(false); // close mobile drawer after pick; no-op on desktop

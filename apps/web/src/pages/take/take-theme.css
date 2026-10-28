@@ -102,10 +102,28 @@ html.aiq-take-root body {
   gap: 0;
   grid-template-columns: minmax(0, 1fr) 320px;
 }
-.aiq-take-root .aiq-attempt-aside { min-height: 0; overflow: auto; }
-/* Z-169: folded question panel = a narrow column of numbers (desktop only; the mobile rule below comes later and wins). */
-.aiq-take-root .aiq-attempt-middle[data-nav-collapsed="true"] { grid-template-columns: minmax(0, 1fr) 72px; }
-.aiq-take-root .aiq-attempt-middle[data-nav-collapsed="true"] .aiq-attempt-aside { padding-left: var(--aiq-space-xs) !important; padding-right: var(--aiq-space-xs) !important; }
+/* Z-170: the aside never clips (the collapse pill sits half outside it); the inner div scrolls. */
+.aiq-take-root .aiq-attempt-aside { min-height: 0; position: relative; display: flex; flex-direction: column; }
+.aiq-take-root .aiq-attempt-aside-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; box-sizing: border-box; }
+/* Z-169/Z-170: folded question panel = the 88 px rail (desktop only; the 900 px rules below win). */
+.aiq-take-root .aiq-attempt-middle[data-nav-collapsed="true"] { grid-template-columns: minmax(0, 1fr) 88px; }
+.aiq-take-root .aiq-attempt-middle[data-nav-collapsed="true"] .aiq-attempt-aside-scroll { padding: var(--aiq-space-md) 0 !important; overflow: hidden; }
+.aiq-take-root .aiq-attempt-aside-scroll > .aiq-rail { flex: 1; }
+.aiq-qnav-pill {
+  position: absolute; left: -17px; top: 50%; transform: translateY(-50%); z-index: 3;
+  width: 34px; height: 68px; padding: 0; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--aiq-color-bg-base); color: var(--aiq-color-fg-secondary);
+  border: 1px solid var(--aiq-color-border-strong); border-radius: 17px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12); cursor: pointer;
+}
+.aiq-qnav-pill:hover { border-color: var(--aiq-color-accent); color: var(--aiq-color-accent); box-shadow: 0 0 0 4px var(--aiq-color-accent-soft); }
+.aiq-qnav-pill:focus-visible { outline: 2px solid var(--aiq-color-accent); outline-offset: 2px; }
+.aiq-take-strip-grid {
+  flex: 0 0 auto; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--aiq-color-border-strong); border-radius: 12px; background: var(--aiq-color-bg-base); color: var(--aiq-color-fg-primary); cursor: pointer; padding: 0;
+}
+.aiq-attempt-strip { height: 68px; box-sizing: border-box; padding: 0 8px; border-top: 1px solid var(--aiq-color-border); background: var(--aiq-color-bg-raised); display: flex; align-items: center; }
+.aiq-attempt-strip > .aiq-rail { height: 68px; }
 
 /* ── Top bar ───────────────────────────────────────────────────────────── */
 .aiq-take-root .aiq-attempt-top {
@@ -335,6 +353,11 @@ html.aiq-take-root body {
 
 /* Narrow screens: no horizontal scroll, navigator stays the drawer */
 @media (max-width: 900px) {
+  /* Z-170: the aside becomes the strip + sheet; the middle row gets a second row for the strip. */
+  .aiq-take-root .aiq-attempt-middle,
+  .aiq-take-root .aiq-attempt-middle[data-nav-collapsed="true"] { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .aiq-take-root .aiq-attempt-aside { display: none; }
+  .aiq-take-root .aiq-attempt-nav-toggle { display: inline-flex; }
   .aiq-take-progress-right { display: none; }
   .aiq-take-hide-900 { display: none !important; }
 }
@@ -357,6 +380,7 @@ html.aiq-take-root body {
   .aiq-take-opt { padding: 12px 14px; gap: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
+  .aiq-qnav-pill { transition: none; }
   .aiq-take-timerbar > span { transition: none; }
   .aiq-take-stage, .aiq-take-pop { animation: none; }
 }
