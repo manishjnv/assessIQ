@@ -314,3 +314,9 @@ All presentation primitives in this module target WCAG 2.1 AA. Future component 
 ## EXP-28 (S62, 2026-10-26)
 
 - `api.ts` `reportQuestion(attemptId, questionId, reason, note)` calls `POST /api/me/attempts/:id/report`. The button and modal are in `apps/web/src/pages/take/attempt-parts/ReportProblemModal.tsx` (help id `candidate.attempt.report`).
+
+## Z-167 / Z-168 exam engine look (S67, 2026-10-28)
+
+- Take page files: `apps/web/src/pages/take/take-theme.css` (tokens and answer patterns), `attempt-parts/takePrefs.ts` (browser-only display prefs), `attempt-parts/ProgressRow.tsx`, `attempt-parts/AttemptTopBar.tsx` (display settings popover, full screen), `attempt-parts/KeyNav.tsx` (`onPick` for A to D and 1 to 5, `onFlag` for F, arrow keys). "Clear response" sets the answer to `null` through `handleAnswerChange` and remounts the answer area (key suffix) so local drafts clear.
+- `CandidateAttemptViewWire` has optional `candidate_name` and `assessment_name`; the server does not send them yet.
+- Not changed: timer, autosave, submit, grading, integrity, camera and section logic.
