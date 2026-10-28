@@ -491,3 +491,13 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 ## EXP-28 report a question (S62, 2026-10-26)
 
 - `report.ts` `reportQuestion`: owner check, question must be in the attempt, 20 reports per attempt, upsert on `(attempt_id, question_id)`. Route `POST /api/me/attempts/:id/report` in `routes.candidate.ts`. No timer, section or status check: a result can also show a wrong key. Table `question_reports` (migration 0268) lives here because it has an FK to `attempts`.
+
+## Z-174 display names in the attempt view (S68, 2026-10-28)
+
+- **What.** `getAttemptForCandidate` (`src/service.ts`) also returns `candidate_name` and `assessment_name`. A private helper `loadAttemptDisplayNames` runs one read-only query inside `withTenant`: `attempts a JOIN users u JOIN assessments s WHERE a.id = $1 AND a.user_id = $2 AND a.tenant_id = $3`. It runs in `Promise.all` with `getCompanyBranding`, so the view costs no extra round trip in sequence.
+- **Why.** The take-page top bar (Z-167) showed only short ids because the view carried no names. Owner approved the change on 2026-10-28 with three conditions: no emails in the bar, one parallel query, a real-database test.
+- **Rules.** A blank name, or a name that contains `@`, is left out (the key is absent) so the bar keeps the short id. An empty assessment title is also left out. Any query failure returns `{}` and logs `attempt.display_names_failed`; the candidate flow never breaks. Another candidate's attempt and another tenant's attempt are refused by `loadAttemptForCandidate` before this helper runs, and the query repeats the owner and tenant predicate as a second guard.
+- **Rejected.** A new route; a join in `loadAttemptForCandidate` (it would put the names on the critical path and on every internal caller); sending the email as a fallback (the owner said no emails).
+- **Not included.** No migration, no write path, no other user field, no change to any other route. The wire type already had the optional fields (`modules/11-candidate-ui/src/types.ts`).
+- **Test.** `src/__tests__/attempt-display-names.test.ts` (testcontainers Postgres, no mocks): own attempt returns both names; another candidate of the same tenant and a caller from another tenant are refused; an email-style name and a blank name are left out while the title stays.
+- **Downstream.** `docs/03-api-contract.md` (two optional fields on `GET /api/me/attempts/:id`); `AttemptTopBar.tsx` reads them.
