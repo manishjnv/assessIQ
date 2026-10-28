@@ -12,10 +12,11 @@ export async function openAttempt(page: Page, context: BrowserContext, cookie: s
   await expect(page.getByText(/^Question 1 of [0-9]+$/)).toBeVisible({ timeout: 20_000 });
 }
 
-/** Submit through the confirmation dialog and wait for the submitted page. */
+/** Z-171: Finish assessment (top bar) -> finish summary -> Submit assessment -> confirm dialog -> Submit now. */
 export async function submitViaUi(page: Page, attemptId: string): Promise<void> {
-  await page.getByRole('button', { name: 'Submit', exact: true }).click();
-  await page.getByRole('button', { name: 'Submit test' }).click();
+  await page.getByRole('button', { name: 'Finish assessment' }).click();
+  await page.getByRole('button', { name: 'Submit assessment' }).click();
+  await page.getByRole('button', { name: 'Submit now' }).click();
   await expect(page).toHaveURL(new RegExp(`/take/attempt/${attemptId}/submitted`), { timeout: 20_000 });
 }
 

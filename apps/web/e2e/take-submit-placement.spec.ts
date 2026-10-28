@@ -3,8 +3,8 @@ import AxeBuilder from '@axe-core/playwright';
 import * as factories from './fixtures/factories.js';
 import { openAttempt } from './fixtures/take-ui.js';
 
-// Z-7: Submit sits at the far left of the action bar, away from Prev and Next; it opens the
-// confirm popup. Local stack: apps/web/e2e/local-stack.sh.
+// Z-7 Move (owner 2026-10-28): Finish assessment is in the top bar; the footer has only Prev and Next.
+// The summary's Submit opens the confirm alertdialog. Local stack: apps/web/e2e/local-stack.sh.
 test.describe('take page: Submit placement and confirm popup', () => {
   let p: factories.Provisioned;
 
@@ -21,23 +21,24 @@ test.describe('take page: Submit placement and confirm popup', () => {
   });
   test.afterAll(async () => { await p?.cleanup(); });
 
-  test('button order, popup text, axe clean', async ({ page, context }) => {
+  test('top-bar finish, footer order, popup text, axe clean', async ({ page, context }) => {
     await openAttempt(page, context, p.candidate.cookie, p.attemptId);
 
-    const submit = page.getByRole('button', { name: 'Submit', exact: true });
+    const finish = page.getByRole('button', { name: 'Finish assessment' });
     const prev = page.getByRole('button', { name: 'Prev', exact: true });
     const next = page.getByRole('button', { name: 'Next', exact: true });
-    await expect(submit).toBeVisible();
-    const [s, pr, n] = await Promise.all([submit.boundingBox(), prev.boundingBox(), next.boundingBox()]);
-    expect(s!.x + s!.width).toBeLessThan(pr!.x);
+    await expect(finish).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Submit', exact: true })).toHaveCount(0);
+    const [pr, n] = await Promise.all([prev.boundingBox(), next.boundingBox()]);
     expect(pr!.x).toBeLessThan(n!.x);
     expect(pr!.height).toBeGreaterThanOrEqual(40);
 
     const bar = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(bar.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')).toEqual([]);
 
-    await submit.click();
-    const dialog = page.getByRole('dialog', { name: 'Submit your test?' });
+    await finish.click();
+    await page.getByRole('button', { name: 'Submit assessment' }).click();
+    const dialog = page.getByRole('alertdialog', { name: 'Submit your assessment?' });
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText(
       'This sends your answers to your organisation and ends your test. You cannot change them after this. You have 2 unanswered questions.',
@@ -45,8 +46,10 @@ test.describe('take page: Submit placement and confirm popup', () => {
     const modal = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();
     expect(modal.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')).toEqual([]);
 
-    await dialog.getByRole('button', { name: 'Review answers' }).click();
+    await expect(dialog.getByRole('button', { name: 'Submit now' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Keep reviewing' }).click();
     await expect(dialog).toBeHidden();
+    await page.getByRole('button', { name: /Back to questions/ }).click();
     await page.keyboard.press('n');
     await expect(page.getByText('Question 2 of 2')).toBeVisible();
   });
