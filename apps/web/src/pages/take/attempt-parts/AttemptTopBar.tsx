@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { Chip, Icon, Logo } from "@assessiq/ui-system";
+import { Button, Chip, Icon, Logo } from "@assessiq/ui-system";
 import { AttemptTimer, Calculator, AutosaveIndicator, useAutosave } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire } from "@assessiq/candidate-ui";
 import { TOP_BAR } from "./shared.js";
@@ -28,6 +28,9 @@ export interface AttemptTopBarProps {
   candidateId: string;
   assessmentName?: string | undefined;
   assessmentId: string;
+  /** Z-171: "Finish assessment" (owner decision 2026-10-28, Z-7 Move). Undefined hides it. */
+  onFinish?: (() => void) | undefined;
+  finishDisabled?: boolean;
 }
 
 const shortId = (id: string | undefined): string => (id ?? "").replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -157,7 +160,7 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const {
     sec, wholeTestSectionName, attempt, isLastSection, handleExpire,
     refreshAfterSectionChange, autosave, setNavOpen, companyName = "", companyLogoUrl = null,
-    prefs, setPrefs, candidateName, candidateId, assessmentName, assessmentId,
+    prefs, setPrefs, candidateName, candidateId, assessmentName, assessmentId, onFinish, finishDisabled = false,
   } = props;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -254,6 +257,18 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
     />
     <DisplaySettings prefs={prefs} setPrefs={setPrefs} />
     <FullscreenToggle />
+    {onFinish !== undefined && (
+      <Button
+        variant="primary"
+        size="sm"
+        className="aiq-take-finish"
+        disabled={finishDisabled}
+        onClick={onFinish}
+        data-help-id="candidate.attempt.submit.confirm"
+      >
+        Finish assessment
+      </Button>
+    )}
 
     {/* M2a — mobile-only: open the bottom-sheet question navigator.
         Hidden on desktop (the right-side aside is always visible there). */}

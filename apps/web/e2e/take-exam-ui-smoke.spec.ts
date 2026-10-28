@@ -10,7 +10,7 @@ const PASSAGE = 'The committee reviewed the incident timeline in detail and reco
 
 const LOGO = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><rect width="120" height="40" fill="#2563b8"/></svg>');
 
-function view(extra = 0): unknown {
+function view(extra = 0, patch: Record<string, unknown> = {}): unknown {
   const q = (id: string, position: number, type: string, content: unknown, passage?: unknown) => ({
     question_id: id, position, type, content, question_version: 1, topic: 'Demo', points: 1, answer_guidance: 'Choose one answer.',
     ...(passage !== undefined ? { passage } : {}),
@@ -31,12 +31,13 @@ function view(extra = 0): unknown {
     company_logo_url: LOGO,
     candidate_name: 'Asha Venkatasubramanian Iyer-Chandrasekharan',
     assessment_name: 'Aptitude Mock Test 3: Quantitative, Logical and Verbal Reasoning (Full Length)',
+    ...patch,
   };
 }
 
-async function setup(page: Page, extra = 0): Promise<void> {
+async function setup(page: Page, extra = 0, patch: Record<string, unknown> = {}): Promise<void> {
   await page.route('**/api/**', (r) => r.fulfill({ status: 204 }));
-  await page.route('**/api/me/attempts/att1', (r) => r.fulfill({ json: view(extra) }));
+  await page.route('**/api/me/attempts/att1', (r) => r.fulfill({ json: view(extra, patch) }));
   await page.route('**/api/me/attempts/att1/answer', (r) => r.fulfill({ status: 200, headers: { 'X-Client-Revision': '1' }, json: {} }));
   await page.goto('/take/attempt/att1');
   await expect(page.getByText('Alpha option')).toBeVisible();
@@ -143,3 +144,41 @@ for (const width of [1440, 1024, 768, 390]) {
     expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([]);
   });
 }
+
+// Z-171: finish summary from the top bar button; no sideways scroll; axe clean; confirm dialog is an alertdialog.
+for (const width of [1440, 1024, 768, 390]) {
+  test(`finish summary at ${width}: no horizontal scroll, axe clean, alertdialog focuses Submit now`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width, height: 800 });
+    await setup(page, 4);
+    await page.getByRole('button', { name: 'Finish assessment' }).click();
+    await expect(page.getByRole('heading', { name: 'Finish summary.' })).toBeVisible();
+    expect(await noHScroll(page)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`summary-${width}.png`) });
+    const { violations } = await new AxeBuilder({ page }).exclude('[data-rail-far="true"]').withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
+    expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([]);
+    await page.getByRole('button', { name: 'Submit assessment' }).click();
+    const dlg = page.getByRole('alertdialog', { name: 'Submit your assessment?' });
+    await expect(dlg).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Submit now' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dlg).toBeHidden();
+    await page.getByRole('button', { name: /Back to questions/ }).click();
+    await expect(page.getByText('Alpha option')).toBeVisible();
+  });
+}
+
+test('finish summary on a sectioned test: counts every section, Finish assessment only in the last section', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 800 });
+  const sec = { current: 1, total: 2, name: 'Verbal', calculator: false, ends_at: '2099-01-01T00:00:00.000Z', remaining_seconds: 3600 };
+  const summary = [
+    { index: 0, name: 'Quantitative', status: 'done', question_count: 5, answered_count: 4 },
+    { index: 1, name: 'Verbal', status: 'current', question_count: 2, answered_count: 0 },
+  ];
+  await setup(page, 0, { sections: sec, sections_summary: summary });
+  await expect(page.getByRole('button', { name: 'Finish section' })).toHaveCount(0); // last section
+  await page.getByRole('button', { name: 'Finish assessment' }).click();
+  await expect(page.getByTestId('finish-summary')).toContainText('Answered4 / 7');
+  expect(await noHScroll(page)).toBe(true);
+  const { violations } = await new AxeBuilder({ page }).exclude('[data-rail-far="true"]').withTags(['wcag2a', 'wcag2aa', 'best-practice']).analyze();
+  expect(violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`)).toEqual([]);
+});

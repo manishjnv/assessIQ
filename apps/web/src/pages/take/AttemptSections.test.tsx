@@ -101,7 +101,7 @@ describe('Attempt runner with sections', () => {
     expect(screen.getByRole('button', { name: 'Calculator' })).toBeTruthy();
   });
 
-  it('Finish section asks for confirmation, then opens the next section; last section shows Submit', async () => {
+  it('Finish section asks for confirmation, then opens the next section; last section shows Finish assessment (top bar)', async () => {
     currentView = sectionView(1, false, [21, 22], '2099-01-01T00:20:00.000Z');
     nextView = sectionView(2, false, [31], '2099-01-01T00:40:00.000Z');
     finishSection.mockImplementation(() => {
@@ -110,7 +110,7 @@ describe('Attempt runner with sections', () => {
     });
     renderAttempt();
     await screen.findByText('Section 2 of 3 · Logical reasoning');
-    expect(screen.queryByRole('button', { name: 'Submit' })).toBeNull(); // not the last section
+    expect(screen.queryByRole('button', { name: 'Finish assessment' })).toBeNull(); // not the last section
 
     fireEvent.click(screen.getByRole('button', { name: 'Finish section' }));
     const dialog = await screen.findByRole('dialog', { name: 'Finish this section?' });
@@ -126,9 +126,26 @@ describe('Attempt runner with sections', () => {
 
     expect(await screen.findByText('Section 3 of 3 · Verbal')).toBeTruthy();
     expect(finishSection).toHaveBeenCalledWith('att1');
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Finish assessment' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Finish section' })).toBeNull();
     expect(screen.getByTestId('nav').textContent).toBe('1');
+  });
+
+  it('Z-171: the final review counts EVERY section and keeps Finish section out of the last section', async () => {
+    currentView = {
+      ...sectionView(2, false, [31, 32], '2099-01-01T00:40:00.000Z'),
+      sections_summary: [
+        { index: 0, name: 'Quantitative', status: 'done', question_count: 5, answered_count: 4 },
+        { index: 1, name: 'Logical reasoning', status: 'done', question_count: 3, answered_count: 3 },
+        { index: 2, name: 'Verbal', status: 'current', question_count: 2, answered_count: 0 },
+      ],
+    };
+    renderAttempt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish assessment' }));
+    const summary = await screen.findByTestId('finish-summary');
+    expect(summary.textContent).toContain('Answered7 / 10'); // 4 + 3 + 0 of 5 + 3 + 2
+    expect(summary.textContent).toContain('Open3');
+    expect(screen.queryByRole('button', { name: 'Finish section' })).toBeNull();
   });
 
   it('REGRESSION: a test without sections has no section header, Finish section or calculator', async () => {
@@ -143,7 +160,7 @@ describe('Attempt runner with sections', () => {
     expect(screen.queryByText(/Section \d of/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Finish section' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Calculator' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Submit' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Finish assessment' })).toBeTruthy();
     expect(screen.getByTestId('timer').textContent).toBe('2099-01-01T00:00:00.000Z');
   });
 

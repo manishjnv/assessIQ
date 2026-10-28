@@ -31,9 +31,11 @@ export function SubmitConfirmModal(props: SubmitConfirmModalProps): React.JSX.El
     onClose={() => {
       if (!submitting) setConfirmOpen(false);
     }}
-    title="Submit your test?"
+    title="Submit your assessment?"
+    role="alertdialog"
   >
     <div style={{ fontFamily: 'var(--aiq-font-sans)', fontSize: 14, lineHeight: 1.6, color: 'var(--aiq-color-fg-secondary)' }}>
+      <div className="aiq-take-eyebrow" style={{ marginBottom: 8 }}>Final step</div>
       {sectionLines.length === 0 ? (
         <p style={{ margin: '0 0 8px', color: 'var(--aiq-color-fg-primary)' }}>
           You answered {answeredCount} of {totalCount} questions.
@@ -65,10 +67,10 @@ export function SubmitConfirmModal(props: SubmitConfirmModalProps): React.JSX.El
     </div>
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--aiq-space-sm)' }}>
       <Button variant="outline" disabled={submitting} onClick={() => setConfirmOpen(false)}>
-        Review answers
+        Keep reviewing
       </Button>
-      <Button variant="primary" disabled={submitting} onClick={() => void handleSubmit()}>
-        {submitting ? 'Submitting…' : 'Submit test'}
+      <Button variant="primary" disabled={submitting} data-autofocus="" onClick={() => void handleSubmit()}>
+        {submitting ? 'Submitting…' : 'Submit now'}
       </Button>
     </div>
   </Modal>

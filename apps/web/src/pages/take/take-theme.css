@@ -388,3 +388,42 @@ html.aiq-take-root body {
 .aiq-take-field[aria-invalid="true"] { border-color: var(--aiq-color-danger); }
 .aiq-take-field:disabled, .aiq-take-textarea:disabled { background: var(--aiq-color-bg-raised); }
 .aiq-take-opt-badge:has(+ .aiq-take-opt-text) { min-width: 28px; width: auto; padding: 0 6px; }
+
+/* Z-171 finish summary (handoff view 2). Two columns; stacked at 900 px and below. */
+.aiq-fs { display: grid; grid-template-columns: minmax(0, 1fr) 380px; min-height: 0; overflow: hidden; }
+.aiq-fs-main { overflow: auto; padding: 32px clamp(16px, 4vw, 48px); min-width: 0; }
+.aiq-fs-h1 { font-family: var(--aiq-font-serif, serif); font-weight: 500; font-size: clamp(30px, 3vw, 42px); margin: 6px 0 8px; color: var(--aiq-color-fg-primary); }
+.aiq-fs-lede { margin: 0 0 20px; color: var(--aiq-color-fg-secondary); font-size: 14px; }
+.aiq-fs-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.aiq-fs-stat { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 1px solid var(--aiq-color-border-strong); border-radius: 12px; background: var(--aiq-color-bg-raised); }
+.aiq-fs-n { font-size: 26px; font-weight: 600; color: var(--aiq-color-fg-primary); font-variant-numeric: tabular-nums; }
+.aiq-fs-n small { font-size: 14px; color: var(--aiq-color-fg-secondary); font-weight: 400; }
+.aiq-fs-mono { font-family: var(--aiq-font-mono); }
+.aiq-fs-seg { margin-bottom: 16px; }
+.aiq-fs-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.aiq-fs-table th { text-align: left; font-family: var(--aiq-font-mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--aiq-color-fg-secondary); background: var(--aiq-color-bg-raised); padding: 10px 8px; }
+.aiq-fs-table th:nth-child(1), .aiq-fs-table td:nth-child(1) { width: 52px; }
+.aiq-fs-table th:nth-child(4), .aiq-fs-table td:nth-child(4) { width: 96px; }
+.aiq-fs-table th:nth-child(5), .aiq-fs-table td:nth-child(5) { width: 64px; }
+.aiq-fs-table td { padding: 12px 8px; border-bottom: 1px solid var(--aiq-color-border); color: var(--aiq-color-fg-primary); }
+.aiq-fs-table tbody tr { cursor: pointer; min-height: 44px; }
+.aiq-fs-table tbody tr:hover { background: var(--aiq-color-bg-raised); }
+.aiq-fs-table tbody tr:focus-visible { outline: 2px solid var(--aiq-color-accent); outline-offset: -2px; }
+.aiq-fs-ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aiq-fs-muted { color: var(--aiq-color-fg-secondary); }
+.aiq-fs-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--aiq-color-border-strong); color: var(--aiq-color-fg-primary); }
+.aiq-fs-chip[data-status="flagged"] { background: var(--aiq-color-warning-soft); border-color: var(--aiq-color-warning); }
+.aiq-fs-chip[data-status="answered"] { background: var(--aiq-color-accent-soft); }
+.aiq-fs-side { display: flex; flex-direction: column; gap: 16px; padding: 32px 24px; border-left: 1px solid var(--aiq-color-border); background: var(--aiq-color-bg-raised); overflow: auto; }
+.aiq-fs-check { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; font-size: 14px; color: var(--aiq-color-fg-primary); }
+.aiq-fs-check li { display: flex; align-items: center; gap: 10px; }
+.aiq-fs-check svg { flex: 0 0 20px; width: 20px; height: 20px; padding: 4px; border-radius: 50%; background: var(--aiq-color-accent-soft); box-sizing: border-box; }
+.aiq-fs-check li[data-ok="false"] svg { background: var(--aiq-color-warning-soft); }
+.aiq-fs-notice { margin: 0; font-size: 13px; color: var(--aiq-color-fg-secondary); }
+.aiq-fs-actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
+.aiq-fs-actions button { width: 100%; min-height: 44px; }
+.aiq-take-finish { min-height: 40px; flex: 0 0 auto; }
+@media (max-width: 900px) {
+  .aiq-fs { grid-template-columns: minmax(0, 1fr); overflow: auto; }
+  .aiq-fs-side { border-left: none; border-top: 1px solid var(--aiq-color-border); }
+}

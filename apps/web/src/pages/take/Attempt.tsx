@@ -37,6 +37,7 @@ import { AttemptTopBar } from "./attempt-parts/AttemptTopBar.js";
 import { FinishSectionModal } from "./attempt-parts/FinishSectionModal.js";
 import { KeyNav, KeyShortcutsToggle, useKeyShortcuts } from "./attempt-parts/KeyNav.js";
 import { SubmitConfirmModal } from "./attempt-parts/SubmitConfirmModal.js";
+import { FinishSummary } from "./attempt-parts/FinishSummary.js";
 import { useCameraCapture } from "./useCameraCapture.js";
 import { CameraIndicator, CameraLostOverlay } from "./CameraIndicator.js";
 import { QuestionCountdown } from "./attempt-parts/QuestionCountdown.js";
@@ -68,6 +69,8 @@ export function AttemptPage(): React.JSX.Element {
   const [submitting, setSubmitting] = useState(false);
   // Submit confirmation modal (replaces window.confirm / window.alert).
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Z-171: the finish summary replaces the question view until the candidate goes back or submits.
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // M2a: drawer open state for the mobile bottom-sheet question navigator.
   // Desktop never opens it (the aside is always visible); mobile toggles via
@@ -565,6 +568,7 @@ export function AttemptPage(): React.JSX.Element {
   };
   const goNext = (): void => {
     if (nextTarget !== null) requestQuestion(nextTarget.questionId);
+    else if (isLast && isLastSection && navFilter === 'all') setSummaryOpen(true);
   };
   const toggleNav = (): void => setPrefs({ navCollapsed: !prefs.navCollapsed });
 
@@ -667,6 +671,8 @@ export function AttemptPage(): React.JSX.Element {
         candidateId={attempt.user_id}
         assessmentName={view.assessment_name}
         assessmentId={attempt.assessment_id}
+        onFinish={isLastSection && !summaryOpen ? () => setSummaryOpen(true) : undefined}
+        finishDisabled={locked || submitting}
       />
 
       {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}
@@ -687,6 +693,30 @@ export function AttemptPage(): React.JSX.Element {
       <CameraLostOverlay state={camera.state} onRetry={camera.retry} />
 
       {/* ── MIDDLE ROW (main pane + side panel) ─────────────────────────── */}
+      {summaryOpen ? (
+        <FinishSummary
+          rows={sorted.map((q) => ({
+            q,
+            position: sec !== undefined ? sorted.indexOf(q) + 1 : q.position,
+            answer: answers.get(q.question_id),
+            flagged: flags.get(q.question_id) ?? false,
+          }))}
+          answered={sectionLines.length > 0 ? sectionLines.reduce((n, s2) => n + s2.answered_count, 0) : answeredCount}
+          total={sectionLines.length > 0 ? sectionLines.reduce((n, s2) => n + s2.question_count, 0) : totalCount}
+          flagged={flaggedCount}
+          endsAt={sec !== undefined ? sec.ends_at : attempt.ends_at}
+          onOpen={(qid) => {
+            setSummaryOpen(false);
+            requestQuestion(qid);
+          }}
+          onBack={() => setSummaryOpen(false)}
+          onSubmit={() => {
+            setSubmitError(null);
+            setConfirmOpen(true);
+          }}
+          submitting={submitting}
+        />
+      ) : (
       <div
         className="aiq-attempt-middle"
         data-nav-collapsed={prefs.navCollapsed ? 'true' : undefined}
@@ -880,11 +910,12 @@ export function AttemptPage(): React.JSX.Element {
         </aside>
         {stripMode && <div className="aiq-attempt-strip">{stripBody}</div>}
       </div>
+      )}
 
       {/* ── BOTTOM BAR ──────────────────────────────────────────────────── */}
       {/* Key hints are desktop-only (hidden under the mobile viewport). */}
       <style>{'[data-viewport="mobile"] .aiq-attempt-kbd{display:none}'}</style>
-      <KeyNav onPrev={goPrev} onNext={goNext} onPick={handlePick} onFlag={handleFlagToggle} onToggleNav={toggleNav} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen || pendingLeave !== null} />
+      <KeyNav onPrev={goPrev} onNext={goNext} onPick={handlePick} onFlag={handleFlagToggle} onToggleNav={toggleNav} enabled={keysOn} disabled={locked || confirmOpen || finishOpen || navOpen || summaryOpen || pendingLeave !== null} />
 
       {/* FUT-4: confirm before leaving a locked section. Leave moves on; Stay keeps the candidate here. */}
       {currentQuestion !== null && (
@@ -921,11 +952,11 @@ export function AttemptPage(): React.JSX.Element {
           </Button>
         </div>
       </Modal>
+      {!summaryOpen && (
       <footer className="aiq-attempt-bottom" style={BOTTOM_BAR}>
-        {/* Z-7: Submit / Finish section sits at the far LEFT, away from Prev and Next.
-            Test sections: before the last section the primary action is "Finish section"
-            (no way back); the last section keeps the normal Submit, which opens the
-            confirmation modal. On mobile the CSS order puts it on its own row. */}
+        {/* Z-171 (owner 2026-10-28, Z-7 Move): the final submit left the footer. "Finish assessment"
+            is in the top bar and Next on the last question reads "Review & finish". Test sections:
+            before the last section "Finish section" stays here (no way back). */}
         {!isLastSection && (
           <Button
             variant="primary"
@@ -938,21 +969,6 @@ export function AttemptPage(): React.JSX.Element {
             }}
           >
             Finish section
-          </Button>
-        )}
-        {isLastSection && (
-          <Button
-            variant="primary"
-            size="lg"
-            className="aiq-attempt-submit-btn"
-            disabled={locked || submitting}
-            data-help-id="candidate.attempt.submit.confirm"
-            onClick={() => {
-              setSubmitError(null);
-              setConfirmOpen(true);
-            }}
-          >
-            {submitting ? 'Submitting…' : 'Submit'}
           </Button>
         )}
 
@@ -1019,8 +1035,19 @@ export function AttemptPage(): React.JSX.Element {
           <kbd className="aiq-attempt-kbd" aria-hidden="true" style={KBD_HINT}>P</kbd>
         </Button>
 
-        {/* Next (hidden on the last question) */}
-        {(navFilter !== 'all' || !isLast) && (
+        {/* Next. On the last question of the last section it becomes "Review & finish" (opens the summary). */}
+        {navFilter === 'all' && isLast && isLastSection ? (
+          <Button
+            variant="primary"
+            size="lg"
+            className="aiq-attempt-next-btn"
+            disabled={locked || submitting}
+            onClick={() => setSummaryOpen(true)}
+          >
+            Review &amp; finish
+            <Icon name="arrow" size={14} style={{ marginLeft: 'var(--aiq-space-2xs)' }} />
+          </Button>
+        ) : (navFilter !== 'all' || !isLast) && (
           <Button
             variant="outline"
             size="lg"
@@ -1035,6 +1062,7 @@ export function AttemptPage(): React.JSX.Element {
           </Button>
         )}
       </footer>
+      )}
 
       {/* ── FINISH SECTION CONFIRMATION (test sections) ─────────────────── */}
       <FinishSectionModal

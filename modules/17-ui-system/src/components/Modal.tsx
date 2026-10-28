@@ -17,6 +17,8 @@ export interface ModalProps {
   title?: string;
   /** Whether clicking the backdrop closes the modal. Default: true. */
   closeOnBackdrop?: boolean;
+  /** Dialog role. "alertdialog" for a final confirmation. Default: "dialog". */
+  role?: "dialog" | "alertdialog";
   /** Width of the modal panel. Default: 480px. */
   width?: number | string;
   children: React.ReactNode;
@@ -28,6 +30,7 @@ export function Modal({
   onClose,
   title,
   closeOnBackdrop = true,
+  role = "dialog",
   width = 480,
   children,
   "data-test-id": testId,
@@ -47,7 +50,8 @@ export function Modal({
   // Focus trap: move focus into panel when opened
   useEffect(() => {
     if (open && panelRef.current) {
-      const first = panelRef.current.querySelector<HTMLElement>(
+      // An element marked data-autofocus gets the first focus (final confirmations).
+      const first = panelRef.current.querySelector<HTMLElement>("[data-autofocus]") ?? panelRef.current.querySelector<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       );
       first?.focus();
@@ -58,7 +62,7 @@ export function Modal({
 
   return (
     <div
-      role="dialog"
+      role={role}
       aria-modal="true"
       aria-label={title}
       data-test-id={testId}
