@@ -4,10 +4,10 @@ Hi {{candidateName}},
 
 {{tenantName}} invites you to take {{assessmentName}}.
 
+{{_t_device_check}} {{check_url}}
+
 Start your assessment:
 {{invitationLink}}
-
-{{_t_device_check}} {{check_url}}
 
 {{#if cameraRequired}}{{_t_camera_note}} {{_t_camera_check}}
 {{invitationLink}}

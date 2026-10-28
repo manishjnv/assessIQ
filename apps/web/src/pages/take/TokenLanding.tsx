@@ -26,6 +26,7 @@ import { useParams, useNavigate, Link } from 'react-router';
 import { Button, Chip, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import { takePreview, takeStart, takeCameraConsent, CandidateApiError, CandidateHelp } from '@assessiq/candidate-ui';
 import { TakeRightPane } from './TakeRightPane.js';
+import { useOrgAccent } from './useOrgAccent.js';
 import { ConsentBlock, PracticeQuestion, SystemCheck, useSystemCheck } from './PreTest.js';
 import { ReadinessPanel, useReadiness } from './ReadinessPanel.js';
 import { CameraConsent } from './CameraConsent.js';
@@ -68,6 +69,7 @@ type PageState =
       name: string;
       company: string;
       companyLogoUrl: string | null;
+      companyAccent?: string | null;
       candidateName: string;
       durationSeconds: number;
       questionCount: number;
@@ -165,7 +167,7 @@ export function SuccessContent({
     <>
       {(companyLogoUrl !== null || company !== '') && (
         <div data-help-id="candidate.take.landing.logo" style={{ marginBottom: 20 }}>
-          <TenantLogo src={companyLogoUrl} name={company} height={40} />
+          <TenantLogo src={companyLogoUrl} name={company} height={40} showName={company !== ''} />
         </div>
       )}
       <span style={{ display: 'inline-block', marginBottom: 20 }}>
@@ -414,6 +416,7 @@ export function TokenLanding(): React.JSX.Element {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
   const [state, setState] = useState<PageState>({ tag: 'loading' });
+  useOrgAccent(state.tag === 'success' ? state.companyAccent : null);
   const [beginning, setBeginning] = useState(false);
   const [beginError, setBeginError] = useState<string | null>(null);
   // Z-82: the candidate chose not to start on the camera consent screen.
@@ -447,6 +450,7 @@ export function TokenLanding(): React.JSX.Element {
         name: res.assessment.name,
         company: res.assessment.company_name,
         companyLogoUrl: res.assessment.company_logo_url ?? null,
+        companyAccent: res.assessment.company_accent ?? null,
         candidateName: res.candidate.name,
         durationSeconds: res.assessment.duration_seconds,
         questionCount: res.assessment.question_count,

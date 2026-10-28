@@ -24,6 +24,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate, Navigate } from "react-router";
+import { useOrgAccent } from "./useOrgAccent.js";
 import { Button, Drawer, Icon, Modal, Spinner } from "@assessiq/ui-system";
 import { IntegrityBanner, FullscreenGate, useAutosave, useIntegrityHooks, useMultiTabWarning, getAttempt, submitAttempt, finishSection, recordPosition, toggleFlag, clearBackup, readBackup, CandidateApiError, neighbor, filterSuffix, NavCollapseHandle } from "@assessiq/candidate-ui";
 import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire, NavigatorFilter } from "@assessiq/candidate-ui";
@@ -213,6 +214,7 @@ export function AttemptPage(): React.JSX.Element {
 
   const autosave = useAutosave({ attemptId, locked, onQuestionTimeUp: markTimeUp });
 
+  useOrgAccent(pageState.tag === 'ready' ? pageState.view.company_accent : null);
   const integrityCfg = pageState.tag === 'ready' ? pageState.view.integrity : undefined;
   const integrity = useIntegrityHooks({
     attemptId,
@@ -421,7 +423,6 @@ export function AttemptPage(): React.JSX.Element {
     : 0;
   const safeIdx = currentIdx < 0 ? 0 : currentIdx;
   const currentQuestion = sorted[safeIdx] ?? null;
-  const isFirst = safeIdx === 0;
   const isLast = safeIdx === sorted.length - 1;
 
   // Test sections (absent for ordinary tests: everything below then behaves as before).
@@ -561,14 +562,20 @@ export function AttemptPage(): React.JSX.Element {
   };
   // Z-169: with a filter on, Previous and Next jump to the next match (wrapping); with "all" they step by one.
   const curId = currentQuestion?.question_id ?? '';
-  const prevTarget = neighbor(navigatorItems, curId, -1, navFilter);
-  const nextTarget = neighbor(navigatorItems, curId, 1, navFilter);
+  // UAT 2026-10-29: a filter with no match (for example Open when all are answered) must not grey out both buttons:
+  // Previous and Next then step by one like "all". On the last question of the last section Next is always "Review & finish".
+  const filterPrev = neighbor(navigatorItems, curId, -1, navFilter);
+  const filterNext = neighbor(navigatorItems, curId, 1, navFilter);
+  const prevPlain = navFilter !== 'all' && filterPrev === null;
+  const nextPlain = navFilter !== 'all' && filterNext === null;
+  const prevTarget = prevPlain ? neighbor(navigatorItems, curId, -1, 'all') : filterPrev;
+  const nextTarget = nextPlain ? neighbor(navigatorItems, curId, 1, 'all') : filterNext;
   const goPrev = (): void => {
     if (prevTarget !== null) requestQuestion(prevTarget.questionId);
   };
   const goNext = (): void => {
-    if (nextTarget !== null) requestQuestion(nextTarget.questionId);
-    else if (isLast && isLastSection && navFilter === 'all') setSummaryOpen(true);
+    if (isLast && isLastSection) setSummaryOpen(true);
+    else if (nextTarget !== null) requestQuestion(nextTarget.questionId);
   };
   const toggleNav = (): void => setPrefs({ navCollapsed: !prefs.navCollapsed });
 
@@ -673,6 +680,7 @@ export function AttemptPage(): React.JSX.Element {
         assessmentId={attempt.assessment_id}
         onFinish={isLastSection && !summaryOpen ? () => setSummaryOpen(true) : undefined}
         finishDisabled={locked || submitting}
+        fullscreenEnforced={integrityCfg?.fullscreen === true}
       />
 
       {/* ── PROGRESS STRIP + LOCK NOTICE ─────────────────────────────── */}
@@ -1023,20 +1031,20 @@ export function AttemptPage(): React.JSX.Element {
 
         {/* Prev */}
         <Button
-          variant="outline"
+          variant="primary"
           size="lg"
           className="aiq-attempt-prev-btn"
-          disabled={locked || (navFilter === 'all' ? isFirst : prevTarget === null)}
+          disabled={locked || prevTarget === null}
           aria-keyshortcuts="P"
           onClick={goPrev}
         >
           <Icon name="arrowLeft" size={14} style={{ marginRight: 'var(--aiq-space-2xs)' }} />
-          Prev{filterSuffix(navFilter)}
+          Prev{prevPlain ? '' : filterSuffix(navFilter)}
           <kbd className="aiq-attempt-kbd" aria-hidden="true" style={KBD_HINT}>P</kbd>
         </Button>
 
         {/* Next. On the last question of the last section it becomes "Review & finish" (opens the summary). */}
-        {navFilter === 'all' && isLast && isLastSection ? (
+        {isLast && isLastSection ? (
           <Button
             variant="primary"
             size="lg"
@@ -1047,16 +1055,16 @@ export function AttemptPage(): React.JSX.Element {
             Review &amp; finish
             <Icon name="arrow" size={14} style={{ marginLeft: 'var(--aiq-space-2xs)' }} />
           </Button>
-        ) : (navFilter !== 'all' || !isLast) && (
+        ) : !isLast && (
           <Button
-            variant="outline"
+            variant="primary"
             size="lg"
             className="aiq-attempt-next-btn"
-            disabled={locked || (navFilter !== 'all' && nextTarget === null)}
+            disabled={locked || nextTarget === null}
             aria-keyshortcuts="N"
             onClick={goNext}
           >
-            Next{filterSuffix(navFilter)}
+            Next{nextPlain ? '' : filterSuffix(navFilter)}
             <Icon name="arrow" size={14} style={{ marginLeft: 'var(--aiq-space-2xs)' }} />
             <kbd className="aiq-attempt-kbd" aria-hidden="true" style={KBD_HINT}>N</kbd>
           </Button>

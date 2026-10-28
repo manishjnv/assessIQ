@@ -1,11 +1,10 @@
-// Z-167: display preferences for the take page (theme, text size, organisation display).
+// Z-167: display preferences for the take page (theme, text size). The organisation mark follows what the org has (UAT 2026-10-29).
 // Display prefs are not a candidate session: they hold no identity, answer or token, so the
 // "no localStorage for candidate session" rule in Attempt.tsx does not apply (the autosave
 // backup and the key-shortcut switch already use localStorage the same way). Kept per browser.
 import { useEffect, useState } from "react";
 
 export type TakeTheme = "mid" | "light" | "dark";
-export type TakeOrgDisplay = "both" | "logo" | "name" | "off";
 export type TakeTextSize = "S" | "M" | "L" | "XL";
 
 export const TEXT_SCALE: Record<TakeTextSize, number> = { S: 0.92, M: 1, L: 1.12, XL: 1.25 };
@@ -13,13 +12,12 @@ export const TEXT_SCALE: Record<TakeTextSize, number> = { S: 0.92, M: 1, L: 1.12
 export interface TakePrefs {
   theme: TakeTheme;
   size: TakeTextSize;
-  org: TakeOrgDisplay;
   /** Z-169: question panel folded to a narrow number column. */
   navCollapsed: boolean;
 }
 
 const STORE_KEY = "aiq.take.prefs";
-const DEFAULTS: TakePrefs = { theme: "mid", size: "M", org: "both", navCollapsed: false };
+const DEFAULTS: TakePrefs = { theme: "mid", size: "M", navCollapsed: false };
 
 function read(): TakePrefs {
   try {
@@ -29,7 +27,6 @@ function read(): TakePrefs {
     return {
       theme: p.theme === "light" || p.theme === "dark" || p.theme === "mid" ? p.theme : DEFAULTS.theme,
       size: p.size === "S" || p.size === "M" || p.size === "L" || p.size === "XL" ? p.size : DEFAULTS.size,
-      org: p.org === "both" || p.org === "logo" || p.org === "name" || p.org === "off" ? p.org : DEFAULTS.org,
       navCollapsed: p.navCollapsed === true,
     };
   } catch {

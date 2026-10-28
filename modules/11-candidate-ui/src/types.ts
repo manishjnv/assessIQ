@@ -82,6 +82,8 @@ export interface CandidateAttemptViewWire {
   /** Logo L3a: organisation name + logo URL for the attempt top bar; absent on older servers. */
   company_name?: string;
   company_logo_url?: string | null;
+  /** Org theme colour (hex); null/absent = AssessIQ default. */
+  company_accent?: string | null;
   /** Z-167: shown in the attempt top bar when the server sends them (not sent yet; the bar falls back to short ids). */
   candidate_name?: string;
   assessment_name?: string;
@@ -138,6 +140,8 @@ export interface TakeStartResponseWire {
     company_name?: string;
     /** Logo L3a: tenant logo URL; null/absent = name only. */
     company_logo_url?: string | null;
+    /** Org theme colour (hex); null/absent = AssessIQ default. */
+    company_accent?: string | null;
     /** Z-82: a real exam that needs the camera. Absent on older servers. */
     camera_required?: boolean;
     camera_notice_version?: string;
@@ -159,6 +163,8 @@ export interface TakePreviewResponseWire {
     company_name: string;
     /** Logo L3a: tenant logo URL; null/absent (older servers) = name only. */
     company_logo_url?: string | null;
+    /** Org theme colour (hex); null/absent = AssessIQ default. */
+    company_accent?: string | null;
     /** Z-39: the attempt this page is about and how many the candidate may make. Absent on older servers. */
     attempt_number?: number;
     attempts_allowed?: number;
@@ -224,6 +230,8 @@ export interface AttemptResultPendingWire {
   tenant_name: string;
   /** Logo L3a: tenant logo URL; null/absent = name only. */
   company_logo_url?: string | null;
+  /** Org theme colour (hex); null/absent = AssessIQ default. */
+  company_accent?: string | null;
   /** Optional hint — see SubmitAttemptResponseWire.release_mode. */
   release_mode?: ReleaseMode;
 }
@@ -263,6 +271,8 @@ export interface AttemptResultReleasedWire {
   /** Logo L3a: organisation name and logo URL for the Submitted page; absent on older servers. */
   tenant_name?: string;
   company_logo_url?: string | null;
+  /** Org theme colour (hex); null/absent = AssessIQ default. */
+  company_accent?: string | null;
 }
 
 /** Z-39: GET /api/me/attempts/:id/result `retake`. can_retake is the whole server-side rule. */

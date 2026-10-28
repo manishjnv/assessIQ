@@ -11,7 +11,8 @@
     "camera_note": "This test uses your camera.",
     "camera_check": "Check your camera early on the readiness page:",
     "camera_consent": "You will be asked to agree before the test starts.",
-    "device_check": "Test your device before the exam:"
+    "device_check": "Test your device before the exam:",
+    "device_check_cta": "Test your device"
   },
   "invitation_reminder": {
     "page_title": "Assessment reminder",

@@ -30,6 +30,7 @@
 import { useEffect, useState, type CSSProperties } from 'react';
 import { DEVICE_BLOCKED_MESSAGE, collectDeviceSignals, collectReadinessSignals } from './readiness.js';
 import { useParams, useLocation, useNavigate, Navigate } from 'react-router';
+import { useOrgAccent } from './useOrgAccent.js';
 import { Chip, Card, Logo, Spinner, TenantLogo } from '@assessiq/ui-system';
 import {
   AFTER_SUBMIT_TEXT,
@@ -57,6 +58,7 @@ interface Pending {
   emailMasked: string | null;
   turnaroundText: string | null;
   tenantName: string | null;
+  accent: string | null;
   /** Logo L3a: tenant logo URL; null when none or when the server is older. */
   logoUrl: string | null;
   /** True only when the API says the tenant releases results manually. */
@@ -77,6 +79,7 @@ const UNKNOWN: Pending = {
   emailMasked: null,
   turnaroundText: null,
   tenantName: null,
+  accent: null,
   logoUrl: null,
   manual: false,
 };
@@ -101,6 +104,7 @@ function toPending(src: unknown): Pending | null {
     turnaroundText: text(o['turnaround_text']),
     tenantName: text(o['tenant_name']),
     logoUrl: text(o['company_logo_url']),
+    accent: text(o['company_accent']),
     manual: o['release_mode'] === 'manual',
   };
 }
@@ -146,6 +150,9 @@ export function Submitted(): React.JSX.Element {
       : seed.expectation === 'soon'
         ? { tag: 'scoring', info: seed }
         : { tag: 'email', info: seed },
+  );
+  useOrgAccent(
+    state.tag === 'released' ? state.result.company_accent : state.tag === 'scoring' || state.tag === 'email' ? state.info.accent : null,
   );
 
   const handleRetake = async (assessmentId: string | undefined): Promise<void> => {
@@ -302,7 +309,7 @@ export function Submitted(): React.JSX.Element {
         <div style={{ width: '100%', maxWidth: 560, textAlign: 'center' }}>
           {(brandLogo !== null || brandName !== '') && (
             <div data-help-id="candidate.take.submitted.logo" style={{ marginBottom: 16 }}>
-              <TenantLogo src={brandLogo} name={brandName} height={40} />
+              <TenantLogo src={brandLogo} name={brandName} height={40} showName={brandName !== ''} />
             </div>
           )}
 

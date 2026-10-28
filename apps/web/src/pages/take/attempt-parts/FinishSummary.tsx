@@ -111,12 +111,13 @@ export function FinishSummary(props: FinishSummaryProps): React.JSX.Element {
           </thead>
           <tbody>
             {shown.map((r) => {
-              const status = r.flagged ? "Flagged" : isAnsweredValue(r.answer) ? "Answered" : "Open";
+              // UAT 2026-10-29: the status is always Answered or Not answered; a flag adds a dot, it never replaces the status.
+              const status = isAnsweredValue(r.answer) ? "Answered" : "Not answered";
               return (
                 <tr
                   key={r.q.question_id}
                   tabIndex={0}
-                  aria-label={`Question ${r.position}, ${status.toLowerCase()}. Edit`}
+                  aria-label={`Question ${r.position}, ${status.toLowerCase()}${r.flagged ? ", flagged" : ""}. Edit`}
                   onClick={() => onOpen(r.q.question_id)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") onOpen(r.q.question_id);
@@ -125,7 +126,15 @@ export function FinishSummary(props: FinishSummaryProps): React.JSX.Element {
                   <td className="aiq-fs-mono">{String(r.position).padStart(2, "0")}</td>
                   <td className="aiq-fs-ell">{stem(r.q)}</td>
                   <td className="aiq-fs-ell aiq-fs-muted">{answerText(r.q, r.answer)}</td>
-                  <td><span className="aiq-fs-chip" data-status={status.toLowerCase()}>{status}</span></td>
+                  <td>
+                    <span className="aiq-fs-chip" data-status={status === "Answered" ? "answered" : "open"}>{status}</span>
+                    {r.flagged && (
+                      <span className="aiq-fs-flag" title="Flagged for review">
+                        <span className="aiq-fs-flagdot" aria-hidden="true" />
+                        <span style={SR_ONLY}>Flagged</span>
+                      </span>
+                    )}
+                  </td>
                   <td className="aiq-fs-muted">Edit ›</td>
                 </tr>
               );

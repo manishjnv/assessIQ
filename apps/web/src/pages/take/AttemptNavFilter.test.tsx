@@ -74,10 +74,12 @@ describe('Attempt navigator filter (Z-169)', () => {
     await screen.findByText('Question 2 of 4');
     fireEvent.click(next());
     await screen.findByText('Question 4 of 4');
-    // Last question, but Next flagged stays and wraps to the first flagged one.
-    fireEvent.click(next());
-    await screen.findByText('Question 2 of 4');
+    // UAT 2026-10-29: the last question always offers Review & finish, even with a filter on.
+    expect(screen.queryByRole('button', { name: /^Next flagged/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /Review & finish/ })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /^Prev flagged/ }));
+    await screen.findByText('Question 2 of 4');
+    fireEvent.click(next());
     await screen.findByText('Question 4 of 4');
     // Footer pill shows the filter and its x clears it (back to plain Prev and Next).
     expect(screen.getByText(/FLAGGED ONLY · 2/)).toBeTruthy();

@@ -501,3 +501,11 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - **Not included.** No migration, no write path, no other user field, no change to any other route. The wire type already had the optional fields (`modules/11-candidate-ui/src/types.ts`).
 - **Test.** `src/__tests__/attempt-display-names.test.ts` (testcontainers Postgres, no mocks): own attempt returns both names; another candidate of the same tenant and a caller from another tenant are refused; an email-style name and a blank name are left out while the title stays.
 - **Downstream.** `docs/03-api-contract.md` (two optional fields on `GET /api/me/attempts/:id`); `AttemptTopBar.tsx` reads them.
+
+## `company_accent` (UAT 2026-10-29)
+
+- **What.** `getCompanyBranding` also returns `accent` (the tenant `branding.primary` hex or null). It is sent as `company_accent` on `GET /api/take/:token` (assessment block), the attempt view and the candidate result view. Absent or null = AssessIQ default colour.
+- **Why.** The take pages ignored the org theme colour; buttons were always the AssessIQ blue.
+- **Rejected.** A new endpoint; reading the colour from the session (token candidates have none).
+- **Not included.** Any change to how the colour is stored or validated (module 02 and the admin settings still own that; the client refuses a colour below 4.5:1 with white).
+- **Downstream.** `modules/11-candidate-ui/src/types.ts` wire types; `apps/web/src/pages/take/useOrgAccent.ts`.

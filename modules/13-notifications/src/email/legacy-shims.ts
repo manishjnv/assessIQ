@@ -50,7 +50,7 @@ export async function sendAssessmentInvitationEmail(
       candidateName: input.candidateName,
       assessmentName: input.assessmentName,
       invitationLink: input.invitationLink,
-      expiresAt: input.expiresAt.toISOString(),
+      expiresAt: input.expiresAt.toUTCString(), // readable, like the reminder (UAT 2026-10-29: the invitation showed raw ISO text)
       tenantName: input.tenantName,
       cameraRequired: input.cameraRequired === true,
     },

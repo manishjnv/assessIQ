@@ -307,9 +307,10 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
         turnaround_text: config.EVALUATION_TURNAROUND_TEXT,
         tenant_name: "Acme University",
         company_logo_url: null, // Logo L3a: no logo seeded
+        company_accent: null, // UAT 2026-10-29: no org colour seeded
       });
       expect(Object.keys(v).sort()).toEqual( // no score-bearing key at all
-        ["company_logo_url", "email_masked", "release_mode", "result_expectation", "status", "tenant_name", "turnaround_text"],
+        ["company_accent", "company_logo_url", "email_masked", "release_mode", "result_expectation", "status", "tenant_name", "turnaround_text"],
       );
     },
   );
@@ -336,6 +337,7 @@ describe("getCandidateResult (P1: complete + final only, after release)", () => 
       certificate: null,
       tenant_name: "Acme University", // Logo L3a: name fallback for the Submitted page
       company_logo_url: null,
+      company_accent: null,
       negative_marking: { enabled: false, penalty_total: 0 }, // EX-1: no deterministic question carries a penalty
       // Z-39: default assessment = one attempt, so no retake is offered.
       retake: { assessment_id: expect.any(String), attempt_number: 1, attempts_allowed: 1, can_retake: false },

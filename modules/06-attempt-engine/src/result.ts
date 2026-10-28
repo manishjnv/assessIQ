@@ -40,16 +40,18 @@ const log = streamLogger("app");
  */
 export async function getCompanyBranding(
   tenantId: string,
-): Promise<{ name: string; logoUrl: string | null }> {
+): Promise<{ name: string; logoUrl: string | null; accent: string | null }> {
   try {
     const [tenant, meta] = await Promise.all([getTenantById(tenantId), getTenantLogoMeta(tenantId)]);
     return {
       name: tenant.name.trim(),
       logoUrl: meta === null ? null : tenantLogoUrl(tenantId, meta.sha256),
+      // UAT 2026-10-29: the org theme colour (hex) so buttons on candidate pages follow it. Null = AssessIQ default.
+      accent: typeof tenant.branding?.primary === "string" ? tenant.branding.primary : null,
     };
   } catch (err) {
     log.warn({ err, tenantId }, "result.company_branding_failed");
-    return { name: "", logoUrl: null };
+    return { name: "", logoUrl: null, accent: null };
   }
 }
 
@@ -110,6 +112,8 @@ export interface ReleasedResult {
   tenant_name?: string;
   /** Tenant logo URL for the co-branded Submitted page; null when none. Added by getCandidateResult. */
   company_logo_url?: string | null;
+  /** Org theme colour (hex) or null for the AssessIQ default. */
+  company_accent?: string | null;
 }
 
 /** Z-39: 'Attempt n of m' plus the rule for the Try again button. can_retake is the whole rule (see loadCandidateResult). */
@@ -125,6 +129,8 @@ export interface PendingResult extends SubmitExpectation {
   tenant_name: string;
   /** Tenant logo URL for the co-branded Submitted page; null when none. Added by getCandidateResult. */
   company_logo_url?: string | null;
+  /** Org theme colour (hex) or null for the AssessIQ default. */
+  company_accent?: string | null;
 }
 
 export type CandidateResultView = ReleasedResult | PendingResult;
@@ -344,7 +350,7 @@ export async function getCandidateResult(
   const view = await loadCandidateResult(tenantId, userId, attemptId);
   const branding = await getCompanyBranding(tenantId);
   const tenantName = view.status === "pending" && view.tenant_name !== "" ? view.tenant_name : branding.name;
-  return { ...view, tenant_name: tenantName, company_logo_url: branding.logoUrl };
+  return { ...view, tenant_name: tenantName, company_logo_url: branding.logoUrl, company_accent: branding.accent };
 }
 
 async function loadCandidateResult(

@@ -256,7 +256,8 @@ describe('Submitted — scoring + result release', () => {
     });
     renderSubmitted(SOON_STATE);
     await tick(0);
-    expect(screen.getByAltText('Acme College logo').getAttribute('src')).toBe(
+    expect(screen.getByText('Acme College')).toBeTruthy();
+    expect((document.querySelector('.aiq-tenant-logo img') as HTMLImageElement).getAttribute('src')).toBe(
       '/api/public/tenant-logo/t1?v=abc',
     );
     cleanup();

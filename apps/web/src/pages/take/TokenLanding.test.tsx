@@ -209,7 +209,9 @@ describe('TokenLanding pre-test screen', () => {
     });
     renderLanding();
     await screen.findByText('Ready when you are.');
-    const img = screen.getByAltText('Acme College logo') as HTMLImageElement;
+    // UAT 2026-10-29: the logo sits beside the organisation name (empty alt: the name is not read twice).
+    const img = document.querySelector('.aiq-tenant-logo img') as HTMLImageElement;
+    expect(screen.getAllByText('Acme College').length).toBeGreaterThan(0);
     expect(img.getAttribute('src')).toBe('/api/public/tenant-logo/t1?v=abc');
     expect(screen.queryByText('via AssessIQ')).toBeNull();
     expect(document.title).toBe('Acme College · AssessIQ');

@@ -260,11 +260,14 @@ export function ReadinessPanel({
           </div>
         </div>
       )}
-      <div style={{ marginTop: 8 }}>
-        <Button size="sm" variant="outline" onClick={state.retry} disabled={state.running}>
-          {state.running ? 'Checking…' : 'Retry'}
-        </Button>
-      </div>
+      {/* UAT 2026-10-29: only a failed device check offers Retry; the camera has its own Check camera button. */}
+      {failed.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <Button size="sm" variant="outline" onClick={state.retry} disabled={state.running}>
+            {state.running ? 'Checking…' : 'Retry'}
+          </Button>
+        </div>
+      )}
     </section>
   );
 }

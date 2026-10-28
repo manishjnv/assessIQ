@@ -22,6 +22,15 @@ describe('invitation_candidate device check line', () => {
     expect(r.html).toContain('target="_blank"');
   });
 
+  it('UAT 2026-10-29: Test your device is a button and comes before the Start your assessment button', () => {
+    const r = renderTemplate('invitation_candidate', base);
+    const device = r.html.indexOf('>Test your device<');
+    const start = r.html.indexOf('Start your assessment');
+    expect(device).toBeGreaterThan(-1);
+    expect(start).toBeGreaterThan(device);
+    expect(r.text.indexOf('/check')).toBeLessThan(r.text.indexOf('Start your assessment:'));
+  });
+
   it('the device check line shows with and without the camera line', () => {
     const r = renderTemplate('invitation_candidate', { ...base, cameraRequired: true });
     expect(r.html).toContain(LINE);

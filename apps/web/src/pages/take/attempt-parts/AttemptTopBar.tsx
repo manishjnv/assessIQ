@@ -31,6 +31,8 @@ export interface AttemptTopBarProps {
   /** Z-171: "Finish assessment" (owner decision 2026-10-28, Z-7 Move). Undefined hides it. */
   onFinish?: (() => void) | undefined;
   finishDisabled?: boolean;
+  /** UAT 2026-10-29: full screen is set by the org or the assessment; then no student toggle. */
+  fullscreenEnforced?: boolean;
 }
 
 const shortId = (id: string | undefined): string => (id ?? "").replace(/-/g, "").slice(0, 8).toUpperCase();
@@ -106,7 +108,6 @@ function DisplaySettings(props: { prefs: TakePrefs; setPrefs: (p: Partial<TakePr
         <div className="aiq-take-pop" role="dialog" aria-label="Display settings">
           <Segments label="Theme" value={prefs.theme} options={[["mid", "Mid-tone"], ["light", "Light"], ["dark", "Dark"]]} onPick={(theme) => setPrefs({ theme })} />
           <Segments label="Text size" value={prefs.size} options={[["S", "S"], ["M", "M"], ["L", "L"], ["XL", "XL"]]} onPick={(size) => setPrefs({ size })} />
-          <Segments label="Organization" value={prefs.org} options={[["both", "Logo + name"], ["logo", "Logo"], ["name", "Name"], ["off", "Off"]]} onPick={(org) => setPrefs({ org })} />
           <div className="aiq-take-pop-row" style={{ fontSize: 12, color: "var(--aiq-color-fg-muted)", lineHeight: 1.6 }}>
             <div className="aiq-take-eyebrow">Keyboard</div>
             ← → or P N move · A–D answer · F flag · \ panel
@@ -160,7 +161,7 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   const {
     sec, wholeTestSectionName, attempt, isLastSection, handleExpire,
     refreshAfterSectionChange, autosave, setNavOpen, companyName = "", companyLogoUrl = null,
-    prefs, setPrefs, candidateName, candidateId, assessmentName, assessmentId, onFinish, finishDisabled = false,
+    prefs, setPrefs, candidateName, candidateId, assessmentName, assessmentId, onFinish, finishDisabled = false, fullscreenEnforced = false,
   } = props;
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -168,9 +169,10 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
     return () => clearInterval(id);
   }, []);
   const saved = savedAgo(autosave.lastSavedAt, now);
-  const showLogo = prefs.org === "both" || prefs.org === "logo";
-  const showName = prefs.org === "both" || prefs.org === "name";
-  const hasOrg = companyLogoUrl !== null || companyName !== "";
+  // UAT 2026-10-29: logo and name when both exist, else the one that exists, else nothing. No student setting.
+  const showLogo = companyLogoUrl !== null && companyLogoUrl !== "";
+  const showName = companyName !== "";
+  const hasOrg = showLogo || showName;
   // Z-174: whole-test timer bar = time left / planned total. Sectioned timers have no section total, so no bar.
   const total = attempt.duration_seconds;
   const timerFill =
@@ -181,12 +183,12 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
   return (
   <header className="aiq-attempt-top" style={TOP_BAR}>
     <Logo />
-    {hasOrg && prefs.org !== "off" && (
+    {hasOrg && (
       <>
         <span className="aiq-take-divider aiq-take-hide-900" aria-hidden="true" />
         <span data-help-id="candidate.take.attempt.logo" className="aiq-take-org aiq-take-hide-900">
-          {showLogo && <OrgBadge url={companyLogoUrl} name={companyName} nameBeside={showName && companyName !== ""} />}
-          {showName && companyName !== "" && (
+          {showLogo && <OrgBadge url={companyLogoUrl} name={companyName} nameBeside={showName} />}
+          {showName && (
             <span className="aiq-take-meta aiq-take-hide-narrow">
               <span className="aiq-take-eyebrow">ASSIGNED BY</span>
               <span className="aiq-take-meta-val" title={companyName}>{companyName}</span>
@@ -256,7 +258,7 @@ export function AttemptTopBar(props: AttemptTopBarProps): React.JSX.Element {
       retryCount={autosave.retryCount}
     />
     <DisplaySettings prefs={prefs} setPrefs={setPrefs} />
-    <FullscreenToggle />
+    {!fullscreenEnforced && <FullscreenToggle />}
     {onFinish !== undefined && (
       <Button
         variant="primary"

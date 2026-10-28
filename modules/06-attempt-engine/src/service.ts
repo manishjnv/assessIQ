@@ -872,6 +872,8 @@ export interface TakePreview {
   companyName: string;
   /** Logo L3a: tenant logo URL for the landing header; null when none or on any failure. */
   companyLogoUrl: string | null;
+  /** UAT 2026-10-29: org theme colour (hex); null = AssessIQ default. */
+  companyAccent: string | null;
   /** Z-39: the attempt this page is about (the one in progress, or the next one) and how many are allowed. */
   attemptNumber: number;
   attemptsAllowed: number;
@@ -885,13 +887,13 @@ export async function getTakePreview(
 ): Promise<TakePreview> {
   const base = await loadTakePreview(tenantId, input);
   const branding = await getCompanyBranding(tenantId);
-  return { ...base, companyLogoUrl: branding.logoUrl };
+  return { ...base, companyLogoUrl: branding.logoUrl, companyAccent: branding.accent };
 }
 
 async function loadTakePreview(
   tenantId: string,
   input: StartAttemptInput,
-): Promise<Omit<TakePreview, "companyLogoUrl">> {
+): Promise<Omit<TakePreview, "companyLogoUrl" | "companyAccent">> {
   return withTenant(tenantId, async (client) => {
     const assessment = await alRepo.findAssessmentById(client, input.assessmentId);
     if (assessment === null) {
@@ -984,6 +986,7 @@ export async function getAttemptForCandidate(
   CandidateAttemptView & {
     company_name: string;
     company_logo_url: string | null;
+    company_accent: string | null;
     candidate_name?: string;
     assessment_name?: string;
   }
@@ -995,7 +998,7 @@ export async function getAttemptForCandidate(
     getCompanyBranding(tenantId),
     loadAttemptDisplayNames(tenantId, attemptId, userId),
   ]);
-  return { ...view, company_name: branding.name, company_logo_url: branding.logoUrl, ...names };
+  return { ...view, company_name: branding.name, company_logo_url: branding.logoUrl, company_accent: branding.accent, ...names };
 }
 
 /**

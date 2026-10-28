@@ -156,8 +156,26 @@ describe('Attempt submit modal', () => {
   it('summary row opens that question', async () => {
     renderAttempt();
     fireEvent.click(await screen.findByRole('button', { name: 'Finish assessment' }));
-    fireEvent.click(await screen.findByRole('row', { name: /Question 3, open/ }));
+    fireEvent.click(await screen.findByRole('row', { name: /Question 3, not answered/ }));
     await screen.findByText('Question 3 of 4');
+  });
+
+  it('UAT 2026-10-29: a flagged question shows its answer status and a flag mark, never only "Flagged"', async () => {
+    VIEW = {
+      ...VIEW,
+      answers: [
+        { question_id: 'q1', answer: { selected: 1 }, flagged: true, client_revision: 1 },
+        { question_id: 'q2', answer: null, flagged: true, client_revision: 0 },
+        { question_id: 'q3', answer: { selected: 0 }, flagged: false, client_revision: 1 },
+        { question_id: 'q4', answer: null, flagged: false, client_revision: 0 },
+      ],
+    };
+    renderAttempt();
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish assessment' }));
+    expect(await screen.findByRole('row', { name: /Question 1, answered, flagged/ })).toBeTruthy();
+    expect(screen.getByRole('row', { name: /Question 2, not answered, flagged/ })).toBeTruthy();
+    expect(screen.getByRole('row', { name: /Question 3, answered\. Edit/ })).toBeTruthy();
+    expect(document.querySelectorAll('.aiq-fs-flagdot')).toHaveLength(2);
   });
 
   it('summary filter counts match the answers; the Open filter hides answered rows', async () => {

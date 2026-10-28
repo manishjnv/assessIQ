@@ -1,6 +1,6 @@
 // Z-174: top bar names and fallbacks. No name, no title, no logo each fall back without breaking the bar.
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { AttemptTopBar, type AttemptTopBarProps } from "./attempt-parts/AttemptTopBar.js";
 
 const base = (over: Partial<AttemptTopBarProps> = {}): AttemptTopBarProps => ({
@@ -13,7 +13,7 @@ const base = (over: Partial<AttemptTopBarProps> = {}): AttemptTopBarProps => ({
   refreshAfterSectionChange: async () => undefined,
   autosave: { status: "idle", lastSavedAt: null, retryCount: 0 } as unknown as AttemptTopBarProps["autosave"],
   setNavOpen: () => undefined,
-  prefs: { theme: "mid", size: "M", org: "both", navCollapsed: false },
+  prefs: { theme: "mid", size: "M", navCollapsed: false },
   setPrefs: () => undefined,
   candidateId: "u-1234abcd-0000",
   assessmentId: "a-9876fedc-0000",
@@ -46,12 +46,30 @@ describe("AttemptTopBar identity", () => {
     expect(document.querySelector('[data-testid="take-assessment-meta"] .aiq-take-meta-val')).toBeNull();
   });
 
-  it("no logo: initials in the mark; alone it is named for screen readers", () => {
-    render(<AttemptTopBar {...base({ companyName: "Acme College", prefs: { theme: "mid", size: "M", org: "logo", navCollapsed: false } })} />);
-    const mark = document.querySelector(".aiq-take-org-mark span");
-    expect(mark?.textContent).toBe("AC");
-    expect(mark?.getAttribute("role")).toBe("img");
-    expect(mark?.getAttribute("aria-label")).toBe("Acme College");
+  it("org mark: logo and name when both exist; the one that exists otherwise; nothing when neither", () => {
+    const { unmount } = render(<AttemptTopBar {...base({ companyName: "Acme College", companyLogoUrl: "/logo.png" })} />);
+    expect(document.querySelector(".aiq-take-org-mark img")).not.toBeNull();
+    expect(screen.getByText("Acme College")).toBeTruthy();
+    unmount();
+    const b = render(<AttemptTopBar {...base({ companyName: "", companyLogoUrl: "/logo.png" })} />);
+    expect(document.querySelector(".aiq-take-org-mark img")).not.toBeNull();
+    expect(screen.queryByText("ASSIGNED BY")).toBeNull();
+    b.unmount();
+    const c = render(<AttemptTopBar {...base({ companyName: "Acme College", companyLogoUrl: null })} />);
+    expect(screen.getByText("Acme College")).toBeTruthy();
+    c.unmount();
+    render(<AttemptTopBar {...base({ companyName: "", companyLogoUrl: null })} />);
+    expect(document.querySelector('[data-help-id="candidate.take.attempt.logo"]')).toBeNull();
+  });
+
+  it("no student org setting; full screen toggle only when not enforced", () => {
+    const { unmount } = render(<AttemptTopBar {...base({ companyName: "Acme" })} />);
+    expect(screen.getByRole("button", { name: "Full screen" })).toBeTruthy();
+    unmount();
+    render(<AttemptTopBar {...base({ companyName: "Acme", fullscreenEnforced: true })} />);
+    expect(screen.queryByRole("button", { name: "Full screen" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Display settings" }));
+    expect(screen.queryByText("Organization")).toBeNull();
   });
 
   it("timer bar shows only with a planned total", () => {

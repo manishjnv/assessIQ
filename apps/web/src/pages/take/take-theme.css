@@ -142,6 +142,9 @@ html.aiq-take-root body {
   line-height: 1.2;
 }
 .aiq-take-meta { display: flex; flex-direction: column; min-width: 0; }
+/* UAT 2026-10-29: the assessment name uses the free space in the bar; it shortens only when the bar is full. */
+.aiq-take-meta[data-testid="take-assessment-meta"] { flex: 0 1 auto; }
+.aiq-take-meta[data-testid="take-assessment-meta"] .aiq-take-meta-val { max-width: none; }
 .aiq-take-meta-val {
   font-family: var(--aiq-font-sans);
   font-size: 14px;
@@ -412,7 +415,9 @@ html.aiq-take-root body {
 .aiq-fs-ell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .aiq-fs-muted { color: var(--aiq-color-fg-secondary); }
 .aiq-fs-chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; border: 1px solid var(--aiq-color-border-strong); color: var(--aiq-color-fg-primary); }
-.aiq-fs-chip[data-status="flagged"] { background: var(--aiq-color-warning-soft); border-color: var(--aiq-color-warning); }
+.aiq-fs-chip[data-status="open"] { background: transparent; color: var(--aiq-color-fg-secondary); }
+.aiq-fs-flag { display: inline-flex; align-items: center; margin-left: 8px; vertical-align: middle; }
+.aiq-fs-flagdot { width: 10px; height: 10px; border-radius: 50%; background: var(--aiq-color-warning); border: 1px solid var(--aiq-take-warn-ink); }
 .aiq-fs-chip[data-status="answered"] { background: var(--aiq-color-accent-soft); }
 .aiq-fs-side { display: flex; flex-direction: column; gap: 16px; padding: 32px 24px; border-left: 1px solid var(--aiq-color-border); background: var(--aiq-color-bg-raised); overflow: auto; }
 .aiq-fs-check { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; font-size: 14px; color: var(--aiq-color-fg-primary); }

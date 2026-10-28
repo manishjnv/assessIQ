@@ -31,6 +31,16 @@ describe('ReadinessPanel with the camera off', () => {
   it('renders no Begin button', () => {
     render(<ReadinessPanel state={state} optional={false} />);
     expect(screen.queryByRole('button', { name: /begin/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
+
+  it('offers Retry only when a device check failed', () => {
+    const failedState = {
+      ...state,
+      rows: [{ id: 'network', label: 'Internet speed', status: 'fail', message: 'Slow connection.' }],
+      passed: false,
+    } as unknown as typeof state;
+    render(<ReadinessPanel state={failedState} optional={false} />);
     expect(screen.getByRole('button', { name: 'Retry' })).toBeTruthy();
   });
 });

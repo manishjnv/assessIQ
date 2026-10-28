@@ -284,6 +284,7 @@ export async function registerAttemptTakeRoutes(
         pass_mark_pct: resolved.assessment.passing_score_pct,
         company_name: pv.companyName,
         company_logo_url: pv.companyLogoUrl,
+        company_accent: pv.companyAccent,
         // Z-39: 'Attempt n of m' on the welcome page. allowed = 1 when the assessment has no retake.
         attempt_number: pv.attemptNumber,
         attempts_allowed: pv.attemptsAllowed,
