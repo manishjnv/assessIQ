@@ -417,3 +417,11 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 - `service/create-test.ts` `createTest` loads the pattern and topic labels, compiles, and calls `createAssessment` (all guards run) with the type-card settings and the type (`delivery_mode`, `camera_required`) on every cover. Result is a DRAFT. Route `POST /api/admin/tests` in `routes.ts`.
 - Topic section names come from `taxonomy_nodes.label` (RCA 2026-10-26: the CT-0 query used `name`, which does not exist).
 - Why one function: three client branches in Start a test built three different payloads and one of them (topic mock) skipped the type-card settings (RCA 2026-10-26). Rejected: a template table or DSL (owner, final). Not included: candidates, publish and invite (owner decision: finish on the assessment page), the Exam list from the exam grant (CT-4), a scaled mock above 100 questions.
+
+## Frozen pools and withdrawn questions (EXP-20 sign-off, owner 2026-10-18)
+
+- **Rule.** `assessment_frozen_pool` (0096) copies the pool at publish. A question withdrawn or edited later stays in assessments that are already published. The frozen copy is what candidates get, and a score must match what the candidate saw.
+- **Owner decision (2026-10-18, recorded as sign-off 2026-10-28, S71).** Frozen copies stay as they are. No automatic purge. A copy is removed only for a legal reason, in a separate logged step by the super admin (system role, one `audit_log` row). That step is not built; build it only when the first real case appears.
+- **Considered and rejected.** (1) A "purge from frozen pools" step on every withdrawal: it would change questions under a live or finished test and break score reproduction. (2) Re-freezing on edit: same reason, and it breaks Rule 4 of the freeze (attempts keep the version they used).
+- **Not included.** Any change to the freeze rule for normal edits. A legal-removal tool.
+- **Downstream.** Module 04 withdrawal keeps its current behaviour. `docs/03-api-contract.md` already says frozen pools keep the version they used (answer-key corrections). No other module changes.

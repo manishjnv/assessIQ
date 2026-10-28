@@ -147,7 +147,7 @@ describe("EXP-17 plan limits (plan data)", () => {
       const r = (await c.query(`SELECT tier, upload_max_per_upload a, upload_per_month b, upload_max_total c FROM plan_tier_limits ORDER BY tier`)).rows;
       const by = Object.fromEntries(r.map((x) => [x.tier, [x.a, x.b, x.c]]));
       expect(by["free"]).toEqual([0, 0, 0]);
-      expect(by["starter"]).toEqual([500, 5, 2000]);
+      expect(by["starter"]).toBeUndefined(); // dropped by 0274 (EXP-40)
       expect(by["pro"]).toEqual([2000, 20, 10000]);
       expect(by["enterprise"]).toEqual([null, null, null]);
       expect(by["internal"]).toEqual([null, null, null]);
@@ -275,13 +275,17 @@ describe("EXP-17 plan limits (plan data)", () => {
     });
   });
 
-  it("migrations 0252 and 0253 are idempotent and never reset a changed number", async () => {
+  it("migrations 0252, 0253 and 0274 are idempotent and never reset a changed number", async () => {
     const m252 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "19-billing", "migrations", "0252_plan_tier_limits_upload.sql"), "utf8");
+    const m274 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "19-billing", "migrations", "0274_drop_starter_plan_tier_limits.sql"), "utf8");
     const m253 = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "migrations", "0253_question_imports_source_note.sql"), "utf8");
     await sup(async (c) => {
       await c.query(`UPDATE plan_tier_limits SET upload_per_month = 21 WHERE tier = 'pro'`);
       await c.query(m252);
       await c.query(m253);
+      await c.query(m274);
+      await c.query(m274);
+      expect((await c.query(`SELECT count(*)::int n FROM plan_tier_limits WHERE tier = 'starter'`)).rows[0].n).toBe(0);
       expect((await c.query(`SELECT upload_per_month FROM plan_tier_limits WHERE tier = 'pro'`)).rows[0].upload_per_month).toBe(21);
       await c.query(`UPDATE plan_tier_limits SET upload_per_month = 20 WHERE tier = 'pro'`);
     });
