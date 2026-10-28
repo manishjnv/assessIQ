@@ -120,7 +120,7 @@ computeUsage(tier: PlanTier, includedCredits: number | null, used: number): { re
 getUsage(tenantId: string): Promise<BillingUsage>
 // FU-A3 (2026-10-06): mechanism only, no route wired yet (FU-A5)
 tierAllows(tenantId: string, feature: TierFeature): Promise<boolean>
-TIER_DISPLAY_NAMES: Record<PlanTier, string>  // free→Starter, pro→Growth, enterprise→Enterprise, internal→Internal
+TIER_DISPLAY_NAMES: Record<PlanTier, string>  // free→Free, pro→Paid (EXP-40), enterprise→Enterprise, internal→Internal
 
 // Routes
 registerBillingRoutes(app: FastifyInstance, deps: BillingRouteDeps): Promise<void>
@@ -421,3 +421,13 @@ Rows: Z-96, Z-93, Z-15 (a), SP11, Z-84. Code commit `5afedc62` (CI green, deploy
 - **Rejected.** A new endpoint (the plan-update flow already has the lock, audit and fresh-MFA gate). Tying the values to the tier change (they are independent per organisation).
 - **Not included.** Editing `plan_tier_limits` itself (still system role only). Any cap that links the overrides to the tier. No new column or table.
 - **Downstream.** Module 04 organisation upload reads the limits through `getUploadLimits`, so a saved override applies on the next upload screen load and stage/commit. `docs/03-api-contract.md` lists the new body fields.
+
+## EXP-40 drop of the `starter` limits row (2026-10-28, S71)
+
+- **What.** Migration 0274 deletes the `starter` row of `plan_tier_limits`. The table now has exactly the four code tiers (free, pro, enterprise, internal). The migration stops with an error if a `tenant_plans` row uses `starter`. It is idempotent.
+- **Why.** The row was an informational seed from 0252 for an owner tier that never became a code tier. The plans are now Free and Paid (display names in `TIER_DISPLAY_NAMES`; code tier `pro` shows as Paid).
+- **Safe because.** `tenant_plans.tier` is CHECK-limited to the four code tiers (0078), `getUploadLimits` joins on that tier, and production had no tenant on it (free 4, internal 2, pro 2, checked 2026-10-28).
+- **Rejected.** Editing 0252 (history stays). Renaming the row.
+- **Not included.** Price per credit, self-serve payment (owner items of EXP-40). No code change in module 19.
+- **Downstream.** Module 04 test `org-upload-limits.test.ts` expects no `starter` row. `docs/02-data-model.md` has the 0274 line. See `docs/plans/PRICING_TIERS_2026-10-06.md`.
+
