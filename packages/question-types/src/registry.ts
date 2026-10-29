@@ -151,9 +151,30 @@ export function candidateViewFor(type: string, content: unknown): unknown {
 export function adminViewFor(type: string, content: unknown): unknown {
   if (isQuestionType(type)) {
     const def = QUESTION_TYPE_REGISTRY[type];
-    return def.adminView ? def.adminView(content) : def.candidateView(content);
+    const view = def.adminView ? def.adminView(content) : def.candidateView(content);
+    return scrambleShuffleField(view, def.shuffleField);
   }
   return candidateViewFor(type, content);
+}
+
+/**
+ * The stored order of a shuffled field can equal the key (authors list ordering items in the correct
+ * order). The admin view orders it by a fixed hash of each entry, so the order shown never depends on the
+ * stored order. Candidates get a per-attempt shuffle at serve time instead.
+ */
+function scrambleShuffleField(view: unknown, field: "options" | "items" | null): unknown {
+  if (field === null || view === null || typeof view !== "object" || Array.isArray(view)) return view;
+  const v = view as Record<string, unknown>;
+  const arr = v[field];
+  if (!Array.isArray(arr)) return view;
+  const h = (x: unknown): number => {
+    let n = 2166136261;
+    for (const ch of JSON.stringify(x) ?? "") n = Math.imul(n ^ ch.charCodeAt(0), 16777619);
+    return n >>> 0;
+  };
+  const keyed = arr.map((x) => ({ x, k: h(x), s: JSON.stringify(x) ?? "" }));
+  keyed.sort((a, b) => a.k - b.k || (a.s < b.s ? -1 : a.s > b.s ? 1 : 0));
+  return { ...v, [field]: keyed.map((e) => e.x) };
 }
 
 /** Coerce generator content; unknown type or non-object content passes through unchanged. */

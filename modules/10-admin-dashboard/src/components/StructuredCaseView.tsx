@@ -55,6 +55,8 @@ export function StructuredCaseView({
   const expl = safeStr(c.explanation);
   const steps = stepsOf(c);
   const picks = obj(obj(answer)?.steps) ?? {};
+  // FUT-2: licensed questions arrive without the key. No key means no right/wrong judgement on the picks.
+  const hasKey = steps.some((s) => s.correct.length > 0);
   const text: React.CSSProperties = { margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)", lineHeight: 1.6, whiteSpace: "pre-wrap" };
 
   return (
@@ -99,7 +101,9 @@ export function StructuredCaseView({
                 let mark = "";
                 let color = "var(--aiq-color-fg-secondary)";
                 if (mode === "key" && right) { mark = " ✓"; color = OK; }
-                if (mode === "answer") {
+                if (mode === "answer" && !hasKey) {
+                  if (picked) { mark = " (selected)"; color = "var(--aiq-color-fg-primary)"; }
+                } else if (mode === "answer") {
                   if (picked) { mark = right ? " ✓ (selected)" : " ✗ (selected)"; color = right ? OK : BAD; }
                   else if (right) { mark = " (correct, not selected)"; color = "var(--aiq-color-fg-muted)"; }
                 }

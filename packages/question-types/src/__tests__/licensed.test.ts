@@ -23,6 +23,15 @@ describe("FUT-2 redaction", () => {
     expect(row.content.correct).toBe(1); // input untouched
   });
 
+  it("a shuffled field is shown in an order independent of the stored order", () => {
+    const items = ["Detect", "Triage", "Contain", "Recover"];
+    const a = adminViewFor("ordering", { question: "Q", items, correct_order: [0, 1, 2, 3] }) as { items: string[] };
+    const b = adminViewFor("ordering", { question: "Q", items: [...items].reverse(), correct_order: [3, 2, 1, 0] }) as { items: string[] };
+    expect(a.items).toEqual(b.items);
+    expect([...a.items].sort()).toEqual([...items].sort());
+    expect(a).not.toHaveProperty("correct_order");
+  });
+
   it("unknown type fails closed to the stem only", () => {
     expect(adminViewFor("nope", { question: "Q", correct: 1 })).toEqual({ question: "Q" });
   });

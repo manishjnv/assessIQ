@@ -107,10 +107,14 @@ test.describe('structured_case: author → publish → take → score → admin 
     expect(score).toMatchObject({ total_earned: 4, total_max: 4, auto_pct: 100 });
   });
 
-  test('admin attempt view shows the picks against the key', async ({ page, context }) => {
+  test('admin attempt view shows the picks without the key (licensed set)', async ({ page, context }) => {
     await openAdminAttempt(page, context, p);
     await expect(page.getByText('Isolate the host').first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('✓ (selected)').first()).toBeVisible();
+    // FUT-2: the set is licensed (cloned from the platform), so the tenant admin sees the picks
+    // but no right/wrong marks and no key.
+    await expect(page.getByText('(selected)').first()).toBeVisible();
+    await expect(page.getByText('✓ (selected)')).toHaveCount(0);
     await expect(page.getByText('✗ (selected)')).toHaveCount(0);
+    await expect(page.getByText('(correct, not selected)')).toHaveCount(0);
   });
 });

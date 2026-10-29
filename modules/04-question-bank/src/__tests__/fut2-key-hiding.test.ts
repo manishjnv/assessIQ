@@ -107,7 +107,7 @@ describe("FUT-2 key hiding", () => {
     expect(q.licensed).toBe(true);
     const c = q.content as Record<string, unknown>;
     expect(c["question"]).toBeTruthy();
-    expect(c["options"]).toEqual(["a", "b"]);
+    expect([...(c["options"] as string[])].sort()).toEqual(["a", "b"]);
     expect(c).not.toHaveProperty("correct");
     expect(c).not.toHaveProperty("rationale");
   });
