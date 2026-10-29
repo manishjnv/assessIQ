@@ -517,3 +517,10 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - The key never goes into attempt, take or submit payloads; `routes.take` does not import feedback. Test: `__tests__/answer-key-setting.test.ts`.
 - Do not add a second read of the flag in another transaction (toggle race).
 - Full record: `docs/plans/exam-engine-ui-plan.md` "Phase 6 build record (Z-172)".
+
+## EXP-10 part 1: candidate images (S79, 2026-10-29)
+
+- `attempt-assets.ts` + route `GET /api/me/attempts/:id/assets/:assetId`: one query joins `attempts` (owner, `in_progress`), `attempt_questions`, `question_versions` and `question_assets` with `assetId = ANY(qv.asset_ids)`. All misses are the same 404. Headers come from `assetResponseHeaders` (module 04).
+- `listFrozenQuestionsForAttempt` adds `assets` (alt text and size, never bytes) per question. `option_assets` is permuted with `options` by `displayQuestions` (a misaligned array is dropped).
+- Feedback items carry `math`. The candidate view allow-list (`packages/question-types`) passes `math`, `stem_assets`, `option_assets` only (ids and a boolean).
+- Tests: `__tests__/attempt-assets.test.ts`.

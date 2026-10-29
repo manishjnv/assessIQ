@@ -485,3 +485,11 @@ Platform packs are readable by a licensed tenant through `licensed_read` SELECT 
 - `src/frameworks/subject-map.json` now has 5 subjects, 37 units and 125 outcomes (Quant, Reasoning and English complete; General awareness and Technical aptitude have no outcomes yet). Still `draft-unverified`. Data only, no migration.
 - Never rename, move or delete the 17 part A outcome codes (test `framework-seed-boards.test.ts`). Load twice is safe (`subject-map-load.test.ts`).
 - The list of new units with reasons is in `docs/02-data-model.md` section "EXP-25 part b". Production has not loaded this framework yet: a super admin loads it from the Framework seeds screen.
+
+## EXP-10 part 1: question images and maths (S79, 2026-10-29)
+
+- `src/assets/`: `image-clean.ts` (strict PNG / JPEG structure check and metadata strip; pure), `assets.ts` (upload with caps under a per-organisation advisory lock, meta, bytes, `copyAssetsForContent` for clone and re-sync, `assertAssetsInPack`), `rich-validate.ts` (KaTeX save-time check, only when `content.math === true`), `routes.ts` (upload is super admin; reads are admin).
+- `question_assets` rows never change. `question_versions.asset_ids` is filled by a trigger (migration 0284) that also enforces the same-pack rule. Clone-on-grant and re-sync MUST call `copyAssetsForContent` before they insert a question, and the re-sync change check compares the rewritten content.
+- Only `getAssetBytes` and `copyAssetsForContent` (here) and module 06 `attempt-assets.ts` select the `data` column. Every list or meta query names its columns (a test scans the sources).
+- Import carries no images: JSON `bulkImport` refuses `stem_assets` / `option_assets`; CSV and XLSX have no such columns.
+- Full record: `docs/design/2026-10-17-exam-pack-source-and-taxonomy-plan.md` sections 12 and 13; `docs/02-data-model.md` section "EXP-10 part 1".
