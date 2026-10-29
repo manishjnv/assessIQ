@@ -9,6 +9,7 @@ import {
   uuidv7,
 } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { mayReadMasterKey, redactMasterKey } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
 import { propagateTakedown } from "../clone/takedown.js";
@@ -42,9 +43,21 @@ import {
 // listQuestions
 // ---------------------------------------------------------------------------
 
+/**
+ * FUT-2: `viewerRole` is passed ONLY by the admin routes. Internal callers (grading, clone, import) omit it
+ * and get the raw row. A licensed question is redacted for every role except super_admin.
+ */
+function needsRedaction(q: Question, viewerRole: string | undefined): boolean {
+  return viewerRole !== undefined && q.licensed === true && !mayReadMasterKey(viewerRole);
+}
+function redactForViewer(q: Question, viewerRole: string | undefined): Question {
+  return needsRedaction(q, viewerRole) ? redactMasterKey(q) : q;
+}
+
 export async function listQuestions(
   tenantId: string,
   filters: ListQuestionsInput = {},
+  viewerRole?: string,
 ): Promise<PaginatedQuestions> {
   const page = filters.page ?? 1;
   const pageSize = filters.pageSize ?? 20;
@@ -57,7 +70,7 @@ export async function listQuestions(
       page,
       pageSize,
     });
-    return { items, page, pageSize, total };
+    return { items: items.map((q) => redactForViewer(q, viewerRole)), page, pageSize, total };
   });
 }
 
@@ -73,14 +86,14 @@ export async function questionFacets(
 // getQuestion
 // ---------------------------------------------------------------------------
 
-export async function getQuestion(tenantId: string, id: string): Promise<Question> {
+export async function getQuestion(tenantId: string, id: string, viewerRole?: string): Promise<Question> {
   const question = await withTenant(tenantId, (client) => repo.findQuestionById(client, id));
   if (question === null) {
     throw new NotFoundError(`Question not found: ${id}`, {
       details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND },
     });
   }
-  return question;
+  return redactForViewer(question, viewerRole);
 }
 
 // ---------------------------------------------------------------------------
@@ -419,6 +432,7 @@ export async function withdrawInTx(
 export async function listVersions(
   tenantId: string,
   questionId: string,
+  viewerRole?: string,
 ): Promise<QuestionVersion[]> {
   return withTenant(tenantId, async (client) => {
     // Guard: ensure question exists (a miss would otherwise silently return [])
@@ -428,7 +442,11 @@ export async function listVersions(
         details: { code: QB_ERROR_CODES.QUESTION_NOT_FOUND },
       });
     }
-    return repo.listQuestionVersions(client, questionId);
+    const versions = await repo.listQuestionVersions(client, questionId);
+    // FUT-2: a version row carries no type; it takes the question's (the type is frozen per question).
+    return needsRedaction(question, viewerRole)
+      ? versions.map((v) => redactMasterKey({ ...v, type: question.type }))
+      : versions;
   });
 }
 

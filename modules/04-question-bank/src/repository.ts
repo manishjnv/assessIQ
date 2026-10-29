@@ -30,6 +30,7 @@
  */
 
 import type { PoolClient } from "pg";
+import { licensedQuestionSql } from "@assessiq/question-types";
 import type {
   KnowledgeBaseSource,
   Level,
@@ -151,6 +152,8 @@ interface QuestionRow {
   content_i18n?: unknown;
   /** Resolved from the parent level row by list projections; absent on single reads. */
   level_label?: string | null;
+  /** FUT-2: true for licensed (platform-owned) content; selected by list and single reads. */
+  licensed?: boolean;
 }
 
 interface QuestionVersionRow {
@@ -241,6 +244,7 @@ function mapQuestionRow(row: QuestionRow): Question {
       row.content_i18n !== null && typeof row.content_i18n === "object"
         ? (row.content_i18n as Record<string, unknown>)
         : null,
+    licensed: row.licensed === true,
   };
 }
 
@@ -644,7 +648,7 @@ export async function findQuestionById(
   id: string,
 ): Promise<Question | null> {
   const result = await client.query<QuestionRow>(
-    `SELECT ${QUESTION_COLUMNS} FROM questions WHERE id = $1 LIMIT 1`,
+    `SELECT ${QUESTION_COLUMNS}, ${licensedQuestionSql("questions")} AS licensed FROM questions WHERE id = $1 LIMIT 1`,
     [id],
   );
   const row = result.rows[0];
@@ -788,6 +792,7 @@ export async function listQuestionRows(
             q.cognitive_level, q.nice_task_id, q.difficulty_params, q.attack_technique,
             q.difficulty_est, q.review_state, q.language_primary, q.content_i18n,
             (SELECT label FROM levels WHERE levels.id = q.level_id) AS level_label,
+            ${licensedQuestionSql("q")} AS licensed,
             count(*) OVER () AS total_count
      FROM questions q
      ${joins}

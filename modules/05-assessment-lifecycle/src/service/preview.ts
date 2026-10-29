@@ -1,5 +1,6 @@
 import { NotFoundError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { licensedQuestionSql, mayReadMasterKey, redactMasterKey } from "@assessiq/question-types";
 import * as repo from "../repository.js";
 import { AL_ERROR_CODES } from "../types.js";
 import type { ResolvedBlueprint, PreviewCriterionResult, PreviewQuestionSet } from "../types.js";
@@ -10,7 +11,39 @@ import { countActiveQuestionsForCriterion, criterionNodeScope, listActiveQuestio
 // previewAssessment — admin sample of question pool; no attempt created
 // ---------------------------------------------------------------------------
 
+/**
+ * FUT-2: with a `viewerRole` other than super_admin, licensed questions in the sample lose their key and
+ * rubric (stem and options stay). Internal callers omit the role and get the raw sample.
+ */
 export async function previewAssessment(
+  tenantId: string,
+  id: string,
+  viewerRole?: string,
+): Promise<PreviewQuestionSet> {
+  const set = await previewAssessmentRaw(tenantId, id);
+  if (viewerRole === undefined || mayReadMasterKey(viewerRole)) return set;
+
+  const items = [...set.questions, ...(set.blueprint_criteria ?? []).flatMap((c) => c.sample)] as Array<{ id?: unknown }>;
+  const ids = items.map((q) => q.id).filter((v): v is string => typeof v === "string");
+  if (ids.length === 0) return set;
+  const licensed = new Set(
+    (await withTenant(tenantId, (client) =>
+      client.query<{ id: string }>(
+        `SELECT q.id FROM questions q WHERE q.id = ANY($1::uuid[]) AND ${licensedQuestionSql("q")}`,
+        [ids],
+      ),
+    )).rows.map((r) => r.id),
+  );
+  const redact = (arr: unknown[]): unknown[] =>
+    arr.map((q) => (licensed.has((q as { id?: string }).id ?? "") ? redactMasterKey(q as { type?: string; content?: unknown }) : q));
+  return {
+    ...set,
+    questions: redact(set.questions),
+    ...(set.blueprint_criteria ? { blueprint_criteria: set.blueprint_criteria.map((c) => ({ ...c, sample: redact(c.sample) })) } : {}),
+  };
+}
+
+async function previewAssessmentRaw(
   tenantId: string,
   id: string,
 ): Promise<PreviewQuestionSet> {

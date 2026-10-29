@@ -471,3 +471,7 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 ## EXP-14 phase 1 (2026-10-29): owner columns
 
 `questions`, `question_versions`, `question_tags`, `question_taxonomy` carry `tenant_id`; the four child tables and `question_source` carry `pack_id`. Insert triggers fill them from the parent, so services do NOT set them. Composite foreign keys reject a wrong owner. Rule: never UPDATE `pack_id` or `tenant_id` of a question (child keys block it). Phase 2 (licensed-read policies) is next; see `docs/02-data-model.md` and `docs/design/2026-10-21-future-ready-question-store.md` section 10.
+
+## FUT-2 key hiding (2026-10-29)
+
+Admin read routes return licensed questions (cloned: `source_question_id` set, or another tenant's) without key, rubric, translations, `source_ref` and `source_url` unless the caller is `super_admin`. Mechanism: `licensedQuestionSql(alias)`, `redactMasterKey(row)`, `adminViewFor(type, content)` and `mayReadMasterKey(role)` in `packages/question-types/src/licensed.ts` and `registry.ts`. Services take an optional `viewerRole`; only route handlers pass it. New admin read routes that return `content` or `rubric` MUST do the same (see `docs/03-api-contract.md` FUT-2). Per-organisation read bucket: `questionReadGuard` option, wired in `apps/api/src/server.ts`. Test: `src/__tests__/fut2-key-hiding.test.ts`.

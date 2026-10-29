@@ -36,6 +36,7 @@
 
 import { AppError, streamLogger, displayCandidate } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
+import { licensedQuestionSql, mayReadMasterKey, redactMasterKey } from "@assessiq/question-types";
 import { releaseAttemptInTx, getSectionScoresForAttempt } from "@assessiq/scoring";
 import type { SectionScore } from "@assessiq/scoring";
 import { sendResultReleasedEmail } from "@assessiq/notifications";
@@ -177,6 +178,7 @@ async function loadAnswers(
 async function loadFrozenQuestions(
   client: PoolClient,
   attemptId: string,
+  redactFor?: string,
 ): Promise<FrozenQuestionRow[]> {
   // 2026-05-29: rubric column NOW included so the admin review UI can
   // render anchor concepts + weights on per-question grading cards
@@ -195,7 +197,8 @@ async function loadFrozenQuestions(
        aq.points,
        aq.negative_marks::float8 AS negative_marks,
        qv.content,
-       qv.rubric
+       qv.rubric,
+       ${licensedQuestionSql("q")} AS licensed
      FROM attempt_questions aq
      JOIN questions q ON q.id = aq.question_id
      JOIN question_versions qv
@@ -205,7 +208,12 @@ async function loadFrozenQuestions(
      ORDER BY aq.position ASC, aq.question_id ASC`,
     [attemptId],
   );
-  return result.rows;
+  // FUT-2: a tenant admin sees the stem and options of licensed questions, never the key or rubric.
+  // The candidate's own answers and marks are loaded elsewhere and stay visible.
+  return result.rows.map((r) => {
+    const { licensed, ...row } = r as FrozenQuestionRow & { licensed?: boolean };
+    return licensed === true && redactFor !== undefined && !mayReadMasterKey(redactFor) ? redactMasterKey(row) : row;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -276,6 +284,7 @@ export async function loadAttemptReview(
   client: PoolClient,
   attemptId: string,
   audience: "tenant" | "platform",
+  viewerRole?: string,
 ): Promise<AttemptReview> {
   // Static SQL fragments (never user input).
   const identityCols =
@@ -327,7 +336,7 @@ export async function loadAttemptReview(
 
   const [answers, frozen_questions, gradings, score, section_scores] = await Promise.all([
     loadAnswers(client, attemptId),
-    loadFrozenQuestions(client, attemptId),
+    loadFrozenQuestions(client, attemptId, audience === "tenant" ? (viewerRole ?? "admin") : undefined),
     hidden ? Promise.resolve<GradingsRow[]>([]) : findGradingsForAttempt(client, attemptId),
     hidden ? Promise.resolve<AttemptScoreSummary | null>(null) : loadScoreSummary(client, attemptId),
     // Same visibility rule as score/gradings: never leak unreleased per-section scores.
@@ -361,11 +370,13 @@ export async function handleAdminClaimAttempt(input: {
   tenantId: string;
   userId: string;
   attemptId: string;
+  /** FUT-2: caller role; anything but super_admin gets licensed questions without key and rubric. */
+  role?: string;
 }): Promise<HandleAdminClaimAttemptOutput> {
   const { tenantId, attemptId } = input;
 
   return withTenant(tenantId, async (client) => {
-    const r = await loadAttemptReview(client, attemptId, "tenant");
+    const r = await loadAttemptReview(client, attemptId, "tenant", input.role);
     const { row } = r;
 
     // Apply displayCandidate substitution for DPDP erasure

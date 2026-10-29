@@ -15,6 +15,7 @@
 
 import { AuthzError, ConflictError, NotFoundError, ValidationError } from "@assessiq/core";
 import { withTenant, withSystemRoleDetached } from "@assessiq/tenancy";
+import { licensedQuestionSql, mayReadMasterKey, redactMasterKey } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
 import { QB_ERROR_CODES } from "../types.js";
@@ -318,6 +319,8 @@ export interface ReviewItem {
   rights_status: string | null;
   source_ref: string | null;
   source_url: string | null;
+  /** FUT-2: true for licensed content; the key fields above are then redacted for an organisation admin. */
+  licensed?: boolean;
 }
 
 export interface PackReview {
@@ -372,7 +375,8 @@ export async function getPackReview(
     )).rows[0]?.n ?? "0";
     const items = await client.query<ReviewItem>(
       `SELECT q.id, q.level_id, q.type, q.topic, q.points, q.status, q.review_state, q.content, q.rubric,
-              q.answer_guidance, s.origin, s.rights_status, s.source_ref, s.source_url
+              q.answer_guidance, s.origin, s.rights_status, s.source_ref, s.source_url,
+              ${licensedQuestionSql("q")} AS licensed
          FROM questions q LEFT JOIN question_source s ON s.question_id = q.id
         WHERE ${live} AND ${FILTER_SQL[filter]}
         ORDER BY q.created_at, q.id LIMIT $2 OFFSET $3`,
@@ -383,7 +387,8 @@ export async function getPackReview(
       pack: { id: pack.id, name: pack.name, status: pack.status, is_platform: slug === "platform" },
       counts,
       total: parseInt(total, 10),
-      items: items.rows,
+      // FUT-2: an organisation admin reviews licensed copies without the master key or source reference.
+      items: items.rows.map((r) => (r.licensed === true && !mayReadMasterKey(actor.role) ? redactMasterKey(r) : r)),
     };
   });
 }

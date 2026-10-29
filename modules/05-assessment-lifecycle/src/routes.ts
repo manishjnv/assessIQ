@@ -730,7 +730,7 @@ export async function registerAssessmentLifecycleRoutes(
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
-      return previewAssessment(tenantId, id);
+      return previewAssessment(tenantId, id, req.session!.role);
     },
   );
 

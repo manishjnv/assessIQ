@@ -215,6 +215,8 @@ export interface Question {
   language_primary: string;
   /** EXP-2: other-language content, e.g. {"hi": {...}} (used by EXP-9). */
   content_i18n: Record<string, unknown> | null;
+  /** FUT-2: true for licensed (platform-owned) content. Tenant admins get a redacted copy on the admin routes. */
+  licensed?: boolean;
 }
 
 export type ReviewState = "in_review" | "verified" | "disputed" | "needs_fix";

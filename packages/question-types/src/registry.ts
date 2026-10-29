@@ -44,6 +44,11 @@ export interface QuestionTypeDef {
   // ---- Behaviours: pure functions, no DB, no React ----
   /** Content a candidate may see. Allowlist, fail-closed. Non-object content is returned unchanged. */
   candidateView(content: unknown): unknown;
+  /**
+   * FUT-2: content a TENANT ADMIN may see for licensed (platform-owned) questions: no answer key.
+   * Optional; when a type has no hook the candidate allowlist applies (fail-closed).
+   */
+  adminView?(content: unknown): unknown;
   /** Tolerant key aliasing for generator output. Identity for types with no aliasing. */
   coerceContent(raw: Record<string, unknown>): Record<string, unknown>;
   /** Answer-key-free stem for the answer-format hint generator. */
@@ -140,6 +145,15 @@ export function candidateViewFor(type: string, content: unknown): unknown {
   if (content === null || typeof content !== "object" || Array.isArray(content)) return content;
   const q = (content as Record<string, unknown>)["question"];
   return Object.prototype.hasOwnProperty.call(content, "question") ? { question: q } : {};
+}
+
+/** FUT-2: admin view of licensed content. Uses the type's `adminView` hook, else the candidate allowlist. */
+export function adminViewFor(type: string, content: unknown): unknown {
+  if (isQuestionType(type)) {
+    const def = QUESTION_TYPE_REGISTRY[type];
+    return def.adminView ? def.adminView(content) : def.candidateView(content);
+  }
+  return candidateViewFor(type, content);
 }
 
 /** Coerce generator content; unknown type or non-object content passes through unchanged. */

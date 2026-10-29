@@ -198,6 +198,8 @@ export async function buildServer() {
     superAdminFreshMfa: authChain({ roles: ['super_admin'], freshMfaWithinMinutes: 15 }),
     // EXP-17: organisation question upload is a Pro feature (no-op until PLAN_TIERS_ENFORCED).
     orgUploadGuard: [...authChain({ roles: ['admin'] }), requireTier('question_upload')],
+    // FUT-2: 120 reads a minute per organisation on the list, single and versions routes.
+    questionReadGuard: tenantRateLimit({ name: 'admin-question-read', max: 120, windowSeconds: 60 }),
   });
 
   // Assessment-lifecycle admin routes — same admin-gated authChain DI shape.

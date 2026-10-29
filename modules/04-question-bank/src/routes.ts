@@ -296,6 +296,8 @@ export interface RegisterQuestionBankRoutesOptions {
   orgUploadGuard?: import("fastify").preHandlerHookHandler[] | import("fastify").preHandlerHookHandler;
   /** EXP-22: super-admin chain with a fresh MFA check, for bulk takedown by seed_ref prefix. Defaults to superAdminOnly. */
   superAdminFreshMfa?: import("fastify").preHandlerHookHandler[] | import("fastify").preHandlerHookHandler;
+  /** FUT-2: per-organisation request bucket on the three single-question read routes. Runs after adminOnly. Optional (no limit when absent). */
+  questionReadGuard?: import("fastify").preHandlerHookHandler;
 }
 
 export async function registerQuestionBankRoutes(
@@ -303,6 +305,11 @@ export async function registerQuestionBankRoutes(
   opts: RegisterQuestionBankRoutesOptions,
 ): Promise<void> {
   const { adminOnly, superAdminOnly } = opts;
+  // FUT-2: adminOnly, then the per-organisation bucket (slows bulk scraping of licensed content).
+  const adminRead = [
+    ...(Array.isArray(adminOnly) ? adminOnly : [adminOnly]),
+    ...(opts.questionReadGuard ? [opts.questionReadGuard] : []),
+  ];
 
   // -------------------------------------------------------------------------
   // Domain + Category read routes (Slice 2)
@@ -786,14 +793,14 @@ export async function registerQuestionBankRoutes(
   // GET /api/admin/questions
   app.get(
     "/api/admin/questions",
-    { preHandler: adminOnly },
+    { preHandler: adminRead },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const q = req.query as Record<string, string | undefined>;
       const { page, pageSize } = parsePagination(q, { max: MAX_PAGE_SIZE });
 
       const filters: ListQuestionsInput = { page, pageSize, ...parseQuestionFilters(q) };
-      return listQuestions(tenantId, filters);
+      return listQuestions(tenantId, filters, req.session!.role);
     },
   );
 
@@ -845,11 +852,11 @@ export async function registerQuestionBankRoutes(
   // GET /api/admin/questions/:id
   app.get(
     "/api/admin/questions/:id",
-    { preHandler: adminOnly },
+    { preHandler: adminRead },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
-      return getQuestion(tenantId, id);
+      return getQuestion(tenantId, id, req.session!.role);
     },
   );
 
@@ -870,11 +877,11 @@ export async function registerQuestionBankRoutes(
   // GET /api/admin/questions/:id/versions
   app.get(
     "/api/admin/questions/:id/versions",
-    { preHandler: adminOnly },
+    { preHandler: adminRead },
     async (req) => {
       const tenantId = req.session!.tenantId;
       const { id } = req.params as { id: string };
-      return listVersions(tenantId, id);
+      return listVersions(tenantId, id, req.session!.role);
     },
   );
 

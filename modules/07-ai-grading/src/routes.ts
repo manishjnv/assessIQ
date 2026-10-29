@@ -390,7 +390,7 @@ export async function registerGradingRoutes(
       const userId = req.session!.userId;
       const { id: attemptId } = req.params as { id: string };
 
-      return handleAdminClaimAttempt({ tenantId, userId, attemptId });
+      return handleAdminClaimAttempt({ tenantId, userId, attemptId, role: req.session!.role });
     },
   );
 
