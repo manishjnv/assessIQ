@@ -479,3 +479,9 @@ Admin read routes return licensed questions (cloned: `source_question_id` set, o
 ## EXP-14 phase 2: licensed read (2026-10-29)
 
 Platform packs are readable by a licensed tenant through `licensed_read` SELECT policies (0280), decided by `licensed_pack_ids()` / `readable_platform_packs()` / `licensed_platform_tenant()` (0279), and only while the env flag `LICENSED_READ` is on (default off). Rules, rollback and tests: `docs/02-data-model.md` section "EXP-14 phase 2". A NEW table that carries `pack_id` must get its own `licensed_read` policy (the lint refuses it otherwise). Do not add a write policy that depends on these functions. Admin list code must go through `buildQuestionWhere` (entitlement filter).
+
+## EXP-25 part b: subject-map outcomes (S78, 2026-10-29)
+
+- `src/frameworks/subject-map.json` now has 5 subjects, 37 units and 125 outcomes (Quant, Reasoning and English complete; General awareness and Technical aptitude have no outcomes yet). Still `draft-unverified`. Data only, no migration.
+- Never rename, move or delete the 17 part A outcome codes (test `framework-seed-boards.test.ts`). Load twice is safe (`subject-map-load.test.ts`).
+- The list of new units with reasons is in `docs/02-data-model.md` section "EXP-25 part b". Production has not loaded this framework yet: a super admin loads it from the Framework seeds screen.
