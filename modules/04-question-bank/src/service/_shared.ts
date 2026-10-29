@@ -2,6 +2,7 @@
  * Shared private helpers for the service split (E9). Moved verbatim from service.ts; only `export` added.
  */
 
+import { assertValidMath } from "../assets/rich-validate.js";
 import {
   streamLogger,
   ValidationError,
@@ -103,11 +104,25 @@ export function rethrowUnique(err: unknown, code: string, message: string): neve
   throw err;
 }
 
+/** EXP-10: maths must parse; images only where the caller allows them (import carries no images in part 1). */
+function assertRichContent(content: unknown, allowAssets: boolean): void {
+  if (!allowAssets && content !== null && typeof content === "object" && !Array.isArray(content)) {
+    const c = content as Record<string, unknown>;
+    if (c["stem_assets"] !== undefined || c["option_assets"] !== undefined) {
+      throw new ValidationError("Images cannot come with an import yet. Add them in the question editor.", {
+        details: { code: "IMPORT_IMAGES_NOT_SUPPORTED" },
+      });
+    }
+  }
+  assertValidMath(content);
+}
+
 /**
  * Validate content + rubric for a question type and throw typed ValidationErrors.
  * Used by both createQuestion and updateQuestion.
  */
-export function assertValidContent(type: QuestionType, content: unknown): void {
+export function assertValidContent(type: QuestionType, content: unknown, opts: { allowAssets?: boolean } = {}): void {
+  assertRichContent(content, opts.allowAssets !== false);
   const result = validateQuestionContent(type, content);
   if (!result.ok) {
     throw new ValidationError(

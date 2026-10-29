@@ -254,7 +254,14 @@ export function displayQuestions(
     if (!Array.isArray(options) || options.length !== order.length) {
       throw new Error(`option_order does not match the frozen options of question ${q.question_id}`);
     }
-    return { ...q, content: { ...content, [field]: order.map((i) => options[i]) } };
+    const shuffled: Record<string, unknown> = { ...content, [field]: order.map((i) => options[i]) };
+    // EXP-10: option images travel with their option. A misaligned array is dropped, never served out of step.
+    const oa = (content as { option_assets?: unknown } | null)?.option_assets;
+    if (field === "options" && oa !== undefined) {
+      if (Array.isArray(oa) && oa.length === order.length) shuffled["option_assets"] = order.map((i) => oa[i]);
+      else delete shuffled["option_assets"];
+    }
+    return { ...q, content: shuffled };
   });
 }
 

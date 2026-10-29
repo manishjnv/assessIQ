@@ -12,6 +12,7 @@ import { withTenant } from "@assessiq/tenancy";
 import { mayReadMasterKey, redactMasterKey } from "@assessiq/question-types";
 import { auditInTx } from "@assessiq/audit-log";
 import type { PoolClient } from "pg";
+import { assertAssetsInPack } from "../assets/assets.js";
 import { propagateTakedown } from "../clone/takedown.js";
 import { rubricRequiredFor, PackImportSchema, QB_ERROR_CODES } from "../types.js";
 import * as repo from "../repository.js";
@@ -147,6 +148,8 @@ export async function createQuestion(
       );
     }
 
+    await assertAssetsInPack(client, input.pack_id, input.content); // EXP-10
+
     // Verify level exists within the tenant (RLS scopes the SELECT)
     const level = await repo.findLevelById(client, input.level_id);
     if (level === null) {
@@ -260,6 +263,7 @@ export async function updateQuestion(
 
     if (patch.content !== undefined) {
       assertValidContent(current.type, patch.content);
+      await assertAssetsInPack(client, current.pack_id, patch.content); // EXP-10
       versionBump = true;
     }
 
@@ -603,7 +607,7 @@ export async function bulkImport(
     }
 
     // Validate content
-    assertValidContent(q.type, q.content);
+    assertValidContent(q.type, q.content, { allowAssets: false });
 
     // Validate rubric — rubric field presence check
     const rubricSupplied = "rubric" in q && q.rubric !== undefined;

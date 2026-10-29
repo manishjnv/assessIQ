@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { QuestionTypeDef } from "../../registry.js";
+import { RICH_VIEW_KEYS, RichOptionFields, RichStemFields, checkRichRefs } from "../../rich.js";
 import { candidateViewOf, pickKeys, questionOrJson, questionStem, structuralOf } from "../../helpers.js";
 
 export const MultiSelectContentSchema = z.object({
@@ -8,8 +9,11 @@ export const MultiSelectContentSchema = z.object({
   correct: z.array(z.number().int().min(0)).min(1),
   scoring: z.enum(["all_or_nothing", "partial"]).optional(),
   rationale: z.string().min(1).optional(),
+  ...RichStemFields,
+  ...RichOptionFields,
 }).strict()
   .superRefine((val, ctx) => {
+    checkRichRefs(val, ctx);
     if (new Set(val.correct).size !== val.correct.length) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["correct"], message: "correct must not repeat an index" });
     }
@@ -70,7 +74,7 @@ export const definition: QuestionTypeDef = {
   rubricSynthesis: "none",
   shuffleField: "options",
   // correct, scoring and rationale never leave the server.
-  candidateView: candidateViewOf((c) => pickKeys(c, ["question", "options"])),
+  candidateView: candidateViewOf((c) => pickKeys(c, ["question", "options", ...RICH_VIEW_KEYS])),
   coerceContent: (raw) => raw,
   guidanceText: questionStem,
   rubricText: questionOrJson,

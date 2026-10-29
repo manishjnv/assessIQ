@@ -302,6 +302,7 @@ function checkTables(
 const LICENSED_READ_TABLES: ReadonlySet<string> = new Set([
   "question_packs", "levels", "questions", "question_versions", "question_source",
   "question_tags", "question_taxonomy", "passages", "domains", "categories", "tags",
+  "question_assets", // EXP-10 part 1 (0284): the 12th question-store table
 ]);
 const LICENSED_FUNCTIONS = ["licensed_pack_ids", "readable_platform_packs", "licensed_platform_tenant"];
 /** Tables with a pack_id column that are NOT part of the question store (each with its reason). */

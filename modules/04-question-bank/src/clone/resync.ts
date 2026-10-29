@@ -5,6 +5,7 @@ import { auditInTx } from "@assessiq/audit-log";
 import { type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, getPlatformTenantId, copyQuestionSource, NOT_WITHDRAWN_SQL } from "./helpers.js";
 import { type CloneQuestionRow, type ResyncResult } from "./resync-types.js";
 import { buildTaxonomyResolver, stableJson } from "./taxonomy.js";
+import { copyAssetsForContent } from "../assets/assets.js";
 
 export async function resyncClonedPack(
   client: PoolClient,
@@ -188,7 +189,10 @@ export async function resyncClonedPack(
     }
 
     const Q = cloneBySource.get(M.id);
-    const contentJson = JSON.stringify(M.content);
+    // EXP-10: images are copied into the clone pack (same bytes, reused per hash) and the ids rewritten, so the
+    // change check below compares like with like and the question_versions trigger finds every image in this pack.
+    const mappedContent = await copyAssetsForContent(client, M.content, clone.id, targetTenantId, actorUserId);
+    const contentJson = JSON.stringify(mappedContent);
     const rubricJson = M.rubric !== null ? JSON.stringify(M.rubric) : null;
 
     if (Q === undefined) {
@@ -257,7 +261,7 @@ export async function resyncClonedPack(
 
     // ── EXISTING clone question ──
     const contentChanged =
-      stableJson(M.content) !== stableJson(Q.content) ||
+      stableJson(mappedContent) !== stableJson(Q.content) ||
       stableJson(M.rubric) !== stableJson(Q.rubric) ||
       // N21: the type is frozen per version, so a type change must write a new version.
       Q.type !== M.type;

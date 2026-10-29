@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { QuestionTypeDef } from "../../registry.js";
+import { RichStemFields } from "../../rich.js";
 import { candidateViewOf, pickKeys, questionOrJson, questionStem, structuralOf } from "../../helpers.js";
 
 export const NumericContentSchema = z.object({
@@ -8,6 +9,7 @@ export const NumericContentSchema = z.object({
   tolerance: z.number().finite().min(0).optional(),
   unit: z.string().min(1).max(20).optional(),
   rationale: z.string().min(1).optional(),
+  ...RichStemFields,
 }).strict();
 
 export type NumericContent = z.infer<typeof NumericContentSchema>;
@@ -64,7 +66,7 @@ export const definition: QuestionTypeDef = {
   rubricSynthesis: "none",
   shuffleField: null,
   // answer, tolerance and rationale never leave the server.
-  candidateView: candidateViewOf((c) => pickKeys(c, ["question", "unit"])),
+  candidateView: candidateViewOf((c) => pickKeys(c, ["question", "unit", "math", "stem_assets"])),
   coerceContent: (raw) => raw,
   guidanceText: questionStem,
   rubricText: questionOrJson,

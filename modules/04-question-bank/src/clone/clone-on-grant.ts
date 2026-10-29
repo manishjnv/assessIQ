@@ -4,6 +4,7 @@ import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { type ClonePackResult, type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, uniqueNonNull, getPlatformTenantId, deriveCloneSlug, copyQuestionSource, NOT_WITHDRAWN_SQL } from "./helpers.js";
 import { provisionPlatformTaxonomyForQuestions } from "./taxonomy.js";
+import { copyAssetsForContent } from "../assets/assets.js";
 
 export async function clonePackToTenant(
   client: PoolClient,
@@ -235,6 +236,8 @@ export async function clonePackToTenant(
     // WITHOUT this snapshot, the attempt-start pool query — which INNER JOINs
     // question_versions — would EXCLUDE every cloned question and a candidate
     // could never start an attempt on a cloned-pack assessment.
+    // EXP-10: copy the images into the new pack first, then store the content with the copies' ids.
+    const storedContent = await copyAssetsForContent(client, q.content, newPackId, targetTenantId, actorUserId);
     await client.query(
       `INSERT INTO questions
          (id, pack_id, level_id, type, topic, points, status, version, content,
@@ -248,7 +251,7 @@ export async function clonePackToTenant(
         q.topic,
         q.points,
         q.status,
-        JSON.stringify(q.content),
+        JSON.stringify(storedContent),
         q.rubric !== null ? JSON.stringify(q.rubric) : null,
         q.answer_guidance,
         JSON.stringify(Array.isArray(q.knowledge_base_sources) ? q.knowledge_base_sources : []),
@@ -266,7 +269,7 @@ export async function clonePackToTenant(
       [
         uuidv7(),
         newQuestionId,
-        JSON.stringify(q.content),
+        JSON.stringify(storedContent),
         q.rubric !== null ? JSON.stringify(q.rubric) : null,
         actorUserId,
         q.type,

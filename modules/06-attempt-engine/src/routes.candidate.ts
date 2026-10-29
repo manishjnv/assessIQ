@@ -48,6 +48,8 @@ import {
 } from "./result.js";
 import { getCandidateProgress } from "./progress.js";
 import { getCandidateFeedback } from "./feedback.js";
+import { getAttemptAsset } from "./attempt-assets.js";
+import { assetResponseHeaders } from "@assessiq/question-bank";
 import { AE_ERROR_CODES } from "./types.js";
 import type { RecordEventInput, SaveAnswerInput, ToggleFlagInput } from "./types.js";
 import { plannedDurationSeconds } from "./sections.js";
@@ -467,6 +469,22 @@ export async function registerAttemptCandidateRoutes(
     async (req) => {
       const { id } = req.params as { id: string };
       return getCandidateFeedback(req.session!.tenantId, req.session!.userId, id);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // GET /api/me/attempts/:id/assets/:assetId (EXP-10 part 1)
+  //   200 image bytes - the attempt is the caller's, in progress, and froze a question version that uses the image
+  //   404 ASSET_NOT_FOUND - anything else (same body for every miss)
+  // -------------------------------------------------------------------------
+
+  app.get(
+    "/api/me/attempts/:id/assets/:assetId",
+    { preHandler: candidateOnly },
+    async (req, reply) => {
+      const { id, assetId } = req.params as { id: string; assetId: string };
+      const a = await getAttemptAsset(req.session!.tenantId, req.session!.userId, id, assetId);
+      return reply.headers(assetResponseHeaders(a.mime, a.sha256)).send(a.data);
     },
   );
 

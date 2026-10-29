@@ -27,6 +27,8 @@ export interface FeedbackItem {
   position: number;
   type: string;
   prompt: string;
+  /** EXP-10: true when the prompt holds LaTeX between \( \) marks; the page draws it with the math component. */
+  math: boolean;
   your_answer: string | null;
   outcome: FeedbackOutcome;
   score_earned: number;
@@ -295,6 +297,7 @@ export async function getCandidateFeedback(
         position: r.position,
         type: r.type,
         prompt: promptOf(r.type, r.content),
+        math: isObj(r.content) && r.content["math"] === true,
         your_answer: renderYourAnswer(r.type, r.content, r.answer),
         outcome: outcomeOf(r.status, earned, max),
         score_earned: earned,

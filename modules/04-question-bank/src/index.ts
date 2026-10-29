@@ -189,3 +189,6 @@ export { buildTemplate } from "./import/templates.js";
 export { stageImport, previewImport, getImportReport, fixImportRow, discardImport } from "./import/staging.js";
 export { commitImport } from "./import/commit.js";
 export type { DryRunReport, ParsedRow, RowError } from "./import/types.js";
+export { uploadQuestionAsset, getAssetMeta, getAssetBytes, copyAssetsForContent, assetIdsOf, ASSET_TENANT_MAX_BYTES, ASSET_PACK_MAX_COUNT } from "./assets/assets.js";
+export { cleanImage, cleanAltText, ASSET_MAX_BYTES } from "./assets/image-clean.js";
+export { assetResponseHeaders, registerAssetRoutes } from "./assets/routes.js";

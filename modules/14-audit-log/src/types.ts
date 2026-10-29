@@ -56,6 +56,8 @@ export const ACTION_CATALOG = [
   'question.review_changed',
   'question.takedown_propagated',
   'question.imported',
+  // EXP-10 part 1: an image was uploaded to a question set (no bytes in the row: ids, size, sha256 only).
+  'question.asset.uploaded',
   'question_import.staged',
   'question_import.committed',
   'question_import.discarded',

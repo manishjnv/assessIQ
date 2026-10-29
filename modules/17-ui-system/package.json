@@ -34,6 +34,7 @@
     "vitest-axe": "^0.1.0"
   },
   "dependencies": {
-    "@assessiq/http-client": "workspace:*"
+    "@assessiq/http-client": "workspace:*",
+    "katex": "0.18.11"
   }
 }

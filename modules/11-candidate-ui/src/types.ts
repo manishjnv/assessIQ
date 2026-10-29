@@ -362,6 +362,8 @@ export interface FeedbackItemWire {
   position: number;
   type: string;
   prompt: string;
+  /** EXP-10: prompt holds LaTeX; draw it with the math component. Absent on older servers. */
+  math?: boolean;
   your_answer: string | null;
   outcome: "correct" | "incorrect" | "partial";
   score_earned: number;

@@ -38,6 +38,7 @@ const ids = {
   qa: "", qd: "", qr: "", qp: "", qo: "",
   dom1: "", dom2: "", cat1: "", cat2: "", ps1: "", ps2: "", tag1: "", tag2: "",
   ownPackB: "", ownQB: "",
+  assetActive: "", assetDraft: "", assetFree: "",
 };
 
 async function sup<T>(fn: (c: Client) => Promise<T>): Promise<T> {
@@ -69,7 +70,7 @@ const idsOf = async (c: Client, table: string, col = "id"): Promise<string[]> =>
 
 const STORE_TABLES = [
   "question_packs", "levels", "questions", "question_versions", "question_source",
-  "question_tags", "question_taxonomy", "passages", "domains", "categories", "tags",
+  "question_tags", "question_taxonomy", "passages", "domains", "categories", "tags", "question_assets",
 ];
 
 const content = (label: string) => ({ question: `${label} ${randomUUID()}?`, options: ["a", "b"], correct: 1, rationale: KEY });
@@ -156,6 +157,17 @@ beforeAll(async () => {
     }
     await c.query(`INSERT INTO question_taxonomy (question_id, node_id) SELECT $1, id FROM taxonomy_nodes LIMIT 1`, [ids.qa]).catch(() => undefined);
 
+    // EXP-10: three platform images in P1. One is used by an ACTIVE question's version, one only by the DRAFT question's
+    // version, one by nothing. A licensed tenant may read only the first.
+    const mkAsset = async (n: number): Promise<string> => (await c.query(
+      `INSERT INTO question_assets (tenant_id, pack_id, sha256, mime, byte_size, width, height, alt_text, data)
+       VALUES ($1,$2,$3,'image/png',4,64,64,'Platform test diagram',decode('89504e47','hex')) RETURNING id`,
+      [tP, ids.p1, String(n).padStart(64, "0")])).rows[0].id;
+    ids.assetActive = await mkAsset(1); ids.assetDraft = await mkAsset(2); ids.assetFree = await mkAsset(3);
+    await c.query(`INSERT INTO question_versions (question_id, version, content, saved_by) VALUES ($1,90,$2::jsonb,$3)`,
+      [ids.qa, JSON.stringify({ ...content("img"), stem_assets: [ids.assetActive] }), uP]);
+    await c.query(`INSERT INTO question_versions (question_id, version, content, saved_by) VALUES ($1,90,$2::jsonb,$3)`,
+      [ids.qd, JSON.stringify({ ...content("img"), stem_assets: [ids.assetDraft] }), uP]);
     // entitlements: A by pack, B by domain, D by pack but revoked later
     await c.query(`INSERT INTO tenant_entitlements (tenant_id, scope_type, scope_id) VALUES ($1,'pack',$2)`, [tA, ids.p1]);
     await c.query(`INSERT INTO tenant_entitlements (tenant_id, scope_type, scope_id) VALUES ($1,'domain','soc')`, [tB]);
@@ -200,7 +212,7 @@ const platformRowCount = (c: Client, table: string): Promise<number> => {
 };
 
 describe("EXP-14 phase 2: switch and licence", () => {
-  it("switch off (production default): even a licensed tenant reads no platform row on any of the 11 tables", async () => {
+  it("switch off (production default): even a licensed tenant reads no platform row on any of the 12 tables", async () => {
     await asTenant(tA, async (c) => {
       for (const t of STORE_TABLES) expect(await platformRowCount(c, t)).toBe(0);
     }, "off");
@@ -248,7 +260,7 @@ describe("EXP-14 phase 2: switch and licence", () => {
     });
   });
 
-  it("C (unlicensed) reads nothing of the platform on all 11 tables, even when it sets the switch itself", async () => {
+  it("C (unlicensed) reads nothing of the platform on all 12 tables, even when it sets the switch itself", async () => {
     await asTenant(tC, async (c) => {
       for (const t of STORE_TABLES) expect(await platformRowCount(c, t)).toBe(0);
       expect(await count(c, "questions")).toBe(0);
@@ -463,5 +475,31 @@ describe("EXP-14 phase 2: frozen marks (attempt start)", () => {
   it("new frozen row: a master edit after the freeze cannot change a running test", async () => {
     expect(await startWith(true, false)).toEqual({ points: 3, negative: 0.5 });
     expect(await startWith(true, true)).toEqual({ points: 3, negative: 0.5 });
+  });
+});
+
+describe("EXP-10: question_assets follow the licensed-read rules (A13)", () => {
+  it("A13 switch off: a licensed tenant reads no platform image", async () => {
+    await asTenant(tA, async (c) => { expect(await count(c, "question_assets", `tenant_id = '${tP}'`)).toBe(0); }, "off");
+  });
+  it("A13 licensed tenant A reads only the image used by a VISIBLE question version; draft-only and unused images stay hidden", async () => {
+    await asTenant(tA, async (c) => {
+      expect(await idsOf(c, "question_assets")).toEqual([ids.assetActive]);
+      expect(await count(c, "question_assets", `id = '${ids.assetDraft}'`)).toBe(0);
+      expect(await count(c, "question_assets", `id = '${ids.assetFree}'`)).toBe(0);
+    });
+  });
+  it("A13 unlicensed tenant C and revoked tenant D read no platform image; no tenant can write one", async () => {
+    for (const t of [tC]) await asTenant(t, async (c) => { expect(await count(c, "question_assets", `tenant_id = '${tP}'`)).toBe(0); });
+    await asTenant(tA, async (c) => {
+      expect((await c.query(`UPDATE question_assets SET alt_text = 'changed text' WHERE id = $1`, [ids.assetActive])).rowCount).toBe(0); // no write policy reaches a platform row
+    });
+    await asTenant(tA, async (c) => {
+      const r = await c.query(`DELETE FROM question_assets WHERE id = $1`, [ids.assetActive]);
+      expect(r.rowCount).toBe(0); // visible through licensed_read, but no write policy lets a delete through
+    });
+    await asTenant(tA, async (c) => {
+      await expect(c.query(`INSERT INTO question_assets (tenant_id, pack_id, sha256, mime, byte_size, width, height, alt_text, data) VALUES ($1,$2,$3,'image/png',4,64,64,'forged image text',decode('89504e47','hex'))`, [tP, ids.p1, "f".repeat(64)])).rejects.toThrow();
+    });
   });
 });
