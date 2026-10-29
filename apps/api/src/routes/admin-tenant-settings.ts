@@ -9,6 +9,7 @@
 //   GET   /api/admin/tenant-settings                  — { result_release_mode, result_release_auto_since,
 //                                                         retention_days, company_name }
 //   PATCH /api/admin/tenant-settings/result-release-mode — body { mode: 'manual'|'auto' }  (SP2)
+//   PATCH /api/admin/tenant-settings/candidate-answer-key — body { enabled }  (Z-172)
 //   PATCH /api/admin/tenant-settings/retention-days   — body { retention_days }
 //   PATCH /api/admin/tenant                           — body { name }  (rename own company)
 //   PATCH /api/admin/tenant-settings/accent           — body { primary: '#rrggbb' | null }  (Z-119)
@@ -34,6 +35,7 @@ import {
   updateRetentionDays,
   updateResultReleaseMode,
   updateCertificateShowDistinction,
+  updateCandidateAnswerKey,
   renameTenant,
   setTenantAccent,
   assertTenantActive,
@@ -49,7 +51,7 @@ import { readLogoUpload } from './_logo-upload.js';
 import { runRetentionPurgeForTenant, listErasedCandidates, getAttemptRetentionDays, updateAttemptRetentionDays } from '@assessiq/data-rights';
 import { parseBody, parseQuery } from './_validate.js';
 import { authChain } from '../middleware/auth-chain.js';
-import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, certificateShowDistinctionBody, retentionDaysBody, attemptRetentionDaysBody, accentBody, runNowQuery } from './_schemas.js';
+import { erasedCandidatesQuery, renameOwnTenantBody, resultReleaseModeBody, certificateShowDistinctionBody, candidateAnswerKeyBody, retentionDaysBody, attemptRetentionDaysBody, accentBody, runNowQuery } from './_schemas.js';
 
 // ---------------------------------------------------------------------------
 // Auth chain — tenant admin only, fresh MFA within 15 minutes.
@@ -127,6 +129,7 @@ export async function registerAdminTenantSettingsRoutes(
       result_release_mode: settings.result_release_mode,
       result_release_auto_since: settings.result_release_auto_since,
       certificate_show_distinction: settings.certificate_show_distinction,
+      candidate_answer_key: settings.candidate_answer_key,
       retention_days: settings.retention_days,
       attempt_retention_days: await getAttemptRetentionDays(session.tenantId),
       company_name: tenant.name,
@@ -226,6 +229,34 @@ export async function registerAdminTenantSettingsRoutes(
       return reply.code(200).send({
         tenantId: result.tenantId,
         certificate_show_distinction: result.certificate_show_distinction,
+        previous: result.previous,
+        updatedAt: result.updatedAt,
+        auditId: result.auditId,
+      });
+    },
+  );
+
+  // PATCH /api/admin/tenant-settings/candidate-answer-key   (Z-172)
+  // Let candidates of THIS organisation see the per-question answer key after a released Mock attempt.
+  // Default off. It can only hide more: the assessment's own feedback_level still has to be set.
+  // Body { enabled: boolean }. Tenant + actor come from the session only. One audit row in the same tx.
+  // 200: { tenantId, candidate_answer_key, previous, updatedAt, auditId | null }
+  // 400: INVALID_CANDIDATE_ANSWER_KEY   409: TENANT_NOT_ACTIVE
+  // 403: not admin   401: fresh TOTP required
+  app.patch(
+    '/api/admin/tenant-settings/candidate-answer-key',
+    { preHandler: adminFreshMfa },
+    async (req, reply) => {
+      const session = req.session!;
+      if (session.role !== 'admin') {
+        throw new AuthzError('admin role required', { details: { code: 'ADMIN_REQUIRED' } });
+      }
+      const body = parseBody(candidateAnswerKeyBody, req.body, { code: 'INVALID_CANDIDATE_ANSWER_KEY' });
+      await assertTenantActive(session.tenantId);
+      const result = await updateCandidateAnswerKey(session.userId, session.tenantId, body.enabled);
+      return reply.code(200).send({
+        tenantId: result.tenantId,
+        candidate_answer_key: result.candidate_answer_key,
         previous: result.previous,
         updatedAt: result.updatedAt,
         auditId: result.auditId,

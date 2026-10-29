@@ -38,6 +38,7 @@ const EXEMPT: Record<string, string> = {
   'exam_blueprints.name': 'exam title from the platform blueprint table (EXP-6); platform reference data, no personal data',
   'exam_blueprints.source_note': 'note naming the official exam notice the blueprint was checked against (EXP-6); no personal data',
   'exam_blueprint_sections.name': 'exam section title such as Quant (EXP-6); platform reference data, no personal data',
+  'tenant_settings.candidate_answer_key': 'tenant display setting (candidate answer key switch); no personal data (Z-172)',
   'tenant_settings.result_feedback_level': 'tenant display setting (per-question feedback level); no personal data (S15 RW-80)',
   // Organisation / content data, not candidate personal data
   'oauth_identities.email_verified': 'boolean flag, not an address',

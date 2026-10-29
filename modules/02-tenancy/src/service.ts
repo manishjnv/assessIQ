@@ -1118,3 +1118,80 @@ export async function getTenantLogoBytes(
 ): Promise<{ mime: TenantLogoMeta["mime"]; bytes: Buffer; sha256: string } | null> {
   return withTenant(tenantId, (client) => repo.findLogoBytes(client));
 }
+
+// ---------------------------------------------------------------------------
+// candidate_answer_key (Z-172) - may released Mock attempts show the per-question answer key.
+// ---------------------------------------------------------------------------
+
+export interface UpdateCandidateAnswerKeyResult {
+  tenantId: string;
+  candidate_answer_key: boolean;
+  previous: boolean;
+  updatedAt: Date;
+  /** null on an idempotent no-op (nothing changed, nothing audited). */
+  auditId: string | null;
+}
+
+/** Read `tenant_settings.candidate_answer_key` (default false when no row). */
+export async function getCandidateAnswerKey(tenantId: string): Promise<boolean> {
+  return await withTenant(tenantId, async (client) => {
+    const r = await client.query<{ candidate_answer_key: boolean }>(`SELECT candidate_answer_key FROM tenant_settings LIMIT 1`);
+    return r.rows[0]?.candidate_answer_key ?? false;
+  });
+}
+
+/** One UPDATE and one audit row in the same tx. The role check (admin of this tenant) stays with the caller. */
+export async function updateCandidateAnswerKey(
+  adminUserId: string,
+  targetTenantId: string,
+  enabled: unknown,
+): Promise<UpdateCandidateAnswerKeyResult> {
+  if (typeof enabled !== "boolean") {
+    throw new ValidationError("enabled must be true or false", {
+      details: { code: "INVALID_CANDIDATE_ANSWER_KEY", received: enabled },
+    });
+  }
+  log.info({ targetTenantId, enabled }, "updateCandidateAnswerKey");
+
+  return await withTenant(targetTenantId, async (client) => {
+    const currentRes = await client.query<{ candidate_answer_key: boolean; updated_at: Date }>(
+      `SELECT candidate_answer_key, updated_at FROM tenant_settings LIMIT 1 FOR UPDATE`,
+    );
+    const current = currentRes.rows[0];
+    if (current === undefined) {
+      throw new NotFoundError(`tenant_settings not found for tenant ${targetTenantId}`);
+    }
+    const previous = current.candidate_answer_key;
+    if (previous === enabled) {
+      return { tenantId: targetTenantId, candidate_answer_key: previous, previous, updatedAt: current.updated_at, auditId: null };
+    }
+    const upd = await client.query<{ candidate_answer_key: boolean; updated_at: Date }>(
+      `UPDATE tenant_settings SET candidate_answer_key = $1::boolean, updated_at = now()
+        WHERE tenant_id = $2
+        RETURNING candidate_answer_key, updated_at`,
+      [enabled, targetTenantId],
+    );
+    const row = upd.rows[0];
+    if (row === undefined) {
+      throw new NotFoundError(`tenant_settings row missing after UPDATE for tenant ${targetTenantId}`);
+    }
+    const auditRow = await auditInTx(client, {
+      tenantId: targetTenantId,
+      actorKind: "user",
+      actorUserId: adminUserId,
+      action: "tenant.settings.updated",
+      entityType: "tenant_settings",
+      entityId: targetTenantId,
+      // not named *_key: the audit redactor hides every field that ends in "key"
+      before: { candidate_answer_shown: previous },
+      after: { candidate_answer_shown: row.candidate_answer_key },
+    });
+    return {
+      tenantId: targetTenantId,
+      candidate_answer_key: row.candidate_answer_key,
+      previous,
+      updatedAt: row.updated_at,
+      auditId: auditRow.id,
+    };
+  });
+}

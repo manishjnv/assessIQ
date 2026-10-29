@@ -82,7 +82,7 @@ beforeAll(async () => {
   admin = randomUUID();
   await sup(async (c) => {
     await c.query(`INSERT INTO tenants (id, slug, name) VALUES ($1,'t-elcs','Acme University')`, [tenant]);
-    await c.query(`INSERT INTO tenant_settings (tenant_id) VALUES ($1)`, [tenant]);
+    await c.query(`INSERT INTO tenant_settings (tenant_id, candidate_answer_key) VALUES ($1, true)`, [tenant]);
     await c.query(
       `INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,'a@x.test','Admin','admin','active')`,
       [admin, tenant],

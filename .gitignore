@@ -134,3 +134,6 @@ tools/assessiq-mcp/package-lock.json
 
 # Load-test result JSON (tools/load-test/take-flow.mjs)
 tools/load-test/out/
+
+# Vale style package synced locally by vale sync (never commit)
+.vale/styles/Google/

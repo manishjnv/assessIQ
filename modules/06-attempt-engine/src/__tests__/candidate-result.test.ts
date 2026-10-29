@@ -108,7 +108,7 @@ beforeAll(async () => {
       [tenant, manualTenant, otherTenant],
     );
     await c.query(
-      `INSERT INTO tenant_settings (tenant_id, result_release_mode, result_release_auto_since) VALUES ($1,'auto', now() - interval '1 hour')`,
+      `INSERT INTO tenant_settings (tenant_id, result_release_mode, result_release_auto_since, candidate_answer_key) VALUES ($1,'auto', now() - interval '1 hour', true)`,
       [tenant],
     );
     await c.query(`INSERT INTO tenant_settings (tenant_id) VALUES ($1),($2)`, [manualTenant, otherTenant]);
@@ -277,7 +277,7 @@ describe("getSubmitExpectation (P2: promise the right thing at submit)", () => {
     const t = randomUUID();
     await sup(async (c) => {
       await c.query(`INSERT INTO tenants (id, slug, name) VALUES ($1,$2,'Inconsistent')`, [t, `inc-${t.slice(0, 8)}`]);
-      await c.query(`INSERT INTO tenant_settings (tenant_id, result_release_mode) VALUES ($1,'auto')`, [t]);
+      await c.query(`INSERT INTO tenant_settings (tenant_id, result_release_mode, candidate_answer_key) VALUES ($1,'auto', true)`, [t]);
       await c.query(`INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,'i@x.test','I','admin','active')`, [randomUUID(), t]);
     });
     const adminId = await sup((c) => c.query(`SELECT id FROM users WHERE tenant_id=$1`, [t]).then((r) => r.rows[0].id as string));

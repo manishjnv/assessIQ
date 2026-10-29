@@ -47,6 +47,8 @@ interface ReleasedAttemptRow {
   credential_id: string | null;
   /** Z-145: assessments.settings.feedback_level (null = none). */
   feedback_level: 'none' | 'right_wrong' | 'with_expected_answer' | 'with_ai_justification' | null;
+  /** Z-172: tenant_settings.candidate_answer_key (off = the email never promises a key). */
+  org_key_on: boolean;
   /** Z-121/Z-145: effectiveLevel input, the same one the result page uses. */
   attempt_delivery_mode: string | null;
 }
@@ -78,6 +80,7 @@ export async function sendResultReleasedEmail(input: {
                 s.pass_mark_pct,
                 c.credential_id,
                 asm.settings->>'feedback_level' AS feedback_level,
+                COALESCE((SELECT ts.candidate_answer_key FROM tenant_settings ts WHERE ts.tenant_id = a.tenant_id), false) AS org_key_on,
                 a.delivery_mode   AS attempt_delivery_mode
            FROM attempts a
            JOIN users u        ON u.id   = a.user_id
@@ -151,6 +154,7 @@ export async function sendResultReleasedEmail(input: {
         feedbackLevel: effectiveLevel(toFeedbackLevel(row.feedback_level), {
           isMockAttempt: row.attempt_delivery_mode === 'mock',
           isEmbed: row.embed_origin,
+          orgKeyOn: row.org_key_on === true,
         }),
         portalLink: buttonLink,
         ...(row.credential_id !== null

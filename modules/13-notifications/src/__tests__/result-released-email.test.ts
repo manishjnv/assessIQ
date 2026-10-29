@@ -60,7 +60,7 @@ beforeAll(async () => {
   admin = randomUUID();
   await sup(async (c) => {
     await c.query(`INSERT INTO tenants (id, slug, name) VALUES ($1,$2,'Acme University'),($3,'other','Other')`, [tenant, SLUG, otherTenant]);
-    await c.query(`INSERT INTO tenant_settings (tenant_id) VALUES ($1),($2) ON CONFLICT DO NOTHING`, [tenant, otherTenant]);
+    await c.query(`INSERT INTO tenant_settings (tenant_id, candidate_answer_key) VALUES ($1, true),($2, true) ON CONFLICT DO NOTHING`, [tenant, otherTenant]);
     await c.query(
       `INSERT INTO users (id, tenant_id, email, name, role, status) VALUES ($1,$2,'a@acme.test','A','admin','active')`,
       [admin, tenant],

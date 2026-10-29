@@ -182,6 +182,12 @@ export const certificateShowDistinctionBody = z.object({
     invalid_type_error: 'enabled must be true or false',
   }),
 });
+export const candidateAnswerKeyBody = z.object({
+  enabled: z.boolean({
+    required_error: 'enabled is required',
+    invalid_type_error: 'enabled must be true or false',
+  }),
+});
 export const retentionDaysBody = z.object({
   retention_days: z.number({
     required_error: 'retention_days is required',

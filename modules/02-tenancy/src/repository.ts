@@ -4,7 +4,7 @@ import type { Tenant, TenantSettings } from "./types.js";
 
 const TENANT_COLUMNS = `id, slug, name, domain, branding, status, created_at, updated_at`;
 
-const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, ai_grading_scope, retention_days, result_release_mode, result_release_auto_since, certificate_show_distinction, updated_at`;
+const SETTINGS_COLUMNS = `tenant_id, auth_methods, ai_grading_enabled, ai_model_tier, features, webhook_secret, data_region, ai_generate_mode, ai_grading_scope, retention_days, result_release_mode, result_release_auto_since, certificate_show_distinction, candidate_answer_key, updated_at`;
 
 interface TenantRow {
   id: string;
@@ -31,6 +31,7 @@ interface SettingsRow {
   result_release_mode: string;
   result_release_auto_since: Date | null;
   certificate_show_distinction: boolean;
+  candidate_answer_key: boolean;
   updated_at: Date;
 }
 
@@ -64,6 +65,7 @@ function mapSettingsRow(row: SettingsRow): TenantSettings {
     result_release_mode: row.result_release_mode as TenantSettings["result_release_mode"],
     result_release_auto_since: row.result_release_auto_since,
     certificate_show_distinction: row.certificate_show_distinction,
+    candidate_answer_key: row.candidate_answer_key,
     updated_at: row.updated_at,
   };
 }

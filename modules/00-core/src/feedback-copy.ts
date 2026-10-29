@@ -35,10 +35,12 @@ export const FEEDBACK_LEVEL_RANK: Record<FeedbackLevel, number> = {
 /**
  * Z-145/Z-148: the level a candidate sees. Only a Mock attempt that is not an embed
  * attempt gets the assessment's own level. A Real attempt or any embed attempt gets none.
+ * Z-172: `orgKeyOn` is tenant_settings.candidate_answer_key. Off means none, whatever the assessment says,
+ * so the organisation switch can only hide more. Required (no default) so a call site cannot forget it.
  */
 export function effectiveLevel(
   level: FeedbackLevel,
-  ctx: { isMockAttempt: boolean; isEmbed: boolean },
+  ctx: { isMockAttempt: boolean; isEmbed: boolean; orgKeyOn: boolean },
 ): FeedbackLevel {
-  return ctx.isMockAttempt && !ctx.isEmbed ? level : "none";
+  return ctx.orgKeyOn && ctx.isMockAttempt && !ctx.isEmbed ? level : "none";
 }

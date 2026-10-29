@@ -335,6 +335,8 @@ interface RetakeRow {
   assessment_status: string;
   /** Z-145: assessments.settings.feedback_level (null = none). */
   feedback_level: string | null;
+  /** Z-172: tenant_settings.candidate_answer_key, read in the same query. */
+  org_key_on: boolean;
   max_attempts: number | null;
   attempt_number: number;
   latest_attempt_number: number;
@@ -378,6 +380,7 @@ async function loadCandidateResult(
                 asm.id AS assessment_id,
                 asm.status AS assessment_status,
                 asm.settings->>'feedback_level' AS feedback_level,
+                COALESCE((SELECT ts.candidate_answer_key FROM tenant_settings ts WHERE ts.tenant_id = asm.tenant_id), false) AS org_key_on,
                 asm.max_attempts,
                 a.attempt_number,
                 (SELECT max(t.attempt_number) FROM attempts t
@@ -419,6 +422,7 @@ async function loadCandidateResult(
         const feedbackLevel = effectiveLevel(toFeedbackLevel(r.feedback_level), {
           isMockAttempt: attempt.delivery_mode === "mock",
           isEmbed: attempt.embed_origin,
+          orgKeyOn: r.org_key_on === true,
         });
         return {
           status: "released",
@@ -461,7 +465,7 @@ export async function listCandidateResults(
   userId: string,
 ): Promise<{ items: ResultListItem[] }> {
   return withTenant(tenantId, async (client) => {
-    const res = await client.query<ReleasedRow & { attempt_id: string; is_new: boolean; delivery_mode: string; embed_origin: boolean; feedback_level: string | null }>(
+    const res = await client.query<ReleasedRow & { attempt_id: string; is_new: boolean; delivery_mode: string; embed_origin: boolean; feedback_level: string | null; org_key_on: boolean }>(
       `SELECT a.id AS attempt_id,
               asm.name AS assessment_name,
               s.total_earned::text AS total_earned,
@@ -472,6 +476,7 @@ export async function listCandidateResults(
               a.delivery_mode,
               a.embed_origin,
               asm.settings->>'feedback_level' AS feedback_level,
+              COALESCE((SELECT ts.candidate_answer_key FROM tenant_settings ts WHERE ts.tenant_id = asm.tenant_id), false) AS org_key_on,
               c.credential_id
          FROM attempts a
          JOIN assessments asm ON asm.id = a.assessment_id
@@ -504,6 +509,7 @@ export async function listCandidateResults(
           feedback_level: effectiveLevel(toFeedbackLevel(r.feedback_level), {
             isMockAttempt: r.delivery_mode === "mock",
             isEmbed: r.embed_origin,
+            orgKeyOn: r.org_key_on === true,
           }),
         };
       }),

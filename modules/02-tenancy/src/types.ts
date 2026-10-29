@@ -106,5 +106,10 @@ export interface TenantSettings {
    * updateCertificateShowDistinction (audited).
    */
   certificate_show_distinction: boolean;
+  /**
+   * Z-172 (migration 0283): released Mock attempts may show the per-question answer key. Default false.
+   * Changed by updateCandidateAnswerKey (audited).
+   */
+  candidate_answer_key: boolean;
   updated_at: Date;
 }

@@ -89,7 +89,7 @@ beforeAll(async () => {
       [tenant, manualTenant, otherTenant],
     );
     await c.query(
-      `INSERT INTO tenant_settings (tenant_id, result_release_mode, result_release_auto_since) VALUES ($1,'auto', now() - interval '1 hour')`,
+      `INSERT INTO tenant_settings (tenant_id, result_release_mode, result_release_auto_since, candidate_answer_key) VALUES ($1,'auto', now() - interval '1 hour', true)`,
       [tenant],
     );
     await c.query(`INSERT INTO tenant_settings (tenant_id) VALUES ($1),($2)`, [manualTenant, otherTenant]);

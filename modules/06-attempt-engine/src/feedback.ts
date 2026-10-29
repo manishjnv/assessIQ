@@ -15,7 +15,7 @@
 
 import { ConflictError, NotFoundError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
-import { isQuestionType, QUESTION_TYPE_REGISTRY } from "@assessiq/question-types";
+import { isQuestionType, licensedQuestionSql, QUESTION_TYPE_REGISTRY } from "@assessiq/question-types";
 import * as repo from "./repository.js";
 import { AE_ERROR_CODES } from "./types.js";
 import { effectiveLevel, FEEDBACK_LEVEL_RANK, toFeedbackLevel, type FeedbackLevel } from "@assessiq/core/feedback-copy";
@@ -204,12 +204,14 @@ interface Row {
   reasoning_band: number | null;
   error_class: string | null;
   grader: string;
+  licensed: boolean;
 }
 
 const ITEMS_SQL = `SELECT aq.question_id, aq.position, qv.type, q.topic, qv.content,
         aa.answer,
         g.status, g.score_earned::text AS score_earned, g.score_max::text AS score_max,
-        g.ai_justification, g.reasoning_band, g.error_class, g.grader
+        g.ai_justification, g.reasoning_band, g.error_class, g.grader,
+        ${licensedQuestionSql("q")} AS licensed
    FROM attempt_questions aq
    JOIN question_versions qv ON qv.question_id = aq.question_id AND qv.version = aq.question_version
    JOIN questions q ON q.id = aq.question_id
@@ -256,14 +258,18 @@ export async function getCandidateFeedback(
     if (attempt.status !== "released" || score.rows.length === 0) {
       throw new ConflictError("The result is not ready yet.", { details: { code: "RESULT_NOT_READY" } });
     }
-    const asm = await client.query<{ feedback_level: FeedbackLevel | null }>(
-      `SELECT settings->>'feedback_level' AS feedback_level FROM assessments WHERE id = $1`,
+    // Z-172: the organisation switch is read in THIS transaction, so a toggle cannot split a read.
+    const asm = await client.query<{ feedback_level: FeedbackLevel | null; org_key_on: boolean }>(
+      `SELECT settings->>'feedback_level' AS feedback_level,
+              COALESCE((SELECT ts.candidate_answer_key FROM tenant_settings ts WHERE ts.tenant_id = assessments.tenant_id), false) AS org_key_on
+         FROM assessments WHERE id = $1`,
       [attempt.assessment_id],
     );
     // Z-145/Z-148: only a Mock attempt that is not embed gets the assessment's own level.
     const level = effectiveLevel(toFeedbackLevel(asm.rows[0]?.feedback_level), {
       isMockAttempt: attempt.delivery_mode === "mock",
       isEmbed: attempt.embed_origin,
+      orgKeyOn: asm.rows[0]?.org_key_on === true,
     });
     const rank = FEEDBACK_LEVEL_RANK[level];
     if (rank === 0) return { level, items: [] };
@@ -293,9 +299,10 @@ export async function getCandidateFeedback(
         outcome: outcomeOf(r.status, earned, max),
         score_earned: earned,
         score_max: max,
-        expected_answer: rank >= 2 && def?.scoring === "deterministic" ? renderExpectedAnswer(r.type, r.content) : null,
+        // Z-172 (FUT-2): licensed (platform-owned) content never shows its expected answer or explanation to a candidate.
+        expected_answer: rank >= 2 && !r.licensed && def?.scoring === "deterministic" ? renderExpectedAnswer(r.type, r.content) : null,
         explanation:
-          rank >= 3 && def?.scoring === "ai" ? plainWords(r.grader === "admin_override" ? null : r.ai_justification, r.reasoning_band, r.error_class) : null,
+          rank >= 3 && !r.licensed && def?.scoring === "ai" ? plainWords(r.grader === "admin_override" ? null : r.ai_justification, r.reasoning_band, r.error_class) : null,
         study: { unit: st?.unit ?? null, subject: st?.subject ?? null, topic: r.topic },
       };
     });
