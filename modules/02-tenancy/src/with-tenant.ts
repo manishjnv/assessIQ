@@ -1,6 +1,6 @@
 import type { PoolClient } from "pg";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ValidationError, UUID_RE, streamLogger } from "@assessiq/core";
+import { ValidationError, UUID_RE, streamLogger, config } from "@assessiq/core";
 import { getPool, getSystemPool } from "./pool.js";
 
 const log = streamLogger("app");
@@ -123,9 +123,11 @@ export async function withTenant<T>(
     "tenant",
     async (client) => {
       await client.query("SET LOCAL ROLE assessiq_app");
-      await client.query("SELECT set_config('app.current_tenant', $1, true)", [
-        tenantId,
-      ]);
+      // One round trip. app.licensed_read gates the licensed_read RLS policies (EXP-14 phase 2, default off).
+      await client.query(
+        "SELECT set_config('app.current_tenant', $1, true), set_config('app.licensed_read', $2, true)",
+        [tenantId, config.LICENSED_READ ? "on" : "off"],
+      );
     },
     fn,
   );

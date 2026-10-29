@@ -191,3 +191,7 @@ New exports (`src/camera.ts`): `getCameraTenantSettings(tenantId)` returns `{isS
 ## `tenants.is_platform` (EXP-14 phase 1, migration 0276, 2026-10-29)
 
 Exactly one tenant (slug `platform`) has `is_platform = true` (unique partial index). The licensed-read function (phase 2) reads this column to know the owner of the master question store. Do not use a session setting for this. A startup assert that this row equals `PLATFORM_TENANT_ID` comes with phase 2.
+
+## `app.licensed_read` (EXP-14 phase 2, 2026-10-29)
+
+`withTenant` and the tenant middleware set a second transaction setting, `app.licensed_read` ('on' when env `LICENSED_READ=true`, else 'off'), in the same `set_config` call as `app.current_tenant`. It only switches the `licensed_read` SELECT policies of the question store on or off; who may read is decided by the entitlement functions. Never use it as an authorisation check in code.

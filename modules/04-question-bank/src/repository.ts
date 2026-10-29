@@ -688,6 +688,12 @@ function buildQuestionWhere(filters: ListQuestionsInput, exclude?: FilterKey, fo
   let qParam = 0;
   const bind = (v: unknown): string => { values.push(v); return `$${i++}`; };
 
+  // EXP-14 phase 2: the admin bank lists the tenant's own questions plus platform questions of packs the
+  // organisation holds an ACTIVE entitlement for. "Licensed" never means "any platform question": rows that
+  // are readable only because a running test pins them (after a revoke) stay out of the list.
+  conditions.push(
+    `(q.tenant_id = current_setting('app.current_tenant', true)::uuid OR q.pack_id = ANY((SELECT licensed_pack_ids())::uuid[]))`,
+  );
   if (filters.pack_id !== undefined) conditions.push(`q.pack_id = ${bind(filters.pack_id)}`);
   if (filters.level_id !== undefined) conditions.push(`q.level_id = ${bind(filters.level_id)}`);
   if (filters.type !== undefined && exclude !== "type") conditions.push(`q.type = ${bind(filters.type)}`);

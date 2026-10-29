@@ -103,8 +103,8 @@ export function tenantContextMiddleware(): TenantContextHooks {
         await client.query("BEGIN");
         await client.query("SET LOCAL ROLE assessiq_app");
         await client.query(
-          "SELECT set_config('app.current_tenant', $1, true)",
-          [tenantId],
+          "SELECT set_config('app.current_tenant', $1, true), set_config('app.licensed_read', $2, true)",
+          [tenantId, config.LICENSED_READ ? "on" : "off"],
         );
       } catch (err) {
         // Setup failed mid-transaction; release the client immediately and

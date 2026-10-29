@@ -112,6 +112,9 @@ export async function listUnverifiedPoolQuestions(
   // Race guard: share-lock the pool rows (id order, same as the review writers) so a concurrent
   // Needs fix / verify cannot change a row between this check and the freeze that follows. A review
   // write waits for our commit; if it committed first, the check below reads its result.
+  // EXP-14: FOR SHARE needs UPDATE-policy visibility, so rows of a licensed PLATFORM pack (readable through the
+  // licensed_read SELECT policy only) are skipped silently. The lock still covers every row the tenant owns; the
+  // check below reads the verified state as it stands at the freeze. A later master edit is post-freeze by design.
   await lockOrRetry(
     client,
     `SELECT id FROM questions WHERE pack_id = $1 AND level_id = $2 AND status = 'active' ORDER BY id FOR SHARE`,
@@ -137,6 +140,9 @@ export async function listUnverifiedFrozenQuestions(
   assessmentId: string,
   cap = 50,
 ): Promise<{ count: number; ids: string[] }> {
+  // EXP-14: lock the assessment row first (serialises two freezes / publishes of the same assessment even when
+  // every pool row is a platform row that FOR SHARE would skip), then the tenant's own question rows.
+  await lockOrRetry(client, `SELECT id FROM assessments WHERE id = $1 FOR SHARE`, [assessmentId]);
   await lockOrRetry(
     client,
     `SELECT q.id FROM assessment_frozen_pool f JOIN questions q ON q.id = f.question_id

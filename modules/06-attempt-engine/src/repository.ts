@@ -402,6 +402,19 @@ export async function listTenantsWithExpiredAttempts(
 // Attempt-questions queries
 // ---------------------------------------------------------------------------
 
+/**
+ * EXP-14: marks of a picked question come from the assessment's FROZEN pool row (copied at publish), so a
+ * master edit of a shared question cannot change a running test. Pool rows frozen before 0279 have
+ * marks_frozen = false and keep reading the live question exactly as before (old tests score the same).
+ * `$1` is the attempt id.
+ */
+function FROZEN_MARKS_SQL(frozen: string, qParam: string): string {
+  return `(SELECT ${frozen} FROM questions q
+             LEFT JOIN assessment_frozen_pool fp ON fp.question_id = q.id
+              AND fp.assessment_id = (SELECT assessment_id FROM attempts WHERE id = $1::uuid)
+            WHERE q.id = ${qParam}::uuid)`;
+}
+
 export async function insertAttemptQuestions(
   client: PoolClient,
   attemptId: string,
@@ -434,7 +447,7 @@ export async function insertAttemptQuestions(
     // points = the question's points AT START (E12): scoring reads this frozen copy, never live questions.points.
     // negative_marks (EX-1, 0185) = the question's own penalty, else the assessment default, frozen the same way.
     placeholders.push(
-      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], COALESCE($${i + 1}::numeric, (SELECT points FROM questions WHERE id = $${i - 4}::uuid)), COALESCE($${i + 2}::numeric, (SELECT negative_marks FROM questions WHERE id = $${i - 4}::uuid), $${defaultIdx}::numeric), $${i++}::smallint, $${i + 2}::uuid)`,
+      `($${i++}, $${i++}::uuid, $${i++}, $${i++}, $${i++}::smallint[], COALESCE($${i + 1}::numeric, ${FROZEN_MARKS_SQL("CASE WHEN fp.marks_frozen THEN fp.points ELSE q.points END", `$${i - 4}`)}), COALESCE($${i + 2}::numeric, ${FROZEN_MARKS_SQL("CASE WHEN fp.marks_frozen THEN fp.negative_marks ELSE q.negative_marks END", `$${i - 4}`)}, $${defaultIdx}::numeric), $${i++}::smallint, $${i + 2}::uuid)`,
     );
     i += 3; // the two override parameters, referenced above by index
     values.push(attemptId, r.questionId, r.position, r.questionVersion, r.optionOrder ?? null, r.sectionIndex ?? null, r.pointsOverride ?? null, r.negativeOverride ?? null, r.passageId ?? null);

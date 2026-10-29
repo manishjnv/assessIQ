@@ -156,6 +156,14 @@ const ConfigSchema = z
       .transform((s) => s === "true"),
     // PT1: plan-tier gates and limits (modules/19-billing). false = every gate
     // is a no-op and the API behaves as before tiers existed.
+    // EXP-14 phase 2: when "true", every tenant transaction sets app.licensed_read = 'on', which switches ON
+    // the licensed_read RLS policies (0280) that let a licensed tenant read platform packs. Default off:
+    // the policies exist but stay dormant, so nothing changes until the owner flips the switch (clone-on-grant
+    // keeps running until then). Not a store mode: it only gates visibility.
+    LICENSED_READ: z
+      .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false"))
+      .transform((s) => s === "true"),
+
     PLAN_TIERS_ENFORCED: z
       .preprocess((v) => (v === "" ? undefined : v), z.enum(["true", "false"]).default("false")) // blank .env line = unset
       .transform((s) => s === "true"),
