@@ -54,6 +54,8 @@ const TENANT_FILTER = "current_setting('app.current_tenant'";
  * (read-only). Do not use it anywhere else.
  */
 const ALLOW_MARKER = '-- mv-tenant-filter: allow cross-tenant (super_admin roll-up, RW-60)';
+// EXP-14 D12: the shared item stats helper (tenant caller, system role, minimum 5 attempts) is the one other audited cross-tenant read.
+const ALLOW_MARKER_FLOORED = '-- mv-tenant-filter: allow cross-tenant (shared item stats with a floor, EXP-14 D12)';
 
 // ---------------------------------------------------------------------------
 // Scanning
@@ -117,7 +119,7 @@ function checkFileContent(filePath: string, source: string): Violation[] {
 
   for (const block of templateBlocks) {
     if (MV_NAMES.some((n) => block.content.includes(n))) {
-      if (!block.content.includes(TENANT_FILTER) && !block.content.includes(ALLOW_MARKER)) {
+      if (!block.content.includes(TENANT_FILTER) && !block.content.includes(ALLOW_MARKER) && !block.content.includes(ALLOW_MARKER_FLOORED)) {
         const lineNum = source.slice(0, block.start).split('\n').length;
         violations.push({
           file: filePath,
@@ -136,7 +138,7 @@ function checkFileContent(filePath: string, source: string): Violation[] {
   const stringBlocks = extractStringLiterals(source);
   for (const block of stringBlocks) {
     if (MV_NAMES.some((n) => block.content.includes(n))) {
-      if (!block.content.includes(TENANT_FILTER) && !block.content.includes(ALLOW_MARKER)) {
+      if (!block.content.includes(TENANT_FILTER) && !block.content.includes(ALLOW_MARKER) && !block.content.includes(ALLOW_MARKER_FLOORED)) {
         const lineNum = source.slice(0, block.start).split('\n').length;
         violations.push({
           file: filePath,
