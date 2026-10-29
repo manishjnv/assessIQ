@@ -509,3 +509,11 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - **Rejected.** A new endpoint; reading the colour from the session (token candidates have none).
 - **Not included.** Any change to how the colour is stored or validated (module 02 and the admin settings still own that; the client refuses a colour below 4.5:1 with white).
 - **Downstream.** `modules/11-candidate-ui/src/types.ts` wire types; `apps/web/src/pages/take/useOrgAccent.ts`.
+
+## Z-172 candidate answer key (S76, 2026-10-29)
+
+- The candidate review (`getCandidateFeedback` in `feedback.ts`) and the result payload (`result.ts`, two sites) call `effectiveLevel(level, {isMockAttempt, isEmbed, orgKeyOn})`. `orgKeyOn` comes from `tenant_settings.candidate_answer_key`, read in the same query as the level (`org_key_on`). Off means level `none`.
+- Licensed questions (FUT-2 `licensedQuestionSql("q")`): `expected_answer` and `explanation` are `null`; right/wrong and the candidate's own answer stay. Tightens Z-145 for cloned content.
+- The key never goes into attempt, take or submit payloads; `routes.take` does not import feedback. Test: `__tests__/answer-key-setting.test.ts`.
+- Do not add a second read of the flag in another transaction (toggle race).
+- Full record: `docs/plans/exam-engine-ui-plan.md` "Phase 6 build record (Z-172)".

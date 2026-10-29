@@ -195,3 +195,9 @@ Exactly one tenant (slug `platform`) has `is_platform = true` (unique partial in
 ## `app.licensed_read` (EXP-14 phase 2, 2026-10-29)
 
 `withTenant` and the tenant middleware set a second transaction setting, `app.licensed_read` ('on' when env `LICENSED_READ=true`, else 'off'), in the same `set_config` call as `app.current_tenant`. It only switches the `licensed_read` SELECT policies of the question store on or off; who may read is decided by the entitlement functions. Never use it as an authorisation check in code.
+
+## Z-172 candidate_answer_key (migration 0283, 2026-10-29)
+
+- Column `tenant_settings.candidate_answer_key` (default false). `getCandidateAnswerKey(tenantId)` and `updateCandidateAnswerKey(adminUserId, tenantId, enabled)`: boolean check (`INVALID_CANDIDATE_ANSWER_KEY`), `FOR UPDATE`, no-op returns `auditId: null`, audit `before/after = {candidate_answer_shown}` (not `...key`: the redactor hides those names).
+- Route `PATCH /api/admin/tenant-settings/candidate-answer-key` (admin, fresh MFA). Pattern copied from `certificate_show_distinction`.
+- Readers: modules 06 and 13 only. See `docs/02-data-model.md` and the Z-172 build record in `docs/plans/exam-engine-ui-plan.md`.
