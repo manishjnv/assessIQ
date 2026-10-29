@@ -195,6 +195,8 @@ const NO_WRITE_VERB_ALLOWLIST: Readonly<Record<string, { verbs: readonly Verb[];
 
 interface TableState {
   tenantBearing: boolean;
+  /** EXP-14: the CREATE TABLE has a pack_id column (a child of the question store). */
+  hasPackId?: boolean;
   rlsEnabled: boolean;
   file: string;
   /** policy name -> verb ("all" covers every verb) + body text */
@@ -238,6 +240,7 @@ function analyseMigrations(files: ReadonlyArray<{ file: string; content: string 
         const st = get(m[1].toLowerCase());
         st.file = file;
         if (/\btenant_id\b/i.test(m[2]!)) st.tenantBearing = true;
+        if (/\bpack_id\b/i.test(m[2]!)) st.hasPackId = true;
       } else if (m[3] !== undefined) {
         get(m[3].toLowerCase()).rlsEnabled = true;
       } else if (m[4] !== undefined) {
@@ -289,6 +292,54 @@ function checkTables(
     if (missing.length > 0) out.push({ file: st.file, tableName: name, missing });
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// EXP-14 phase 2: licensed-read policy family. A licensed tenant may read platform question-store rows only
+// through a `licensed_read` policy: FOR SELECT, behind the app.licensed_read switch, deciding WHO through one
+// of the three helper functions. No write verb may ever carry the licensed rule.
+// ---------------------------------------------------------------------------
+const LICENSED_READ_TABLES: ReadonlySet<string> = new Set([
+  "question_packs", "levels", "questions", "question_versions", "question_source",
+  "question_tags", "question_taxonomy", "passages", "domains", "categories", "tags",
+]);
+const LICENSED_FUNCTIONS = ["licensed_pack_ids", "readable_platform_packs", "licensed_platform_tenant"];
+/** Tables with a pack_id column that are NOT part of the question store (each with its reason). */
+const PACK_ID_NOT_QUESTION_STORE: Readonly<Record<string, string>> = {
+  assessments: "tenant-owned assessment row; names the pack it was built from",
+  assessment_frozen_pool: "tenant-owned frozen copy of the pool",
+  generation_attempts: "tenant-owned log of super-admin generation runs; never read by a licensed tenant",
+};
+
+function checkLicensedRead(tables: Map<string, TableState>): string[] {
+  const errors: string[] = [];
+  for (const name of LICENSED_READ_TABLES) {
+    const st = tables.get(name);
+    const p = st?.policies.get("licensed_read");
+    if (!st || !p) {
+      errors.push(`${name}: missing licensed_read policy (EXP-14: every question-store table needs one)`);
+      continue;
+    }
+    if (p.verb !== "select") errors.push(`${name}: licensed_read must be FOR SELECT (found ${p.verb})`);
+    if (!/app\.licensed_read/i.test(p.body)) errors.push(`${name}: licensed_read must check the app.licensed_read switch`);
+    if (!LICENSED_FUNCTIONS.some((f) => new RegExp(String.raw`\b${f}\s*\(`, "i").test(p.body))) {
+      errors.push(`${name}: licensed_read must decide through ${LICENSED_FUNCTIONS.join(" / ")}`);
+    }
+  }
+  // Module 05 adds the pinned-question policy on questions (assessment_frozen_pool is a module 05 table).
+  const pinned = tables.get("questions")?.policies.get("licensed_read_pinned");
+  if (pinned !== undefined) {
+    if (pinned.verb !== "select") errors.push(`questions: licensed_read_pinned must be FOR SELECT (found ${pinned.verb})`);
+    if (!/app\.licensed_read/i.test(pinned.body)) errors.push("questions: licensed_read_pinned must check the app.licensed_read switch");
+  }
+  for (const [name, st] of tables) {
+    if (LICENSED_READ_TABLES.has(name)) continue;
+    if (st.policies.has("licensed_read")) errors.push(`${name}: licensed_read is only for the question-store tables`);
+    if (st.hasPackId === true && PACK_ID_NOT_QUESTION_STORE[name] === undefined) {
+      errors.push(`${name}: new table with a pack_id column: add a licensed_read policy and list it in LICENSED_READ_TABLES, or list it in PACK_ID_NOT_QUESTION_STORE with a reason`);
+    }
+  }
+  return errors;
 }
 
 /** A listed verb that is now covered by a policy (or whose table is gone) is stale: remove the entry. */
@@ -734,6 +785,29 @@ CREATE POLICY tenant_isolation_insert ON public.questions
     }
   }
 
+  // EXP-14 licensed_read fixtures: a write verb, a missing switch and a new pack_id table are all refused.
+  const lrBase = (extra: string): Map<string, TableState> =>
+    analyseMigrations([{ file: "x.sql", content: extra }]);
+  const lrCases: Array<[string, boolean]> = [
+    ["FOR ALL licensed_read is refused", checkLicensedRead(lrBase(
+      `CREATE TABLE questions (id uuid); ALTER TABLE questions ENABLE ROW LEVEL SECURITY;
+       CREATE POLICY licensed_read ON questions FOR ALL USING (current_setting('app.licensed_read', true) = 'on' AND pack_id = ANY((SELECT licensed_pack_ids())));`,
+    )).some((e) => e.startsWith("questions: licensed_read must be FOR SELECT"))],
+    ["missing switch is refused", checkLicensedRead(lrBase(
+      `CREATE TABLE questions (id uuid); CREATE POLICY licensed_read ON questions FOR SELECT USING (pack_id = ANY((SELECT licensed_pack_ids())));`,
+    )).some((e) => e.includes("app.licensed_read switch"))],
+    ["new pack_id table is refused", checkLicensedRead(lrBase(
+      `CREATE TABLE new_thing (id uuid, pack_id uuid);`,
+    )).some((e) => e.startsWith("new_thing: new table with a pack_id column"))],
+  ];
+  for (const [name, ok] of lrCases) {
+    if (ok) process.stdout.write(`  PASS: licensed_read fixture — ${name} (expected)\n`);
+    else {
+      process.stderr.write(`FAIL: licensed_read fixture — ${name}\n`);
+      passed = false;
+    }
+  }
+
   if (passed) {
     process.stdout.write("RLS policy linter self-test: PASSED\n");
     process.exit(0);
@@ -762,7 +836,7 @@ async function main(): Promise<void> {
   const tenantBearingTables = [...tables.values()].filter((t) => t.tenantBearing).length;
   const joinBasedTables = [...tables.keys()].filter((n) => JOIN_RLS_TABLES.has(n)).length;
 
-  const poolErrors = await scanPoolConnect();
+  const poolErrors = [...(await scanPoolConnect()), ...checkLicensedRead(tables)];
 
   if (allViolations.length > 0 || poolErrors.length > 0) {
     for (const v of allViolations) {

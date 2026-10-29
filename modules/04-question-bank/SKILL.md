@@ -475,3 +475,7 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 ## FUT-2 key hiding (2026-10-29)
 
 Admin read routes return licensed questions (cloned: `source_question_id` set, or another tenant's) without key, rubric, translations, `source_ref` and `source_url` unless the caller is `super_admin`. Mechanism: `licensedQuestionSql(alias)`, `redactMasterKey(row)`, `adminViewFor(type, content)` and `mayReadMasterKey(role)` in `packages/question-types/src/licensed.ts` and `registry.ts`. Services take an optional `viewerRole`; only route handlers pass it. New admin read routes that return `content` or `rubric` MUST do the same (see `docs/03-api-contract.md` FUT-2). Per-organisation read bucket: `questionReadGuard` option, wired in `apps/api/src/server.ts`. Test: `src/__tests__/fut2-key-hiding.test.ts`.
+
+## EXP-14 phase 2: licensed read (2026-10-29)
+
+Platform packs are readable by a licensed tenant through `licensed_read` SELECT policies (0280), decided by `licensed_pack_ids()` / `readable_platform_packs()` / `licensed_platform_tenant()` (0279), and only while the env flag `LICENSED_READ` is on (default off). Rules, rollback and tests: `docs/02-data-model.md` section "EXP-14 phase 2". A NEW table that carries `pack_id` must get its own `licensed_read` policy (the lint refuses it otherwise). Do not add a write policy that depends on these functions. Admin list code must go through `buildQuestionWhere` (entitlement filter).

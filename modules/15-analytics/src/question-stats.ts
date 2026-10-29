@@ -239,3 +239,49 @@ async function getRollup(questionId: string, cloneCount: number): Promise<Questi
     return assemble(qr, row, g.rows, 'rollup', cloneCount);
   });
 }
+
+// ---------------------------------------------------------------------------
+// EXP-14 / D12: shared item statistics for a licensed question, for a TENANT caller.
+// No route calls this yet (EXP-13 calibration will). Rules:
+//  - the caller tenant must be able to SEE the question (RLS decides: own question or licensed platform
+//    question), so an unlicensed tenant gets null for any id;
+//  - the aggregate spans every tenant (the question itself plus its clones), read-only under the system role;
+//  - it is returned only when the total number of attempts reaches SHARED_STATS_FLOOR, so one tenant cannot
+//    infer another tenant's cohort from a handful of attempts. Below the floor: null, never a partial number.
+// ---------------------------------------------------------------------------
+export const SHARED_STATS_FLOOR = 5;
+
+export interface SharedItemStats {
+  attempts: number;
+  correct_rate: number | null;
+  mean_band: number | null;
+}
+
+export async function getSharedItemStats(tenantId: string, questionId: string): Promise<SharedItemStats | null> {
+  const visible = await withTenant(tenantId, async (client) => {
+    const r = await client.query(`SELECT 1 FROM questions WHERE id = $1`, [questionId]);
+    return (r.rowCount ?? 0) > 0;
+  });
+  if (!visible) return null;
+
+  return withSystemRole('shared item stats with a minimum-attempt floor (read-only)', async (client) => {
+    await client.query('SET TRANSACTION READ ONLY');
+    const r = await client.query<{ attempts: string; correct_rate: string | null; mean_band: string | null }>(
+      `-- mv-tenant-filter: allow cross-tenant (shared item stats with a floor, EXP-14 D12)
+       SELECT COALESCE(SUM(attempts), 0)::text AS attempts,
+              SUM(correct_count)::numeric / NULLIF(SUM(attempts), 0) AS correct_rate,
+              SUM(mean_band * attempts) / NULLIF(SUM(attempts) FILTER (WHERE mean_band IS NOT NULL), 0) AS mean_band
+         FROM question_stats_mv
+        WHERE question_id = $1 OR source_question_id = $1`,
+      [questionId],
+    );
+    const row = r.rows[0];
+    const attempts = Number(row?.attempts ?? 0);
+    if (row === undefined || attempts < SHARED_STATS_FLOOR) return null;
+    return {
+      attempts,
+      correct_rate: row.correct_rate === null ? null : Number(row.correct_rate),
+      mean_band: row.mean_band === null ? null : Number(row.mean_band),
+    };
+  });
+}
