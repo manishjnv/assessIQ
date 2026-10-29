@@ -31,6 +31,7 @@ import type { CandidateAttemptViewWire, FrozenQuestionWire, AttemptAnswerWire, N
 import { isQuestionType } from "@assessiq/question-types";
 import { STEM_FIELD, TYPE_LABEL, type PageState, hasForbiddenSynonym, BOTTOM_BAR, SR_ONLY, KBD_HINT, isAnsweredValue } from "./attempt-parts/shared.js";
 import { AnswerArea } from "./attempt-parts/AnswerArea.js";
+import { RichText, StemImages } from "./rich-parts.js";
 import { ReportProblemModal } from "./attempt-parts/ReportProblemModal.js";
 import { NavigatorBody } from "./attempt-parts/NavigatorBody.js";
 import { useMaxWidth } from "./attempt-parts/useMaxWidth.js";
@@ -821,9 +822,12 @@ export function AttemptPage(): React.JSX.Element {
                 const text = typeof c[field] === 'string' ? (c[field] as string) : null;
                 if (text === null) return null;
                 return (
-                  <p className="aiq-serif aiq-attempt-q-text">
-                    {text}
-                  </p>
+                  <>
+                    <p className="aiq-serif aiq-attempt-q-text">
+                      <RichText q={currentQuestion} text={text} />
+                    </p>
+                    <StemImages q={currentQuestion} />
+                  </>
                 );
               })()}
 

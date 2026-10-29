@@ -27,6 +27,7 @@ import { adminApi, AdminApiError } from "../api.js";
 import { useAdminSession } from "../session.js";
 import { QuestionStatsCard } from "../components/QuestionStatsCard.js";
 import { FrameworkTreePicker } from "../components/FrameworkTreePicker.js";
+import { RichContentPanel } from "../components/RichContentPanel.js";
 import { getQuestionTaxonomyApi, putQuestionTaxonomyApi } from "../api/frameworks.js";
 
 /** Which bespoke editor form a type uses; everything else edits raw JSON. */
@@ -518,6 +519,7 @@ function CreateQuestionForm({ packId, levelId }: { packId: string; levelId: stri
               {jsonError}
             </div>
           )}
+          <RichContentPanel type={type} packId={packId} contentJson={contentJson} onChange={(j) => { setContentJson(j); setJsonError(null); }} />
         </div>
         )}
 

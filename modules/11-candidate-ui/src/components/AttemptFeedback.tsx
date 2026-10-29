@@ -6,7 +6,7 @@
 // "AI justification block": serif italic 15px on --aiq-color-bg-raised.
 
 import React, { useState } from 'react';
-import { Button, Chip, Spinner } from '@assessiq/ui-system';
+import { Button, Chip, MathText, Spinner } from '@assessiq/ui-system';
 import { getAttemptFeedback } from '../api.js';
 import type { AttemptFeedbackWire, FeedbackItemWire } from '../types.js';
 
@@ -94,9 +94,16 @@ export function AttemptFeedback({ attemptId }: AttemptFeedbackProps): React.Reac
                       <span style={LABEL}>Q{it.position}</span>
                       <Chip variant={o.tone}>{o.label}</Chip>
                     </div>
-                    <p title={it.prompt} style={{ ...ROW, margin: '6px 0 0', fontWeight: 500 }}>
-                      {truncate(it.prompt, 120)}
-                    </p>
+                    {it.math === true ? (
+                      // EXP-10: a maths prompt is drawn whole (a cut could split an expression) and clamped by CSS to 3 lines.
+                      <p style={{ ...ROW, margin: '6px 0 0', fontWeight: 500, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        <MathText text={it.prompt} math />
+                      </p>
+                    ) : (
+                      <p title={it.prompt} style={{ ...ROW, margin: '6px 0 0', fontWeight: 500 }}>
+                        {truncate(it.prompt, 120)}
+                      </p>
+                    )}
                     <p style={{ ...ROW, margin: '6px 0 0' }}>
                       <span style={LABEL}>Your answer </span>
                       {it.your_answer ?? 'No answer'}

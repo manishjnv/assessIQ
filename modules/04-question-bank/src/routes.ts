@@ -614,7 +614,7 @@ export async function registerQuestionBankRoutes(
   // RW-55: read-only curriculum frameworks (adminOnly; RLS shows NULL-tenant + own rows).
   registerTaxonomyRoutes(app, adminOnly, superAdminOnly);
   registerImportRoutes(app, superAdminOnly, adminOnly, opts.orgUploadGuard, opts.superAdminFreshMfa); // RW-58; EXP-17 organisation routes use adminOnly
-  registerAssetRoutes(app, adminOnly); // EXP-10 part 1: question images
+  registerAssetRoutes(app, adminOnly, superAdminOnly); // EXP-10 part 1: question images
   registerReviewRoutes(app, adminOnly); // EXP-18 part 2 (admin and super_admin; the service splits platform vs organisation)
   registerExamBlueprintRoutes(app, adminOnly, superAdminOnly); // EXP-6
 

@@ -60,6 +60,8 @@ export interface FrozenQuestionWire {
   section_index?: number | null;
   /** EXP-8: shared passage (plain text). Shown above the question; absent when the question has none. */
   passage?: { id: string; title: string | null; body: string };
+  /** EXP-10: alt text and size of the images named in content.stem_assets / option_assets (no bytes). */
+  assets?: Array<{ id: string; alt_text: string; width: number; height: number }>;
   /** A3-1: stub; content is not sent yet. The position call returns it. */
   withheld?: true;
 }

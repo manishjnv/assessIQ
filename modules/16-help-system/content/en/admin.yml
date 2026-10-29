@@ -4843,6 +4843,40 @@ admin.start_test.mock.unverified:
 
     The sections, timing and marks of an unverified blueprint are not checked against the official notice. Check them before you use the mock for a real test.
 
+admin.question_editor.image:
+  audience: admin
+  version: 1
+  short_text: "Add a PNG or JPEG picture under the question or on one option. Alt text is required."
+  long_md: |
+    ## Images in a question
+
+    You can add pictures to a multiple-choice, multi-select or numeric question.
+
+    - **Where.** Under the question (up to 3), or on one option each. A question holds at most 6 pictures.
+    - **Files.** PNG or JPEG only, up to 400 KB, 16 to 4000 pixels on each side. Other types, such as SVG or GIF, are refused.
+    - **Alt text is required.** Describe the picture in plain words (5 to 300 characters). Screen readers read it. It also shows if the picture cannot load.
+    - **Clean-up.** The server removes hidden data (such as GPS and camera details) before it stores the picture. A picture never changes after upload. To fix one, upload a new picture and save the question again.
+    - **Same set only.** A picture belongs to the question set you upload it to. Copies of the set get their own copy of each picture.
+    - **Options keep their picture when shuffled.** The picture moves with its option.
+    - **Import.** Files you import cannot carry pictures yet. Add them here.
+    - **Limits.** Your organisation can store up to 100 MB of pictures, and a set up to 500 pictures.
+
+admin.question_editor.math:
+  audience: admin
+  version: 1
+  short_text: "Turn on Contains maths to write formulas between \\( and \\) marks."
+  long_md: |
+    ## Maths in a question
+
+    Turn on **Contains maths**. Then write a formula between the marks \( and \) for a formula inside a line, or between \[ and \] for a formula on its own line.
+
+    - **Example.** `Find \(x^2 + 3x\) when x is 2.` shows the formula typeset.
+    - **Old questions.** Questions without this switch are never changed, even if they contain these marks.
+    - **Checked on save.** Every formula must parse. A formula that does not parse, an open mark with no close mark, or more than 30 formulas in one field is refused with a message.
+    - **Not allowed.** Links, raw HTML, file commands and macro definitions (for example the commands that start with href, url, includegraphics, html, def or newcommand).
+    - **Size.** At most 500 characters in one formula.
+    - **Candidates.** The formulas load only on questions that have the switch on. If a formula cannot be drawn, the candidate sees the formula text.
+
 admin.tenant_settings.candidate_answer_key:
   audience: admin
   version: 1

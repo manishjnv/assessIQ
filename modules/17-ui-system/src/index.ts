@@ -113,3 +113,7 @@ export { Pagination } from "./components/Pagination.js";
 export type { PaginationProps } from "./components/Pagination.js";
 
 export { formatDate,formatDateTime, formatRelative, formatMonthYear, formatDayLine } from "./format.js";
+export { MathText } from "./components/MathText.js";
+export type { MathTextProps } from "./components/MathText.js";
+export { QuestionImage } from "./components/QuestionImage.js";
+export type { QuestionImageProps } from "./components/QuestionImage.js";

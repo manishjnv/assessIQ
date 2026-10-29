@@ -59,8 +59,16 @@ export function assetResponseHeaders(mime: string, sha256: string): Record<strin
   };
 }
 
-export function registerAssetRoutes(app: FastifyInstance, adminOnly: preHandlerHookHandler[] | preHandlerHookHandler): void {
-  app.post("/api/admin/question-assets", { preHandler: adminOnly, bodyLimit: 700 * 1024 }, async (req, reply) => {
+/**
+ * Upload is super-admin only, like question create (Phase B1 lockdown): only the platform authoring screen uses it.
+ * Reading stays on the admin chain, because tenant admins view cloned questions that hold images.
+ */
+export function registerAssetRoutes(
+  app: FastifyInstance,
+  adminOnly: preHandlerHookHandler[] | preHandlerHookHandler,
+  superAdminOnly: preHandlerHookHandler[] | preHandlerHookHandler,
+): void {
+  app.post("/api/admin/question-assets", { preHandler: superAdminOnly, bodyLimit: 700 * 1024 }, async (req, reply) => {
     const { packId, alt, data } = await readUpload(req);
     const meta = await uploadQuestionAsset(req.session!.tenantId, req.session!.userId, packId as string, data, alt);
     return reply.code(meta.deduped ? 200 : 201).send(meta);

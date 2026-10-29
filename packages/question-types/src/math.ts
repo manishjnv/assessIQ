@@ -44,3 +44,17 @@ export function splitMath(text: string): MathSplit {
   if (buf !== "") parts.push({ kind: "text", value: buf });
   return { ok: true, parts };
 }
+
+/**
+ * KaTeX settings used by the save-time check (module 04) and by the page (MathText). One place, so the check and
+ * the drawing never differ: no trusted commands (links, raw html), errors are thrown not hidden, sizes and macro
+ * expansion are capped.
+ */
+export const KATEX_OPTIONS = {
+  throwOnError: true,
+  trust: false,
+  strict: "error",
+  maxSize: 20,
+  maxExpand: 200,
+  output: "htmlAndMathml",
+} as const;

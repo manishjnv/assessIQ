@@ -909,6 +909,9 @@ importers:
       '@assessiq/http-client':
         specifier: workspace:*
         version: link:../../packages/http-client
+      '@assessiq/question-types':
+        specifier: workspace:*
+        version: link:../../packages/question-types
       katex:
         specifier: 0.18.11
         version: 0.18.11
@@ -7719,7 +7722,7 @@ snapshots:
       obug: 2.2.1
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 4.1.12(@types/node@24.12.4)(@vitest/coverage-v8@4.1.12)(jsdom@25.0.1)(vite@8.3.5(@types/node@24.12.4)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 4.1.12(@types/node@22.19.17)(@vitest/coverage-v8@4.1.12)(jsdom@25.0.1)(vite@8.3.5(@types/node@22.19.17)(esbuild@0.28.2)(jiti@1.21.7)(tsx@4.23.15)(yaml@2.9.1))
 
   '@vitest/expect@4.1.12':
     dependencies:

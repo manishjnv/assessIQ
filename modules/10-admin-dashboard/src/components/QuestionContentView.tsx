@@ -11,7 +11,9 @@
 
 import React from "react";
 import { isQuestionType, type QuestionType } from "@assessiq/question-types";
+import { MathText } from "@assessiq/ui-system";
 import { StructuredCaseView } from "./StructuredCaseView.js";
+import { AdminAssetImage } from "./AdminAssetImage.js";
 
 export interface QuestionContentViewProps {
   type: string;
@@ -119,6 +121,11 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
     : typeof c.correct === "number" ? [c.correct] : [];
   const rationale = safeStr(c.rationale);
   const multi = Array.isArray(c.correct);
+  // EXP-10: with the maths flag the text is drawn as written (cleanText would damage backslashes); images by id.
+  const math = c.math === true;
+  const show = (s: string): React.ReactNode => (math ? <MathText text={s} math /> : cleanText(s));
+  const stemIds = (safeArr<unknown>(c.stem_assets) ?? []).filter((x): x is string => typeof x === "string");
+  const optIds = safeArr<unknown>(c.option_assets) ?? [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
@@ -129,10 +136,15 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
       )}
       {question != null ? (
         <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-          {cleanText(question)}
+          {show(question)}
         </p>
       ) : (
         <JsonFallback value={c.question} />
+      )}
+      {stemIds.length > 0 && (
+        <div data-testid="admin-stem-images" style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)" }}>
+          {stemIds.map((id) => <AdminAssetImage key={id} id={id} maxHeight={240} />)}
+        </div>
       )}
 
       {options != null ? (
@@ -182,7 +194,12 @@ function McqView({ c }: { c: Record<string, unknown> }): React.ReactElement {
                     whiteSpace: "pre-wrap",
                   }}
                 >
-                  {typeof opt === "string" ? cleanText(opt) : JSON.stringify(opt)}
+                  {typeof opt === "string" ? show(opt) : JSON.stringify(opt)}
+                  {typeof optIds[i] === "string" && (
+                    <span style={{ display: "block", marginTop: "var(--aiq-space-xs)" }}>
+                      <AdminAssetImage id={optIds[i] as string} maxHeight={120} linked={false} />
+                    </span>
+                  )}
                 </span>
               </li>
             );
@@ -517,14 +534,21 @@ function NumericView({ c }: { c: Record<string, unknown> }): React.ReactElement 
   const tol = typeof c.tolerance === "number" && c.tolerance > 0 ? c.tolerance : 0;
   const unit = safeStr(c.unit);
   const rationale = safeStr(c.rationale);
+  const math = c.math === true; // EXP-10
+  const stemIds = (safeArr<unknown>(c.stem_assets) ?? []).filter((x): x is string => typeof x === "string");
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)" }}>
       {question != null ? (
         <p style={{ margin: 0, fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-md)", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-          {cleanText(question)}
+          {math ? <MathText text={question} math /> : cleanText(question)}
         </p>
       ) : (
         <JsonFallback value={c.question} />
+      )}
+      {stemIds.length > 0 && (
+        <div data-testid="admin-stem-images" style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)" }}>
+          {stemIds.map((id) => <AdminAssetImage key={id} id={id} maxHeight={240} />)}
+        </div>
       )}
       <div style={{ padding: "var(--aiq-space-xs) var(--aiq-space-sm)", borderRadius: 4, background: "var(--aiq-color-success-bg, #d1fae5)", color: "var(--aiq-color-success, #065f46)", fontFamily: "var(--aiq-font-sans)", fontSize: "var(--aiq-text-sm)" }}>
         <strong>Correct value:</strong> {answer ?? "not set"}{unit != null ? ` ${unit}` : ""}

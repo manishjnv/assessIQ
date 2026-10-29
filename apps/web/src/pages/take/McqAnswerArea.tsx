@@ -3,6 +3,7 @@
 // rehearses with the exact same control.
 
 import "./take-theme.css";
+import { OptionImage, RichText } from "./rich-parts.js";
 
 // mcq: { question, options: string[], correct: number, rationale? }
 interface McqContent {
@@ -18,7 +19,7 @@ export function McqAnswerArea({
   disabled,
   onAnswerChange,
 }: {
-  question: { question_id: string; content: unknown };
+  question: { question_id: string; content: unknown; assets?: Array<{ id: string; alt_text: string; width: number; height: number }> };
   answer: unknown;
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
@@ -50,7 +51,7 @@ export function McqAnswerArea({
               onChange={() => onAnswerChange({ selected: idx })}
             />
             <span className="aiq-take-opt-badge" aria-hidden="true">{letter}</span>
-            <span className="aiq-take-opt-text">{text}</span>
+            <span className="aiq-take-opt-text"><RichText q={question} text={text} /><OptionImage q={question} idx={idx} /></span>
             <span className="aiq-take-radio" aria-hidden="true" />
           </label>
         );

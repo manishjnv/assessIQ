@@ -166,6 +166,10 @@ describe("what the candidate payload holds", () => {
     expect(view).toContain(ids.stem);
     expect(view).toContain(ids.opt);
     expect(view).toContain('"math":true');
+    // The question also carries the alt text and size of each image it names (never the bytes).
+    expect(view).toContain('"alt_text":"Stem figure of a router"');
+    expect(view).toContain('"alt_text":"Option b figure of a switch"');
+    expect(view).not.toContain("Unused figure in the same pack");
     expect(view).not.toContain("SECRETRATIONALE");
     expect(view).not.toContain('"correct"');
     expect(view).not.toMatch(/"data"|iVBOR/);

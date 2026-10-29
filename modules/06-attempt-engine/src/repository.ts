@@ -627,7 +627,7 @@ export async function listFrozenQuestionsForAttempt(
      ORDER BY aq.position ASC, aq.question_id ASC`,
     [attemptId],
   );
-  return result.rows.map((r) => ({
+  const frozen: FrozenQuestion[] = result.rows.map((r) => ({
     question_id: r.question_id,
     position: r.position,
     question_version: r.question_version,
@@ -644,6 +644,35 @@ export async function listFrozenQuestionsForAttempt(
       ? { passage: { id: r.passage_id, title: r.passage_title, body: r.passage_body } }
       : {}),
   }));
+  await attachAssetMeta(client, frozen);
+  return frozen;
+}
+
+/**
+ * EXP-10: add the alt text and size of every image a question names (stem_assets, option_assets), in one
+ * query that never selects the bytes. The page draws <img> from these; the ids come from the candidate view.
+ */
+async function attachAssetMeta(client: PoolClient, questions: FrozenQuestion[]): Promise<void> {
+  const idsOf = (c: unknown): string[] => {
+    if (c === null || typeof c !== "object" || Array.isArray(c)) return [];
+    const o = c as { stem_assets?: unknown; option_assets?: unknown };
+    const out: string[] = [];
+    for (const arr of [o.stem_assets, o.option_assets]) {
+      if (Array.isArray(arr)) for (const x of arr) if (typeof x === "string" && !out.includes(x)) out.push(x);
+    }
+    return out;
+  };
+  const all = [...new Set(questions.flatMap((q) => idsOf(q.content)))];
+  if (all.length === 0) return;
+  const r = await client.query<{ id: string; alt_text: string; width: number; height: number }>(
+    `SELECT id, alt_text, width, height FROM question_assets WHERE id = ANY($1::uuid[])`,
+    [all],
+  );
+  const byId = new Map(r.rows.map((x) => [x.id, x]));
+  for (const q of questions) {
+    const assets = idsOf(q.content).map((id) => byId.get(id)).filter((x): x is NonNullable<typeof x> => x !== undefined);
+    if (assets.length > 0) q.assets = assets;
+  }
 }
 
 export async function findAttemptQuestion(

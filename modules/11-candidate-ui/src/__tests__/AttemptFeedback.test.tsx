@@ -1,6 +1,6 @@
 // RW-80: "Review your answers" section on the candidate results list.
 import { describe, expect, it, vi, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { MyResults } from '../components';
 import type { AttemptFeedbackWire, MyResultsResponseWire } from '../types';
 
@@ -78,6 +78,24 @@ describe('AttemptFeedback on MyResults', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Review your answers' }));
     await screen.findByText('10.0.0.1');
     expect(screen.getByText('Good answer: names the control.')).toBeDefined();
+  });
+
+  it('EXP-10: a maths prompt is typeset whole (no 120-character cut); a plain prompt is cut as before', async () => {
+    const long = 'Plain question text '.repeat(10);
+    mockList.mockResolvedValue({ items: [{ ...RESULT, feedback_level: 'right_wrong' as const }] });
+    mockFeedback.mockResolvedValue({
+      level: 'right_wrong',
+      items: [
+        { ...ITEM, question_id: 'm1', math: true, prompt: 'Find \\(x^2 + 1\\) at x = 3 and keep this tail ' + 'z'.repeat(150) },
+        { ...ITEM, question_id: 'p1', position: 2, prompt: long },
+      ],
+    });
+    const { container } = render(<MyResults />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Review your answers' }));
+    await screen.findByText(/Plain question text/);
+    await waitFor(() => expect(container.querySelector('.katex')).not.toBeNull(), { timeout: 10_000 });
+    expect(container.textContent).toContain('z'.repeat(150)); // whole prompt, not cut
+    expect(container.textContent).not.toContain(long); // the plain prompt is still shortened to 120 characters
   });
 
   it('shows an error with Retry, then the empty state', async () => {

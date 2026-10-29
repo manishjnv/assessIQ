@@ -3,19 +3,12 @@
 // hostile expression is never stored. The candidate and admin pages draw it again with the same settings.
 import katex from "katex";
 import { ValidationError } from "@assessiq/core";
-import { splitMath } from "@assessiq/question-types";
+import { KATEX_OPTIONS, splitMath } from "@assessiq/question-types";
 
 /** Commands that are never accepted (macro bombs, links, raw html, file access). KaTeX with trust:false refuses most of them already. */
 const DENY = /\\(?:def|gdef|edef|xdef|let|futurelet|newcommand|renewcommand|providecommand|global|long|outer|char|href|url|includegraphics|html[A-Za-z]*|verb|input|include|write|read|csname|expandafter)\b/;
 
-export const KATEX_OPTIONS = {
-  throwOnError: true,
-  trust: false,
-  strict: "error",
-  maxSize: 20,
-  maxExpand: 200,
-  output: "htmlAndMathml",
-} as const;
+export { KATEX_OPTIONS };
 
 function fieldsOf(content: Record<string, unknown>): Array<[string, string]> {
   const out: Array<[string, string]> = [];

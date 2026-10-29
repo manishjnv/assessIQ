@@ -69,7 +69,7 @@ describe('A08 question image routes: who may call them', () => {
       const x = e as { status?: number; statusCode?: number; code?: string };
       reply.code(x.status ?? x.statusCode ?? 500).send({ code: x.code, message: (e as Error).message });
     });
-    registerAssetRoutes(app, authChain({ roles: ['admin'] }));
+    registerAssetRoutes(app, authChain({ roles: ['admin'] }), authChain({ roles: ['super_admin'] }));
     await app.ready();
   });
   afterAll(async () => { await app.close(); });
@@ -89,14 +89,21 @@ describe('A08 question image routes: who may call them', () => {
     expect(res.statusCode).toBe(403);
   });
 
-  it('an admin passes the chain: an empty upload body is a 400 from the route, not a 401 or 403', async () => {
-    const res = await app.inject({ method: 'POST', url: '/api/admin/question-assets', headers: { ...hdr('admin'), 'content-type': 'application/json' }, payload: '{}' });
+  it('a tenant admin may read images but not upload: POST is 403, GET passes the chain', async () => {
+    const post = await app.inject({ method: 'POST', url: '/api/admin/question-assets', headers: { ...hdr('admin'), 'content-type': 'application/json' }, payload: '{}' });
+    expect(post.statusCode).toBe(403);
+    const get = await app.inject({ method: 'GET', url: `/api/admin/question-assets/${ID}/meta`, headers: hdr('admin') });
+    expect([401, 403]).not.toContain(get.statusCode); // passes the chain (the service then answers or fails without a database)
+  });
+
+  it('a super admin passes the upload chain: an empty body is a 400 from the route, not a 401 or 403', async () => {
+    const res = await app.inject({ method: 'POST', url: '/api/admin/question-assets', headers: { ...hdr('super_admin'), 'content-type': 'application/json' }, payload: '{}' });
     expect(res.statusCode).toBe(400);
   });
 
-  it('a body over 700 KB is stopped by the route limit (413) before any parsing, even for an admin', async () => {
+  it('a body over 700 KB is stopped by the route limit (413) before any parsing, even for a super admin', async () => {
     const big = JSON.stringify({ pack_id: ID, alt_text: 'x'.repeat(5), content_base64: 'A'.repeat(800 * 1024) });
-    const res = await app.inject({ method: 'POST', url: '/api/admin/question-assets', headers: { ...hdr('admin'), 'content-type': 'application/json' }, payload: big });
+    const res = await app.inject({ method: 'POST', url: '/api/admin/question-assets', headers: { ...hdr('super_admin'), 'content-type': 'application/json' }, payload: big });
     expect(res.statusCode).toBe(413);
   });
 });

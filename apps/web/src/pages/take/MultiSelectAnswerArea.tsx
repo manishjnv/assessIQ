@@ -1,4 +1,5 @@
 import "./take-theme.css";
+import { OptionImage, RichText } from "./rich-parts.js";
 
 // Multi-select question — "select all that apply". Stored answer is
 // { selected: number[] } in the DISPLAYED option order; the server translates
@@ -10,7 +11,7 @@ export function MultiSelectAnswerArea({
   disabled,
   onAnswerChange,
 }: {
-  question: { question_id: string; content: unknown };
+  question: { question_id: string; content: unknown; assets?: Array<{ id: string; alt_text: string; width: number; height: number }> };
   answer: unknown;
   disabled: boolean;
   onAnswerChange: (value: unknown) => void;
@@ -45,7 +46,7 @@ export function MultiSelectAnswerArea({
                 onChange={() => toggle(idx)}
               />
               <span className="aiq-take-opt-badge" aria-hidden="true">{String.fromCharCode(65 + idx)}</span>
-              <span className="aiq-take-opt-text">{text}</span>
+              <span className="aiq-take-opt-text"><RichText q={question} text={text} /><OptionImage q={question} idx={idx} /></span>
               <span className="aiq-take-check" aria-hidden="true">{on ? '✓' : null}</span>
             </label>
           );

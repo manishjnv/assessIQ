@@ -132,6 +132,8 @@ export interface FrozenQuestion {
   answer_guidance: string;
   /** EXP-8: shared passage frozen with the attempt; absent when the question has none. */
   passage?: { id: string; title: string | null; body: string };
+  /** EXP-10: alt text and size of the images this question names (no bytes). Absent when it has none. */
+  assets?: Array<{ id: string; alt_text: string; width: number; height: number }>;
   /** A3-1: stub only. The candidate may not read this question yet; content comes from POST /position. */
   withheld?: true;
   // content with the rubric stripped (rubric is internal-only — candidates

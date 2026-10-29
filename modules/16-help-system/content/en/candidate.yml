@@ -756,6 +756,17 @@ candidate.results.feedback:
 
     Questions that come from the shared library show only whether your answer was right and your own answer. They do not show the expected answer or the explanation.
 
+candidate.take.image:
+  audience: candidate
+  version: 1
+  short_text: "Select the picture to open it larger in a new tab."
+  long_md: |
+    ## Pictures in a question
+
+    Some questions have a picture. Select the picture under the question to open it larger in a new tab. The question stays open in this tab.
+
+    If a picture does not load, you see a short description of it instead. You can still answer the question.
+
 candidate.result.meter:
   audience: candidate
   version: 1
