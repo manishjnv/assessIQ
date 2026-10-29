@@ -53,6 +53,31 @@
               "code": "mixture",
               "title": "Mixture",
               "kind": "outcome"
+            },
+            {
+              "code": "ages",
+              "title": "Ages",
+              "kind": "outcome"
+            },
+            {
+              "code": "partnership",
+              "title": "Partnership",
+              "kind": "outcome"
+            },
+            {
+              "code": "alligation",
+              "title": "Alligation",
+              "kind": "outcome"
+            },
+            {
+              "code": "pipes-and-cisterns",
+              "title": "Pipes and cisterns",
+              "kind": "outcome"
+            },
+            {
+              "code": "simplification-and-approximation",
+              "title": "Simplification and approximation",
+              "kind": "outcome"
             }
           ]
         },
@@ -65,28 +90,121 @@
               "code": "linear-equations",
               "title": "Linear equations",
               "kind": "outcome"
+            },
+            {
+              "code": "simultaneous-equations",
+              "title": "Simultaneous equations",
+              "kind": "outcome"
+            },
+            {
+              "code": "quadratic-equations",
+              "title": "Quadratic equations",
+              "kind": "outcome"
+            },
+            {
+              "code": "expression-evaluation",
+              "title": "Expression evaluation",
+              "kind": "outcome"
+            },
+            {
+              "code": "word-equations",
+              "title": "Word equations",
+              "kind": "outcome"
             }
           ]
         },
         {
           "code": "geometry",
           "title": "Geometry",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "lines-and-angles",
+              "title": "Lines and angles",
+              "kind": "outcome"
+            },
+            {
+              "code": "triangles",
+              "title": "Triangles",
+              "kind": "outcome"
+            },
+            {
+              "code": "circles",
+              "title": "Circles",
+              "kind": "outcome"
+            },
+            {
+              "code": "polygons-and-quadrilaterals",
+              "title": "Polygons and quadrilaterals",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "trigonometry",
           "title": "Trigonometry",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "trigonometric-ratios",
+              "title": "Trigonometric ratios",
+              "kind": "outcome"
+            },
+            {
+              "code": "trigonometric-identities",
+              "title": "Trigonometric identities",
+              "kind": "outcome"
+            },
+            {
+              "code": "heights-and-distances",
+              "title": "Heights and distances",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "mensuration",
           "title": "Mensuration",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "perimeter-and-area",
+              "title": "Perimeter and area",
+              "kind": "outcome"
+            },
+            {
+              "code": "volume-and-surface-area",
+              "title": "Volume and surface area",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "data-interpretation",
           "title": "Data interpretation",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "tables",
+              "title": "Tables",
+              "kind": "outcome"
+            },
+            {
+              "code": "bar-line-and-pie-charts",
+              "title": "Bar line and pie charts",
+              "kind": "outcome"
+            },
+            {
+              "code": "caselets",
+              "title": "Caselets",
+              "kind": "outcome"
+            },
+            {
+              "code": "mixed-di",
+              "title": "Mixed DI",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "number-system",
@@ -96,6 +214,26 @@
             {
               "code": "divisibility-and-remainders",
               "title": "Divisibility and remainders",
+              "kind": "outcome"
+            },
+            {
+              "code": "hcf-and-lcm",
+              "title": "HCF and LCM",
+              "kind": "outcome"
+            },
+            {
+              "code": "factors-and-primes",
+              "title": "Factors and primes",
+              "kind": "outcome"
+            },
+            {
+              "code": "cyclicity-and-unit-digit",
+              "title": "Cyclicity and unit digit",
+              "kind": "outcome"
+            },
+            {
+              "code": "consecutive-integers",
+              "title": "Consecutive integers",
               "kind": "outcome"
             }
           ]
@@ -116,6 +254,33 @@
               "kind": "outcome"
             }
           ]
+        },
+        {
+          "code": "counting-and-probability",
+          "title": "Counting and probability",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "permutations",
+              "title": "Permutations",
+              "kind": "outcome"
+            },
+            {
+              "code": "combinations",
+              "title": "Combinations",
+              "kind": "outcome"
+            },
+            {
+              "code": "probability",
+              "title": "Probability",
+              "kind": "outcome"
+            },
+            {
+              "code": "conditional-probability",
+              "title": "Conditional probability",
+              "kind": "outcome"
+            }
+          ]
         }
       ]
     },
@@ -127,12 +292,66 @@
         {
           "code": "verbal",
           "title": "Verbal",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "alphabet-test",
+              "title": "Alphabet test",
+              "kind": "outcome"
+            },
+            {
+              "code": "word-formation",
+              "title": "Word formation",
+              "kind": "outcome"
+            },
+            {
+              "code": "dictionary-order",
+              "title": "Dictionary order",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "non-verbal",
           "title": "Non-verbal",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "figure-series",
+              "title": "Figure series",
+              "kind": "outcome"
+            },
+            {
+              "code": "visual-analogy",
+              "title": "Visual analogy",
+              "kind": "outcome"
+            },
+            {
+              "code": "matrix-reasoning",
+              "title": "Matrix reasoning",
+              "kind": "outcome"
+            },
+            {
+              "code": "odd-one-out-figure",
+              "title": "Odd one out figure",
+              "kind": "outcome"
+            },
+            {
+              "code": "missing-figure",
+              "title": "Missing figure",
+              "kind": "outcome"
+            },
+            {
+              "code": "mirror-and-water-images",
+              "title": "Mirror and water images",
+              "kind": "outcome"
+            },
+            {
+              "code": "paper-folding-and-cutting",
+              "title": "Paper folding and cutting",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "puzzles-and-series",
@@ -163,23 +382,246 @@
               "code": "ranking-and-order",
               "title": "Ranking and order",
               "kind": "outcome"
+            },
+            {
+              "code": "letter-series",
+              "title": "Letter series",
+              "kind": "outcome"
+            },
+            {
+              "code": "alphanumeric-series",
+              "title": "Alphanumeric series",
+              "kind": "outcome"
+            },
+            {
+              "code": "logical-puzzles",
+              "title": "Logical puzzles",
+              "kind": "outcome"
             }
           ]
         },
         {
           "code": "clocks",
           "title": "Clocks",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "angle-between-hands",
+              "title": "Angle between hands",
+              "kind": "outcome"
+            },
+            {
+              "code": "time-gained-or-lost",
+              "title": "Time gained or lost",
+              "kind": "outcome"
+            },
+            {
+              "code": "wrong-clocks",
+              "title": "Wrong clocks",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "calendars",
           "title": "Calendars",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "day-of-the-week",
+              "title": "Day of the week",
+              "kind": "outcome"
+            },
+            {
+              "code": "odd-days-and-leap-years",
+              "title": "Odd days and leap years",
+              "kind": "outcome"
+            },
+            {
+              "code": "repeating-calendars",
+              "title": "Repeating calendars",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "critical-reasoning",
           "title": "Critical reasoning",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "strengthen-and-weaken",
+              "title": "Strengthen and weaken",
+              "kind": "outcome"
+            },
+            {
+              "code": "assumptions",
+              "title": "Assumptions",
+              "kind": "outcome"
+            },
+            {
+              "code": "inference",
+              "title": "Inference",
+              "kind": "outcome"
+            },
+            {
+              "code": "flaw-in-argument",
+              "title": "Flaw in argument",
+              "kind": "outcome"
+            },
+            {
+              "code": "paradox-and-resolution",
+              "title": "Paradox and resolution",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "seating-arrangement",
+          "title": "Seating arrangement",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "linear-arrangement",
+              "title": "Linear arrangement",
+              "kind": "outcome"
+            },
+            {
+              "code": "circular-arrangement",
+              "title": "Circular arrangement",
+              "kind": "outcome"
+            },
+            {
+              "code": "rectangular-arrangement",
+              "title": "Rectangular arrangement",
+              "kind": "outcome"
+            },
+            {
+              "code": "mixed-arrangement",
+              "title": "Mixed arrangement",
+              "kind": "outcome"
+            },
+            {
+              "code": "floor-and-box-arrangement",
+              "title": "Floor and box arrangement",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "syllogisms",
+          "title": "Syllogisms",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "all-some-no-statements",
+              "title": "All some no statements",
+              "kind": "outcome"
+            },
+            {
+              "code": "either-or-cases",
+              "title": "Either or cases",
+              "kind": "outcome"
+            },
+            {
+              "code": "venn-reasoning",
+              "title": "Venn reasoning",
+              "kind": "outcome"
+            },
+            {
+              "code": "possibility-cases",
+              "title": "Possibility cases",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "inequalities",
+          "title": "Inequalities",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "direct-inequalities",
+              "title": "Direct inequalities",
+              "kind": "outcome"
+            },
+            {
+              "code": "coded-inequalities",
+              "title": "Coded inequalities",
+              "kind": "outcome"
+            },
+            {
+              "code": "inequality-chains",
+              "title": "Inequality chains",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "data-sufficiency",
+          "title": "Data sufficiency",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "logical-sufficiency",
+              "title": "Logical sufficiency",
+              "kind": "outcome"
+            },
+            {
+              "code": "quantitative-sufficiency",
+              "title": "Quantitative sufficiency",
+              "kind": "outcome"
+            },
+            {
+              "code": "comparison-sufficiency",
+              "title": "Comparison sufficiency",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "statements-and-conclusions",
+          "title": "Statements and conclusions",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "single-statement",
+              "title": "Single statement",
+              "kind": "outcome"
+            },
+            {
+              "code": "multiple-conclusions",
+              "title": "Multiple conclusions",
+              "kind": "outcome"
+            },
+            {
+              "code": "cause-and-effect",
+              "title": "Cause and effect",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "analogy-and-classification",
+          "title": "Analogy and classification",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "word-analogy",
+              "title": "Word analogy",
+              "kind": "outcome"
+            },
+            {
+              "code": "number-analogy",
+              "title": "Number analogy",
+              "kind": "outcome"
+            },
+            {
+              "code": "odd-one-out",
+              "title": "Odd one out",
+              "kind": "outcome"
+            }
+          ]
         }
       ]
     },
@@ -191,22 +633,230 @@
         {
           "code": "comprehension",
           "title": "Comprehension",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "main-idea",
+              "title": "Main idea",
+              "kind": "outcome"
+            },
+            {
+              "code": "author-purpose-and-tone",
+              "title": "Author purpose and tone",
+              "kind": "outcome"
+            },
+            {
+              "code": "inference-questions",
+              "title": "Inference questions",
+              "kind": "outcome"
+            },
+            {
+              "code": "vocabulary-in-context",
+              "title": "Vocabulary in context",
+              "kind": "outcome"
+            },
+            {
+              "code": "except-questions",
+              "title": "Except questions",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "cloze",
           "title": "Cloze",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "connective-cloze",
+              "title": "Connective cloze",
+              "kind": "outcome"
+            },
+            {
+              "code": "grammar-cloze",
+              "title": "Grammar cloze",
+              "kind": "outcome"
+            },
+            {
+              "code": "vocabulary-cloze",
+              "title": "Vocabulary cloze",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "error-spotting",
           "title": "Error spotting",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "usage-errors",
+              "title": "Usage errors",
+              "kind": "outcome"
+            },
+            {
+              "code": "punctuation-errors",
+              "title": "Punctuation errors",
+              "kind": "outcome"
+            },
+            {
+              "code": "multiple-errors",
+              "title": "Multiple errors",
+              "kind": "outcome"
+            }
+          ]
         },
         {
           "code": "vocabulary",
           "title": "Vocabulary",
-          "kind": "unit"
+          "kind": "unit",
+          "children": [
+            {
+              "code": "synonyms",
+              "title": "Synonyms",
+              "kind": "outcome"
+            },
+            {
+              "code": "antonyms",
+              "title": "Antonyms",
+              "kind": "outcome"
+            },
+            {
+              "code": "one-word-substitution",
+              "title": "One word substitution",
+              "kind": "outcome"
+            },
+            {
+              "code": "idioms-and-phrases",
+              "title": "Idioms and phrases",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "grammar",
+          "title": "Grammar",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "tenses",
+              "title": "Tenses",
+              "kind": "outcome"
+            },
+            {
+              "code": "conditionals",
+              "title": "Conditionals",
+              "kind": "outcome"
+            },
+            {
+              "code": "conjunctions",
+              "title": "Conjunctions",
+              "kind": "outcome"
+            },
+            {
+              "code": "articles",
+              "title": "Articles",
+              "kind": "outcome"
+            },
+            {
+              "code": "subject-verb-agreement",
+              "title": "Subject verb agreement",
+              "kind": "outcome"
+            },
+            {
+              "code": "voice-and-narration",
+              "title": "Voice and narration",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "sentence-correction",
+          "title": "Sentence correction",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "word-usage",
+              "title": "Word usage",
+              "kind": "outcome"
+            },
+            {
+              "code": "conciseness",
+              "title": "Conciseness",
+              "kind": "outcome"
+            },
+            {
+              "code": "preposition-correction",
+              "title": "Preposition correction",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "fill-in-the-blanks",
+          "title": "Fill in the blanks",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "collocation",
+              "title": "Collocation",
+              "kind": "outcome"
+            },
+            {
+              "code": "context-vocabulary",
+              "title": "Context vocabulary",
+              "kind": "outcome"
+            },
+            {
+              "code": "double-blank",
+              "title": "Double blank",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "para-jumbles",
+          "title": "Para jumbles",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "mandatory-pair",
+              "title": "Mandatory pair",
+              "kind": "outcome"
+            },
+            {
+              "code": "four-sentence-jumble",
+              "title": "Four sentence jumble",
+              "kind": "outcome"
+            },
+            {
+              "code": "logical-sequence",
+              "title": "Logical sequence",
+              "kind": "outcome"
+            }
+          ]
+        },
+        {
+          "code": "sentence-completion",
+          "title": "Sentence completion",
+          "kind": "unit",
+          "children": [
+            {
+              "code": "best-completion",
+              "title": "Best completion",
+              "kind": "outcome"
+            },
+            {
+              "code": "grammar-completion",
+              "title": "Grammar completion",
+              "kind": "outcome"
+            },
+            {
+              "code": "usage-distinction",
+              "title": "Usage distinction",
+              "kind": "outcome"
+            }
+          ]
         }
       ]
     },

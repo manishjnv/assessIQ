@@ -74,13 +74,39 @@ describe("exam-structure and subject-map seeds", () => {
     expect(exam.nodes.map((n) => n.code)).toEqual(["ssc", "ibps", "rrb", "upsc", "nta", "campus", "sbi"]);
     expect(exam.nodes.reduce((a, b) => a + (b.children ?? []).length, 0)).toBe(15);
   });
-  it("subject-map has 5 subjects; the 15 pilot template outcomes exist (EXP-25a) and the new topics are present", () => {
+  it("subject-map has 5 subjects and every part A outcome still exists under the same parent", () => {
     expect(subj.nodes.map((n) => n.code)).toEqual(["quant", "reasoning", "english", "general-awareness", "technical-aptitude"]);
+    // The 17 outcomes of part A (they include the 15 pilot template outcomes). Never rename, move or delete.
+    const PILOT: Record<string, string[]> = {
+      "quant/arithmetic": ["percentage", "profit-and-loss", "ratio", "time-and-work", "time-speed-distance", "simple-and-compound-interest", "average", "mixture"],
+      "quant/algebra": ["linear-equations"],
+      "quant/number-system": ["divisibility-and-remainders"],
+      "quant/progressions": ["arithmetic-progression", "geometric-progression"],
+      "reasoning/puzzles-and-series": ["number-series", "coding-decoding", "blood-relations", "direction-sense", "ranking-and-order"],
+    };
+    for (const [path, codes] of Object.entries(PILOT)) {
+      const [s, u] = path.split("/");
+      const unit = subj.nodes.find((n) => n.code === s)!.children!.find((c) => c.code === u)!;
+      const have = (unit.children ?? []).map((o) => o.code);
+      for (const c of codes) expect(have, `${path} keeps ${c}`).toContain(c);
+    }
     const units = subj.nodes.flatMap((s) => s.children ?? []);
-    const withOutcomes = units.filter((u) => (u.children ?? []).length > 0);
-    expect(withOutcomes.map((u) => u.code)).toEqual(["arithmetic", "algebra", "number-system", "progressions", "puzzles-and-series", "technical-basics"].filter((c) => c !== "technical-basics"));
-    expect(withOutcomes.find((u) => u.code === "arithmetic")!.children).toHaveLength(8);
-    expect(units.flatMap((u) => u.children ?? []).length).toBe(8 + 1 + 1 + 2 + 5);
     for (const c of ["clocks", "calendars", "critical-reasoning", "progressions"]) expect(units.some((u) => u.code === c)).toBe(true);
+  });
+  it("EXP-25 b: every unit of Quant, Reasoning and English has an outcome; codes are kebab-case; GA and Technical stay open", () => {
+    const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+    const APT = subj.nodes.filter((n) => ["quant", "reasoning", "english"].includes(n.code));
+    const aptUnits = APT.flatMap((s) => s.children ?? []);
+    expect(aptUnits).toHaveLength(30); // 18 from part A plus 12 new units (see docs/02-data-model.md, EXP-25 part b)
+    for (const u of aptUnits) {
+      expect((u.children ?? []).length, `${u.code} has outcomes`).toBeGreaterThan(0);
+      expect(KEBAB.test(u.code)).toBe(true);
+      expect(u.children!.every((o) => o.kind === "outcome" && KEBAB.test(o.code))).toBe(true);
+    }
+    expect(aptUnits.flatMap((u) => u.children ?? [])).toHaveLength(125);
+    // Owner 2026-10-29: General awareness and Technical aptitude stay without outcomes.
+    for (const s of subj.nodes.filter((n) => ["general-awareness", "technical-aptitude"].includes(n.code))) {
+      expect((s.children ?? []).flatMap((u) => u.children ?? [])).toHaveLength(0);
+    }
   });
 });
