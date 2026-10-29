@@ -478,7 +478,7 @@ export function AdminShell({ children, breadcrumbs, helpPage }: AdminShellProps)
             <button
               type="button"
               onClick={() => navigate("/admin")}
-              aria-label="Go to dashboard"
+              aria-label="AssessIQ — go to dashboard"
               style={{
                 background: "none",
                 border: "none",
