@@ -187,3 +187,7 @@ New exports (`src/camera.ts`): `getCameraTenantSettings(tenantId)` returns `{isS
 ## Org accent colour (Z-119, 2026-10-22)
 
 `setTenantAccent(actorUserId, tenantId, hex | null)` (`src/service.ts`) validates with `validateAccent` (`src/accent.ts`: `#rrggbb` only, contrast on white 4.5:1 or more), then updates `tenants.branding.primary` through `repo.updateBrandingPrimary` (row lock, `jsonb_set`, or key removal for null) and writes one `tenant.branding.updated` audit row in the same tx (none when unchanged). Tenant and actor come from the session in the route. Errors: `ACCENT_INVALID_HEX`, `ACCENT_LOW_CONTRAST` (both 400 `VALIDATION_FAILED`). `GET tenant-settings` and `whoami` read `tenant.branding.primary`. Rejected: storing OKLCH or named colours (more validation surface, no need). Not included: per-org fonts, favicon. Downstream: `apps/web/src/App.tsx`, `10-admin-dashboard` tenant settings, help key `admin.tenant_settings.accent_colour` (migration 0241).
+
+## `tenants.is_platform` (EXP-14 phase 1, migration 0276, 2026-10-29)
+
+Exactly one tenant (slug `platform`) has `is_platform = true` (unique partial index). The licensed-read function (phase 2) reads this column to know the owner of the master question store. Do not use a session setting for this. A startup assert that this row equals `PLATFORM_TENANT_ID` comes with phase 2.

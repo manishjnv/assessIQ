@@ -467,3 +467,7 @@ Module 05 `publishAssessment` reads `questions.review_state`: `in_review`, `disp
 - **Rejected.** A new route (the queue already is the super-admin screen); a per-organisation breakdown (owner asked for counts only, no organisation or candidate detail); auto-dispute at a threshold (stays OFF, see above).
 - **Not included.** Notes, reasons, tenant names, any write. Clones of clones are not followed (clones always point at the master).
 - **Downstream.** Web review-queue Reports cell shows `N in all organisations` under the existing `admin.review_queue.reports` help tip (no new help id). Real-DB test: `question-review-notes.test.ts`.
+
+## EXP-14 phase 1 (2026-10-29): owner columns
+
+`questions`, `question_versions`, `question_tags`, `question_taxonomy` carry `tenant_id`; the four child tables and `question_source` carry `pack_id`. Insert triggers fill them from the parent, so services do NOT set them. Composite foreign keys reject a wrong owner. Rule: never UPDATE `pack_id` or `tenant_id` of a question (child keys block it). Phase 2 (licensed-read policies) is next; see `docs/02-data-model.md` and `docs/design/2026-10-21-future-ready-question-store.md` section 10.
