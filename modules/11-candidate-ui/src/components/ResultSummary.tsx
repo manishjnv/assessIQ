@@ -224,6 +224,66 @@ export function ResultSummary({
         </div>
       </div>
 
+      {!compact && passMark !== undefined && (
+        <div data-testid="result-meter" data-help-id="candidate.result.meter" style={{ marginTop: 20 }}>
+          <div
+            role="img"
+            aria-label={`Your score is ${trim(percent, 1)} percent. The pass mark is ${String(passMark)} percent.`}
+            style={{
+              position: 'relative',
+              height: 8,
+              borderRadius: 4,
+              background: 'var(--aiq-color-bg-raised)',
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              style={{
+                width: `${String(Math.min(100, Math.max(0, percent)))}%`,
+                height: '100%',
+                background: `var(--aiq-color-${tone})`,
+              }}
+            />
+            <div
+              style={{
+                position: 'absolute',
+                top: 0,
+                bottom: 0,
+                left: `${String(Math.min(100, Math.max(0, passMark)))}%`,
+                width: 2,
+                background: 'var(--aiq-color-fg-primary)',
+              }}
+            />
+          </div>
+          <div style={{ ...EYEBROW, marginTop: 6, marginBottom: 0 }}>0 · Pass mark {String(passMark)}% · 100</div>
+        </div>
+      )}
+
+      {!compact && (
+        <dl
+          data-testid="result-stats"
+          data-help-id="candidate.result.stats"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+            gap: 12,
+            margin: '16px 0 0',
+          }}
+        >
+          {[
+            ['Marks', `${trim(totalEarned, 2)} / ${trim(totalMax, 2)}`],
+            ['Percent', `${trim(percent, 1)}%`],
+            ...(passMark !== undefined ? [['Pass mark', `${String(passMark)}%`]] : []),
+            ...(retake !== undefined ? [['Attempt', `${String(retake.attempt_number)} of ${String(retake.attempts_allowed)}`]] : []),
+          ].map(([label, value]) => (
+            <div key={label} style={{ border: '1px solid var(--aiq-color-border)', borderRadius: 'var(--aiq-radius-sm, 6px)', padding: '8px 12px' }}>
+              <dt style={{ ...EYEBROW, marginBottom: 2 }}>{label}</dt>
+              <dd style={{ margin: 0, fontSize: 16, fontWeight: 600 }}>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+
       {!compact && sections !== undefined && sections.length > 0 && (
         <table data-testid="result-sections" style={{ ...MUTED_14, marginTop: 16, borderCollapse: 'collapse', width: '100%' }}>
           <caption style={{ ...EYEBROW, textAlign: 'left' }}>Marks by section</caption>

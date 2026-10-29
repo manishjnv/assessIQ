@@ -75,6 +75,7 @@ export {
   MyResults,
   MyProgress,
   ResultSummary,
+  AttemptFeedback,
   CandidateShell,
   CandidateSessionBanner,
   CandidateActivity,

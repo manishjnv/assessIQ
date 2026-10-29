@@ -250,4 +250,28 @@ describe('ResultSummary', () => {
       expect(container.querySelector('[data-testid="result-sections"]')).toBeNull();
     });
   });
+
+  it('Z-172 shows a pass-mark meter with the tick at the pass mark and a stats row', () => {
+    const { container } = render(
+      <ResultSummary totalEarned={42} totalMax={60} percent={70} passed passMark={60} retake={{ assessment_id: 'a', attempt_number: 1, attempts_allowed: 3, can_retake: false }} />,
+    );
+    const meter = screen.getByTestId('result-meter');
+    expect(meter.textContent).toContain('Pass mark 60%');
+    expect(meter.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Your score is 70 percent. The pass mark is 60 percent.');
+    const stats = screen.getByTestId('result-stats').textContent ?? '';
+    expect(stats).toContain('Marks42 / 60');
+    expect(stats).toContain('Percent70%');
+    expect(stats).toContain('Pass mark60%');
+    expect(stats).toContain('Attempt1 of 3');
+    expect(container.textContent).not.toMatch(/band|justification|percentile/i);
+  });
+
+  it('Z-172 hides the meter without a pass mark, hides the Attempt stat without retake data, and shows neither in a list row', () => {
+    const { rerender } = render(<ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} />);
+    expect(screen.queryByTestId('result-meter')).toBeNull();
+    expect(screen.getByTestId('result-stats').textContent).not.toContain('Attempt');
+    rerender(<ResultSummary totalEarned={20} totalMax={60} percent={33.3} passed={false} passMark={60} compact />);
+    expect(screen.queryByTestId('result-meter')).toBeNull();
+    expect(screen.queryByTestId('result-stats')).toBeNull();
+  });
 });

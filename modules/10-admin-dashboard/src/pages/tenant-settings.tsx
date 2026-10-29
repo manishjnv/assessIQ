@@ -43,6 +43,7 @@ interface TenantSettingsResponse {
   result_release_mode?: ReleaseMode;
   /** Absent on servers that predate the Distinction-on-certificates setting (Z-50). */
   certificate_show_distinction?: boolean;
+  candidate_answer_key?: boolean;
   /** Current organisation logo, or null/absent when none is set. */
   /** Org accent colour (#rrggbb) or null. */
   accent?: string | null;
@@ -266,6 +267,16 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
   const [certMfa, setCertMfa] = useState(false);
   const selectedDistinction = certChoice ?? certShowDistinction;
   const certDirty = selectedDistinction !== certShowDistinction;
+
+  // ── Candidate answer key (Z-172) ──────────────────────────────────────────
+  const [answerKeyOn, setAnswerKeyOn] = useState(false);
+  const [keyChoice, setKeyChoice] = useState<boolean | null>(null);
+  const [keySaving, setKeySaving] = useState(false);
+  const [keySuccess, setKeySuccess] = useState<string | null>(null);
+  const [keyError, setKeyError] = useState<string | null>(null);
+  const [keyMfa, setKeyMfa] = useState(false);
+  const selectedKey = keyChoice ?? answerKeyOn;
+  const keyDirty = selectedKey !== answerKeyOn;
 
   // ── Purge state ───────────────────────────────────────────────────────────
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -493,6 +504,7 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
           : null,
       );
       setCertShowDistinction(data.certificate_show_distinction === true);
+      setAnswerKeyOn(data.candidate_answer_key === true);
     } catch (primaryErr) {
       const is404 =
         primaryErr instanceof AdminApiError && primaryErr.status === 404;
@@ -648,6 +660,41 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
       }
     } finally {
       setCertSaving(false);
+    }
+  };
+
+  // ── Save the candidate answer key switch (Z-172; same fresh-MFA flow) ──
+
+  const handleSaveAnswerKey = async (): Promise<void> => {
+    setKeySaving(true);
+    setKeyError(null);
+    setKeySuccess(null);
+    try {
+      await adminApi("/admin/tenant-settings/candidate-answer-key", {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: selectedKey }),
+      });
+      setAnswerKeyOn(selectedKey);
+      setKeyChoice(null);
+      setKeyMfa(false);
+      setKeySuccess("Answer key setting saved.");
+      setTimeout(() => setKeySuccess(null), 4000);
+    } catch (err) {
+      if (
+        err instanceof AdminApiError &&
+        (err.status === 401 ||
+          (err.status === 403 && err.apiError.details?.code === "MFA_REQUIRED"))
+      ) {
+        setKeyMfa(true);
+      } else {
+        setKeyError(
+          err instanceof AdminApiError
+            ? err.apiError.message
+            : "Unexpected error — please try again.",
+        );
+      }
+    } finally {
+      setKeySaving(false);
     }
   };
 
@@ -1452,6 +1499,127 @@ export function TenantSettings({ embedded = false, tab }: TenantSettingsProps = 
                       disabled={!certDirty}
                     >
                       Save certificate setting
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        </section>
+
+        {/* ── Candidate answer key (Z-172) ────────────────────────────────── */}
+        <section
+          aria-labelledby="answer-key-heading"
+          data-help-id="admin.tenant_settings.candidate_answer_key"
+          style={{ marginTop: "var(--aiq-space-xl)" }}
+        >
+          <div
+            style={{
+              paddingBottom: 16,
+              borderBottom: "1px solid var(--aiq-color-border)",
+              marginBottom: 24,
+            }}
+          >
+            <h2
+              id="answer-key-heading"
+              style={{
+                fontFamily: "var(--aiq-font-serif)",
+                fontSize: 22,
+                fontWeight: 400,
+                margin: 0,
+                letterSpacing: "-0.015em",
+              }}
+            >
+              Answer key.
+            </h2>
+          </div>
+          <Card padding="lg">
+            {loadingSettings ? (
+              <div style={{ display: "grid", placeItems: "center", padding: "var(--aiq-space-xl) 0" }}>
+                <Spinner aria-label="Loading answer key setting" />
+              </div>
+            ) : (
+              <>
+                <label style={{ display: "flex", alignItems: "flex-start", gap: 12, maxWidth: 520, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedKey}
+                    disabled={keySaving}
+                    onChange={(e) => {
+                      setKeyChoice(e.target.checked);
+                      setKeyError(null);
+                      setKeySuccess(null);
+                      setKeyMfa(false);
+                    }}
+                    style={{ marginTop: 3, accentColor: "var(--aiq-color-accent)" }}
+                  />
+                  <span>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: "var(--aiq-font-sans)",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        color: "var(--aiq-color-fg-primary)",
+                      }}
+                    >
+                      Let candidates review their answers after a Mock test
+                    </span>
+                    <span
+                      style={{
+                        display: "block",
+                        marginTop: 2,
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                        color: "var(--aiq-color-fg-secondary)",
+                      }}
+                    >
+                      When this is on, a candidate sees each question, their own answer and whether it was right,
+                      after the result is released. Each test must also turn feedback on. Real tests never show it.
+                      For questions from the shared library, candidates see only right or wrong and their own answer.
+                    </span>
+                  </span>
+                </label>
+
+                {keySuccess && (
+                  <div style={{ marginTop: 16 }}>
+                    <Chip variant="success">{keySuccess}</Chip>
+                  </div>
+                )}
+                {keyError && (
+                  <div
+                    role="alert"
+                    style={{
+                      marginTop: 16,
+                      fontSize: 13,
+                      color: "var(--aiq-color-danger, #dc2626)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {keyError}
+                  </div>
+                )}
+
+                {keyMfa ? (
+                  <div style={{ marginTop: 20, maxWidth: 520 }}>
+                    <MfaStepUp
+                      prompt="Changing the answer key setting needs a fresh authenticator check. Enter your 6-digit code to continue."
+                      confirmLabel="Verify & save"
+                      onVerified={() => {
+                        setKeyMfa(false);
+                        void handleSaveAnswerKey();
+                      }}
+                      onCancel={() => setKeyMfa(false)}
+                    />
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 20 }}>
+                    <Button
+                      onClick={() => void handleSaveAnswerKey()}
+                      loading={keySaving}
+                      disabled={!keyDirty}
+                    >
+                      Save answer key setting
                     </Button>
                   </div>
                 )}

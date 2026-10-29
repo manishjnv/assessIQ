@@ -4843,6 +4843,22 @@ admin.start_test.mock.unverified:
 
     The sections, timing and marks of an unverified blueprint are not checked against the official notice. Check them before you use the mock for a real test.
 
+admin.tenant_settings.candidate_answer_key:
+  audience: admin
+  version: 1
+  short_text: "Choose if candidates may review each question and their own answer after a Mock test."
+  long_md: |
+    ## Answer key for candidates
+
+    This setting decides if a candidate can open "Review your answers" after the result is released.
+
+    - **Off (default).** No candidate of your organisation sees a question-by-question review.
+    - **On.** A candidate can see each question, their own answer and whether it was right. You must also turn feedback on in the test itself.
+    - Real tests and embedded tests never show it. Only Mock tests do.
+    - The review is fetched from the server after the result is released. It is never sent before.
+    - Questions that come from the shared library show only right or wrong and the candidate's own answer. They do not show the expected answer or the explanation. This is stricter than before for copied library questions.
+    - You may be asked for a fresh authenticator code when you change this setting. Each change is written to the audit log.
+
 admin.tenant_settings.result_feedback_level:
   audience: admin
   version: 1

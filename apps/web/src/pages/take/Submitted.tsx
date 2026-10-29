@@ -38,6 +38,7 @@ import {
   startAttempt,
   CandidateApiError,
   ResultSummary,
+  AttemptFeedback,
   NewCertificateModal,
 } from '@assessiq/candidate-ui';
 import type {
@@ -375,6 +376,11 @@ export function Submitted(): React.JSX.Element {
                   />
                   {state.result.certificate && (
                     <NewCertificateModal credential_id={state.result.certificate.credential_id} />
+                  )}
+                  {/* Z-172: the answer key is fetched from the server only on click, and only when the
+                      organisation switch and the test level allow it (feedback_level is then not none). */}
+                  {(state.result.feedback_level ?? 'none') !== 'none' && attemptId !== undefined && (
+                    <AttemptFeedback attemptId={attemptId} />
                   )}
                 </Card>
                 {state.emailMasked !== null && (

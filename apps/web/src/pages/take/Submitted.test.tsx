@@ -289,4 +289,20 @@ describe('Submitted — scoring + result release', () => {
     expect(screen.getByText(EMAIL_72H)).toBeTruthy();
     expect(screen.queryByRole('img', { name: /logo/i })).toBeNull();
   });
+
+  it('Z-172 - the answer key button shows only when the server sends a feedback level; nothing is fetched on load', async () => {
+    getResult.mockResolvedValue({ ...RELEASED, feedback_level: 'none' });
+    renderSubmitted(SOON_STATE);
+    await tick(0);
+    expect(screen.queryByRole('button', { name: 'Review your answers' })).toBeNull();
+    cleanup();
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    getResult.mockResolvedValue({ ...RELEASED, feedback_level: 'right_wrong' });
+    renderSubmitted(SOON_STATE);
+    await tick(0);
+    expect(screen.getByRole('button', { name: 'Review your answers' })).toBeTruthy();
+    // collapsed: the feedback route is not called until the candidate opens it
+    expect(fetchSpy.mock.calls.filter((c) => String(c[0]).includes('/feedback'))).toHaveLength(0);
+    fetchSpy.mockRestore();
+  });
 });

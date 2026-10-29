@@ -747,12 +747,35 @@ candidate.progress.subjects:
 
 candidate.results.feedback:
   audience: candidate
-  version: 1
+  version: 2
   short_text: "Open this to see each question, your answer and whether it was right."
   long_md: |
     ## Review your answers
 
     Your organisation chooses what this section shows. It lists each question with your answer and the outcome. A "What to study" line shows the topic to practise.
+
+    Questions that come from the shared library show only whether your answer was right and your own answer. They do not show the expected answer or the explanation.
+
+candidate.result.meter:
+  audience: candidate
+  version: 1
+  short_text: "The bar shows your score. The thin line marks the pass mark."
+  long_md: |
+    ## Score bar
+
+    The coloured bar shows your score as a percentage. The thin black line shows the pass mark. A score that reaches the line passes.
+
+candidate.result.stats:
+  audience: candidate
+  version: 1
+  short_text: "A short summary of your marks, your percentage, the pass mark and your attempt number."
+  long_md: |
+    ## Result summary
+
+    - **Marks.** The marks you earned out of the total.
+    - **Percent.** Your marks as a percentage.
+    - **Pass mark.** The percentage you need to pass.
+    - **Attempt.** Which attempt this is, out of the attempts you may take.
 
 candidate.results.feedback.expected:
   audience: candidate
