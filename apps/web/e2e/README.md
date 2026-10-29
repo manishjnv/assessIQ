@@ -11,6 +11,7 @@
 | `take-timer-expiry.spec.ts` | 1-minute assessment auto-submits at zero | **Live** (local stack) |
 | `ordering-admin.spec.ts` | `ordering` + `structured_case`: author, publish, take, score, admin view | **Live** (local stack) |
 | `take-runner-mocked.spec.ts` | Runner UI with a mocked API | Live (no backend) |
+| `result-answer-key-smoke.spec.ts` | Z-173: result page with the answer key open and the Settings Answer key section at 1440 and 390 (no sideways scroll, axe) | Result test: no backend; Settings test: local stack |
 
 ---
 
