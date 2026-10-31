@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { QuestionTypeDef } from "../../registry.js";
-import { RICH_VIEW_KEYS, RichOptionFields, RichStemFields, checkRichRefs } from "../../rich.js";
+import { RICH_VIEW_KEYS, RichI18nField, RichOptionFields, RichStemFields, checkI18nHi, checkRichRefs, i18nCandidateView } from "../../rich.js";
 import { asStr, candidateViewOf, compact, isObj, pick, pickKeys, questionOrJson, questionStem, structuralOf, type Dict } from "../../helpers.js";
 
 export const McqContentSchema = z.object({
@@ -10,9 +10,11 @@ export const McqContentSchema = z.object({
   rationale: z.string().min(1),
   ...RichStemFields,
   ...RichOptionFields,
+  ...RichI18nField,
 }).strict()
   .superRefine((val, ctx) => {
     checkRichRefs(val, ctx);
+    checkI18nHi(val, ctx);
     if (val.correct >= val.options.length) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -142,7 +144,7 @@ export const definition: QuestionTypeDef = {
   rubricRequired: false,
   rubricSynthesis: "none",
   shuffleField: "options",
-  candidateView: candidateViewOf((c) => pickKeys(c, ["question", "options", ...RICH_VIEW_KEYS])),
+  candidateView: candidateViewOf((c) => ({ ...pickKeys(c, ["question", "options", ...RICH_VIEW_KEYS]), ...i18nCandidateView(c) })),
   coerceContent: coerceMcqContent,
   guidanceText: questionStem,
   rubricText: questionOrJson,

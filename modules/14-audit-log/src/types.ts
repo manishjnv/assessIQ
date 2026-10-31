@@ -235,6 +235,7 @@ export const ACTION_CATALOG = [
   'camera.upload.refused',
   'camera.file.viewed',
   'question.affected_attempt.reviewed',
+  'attempt.language.set',
   'camera.review.marked',
   'camera.appeal.changed',
   'camera.reviewer.added',

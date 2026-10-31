@@ -38,6 +38,7 @@ import {
   recordPosition,
   recordEvent,
   submitAttempt,
+  setAttemptLanguage,
 } from "./service.js";
 import { reportQuestion, REPORT_REASONS } from "./report.js";
 import {
@@ -200,6 +201,25 @@ export async function registerAttemptCandidateRoutes(
       const userId = req.session!.userId;
       const { id } = req.params as { id: string };
       return getAttemptForCandidate(tenantId, id, userId);
+    },
+  );
+
+  // -------------------------------------------------------------------------
+  // PATCH /api/me/attempts/:id/language — EXP-9: en | hi, own in-progress attempt only
+  // -------------------------------------------------------------------------
+
+  app.patch(
+    "/api/me/attempts/:id/language",
+    { preHandler: candidateOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const language = (req.body as Record<string, unknown> | null)?.["language"];
+      if (language !== "en" && language !== "hi") {
+        throw new ValidationError("language must be en or hi", {
+          details: { code: AE_ERROR_CODES.INVALID_PARAM, param: "language" },
+        });
+      }
+      return setAttemptLanguage(req.session!.tenantId, req.session!.userId, id, language);
     },
   );
 

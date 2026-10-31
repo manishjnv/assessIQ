@@ -257,6 +257,14 @@ export function displayQuestions(
     const shuffled: Record<string, unknown> = { ...content, [field]: order.map((i) => options[i]) };
     // EXP-10: option images travel with their option. A misaligned array is dropped, never served out of step.
     const oa = (content as { option_assets?: unknown } | null)?.option_assets;
+    // EXP-9: the Hindi options use the SAME permutation. A length mismatch drops the overlay (English fallback).
+    const hi = (content as { i18n?: { hi?: { options?: unknown } } } | null)?.i18n?.hi;
+    if (field === "options" && hi !== undefined) {
+      const ho = hi?.options;
+      if (Array.isArray(ho) && ho.length === order.length) {
+        shuffled["i18n"] = { hi: { ...(hi as object), options: order.map((i) => ho[i]) } };
+      } else delete shuffled["i18n"];
+    }
     if (field === "options" && oa !== undefined) {
       if (Array.isArray(oa) && oa.length === order.length) shuffled["option_assets"] = order.map((i) => oa[i]);
       else delete shuffled["option_assets"];

@@ -1354,6 +1354,45 @@ export async function setAffectedAttemptReview(
 }
 
 // ===========================================================================
+// setAttemptLanguage — EXP-9: the candidate picks English or Hindi mid-attempt
+// ===========================================================================
+
+/** Own attempt, own tenant (RLS), in progress only. One audit row, and only when the value changes. */
+export async function setAttemptLanguage(
+  tenantId: string,
+  userId: string,
+  attemptId: string,
+  language: "en" | "hi",
+): Promise<{ language: "en" | "hi" }> {
+  return withTenant(tenantId, async (client) => {
+    const attempt = await repo.findAttemptByIdForUpdate(client, attemptId);
+    if (attempt === null) {
+      throw new NotFoundError(`Attempt not found: ${attemptId}`, { details: { code: AE_ERROR_CODES.ATTEMPT_NOT_FOUND } });
+    }
+    assertAttemptOwnedBy(attempt, userId);
+    if (attempt.status !== "in_progress") {
+      throw new ConflictError(`Attempt ${attempt.id} is not writable (status: ${attempt.status})`, {
+        details: { code: AE_ERROR_CODES.WRITES_LOCKED, status: attempt.status },
+      });
+    }
+    if (attempt.language !== language) {
+      await repo.setAttemptLanguage(client, attemptId, language);
+      await auditInTx(client, {
+        tenantId,
+        actorKind: "user",
+        actorUserId: userId,
+        action: "attempt.language.set",
+        entityType: "attempt",
+        entityId: attemptId,
+        before: { language: attempt.language },
+        after: { language },
+      });
+    }
+    return { language };
+  });
+}
+
+// ===========================================================================
 // saveAnswer — last-write-wins (decision #7)
 // ===========================================================================
 

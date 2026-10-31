@@ -38,3 +38,31 @@ export function checkRichRefs(
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["stem_assets"], message: `at most ${MAX_ASSETS_PER_QUESTION} images per question` });
   }
 }
+
+// EXP-9 A1: Hindi overlay inside the versioned content (FUT-3 D9), MCQ only. Frozen with the version.
+// `options` must be as long as the English options (checked by checkI18nHi); `rationale` is admin-only.
+export const I18nHiSchema = z.object({
+  question: z.string().min(1),
+  options: z.array(z.string().min(1)).min(2).max(8),
+  rationale: z.string().min(1).optional(),
+}).strict();
+
+export const RichI18nField = {
+  i18n: z.object({ hi: I18nHiSchema }).strict().optional(),
+} as const;
+
+export function checkI18nHi(
+  val: { options?: readonly unknown[] | undefined; i18n?: { hi: { options: readonly unknown[] } } | undefined },
+  ctx: z.RefinementCtx,
+): void {
+  if (val.i18n !== undefined && val.options !== undefined && val.i18n.hi.options.length !== val.options.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["i18n", "hi", "options"], message: "i18n.hi.options must have one entry per option" });
+  }
+}
+
+/** Candidate view of the overlay: question and options only. The Hindi rationale never leaves the server. */
+export function i18nCandidateView(c: Record<string, unknown>): Record<string, unknown> {
+  const hi = (c["i18n"] as { hi?: { question?: unknown; options?: unknown } } | undefined)?.hi;
+  if (hi === undefined || hi === null || typeof hi !== "object") return {};
+  return { i18n: { hi: { question: hi.question, options: hi.options } } };
+}

@@ -37,7 +37,7 @@ const OPTION_TYPES = QUESTION_TYPES.filter((t) => QUESTION_TYPE_REGISTRY[t].shuf
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin, attempt_number, delivery_mode, camera_enabled`;
+const ATTEMPT_COLUMNS = `id, tenant_id, assessment_id, user_id, status, started_at, ends_at, submitted_at, duration_seconds, created_at, embed_origin, attempt_number, delivery_mode, camera_enabled, language`;
 
 const ATTEMPT_QUESTION_COLUMNS = `attempt_id, question_id, position, question_version, option_order, section_index`;
 
@@ -62,6 +62,7 @@ interface AttemptRow {
   attempt_number: number;
   delivery_mode: string;
   camera_enabled: boolean;
+  language: string | null;
 }
 
 interface AttemptQuestionRow {
@@ -131,6 +132,7 @@ function mapAttemptRow(row: AttemptRow): Attempt {
     attempt_number: row.attempt_number,
     delivery_mode: row.delivery_mode === "mock" ? "mock" : "real",
     camera_enabled: row.camera_enabled,
+    language: row.language === "hi" ? "hi" : "en",
   };
 }
 
@@ -1320,4 +1322,9 @@ export async function markInvitationSubmitted(
      WHERE assessment_id = $1 AND user_id = $2 AND status IN ('started', 'viewed', 'pending')`,
     [assessmentId, userId],
   );
+}
+
+/** EXP-9: set the reading language of an in-progress attempt. Returns the previous language, or null if the row was not updated. */
+export async function setAttemptLanguage(client: PoolClient, id: string, language: "en" | "hi"): Promise<void> {
+  await client.query(`UPDATE attempts SET language = $2 WHERE id = $1`, [id, language]);
 }

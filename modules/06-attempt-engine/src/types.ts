@@ -70,6 +70,8 @@ export interface Attempt {
   delivery_mode: "real" | "mock";
   /** Z-89: camera is a Wave 2 feature; always false today. */
   camera_enabled: boolean;
+  /** EXP-9: reading language ('hi' = Hindi overlay); NULL in the DB reads as 'en'. */
+  language: "en" | "hi";
 }
 
 export interface AttemptQuestion {
