@@ -25,7 +25,7 @@ type GuidanceQuestionType = Parameters<AiGrading["generateAnswerGuidanceDraft"]>
  * AIG_GRADING_IN_PROGRESS and the runtime is never called. `run` gets the
  * lease-lost signal (RW-64). Fail-closed 503 from acquire propagates unchanged.
  */
-async function withAiLock<T>(key: string, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function withAiLock<T>(key: string, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
   const { singleFlight, AI_GRADING_ERROR_CODES } = await import("@assessiq/ai-grading");
   const slot = await singleFlight.acquire(key);
   if (slot.kind === "rejected") {

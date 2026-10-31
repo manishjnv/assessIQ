@@ -29,6 +29,7 @@ import { ValidationError, NotFoundError, UUID_RE, parsePagination } from "@asses
 import { QUESTION_TYPES } from "@assessiq/question-types";
 import { GENERATED_TYPES } from "./difficulty-spec.js";
 import { MAX_PAGE_SIZE } from "./service/_shared.js";
+import { parseExamItemBody, runExamItemGenerate } from "./service/exam-item-generation.js";
 import {
   scoreQuestion,
   loadFixture,
@@ -581,6 +582,20 @@ export async function registerQuestionBankRoutes(
       const a = await resolveGenerateArgs(req);
       const { attemptId } = await startGenerateDetached(a);
       return reply.code(202).send({ attempt_id: attemptId });
+    },
+  );
+
+  // POST /api/admin/generate/exam-items (EXP-7): A1 new original items from a concept, A2 light edit
+  // with the source reference kept. Super-admin click, same single-flight lease. The runtime hook
+  // is not wired yet (501 EXAMGEN_RUNTIME_NOT_WIRED); the similarity gate runs on its output.
+  app.post(
+    "/api/admin/generate/exam-items",
+    { preHandler: superAdminOnly },
+    async (req) => {
+      const a = await resolveGenerateArgs(req);
+      const parsed = parseExamItemBody(req.body, a.count);
+      const out = await runExamItemGenerate(a.tenantId, parsed);
+      return { accepted: out.accepted.length, rejected: out.rejected };
     },
   );
 

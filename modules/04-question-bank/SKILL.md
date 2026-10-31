@@ -385,7 +385,8 @@ Seeds are JSON files in `src/frameworks/<code>.json`. The contract is `schemas/f
 - **Why.** A full mock needs the exam's real sections, marks and negative marking without per-admin set-up.
 - **Rules.** No `tenant_id`: platform data, tenant sessions read only (no write policy). Writes use `withSystemRole`, then switch to `assessiq_app` to audit in the same transaction (same pattern as the framework seed load). Stage and subject ids must be platform nodes of the right kind. Update replaces the sections.
 - **Considered and rejected.** Tenant-owned blueprints; storing the cutoff in the seed; a `total_questions` column.
-- **Not included.** Other exams (add only after the owner verifies them), UI and help ids, normalisation across shifts, rank prediction.
+- **Not included.** Other exams (add only after the owner verifies them), normalisation across shifts, rank prediction.
+- **Editor UI (2026-10-31).** `/admin/exam-blueprints` shows New pattern, Edit and Delete to super admins only. The form is `modules/10-admin-dashboard/src/components/BlueprintEditor.tsx`: it calls `POST /api/admin/blueprints` (create) and `PUT /api/admin/blueprints/:id` (edit) and mirrors the zod body rules in its own checks. Delete calls `DELETE`, which archives the row: nothing is erased. Help ids `admin.blueprints.editor.*`. The form keeps the stored stage id, subject ids and allowed question types on edit; it has no picker for them.
 - **Downstream.** Module 05 builds a draft from a blueprint (`createMockFromBlueprint`). Module 14 has three new actions. Tests: `src/__tests__/exam-blueprints.test.ts`.
 
 ### Review gate consumer (EXP-18, 2026-10-18)
@@ -493,3 +494,12 @@ Platform packs are readable by a licensed tenant through `licensed_read` SELECT 
 - Only `getAssetBytes` and `copyAssetsForContent` (here) and module 06 `attempt-assets.ts` select the `data` column. Every list or meta query names its columns (a test scans the sources).
 - Import carries no images: JSON `bulkImport` refuses `stem_assets` / `option_assets`; CSV and XLSX have no such columns.
 - Full record: `docs/design/2026-10-17-exam-pack-source-and-taxonomy-plan.md` sections 12 and 13; `docs/02-data-model.md` section "EXP-10 part 1".
+
+
+## EXP-7 exam-item generator, in-repo part (2026-10-31)
+
+- **What:** `src/exam-item-gate.ts` (pure similarity gate and provenance), `src/service/exam-item-generation.ts` (body parser, gate pipeline, click path under the existing `withAiLock` single-flight, now exported from `service/generation.ts`), route `POST /api/admin/generate/exam-items` (super admin). Tests: `src/__tests__/exam-item-gate.test.ts` (synthetic data only).
+- **Modes:** A1 writes new original items from a concept (`origin ai_original`, rights `original`). A2 light-edits a source question and keeps the reference (`origin` and rights `derived_from_source`, reference in `question_source.source_ref`). No migration: migration 0194 already has these values and columns. Migration 0288 stays unused.
+- **Similarity:** Jaccard over word 3-grams (Unicode aware, Hindi works). A1 rejects at or above 0.35 to any seed. A2 needs 0.40 up to under 0.97 to its own source and rejects 0.85 or more against the platform bank. Constants live at the top of the gate file; tune them only with a measured sample.
+- **Seeds:** passed in per run by the VPS side, held in memory, never stored here. Exam content, seeds and skill text never enter git (see "Exam content is never committed").
+- **Not wired:** module 07 has no runtime hook for the skill `gen-exam-items` yet, so the route answers 501 `EXAMGEN_RUNTIME_NOT_WIRED` and no AI call is possible. No wizard mode selector yet. The route is synchronous (no detached polling) until the hook exists.

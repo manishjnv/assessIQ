@@ -1,4 +1,4 @@
-// AssessIQ — Exam blueprints (EXP-6 tail, CT-1 editor). Super admin only.
+// AssessIQ — Exam blueprints (EXP-6 tail, CT-1 editor, super-admin editor). Super admin writes only.
 //
 // /admin/exam-blueprints
 //
@@ -11,9 +11,14 @@
 //   GET  /api/admin/packs/:id                  -> { levels: { id, order }[] }
 //   POST /api/admin/blueprints/:id/mock        -> 201 { assessment, warnings }
 //
-// CT-1 (pattern upkeep): each card shows the last and next check dates and an owner contact, with three actions:
+// Super admin only (session role): "New pattern", "Edit" and "Delete" (components/BlueprintEditor.tsx).
+//   POST /api/admin/blueprints                 (create, in the editor)
+//   PUT  /api/admin/blueprints/:id             (edit, in the editor)
+//   DELETE /api/admin/blueprints/:id           (Delete: the server archives the row; nothing is erased)
+//
+// CT-1 (pattern upkeep): each card shows the last and next check dates and an owner contact, with actions:
 //   "Mark checked" (POST /blueprints/:id/checked), "New edition" (PUT /blueprints/:id: a verified edition is never
-//   edited, so the server adds a new edition row) and "Archive" (DELETE archives; old assessments keep working).
+//   edited, so the server adds a new edition row).
 // INVARIANTS: no claude/anthropic copy; the monthly check is a person, never an AI call.
 
 import React, { useEffect, useState } from "react";
@@ -21,9 +26,11 @@ import { Link } from "react-router";
 import { Chip, Spinner } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { AdminShell } from "../components/AdminShell.js";
+import { BlueprintEditor } from "../components/BlueprintEditor.js";
 import { AdminApiError } from "../api.js";
 import { archiveBlueprintApi, listExamBlueprintsFullApi, markBlueprintCheckedApi, saveBlueprintEditionApi } from "../api/exam-blueprints.js";
 import type { BlueprintWriteBody, ExamBlueprintFull } from "../api/exam-blueprints.js";
+import { useAdminSession } from "../session.js";
 
 const wrap: React.CSSProperties = { padding: "var(--aiq-space-lg) var(--aiq-space-xl)", display: "flex", flexDirection: "column", gap: "var(--aiq-space-lg)" };
 const card: React.CSSProperties = { display: "flex", flexDirection: "column", gap: "var(--aiq-space-md)", padding: "var(--aiq-space-md)", border: "1px solid var(--aiq-color-border)", borderRadius: "var(--aiq-radius-md)" };
@@ -45,7 +52,7 @@ function errorText(e: unknown, fallback: string): string {
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
 
-/** CT-1: upkeep dates and the three actions. `onChanged` reloads the list after a write. */
+/** CT-1: upkeep dates and the upkeep actions. `onChanged` reloads the list after a write. */
 function UpkeepPanel({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: () => void }): React.ReactElement {
   const [mode, setMode] = useState<"none" | "check" | "edition">("none");
   const [note, setNote] = useState("");
@@ -112,16 +119,6 @@ function UpkeepPanel({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: () =
             New edition
           </button>
         </HelpTip>
-        <HelpTip helpId="admin.blueprints.archive">
-          <button
-            type="button"
-            className="aiq-btn aiq-btn-ghost aiq-btn-sm"
-            disabled={busy}
-            onClick={() => { if (window.confirm(`Archive ${bp.name} ${bp.edition}? Tests already made from it keep working.`)) void run(() => archiveBlueprintApi(bp.id), "The pattern could not be archived."); }}
-          >
-            Archive
-          </button>
-        </HelpTip>
       </div>
       {mode === "check" && (
         <form
@@ -174,8 +171,34 @@ function UpkeepPanel({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: () =
   );
 }
 
-function BlueprintCard({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: () => void }): React.ReactElement {
+interface BlueprintCardProps {
+  bp: ExamBlueprintFull;
+  isSuper: boolean;
+  editing: boolean;
+  onEditingChange: (on: boolean) => void;
+  onChanged: () => void;
+}
+
+function BlueprintCard({ bp, isSuper, editing, onEditingChange, onChanged }: BlueprintCardProps): React.ReactElement {
   const headId = `bp-${bp.id}`;
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function confirmDelete(): Promise<void> {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await archiveBlueprintApi(bp.id);
+      setConfirmingDelete(false);
+      onChanged();
+    } catch (e) {
+      setDeleteError(errorText(e, "The pattern could not be deleted."));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <section aria-labelledby={headId} style={card}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)", alignItems: "center", justifyContent: "space-between" }}>
@@ -183,46 +206,89 @@ function BlueprintCard({ bp, onChanged }: { bp: ExamBlueprintFull; onChanged: ()
           <h2 id={headId} style={{ ...sans, fontSize: "var(--aiq-text-lg)", fontWeight: 600, margin: 0 }}>{bp.name}</h2>
           <p style={muted}>Edition {bp.edition}. {bp.total_questions} questions, {bp.total_marks} marks, {bp.total_minutes} minutes.{bp.qualifying ? " Qualifying exam." : ""}</p>
         </div>
-        <div style={{ display: "flex", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)", alignItems: "center" }}>
           <HelpTip helpId="admin.blueprints.verification">
             <Chip>{bp.verification_status === "verified" ? "Verified" : "Unverified"}</Chip>
           </HelpTip>
           <Link to={`/admin/create-test?exam=${encodeURIComponent(bp.id)}`} className="aiq-btn aiq-btn-ghost aiq-btn-sm">Create a test</Link>
+          {isSuper && (
+            <HelpTip helpId="admin.blueprints.editor.edit">
+              <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" aria-expanded={editing} onClick={() => onEditingChange(!editing)}>
+                Edit
+              </button>
+            </HelpTip>
+          )}
+          {isSuper && (
+            <HelpTip helpId="admin.blueprints.editor.delete">
+              <button
+                type="button"
+                className="aiq-btn aiq-btn-ghost aiq-btn-sm"
+                style={{ color: "var(--aiq-color-danger)" }}
+                disabled={deleting}
+                onClick={() => { setDeleteError(null); setConfirmingDelete(true); }}
+              >
+                Delete
+              </button>
+            </HelpTip>
+          )}
         </div>
       </div>
+      {isSuper && confirmingDelete && (
+        <div role="group" aria-label={`Delete ${bp.name} ${bp.edition}`} style={{ ...card, borderColor: "var(--aiq-color-danger)" }}>
+          <p style={sans}>Delete this pattern? It is hidden from the list and from new tests. Nothing is erased, and tests already made keep working.</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)" }}>
+            <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" disabled={deleting} onClick={() => void confirmDelete()}>
+              {deleting ? "Deleting…" : "Confirm delete"}
+            </button>
+            <button type="button" className="aiq-btn aiq-btn-ghost aiq-btn-sm" disabled={deleting} onClick={() => setConfirmingDelete(false)}>
+              Keep pattern
+            </button>
+          </div>
+          {deleteError !== null && <p role="alert" style={sans}>{deleteError}</p>}
+        </div>
+      )}
       {bp.source_note !== null && <p style={muted}>{bp.source_note}</p>}
+      {isSuper && editing && (
+        <BlueprintEditor original={bp} onSaved={() => { onEditingChange(false); onChanged(); }} onCancel={() => onEditingChange(false)} />
+      )}
       <UpkeepPanel bp={bp} onChanged={onChanged} />
-      <div style={{ overflowX: "auto" }}>
-        <HelpTip helpId="admin.blueprints.sections">
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <caption style={{ ...muted, textAlign: "left", paddingBottom: "var(--aiq-space-xs)" }}>Sections of {bp.name}</caption>
-            <thead>
-              <tr>{HEADERS.map((h) => <th key={h} scope="col" style={{ ...cell, fontWeight: 600 }}>{h}</th>)}</tr>
-            </thead>
-            <tbody>
-              {bp.sections.map((s) => (
-                <tr key={s.position}>
-                  <th scope="row" style={{ ...cell, fontWeight: 400 }}>{s.name}</th>
-                  <td style={cell}>{s.question_count}</td>
-                  <td style={cell}>{s.marks_per_question}</td>
-                  <td style={cell}>{s.negative_marks_per_question}</td>
-                  <td style={cell}>{s.minutes ?? "—"}</td>
-                  <td style={cell}>
-                    {s.qualifying ? `Yes${s.cutoff_marks !== null ? `, cut-off ${s.cutoff_marks}` : ""}` : "No"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </HelpTip>
-      </div>
+      {!editing && (
+        <div style={{ overflowX: "auto" }}>
+          <HelpTip helpId="admin.blueprints.sections">
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <caption style={{ ...muted, textAlign: "left", paddingBottom: "var(--aiq-space-xs)" }}>Sections of {bp.name}</caption>
+              <thead>
+                <tr>{HEADERS.map((h) => <th key={h} scope="col" style={{ ...cell, fontWeight: 600 }}>{h}</th>)}</tr>
+              </thead>
+              <tbody>
+                {bp.sections.map((s) => (
+                  <tr key={s.position}>
+                    <th scope="row" style={{ ...cell, fontWeight: 400 }}>{s.name}</th>
+                    <td style={cell}>{s.question_count}</td>
+                    <td style={cell}>{s.marks_per_question}</td>
+                    <td style={cell}>{s.negative_marks_per_question}</td>
+                    <td style={cell}>{s.minutes ?? "—"}</td>
+                    <td style={cell}>
+                      {s.qualifying ? `Yes${s.cutoff_marks !== null ? `, cut-off ${s.cutoff_marks}` : ""}` : "No"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </HelpTip>
+        </div>
+      )}
     </section>
   );
 }
 
 export function AdminExamBlueprints(): React.ReactElement {
+  const { session } = useAdminSession();
+  const isSuper = session?.user.role === "super_admin";
   const [items, setItems] = useState<ExamBlueprintFull[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // "new" = the create form is open; an id = that pattern's edit form is open; null = none.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const reload = (): void => {
     listExamBlueprintsFullApi()
@@ -234,18 +300,43 @@ export function AdminExamBlueprints(): React.ReactElement {
   };
   useEffect(reload, []);
   const dueCount = (items ?? []).filter((b) => b.next_check_due <= todayIso()).length;
+  const afterCreate = (): void => { setEditingId(null); reload(); };
 
   return (
     <AdminShell breadcrumbs={["Exam blueprints"]} helpPage="admin.blueprints">
       <div style={wrap}>
-        <HelpTip helpId="admin.blueprints.page">
-          <h1 style={{ ...sans, fontSize: "var(--aiq-text-xl)", fontWeight: 600, margin: 0 }}>Exam blueprints</h1>
-        </HelpTip>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--aiq-space-sm)", alignItems: "center", justifyContent: "space-between" }}>
+          <HelpTip helpId="admin.blueprints.page">
+            <h1 style={{ ...sans, fontSize: "var(--aiq-text-xl)", fontWeight: 600, margin: 0 }}>Exam blueprints</h1>
+          </HelpTip>
+          {isSuper && editingId !== "new" && (
+            <HelpTip helpId="admin.blueprints.editor.new">
+              <button type="button" className="aiq-btn aiq-btn-primary aiq-btn-sm" aria-expanded={false} onClick={() => setEditingId("new")}>
+                New pattern
+              </button>
+            </HelpTip>
+          )}
+        </div>
         {dueCount > 0 && <p style={sans}>{dueCount} exam {dueCount === 1 ? "pattern is" : "patterns are"} due for the monthly check.</p>}
+        {isSuper && editingId === "new" && (
+          <section aria-labelledby="bp-new-heading" style={card}>
+            <h2 id="bp-new-heading" style={{ ...sans, fontSize: "var(--aiq-text-lg)", fontWeight: 600, margin: 0 }}>Add a pattern</h2>
+            <BlueprintEditor original={null} onSaved={afterCreate} onCancel={() => setEditingId(null)} />
+          </section>
+        )}
         {items === null && <Spinner />}
         {loadError !== null && <p role="alert" style={sans}>{loadError}</p>}
         {items !== null && items.length === 0 && loadError === null && <p style={sans}>No exam blueprints yet.</p>}
-        {(items ?? []).map((bp) => <BlueprintCard key={bp.id} bp={bp} onChanged={reload} />)}
+        {(items ?? []).map((bp) => (
+          <BlueprintCard
+            key={bp.id}
+            bp={bp}
+            isSuper={isSuper}
+            editing={editingId === bp.id}
+            onEditingChange={(on) => setEditingId(on ? bp.id : null)}
+            onChanged={reload}
+          />
+        ))}
       </div>
     </AdminShell>
   );
