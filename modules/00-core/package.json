@@ -15,7 +15,7 @@
     "./feedback-copy": "./src/feedback-copy.ts"
   },
   "dependencies": {
-    "ioredis": "^5.4.1"
+    "ioredis": "^6.0.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
