@@ -34,8 +34,8 @@ importers:
         specifier: ^1.0.0
         version: 1.2.1
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       '@assessiq/ai-grading':
         specifier: workspace:*
@@ -167,8 +167,8 @@ importers:
         specifier: ^5.4.1
         version: 5.10.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       tsx:
         specifier: ^4.23.15
@@ -422,8 +422,8 @@ importers:
         specifier: ^5.0.1
         version: 5.0.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       '@fastify/multipart':
         specifier: ^9.0.0
@@ -459,8 +459,8 @@ importers:
         specifier: ^5.12.7
         version: 5.12.7
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
 
   modules/06-attempt-engine:
     dependencies:
@@ -498,8 +498,8 @@ importers:
         specifier: ^5.12.7
         version: 5.12.7
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
 
   modules/07-ai-grading:
     dependencies:
@@ -537,14 +537,14 @@ importers:
         specifier: ^5.12.7
         version: 5.12.7
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
 
   modules/08-rubric-engine:
     dependencies:
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
 
   modules/09-scoring:
     dependencies:
@@ -579,8 +579,8 @@ importers:
         specifier: ^8.23.0
         version: 8.23.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       testcontainers:
         specifier: ^11.14.0
@@ -634,8 +634,8 @@ importers:
         specifier: ^7.9.0
         version: 7.18.4(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       '@testing-library/react':
         specifier: ^16.3.3
@@ -750,8 +750,8 @@ importers:
         specifier: ^10.1.2
         version: 10.1.7
       zod:
-        specifier: ^3.23.0
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/nodemailer':
         specifier: ^8.0.2
@@ -790,8 +790,8 @@ importers:
         specifier: ^8.23.0
         version: 8.23.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       testcontainers:
         specifier: ^11.14.0
@@ -833,8 +833,8 @@ importers:
         specifier: ^8.23.0
         version: 8.23.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       testcontainers:
         specifier: ^11.14.0
@@ -888,8 +888,8 @@ importers:
         specifier: ^2.9.1
         version: 2.9.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/react':
         specifier: ^19.3.0
@@ -986,8 +986,8 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       '@types/qrcode':
         specifier: ^1.5.6
@@ -1020,8 +1020,8 @@ importers:
         specifier: ^8.23.0
         version: 8.23.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       tsx:
         specifier: ^4.23.15
@@ -1048,8 +1048,8 @@ importers:
         specifier: ^8.23.0
         version: 8.23.1
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       tsx:
         specifier: ^4.23.15
@@ -1082,8 +1082,8 @@ importers:
   packages/question-types:
     dependencies:
       zod:
-        specifier: ^3.23.8
-        version: 3.25.76
+        specifier: ^4.6.6
+        version: 4.6.6
     devDependencies:
       typescript:
         specifier: ^5.6.0
@@ -3230,6 +3230,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   cross-env@10.1.0:
     resolution: {integrity: sha512-GsYosgnACZTADcmEyJctkJIoqAhHjttw7RsFrVoJNXbsWWqaq6Ym+7kZjq6mS45O0jij6vtiReppKQEtqWy6Dw==}
@@ -6289,6 +6290,9 @@ packages:
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
+  zod@4.6.6:
+    resolution: {integrity: sha512-4UmzQUF5fxvfcYHlbjBmejU+w+hbDnWFx4aS8kBx7nPBHcO2SqPbpAG8snbdg+Xse4pRefR98hgjFgIMCI/UhA==}
+
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
@@ -8744,8 +8748,8 @@ snapshots:
       '@babel/parser': 7.29.9
       eslint: 9.39.4(jiti@1.21.7)
       hermes-parser: 0.25.1
-      zod: 3.25.76
-      zod-validation-error: 4.0.2(zod@3.25.76)
+      zod: 4.6.6
+      zod-validation-error: 4.0.2(zod@4.6.6)
     transitivePeerDependencies:
       - supports-color
 
@@ -11997,10 +12001,12 @@ snapshots:
       compress-commons: 6.0.2
       readable-stream: 4.7.0
 
-  zod-validation-error@4.0.2(zod@3.25.76):
+  zod-validation-error@4.0.2(zod@4.6.6):
     dependencies:
-      zod: 3.25.76
+      zod: 4.6.6
 
   zod@3.25.76: {}
+
+  zod@4.6.6: {}
 
   zwitch@2.0.4: {}
