@@ -524,3 +524,6 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 - `listFrozenQuestionsForAttempt` adds `assets` (alt text and size, never bytes) per question. `option_assets` is permuted with `options` by `displayQuestions` (a misaligned array is dropped).
 - Feedback items carry `math`. The candidate view allow-list (`packages/question-types`) passes `math`, `stem_assets`, `option_assets` only (ids and a boolean).
 - Tests: `__tests__/attempt-assets.test.ts`.
+
+## EXP-9 Hindi overlay (2026-10-31)
+`displayQuestions` permutes `content.i18n.hi.options` with the same `option_order` as `options`; a length mismatch drops `i18n` (English fallback). `PATCH /api/me/attempts/:id/language` sets `attempts.language` (migration 0287) with one audit row on change. Scoring is unchanged: answers are original indexes. The Hindi rationale never reaches the candidate. Tests: `src/__tests__/exp9-language.test.ts` (mocked DB; a Postgres-backed cross-tenant test is not written).
