@@ -39,7 +39,7 @@ export function CreditPill(): React.ReactElement | null {
   const { usage } = useCompanyUsage();
   const { session } = useAdminSession();
   const navigate = useNavigate();
-  if (session?.user.role === "super_admin" || usage === null) return null;
+  if (session?.user.role === "super_admin" || !usage) return null; // !usage: an empty reply (204) must not crash the shell
   const n = ledgerNumbers(usage);
   if (n === null) return null;
   const level = creditLevel(n);

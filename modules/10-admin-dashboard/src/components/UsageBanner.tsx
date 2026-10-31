@@ -71,7 +71,7 @@ export function usageMessage(
 export function UsageBanner(): React.ReactElement | null {
   // Z-156: shown only when credits are low or out (warning icon). Fail-silent on a failed read.
   const { usage } = useCompanyUsage();
-  if (usage === null) return null;
+  if (!usage) return null;
 
   // With a ledger the banner follows the pill (available / total_granted); without one, the plan meter decides.
   const ledger = ledgerNumbers(usage);
