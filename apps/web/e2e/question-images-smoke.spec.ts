@@ -43,10 +43,8 @@ function view(): unknown {
 }
 
 const noHScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
-// The three count buttons of the question navigator (.aiq-qnav-stat) are excluded: their name "Answered 1" does not start with the
-// visible text order "1 / Answered" (axe label-content-name-mismatch, wcag21a). That is older than EXP-10; logged as a follow-up row.
 async function seriousAxe(page: Page): Promise<string[]> {
-  const res = await new AxeBuilder({ page }).exclude('.aiq-qnav-stat').withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+  const res = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   return res.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(' | ')}`);
 }
 async function overflowers(page: Page): Promise<string[]> {

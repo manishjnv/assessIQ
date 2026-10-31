@@ -19,21 +19,21 @@ describe("QuestionNavigator panel (Z-169)", () => {
   it("shows the head and the three stat cards with counts", () => {
     render(<QuestionNavigator items={items} onSelect={() => {}} />);
     expect(screen.getByText("2 / 6 answered")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Answered 2" }).getAttribute("aria-pressed")).toBe("false");
-    expect(screen.getByRole("button", { name: "Flagged 2" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Open 4" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "2 Answered" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: "2 Flagged" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "4 Open" })).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("Select a count to show and navigate only those questions.");
   });
 
   it("a stat card filters, a second click clears; the current cell stays", () => {
     render(<QuestionNavigator items={items} onSelect={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Flagged 2" }));
-    expect(screen.getByRole("button", { name: "Flagged 2" }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "2 Flagged" }));
+    expect(screen.getByRole("button", { name: "2 Flagged" }).getAttribute("aria-pressed")).toBe("true");
     expect(cells()).toBe(3); // q1, q5 and the current q3
     expect(screen.getByRole("status").textContent).toBe("Showing flagged only. Previous and Next skip the rest.");
-    fireEvent.click(screen.getByRole("button", { name: "Flagged 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 Flagged" }));
     expect(cells()).toBe(6);
-    expect(screen.getByRole("button", { name: "Flagged 2" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByRole("button", { name: "2 Flagged" }).getAttribute("aria-pressed")).toBe("false");
   });
 
   it("Show all clears the filter; a controlled filter reports changes", () => {
@@ -42,13 +42,13 @@ describe("QuestionNavigator panel (Z-169)", () => {
     expect(cells()).toBe(4); // q3, q4, q5, q6
     fireEvent.click(screen.getByRole("button", { name: "Show all" }));
     expect(onFilterChange).toHaveBeenLastCalledWith("all");
-    fireEvent.click(screen.getByRole("button", { name: "Answered 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 Answered" }));
     expect(onFilterChange).toHaveBeenLastCalledWith("answered");
   });
 
   it("an empty filter shows Nothing here.", () => {
     render(<QuestionNavigator items={items.filter((i) => i.questionId !== "q1" && i.questionId !== "q5")} onSelect={() => {}} />);
-    fireEvent.click(screen.getByRole("button", { name: "Flagged 0" }));
+    fireEvent.click(screen.getByRole("button", { name: "0 Flagged" }));
     expect(screen.getByText("Nothing here.")).toBeTruthy();
   });
 

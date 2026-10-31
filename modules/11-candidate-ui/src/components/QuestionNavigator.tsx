@@ -287,7 +287,6 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
               type="button"
               className="aiq-qnav-stat"
               aria-pressed={pressed}
-              aria-label={`${label} ${counts[key]}`}
               onClick={() => setFilter(pressed ? "all" : key)}
               style={{
                 minHeight: 44,
@@ -304,10 +303,11 @@ export function QuestionNavigator(props: QuestionNavigatorProps) {
                 color: "var(--aiq-color-fg-primary)",
               }}
             >
-              <span aria-hidden="true" style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 18, fontWeight: 600, lineHeight: 1 }}>
+              <span style={{ fontFamily: "var(--aiq-font-mono)", fontSize: 18, fontWeight: 600, lineHeight: 1 }}>
                 {counts[key]}
               </span>
-              <span aria-hidden="true" style={{ fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}>
+              {" "}
+              <span style={{ fontSize: 11, color: "var(--aiq-color-fg-secondary)" }}>
                 {label}
               </span>
             </button>
