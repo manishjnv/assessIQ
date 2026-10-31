@@ -425,3 +425,7 @@ Folded from `docs/archive/2026-10-21-assessment-time-limit-change-record.md`. Co
 - **Considered and rejected.** (1) A "purge from frozen pools" step on every withdrawal: it would change questions under a live or finished test and break score reproduction. (2) Re-freezing on edit: same reason, and it breaks Rule 4 of the freeze (attempts keep the version they used).
 - **Not included.** Any change to the freeze rule for normal edits. A legal-removal tool.
 - **Downstream.** Module 04 withdrawal keeps its current behaviour. `docs/03-api-contract.md` already says frozen pools keep the version they used (answer-key corrections). No other module changes.
+
+## Result release override (SP2, 2026-10-31)
+
+`setAssessmentResultRelease(tenantId, id, mode, userId)` (`src/service/assessments.ts`): `withTenant`, `lockAssessmentForUpdate`, no-op if unchanged, else `setResultReleaseRow` and an `assessment.release_mode.set` audit row in the same tx. Route `PATCH /api/admin/assessments/:id/result-release`. `getAssessmentDetail` also returns `evaluation_turnaround_text`. Admin UI: `ResultReleaseCard` plus the ETA notice in `ReleaseResendBlock`; help ids `admin.assessments.result_release` and `admin.assessments.release_notice`. Test: `src/__tests__/result-release-override.test.ts` (real Postgres).

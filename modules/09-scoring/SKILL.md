@@ -187,3 +187,7 @@ Commit `b68523c`. The per-type scoring code left `src/mcq.ts`. Call `determinist
 - **What.** No code change. `scoreMcqForAttempt` and `getSectionScoresForAttempt` read the frozen `attempt_questions.points` and `negative_marks`, which module 06 now sets from `settings.sections[i].marks_per_question` and `negative_marks_per_question` at attempt start. Section totals therefore match the blueprint (SSC CGL Tier 1: 25 x 2 = 50 per section, minus 0.5 per wrong answer).
 - **Why.** One scoring rule for every assessment; the scaling happens once, at freeze time.
 - **Not included.** Any change to `isPass`, `pass_mark_pct` or the band scale. The scaled-marks test lives in module 06 (`whole-test-timer.test.ts`) because it needs `startAttempt`.
+
+## Effective release mode (SP2 override, 2026-10-31)
+
+The auto-release gate in `releaseAttemptInTx` and the sweep in `apps/api/src/jobs/auto-release.ts` use the EFFECTIVE mode: `COALESCE(assessments.result_release_mode, tenant_settings.result_release_mode)`, with `auto_since` taken from the same side (migration 0285). Lock order is attempt row, assessment row (FOR SHARE), `tenant_settings` row (FOR SHARE); the assessment setter in 05 and the tenant setter in 02 each lock only their own row, so no cycle. A NULL `auto_since` never matches (fails closed). Manual admin releases skip the gate. Tests: `release.test.ts` (override beats tenant, null falls back) and `apps/api/src/__tests__/auto-release.test.ts` (run it from `apps/api`).
