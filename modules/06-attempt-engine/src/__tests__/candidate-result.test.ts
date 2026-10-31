@@ -285,6 +285,40 @@ describe("getSubmitExpectation (P2: promise the right thing at submit)", () => {
     expect((await getSubmitExpectation(t, s.userId, s.attemptId)).result_expectation).toBe("email");
   });
 
+  // Z-177: the assessment's own release override beats the tenant default.
+  async function overrideOf(assessmentId: string, mode: "manual" | "auto" | null, sinceSet: boolean) {
+    await sup((c) =>
+      c.query(
+        `UPDATE assessments SET result_release_mode = $2, result_release_auto_since = ${sinceSet ? "now() - interval '1 hour'" : "NULL"} WHERE id = $1`,
+        [assessmentId, mode],
+      ),
+    );
+  }
+
+  it("override 'manual' in an auto tenant: 'email', release_mode manual (no false 'soon')", async () => {
+    const s = await seed({ types: ["mcq"] });
+    await overrideOf(s.assessmentId, "manual", false);
+    expect(await getSubmitExpectation(tenant, s.userId, s.attemptId)).toMatchObject({ result_expectation: "email", release_mode: "manual" });
+  });
+
+  it("override 'auto' in a manual tenant: 'soon', release_mode auto", async () => {
+    const s = await seed({ tid: manualTenant, types: ["mcq"] });
+    await overrideOf(s.assessmentId, "auto", true);
+    expect(await getSubmitExpectation(manualTenant, s.userId, s.attemptId)).toMatchObject({ result_expectation: "soon", release_mode: "auto" });
+  });
+
+  it("override 'auto' without its own auto_since: 'email' (the tenant stamp is not borrowed)", async () => {
+    const s = await seed({ types: ["mcq"] });
+    await overrideOf(s.assessmentId, "auto", false);
+    expect((await getSubmitExpectation(tenant, s.userId, s.attemptId)).result_expectation).toBe("email");
+  });
+
+  it("no override follows the tenant", async () => {
+    const s = await seed({ types: ["mcq"] });
+    await overrideOf(s.assessmentId, null, false);
+    expect(await getSubmitExpectation(tenant, s.userId, s.attemptId)).toMatchObject({ result_expectation: "soon", release_mode: "auto" });
+  });
+
   it("never throws: another candidate's / unknown attempt falls back to the conservative email promise with NO address", async () => {
     const s = await seed();
     const e = await getSubmitExpectation(tenant, randomUUID(), s.attemptId);

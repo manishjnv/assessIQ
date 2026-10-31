@@ -31,8 +31,6 @@ jobs:
       # 2. pnpm setup
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
-        with:
-          version: "9.15"
 
       # 3. Node setup
       - name: Setup Node

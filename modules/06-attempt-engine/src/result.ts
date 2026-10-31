@@ -248,8 +248,12 @@ async function loadExpectation(
   attemptId: string,
 ): Promise<(SubmitExpectation & { tenant_name: string }) | null> {
   const res = await client.query<ExpectationRow>(
-    `SELECT ts.result_release_mode AS release_mode,
-            (ts.result_release_auto_since IS NOT NULL) AS auto_since_set,
+    // Z-177: effective mode = the assessment's own override, else the tenant default;
+    // auto_since comes from the same side as the mode (same rule as 09-scoring release.ts).
+    `SELECT COALESCE(asm.result_release_mode, ts.result_release_mode) AS release_mode,
+            (CASE WHEN asm.result_release_mode IS NOT NULL
+                  THEN asm.result_release_auto_since
+                  ELSE ts.result_release_auto_since END IS NOT NULL) AS auto_since_set,
             t.name  AS tenant_name,
             u.email AS email,
             a.embed_origin,
@@ -262,6 +266,7 @@ async function loadExpectation(
        FROM attempts a
        JOIN users   u ON u.id = a.user_id
        JOIN tenants t ON t.id = a.tenant_id
+       LEFT JOIN assessments asm ON asm.id = a.assessment_id
        LEFT JOIN tenant_settings ts ON ts.tenant_id = a.tenant_id
       WHERE a.id = $1`,
     [attemptId, DETERMINISTIC_IDS],

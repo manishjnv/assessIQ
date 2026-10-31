@@ -527,3 +527,6 @@ Folded from `docs/archive/2026-10-20-camera-change-record.md`. Design (now as-bu
 
 ## EXP-9 Hindi overlay (2026-10-31)
 `displayQuestions` permutes `content.i18n.hi.options` with the same `option_order` as `options`; a length mismatch drops `i18n` (English fallback). `PATCH /api/me/attempts/:id/language` sets `attempts.language` (migration 0287) with one audit row on change. Scoring is unchanged: answers are original indexes. The Hindi rationale never reaches the candidate. Tests: `src/__tests__/exp9-language.test.ts` (mocked DB; a Postgres-backed cross-tenant test is not written).
+
+## Z-177 Effective release mode in the submit text (2026-11-01)
+`loadExpectation` (`src/result.ts`) now uses the assessment's own override (`assessments.result_release_mode`, migration 0285) when it has one, else the tenant default; `auto_since` comes from the same side as the mode (the rule of `09-scoring/src/release.ts`). Only the candidate text ("soon" or "email") and the `release_mode` field change. Release behaviour is unchanged. No shared helper exists, so the rule is a small inline SQL here; if it grows a third copy, move it to 00-core. Not included: a change to the sweep or to the admin ETA notice. Tests: `__tests__/candidate-result.test.ts` (4 cases: manual override in auto tenant, auto override in manual tenant, auto override without own stamp, no override).
