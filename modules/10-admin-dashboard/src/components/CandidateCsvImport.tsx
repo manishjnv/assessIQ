@@ -12,6 +12,7 @@ import { Chip, Spinner, Table, type ColumnDef } from "@assessiq/ui-system";
 import { HelpTip } from "@assessiq/help-system/components";
 import { adminApi, AdminApiError } from "../api.js";
 import { csvCell } from "@assessiq/core/escape";
+import { inviteSkipReasonLabel } from "../lib/labels.js";
 
 const MAX_BYTES = 512 * 1024;
 const MAX_ROWS = 1000;
@@ -247,7 +248,7 @@ export function CandidateCsvImport({
               <ul style={{ ...sans, margin: "var(--aiq-space-sm) 0", paddingLeft: 20, maxHeight: 200, overflowY: "auto" }}>
                 {result.skipped.map((s, i) => (
                   <li key={i}>
-                    Row {s.row}: {s.email || "(blank)"} — {s.reason}
+                    Row {s.row}: {s.email || "(blank)"} — {inviteSkipReasonLabel(s.reason)}
                   </li>
                 ))}
               </ul>

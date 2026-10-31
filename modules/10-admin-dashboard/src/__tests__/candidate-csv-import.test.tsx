@@ -68,9 +68,30 @@ describe("CandidateCsvImport", () => {
       body: JSON.stringify({ csv: "name,email\nAsha,asha@example.com\nBad,bad", assessment_id: "as1" }),
     });
     expect(screen.getByText("1 skipped")).toBeTruthy();
-    expect(screen.getByText(/Row 3: bad — INVALID_EMAIL/)).toBeTruthy();
+    expect(screen.getByText(/Row 3: bad — Email address is not valid/)).toBeTruthy();
     expect(screen.getByText(/300\/day/)).toBeTruthy();
     await waitFor(() => expect(onImported).toHaveBeenCalled());
+  });
+
+  it("shows plain skip reasons; unknown codes stay raw; the downloaded CSV is not in the list", async () => {
+    adminApi.mockResolvedValue({
+      created: 0,
+      existing: 0,
+      invited: 0,
+      skipped: [
+        { row: 2, email: "a@x.com", reason: "INVITATION_EXISTS" },
+        { row: 3, email: "b", reason: "SOMETHING_NEW" },
+      ],
+    });
+    const { container } = render(<CandidateCsvImport assessmentId="as1" onImported={vi.fn()} />);
+    pick("name,email\nA,a@x.com\nB,b");
+    await screen.findByText(/2 rows/);
+    fireEvent.click(screen.getByRole("button", { name: /Import and invite 2/ }));
+    await screen.findByText("2 skipped");
+    const listText = container.querySelector("ul")?.textContent ?? "";
+    expect(listText).toContain("Already invited");
+    expect(listText).toContain("SOMETHING_NEW");
+    expect(listText).not.toContain("INVITATION_EXISTS");
   });
 
   it("rejects a file without name/email header client-side", async () => {

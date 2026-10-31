@@ -153,7 +153,7 @@ export function shortId(id: string): string {
 export const importDecisionLabel = labeler({ ok: "Ready", error: "Needs a fix", duplicate: "Duplicate", skip: "Skipped" });
 
 /** Why a candidate was not invited (invite + bulk import skip reasons). */
-export const inviteSkipReasonLabel = labeler({
+const INVITE_SKIP_REASON: Record<string, string> = {
   USER_NOT_FOUND: "User not found",
   USER_NOT_CANDIDATE: "Not a candidate",
   USER_INACTIVE: "Account is not active",
@@ -162,7 +162,13 @@ export const inviteSkipReasonLabel = labeler({
   INVALID_EMAIL: "Email address is not valid",
   MISSING_NAME: "Name is missing",
   NAME_TOO_LONG: "Name is too long",
+  INVALID_NAME_CHARS: "Name has characters that are not allowed",
   DUPLICATE_IN_FILE: "Listed twice",
+  USER_DELETED: "Account was deleted",
   EXISTING_USER_NOT_CANDIDATE: "Email belongs to a user who is not a candidate",
   INSERT_FAILED: "Could not be saved",
-});
+};
+// ponytail: unknown codes return the raw code (not humanized) so new server codes stay visible.
+export function inviteSkipReasonLabel(value: string | null | undefined): string {
+  return value == null ? "" : (INVITE_SKIP_REASON[value] ?? value);
+}
