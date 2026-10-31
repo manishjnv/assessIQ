@@ -19,9 +19,10 @@
 //      COMPLETE result: status 'graded' AND evaluation_released_at set (the
 //      tenant may publish it — migration 0113) AND no effective grade still
 //      flagged review_needed (a re-run can add one after finalisation).
-//  10. An AUTO release re-checks the tenant's mode inside this tx (FOR SHARE on
-//      tenant_settings): still 'auto', and the result became ready at or after
-//      result_release_auto_since. The sweep's candidate read can be stale by the
+//  10. An AUTO release re-checks the EFFECTIVE mode inside this tx (FOR SHARE on
+//      the assessment row, then tenant_settings): the assessment's own override
+//      (migration 0285) else the tenant default; still 'auto', and the result became
+//      ready at or after the matching result_release_auto_since. The sweep's candidate read can be stale by the
 //      time it gets here (admin switched back to manual in between).
 //
 // No AI call, no model, no network.
@@ -121,29 +122,44 @@ export async function releaseAttemptInTx(
 
   // Auto-release gate. The sweep chooses its candidates in an earlier, separate
   // read, so by the time this tx holds the attempt lock the admin may have
-  // switched the tenant back to manual (or manual -> auto -> manual -> auto,
-  // moving result_release_auto_since past this result). Re-check the setting HERE
-  // under a FOR SHARE lock on the tenant_settings row: a concurrent switch (02
-  // updateResultReleaseMode takes FOR UPDATE) has either committed already and is
-  // seen now, or waits until this tx commits, so "publish" and "switch to manual"
-  // can never both win. Lock order: attempt row, then tenant_settings row (the
-  // switch only ever locks tenant_settings). The timestamp comparison stays in SQL
-  // so it is exact to the microsecond. A manual release (admin click / bulk) is an
-  // explicit decision and skips this gate.
+  // switched the setting back to manual (or manual -> auto -> manual -> auto,
+  // moving the auto_since time past this result). Re-check the EFFECTIVE setting
+  // HERE under FOR SHARE locks. The effective mode is the assessment's own
+  // override when it has one (assessments.result_release_mode, migration 0285),
+  // else the tenant default (tenant_settings). The auto_since time comes from the
+  // same side that supplied the mode. A concurrent switch (the tenant setter in 02
+  // or the assessment setter in 05 both take FOR UPDATE on their own row) has either
+  // committed already and is seen now, or waits until this tx commits, so "publish"
+  // and "switch to manual" can never both win. Lock order: attempt row, assessment
+  // row, tenant_settings row (each setter only ever locks its own single row). The
+  // timestamp comparison stays in SQL so it is exact to the microsecond. A manual
+  // release (admin click / bulk) is an explicit decision and skips this gate.
   if (trigger === "auto") {
+    await client.query(
+      `SELECT 1
+         FROM assessments
+        WHERE id = (SELECT assessment_id FROM attempts WHERE id = $1)
+          FOR SHARE`,
+      [attemptId],
+    );
     const gate = await client.query<{ ok: boolean | null }>(
-      `SELECT (ts.result_release_mode = 'auto'
-               AND ts.result_release_auto_since IS NOT NULL
-               AND a.evaluation_released_at >= ts.result_release_auto_since) AS ok
+      `SELECT (COALESCE(asm.result_release_mode, ts.result_release_mode) = 'auto'
+               AND CASE WHEN asm.result_release_mode IS NOT NULL
+                        THEN asm.result_release_auto_since
+                        ELSE ts.result_release_auto_since END IS NOT NULL
+               AND a.evaluation_released_at >= CASE WHEN asm.result_release_mode IS NOT NULL
+                                                    THEN asm.result_release_auto_since
+                                                    ELSE ts.result_release_auto_since END) AS ok
          FROM tenant_settings ts
-         JOIN attempts a ON a.id = $1
+         JOIN attempts a     ON a.id = $1
+         JOIN assessments asm ON asm.id = a.assessment_id
         WHERE ts.tenant_id = $2
           FOR SHARE OF ts`,
       [attemptId, tenantId],
     );
     if (gate.rows[0]?.ok !== true) {
       throw new AppError(
-        "Result is not eligible for automatic release (the organisation is not in auto-release mode, or the result was ready before auto-release was switched on)",
+        "Result is not eligible for automatic release (automatic release is not switched on for this assessment, or the result was ready before it was switched on)",
         RELEASE_ERROR_CODES.RESULT_NOT_READY,
         409,
       );

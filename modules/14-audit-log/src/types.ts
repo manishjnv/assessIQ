@@ -64,6 +64,8 @@ export const ACTION_CATALOG = [
   // Assessment lifecycle
   'assessment.created',
   'assessment.updated',
+  // Per-assessment result release override set or cleared (before/after = result_release_mode; no row on a no-op).
+  'assessment.release_mode.set',
   'assessment.published',
   'assessment.closed',
   'assessment.cancelled',

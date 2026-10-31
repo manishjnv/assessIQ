@@ -7,8 +7,10 @@
  *   1. finds (one cross-tenant read under the assessiq_system role, same pattern as
  *      admin-super.ts) up to AUTO_RELEASE_BATCH attempts that are
  *        status 'graded' AND evaluation_released_at IS NOT NULL      (complete + the tenant may publish)
- *        AND evaluation_released_at >= tenant_settings.result_release_auto_since
- *            — only results that became ready AFTER the tenant switched to auto; results already
+ *        AND the EFFECTIVE release mode is 'auto' (assessments.result_release_mode override, else
+ *            tenant_settings.result_release_mode) AND evaluation_released_at >= the matching
+ *            result_release_auto_since
+ *            — only results that became ready AFTER auto was switched on; results already
  *              waiting in the manual queue are never released retroactively (admin uses bulk release)
  *        AND the tenant is active, the candidate is not erased, and it is not an embed attempt
  *   2. releases each in its OWN withTenant transaction through module 09
@@ -68,12 +70,16 @@ async function findCandidates(excluded: string[]): Promise<Candidate[]> {
          FROM attempts a
          JOIN tenants t          ON t.id = a.tenant_id AND t.status = 'active'
          JOIN tenant_settings ts ON ts.tenant_id = a.tenant_id
-                                AND ts.result_release_mode = 'auto'
-                                AND ts.result_release_auto_since IS NOT NULL
+         JOIN assessments asm    ON asm.id = a.assessment_id
          JOIN users u            ON u.id = a.user_id AND u.erased_at IS NULL
         WHERE a.status = 'graded'
           AND a.evaluation_released_at IS NOT NULL
-          AND a.evaluation_released_at >= ts.result_release_auto_since
+          -- effective mode: the assessment's own override (0285), else the tenant default;
+          -- the auto_since time comes from the same side that supplied the mode
+          AND COALESCE(asm.result_release_mode, ts.result_release_mode) = 'auto'
+          AND a.evaluation_released_at >= CASE WHEN asm.result_release_mode IS NOT NULL
+                                               THEN asm.result_release_auto_since
+                                               ELSE ts.result_release_auto_since END
           AND a.embed_origin = FALSE
           AND a.id <> ALL($2::uuid[])
         ORDER BY a.evaluation_released_at ASC, a.id ASC

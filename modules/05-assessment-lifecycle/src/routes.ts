@@ -50,6 +50,7 @@ import {
   updateAssessmentIntegrity,
   updateAssessmentGrading,
   updateAssessmentDuration,
+  setAssessmentResultRelease,
   publishAssessment,
   closeAssessment,
   cancelAssessment,
@@ -617,6 +618,27 @@ export async function registerAssessmentLifecycleRoutes(
         );
       }
       return updateAssessmentDuration(req.session!.tenantId, id, parsed.data.duration_minutes, req.session!.userId);
+    },
+  );
+
+  // PATCH /api/admin/assessments/:id/result-release - this assessment's result release override
+  // ('auto' | 'manual' | null = use the organisation default; any status).
+  const ResultReleaseBodySchema = z
+    .object({ result_release_mode: z.enum(["manual", "auto"]).nullable() })
+    .strict();
+  app.patch(
+    "/api/admin/assessments/:id/result-release",
+    { preHandler: adminOnly },
+    async (req) => {
+      const { id } = req.params as { id: string };
+      const parsed = ResultReleaseBodySchema.safeParse(req.body);
+      if (!parsed.success) {
+        throw new ValidationError(
+          `Invalid result-release body: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+          { details: { code: "INVALID_PARAM", param: "result_release_mode" } },
+        );
+      }
+      return setAssessmentResultRelease(req.session!.tenantId, id, parsed.data.result_release_mode, req.session!.userId);
     },
   );
 

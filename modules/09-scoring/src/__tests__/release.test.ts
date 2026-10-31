@@ -794,3 +794,102 @@ describe("releaseAttemptInTx — atomicity + structure", () => {
     expect(src.match(/from\s+["']@assessiq\/notifications["']/g) ?? []).toHaveLength(1);
   });
 });
+
+// Migration 0285: a per-assessment override beats the tenant default. beforeEach leaves the tenant in
+// auto mode with auto_since = 1 day ago; every test below sets the tenant side it needs explicitly.
+describe("releaseAttemptInTx — per-assessment release override (auto gate uses the EFFECTIVE mode)", () => {
+  const setOverride = (attemptId: string, mode: "manual" | "auto" | null, sinceSql: string) =>
+    sup((c) =>
+      c.query(
+        `UPDATE assessments SET result_release_mode = $2, result_release_auto_since = ${sinceSql}
+          WHERE id = (SELECT assessment_id FROM attempts WHERE id = $1)`,
+        [attemptId, mode],
+      ),
+    );
+
+  it("override 'manual' beats a tenant in auto mode: the auto trigger is refused, a manual release still works", async () => {
+    await setSettings("auto", "now() - interval '1 day'");
+    const a = await seed({ pct: 85 });
+    await setOverride(a.attemptId, "manual", "NULL");
+    await expect(release(a.attemptId, { kind: "system" })).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    await expect(release(a.attemptId, userActor(), "auto")).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    expect(await status(a.attemptId)).toBe("graded");
+    expect(await audits(a.attemptId, "grading.released")).toHaveLength(0);
+
+    expect(await release(a.attemptId, userActor())).toEqual({ released: true });
+    expect(await status(a.attemptId)).toBe("released");
+    expect((await audits(a.attemptId, "grading.released"))[0]).toMatchObject({ after: { trigger: "manual" } });
+  });
+
+  it("override 'auto' in a manual tenant releases only results ready at or after the assessment's auto_since", async () => {
+    await setSettings("manual", "NULL");
+    const ok = await seed({ pct: 85 }); // evaluation_released_at = now
+    await setOverride(ok.attemptId, "auto", "now() - interval '1 day'");
+    expect(await release(ok.attemptId, { kind: "system" })).toEqual({ released: true });
+    expect(await status(ok.attemptId)).toBe("released");
+
+    const early = await seed({ pct: 85 });
+    await setOverride(early.attemptId, "auto", "now() + interval '1 day'"); // result is older than the switch
+    await expect(release(early.attemptId, { kind: "system" })).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    expect(await status(early.attemptId)).toBe("graded");
+  });
+
+  it("the assessment boundary is exact (microseconds), and the tenant's auto_since is NOT used when an override is set", async () => {
+    await setSettings("auto", "now() - interval '10 days'"); // would admit anything if it were consulted
+    const a = await seed();
+    await sup((c) => c.query(`UPDATE attempts SET evaluation_released_at = '2026-03-01 10:00:00.123455+00' WHERE id = $1`, [a.attemptId]));
+    await setOverride(a.attemptId, "auto", `'2026-03-01 10:00:00.123456+00'`);
+    await expect(release(a.attemptId, { kind: "system" })).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    await sup((c) => c.query(`UPDATE attempts SET evaluation_released_at = '2026-03-01 10:00:00.123456+00' WHERE id = $1`, [a.attemptId]));
+    expect(await release(a.attemptId, { kind: "system" })).toEqual({ released: true });
+  });
+
+  it("override 'auto' with no auto_since fails closed", async () => {
+    await setSettings("auto", "now() - interval '1 day'");
+    const a = await seed();
+    await setOverride(a.attemptId, "auto", "NULL");
+    await expect(release(a.attemptId, { kind: "system" })).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    expect(await status(a.attemptId)).toBe("graded");
+  });
+
+  it("a NULL override falls back to the tenant default, both ways", async () => {
+    await setSettings("auto", "now() - interval '1 day'");
+    const inAuto = await seed();
+    await setOverride(inAuto.attemptId, null, "NULL");
+    expect(await release(inAuto.attemptId, { kind: "system" })).toEqual({ released: true });
+
+    await setSettings("manual", "NULL");
+    const inManual = await seed();
+    await setOverride(inManual.attemptId, null, "NULL");
+    await expect(release(inManual.attemptId, { kind: "system" })).rejects.toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    expect(await status(inManual.attemptId)).toBe("graded");
+  });
+
+  it("race: the assessment override set to manual and still uncommitted when the auto release reaches the gate -> the release waits, sees 'manual' and refuses", async () => {
+    await setSettings("auto", "now() - interval '1 day'");
+    const { attemptId } = await seed({ pct: 85 });
+    const sw = new Client({ connectionString: url });
+    await sw.connect();
+    try {
+      await sw.query("BEGIN");
+      // the admin's PATCH, not committed yet: it holds the assessments row lock (FOR UPDATE)
+      await sw.query(
+        `UPDATE assessments SET result_release_mode = 'manual', result_release_auto_since = NULL
+          WHERE id = (SELECT assessment_id FROM attempts WHERE id = $1)`,
+        [attemptId],
+      );
+      const releasing = release(attemptId, { kind: "system" }).then(
+        () => "released" as const,
+        (e: unknown) => e,
+      );
+      await waitForLockWait(); // the release is blocked on its FOR SHARE of the assessments row
+      await sw.query("COMMIT");
+      expect(await releasing).toMatchObject({ code: "RESULT_NOT_READY", status: 409 });
+    } finally {
+      await sw.query("ROLLBACK").catch(() => undefined);
+      await sw.end();
+    }
+    expect(await status(attemptId)).toBe("graded");
+    expect(await audits(attemptId, "grading.released")).toHaveLength(0);
+  });
+});

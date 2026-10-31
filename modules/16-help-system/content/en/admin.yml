@@ -6228,3 +6228,29 @@ admin.tenant_settings.org_code:
     - **Invitation emails** already carry the code and a sign-in link.
     - **Student sign-in link.** Copy it and share it if a student asks. The link has the code in it, so the student types only the email.
     - **Read only.** The code cannot be changed here. Old links keep working.
+
+admin.assessments.result_release:
+  audience: admin
+  short_text: "Choose if results of this assessment are released automatically or by you."
+  long_md: |
+    ## Result release
+
+    This setting is only for this assessment. It decides how finished results reach the students.
+
+    - **Use organisation default.** The assessment follows the setting on the Settings page.
+    - **Release automatically.** A result is released as soon as grading is done. This starts from the time you save. Results that were ready before that time stay in your queue.
+    - **Admin releases manually.** No result is released until you release it.
+    - **Your own Release buttons always work.** This setting does not block them.
+    - **Saved results.** Changing the setting does not change a result that is already released.
+
+admin.assessments.release_notice:
+  audience: admin
+  short_text: "Why the results of this assessment are not visible to students yet."
+  long_md: |
+    ## Results are not released yet
+
+    Students have submitted this assessment, but no result is released. Grading takes some time. The text shows how long it usually takes.
+
+    - **Students see nothing** until you release the result.
+    - **To release.** Open the Attempts page and release a result, or use **Release all ready** here.
+    - **Automatic release.** Use the **Result release** setting if you want results to go out without a click.

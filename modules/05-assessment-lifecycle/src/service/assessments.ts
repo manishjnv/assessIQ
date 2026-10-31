@@ -1,4 +1,4 @@
-import { AppError, NotFoundError, ValidationError, ConflictError, uuidv7, MAX_ATTEMPTS_LIMIT } from "@assessiq/core";
+import { AppError, NotFoundError, ValidationError, ConflictError, uuidv7, MAX_ATTEMPTS_LIMIT, config } from "@assessiq/core";
 import { withTenant, assertCameraTestAllowed } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { assertLicensedForSourcePack } from "@assessiq/billing";
@@ -100,7 +100,8 @@ export async function getAssessmentDetail(
       details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
     });
   }
-  return assessment;
+  // SP11: the admin release block shows how long grading usually takes (config text, read only).
+  return { ...assessment, evaluation_turnaround_text: config.EVALUATION_TURNAROUND_TEXT };
 }
 
 // ---------------------------------------------------------------------------
@@ -653,6 +654,51 @@ export async function updateAssessmentDuration(
       entityId: id,
       before: { duration_minutes: current.duration_minutes },
       after: { duration_minutes: updated.duration_minutes, changed_fields: ["duration_minutes"] },
+    });
+    return updated;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// setAssessmentResultRelease
+// ---------------------------------------------------------------------------
+
+/**
+ * Set this assessment's result release override: 'auto' / 'manual' / null (= use the organisation default).
+ * Any status. Locks the assessment row FOR UPDATE so a result cannot be auto-released (09 release.ts takes
+ * FOR SHARE on the same row) while the setting changes. 'auto' stamps result_release_auto_since = now()
+ * ("automatic from now on"; results ready earlier are never released retroactively); 'manual' / null clear it.
+ * Unchanged value = no-op, no audit row. Manual admin releases are not affected.
+ */
+export async function setAssessmentResultRelease(
+  tenantId: string,
+  id: string,
+  mode: "manual" | "auto" | null,
+  updatedByUserId: string,
+): Promise<Assessment> {
+  if (mode !== null && mode !== "manual" && mode !== "auto") {
+    throw new ValidationError("result_release_mode must be 'manual', 'auto' or null", {
+      details: { code: "INVALID_PARAM", param: "result_release_mode" },
+    });
+  }
+  return withTenant(tenantId, async (client) => {
+    const current = await repo.lockAssessmentForUpdate(client, id);
+    if (current === null) {
+      throw new NotFoundError(`Assessment not found: ${id}`, {
+        details: { code: AL_ERROR_CODES.ASSESSMENT_NOT_FOUND },
+      });
+    }
+    if ((current.result_release_mode ?? null) === mode) return current;
+    const updated = await repo.setResultReleaseRow(client, id, mode);
+    await auditInTx(client, {
+      tenantId,
+      actorKind: "user",
+      actorUserId: updatedByUserId,
+      action: "assessment.release_mode.set",
+      entityType: "assessment",
+      entityId: id,
+      before: { result_release_mode: current.result_release_mode },
+      after: { result_release_mode: updated.result_release_mode },
     });
     return updated;
   });

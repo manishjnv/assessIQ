@@ -55,6 +55,7 @@ import { RetakeCard } from "../components/RetakeCard.js";
 import { INVITE_COST, creditsRefusal, type CreditsRefusal } from "../components/CreditHold.js";
 import { TimeLimitCard } from "../components/TimeLimitCard.js";
 import { RemindersCard } from "../components/RemindersCard.js";
+import { ResultReleaseCard } from "../components/ResultReleaseCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
 import { InvitationsSection } from "./assessment-detail/InvitationsSection.js";
@@ -98,9 +99,10 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const [invPage, setInvPage] = useState(1);
   const [invTotal, setInvTotal] = useState(0);
   const [invPaging, setInvPaging] = useState(false);
-  const [invMeta, setInvMeta] = useState<{ userIds: Set<string>; hasAttempts: boolean }>({
+  const [invMeta, setInvMeta] = useState<{ userIds: Set<string>; hasAttempts: boolean; showEtaNotice: boolean }>({
     userIds: new Set(),
     hasAttempts: false,
+    showEtaNotice: false,
   });
   const invPageRef = React.useRef(1);
   const [resendingId, setResendingId] = useState<string | null>(null);
@@ -170,6 +172,8 @@ export function AdminAssessmentDetail(): React.ReactElement {
       // is the displayed one; any further page is one extra small request).
       const userIds = new Set<string>();
       let anyAttempts = false;
+      let anySubmitted = false;
+      let anyReleased = false;
       for (let p = 1; p <= lastPage; p++) {
         const res =
           p === fetchedPage
@@ -180,9 +184,11 @@ export function AdminAssessmentDetail(): React.ReactElement {
         for (const inv of res.items) {
           userIds.add(inv.user_id);
           if (inv.attempt_id != null || inv.started_at != null) anyAttempts = true;
+          if (inv.submitted_at != null) anySubmitted = true;
+          if (inv.attempt_status === "released") anyReleased = true;
         }
       }
-      setInvMeta({ userIds, hasAttempts: anyAttempts });
+      setInvMeta({ userIds, hasAttempts: anyAttempts, showEtaNotice: anySubmitted && !anyReleased });
       setUsers(usersData.items);
       setEntitlements(entitlementsResult?.entitlements ?? null);
     } catch (err) {
@@ -674,6 +680,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
         <ReleaseResendBlock
           assessment={assessment}
           hasAttempts={hasAttempts}
+          showEtaNotice={invMeta.showEtaNotice}
           publishingAll={publishingAll}
           setPublishAllError={setPublishAllError}
           setShowPublishAll={setShowPublishAll}
@@ -723,6 +730,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
           />
         )}
         <IntegrityCard key={assessment.id} assessmentId={assessment.id} initial={assessment.settings?.integrity} />
+        <ResultReleaseCard key={`rr-${assessment.id}`} assessmentId={assessment.id} initial={assessment.result_release_mode ?? null} />
         <SectionsCard
           key={`sec-${assessment.id}`}
           assessmentId={assessment.id}

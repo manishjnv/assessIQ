@@ -479,3 +479,78 @@ describe("worker wiring", () => {
     expect(src).not.toMatch(/from\s+["']@assessiq\/ai-grading["']|import\(\s*["']@assessiq\/ai-grading["']\s*\)/);
   });
 });
+
+// Migration 0285: assessments.result_release_mode overrides the tenant default for the sweep too.
+describe("auto-release sweep — per-assessment release override", () => {
+  const override = (assessment: string, mode: "manual" | "auto" | null, sinceMinAgo: number | null) =>
+    sup((c) =>
+      c.query(
+        `UPDATE assessments SET result_release_mode = $2,
+                result_release_auto_since = ${sinceMinAgo === null ? "NULL" : `now() - interval '${sinceMinAgo} minutes'`}
+          WHERE id = $1`,
+        [assessment, mode],
+      ),
+    );
+
+  it("override 'manual' on an assessment of an auto tenant: the sweep skips it; a sibling assessment with no override is released", async () => {
+    const t = await seedTenant({ mode: "auto", sinceMinAgo: 60 });
+    const held = await addAttempt(t, { evalAgoMin: 5 });
+    await override(t.assessment, "manual", null);
+
+    // second assessment of the same tenant, inheriting the tenant default
+    const sibling = randomUUID();
+    await sup(async (c) => {
+      const asm = await c.query<{ pack_id: string; level_id: string }>(`SELECT pack_id, level_id FROM assessments WHERE id=$1`, [t.assessment]);
+      await c.query(
+        `INSERT INTO assessments (id, tenant_id, pack_id, level_id, pack_version, name, status, question_count, created_by) VALUES ($1,$2,$3,$4,1,'B','active',1,$5)`,
+        [sibling, t.id, asm.rows[0]!.pack_id, asm.rows[0]!.level_id, t.admin],
+      );
+    });
+    const free = await addAttempt({ ...t, assessment: sibling }, { evalAgoMin: 5 });
+
+    await tick();
+    expect(await status(held)).toBe("graded");
+    expect(await releasedAudit(held)).toHaveLength(0);
+    expect(await status(free)).toBe("released");
+    expect(emailed()).toEqual([free]);
+  });
+
+  it("override 'auto' in a manual tenant releases only results ready at or after the assessment's auto_since", async () => {
+    const t = await seedTenant({ mode: "manual" });
+    const older = await addAttempt(t, { evalAgoMin: 45 });
+    await override(t.assessment, "auto", 30); // switched on 30 min ago
+    const newer = await addAttempt(t, { evalAgoMin: 5 });
+    await tick();
+    expect(await status(older)).toBe("graded");
+    expect(await status(newer)).toBe("released");
+    expect((await releasedAudit(newer))[0]).toMatchObject({ after: { trigger: "auto" } });
+    expect(emailed()).toEqual([newer]);
+  });
+
+  it("the tenant's own auto_since does not leak into an overridden assessment: tenant auto since long ago, override 'auto' since 1 min ago, a 10 min old result stays", async () => {
+    const t = await seedTenant({ mode: "auto", sinceMinAgo: 600 });
+    const stale = await addAttempt(t, { evalAgoMin: 10 });
+    await override(t.assessment, "auto", 1);
+    await tick();
+    expect(await status(stale)).toBe("graded");
+  });
+
+  it("override 'auto' with no auto_since is never released; a NULL override follows the tenant default both ways", async () => {
+    const inconsistent = await seedTenant({ mode: "manual" });
+    const a = await addAttempt(inconsistent, { evalAgoMin: 1 });
+    await override(inconsistent.assessment, "auto", null);
+
+    const tenantAuto = await seedTenant({ mode: "auto", sinceMinAgo: 60 });
+    const b = await addAttempt(tenantAuto, { evalAgoMin: 5 });
+    await override(tenantAuto.assessment, null, null);
+
+    const tenantManual = await seedTenant({ mode: "manual" });
+    const c = await addAttempt(tenantManual, { evalAgoMin: 5 });
+    await override(tenantManual.assessment, null, null);
+
+    await tick();
+    expect(await status(a)).toBe("graded");
+    expect(await status(b)).toBe("released");
+    expect(await status(c)).toBe("graded");
+  });
+});

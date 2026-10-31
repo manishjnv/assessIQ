@@ -48,7 +48,7 @@ import type {
 // Column constants
 // ---------------------------------------------------------------------------
 
-const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, duration_minutes, delivery_mode, camera_required, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
+const ASSESSMENT_COLUMNS = `id, tenant_id, pack_id, level_id, pack_version, name, description, status, question_count, passing_score_pct, max_attempts, duration_minutes, delivery_mode, camera_required, result_release_mode, result_release_auto_since, randomize, opens_at, closes_at, settings, created_by, created_at, updated_at`;
 
 const INVITATION_COLUMNS = `id, assessment_id, user_id, token_hash, expires_at, status, invited_by, created_at, extra_attempts, delivery_mode`;
 
@@ -71,6 +71,8 @@ interface AssessmentRow {
   duration_minutes: number | null;
   delivery_mode: string;
   camera_required: boolean;
+  result_release_mode: string | null;
+  result_release_auto_since: Date | null;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -152,6 +154,8 @@ function mapAssessmentRow(row: AssessmentRow): Assessment {
     duration_minutes: row.duration_minutes,
     delivery_mode: row.delivery_mode === "mock" ? "mock" : "real",
     camera_required: row.camera_required === true,
+    result_release_mode: row.result_release_mode === "auto" || row.result_release_mode === "manual" ? row.result_release_mode : null,
+    result_release_auto_since: row.result_release_auto_since ?? null,
     randomize: row.randomize,
     opens_at: row.opens_at,
     closes_at: row.closes_at,
@@ -667,6 +671,38 @@ export async function updateAssessmentRow(
   if (row === undefined) {
     throw new Error(`updateAssessmentRow: no row found for id ${id}`);
   }
+  return mapAssessmentRow(row);
+}
+
+/** Lock the assessment row (serialises the release-mode setter against the auto-release gate, which takes FOR SHARE). */
+export async function lockAssessmentForUpdate(client: PoolClient, id: string): Promise<Assessment | null> {
+  const result = await client.query<AssessmentRow>(
+    `SELECT ${ASSESSMENT_COLUMNS} FROM assessments WHERE id = $1 FOR UPDATE`,
+    [id],
+  );
+  const row = result.rows[0];
+  return row !== undefined ? mapAssessmentRow(row) : null;
+}
+
+/**
+ * Set ONLY the result-release override. The since-time is now() for 'auto' and NULL otherwise
+ * (the table CHECK assessments_release_since_chk enforces the pairing).
+ */
+export async function setResultReleaseRow(
+  client: PoolClient,
+  id: string,
+  mode: "manual" | "auto" | null,
+): Promise<Assessment> {
+  const result = await client.query<AssessmentRow>(
+    `UPDATE assessments
+        SET result_release_mode = $2::text,
+            result_release_auto_since = CASE WHEN $2::text = 'auto' THEN now() ELSE NULL END,
+            updated_at = now()
+      WHERE id = $1 RETURNING ${ASSESSMENT_COLUMNS}`,
+    [id, mode],
+  );
+  const row = result.rows[0];
+  if (row === undefined) throw new Error(`setResultReleaseRow: no row found for id ${id}`);
   return mapAssessmentRow(row);
 }
 

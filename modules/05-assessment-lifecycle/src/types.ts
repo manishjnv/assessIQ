@@ -267,6 +267,13 @@ export interface Assessment {
   delivery_mode: "real" | "mock";
   /** Z-142: Real + camera card. Only with delivery_mode real. Draft-only edit. */
   camera_required: boolean;
+  /**
+   * Per-assessment override of the result release mode (migration 0285). null = use the organisation
+   * default (tenant_settings.result_release_mode). Any status; see setAssessmentResultRelease.
+   */
+  result_release_mode?: "manual" | "auto" | null;
+  /** Start of "automatic from now on" for this assessment. null unless result_release_mode is 'auto'. */
+  result_release_auto_since?: Date | null;
   randomize: boolean;
   opens_at: Date | null;
   closes_at: Date | null;
@@ -278,6 +285,8 @@ export interface Assessment {
   level_label?: string | null;
   /** Optional — populated by findAssessmentByIdWithMeta (detail view only). */
   pack_name?: string | null;
+  /** Optional — admin detail read only (SP11): the config text for the grading turnaround, e.g. "within 72 hours". Read only. */
+  evaluation_turnaround_text?: string;
   /** Optional — the bound pack's subject slug (question_packs.domain), detail view only. Drives the sections editor's subject lock. */
   pack_domain?: string | null;
   /**

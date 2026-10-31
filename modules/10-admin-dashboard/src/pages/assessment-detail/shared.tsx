@@ -33,6 +33,10 @@ export interface Assessment {
   delivery_mode?: "real" | "mock";
   /** Z-142: real test with the camera (always false for mock). */
   camera_required: boolean;
+  /** This assessment's own result release rule; null or absent = use the organisation default. */
+  result_release_mode?: "manual" | "auto" | null;
+  /** SP11: config text for the grading turnaround (admin detail read only), e.g. "within 72 hours". */
+  evaluation_turnaround_text?: string;
 }
 
 export interface Invitation {

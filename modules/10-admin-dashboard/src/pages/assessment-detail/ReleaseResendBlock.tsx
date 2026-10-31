@@ -7,6 +7,8 @@ import { type Assessment, type ReleaseAllResponse, RESEND_ALL_CAP, SKIP_REASON }
 export interface ReleaseResendBlockProps {
   assessment: Assessment;
   hasAttempts: boolean;
+  /** SP11: at least one candidate has submitted and no result of this assessment is released yet. */
+  showEtaNotice?: boolean;
   publishingAll: boolean;
   setPublishAllError: Dispatch<SetStateAction<string | null>>;
   setShowPublishAll: Dispatch<SetStateAction<boolean>>;
@@ -23,7 +25,7 @@ export interface ReleaseResendBlockProps {
 
 export function ReleaseResendBlock(props: ReleaseResendBlockProps): React.ReactElement {
   const {
-    assessment, hasAttempts, publishingAll, setPublishAllError, setShowPublishAll,
+    assessment, hasAttempts, showEtaNotice, publishingAll, setPublishAllError, setShowPublishAll,
     publishAllResult, publishAllError, showPublishAll, handlePublishAll, showResendAll,
     setShowResendAll, resendingAll, resendable, handleResendAll,
   } = props;
@@ -65,6 +67,25 @@ export function ReleaseResendBlock(props: ReleaseResendBlockProps): React.ReactE
       </button>
     )}
   </div>
+
+  {showEtaNotice === true && assessment.evaluation_turnaround_text !== undefined && (
+    <div
+      role="status"
+      data-help-id="admin.assessments.release_notice"
+      style={{
+        padding: "var(--aiq-space-sm) var(--aiq-space-md)",
+        background: "var(--aiq-color-bg-raised)",
+        border: "1px solid var(--aiq-color-border)",
+        borderRadius: "var(--aiq-radius-md)",
+        fontFamily: "var(--aiq-font-sans)",
+        fontSize: "var(--aiq-text-sm)",
+        color: "var(--aiq-color-fg-secondary)",
+      }}
+    >
+      <strong>Results are not released yet.</strong>{" "}
+      Expect grading {assessment.evaluation_turnaround_text}. Results stay hidden until you release them.
+    </div>
+  )}
 
   {publishAllResult && (
     <div role="status" style={{ display: "flex", alignItems: "center", gap: "var(--aiq-space-sm)", flexWrap: "wrap" }}>

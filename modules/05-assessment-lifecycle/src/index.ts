@@ -29,6 +29,7 @@ export {
   updateAssessmentIntegrity,
   updateAssessmentDuration,
   updateAssessmentGrading,
+  setAssessmentResultRelease,
   publishAssessment,
   closeAssessment,
   cancelAssessment,
