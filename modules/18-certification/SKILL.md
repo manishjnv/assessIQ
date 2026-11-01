@@ -306,6 +306,14 @@ reminder email; no email on a tier upgrade or the idempotent re-hit; the PDF doe
 list SELECT). Module 13 gains template `credential_issued`. Module 16 gains 4 seed keys (fresh-DB count 647 to 651).
 Tests: `src/__tests__/valid-until.test.ts` (real Postgres), `verify.test.ts`.
 
+## Issued date on the PDF (Z-189, 2026-11-01)
+
+- What: `renderCertificateHtml` formats `issued_at` with `timeZone: 'Asia/Kolkata'`, so the printed date is the Indian calendar day. Before, it used the server zone (UTC on the VPS), so a certificate issued after 18:30 UTC showed the day before the Indian day.
+- Why: students in India read the PDF and the verify page side by side; the verify page already used IST (Z-188).
+- Rejected: formatIst with the time and "IST" (too long for the certificate line); storing a second date column (the signed data must not change).
+- Not included: the credential id keeps the UTC year and month (identifier, not a display date); no tenant time zone.
+- Impact: display only. `issued_at`, the signature and the verify JSON-LD are unchanged. Test: `src/__tests__/pdf-issued-date.test.ts`.
+
 ## Migration
 `modules/18-certification/migrations/0046_certification_init.sql`
 
