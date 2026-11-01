@@ -45,7 +45,7 @@ jobs:
           level: warning
           fail_on_error: true # Z-54: flipped 2026-10-29 after 5 green runs
       - name: markdownlint
-        uses: DavidAnson/markdownlint-cli2-action@v19
+        uses: DavidAnson/markdownlint-cli2-action@v25
         continue-on-error: true # remove on 2026-10-29
         with:
           globs: |
