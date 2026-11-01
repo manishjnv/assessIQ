@@ -14,7 +14,7 @@
  *      on next admin click.
  */
 
-import { z } from "zod";
+import { z } from "zod/v3";
 import l1Raw from "./soc-l1.json" with { type: "json" };
 import l2Raw from "./soc-l2.json" with { type: "json" };
 import l3Raw from "./soc-l3.json" with { type: "json" };

@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { QuestionTypeDef } from "../../registry.js";
 import { candidateViewOf, pickKeys, questionOrJson, questionStem, structuralOf } from "../../helpers.js";
 

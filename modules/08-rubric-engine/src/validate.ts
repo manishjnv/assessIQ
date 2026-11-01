@@ -5,7 +5,7 @@
 //
 // 04-question-bank re-exports `parseRubric` as its own `validateRubric` (ok/data shape).
 
-import type { ZodIssue } from "zod";
+import type { ZodIssue } from "zod/v3";
 import { RubricSchema, type Rubric } from "./types.js";
 
 /** Single rubric parser (FR25). 04-question-bank re-exports this as its `validateRubric`. */

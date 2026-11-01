@@ -11,7 +11,7 @@
 // module so existing consumer imports (`import { RubricSchema } from
 // '@assessiq/question-bank'`) keep working without churn.
 
-import { z } from "zod";
+import { z } from "zod/v3";
 
 // ---------------------------------------------------------------------------
 // Anchor — one required concept the answer must cover

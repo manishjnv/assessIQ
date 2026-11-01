@@ -44,7 +44,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 // ---------------------------------------------------------------------------
 // Paths

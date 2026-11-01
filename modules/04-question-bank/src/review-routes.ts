@@ -2,7 +2,7 @@
 // Mounted on the adminOnly chain (rate limit, session, tenant context, role admin; super_admin passes the
 // hierarchy). The handler checks the role again and the service checks tenant and platform ownership.
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AuthzError, ValidationError } from "@assessiq/core";
 import {
   assertReviewRole, reviewQuestion, bulkVerifyPack, getPackReview, listReviewQueue, getReviewNotes,

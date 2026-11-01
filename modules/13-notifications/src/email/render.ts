@@ -29,7 +29,7 @@ import Handlebars from 'handlebars';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { buildShareLinks, config, escapeHtml, UUID_RE } from '@assessiq/core';
 import { feedbackSentence } from '@assessiq/core/feedback-copy';
 import type { EmailTemplateName, TemplateVarsMap } from '../types.js';

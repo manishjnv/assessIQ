@@ -15,7 +15,7 @@
 // Auth: all routes require admin role; caller injects the preHandler chain.
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ValidationError } from "@assessiq/core";
 import {
   getTenantVisibleAttemptScore,

@@ -26,7 +26,7 @@
 // Errors flow through the global Fastify error handler in apps/api/src/server.ts.
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ValidationError } from "@assessiq/core";
 import { AI_GRADING_ERROR_CODES } from "./types.js";
 import {

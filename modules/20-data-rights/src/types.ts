@@ -8,7 +8,7 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any
 // AI SDK. data-rights is not part of the AI pipeline.
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 // ---------------------------------------------------------------------------
 // Consent ledger (migration 0101)

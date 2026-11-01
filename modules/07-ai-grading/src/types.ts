@@ -8,7 +8,7 @@
 // Source-of-truth for the shapes: docs/05-ai-pipeline.md § "Implementation
 // skeleton — Phase 1" (lines 357-432) and D4 (prompt SHA + model column shape).
 
-import { z } from "zod";
+import { z } from "zod/v3";
 import { QUESTION_TYPES, QUESTION_TYPE_REGISTRY, type QuestionType as RegistryQuestionType } from "@assessiq/question-types";
 
 // ---------------------------------------------------------------------------

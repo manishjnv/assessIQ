@@ -58,7 +58,7 @@ import {
 } from "../stream-json-parser.js";
 import { coerceQuestionsPayload } from "../coerce-question-content.js";
 
-import { z } from "zod";
+import { z } from "zod/v3";
 
 const log = streamLogger("grading");
 

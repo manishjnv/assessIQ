@@ -4,7 +4,7 @@
 // Progress is also unioned in server-side by admin-generate.ts after each success.
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ConflictError, NotFoundError, ValidationError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 

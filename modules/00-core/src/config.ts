@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 /**
  * Validates that a base64 string decodes to exactly 32 bytes.

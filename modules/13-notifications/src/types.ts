@@ -5,7 +5,7 @@
  * Re-exports legacy stub input interfaces so consumers are unchanged.
  */
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 // ---------------------------------------------------------------------------
 // Email template names (P3.D14 — 7 templates, both .html + .txt)

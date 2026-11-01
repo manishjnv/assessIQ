@@ -2,7 +2,7 @@
 // Body is JSON with a base64 file, or multipart/form-data (RW-97).
 import type {} from "@fastify/multipart"; // request.file() / isMultipart() types only; the plugin is registered by apps/api
 import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AppError, ValidationError, sha256Hex } from "@assessiq/core";
 import { QUESTION_TYPES } from "@assessiq/question-types";
 import { parseImportFile, IMPORT_MAX_BYTES } from "./import/parse.js";

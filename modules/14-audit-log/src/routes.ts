@@ -18,7 +18,7 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { ValidationError } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 import { list, exportCsv, exportJsonl, countForExport, EXPORT_ROW_LIMIT } from './service.js';

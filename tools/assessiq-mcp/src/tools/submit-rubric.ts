@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 // ---------------------------------------------------------------------------
 // Rubric schema (mirrors @assessiq/rubric-engine RubricSchema without dep)

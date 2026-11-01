@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { CheckAnswerResult, QuestionTypeDef } from "../../registry.js";
 import { candidateViewOf, pickKeys, questionOrJson, questionStem, structuralOf, type Dict } from "../../helpers.js";
 import { multiSelectFraction } from "../multi_select/index.js";

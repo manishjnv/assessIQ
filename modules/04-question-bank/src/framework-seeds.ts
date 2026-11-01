@@ -7,7 +7,7 @@
 import { NotFoundError, ValidationError } from "@assessiq/core";
 import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { PoolClient } from "pg";
 import { findNodeId } from "./taxonomy-nodes.js";
 import sampleSeed from "./frameworks/sample.json" with { type: "json" };

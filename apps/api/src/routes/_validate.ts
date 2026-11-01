@@ -8,7 +8,7 @@
 // `details.code` keeps the domain code the handler used before (e.g.
 // INVALID_SCOPE), so existing clients that branch on it are unaffected.
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { ValidationError } from '@assessiq/core';
 
 export { z };

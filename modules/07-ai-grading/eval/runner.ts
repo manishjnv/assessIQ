@@ -14,7 +14,7 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { QUESTION_TYPE_REGISTRY } from "@assessiq/question-types";
 import { GENERATION_ORDER, type GenerableQuestionType } from "../src/types.js";
 

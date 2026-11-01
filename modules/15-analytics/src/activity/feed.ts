@@ -29,7 +29,7 @@
 
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
 import type { PoolClient } from 'pg';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { ValidationError } from '@assessiq/core';
 import { withTenant } from '@assessiq/tenancy';
 

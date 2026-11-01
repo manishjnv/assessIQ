@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { QuestionTypeDef } from "../../registry.js";
 import { RICH_VIEW_KEYS, RichOptionFields, RichStemFields, checkRichRefs } from "../../rich.js";
 import { candidateViewOf, pickKeys, questionOrJson, questionStem, structuralOf } from "../../helpers.js";

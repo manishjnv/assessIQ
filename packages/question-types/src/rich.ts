@@ -4,7 +4,7 @@
 //   stem_assets   up to 3 asset ids (question_assets) shown under the stem.
 //   option_assets aligned to `options`: an asset id or null per option. Permuted with the options by the shuffle.
 // The ids are checked again in Postgres (trigger on question_versions): same pack, same tenant.
-import { z } from "zod";
+import { z } from "zod/v3";
 
 export const ASSET_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const MAX_STEM_ASSETS = 3;

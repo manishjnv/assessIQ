@@ -11,7 +11,7 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any
 // AI SDK. Rule #1 CLAUDE.md. Analytics is deterministic aggregation only.
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 // ---------------------------------------------------------------------------
 // Dashboard tiles

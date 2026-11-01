@@ -1,7 +1,7 @@
 // RW-55: read-only curriculum framework routes. Runs inside withTenant, so RLS
 // returns NULL-tenant (platform) rows plus the caller's own rows. Writes: RW-61.
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AuthzError, NotFoundError, ValidationError } from "@assessiq/core";
 import { withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";

@@ -8,7 +8,7 @@
 //      AppError-derived exceptions. The Fastify error handler in apps/api
 //      maps these to JSON envelopes.
 
-import { z } from "zod";
+import { z } from "zod/v3";
 import type { QuestionType } from "@assessiq/question-types";
 
 // ---------------------------------------------------------------------------

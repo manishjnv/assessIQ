@@ -45,7 +45,7 @@
 //     after a successful resolveInvitationToken).
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { config, ConflictError, NotFoundError, streamLogger, ValidationError, sha256Hex } from "@assessiq/core";
 import { consumeRateLimit, extractClientIp, mintCandidateSession } from "@assessiq/auth";
 import {

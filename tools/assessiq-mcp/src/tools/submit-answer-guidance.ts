@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "zod/v3";
 
 // ---------------------------------------------------------------------------
 // submit_answer_guidance — candidate answer-format hint (feature #4, Phase B)

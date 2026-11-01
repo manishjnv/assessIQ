@@ -31,7 +31,7 @@
  */
 
 import type { FastifyInstance, FastifyRequest, FastifyReply, preHandlerHookHandler } from 'fastify';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { ValidationError, AuthzError } from '@assessiq/core';
 import * as webhookService from './webhooks/service.js';
 import * as inAppService from './in-app/service.js';

@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { z } from "zod";
+import { z } from "zod/v3";
 
 import { coerceSubmitAnchorsPayload } from "../runtimes/claude-code-vps.js";
 import { AnchorFindingSchema, BandFindingSchema } from "../types.js";

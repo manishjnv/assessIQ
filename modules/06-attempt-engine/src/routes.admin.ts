@@ -4,7 +4,7 @@
 // the session, never the URL; RLS on attempt_events scopes the rows.
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { ValidationError } from "@assessiq/core";
 import { getAttemptIntegritySummary, listAttemptsOnOlderVersions, setAffectedAttemptReview } from "./service.js";
 

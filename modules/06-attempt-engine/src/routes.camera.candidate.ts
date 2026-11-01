@@ -13,7 +13,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { streamLogger } from "@assessiq/core";
 import { consumeRateLimit } from "@assessiq/auth";
 import { withTenant } from "@assessiq/tenancy";

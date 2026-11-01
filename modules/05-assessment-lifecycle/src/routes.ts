@@ -33,7 +33,7 @@
 
 import type { FastifyInstance } from "fastify";
 import { AuthzError, ValidationError, UUID_RE, parsePagination } from "@assessiq/core";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { updateAssessmentReminders } from "./reminders.js";
 import { AssessmentRemindersSettingsSchema } from "./types.js";
 import {

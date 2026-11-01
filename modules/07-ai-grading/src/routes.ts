@@ -30,7 +30,7 @@
 // error handler and mapped to HTTP).
 
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AppError, ValidationError } from "@assessiq/core";
 import { AnchorFindingSchema, BandFindingSchema, GradingProposalSchema, AI_GRADING_ERROR_CODES } from "./types.js";
 

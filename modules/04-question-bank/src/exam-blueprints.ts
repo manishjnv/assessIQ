@@ -3,7 +3,7 @@
 // A blueprint has no tenant_id: a tenant session can never write it (no write policy exists).
 import type { FastifyInstance, preHandlerHookHandler } from "fastify";
 import type { PoolClient } from "pg";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AuthzError, NotFoundError, ValidationError } from "@assessiq/core";
 import { withTenant, withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";

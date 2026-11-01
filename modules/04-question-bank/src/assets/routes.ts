@@ -5,7 +5,7 @@
 // Auth is the admin chain passed in by routes.ts. Tenant and actor come from the session, never from the body.
 import type {} from "@fastify/multipart"; // request.file() / isMultipart() types only; the plugin is registered by apps/api
 import type { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AppError, ValidationError } from "@assessiq/core";
 import { ASSET_MAX_BYTES } from "./image-clean.js";
 import { getAssetBytes, getAssetMeta, uploadQuestionAsset } from "./assets.js";

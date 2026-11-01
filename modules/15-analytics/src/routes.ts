@@ -28,7 +28,7 @@
 // CLAUDE.md rule #1.
 
 import type { FastifyInstance, preHandlerHookHandler } from 'fastify';
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { config, ValidationError } from '@assessiq/core';
 import { audit } from '@assessiq/audit-log';
 import {

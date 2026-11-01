@@ -9,7 +9,7 @@
 
 import { createReadStream, promises as fs } from "node:fs";
 import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerHookHandler } from "fastify";
-import { z } from "zod";
+import { z } from "zod/v3";
 import { AuthzError, NotFoundError, ValidationError, config, streamLogger } from "@assessiq/core";
 import { getCameraTenantSettings, confirmCameraNotice, setTenantIsSchool, updateCameraSettings, withTenant } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";

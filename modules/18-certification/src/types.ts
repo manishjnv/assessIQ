@@ -28,7 +28,7 @@
 // INVARIANT: this file MUST NOT import from @anthropic-ai, claude, or any AI SDK.
 // Certification is deterministic credential issuance only. CLAUDE.md rule #1.
 
-import { z } from 'zod';
+import { z } from 'zod/v3';
 
 // ---------------------------------------------------------------------------
 // Tier enum + ordering

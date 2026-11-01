@@ -9,7 +9,7 @@
 //      time. Schemas live here so they're discoverable from the package
 //      barrel; their narrative documentation lives in EVENTS.md.
 
-import { z } from "zod";
+import { z } from "zod/v3";
 
 // ---------------------------------------------------------------------------
 // Status enum — Phase 1 + Phase 2 union (CHECK constraint accepts both)

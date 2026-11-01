@@ -5,7 +5,7 @@
 // P2.D11 — ArchetypeSignals JSONB shape (verbatim from PHASE_2_KICKOFF.md).
 // P2.D13 — ArchetypeLabel enum: 8 built-ins, no AI inference, deterministic only.
 
-import { z } from "zod";
+import { z } from "zod/v3";
 
 // ---------------------------------------------------------------------------
 // ArchetypeLabel — 8 built-in labels (P2.D13 / modules/09-scoring/SKILL.md:32–39)
