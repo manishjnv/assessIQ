@@ -7,7 +7,6 @@ const config: StorybookConfig = {
     "../../../modules/10-admin-dashboard/src/**/*.stories.@(ts|tsx)",
   ],
   addons: [
-    "@storybook/addon-essentials",
     "@storybook/addon-themes",
   ],
   typescript: {
