@@ -16,17 +16,17 @@ export default {
         // Text
         'aiq-fg-primary':   '#0a0a0b',
         'aiq-fg-secondary': '#3f3f46',
-        'aiq-fg-muted':     '#71717a',
+        'aiq-fg-muted':     '#666670',   // S93 (X8 S2): was #71717a (4.36:1 on bg-sunken); 5.1:1 now
 
         // Borders
         'aiq-border':        '#e4e4e7',
         'aiq-border-strong': '#cdcdd1',
 
         // Accent — indigo-violet hue 258
-        // oklch(0.58 0.17 258) ≈ #3177dc (per branding guideline §13.b mark color)
-        'aiq-accent':       '#3177dc',
+        // S93 (X8 S2): darkened to match tokens.css for WCAG 1.4.3; was #3177dc (4.37:1)
+        'aiq-accent':       '#1364ce',   // oklch(0.52 0.18 258), same as tokens.css (AA 5.4:1 on #fafafa, white text 5.6:1)
         'aiq-accent-soft':  '#eef3fd',   // oklch(0.96 0.03 258) approximated
-        'aiq-accent-hover': '#0462d3',   // oklch(0.52 0.19 258) approximated
+        'aiq-accent-hover': '#004fbf',   // oklch(0.46 0.19 258), same as tokens.css
 
         // Status — used sparingly
         'aiq-success':      '#22c55e',   // oklch(0.65 0.15 150) approx

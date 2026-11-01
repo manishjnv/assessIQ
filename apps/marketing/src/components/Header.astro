@@ -43,7 +43,7 @@ const isResourcesActive =
   <div class="max-w-6xl mx-auto px-aiq-xl flex items-center justify-between h-14">
 
     <!-- Logo / Wordmark -->
-    <a href="/" class="flex items-center gap-2 no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2 rounded-aiq-sm" aria-label="AssessIQ — home">
+    <a href="/" class="flex items-center gap-2 min-h-[24px] no-underline focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2 rounded-aiq-sm" aria-label="AssessIQ — home">
       <!-- CSS mark: filled accent dot + 1px halo at -4px inset, per branding §6 -->
       <span class="relative inline-block w-[10px] h-[10px] flex-shrink-0" aria-hidden="true">
         <span class="absolute inset-0 rounded-full bg-aiq-accent"></span>
@@ -54,7 +54,7 @@ const isResourcesActive =
     </a>
 
     <!-- Primary nav -->
-    <nav aria-label="Main navigation">
+    <nav aria-label="Main navigation" class="hidden lg:block">
       <ul class="flex items-center gap-1 list-none m-0 p-0">
 
         <!-- Solutions — simple dropdown (CSS :focus-within, no JS) -->
@@ -200,19 +200,55 @@ const isResourcesActive =
     <!-- CTA -->
     <a
       href="/signup"
-      class="font-sans text-aiq-sm font-medium px-4 py-1.5 mr-aiq-sm text-aiq-fg-secondary hover:text-aiq-fg-primary transition-colors duration-150
+      class="hidden lg:inline-block font-sans text-aiq-sm font-medium px-4 py-1.5 mr-aiq-sm text-aiq-fg-secondary hover:text-aiq-fg-primary transition-colors duration-150
              focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
     >
       Sign up
     </a>
     <a
       href="https://assessiq.in/admin/login"
-      class="font-sans text-aiq-sm font-medium px-4 py-1.5 rounded-aiq-pill bg-aiq-accent text-white
+      class="hidden lg:inline-block font-sans text-aiq-sm font-medium px-4 py-1.5 rounded-aiq-pill bg-aiq-accent text-white
              hover:bg-aiq-accent-hover transition-colors duration-150
              focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
     >
       Sign in
     </a>
 
+
+    <!-- Mobile menu (below lg): native <details>, no JS. The desktop nav above is hidden here. -->
+    <details class="lg:hidden relative">
+      <summary
+        class="list-none cursor-pointer font-sans text-aiq-sm font-medium px-4 py-1.5 rounded-aiq-pill border border-aiq-border text-aiq-fg-primary
+               focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+      >
+        Menu
+      </summary>
+      <nav
+        aria-label="Mobile navigation"
+        class="absolute right-0 top-full mt-2 w-[min(18rem,calc(100vw-2rem))] max-h-[80vh] overflow-y-auto bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-sm"
+      >
+        <ul class="list-none m-0 p-0">
+          {[
+            { href: '/tests', label: 'Skill Tests' },
+            ...solutionLinks,
+            ...navLinks,
+            ...resourceLinks,
+            { href: '/signup', label: 'Sign up' },
+            { href: 'https://assessiq.in/admin/login', label: 'Sign in' },
+          ].map(link => (
+            <li>
+              <a
+                href={link.href}
+                aria-current={currentPath === link.href ? 'page' : undefined}
+                class="block font-sans text-aiq-sm font-medium px-3 py-2 min-h-[24px] rounded-aiq-md text-aiq-fg-secondary hover:text-aiq-fg-primary hover:bg-aiq-bg-raised
+                       focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-1"
+              >
+                {link.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+    </details>
   </div>
 </header>

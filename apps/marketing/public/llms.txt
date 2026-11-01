@@ -12,5 +12,8 @@ India-first B2B assessment platform for IT hiring, campus recruitment, and educa
 - [Pricing](https://assessiq.in/pricing) — AssessIQ pricing by capability tier (Starter, Growth, Enterprise). All pricing is custom — contact for a quote.
 - [Security & Trust](https://assessiq.in/security) — How AssessIQ handles data protection, India DPDP Act awareness, data location, encryption in transit, multi-tenant isolation, audit logging, and assessment integrity.
 - [Trust Center](https://assessiq.in/trust) — Controls, sub-processors, data location and how AI is used for written answers, on one page.
+- [Online assessment platforms in India](https://assessiq.in/resources/online-assessment-platforms-in-india) — Neutral table of platforms used in India from each vendor's public site, and five questions to ask when choosing.
+- [Percentile Calculator](https://assessiq.in/tools/percentile-calculator) — Free in-browser tool: score to percentage and percentile rank in a group.
+- [Accessibility](https://assessiq.in/accessibility) — Self-assessment against WCAG 2.2 A and AA for this website: what was tested, results per criterion, known gaps.
 - [About](https://assessiq.in/about) — Mission, approach, and the principles behind AssessIQ's evidence-based assessment model.
 - [Contact](https://assessiq.in/contact) — Get in touch for demos, pricing enquiries, campus assessment setup, or partnership questions.

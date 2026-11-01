@@ -18,6 +18,7 @@ const pages = {
   'contact':     { title: 'Contact AssessIQ' },
   'security':    { title: 'Security — AssessIQ' },
   'trust':       { title: 'Trust Center — AssessIQ' },
+  'accessibility': { title: 'Accessibility — AssessIQ' },
   'privacy':     { title: 'Privacy Policy — AssessIQ' },
   'terms':       { title: 'Terms of Service — AssessIQ' },
   'methodology': { title: 'Our Assessment Methodology' },
@@ -85,6 +86,8 @@ const pages = {
   // Tools (ASMT-22)
   'tools':                  { title: 'Free Tools for Hiring Teams' },
   'tools-cost-of-a-bad-hire':{ title: 'Cost of a Bad Hire Calculator (India, ₹)' },
+  'tools-percentile-calculator':{ title: 'Percentile Calculator' },
+  'resources-online-assessment-platforms-in-india':{ title: 'Online Assessment Platforms in India' },
 };
 
 // Brand color tokens (from tailwind.config.mjs)

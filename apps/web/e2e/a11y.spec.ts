@@ -25,7 +25,7 @@ function makeA11yTest(path: string, heading: RegExp) {
 
     const results = await new AxeBuilder({ page })
       // wcag2a + wcag2aa covers Level A and AA.
-      .withTags(["wcag2a", "wcag2aa", "best-practice"])
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"])
       // Vendor colour-contrast of design tokens is audited separately; exclude
       // here to avoid noisy failures on intentional low-contrast muted text.
       .disableRules(["color-contrast"])
@@ -62,7 +62,7 @@ test.describe("A11y sweep — unauthenticated pages", () => {
     });
 
     const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "best-practice"])
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"])
       .disableRules(["color-contrast"])
       .analyze();
 
@@ -78,7 +78,7 @@ test.describe("A11y sweep — unauthenticated pages", () => {
     });
 
     const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "best-practice"])
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"])
       .disableRules(["color-contrast"])
       .analyze();
 

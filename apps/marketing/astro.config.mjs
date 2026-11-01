@@ -23,6 +23,7 @@ function inlineSitemap() {
     '/pricing',
     '/security',
     '/trust',
+    '/accessibility',
     '/privacy',
     '/terms',
     '/dpa',
@@ -65,8 +66,10 @@ function inlineSitemap() {
     '/resources/release-campus-test-results',
     '/resources/send-test-invitations-to-students',
     '/resources/verify-skill-certificate',
+    '/resources/online-assessment-platforms-in-india',
     '/tools',
     '/tools/cost-of-a-bad-hire',
+    '/tools/percentile-calculator',
   ];
 
   // Guard: every indexable page file must be listed in `paths` (else it is silently left out of the sitemap).

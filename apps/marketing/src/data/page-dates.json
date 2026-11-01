@@ -250,5 +250,17 @@
   "/trust": {
     "published": "2026-11-01T14:58:53+05:30",
     "modified": "2026-11-01T14:58:53+05:30"
+  },
+  "/resources/online-assessment-platforms-in-india": {
+    "published": "2026-11-01T18:50:00+05:30",
+    "modified": "2026-11-01T18:50:00+05:30"
+  },
+  "/tools/percentile-calculator": {
+    "published": "2026-11-01T18:50:00+05:30",
+    "modified": "2026-11-01T18:50:00+05:30"
+  },
+  "/accessibility": {
+    "published": "2026-11-01T19:10:00+05:30",
+    "modified": "2026-11-01T19:10:00+05:30"
   }
 }

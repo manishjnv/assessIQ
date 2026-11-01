@@ -1,0 +1,189 @@
+---
+// accessibility.astro - "/accessibility" (X8 slice S2). Marketing only.
+// Self-assessment, NOT a certification. Every "Supports" / "Partially" below matches a test run on 2026-11-01:
+//   axe-core 4.x via Playwright (tags wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa, best-practice) on 19 marketing pages
+//   at 1280x800 and 390x844 (zero violations after the S93 fixes), reflow at 320x640, 200% zoom emulated at 640x400 @2x,
+//   40 Tab presses per page for focus visibility and obscured focus, reduced-motion check, a target-size scan.
+// Criteria with no test run say "Not evaluated". Do not raise a status without a test result.
+// HARD RULE: no word "certified", "compliant" or "fully accessible". No Hindi or guardian-consent claim (X8 S3, S4).
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Accessibility" }
+  ]
+};
+
+type Row = { id: string; name: string; level: 'A' | 'AA'; status: string; note: string };
+
+const rows: Row[] = [
+  { id: '1.1.1', name: 'Non-text Content', level: 'A', status: 'Supports', note: 'axe image-alt and related rules pass on all tested pages. Not every image was reviewed by hand.' },
+  { id: '1.2.1 to 1.2.5', name: 'Time-based Media (A and AA)', level: 'A', status: 'Not applicable', note: 'The marketing pages have no audio or video.' },
+  { id: '1.3.1', name: 'Info and Relationships', level: 'A', status: 'Supports', note: 'axe structure rules pass. Data tables use a caption and header cells with scope. No screen reader test yet.' },
+  { id: '1.3.2', name: 'Meaningful Sequence', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '1.3.3', name: 'Sensory Characteristics', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '1.3.4', name: 'Orientation', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '1.3.5', name: 'Identify Input Purpose', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '1.4.1', name: 'Use of Color', level: 'A', status: 'Supports', note: 'axe link-in-text-block passes. Links inside text are underlined.' },
+  { id: '1.4.2', name: 'Audio Control', level: 'A', status: 'Not applicable', note: 'No audio plays.' },
+  { id: '1.4.3', name: 'Contrast (Minimum)', level: 'AA', status: 'Supports', note: 'axe color-contrast passes on 19 pages at desktop and 390 px, in the default state. Hover and focus colours were not measured.' },
+  { id: '1.4.4', name: 'Resize Text', level: 'AA', status: 'Supports', note: 'At 200% zoom (emulated at 640 x 400, scale 2) no page scrolls sideways.' },
+  { id: '1.4.5', name: 'Images of Text', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '1.4.10', name: 'Reflow', level: 'AA', status: 'Supports', note: 'No page scrolls sideways at 320 px. The vendor table on one page scrolls inside its own labelled, keyboard-reachable box, which the criterion allows for data tables.' },
+  { id: '1.4.11', name: 'Non-text Contrast', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '1.4.12', name: 'Text Spacing', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '1.4.13', name: 'Content on Hover or Focus', level: 'AA', status: 'Not evaluated', note: 'The header menus open on hover and on keyboard focus. Dismiss and hover behaviour were not tested.' },
+  { id: '2.1.1', name: 'Keyboard', level: 'A', status: 'Not evaluated', note: 'Tab order showed no keyboard trap in 40 Tab presses per page, but full operation of every control was not tested.' },
+  { id: '2.1.2', name: 'No Keyboard Trap', level: 'A', status: 'Supports', note: 'No trap seen in 40 Tab presses on each tested page.' },
+  { id: '2.1.4', name: 'Character Key Shortcuts', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '2.2.1', name: 'Timing Adjustable', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '2.2.2', name: 'Pause, Stop, Hide', level: 'A', status: 'Not evaluated', note: 'With reduced motion on, no animation ran for more than 5 seconds or looped.' },
+  { id: '2.3.1', name: 'Three Flashes or Below Threshold', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '2.4.1', name: 'Bypass Blocks', level: 'A', status: 'Partially supports', note: 'Every marketing page has a "Skip to main content" link as the first Tab stop. The four public app screens (admin sign-in, candidate sign-in, expired link, error) do not have one.' },
+  { id: '2.4.2', name: 'Page Titled', level: 'A', status: 'Supports', note: 'axe document-title passes.' },
+  { id: '2.4.3', name: 'Focus Order', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '2.4.4', name: 'Link Purpose (In Context)', level: 'A', status: 'Supports', note: 'axe link-name passes. Link text was not reviewed by hand.' },
+  { id: '2.4.5', name: 'Multiple Ways', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '2.4.6', name: 'Headings and Labels', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '2.4.7', name: 'Focus Visible', level: 'AA', status: 'Partially supports', note: 'A visible focus indicator showed on every tested control except one element on the contact and sign-up pages, which we have not yet traced.' },
+  { id: '2.4.11', name: 'Focus Not Obscured (Minimum)', level: 'AA', status: 'Supports', note: 'In 40 Tab presses per page, no focused control was hidden behind the sticky header.' },
+  { id: '2.5.1', name: 'Pointer Gestures', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '2.5.2', name: 'Pointer Cancellation', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '2.5.3', name: 'Label in Name', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '2.5.4', name: 'Motion Actuation', level: 'A', status: 'Not applicable', note: 'No feature responds to device motion.' },
+  { id: '2.5.7', name: 'Dragging Movements', level: 'AA', status: 'Not applicable', note: 'The marketing pages have no drag action.' },
+  { id: '2.5.8', name: 'Target Size (Minimum)', level: 'AA', status: 'Partially supports', note: 'Header, menu, footer and breadcrumb links, and the sign-up check boxes, now have a 24 px target. Some stand-alone text links in page bodies are still shorter than 24 px.' },
+  { id: '3.1.1', name: 'Language of Page', level: 'A', status: 'Supports', note: 'axe html-has-lang passes. Pages are in English.' },
+  { id: '3.1.2', name: 'Language of Parts', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '3.2.1', name: 'On Focus', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '3.2.2', name: 'On Input', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '3.2.3', name: 'Consistent Navigation', level: 'AA', status: 'Supports', note: 'Every page uses the same header and footer.' },
+  { id: '3.2.4', name: 'Consistent Identification', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '3.2.6', name: 'Consistent Help', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '3.3.1', name: 'Error Identification', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '3.3.2', name: 'Labels or Instructions', level: 'A', status: 'Supports', note: 'axe label rules pass on the contact and sign-up forms.' },
+  { id: '3.3.3', name: 'Error Suggestion', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '3.3.4', name: 'Error Prevention (Legal, Financial, Data)', level: 'AA', status: 'Not evaluated', note: '' },
+  { id: '3.3.7', name: 'Redundant Entry', level: 'A', status: 'Not evaluated', note: '' },
+  { id: '3.3.8', name: 'Accessible Authentication (Minimum)', level: 'AA', status: 'Not evaluated', note: 'The marketing pages have no sign-in. Sign-in screens of the app were not tested for this criterion.' },
+  { id: '4.1.2', name: 'Name, Role, Value', level: 'A', status: 'Supports', note: 'axe ARIA and name rules pass on all tested pages.' },
+  { id: '4.1.3', name: 'Status Messages', level: 'AA', status: 'Not evaluated', note: 'The calculators announce results in a polite live region. Not tested with a screen reader.' },
+];
+
+const count = (s: string) => rows.filter((r) => r.status === s).length;
+
+const gaps = [
+  'Signed-in screens (take page, results, admin) are scanned by automated axe tests in our build. They have had no manual keyboard or screen reader review for this statement.',
+  'The four public app screens have no "Skip to main content" link.',
+  'One focused element on the contact and sign-up pages shows no focus indicator. We have not traced it yet.',
+  'Some stand-alone text links in page bodies are shorter than 24 px.',
+  'We have not run a screen reader test (NVDA, JAWS or VoiceOver).',
+  'Hindi and other languages, and guardian consent for candidates under 18, are not part of this statement.',
+];
+---
+
+<BaseLayout
+  title="Accessibility - AssessIQ"
+  description="Our self-assessment against WCAG 2.2 AA for the AssessIQ website: what we tested, what passes, what is partly met and what we have not yet evaluated."
+  canonicalPath="/accessibility"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Accessibility</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Self-assessment &middot; Version 1.0 &middot; 1 November 2026</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">Accessibility of this website.</h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-lg max-w-2xl">
+        This page reports how the AssessIQ website measures against WCAG 2.2 level A and AA. We tested it ourselves. This is not a certification and not an audit by a third party.
+      </p>
+      <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        Result: {count('Supports')} criteria supported, {count('Partially supports')} partly supported, {count('Does not support')} not supported, {count('Not applicable')} not applicable and {count('Not evaluated')} not yet evaluated.
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="scope-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <h2 id="scope-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">What we tested and how.</h2>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 pl-aiq-xl flex flex-col gap-aiq-sm">
+          <li><strong class="text-aiq-fg-primary">Pages:</strong> 19 pages of this website (home, pricing, trust, about, contact, sign-up, legal pages, comparison and resource pages, the tools, the test list and the 404 page), plus four public app screens (admin sign-in, candidate sign-in, expired test link and error page).</li>
+          <li><strong class="text-aiq-fg-primary">Tool:</strong> axe-core, run with Playwright in Chromium, at 1280 x 800 and 390 x 844. After our fixes it reported no violation on the website pages.</li>
+          <li><strong class="text-aiq-fg-primary">Other checks:</strong> 320 px reflow, 200% zoom (emulated), 40 Tab presses on each page for focus visibility and hidden focus, a reduced-motion check and a scan for targets under 24 px.</li>
+          <li><strong class="text-aiq-fg-primary">Date:</strong> 1 November 2026. Automated tools find only part of the problems. A row marked "Supports" means no failure was found in these tests.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="table-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Result for each criterion.</h2>
+      <div class="overflow-x-auto" role="region" aria-labelledby="table-heading" tabindex="0">
+        <table class="w-full min-w-[720px] border-collapse font-sans text-aiq-sm text-left">
+          <caption class="sr-only">WCAG 2.2 level A and AA criteria, with the result and a note for each</caption>
+          <thead>
+            <tr class="border-b border-aiq-border">
+              <th scope="col" class="py-aiq-md pr-aiq-lg font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Criterion</th>
+              <th scope="col" class="py-aiq-md pr-aiq-lg font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Level</th>
+              <th scope="col" class="py-aiq-md pr-aiq-lg font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Result</th>
+              <th scope="col" class="py-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Note</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr class="border-b border-aiq-border align-top">
+                <th scope="row" class="py-aiq-md pr-aiq-lg text-aiq-fg-primary font-medium">{r.id} {r.name}</th>
+                <td class="py-aiq-md pr-aiq-lg text-aiq-fg-secondary">{r.level}</td>
+                <td class="py-aiq-md pr-aiq-lg text-aiq-fg-primary font-medium">{r.status}</td>
+                <td class="py-aiq-md text-aiq-fg-secondary">{r.note}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-lg mb-0 max-w-3xl">
+        Criterion 4.1.1 (Parsing) is not listed: WCAG 2.2 removed it.
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="gaps-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <h2 id="gaps-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Known gaps.</h2>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 pl-aiq-xl flex flex-col gap-aiq-sm">
+          {gaps.map((g) => <li>{g}</li>)}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base" aria-labelledby="report-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <h2 id="report-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Report a problem.</h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mb-aiq-lg mt-0">
+          If something on this website is hard to use, write to
+          <a href="mailto:connect@assessiq.in" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">connect@assessiq.in</a>.
+          Tell us the page and what went wrong. See also the <a href="/trust" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">Trust Center</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

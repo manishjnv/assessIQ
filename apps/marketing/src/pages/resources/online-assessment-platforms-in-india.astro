@@ -1,0 +1,345 @@
+---
+// resources/online-assessment-platforms-in-india.astro — "/resources/online-assessment-platforms-in-india"
+// JSON-LD: THREE separate blocks — Article, FAQPage, BreadcrumbList
+// NO aggregateRating, no ratings, no "best" claims. Neutral table; verified public facts only.
+// Fairness rule: no disparagement. A cell that the vendor site does not state says "Not stated publicly".
+// Sources (all read 2026-11-01 with the web-fetch tool):
+//   AMCAT:       https://www.myamcat.com/
+//   HirePro:     https://www.hirepro.in/
+//   EvalGround:  https://www.evalground.com/   (https://www.evalground.com/pricing returned 404)
+//   iMocha:      https://www.imocha.io/   https://www.imocha.io/pricing (no prices on page)
+//                (https://www.imocha.io/products/ai-proctoring returned 404)
+//   Mettl:       https://mettl.com/
+//   HackerEarth: https://www.hackerearth.com/   (/assessments/ and /pricing/ returned 404; home page is short)
+//   HackerRank:  https://www.hackerrank.com/   https://www.hackerrank.com/pricing/ (cookie wall, no prices shown)
+// Excluded: MeritTrac. Its site blocks automated reads (HTTP 403), so no verified facts exist.
+// Note: https://www.amcatglobal.com/ is an unrelated payroll business, not the AMCAT test. Not used.
+// AssessIQ cells use only claims already live on /alternatives/hirepro, /pricing and the home page:
+//   pricing.astro FAQ (fullscreen gate, copy/paste blocking, tab-switch warning; price "Talk to us"),
+//   index.astro (India positioning, aptitude and structured tests, AI-assisted evaluation of written answers).
+import { getPageDates } from '../../lib/page-dates';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const slug = '/resources/online-assessment-platforms-in-india';
+const dates = getPageDates(slug);
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Online Assessment Platforms in India: What to Compare",
+  "datePublished": dates.published,
+  "dateModified": dates.modified,
+  "author": { "@type": "Organization", "name": "AssessIQ" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": { "@type": "ImageObject", "url": `${site}/favicon.svg` }
+  },
+  "mainEntityOfPage": `${site}${slug}`,
+  "description": "A neutral table of online assessment platforms used in India, built from each vendor's own public site, plus five questions to ask before you choose."
+};
+
+const faqs = [
+  {
+    q: "How do I compare online assessment platforms in India?",
+    a: "Start with your use case: campus drives, technical screening or employee skills. Then compare what each vendor states about assessment types, proctoring and pricing. Ask the vendor for anything the public site does not state."
+  },
+  {
+    q: "Why do some cells say \"Not stated publicly\"?",
+    a: "We read each vendor's own public site on 2026-11-01. If the site did not say it, we did not write it. A blank here does not mean the vendor lacks the feature. Ask the vendor."
+  },
+  {
+    q: "Is this table a ranking?",
+    a: "No. The table has no ratings and no order of merit. Each platform fits a different need. AssessIQ is marked as ours."
+  },
+  {
+    q: "Where can I read more about one vendor?",
+    a: "Use the vendor links under the table. They lead to side-by-side pages for AMCAT, HirePro, EvalGround, iMocha, Mettl, HackerEarth and HackerRank."
+  }
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(f => ({
+    "@type": "Question",
+    "name": f.q,
+    "acceptedAnswer": { "@type": "Answer", "text": f.a }
+  }))
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Resources", "item": `${site}/resources` },
+    { "@type": "ListItem", "position": 3, "name": "Online assessment platforms in India" }
+  ]
+};
+
+const nsp = "Not stated publicly";
+
+const rows = [
+  {
+    name: "AMCAT",
+    ours: false,
+    use: "Employability test for job seekers. Its home page calls it \"India's largest employability test\".",
+    types: "Lists the AMCAT test, PrepAMCAT mock test, English Certification and Technical Certification. Test sections: " + nsp.toLowerCase() + ".",
+    proctor: "Says the test is taken alone, with warnings for prohibited behaviour. Repeated violations end the test.",
+    price: "No fee for the test stated. A separate AMCAT PRO offer is described.",
+    india: "Yes. \"India's largest employability test\".",
+    href: "/alternatives/amcat"
+  },
+  {
+    name: "HirePro",
+    ours: false,
+    use: "AI-based recruitment platform for enterprise hiring.",
+    types: "Coding, functional (cognitive, behavioural, soft skills, functional) and custom-built assessments.",
+    proctor: "Says it can monitor candidates anywhere, anytime, for fraud-free assessments and interviews.",
+    price: nsp,
+    india: "Bengaluru company. Indian banks and firms among listed clients. No India-first claim.",
+    href: "/alternatives/hirepro"
+  },
+  {
+    name: "EvalGround",
+    ours: false,
+    use: "Online assessment platform for recruiters. Also has an applicant tracking tool, C-Track.",
+    types: "Aptitude, programming, adaptive, psychometric, English proficiency and role-based skill tests.",
+    proctor: "Says candidates take tests in a proctored online environment. Lists cheating prevention.",
+    price: "Mentions plans, a free start and free credits. Amounts not read on the page.",
+    india: nsp,
+    href: "/alternatives/evalground"
+  },
+  {
+    name: "iMocha",
+    ours: false,
+    use: "Skills and work intelligence platform for skill gaps, upskilling and hiring.",
+    types: "Role-based tests, coding, communication, cognitive and domain skills, AI interviews. Says its library has 10,000+ assessments.",
+    proctor: "Lists proctoring with AI interviews. Details: " + nsp.toLowerCase() + ".",
+    price: nsp,
+    india: nsp,
+    href: "/alternatives/imocha"
+  },
+  {
+    name: "Mettl (Mercer Mettl)",
+    ours: false,
+    use: "Talent assessment platform for hiring and development. Also online exams for education.",
+    types: "Psychometric, coding (20+ languages), English proficiency, virtual assessment centre, 360-degree feedback and a pre-built test library.",
+    proctor: "States AI and human-based proctoring, secure browser controls and anti-cheating controls.",
+    price: nsp,
+    india: "Indian customers shown in case studies. Also claims 100+ countries. No India-first claim.",
+    href: "/alternatives/mettl"
+  },
+  {
+    name: "HackerEarth",
+    ours: false,
+    use: "AI-powered interviews and assessments.",
+    types: nsp + " (on the page read).",
+    proctor: "Mentions an \"integrity layer\". Details: " + nsp.toLowerCase() + ".",
+    price: nsp,
+    india: nsp,
+    href: "/alternatives/hackerearth"
+  },
+  {
+    name: "HackerRank",
+    ours: false,
+    use: "Hiring developers, with assessments and interviews.",
+    types: "Certified (role-based) assessments, real-world coding questions, AI-led interviewer, screen and interview products.",
+    proctor: "Lists plagiarism detection and flags of suspicious behaviour, such as unauthorised tools or multiple faces.",
+    price: "Has a pricing page and a free trial. Amounts not shown on the page read.",
+    india: nsp,
+    href: "/alternatives/hackerrank"
+  },
+  {
+    name: "AssessIQ",
+    ours: true,
+    use: "Assessment platform for IT companies, campus hiring and institutions in India.",
+    types: "MCQ, aptitude, and scenario or written questions on one platform. Rubric scoring.",
+    proctor: "Optional fullscreen gate, copy and paste blocking, and a tab-switch warning recorded for the admin.",
+    price: "Talk to us. Accounts are set up by the AssessIQ team.",
+    india: "Yes. India-first positioning.",
+    href: "/alternatives"
+  }
+];
+
+const questions = [
+  "What will you assess: aptitude, job skills, coding, written answers, or all four?",
+  "Who owns the questions? Can you use your own, and keep them private?",
+  "How is a written answer scored, and can you see the reason for each score?",
+  "What does the vendor do to stop cheating, and what does it not do?",
+  "What will it cost for your volume, and what is the data and support plan?"
+];
+---
+
+<BaseLayout
+  hasDatedNode
+  title="Online Assessment Platforms in India: What to Compare"
+  description="A neutral table of online assessment platforms used in India, from each vendor's own public site, with five questions to ask before you choose."
+  canonicalPath="/resources/online-assessment-platforms-in-india"
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex flex-wrap items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/resources" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Resources</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Online assessment platforms in India</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Resources &middot; Buyer guide &middot; 2026</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Online assessment platforms in India: what to compare.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-xl max-w-2xl">
+        Many platforms run online tests for hiring in India. They are built for different jobs. This page puts eight side by side. Each cell comes from the vendor's own public site, read on 2026-11-01. If the site did not say it, the cell says so.
+      </p>
+      <p class="font-sans text-aiq-md text-aiq-fg-muted leading-relaxed m-0 max-w-2xl">
+        AssessIQ is our product. It is marked as ours. The table is not a ranking.
+      </p>
+    </div>
+  </section>
+
+  <!-- TABLE -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Side by side</p>
+      <h2 id="table-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+        Eight platforms, as each vendor states them.
+      </h2>
+
+      <div
+        class="overflow-x-auto border border-aiq-border rounded-aiq-lg bg-aiq-bg-base focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent"
+        role="region"
+        aria-labelledby="table-heading"
+        tabindex="0"
+      >
+        <table class="w-full min-w-[960px] border-collapse font-sans text-aiq-sm text-left">
+          <caption class="text-left font-sans text-aiq-sm text-aiq-fg-muted p-aiq-md">
+            Online assessment platforms used in India. Facts from each vendor's own public site, read 2026-11-01. Scroll sideways on a small screen.
+          </caption>
+          <thead>
+            <tr class="border-b border-aiq-border">
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Platform</th>
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">What it is for</th>
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Assessment types stated</th>
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Proctoring stated</th>
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Pricing stated</th>
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">India focus stated</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr class={`border-b border-aiq-border align-top ${row.ours ? 'bg-aiq-bg-raised' : (i % 2 === 0 ? 'bg-aiq-bg-base' : 'bg-aiq-bg-raised')}`}>
+                <th scope="row" class="py-aiq-md px-aiq-md text-aiq-fg-primary font-medium">
+                  {row.ours ? (
+                    <span>{row.name} <span class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase">(ours)</span></span>
+                  ) : (
+                    <a href={row.href} class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">{row.name}</a>
+                  )}
+                </th>
+                <td class="py-aiq-md px-aiq-md text-aiq-fg-secondary">{row.use}</td>
+                <td class="py-aiq-md px-aiq-md text-aiq-fg-secondary">{row.types}</td>
+                <td class="py-aiq-md px-aiq-md text-aiq-fg-secondary">{row.proctor}</td>
+                <td class="py-aiq-md px-aiq-md text-aiq-fg-secondary">{row.price}</td>
+                <td class="py-aiq-md px-aiq-md text-aiq-fg-secondary">{row.india}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-lg mb-aiq-sm max-w-3xl">
+        "Not stated publicly" means the page we read did not say it. It does not mean the vendor lacks it. Pages change. Check with each vendor before you shortlist.
+      </p>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0 max-w-3xl">
+        Side-by-side pages: <a href="/alternatives/amcat" class="text-aiq-accent underline underline-offset-2">AMCAT</a>,
+        <a href="/alternatives/hirepro" class="text-aiq-accent underline underline-offset-2">HirePro</a>,
+        <a href="/alternatives/evalground" class="text-aiq-accent underline underline-offset-2">EvalGround</a>,
+        <a href="/alternatives/imocha" class="text-aiq-accent underline underline-offset-2">iMocha</a>,
+        <a href="/alternatives/mettl" class="text-aiq-accent underline underline-offset-2">Mettl</a>,
+        <a href="/alternatives/hackerearth" class="text-aiq-accent underline underline-offset-2">HackerEarth</a>,
+        <a href="/alternatives/hackerrank" class="text-aiq-accent underline underline-offset-2">HackerRank</a>.
+      </p>
+    </div>
+  </section>
+
+  <!-- HOW TO CHOOSE -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="choose-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How to choose</p>
+        <h2 id="choose-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Five questions to ask any vendor.
+        </h2>
+        <ol class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 pl-aiq-xl flex flex-col gap-aiq-md">
+          {questions.map(q => <li>{q}</li>)}
+        </ol>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mt-aiq-xl mb-0">
+          For more on scoring, read our <a href="/methodology" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">methodology</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions.
+      </h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        {faqs.map((f, i) => (
+          <div class={i < faqs.length - 1 ? 'border-b border-aiq-border pb-aiq-xl' : ''}>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">{f.q}</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{f.a}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="bg-aiq-bg-base" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+        <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Want to see AssessIQ for your use case?
+        </h2>
+        <div class="flex flex-wrap gap-aiq-md">
+          <a
+            href="/contact"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                   hover:bg-aiq-accent-hover transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            Talk to us
+          </a>
+          <a
+            href="/alternatives"
+            class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                   text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                   focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+          >
+            All comparisons
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>
