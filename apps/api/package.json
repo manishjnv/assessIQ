@@ -33,7 +33,7 @@
     "@assessiq/certification": "workspace:*",
     "@assessiq/billing": "workspace:*",
     "fastify": "^5.12.7",
-    "@fastify/cookie": "^11.1.3",
+    "@fastify/cookie": "^11.1.5",
     "@fastify/multipart": "^9.0.0",
     "bullmq": "^5.34.0",
     "ioredis": "^5.4.1",
