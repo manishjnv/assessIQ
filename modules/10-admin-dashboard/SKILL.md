@@ -233,3 +233,10 @@ Assessment detail page mounts `components/RemindersCard.tsx` ("Reminders": "Send
 - **Considered and rejected.** Email-only login (RW-78): a cross-organisation lookup in `modules/01-auth`, a security change the owner holds for after 100%. Letting the admin edit the code (old emails would break). Putting the slug in the attempt view (not needed there).
 - **Not included.** Any change to `modules/01-auth` or to how the API checks the code. The code stays required by the API; the link only fills it in. Org code in the reminder email.
 - **Downstream.** `docs/03-api-contract.md` (`company_slug`), module 06 result view, module 13 invitation template and strings, module 16 help (seed count 670), module 10 settings page. Tests: module 10 372, module 13 341, module 16 120, module 06 571, web take Submitted 11.
+
+## Z-181, Z-182, Z-184, Z-186 (S86, 2026-11-01)
+
+- **Create a test:** the Whole set count must be 1 to min(100, set size); the exam-pattern fixed size likewise. A red `role="alert"` line sits under the field, Save stays off and the suggested time is hidden while the count is invalid.
+- **Assessment detail:** no red entitlement pre-warning any more (the page cannot see clone lineage, domain scope or the internal tier that the server accepts); the neutral note stays, and a real refusal shows as the publish error. The entitlement fetch was removed from the page.
+- **Invitations:** `InvitationsSection` takes `isDraft`; on a draft there are no invite controls and the text is "Publish this assessment to invite students."
+- **Sections editor:** the "countdown not shipped" note is gone. Not changed: two help texts that repeat the old advice (row Z-187).

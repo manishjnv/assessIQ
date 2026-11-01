@@ -565,3 +565,7 @@ Folded from `docs/archive/2026-10-21-z104-cert-polish-change-record.md`. Row: Z-
 5. Start a real test: the top bar shows "No answers yet" before the first answer, then "Saved".
 
 **Rollback.** Revert the commit. No migration, no data change, no new setting. Certificates already issued re-render from stored data, so old certificates also lose the empty line. The preview image is generated on request, so it changes at once; LinkedIn may show the old picture until its cache refreshes.
+
+## Verify page dates (Z-185, S86, 2026-11-01)
+
+The public verify page prints Issued and Revoked dates with `formatIst()`. The JSON-LD `dateCreated` and the JSON API keep ISO UTC strings, and signed certificate data is untouched. "Valid until" / "Expired on" still come from `display.ts` as a UTC date (row Z-188).

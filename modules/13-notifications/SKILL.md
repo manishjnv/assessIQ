@@ -345,3 +345,7 @@ The full record is in `modules/19-billing/SKILL.md` § "2026-10-20 — Wave 4 sm
 ## Invitation sign-in line (UAT 2026-10-29, Option A)
 
 `invitation_candidate` shows "See your results any time: Sign in" and "Your organisation code: <slug>" after the Start button when the render gets `opts.orgCode`. `sendEmail` loads the slug with `loadTenantSlug(tenantId)` (tenant-logo.ts, 60 s cache, never throws). The link is `<ASSESSIQ_BASE_URL>/candidate/login?tenant=<slug>`, written with triple braces because Handlebars would escape the `=`; the value is built with `URL` and `encodeURIComponent`, so it holds no quote or markup. Not in the reminder. No slug = the block is skipped. Test: `invitation-signin-line.test.ts`.
+
+## Indian time in recipient mails (Z-185, S86, 2026-11-01)
+
+Invitation, invitation reminder and `totp_enrolled` format their time with `formatIst()` from `@assessiq/core` ("8 Nov 2026, 9:32 am IST"). Fixed zone Asia/Kolkata; there is no tenant time zone. Not changed on purpose: internal mails to the platform owner, `totp_reset_notice`, `credit_expiring` (built in `apps/api/src/worker.ts`), the audit log (row Z-188). New mails that show a time must call `formatIst`.

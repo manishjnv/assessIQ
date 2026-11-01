@@ -89,3 +89,7 @@ None directly. Other modules' help content references config-derived limits (e.g
 ## Shared AES-256-GCM core (N24, 2026-10-03)
 
 `src/aes-gcm.ts` exports `sealTagLast`, `openTagLast`, `sealTagMid`, `openTagMid` (previous-key fallback, 16-byte auth tag, "envelope too short" under 28 bytes). It is also a subpath `@assessiq/core/aes-gcm`: `package.json` has a new `exports` map. Tests that mock the `@assessiq/core` barrel (13-notifications) must import the subpath for crypto. Both stored layouts are kept; no data migration. Test: `src/__tests__/aes-gcm.test.ts`.
+
+## formatIst (Z-185, S86, 2026-11-01)
+
+`src/time.ts` exports `formatIst(Date | string)`: a pure formatter for student-facing times in fixed zone Asia/Kolkata, "8 Nov 2026, 9:32 am IST". It reads no clock and throws ValidationError on invalid input. Use it for any time a student or recipient reads; keep ISO UTC for storage, JSON and the audit log.
