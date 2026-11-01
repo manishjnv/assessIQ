@@ -10,7 +10,6 @@
 //   GET /admin/assessments/:id                  → assessment metadata
 //   GET /admin/assessments/:id/invitations      → invitation list
 //   GET /admin/users?pageSize=100               → user list for invite picker
-//   GET /api/billing/entitlements               → B2: entitled pack/domain list (fail-open)
 //   POST /admin/assessments/:id/invite          → { user_ids: string[] }
 //   POST /admin/users/import                    → { csv, assessment_id } (CandidateCsvImport)
 //   POST /admin/assessments/:id/publish         → draft → published
@@ -22,16 +21,8 @@
 //  - No hardcoded test data.
 //
 // B2 — Entitlement filter (FE convenience; server is authoritative):
-//   getCompanyEntitlements() is fetched on mount. If it fails (billing service
-//   down, network error), we fail-OPEN — show the Publish button as normal; the
-//   server enforces the entitlement check on POST /publish. We never hard-block
-//   the publish action client-side.
-//   The entitlement hint is shown near the Publish button on draft assessments
-//   to inform the admin whether the current pack appears entitled. The check is:
-//     pack_id ∈ active pack-scope entitlements
-//     OR (domain field available on pack object) domain ∈ active domain-scope.
-//   Since the FE Assessment object carries only pack_id (no domain), we filter
-//   by pack_id scope only and show the note regardless — over-showing is safe.
+//   Z-181: no entitlement pre-check. The server rule (billing assertPublishEntitled) also accepts
+//   clone lineage, domain scope and the internal tier; a refusal shows through publishError.
 
 import { assessmentStatusDisplay } from "../lib/labels.js";
 import React, { useEffect, useState, useCallback } from "react";
@@ -59,8 +50,7 @@ import { ResultReleaseCard } from "../components/ResultReleaseCard.js";
 import { buildInvitationColumns } from "./assessment-detail/invitation-columns.js";
 import { ReleaseResendBlock } from "./assessment-detail/ReleaseResendBlock.js";
 import { InvitationsSection } from "./assessment-detail/InvitationsSection.js";
-import { adminApi, AdminApiError, getCompanyEntitlements, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
-import type { TenantEntitlement } from "../api.js";
+import { adminApi, AdminApiError, cancelAssessmentApi, deleteAssessmentApi } from "../api.js";
 import { type Assessment, type Invitation, INV_PAGE_SIZE, type InvitationsResponse, type ResendAllResponse, type UserItem, type UsersResponse, type ReleaseAllResponse, type SortDir, sortRows, assessmentStatusVariant } from "./assessment-detail/shared.js";
 
 export function AdminAssessmentDetail(): React.ReactElement {
@@ -130,27 +120,19 @@ export function AdminAssessmentDetail(): React.ReactElement {
   const [sortBy, setSortBy] = useState<string>("");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
-  // B2 — entitlement hint state (FE convenience; server is authoritative).
-  // null = not yet loaded; [] = loaded but empty; populated = entitlements fetched.
-  // Fetch failure → stays null → fail-open (Publish button shown normally).
-  const [entitlements, setEntitlements] = useState<TenantEntitlement[] | null>(null);
-
   const fetchData = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     setError(null);
     try {
-      // Fetch assessment, invitations, user list, and entitlements in parallel.
+      // Fetch assessment, invitations and user list in parallel.
       // Users: cap at 100 (api-contract pageSize cap for /admin/users).
-      // Entitlements: fail-open — if the fetch errors, we keep entitlements=null
-      // and show the note unconditionally (server still enforces on publish).
-      const [assessmentData, inviteData, usersData, entitlementsResult] = await Promise.all([
+      const [assessmentData, inviteData, usersData] = await Promise.all([
         adminApi<Assessment>(`/admin/assessments/${id}`),
         adminApi<InvitationsResponse>(
           `/admin/assessments/${id}/invitations?page=${invPageRef.current}&pageSize=${INV_PAGE_SIZE}`,
         ),
         adminApi<UsersResponse>(`/admin/users?pageSize=100`),
-        getCompanyEntitlements().catch(() => null),
       ]);
       setAssessment(assessmentData);
       // Deleted/revoked rows can shrink the list: clamp to the last real page.
@@ -190,7 +172,6 @@ export function AdminAssessmentDetail(): React.ReactElement {
       }
       setInvMeta({ userIds, hasAttempts: anyAttempts, showEtaNotice: anySubmitted && !anyReleased });
       setUsers(usersData.items);
-      setEntitlements(entitlementsResult?.entitlements ?? null);
     } catch (err) {
       setError(
         err instanceof AdminApiError
@@ -620,36 +601,24 @@ export function AdminAssessmentDetail(): React.ReactElement {
                   </button>
                 </HelpTip>
                 {/* B2 — entitlement hint (FE convenience; server enforces).
-                    Shown when pack_id is set. If entitlements loaded and the
-                    pack_id is NOT in active pack-scope entitlements, show a
-                    warning. If entitlements failed to load (null), show the
-                    general note — server will enforce on submit. */}
-                {assessment.pack_id !== null && (() => {
-                  const packEntitled =
-                    entitlements !== null &&
-                    entitlements.some(
-                      (e) => e.scope_type === 'pack' && e.scope_id === assessment.pack_id,
-                    );
-                  const showWarning = entitlements !== null && !packEntitled;
-                  return (
-                    <span
-                      style={{
-                        fontFamily: "var(--aiq-font-sans)",
-                        fontSize: "var(--aiq-text-xs)",
-                        color: showWarning
-                          ? "var(--aiq-color-danger)"
-                          : "var(--aiq-color-fg-muted)",
-                        textAlign: "right",
-                        maxWidth: 260,
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {showWarning
-                        ? "This question set may not be entitled for your plan — publishing will fail if not. Contact your platform operator to enable it."
-                        : "Only content your plan is entitled to is shown. Contact your platform operator to enable more."}
-                    </span>
-                  );
-                })()}
+                    Z-181: no red pre-warning. The server rule (billing assertPublishEntitled)
+                    also accepts clone lineage (source_pack_id), domain scope and the internal
+                    tier, which this page cannot see, so a pre-check showed false warnings.
+                    A real refusal arrives through publishError below. */}
+                {assessment.pack_id !== null && (
+                  <span
+                    style={{
+                      fontFamily: "var(--aiq-font-sans)",
+                      fontSize: "var(--aiq-text-xs)",
+                      color: "var(--aiq-color-fg-muted)",
+                      textAlign: "right",
+                      maxWidth: 260,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    Only content your plan is entitled to is shown. Contact your platform operator to enable more.
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -774,6 +743,7 @@ export function AdminAssessmentDetail(): React.ReactElement {
         {/* Invitations section */}
         <InvitationsSection
           id={id}
+          isDraft={assessment?.status === "draft"}
           resultsSort={resultsSort}
           setResultsSort={setResultsSort}
           showInviteForm={showInviteForm}

@@ -28,7 +28,7 @@ vi.mock("@assessiq/help-system/components", () => ({
 }));
 
 import { SectionsCard } from "../components/SectionsCard.js";
-import { SectionsEditor, buildSections, NEW_SECTION_ROW, TIMER_LOCK_NOTE } from "../pages/SectionsEditor.js";
+import { SectionsEditor, buildSections, NEW_SECTION_ROW } from "../pages/SectionsEditor.js";
 import type { SectionRow } from "../pages/SectionsEditor.js";
 
 const row = (patch: Partial<SectionRow> = {}): SectionRow => ({
@@ -52,10 +52,9 @@ describe("SectionsEditor lock switch (Z-131)", () => {
     expect(screen.getByRole("switch", { name: "Section 1 lock after leaving" })).toBeTruthy();
   });
 
-  it("always shows the seconds per question field, and the take page note", () => {
+  it("always shows the seconds per question field", () => {
     render(<SectionsEditor rows={[row()]} onChange={vi.fn()} />);
     expect(screen.getByLabelText("Section 1 seconds per question")).toBeTruthy();
-    expect(screen.getByText(TIMER_LOCK_NOTE)).toBeTruthy();
   });
 });
 

@@ -51,6 +51,8 @@ export interface InvitationsSectionProps {
   invPaging: boolean;
   invTotal: number;
   goToInvPage: (next: number) => Promise<void>;
+  /** Draft assessments cannot take invitations yet: hide the invite controls and the list. */
+  isDraft?: boolean;
 }
 
 export function InvitationsSection(props: InvitationsSectionProps): React.ReactElement {
@@ -60,7 +62,7 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
     inviteError, inviteErrorPath, inviteLimit, creditCost = 0, creditsAvailable = null, inviteRefusal = null, onInviteNow, inviting, resendable, resendResult, resendError, setResendError,
     setShowResendAll, resendingAll, resendingId, invitations, invitationColumns,
     sortedInvitations, sortBy, setSortBy, sortDir, setSortDir, invPage, invPaging,
-    invTotal, goToInvPage,
+    invTotal, goToInvPage, isDraft = false,
   } = props;
   return (
   <div>
@@ -112,28 +114,30 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
             Download results (CSV)
           </a>
         </HelpTip>
-        <HelpTip helpId="admin.assessments.invite.bulk">
-          <button
-            type="button"
-            className="aiq-btn aiq-btn-outline aiq-btn-sm"
-            onClick={() => {
-              setShowInviteForm((v) => !v);
-              setInviteError(null);
-              setSelectedUserIds(new Set());
-            }}
-          >
-            {showInviteForm ? "Cancel" : "+ Invite candidates"}
-          </button>
-        </HelpTip>
+        {!isDraft && (
+          <HelpTip helpId="admin.assessments.invite.bulk">
+            <button
+              type="button"
+              className="aiq-btn aiq-btn-outline aiq-btn-sm"
+              onClick={() => {
+                setShowInviteForm((v) => !v);
+                setInviteError(null);
+                setSelectedUserIds(new Set());
+              }}
+            >
+              {showInviteForm ? "Cancel" : "+ Invite candidates"}
+            </button>
+          </HelpTip>
+        )}
       </div>
     </div>
 
-    {id && <CandidateCsvImport assessmentId={id} onImported={fetchData} />}
+    {id && !isDraft && <CandidateCsvImport assessmentId={id} onImported={fetchData} />}
 
     <EmailQueuePanel refreshKey={invTotal} />
 
     {/* Invite inline form */}
-    {showInviteForm && (
+    {showInviteForm && !isDraft && (
       <div
         style={{
           border: "1px solid var(--aiq-color-border)",
@@ -351,7 +355,18 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
       </div>
     )}
 
-    {invitations.length === 0 ? (
+    {isDraft ? (
+      <p
+        style={{
+          fontFamily: "var(--aiq-font-sans)",
+          fontSize: "var(--aiq-text-sm)",
+          color: "var(--aiq-color-fg-muted)",
+          margin: 0,
+        }}
+      >
+        Publish this assessment to invite students.
+      </p>
+    ) : invitations.length === 0 ? (
       <div
         style={{
           textAlign: "center",
@@ -375,7 +390,7 @@ export function InvitationsSection(props: InvitationsSectionProps): React.ReactE
       <Table columns={invitationColumns} data={sortedInvitations} {...(sortBy ? { sortBy } : {})} sortDir={sortDir} onSort={(key, dir) => { setSortBy(key); setSortDir(dir); }} />
     )}
 
-    {invTotal > INV_PAGE_SIZE && (
+    {!isDraft && invTotal > INV_PAGE_SIZE && (
       <div
         data-help-id="admin.assessments.invitations.paging"
         style={{

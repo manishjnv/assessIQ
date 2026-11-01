@@ -92,11 +92,16 @@ export function AdminCreateTest(): React.ReactElement {
   const minutesOk = minutes.trim() === "" || (Number.isInteger(Number(minutes)) && Number(minutes) >= 1 && Number(minutes) <= 600);
   const avg = set?.avg_minutes_per_question ?? 0;
   const shown = cover === "topics" ? topicTotal : count;
-  const suggested = cover !== "pattern" && avg > 0 && shown >= 1 ? Math.min(600, Math.ceil(shown * avg)) : 0;
+  // Z-186: whole-set count must fit the set and the 100-question cap; the fixed pattern size likewise.
+  const wholeMax = Math.min(MAX_QUESTIONS, set?.question_count ?? 0);
+  const wholeOk = Number.isInteger(count) && count >= 1 && count <= wholeMax;
+  const patternMax = Math.min(MAX_QUESTIONS, exam?.total_questions ?? 0);
+  const fixedOk = Number.isInteger(fixedCount) && fixedCount >= 1 && fixedCount <= patternMax;
+  const suggested = cover !== "pattern" && avg > 0 && shown >= 1 && (cover !== "whole" || wholeOk) ? Math.min(600, Math.ceil(shown * avg)) : 0;
   const coverOk =
-    cover === "whole" ? count >= 1 && count <= MAX_QUESTIONS
+    cover === "whole" ? wholeOk
     : cover === "topics" ? rows.length > 0 && rows.every((r) => Number.isInteger(r.count) && r.count >= 1) && !overCap
-    : exam !== null && (scope === "full" || subjects.length > 0);
+    : exam !== null && (scope === "full" || subjects.length > 0) && (sizePct !== 0 || fixedOk);
   const canSave = set !== null && name.trim() !== "" && opensAt !== "" && minutesOk && coverOk && !busy;
   const typeCost = useMemo(() => ({ mock: 10, real: 20, real_camera: 30 })[testType], [testType]);
 
@@ -248,6 +253,7 @@ export function AdminCreateTest(): React.ReactElement {
                   <div style={{ maxWidth: 240 }}>
                     <Label htmlFor="ct-count">Number of questions (at most {MAX_QUESTIONS})</Label>
                     <Input id="ct-count" type="number" min={1} max={Math.min(set.question_count, MAX_QUESTIONS)} value={count} onChange={(e) => setCount(Number(e.target.value))} />
+                    {!wholeOk && <div role="alert" style={{ ...sans, color: "var(--aiq-color-danger)" }}>Enter a number from 1 to {wholeMax}. A test can have at most {MAX_QUESTIONS} questions and this set has {set.question_count}.</div>}
                     <FieldHelp>The questions are drawn from the whole set with an equal share of each topic.</FieldHelp>
                   </div>
                 )}
@@ -297,6 +303,7 @@ export function AdminCreateTest(): React.ReactElement {
                           <option value={0}>A fixed number of questions</option>
                         </select>
                         {sizePct === 0 && <input type="number" aria-label="Number of questions" className="aiq-input" min={1} max={Math.min(MAX_QUESTIONS, exam.total_questions)} value={fixedCount} onChange={(e) => setFixedCount(Number(e.target.value))} />}
+                        {sizePct === 0 && !fixedOk && <div role="alert" style={{ ...sans, color: "var(--aiq-color-danger)" }}>Enter a number from 1 to {patternMax}. A test can have at most {MAX_QUESTIONS} questions and this exam has {exam.total_questions}.</div>}
                       </div>
                     </div>
                     {scope === "subjects" && (

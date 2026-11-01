@@ -30,7 +30,7 @@ vi.mock("../components/AdminShell.js", () => ({ AdminShell: ({ children }: { chi
 import { AdminCreateTest, evenSplit } from "../pages/create-test.js";
 import { AdminApiError } from "../api.js";
 
-const SET = { source_pack_id: "p1", name: "Aptitude", domain: "apt", source_version: 1, question_count: 500, level_count: 2, level_minutes: [45, 60], cloned: true, cloned_pack_id: "c1", update_available: false };
+const SET = { source_pack_id: "p1", name: "Aptitude", domain: "apt", source_version: 1, question_count: 500, level_count: 2, level_minutes: [45, 60], cloned: true, cloned_pack_id: "c1", update_available: false, avg_minutes_per_question: 1.5 };
 const EXAM = { id: "bp1", name: "SSC CGL", edition: "current", total_questions: 100, total_minutes: 60, verification_status: "verified", sections: [{ name: "Reasoning" }, { name: "Quant" }] };
 
 async function setup() {
@@ -46,6 +46,38 @@ const chooseSet = () => fireEvent.change(screen.getByLabelText("Question set"), 
 const save = () => screen.getByRole("button", { name: "Save as draft" });
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
+
+// Z-186: the whole-set count must be 1 to min(100, set size). Out of range blocks Save and hides the suggested time.
+describe("Create a test: whole-set count range (Z-186)", () => {
+  it.each(["0", "1234", "501"])("count %s shows the range message, hides the suggested time and keeps Save off", async (value) => {
+    await setup();
+    chooseSet();
+    fireEvent.change(await screen.findByLabelText(/Number of questions/), { target: { value } });
+    expect(screen.getByRole("alert").textContent).toBe("Enter a number from 1 to 100. A test can have at most 100 questions and this set has 500.");
+    expect(screen.queryByTestId("ct-suggested")).toBeNull();
+    expect((save() as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("a valid count shows no message and keeps Save on", async () => {
+    await setup();
+    chooseSet();
+    fireEvent.change(await screen.findByLabelText(/Number of questions/), { target: { value: "40" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByTestId("ct-suggested").textContent).toBe("Suggested time: 60 min");
+    expect((save() as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("exam pattern fixed size of 0 shows the range message and keeps Save off", async () => {
+    await setup();
+    fireEvent.change(screen.getByLabelText("Exam"), { target: { value: "bp1" } });
+    chooseSet();
+    await screen.findByRole("radio", { name: "Exam pattern" });
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Number of questions"), { target: { value: "0" } });
+    expect(screen.getByRole("alert").textContent).toContain("Enter a number from 1 to 100.");
+    expect((save() as HTMLButtonElement).disabled).toBe(true);
+  });
+});
 
 describe("evenSplit", () => {
   it("shares the total, remainder to the first rows", () => {

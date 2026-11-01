@@ -24,9 +24,6 @@ export interface SectionRow {
 
 export const NEW_SECTION_ROW: SectionRow = { name: "", count: "", minutes: "", calculator: false, categoryIds: [] };
 
-/** Z-131: one edit here when the take page countdown ships (Z-130). Remove the line from the editor. */
-export const TIMER_LOCK_NOTE = "Do not turn these on for a live assessment until the take page countdown is shipped.";
-
 export interface SectionsSettings {
   sections: Array<{
     name: string;
@@ -337,10 +334,6 @@ export function SectionsEditor({
           )}
         </div>
       ))}
-
-      {rows.length > 0 && (
-        <p style={{ margin: "0 0 var(--aiq-space-sm)", color: "var(--aiq-color-fg-muted)" }}>{TIMER_LOCK_NOTE}</p>
-      )}
 
       {rows.length < 10 && (
         <button
