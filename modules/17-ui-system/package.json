@@ -36,6 +36,6 @@
   "dependencies": {
     "@assessiq/http-client": "workspace:*",
     "@assessiq/question-types": "workspace:*",
-    "katex": "0.18.11"
+    "katex": "0.19.1"
   }
 }
