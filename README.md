@@ -146,3 +146,4 @@ Then Phase 1 (author + take), then Phase 2 (grade + report), as laid out in `doc
 - Provision the **DNS** for `assessiq.in` in Cloudflare (proxied A record to VPS IP; zone-level Authenticated Origin Pulls ON). Canonical host as of 2026-05-22 — see `docs/06-deployment.md` § "Domain switch to assessiq.in".
 - Create a **Google Cloud OAuth client** and capture client_id + client_secret for `.env`.
 - Install and log in to the **Claude Code CLI** on the VPS. Production AI grading uses it (`AI_PIPELINE_MODE=claude-code-vps`), so no `ANTHROPIC_API_KEY` is needed. See `docs/05-ai-pipeline.md`.
+
