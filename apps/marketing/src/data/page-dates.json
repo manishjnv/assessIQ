@@ -5,15 +5,19 @@
   },
   "/about": {
     "published": "2026-05-22T22:49:22+05:30",
-    "modified": "2026-10-17T15:20:21+05:30"
+    "modified": "2026-11-01T14:58:53+05:30"
   },
   "/alternatives": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-10T18:30:41+05:30"
+    "modified": "2026-11-01T14:58:53+05:30"
   },
   "/alternatives/amcat": {
     "published": "2026-05-23T13:57:44+05:30",
     "modified": "2026-10-17T15:20:21+05:30"
+  },
+  "/alternatives/evalground": {
+    "published": "2026-05-23T13:57:44+05:30",
+    "modified": "2026-11-01T14:58:53+05:30"
   },
   "/alternatives/hackerearth": {
     "published": "2026-05-23T13:57:44+05:30",
@@ -23,9 +27,13 @@
     "published": "2026-05-23T13:57:44+05:30",
     "modified": "2026-10-03T09:15:08+05:30"
   },
+  "/alternatives/hirepro": {
+    "published": "2026-05-23T13:57:44+05:30",
+    "modified": "2026-11-01T14:58:53+05:30"
+  },
   "/alternatives/imocha": {
     "published": "2026-05-23T13:57:44+05:30",
-    "modified": "2026-10-03T12:32:53+05:30"
+    "modified": "2026-10-21T18:39:42+05:30"
   },
   "/alternatives/mettl": {
     "published": "2026-05-23T13:57:44+05:30",
@@ -53,7 +61,7 @@
   },
   "/dpa": {
     "published": "2026-10-20T00:47:54+05:30",
-    "modified": "2026-10-20T08:47:09+05:30"
+    "modified": "2026-11-01T14:58:53+05:30"
   },
   "/glossary": {
     "published": "2026-05-23T14:30:55+05:30",
@@ -109,7 +117,7 @@
   },
   "/privacy": {
     "published": "2026-05-23T20:50:08+05:30",
-    "modified": "2026-10-20T12:14:59+05:30"
+    "modified": "2026-11-01T14:58:53+05:30"
   },
   "/resources": {
     "published": "2026-05-23T14:47:11+05:30",
@@ -145,11 +153,11 @@
   },
   "/security": {
     "published": "2026-05-23T00:17:52+05:30",
-    "modified": "2026-10-17T15:20:21+05:30"
+    "modified": "2026-11-01T14:58:53+05:30"
   },
   "/signup": {
     "published": "2026-10-20T07:50:37+05:30",
-    "modified": "2026-10-20T12:14:59+05:30"
+    "modified": "2026-10-24T20:42:43+05:30"
   },
   "/solutions": {
     "published": "2026-05-23T13:57:44+05:30",
@@ -157,7 +165,7 @@
   },
   "/solutions/campus-recruitment": {
     "published": "2026-05-23T00:17:52+05:30",
-    "modified": "2026-10-17T15:20:21+05:30"
+    "modified": "2026-10-21T03:48:36+05:30"
   },
   "/solutions/educational-institutions": {
     "published": "2026-05-23T00:17:52+05:30",
@@ -238,5 +246,9 @@
   "/tools/cost-of-a-bad-hire": {
     "published": "2026-05-24T07:07:02+05:30",
     "modified": "2026-10-19T16:35:06+05:30"
+  },
+  "/trust": {
+    "published": "2026-11-01T14:58:53+05:30",
+    "modified": "2026-11-01T14:58:53+05:30"
   }
 }
