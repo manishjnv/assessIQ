@@ -31,3 +31,33 @@ export function parseIso(s: string): Date {
   }
   return d;
 }
+
+const IST_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// ponytail: fixed zone, fixed English month names, so the output does not depend on ICU locale data.
+const IST_PARTS_FORMAT = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  day: "numeric",
+  month: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  hour12: true,
+});
+
+/**
+ * Formats an instant for a student in Indian time (fixed zone Asia/Kolkata).
+ * Output: "8 Nov 2026, 9:32 am IST". Pure: formats the given date, never reads the clock.
+ * Throws ValidationError for an invalid date or string.
+ */
+export function formatIst(input: Date | string): string {
+  const d = typeof input === "string" ? new Date(input) : input;
+  if (!(d instanceof Date) || isNaN(d.getTime())) {
+    throw new ValidationError(`formatIst: invalid date: ${JSON.stringify(String(input))}`);
+  }
+  const p: Record<string, string> = {};
+  for (const part of IST_PARTS_FORMAT.formatToParts(d)) p[part.type] = part.value;
+  const period = (p["dayPeriod"] ?? "").replace(/\./g, "").toLowerCase();
+  const month = IST_MONTHS[Number(p["month"]) - 1];
+  return `${Number(p["day"])} ${month} ${p["year"]}, ${Number(p["hour"])}:${p["minute"]} ${period} IST`;
+}

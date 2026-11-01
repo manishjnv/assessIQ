@@ -811,3 +811,46 @@ describe('GET /verify/:credentialId — expiry and extra share links', () => {
     expect(body).toContain('Revoked');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Z-185: the visible Issued and Revoked dates use Indian time; JSON-LD keeps ISO.
+// ---------------------------------------------------------------------------
+
+describe('GET /verify/:credentialId — visible dates in Indian time (Z-185)', () => {
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    vi.stubEnv(CERT_SIGNING_SECRET_ENV, TEST_SECRET);
+    vi.mocked(repo.withPublicVerifyContext).mockImplementation(async (fn) => fn({} as PoolClient));
+    app = await buildTestApp();
+  });
+
+  afterEach(async () => {
+    vi.unstubAllEnvs();
+    vi.resetAllMocks();
+    await app.close();
+  });
+
+  async function get(cert: Certificate, ip: string): Promise<string> {
+    vi.mocked(repo.findByCredentialIdPublic).mockResolvedValue(cert);
+    const res = await app.inject({ method: 'GET', url: `/verify/${CREDENTIAL_ID}`, headers: { 'x-forwarded-for': ip } });
+    expect(res.statusCode).toBe(200);
+    return res.body;
+  }
+
+  it('shows Issued as "8 Nov 2026, 9:32 am IST" and keeps ISO in JSON-LD only', async () => {
+    const body = await get(buildCert({ issued_at: '2026-11-08T04:02:44Z' }), '10.0.2.5');
+    expect(body).toContain('<p class="value">8 Nov 2026, 9:32 am IST</p>');
+    expect(body).toContain('"dateCreated":"2026-11-08T04:02:44Z"');
+    expect(body).not.toContain('>2026-11-08T04:02:44Z<');
+    expect(body).not.toContain('GMT');
+  });
+
+  it('shows Revoked in Indian time too', async () => {
+    const body = await get(
+      buildCert({ revoked_at: '2026-11-08T19:00:00Z', revoke_reason: 'x' }),
+      '10.0.2.6',
+    );
+    expect(body).toContain('<p class="value">9 Nov 2026, 12:30 am IST — x</p>');
+  });
+});
