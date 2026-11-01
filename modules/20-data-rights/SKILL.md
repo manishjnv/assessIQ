@@ -35,6 +35,13 @@ surfaces (S6) remain deferred — they require a magic-link DSR portal that
 may not be needed given admins are the DPDP data fiduciary for their
 candidates.
 
+**Retention decision (owner, 2026-11-01, rows RW-89 and RW-98).** `consent_events`
+ip and user agent are NOT scrubbed on erasure: they are the audit proof that
+consent was given (kept on purpose). Rows in `email_log` sent to addresses other
+than the erased candidate are scrubbed only when a data-subject request names
+them, through the existing erasure flow. No code change. Not included: any
+automatic scrub of third-party addresses.
+
 **S3-display SHIPPED (2026-05-30)** — display-layer pass so erased candidates
 no longer surface as `deleted_user_<hash>` / `deleted+<hash>@erased.assessiq.local`
 on admin pages. Rule: **hide** where the candidate is the subject of an

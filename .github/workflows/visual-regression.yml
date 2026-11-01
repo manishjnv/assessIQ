@@ -17,11 +17,11 @@ jobs:
   visual:
     runs-on: ubuntu-latest
 
-    # Pin to the exact Playwright version in pnpm-lock.yaml (1.59.1).
+    # Pin to the exact Playwright version in pnpm-lock.yaml (1.64.1).
     # Changing @playwright/test version in package.json must be accompanied
     # by updating this tag — mismatched versions cause spurious diff failures.
     container:
-      image: mcr.microsoft.com/playwright:v1.59.1-jammy
+      image: mcr.microsoft.com/playwright:v1.64.1-jammy
 
     steps:
       # 1. Checkout
