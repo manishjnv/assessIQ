@@ -64,7 +64,9 @@ function escHtml(s: string): string {
  * deployment (no hardcoded host). Text is selectable (not SVG) except the seal.
  */
 export function renderCertificateHtml(cert: Certificate, qrDataUrl: string, verifyUrl: string, orgName?: string, logoDataUri?: string | null): string {
+  // Z-189: the Indian calendar day, not the server (UTC) day. Display only; the signed data is unchanged.
   const issuedDate = new Date(cert.issued_at).toLocaleDateString('en-US', {
+    timeZone: 'Asia/Kolkata',
     year: 'numeric',
     month: 'long',
     day: 'numeric',
