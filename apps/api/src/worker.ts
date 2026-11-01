@@ -33,7 +33,7 @@
 
 import { Queue, Worker, type Job } from "bullmq";
 import { Redis } from "ioredis";
-import { config, streamLogger } from "@assessiq/core";
+import { config, formatIstOr, streamLogger } from "@assessiq/core";
 import { closePool, purgeArchivedTenants } from "@assessiq/tenancy";
 import { purgeSoftDeletedUsers } from "@assessiq/users";
 import { processBoundariesForTenant, listTenantsWithDueBoundaries, setCameraRequiredResolver } from "@assessiq/assessment-lifecycle";
@@ -745,7 +745,7 @@ async function start(): Promise<void> {
                 template: "credit_expiring",
                 vars: {
                   remaining,
-                  expiresOn: expiresAt.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }),
+                  expiresOn: formatIstOr(expiresAt),
                   usageLink: new URL("/admin/settings?tab=plan", config.ASSESSIQ_BASE_URL).toString(),
                 },
                 tenantId,

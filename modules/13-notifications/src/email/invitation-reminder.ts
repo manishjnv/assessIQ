@@ -9,7 +9,7 @@
  * NEVER import claude / @anthropic-ai from this file (Rule #1).
  */
 
-import { formatIst } from '@assessiq/core';
+import { formatIstOr } from '@assessiq/core';
 import { sendEmail } from './index.js';
 
 export async function sendInvitationReminderEmail(input: {
@@ -31,7 +31,7 @@ export async function sendInvitationReminderEmail(input: {
       candidateName: input.candidateName,
       assessmentName: input.assessmentName,
       invitationLink: input.invitationLink,
-      expiresAt: formatIst(input.deadline),
+      expiresAt: formatIstOr(input.deadline),
       tenantName: input.tenantName,
       cameraRequired: input.cameraRequired === true,
     },

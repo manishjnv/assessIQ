@@ -8,6 +8,7 @@
  * NEVER import claude / @anthropic-ai from this file (Rule #1).
  */
 
+import { formatIstOr } from '@assessiq/core';
 import { sendEmail } from './index.js';
 
 export async function sendTotpResetNoticeEmail(input: {
@@ -22,7 +23,7 @@ export async function sendTotpResetNoticeEmail(input: {
     template: 'totp_reset_notice',
     vars: {
       recipientName: input.recipientName,
-      resetAt: (input.at ?? new Date()).toUTCString(),
+      resetAt: formatIstOr(input.at ?? new Date()),
       resetBy: input.actorRole === 'super_admin' ? 'a platform administrator' : 'an administrator',
     },
     tenantId: input.tenantId,

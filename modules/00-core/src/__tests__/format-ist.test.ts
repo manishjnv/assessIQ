@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatIst } from "../time.js";
+import { formatIst, formatIstOr } from "../time.js";
 import { ValidationError } from "../errors.js";
 
 describe("formatIst()", () => {
@@ -22,5 +22,20 @@ describe("formatIst()", () => {
   it("throws ValidationError for an invalid string or Date", () => {
     expect(() => formatIst("not a date")).toThrow(ValidationError);
     expect(() => formatIst(new Date("x"))).toThrow(ValidationError);
+  });
+});
+
+describe("formatIstOr()", () => {
+  it("formats a valid instant the same as formatIst", () => {
+    expect(formatIstOr("2026-11-08T18:45:00Z")).toBe("9 Nov 2026, 12:15 am IST");
+    expect(formatIstOr(new Date("2026-11-08T04:02:44Z"))).toBe("8 Nov 2026, 9:32 am IST");
+  });
+
+  it("returns the raw input for an invalid string instead of throwing", () => {
+    expect(formatIstOr("not a date")).toBe("not a date");
+  });
+
+  it("returns String(input) for an invalid Date instead of throwing", () => {
+    expect(formatIstOr(new Date("x"))).toBe("Invalid Date");
   });
 });

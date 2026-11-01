@@ -38,7 +38,7 @@
 import { Resvg } from '@resvg/resvg-js';
 import type { FastifyInstance } from 'fastify';
 import { withTenant, getTenantById, getTenantLogoMeta, tenantLogoUrl } from '@assessiq/tenancy';
-import { ERASED_CANDIDATE_LABEL, formatIst } from '@assessiq/core';
+import { ERASED_CANDIDATE_LABEL, formatIstOr } from '@assessiq/core';
 import { extractClientIp } from '@assessiq/auth';
 
 import { getCertSigningSecret, verifyCertificateSignature } from './crypto.js';
@@ -300,14 +300,14 @@ function renderVerifyPage(data: VerifyPageData): string {
     </div>
     <div class="field">
       <p class="label">Issued</p>
-      <p class="value">${escHtml(formatIst(cert.issued_at))}</p>
+      <p class="value">${escHtml(formatIstOr(cert.issued_at))}</p>
     </div>
     ${validUntilField}
     ${
       status === 'revoked'
         ? `<div class="field">
       <p class="label">Revoked</p>
-      <p class="value">${escHtml(cert.revoked_at ? formatIst(cert.revoked_at) : '')}${cert.revoke_reason ? ` — ${escHtml(cert.revoke_reason)}` : ''}</p>
+      <p class="value">${escHtml(cert.revoked_at ? formatIstOr(cert.revoked_at) : '')}${cert.revoke_reason ? ` — ${escHtml(cert.revoke_reason)}` : ''}</p>
     </div>`
         : ''
     }

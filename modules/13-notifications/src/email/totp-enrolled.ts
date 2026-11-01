@@ -8,7 +8,7 @@
  * NEVER import claude / @anthropic-ai from this file (Rule #1).
  */
 
-import { formatIst } from '@assessiq/core';
+import { formatIstOr } from '@assessiq/core';
 import { sendEmail } from './index.js';
 
 export async function sendTotpEnrolledEmail(input: {
@@ -23,7 +23,7 @@ export async function sendTotpEnrolledEmail(input: {
     template: 'totp_enrolled',
     vars: {
       recipientName: input.recipientName,
-      enrolledAt: formatIst(input.at ?? new Date()),
+      enrolledAt: formatIstOr(input.at ?? new Date()),
       ...(input.tenantName ? { tenantName: input.tenantName } : {}),
     },
     tenantId: input.tenantId,

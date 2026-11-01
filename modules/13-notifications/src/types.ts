@@ -218,7 +218,7 @@ export type CredentialIssuedVars = z.infer<typeof CredentialIssuedVarsSchema>;
 export type PatternReviewDueVars = z.infer<typeof PatternReviewDueVarsSchema>;
 export type InviteLimitBlockedVars = z.infer<typeof InviteLimitBlockedVarsSchema>;
 export type CreditLowBalanceVars = z.infer<typeof CreditLowBalanceVarsSchema>;
-// Z-96: expiry warning, sent once per grant 30 days before it expires. expiresOn is a plain date text.
+// Z-96: expiry warning, sent once per grant 30 days before it expires. expiresOn is Indian time text, e.g. "9 Nov 2026, 12:15 am IST" (formatIstOr, Z-188).
 export const CreditExpiringVarsSchema = z.object({
   remaining: z.number().int().min(0),
   expiresOn: z.string().min(1),

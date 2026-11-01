@@ -26,11 +26,23 @@ export type ExpiryState =
   | { kind: 'expired'; date: string }
   | { kind: 'until'; date: string };
 
-/** Pure. NULL (or an unreadable date) shows nothing. Date is YYYY-MM-DD (UTC). */
+const IST_OFFSET_MS = 330 * 60_000; // Asia/Kolkata has no DST, so a fixed offset is exact.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** The Indian calendar day of an instant, e.g. "9 Nov 2026". */
+function istDay(t: number): string {
+  const d = new Date(t + IST_OFFSET_MS);
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/**
+ * Pure. NULL (or an unreadable date) shows nothing. Decision is by instant (UTC);
+ * the shown date is the Indian calendar day, e.g. "9 Nov 2026".
+ */
 export function expiryState(validUntil: string | null | undefined, now: Date = new Date()): ExpiryState {
   if (validUntil === null || validUntil === undefined) return { kind: 'none' };
   const t = Date.parse(validUntil);
   if (Number.isNaN(t)) return { kind: 'none' };
-  const date = new Date(t).toISOString().slice(0, 10);
+  const date = istDay(t);
   return t <= now.getTime() ? { kind: 'expired', date } : { kind: 'until', date };
 }

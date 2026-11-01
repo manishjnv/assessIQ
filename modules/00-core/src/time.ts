@@ -61,3 +61,14 @@ export function formatIst(input: Date | string): string {
   const month = IST_MONTHS[Number(p["month"]) - 1];
   return `${Number(p["day"])} ${month} ${p["year"]}, ${Number(p["hour"])}:${p["minute"]} ${period} IST`;
 }
+
+/**
+ * Same as formatIst, but never throws. For recipient-facing text (mail, pages):
+ * an invalid input comes back as its raw String, so a bad date never breaks a send or a page.
+ * Pure: no logging, no clock read.
+ */
+export function formatIstOr(input: Date | string): string {
+  const d = typeof input === "string" ? new Date(input) : input;
+  if (!(d instanceof Date) || isNaN(d.getTime())) return String(input);
+  return formatIst(d);
+}

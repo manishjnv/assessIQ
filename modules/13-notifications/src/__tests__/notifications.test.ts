@@ -29,7 +29,7 @@ import type { AddressInfo } from 'node:net';
 
 vi.mock('@assessiq/core', async () => {
   // Z-185: formatIst is pulled from the real time module (no subpath export exists for it).
-  const shared = { ...(await import('@assessiq/core/hash')), ...(await import('@assessiq/core/escape')), ...(await import('@assessiq/core/share-links')), formatIst: (await import('../../../00-core/src/time.js')).formatIst };
+  const shared = { ...(await import('@assessiq/core/hash')), ...(await import('@assessiq/core/escape')), ...(await import('@assessiq/core/share-links')), ...(await import('../../../00-core/src/time.js')) };
   return {
     ...shared,
     config: {

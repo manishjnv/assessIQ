@@ -41,7 +41,7 @@ export {
 } from "./camera-storage.js";
 export { sha256Hex, hmacSha256Hex, timingSafeEqualStr } from "./hash.js";
 export { escapeHtml, csvCell } from "./escape.js";
-export { nowIso, parseIso, formatIst } from "./time.js";
+export { nowIso, parseIso, formatIst, formatIstOr } from "./time.js";
 export { getRedis, closeRedis } from "./redis.js";
 export { acquireLock, refreshLock, releaseLock, peekLock } from "./lock.js";
 export { meetsPct, isPass, DISTINCTION_PCT, attemptsAllowed, MAX_ATTEMPTS_LIMIT, effectiveDurationMinutes } from "./pass-mark.js";

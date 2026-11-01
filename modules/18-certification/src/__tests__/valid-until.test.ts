@@ -37,11 +37,19 @@ describe('expiryState (pure)', () => {
     expect(expiryState(null, NOW)).toEqual({ kind: 'none' });
     expect(expiryState(undefined, NOW)).toEqual({ kind: 'none' });
   });
-  it('future date is "until"', () => {
-    expect(expiryState('2027-01-02T10:00:00Z', NOW)).toEqual({ kind: 'until', date: '2027-01-02' });
+  it('future date is "until", shown as the Indian day', () => {
+    expect(expiryState('2027-01-02T10:00:00Z', NOW)).toEqual({ kind: 'until', date: '2 Jan 2027' });
   });
-  it('past date is "expired"', () => {
-    expect(expiryState('2026-10-01T00:00:00Z', NOW)).toEqual({ kind: 'expired', date: '2026-10-01' });
+  it('past date is "expired", shown as the Indian day', () => {
+    expect(expiryState('2026-10-01T00:00:00Z', NOW)).toEqual({ kind: 'expired', date: '1 Oct 2026' });
+  });
+  it('00:00 to 05:30 IST is the previous UTC day: 18:45 UTC on 8 Nov shows 9 Nov', () => {
+    expect(expiryState('2026-11-08T18:45:00Z', NOW)).toEqual({ kind: 'until', date: '9 Nov 2026' });
+  });
+  it('the expired or valid decision is by instant, not by the shown day', () => {
+    // 2026-11-08T18:45Z is 2026-11-09 00:15 IST. At 18:40Z on 8 Nov it is not yet expired.
+    expect(expiryState('2026-11-08T18:45:00Z', new Date('2026-11-08T18:40:00Z'))).toEqual({ kind: 'until', date: '9 Nov 2026' });
+    expect(expiryState('2026-11-08T18:45:00Z', new Date('2026-11-08T18:50:00Z'))).toEqual({ kind: 'expired', date: '9 Nov 2026' });
   });
   it('unreadable date shows nothing', () => {
     expect(expiryState('not a date', NOW)).toEqual({ kind: 'none' });

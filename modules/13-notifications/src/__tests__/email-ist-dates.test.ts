@@ -12,6 +12,7 @@ vi.mock('../email/index.js', () => ({ sendEmail }));
 import { sendAssessmentInvitationEmail } from '../email/legacy-shims.js';
 import { sendInvitationReminderEmail } from '../email/invitation-reminder.js';
 import { sendTotpEnrolledEmail } from '../email/totp-enrolled.js';
+import { sendTotpResetNoticeEmail } from '../email/totp-reset-notice.js';
 import { renderTemplate } from '../email/render.js';
 
 const AT = new Date('2026-11-08T04:02:44Z');
@@ -86,5 +87,56 @@ describe('totp_enrolled (account owner notice)', () => {
       expect(body).toContain(IST);
       expect(body).not.toContain('GMT');
     }
+  });
+});
+
+describe('totp_reset_notice (admin reset notice)', () => {
+  it('sends resetAt in Indian time and the render shows it without GMT', async () => {
+    await sendTotpResetNoticeEmail({
+      to: 'jane@example.com',
+      recipientName: 'Jane',
+      actorRole: 'admin',
+      tenantId: '22222222-2222-2222-2222-222222222222',
+      at: AT,
+    });
+    const vars = lastVars();
+    expect(vars['resetAt']).toBe(IST);
+    const { html, text } = renderTemplate('totp_reset_notice', vars as never);
+    for (const body of [html, text]) {
+      expect(body).toContain(IST);
+      expect(body).not.toContain('GMT');
+    }
+  });
+});
+
+describe('credit_expiring (render)', () => {
+  it('shows the expiry as Indian time and never GMT or UTC', () => {
+    const { html, text } = renderTemplate('credit_expiring', {
+      remaining: 150,
+      expiresOn: '9 Nov 2026, 12:15 am IST',
+      usageLink: 'https://assessiq.test/admin/settings?tab=plan',
+    } as never);
+    for (const body of [html, text]) {
+      expect(body).toContain('9 Nov 2026, 12:15 am IST');
+      expect(body).not.toContain('GMT');
+      expect(body).not.toContain('UTC');
+    }
+  });
+});
+
+describe('recipient mails never break on a bad date', () => {
+  it('invitation reminder sends the raw value instead of throwing', async () => {
+    await expect(
+      sendInvitationReminderEmail({
+        to: 'jane@example.com',
+        candidateName: 'Jane',
+        assessmentName: 'Cloud Ops',
+        invitationLink: 'https://assessiq.test/take/t1',
+        deadline: 'not a date' as unknown as Date,
+        tenantName: 'Cloudco',
+        tenantId: '22222222-2222-2222-2222-222222222222',
+      }),
+    ).resolves.toBeUndefined();
+    expect(lastVars()['expiresAt']).toBe('not a date');
   });
 });

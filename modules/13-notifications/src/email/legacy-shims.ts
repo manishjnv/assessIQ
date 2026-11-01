@@ -12,7 +12,7 @@
  * NEVER import claude / @anthropic-ai from this file (Rule #1).
  */
 
-import { formatIst } from '@assessiq/core';
+import { formatIstOr } from '@assessiq/core';
 import { sendEmail } from './index.js';
 import type { SendInvitationEmailInput, SendAssessmentInvitationEmailInput } from '../email-stub.js';
 
@@ -51,7 +51,7 @@ export async function sendAssessmentInvitationEmail(
       candidateName: input.candidateName,
       assessmentName: input.assessmentName,
       invitationLink: input.invitationLink,
-      expiresAt: formatIst(input.expiresAt), // Indian time, plain format (Z-185)
+      expiresAt: formatIstOr(input.expiresAt), // Indian time, plain format (Z-185)
       tenantName: input.tenantName,
       cameraRequired: input.cameraRequired === true,
     },

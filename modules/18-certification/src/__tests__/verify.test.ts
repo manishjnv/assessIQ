@@ -789,7 +789,7 @@ describe('GET /verify/:credentialId — expiry and extra share links', () => {
   it('future valid_until shows "Valid until <date>"', async () => {
     const body = await get(buildCert({ valid_until: '2099-01-02T00:00:00Z' }), '10.0.2.2');
     expect(body).toContain('Valid until');
-    expect(body).toContain('2099-01-02');
+    expect(body).toContain('2 Jan 2099');
     expect(body).not.toContain('public.verify.expired');
   });
 
@@ -852,5 +852,16 @@ describe('GET /verify/:credentialId — visible dates in Indian time (Z-185)', (
       '10.0.2.6',
     );
     expect(body).toContain('<p class="value">9 Nov 2026, 12:30 am IST — x</p>');
+  });
+
+  it('shows the raw value and does not throw when issued_at is invalid', async () => {
+    const body = await get(buildCert({ issued_at: 'not a date' }), '10.0.2.7');
+    expect(body).toContain('<p class="value">not a date</p>');
+  });
+
+  it('shows Valid until as the Indian calendar day (18:45 UTC on 8 Nov is 9 Nov)', async () => {
+    const body = await get(buildCert({ valid_until: '2099-11-08T18:45:00Z' }), '10.0.2.8');
+    expect(body).toContain('<p class="value" data-help-id="public.verify.valid_until">9 Nov 2099</p>');
+    expect(body).not.toContain('2099-11-08');
   });
 });
