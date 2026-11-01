@@ -5,6 +5,10 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # vite stays at 6.4.5 (browser target, RCA 2026-10-02); vite 8 is its own row
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
