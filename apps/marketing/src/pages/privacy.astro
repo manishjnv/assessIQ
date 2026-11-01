@@ -5,6 +5,7 @@
 // Legal specifics filled 2026-05-24: entity "AssessIQ", Bangalore. Grievances
 // route to the general connect@assessiq.in (no separate named officer appointed).
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { subProcessorSentence } from '../data/sub-processors';
 
 const site = 'https://assessiq.in';
 
@@ -248,7 +249,7 @@ const breadcrumbSchema = {
           virtual private server operated by Hostinger, with Cloudflare in front of it. Cross-border
           transfer: when written answers are evaluated with AI assistance, the answer text is processed by
           Anthropic, which operates in the United States, so that data leaves India for that purpose.
-          Transactional emails (invitations, sign-in codes, results notices) are sent through Brevo. See the <a href="/security" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover transition-colors">security page</a> for
+          Transactional emails (invitations, sign-in codes, results notices) are sent through Brevo. See the <a href="/trust" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover transition-colors">trust centre</a> and the <a href="/security" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover transition-colors">security page</a> for
           the full infrastructure posture.
         </p>
       </div>
@@ -279,10 +280,7 @@ const breadcrumbSchema = {
               Sub-processors under contract.
             </h3>
             <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
-              We use a small number of sub-processors: Hostinger (server hosting), Cloudflare (network
-              proxy and security), Brevo (transactional email), Google (optional sign-in with a Google
-              account), and Anthropic (AI-assisted evaluation of written answers, processed in the United
-              States). We limit what each receives to what its service needs, and we do not authorise
+              We use a small number of sub-processors: {subProcessorSentence()}. We limit what each receives to what its service needs, and we do not authorise
               sub-processors to use personal data for their own purposes.
             </p>
             <!-- RV28 draft: owner approval pending -->

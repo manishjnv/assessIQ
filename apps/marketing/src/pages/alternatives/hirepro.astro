@@ -1,0 +1,433 @@
+---
+// alternatives/hirepro.astro — "/alternatives/hirepro"
+// JSON-LD: THREE separate blocks — Article, FAQPage, BreadcrumbList (per SEO §3.6 / §5.3)
+// NO aggregateRating — omitted until real G2/Capterra reviews exist (SEO §13 hard rule)
+// Fairness rule: HirePro's genuine strengths named; no disparagement (SEO §6.3)
+// Sources (read 2026-11-01):
+//   https://www.hirepro.in/
+//   https://hirepro.in/about-us/
+//   https://www.hirepro.in/proctoring/
+//   https://www.hirepro.in/coding-assessments/
+//   https://www.hirepro.in/video-interviews/
+//   https://www.hirepro.in/college-hiring-workflows/
+// HirePro prices: not stated publicly (read 2026-11-01).
+// AssessIQ facts: AssessIQ product facts list (owner brief, read 2026-11-01).
+import { getPageDates } from '../../lib/page-dates';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const dates = getPageDates('/alternatives/hirepro');
+const slug = '/alternatives/hirepro';
+const datePublished = dates.published;
+const dateModified  = dates.modified;
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "HirePro Alternatives for Campus and Lateral Hiring",
+  "datePublished": datePublished,
+  "dateModified": dateModified,
+  "author": {
+    "@type": "Organization",
+    "name": "AssessIQ"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": {
+      "@type": "ImageObject",
+      "url": `${site}/favicon.svg`
+    }
+  },
+  "mainEntityOfPage": `${site}${slug}`,
+  "description": "Looking for a HirePro alternative for campus and lateral hiring? See how AssessIQ compares: private, invite-only assessments with your own questions and rubric scoring."
+};
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What is HirePro?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HirePro is a hiring suite from HirePro Technologies Pvt. Ltd., Bengaluru. Its products cover assessments, virtual hiring, college hiring workflows, coding assessments, video interviews, onboarding and proctoring. Its About page says the company is part of the Careernet group."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does AssessIQ differ from HirePro?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "HirePro is a full hiring suite. AssessIQ covers assessment only: private, invite-only tests with your own question mix and rubric scoring. AssessIQ has no ATS, no video interviews and no onboarding. It does not offer coding tests."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does HirePro offer coding tests?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. HirePro lists thousands of pre-built questions in 38 programming languages, live coding interviews and plagiarism reports. AssessIQ does not offer coding tests."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does AssessIQ include proctoring?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "AssessIQ has basic integrity controls: an optional fullscreen gate, copy and paste blocking, and a tab-switch warning that is recorded for the admin. It also uses server-side timers, option shuffle and question-order randomisation. HirePro lists live and automated proctoring modes, ID verification, face matching and session recording."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Can campus drives use AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Yes. AssessIQ supports CSV import and invites for campus drives. You can also use it for lateral hiring with your own questions and rubrics. HirePro also offers college hiring workflows and university hiring."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "When should I choose HirePro over AssessIQ?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Choose HirePro if you want one suite for assessments, video interviews, onboarding and college hiring, or if you need coding tests and live coding interviews. Choose AssessIQ if you only need a private assessment with rubric scoring and you do not need coding tests."
+      }
+    }
+  ]
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Home",
+      "item": `${site}/`
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Alternatives",
+      "item": `${site}/alternatives`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "HirePro"
+    }
+  ]
+};
+
+const criteria = [
+  { criterion: "Primary category",      hirepro: "Full hiring suite",                                                                  assessiq: "Assessment platform for hiring" },
+  { criterion: "Scope",                 hirepro: "Assessments, virtual hiring, college workflows, coding, video interviews, onboarding, proctoring", assessiq: "Assessment only. No ATS, video interviews or onboarding" },
+  { criterion: "Assessment types",      hirepro: "Pre-built and custom-built assessments, functional assessments", assessiq: "MCQ, aptitude, and subjective or scenario questions on one platform" },
+  { criterion: "Coding tests",          hirepro: "Yes. Pre-built questions in 38 programming languages, live coding interviews, plagiarism reports", assessiq: "Not offered" },
+  { criterion: "Video interviews",      hirepro: "Yes",                                                                                assessiq: "Not offered" },
+  { criterion: "Proctoring",            hirepro: "Live and automated modes, ID verification, face matching, browser monitoring, session recording", assessiq: "Optional fullscreen gate, copy and paste blocking, tab-switch warning recorded for the admin" },
+  { criterion: "Campus hiring",         hirepro: "College hiring workflows and university hiring",                                     assessiq: "CSV import and invites for campus drives" },
+  { criterion: "Scoring model",         hirepro: "Not described in detail on the pages we read",                                       assessiq: "Anchor-based rubrics with 0/25/50/75/100 bands and per-answer rationale" },
+  { criterion: "Audit trail",           hirepro: "Not described in detail on the pages we read",                                       assessiq: "Append-only audit log" },
+  { criterion: "Company",               hirepro: "HirePro Technologies Pvt. Ltd., Bengaluru. Part of the Careernet group",            assessiq: "India-built" },
+  { criterion: "Public pricing",        hirepro: "Not stated publicly",                                                                assessiq: "Talk to us" },
+];
+---
+
+<BaseLayout
+  hasDatedNode
+  title="HirePro Alternatives for Campus and Lateral Hiring"
+  description="HirePro alternatives for campus and lateral hiring. Compare a full hiring suite with AssessIQ's private, rubric-scored assessments, side by side."
+  canonicalPath="/alternatives/hirepro"
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <!-- Breadcrumb nav -->
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li>
+          <a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <a href="/alternatives" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Alternatives</a>
+        </li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li>
+          <span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">HirePro</span>
+        </li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- ── HERO ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">
+        Alternatives &middot; HirePro &middot; 2026
+      </p>
+
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        HirePro alternatives for campus and lateral hiring.
+      </h1>
+
+      <!-- Featured-snippet target: 40–60 words -->
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
+        HirePro is a full hiring suite. It covers assessments, video interviews, college hiring, coding tests and proctoring. AssessIQ covers assessment only. If you want private, invite-only tests with your own questions and rubric scoring, AssessIQ is built for that.
+      </p>
+
+      <div class="flex flex-wrap items-center gap-aiq-md">
+        <a
+          href="https://assessiq.in/admin/login"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Sign in to AssessIQ
+        </a>
+        <a
+          href="/contact"
+          class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                 text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── ABOUT HIREPRO ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="about-hirepro-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">About HirePro</p>
+        <h2 id="about-hirepro-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          What HirePro is known for.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">One suite for the whole funnel.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              HirePro lists assessments, virtual hiring, video interviews and onboarding in one product family. Teams that want one vendor for many hiring steps can find that useful.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Built for college hiring.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              HirePro has college hiring workflows and university hiring pages. This focus fits campus drives run by placement teams.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Coding and live interviews.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              HirePro lists pre-built questions in 38 programming languages, live coding interviews and plagiarism reports. Code playback is also listed.
+            </p>
+          </div>
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Proctoring on many devices.</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+              HirePro lists live and automated proctoring, ID verification and session recording. It names Windows, Mac, Chromebooks and Android as supported platforms.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── COMPARISON TABLE ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="compare-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Side by side</p>
+      <h2 id="compare-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        AssessIQ vs HirePro — neutral criteria.
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse font-sans text-aiq-md">
+          <thead>
+            <tr class="border-b border-aiq-border">
+              <th class="text-left py-aiq-md pr-aiq-xl font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium w-1/3">Criterion</th>
+              <th class="text-left py-aiq-md pr-aiq-xl font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium w-1/3">HirePro</th>
+              <th class="text-left py-aiq-md font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase font-medium w-1/3">AssessIQ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {criteria.map((row, i) => (
+              <tr class={`border-b border-aiq-border ${i % 2 === 0 ? 'bg-aiq-bg-base' : 'bg-aiq-bg-raised'}`}>
+                <td class="py-aiq-md pr-aiq-xl text-aiq-fg-primary font-medium">{row.criterion}</td>
+                <td class="py-aiq-md pr-aiq-xl text-aiq-fg-secondary">{row.hirepro}</td>
+                <td class="py-aiq-md text-aiq-fg-secondary">{row.assessiq}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-lg m-0">
+        Table entries reflect public pages read on 2026-11-01. Verify with each vendor before shortlisting.
+      </p>
+
+    </div>
+  </section>
+
+  <!-- ── HOW TO CHOOSE ── -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="choose-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">How to choose</p>
+        <h2 id="choose-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          When HirePro fits better. When AssessIQ does.
+        </h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl">
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">HirePro may suit you if…</p>
+            <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You want one suite for assessments, video interviews, onboarding and college hiring.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You need coding tests in many languages, or live coding interviews.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You need live or automated proctoring with ID checks and session recording.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">—</span><span>You run university hiring and want workflows built for it.</span></li>
+            </ul>
+          </div>
+          <div class="bg-aiq-bg-base border border-aiq-border rounded-aiq-lg p-aiq-xl">
+            <p class="font-mono text-aiq-xs text-aiq-accent tracking-aiq-mono uppercase mb-aiq-sm mt-0 font-medium">AssessIQ may suit you if…</p>
+            <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You want private, invite-only assessments with your own question mix.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You want rubric scoring with per-answer rationale and an append-only audit log.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You already run your own ATS or interview tools and need only the assessment step.</span></li>
+              <li class="flex gap-aiq-sm"><span class="text-aiq-accent flex-shrink-0">—</span><span>You do not need coding tests, and you want a platform built in India.</span></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FAQ ── -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions about AssessIQ vs HirePro.
+      </h2>
+
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">What is HirePro?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            HirePro is a hiring suite from HirePro Technologies Pvt. Ltd., Bengaluru. Its products cover assessments, virtual hiring, college hiring workflows, coding assessments, video interviews, onboarding and proctoring. Its About page says the company is part of the Careernet group.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">How does AssessIQ differ from HirePro?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            HirePro is a full hiring suite. AssessIQ covers assessment only: private, invite-only tests with your own question mix and rubric scoring. AssessIQ has no ATS, no video interviews and no onboarding. It does not offer coding tests.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does HirePro offer coding tests?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. HirePro lists thousands of pre-built questions in 38 programming languages, live coding interviews and plagiarism reports. AssessIQ does not offer coding tests.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Does AssessIQ include proctoring?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            AssessIQ has basic integrity controls: an optional fullscreen gate, copy and paste blocking, and a tab-switch warning that is recorded for the admin. It also uses server-side timers, option shuffle and question-order randomisation. HirePro lists live and automated proctoring modes, ID verification, face matching and session recording.
+          </p>
+        </div>
+
+        <div class="border-b border-aiq-border pb-aiq-xl">
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">Can campus drives use AssessIQ?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Yes. AssessIQ supports CSV import and invites for campus drives. You can also use it for lateral hiring with your own questions and rubrics. HirePro also offers college hiring workflows and university hiring.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">When should I choose HirePro over AssessIQ?</h3>
+          <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+            Choose HirePro if you want one suite for assessments, video interviews, onboarding and college hiring, or if you need coding tests and live coding interviews. Choose AssessIQ if you only need a private assessment with rubric scoring and you do not need coding tests.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA + RELATED ── -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-4xl items-start">
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Get started</p>
+          <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+            Ready to try a HirePro alternative?
+          </h2>
+          <div class="flex flex-wrap gap-aiq-md mb-aiq-2xl">
+            <a
+              href="https://assessiq.in/admin/login"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                     hover:bg-aiq-accent-hover transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Sign in
+            </a>
+            <a
+              href="/contact"
+              class="font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill border border-aiq-border-strong
+                     text-aiq-fg-primary hover:border-aiq-accent hover:text-aiq-accent transition-colors duration-150
+                     focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+            >
+              Talk to us
+            </a>
+          </div>
+          <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed m-0">
+            Questions about security? See the <a href="/security" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">security page</a>.
+          </p>
+        </div>
+
+        <div>
+          <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Also compare</p>
+          <ul class="list-none m-0 p-0 flex flex-col gap-aiq-md">
+            <li>
+              <a href="/alternatives/amcat" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                AssessIQ vs AMCAT
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Standardised fresher test vs private, per-company assessment.</p>
+            </li>
+            <li>
+              <a href="/solutions/campus-recruitment" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                Campus &amp; Fresher Recruitment with AssessIQ
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">CSV import, invites, and aptitude assessments for campus placement drives.</p>
+            </li>
+            <li>
+              <a href="/solutions/it-hiring" class="font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover transition-colors">
+                IT &amp; Technical Hiring with AssessIQ
+              </a>
+              <p class="font-sans text-aiq-sm text-aiq-fg-muted m-0 mt-aiq-xs">Structured scoring and audit trails for IT teams.</p>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

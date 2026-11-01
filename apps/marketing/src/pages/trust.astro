@@ -1,0 +1,151 @@
+---
+// trust.astro - "/trust" (X8 slice S1). Marketing only.
+// Every control below is taken from /security and /dpa and is true today.
+// Not claimed yet (ship first, then claim): accessibility conformance, Hindi, guardian consent.
+// HARD RULE as on /security: no certification claims (not SOC 2, not ISO 27001).
+// AI "not used for training" sentence CHECKED 2026-11-01 against Anthropic Commercial Terms
+//   https://www.anthropic.com/legal/commercial-terms (effective Jun 17, 2025), Section B:
+//   "Anthropic may not train models on Customer Content from Services." Re-check before any edit to the AI section.
+// Hosting wording as on /privacy: Hostinger VPS, Cloudflare in front, AI processing in the United States. No region named.
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { subProcessors } from '../data/sub-processors';
+
+const site = 'https://assessiq.in';
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Trust" }
+  ]
+};
+
+const controls = [
+  { label: 'Access', body: 'Super-admins, company administrators and candidates each see only what their role allows. Sign-in uses an email one-time code or Google sign-in, with optional authenticator-app (TOTP) multi-factor authentication.' },
+  { label: 'Tenant isolation', body: 'Each organisation works in its own tenant. The database enforces this with row-level security, so one organisation cannot see, search or export the data of another.' },
+  { label: 'Audit log', body: 'Administrative actions are written to an append-only audit log. Administrators cannot change or delete log entries.' },
+  { label: 'Encryption in transit', body: 'All traffic between candidates, administrators and AssessIQ uses TLS. Sign-in codes and session tokens are not stored in plain text.' },
+  { label: 'Backups', body: 'AssessIQ keeps backups of the platform data, as the DPA states.' },
+  { label: 'Answer keys', body: 'Correct answers are never sent to a candidate. Only administrator roles can read them.' },
+];
+---
+
+<BaseLayout
+  title="Trust Center - AssessIQ"
+  description="How AssessIQ protects candidate data: access controls, tenant isolation, audit log, sub-processors, data location and how AI is used for written answers."
+  canonicalPath="/trust"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Trust</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Trust Center</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        What we do with your data, in one place.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed m-0 max-w-2xl">
+        This page lists our controls, our sub-processors, where data is processed and how AI is used. It describes practice, not certification: AssessIQ is not SOC 2 or ISO 27001 certified. The full legal text is on the <a href="/privacy" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">privacy page</a> and the <a href="/dpa" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">DPA</a>.
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="controls-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Controls</p>
+      <h2 id="controls-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Controls in place today.</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-aiq-2xl max-w-4xl">
+        {controls.map((c) => (
+          <div>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">{c.label}</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{c.body}</p>
+          </div>
+        ))}
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-xl m-0">More detail on the <a href="/security" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">security page</a>.</p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="sub-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Sub-processors</p>
+      <h2 id="sub-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Who processes data for us.</h2>
+      <div class="overflow-x-auto max-w-4xl">
+        <table class="w-full border-collapse font-sans text-aiq-md">
+          <thead>
+            <tr class="border-b border-aiq-border">
+              <th class="text-left py-aiq-md pr-aiq-xl font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Name</th>
+              <th class="text-left py-aiq-md pr-aiq-xl font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Purpose</th>
+              <th class="text-left py-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            {subProcessors.map((s) => (
+              <tr class="border-b border-aiq-border">
+                <td class="py-aiq-md pr-aiq-xl text-aiq-fg-primary font-medium">{s.name}</td>
+                <td class="py-aiq-md pr-aiq-xl text-aiq-fg-secondary">{s.purpose}</td>
+                <td class="py-aiq-md text-aiq-fg-secondary">{s.location}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-lg m-0">
+        Each sub-processor receives only what its service needs. None may use personal data for its own purposes. We give notice on the website before we add one.
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="loc-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Data location</p>
+        <h2 id="loc-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Where data is stored and processed.</h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          Assessment data, candidate records and attempt logs are stored in the platform database on a virtual private server operated by Hostinger, with Cloudflare in front of it. When written answers are evaluated with AI assistance, the answer text is processed in the United States, so that data leaves India for that purpose. Ask us before you sign up if you have data-location requirements.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="ai-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">AI</p>
+        <h2 id="ai-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">How AI is used for written answers.</h2>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+          <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">&mdash;</span><span>Written answers are sent to Anthropic through its API for evaluation. We send the answer text with the question and the rubric. We do not send candidate names or email addresses.</span></li>
+          <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">&mdash;</span><span>AssessIQ staff start each evaluation by hand. Nothing runs in the background.</span></li>
+          <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">&mdash;</span><span>A person can review each result, and results are reviewed before release to the hiring organisation. An AI score is advice. The organisation decides.</span></li>
+          <li class="flex gap-aiq-sm"><span class="text-aiq-fg-muted flex-shrink-0">&mdash;</span><span>Under Anthropic's commercial terms, Anthropic does not use this content to train its models (terms checked 1 November 2026).</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-raised" aria-labelledby="docs-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Documents and contact</p>
+        <h2 id="docs-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">Read the full text. Ask a question.</h2>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 p-0 list-none flex flex-col gap-aiq-sm">
+          <li><a href="/dpa" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">Data Processing Addendum (DPA)</a></li>
+          <li><a href="/privacy" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">Privacy policy</a></li>
+          <li><a href="/security" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">Security</a></li>
+          <li>Questions: <a href="mailto:connect@assessiq.in" class="text-aiq-accent underline underline-offset-2 hover:text-aiq-accent-hover">connect@assessiq.in</a></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

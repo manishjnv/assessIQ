@@ -17,6 +17,7 @@ const pages = {
   'pricing':     { title: 'Pricing — AssessIQ' },
   'contact':     { title: 'Contact AssessIQ' },
   'security':    { title: 'Security — AssessIQ' },
+  'trust':       { title: 'Trust Center — AssessIQ' },
   'privacy':     { title: 'Privacy Policy — AssessIQ' },
   'terms':       { title: 'Terms of Service — AssessIQ' },
   'methodology': { title: 'Our Assessment Methodology' },
@@ -56,6 +57,8 @@ const pages = {
   'alternatives-hackerrank':  { title: 'HackerRank Alternative — AssessIQ' },
   'alternatives-imocha':      { title: 'iMocha Alternative — AssessIQ' },
   'alternatives-amcat':       { title: 'AMCAT Alternative — AssessIQ' },
+  'alternatives-hirepro':     { title: 'HirePro Alternative — AssessIQ' },
+  'alternatives-evalground':  { title: 'EvalGround Alternative — AssessIQ' },
 
   // Compare
   'compare-assessiq-vs-mettl':       { title: 'AssessIQ vs Mercer Mettl' },

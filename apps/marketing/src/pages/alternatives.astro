@@ -7,12 +7,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
 const site = 'https://assessiq.in';
 
-// ItemList JSON-LD — lists the 5 alternatives pages
+// ItemList JSON-LD — lists the 7 alternatives pages
 const itemListSchema = {
   "@context": "https://schema.org",
   "@type": "ItemList",
   "name": "AssessIQ Alternatives to Leading Assessment Platforms",
-  "description": "Honest comparisons of AssessIQ with leading candidate and team assessment platforms used in India — Mercer Mettl, HackerEarth, iMocha, HackerRank, and AMCAT.",
+  "description": "Honest comparisons of AssessIQ with leading candidate and team assessment platforms used in India — Mercer Mettl, HackerEarth, iMocha, HackerRank, AMCAT, HirePro, and EvalGround.",
   "itemListElement": [
     {
       "@type": "ListItem",
@@ -43,6 +43,18 @@ const itemListSchema = {
       "position": 5,
       "name": "AssessIQ as an AMCAT alternative",
       "url": `${site}/alternatives/amcat`
+    },
+    {
+      "@type": "ListItem",
+      "position": 6,
+      "name": "AssessIQ as a HirePro alternative",
+      "url": `${site}/alternatives/hirepro`
+    },
+    {
+      "@type": "ListItem",
+      "position": 7,
+      "name": "AssessIQ as an EvalGround alternative",
+      "url": `${site}/alternatives/evalground`
     }
   ]
 };
@@ -102,13 +114,27 @@ const alternatives = [
     tagline: "India's dominant fresher & campus employability assessment, now part of SHL.",
     description: "AMCAT (now under SHL) is the leading standardised employability test for fresh graduates in India, used by many companies for campus and fresher hiring. It functions both as an assessment and as a candidate job board.",
     fit: "If hiring fresh graduates at scale is your primary use case and you want to tap a pool of pre-screened candidates who self-took the AMCAT, it offers a unique sourcing angle. AssessIQ provides private assessments entirely under your control — no shared candidate pool, no external score dependencies."
+  },
+  {
+    slug: "hirepro",
+    name: "HirePro",
+    tagline: "Hiring suite for assessments, video interviews and campus workflows.",
+    description: "HirePro is a Bengaluru-based hiring suite that covers assessments, coding tests, proctoring, video interviews, campus hiring workflows and onboarding.",
+    fit: "If you want one suite for the whole hiring flow, HirePro covers more steps. AssessIQ covers assessment only: private tests, rubric scoring and an audit log, with your own questions."
+  },
+  {
+    slug: "evalground",
+    name: "EvalGround",
+    tagline: "Online coding and aptitude tests with a built-in applicant tracker.",
+    description: "EvalGround hosts coding tests, MCQ, aptitude and other test types for recruiters, with webcam monitoring and an applicant tracking system (C-Track).",
+    fit: "If you need coding tests with code execution, EvalGround offers them and AssessIQ does not yet. AssessIQ suits teams that want rubric-scored written and scenario answers with a per-answer rationale."
   }
 ];
 ---
 
 <BaseLayout
   title="AssessIQ Alternatives to Assessment Platforms"
-  description="How does AssessIQ compare with Mercer Mettl, HackerEarth, iMocha, HackerRank, and AMCAT? Honest, side-by-side comparisons for India-first hiring teams."
+  description="How AssessIQ compares with Mettl, HackerEarth, iMocha, HackerRank, AMCAT, HirePro and EvalGround: honest side-by-side views for India-first hiring teams."
   canonicalPath="/alternatives"
 >
   <!-- JSON-LD: ItemList (separate block per §3.6) -->
@@ -149,7 +175,7 @@ const alternatives = [
 
       <!-- Featured-snippet target: 40–60 word definitional intro -->
       <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-2xl max-w-2xl">
-        Choosing a candidate assessment platform for India? This hub compares AssessIQ with the five most-evaluated alternatives — Mercer Mettl, HackerEarth, iMocha, HackerRank, and AMCAT — on the criteria that matter for structured, auditable hiring.
+        Choosing a candidate assessment platform for India? This hub compares AssessIQ with the seven most-evaluated alternatives — Mercer Mettl, HackerEarth, iMocha, HackerRank, AMCAT, HirePro, and EvalGround — on the criteria that matter for structured, auditable hiring.
       </p>
 
       <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mt-0 mb-0">
