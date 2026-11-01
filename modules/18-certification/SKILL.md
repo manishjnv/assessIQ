@@ -569,3 +569,7 @@ Folded from `docs/archive/2026-10-21-z104-cert-polish-change-record.md`. Row: Z-
 ## Verify page dates (Z-185, S86, 2026-11-01)
 
 The public verify page prints Issued and Revoked dates with `formatIst()`. The JSON-LD `dateCreated` and the JSON API keep ISO UTC strings, and signed certificate data is untouched. "Valid until" / "Expired on" still come from `display.ts` as a UTC date (row Z-188).
+
+## Valid-until day in IST (Z-188, S87, 2026-11-01)
+
+`display.ts` `expiryState` shows the Indian calendar day ("9 Nov 2026"); valid or expired is still decided by instant. The verify page uses `formatIstOr` for Issued and Revoked, so an unreadable date shows raw and the page still renders. Not changed: signed certificate data, JSON-LD, the JSON API, and the PDF issued date (row Z-189).

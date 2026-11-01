@@ -204,3 +204,7 @@ Inserts version 2 of `admin.generate_wizard.page` (adds `structured_case` to the
 - Four new keys in `content/en/candidate.yml`: `public.verify.share_whatsapp`, `public.verify.share_x`, `public.verify.valid_until`, `public.verify.expired`. Fresh-DB help count is now 651 (was 647; `help-system.test.ts`).
 - **Why a migration.** The seed (`seeds/help_content.sql`, from `pnpm help:seed:regen`) only fills a fresh database. Production needs `migrations/0273_x3_credential_help.sql` (idempotent `INSERT ... WHERE NOT EXISTS`, same pattern as 0271). The build agent first shipped the seed only; the main session added 0273.
 - **Rule.** Any help-key change = YAML + `pnpm help:seed:regen` + a help migration. Never hand-edit the seed (S63 drift).
+
+## Editing help text (Z-187, S87, 2026-11-01)
+
+A text change needs `version: N+1` on the key in `content/en/*.yml`, a regenerated seed (`pnpm tsx tools/generate-help-seed.ts`) and a migration that inserts the new version row when the key exists (pattern: `0176`, `0275`, `0288`). The reader takes the highest version. `pnpm lint:help-seed-version` enforces this.

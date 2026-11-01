@@ -93,3 +93,7 @@ None directly. Other modules' help content references config-derived limits (e.g
 ## formatIst (Z-185, S86, 2026-11-01)
 
 `src/time.ts` exports `formatIst(Date | string)`: a pure formatter for student-facing times in fixed zone Asia/Kolkata, "8 Nov 2026, 9:32 am IST". It reads no clock and throws ValidationError on invalid input. Use it for any time a student or recipient reads; keep ISO UTC for storage, JSON and the audit log.
+
+## formatIstOr (Z-188, S87, 2026-11-01)
+
+`formatIstOr(input)` = `formatIst` that never throws: an invalid input comes back as its raw string. Use it for every recipient-facing text (mail, public page). `formatIst` stays for callers that want a hard failure.

@@ -349,3 +349,7 @@ The full record is in `modules/19-billing/SKILL.md` § "2026-10-20 — Wave 4 sm
 ## Indian time in recipient mails (Z-185, S86, 2026-11-01)
 
 Invitation, invitation reminder and `totp_enrolled` format their time with `formatIst()` from `@assessiq/core` ("8 Nov 2026, 9:32 am IST"). Fixed zone Asia/Kolkata; there is no tenant time zone. Not changed on purpose: internal mails to the platform owner, `totp_reset_notice`, `credit_expiring` (built in `apps/api/src/worker.ts`), the audit log (row Z-188). New mails that show a time must call `formatIst`.
+
+## Indian time, finished (Z-188, S87, 2026-11-01)
+
+`credit_expiring` (built in `apps/api/src/worker.ts`), `totp_reset_notice`, the invitation, reminder and `totp_enrolled` mails use `formatIstOr()` from `@assessiq/core`: Indian time, and an invalid date shows as the raw value instead of failing the send. `expiresOn` is now text like "9 Nov 2026, 12:15 am IST". Still UTC on purpose: internal mails to the platform owner and the audit log. Dormant: `attempt_submitted_candidate`.
