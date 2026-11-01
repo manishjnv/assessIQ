@@ -21,6 +21,8 @@ export interface FinishSummaryProps {
   flagged: number;
   /** Deadline for the "Time left" card; null hides the card. */
   endsAt: string | null;
+  /** True on a test with sections: the table then shows only the current section. */
+  sectioned?: boolean | undefined;
   onOpen: (questionId: string) => void;
   onBack: () => void;
   onSubmit: () => void;
@@ -73,7 +75,7 @@ function TimeLeft({ endsAt }: { endsAt: string }): React.JSX.Element {
 }
 
 export function FinishSummary(props: FinishSummaryProps): React.JSX.Element {
-  const { rows, answered, total, flagged, endsAt, onOpen, onBack, onSubmit, submitting } = props;
+  const { rows, answered, total, flagged, endsAt, sectioned = false, onOpen, onBack, onSubmit, submitting } = props;
   const [filter, setFilter] = useState<RowFilter>("all");
   const open = total - answered;
   const shown = rows.filter((r) =>
@@ -105,6 +107,12 @@ export function FinishSummary(props: FinishSummaryProps): React.JSX.Element {
           {seg("open", "Open", openRows)}
           {seg("flagged", "Flagged", flaggedRows)}
         </div>
+        {sectioned && (
+          <>
+            <h2 className="aiq-take-eyebrow">Questions in this section</h2>
+            <p className="aiq-fs-lede">Earlier sections are closed and cannot be changed.</p>
+          </>
+        )}
         <table className="aiq-fs-table">
           <thead>
             <tr><th scope="col">#</th><th scope="col">Question</th><th scope="col">Your answer</th><th scope="col">Status</th><th scope="col"><span style={SR_ONLY}>Edit</span></th></tr>

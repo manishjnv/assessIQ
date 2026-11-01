@@ -713,6 +713,7 @@ export function AttemptPage(): React.JSX.Element {
           answered={sectionLines.length > 0 ? sectionLines.reduce((n, s2) => n + s2.answered_count, 0) : answeredCount}
           total={sectionLines.length > 0 ? sectionLines.reduce((n, s2) => n + s2.question_count, 0) : totalCount}
           flagged={flaggedCount}
+          sectioned={sec !== undefined}
           endsAt={sec !== undefined ? sec.ends_at : attempt.ends_at}
           onOpen={(qid) => {
             setSummaryOpen(false);
