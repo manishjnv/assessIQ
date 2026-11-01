@@ -97,3 +97,6 @@ None directly. Other modules' help content references config-derived limits (e.g
 ## formatIstOr (Z-188, S87, 2026-11-01)
 
 `formatIstOr(input)` = `formatIst` that never throws: an invalid input comes back as its raw string. Use it for every recipient-facing text (mail, public page). `formatIst` stays for callers that want a hard failure.
+
+## Zod import rule (S92, 2026-11-01)
+All code imports `from "zod/v3"` (zod package 4.6.7, frozen v3 API). Do not import bare `"zod"`, `zod/v4` or `zod/mini`: mixing v3 and v4 schema objects breaks. Moving to the zod 4 API is row Z-191.
