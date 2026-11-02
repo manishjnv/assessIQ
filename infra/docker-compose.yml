@@ -70,8 +70,9 @@ services:
     mem_limit: 2g
     image: assessiq/api:${IMAGE_TAG:-latest}
     container_name: assessiq-api
-    # A5-2 (Z-138): the container still runs as root (it reads the Max OAuth login). Cut what root can do:
-    # no setuid escalation, and no raw sockets, device nodes, file caps, chroot or audit writes (the app uses none).
+    # A5-2: runs as node (uid 1000) since 2026-11-02; no host credential mount (production uses AI_PIPELINE_MODE=anthropic-api).
+    # no-new-privileges blocks setuid escalation; cap_drop removes raw sockets, device nodes, file caps, chroot and audit writes (the app uses none).
+    user: "1000:1000"
     security_opt: ["no-new-privileges:true"]
     cap_drop: [NET_RAW, MKNOD, SETFCAP, SYS_CHROOT, AUDIT_WRITE]
     build:
@@ -91,10 +92,6 @@ services:
       PG_POOL_MAX: ${API_PG_POOL_MAX:-40}
       # E2 eval gate (off | warn | enforce) is read from ../.env through env_file; code default is warn.
       # It was pinned here as ${AI_EVAL_GATE:-warn}, which ignored .env (S57 trap): do not pin it again.
-      # RW-11: claude reads its global config from $CLAUDE_CONFIG_DIR/.claude.json,
-      # i.e. inside the /root/.claude dir mount. Ends the single-file
-      # /root/.claude.json bind that went stale when the host rewrote the file.
-      CLAUDE_CONFIG_DIR: /home/node/.claude
     # Operational logs: bind /var/log/assessiq from host so logrotate (system
     # daemon, on host) and pino (in container) share the file inodes. Path
     # MUST match the LOG_DIR env var. See docs/11-observability.md § 7.
@@ -107,18 +104,13 @@ services:
     #
     # claude CLI: bind the host binary read-only. The API container base is
     # node:22-slim (Debian/glibc) so the glibc ELF binary runs correctly.
-    # Mount the whole /root/.claude directory rw so the node user can write
-    # token refreshes and any new state files Claude CLI creates over time.
-    # Container runs as root (USER root in Dockerfile) so it can read
-    # /root/.claude/.credentials.json (mode 600). No host chown needed.
-    # .claude.json lives in the dir too (RW-11, CLAUDE_CONFIG_DIR): no file mount.
-    # The repo's prompts/skills is overlaid ro on top so git-pull-only skill
-    # deploys still work and override the host's /root/.claude/skills copy.
+    # No host /root/.claude mount: the container runs as node (uid 1000) and holds no
+    # Max-OAuth login. The CLI fallback needs a new credential setup (docs/06-deployment.md).
+    # prompts/skills below is the only thing mounted under /home/node/.claude.
     volumes:
       - /var/log/assessiq:/var/log/assessiq
       # Real-exam camera files (photos, video). Host dir must exist and be writable by the container user.
       - /var/lib/assessiq/camera:/var/lib/assessiq/camera
-      - /root/.claude:/home/node/.claude:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
       # E2 eval gate: blessed eval baselines (gitignored) at the path eval-gate.ts
       # resolves by default (<module>/eval/baselines under the image's /app). rw because
@@ -136,10 +128,10 @@ services:
       # assessiq-mcp: stdio MCP server providing submit_anchors / submit_band /
       # submit_questions / submit_rubric tools. Built on the VPS via
       # `cd /srv/assessiq/tools/assessiq-mcp && npm install && npx tsc`.
-      # Registered in /root/.claude/.claude.json (RW-11) under mcpServers.assessiq with
+      # CLI fallback only: claude must register it under mcpServers.assessiq with
       # command=node args=["/opt/assessiq-mcp/dist/server.js"]. Without this
       # mount + that registration, claude has no tool to deliver structured
-      # output and exits with code 1 (RCA 2026-05-09).
+      # output and exits with code 1 (RCA 2026-05-09). No host config is mounted now.
       - ../tools/assessiq-mcp:/opt/assessiq-mcp:ro
       # tools/: ops-side scripts (stage1-sharded-smoke, stage3-watch,
       # cleanup-stale-drafts, cleanup-orphaned-attempts, inspect-attempt
@@ -172,8 +164,9 @@ services:
     mem_limit: 1g
     image: assessiq/api:${IMAGE_TAG:-latest}
     container_name: assessiq-worker
-    # A5-2 (Z-138): the container still runs as root (it reads the Max OAuth login). Cut what root can do:
-    # no setuid escalation, and no raw sockets, device nodes, file caps, chroot or audit writes (the app uses none).
+    # A5-2: runs as node (uid 1000) since 2026-11-02; no host credential mount (production uses AI_PIPELINE_MODE=anthropic-api).
+    # no-new-privileges blocks setuid escalation; cap_drop removes raw sockets, device nodes, file caps, chroot and audit writes (the app uses none).
+    user: "1000:1000"
     security_opt: ["no-new-privileges:true"]
     cap_drop: [NET_RAW, MKNOD, SETFCAP, SYS_CHROOT, AUDIT_WRITE]
     # Same image as assessiq-api; second entrypoint runs the BullMQ scheduler.
@@ -191,10 +184,6 @@ services:
         required: false
     environment:
       PG_POOL_MAX: ${WORKER_PG_POOL_MAX:-15}
-      # RW-11: claude reads its global config from $CLAUDE_CONFIG_DIR/.claude.json,
-      # i.e. inside the /root/.claude dir mount. Ends the single-file
-      # /root/.claude.json bind that went stale when the host rewrote the file.
-      CLAUDE_CONFIG_DIR: /home/node/.claude
     # Operational logs: same bind as assessiq-api. Worker logs go to the same
     # JSONL files (stream binding distinguishes per-process emitters).
     # Skills + claude: same binds as assessiq-api (see comment there).
@@ -202,17 +191,16 @@ services:
       - /var/log/assessiq:/var/log/assessiq
       # Real-exam camera files (photos, video). Host dir must exist and be writable by the container user.
       - /var/lib/assessiq/camera:/var/lib/assessiq/camera
-      - /root/.claude:/home/node/.claude:rw
       - ../prompts/skills:/home/node/.claude/skills:ro
       - /usr/bin/claude:/usr/local/bin/claude:ro
       - /usr/lib/node_modules/@anthropic-ai/claude-code:/usr/lib/node_modules/@anthropic-ai/claude-code:ro
       # assessiq-mcp: stdio MCP server providing submit_anchors / submit_band /
       # submit_questions / submit_rubric tools. Built on the VPS via
       # `cd /srv/assessiq/tools/assessiq-mcp && npm install && npx tsc`.
-      # Registered in /root/.claude/.claude.json (RW-11) under mcpServers.assessiq with
+      # CLI fallback only: claude must register it under mcpServers.assessiq with
       # command=node args=["/opt/assessiq-mcp/dist/server.js"]. Without this
       # mount + that registration, claude has no tool to deliver structured
-      # output and exits with code 1 (RCA 2026-05-09).
+      # output and exits with code 1 (RCA 2026-05-09). No host config is mounted now.
       - ../tools/assessiq-mcp:/opt/assessiq-mcp:ro
     depends_on:
       assessiq-postgres: { condition: service_healthy }

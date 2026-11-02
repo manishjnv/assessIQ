@@ -95,12 +95,10 @@ COPY --chown=node:node --from=deps /app/. ./
 # COPY --chown gives the same ownership; only the /app directory itself needs it.
 RUN chown node:node /app
 
-# Runs as root: container needs to read /root/.claude/.credentials.json
-# (mode 600, root-owned) for claude CLI auth. Per 2026-05-09 RCA,
-# whole-dir mount + USER root replaces the per-file mount pattern
-# that broke on every claude version bump. Single-tenant admin container;
-# node-user isolation adds little real security here.
-USER root
+# Runs as node (uid 1000) since 2026-11-02. No host credential mount: production
+# uses AI_PIPELINE_MODE=anthropic-api. The CLI fallback needs a new credential
+# setup (see docs/06-deployment.md).
+USER node
 
 WORKDIR /app/apps/api
 
