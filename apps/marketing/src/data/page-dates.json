@@ -7,6 +7,10 @@
     "published": "2026-05-22T22:49:22+05:30",
     "modified": "2026-11-01T14:58:53+05:30"
   },
+  "/accessibility": {
+    "published": "2026-11-01T18:56:16+05:30",
+    "modified": "2026-11-02T21:30:28+05:30"
+  },
   "/alternatives": {
     "published": "2026-05-23T13:57:44+05:30",
     "modified": "2026-11-01T14:58:53+05:30"
@@ -57,7 +61,7 @@
   },
   "/contact": {
     "published": "2026-05-22T22:49:22+05:30",
-    "modified": "2026-10-19T16:35:06+05:30"
+    "modified": "2026-11-01T18:56:16+05:30"
   },
   "/dpa": {
     "published": "2026-10-20T00:47:54+05:30",
@@ -121,11 +125,15 @@
   },
   "/resources": {
     "published": "2026-05-23T14:47:11+05:30",
-    "modified": "2026-10-20T12:14:59+05:30"
+    "modified": "2026-11-01T18:56:16+05:30"
   },
   "/resources/how-to-run-a-campus-aptitude-test": {
     "published": "2026-10-20T12:14:59+05:30",
     "modified": "2026-10-20T12:14:59+05:30"
+  },
+  "/resources/online-assessment-platforms-in-india": {
+    "published": "2026-11-01T18:56:16+05:30",
+    "modified": "2026-11-01T18:56:16+05:30"
   },
   "/resources/reducing-bias-technical-hiring": {
     "published": "2026-05-23T14:47:11+05:30",
@@ -157,7 +165,7 @@
   },
   "/signup": {
     "published": "2026-10-20T07:50:37+05:30",
-    "modified": "2026-10-24T20:42:43+05:30"
+    "modified": "2026-11-01T18:56:16+05:30"
   },
   "/solutions": {
     "published": "2026-05-23T13:57:44+05:30",
@@ -181,7 +189,7 @@
   },
   "/terms": {
     "published": "2026-05-23T20:50:08+05:30",
-    "modified": "2026-10-20T12:14:59+05:30"
+    "modified": "2026-11-01T18:56:16+05:30"
   },
   "/tests": {
     "published": "2026-05-23T14:30:55+05:30",
@@ -241,26 +249,18 @@
   },
   "/tools": {
     "published": "2026-05-24T07:07:02+05:30",
-    "modified": "2026-05-24T07:07:02+05:30"
+    "modified": "2026-11-01T18:56:16+05:30"
   },
   "/tools/cost-of-a-bad-hire": {
     "published": "2026-05-24T07:07:02+05:30",
     "modified": "2026-10-19T16:35:06+05:30"
   },
+  "/tools/percentile-calculator": {
+    "published": "2026-11-01T18:56:16+05:30",
+    "modified": "2026-11-01T18:56:16+05:30"
+  },
   "/trust": {
     "published": "2026-11-01T14:58:53+05:30",
-    "modified": "2026-11-01T14:58:53+05:30"
-  },
-  "/resources/online-assessment-platforms-in-india": {
-    "published": "2026-11-01T18:50:00+05:30",
-    "modified": "2026-11-01T18:50:00+05:30"
-  },
-  "/tools/percentile-calculator": {
-    "published": "2026-11-01T18:50:00+05:30",
-    "modified": "2026-11-01T18:50:00+05:30"
-  },
-  "/accessibility": {
-    "published": "2026-11-01T19:10:00+05:30",
-    "modified": "2026-11-01T19:10:00+05:30"
+    "modified": "2026-11-01T18:56:16+05:30"
   }
 }
