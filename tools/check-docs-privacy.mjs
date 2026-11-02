@@ -9,6 +9,7 @@ import { readFileSync } from "node:fs";
 const ALLOW = new Set([
   "CLAUDE.md",
   "infra/caddyfile/assessiq.snippet",
+  "infra/caddyfile/cloudflare-ranges.txt", // public Cloudflare edge ranges (A1-7), not private data
   "tools/check-docs-privacy.mjs",
   "tools/__tests__/docs-guards.test.ts",
 ]);
