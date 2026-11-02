@@ -155,7 +155,7 @@ export async function buildServer() {
         ua: req.headers['user-agent'] ?? 'unknown',
         // A1-7 edge probe (temporary): raw XFF and req.ip, only when the probe header is set.
         ...(req.headers['x-aiq-edge-probe'] === '1'
-          ? { probeXff: String(req.headers['x-forwarded-for'] ?? '').slice(0, 300), probeReqIp: req.ip }
+          ? { probeXff: String(req.headers['x-forwarded-for'] ?? '').slice(0, 300), probeReqIp: req.ip, probeSocketIp: req.socket.remoteAddress }
           : {}),
       },
       'http.request',
