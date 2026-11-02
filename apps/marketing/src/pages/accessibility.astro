@@ -1,6 +1,6 @@
 ---
 // accessibility.astro - "/accessibility" (X8 slice S2). Marketing only.
-// Self-assessment, NOT a certification. Every "Supports" / "Partially" below matches a test run on 2026-11-01:
+// Self-assessment, NOT a certification. Updated 2026-11-02 (2.4.1 skip link on public app screens; 2.4.7 focus element traced). Every "Supports" / "Partially" below matches a test run on 2026-11-01:
 //   axe-core 4.x via Playwright (tags wcag2a, wcag2aa, wcag21a, wcag21aa, wcag22aa, best-practice) on 19 marketing pages
 //   at 1280x800 and 390x844 (zero violations after the S93 fixes), reflow at 320x640, 200% zoom emulated at 640x400 @2x,
 //   40 Tab presses per page for focus visibility and obscured focus, reduced-motion check, a target-size scan.
@@ -44,13 +44,13 @@ const rows: Row[] = [
   { id: '2.2.1', name: 'Timing Adjustable', level: 'A', status: 'Not evaluated', note: '' },
   { id: '2.2.2', name: 'Pause, Stop, Hide', level: 'A', status: 'Not evaluated', note: 'With reduced motion on, no animation ran for more than 5 seconds or looped.' },
   { id: '2.3.1', name: 'Three Flashes or Below Threshold', level: 'A', status: 'Not evaluated', note: '' },
-  { id: '2.4.1', name: 'Bypass Blocks', level: 'A', status: 'Partially supports', note: 'Every marketing page has a "Skip to main content" link as the first Tab stop. The four public app screens (admin sign-in, candidate sign-in, expired link, error) do not have one.' },
+  { id: '2.4.1', name: 'Bypass Blocks', level: 'A', status: 'Supports', note: 'Every marketing page and the public app screens (admin sign-in, candidate sign-in, expired link, device check, demo) have a "Skip to main content" link as the first Tab stop. It moves focus to the main area. Tested on the live site on 2026-11-02. Signed-in screens: an automated axe check only.' },
   { id: '2.4.2', name: 'Page Titled', level: 'A', status: 'Supports', note: 'axe document-title passes.' },
   { id: '2.4.3', name: 'Focus Order', level: 'A', status: 'Not evaluated', note: '' },
   { id: '2.4.4', name: 'Link Purpose (In Context)', level: 'A', status: 'Supports', note: 'axe link-name passes. Link text was not reviewed by hand.' },
   { id: '2.4.5', name: 'Multiple Ways', level: 'AA', status: 'Not evaluated', note: '' },
   { id: '2.4.6', name: 'Headings and Labels', level: 'AA', status: 'Not evaluated', note: '' },
-  { id: '2.4.7', name: 'Focus Visible', level: 'AA', status: 'Partially supports', note: 'A visible focus indicator showed on every tested control except one element on the contact and sign-up pages, which we have not yet traced.' },
+  { id: '2.4.7', name: 'Focus Visible', level: 'AA', status: 'Partially supports', note: 'A visible focus indicator showed on every tested control except one element on the contact and sign-up pages, which we traced to the Cloudflare Turnstile bot-check widget. Its frame is third-party code; we cannot restyle the focus indicator there.' },
   { id: '2.4.11', name: 'Focus Not Obscured (Minimum)', level: 'AA', status: 'Supports', note: 'In 40 Tab presses per page, no focused control was hidden behind the sticky header.' },
   { id: '2.5.1', name: 'Pointer Gestures', level: 'A', status: 'Not evaluated', note: '' },
   { id: '2.5.2', name: 'Pointer Cancellation', level: 'A', status: 'Not evaluated', note: '' },
@@ -79,8 +79,7 @@ const count = (s: string) => rows.filter((r) => r.status === s).length;
 
 const gaps = [
   'Signed-in screens (take page, results, admin) are scanned by automated axe tests in our build. They have had no manual keyboard or screen reader review for this statement.',
-  'The four public app screens have no "Skip to main content" link.',
-  'One focused element on the contact and sign-up pages shows no focus indicator. We have not traced it yet.',
+  'The Cloudflare Turnstile bot-check widget on the contact and sign-up pages shows no focus indicator of our own. It is third-party code.',
   'Some stand-alone text links in page bodies are shorter than 24 px.',
   'We have not run a screen reader test (NVDA, JAWS or VoiceOver).',
   'Hindi and other languages, and guardian consent for candidates under 18, are not part of this statement.',
