@@ -88,6 +88,7 @@ const pages = {
   'tools-cost-of-a-bad-hire':{ title: 'Cost of a Bad Hire Calculator (India, ₹)' },
   'tools-percentile-calculator':{ title: 'Percentile Calculator' },
   'resources-online-assessment-platforms-in-india':{ title: 'Online Assessment Platforms in India' },
+  'resources-technical-screening-software-buyers-guide':{ title: 'Technical Screening Software: A Buyer Checklist' },
 };
 
 // Brand color tokens (from tailwind.config.mjs)

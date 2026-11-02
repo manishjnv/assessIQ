@@ -1,0 +1,323 @@
+---
+// resources/technical-screening-software-buyers-guide.astro — "/resources/technical-screening-software-buyers-guide"
+// JSON-LD: THREE separate blocks — Article, FAQPage, BreadcrumbList
+// Owner-approved F2 round 2 page 5 (2026-11-02). A checklist, not a product page.
+// Rules: NO vendor named, NO vendor fact quoted, NO rating, NO "best", NO "cheat proof".
+// AssessIQ claims are limited to what is live, each linked to the page that shows it:
+//   /methodology        — five-band scoring (0, 25, 50, 75, 100), rationale per AI-assisted band, integrity events seen by the admin
+//   /solutions/it-hiring — randomised order, per-student MCQ option shuffle, server-side timers, optional fullscreen gate,
+//                          copy/paste blocking, tab-switch warning
+// NOT claimed: coding tests, webcam proctoring, ATS integrations, public prices.
+import { getPageDates } from '../../lib/page-dates';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const site = 'https://assessiq.in';
+const slug = '/resources/technical-screening-software-buyers-guide';
+const dates = getPageDates(slug);
+
+const articleSchema = {
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Technical Screening Software: A Buyer Checklist",
+  "datePublished": dates.published,
+  "dateModified": dates.modified,
+  "author": { "@type": "Organization", "name": "AssessIQ" },
+  "publisher": {
+    "@type": "Organization",
+    "name": "AssessIQ",
+    "logo": { "@type": "ImageObject", "url": `${site}/favicon.svg` }
+  },
+  "mainEntityOfPage": `${site}${slug}`,
+  "description": "Ten questions to ask any technical screening software vendor, what common integrity controls cannot stop, red flags and a two-week trial plan."
+};
+
+const faqs = [
+  {
+    q: "What is technical screening software?",
+    a: "It is software that tests candidates online before an interview. Tools differ in what they test: aptitude, job knowledge, written answers or hands-on tasks. Ask each vendor which of these it covers."
+  },
+  {
+    q: "How many tools should I trial?",
+    a: "Two or three. Give each the same test and the same group of people, so the scores are easy to compare."
+  },
+  {
+    q: "Why ask about the scoring scale?",
+    a: "A raw percent looks exact, but a written answer is judged by level of skill. A band scale says what each level means. Ask the vendor what its top score and its middle score mean in plain words."
+  },
+  {
+    q: "Can any tool stop all cheating?",
+    a: "No. Controls make cheating harder and leave a record. Plan for that: use varied questions, short time limits and a follow-up conversation with shortlisted people."
+  }
+];
+
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": faqs.map(f => ({
+    "@type": "Question",
+    "name": f.q,
+    "acceptedAnswer": { "@type": "Answer", "text": f.a }
+  }))
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    { "@type": "ListItem", "position": 1, "name": "Home", "item": `${site}/` },
+    { "@type": "ListItem", "position": 2, "name": "Resources", "item": `${site}/resources` },
+    { "@type": "ListItem", "position": 3, "name": "Technical screening software buyer checklist" }
+  ]
+};
+
+const questions = [
+  { ask: "Which skills can it test?", why: "List what you need: aptitude, job knowledge, written answers, hands-on tasks. Ask for a sample of each. A tool that is strong at one type may not cover yours." },
+  { ask: "Who writes and owns the questions?", why: "Ask if you can add your own questions and keep them private. Ask how the vendor reviews its own questions." },
+  { ask: "How is a score made?", why: "Ask to see one scored answer with the reason for its score. If the vendor cannot show the reason, you cannot explain the score to a candidate." },
+  { ask: "What is the scoring scale?", why: "Ask if scores are bands or raw percent. Ask what a middle score means in plain words. Two candidates with the same percent can have very different answers." },
+  { ask: "What does it do for test integrity, and what does it not stop?", why: "Ask for both lists. The table below shows how we answer for five common controls." },
+  { ask: "What is the candidate experience?", why: "Ask about devices, language, time limits, accessibility and what happens if the connection drops. Take the test yourself on a phone." },
+  { ask: "What reports and exports do you get?", why: "Ask for a sample report for one candidate and one group. Check that you can export results in a format your team already uses." },
+  { ask: "How does it connect to your other tools?", why: "Ask what works today, in writing. Do not count a feature that is only planned." },
+  { ask: "Where is the data held, and what happens when you leave?", why: "Ask where answers are stored, who at the vendor can read them, how long they stay, and how you delete or export them." },
+  { ask: "What does it cost, and what does a trial include?", why: "Ask for the pricing model (per candidate, per test or per seat), what is included, and what the trial covers. Compare the same volume across vendors." }
+];
+
+const controls = [
+  {
+    name: "Server-side time limit",
+    does: "The time limit is kept on the server, not in the browser. The timer starts when the candidate begins and consents.",
+    cannot: "Help from another person or another device during the time."
+  },
+  {
+    name: "Random question order and option shuffle",
+    does: "Each candidate sees a different order, and multiple-choice options are shuffled per student. A list of answer letters does not match.",
+    cannot: "Sharing the question text, or one person solving the questions for others."
+  },
+  {
+    name: "Fullscreen gate (optional)",
+    does: "Asks the candidate to stay in fullscreen. An exit from fullscreen is recorded as an integrity event for the admin.",
+    cannot: "A second screen, a second device or a person in the room."
+  },
+  {
+    name: "Copy and paste blocking (optional)",
+    does: "Blocks copy and paste inside the test. Blocked tries are recorded for the admin.",
+    cannot: "A photo of the screen, retyping a question on another device, or text typed from a note."
+  },
+  {
+    name: "Tab-switch warning (optional)",
+    does: "Warns the candidate when they leave the test tab. The switch is recorded for the admin.",
+    cannot: "Use of another device. A record is a reason to look closer, not proof of cheating."
+  }
+];
+
+const redFlags = [
+  "A single score with no reason attached.",
+  "A promise that no one can cheat.",
+  "No clear statement of where answers are stored.",
+  "A price that appears only after a sales call, with no model and no range.",
+  "No sample report before you buy."
+];
+
+const trial = [
+  { when: "Days 1 to 2", what: "Write down your needs and your three must-haves. Ask each vendor for a sample test of each skill type you need." },
+  { when: "Days 3 to 5", what: "Build one real test with your own questions. Take it yourself and with three colleagues. Use a phone for at least one attempt." },
+  { when: "Days 6 to 8", what: "Try to get around each integrity control. Write down what each one records and what it misses." },
+  { when: "Days 9 to 10", what: "Read the reports. Check that you can see why each score was given. Export the results." },
+  { when: "Days 11 to 14", what: "Run a small real group of 20 to 30 candidates. Ask them for feedback. Compare the scores with a manager's view. Decide with a written scorecard." }
+];
+---
+
+<BaseLayout
+  hasDatedNode
+  title="Technical Screening Software: A Buyer Checklist"
+  description="Ten questions to ask any technical screening software vendor, what common integrity controls cannot stop, red flags and a two-week trial plan."
+  canonicalPath="/resources/technical-screening-software-buyers-guide"
+  ogType="article"
+>
+  <script type="application/ld+json" set:html={JSON.stringify(articleSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbSchema)} />
+
+  <nav aria-label="Breadcrumb" class="border-b border-aiq-border bg-aiq-bg-raised">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-sm">
+      <ol class="flex flex-wrap items-center gap-aiq-sm list-none m-0 p-0">
+        <li><a href="/" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Home</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><a href="/resources" class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase hover:text-aiq-fg-secondary transition-colors">Resources</a></li>
+        <li aria-hidden="true" class="font-mono text-aiq-xs text-aiq-fg-muted">&rsaquo;</li>
+        <li><span class="font-mono text-aiq-xs text-aiq-fg-secondary tracking-aiq-mono uppercase" aria-current="page">Technical screening software checklist</span></li>
+      </ol>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-lg m-0">Resources &middot; Buyer guide &middot; 2026</p>
+      <h1 class="font-serif text-aiq-3xl sm:text-aiq-hero font-normal tracking-aiq-tighter text-aiq-fg-primary leading-[1.05] mb-aiq-xl mt-0 max-w-3xl">
+        Technical screening software: a buyer checklist.
+      </h1>
+      <p class="font-sans text-aiq-lg text-aiq-fg-secondary leading-relaxed mb-aiq-xl max-w-2xl">
+        Ten questions to ask any vendor before you buy. Use the same list for every tool you look at.
+      </p>
+      <p class="font-sans text-aiq-md text-aiq-fg-muted leading-relaxed m-0 max-w-2xl">
+        AssessIQ is our product. Where we describe it, we link to the page that shows the claim. This page names no other vendor.
+      </p>
+    </div>
+  </section>
+
+  <!-- TEN QUESTIONS -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="questions-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">The checklist</p>
+        <h2 id="questions-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Ten questions to ask a vendor.
+        </h2>
+        <ol class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 pl-aiq-xl flex flex-col gap-aiq-lg">
+          {questions.map(q => (
+            <li>
+              <strong class="text-aiq-fg-primary font-medium">{q.ask}</strong>
+              <span class="block mt-aiq-xs">{q.why}</span>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCORING -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="scoring-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Bands or percent</p>
+        <h2 id="scoring-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          How we answer questions 3 and 4.
+        </h2>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mt-0 mb-aiq-md">
+          AssessIQ scores a written answer on five bands: 0, 25, 50, 75 and 100. Each band has a written description. A score of 50 means working-level skill, not half-correct. Every AI-assisted band score carries a written reason.
+        </p>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">
+          Read the full model on our <a href="/methodology" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">methodology page</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- INTEGRITY TABLE -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="controls-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Test integrity</p>
+      <h2 id="controls-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+        What each control does, and what it cannot stop.
+      </h2>
+
+      <div
+        class="overflow-x-auto border border-aiq-border rounded-aiq-lg bg-aiq-bg-base focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent"
+        role="region"
+        aria-labelledby="controls-heading"
+        tabindex="0"
+      >
+        <table class="w-full min-w-[720px] border-collapse font-sans text-aiq-sm text-left">
+          <caption class="text-left font-sans text-aiq-sm text-aiq-fg-muted p-aiq-md">
+            Controls AssessIQ has today and their limits. Scroll sideways on a small screen.
+          </caption>
+          <thead>
+            <tr class="border-b border-aiq-border">
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">Control</th>
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">What it does</th>
+              <th scope="col" class="py-aiq-md px-aiq-md font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase font-medium">What it cannot stop</th>
+            </tr>
+          </thead>
+          <tbody>
+            {controls.map((c, i) => (
+              <tr class={`border-b border-aiq-border align-top ${i % 2 === 0 ? 'bg-aiq-bg-base' : 'bg-aiq-bg-raised'}`}>
+                <th scope="row" class="py-aiq-md px-aiq-md text-aiq-fg-primary font-medium">{c.name}</th>
+                <td class="py-aiq-md px-aiq-md text-aiq-fg-secondary">{c.does}</td>
+                <td class="py-aiq-md px-aiq-md text-aiq-fg-secondary">{c.cannot}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <p class="font-sans text-aiq-sm text-aiq-fg-muted leading-relaxed mt-aiq-lg mb-0 max-w-3xl">
+        Details of each control are on our <a href="/solutions/it-hiring" class="text-aiq-accent underline underline-offset-2">IT hiring page</a>, and the recorded events are described on the <a href="/methodology" class="text-aiq-accent underline underline-offset-2">methodology page</a>. Ask every vendor for the same two columns.
+      </p>
+    </div>
+  </section>
+
+  <!-- RED FLAGS -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="flags-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Red flags</p>
+        <h2 id="flags-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Five signs to slow down.
+        </h2>
+        <ul class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 pl-aiq-xl flex flex-col gap-aiq-sm">
+          {redFlags.map(f => <li>{f}</li>)}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRIAL PLAN -->
+  <section class="bg-aiq-bg-raised border-b border-aiq-border" aria-labelledby="trial-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">Trial plan</p>
+        <h2 id="trial-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          A two-week trial plan.
+        </h2>
+        <ol class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0 pl-aiq-xl flex flex-col gap-aiq-md">
+          {trial.map(t => (
+            <li><strong class="text-aiq-fg-primary font-medium">{t.when}:</strong> {t.what}</li>
+          ))}
+        </ol>
+        <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed mt-aiq-xl mb-0">
+          To see a worked role test, open the <a href="/tests/role/software-engineer" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">software engineer test</a> or the <a href="/tests/role/backend-developer" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">backend developer test</a>. For a side-by-side of platforms used in India, read <a href="/resources/online-assessment-platforms-in-india" class="text-aiq-accent hover:text-aiq-accent-hover underline underline-offset-2">what to compare</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="faq-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <p class="font-mono text-aiq-xs text-aiq-fg-muted tracking-aiq-mono uppercase mb-aiq-md m-0">FAQ</p>
+      <h2 id="faq-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-3xl mt-0">
+        Common questions.
+      </h2>
+      <div class="flex flex-col gap-aiq-xl max-w-3xl">
+        {faqs.map((f, i) => (
+          <div class={i < faqs.length - 1 ? 'border-b border-aiq-border pb-aiq-xl' : ''}>
+            <h3 class="font-serif text-aiq-xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-sm mt-0">{f.q}</h3>
+            <p class="font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed m-0">{f.a}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="bg-aiq-bg-raised" aria-labelledby="cta-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <div class="max-w-3xl">
+        <h2 id="cta-heading" class="font-serif text-aiq-2xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-xl mt-0">
+          Want to run this checklist on AssessIQ?
+        </h2>
+        <a
+          href="/contact"
+          class="inline-flex font-sans text-aiq-md font-medium px-6 py-3 rounded-aiq-pill bg-aiq-accent text-white
+                 hover:bg-aiq-accent-hover transition-colors duration-150
+                 focus:outline-none focus-visible:ring-2 focus-visible:ring-aiq-accent focus-visible:ring-offset-2"
+        >
+          Talk to us
+        </a>
+      </div>
+    </div>
+  </section>
+
+</BaseLayout>

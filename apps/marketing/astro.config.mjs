@@ -67,6 +67,7 @@ function inlineSitemap() {
     '/resources/send-test-invitations-to-students',
     '/resources/verify-skill-certificate',
     '/resources/online-assessment-platforms-in-india',
+    '/resources/technical-screening-software-buyers-guide',
     '/tools',
     '/tools/cost-of-a-bad-hire',
     '/tools/percentile-calculator',
