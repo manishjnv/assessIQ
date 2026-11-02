@@ -107,20 +107,7 @@ export function App(): React.JSX.Element {
         density="cozy"
         {...(branding ? { branding } : {})}
       >
-        {/* X8 (WCAG 2.4.1): one skip link for every route; every page renders one <main>. */}
-        <a
-          href="#main"
-          className="aiq-skip-link"
-          onClick={(e) => {
-            const main = document.querySelector('main');
-            if (!main) return;
-            e.preventDefault();
-            main.setAttribute('tabindex', '-1');
-            main.focus();
-          }}
-        >
-          Skip to main content
-        </a>
+        <SkipLink />
         <ErrorBoundary>
         <Suspense fallback={null}>
           {/* Admin Mobile Port (A6, 2026-05-21) deleted the M5 ViewportLock
@@ -279,6 +266,29 @@ export function App(): React.JSX.Element {
         </ErrorBoundary>
       </ThemeProvider>
     </BrowserRouter>
+  );
+}
+
+/** X8 (WCAG 2.4.1): skip link for every route. Each page renders one <main>, some after a lazy
+ *  load, so an observer gives it id="main" and tabindex=-1 (the anchor target axe expects). */
+function SkipLink(): React.JSX.Element {
+  useEffect(() => {
+    const tag = (): void => {
+      const main = document.querySelector('main');
+      if (main && main.id !== 'main') {
+        main.id = 'main';
+        main.setAttribute('tabindex', '-1');
+      }
+    };
+    tag();
+    const observer = new MutationObserver(tag);
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+  return (
+    <a href="#main" className="aiq-skip-link">
+      Skip to main content
+    </a>
   );
 }
 
