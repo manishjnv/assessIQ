@@ -22,6 +22,6 @@
     missingok
     notifempty
     copytruncate
-    su assessiq assessiq
-    create 0640 assessiq assessiq
+    su ubuntu ubuntu
+    create 0640 ubuntu ubuntu
 }
