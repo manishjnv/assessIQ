@@ -75,6 +75,12 @@ assessiq.in {
     header Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cloudflareinsights.com; frame-src https://challenges.cloudflare.com; object-src 'none'; base-uri 'self'; form-action 'self'"
     encode zstd gzip
 
+    # Z-77 (2026-11-02): ENFORCING CSP, live. Deferred (>) because the (security-headers) snippet also sets Content-Security-Policy
+    # and writes last; a plain header (even inside handle) loses. Report-only above stays live.
+    @mkt_pages not path /api/* /embed* /help/* /take/start /take/camera-consent /verify/* /admin /admin/* /candidate /candidate/* /take /take/* /try /try/* /check /check/* /assets/* /brand/*
+    header @mkt_pages >Content-Security-Policy "default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://cloudflareinsights.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
+    @spa_pages path /admin /admin/* /candidate /candidate/* /take /take/* /try /try/* /check /check/* /assets/* /brand/*
+    header @spa_pages >Content-Security-Policy "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https://cloudflareinsights.com; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'"
     @api path /api/* /embed* /help/* /take/start /take/camera-consent /verify/*
     handle @api {
         reverse_proxy 172.17.0.1:9092 {
