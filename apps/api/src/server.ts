@@ -44,6 +44,7 @@ import { EMBED_COOKIE_NAME } from '@assessiq/embed-sdk';
 import { authChain } from './middleware/auth-chain.js';
 import { logPath } from './log-url.js';
 import { checkAppDbRoleMembership } from './startup-checks.js';
+import { TRUSTED_PROXIES, warnIfGatewayOutsideOwnNetwork } from './trusted-proxies.js';
 import { config } from '@assessiq/core';
 import { registerVerifyRoutes, registerCertificationRoutes } from '@assessiq/certification';
 import { registerBillingRoutes } from '@assessiq/billing';
@@ -55,7 +56,7 @@ export async function buildServer() {
   const app = Fastify({
     logger: false,             // we use @assessiq/core logger via hooks below
     disableRequestLogging: true,
-    trustProxy: true,          // Caddy/Cloudflare in front; CF-Connecting-IP is canonical
+    trustProxy: TRUSTED_PROXIES, // A1-7: only the assessiq-net gateway + Cloudflare ranges may set X-Forwarded-For
     genReqId: () => uuidv7(),
   });
 
@@ -153,10 +154,6 @@ export async function buildServer() {
         latencyMs: Math.round(reply.elapsedTime),
         ip: extractClientIp(req),
         ua: req.headers['user-agent'] ?? 'unknown',
-        // A1-7 edge probe (temporary): raw XFF and req.ip, only when the probe header is set.
-        ...(req.headers['x-aiq-edge-probe'] === '1'
-          ? { probeXff: String(req.headers['x-forwarded-for'] ?? '').slice(0, 300), probeReqIp: req.ip, probeSocketIp: req.socket.remoteAddress }
-          : {}),
       },
       'http.request',
     );
@@ -377,6 +374,7 @@ if (isCliEntry) {
   await app.listen({ host: '0.0.0.0', port });
   appLog.info({ port }, 'assessiq-api listening');
   void checkAppDbRoleMembership(); // GATE-8 A2-3: log-only, never blocks boot
+  warnIfGatewayOutsideOwnNetwork(appLog);
   // RW-94: clear runs the previous process left 'running'. Fire-and-forget; never blocks listen.
   void import('@assessiq/question-bank')
     .then((m) => m.sweepStaleGenerationAttempts())
