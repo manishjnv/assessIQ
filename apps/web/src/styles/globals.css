@@ -15,3 +15,23 @@ body {
   color: var(--aiq-color-fg-primary);
   font-family: var(--aiq-font-sans);
 }
+
+/* X8: skip link, off-screen until it takes keyboard focus. */
+.aiq-skip-link {
+  position: absolute;
+  left: 8px;
+  top: -64px;
+  z-index: 1000;
+  padding: 10px 16px;
+  border-radius: 6px;
+  background: var(--aiq-color-accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.aiq-skip-link:focus {
+  top: 8px;
+  outline: 2px solid var(--aiq-color-fg-primary);
+  outline-offset: 2px;
+}

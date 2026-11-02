@@ -107,6 +107,20 @@ export function App(): React.JSX.Element {
         density="cozy"
         {...(branding ? { branding } : {})}
       >
+        {/* X8 (WCAG 2.4.1): one skip link for every route; every page renders one <main>. */}
+        <a
+          href="#main"
+          className="aiq-skip-link"
+          onClick={(e) => {
+            const main = document.querySelector('main');
+            if (!main) return;
+            e.preventDefault();
+            main.setAttribute('tabindex', '-1');
+            main.focus();
+          }}
+        >
+          Skip to main content
+        </a>
         <ErrorBoundary>
         <Suspense fallback={null}>
           {/* Admin Mobile Port (A6, 2026-05-21) deleted the M5 ViewportLock
