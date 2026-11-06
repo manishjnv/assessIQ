@@ -1,6 +1,18 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/post-edit-lint.sh\"",
+            "timeout": 70
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
@@ -18,7 +30,51 @@
             "command": "bash \"${CLAUDE_PROJECT_DIR}/.claude/hooks/push-adversarial-gate.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Bash|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/manis/.local/bin/graphify.EXE hook-guard search",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Users/manis/.local/bin/graphify.EXE hook-guard read",
+            "timeout": 10
+          }
+        ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "securitymaxxing@anthropic-plugin-directory": true,
+    "dependency-evaluator@anthropic-plugin-directory": true,
+    "docker-skills@anthropic-plugin-directory": true,
+    "bee@anthropic-plugin-directory": false,
+    "code-simplifier@anthropic-plugin-directory": true,
+    "github@anthropic-plugin-directory": true,
+    "frontend-design@anthropic-plugin-directory": true,
+    "feature-dev@anthropic-plugin-directory": true,
+    "telegram@anthropic-plugin-directory": false,
+    "claude-security@anthropic-plugin-directory": true,
+    "desktop-commander@anthropic-plugin-directory": false,
+    "browser-use@anthropic-plugin-directory": false,
+    "superdesign@anthropic-plugin-directory": true,
+    "typescript-lsp@claude-plugins-official": true,
+    "commit-commands@anthropic-plugin-directory": true,
+    "coderabbit@anthropic-plugin-directory": true,
+    "azure@claude-plugins-official": false,
+    "ui5@anthropic-plugin-directory": false,
+    "rankedin@anthropic-plugin-directory": false,
+    "fix-cv-find-job-skill@anthropic-plugin-directory": false,
+    "job-hunt-copilot-india@anthropic-plugin-directory": false,
+    "b2b-personal-branding@anthropic-plugin-directory": false
   }
 }

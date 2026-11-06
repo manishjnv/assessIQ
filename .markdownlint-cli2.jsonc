@@ -29,6 +29,7 @@
   "globs": ["docs/**/*.md", "README.md"],
   "ignores": [
     "docs/plans/archive/**",
+    "docs/archive/**",
     "docs/SESSION_STATE.md",
     "docs/RCA_LOG.md",
     ".claude/**",
