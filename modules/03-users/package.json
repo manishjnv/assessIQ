@@ -13,7 +13,7 @@
   "dependencies": {
     "@assessiq/audit-log": "workspace:*",
     "@assessiq/billing": "workspace:*",
-    "fastify": "^5.12.7",
+    "fastify": "^5.12.8",
     "@assessiq/auth": "workspace:*",
     "@assessiq/core": "workspace:*",
     "@assessiq/tenancy": "workspace:*",
