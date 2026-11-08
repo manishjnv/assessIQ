@@ -5,6 +5,7 @@ import { findOrCreatePackForDomain } from "../../../04-question-bank/src/service
 import {
   nodeScopeArgs,
   questionStyleNodeIdsSql,
+  questionTemplateKeySql,
   taxonomyDrawPredicate,
   type NodeScope,
 } from "../../../04-question-bank/src/taxonomy-nodes.js";
@@ -12,7 +13,7 @@ import { AL_ERROR_CODES } from "../types.js";
 import { passesSectionTypeAndDifficulty } from "@assessiq/question-types";
 import { levelAtSamePosition } from "./_shared.js";
 
-interface PoolFact { type: string; difficulty_est: number | null; style_node_ids: string[] }
+interface PoolFact { type: string; difficulty_est: number | null; style_node_ids: string[]; template_key: string | null }
 import type { AssessmentBlueprint, ResolvedBlueprint } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -232,7 +233,7 @@ export async function assertSectionPoolsFillable(
     // EXP-23: a section with its own pack counts that pack's level at the assessment level's position.
     const sPack = s.pack_id ?? packId;
     const sLevel = sPack === packId ? levelId : await levelAtSamePosition(client, sPack, levelId);
-    const base = `SELECT q.type, q.difficulty_est, ${questionStyleNodeIdsSql("q")} AS style_node_ids FROM questions q WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'`;
+    const base = `SELECT q.type, q.difficulty_est, ${questionStyleNodeIdsSql("q")} AS style_node_ids, ${questionTemplateKeySql("q")} AS template_key FROM questions q WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'`;
     if (sLevel === null) {
       throw new ValidationError(
         `Section "${s.name ?? ""}" has too few questions: 0 available, ${s.question_count} needed`,
@@ -249,7 +250,9 @@ export async function assertSectionPoolsFillable(
           ? await client.query<PoolFact>(`${base} AND q.category_id = ANY($3::uuid[])`, [sPack, sLevel, s.category_ids])
           : await client.query<PoolFact>(base, [sPack, sLevel]);
     // CT-0: the same type and difficulty rule the draw applies (06 startAttempt), so publish cannot pass and the draw run short.
-    const available = r.rows.filter((q) => passesSectionTypeAndDifficulty(s, q)).length;
+    // EXP-24: one item per template for the whole test, so a section counts distinct template keys plus keyless items (same rule as the draw).
+    const fit = r.rows.filter((q) => passesSectionTypeAndDifficulty(s, q));
+    const available = new Set(fit.filter((q) => q.template_key !== null).map((q) => q.template_key)).size + fit.filter((q) => q.template_key === null).length;
     if (available < s.question_count) {
       throw new ValidationError(
         `Section "${s.name ?? ""}" has too few questions: ${available} available, ${s.question_count} needed`,

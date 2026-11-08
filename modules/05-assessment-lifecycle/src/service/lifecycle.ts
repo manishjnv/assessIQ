@@ -3,6 +3,7 @@ import { withTenant, assertCameraTestAllowed } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
 import { assertPublishEntitled } from "@assessiq/billing";
 import type { PoolClient } from "pg";
+import { questionTemplateKeySql } from "../../../04-question-bank/src/taxonomy-nodes.js";
 import * as repo from "../repository.js";
 import { assertCanTransition, assertReopenAllowed } from "../state-machine.js";
 import { AL_ERROR_CODES } from "../types.js";
@@ -56,7 +57,7 @@ async function freezeAssessmentPool(
   await client.query(
     `INSERT INTO assessment_frozen_pool
        (tenant_id, assessment_id, question_id, question_version,
-        level_id, domain_id, category_id, type, points, node_ids, pack_id, difficulty_est,
+        level_id, domain_id, category_id, type, points, node_ids, pack_id, difficulty_est, template_key,
         negative_marks, marks_frozen)
      SELECT $1, $2, q.id, MAX(qv.version)::int,
             q.level_id, q.domain_id, q.category_id, q.type, q.points,
@@ -64,6 +65,7 @@ async function freezeAssessmentPool(
             COALESCE((SELECT array_agg(qt.node_id) FROM question_taxonomy qt WHERE qt.question_id = q.id), '{}'),
             q.pack_id, -- EXP-23
             q.difficulty_est, -- CT-0: frozen with the row (migration 0267)
+            ${questionTemplateKeySql("q")}, -- EXP-24: frozen with the row (migration 0290)
             q.negative_marks, true -- EXP-14: marks frozen with the row, a master edit cannot reach a running test (0279)
        FROM questions q
        JOIN question_versions qv ON qv.question_id = q.id

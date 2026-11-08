@@ -66,6 +66,11 @@ export function questionStyleNodeIdsSql(alias: string): string {
   return styleNodeIdsOfSql(`COALESCE((SELECT array_agg(qt.node_id) FROM question_taxonomy qt WHERE qt.question_id = ${alias}.id), '{}')`);
 }
 
+/** EXP-24: template key of live question `alias` = question_source.seed_ref before '@' (NULL = no key, not limited). */
+export function questionTemplateKeySql(alias: string): string {
+  return `(SELECT NULLIF(split_part(qs.seed_ref, '@', 1), '') FROM question_source qs WHERE qs.question_id = ${alias}.id)`;
+}
+
 /** Framework 1 ('legacy-domains', NULL tenant). Visible under RLS; throws if 0169 data is absent. */
 export async function legacyFrameworkId(client: PoolClient): Promise<string> {
   const r = await client.query<{ id: string }>(

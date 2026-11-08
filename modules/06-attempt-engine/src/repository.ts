@@ -17,7 +17,7 @@
 
 import type { PassageFact } from "./passages.js";
 import type { PoolClient } from "pg";
-import { nodeScopeArgs, questionStyleNodeIdsSql, styleNodeIdsOfSql, taxonomyDescendantsSql, taxonomyDrawPredicate, type NodeScope } from "../../04-question-bank/src/taxonomy-nodes.js";
+import { nodeScopeArgs, questionStyleNodeIdsSql, questionTemplateKeySql, styleNodeIdsOfSql, taxonomyDescendantsSql, taxonomyDrawPredicate, type NodeScope } from "../../04-question-bank/src/taxonomy-nodes.js";
 import type {
   Attempt,
   AttemptAnswer,
@@ -1151,13 +1151,13 @@ export async function listFrozenPoolForCriterion(
 export async function listPoolWithCategory(
   client: PoolClient,
   input: { assessmentId: string; packId: string; levelId: string; useFrozen: boolean },
-): Promise<Array<{ id: string; version: number; category_id: string | null; pack_id: string | null; type: string; difficulty_est: number | null; style_node_ids: string[] }>> {
+): Promise<Array<{ id: string; version: number; category_id: string | null; pack_id: string | null; type: string; difficulty_est: number | null; style_node_ids: string[]; template_key: string | null }>> {
   if (input.useFrozen) {
     // EXP-23: pack_id is frozen with the pool row (NULL = frozen before EXP-23 = the assessment pack).
     // EXP-34/FUT-9: type and difficulty_est are both frozen with the row (CT-0, migration 0267).
     // EXAM-STYLE: the style nodes among the frozen node_ids ('{}' = neutral).
-    const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string | null; type: string; difficulty_est: number | null; style_node_ids: string[] }>(
-      `SELECT fp.question_id AS id, fp.question_version AS version, fp.category_id, fp.pack_id, fp.type, fp.difficulty_est,
+    const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string | null; type: string; difficulty_est: number | null; style_node_ids: string[]; template_key: string | null }>(
+      `SELECT fp.question_id AS id, fp.question_version AS version, fp.category_id, fp.pack_id, fp.type, fp.difficulty_est, fp.template_key, -- EXP-24
               ${styleNodeIdsOfSql("fp.node_ids")} AS style_node_ids
          FROM assessment_frozen_pool fp
         WHERE fp.assessment_id = $1 ORDER BY fp.question_id ASC`,
@@ -1166,8 +1166,9 @@ export async function listPoolWithCategory(
     return r.rows;
   }
   // Unfrozen (legacy) assessments only ever drew from the assessment pack; a section with its own pack_id finds nothing here (fail closed).
-  const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string; type: string; difficulty_est: number | null; style_node_ids: string[] }>(
+  const r = await client.query<{ id: string; version: number; category_id: string | null; pack_id: string; type: string; difficulty_est: number | null; style_node_ids: string[]; template_key: string | null }>(
     `SELECT q.id, MAX(qv.version)::int AS version, q.category_id, q.pack_id, q.type, q.difficulty_est,
+            ${questionTemplateKeySql("q")} AS template_key, -- EXP-24
             ${questionStyleNodeIdsSql("q")} AS style_node_ids
        FROM questions q
        JOIN question_versions qv ON qv.question_id = q.id

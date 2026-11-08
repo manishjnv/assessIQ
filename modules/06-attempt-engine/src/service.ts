@@ -599,6 +599,7 @@ export async function startAttempt(
         useFrozen,
       });
       const used = new Set<string>();
+      const usedKeys = new Set<string>(); // EXP-24: template keys already in this test (all sections)
       const passageInfo = await repo.listPassageInfo(client, pool.map((q) => q.id)); // EXP-8
       chosen = [];
       sectionOf = [];
@@ -616,6 +617,17 @@ export async function startAttempt(
               : cats === null || (q.category_id !== null && cats.has(q.category_id))),
         );
         if (assessment.randomize) shuffleInPlace(cand);
+        // EXP-24: at most one item per template in the whole test. Keyless items (null) are not limited.
+        // Keep the first candidate of each key (deterministic: same order, same pick); drop keys used by earlier sections.
+        const seenKeys = new Set<string>();
+        const capped = cand.filter((q) => {
+          if (q.template_key === null || q.template_key === undefined) return true;
+          if (usedKeys.has(q.template_key) || seenKeys.has(q.template_key)) return false;
+          seenKeys.add(q.template_key);
+          return true;
+        });
+        cand.length = 0;
+        cand.push(...capped);
         const n = s.question_count ?? cand.length;
         // EXP-8: whole passages only; a passage that does not fit the section is skipped whole.
         const taken = takeUnits(cand, n, passageInfo);
@@ -634,6 +646,7 @@ export async function startAttempt(
         }
         for (const q of taken) {
           used.add(q.id);
+          if (q.template_key != null) usedKeys.add(q.template_key);
           chosen.push({ id: q.id, version: q.version });
           sectionOf.push(si);
         }
