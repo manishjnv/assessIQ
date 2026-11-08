@@ -13,6 +13,8 @@
  *        the check is skipped with a warning when the flag is absent).
  *  (iv)  coverage: checkCoverage() fails when a difficulty pool is below 1x the questions drawn, and
  *        warns below 3x. Pure function; called by the blueprint tooling, self-tested here.
+ *  (iv-b) checkTemplateKeyCoverage(): same thresholds, counted in distinct template keys (EXP-24); warns when a
+ *        subject lacks engine levels 1, 3 or 5. Pure function.
  *  (v)   warn (not fail) on a subject no blueprint references. Needs `--blueprints`.
  *
  * Usage: pnpm lint:aptitude-taxonomy [family.csv] [--blueprints file.json]
@@ -27,7 +29,9 @@ export const STAGE_0_SUBJECTS = ["quant", "reasoning", "english"] as const;
 
 export interface SeedLike { code: string; children?: SeedLike[] | undefined }
 export interface BlueprintSeed { stage: string; sections: { subject: string }[] }
-export interface SectionDraw { section: string; difficulty: number; questionCount: number }
+export interface SectionDraw { section: string; difficulty: number; questionCount: number; subject?: string; style?: string }
+/** One pool stratum: distinct template keys and keyless items for a subject x difficulty (x style; none or 'neutral' = unstyled). */
+export interface Stratum { subject: string; difficulty: number; style?: string; distinctKeys: number; keyless: number }
 export interface CoverageResult { errors: string[]; warnings: string[] }
 
 /** RFC 4180 style CSV: quoted fields may hold commas and doubled quotes. Blank lines are dropped. */
@@ -114,6 +118,43 @@ export function checkCoverage(sectionDraws: SectionDraw[], poolCounts: Record<nu
     const pool = poolCounts[difficulty] ?? 0;
     if (pool < n) errors.push(`difficulty ${difficulty}: pool ${pool} is below 1x the ${n} questions drawn`);
     else if (pool < 3 * n) warnings.push(`difficulty ${difficulty}: pool ${pool} is below 3x the ${n} questions drawn`);
+  }
+  return { errors, warnings };
+}
+
+const ENGINE_LEVELS = [1, 3, 5] as const;
+const isStyled = (st?: string): st is string => st !== undefined && st !== "" && st !== "neutral";
+
+/**
+ * (iv-b) Coverage by template key. EXP-24 allows one item per template key in a test, so a stratum must offer at
+ * least as many DISTINCT keys (plus keyless items) as the questions drawn from it. Fail below 1x, warn below 3x.
+ * A styled section sees its own style plus unstyled strata; an unstyled section sees unstyled strata only.
+ * ponytail: keys are summed across the visible strata; a key shared by two styles counts twice (rare, lint is advisory above 1x).
+ * Owner rule: each subject must also have strata for engine levels 1, 3 and 5 (warn).
+ */
+export function checkTemplateKeyCoverage(sectionDraws: SectionDraw[], strata: Stratum[]): CoverageResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const need = new Map<string, { subject: string; difficulty: number; style?: string; n: number }>();
+  for (const d of sectionDraws) {
+    if (d.subject === undefined || d.questionCount <= 0) continue;
+    const k = `${d.subject}|${d.difficulty}|${isStyled(d.style) ? d.style : ""}`;
+    const cur = need.get(k) ?? { subject: d.subject, difficulty: d.difficulty, ...(isStyled(d.style) ? { style: d.style } : {}), n: 0 };
+    cur.n += d.questionCount;
+    need.set(k, cur);
+  }
+  for (const { subject, difficulty, style, n } of [...need.values()].sort((a, b) => (a.subject + a.difficulty).localeCompare(b.subject + b.difficulty))) {
+    const have = strata
+      .filter((s) => s.subject === subject && s.difficulty === difficulty && (!isStyled(s.style) || s.style === style))
+      .reduce((sum, s) => sum + s.distinctKeys + s.keyless, 0);
+    const label = `${subject} difficulty ${difficulty}${style ? ` style ${style}` : ""}`;
+    if (have < n) errors.push(`${label}: ${have} distinct template keys (plus keyless) is below 1x the ${n} questions drawn`);
+    else if (have < 3 * n) warnings.push(`${label}: ${have} distinct template keys (plus keyless) is below 3x the ${n} questions drawn`);
+  }
+  for (const subject of [...new Set(strata.map((s) => s.subject))].sort()) {
+    const levels = new Set(strata.filter((s) => s.subject === subject && s.distinctKeys + s.keyless > 0).map((s) => s.difficulty));
+    const missing = ENGINE_LEVELS.filter((l) => !levels.has(l));
+    if (missing.length) warnings.push(`subject '${subject}': no items at engine level ${missing.join(", ")} (bands must cover 1, 3 and 5)`);
   }
   return { errors, warnings };
 }

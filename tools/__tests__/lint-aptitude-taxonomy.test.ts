@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
-  checkCoverage, checkExamStyleSeed, checkFamilyClasses, checkStageSubjects, checkUnreferencedSubjects, parseCsv,
+  checkCoverage, checkTemplateKeyCoverage, checkExamStyleSeed, checkFamilyClasses, checkStageSubjects, checkUnreferencedSubjects, parseCsv,
 } from "../lint-aptitude-taxonomy.js";
 
 describe("checkFamilyClasses (i)", () => {
@@ -57,6 +57,31 @@ describe("checkCoverage (iv)", () => {
       { section: "B", difficulty: 3, questionCount: 10 },
     ];
     expect(checkCoverage(draws, { 3: 15 }).errors).toHaveLength(1);
+  });
+});
+
+describe("checkTemplateKeyCoverage (iv-b)", () => {
+  const draws = [{ section: "A", subject: "quant", difficulty: 3, questionCount: 10 }];
+  const full = (n: number, k = 0) => [1, 3, 5].map((difficulty) => ({ subject: "quant", difficulty, distinctKeys: n, keyless: k }));
+  it("fails below 1x, warns below 3x, passes at 3x; keyless items count", () => {
+    expect(checkTemplateKeyCoverage(draws, full(9)).errors).toHaveLength(1);
+    expect(checkTemplateKeyCoverage(draws, full(9, 1))).toEqual({ errors: [], warnings: [expect.stringMatching(/below 3x/)] });
+    expect(checkTemplateKeyCoverage(draws, full(30))).toEqual({ errors: [], warnings: [] });
+  });
+  it("sums draws of one subject and difficulty across sections", () => {
+    const two = [...draws, { section: "B", subject: "quant", difficulty: 3, questionCount: 10 }];
+    expect(checkTemplateKeyCoverage(two, full(15)).errors).toHaveLength(1);
+  });
+  it("styled sections see own style plus unstyled; unstyled sections skip styled strata", () => {
+    const strata = [{ subject: "quant", difficulty: 3, distinctKeys: 4, keyless: 0 }, { subject: "quant", difficulty: 3, style: "bank", distinctKeys: 6, keyless: 0 }];
+    const d = (style?: string) => [{ section: "A", subject: "quant", difficulty: 3, questionCount: 8, ...(style ? { style } : {}) }];
+    expect(checkTemplateKeyCoverage(d("bank"), strata).errors).toEqual([]);
+    expect(checkTemplateKeyCoverage(d(), strata).errors).toHaveLength(1);
+    expect(checkTemplateKeyCoverage(d("ssc"), strata).errors).toHaveLength(1);
+  });
+  it("warns when a subject lacks engine level 1, 3 or 5", () => {
+    const w = checkTemplateKeyCoverage([], [{ subject: "english", difficulty: 1, distinctKeys: 5, keyless: 0 }, { subject: "english", difficulty: 3, distinctKeys: 5, keyless: 0 }]).warnings;
+    expect(w).toEqual([expect.stringMatching(/'english'.*level 5/)]);
   });
 });
 
