@@ -17,6 +17,8 @@ import ibSeed from "./frameworks/ib.json" with { type: "json" };
 import examStructureSeed from "./frameworks/exam-structure.json" with { type: "json" };
 import subjectMapSeed from "./frameworks/subject-map.json" with { type: "json" };
 
+import examStyleSeed from "./frameworks/exam-style.json" with { type: "json" };
+
 const Code = z.string().regex(/^[a-z0-9-]{1,64}$/);
 const KINDS = ["board", "stage", "grade", "subject", "unit", "outcome", "criterion"] as const;
 
@@ -66,7 +68,7 @@ const SeedSchema = z
 export type FrameworkSeed = z.infer<typeof SeedSchema>;
 
 // Add new bundled seeds here (one static import each, so they ship in the API image).
-const BUNDLED: Record<string, unknown> = { sample: sampleSeed, cbse: cbseSeed, icse: icseSeed, ib: ibSeed, "exam-structure": examStructureSeed, "subject-map": subjectMapSeed };
+const BUNDLED: Record<string, unknown> = { sample: sampleSeed, cbse: cbseSeed, icse: icseSeed, ib: ibSeed, "exam-structure": examStructureSeed, "subject-map": subjectMapSeed, "exam-style": examStyleSeed };
 
 /** Validate; throws ValidationError naming the schema path of the FIRST error (e.g. nodes.0.children.1.kind). */
 export function validateFrameworkSeed(raw: unknown): FrameworkSeed {

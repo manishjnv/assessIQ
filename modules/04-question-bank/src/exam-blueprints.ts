@@ -28,6 +28,8 @@ const SectionIn = z
 export const BlueprintBodySchema = z
   .object({
     stage_node_id: z.string().uuid().nullable().default(null),
+    /** EXAM-STYLE: platform node of framework exam-style; every section draws only this style or items with no style. */
+    style_node_id: z.string().uuid().nullable().default(null),
     edition: z.string().trim().min(1).max(40),
     name: z.string().trim().min(1).max(120),
     total_minutes: z.number().int().min(1).max(600),
@@ -77,6 +79,7 @@ export interface ExamBlueprintSection {
 export interface ExamBlueprint {
   id: string;
   stage_node_id: string | null;
+  style_node_id: string | null;
   edition: string;
   name: string;
   total_minutes: number;
@@ -102,7 +105,7 @@ interface SectionRow extends Omit<ExamBlueprintSection, "marks_per_question" | "
   cutoff_marks: string | null;
 }
 
-const HEAD_COLS = `id, stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note,
+const HEAD_COLS = `id, stage_node_id, style_node_id, edition, name, total_minutes, qualifying, verification_status, source_note,
   max_questions, owner_contact, archived_at, supersedes_id, last_checked_at, next_check_due::text AS next_check_due`;
 
 /** A list hides archived patterns; a read by id still returns one (old assessments point at it). */
@@ -153,6 +156,12 @@ async function assertNodes(client: PoolClient, b: BlueprintBody): Promise<void> 
     }
   };
   await check(b.stage_node_id === null ? [] : [b.stage_node_id], "stage", "stage_node_id");
+  if (b.style_node_id !== null) {
+    const st = await client.query(
+      `SELECT n.id FROM taxonomy_nodes n JOIN frameworks f ON f.id = n.framework_id
+        WHERE n.id = $1 AND n.tenant_id IS NULL AND f.tenant_id IS NULL AND f.slug = 'exam-style'`, [b.style_node_id]);
+    if (st.rows.length !== 1) throw new ValidationError("unknown style_node_id node", { details: { code: "INVALID_PARAM", param: "style_node_id" } });
+  }
   await check(b.sections.flatMap((s) => (s.subject_node_id === null ? [] : [s.subject_node_id])), "subject", "subject_node_id");
 }
 
@@ -191,9 +200,9 @@ export async function createExamBlueprint(tenantId: string, userId: string, b: B
       `SELECT 1 FROM exam_blueprints WHERE stage_node_id = $1 AND edition = $2`, [b.stage_node_id, b.edition])).rows;
     if (dup.length > 0) throw new ValidationError("a blueprint for this stage and edition exists", { details: { code: "DUPLICATE" } });
     const id = (await client.query<{ id: string }>(
-      `INSERT INTO exam_blueprints (stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note, max_questions, owner_contact)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact])).rows[0]!.id;
+      `INSERT INTO exam_blueprints (stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note, max_questions, owner_contact, style_node_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact, b.style_node_id])).rows[0]!.id;
     await insertSections(client, id, b);
     const result = (await load(client, id))[0]!;
     return { result, audit: { tenantId, actorKind: "user", actorUserId: userId, action: "exam_blueprint.created", entityType: "exam_blueprint", entityId: id, after: { ...result } } };
@@ -219,9 +228,9 @@ export async function updateExamBlueprint(tenantId: string, userId: string, id: 
         `SELECT 1 FROM exam_blueprints WHERE stage_node_id = $1 AND edition = $2`, [b.stage_node_id, b.edition])).rows;
       if (dup.length > 0) throw new ValidationError("a blueprint for this stage and edition exists", { details: { code: "DUPLICATE" } });
       const nid = (await client.query<{ id: string }>(
-        `INSERT INTO exam_blueprints (stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note, max_questions, owner_contact, supersedes_id)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
-        [b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact, id])).rows[0]!.id;
+        `INSERT INTO exam_blueprints (stage_node_id, edition, name, total_minutes, qualifying, verification_status, source_note, max_questions, owner_contact, supersedes_id, style_node_id)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+        [b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact, id, b.style_node_id])).rows[0]!.id;
       await insertSections(client, nid, b);
       const result = (await load(client, nid))[0]!;
       return { result, audit: { tenantId, actorKind: "user", actorUserId: userId, action: "exam_blueprint.created", entityType: "exam_blueprint", entityId: nid, before: { ...before }, after: { ...result } } };
@@ -233,8 +242,8 @@ export async function updateExamBlueprint(tenantId: string, userId: string, id: 
     }
     await client.query(
       `UPDATE exam_blueprints SET stage_node_id=$2, edition=$3, name=$4, total_minutes=$5, qualifying=$6,
-              verification_status=$7, source_note=$8, max_questions=$9, owner_contact=$10, updated_at=now() WHERE id=$1`,
-      [id, b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact]);
+              verification_status=$7, source_note=$8, max_questions=$9, owner_contact=$10, style_node_id=$11, updated_at=now() WHERE id=$1`,
+      [id, b.stage_node_id, b.edition, b.name, b.total_minutes, b.qualifying, b.verification_status, b.source_note, b.max_questions, b.owner_contact, b.style_node_id]);
     await client.query(`DELETE FROM exam_blueprint_sections WHERE blueprint_id = $1`, [id]);
     await insertSections(client, id, b);
     const result = (await load(client, id))[0]!;

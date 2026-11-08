@@ -2,7 +2,7 @@ import { type PoolClient } from "pg";
 import { uuidv7, NotFoundError, ValidationError } from "@assessiq/core";
 import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
-import { type ClonePackResult, type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, uniqueNonNull, getPlatformTenantId, deriveCloneSlug, copyQuestionSource, NOT_WITHDRAWN_SQL } from "./helpers.js";
+import { type ClonePackResult, type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, uniqueNonNull, getPlatformTenantId, deriveCloneSlug, copyQuestionSource, copyQuestionTaxonomy, NOT_WITHDRAWN_SQL } from "./helpers.js";
 import { provisionPlatformTaxonomyForQuestions } from "./taxonomy.js";
 import { copyAssetsForContent } from "../assets/assets.js";
 
@@ -307,6 +307,8 @@ export async function clonePackToTenant(
 
     questionCount++;
   }
+
+  await copyQuestionTaxonomy(client, newPackId);
 
   return {
     clonedPackId: newPackId,

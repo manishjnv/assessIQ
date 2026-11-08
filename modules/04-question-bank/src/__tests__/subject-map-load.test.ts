@@ -53,8 +53,8 @@ describe("subject-map load", () => {
     const second = await counts();
     expect(second).toEqual(first);
     const by = Object.fromEntries(first.map((r) => [r.kind, r.n]));
-    expect(by["subject"]).toBe(5);
+    expect(by["subject"]).toBe(7); // 2026-11-08: technical-aptitude renamed computer-aptitude; programming-logic and mechanical-comprehension added
     expect(by["outcome"]).toBe(125);
-    expect(by["unit"]).toBe(37); // 25 from part A, 12 new in part b
+    expect(by["unit"]).toBe(48); // 37 before 2026-11-08, minus technical-basics, plus 5 + 3 + 4 new units
   });
 });

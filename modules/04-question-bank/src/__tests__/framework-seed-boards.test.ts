@@ -75,7 +75,7 @@ describe("exam-structure and subject-map seeds", () => {
     expect(exam.nodes.reduce((a, b) => a + (b.children ?? []).length, 0)).toBe(15);
   });
   it("subject-map has 5 subjects and every part A outcome still exists under the same parent", () => {
-    expect(subj.nodes.map((n) => n.code)).toEqual(["quant", "reasoning", "english", "general-awareness", "technical-aptitude"]);
+    expect(subj.nodes.map((n) => n.code)).toEqual(["quant", "reasoning", "english", "general-awareness", "computer-aptitude", "programming-logic", "mechanical-comprehension"]);
     // The 17 outcomes of part A (they include the 15 pilot template outcomes). Never rename, move or delete.
     const PILOT: Record<string, string[]> = {
       "quant/arithmetic": ["percentage", "profit-and-loss", "ratio", "time-and-work", "time-speed-distance", "simple-and-compound-interest", "average", "mixture"],
@@ -104,8 +104,8 @@ describe("exam-structure and subject-map seeds", () => {
       expect(u.children!.every((o) => o.kind === "outcome" && KEBAB.test(o.code))).toBe(true);
     }
     expect(aptUnits.flatMap((u) => u.children ?? [])).toHaveLength(125);
-    // Owner 2026-10-29: General awareness and Technical aptitude stay without outcomes.
-    for (const s of subj.nodes.filter((n) => ["general-awareness", "technical-aptitude"].includes(n.code))) {
+    // Owner 2026-10-29: General awareness and Computer aptitude stay without outcomes (also the 2026-11-08 subjects).
+    for (const s of subj.nodes.filter((n) => ["general-awareness", "computer-aptitude", "programming-logic", "mechanical-comprehension"].includes(n.code))) {
       expect((s.children ?? []).flatMap((u) => u.children ?? [])).toHaveLength(0);
     }
   });

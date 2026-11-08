@@ -4,6 +4,7 @@ import type { PoolClient } from "pg";
 import { findOrCreatePackForDomain } from "../../../04-question-bank/src/service.js";
 import {
   nodeScopeArgs,
+  questionStyleNodeIdsSql,
   taxonomyDrawPredicate,
   type NodeScope,
 } from "../../../04-question-bank/src/taxonomy-nodes.js";
@@ -11,7 +12,7 @@ import { AL_ERROR_CODES } from "../types.js";
 import { passesSectionTypeAndDifficulty } from "@assessiq/question-types";
 import { levelAtSamePosition } from "./_shared.js";
 
-interface PoolFact { type: string; difficulty_est: number | null }
+interface PoolFact { type: string; difficulty_est: number | null; style_node_ids: string[] }
 import type { AssessmentBlueprint, ResolvedBlueprint } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -219,12 +220,19 @@ export async function assertSectionPoolsFillable(
 ): Promise<void> {
   const raw = (settings as { sections?: unknown } | null | undefined)?.sections;
   if (!Array.isArray(raw)) return;
-  for (const s of raw as Array<{ name?: string; category_ids?: string[]; node_id?: string; question_count?: number; pack_id?: string; allowed_types?: string[]; difficulty_min?: number; difficulty_max?: number }>) {
+  for (const s of raw as Array<{ name?: string; category_ids?: string[]; node_id?: string; style_node_id?: string; question_count?: number; pack_id?: string; allowed_types?: string[]; difficulty_min?: number; difficulty_max?: number }>) {
     if (s.question_count === undefined) continue;
+    // EXAM-STYLE: a pattern section with no subject node would draw the WHOLE pack (compile-test omits node_id). Refuse at publish.
+    if ((settings as { exam_blueprint?: unknown }).exam_blueprint !== undefined && s.node_id === undefined && s.category_ids === undefined) {
+      throw new ValidationError(
+        `Section "${s.name ?? ""}" of the exam pattern has no subject topic. Set a subject on the pattern section before you publish`,
+        { details: { code: AL_ERROR_CODES.SECTION_SUBJECT_MISSING, section: s.name } },
+      );
+    }
     // EXP-23: a section with its own pack counts that pack's level at the assessment level's position.
     const sPack = s.pack_id ?? packId;
     const sLevel = sPack === packId ? levelId : await levelAtSamePosition(client, sPack, levelId);
-    const base = `SELECT q.type, q.difficulty_est FROM questions q WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'`;
+    const base = `SELECT q.type, q.difficulty_est, ${questionStyleNodeIdsSql("q")} AS style_node_ids FROM questions q WHERE q.pack_id = $1 AND q.level_id = $2 AND q.status = 'active'`;
     if (sLevel === null) {
       throw new ValidationError(
         `Section "${s.name ?? ""}" has too few questions: 0 available, ${s.question_count} needed`,

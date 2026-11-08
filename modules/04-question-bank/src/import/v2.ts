@@ -7,7 +7,7 @@ import type { RowError, RowMeta } from "./types.js";
 
 /** Template columns added by v2, in template order. */
 export const V2_COLUMNS = [
-  "exam_stage", "subject_path", "difficulty", "difficulty_scale", "rights_status", "origin",
+  "exam_stage", "subject_path", "style", "difficulty", "difficulty_scale", "rights_status", "origin",
   "source_ref", "source_url", "seed_ref", "language", "pyq_year", "pyq_shift",
   "passage_ref", "passage_text",
 ] as const;
@@ -66,7 +66,7 @@ export async function loadTaxonomyIndex(client: PoolClient): Promise<TaxonomyInd
   const r = await client.query<{ id: string; parent_id: string | null; kind: string; code: string; label: string; fw: string }>(
     `SELECT n.id, n.parent_id, n.kind, n.code, n.label, f.slug AS fw
        FROM taxonomy_nodes n JOIN frameworks f ON f.id = n.framework_id
-      WHERE f.tenant_id IS NULL AND f.slug IN ('exam-structure', 'subject-map') AND n.status = 'active'`,
+      WHERE f.tenant_id IS NULL AND f.slug IN ('exam-structure', 'subject-map', 'exam-style') AND n.status = 'active'`,
   );
   return { nodes: r.rows.map((x) => ({ id: x.id, parentId: x.parent_id, kind: x.kind, code: x.code, label: x.label, fw: x.fw })) };
 }
@@ -75,6 +75,31 @@ const same = (n: Node, name: string): boolean => {
   const k = name.trim().toLowerCase();
   return n.label.toLowerCase() === k || n.code.toLowerCase() === k;
 };
+
+// ---------------------------------------------------------------------------
+// Exam style (optional `style` column) and its option-count rule
+// ---------------------------------------------------------------------------
+
+/** Options an mcq needs. Every style not listed here (and an empty style) needs DEFAULT_MCQ_OPTIONS. */
+export const DEFAULT_MCQ_OPTIONS = 4;
+export const STYLE_MCQ_OPTIONS: Readonly<Record<string, number>> = { bank: 5 };
+
+/** Option-count error for an mcq row, or null. `styleCode` is the resolved style code ('' = neutral). Non-mcq rows and unreadable option cells are not checked here. */
+export function styleOptionError(type: string, styleCode: string, optionsCell: string): string | null {
+  if (type.toLowerCase() !== "mcq") return null;
+  let count: number;
+  try {
+    const parsed: unknown = JSON.parse(optionsCell);
+    if (!Array.isArray(parsed)) return null;
+    count = parsed.length;
+  } catch {
+    return null; // validateRow reports the unreadable options cell
+  }
+  const want = STYLE_MCQ_OPTIONS[styleCode] ?? DEFAULT_MCQ_OPTIONS;
+  if (count === want) return null;
+  const label = styleCode === "" ? "no style (neutral)" : `style '${styleCode}'`;
+  return `an mcq with ${label} needs exactly ${want} options; this row has ${count}`;
+}
 
 // ---------------------------------------------------------------------------
 // seed_ref format (EXP-22)
@@ -161,10 +186,22 @@ export function parseV2(
   const { nodes } = opts.taxonomy;
   let stageNodeId: string | null = null;
   let subjectNodeId: string | null = null;
+  let styleNodeId: string | null = null;
+  let styleCode = "";
   if (c("exam_stage") !== "") {
     const hit = nodes.find((n) => n.fw === "exam-structure" && n.kind === "stage" && same(n, c("exam_stage")));
     if (hit) stageNodeId = hit.id; else err("exam_stage", `exam_stage '${c("exam_stage")}' is not a stage in the Exam structure framework`);
   }
+  // Style: optional. Empty = no style node (neutral). An unknown value is a row error.
+  if (c("style") !== "") {
+    const hit = nodes.find((n) => n.fw === "exam-style" && same(n, c("style")));
+    // 'neutral' is the same as no style: nothing is inserted.
+    if (hit) { if (hit.code !== "neutral") { styleNodeId = hit.id; styleCode = hit.code; } }
+    else err("style", `style '${c("style")}' is not a style in the Exam style framework`);
+  }
+  // Option-count rule only when a style is given (legacy files without a style column keep their option counts).
+  const optionErr = c("style") !== "" ? styleOptionError(c("type"), styleCode, c("options")) : null;
+  if (optionErr !== null) err("options", optionErr);
   if (c("subject_path") !== "") {
     const parts = c("subject_path").split("/").map((p) => p.trim());
     let parent: string | null = null;
@@ -184,7 +221,7 @@ export function parseV2(
   return {
     meta: {
       origin, rightsStatus: rights, sourceRef: c("source_ref") || null, sourceUrl: url || null, seedRef: c("seed_ref") || null,
-      sourceDifficultyRaw, difficultyEst, language, pyqYear, pyqShift: c("pyq_shift") || null, passageRef: c("passage_ref") || null, passageText: c("passage_text") || null, stageNodeId, subjectNodeId,
+      sourceDifficultyRaw, difficultyEst, language, pyqYear, pyqShift: c("pyq_shift") || null, passageRef: c("passage_ref") || null, passageText: c("passage_text") || null, stageNodeId, subjectNodeId, styleNodeId,
     },
     errors,
   };

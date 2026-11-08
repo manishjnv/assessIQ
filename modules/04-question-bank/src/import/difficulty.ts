@@ -1,7 +1,11 @@
 // EXP-4: source difficulty label -> platform 1..5 scale. The raw label is kept in
 // question_source.source_difficulty_raw; the mapped value goes to questions.difficulty_est.
+/** Owner decision 2026-11-08: the engine has 3 levels; the platform stores 1..5. easy=1, medium=3, hard=5 (blueprint bands later: easy 1-2, medium 3, hard 4-5). */
+export const ENGINE_DIFFICULTY = { easy: 1, medium: 3, hard: 5 } as const;
+
 export const DIFFICULTY_SCALES = {
   words: { easy: 2, medium: 3, hard: 4 },
+  engine: ENGINE_DIFFICULTY, // aptitude engine export: difficulty_scale=engine
   "1-3": { "1": 1, "2": 3, "3": 5 },
   "1-5": { "1": 1, "2": 2, "3": 3, "4": 4, "5": 5 },
 } as const satisfies Record<string, Record<string, number>>;

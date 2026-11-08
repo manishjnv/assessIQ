@@ -9,7 +9,7 @@ const sec = (name: string, n: number, minutes: number | null = null) => ({
   sectional_timing: minutes !== null, qualifying: false, cutoff_marks: null, calculator_allowed: false, allowed_types: ["mcq"],
 });
 const bp = (over: Partial<ExamBlueprint> = {}): ExamBlueprint => ({
-  id: "bp1", stage_node_id: null, edition: "2026", name: "Sample", total_minutes: 60, qualifying: false, verification_status: "verified", source_note: null,
+  id: "bp1", stage_node_id: null, style_node_id: null, edition: "2026", name: "Sample", total_minutes: 60, qualifying: false, verification_status: "verified", source_note: null,
   max_questions: 100, owner_contact: null, archived_at: null, supersedes_id: null, last_checked_at: null, next_check_due: "2026-12-01",
   total_questions: 50, total_marks: 100, sections: [sec("Part A", 30), sec("Part B", 20)], ...over,
 });

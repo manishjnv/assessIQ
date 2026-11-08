@@ -109,7 +109,7 @@ export async function commitImport(
         passageCount.set(ref, pos);
         await client.query(`UPDATE questions SET passage_id = $2, passage_position = $3 WHERE id = $1`, [id, pid, pos]);
       }
-      const nodeIds = [m?.stageNodeId, m?.subjectNodeId].filter((n): n is string => typeof n === "string");
+      const nodeIds = [m?.stageNodeId, m?.subjectNodeId, m?.styleNodeId].filter((n): n is string => typeof n === "string");
       if (nodeIds.length > 0) {
         await client.query(
           `INSERT INTO question_taxonomy (question_id, node_id) SELECT $1, UNNEST($2::uuid[]) ON CONFLICT DO NOTHING`,

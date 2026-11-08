@@ -898,14 +898,95 @@
       ]
     },
     {
-      "code": "technical-aptitude",
-      "title": "Technical aptitude",
+      "code": "computer-aptitude",
+      "title": "Computer Aptitude",
       "kind": "subject",
       "children": [
         {
-          "code": "technical-basics",
-          "title": "Technical basics",
-          "kind": "unit"
+          "code": "fundamentals",
+          "title": "Fundamentals",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "office-tools",
+          "title": "Office tools",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "internet-networking",
+          "title": "Internet and networking",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "number-systems",
+          "title": "Number systems",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "abbreviations",
+          "title": "Abbreviations",
+          "kind": "unit",
+          "children": []
+        }
+      ]
+    },
+    {
+      "code": "programming-logic",
+      "title": "Programming Logic",
+      "kind": "subject",
+      "children": [
+        {
+          "code": "pseudo-code-output",
+          "title": "Pseudo-code output",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "flowcharts",
+          "title": "Flowcharts",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "basic-data-structures",
+          "title": "Basic data structures",
+          "kind": "unit",
+          "children": []
+        }
+      ]
+    },
+    {
+      "code": "mechanical-comprehension",
+      "title": "Mechanical Comprehension",
+      "kind": "subject",
+      "children": [
+        {
+          "code": "levers",
+          "title": "Levers",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "gears",
+          "title": "Gears",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "pulleys",
+          "title": "Pulleys",
+          "kind": "unit",
+          "children": []
+        },
+        {
+          "code": "simple-circuits",
+          "title": "Simple circuits",
+          "kind": "unit",
+          "children": []
         }
       ]
     }

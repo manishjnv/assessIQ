@@ -82,6 +82,7 @@ export function compilePatternSections(
     name: s.name,
     question_count: isShort ? n : s.question_count,
     ...(s.subject_node_id !== null ? { node_id: s.subject_node_id } : {}), // Z-123: the draw filters by this node
+    ...(bp.style_node_id ? { style_node_id: bp.style_node_id } : {}), // EXAM-STYLE: one style for the whole pattern
     ...(sectional ? { minutes: isShort ? Math.max(1, Math.round((s.minutes as number) * n / s.question_count)) : (s.minutes as number) } : {}),
     marks_per_question: s.marks_per_question,
     negative_marks_per_question: s.negative_marks_per_question,

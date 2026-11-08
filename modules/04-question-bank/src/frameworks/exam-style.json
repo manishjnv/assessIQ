@@ -1,0 +1,13 @@
+{
+  "code": "exam-style",
+  "name": "Exam style",
+  "board": "EXAMS",
+  "version": "draft-unverified",
+  "nodes": [
+    { "code": "neutral", "title": "Neutral", "kind": "criterion" },
+    { "code": "ssc", "title": "SSC style", "kind": "criterion" },
+    { "code": "bank", "title": "Bank style", "kind": "criterion" },
+    { "code": "rrb", "title": "RRB style", "kind": "criterion" },
+    { "code": "campus", "title": "Campus style", "kind": "criterion" }
+  ]
+}

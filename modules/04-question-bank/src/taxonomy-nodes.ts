@@ -52,6 +52,20 @@ export function taxonomyDescendantsSql(nodeP: string): string {
       SELECT id FROM sub`;
 }
 
+/**
+ * EXAM-STYLE: SQL set of style node ids among the node ids `idsExpr` (a uuid[] expression): platform nodes of
+ * framework 'exam-style'. The 'neutral' node does not count as a style (a neutral item is an item with no style).
+ */
+export function styleNodeIdsOfSql(idsExpr: string): string {
+  return `ARRAY(SELECT n.id FROM taxonomy_nodes n JOIN frameworks f ON f.id = n.framework_id
+      WHERE f.slug = 'exam-style' AND f.tenant_id IS NULL AND n.code <> 'neutral' AND n.id = ANY(${idsExpr}))`;
+}
+
+/** EXAM-STYLE: the style node ids of live question `alias` (from question_taxonomy), '{}' = neutral. */
+export function questionStyleNodeIdsSql(alias: string): string {
+  return styleNodeIdsOfSql(`COALESCE((SELECT array_agg(qt.node_id) FROM question_taxonomy qt WHERE qt.question_id = ${alias}.id), '{}')`);
+}
+
 /** Framework 1 ('legacy-domains', NULL tenant). Visible under RLS; throws if 0169 data is absent. */
 export async function legacyFrameworkId(client: PoolClient): Promise<string> {
   const r = await client.query<{ id: string }>(

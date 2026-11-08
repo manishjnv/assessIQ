@@ -66,6 +66,25 @@ export const NOT_WITHDRAWN_SQL = `NOT EXISTS (SELECT 1 FROM question_source ws
   WHERE ws.question_id = questions.id AND ws.rights_status = 'withdrawn')`;
 
 /**
+ * Copy the platform question_taxonomy links (subject, stage, exam style...) onto every clone
+ * question of `clonePackId`, keyed by questions.source_question_id. The clone links the SAME
+ * platform node ids (nodes are shared, not tenant-scoped). One set-based statement, add-only
+ * and idempotent (ON CONFLICT DO NOTHING), like tags; the question_taxonomy owner trigger fills
+ * tenant_id/pack_id. Without it a node-filtered draw on the clone finds zero items.
+ * MUST run in the same system-role tx as the clone question inserts.
+ */
+export async function copyQuestionTaxonomy(client: PoolClient, clonePackId: string): Promise<void> {
+  await client.query(
+    `INSERT INTO question_taxonomy (question_id, node_id)
+     SELECT c.id, qt.node_id
+       FROM questions c JOIN question_taxonomy qt ON qt.question_id = c.source_question_id
+      WHERE c.pack_id = $1
+     ON CONFLICT (question_id, node_id) DO NOTHING`,
+    [clonePackId],
+  );
+}
+
+/**
  * EXP-2: copy the master question's provenance row and exam columns onto a fresh clone.
  * New row id and target tenant_id; origin, rights, source and licence fields are kept;
  * import_id and uploaded_by point at the master tenant, so they are not carried over.

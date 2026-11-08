@@ -3,7 +3,7 @@
  * v2 column validation, duplicate classes, template columns.
  */
 import { describe, it, expect } from "vitest";
-import { DIFFICULTY_SCALES, mapDifficulty } from "../import/difficulty.js";
+import { DIFFICULTY_SCALES, ENGINE_DIFFICULTY, mapDifficulty } from "../import/difficulty.js";
 import { normalisedTextHash, parseV2, V2_COLUMNS, type TaxonomyIndex } from "../import/v2.js";
 import { decide, validateRowV2, contentHash } from "../import/staging.js";
 import { templateRows } from "../import/templates.js";
@@ -16,7 +16,7 @@ const taxonomy: TaxonomyIndex = {
     { id: "n-pct", parentId: "n-arith", kind: "outcome", code: "percentage", label: "Percentage", fw: "subject-map" },
   ],
 };
-const base = { type: "mcq", topic: "t", points: "1", level: "1", question: "Q one?", options: '["a","b"]', correct: "1", rationale: "r" };
+const base = { type: "mcq", topic: "t", points: "1", level: "1", question: "Q one?", options: '["a","b","c","d"]', correct: "1", rationale: "r" };
 
 describe("mapDifficulty", () => {
   it("maps each scale", () => {
@@ -33,7 +33,11 @@ describe("mapDifficulty", () => {
     expect(mapDifficulty("tough", "words")).toHaveProperty("error");
     expect(mapDifficulty("4", "1-3")).toHaveProperty("error");
     expect(mapDifficulty("easy", "nope")).toHaveProperty("error");
-    expect(Object.keys(DIFFICULTY_SCALES)).toEqual(["words", "1-3", "1-5"]);
+    expect(Object.keys(DIFFICULTY_SCALES)).toEqual(["words", "engine", "1-3", "1-5"]);
+  });
+  it("maps the 3 engine levels to 1, 3 and 5 (owner 2026-11-08)", () => {
+    expect(ENGINE_DIFFICULTY).toEqual({ easy: 1, medium: 3, hard: 5 });
+    expect(["easy", "medium", "hard"].map((l) => mapDifficulty(l, "engine"))).toEqual([{ value: 1 }, { value: 3 }, { value: 5 }]);
   });
 });
 

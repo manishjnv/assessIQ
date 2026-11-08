@@ -69,6 +69,8 @@ export interface RowMeta {
   /** Resolved taxonomy_nodes ids (Exam structure stage, deepest Subject map node). */
   stageNodeId: string | null;
   subjectNodeId: string | null;
+  /** Resolved Exam style node id (optional; null = neutral, no style node). */
+  styleNodeId?: string | null;
   normalisedHash: string;
   /** Set by the duplicate pass. 'similar' is a warning only (the row stays ok). */
   dupClass?: DupClass | null;

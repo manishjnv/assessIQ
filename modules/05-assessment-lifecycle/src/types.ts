@@ -181,6 +181,8 @@ export const AssessmentSectionSchema = z
     /** FUT-9: only questions with difficulty_est (1..5) in this range are drawn. Absent = any. */
     difficulty_min: z.number().int().min(1).max(5).optional(),
     difficulty_max: z.number().int().min(1).max(5).optional(),
+    /** EXAM-STYLE: house style (platform node of framework exam-style). The draw takes items of this style or no style; absent = items with no style only. */
+    style_node_id: z.string().uuid().optional(),
     /** EXP-6: a qualifying section with a cutoff reports `passed_cutoff` in the result (marks, not percent). */
     qualifying: z.boolean().optional(),
     cutoff_marks: z.number().min(0).max(1_000_000).optional(),
@@ -524,6 +526,7 @@ export const AL_ERROR_CODES = {
   INVITATION_NOT_FOUND: "INVITATION_NOT_FOUND",
   INVALID_STATE_TRANSITION: "INVALID_STATE_TRANSITION",
   POOL_TOO_SMALL: "POOL_TOO_SMALL",
+  SECTION_SUBJECT_MISSING: "SECTION_SUBJECT_MISSING",
   WINDOW_INVALID: "WINDOW_INVALID",
   PACK_NOT_FOUND: "PACK_NOT_FOUND",
   PACK_NOT_PUBLISHED: "PACK_NOT_PUBLISHED",

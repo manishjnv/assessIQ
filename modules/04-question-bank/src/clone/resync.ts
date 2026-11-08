@@ -2,7 +2,7 @@ import { type PoolClient } from "pg";
 import { uuidv7, NotFoundError, ValidationError } from "@assessiq/core";
 import { withSystemRole } from "@assessiq/tenancy";
 import { auditInTx } from "@assessiq/audit-log";
-import { type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, getPlatformTenantId, copyQuestionSource, NOT_WITHDRAWN_SQL } from "./helpers.js";
+import { type SourcePackRow, type SourceLevelRow, type SourceQuestionRow, getPlatformTenantId, copyQuestionSource, copyQuestionTaxonomy, NOT_WITHDRAWN_SQL } from "./helpers.js";
 import { type CloneQuestionRow, type ResyncResult } from "./resync-types.js";
 import { buildTaxonomyResolver, stableJson } from "./taxonomy.js";
 import { copyAssetsForContent } from "../assets/assets.js";
@@ -341,6 +341,9 @@ export async function resyncClonedPack(
       archived++;
     }
   }
+
+  // Taxonomy links for new clone questions (and a backfill for clones made before this copy existed).
+  await copyQuestionTaxonomy(client, clone.id);
 
   // EXP-2: a master withdrawn after the clone was made is already archived above (it left the
   // active set); mark the clone's own source row withdrawn too so the takedown is visible there.
