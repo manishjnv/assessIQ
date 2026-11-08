@@ -110,6 +110,18 @@ export async function publishAssessment(
     //    must go through reopenAssessment)
     assertCanTransition(assessment.status, "published");
 
+    // Owner decision 2026-11-08: a bank draw (sections, exam pattern or criteria blueprint) must randomize,
+    // else module 06 repeats the same first N questions (q.id ASC) for every student.
+    const st = (assessment.settings ?? {}) as Record<string, unknown>;
+    if (
+      assessment.randomize === false &&
+      (st["sections"] !== undefined || st["exam_blueprint"] !== undefined || st["blueprint"] !== undefined)
+    ) {
+      throw new ValidationError("Randomize must be on for a test that draws from the question bank. Turn it on, then publish", {
+        details: { code: AL_ERROR_CODES.RANDOMIZE_REQUIRED },
+      });
+    }
+
     // B2 — server-authoritative entitlement enforcement (authorization gate).
     // Runs in this withTenant tx; throws AppError 403 NOT_ENTITLED if the
     // assessment's pack is not entitled (internal tier bypasses). Fail-fast
