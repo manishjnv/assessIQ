@@ -252,7 +252,7 @@ export async function assertSectionPoolsFillable(
     // CT-0: the same type and difficulty rule the draw applies (06 startAttempt), so publish cannot pass and the draw run short.
     // EXP-24: one item per template for the whole test, so a section counts distinct template keys plus keyless items (same rule as the draw).
     const fit = r.rows.filter((q) => passesSectionTypeAndDifficulty(s, q));
-    const available = new Set(fit.filter((q) => q.template_key !== null).map((q) => q.template_key)).size + fit.filter((q) => q.template_key === null).length;
+    const available = new Set(fit.filter((q) => q.template_key != null).map((q) => q.template_key)).size + fit.filter((q) => q.template_key == null).length;
     if (available < s.question_count) {
       throw new ValidationError(
         `Section "${s.name ?? ""}" has too few questions: ${available} available, ${s.question_count} needed`,

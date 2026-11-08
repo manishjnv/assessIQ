@@ -33,7 +33,7 @@ const buildCsv = (rows: Cells[]): Buffer =>
 
 const mcq = (n: number, extra: Cells = {}): Cells => ({
   type: "mcq", topic: "Percentage", points: "1", level: "1", question: `Unique exam question number ${n} about percentages?`,
-  options: JSON.stringify([`${n}`, `${n + 1}`, `${n + 2}`, `${n + 3}`]), correct: "1", rationale: "r",
+  options: JSON.stringify([`${n}`, `${n + 1}`]), correct: "1", rationale: "r",
   exam_stage: "SSC CGL Tier 1", subject_path: "Quant/Arithmetic/Percentage", rights_status: "original", ...extra,
 });
 const meta = (data: Buffer) => ({ fileName: "exam.csv", fileSha256: sha256Hex(data), format: "csv" as const, domain: "soc", packName: "Exam set" });
