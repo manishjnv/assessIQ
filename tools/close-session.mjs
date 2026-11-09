@@ -142,6 +142,13 @@ const steps = [
   { name: "check-docs-links", ...node("check-docs-links.mjs", "--baseline", "docs/link-baseline.txt") },
   { name: "check-docs-privacy", ...node("check-docs-privacy.mjs") },
   { name: "file-count", cmd: "count docs/ md files, new files, Docs line in docs/SESSION_STATE.md, write docs/.docs-count", own: true, run: fileCount },
+  { name: "aptitude-stats", cmd: "python -X utf8 docs/private/aptitude-generator/engine/tools/stats.py --check (skipped when the local generator is absent)", own: true, run: () => {
+    const py = join(root, "docs/private/aptitude-generator/engine/tools/stats.py");
+    if (!existsSync(py)) return { res: "OK", note: "generator not on this machine, skipped", lines: [] };
+    const r = spawnSync("python", ["-X", "utf8", py, "--check"], { cwd: root, encoding: "utf8" });
+    const last = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim().split(/\r?\n/).filter(Boolean).slice(-2).join(" / ");
+    return { res: r.status === 0 ? "OK" : "FAIL", note: `exit ${r.status}; ${last}`, lines: [] };
+  } },
   { name: "decisions", cmd: "append docs/.session-decisions.txt to docs/DECISIONS.md", own: true, run: () => {
     const n = applyDecisions();
     let note = `${n} decision(s) appended`;
