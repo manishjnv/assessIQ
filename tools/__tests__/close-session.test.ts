@@ -59,7 +59,7 @@ describe("docs-plans-index", () => {
 });
 
 describe("close-session", () => {
-  it("--dry-run lists 10 steps in order and writes nothing", () => {
+  it("--dry-run lists 11 steps in order and writes nothing", () => {
     put("docs/.session-decisions.txt", "2026-10-21 | do x | S1\n");
     const r = run("close-session.mjs", "--dry-run");
     expect(r.status).toBe(0);
@@ -74,6 +74,7 @@ describe("close-session", () => {
       "check-docs-links",
       "check-docs-privacy",
       "file-count",
+      "aptitude-stats",
       "decisions",
     ]);
     expect(existsSync(join(root, "docs/DECISIONS.md"))).toBe(false);
