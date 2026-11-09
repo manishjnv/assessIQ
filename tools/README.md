@@ -181,3 +181,22 @@ One-liner wrapper: dump the full diagnostic surface of a
 Structural lint gates for cross-module import constraints, edge routing,
 logging discipline, materialized-view tenant filter, and RLS policy
 completeness. Run from CI or pre-commit.
+
+---
+
+## reconcile-bank.ts
+
+Read-only check that the real question counts in the database match what the
+aptitude generator expects (`docs/private/aptitude-generator/out/stats.json`).
+Compares per pack, template key and level (difficulty_est 1/3/5 = easy/medium/hard,
+other values as `other:<n>`), lists extra and missing keys, and rolls up by
+sub-topic and category.
+
+```bash
+pnpm reconcile:bank --map practice=<slug>,secure=<slug> [--status active|any] [--expected <f>] [--all-keys] [--json] [--actual-json <f>]
+```
+
+Exit 0 = all match, 1 = any delta, 2 = usage or connection error. Needs
+`DATABASE_URL` (SELECT only) unless `--actual-json` is used. Run it after each
+import file (`--status any` for draft or in-review rows) and in the post-deploy
+sweep (default `--status active`).
