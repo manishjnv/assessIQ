@@ -14,7 +14,7 @@ import { IntegrityBanner } from '@assessiq/candidate-ui';
 import { FreeIntro, FreeResult } from './FreeScreens';
 import { FreeRunner } from './FreeRunner';
 import type { FreeAnswers, FreeQuestion } from './freeScoring';
-import { ALL_MODES, drawSet, getExam, getSet, landingUrl, parseMode, type FreeSet, type Mode } from './freeTests';
+import { ALL_MODES, drawAndRemember, getExam, getSet, landingUrl, parseMode, type FreeSet, type Mode } from './freeTests';
 import { useFreeRealMode } from './useFreeRealMode';
 import { useHead } from './useHead';
 
@@ -53,7 +53,7 @@ function TryFlow({ set }: { set: FreeSet }): React.JSX.Element {
     if (mode === 'real') real.start();
     setAnswers({});
     setTimedOut(false);
-    setQuestions(drawSet(set));
+    setQuestions(drawAndRemember(set));
     setStartedAt(Date.now());
     setEndsAt(new Date(Date.now() + set.minutes * 60_000).toISOString());
     setPhase('run');

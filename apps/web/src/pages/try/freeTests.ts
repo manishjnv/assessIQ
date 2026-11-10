@@ -66,18 +66,80 @@ export function toFreeQuestion(it: PoolItem, sectionLabel: string): FreeQuestion
   };
 }
 
-/** Random draw for one attempt: each section's `count` items (Fisher-Yates; `rng` is injectable for tests). */
-export function drawSet(set: FreeSet, rng: () => number = Math.random): FreeQuestion[] {
-  const out: FreeQuestion[] = [];
-  for (const sec of set.sections) {
-    const items = set.pool.filter((i) => i.section === sec.id);
-    for (let i = items.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [items[i], items[j]] = [items[j]!, items[i]!];
-    }
-    for (const it of items.slice(0, sec.count)) out.push(toFreeQuestion(it, sec.label));
+// Seen list: ids drawn in earlier attempts, so a returning visitor gets fresh items until the pool is used up.
+// Shape: { [exam]: { [level]: string[] } }. Blocked storage = plain random draw.
+const SEEN_KEY = 'aiq-free-seen';
+
+export function readSeen(exam: string, level: Level): string[] {
+  const all = readJson(SEEN_KEY);
+  const v = all != null && typeof all === 'object' ? (all as Record<string, unknown>)[exam] : null;
+  const ids = v != null && typeof v === 'object' ? (v as Record<string, unknown>)[level] : null;
+  return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === 'string') : [];
+}
+
+export function saveSeen(exam: string, level: Level, ids: string[]): void {
+  try {
+    const all = readJson(SEEN_KEY);
+    const next = all != null && typeof all === 'object' ? { ...(all as Record<string, unknown>) } : {};
+    const mine = next[exam] != null && typeof next[exam] === 'object' ? { ...(next[exam] as Record<string, unknown>) } : {};
+    mine[level] = ids;
+    next[exam] = mine;
+    window.localStorage.setItem(SEEN_KEY, JSON.stringify(next));
+  } catch {
+    /* blocked storage: the draw is just not remembered */
   }
-  return out;
+}
+
+/** Items of one section for this attempt: unseen first (reset when too few), shuffled, distinct topics preferred. */
+function pickSection(items: PoolItem[], count: number, seen: Set<string>, rng: () => number): PoolItem[] {
+  let items2 = items.filter((i) => !seen.has(i.id));
+  if (items2.length < count) items2 = [...items];
+  for (let i = items2.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [items2[i], items2[j]] = [items2[j]!, items2[i]!];
+  }
+  const picks = items2.slice(0, count);
+  const rest = items2.slice(count);
+  for (let k = 0; k < picks.length; k++) {
+    if (picks.findIndex((p) => p.topic === picks[k]!.topic) === k) continue;
+    const r = rest.findIndex((c) => !picks.some((p) => p.topic === c.topic));
+    if (r >= 0) [picks[k], rest[r]] = [rest[r]!, picks[k]!];
+  }
+  return picks;
+}
+
+/** Random draw for one attempt: each section's `count` items (`rng` is injectable for tests; `seen` = ids from earlier attempts). */
+export function drawSet(set: FreeSet, rng: () => number = Math.random, seen: string[] = []): FreeQuestion[] {
+  const s = new Set(seen);
+  return set.sections.flatMap((sec) =>
+    pickSection(
+      set.pool.filter((i) => i.section === sec.id),
+      sec.count,
+      s,
+      rng,
+    ).map((it) => toFreeQuestion(it, sec.label)),
+  );
+}
+
+/** The seen list after a draw: a section that ran short starts over, drawn ids are added, length capped to the pool size. */
+export function nextSeen(set: FreeSet, seen: string[], drawn: FreeQuestion[]): string[] {
+  const s = new Set(seen);
+  for (const sec of set.sections) {
+    const ids = set.pool.filter((i) => i.section === sec.id).map((i) => i.id);
+    if (ids.filter((id) => !s.has(id)).length < sec.count) ids.forEach((id) => s.delete(id));
+  }
+  const poolIds = new Set(set.pool.map((i) => i.id));
+  const out = [...s].filter((id) => poolIds.has(id));
+  for (const q of drawn) out.push(q.id);
+  return out.slice(-set.pool.length);
+}
+
+/** Draw for a real attempt: reads the seen list, draws, saves the new list. Call at test start, not at render. */
+export function drawAndRemember(set: FreeSet): FreeQuestion[] {
+  const seen = readSeen(set.exam, set.slug);
+  const q = drawSet(set, Math.random, seen);
+  saveSeen(set.exam, set.slug, nextSeen(set, seen, q));
+  return q;
 }
 
 export function bandFor(percent: number): string {

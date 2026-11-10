@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
@@ -8,6 +8,9 @@ import {
   allPoolItems,
   bandFor,
   drawSet,
+  drawAndRemember,
+  readSeen,
+  saveSeen,
   getExam,
   getSet,
   itemsPerAttempt,
@@ -71,7 +74,7 @@ describe('registry', () => {
     }
     expect(APT.sets.easy.sections.map((s) => s.count)).toEqual([4, 3, 3]);
     expect(itemsPerAttempt(APT.sets.hard)).toBe(10);
-    expect(APT.sets.hard.pool).toHaveLength(10);
+    expect([APT.sets.easy.minutes, APT.sets.medium.minutes, APT.sets.hard.minutes]).toEqual([8, 12, 20]);
     expect([APT.sets.easy.level, APT.sets.medium.level, APT.sets.hard.level]).toEqual([1, 3, 5]);
   });
 
@@ -187,15 +190,62 @@ describe('best score storage', () => {
 // The free items are public. They must never equal an item of a real pack. Both files are gitignored, so
 // CI skips this and the local run checks it. Covers every exam in the registry.
 const ROOT = resolve(__dirname, '../../../../..');
-const V2 = resolve(ROOT, 'docs/exam-content/Aptitude/aptitude-questions-v2.json');
+const VERBAL = resolve(ROOT, 'docs/private/aptitude-generator/out/load/verbal-01.csv');
 const MERGED = resolve(ROOT, 'docs/private/aptitude-generator/out/assembled/merged.jsonl');
 
 describe('free items do not overlap the real packs', () => {
-  it.skipIf(!existsSync(V2))('no free stem equals a v2 stem', () => {
-    const v2 = new Set(
-      (JSON.parse(readFileSync(V2, 'utf8')) as { questions: { stem: string }[] }).questions.map((q) => norm(q.stem)),
-    );
-    const hits = allPoolItems().filter((i) => v2.has(norm(i.prompt))).map((i) => i.id);
+  // v2 items are allowed in the free pool (owner decision: they go public), so there is no v2 check.
+  // CSV with quoted fields; column indexes come from the header. Handles "" and newlines inside quotes.
+  const parseCsv = (txt: string): string[][] => {
+    const rows: string[][] = [];
+    let row: string[] = [];
+    let f = '';
+    let q = false;
+    for (let i = 0; i < txt.length; i++) {
+      const c = txt[i]!;
+      if (q) {
+        if (c === '"' && txt[i + 1] === '"') {
+          f += '"';
+          i++;
+        } else if (c === '"') q = false;
+        else f += c;
+      } else if (c === '"') q = true;
+      else if (c === ',') {
+        row.push(f);
+        f = '';
+      } else if (c === '\n') {
+        row.push(f.replace(/\r$/, ''));
+        rows.push(row);
+        row = [];
+        f = '';
+      } else f += c;
+    }
+    if (f || row.length) {
+      row.push(f);
+      rows.push(row);
+    }
+    return rows;
+  };
+
+  it.skipIf(!existsSync(VERBAL))('no free stem equals a verbal-01.csv stem and no free verbal key equals a real verbal key', () => {
+    const rows = parseCsv(readFileSync(VERBAL, 'utf8'));
+    const h = rows[0]!;
+    const [qi, oi, ci] = [h.indexOf('question'), h.indexOf('options'), h.indexOf('correct')];
+    expect(qi).toBeGreaterThan(-1);
+    const real = rows.slice(1).filter((r) => r[qi]);
+    const stems = new Set(real.map((r) => norm(r[qi]!)));
+    const items = allPoolItems();
+    expect(items.filter((i) => stems.has(norm(i.prompt))).map((i) => i.id)).toEqual([]);
+    // key text under the same stem (a bare key word like "sell" repeats legitimately across questions)
+    const keys = new Set<string>();
+    for (const r of real) {
+      try {
+        keys.add(norm(`${r[qi]}|${(JSON.parse(r[oi]!) as string[])[Number(r[ci])]}`));
+      } catch {
+        /* malformed row: skip */
+      }
+    }
+    const hits = items.filter((i) => i.section === 'verbal' && keys.has(norm(`${i.prompt}|${i.options[i.correct]}`))).map((i) => i.id);
     expect(hits).toEqual([]);
   });
 
@@ -215,5 +265,88 @@ describe('free items do not overlap the real packs', () => {
       .filter((i) => i.tpl && i.nums && keys.has(`${i.tpl}|${[...i.nums].sort((a, b) => a - b).join(',')}`))
       .map((i) => i.id);
     expect(dup).toEqual([]);
+  });
+});
+
+describe('pool shape and seen-list draw', () => {
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+  const KEYS = ['id', 'section', 'topic', 'prompt', 'options', 'correct', 'why', 'tpl', 'nums'];
+
+  it('each level and section pool covers its draw count and has enough topics', () => {
+    for (const set of sets()) {
+      for (const sec of set.sections) {
+        const items = set.pool.filter((i) => i.section === sec.id);
+        expect(items.length).toBeGreaterThanOrEqual(sec.count);
+        expect(new Set(items.map((i) => i.topic)).size).toBeGreaterThanOrEqual(sec.count);
+      }
+    }
+  });
+
+  it('no option index holds more than 35% of keys per level (pools of 30 or more)', () => {
+    for (const set of sets()) {
+      if (set.pool.length < 30) continue;
+      for (let k = 0; k < 4; k++) expect(set.pool.filter((i) => i.correct === k).length / set.pool.length).toBeLessThanOrEqual(0.35);
+    }
+  });
+
+  it('items carry only the allowed keys; ids and stems are unique across levels', () => {
+    const items = allPoolItems();
+    for (const i of items) expect(Object.keys(i).filter((k) => !KEYS.includes(k))).toEqual([]);
+    expect(new Set(items.map((i) => i.id)).size).toBe(items.length);
+    expect(new Set(items.map((i) => norm(i.prompt))).size).toBe(items.length);
+  });
+
+  it('four draws with a persisted seen list give 40 distinct ids when each section pool holds 4 draws', () => {
+    for (const set of sets()) {
+      if (set.sections.some((s) => set.pool.filter((i) => i.section === s.id).length < s.count * 4)) continue;
+      const ids: string[] = [];
+      for (let n = 0; n < 4; n++) ids.push(...drawAndRemember(set).map((q) => q.id));
+      expect(new Set(ids).size).toBe(40);
+      window.localStorage.clear();
+    }
+  });
+
+  it('a draw picks distinct topics inside a section whenever the pool allows', () => {
+    for (const set of sets()) {
+      for (let n = 0; n < 20; n++) {
+        const q = drawSet(set, seq());
+        for (const sec of set.sections) {
+          const topics = q.filter((x) => x.section === sec.id).map((x) => x.topic);
+          expect(new Set(topics).size).toBe(topics.length);
+        }
+      }
+    }
+  });
+
+  it('seen ids are skipped, unknown ids are ignored, and a used-up pool resets', () => {
+    const set = APT.sets.easy;
+    const first = drawSet(set, seq()).map((q) => q.id);
+    const next = drawSet(set, seq(), [...first, 'gone-1']).map((q) => q.id);
+    for (const sec of set.sections) {
+      const mine = new Set(set.pool.filter((i) => i.section === sec.id).map((i) => i.id));
+      if (mine.size - sec.count >= sec.count) expect(next.filter((id) => mine.has(id) && first.includes(id))).toEqual([]);
+    }
+    expect(drawSet(set, seq(), set.pool.map((i) => i.id))).toHaveLength(itemsPerAttempt(set));
+  });
+
+  it('one attempt saves its drawn ids; blocked storage still draws', () => {
+    const set = APT.sets.medium;
+    const q = drawAndRemember(set);
+    expect(readSeen('aptitude', 'medium').sort()).toEqual(q.map((x) => x.id).sort());
+    saveSeen('aptitude', 'easy', ['x']);
+    expect(readSeen('aptitude', 'easy')).toEqual(['x']);
+    expect(readSeen('aptitude', 'medium')).toHaveLength(itemsPerAttempt(set));
+
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('blocked');
+    });
+    expect(readSeen('aptitude', 'hard')).toEqual([]);
+    expect(drawAndRemember(APT.sets.hard)).toHaveLength(itemsPerAttempt(APT.sets.hard));
   });
 });

@@ -56,7 +56,7 @@ export const freeSets: FreeSet[] = [
   {
     slug: 'medium',
     title: 'Campus level',
-    minutes: 10,
+    minutes: 12,
     items: 10,
     mix: { quantitative: 4, logical: 3, verbal: 3 },
     blurb: 'The level of many campus placement tests. Needs some working on paper.',
@@ -83,7 +83,7 @@ export const freeSets: FreeSet[] = [
   {
     slug: 'hard',
     title: 'Top scorer',
-    minutes: 15,
+    minutes: 20,
     items: 10,
     mix: { quantitative: 4, logical: 3, verbal: 3 },
     blurb: 'Harder, multi-step questions. Try it after you finish the Campus level set.',
