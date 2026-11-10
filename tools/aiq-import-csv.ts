@@ -9,7 +9,14 @@
  *
  * Usage:
  *   pnpm tsx tools/aiq-import-csv.ts --tenant <slug> --pack-name "<name>" [--domain aptitude]
- *       [--commit] [--publish] <file.csv> [<file2.csv> ...]
+ *       [--commit] [--publish] [--seed-frameworks <code[,code...]>] <file.csv> [<file2.csv> ...]
+ *
+ * --seed-frameworks (needs --commit; a dry run only prints the codes) loads the named bundled
+ * framework seeds through loadFrameworkSeed (idempotent upsert, one audit row) BEFORE the first
+ * file is staged, attributed to the same admin. Why: the production database only has the
+ * framework nodes it was last seeded with (e.g. the exam stage 'Campus aptitude (Stage 0)' added
+ * to exam-structure.json on 2026-10-25 was missing, so every row failed validation in the first
+ * dry run). Unknown code: exit 3 with the list. Seed failure: exit 5, nothing staged.
  *
  * Default is a DRY RUN: previewImport (READ ONLY transaction) validates every row and stores
  * nothing. With --commit each file is staged and committed (one transaction each) into the
@@ -50,23 +57,25 @@ export interface Args {
   domain: string;
   commit: boolean;
   publish: boolean;
+  seedFrameworks: string[];
   files: string[];
 }
 
 export const USAGE =
-  'Usage: pnpm tsx tools/aiq-import-csv.ts --tenant <slug> --pack-name "<name>" [--domain aptitude] [--commit] [--publish] <file.csv> [<file2.csv> ...]';
+  'Usage: pnpm tsx tools/aiq-import-csv.ts --tenant <slug> --pack-name "<name>" [--domain aptitude] [--commit] [--publish] [--seed-frameworks <code[,code...]>] <file.csv> [<file2.csv> ...]';
 
 export function parseArgs(argv: string[]): Args {
-  const a: Args = { tenant: "", packName: "", domain: "aptitude", commit: false, publish: false, files: [] };
+  const a: Args = { tenant: "", packName: "", domain: "aptitude", commit: false, publish: false, seedFrameworks: [], files: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg === "--commit") a.commit = true;
     else if (arg === "--publish") a.publish = true;
-    else if (arg === "--tenant" || arg === "--pack-name" || arg === "--domain") {
+    else if (arg === "--tenant" || arg === "--pack-name" || arg === "--domain" || arg === "--seed-frameworks") {
       const v = argv[++i];
       if (v === undefined || v.startsWith("--")) throw new CliError(5, `${arg} requires a value.\n${USAGE}`);
       if (arg === "--tenant") a.tenant = v;
       else if (arg === "--pack-name") a.packName = v;
+      else if (arg === "--seed-frameworks") a.seedFrameworks = v.split(",").map((c) => c.trim()).filter((c) => c !== "");
       else a.domain = v;
     } else if (arg.startsWith("--")) throw new CliError(5, `unknown flag '${arg}'.\n${USAGE}`);
     else a.files.push(arg);
@@ -76,6 +85,16 @@ export function parseArgs(argv: string[]): Args {
   if (a.files.length === 0) throw new CliError(5, `at least one CSV file is required.\n${USAGE}`);
   if (a.publish && !a.commit) throw new CliError(5, `--publish only works together with --commit.\n${USAGE}`);
   return a;
+}
+
+export interface SeedCounts { frameworks: number; nodesCreated: number; nodesUpdated: number; nodesUnchanged: number }
+
+/** Unknown code: exit 3 with the list of bundled codes. */
+async function checkSeedCodes(args: Args, deps: Deps): Promise<void> {
+  if (args.seedFrameworks.length === 0) return;
+  const known = await deps.listSeedCodes();
+  const bad = args.seedFrameworks.filter((c) => !known.includes(c));
+  if (bad.length > 0) throw new CliError(3, `unknown framework seed code(s): ${bad.join(", ")}. Bundled codes: ${known.join(", ")}`);
 }
 
 /** Everything that touches the database, injected so tests can use fakes. */
@@ -89,6 +108,10 @@ export interface Deps {
   discard(tenantId: string, userId: string, importId: string): Promise<unknown>;
   findPack(tenantId: string, name: string): Promise<string | null>;
   publish(tenantId: string, packId: string, userId: string): Promise<unknown>;
+  /** Codes of the bundled framework seeds (listBundledSeeds). */
+  listSeedCodes(): Promise<string[]>;
+  /** loadFrameworkSeed: idempotent upsert of one global framework and its nodes. */
+  seedFramework(actorUserId: string, code: string): Promise<SeedCounts>;
   err(line: string): void;
 }
 
@@ -145,6 +168,8 @@ export async function dryRun(args: Args, deps: Deps): Promise<{ report: DryRunOu
   const files = await loadFiles(args, deps);
   const tenantId = await deps.resolveTenant(args.tenant);
   if (tenantId === null) throw new CliError(1, `Tenant not found: ${args.tenant}`);
+  await checkSeedCodes(args, deps);
+  if (args.seedFrameworks.length > 0) deps.err(`aiq-import-csv dry run: would load framework seeds ${args.seedFrameworks.join(",")} (only with --commit)`);
   const report: DryRunOut = { mode: "dry-run", files: [], rows: 0, row_errors: [], duplicate_seed_refs: [], files_over_limits: [] };
   const seen = new Map<string, string>(); // seed_ref -> "file:row" (across all files)
   for (const f of files) {
@@ -191,6 +216,7 @@ export async function dryRun(args: Args, deps: Deps): Promise<{ report: DryRunOu
 export interface CommitOut {
   mode: "commit";
   pack_id: string | null;
+  seeded: Array<SeedCounts & { code: string }>;
   files: Array<{ file: string; inserted: number; skipped_existing: number; errors: number; error_rows?: Array<{ row: number; column: string; message: string }> }>;
   total: { inserted: number; skipped_existing: number; errors: number };
   published: boolean;
@@ -202,9 +228,21 @@ export async function commitRun(args: Args, deps: Deps): Promise<{ report: Commi
   if (tenantId === null) throw new CliError(1, `Tenant not found: ${args.tenant}`);
   const adminId = await deps.resolveAdmin(tenantId);
   if (adminId === null) throw new CliError(1, `Tenant has no active admin, cannot attribute import (tenant: ${args.tenant})`);
-  const report: CommitOut = { mode: "commit", pack_id: null, files: [], total: { inserted: 0, skipped_existing: 0, errors: 0 }, published: false };
+  await checkSeedCodes(args, deps);
+  const report: CommitOut = { mode: "commit", pack_id: null, seeded: [], files: [], total: { inserted: 0, skipped_existing: 0, errors: 0 }, published: false };
   let exitCode = 0;
   try {
+    // Seeds first: the production DB only has the framework nodes it was last seeded with, so new nodes must exist before row validation.
+    for (const code of args.seedFrameworks) {
+      let c: SeedCounts;
+      try {
+        c = await deps.seedFramework(adminId, code);
+      } catch (e) {
+        throw new CliError(5, `framework seed '${code}' failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+      report.seeded.push({ code, ...c });
+      deps.err(`aiq-import-csv seed code=${code} frameworks=${c.frameworks} nodesCreated=${c.nodesCreated} nodesUpdated=${c.nodesUpdated} nodesUnchanged=${c.nodesUnchanged}`);
+    }
     for (const f of files) {
       let parsed: ParseResult;
       try {
@@ -271,6 +309,7 @@ async function realDeps(): Promise<{ deps: Deps; close: () => Promise<void> }> {
   const { stageImport, previewImport, discardImport } = await import("../modules/04-question-bank/src/import/staging.js");
   const { commitImport } = await import("../modules/04-question-bank/src/import/commit.js");
   const { publishPack } = await import("../modules/04-question-bank/src/service/packs.js");
+  const { loadFrameworkSeed, listBundledSeeds } = await import("../modules/04-question-bank/src/framework-seeds.js");
   const one = async <T extends Record<string, unknown>>(sql: string, params: unknown[]): Promise<T | null> => {
     const c = new Client({ connectionString: config.SYSTEM_DATABASE_URL ?? config.DATABASE_URL }); // system role, BYPASSRLS (pre-tenant lookups only): in production DATABASE_URL is the RLS-bound app login (FUT-10), SYSTEM_DATABASE_URL is the BYPASSRLS login
     await c.connect();
@@ -301,6 +340,8 @@ async function realDeps(): Promise<{ deps: Deps; close: () => Promise<void> }> {
         return r.rows[0]?.id ?? null;
       }),
     publish: (t, id, u) => publishPack(t, id, u),
+    listSeedCodes: async () => (await listBundledSeeds()).map((s) => s.code),
+    seedFramework: (u, code) => loadFrameworkSeed(u, code),
     err: (l) => void process.stderr.write(l + "\n"),
   };
   return { deps, close: () => closePool() };

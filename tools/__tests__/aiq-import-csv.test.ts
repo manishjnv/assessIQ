@@ -7,7 +7,7 @@ const csv = (...rows: string[]): Buffer => Buffer.from([HEAD, ...rows].join("\n"
 const ref = (n: number): string => `age.x@2:seed=${n}:gen=g1`;
 
 const args = (over: Partial<Args> = {}): Args => ({
-  tenant: "t1", packName: "P", domain: "aptitude", commit: false, publish: false, files: ["a.csv"], ...over,
+  tenant: "t1", packName: "P", domain: "aptitude", commit: false, publish: false, seedFrameworks: [], files: ["a.csv"], ...over,
 });
 
 /** Fake deps: preview marks a row as error when its topic cell is "BAD" (stand-in for the real validator). */
@@ -35,6 +35,8 @@ function fakes(files: Record<string, Buffer>, over: Partial<Deps> = {}): Deps & 
     discard: async () => { calls.push("discard"); },
     findPack: async () => (calls.includes("commit") ? "pk" : null),
     publish: async () => { calls.push("publish"); },
+    listSeedCodes: async () => ["exam-structure", "cbse"],
+    seedFramework: async (_u, code) => { calls.push(`seed:${code}`); return { frameworks: 1, nodesCreated: 2, nodesUpdated: 0, nodesUnchanged: 3 }; },
     err: () => undefined,
     ...over,
   };
@@ -44,7 +46,11 @@ function fakes(files: Record<string, Buffer>, over: Partial<Deps> = {}): Deps & 
 describe("parseArgs", () => {
   it("accepts the full usage", () => {
     expect(parseArgs(["--tenant", "t", "--pack-name", "N", "--commit", "--publish", "a.csv", "b.csv"]))
-      .toEqual({ tenant: "t", packName: "N", domain: "aptitude", commit: true, publish: true, files: ["a.csv", "b.csv"] });
+      .toEqual({ tenant: "t", packName: "N", domain: "aptitude", commit: true, publish: true, seedFrameworks: [], files: ["a.csv", "b.csv"] });
+  });
+  it("parses --seed-frameworks as a comma list", () => {
+    expect(parseArgs(["--tenant", "t", "--pack-name", "N", "--seed-frameworks", "exam-structure, cbse", "a.csv"]).seedFrameworks)
+      .toEqual(["exam-structure", "cbse"]);
   });
   it.each([
     [["--pack-name", "N", "a.csv"]],
@@ -142,6 +148,38 @@ describe("commitRun", () => {
     class ConflictError extends Error { details = { code: "PACK_NOT_DRAFT" }; }
     const d = fakes({ "a.csv": csv(`mcq,A,q1,${ref(1)}`) }, { publish: async () => { throw new ConflictError("must be draft"); } });
     await expect(commitRun(args({ commit: true, publish: true }), d)).rejects.toMatchObject({ exitCode: 3 });
+  });
+
+  it("dry run with --seed-frameworks seeds nothing and exits normally", async () => {
+    const lines: string[] = [];
+    const d = fakes({ "a.csv": csv(`mcq,Ages,q1,${ref(1)}`) }, { err: (l) => void lines.push(l) });
+    const { exitCode } = await dryRun(args({ seedFrameworks: ["exam-structure"] }), d);
+    expect(exitCode).toBe(0);
+    expect(d.calls).toEqual([]);
+    expect(lines.join("\n")).toContain("would load framework seeds exam-structure");
+  });
+
+  it("rejects an unknown seed code with exit 3 and the list, before any work", async () => {
+    const d = fakes({ "a.csv": csv(`mcq,A,q1,${ref(1)}`) });
+    const p = commitRun(args({ commit: true, seedFrameworks: ["nope"] }), d);
+    await expect(p).rejects.toMatchObject({ exitCode: 3, message: expect.stringContaining("exam-structure, cbse") });
+    expect(d.calls).toEqual([]);
+  });
+
+  it("seeds run before staging, counts are in the report", async () => {
+    const d = fakes({ "a.csv": csv(`mcq,A,q1,${ref(1)}`) });
+    const { report } = await commitRun(args({ commit: true, seedFrameworks: ["exam-structure", "cbse"] }), d);
+    expect(d.calls).toEqual(["seed:exam-structure", "seed:cbse", "stage:a.csv:new", "commit"]);
+    expect(report.seeded).toEqual([
+      { code: "exam-structure", frameworks: 1, nodesCreated: 2, nodesUpdated: 0, nodesUnchanged: 3 },
+      { code: "cbse", frameworks: 1, nodesCreated: 2, nodesUpdated: 0, nodesUnchanged: 3 },
+    ]);
+  });
+
+  it("a seed failure exits 5 and stages nothing", async () => {
+    const d = fakes({ "a.csv": csv(`mcq,A,q1,${ref(1)}`) }, { seedFramework: async () => { throw new Error("boom"); } });
+    await expect(commitRun(args({ commit: true, seedFrameworks: ["cbse"] }), d)).rejects.toMatchObject({ exitCode: 5 });
+    expect(d.calls).toEqual([]);
   });
 
   it("exit 1 when the tenant has no active admin", async () => {
