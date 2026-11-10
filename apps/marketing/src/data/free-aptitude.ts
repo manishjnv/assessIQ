@@ -99,3 +99,10 @@ export const freeSets: FreeSet[] = [
 
 export const mixText = (s: FreeSet) =>
   `${s.mix.quantitative} quantitative, ${s.mix.logical} logical, ${s.mix.verbal} verbal`;
+
+/** Mock or Real mode copy shared by the hub and the set pages. Honest wording: Real is practice, not proctored, no camera. */
+export const modeFaq = {
+  q: 'What is Real mode?',
+  a: 'Real mode shows the same test screen your candidates see: full screen where your browser allows it, a warning if you leave the window, and no answers until you ask. It is not proctored, nothing is recorded or sent, and the questions are public. It is without camera. Organisations can add a camera in their own assessments.',
+};
+export const realUrl = (url: string): string => `${url}?mode=real`;

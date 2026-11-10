@@ -64,7 +64,7 @@ describe('/try/:exam level picker', () => {
     expect([...cards].map((c) => c.getAttribute('href'))).toEqual(['/try/aptitude/easy', '/try/aptitude/medium', '/try/aptitude/hard']);
     expect(cards[0]!.textContent).toContain(APT.sets.easy.title);
     expect(cards[0]!.textContent).toContain('10 questions, 8 minutes');
-    expect(cards[0]!.textContent).toContain('Best on this device: 80%');
+    expect(cards[0]!.textContent).toContain('Best on this device: Mock 80%');
     expect(cards[1]!.textContent).toContain('Not tried');
   });
 
@@ -108,7 +108,7 @@ describe('/try/:exam/:set', () => {
     expect(screen.getByText('All levels').getAttribute('href')).toBe('/try/aptitude');
     expect(document.querySelector('[data-test-id="free-end"]')!.getAttribute('href')).toBe('/signup?src=try');
     expect(document.querySelector('[data-test-id="free-whatsapp"]')!.getAttribute('href')).toContain('wa.me');
-    expect(JSON.parse(window.localStorage.getItem('aiq-free-best')!)).toEqual({ aptitude: { easy: 100 } });
+    expect(JSON.parse(window.localStorage.getItem('aiq-free-best')!)).toEqual({ aptitude: { easy: { mock: 100 } } });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(xhrOpen).not.toHaveBeenCalled();
     expect(beacon).not.toHaveBeenCalled();

@@ -2,6 +2,9 @@
 
 export type Level = 'easy' | 'medium' | 'hard';
 
+/** Mock: answers and explanations at the end. Real: same screen as a real assessment, answers behind one click. No camera in either. */
+export type Mode = 'mock' | 'real';
+
 /** One section of a set: `count` items are drawn from the pool items whose `section` equals `id`. */
 export interface FreeSection {
   id: string;
@@ -40,5 +43,7 @@ export interface FreeExam {
   slug: string;
   title: string;
   blurb: string;
+  /** Modes the exam offers. Default: both. */
+  modes?: Mode[];
   sets: Record<Level, FreeSet>;
 }

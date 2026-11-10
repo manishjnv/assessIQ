@@ -11,6 +11,8 @@ import {
   getExam,
   getSet,
   itemsPerAttempt,
+  bestLine,
+  parseMode,
   readBest,
   saveBest,
   sectionScores,
@@ -142,22 +144,43 @@ describe('scoring helpers', () => {
 describe('best score storage', () => {
   afterEach(() => window.localStorage.clear());
 
-  it('keeps the best per exam and set and ignores junk', () => {
-    expect(saveBest('aptitude', 'easy', 60)).toEqual({ easy: 60 });
-    expect(saveBest('aptitude', 'easy', 40).easy).toBe(60);
-    expect(saveBest('aptitude', 'easy', 80).easy).toBe(80);
-    expect(JSON.parse(window.localStorage.getItem('aiq-free-best')!)).toEqual({ aptitude: { easy: 80 } });
+  it('keeps the best per exam, level and mode in the new shape and ignores junk', () => {
+    expect(saveBest('aptitude', 'easy', 'mock', 60)).toEqual({ easy: { mock: 60 } });
+    expect(saveBest('aptitude', 'easy', 'mock', 40).easy).toEqual({ mock: 60 });
+    expect(saveBest('aptitude', 'easy', 'mock', 80).easy).toEqual({ mock: 80 });
+    expect(saveBest('aptitude', 'easy', 'real', 50).easy).toEqual({ mock: 80, real: 50 });
+    expect(JSON.parse(window.localStorage.getItem('aiq-free-best')!)).toEqual({ aptitude: { easy: { mock: 80, real: 50 } } });
     expect(readBest('other')).toEqual({});
     window.localStorage.setItem('aiq-free-best', 'not json');
     expect(readBest('aptitude')).toEqual({});
   });
 
-  it('reads the old aptitude key as aptitude scores and the higher value wins', () => {
+  it('a bare number at [exam][level] (previous shape) reads as mock', () => {
+    window.localStorage.setItem('aiq-free-best', '{"aptitude":{"easy":90,"hard":{"real":70}}}');
+    expect(readBest('aptitude')).toEqual({ easy: { mock: 90 }, hard: { real: 70 } });
+    expect(saveBest('aptitude', 'easy', 'real', 30).easy).toEqual({ mock: 90, real: 30 });
+  });
+
+  it('reads the old aptitude key as mock scores and the higher value wins', () => {
     window.localStorage.setItem('aiq-free-aptitude-best', '{"easy":"x","hard":50,"medium":70,"bogus":1}');
-    expect(readBest('aptitude')).toEqual({ medium: 70, hard: 50 });
+    expect(readBest('aptitude')).toEqual({ medium: { mock: 70 }, hard: { mock: 50 } });
     expect(readBest('other')).toEqual({});
-    expect(saveBest('aptitude', 'hard', 90)).toEqual({ medium: 70, hard: 90 });
-    expect(saveBest('aptitude', 'medium', 10).medium).toBe(70);
+    expect(saveBest('aptitude', 'hard', 'mock', 90)).toEqual({ medium: { mock: 70 }, hard: { mock: 90 } });
+    expect(saveBest('aptitude', 'medium', 'mock', 10).medium).toEqual({ mock: 70 });
+  });
+
+  it('bestLine and parseMode', () => {
+    expect(bestLine({ mock: 80, real: 60 })).toBe('Mock 80% · Real 60%');
+    expect(bestLine(undefined)).toBeNull();
+    expect(parseMode('real')).toBe('real');
+    expect(parseMode('REAL')).toBe('mock');
+    expect(parseMode(null)).toBe('mock');
+    expect(parseMode('real', ['mock'])).toBe('mock');
+  });
+
+  it('share text names Real mode', () => {
+    const t = shareText(APT.sets.easy, [true, false], 492, 'real');
+    expect(t).toContain('AssessIQ Warm-up aptitude test, Real mode: 1/2 in 8:12');
   });
 });
 

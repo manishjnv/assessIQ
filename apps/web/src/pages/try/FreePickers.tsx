@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router';
 import { Card, Chip, Logo } from '@assessiq/ui-system';
 import { EYEBROW, H1, WRAP } from './FreeScreens';
-import { EXAM_SLUGS, FREE_EXAMS, LEVELS, getExam, itemsPerAttempt, readBest, type BestScores } from './freeTests';
+import { EXAM_SLUGS, FREE_EXAMS, LEVELS, getExam, bestLine, itemsPerAttempt, readBest, type BestScores } from './freeTests';
 import { useHead } from './useHead';
 
 const PAGE: React.CSSProperties = {
@@ -87,8 +87,8 @@ export function LevelPickerPage(): React.JSX.Element {
                     {itemsPerAttempt(set)} questions, {set.minutes} minutes
                   </p>
                   <p style={{ margin: '12px 0 0' }}>
-                    <Chip {...(best[l] != null ? { variant: 'success' as const } : {})}>
-                      {best[l] != null ? `Best on this device: ${best[l]}%` : 'Not tried'}
+                    <Chip {...(bestLine(best[l]) != null ? { variant: 'success' as const } : {})}>
+                      {bestLine(best[l]) != null ? `Best on this device: ${bestLine(best[l])}` : 'Not tried'}
                     </Chip>
                   </p>
                 </Card>

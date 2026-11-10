@@ -3,14 +3,19 @@
 // The old demo runner was purged 2026-11-10 (owner). Never add a second runner: every public test uses FreeRunner,
 // which reuses the real take-screen parts. Content comes from the registry (freeTests.ts).
 //
+// Mode (Mock or Real) comes from ?mode= (default Mock) and is frozen when the test starts. Real adds only the local
+// useFreeRealMode hook: never the real integrity hooks (they call the API).
+//
 // ZERO network requests (no api.ts, no fetch, no AI, no DB, no email). Attempt.tsx is deliberately not touched.
 
 import { useState } from 'react';
-import { Navigate, useParams } from 'react-router';
+import { Navigate, useParams, useSearchParams } from 'react-router';
+import { IntegrityBanner } from '@assessiq/candidate-ui';
 import { FreeIntro, FreeResult } from './FreeScreens';
 import { FreeRunner } from './FreeRunner';
 import type { FreeAnswers, FreeQuestion } from './freeScoring';
-import { drawSet, getExam, getSet, landingUrl, type FreeSet } from './freeTests';
+import { ALL_MODES, drawSet, getExam, getSet, landingUrl, parseMode, type FreeSet, type Mode } from './freeTests';
+import { useFreeRealMode } from './useFreeRealMode';
 import { useHead } from './useHead';
 
 type Phase = 'intro' | 'run' | 'result';
@@ -33,12 +38,19 @@ function TryFlow({ set }: { set: FreeSet }): React.JSX.Element {
   const [startedAt, setStartedAt] = useState(0);
   const [usedSeconds, setUsedSeconds] = useState(0);
   const [timedOut, setTimedOut] = useState(false);
-  const examTitle = (getExam(set.exam)?.title ?? set.exam).toLowerCase();
+  const exam = getExam(set.exam)!;
+  const examTitle = exam.title.toLowerCase();
+  const [sp, setSp] = useSearchParams();
+  const urlMode = parseMode(sp.get('mode'), exam.modes ?? ALL_MODES);
+  const [runMode, setRunMode] = useState<Mode>(urlMode);
+  const real = useFreeRealMode(runMode === 'real' && phase === 'run');
 
   // A test points at its marketing landing page (Googlebot renders JS).
   useHead(`${set.title} ${examTitle} test, free | AssessIQ`, landingUrl(set));
 
-  const begin = (): void => {
+  const begin = (mode: Mode): void => {
+    setRunMode(mode);
+    if (mode === 'real') real.start();
     setAnswers({});
     setTimedOut(false);
     setQuestions(drawSet(set));
@@ -53,6 +65,27 @@ function TryFlow({ set }: { set: FreeSet }): React.JSX.Element {
     setPhase('result');
   };
 
+  const tryReal = (): void => {
+    setSp({ mode: 'real' }, { replace: true });
+    setPhase('intro');
+  };
+
+  const banner =
+    runMode === 'real' ? (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 16px 0' }}>
+        {real.note && <IntegrityBanner kind="tab_was_blurred" message={real.note} />}
+        {real.leaves > 0 && (
+          <IntegrityBanner
+            kind="tab_was_blurred"
+            message={`You left the test ${real.leaves} ${real.leaves === 1 ? 'time' : 'times'}. Nothing is recorded here. In a real assessment the organisation sees this.`}
+          />
+        )}
+        {real.leftFullscreen && (
+          <IntegrityBanner kind="tab_was_blurred" message="You left full screen." action={{ label: 'Return to full screen', onClick: real.returnToFullscreen }} />
+        )}
+      </div>
+    ) : undefined;
+
   return (
     <div
       className="aiq-attempt-shell"
@@ -64,12 +97,28 @@ function TryFlow({ set }: { set: FreeSet }): React.JSX.Element {
         overflowX: 'hidden',
       }}
     >
-      {phase === 'intro' && <FreeIntro set={set} onBegin={begin} />}
+      {phase === 'intro' && (
+        <FreeIntro
+          set={set}
+          mode={urlMode}
+          onMode={(m) => setSp({ mode: m }, { replace: true })}
+          onBegin={() => begin(urlMode)}
+        />
+      )}
       {phase === 'run' && (
-        <FreeRunner set={set} questions={questions} endsAt={endsAt} answers={answers} setAnswers={setAnswers} onFinish={done} />
+        <FreeRunner set={set} mode={runMode} banner={banner} questions={questions} endsAt={endsAt} answers={answers} setAnswers={setAnswers} onFinish={done} />
       )}
       {phase === 'result' && (
-        <FreeResult set={set} questions={questions} answers={answers} timedOut={timedOut} usedSeconds={usedSeconds} onRetry={begin} />
+        <FreeResult
+          set={set}
+          mode={runMode}
+          questions={questions}
+          answers={answers}
+          timedOut={timedOut}
+          usedSeconds={usedSeconds}
+          onRetry={() => begin(runMode)}
+          onTryReal={tryReal}
+        />
       )}
     </div>
   );

@@ -2,7 +2,7 @@
 // free-aptitude-test/index.astro: hub for the three free no-login aptitude practice sets.
 // The tests run in the web app (see src/data/free-aptitude.ts). No forms, no email, no analytics here.
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { freeSets, mixText } from '../../data/free-aptitude';
+import { freeSets, mixText, modeFaq, realUrl } from '../../data/free-aptitude';
 
 const site = 'https://assessiq.in';
 
@@ -13,6 +13,7 @@ const faqs = [
   { q: 'Is this a real test score?', a: 'No. It is practice only. Use it to find your weak topics before a real test.' },
   { q: 'How long does each set take?', a: 'Warm-up takes 8 minutes, Campus level takes 10 minutes and Top scorer takes 15 minutes. Each set has 10 questions.' },
   { q: 'What topics do the sets cover?', a: 'Each set mixes 4 quantitative, 3 logical reasoning and 3 verbal questions.' },
+  modeFaq,
 ];
 
 const faqSchema = {
@@ -65,6 +66,7 @@ const lnk = 'text-aiq-accent hover:text-aiq-accent-hover underline underline-off
       </p>
       <div class="flex flex-wrap items-center gap-aiq-md">
         <a href={freeSets[0].url} class={btn}>Start Warm-up</a>
+        <a href={realUrl(freeSets[0].url)} class={btn}>Start in Real mode</a>
       </div>
       <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-md mb-0">Practice only. It is not a real test score.</p>
     </div>
@@ -82,11 +84,22 @@ const lnk = 'text-aiq-accent hover:text-aiq-accent-hover underline underline-off
             <p class="font-sans text-aiq-sm text-aiq-fg-muted mb-aiq-xl mt-0">{mixText(s)}</p>
             <div class="mt-auto flex flex-wrap items-center gap-aiq-md">
               <a href={s.url} class={btn}>Start</a>
+              <a href={realUrl(s.url)} class={lnk}>Start in Real mode</a>
               <a href={`/free-aptitude-test/${s.slug}`} class={lnk}>Details</a>
             </div>
           </div>
         ))}
       </div>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="modes-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="modes-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">Mock or Real mode</h2>
+      <ul class="m-0 pl-aiq-xl max-w-3xl flex flex-col gap-aiq-md font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+        <li><span class="font-medium text-aiq-fg-primary">Mock:</span> see your score, the right answers and an explanation for every question at the end.</li>
+        <li><span class="font-medium text-aiq-fg-primary">Real:</span> the same screen as a real assessment. No answers until you ask. Practice copy, not proctored.</li>
+      </ul>
     </div>
   </section>
 

@@ -1,9 +1,9 @@
 // Z-32: build-time prerender of the /try document head. Pure function (no imports) so
 // vite.config.ts can load it; it must live under src/ (the Docker build context copies src/).
 export const TRY_URL = 'https://assessiq.in/try';
-export const TRY_TITLE = 'Try a sample assessment | AssessIQ';
+export const TRY_TITLE = 'Free aptitude tests, Mock or Real mode | AssessIQ';
 export const TRY_DESCRIPTION =
-  'Take a short sample assessment and see how AssessIQ scores answers on evidence. No sign-up, nothing is stored.';
+  'Take a free aptitude test with no login. Pick Mock for answers at once or Real mode for the real test screen. Practice only.';
 export const TRY_OG_IMAGE = 'https://assessiq.in/brand/social/try-og.png';
 
 const esc = (s: string): string => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;');

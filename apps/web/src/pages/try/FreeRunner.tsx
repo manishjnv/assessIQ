@@ -9,7 +9,7 @@
 // Copied from Attempt.tsx on purpose (they call the API there): the filter-aware Prev/Next targets and the
 // footer. Everything else is imported.
 
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Button, Chip, Drawer, Icon } from '@assessiq/ui-system';
 import { NavCollapseHandle, filterSuffix, neighbor } from '@assessiq/candidate-ui';
 import type { AttemptWire, FrozenQuestionWire, NavigatorFilter, UseAutosaveResult } from '@assessiq/candidate-ui';
@@ -26,7 +26,7 @@ import { useMaxWidth } from '../take/attempt-parts/useMaxWidth';
 import { RichText } from '../take/rich-parts';
 import '../take/take-theme.css';
 import type { FreeAnswers, FreeQuestion } from './freeScoring';
-import { getExam, type FreeSet } from './freeTests';
+import { getExam, type FreeSet, type Mode } from './freeTests';
 
 // The top bar wants the autosave hook's shape; a free test saves nothing, so it gets an idle stub.
 const NO_AUTOSAVE: UseAutosaveResult = {
@@ -41,6 +41,8 @@ const NO_AUTOSAVE: UseAutosaveResult = {
 
 export function FreeRunner({
   set,
+  mode,
+  banner,
   questions,
   endsAt,
   answers,
@@ -48,6 +50,9 @@ export function FreeRunner({
   onFinish,
 }: {
   set: FreeSet;
+  mode: Mode;
+  /** Sits inside the grid between the top bar and the progress row (the runner is 100dvh: a sibling would be below the fold). */
+  banner?: ReactNode;
   questions: FreeQuestion[];
   endsAt: string;
   answers: FreeAnswers;
@@ -64,6 +69,17 @@ export function FreeRunner({
   const [keysOn, setKeysOn] = useKeyShortcuts();
   const [prefs, setPrefs] = useTakePrefs();
   const stripMode = useMaxWidth(900);
+  const isReal = mode === 'real';
+
+  // A refresh or a closed tab loses the run: ask first (both modes).
+  useEffect(() => {
+    const guard = (e: BeforeUnloadEvent): void => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', guard);
+    return () => window.removeEventListener('beforeunload', guard);
+  }, []);
   const examTitle = getExam(set.exam)?.title.toLowerCase() ?? set.exam;
   const sectionIndex = (q: FreeQuestion): number => Math.max(0, set.sections.findIndex((x) => x.id === q.section));
 
@@ -150,7 +166,7 @@ export function FreeRunner({
     <div
       className="aiq-screen aiq-attempt-shell aiq-take-root"
       data-take-theme={prefs.theme}
-      style={{ display: 'grid', gridTemplateRows: 'auto auto minmax(0, 1fr) auto', height: '100dvh', background: 'var(--aiq-color-bg-base)' }}
+      style={{ display: 'grid', gridTemplateRows: 'auto auto auto minmax(0, 1fr) auto', height: '100dvh', background: 'var(--aiq-color-bg-base)' }}
     >
       <AttemptTopBar
         sec={undefined}
@@ -168,11 +184,14 @@ export function FreeRunner({
         candidateName="You"
         candidateId="free"
         assessmentName={`${set.title} ${examTitle} test`}
-        logoHref="/"
+        {...(isReal ? {} : { logoHref: '/' })}
+        fullscreenEnforced={isReal}
         assessmentId={attempt.assessment_id}
         onFinish={summaryOpen ? undefined : () => setSummaryOpen(true)}
-        badge={<Chip variant="warn">Practice</Chip>}
+        badge={<Chip variant="warn">{isReal ? 'Practice · Real' : 'Practice'}</Chip>}
       />
+
+      <div>{banner}</div>
 
       <section aria-label="Progress">
         <ProgressRow items={navigatorItems} safeIdx={idx} answeredCount={answeredCount} onJump={setCurrentId} />

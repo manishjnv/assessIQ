@@ -1,7 +1,7 @@
 ---
 // free-aptitude-test/[set].astro: one page per free set (easy | medium | hard), built at build time.
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { freeSets, mixText } from '../../data/free-aptitude';
+import { freeSets, mixText, modeFaq, realUrl } from '../../data/free-aptitude';
 
 export function getStaticPaths() {
   return freeSets.map((s) => ({ params: { set: s.slug }, props: { set: s } }));
@@ -18,6 +18,7 @@ const faqs = [
   { q: 'Do I need to log in?', a: 'No. There is no login, no form and no email box.' },
   { q: 'Where are my answers kept?', a: 'Your answers stay in your browser.' },
   { q: 'Is this a real test score?', a: 'No. It is practice only. Use it to find your weak topics.' },
+  modeFaq,
 ];
 const faqSchema = {
   '@context': 'https://schema.org',
@@ -67,8 +68,19 @@ const lnk = 'font-sans text-aiq-md text-aiq-accent hover:text-aiq-accent-hover u
       </p>
       <div class="flex flex-wrap items-center gap-aiq-md">
         <a href={set.url} class={btn}>Start the test</a>
+        <a href={realUrl(set.url)} class={btn}>Start in Real mode</a>
       </div>
       <p class="font-sans text-aiq-sm text-aiq-fg-muted mt-aiq-md mb-0">Practice only. It is not a real test score. Your answers stay in your browser.</p>
+    </div>
+  </section>
+
+  <section class="bg-aiq-bg-base border-b border-aiq-border" aria-labelledby="modes-heading">
+    <div class="max-w-6xl mx-auto px-aiq-xl py-aiq-4xl">
+      <h2 id="modes-heading" class="font-serif text-aiq-3xl font-normal tracking-aiq-tight text-aiq-fg-primary mb-aiq-md mt-0">Mock or Real mode</h2>
+      <ul class="m-0 pl-aiq-xl max-w-3xl flex flex-col gap-aiq-md font-sans text-aiq-md text-aiq-fg-secondary leading-relaxed">
+        <li><span class="font-medium text-aiq-fg-primary">Mock:</span> see your score, the right answers and an explanation for every question at the end.</li>
+        <li><span class="font-medium text-aiq-fg-primary">Real:</span> the same screen as a real assessment. No answers until you ask. Practice copy, not proctored.</li>
+      </ul>
     </div>
   </section>
 

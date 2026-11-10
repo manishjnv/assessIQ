@@ -9,10 +9,19 @@
 // The pickers, the runner, the result screen, best-score storage and the tests read this registry only.
 
 import { APTITUDE } from './freeAptitude';
-import type { FreeExam, FreeSet, Level, PoolItem } from './freeTypes';
+import type { FreeExam, FreeSet, Level, Mode, PoolItem } from './freeTypes';
 import type { FreeQuestion } from './freeScoring';
 
-export type { FreeExam, FreeSet, FreeSection, Level, PoolItem } from './freeTypes';
+export type { FreeExam, FreeSet, FreeSection, Level, Mode, PoolItem } from './freeTypes';
+
+export const ALL_MODES: Mode[] = ['mock', 'real'];
+/** The two modes of a free test. Real is without camera: organisations add a camera in their own assessments. */
+export const FREE_MODES: Record<Mode, { label: string; subtitle: string }> = {
+  mock: { label: 'Mock', subtitle: 'answers and explanations at the end' },
+  real: { label: 'Real', subtitle: 'real-exam mode, practice copy' },
+};
+/** ?mode= value to a Mode. Absent, unknown or not offered by the exam = mock. */
+export const parseMode = (raw: string | null, allowed: Mode[] = ALL_MODES): Mode => (raw === 'real' && allowed.includes('real') ? 'real' : 'mock');
 
 export const FREE_EXAMS: Record<string, FreeExam> = {
   [APTITUDE.slug]: APTITUDE,
@@ -35,7 +44,7 @@ export const itemsPerAttempt = (set: FreeSet): number => set.sections.reduce((n,
 
 /** Where the end button goes. true = SIGNUP_ENABLED is true on the API (checked on the VPS 2026-11-10); set false to send people to /contact. */
 export const SIGNUP_OPEN = true;
-export const END_HREF = SIGNUP_OPEN ? '/signup?src=try' : '/contact?src=try';
+export const endHref = (mode: Mode): string => `${SIGNUP_OPEN ? '/signup' : '/contact'}?src=${mode === 'real' ? 'try-real' : 'try'}`;
 
 export const landingBase = (exam: string): string => `https://assessiq.in/free-${exam}-test`;
 export const landingUrl = (set: FreeSet): string => `${landingBase(set.exam)}/${set.slug}`;
@@ -137,29 +146,57 @@ export function paceLine(percent: number, usedSeconds: number, limitSeconds: num
 }
 
 /** Plain text for WhatsApp: headline plus an emoji row (one square per item, in order) and the landing link. */
-export function shareText(set: FreeSet, correctFlags: boolean[], usedSeconds: number): string {
+export function shareText(set: FreeSet, correctFlags: boolean[], usedSeconds: number, mode: Mode = 'mock'): string {
   const right = correctFlags.filter(Boolean).length;
   const percent = Math.round((right / correctFlags.length) * 100);
   const grid = correctFlags.map((ok) => (ok ? '🟩' : '🟥')).join('');
   const exam = getExam(set.exam)?.title.toLowerCase() ?? set.exam;
-  return `AssessIQ ${set.title} ${exam} test: ${right}/${correctFlags.length} in ${formatClock(usedSeconds)} (${bandFor(percent)})\n${grid}\nTry it free, no login: ${landingUrl(set)}?src=wa`;
+  const kind = mode === 'real' ? `${exam} test, Real mode` : `${exam} test`;
+  return `AssessIQ ${set.title} ${kind}: ${right}/${correctFlags.length} in ${formatClock(usedSeconds)} (${bandFor(percent)})\n${grid}\nTry it free, no login: ${landingUrl(set)}?src=wa`;
 }
 
 export const whatsappLink = (text: string): string => `https://wa.me/?text=${encodeURIComponent(text)}`;
 
-// Best score per exam and set stays in this browser only. localStorage can be blocked: every access is try/catch.
-// Shape: { [exam]: { easy?, medium?, hard? } }. The old key 'aiq-free-aptitude-best' held the aptitude scores flat.
+// Best score per exam, level and mode stays in this browser only. localStorage can be blocked: every access is try/catch.
+// Shape: { [exam]: { [level]: { mock?, real? } } }. Old shapes still read: a bare number at [exam][level] is a mock
+// score, and the old key 'aiq-free-aptitude-best' held flat aptitude mock scores.
 
 const BEST_KEY = 'aiq-free-best';
 const LEGACY_APTITUDE_KEY = 'aiq-free-aptitude-best';
-export type BestScores = Partial<Record<Level, number>>;
+export type ModeBest = Partial<Record<Mode, number>>;
+export type BestScores = Partial<Record<Level, ModeBest>>;
+
+const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
 const pick = (v: unknown): BestScores => {
   const out: BestScores = {};
   if (v == null || typeof v !== 'object') return out;
   for (const l of LEVELS) {
-    const n = (v as Record<string, unknown>)[l];
-    if (typeof n === 'number' && Number.isFinite(n)) out[l] = n;
+    const raw = (v as Record<string, unknown>)[l];
+    const mb: ModeBest = {};
+    const bare = num(raw);
+    if (bare != null) mb.mock = bare;
+    else if (raw != null && typeof raw === 'object') {
+      for (const m of ALL_MODES) {
+        const n = num((raw as Record<string, unknown>)[m]);
+        if (n != null) mb[m] = n;
+      }
+    }
+    if (Object.keys(mb).length > 0) out[l] = mb;
+  }
+  return out;
+};
+
+const merge = (a: BestScores, b: BestScores): BestScores => {
+  const out: BestScores = {};
+  for (const l of LEVELS) {
+    const mb: ModeBest = {};
+    for (const m of ALL_MODES) {
+      const x = a[l]?.[m];
+      const y = b[l]?.[m];
+      if (x != null || y != null) mb[m] = Math.max(x ?? 0, y ?? 0);
+    }
+    if (Object.keys(mb).length > 0) out[l] = mb;
   }
   return out;
 };
@@ -176,15 +213,20 @@ const readJson = (key: string): unknown => {
 export function readBest(exam: string): BestScores {
   const cur = readJson(BEST_KEY);
   const mine = cur != null && typeof cur === 'object' ? pick((cur as Record<string, unknown>)[exam]) : {};
-  if (exam !== 'aptitude') return mine;
-  const out = pick(readJson(LEGACY_APTITUDE_KEY));
-  for (const l of LEVELS) if (mine[l] != null && (out[l] == null || mine[l]! > out[l]!)) out[l] = mine[l]!;
-  return out;
+  return exam === 'aptitude' ? merge(mine, pick(readJson(LEGACY_APTITUDE_KEY))) : mine;
 }
 
-export function saveBest(exam: string, level: Level, percent: number): BestScores {
+/** "Mock 80% · Real 60%" for the modes tried, or null when none. */
+export function bestLine(b: ModeBest | undefined): string | null {
+  const parts = ALL_MODES.filter((m) => b?.[m] != null).map((m) => `${FREE_MODES[m].label} ${b![m]}%`);
+  return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+export function saveBest(exam: string, level: Level, mode: Mode, percent: number): BestScores {
   const mine = readBest(exam);
-  if (mine[level] == null || percent > mine[level]!) mine[level] = percent;
+  const mb: ModeBest = { ...mine[level] };
+  if (mb[mode] == null || percent > mb[mode]!) mb[mode] = percent;
+  mine[level] = mb;
   try {
     const cur = readJson(BEST_KEY);
     const all = cur != null && typeof cur === 'object' ? { ...(cur as Record<string, unknown>) } : {};
