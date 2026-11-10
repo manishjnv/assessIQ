@@ -25,7 +25,7 @@
  * 'duplicate' by stageImport (one set-based query) and skipped, so a re-run is idempotent.
  * --publish (needs --commit) publishes the pack at the end through publishPack.
  *
- * Attribution: the oldest active admin of the tenant (same rule as aiq-import-pack.ts).
+ * Attribution: the oldest active admin or super_admin of the tenant (same rule as aiq-import-pack.ts).
  * BYPASSRLS use: the same two pre-tenant lookups as the pack tool (tenant slug, admin).
  * The pack lookup by name runs inside withTenant (RLS on).
  *
@@ -324,7 +324,7 @@ async function realDeps(): Promise<{ deps: Deps; close: () => Promise<void> }> {
     resolveTenant: async (slug) => (await one<{ id: string }>(`SELECT id FROM tenants WHERE slug = $1 LIMIT 1`, [slug]))?.id ?? null,
     resolveAdmin: async (tenantId) =>
       (await one<{ id: string }>(
-        `SELECT id FROM users WHERE tenant_id = $1 AND role = 'admin' AND status = 'active' AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1`,
+        `SELECT id FROM users WHERE tenant_id = $1 AND role IN ('admin', 'super_admin') AND status = 'active' AND deleted_at IS NULL ORDER BY created_at ASC LIMIT 1`,
         [tenantId],
       ))?.id ?? null,
     preview: (t, m, p) => previewImport(t, m, p),
