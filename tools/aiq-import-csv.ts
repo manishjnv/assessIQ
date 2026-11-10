@@ -176,6 +176,17 @@ export interface DryRunOut {
   files_over_limits: Array<{ file: string; reason: string }>;
 }
 
+/** Public free range guard: seed k 900,000-999,999 of any level (seed % 1,000,000 >= 900,000) belongs to the free public set and is never imported here. */
+export function publicRangeErrors(parsed: ParseResult): Array<{ row: number; column: string; message: string }> {
+  const out: Array<{ row: number; column: string; message: string }> = [];
+  for (const p of parsed.rows) {
+    const m = /seed=(\d+)/.exec(p.cells["seed_ref"] ?? "");
+    if (m && Number(m[1]) % 1_000_000 >= 900_000) out.push({ row: p.row, column: "seed_ref", message: `public free range: seed ${m[1]} is reserved for the free public set` });
+    if ((p.cells["origin"] ?? "").trim() === "free_public") out.push({ row: p.row, column: "origin", message: "public free range: origin free_public is not importable" });
+  }
+  return out;
+}
+
 export async function dryRun(args: Args, deps: Deps): Promise<{ report: DryRunOut; exitCode: number }> {
   const files = await loadFiles(args, deps);
   const tenantId = await deps.resolveTenant(args.tenant);
@@ -207,7 +218,7 @@ export async function dryRun(args: Args, deps: Deps): Promise<{ report: DryRunOu
     }
     const pv = await deps.preview(tenantId, metaOf(args, f), parsed);
     const errs = pv.rows.flatMap((r) => r.errors.map((e) => ({ file: f.name, row: e.row, column: e.column, message: e.message })));
-    report.row_errors.push(...errs);
+    report.row_errors.push(...errs, ...publicRangeErrors(parsed).map((e) => ({ file: f.name, ...e })));
     report.rows += pv.rows.length;
     report.files.push({
       file: f.name, rows: pv.rows.length,
@@ -264,6 +275,13 @@ export async function commitRun(args: Args, deps: Deps): Promise<{ report: Commi
         parsed = await parseImportFile("csv", f.data);
       } catch (e) {
         throw toCliError(e);
+      }
+      const pubErr = publicRangeErrors(parsed);
+      if (pubErr.length > 0) {
+        report.files.push({ file: f.name, inserted: 0, skipped_existing: 0, errors: pubErr.length, error_rows: pubErr });
+        report.total.errors += pubErr.length;
+        exitCode = 3;
+        break;
       }
       const packId = await deps.findPack(tenantId, args.packName); // never two packs with one name
       const staged = await deps.stage(tenantId, adminId, metaOf(args, f, packId ?? undefined), parsed);

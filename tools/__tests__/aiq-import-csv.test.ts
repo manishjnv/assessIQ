@@ -81,6 +81,22 @@ describe("dryRun", () => {
     expect(d.calls).toEqual([]); // nothing staged
   });
 
+  it("rejects a public free range seed (seed % 1,000,000 >= 900,000) as a row error, exit 3", async () => {
+    const { report, exitCode } = await dryRun(args(), fakes({ "a.csv": csv(`mcq,Ages,q1,${ref(2_900_000)}`, `mcq,Ages,q2,${ref(2_899_999)}`) }));
+    expect(exitCode).toBe(3);
+    expect(report.row_errors).toHaveLength(1);
+    expect(report.row_errors[0]).toMatchObject({ file: "a.csv", row: 2, column: "seed_ref" });
+    expect(report.row_errors[0]!.message).toContain("public free range");
+  });
+
+  it("commit refuses a public free range row before staging", async () => {
+    const d = fakes({ "a.csv": csv(`mcq,Ages,q1,${ref(900_000)}`) });
+    const { exitCode, report } = await commitRun(args({ commit: true }), d);
+    expect(exitCode).toBe(3);
+    expect(report.total.errors).toBe(1);
+    expect(d.calls.some((c) => c.startsWith("stage"))).toBe(false);
+  });
+
   it("exits 0 when every row is clean", async () => {
     const { exitCode, report } = await dryRun(args(), fakes({ "a.csv": csv(`mcq,Ages,q1,${ref(1)}`) }));
     expect(exitCode).toBe(0);
