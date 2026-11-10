@@ -272,7 +272,7 @@ async function realDeps(): Promise<{ deps: Deps; close: () => Promise<void> }> {
   const { commitImport } = await import("../modules/04-question-bank/src/import/commit.js");
   const { publishPack } = await import("../modules/04-question-bank/src/service/packs.js");
   const one = async <T extends Record<string, unknown>>(sql: string, params: unknown[]): Promise<T | null> => {
-    const c = new Client({ connectionString: config.DATABASE_URL }); // system role, BYPASSRLS (pre-tenant lookups only)
+    const c = new Client({ connectionString: config.SYSTEM_DATABASE_URL ?? config.DATABASE_URL }); // system role, BYPASSRLS (pre-tenant lookups only): in production DATABASE_URL is the RLS-bound app login (FUT-10), SYSTEM_DATABASE_URL is the BYPASSRLS login
     await c.connect();
     try {
       return ((await c.query<T>(sql, params)).rows[0] as T | undefined) ?? null;
