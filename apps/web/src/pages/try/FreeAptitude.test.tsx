@@ -44,7 +44,7 @@ describe('/try/aptitude/:set', () => {
       const heading = document.querySelector('h1')!.textContent!;
       const item = pool.find((i) => i.prompt === heading);
       expect(item, heading).toBeTruthy();
-      fireEvent.click(screen.getByLabelText(new RegExp(item!.options[item!.correct]!.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))));
+      fireEvent.click(screen.getAllByRole('radio')[item!.correct]!);
     }
     fireEvent.click(screen.getByText('Submit assessment'));
     fireEvent.click(document.querySelector('[data-test-id="try-confirm-submit"]')!);
